@@ -33,20 +33,26 @@ jobs:
       - name: Install Python 3.14
         run: uv python install 3.14
 
-      - name: Resolve and sync environment
-        run: uv sync
+      - name: Check dependency lock
+        run: uv lock --check
+
+      - name: Sync locked environment
+        run: uv sync --locked
 
       - name: Lint
-        run: uv run ruff check .
+        run: uv run --locked ruff check .
 
       - name: Format check
-        run: uv run ruff format --check .
+        run: uv run --locked ruff format --check .
 
       - name: Type check
-        run: uv run mypy
+        run: uv run --locked mypy
 
       - name: Test
-        run: uv run pytest --cov=industrial_phm --cov-report=term-missing
+        run: uv run --locked pytest --cov=industrial_phm --cov-report=term-missing
 
       - name: Build package
         run: uv build
+
+      - name: Verify packaged license
+        run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'

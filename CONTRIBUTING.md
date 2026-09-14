@@ -7,18 +7,22 @@
 
 ```bash
 uv python install 3.14
-uv sync
+uv lock --check
+uv sync --locked
 ```
 
 변경 제출 전:
 
 ```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
-uv run pytest
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked mypy
+uv run --locked pytest
 uv build
 ```
+
+의존성을 추가·제거·변경할 때는 `pyproject.toml`을 수정한 뒤 `uv lock`으로 `uv.lock`을 갱신하고
+두 파일을 같은 변경 단위로 commit합니다. 일반 개발과 CI에서는 lockfile을 암묵적으로 갱신하지 않습니다.
 
 ## Branches
 
@@ -88,17 +92,19 @@ PR 제목도 같은 형식을 사용합니다.
 <type>(<scope>): <PR의 목적>
 ```
 
-PR 본문에는 다음을 남깁니다.
+PR 본문은 변경에 필요한 맥락만 남깁니다. 기본 구조는 다음과 같습니다.
 
-- 목적과 문제 정의
-- 주요 변경
-- 설계 결정 및 고려한 대안
-- 수행한 검증
-- compatibility/API/data/artifact 영향
-- 관련 ADR
-- 의도적으로 제외한 후속 작업
+```text
+## 목적
+## 주요 변경
+## 설계 결정
+## 검증
+## 관련 ADR
+```
 
-PR은 여러 기능을 한 번에 묶는 release container가 아니라 **하나의 리뷰 가능한 변화 단위**가 되어야 합니다.
+설계 결정이나 관련 ADR이 없는 작은 변경에서는 해당 섹션을 생략합니다. PR template을 채우기 위해
+불필요한 영향 범위나 후속 작업 목록을 반복하지 않습니다. PR은 여러 기능을 한 번에 묶는 release
+container가 아니라 **하나의 리뷰 가능한 변화 단위**가 되어야 합니다.
 
 ## ADR
 

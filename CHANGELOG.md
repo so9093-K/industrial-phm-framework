@@ -12,3 +12,5 @@
 - 구조적 `DomainAdapter` protocol과 contract test 기반.
 - 초기 시스템, 모델 학습/평가, 서비스 아키텍처 문서.
 - ADR, 기여 규칙, CI 및 품질 검증 체계.
+- Apache License 2.0 라이선스 정책과 배포 메타데이터.
+- Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.

@@ -8,7 +8,8 @@ version = "0.1.0"
 description = "Modular PHM framework for heterogeneous industrial time-series data."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
-license = "LicenseRef-Proprietary"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
   { name = "so9093-K" },
 ]

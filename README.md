@@ -36,17 +36,20 @@
 ## Development
 
 [uv](https://docs.astral.sh/uv/)를 프로젝트 및 dependency 관리 도구로 사용합니다.
+저장소의 `uv.lock`을 재현 가능한 개발 환경의 기준선으로 취급합니다.
 
 ```bash
 uv python install 3.14
-uv sync
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy
-uv run pytest
+uv lock --check
+uv sync --locked
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked mypy
+uv run --locked pytest
 uv build
 ```
 
+의존성을 변경할 때는 `pyproject.toml`과 함께 `uv.lock`을 갱신하고 같은 변경 단위로 commit합니다.
 커밋, PR, 테스트 및 문서화 규칙은 [`CONTRIBUTING.md`](CONTRIBUTING.md)를 따릅니다.
 중요한 구조 결정은 [`docs/adr`](docs/adr)에 ADR로 남깁니다.
 
@@ -85,6 +88,7 @@ uv build
 - 기여 및 커밋/PR 규칙: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - 보안 정책: [`SECURITY.md`](SECURITY.md)
 - Architecture decisions: [`docs/adr`](docs/adr)
+- 라이선스: [`Apache License 2.0`](LICENSE)
 
-현재 저장소는 private이며 공개 라이선스는 아직 결정하지 않았습니다. 외부 공개 전에 코드와 데이터셋,
-모델, 제3자 자산의 라이선스를 각각 검토합니다.
+프로젝트 소스 코드는 Apache License 2.0으로 배포합니다. 데이터셋, 사전학습 모델, 제3자 코드 및 자산은
+각 원저작자의 라이선스와 이용조건을 별도로 따르며, 도입 시 provenance와 호환성을 검토합니다.
