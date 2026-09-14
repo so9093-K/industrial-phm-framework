@@ -15,7 +15,8 @@ build 명령을 일관되게 유지할 필요가 있습니다.
 bootstrap PR에서는 lockfile을 수작업으로 생성하지 않고 CI에서 dependency resolution을 검증합니다.
 lockfile이 추가된 이후 CI는 `uv sync --locked`로 drift를 차단합니다.
 
-현재 uv toolchain 범위는 `>=0.10,<0.11`로 제한하며 변경 시 CI와 lockfile을 함께 검증합니다.
+초기 toolchain은 검토 시점의 최신 안정 계열인 uv `0.12.x`로 제한합니다. toolchain 범위를 변경할 때는
+CI와 lockfile 재현성을 함께 검증합니다.
 
 ## Alternatives Considered
 
