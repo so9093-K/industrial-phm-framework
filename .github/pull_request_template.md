@@ -6,32 +6,24 @@
 
 - 
 
-## 설계 결정 / 고려한 대안
+## 설계 결정
+
+<!-- 장기적으로 남길 가치가 있는 결정이 있을 때만 작성합니다. 없으면 이 섹션을 삭제합니다. -->
 
 - 
 
 ## 검증
 
-- [ ] `uv sync`
-- [ ] `uv run ruff check .`
-- [ ] `uv run ruff format --check .`
-- [ ] `uv run mypy`
-- [ ] `uv run pytest`
+- [ ] `uv lock --check`
+- [ ] `uv sync --locked`
+- [ ] `uv run --locked ruff check .`
+- [ ] `uv run --locked ruff format --check .`
+- [ ] `uv run --locked mypy`
+- [ ] `uv run --locked pytest`
 - [ ] `uv build`
-
-## 영향 범위
-
-- [ ] Public Python API
-- [ ] 데이터 계약 / schema
-- [ ] 모델 또는 artifact compatibility
-- [ ] Python / dependency compatibility
-- [ ] CI / build / release
-- [ ] 문서만 변경
 
 ## 관련 ADR
 
+<!-- 관련 ADR이 없으면 이 섹션을 삭제합니다. -->
+
 - 없음
-
-## 후속 작업
-
-<!-- 이번 PR에서 의도적으로 제외한 작업을 기록합니다. -->
