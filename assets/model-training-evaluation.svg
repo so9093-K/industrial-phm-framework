@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">모델 학습 및 평가 파이프라인</title>
+  <desc id="desc">입력 데이터부터 전처리, 데이터 분할, 모델 학습, 평가, 비교와 모델 선정까지의 흐름</desc>
+  <rect width="1200" height="675" fill="#ffffff"/>
+  <style>
+    .title{font:700 34px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#172033}.box{fill:#f8fafc;stroke:#64748b;stroke-width:2}.accent{fill:#eef2ff;stroke:#4f46e5;stroke-width:2}.txt{font:600 19px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#172033;text-anchor:middle}.sub{font:500 14px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#475569;text-anchor:middle}.arrow{stroke:#64748b;stroke-width:3;fill:none;marker-end:url(#a)}
+  </style>
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#64748b"/></marker></defs>
+  <text x="600" y="62" class="title" text-anchor="middle">모델 학습 및 평가 파이프라인</text>
+
+  <rect x="45" y="255" rx="16" width="145" height="100" class="box"/>
+  <text x="117" y="313" class="txt">입력 데이터</text>
+
+  <rect x="230" y="255" rx="16" width="155" height="100" class="box"/>
+  <text x="307" y="300" class="txt">전처리</text>
+  <text x="307" y="329" class="sub">Feature Engineering</text>
+
+  <rect x="425" y="255" rx="16" width="165" height="100" class="box"/>
+  <text x="507" y="300" class="txt">데이터 분할</text>
+  <text x="507" y="329" class="sub">Train · Validation · Test</text>
+
+  <rect x="635" y="155" rx="16" width="180" height="100" class="accent"/>
+  <text x="725" y="200" class="txt">Isolation Forest</text>
+  <text x="725" y="229" class="sub">Baseline</text>
+
+  <rect x="635" y="350" rx="16" width="180" height="100" class="accent"/>
+  <text x="725" y="395" class="txt">LSTM Autoencoder</text>
+  <text x="725" y="424" class="sub">Main Model</text>
+
+  <rect x="860" y="255" rx="16" width="145" height="100" class="box"/>
+  <text x="932" y="300" class="txt">평가</text>
+  <text x="932" y="329" class="sub">Detection · Prognostics</text>
+
+  <rect x="1045" y="205" rx="16" width="120" height="85" class="box"/>
+  <text x="1105" y="255" class="txt">모델 비교</text>
+
+  <rect x="1045" y="355" rx="16" width="120" height="85" class="box"/>
+  <text x="1105" y="405" class="txt">모델 선정</text>
+
+  <path d="M190 305H230" class="arrow"/><path d="M385 305H425" class="arrow"/>
+  <path d="M590 285C615 285 615 205 635 205" class="arrow"/><path d="M590 325C615 325 615 400 635 400" class="arrow"/>
+  <path d="M815 205C840 205 840 285 860 285" class="arrow"/><path d="M815 400C840 400 840 325 860 325" class="arrow"/>
+  <path d="M1005 285C1025 285 1025 247 1045 247" class="arrow"/><path d="M1105 290V355" class="arrow"/>
+</svg>

@@ -12,6 +12,8 @@
 
 ## Architecture
 
+![System Architecture](assets/system-architecture.svg)
+
 아키텍처의 현재 기준선과 각 계층의 책임은
 [`docs/architecture/overview.md`](docs/architecture/overview.md)에 유지합니다.
 
@@ -58,6 +60,7 @@ uv build
 ```text
 .
 ├── .github/                # CI 및 협업 템플릿
+├── assets/                 # README·발표용 아키텍처 자산
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   └── adr/                # Architecture Decision Records
