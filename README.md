@@ -12,9 +12,8 @@
 
 ## Architecture
 
-![System Architecture](assets/system-architecture.webp)
-
-세부 다이어그램은 [`docs/architecture/overview.md`](docs/architecture/overview.md)에서 확인할 수 있습니다.
+아키텍처의 현재 기준선과 각 계층의 책임은
+[`docs/architecture/overview.md`](docs/architecture/overview.md)에 유지합니다.
 
 ## Design Principles
 
@@ -56,7 +55,6 @@ uv build
 ```text
 .
 ├── .github/                # CI 및 협업 템플릿
-├── assets/                 # 아키텍처 다이어그램 등 정적 자산
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   └── adr/                # Architecture Decision Records

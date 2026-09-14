@@ -10,5 +10,5 @@
 - Python 3.14 기반 `src` layout과 uv project foundation.
 - 공통 `CanonicalTimeSeries` 데이터 계약.
 - 구조적 `DomainAdapter` protocol과 contract test 기반.
-- 초기 시스템, 모델 학습/평가, 서비스 아키텍처 문서와 다이어그램.
+- 초기 시스템, 모델 학습/평가, 서비스 아키텍처 문서.
 - ADR, 기여 규칙, CI 및 품질 검증 체계.
