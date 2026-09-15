@@ -12,7 +12,7 @@
 
 ## Architecture
 
-![System Architecture](assets/system-architecture.png)
+![System Architecture](assets/system-architecture.webp)
 
 아키텍처의 현재 기준선과 각 계층의 책임은
 [`docs/architecture/overview.md`](docs/architecture/overview.md)에 유지합니다.
