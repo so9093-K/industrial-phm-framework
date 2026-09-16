@@ -76,3 +76,14 @@ def test_cli_inspects_manual_dataset_source(
     assert "source kind: directory" in output
     assert "files: 1" in output
     assert "upstream authenticity is not verified" in output
+
+
+def test_cli_rejects_empty_dataset_source(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["data", "inspect", "xjtu-sy", "--source", str(tmp_path)]) == 1
+
+    captured = capsys.readouterr()
+    assert "files: 0" in captured.out
+    assert "empty local source" in captured.err
