@@ -44,7 +44,9 @@ class XjtuSyAdapter:
             path for path in source.iterdir() if path.is_dir() and not path.name.startswith(".")
         ]
         if not condition_dirs:
-            raise XjtuSySourceError(f"XJTU-SY source contains no operating-condition directories: {source}")
+            raise XjtuSySourceError(
+                f"XJTU-SY source contains no operating-condition directories: {source}"
+            )
 
         for condition_dir in sorted(condition_dirs, key=_condition_sort_key):
             speed_hz, load_kn = _parse_condition_name(condition_dir.name)
@@ -153,7 +155,8 @@ def _read_acquisition(
 
             if header != _EXPECTED_HEADER:
                 raise XjtuSySourceError(
-                    f"unexpected XJTU-SY CSV header for {path}: expected {_EXPECTED_HEADER}, got {header}"
+                    "unexpected XJTU-SY CSV header for "
+                    f"{path}: expected {_EXPECTED_HEADER}, got {header}"
                 )
 
             for line_number, row in enumerate(reader, start=2):
@@ -168,7 +171,9 @@ def _read_acquisition(
                         f"non-numeric XJTU-SY vibration value at {path}:{line_number}"
                     ) from error
     except OSError as error:
-        raise XjtuSySourceError(f"failed to read XJTU-SY acquisition CSV {path}: {error}") from error
+        raise XjtuSySourceError(
+            f"failed to read XJTU-SY acquisition CSV {path}: {error}"
+        ) from error
 
     if len(values) != _EXPECTED_SAMPLE_COUNT:
         raise XjtuSySourceError(
