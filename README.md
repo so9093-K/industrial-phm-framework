@@ -83,11 +83,31 @@ uv run industrial-phm data verify ai4i-2020
 
 XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자동화 조건을 추가 확인해야 하는 데이터셋은
 `manual` provider로 등록합니다. 이 경우 CLI가 공식 source를 안내하며 package 설치/import 과정에서 임의로
-데이터를 다운로드하지 않습니다. 기본 데이터 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수
-있습니다.
+데이터를 다운로드하지 않습니다. 사용자가 직접 받은 local source는 별도로 확인할 수 있습니다.
 
-데이터셋 선정 근거와 provenance 주의사항은
-[`docs/research/dataset-selection.md`](docs/research/dataset-selection.md)를 참조합니다.
+```bash
+uv run industrial-phm data inspect xjtu-sy --source /path/to/XJTU-SY
+```
+
+기본 데이터 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수 있습니다. 데이터셋 선정 근거와
+provenance 주의사항은 [`docs/research/dataset-selection.md`](docs/research/dataset-selection.md)를 참조합니다.
+
+## Research Workflow
+
+`notebooks/`는 실제 산업 데이터를 관찰하고 EDA·contract 검증·모델 PoC를 수행하는 Research UX 공간입니다.
+Notebook은 production pipeline의 두 번째 구현이나 실험 결과의 Source of Truth가 아니며, 반복 가능한 로직은
+`src/industrial_phm/`로 승격합니다.
+
+프로젝트 환경은 lockfile 기준으로 준비하고 Jupyter는 현재 일회성 연구 도구로 실행합니다.
+
+```bash
+uv sync --locked
+uv run --with jupyter jupyter lab
+```
+
+첫 notebook은 XJTU-SY local source의 inventory와 최상위 구조를 확인하는 데만 사용합니다. 실제 파일 구조를
+관찰하기 전에 EDA/model notebook이나 새로운 contract abstraction을 미리 만들지 않습니다. Notebook 운영 규칙과
+현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를 참조합니다.
 
 ## Repository Layout
 
@@ -100,6 +120,7 @@ XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자�
 │   ├── product/            # 사용자 역할과 결과 UX 기준
 │   ├── research/           # 데이터셋·benchmark 조사
 │   └── adr/                # Architecture Decision Records
+├── notebooks/              # EDA·contract 검증·모델 PoC용 Research UX
 ├── src/industrial_phm/
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
@@ -119,7 +140,7 @@ XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자�
 - repository/package/CI foundation과 `0.0.1` 개발 기준선
 - `CanonicalTimeSeries` v0.1과 `DomainAdapter` 경계
 - 공개 PHM 데이터셋 조사 및 XJTU-SY primary / MIMII DUE secondary 역할 정의
-- dataset registry와 명시적 `fetch`/`verify` CLI 기반
+- dataset registry와 명시적 `fetch`/`verify`/`inspect` CLI 기반
 - 아키텍처·Source of Truth·testing·UX/XAI 운영 원칙
 
 ### Current
