@@ -1,14 +1,15 @@
-"""Reusable integrity checks for acquired dataset files."""
+"""Reusable integrity and local-source checks for acquired dataset data."""
 
 from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 
 class DatasetIntegrityError(ValueError):
-    """Raised when an acquired file fails an explicit integrity check."""
+    """Raised when an acquired dataset source fails an explicit integrity check."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,16 @@ class FileIntegrity:
     path: Path
     size_bytes: int
     sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class SourceInspection:
+    """Observed inventory summary for a local dataset source path."""
+
+    path: Path
+    kind: Literal["file", "directory"]
+    file_count: int
+    total_bytes: int
 
 
 def inspect_file(path: Path) -> FileIntegrity:
@@ -32,6 +43,35 @@ def inspect_file(path: Path) -> FileIntegrity:
             digest.update(chunk)
 
     return FileIntegrity(path=path, size_bytes=path.stat().st_size, sha256=digest.hexdigest())
+
+
+def inspect_source(path: Path) -> SourceInspection:
+    """Summarize a local file or directory without claiming upstream authenticity."""
+
+    if path.is_file():
+        return SourceInspection(
+            path=path,
+            kind="file",
+            file_count=1,
+            total_bytes=path.stat().st_size,
+        )
+
+    if not path.is_dir():
+        raise DatasetIntegrityError(f"dataset source does not exist: {path}")
+
+    file_count = 0
+    total_bytes = 0
+    for entry in path.rglob("*"):
+        if entry.is_file():
+            file_count += 1
+            total_bytes += entry.stat().st_size
+
+    return SourceInspection(
+        path=path,
+        kind="directory",
+        file_count=file_count,
+        total_bytes=total_bytes,
+    )
 
 
 def verify_sha256(path: Path, expected_sha256: str) -> FileIntegrity:
