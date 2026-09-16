@@ -8,7 +8,7 @@
 생성형 AI는 PHM 모델의 예측을 대신하지 않고, 구조화된 분석 결과를 해석하고 정비 의사결정을
 지원하는 상위 계층으로 통합합니다.
 
-> 현재 상태: repository foundation / pre-alpha (`0.1.0`)
+> 현재 상태: repository foundation / pre-alpha (`0.0.1`)
 
 ## Architecture
 
