@@ -1,0 +1,7 @@
+id = "xjtu-sy"
+title = "XJTU-SY Bearing Datasets"
+version = "official-publication"
+provider = "manual"
+source_url = "https://github.com/WangBiaoXJTU/xjtu-sy-bearing-datasets"
+citation_doi = "10.1109/TR.2018.2882682"
+license = "Verify original reuse and redistribution terms before use"
