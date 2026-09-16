@@ -9,3 +9,4 @@
 - [Dataset Selection and Acquisition Research](dataset-selection.md)
 - [XJTU-SY Local Source Profile](xjtu-source-profile.md)
 - [XJTU-SY Reference Experiment Protocol](xjtu-experiment-protocol.md)
+- [XJTU-SY Feature & Degradation Characterization](xjtu-feature-characterization.md)

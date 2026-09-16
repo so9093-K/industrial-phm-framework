@@ -28,12 +28,17 @@
   `industrial-phm data validate xjtu-sy` 흐름.
 - XJTU-SY 첫 numerical baseline을 위한 condition-stratified 5-fold bearing-run split manifest와
   leakage-prevention experiment protocol.
+- acquisition별 channel 통계와 provenance를 보존하는 versioned `vibration-statistical-v1` feature foundation.
+- correlation 하나에 종속되지 않고 lifecycle·condition·redundancy·run imbalance를 함께 보는 XJTU feature /
+  degradation characterization research protocol.
 
 ### Changed
 
 - `CanonicalTimeSeries`가 regular sampling rate를 제공하는 경우 explicit sample `timestamps` 없이도 waveform segment를 표현할 수 있도록 확장했습니다.
 - 초기 수동 XJTU directory/schema 검증을 반복 가능한 production validator로 승격하고 Notebook은 같은 검증을
   재구현하지 않도록 research workflow를 정리했습니다.
+- XJTU experiment protocol이 stateless feature extraction과 data-derived feature/reference selection을 구분하고,
+  test trajectory를 이용한 post-hoc tuning도 leakage로 취급하도록 연구 경계를 명확히 했습니다.
 
 ### Fixed
 
