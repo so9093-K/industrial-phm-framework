@@ -10,7 +10,7 @@ from industrial_phm.experiments import (
     XjtuFeatureCharacterizationError,
     write_xjtu_characterization_artifacts,
 )
-from industrial_phm.features import extract_vibration_features
+from industrial_phm.features import VibrationFeatureVector, extract_vibration_features
 
 
 def _vector(
@@ -19,7 +19,7 @@ def _vector(
     operating_condition: str,
     acquisition_index: int,
     scale: float,
-):
+) -> VibrationFeatureVector:
     series = CanonicalTimeSeries(
         asset_id=asset_id,
         timestamps=None,
