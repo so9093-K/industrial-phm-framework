@@ -182,7 +182,5 @@ def _run_data_verify(args: argparse.Namespace) -> int:
     print(f"bytes: {integrity.size_bytes}")
     print(f"sha256: {integrity.sha256}")
     if manifest.sha256 is None:
-        print(
-            "integrity note: no checksum is pinned in the manifest; local digest only"
-        )
+        print("integrity note: no checksum is pinned in the manifest; local digest only")
     return 0
