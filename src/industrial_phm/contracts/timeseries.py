@@ -14,6 +14,9 @@ class CanonicalTimeSeries:
 
     The contract deliberately contains only domain-neutral fields. Dataset-specific
     details belong in ``metadata`` or remain inside the domain adapter.
+
+    Mutable input containers are copied into immutable tuples at construction time so
+    validated invariants cannot be invalidated later by caller-side mutation.
     """
 
     asset_id: str
@@ -26,26 +29,38 @@ class CanonicalTimeSeries:
     metadata: Mapping[str, str | int | float | bool | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        timestamps = tuple(self.timestamps)
+        channels = tuple(self.channels)
+        values = tuple(tuple(row) for row in self.values)
+        labels = tuple(self.labels) if self.labels is not None else None
+        rul = tuple(self.rul) if self.rul is not None else None
+        metadata = MappingProxyType(dict(self.metadata))
+
         if not self.asset_id.strip():
             raise ValueError("asset_id must not be empty")
-        if not self.channels:
+        if not channels:
             raise ValueError("channels must contain at least one channel")
-        if len(set(self.channels)) != len(self.channels):
+        if len(set(channels)) != len(channels):
             raise ValueError("channels must be unique")
-        if len(self.timestamps) != len(self.values):
+        if len(timestamps) != len(values):
             raise ValueError("timestamps and values must have the same number of samples")
         if self.sampling_rate_hz is not None and self.sampling_rate_hz <= 0:
             raise ValueError("sampling_rate_hz must be positive when provided")
 
-        channel_count = len(self.channels)
-        for row in self.values:
+        channel_count = len(channels)
+        for row in values:
             if len(row) != channel_count:
                 raise ValueError("each values row must match the number of channels")
 
-        sample_count = len(self.timestamps)
-        if self.labels is not None and len(self.labels) != sample_count:
+        sample_count = len(timestamps)
+        if labels is not None and len(labels) != sample_count:
             raise ValueError("labels must align with timestamps when provided")
-        if self.rul is not None and len(self.rul) != sample_count:
+        if rul is not None and len(rul) != sample_count:
             raise ValueError("rul must align with timestamps when provided")
 
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+        object.__setattr__(self, "timestamps", timestamps)
+        object.__setattr__(self, "channels", channels)
+        object.__setattr__(self, "values", values)
+        object.__setattr__(self, "labels", labels)
+        object.__setattr__(self, "rul", rul)
+        object.__setattr__(self, "metadata", metadata)
