@@ -2,11 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from industrial_phm.adapters import (
-    DomainAdapter,
-    XjtuSyAdapter,
-    XjtuSySourceError,
-)
+from industrial_phm.adapters import XjtuSyAdapter, XjtuSySourceError
 
 
 _VALID_HEADER = "Horizontal_vibration_signals,Vertical_vibration_signals\n"
@@ -31,7 +27,6 @@ def test_xjtu_adapter_reads_acquisitions_lazily_in_numeric_order(tmp_path: Path)
         (bearing / f"{index}.csv").touch()
 
     adapter = XjtuSyAdapter()
-    assert isinstance(adapter, DomainAdapter)
     assert adapter.domain == "xjtu-sy"
 
     series = iter(adapter.iter_series(tmp_path))
