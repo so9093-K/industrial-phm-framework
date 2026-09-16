@@ -34,3 +34,27 @@ dataset version, code revision 등 재현과 추론에 필요한 provenance를 �
 
 장기 영향이 있는 선택은 ADR로 남깁니다. 기존 ADR의 역사적 문맥을 지우지 않고, 결정이 바뀌면 새 ADR이
 이전 결정을 supersede하도록 기록합니다.
+
+## 8. Data acquisition is explicit
+
+공개 연구 데이터의 download/cache/verify는 Domain Adapter와 분리합니다. package 설치나 import가 대용량
+데이터를 암묵적으로 내려받지 않으며, acquisition은 사용자가 명시적으로 실행하고 source/version/license/hash를
+추적 가능한 형태로 남깁니다.
+
+## 9. One fact has one authoritative owner
+
+같은 URL, version, threshold, split 또는 dependency 사실을 코드·문서·테스트에 중복 정의하지 않습니다.
+`pyproject.toml`, `uv.lock`, dataset manifest, experiment config, artifact manifest, ADR 등 사실의 성격에 맞는
+권위 있는 위치를 하나 정하고 다른 계층은 이를 참조합니다.
+
+## 10. UX contracts precede UI implementation
+
+Dashboard framework는 결과 계약과 service boundary가 안정된 이후 선택하되, 사용자 역할과 필요한 정보는
+초기부터 검토합니다. CLI도 사용자 인터페이스로 취급하며 명령 구조, 오류 메시지, provenance 확인 경험을
+일관되게 유지합니다.
+
+## 11. Tests justify their maintenance cost
+
+테스트는 public behavior, explicit contract 또는 known regression을 보호해야 합니다. coverage 수치만 높이거나
+private implementation detail을 고정하는 테스트, production validation을 재구현하는 테스트를 만들지 않습니다.
+대형 외부 데이터와 network 검증은 기본 unit/contract suite와 분리합니다.
