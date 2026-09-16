@@ -52,7 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_data_root_argument(data_fetch)
     data_fetch.set_defaults(handler=_run_data_fetch)
 
-    data_verify = data_commands.add_parser("verify", help="inspect or verify a managed dataset archive")
+    data_verify = data_commands.add_parser(
+        "verify",
+        help="inspect or verify a managed dataset archive",
+    )
     data_verify.add_argument("dataset_id")
     _add_data_root_argument(data_verify)
     data_verify.set_defaults(handler=_run_data_verify)
@@ -134,7 +137,7 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
     except ManualAcquisitionRequired as error:
         print(str(error), file=sys.stderr)
         print(
-            "download from the official source, preserve provenance, then use an adapter/import workflow",
+            "download from the official source and preserve provenance before import",
             file=sys.stderr,
         )
         return 2
@@ -179,5 +182,7 @@ def _run_data_verify(args: argparse.Namespace) -> int:
     print(f"bytes: {integrity.size_bytes}")
     print(f"sha256: {integrity.sha256}")
     if manifest.sha256 is None:
-        print("integrity note: no checksum is pinned in the manifest; only local digest was computed")
+        print(
+            "integrity note: no checksum is pinned in the manifest; local digest only"
+        )
     return 0
