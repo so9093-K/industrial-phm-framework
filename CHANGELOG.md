@@ -20,6 +20,7 @@
 - Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
 - `industrial-phm` CLI와 dataset manifest 기반 `data list/status/fetch/verify` acquisition 흐름.
 - 사용자가 직접 획득한 local dataset file/directory의 규모를 확인하는 `data inspect` 흐름.
+- XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible `notebooks/` Research UX 기준선.
 
 ### Fixed
 
