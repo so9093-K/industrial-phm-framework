@@ -51,6 +51,9 @@ jobs:
       - name: Test
         run: uv run --locked pytest --cov=industrial_phm --cov-report=term-missing
 
+      - name: Verify architecture assets
+        run: uv run --locked python scripts/check_architecture_assets.py
+
       - name: Build package
         run: uv build
 
