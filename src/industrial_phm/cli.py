@@ -15,7 +15,12 @@ from industrial_phm.data.acquisition import (
     fetch_dataset,
 )
 from industrial_phm.data.registry import UnknownDatasetError, get_dataset, list_datasets
-from industrial_phm.data.validation import DatasetIntegrityError, inspect_file, verify_sha256
+from industrial_phm.data.validation import (
+    DatasetIntegrityError,
+    inspect_file,
+    inspect_source,
+    verify_sha256,
+)
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
 
@@ -59,6 +64,19 @@ def build_parser() -> argparse.ArgumentParser:
     data_verify.add_argument("dataset_id")
     _add_data_root_argument(data_verify)
     data_verify.set_defaults(handler=_run_data_verify)
+
+    data_inspect = data_commands.add_parser(
+        "inspect",
+        help="inspect a local dataset source without claiming upstream authenticity",
+    )
+    data_inspect.add_argument("dataset_id")
+    data_inspect.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="local file or directory acquired from the registered source",
+    )
+    data_inspect.set_defaults(handler=_run_data_inspect)
 
     return parser
 
@@ -183,4 +201,27 @@ def _run_data_verify(args: argparse.Namespace) -> int:
     print(f"sha256: {integrity.sha256}")
     if manifest.sha256 is None:
         print("integrity note: no checksum is pinned in the manifest; local digest only")
+    return 0
+
+
+def _run_data_inspect(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+        inspection = inspect_source(args.source)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    except (OSError, DatasetIntegrityError) as error:
+        print(f"dataset inspection failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {manifest.dataset_id}")
+    print(f"title: {manifest.title}")
+    print(f"provider: {manifest.provider}")
+    print(f"official source: {manifest.source_url}")
+    print(f"local source: {inspection.path}")
+    print(f"source kind: {inspection.kind}")
+    print(f"files: {inspection.file_count}")
+    print(f"bytes: {inspection.total_bytes}")
+    print("inspection note: local inventory only; upstream authenticity is not verified")
     return 0
