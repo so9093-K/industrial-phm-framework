@@ -32,7 +32,12 @@ def dataset_archive_path(manifest: DatasetManifest, root: Path) -> Path | None:
     return root / manifest.dataset_id / manifest.archive_name
 
 
-def fetch_dataset(manifest: DatasetManifest, root: Path, *, timeout_seconds: float = 120.0) -> FetchResult:
+def fetch_dataset(
+    manifest: DatasetManifest,
+    root: Path,
+    *,
+    timeout_seconds: float = 120.0,
+) -> FetchResult:
     """Fetch a registered URL source without extracting or mutating the vendor archive."""
 
     if manifest.provider == "manual":
