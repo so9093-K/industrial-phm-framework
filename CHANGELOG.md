@@ -19,7 +19,9 @@
 - Apache License 2.0 라이선스 정책과 배포 메타데이터.
 - Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
 - `industrial-phm` CLI와 dataset manifest 기반 `data list/status/fetch/verify` acquisition 흐름.
+- 사용자가 직접 획득한 local dataset file/directory의 규모를 확인하는 `data inspect` 흐름.
 
 ### Fixed
 
 - `CanonicalTimeSeries`가 mutable sequence 입력을 내부에 그대로 보관해 생성 이후 검증된 정렬 불변조건이 깨질 수 있던 문제를 수정했습니다.
+- dataset acquisition User-Agent가 package version과 별도로 `0.1`에 하드코딩되어 있던 중복 version 값을 제거했습니다.
