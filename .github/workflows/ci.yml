@@ -39,6 +39,11 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked
 
+      - name: Smoke project CLI
+        run: |
+          uv run --locked industrial-phm doctor
+          uv run --locked industrial-phm data list
+
       - name: Lint
         run: uv run --locked ruff check .
 
@@ -56,6 +61,12 @@ jobs:
 
       - name: Build package
         run: uv build
+
+      - name: Verify packaged runtime contract
+        run: |
+          unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/xjtu-sy.toml'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ai4i-2020.toml'
+          unzip -p dist/*.whl '*dist-info/entry_points.txt' | grep -q 'industrial-phm = industrial_phm.cli:main'
 
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'
