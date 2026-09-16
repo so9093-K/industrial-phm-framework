@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+from industrial_phm import __version__
 from industrial_phm.data.manifest import DatasetManifest
 from industrial_phm.data.validation import FileIntegrity, inspect_file, verify_sha256
 
@@ -56,7 +57,7 @@ def fetch_dataset(
     temporary = destination.with_name(f"{destination.name}.part")
     request = Request(
         manifest.source_url,
-        headers={"User-Agent": "industrial-phm-framework/0.1 dataset-acquisition"},
+        headers={"User-Agent": f"industrial-phm-framework/{__version__} dataset-acquisition"},
     )
 
     try:
