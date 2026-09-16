@@ -63,8 +63,9 @@ uv build
 
 ## CLI and Dataset Acquisition
 
-프로젝트 기능은 설치 가능한 `industrial-phm` 명령으로 노출합니다. 현재는 데이터 획득 기반만 구현하며,
-모델 기능이 생기기 전에 빈 `train`/`evaluate` 명령을 미리 만들지 않습니다.
+프로젝트 기능은 설치 가능한 `industrial-phm` 명령으로 노출합니다. 현재는 데이터 획득·local source
+inspection·dataset-specific compatibility validation까지 구현하며, 모델 기능이 생기기 전에 빈
+`train`/`evaluate` 명령을 미리 만들지 않습니다.
 
 ```bash
 uv run industrial-phm doctor
@@ -83,13 +84,22 @@ uv run industrial-phm data verify ai4i-2020
 
 XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자동화 조건을 추가 확인해야 하는 데이터셋은
 `manual` provider로 등록합니다. 이 경우 CLI가 공식 source를 안내하며 package 설치/import 과정에서 임의로
-데이터를 다운로드하지 않습니다. 사용자가 직접 받은 local source는 별도로 확인할 수 있습니다.
+데이터를 다운로드하지 않습니다.
+
+원본 배포물 inventory와 압축 해제된 Adapter source의 의미는 구분합니다.
 
 ```bash
-uv run industrial-phm data inspect xjtu-sy --source /path/to/XJTU-SY
+uv run industrial-phm data inspect xjtu-sy --source data/raw/xjtu-sy
+
+uv run industrial-phm data validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
 ```
 
-기본 데이터 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수 있습니다. 데이터셋 선정 근거와
+`data inspect`는 local inventory만 관찰하고, `data validate`는 관찰된 XJTU-SY source profile 및
+`XjtuSyAdapter`와의 호환성을 검사합니다. 둘 다 pinned upstream checksum이 없는 XJTU-SY의 authenticity를
+검증했다고 주장하지 않습니다. 상세 준비 절차는 [`data/README.md`](data/README.md)를 참조합니다.
+
+기본 raw data 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수 있습니다. 데이터셋 선정 근거와
 provenance 주의사항은 [`docs/research/dataset-selection.md`](docs/research/dataset-selection.md)를 참조합니다.
 
 ## Research Workflow
@@ -106,9 +116,10 @@ uv run --with jupyter jupyter lab
 ```
 
 첫 inspection notebook으로 확인한 실제 XJTU-SY 구조와 time-axis 결론은
-[`docs/research/xjtu-source-profile.md`](docs/research/xjtu-source-profile.md)에 승격합니다. Production
-`XjtuSyAdapter`는 압축 해제된 dataset root에서 acquisition CSV를 한 개씩 읽고, Notebook은 이를 다시 구현하지
-않습니다. Notebook 운영 규칙과 현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를 참조합니다.
+[`docs/research/xjtu-source-profile.md`](docs/research/xjtu-source-profile.md)에 승격했습니다. 반복되는
+directory/schema 확인은 `data validate`로 production code에 이동했고, Notebook은 같은 validation을 다시
+구현하지 않습니다. Notebook 운영 규칙과 현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를
+참조합니다.
 
 ## Repository Layout
 
@@ -145,12 +156,13 @@ uv run --with jupyter jupyter lab
 - 아키텍처·Source of Truth·testing·UX/XAI 운영 원칙
 - XJTU-SY 3 operating conditions / 15 bearing runs / 9,216 acquisitions 실데이터 구조 확인
 - XJTU-SY acquisition 단위 Adapter와 regular waveform의 implicit sample-time contract 확장
+- XJTU-SY complete profile 및 Adapter compatibility를 반복 확인하는 `data validate` 흐름
 
 ### Current
 
-1. 실제 local XJTU-SY 전체를 대상으로 Adapter smoke validation
-2. XJTU-SY experiment protocol과 자산·Run 단위 split 정의
-3. leakage-free vibration preprocessing / feature baseline 설계
+1. XJTU-SY experiment protocol과 자산·Run 단위 split 정의
+2. leakage-free vibration preprocessing / feature baseline 설계
+3. 첫 numerical PHM baseline의 입력·평가 contract 확정
 
 ### Next
 

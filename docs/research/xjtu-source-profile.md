@@ -81,6 +81,24 @@ The official author page states a 25.6 kHz sampling frequency, 32,768 points / 1
 sampling period. The production Adapter validates each CSV as it is read rather than assuming the 45-file sample check proves
 all 9,216 files are intact.
 
+## Reproducible local compatibility validation
+
+The manual shell/Python checks used to establish this profile are discovery evidence, not a workflow users should repeat.
+`industrial-phm data validate xjtu-sy` promotes the repeated checks into production code.
+
+Default validation performs:
+
+1. visible operating-condition and bearing directory validation
+2. numeric `1..N` acquisition filename continuity for every observed run
+3. comparison with the observed complete 3-condition / 15-run / 9,216-acquisition profile above
+4. actual Adapter parsing of each run's first, middle and final waveform acquisition
+
+This keeps routine validation bounded to 45 waveform parses while still checking the complete directory and lifecycle sequence.
+`--full` opts into parsing all 9,216 acquisitions when exhaustive local content validation is warranted.
+
+The command checks local source/profile and Adapter compatibility only. It does not turn the manual XJTU-SY provider into a
+checksum-verified source and does not claim upstream authenticity.
+
 ## Time-axis consequence
 
 The real source exposes two different time/granularity axes:

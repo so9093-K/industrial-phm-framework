@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm import __version__
+from industrial_phm.adapters import XjtuSySourceError, validate_xjtu_source
 from industrial_phm.data.acquisition import (
     ManualAcquisitionRequired,
     dataset_archive_path,
@@ -41,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = subcommands.add_parser("doctor", help="show runtime and data-root information")
     doctor.set_defaults(handler=_run_doctor)
 
-    data = subcommands.add_parser("data", help="inspect and acquire registered datasets")
+    data = subcommands.add_parser("data", help="inspect, validate, and acquire registered datasets")
     data_commands = data.add_subparsers(dest="data_command", required=True)
 
     data_list = data_commands.add_parser("list", help="list registered datasets")
@@ -77,6 +78,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="local file or directory acquired from the registered source",
     )
     data_inspect.set_defaults(handler=_run_data_inspect)
+
+    data_validate = data_commands.add_parser(
+        "validate",
+        help="validate a prepared local dataset against dataset-specific structure",
+    )
+    data_validate.add_argument("dataset_id")
+    data_validate.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by its Domain Adapter",
+    )
+    data_validate.add_argument(
+        "--full",
+        action="store_true",
+        help="parse every acquisition instead of representative first/middle/last samples",
+    )
+    data_validate.set_defaults(handler=_run_data_validate)
 
     return parser
 
@@ -232,4 +251,55 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
         return 1
 
     print("inspection note: local inventory only; upstream authenticity is not verified")
+    return 0
+
+
+def _run_data_validate(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"dataset-specific validation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        report = validate_xjtu_source(args.source, full=args.full)
+    except (OSError, XjtuSySourceError) as error:
+        print(f"dataset validation failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {manifest.dataset_id}")
+    print(f"title: {manifest.title}")
+    print(f"local source: {report.source}")
+    print(f"validation mode: {'full' if report.full else 'sampled'}")
+    print(f"operating conditions: {report.operating_condition_count}")
+    print(f"bearing runs: {report.bearing_run_count}")
+    print(f"acquisitions: {report.acquisition_count}")
+    print(f"waveform acquisitions checked: {report.checked_acquisition_count}")
+    print(f"samples per acquisition: {report.samples_per_acquisition}")
+    print(f"channels: {', '.join(report.channels)}")
+    print(f"sampling rate hz: {report.sampling_rate_hz:g}")
+    print(f"waveform compatibility: PASS ({'full' if report.full else 'sampled'})")
+
+    if not report.profile_matches:
+        print("profile compatibility: FAIL")
+        for issue in report.profile_issues:
+            print(f"profile issue: {issue}", file=sys.stderr)
+        print(
+            "validation note: local source is structurally readable but does not match the "
+            "observed complete XJTU-SY profile",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("profile compatibility: PASS")
+    print(
+        "validation note: source/profile compatibility only; upstream authenticity is not verified"
+    )
     return 0

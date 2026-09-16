@@ -24,10 +24,14 @@
 - Git에 포함되지 않는 `data/` local workspace와 XJTU-SY 공식 Google Drive mirror의 반자동 획득 가이드.
 - 실제 XJTU-SY 15개 bearing run / 9,216 acquisition 구조에 근거한 acquisition 단위 `XjtuSyAdapter`.
 - XJTU-SY local source profile과 regular waveform time-axis 결정을 기록한 research 문서 및 ADR-0005.
+- XJTU-SY complete source profile, lifecycle sequence 및 representative/full waveform parsing을 자동 확인하는
+  `industrial-phm data validate xjtu-sy` 흐름.
 
 ### Changed
 
 - `CanonicalTimeSeries`가 regular sampling rate를 제공하는 경우 explicit sample `timestamps` 없이도 waveform segment를 표현할 수 있도록 확장했습니다.
+- 초기 수동 XJTU directory/schema 검증을 반복 가능한 production validator로 승격하고 Notebook은 같은 검증을
+  재구현하지 않도록 research workflow를 정리했습니다.
 
 ### Fixed
 

@@ -8,7 +8,7 @@ commit하지 않으며, repository clone만으로 함께 배포되지 않습니�
 ```text
 data/
 ├── raw/        # 원 출처에서 받은 원본. 내용 수정 금지
-├── interim/    # 파싱·변환 중간 결과
+├── interim/    # 압축 해제·파싱 등 재생성 가능한 중간 결과
 └── processed/  # 재현 가능한 preprocessing/feature 결과
 ```
 
@@ -17,14 +17,10 @@ Source of Truth는 `src/industrial_phm/data/manifests/`에 유지합니다.
 
 ## XJTU-SY
 
-기본 local source는 다음 경로를 권장합니다.
-
-```text
-data/raw/xjtu-sy/
-```
-
 XJTU-SY 공식 repository는 여러 cloud mirror를 제공합니다. Framework의 manifest는 현재 `manual` provider를
 유지하므로 package import나 `data fetch`가 임의로 이 데이터를 다운로드하지 않습니다.
+
+### 1. 원본 배포물 획득
 
 공식 README에 게시된 Google Drive mirror는 `gdown`을 이용해 **로컬에서 반자동으로** 받을 수 있습니다. 이
 명령은 framework-managed fetch가 아니며, upstream checksum/authenticity를 검증하지 않습니다.
@@ -47,12 +43,61 @@ uvx --from gdown==6.2.0 gdown \
   -O data/raw/xjtu-sy
 ```
 
-다운로드 후 framework가 관측한 local inventory를 확인합니다.
+다운로드가 중간에 실패하면 같은 `--continue` 명령을 다시 실행합니다. 원본 inventory는 다음 명령으로
+확인합니다.
 
 ```bash
 uv run industrial-phm data inspect xjtu-sy --source data/raw/xjtu-sy
 ```
 
-`data inspect`가 성공하더라도 이는 local file inventory 확인일 뿐 upstream authenticity 검증은 아닙니다.
-Google Drive mirror의 접근 정책이나 내용이 바뀌면 XJTU-SY 공식 repository가 안내하는 다른 mirror를 사용하고
-획득 출처를 연구 기록에 남깁니다.
+`data inspect`는 local file inventory만 확인하며 배포물의 완전성이나 upstream authenticity를 보증하지 않습니다.
+
+### 2. signal archive 압축 해제
+
+공식 Google Drive 배포물의 signal data는 multipart RAR archive입니다. `part01`부터 마지막 part까지 같은
+directory에 보존하고 **첫 번째 part를 시작점으로 한 번만** 압축 해제합니다. 원본 archive는 `data/raw/`에
+그대로 두고 결과는 `data/interim/`에 둡니다.
+
+macOS에서 `unar`를 사용하는 예시는 다음과 같습니다.
+
+```bash
+brew install unar
+mkdir -p data/interim/xjtu-sy
+unar \
+  -o data/interim/xjtu-sy \
+  data/raw/xjtu-sy/Data/XJTU-SY_Bearing_Datasets.part01.rar
+```
+
+다른 환경에서는 multipart RAR를 지원하는 동등한 도구를 사용할 수 있습니다. Adapter가 읽는 준비된 root는
+다음 경로입니다.
+
+```text
+data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+```
+
+### 3. Adapter 호환성 자동 검증
+
+초기 조사에서 사람이 직접 수행했던 directory count, acquisition filename continuity, CSV schema/sample count,
+Adapter smoke check는 이제 dataset-specific validator로 반복 실행합니다.
+
+```bash
+uv run industrial-phm data validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+```
+
+기본 검증은 모든 condition/run의 directory와 acquisition sequence를 확인한 뒤 각 run의 first/middle/last
+waveform을 실제 Adapter 경로로 파싱합니다. 현재 관찰된 완전한 source profile인 3 operating conditions,
+15 bearing runs, 9,216 acquisitions와도 비교합니다.
+
+모든 9,216 acquisition CSV의 waveform content를 실제로 파싱해야 할 때만 명시적으로 full mode를 사용합니다.
+
+```bash
+uv run industrial-phm data validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --full
+```
+
+`data validate`는 **source/profile 및 Adapter 호환성 검사**입니다. XJTU-SY manifest에는 pinned upstream
+checksum이 없으므로 이 명령이 성공해도 upstream authenticity를 검증했다고 주장하지 않습니다. Google Drive
+mirror의 접근 정책이나 내용이 바뀌면 공식 repository가 안내하는 다른 mirror를 사용하고 획득 출처를 연구
+기록에 남깁니다.
