@@ -125,6 +125,11 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 평가 질문과 leakage
 경계를 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
 
+Acquisition-level vibration baseline은 `industrial_phm.features`의 versioned feature set으로 계산합니다. Feature를
+상관계수 하나로 자동 선정하거나 test trajectory를 반복해서 보고 튜닝하지 않고,
+[`docs/research/xjtu-feature-characterization.md`](docs/research/xjtu-feature-characterization.md)의 development /
+evaluation 경계 안에서 lifecycle·condition·channel·redundancy를 함께 분석합니다.
+
 ## Repository Layout
 
 ```text
@@ -141,7 +146,8 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
 │   ├── data/               # dataset manifest·acquisition·validation
-│   └── experiments/        # version-controlled experiment split/protocol inputs
+│   ├── experiments/        # version-controlled experiment split/protocol inputs
+│   └── features/           # stateless numerical feature extraction
 └── tests/
     ├── unit/
     └── contract/
@@ -163,20 +169,22 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 - XJTU-SY acquisition 단위 Adapter와 regular waveform의 implicit sample-time contract 확장
 - XJTU-SY complete profile 및 Adapter compatibility를 반복 확인하는 `data validate` 흐름
 - XJTU-SY condition-stratified 5-fold bearing-run reference split과 leakage contract
+- acquisition별 해석 가능한 `vibration-statistical-v1` feature foundation
 
 ### Current
 
-1. leakage-free vibration preprocessing / numerical feature boundary 설계
-2. train-only normal-reference / normalization rule을 experiment parameter로 정의
-3. 첫 Isolation Forest baseline의 입력·평가 contract 확정
+1. train/validation 경계 안에서 XJTU feature·degradation behavior characterization
+2. feature configuration, run imbalance, normal-reference/normalization 필요성을 evidence로 결정
+3. 결정된 preprocessing state를 train-only로 fit하는 Isolation Forest 입력 contract 정의
 
 ### Next
 
 1. Isolation Forest baseline과 모델 독립 evaluation
-2. LSTM Autoencoder, reconstruction evidence, Health Index
-3. 데이터가 정당하게 지원하는 경우 RUL prognostics
-4. IMS/MIMII DUE를 통한 same-modality/cross-domain 확장성 검증
-5. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
+2. IMS를 통한 same-modality portability 확인
+3. LSTM Autoencoder, reconstruction evidence, Health Index
+4. 데이터가 정당하게 지원하는 경우 RUL prognostics
+5. MIMII DUE를 통한 cross-domain 확장성 검증
+6. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

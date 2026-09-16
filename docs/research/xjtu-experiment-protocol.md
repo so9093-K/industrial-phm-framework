@@ -109,22 +109,35 @@ condition 전체를 holdout하는 LOCO 계열 평가는 feature/model baseline�
 5. test partition은 최종 평가 전까지 fitting이나 parameter 선택에 사용하지 않습니다.
 6. test bearing 자신의 초기 구간을 이용한 per-bearing normalization은 별도의 test-time adaptation protocol로
    명시하지 않는 한 허용하지 않습니다.
+7. test trajectory를 반복해서 관찰해 feature formula, feature subset, reference rule을 바꾸는 행위도
+   data-derived selection으로 취급합니다.
 
 특히 `전체 데이터 feature 통계 계산 -> split` 순서의 구현은 금지합니다. Architecture 문서의
 `전처리/특징 생성 -> 데이터 분할` 도식은 책임 흐름을 나타내며 learned state를 전체 데이터에 fit하라는 의미가
 아닙니다.
 
-## 6. Normal reference and anomaly labels
+Acquisition 하나만을 입력으로 하는 고정된 stateless feature formula는 fitted state를 만들지 않으므로 각
+partition에 독립적으로 적용할 수 있습니다. 반면 어떤 feature를 유지할지, 어떻게 scaling할지, 어떤 reference
+window를 사용할지 결정하는 과정은 위 partition 경계를 따라야 합니다.
+
+## 6. Feature characterization, normal reference, anomaly labels
 
 XJTU-SY는 complete run-to-failure trajectory를 제공하지만 acquisition별 정상/이상 onset label은 공식 source에서
-직접 제공하지 않습니다. 따라서 첫 split protocol은 `first 20% = healthy` 같은 가정을 ground truth로 고정하지
+직접 제공하지 않습니다. 따라서 첫 protocol은 `first 20% = healthy` 같은 가정을 ground truth로 고정하지
 않습니다.
 
-다음 preprocessing/feature PR에서 normal-reference window가 필요해지면:
+먼저 [`xjtu-feature-characterization.md`](xjtu-feature-characterization.md)에 따라 train 중심의 feature behavior,
+operating-condition sensitivity, bearing 간 일관성, redundancy, run-length imbalance를 관찰합니다. 이 단계에서
+`normal reference`는 반드시 만들어야 하는 결과가 아니라 가능한 experiment decision 중 하나입니다.
+
+Normal-reference window가 실제 필요해지면:
 
 - 비율 또는 rule을 version-controlled experiment parameter로 명시하고
 - train bearing에서만 reference statistics를 fit하며
 - 해당 rule이 **heuristic/reference assumption**임을 ground truth와 구분합니다.
+
+Feature set이나 reference rule을 test 결과를 보고 변경하면 새로운 version으로 기록하고, 같은 test 결과를
+변경된 protocol의 unbiased evidence로 다시 사용하지 않습니다.
 
 Precision, Recall, F1, PR-AUC, Early Detection Time 같은 supervised/early-warning metric도 defensible onset/label
 protocol이 정의된 뒤 independent evaluator에서 계산합니다. 그 전에는 score trajectory와 feature behavior를
@@ -135,7 +148,7 @@ sanity check할 수는 있지만 이를 detection accuracy로 보고하지 않�
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는
 `industrial_phm.experiments.get_xjtu_reference_split()`을 통해 packaged manifest를 읽습니다.
 
-Production validator는 다음을 fail-fast로 확인합니다.
+Split manifest validation은 다음을 fail-fast로 확인합니다.
 
 - 5개 fold 존재
 - fold마다 15개 bearing run 전체 coverage
@@ -148,15 +161,18 @@ Production validator는 다음을 fail-fast로 확인합니다.
 
 ## 8. Next implementation boundary
 
-이 protocol 이후의 다음 구현 단계는 다음 순서입니다.
+이 protocol 이후의 기본 진행 순서는 다음과 같습니다.
 
 ```text
 reference split
-  -> leakage-free numerical feature boundary
-  -> train-only preprocessing state
+  -> fixed stateless feature foundation
+  -> train/validation-bounded feature & degradation characterization
+  -> versioned feature/reference/preprocessing decision
+  -> train-only fitted preprocessing state
   -> Isolation Forest reference model
   -> independent evaluation
 ```
 
-Feature set, normal-reference rule, model hyperparameter, threshold는 이 문서에 미리 고정하지 않습니다. 실제
-preprocessing/feature 요구와 evidence가 생길 때 별도 experiment config로 추가합니다.
+Characterization 결과에 따라 feature set을 반복 개선할 수 있지만, test 결과를 사용한 변경은 같은 protocol의
+unbiased evaluation으로 되돌려 보고하지 않습니다. Normal-reference rule은 필요할 때만 도입하며, feature set,
+model hyperparameter, threshold도 실제 evidence가 생긴 시점에 적절한 experiment Source of Truth로 추가합니다.
