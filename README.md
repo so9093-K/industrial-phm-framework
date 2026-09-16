@@ -26,6 +26,12 @@
 - **GenAI after PHM**: LLM은 계산된 PHM 결과를 해석하며, 핵심 수치 산출의 source of truth가 되지 않습니다.
 - **Grow by evidence**: workspace, plugin, MLOps 구성은 실제 확장 요구가 생긴 시점에 도입합니다.
 
+상세 원칙은 [`docs/architecture/principles.md`](docs/architecture/principles.md)를 따릅니다.
+실행 인터페이스, 데이터 획득, Source of Truth, configuration 및 packaging 경계는
+[`docs/architecture/operational-foundation.md`](docs/architecture/operational-foundation.md)에 정리합니다.
+테스트 생성 기준은 [`docs/testing-policy.md`](docs/testing-policy.md), 사용자 역할과 결과 UX 기준은
+[`docs/product/overview.md`](docs/product/overview.md)를 참조합니다.
+
 ## Python Compatibility
 
 - CPython `3.14.x` (GIL-enabled build): 검증 대상
@@ -63,6 +69,7 @@ uv build
 ├── assets/                 # README·발표용 아키텍처 자산
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
+│   ├── product/            # 사용자 역할과 결과 UX 기준
 │   └── adr/                # Architecture Decision Records
 ├── src/industrial_phm/
 │   ├── contracts/          # 도메인 중립 데이터 계약
@@ -78,12 +85,13 @@ uv build
 ## Roadmap
 
 1. 첫 산업 설비 데이터셋 선정과 provenance 문서화
-2. 실제 Domain Adapter 및 공통 전처리 경계 검증
-3. Isolation Forest baseline과 독립 평가 계층
-4. LSTM Autoencoder 기반 시계열 이상 탐지
-5. Health Index 및 데이터가 지원하는 경우 RUL prognostics
-6. 두 번째 도메인으로 adapter/core 확장성 검증
-7. inference API, dashboard, Generative AI/RAG 연계
+2. 명시적 dataset acquisition/verify 흐름과 실제 Domain Adapter 검증
+3. 공통 전처리 경계와 자산·Run 단위 split 검증
+4. Isolation Forest baseline과 독립 평가 계층
+5. LSTM Autoencoder 기반 시계열 이상 탐지
+6. Health Index 및 데이터가 지원하는 경우 RUL prognostics
+7. 두 번째 도메인으로 adapter/core 확장성 검증
+8. artifact/inference contract, API, dashboard, Generative AI/RAG 연계
 
 ## Governance
 
