@@ -103,9 +103,7 @@ def validate_xjtu_source(source: Path, *, full: bool = False) -> XjtuSyValidatio
     not prove upstream authenticity because the XJTU-SY manifest has no pinned checksum.
     """
     runs = tuple(_iter_runs(source))
-    observed = {
-        (run.condition_name, run.bearing_dir.name): len(run.acquisitions) for run in runs
-    }
+    observed = {(run.condition_name, run.bearing_dir.name): len(run.acquisitions) for run in runs}
 
     checked_acquisition_count = 0
     for run in runs:
