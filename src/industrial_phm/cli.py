@@ -223,5 +223,13 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
     print(f"source kind: {inspection.kind}")
     print(f"files: {inspection.file_count}")
     print(f"bytes: {inspection.total_bytes}")
+
+    if inspection.file_count == 0:
+        print(
+            "inspection state: empty local source; add dataset files before continuing",
+            file=sys.stderr,
+        )
+        return 1
+
     print("inspection note: local inventory only; upstream authenticity is not verified")
     return 0

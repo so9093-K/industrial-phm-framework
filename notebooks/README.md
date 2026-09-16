@@ -37,10 +37,11 @@ EDA에서 NumPy, SciPy, Polars 등 반복 가능한 연구 dependency가 필요�
 ## XJTU-SY local source
 
 XJTU-SY는 현재 manual provider입니다. Notebook이 원격 mirror에서 직접 다운로드하지 않습니다. 공식 source에서
-직접 획득한 뒤 먼저 CLI로 local source를 확인합니다.
+직접 획득한 뒤 먼저 CLI로 local source를 확인합니다. 프로젝트 내부 `data/raw/xjtu-sy`를 사용하는 방법과
+공식 Google Drive mirror의 반자동 다운로드 절차는 [`data/README.md`](../data/README.md)를 참조합니다.
 
 ```bash
-uv run industrial-phm data inspect xjtu-sy --source /path/to/XJTU-SY
+uv run industrial-phm data inspect xjtu-sy --source data/raw/xjtu-sy
 ```
 
 Notebook에서는 개인 경로를 파일에 저장하지 않도록 `INDUSTRIAL_PHM_XJTU_SOURCE` 환경 변수를 사용할 수 있습니다.
