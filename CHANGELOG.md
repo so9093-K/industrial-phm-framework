@@ -22,6 +22,12 @@
 - 사용자가 직접 획득한 local dataset file/directory의 규모를 확인하는 `data inspect` 흐름.
 - XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible `notebooks/` Research UX 기준선.
 - Git에 포함되지 않는 `data/` local workspace와 XJTU-SY 공식 Google Drive mirror의 반자동 획득 가이드.
+- 실제 XJTU-SY 15개 bearing run / 9,216 acquisition 구조에 근거한 acquisition 단위 `XjtuSyAdapter`.
+- XJTU-SY local source profile과 regular waveform time-axis 결정을 기록한 research 문서 및 ADR-0005.
+
+### Changed
+
+- `CanonicalTimeSeries`가 regular sampling rate를 제공하는 경우 explicit sample `timestamps` 없이도 waveform segment를 표현할 수 있도록 확장했습니다.
 
 ### Fixed
 

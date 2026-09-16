@@ -105,9 +105,10 @@ uv sync --locked
 uv run --with jupyter jupyter lab
 ```
 
-첫 notebook은 XJTU-SY local source의 inventory와 최상위 구조를 확인하는 데만 사용합니다. 실제 파일 구조를
-관찰하기 전에 EDA/model notebook이나 새로운 contract abstraction을 미리 만들지 않습니다. Notebook 운영 규칙과
-현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를 참조합니다.
+첫 inspection notebook으로 확인한 실제 XJTU-SY 구조와 time-axis 결론은
+[`docs/research/xjtu-source-profile.md`](docs/research/xjtu-source-profile.md)에 승격합니다. Production
+`XjtuSyAdapter`는 압축 해제된 dataset root에서 acquisition CSV를 한 개씩 읽고, Notebook은 이를 다시 구현하지
+않습니다. Notebook 운영 규칙과 현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를 참조합니다.
 
 ## Repository Layout
 
@@ -138,25 +139,26 @@ uv run --with jupyter jupyter lab
 ### Completed
 
 - repository/package/CI foundation과 `0.0.1` 개발 기준선
-- `CanonicalTimeSeries` v0.1과 `DomainAdapter` 경계
+- `CanonicalTimeSeries`와 `DomainAdapter` 경계
 - 공개 PHM 데이터셋 조사 및 XJTU-SY primary / MIMII DUE secondary 역할 정의
 - dataset registry와 명시적 `fetch`/`verify`/`inspect` CLI 기반
 - 아키텍처·Source of Truth·testing·UX/XAI 운영 원칙
+- XJTU-SY 3 operating conditions / 15 bearing runs / 9,216 acquisitions 실데이터 구조 확인
+- XJTU-SY acquisition 단위 Adapter와 regular waveform의 implicit sample-time contract 확장
 
 ### Current
 
-1. XJTU-SY local source inspection과 provenance 확인
-2. 실제 XJTU-SY 구조를 읽는 최소 Domain Adapter spike
-3. waveform sample time과 asset lifecycle time을 기준으로 canonical contract 적합성 검증
+1. 실제 local XJTU-SY 전체를 대상으로 Adapter smoke validation
+2. XJTU-SY experiment protocol과 자산·Run 단위 split 정의
+3. leakage-free vibration preprocessing / feature baseline 설계
 
 ### Next
 
-1. 자산·Run 단위 split과 leakage-free preprocessing protocol
-2. Isolation Forest baseline과 모델 독립 evaluation
-3. LSTM Autoencoder, reconstruction evidence, Health Index
-4. 데이터가 정당하게 지원하는 경우 RUL prognostics
-5. IMS/MIMII DUE를 통한 same-modality/cross-domain 확장성 검증
-6. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
+1. Isolation Forest baseline과 모델 독립 evaluation
+2. LSTM Autoencoder, reconstruction evidence, Health Index
+3. 데이터가 정당하게 지원하는 경우 RUL prognostics
+4. IMS/MIMII DUE를 통한 same-modality/cross-domain 확장성 검증
+5. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 
