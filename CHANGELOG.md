@@ -14,3 +14,7 @@
 - ADR, 기여 규칙, CI 및 품질 검증 체계.
 - Apache License 2.0 라이선스 정책과 배포 메타데이터.
 - Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
+
+### Fixed
+
+- `CanonicalTimeSeries`가 mutable sequence 입력을 내부에 그대로 보관해 생성 이후 검증된 정렬 불변조건이 깨질 수 있던 문제를 수정했습니다.
