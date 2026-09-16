@@ -17,9 +17,7 @@ _EXPECTED_HEADER = (
 _EXPECTED_SAMPLE_COUNT = 32_768
 _SAMPLING_RATE_HZ = 25_600.0
 _ACQUISITION_PERIOD_SECONDS = 60.0
-_CONDITION_PATTERN = re.compile(
-    r"^(?P<speed_hz>\d+(?:\.\d+)?)Hz(?P<load_kn>\d+(?:\.\d+)?)kN$"
-)
+_CONDITION_PATTERN = re.compile(r"^(?P<speed_hz>\d+(?:\.\d+)?)Hz(?P<load_kn>\d+(?:\.\d+)?)kN$")
 _BEARING_PATTERN = re.compile(r"^Bearing(?P<group>\d+)_(?P<index>\d+)$")
 
 
@@ -77,9 +75,7 @@ class XjtuSyAdapter:
 def _parse_condition_name(name: str) -> tuple[float, float]:
     match = _CONDITION_PATTERN.fullmatch(name)
     if match is None:
-        raise XjtuSySourceError(
-            f"unexpected XJTU-SY operating-condition directory name: {name!r}"
-        )
+        raise XjtuSySourceError(f"unexpected XJTU-SY operating-condition directory name: {name!r}")
     return float(match.group("speed_hz")), float(match.group("load_kn"))
 
 
