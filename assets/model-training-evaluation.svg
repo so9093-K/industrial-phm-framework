@@ -1,93 +1,86 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">PHM 모델 학습 및 평가 파이프라인</title>
-  <desc id="desc">입력 데이터부터 asset/run 단위 split, baseline과 sequence model 학습, task-aware evaluation, 모델 비교와 선택까지의 재현 가능한 흐름</desc>
+  <desc id="desc">데이터 provenance 확인, Asset Run 단위 분할, 모델 학습, PHM 출력과 설명 근거 생성, 독립 평가와 비교까지의 재현 가능한 흐름</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f9fd"/></linearGradient>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#8398b3"/></marker>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto"><path d="M0,0 L0,8 L11,4 z" fill="#63758c"/></marker>
     <style>
-      .title{font:700 54px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#0a2047}
-      .subtitle{font:400 23px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#61738e}
-      .eyebrow{font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:5px;fill:#7e92ae}
-      .num{font:700 25px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#fff;text-anchor:middle}
-      .panelTitle{font:700 25px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#0a2047;text-anchor:middle}
-      .panelSub{font:400 16px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#627795;text-anchor:middle}
-      .item{font:600 17px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#173862}
-      .small{font:400 14px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#667b96}
-      .tag{font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#2c5d9b;text-anchor:middle}
-      .arrow{stroke:#8398b3;stroke-width:4;fill:none;marker-end:url(#arrow)}
-      .box{fill:#fff;stroke:#d9e3ef;stroke-width:2}
+      .title{font:700 52px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#102a43}
+      .subtitle{font:500 25px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#486581}
+      .step{font:700 27px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#102a43;text-anchor:middle}
+      .body{font:500 21px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#334e68;text-anchor:middle}
+      .small{font:500 18px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#486581;text-anchor:middle}
+      .focus{font:700 21px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#173f5f;text-anchor:middle}
+      .arrow{stroke:#63758c;stroke-width:4;fill:none;marker-end:url(#arrow)}
     </style>
   </defs>
-  <rect width="1600" height="900" fill="url(#bg)"/>
-  <rect x="32" y="20" width="72" height="6" rx="3" fill="#6b9cff"/>
-  <text x="32" y="92" class="title">모델 학습 및 평가 파이프라인</text>
-  <text x="32" y="132" class="subtitle">데이터 준비부터 모델 비교·선택까지, leakage를 막고 재현성을 유지하는 PHM 실험 흐름</text>
-  <text x="1560" y="48" text-anchor="end" class="eyebrow">MODEL TRAINING &amp; EVALUATION</text>
-  <text x="1560" y="76" text-anchor="end" class="eyebrow" style="font-size:11px;letter-spacing:3px">DATA  ›  SPLIT  ›  TRAIN  ›  EVALUATE  ›  SELECT</text>
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <text x="56" y="84" class="title">모델 학습 및 평가</text>
+  <text x="56" y="128" class="subtitle">목표: leakage 없이 학습하고, 같은 기준으로 성능·불확실성·설명 근거를 비교한다</text>
 
-  <!-- Stage cards -->
-  <rect x="24" y="190" width="198" height="584" rx="16" fill="#f0f8ff" stroke="#8cc8ff" stroke-width="2"/>
-  <rect x="244" y="190" width="198" height="584" rx="16" fill="#f1fbf7" stroke="#93dfc8" stroke-width="2"/>
-  <rect x="464" y="190" width="198" height="584" rx="16" fill="#f5f3ff" stroke="#b8adff" stroke-width="2"/>
-  <rect x="684" y="190" width="198" height="584" rx="16" fill="#fff9ef" stroke="#ffc875" stroke-width="2"/>
-  <rect x="904" y="190" width="198" height="584" rx="16" fill="#eff8ff" stroke="#80c5ff" stroke-width="2"/>
-  <rect x="1124" y="190" width="218" height="584" rx="16" fill="#fff2f5" stroke="#ffabc0" stroke-width="2"/>
-  <rect x="1364" y="190" width="212" height="584" rx="16" fill="#f0f8ff" stroke="#8cc8ff" stroke-width="2"/>
+  <g>
+    <rect x="58" y="235" width="270" height="440" rx="24" fill="#eef7ff" stroke="#8fc7f5" stroke-width="3"/>
+    <text x="193" y="294" class="step">1. 데이터 준비</text>
+    <text x="193" y="358" class="body">검증된 raw source</text>
+    <text x="193" y="396" class="body">공통 계약 · provenance</text>
+    <text x="193" y="434" class="body">label / RUL capability</text>
+    <rect x="88" y="520" width="210" height="104" rx="18" fill="#ffffff" stroke="#c9dff2" stroke-width="2"/>
+    <text x="193" y="562" class="focus">무엇을 평가할 수 있는가?</text>
+    <text x="193" y="596" class="small">데이터가 지원하는 task만 사용</text>
+  </g>
 
-  <!-- step numbers -->
-  <g fill="#1f5da7"><circle cx="123" cy="226" r="29"/><circle cx="343" cy="226" r="29"/><circle cx="563" cy="226" r="29"/><circle cx="783" cy="226" r="29"/><circle cx="1003" cy="226" r="29"/><circle cx="1233" cy="226" r="29"/><circle cx="1470" cy="226" r="29"/></g>
-  <text x="123" y="235" class="num">1</text><text x="343" y="235" class="num">2</text><text x="563" y="235" class="num">3</text><text x="783" y="235" class="num">4</text><text x="1003" y="235" class="num">5</text><text x="1233" y="235" class="num">6</text><text x="1470" y="235" class="num">7</text>
+  <g>
+    <rect x="366" y="235" width="270" height="440" rx="24" fill="#eefbf5" stroke="#8dd6b7" stroke-width="3"/>
+    <text x="501" y="294" class="step">2. 분할 · 전처리</text>
+    <text x="501" y="354" class="body">Asset / Run 단위 split</text>
+    <text x="501" y="392" class="body">Train / Validation / Test</text>
+    <text x="501" y="430" class="body">정규화 · window · feature</text>
+    <rect x="396" y="500" width="210" height="124" rx="18" fill="#ffffff" stroke="#c9e7da" stroke-width="2"/>
+    <text x="501" y="542" class="focus">Leakage 차단</text>
+    <text x="501" y="578" class="small">scaler · threshold fit은</text>
+    <text x="501" y="606" class="small">train에서만 수행</text>
+  </g>
 
-  <text x="123" y="292" class="panelTitle">입력 데이터</text>
-  <text x="343" y="292" class="panelTitle">전처리 · 특징</text>
-  <text x="563" y="292" class="panelTitle">데이터 분할</text>
-  <text x="783" y="292" class="panelTitle">모델 학습</text>
-  <text x="1003" y="292" class="panelTitle">분석 결과</text>
-  <text x="1233" y="292" class="panelTitle">Task-aware 평가</text>
-  <text x="1470" y="292" class="panelTitle">비교 · 선택</text>
+  <g>
+    <rect x="674" y="235" width="270" height="440" rx="24" fill="#f4f1ff" stroke="#b4a7ed" stroke-width="3"/>
+    <text x="809" y="294" class="step">3. 모델 학습</text>
+    <text x="809" y="358" class="body">Isolation Forest</text>
+    <text x="809" y="396" class="body">LSTM Autoencoder</text>
+    <text x="809" y="434" class="body">향후 교체 가능한 모델</text>
+    <rect x="704" y="520" width="210" height="104" rx="18" fill="#ffffff" stroke="#d8d0f3" stroke-width="2"/>
+    <text x="809" y="562" class="focus">공통 입력·출력 경계</text>
+    <text x="809" y="596" class="small">모델이 core 구조를 정의하지 않음</text>
+  </g>
 
-  <!-- stage 1 -->
-  <rect x="46" y="330" width="154" height="72" rx="12" class="box"/><text x="68" y="373" class="item">원천 데이터</text>
-  <rect x="46" y="422" width="154" height="72" rx="12" class="box"/><text x="68" y="465" class="item">공통 계약</text>
-  <rect x="46" y="514" width="154" height="86" rx="12" class="box"/><text x="68" y="548" class="item">Provenance</text><text x="68" y="574" class="small">source · version · hash</text>
-  <rect x="46" y="620" width="154" height="92" rx="12" fill="#e5f3ff" stroke="#c7e5ff"/><text x="123" y="653" class="tag">데이터 capability</text><text x="123" y="677" class="small" text-anchor="middle">label / RUL 유무</text><text x="123" y="699" class="small" text-anchor="middle">silent fallback 없음</text>
+  <g>
+    <rect x="982" y="235" width="270" height="440" rx="24" fill="#fff8e9" stroke="#e8bd69" stroke-width="3"/>
+    <text x="1117" y="294" class="step">4. PHM 출력</text>
+    <text x="1117" y="350" class="body">이상 점수 · HI · RUL</text>
+    <text x="1117" y="388" class="body">설명 근거(XAI)</text>
+    <text x="1117" y="426" class="body">불확실성 · 적용 범위</text>
+    <rect x="1012" y="500" width="210" height="124" rx="18" fill="#ffffff" stroke="#ead8ae" stroke-width="2"/>
+    <text x="1117" y="542" class="focus">모델에 맞는 근거</text>
+    <text x="1117" y="578" class="small">feature attribution 또는</text>
+    <text x="1117" y="606" class="small">채널·시간별 residual</text>
+  </g>
 
-  <!-- stage 2 -->
-  <rect x="266" y="330" width="154" height="72" rx="12" class="box"/><text x="288" y="373" class="item">정규화</text>
-  <rect x="266" y="422" width="154" height="72" rx="12" class="box"/><text x="288" y="465" class="item">윈도우 분할</text>
-  <rect x="266" y="514" width="154" height="72" rx="12" class="box"/><text x="288" y="557" class="item">특징 추출</text>
-  <rect x="266" y="606" width="154" height="106" rx="12" fill="#def7ee" stroke="#bcebdc"/><text x="343" y="640" class="tag">fit 범위 고정</text><text x="343" y="665" class="small" text-anchor="middle">train에서만 scaler/</text><text x="343" y="687" class="small" text-anchor="middle">threshold 학습</text>
+  <g>
+    <rect x="1290" y="235" width="252" height="440" rx="24" fill="#fff1f4" stroke="#e9a4b4" stroke-width="3"/>
+    <text x="1416" y="294" class="step">5. 독립 평가 · 비교</text>
+    <text x="1416" y="350" class="body">Anomaly: PR-AUC · FAR</text>
+    <text x="1416" y="388" class="body">Prognostics: MAE · RMSE</text>
+    <text x="1416" y="426" class="body">Early detection · calibration</text>
+    <rect x="1318" y="500" width="196" height="124" rx="18" fill="#ffffff" stroke="#efcbd3" stroke-width="2"/>
+    <text x="1416" y="542" class="focus">동일 조건 비교</text>
+    <text x="1416" y="578" class="small">same split · evaluator</text>
+    <text x="1416" y="606" class="small">config · code provenance</text>
+  </g>
 
-  <!-- stage 3 -->
-  <rect x="486" y="330" width="154" height="72" rx="12" class="box"/><text x="508" y="373" class="item">Train assets</text>
-  <rect x="486" y="422" width="154" height="72" rx="12" class="box"/><text x="508" y="465" class="item">Validation assets</text>
-  <rect x="486" y="514" width="154" height="72" rx="12" class="box"/><text x="508" y="557" class="item">Test assets</text>
-  <rect x="486" y="606" width="154" height="106" rx="12" fill="#e7e4ff" stroke="#d2ccff"/><text x="563" y="640" class="tag">Asset / Run split</text><text x="563" y="665" class="small" text-anchor="middle">같은 asset의 시간축</text><text x="563" y="687" class="small" text-anchor="middle">누출 방지</text>
+  <path d="M328 455 H358" class="arrow"/>
+  <path d="M636 455 H666" class="arrow"/>
+  <path d="M944 455 H974" class="arrow"/>
+  <path d="M1252 455 H1282" class="arrow"/>
 
-  <!-- stage 4 -->
-  <rect x="706" y="330" width="154" height="100" rx="12" class="box"/><text x="728" y="366" class="item">Isolation Forest</text><text x="728" y="394" class="small">feature baseline</text>
-  <rect x="706" y="452" width="154" height="100" rx="12" class="box"/><text x="728" y="488" class="item">LSTM Autoencoder</text><text x="728" y="516" class="small">sequence baseline</text>
-  <rect x="706" y="574" width="154" height="138" rx="12" fill="#fff0cf" stroke="#ffe0a0"/><text x="783" y="609" class="tag">교체 가능한 모델</text><text x="783" y="635" class="small" text-anchor="middle">동일 input/output</text><text x="783" y="659" class="small" text-anchor="middle">계약과 evaluator</text><text x="783" y="683" class="small" text-anchor="middle">재사용</text>
-
-  <!-- stage 5 -->
-  <rect x="926" y="330" width="154" height="72" rx="12" class="box"/><text x="948" y="373" class="item">이상 점수</text>
-  <rect x="926" y="422" width="154" height="72" rx="12" class="box"/><text x="948" y="465" class="item">건전성 지수</text>
-  <rect x="926" y="514" width="154" height="72" rx="12" class="box"/><text x="948" y="557" class="item">예후 결과</text>
-  <rect x="926" y="606" width="154" height="106" rx="12" fill="#dff0ff" stroke="#b9dcfa"/><text x="1003" y="640" class="tag">구조화 결과</text><text x="1003" y="665" class="small" text-anchor="middle">모델 구현과 metric</text><text x="1003" y="687" class="small" text-anchor="middle">계산을 분리</text>
-
-  <!-- stage 6 -->
-  <rect x="1146" y="326" width="174" height="132" rx="12" class="box"/><text x="1168" y="360" class="item">Anomaly</text><text x="1168" y="388" class="small">Precision · Recall · F1</text><text x="1168" y="412" class="small">PR-AUC · FAR</text><text x="1168" y="436" class="small">Early Detection</text>
-  <rect x="1146" y="478" width="174" height="116" rx="12" class="box"/><text x="1168" y="512" class="item">Prognostics</text><text x="1168" y="540" class="small">MAE · RMSE</text><text x="1168" y="564" class="small">uncertainty / calibration</text>
-  <rect x="1146" y="614" width="174" height="98" rx="12" fill="#ffe4eb" stroke="#ffc5d3"/><text x="1233" y="648" class="tag">지원되는 metric만</text><text x="1233" y="673" class="small" text-anchor="middle">dataset capability와</text><text x="1233" y="695" class="small" text-anchor="middle">평가 기준 연결</text>
-
-  <!-- stage 7 -->
-  <rect x="1386" y="330" width="168" height="72" rx="12" class="box"/><text x="1408" y="373" class="item">모델 비교</text>
-  <rect x="1386" y="422" width="168" height="72" rx="12" class="box"/><text x="1408" y="465" class="item">기준 결정</text>
-  <rect x="1386" y="514" width="168" height="72" rx="12" class="box"/><text x="1408" y="557" class="item">최종 선택</text>
-  <rect x="1386" y="606" width="168" height="106" rx="12" fill="#e5f3ff" stroke="#c7e5ff"/><text x="1470" y="640" class="tag">실험 기록</text><text x="1470" y="665" class="small" text-anchor="middle">split · config · code</text><text x="1470" y="687" class="small" text-anchor="middle">artifact provenance</text>
-
-  <path d="M222 482 H238" class="arrow"/><path d="M442 482 H458" class="arrow"/><path d="M662 482 H678" class="arrow"/><path d="M882 482 H898" class="arrow"/><path d="M1102 482 H1118" class="arrow"/><path d="M1342 482 H1358" class="arrow"/>
-
-  <rect x="24" y="812" width="1552" height="58" rx="14" fill="#eef5fc"/>
-  <text x="800" y="848" text-anchor="middle" class="small" style="font-size:17px">평가의 source of truth는 독립 evaluator이며, 데이터 분할·전처리 fit·metric 적용 범위를 재현 가능하게 고정</text>
+  <rect x="126" y="728" width="1348" height="104" rx="22" fill="#f3f6f9" stroke="#d9e2ec" stroke-width="2"/>
+  <text x="800" y="772" class="focus">실험의 핵심</text>
+  <text x="800" y="808" class="body">Asset/Run 분할과 train-only fit을 먼저 고정한 뒤 · 모델 성능과 설명 가능성을 같은 evaluator에서 검증한다</text>
 </svg>

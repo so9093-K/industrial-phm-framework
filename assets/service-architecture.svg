@@ -1,76 +1,87 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">PHM 서비스 아키텍처</title>
-  <desc id="desc">검증된 모델 artifact가 inference pipeline을 통해 structured PHM result를 만들고 dashboard와 GenAI가 같은 결과 계약을 소비하는 구조</desc>
+  <desc id="desc">검증된 모델 artifact와 inference가 하나의 PHM Result를 만들고 Dashboard와 GenAI가 같은 결과 계약을 독립적으로 소비한 뒤 사람이 조치를 승인하는 구조</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f9fd"/></linearGradient>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#8398b3"/></marker>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto"><path d="M0,0 L0,8 L11,4 z" fill="#63758c"/></marker>
     <style>
-      .title{font:700 54px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#0a2047}
-      .subtitle{font:400 23px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#61738e}
-      .eyebrow{font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:5px;fill:#7e92ae}
-      .panelTitle{font:700 27px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#0a2047;text-anchor:middle}
-      .panelSub{font:400 17px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#627795;text-anchor:middle}
-      .item{font:600 18px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#173862}
-      .small{font:400 15px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#667b96}
-      .tag{font:600 15px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#2c5d9b;text-anchor:middle}
-      .arrow{stroke:#8398b3;stroke-width:4;fill:none;marker-end:url(#arrow)}
-      .box{fill:#fff;stroke:#d9e3ef;stroke-width:2}
+      .title{font:700 52px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#102a43}
+      .subtitle{font:500 25px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#486581}
+      .step{font:700 27px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#102a43;text-anchor:middle}
+      .body{font:500 21px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#334e68;text-anchor:middle}
+      .small{font:500 18px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#486581;text-anchor:middle}
+      .focus{font:700 22px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#173f5f;text-anchor:middle}
+      .arrow{stroke:#63758c;stroke-width:4;fill:none;marker-end:url(#arrow)}
     </style>
   </defs>
-  <rect width="1600" height="900" fill="url(#bg)"/>
-  <rect x="32" y="20" width="72" height="6" rx="3" fill="#6b9cff"/>
-  <text x="32" y="92" class="title">서비스 아키텍처</text>
-  <text x="32" y="132" class="subtitle">모델 artifact에서 사용자 전달까지, 하나의 PHM Result contract를 중심으로 분리된 서비스 구조</text>
-  <text x="1560" y="48" text-anchor="end" class="eyebrow">PHM SERVICE ARCHITECTURE</text>
-  <text x="1560" y="76" text-anchor="end" class="eyebrow" style="font-size:11px;letter-spacing:3px">ARTIFACT  ›  INFERENCE  ›  RESULT  ›  CONSUMER  ›  USER</text>
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <text x="56" y="84" class="title">서비스 아키텍처</text>
+  <text x="56" y="128" class="subtitle">목표: Dashboard와 GenAI가 모델 내부가 아니라 같은 PHM 결과 계약을 소비하게 한다</text>
 
-  <rect x="42" y="210" width="250" height="548" rx="16" fill="#f0f8ff" stroke="#8cc8ff" stroke-width="2"/>
-  <rect x="322" y="210" width="250" height="548" rx="16" fill="#f1fbf7" stroke="#93dfc8" stroke-width="2"/>
-  <rect x="602" y="210" width="300" height="548" rx="16" fill="#f5f3ff" stroke="#b8adff" stroke-width="2"/>
-  <rect x="932" y="210" width="300" height="548" rx="16" fill="#fff9ef" stroke="#ffc875" stroke-width="2"/>
-  <rect x="1262" y="210" width="296" height="548" rx="16" fill="#fff2f5" stroke="#ffabc0" stroke-width="2"/>
+  <g>
+    <rect x="62" y="245" width="260" height="410" rx="24" fill="#eef7ff" stroke="#8fc7f5" stroke-width="3"/>
+    <text x="192" y="304" class="step">1. Model Artifact</text>
+    <text x="192" y="368" class="body">학습된 모델</text>
+    <text x="192" y="406" class="body">전처리 · threshold</text>
+    <text x="192" y="444" class="body">config · provenance</text>
+    <rect x="92" y="520" width="200" height="86" rx="18" fill="#ffffff" stroke="#c9dff2" stroke-width="2"/>
+    <text x="192" y="556" class="focus">재현 가능한 실행 자산</text>
+    <text x="192" y="586" class="small">data · code · evaluation</text>
+  </g>
 
-  <text x="167" y="262" class="panelTitle">Model Artifact</text>
-  <text x="167" y="294" class="panelSub">재현 가능한 실행 자산</text>
-  <text x="447" y="262" class="panelTitle">Inference Pipeline</text>
-  <text x="447" y="294" class="panelSub">학습과 동일한 처리 경계</text>
-  <text x="752" y="262" class="panelTitle">PHM Result</text>
-  <text x="752" y="294" class="panelSub">구조화된 서비스 계약</text>
-  <text x="1082" y="262" class="panelTitle">Consumers</text>
-  <text x="1082" y="294" class="panelSub">결과를 독립적으로 소비</text>
-  <text x="1410" y="262" class="panelTitle">사용자 · 실행</text>
-  <text x="1410" y="294" class="panelSub">역할 기반 정보와 승인</text>
+  <g>
+    <rect x="366" y="245" width="260" height="410" rx="24" fill="#eefbf5" stroke="#8dd6b7" stroke-width="3"/>
+    <text x="496" y="304" class="step">2. Inference</text>
+    <text x="496" y="368" class="body">입력 검증</text>
+    <text x="496" y="406" class="body">학습과 동일한 전처리</text>
+    <text x="496" y="444" class="body">모델 추론</text>
+    <rect x="396" y="520" width="200" height="86" rx="18" fill="#ffffff" stroke="#c9e7da" stroke-width="2"/>
+    <text x="496" y="556" class="focus">수치 Source of Truth</text>
+    <text x="496" y="586" class="small">deterministic PHM</text>
+  </g>
 
-  <!-- artifact -->
-  <rect x="68" y="338" width="198" height="70" rx="12" class="box"/><text x="92" y="381" class="item">학습된 모델</text>
-  <rect x="68" y="428" width="198" height="70" rx="12" class="box"/><text x="92" y="471" class="item">전처리 · 특징 설정</text>
-  <rect x="68" y="518" width="198" height="70" rx="12" class="box"/><text x="92" y="561" class="item">threshold · config</text>
-  <rect x="68" y="608" width="198" height="108" rx="12" fill="#e5f3ff" stroke="#c7e5ff"/><text x="167" y="641" class="tag">Provenance</text><text x="167" y="668" class="small" text-anchor="middle">dataset · code revision</text><text x="167" y="692" class="small" text-anchor="middle">evaluation summary</text>
+  <g>
+    <rect x="670" y="210" width="340" height="480" rx="26" fill="#f4f1ff" stroke="#9d8ed8" stroke-width="4"/>
+    <text x="840" y="270" class="step">3. PHM Result</text>
+    <text x="840" y="318" class="small">서비스의 중심 계약</text>
+    <rect x="708" y="352" width="264" height="66" rx="16" fill="#ffffff" stroke="#d8d0f3" stroke-width="2"/>
+    <text x="840" y="393" class="body">상태 · 점수 · HI · RUL</text>
+    <rect x="708" y="438" width="264" height="66" rx="16" fill="#ffffff" stroke="#d8d0f3" stroke-width="2"/>
+    <text x="840" y="479" class="body">근거 · 설명(XAI)</text>
+    <rect x="708" y="524" width="264" height="66" rx="16" fill="#ffffff" stroke="#d8d0f3" stroke-width="2"/>
+    <text x="840" y="565" class="body">불확실성 · 적용 범위</text>
+    <rect x="708" y="610" width="264" height="48" rx="16" fill="#e7e2fb"/>
+    <text x="840" y="641" class="small">artifact · config · data lineage</text>
+  </g>
 
-  <!-- inference -->
-  <rect x="348" y="338" width="198" height="76" rx="12" class="box"/><text x="372" y="373" class="item">입력 validation</text><text x="372" y="397" class="small">schema · data quality</text>
-  <rect x="348" y="434" width="198" height="76" rx="12" class="box"/><text x="372" y="469" class="item">전처리 재사용</text><text x="372" y="493" class="small">training과 동일 규칙</text>
-  <rect x="348" y="530" width="198" height="76" rx="12" class="box"/><text x="372" y="565" class="item">모델 추론</text><text x="372" y="589" class="small">score · prediction</text>
-  <rect x="348" y="626" width="198" height="90" rx="12" fill="#def7ee" stroke="#bcebdc"/><text x="447" y="660" class="tag">deterministic PHM</text><text x="447" y="686" class="small" text-anchor="middle">수치 source of truth</text>
+  <g>
+    <rect x="1054" y="245" width="260" height="410" rx="24" fill="#fff8e9" stroke="#e8bd69" stroke-width="3"/>
+    <text x="1184" y="304" class="step">4. 결과 소비</text>
+    <rect x="1084" y="350" width="200" height="108" rx="18" fill="#ffffff" stroke="#ead8ae" stroke-width="2"/>
+    <text x="1184" y="392" class="focus">Dashboard</text>
+    <text x="1184" y="426" class="small">상태 · trend · evidence</text>
+    <rect x="1084" y="486" width="200" height="120" rx="18" fill="#ffffff" stroke="#ead8ae" stroke-width="2"/>
+    <text x="1184" y="528" class="focus">GenAI + RAG</text>
+    <text x="1184" y="562" class="small">해석 · 가설 · 권고 초안</text>
+    <text x="1184" y="590" class="small">PHM 수치를 재계산하지 않음</text>
+  </g>
 
-  <!-- result -->
-  <rect x="628" y="332" width="248" height="88" rx="12" class="box"/><text x="652" y="367" class="item">Assessment</text><text x="652" y="393" class="small">status · anomaly · HI · RUL</text>
-  <rect x="628" y="440" width="248" height="88" rx="12" class="box"/><text x="652" y="475" class="item">Evidence</text><text x="652" y="501" class="small">trend · quality · context</text>
-  <rect x="628" y="548" width="248" height="88" rx="12" class="box"/><text x="652" y="583" class="item">Provenance</text><text x="652" y="609" class="small">artifact · config · data lineage</text>
-  <rect x="628" y="656" width="248" height="60" rx="12" fill="#e7e4ff" stroke="#d2ccff"/><text x="752" y="692" class="tag">capability unavailable도 명시</text>
+  <g>
+    <rect x="1358" y="245" width="184" height="410" rx="24" fill="#fff1f4" stroke="#e9a4b4" stroke-width="3"/>
+    <text x="1450" y="304" class="step">5. 사람의 판단</text>
+    <text x="1450" y="378" class="body">설비 관리자</text>
+    <text x="1450" y="416" class="body">정비 엔지니어</text>
+    <text x="1450" y="454" class="body">의사결정자</text>
+    <rect x="1380" y="520" width="140" height="86" rx="18" fill="#ffffff" stroke="#efcbd3" stroke-width="2"/>
+    <text x="1450" y="556" class="focus">승인 경계</text>
+    <text x="1450" y="586" class="small">실행은 사람이 결정</text>
+  </g>
 
-  <!-- consumers -->
-  <rect x="958" y="332" width="248" height="156" rx="12" class="box"/><text x="982" y="370" class="item">Dashboard</text><text x="982" y="400" class="small">설비 상태 monitoring</text><text x="982" y="426" class="small">trend · evidence visualization</text><text x="982" y="452" class="small">fleet / asset view</text>
-  <rect x="958" y="512" width="248" height="204" rx="12" fill="#fff0f3" stroke="#ffd0dc"/><text x="982" y="550" class="item">GenAI + RAG</text><text x="982" y="580" class="small">상태 해석</text><text x="982" y="606" class="small">가능 원인과 대안 가설</text><text x="982" y="632" class="small">정비 권고 초안</text><text x="982" y="658" class="small">보고서 생성</text><text x="1082" y="690" class="tag">PHM 수치를 재계산하지 않음</text>
+  <path d="M322 450 H358" class="arrow"/>
+  <path d="M626 450 H662" class="arrow"/>
+  <path d="M1010 450 H1046" class="arrow"/>
+  <path d="M1314 450 H1350" class="arrow"/>
 
-  <!-- user -->
-  <rect x="1288" y="332" width="244" height="86" rx="12" class="box"/><text x="1312" y="369" class="item">설비 관리자</text><text x="1312" y="395" class="small">상태 · alert · fleet overview</text>
-  <rect x="1288" y="438" width="244" height="86" rx="12" class="box"/><text x="1312" y="475" class="item">정비 엔지니어</text><text x="1312" y="501" class="small">evidence · trend · 정비 계획</text>
-  <rect x="1288" y="544" width="244" height="86" rx="12" class="box"/><text x="1312" y="581" class="item">의사결정자</text><text x="1312" y="607" class="small">risk · urgency · priority</text>
-  <rect x="1288" y="650" width="244" height="66" rx="12" fill="#ffe2e9" stroke="#ffc2d1"/><text x="1410" y="689" class="tag">Human approval boundary</text>
-
-  <path d="M292 484 H316" class="arrow"/><path d="M572 484 H596" class="arrow"/><path d="M902 484 H926" class="arrow"/><path d="M1232 484 H1256" class="arrow"/>
-
-  <rect x="42" y="808" width="1516" height="60" rx="14" fill="#eef5fc"/>
-  <text x="800" y="845" text-anchor="middle" class="small" style="font-size:17px">Dashboard와 GenAI는 모델 구현이 아니라 동일한 PHM Result contract를 소비하며, 실행 조치는 사용자 승인 경계를 통과</text>
+  <rect x="120" y="746" width="1360" height="92" rx="22" fill="#f3f6f9" stroke="#d9e2ec" stroke-width="2"/>
+  <text x="800" y="785" class="focus">서비스의 핵심</text>
+  <text x="800" y="818" class="body">Dashboard와 GenAI는 서로를 거치지 않고 같은 PHM Result를 소비하며 · 실제 정비 조치는 사람의 승인을 거친다</text>
 </svg>

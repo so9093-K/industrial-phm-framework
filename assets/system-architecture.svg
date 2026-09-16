@@ -1,91 +1,93 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
   <title id="title">PHM 시스템 아키텍처</title>
-  <desc id="desc">산업 설비 데이터가 Domain Adapter와 canonical contract를 거쳐 PHM capability, evaluation, structured result, dashboard와 생성형 AI로 전달되는 구조</desc>
+  <desc id="desc">데이터셋 차이는 Domain Adapter에서 흡수하고, 공통 PHM 처리와 독립 평가를 거쳐 구조화된 PHM 결과를 생성한 뒤 사용자 의사결정을 지원하는 전체 흐름</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6f9fd"/></linearGradient>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#8398b3"/></marker>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto"><path d="M0,0 L0,8 L11,4 z" fill="#63758c"/></marker>
     <style>
-      .title{font:700 54px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#0a2047}
-      .subtitle{font:400 23px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#61738e}
-      .eyebrow{font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:5px;fill:#7e92ae}
-      .panelTitle{font:700 27px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#0a2047;text-anchor:middle}
-      .panelSub{font:400 17px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#627795;text-anchor:middle}
-      .item{font:600 18px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#173862}
-      .small{font:400 15px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#667b96}
-      .tag{font:600 15px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#2c5d9b;text-anchor:middle}
-      .arrow{stroke:#8398b3;stroke-width:4;fill:none;marker-end:url(#arrow)}
-      .box{fill:#fff;stroke:#d9e3ef;stroke-width:2}
+      .title{font:700 52px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#102a43}
+      .subtitle{font:500 25px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#486581}
+      .step{font:700 25px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#102a43;text-anchor:middle}
+      .body{font:500 20px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#334e68;text-anchor:middle}
+      .small{font:500 18px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#486581;text-anchor:middle}
+      .focus{font:700 22px system-ui,-apple-system,"Segoe UI",sans-serif;fill:#173f5f;text-anchor:middle}
+      .arrow{stroke:#63758c;stroke-width:4;fill:none;marker-end:url(#arrow)}
     </style>
   </defs>
-  <rect width="1600" height="900" fill="url(#bg)"/>
-  <rect x="32" y="20" width="72" height="6" rx="3" fill="#6b9cff"/>
-  <text x="32" y="92" class="title">시스템 아키텍처</text>
-  <text x="32" y="132" class="subtitle">이기종 산업 데이터를 PHM 결과와 의사결정 지원까지 연결하는 모듈형 구조</text>
-  <text x="1560" y="48" text-anchor="end" class="eyebrow">PHM SYSTEM ARCHITECTURE</text>
-  <text x="1560" y="76" text-anchor="end" class="eyebrow" style="font-size:11px;letter-spacing:3px">DATA  ›  PHM  ›  RESULT  ›  DECISION</text>
+  <rect width="1600" height="900" fill="#ffffff"/>
 
-  <!-- panels -->
-  <rect x="28" y="190" width="220" height="590" rx="16" fill="#f0f8ff" stroke="#8cc8ff" stroke-width="2"/>
-  <rect x="270" y="190" width="220" height="590" rx="16" fill="#f1fbf7" stroke="#93dfc8" stroke-width="2"/>
-  <rect x="512" y="190" width="300" height="590" rx="16" fill="#f5f3ff" stroke="#b8adff" stroke-width="2"/>
-  <rect x="834" y="190" width="220" height="590" rx="16" fill="#fff9ef" stroke="#ffc875" stroke-width="2"/>
-  <rect x="1076" y="190" width="230" height="590" rx="16" fill="#eff8ff" stroke="#80c5ff" stroke-width="2"/>
-  <rect x="1328" y="190" width="244" height="590" rx="16" fill="#fff2f5" stroke="#ffabc0" stroke-width="2"/>
+  <text x="56" y="84" class="title">시스템 아키텍처</text>
+  <text x="56" y="128" class="subtitle">목표: 데이터셋이 달라도 같은 PHM·평가·서비스 흐름을 재사용한다</text>
 
-  <!-- titles -->
-  <text x="138" y="238" class="panelTitle">산업 설비 데이터</text>
-  <text x="138" y="270" class="panelSub">원천 형식과 modality</text>
-  <text x="380" y="238" class="panelTitle">Domain Adapter</text>
-  <text x="380" y="270" class="panelSub">형식·의미 변환 경계</text>
-  <text x="662" y="238" class="panelTitle">공통 PHM Core</text>
-  <text x="662" y="270" class="panelSub">도메인 중립 capability</text>
-  <text x="944" y="238" class="panelTitle">평가</text>
-  <text x="944" y="270" class="panelSub">모델과 독립된 검증</text>
-  <text x="1191" y="238" class="panelTitle">PHM Result</text>
-  <text x="1191" y="270" class="panelSub">구조화된 분석 결과</text>
-  <text x="1450" y="238" class="panelTitle">서비스 · 사용자</text>
-  <text x="1450" y="270" class="panelSub">해석과 실행 지원</text>
+  <g>
+    <rect x="48" y="230" width="220" height="410" rx="24" fill="#eef7ff" stroke="#8fc7f5" stroke-width="3"/>
+    <text x="158" y="286" class="step">1. 원천 산업 데이터</text>
+    <text x="158" y="350" class="body">진동 · 음향 · 센서</text>
+    <text x="158" y="386" class="body">운전 로그 · 메타데이터</text>
+    <rect x="76" y="472" width="164" height="108" rx="18" fill="#ffffff" stroke="#c9dff2" stroke-width="2"/>
+    <text x="158" y="514" class="focus">Asset / Run</text>
+    <text x="158" y="548" class="small">source · sampling</text>
+  </g>
 
-  <!-- data items -->
-  <rect x="52" y="318" width="172" height="72" rx="12" class="box"/><text x="76" y="360" class="item">진동 · 음향</text>
-  <rect x="52" y="408" width="172" height="72" rx="12" class="box"/><text x="76" y="450" class="item">온도 · 압력</text>
-  <rect x="52" y="498" width="172" height="72" rx="12" class="box"/><text x="76" y="540" class="item">운전 로그</text>
-  <rect x="52" y="588" width="172" height="104" rx="12" fill="#e5f3ff" stroke="#c7e5ff"/><text x="138" y="624" text-anchor="middle" class="tag">Asset / Run</text><text x="138" y="650" text-anchor="middle" class="small">source provenance</text><text x="138" y="674" text-anchor="middle" class="small">sampling metadata</text>
+  <g>
+    <rect x="306" y="230" width="220" height="410" rx="24" fill="#eefbf5" stroke="#8dd6b7" stroke-width="3"/>
+    <text x="416" y="286" class="step">2. Domain Adapter</text>
+    <text x="416" y="350" class="body">파일·채널 해석</text>
+    <text x="416" y="386" class="body">단위·label·metadata 매핑</text>
+    <rect x="334" y="472" width="164" height="108" rx="18" fill="#ffffff" stroke="#c9e7da" stroke-width="2"/>
+    <text x="416" y="514" class="focus">공통 데이터 계약</text>
+    <text x="416" y="548" class="small">도메인 지식은 여기까지</text>
+  </g>
 
-  <!-- adapter -->
-  <rect x="294" y="318" width="172" height="78" rx="12" class="box"/><text x="318" y="352" class="item">Parsing</text><text x="318" y="376" class="small">파일 · 채널 해석</text>
-  <rect x="294" y="418" width="172" height="78" rx="12" class="box"/><text x="318" y="452" class="item">Semantic mapping</text><text x="318" y="476" class="small">label · unit · metadata</text>
-  <rect x="294" y="518" width="172" height="78" rx="12" class="box"/><text x="318" y="552" class="item">Canonical output</text><text x="318" y="576" class="small">공통 데이터 계약</text>
-  <rect x="294" y="618" width="172" height="74" rx="12" fill="#def7ee" stroke="#bcebdc"/><text x="380" y="648" text-anchor="middle" class="tag">dataset logic stays</text><text x="380" y="672" text-anchor="middle" class="tag">at the edge</text>
+  <g>
+    <rect x="564" y="230" width="250" height="410" rx="24" fill="#f4f1ff" stroke="#b4a7ed" stroke-width="3"/>
+    <text x="689" y="286" class="step">3. 공통 PHM 처리</text>
+    <text x="689" y="344" class="body">전처리 · 특징 추출</text>
+    <text x="689" y="380" class="body">이상 탐지 · 건전성 평가</text>
+    <text x="689" y="416" class="body">예후 분석 · RUL</text>
+    <rect x="594" y="472" width="190" height="108" rx="18" fill="#ffffff" stroke="#d8d0f3" stroke-width="2"/>
+    <text x="689" y="514" class="focus">모델별 설명 근거</text>
+    <text x="689" y="548" class="small">XAI · residual · attribution</text>
+  </g>
 
-  <!-- core -->
-  <rect x="538" y="314" width="248" height="88" rx="12" class="box"/><text x="562" y="350" class="item">전처리 · 특징</text><text x="562" y="376" class="small">windowing · normalization · features</text>
-  <rect x="538" y="422" width="248" height="74" rx="12" class="box"/><text x="562" y="467" class="item">이상 탐지</text>
-  <rect x="538" y="516" width="248" height="74" rx="12" class="box"/><text x="562" y="561" class="item">건전성 평가</text>
-  <rect x="538" y="610" width="248" height="74" rx="12" class="box"/><text x="562" y="655" class="item">예후 분석 · RUL</text>
-  <rect x="538" y="704" width="248" height="46" rx="12" fill="#e6e2ff"/><text x="662" y="733" class="tag">Reference: IF · LSTM-AE · future models</text>
+  <g>
+    <rect x="852" y="230" width="220" height="410" rx="24" fill="#fff8e9" stroke="#e8bd69" stroke-width="3"/>
+    <text x="962" y="286" class="step">4. 독립 평가</text>
+    <text x="962" y="350" class="body">동일 split · 동일 evaluator</text>
+    <text x="962" y="386" class="body">task-aware metric</text>
+    <rect x="880" y="472" width="164" height="108" rx="18" fill="#ffffff" stroke="#ead8ae" stroke-width="2"/>
+    <text x="962" y="514" class="focus">신뢰성 확인</text>
+    <text x="962" y="548" class="small">성능 · 불확실성</text>
+  </g>
 
-  <!-- evaluation -->
-  <rect x="858" y="320" width="172" height="94" rx="12" class="box"/><text x="882" y="354" class="item">Anomaly</text><text x="882" y="380" class="small">PR-AUC · F1 · FAR</text><text x="882" y="402" class="small">early detection</text>
-  <rect x="858" y="438" width="172" height="94" rx="12" class="box"/><text x="882" y="472" class="item">Prognostics</text><text x="882" y="498" class="small">MAE · RMSE</text><text x="882" y="520" class="small">calibration</text>
-  <rect x="858" y="556" width="172" height="94" rx="12" class="box"/><text x="882" y="590" class="item">Comparison</text><text x="882" y="616" class="small">same split</text><text x="882" y="638" class="small">same evaluator</text>
-  <rect x="858" y="674" width="172" height="58" rx="12" fill="#fff0cf"/><text x="944" y="709" class="tag">task-aware metrics</text>
+  <g>
+    <rect x="1110" y="230" width="220" height="410" rx="24" fill="#eef7ff" stroke="#8fc7f5" stroke-width="3"/>
+    <text x="1220" y="286" class="step">5. PHM Result</text>
+    <text x="1220" y="344" class="body">상태 · 점수 · HI · RUL</text>
+    <text x="1220" y="380" class="body">근거 · 설명 · 불확실성</text>
+    <text x="1220" y="416" class="body">provenance</text>
+    <rect x="1138" y="472" width="164" height="108" rx="18" fill="#ffffff" stroke="#c9dff2" stroke-width="2"/>
+    <text x="1220" y="514" class="focus">하나의 결과 계약</text>
+    <text x="1220" y="548" class="small">지원 불가도 명시</text>
+  </g>
 
-  <!-- result -->
-  <rect x="1100" y="318" width="182" height="82" rx="12" class="box"/><text x="1124" y="352" class="item">Assessment</text><text x="1124" y="378" class="small">score · HI · RUL</text>
-  <rect x="1100" y="420" width="182" height="82" rx="12" class="box"/><text x="1124" y="454" class="item">Evidence</text><text x="1124" y="480" class="small">trend · quality · context</text>
-  <rect x="1100" y="522" width="182" height="82" rx="12" class="box"/><text x="1124" y="556" class="item">Provenance</text><text x="1124" y="582" class="small">artifact · config · data</text>
-  <rect x="1100" y="624" width="182" height="82" rx="12" fill="#dff0ff" stroke="#b9dcfa"/><text x="1191" y="658" class="tag">single service</text><text x="1191" y="682" class="tag">contract</text>
+  <g>
+    <rect x="1368" y="230" width="184" height="410" rx="24" fill="#fff1f4" stroke="#e9a4b4" stroke-width="3"/>
+    <text x="1460" y="286" class="step">6. 의사결정 지원</text>
+    <text x="1460" y="344" class="body">Dashboard</text>
+    <text x="1460" y="380" class="body">GenAI + RAG</text>
+    <text x="1460" y="416" class="body">정비 엔지니어</text>
+    <rect x="1390" y="472" width="140" height="108" rx="18" fill="#ffffff" stroke="#efcbd3" stroke-width="2"/>
+    <text x="1460" y="514" class="focus">Human approval</text>
+    <text x="1460" y="548" class="small">조치는 사람이 승인</text>
+  </g>
 
-  <!-- service/users -->
-  <rect x="1352" y="314" width="196" height="72" rx="12" class="box"/><text x="1376" y="358" class="item">Inference API</text>
-  <rect x="1352" y="406" width="196" height="72" rx="12" class="box"/><text x="1376" y="450" class="item">Dashboard</text>
-  <rect x="1352" y="498" width="196" height="96" rx="12" class="box"/><text x="1376" y="534" class="item">GenAI + RAG</text><text x="1376" y="560" class="small">해석 · 가설 · 권고</text><text x="1376" y="582" class="small">수치 source of truth 아님</text>
-  <rect x="1352" y="614" width="196" height="96" rx="12" fill="#ffe2e9" stroke="#ffc2d1"/><text x="1450" y="648" class="tag">관리자 · 엔지니어</text><text x="1450" y="674" class="tag">의사결정자</text><text x="1450" y="696" class="small" text-anchor="middle">human approval boundary</text>
+  <path d="M268 435 H298" class="arrow"/>
+  <path d="M526 435 H556" class="arrow"/>
+  <path d="M814 435 H844" class="arrow"/>
+  <path d="M1072 435 H1102" class="arrow"/>
+  <path d="M1330 435 H1360" class="arrow"/>
 
-  <!-- arrows -->
-  <path d="M248 485 H264" class="arrow"/><path d="M490 485 H506" class="arrow"/><path d="M812 485 H828" class="arrow"/><path d="M1054 485 H1070" class="arrow"/><path d="M1306 485 H1322" class="arrow"/>
-
-  <rect x="28" y="812" width="1544" height="58" rx="14" fill="#eef5fc"/>
-  <text x="800" y="848" text-anchor="middle" class="small" style="font-size:17px">핵심 경계: Acquisition은 Adapter 앞에서, 도메인 지식은 Adapter 안에서, 모델 결과는 PHM Result를 통해 서비스로 전달</text>
+  <rect x="96" y="700" width="1408" height="112" rx="22" fill="#f3f6f9" stroke="#d9e2ec" stroke-width="2"/>
+  <text x="800" y="746" class="focus">핵심 경계</text>
+  <text x="800" y="784" class="body">데이터셋 차이는 Adapter에서 끝내고 · 모델 수치와 설명 근거는 PHM Result로 묶고 · 서비스는 그 결과만 소비한다</text>
 </svg>

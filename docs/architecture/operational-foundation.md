@@ -106,7 +106,28 @@ README나 발표 자료에 version, URL, threshold 같은 값을 불필요하게
 Python library 배포와 running service 배포도 분리합니다. library는 wheel/sdist가 기본이고, inference
 service가 실제로 생긴 뒤 OCI container를 검토합니다.
 
-## 6. UX Before UI Implementation
+## 6. Data Representation Boundary
+
+DataFrame library 하나를 전체 PHM 데이터 구조로 사용하지 않습니다. 데이터의 역할에 따라 표현을 분리합니다.
+
+- dataset inventory, metadata, lifecycle observation, feature/result table: **Polars를 우선 검토**
+- dense numerical signal과 signal processing: NumPy/SciPy 계열 배열
+- sequence/deep model input: PyTorch Tensor 등 해당 모델의 native tensor
+- public canonical contract: 특정 DataFrame library에 종속되지 않는 명시적 계약
+
+Polars를 tabular processing의 우선 후보로 두는 이유는 CSV/Parquet 같은 columnar source를 `scan_*`으로 읽고
+lazy query optimization, predicate/projection pushdown, streaming execution을 사용할 수 있기 때문입니다. 특히
+여러 asset/run의 feature table이나 lifecycle observation을 필터링·집계하는 단계와 잘 맞습니다.
+
+다만 `Polars가 pandas보다 빠르다`는 이유만으로 raw waveform이나 모델 tensor까지 DataFrame으로 감싸지
+않습니다. scikit-learn estimator 내부도 일반적으로 NumPy/SciPy 같은 homogeneous representation으로 변환하므로
+모델 경계에서는 불필요한 DataFrame 의존을 피합니다.
+
+현재는 실제 adapter/preprocessing이 Polars를 요구하기 전까지 runtime dependency에 추가하지 않습니다. 첫
+실데이터 pipeline에서 tabular processing 요구가 확인되면 Polars를 도입하고 정확한 버전과 Python 3.14 호환성을
+CI에서 검증합니다.
+
+## 7. UX Before UI Implementation
 
 Dashboard 구현은 PHM Result contract와 inference 경계가 안정된 뒤 진행하지만, 사용자가 어떤 정보를
 소비하는지는 지금부터 설계합니다.
@@ -120,7 +141,7 @@ Dashboard 구현은 PHM Result contract와 inference 경계가 안정된 뒤 진
 CLI 역시 현재 단계의 주요 사용자 인터페이스입니다. 실패 시 원인, 해결 방법, local state와 provenance를
 명확히 보여주는 것을 GUI와 동일한 UX 문제로 취급합니다.
 
-## 7. Validation Reuse
+## 8. Validation Reuse
 
 검증 로직은 테스트 전용으로 복제하지 않습니다.
 
@@ -134,7 +155,7 @@ Production Validator
 예를 들어 dataset checksum, artifact schema, split invariant는 production validator 하나가 source of truth가
 되고 CLI와 테스트가 이를 재사용합니다.
 
-## 8. Adoption Rule
+## 9. Adoption Rule
 
 새 도구는 최근 유행이나 미래 가능성만으로 도입하지 않습니다. 다음 중 하나가 실제로 확인될 때 도입합니다.
 
@@ -151,5 +172,8 @@ workspace/plugin architecture에 동일하게 적용합니다.
 - uv project dependencies: https://docs.astral.sh/uv/concepts/projects/dependencies/
 - uv lock/export formats: https://docs.astral.sh/uv/concepts/projects/export/
 - Python packaging dependency groups: https://packaging.python.org/en/latest/specifications/dependency-groups/
+- Polars lazy API: https://docs.pola.rs/user-guide/concepts/lazy-api/
+- Polars query optimizations: https://docs.pola.rs/user-guide/lazy/optimizations/
+- scikit-learn dataframe support FAQ: https://scikit-learn.org/stable/faq.html
 - pytest good integration practices: https://docs.pytest.org/en/stable/explanation/goodpractices.html
 - ISO 9241-210 human-centred design overview: https://www.iso.org/standard/77520.html
