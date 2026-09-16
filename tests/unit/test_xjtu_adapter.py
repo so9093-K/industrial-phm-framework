@@ -4,7 +4,6 @@ import pytest
 
 from industrial_phm.adapters import XjtuSyAdapter, XjtuSySourceError
 
-
 _VALID_HEADER = "Horizontal_vibration_signals,Vertical_vibration_signals\n"
 _VALID_ROW = "0.0,0.0\n"
 
