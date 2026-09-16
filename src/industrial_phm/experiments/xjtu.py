@@ -129,8 +129,7 @@ def _validate_fold(fold: XjtuSplitFold) -> None:
     overlap = (train & validation) | (train & test) | (validation & test)
     if overlap:
         raise XjtuExperimentProtocolError(
-            f"XJTU-SY {fold.fold_id} has bearing-run leakage across partitions: "
-            f"{sorted(overlap)}"
+            f"XJTU-SY {fold.fold_id} has bearing-run leakage across partitions: {sorted(overlap)}"
         )
 
     observed_assets = train | validation | test
@@ -173,9 +172,7 @@ def _parse_fold(values: Mapping[str, object]) -> XjtuSplitFold:
 def _required_str(values: Mapping[str, object], key: str) -> str:
     value = values.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise XjtuExperimentProtocolError(
-            f"XJTU-SY split field {key!r} must be a non-empty string"
-        )
+        raise XjtuExperimentProtocolError(f"XJTU-SY split field {key!r} must be a non-empty string")
     return value.strip()
 
 
