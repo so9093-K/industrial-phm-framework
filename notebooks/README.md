@@ -36,19 +36,26 @@ EDA에서 NumPy, SciPy, Polars 등 반복 가능한 연구 dependency가 필요�
 
 ## XJTU-SY local source
 
-XJTU-SY는 현재 manual provider입니다. Notebook이 원격 mirror에서 직접 다운로드하지 않습니다. 공식 source에서
-직접 획득한 뒤 먼저 CLI로 local source를 확인합니다. 프로젝트 내부 `data/raw/xjtu-sy`를 사용하는 방법과
-공식 Google Drive mirror의 반자동 다운로드 절차는 [`data/README.md`](../data/README.md)를 참조합니다.
+XJTU-SY는 현재 manual provider입니다. Notebook이 원격 mirror에서 직접 다운로드하거나 multipart archive를
+해제하지 않습니다. 원본 획득·압축 해제·준비된 Adapter source 검증 절차는
+[`data/README.md`](../data/README.md)를 따릅니다.
+
+원본 배포물 inventory는 `data inspect`, 압축 해제된 signal dataset의 구조와 Adapter 호환성은
+`data validate`가 담당합니다.
 
 ```bash
 uv run industrial-phm data inspect xjtu-sy --source data/raw/xjtu-sy
+
+uv run industrial-phm data validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
 ```
 
-Notebook에서는 개인 경로를 파일에 저장하지 않도록 `INDUSTRIAL_PHM_XJTU_SOURCE` 환경 변수를 사용할 수 있습니다.
-설정하지 않으면 첫 inspection notebook은 `data/raw/xjtu-sy`를 기본 후보로 확인합니다.
+Notebook에서 개인 absolute path를 파일에 저장하지 않도록 `INDUSTRIAL_PHM_XJTU_SOURCE` 환경 변수를 사용할 수
+있습니다. 실제 waveform EDA에서는 압축 해제된 Adapter source root를 지정합니다.
 
 ```bash
-export INDUSTRIAL_PHM_XJTU_SOURCE=/path/to/XJTU-SY
+export INDUSTRIAL_PHM_XJTU_SOURCE="data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets"
+uv run --with jupyter jupyter lab
 ```
 
 ## 운영 규칙
@@ -66,7 +73,7 @@ export INDUSTRIAL_PHM_XJTU_SOURCE=/path/to/XJTU-SY
 
 ## 현재 Notebook
 
-- `00_xjtu_source_inspection.ipynb`: XJTU-SY local source의 존재, inventory, 최상위 구조를 확인하고 다음 Adapter spike에서 검증할 질문을 기록합니다.
+- `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
 
-`01_eda`, `02_contract_spike` 같은 Notebook은 실제 XJTU-SY 파일 구조를 관찰한 뒤 필요한 내용이 구체화될 때 추가합니다.
-빈 미래 Notebook을 미리 만들지 않습니다.
+초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
+않습니다. 다음 Notebook은 experiment protocol이 정해진 뒤 실제 EDA/feature PoC 요구가 생길 때 추가합니다.
