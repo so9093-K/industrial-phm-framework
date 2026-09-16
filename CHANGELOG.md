@@ -14,6 +14,7 @@
 - ADR, 기여 규칙, CI 및 품질 검증 체계.
 - Apache License 2.0 라이선스 정책과 배포 메타데이터.
 - Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
+- `industrial-phm` CLI와 dataset manifest 기반 `data list/status/fetch/verify` acquisition 흐름.
 
 ### Fixed
 

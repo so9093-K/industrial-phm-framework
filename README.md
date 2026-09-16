@@ -61,19 +61,49 @@ uv build
 커밋, PR, 테스트 및 문서화 규칙은 [`CONTRIBUTING.md`](CONTRIBUTING.md)를 따릅니다.
 중요한 구조 결정은 [`docs/adr`](docs/adr)에 ADR로 남깁니다.
 
+## CLI and Dataset Acquisition
+
+프로젝트 기능은 설치 가능한 `industrial-phm` 명령으로 노출합니다. 현재는 데이터 획득 기반만 구현하며,
+모델 기능이 생기기 전에 빈 `train`/`evaluate` 명령을 미리 만들지 않습니다.
+
+```bash
+uv run industrial-phm doctor
+uv run industrial-phm data list
+uv run industrial-phm data status xjtu-sy
+uv run industrial-phm data status ai4i-2020
+```
+
+자동 획득을 허용하는 작은 공개 데이터셋은 사용자가 명시적으로 `fetch`를 실행할 때만 내려받습니다.
+예를 들어 AI4I 2020은 UCI 공식 배포 ZIP을 `data/raw/ai4i-2020/` 아래에 보존합니다.
+
+```bash
+uv run industrial-phm data fetch ai4i-2020
+uv run industrial-phm data verify ai4i-2020
+```
+
+XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자동화 조건을 추가 확인해야 하는 데이터셋은
+`manual` provider로 등록합니다. 이 경우 CLI가 공식 source를 안내하며 package 설치/import 과정에서 임의로
+데이터를 다운로드하지 않습니다. 기본 데이터 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수
+있습니다.
+
+데이터셋 선정 근거와 provenance 주의사항은
+[`docs/research/dataset-selection.md`](docs/research/dataset-selection.md)를 참조합니다.
+
 ## Repository Layout
 
 ```text
 .
 ├── .github/                # CI 및 협업 템플릿
-├── assets/                 # README·발표용 아키텍처 자산
+├── assets/                 # canonical SVG 아키텍처 자산
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   ├── product/            # 사용자 역할과 결과 UX 기준
+│   ├── research/           # 데이터셋·benchmark 조사
 │   └── adr/                # Architecture Decision Records
 ├── src/industrial_phm/
 │   ├── contracts/          # 도메인 중립 데이터 계약
-│   └── adapters/           # 설비/데이터셋별 변환 경계
+│   ├── adapters/           # 설비/데이터셋별 변환 경계
+│   └── data/               # dataset manifest·acquisition·validation
 └── tests/
     ├── unit/
     └── contract/

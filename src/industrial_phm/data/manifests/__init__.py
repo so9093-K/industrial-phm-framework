@@ -1,0 +1,1 @@
+"""Packaged dataset acquisition manifests."""
