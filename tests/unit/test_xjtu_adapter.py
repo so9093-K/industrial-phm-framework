@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from industrial_phm.adapters import DomainAdapter, XjtuSyAdapter, XjtuSySourceError
+from industrial_phm.adapters import (
+    DomainAdapter,
+    XjtuSyAdapter,
+    XjtuSySourceError,
+)
 
 
 _VALID_HEADER = "Horizontal_vibration_signals,Vertical_vibration_signals\n"
@@ -58,7 +62,7 @@ def test_xjtu_adapter_rejects_non_contiguous_acquisition_sequence(tmp_path: Path
     (bearing / "1.csv").touch()
     (bearing / "3.csv").touch()
 
-    with pytest.raises(XjtuSySourceError, match="contiguous 1..N"):
+    with pytest.raises(XjtuSySourceError, match=r"contiguous 1\.\.N"):
         next(iter(XjtuSyAdapter().iter_series(tmp_path)))
 
 
