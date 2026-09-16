@@ -124,10 +124,60 @@ Characterization 결과에 따라 다음 후보를 비교할 수 있습니다.
 partition에서만 fit합니다. Test bearing 자신의 early-life data를 이용하는 normalization은 별도 test-time
 adaptation protocol 없이는 사용하지 않습니다.
 
-## 7. Research UX와 도구
+## 7. Automated characterization workflow
+
+9,216 acquisition을 사람이 하나씩 확인하는 방식으로 characterization하지 않습니다. 계산·집계·기초 진단은
+반복 가능한 코드가 담당하고, 사람은 그 evidence를 바탕으로 experiment decision을 검토합니다.
+
+완전한 prepared XJTU-SY source에 대해 다음 명령으로 현재 baseline artifact를 생성합니다.
+
+```bash
+uv run python scripts/xjtu_feature_characterization.py \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output-dir data/processed/xjtu-sy/vibration-statistical-v1-characterization
+```
+
+이 workflow는 먼저 기존 `data validate`와 같은 observed complete profile compatibility를 확인한 뒤 모든
+acquisition을 `XjtuSyAdapter -> CanonicalTimeSeries -> vibration-statistical-v1` 경로로 실제 parsing합니다.
+생성되는 artifact는 다음 두 개입니다.
+
+- `vibration-statistical-v1-features.csv`
+  - acquisition provenance와 고정 feature 값을 보존하는 table artifact
+- `xjtu-feature-characterization-summary-v1.json`
+  - global / condition / bearing-run feature distribution
+  - run-length imbalance
+  - global / condition Pearson·Spearman correlation candidate
+  - known final run length를 사용한 retrospective early/middle/late thirds summary
+
+CSV/JSON은 연구 artifact이며 feature contract나 experiment decision 자체가 아닙니다. local `data/processed/`
+workspace에 생성하고 대용량 결과를 repository에 그대로 commit하지 않습니다.
+
+자동화의 경계도 명확히 둡니다.
+
+```text
+feature 계산 / 유효성 contract     자동
+run / condition 통계               자동
+Pearson / Spearman 후보             자동
+retrospective lifecycle 요약         자동
+
+feature 삭제·채택                    사람의 experiment decision
+normal reference 정의               사람의 experiment decision
+anomaly onset ground truth 주장      자동화하지 않음
+change point의 fault 의미 해석       자동화하지 않음
+```
+
+첫 artifact는 현재 이미 정당화된 descriptive evidence만 자동화합니다. Change-point algorithm, reference-window
+ranking, feature ranking처럼 추가 가정이 필요한 로직은 실제 baseline 결과를 본 뒤 별도 연구 변경으로 검토합니다.
+
+## 8. Research UX와 도구
 
 Canonical workflow는 production feature extractor와 Jupyter를 사용합니다. Notebook은 feature 계산식을 다시
-구현하지 않고 `industrial_phm.features`가 만든 vector/flat record를 시각화하고 비교하는 역할만 가집니다.
+구현하지 않고 `industrial_phm.features`가 만든 vector/flat record 또는 위 automated characterization artifact를
+시각화하고 비교하는 역할만 가집니다.
+
+첫 전체 artifact를 실행하기 전부터 완성형 Feature Observatory를 만들지 않습니다. 실제 결과를 확인한 뒤 반복해서
+필요한 trajectory, condition/channel comparison, bearing overlay를 얇은 Notebook UX로 추가하고, 두 곳 이상에서
+반복되는 계산은 production/reusable code로 승격합니다.
 
 외부 도구는 research aid로 선택적으로 사용할 수 있습니다.
 
@@ -140,7 +190,7 @@ Canonical workflow는 production feature extractor와 Jupyter를 사용합니다
 이 도구들은 현재 runtime dependency가 아닙니다. 특히 자동 profiling/ranking 결과는 domain validation 없이 feature
 selection contract가 되지 않습니다.
 
-## 8. Decision outputs
+## 9. Decision outputs
 
 Characterization의 목적은 하나의 feature score를 만드는 것이 아니라 다음 결정을 명시적으로 내릴 evidence를
 만드는 것입니다.
