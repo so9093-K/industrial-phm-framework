@@ -114,14 +114,34 @@ XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자�
 
 ## Roadmap
 
-1. 첫 산업 설비 데이터셋 선정과 provenance 문서화
-2. 명시적 dataset acquisition/verify 흐름과 실제 Domain Adapter 검증
-3. 공통 전처리 경계와 자산·Run 단위 split 검증
-4. Isolation Forest baseline과 독립 평가 계층
-5. LSTM Autoencoder 기반 시계열 이상 탐지
-6. Health Index 및 데이터가 지원하는 경우 RUL prognostics
-7. 두 번째 도메인으로 adapter/core 확장성 검증
-8. artifact/inference contract, API, dashboard, Generative AI/RAG 연계
+### Completed
+
+- repository/package/CI foundation과 `0.0.1` 개발 기준선
+- `CanonicalTimeSeries` v0.1과 `DomainAdapter` 경계
+- 공개 PHM 데이터셋 조사 및 XJTU-SY primary / MIMII DUE secondary 역할 정의
+- dataset registry와 명시적 `fetch`/`verify` CLI 기반
+- 아키텍처·Source of Truth·testing·UX/XAI 운영 원칙
+
+### Current
+
+1. XJTU-SY local source inspection과 provenance 확인
+2. 실제 XJTU-SY 구조를 읽는 최소 Domain Adapter spike
+3. waveform sample time과 asset lifecycle time을 기준으로 canonical contract 적합성 검증
+
+### Next
+
+1. 자산·Run 단위 split과 leakage-free preprocessing protocol
+2. Isolation Forest baseline과 모델 독립 evaluation
+3. LSTM Autoencoder, reconstruction evidence, Health Index
+4. 데이터가 정당하게 지원하는 경우 RUL prognostics
+5. IMS/MIMII DUE를 통한 same-modality/cross-domain 확장성 검증
+6. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
+
+### Later
+
+- API와 역할 기반 dashboard
+- 구조화된 PHM 결과와 정비 지식을 사용하는 Generative AI/RAG
+- release/deployment 요구가 생긴 뒤 container·SBOM·attestation 검토
 
 ## Governance
 
