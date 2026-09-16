@@ -1,0 +1,54 @@
+id = "xjtu-sy-condition-stratified-5fold-v1"
+dataset_id = "xjtu-sy"
+split_unit = "bearing-run"
+strategy = "condition-stratified-rotating-holdout"
+
+[[fold]]
+id = "fold-1"
+train = [
+  "Bearing1_3", "Bearing1_4", "Bearing1_5",
+  "Bearing2_3", "Bearing2_4", "Bearing2_5",
+  "Bearing3_3", "Bearing3_4", "Bearing3_5",
+]
+validation = ["Bearing1_2", "Bearing2_2", "Bearing3_2"]
+test = ["Bearing1_1", "Bearing2_1", "Bearing3_1"]
+
+[[fold]]
+id = "fold-2"
+train = [
+  "Bearing1_1", "Bearing1_4", "Bearing1_5",
+  "Bearing2_1", "Bearing2_4", "Bearing2_5",
+  "Bearing3_1", "Bearing3_4", "Bearing3_5",
+]
+validation = ["Bearing1_3", "Bearing2_3", "Bearing3_3"]
+test = ["Bearing1_2", "Bearing2_2", "Bearing3_2"]
+
+[[fold]]
+id = "fold-3"
+train = [
+  "Bearing1_1", "Bearing1_2", "Bearing1_5",
+  "Bearing2_1", "Bearing2_2", "Bearing2_5",
+  "Bearing3_1", "Bearing3_2", "Bearing3_5",
+]
+validation = ["Bearing1_4", "Bearing2_4", "Bearing3_4"]
+test = ["Bearing1_3", "Bearing2_3", "Bearing3_3"]
+
+[[fold]]
+id = "fold-4"
+train = [
+  "Bearing1_1", "Bearing1_2", "Bearing1_3",
+  "Bearing2_1", "Bearing2_2", "Bearing2_3",
+  "Bearing3_1", "Bearing3_2", "Bearing3_3",
+]
+validation = ["Bearing1_5", "Bearing2_5", "Bearing3_5"]
+test = ["Bearing1_4", "Bearing2_4", "Bearing3_4"]
+
+[[fold]]
+id = "fold-5"
+train = [
+  "Bearing1_2", "Bearing1_3", "Bearing1_4",
+  "Bearing2_2", "Bearing2_3", "Bearing2_4",
+  "Bearing3_2", "Bearing3_3", "Bearing3_4",
+]
+validation = ["Bearing1_1", "Bearing2_1", "Bearing3_1"]
+test = ["Bearing1_5", "Bearing2_5", "Bearing3_5"]

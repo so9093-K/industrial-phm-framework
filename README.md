@@ -121,6 +121,10 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 구현하지 않습니다. Notebook 운영 규칙과 현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를
 참조합니다.
 
+첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
+[`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 평가 질문과 leakage
+경계를 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
+
 ## Repository Layout
 
 ```text
@@ -130,13 +134,14 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   ├── product/            # 사용자 역할과 결과 UX 기준
-│   ├── research/           # 데이터셋·benchmark 조사
+│   ├── research/           # 데이터셋·benchmark·experiment protocol 조사
 │   └── adr/                # Architecture Decision Records
 ├── notebooks/              # EDA·contract 검증·모델 PoC용 Research UX
 ├── src/industrial_phm/
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
-│   └── data/               # dataset manifest·acquisition·validation
+│   ├── data/               # dataset manifest·acquisition·validation
+│   └── experiments/        # version-controlled experiment split/protocol inputs
 └── tests/
     ├── unit/
     └── contract/
@@ -157,12 +162,13 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 - XJTU-SY 3 operating conditions / 15 bearing runs / 9,216 acquisitions 실데이터 구조 확인
 - XJTU-SY acquisition 단위 Adapter와 regular waveform의 implicit sample-time contract 확장
 - XJTU-SY complete profile 및 Adapter compatibility를 반복 확인하는 `data validate` 흐름
+- XJTU-SY condition-stratified 5-fold bearing-run reference split과 leakage contract
 
 ### Current
 
-1. XJTU-SY experiment protocol과 자산·Run 단위 split 정의
-2. leakage-free vibration preprocessing / feature baseline 설계
-3. 첫 numerical PHM baseline의 입력·평가 contract 확정
+1. leakage-free vibration preprocessing / numerical feature boundary 설계
+2. train-only normal-reference / normalization rule을 experiment parameter로 정의
+3. 첫 Isolation Forest baseline의 입력·평가 contract 확정
 
 ### Next
 

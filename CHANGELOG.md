@@ -26,6 +26,8 @@
 - XJTU-SY local source profile과 regular waveform time-axis 결정을 기록한 research 문서 및 ADR-0005.
 - XJTU-SY complete source profile, lifecycle sequence 및 representative/full waveform parsing을 자동 확인하는
   `industrial-phm data validate xjtu-sy` 흐름.
+- XJTU-SY 첫 numerical baseline을 위한 condition-stratified 5-fold bearing-run split manifest와
+  leakage-prevention experiment protocol.
 
 ### Changed
 
