@@ -1,7 +1,11 @@
 # Changelog
 
 이 프로젝트의 사용자 및 개발자에게 의미 있는 변경사항을 기록합니다. 형식은 Keep a Changelog의
-분류 방식을 따르고, 버전은 안정적인 public API가 확립되기 전까지 `0.y.z`로 운영합니다.
+분류 방식을 따릅니다.
+
+개발 중 package version은 `0.0.1`로 유지하며 기능 PR이나 내부 구조 변경마다 버전을 올리지 않습니다.
+릴리즈 가능한 public API와 배포 정책을 별도로 결정할 때 versioning 정책을 다시 검토합니다. 그 전까지
+의미 있는 변경은 `[Unreleased]` 아래에 누적합니다.
 
 ## [Unreleased]
 
