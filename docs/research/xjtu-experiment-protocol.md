@@ -97,7 +97,48 @@ unseen-bearing 차이를 한 번에 혼동하지 않습니다.
 이 protocol은 cross-condition generalization protocol이 아닙니다. 두 operating condition에서 학습하고 세 번째
 condition 전체를 holdout하는 LOCO 계열 평가는 feature/model baseline이 안정된 뒤 별도 protocol로 추가합니다.
 
-## 5. Leakage rules
+## 5. Primary development fold와 evaluation semantics
+
+Rotating holdout manifest는 재현 가능한 bearing assignment를 정의하지만, 사람이 모든 fold를 반복해서 관찰하면서
+feature/reference/model을 바꾼 뒤 각 fold의 test 결과를 모두 독립적인 final test처럼 해석한다는 의미는 아닙니다.
+특히 한 fold의 test bearing은 다른 fold의 train 또는 validation에 등장하므로, cross-fold human tuning이 시작되면
+outer evaluation independence가 약해집니다.
+
+첫 numerical baseline에서는 **`fold-1`을 primary development fold로 고정**합니다. 이 선택은 fold 간 결과를
+비교해 성능이 좋은 fold를 고른 것이 아니라, development/evaluation 경계를 하나로 고정하기 위한 절차적
+선택입니다.
+
+Primary baseline에서 각 partition의 역할은 다음과 같습니다.
+
+```text
+fold-1 train
+  feature/degradation characterization
+  data-derived preprocessing/reference fitting
+  model fitting
+
+fold-1 validation
+  protocol에 미리 정의된 candidate selection/calibration
+  train에서 만든 결정을 확인하는 development evidence
+
+fold-1 test
+  feature/reference/preprocessing/model decision을 freeze한 뒤 한 번 사용하는
+  primary independent evaluation
+```
+
+`fold-1 test`는 primary decision을 고정하기 전에는 feature characterization, reference discovery, parameter 선택,
+시각적 tuning에 사용하지 않습니다. Test를 관찰한 뒤 결정을 바꾸면 새로운 protocol/version으로 기록하고,
+같은 test 결과를 변경된 protocol의 unbiased primary evidence로 다시 사용하지 않습니다.
+
+`fold-2`부터 `fold-5`는 primary decision freeze 이후 **secondary robustness / sensitivity analysis**에 사용할 수
+있습니다. 이때 각 fold 내부의 train/validation/test 분리는 그대로 지키되, 해당 결과는 primary independent test와
+구분해 해석합니다. Primary development 중에는 다른 fold의 train/validation을 미리 열어 `fold-1 test` bearing에
+간접적으로 노출되지 않습니다.
+
+Split manifest는 계속 5-fold assignment의 Source of Truth입니다. `fold-1`을 primary development fold로 사용하는
+연구 의미는 이 protocol이 소유하며, 향후 실험 input contract가 실제로 필요해지면 version-controlled experiment
+config로 승격합니다.
+
+## 6. Leakage rules
 
 모든 preprocessing, feature engineering, model fitting, threshold/statistics fitting은 다음 규칙을 지켜야 합니다.
 
@@ -111,6 +152,8 @@ condition 전체를 holdout하는 LOCO 계열 평가는 feature/model baseline�
    명시하지 않는 한 허용하지 않습니다.
 7. test trajectory를 반복해서 관찰해 feature formula, feature subset, reference rule을 바꾸는 행위도
    data-derived selection으로 취급합니다.
+8. Primary baseline decision이 freeze되기 전에는 `fold-2`~`fold-5`를 추가 development evidence로 사용하지
+   않습니다.
 
 특히 `전체 데이터 feature 통계 계산 -> split` 순서의 구현은 금지합니다. Architecture 문서의
 `전처리/특징 생성 -> 데이터 분할` 도식은 책임 흐름을 나타내며 learned state를 전체 데이터에 fit하라는 의미가
@@ -120,15 +163,15 @@ Acquisition 하나만을 입력으로 하는 고정된 stateless feature formula
 partition에 독립적으로 적용할 수 있습니다. 반면 어떤 feature를 유지할지, 어떻게 scaling할지, 어떤 reference
 window를 사용할지 결정하는 과정은 위 partition 경계를 따라야 합니다.
 
-## 6. Feature characterization, normal reference, anomaly labels
+## 7. Feature characterization, normal reference, anomaly labels
 
 XJTU-SY는 complete run-to-failure trajectory를 제공하지만 acquisition별 정상/이상 onset label은 공식 source에서
 직접 제공하지 않습니다. 따라서 첫 protocol은 `first 20% = healthy` 같은 가정을 ground truth로 고정하지
 않습니다.
 
-먼저 [`xjtu-feature-characterization.md`](xjtu-feature-characterization.md)에 따라 train 중심의 feature behavior,
-operating-condition sensitivity, bearing 간 일관성, redundancy, run-length imbalance를 관찰합니다. 이 단계에서
-`normal reference`는 반드시 만들어야 하는 결과가 아니라 가능한 experiment decision 중 하나입니다.
+먼저 [`xjtu-feature-characterization.md`](xjtu-feature-characterization.md)에 따라 `fold-1 train` 중심의 feature
+behavior, operating-condition sensitivity, bearing 간 일관성, redundancy, run-length imbalance를 관찰합니다. 이
+단계에서 `normal reference`는 반드시 만들어야 하는 결과가 아니라 가능한 experiment decision 중 하나입니다.
 
 Normal-reference window가 실제 필요해지면:
 
@@ -143,7 +186,7 @@ Precision, Recall, F1, PR-AUC, Early Detection Time 같은 supervised/early-warn
 protocol이 정의된 뒤 independent evaluator에서 계산합니다. 그 전에는 score trajectory와 feature behavior를
 sanity check할 수는 있지만 이를 detection accuracy로 보고하지 않습니다.
 
-## 7. Reproducibility contract
+## 8. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는
 `industrial_phm.experiments.get_xjtu_reference_split()`을 통해 packaged manifest를 읽습니다.
@@ -159,18 +202,25 @@ Split manifest validation은 다음을 fail-fast로 확인합니다.
 이 규칙은 모델 종류와 무관합니다. Isolation Forest, LSTM Autoencoder 및 이후 모델은 같은 reference split을
 사용해야 비교가 의미를 가집니다.
 
-## 8. Next implementation boundary
+Primary development fold 선택은 split manifest의 bearing assignment를 변경하지 않습니다. 현재 baseline에서는
+이 문서가 `fold-1`의 development/evaluation 역할을 설명하고, generated evidence는 항상 실제 `split_id`, `fold_id`,
+`partition` provenance를 함께 기록해야 합니다.
+
+## 9. Next implementation boundary
 
 이 protocol 이후의 기본 진행 순서는 다음과 같습니다.
 
 ```text
-reference split
+reference split + primary development boundary
   -> fixed stateless feature foundation
-  -> train/validation-bounded feature & degradation characterization
-  -> versioned feature/reference/preprocessing decision
+  -> fold-1 train feature & degradation characterization
+  -> versioned feature/reference/preprocessing decision candidate
+  -> fold-1 validation confirmation/calibration
+  -> decision freeze
   -> train-only fitted preprocessing state
   -> Isolation Forest reference model
-  -> independent evaluation
+  -> fold-1 primary independent evaluation
+  -> secondary cross-fold robustness analysis
 ```
 
 Characterization 결과에 따라 feature set을 반복 개선할 수 있지만, test 결과를 사용한 변경은 같은 protocol의
