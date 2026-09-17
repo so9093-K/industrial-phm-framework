@@ -1,170 +1,130 @@
 # IMS Bearing Data Set Source Profile
 
-상태: source registration / local archive validation pending
+상태: official archive profile verified / minimal Adapter implemented
 
-이 문서는 NASA Prognostics Center of Excellence(PCoE)가 배포하는 IMS Bearing Data Set을 두 번째
-canonical-data conformance case로 사용할 때 **공식 출처에서 확인된 사실**과 **실제 archive에서 확인해야 할
-사실**을 분리합니다.
+이 문서는 NASA Prognostics Center of Excellence(PCoE)가 배포하는 IMS Bearing Data Set의 source
+profile, validation contract, canonical mapping을 기록합니다. IMS는 XJTU-SY에 이은 두 번째
+`CanonicalTimeSeries` conformance case입니다.
 
-이 단계에서는 IMS adapter compatibility를 주장하지 않습니다. 공식 archive가 registry에 등록되어 있다는 사실과
-그 archive 내부 구조를 `DomainAdapter`가 실제로 지원한다는 주장은 별개입니다.
-
-## 1. Official source and citation
-
-NASA PCoE Prognostics Data Repository는 `Bearings` dataset을 University of Cincinnati의 Center for Intelligent
-Maintenance Systems(IMS)가 제공한 bearing experiment data로 설명하고 공식 ZIP download를 제공합니다.
+## 1. Source record
 
 - project dataset ID: `ims-bearings`
 - official repository: NASA Prognostics Center of Excellence Data Set Repository
 - official archive: `https://phm-datasets.s3.amazonaws.com/NASA/4.+Bearings.zip`
-- repository citation: J. Lee, H. Qiu, G. Yu, J. Lin, and Rexnord Technical Services (2007), IMS, University of
-  Cincinnati, *Bearing Data Set*, NASA Prognostics Data Repository, NASA Ames Research Center
+- repository citation: J. Lee, H. Qiu, G. Yu, J. Lin, and Rexnord Technical Services (2007), IMS,
+  University of Cincinnati, *Bearing Data Set*, NASA Prognostics Data Repository, NASA Ames Research Center
 - NASA Open Data Portal entry: `https://data.nasa.gov/dataset/ims-bearings`
 - NASA Open Data Portal license field: `other-license-specified`
 
-NASA repository는 해당 repository에서 획득한 data를 사용하는 publication에서 repository와 data donor를 함께
-acknowledge하도록 요청하고, 사용은 사용자 책임임을 안내합니다.
+2026-09-17에 framework `data fetch`로 획득한 local artifact의 provenance는 다음과 같습니다.
 
-현재 manifest에는 upstream SHA-256이 없습니다. 따라서 `data fetch`가 archive를 성공적으로 내려받고 local hash를
-계산하더라도 그 값만으로 upstream authenticity가 사전에 pin되었다고 주장하지 않습니다.
+- archive: `ims-bearing-data-set.zip`
+- size: `1,075,597,174` bytes
+- local SHA-256: `21001ac266c465f5d345ec42d7b508c6a6328487fd9d4d7774422dd5ea10ad83`
+- checksum policy: local SHA-256 provenance
 
-## 2. Why IMS is used now
+Manifest에 publisher-provided SHA-256을 추가하면 `verify`가 pinned checksum comparison을 적용합니다.
 
-IMS를 지금 사용하는 목적은 XJTU-SY 이후 곧바로 두 번째 모델 성능 benchmark를 만드는 것이 아닙니다.
+## 2. Archive layout
 
-```text
-XJTU-SY
-  ↓
-current CanonicalTimeSeries assumptions
-  ↓
-IMS source inspection / minimal adapter
-  ↓
-contract incompatibility 확인
-  ↓
-필요한 경우에만 domain-neutral contract refinement
-```
-
-같은 bearing-vibration domain에서 source layout과 acquisition semantics가 달라져도 adapter/core boundary가 유지되는지
-먼저 확인합니다. Isolation Forest, Health Indicator, RUL 같은 downstream 연구는 이 contract exercise와 분리합니다.
-
-## 3. Facts not promoted to production invariants yet
-
-IMS dataset에 대해 논문, tutorial, community repository에서 다음과 같은 설명이 널리 반복됩니다.
-
-- 여러 bearing run/test가 존재한다.
-- individual measurement file 이름이 acquisition time을 나타낸다.
-- fixed-rate vibration snapshot이 반복 수집된다.
-- test에 따라 channel configuration과 acquisition interval이 달라질 수 있다.
-
-하지만 현재 project는 이러한 secondary-source 설명을 production validator의 authoritative profile로 사용하지
-않습니다. 특히 archive directory nesting, test별 exact file count, channel count, sample count, acquisition interval은
-source 설명 간 차이가 있으므로 **공식 archive를 local에서 직접 조사한 결과**를 기준으로 정합니다.
-
-따라서 아직 다음 상수를 코드에 추가하지 않습니다.
+공식 ZIP은 waveform을 nested 7z/RAR archive로 배포합니다.
 
 ```text
-EXPECTED_TEST_FILE_COUNTS
-EXPECTED_CHANNEL_COUNT
-EXPECTED_ACQUISITION_PERIOD
-EXPECTED_ARCHIVE_DIRECTORY_TREE
+ims-bearing-data-set.zip
+└── 4. Bearings/
+    └── IMS.7z                         1,075,320,408 bytes
+        ├── 1st_test.rar                 366,567,310 bytes
+        ├── 2nd_test.rar                  85,581,092 bytes
+        ├── 3rd_test.rar                 609,047,134 bytes
+        └── Readme Document for IMS Bearing Data.pdf
 ```
 
-실제 source inspection으로 확인되지 않은 값은 compatibility claim이 아닙니다.
+RAR extraction 결과는 다음 prepared-source profile을 갖습니다.
 
-## 4. Local acquisition and inspection boundary
+| RAR member | Extracted path | Waveform files | Payload bytes |
+| --- | --- | ---: | ---: |
+| `1st_test.rar` | `1st_test/` | 2,156 | 2,477,767,237 |
+| `2nd_test.rar` | `2nd_test/` | 984 | 544,618,480 |
+| `3rd_test.rar` | `4th_test/txt/` | 6,324 | 3,502,648,779 |
+| total |  | 9,464 | 6,525,034,496 |
 
-Manifest는 NASA PCoE의 공식 archive URL을 `url` provider로 등록합니다. 원본 archive는 수정하지 않고 local raw
-workspace에 보존합니다.
+`3rd_test.rar`의 extracted directory는 archive에 기록된 `4th_test/txt/`입니다. Adapter는 이
+source path를 stable test ID `set-3`으로 mapping합니다.
+
+## 3. Measurement profile
+
+공식 README는 four-bearing test rig, 2,000 RPM, 6,000 lb radial load, 20 kHz sampling rate, acquisition당
+20,480 points를 기록합니다. Set 1은 bearing당 x/y accelerometer를 배치해 8 channels을 갖고,
+Set 2와 Set 3은 bearing당 1개 accelerometer를 배치해 4 channels을 갖습니다.
+
+Waveform은 headerless numeric ASCII입니다. Filename은 `%Y.%m.%d.%H.%M.%S` local-clock acquisition
+timestamp를 표현합니다.
+
+| Set | Source path | Archive range | Files | Channels | Interval profile |
+| --- | --- | --- | ---: | ---: | --- |
+| Set 1 | `1st_test/` | 2003-10-22 12:06:24 — 2003-11-25 23:39:56 | 2,156 | 8 | 600 s 1,962회, 300 s 145회, restart/gap interval |
+| Set 2 | `2nd_test/` | 2004-02-12 10:32:39 — 2004-02-19 06:22:39 | 984 | 4 | 600 s 983회 |
+| Set 3 | `4th_test/txt/` | 2004-03-04 09:27:46 — 2004-04-18 02:42:55 | 6,324 | 4 | 600 s 6,315회, 8개 gap interval |
+
+README의 Set 3 scope는 4,448개 file과 `2004-04-04 19:01:57` 종료 시각입니다. Archive의 첫
+4,448개 file은 이 범위와 일치하며, 이후 1,876개 file은 `archive-extension` scope를 구성합니다.
+Sampled validation에서 두 scope의 waveform은 20,480 × 4 shape로 일치했습니다.
+
+## 4. Validation contract
+
+`data inspect` owns archive/directory inventory. `data validate ims-bearings` owns prepared-source profile and
+waveform compatibility.
 
 ```bash
-uv run industrial-phm data fetch ims-bearings
-uv run industrial-phm data verify ims-bearings
+uv run industrial-phm data validate ims-bearings \
+  --source data/interim/ims-bearings/source
 ```
 
-현재 upstream checksum이 manifest에 pin되어 있지 않으므로 `verify`의 의미는 XJTU-SY와 마찬가지로 제한해서
-해석해야 합니다. Local archive size/hash를 provenance로 기록할 수는 있지만 공식 upstream hash와의 일치를
-증명하지는 않습니다.
+Validator는 다음 invariant를 검사합니다.
 
-원본 ZIP을 압축 해제하기 전에 generic source inspection으로 archive metadata를 확인합니다.
+- `1st_test/`, `2nd_test/`, `4th_test/txt/` source directory mapping
+- test별 acquisition count·first timestamp·last timestamp
+- filename timestamp parseability와 uniqueness
+- acquisition당 20,480 rows
+- Set 1의 8-column waveform과 Set 2/3의 4-column waveform
+- numeric ASCII payload
 
-```bash
-uv run industrial-phm data inspect ims-bearings \
-  --source data/raw/ims-bearings/ims-bearing-data-set.zip \
-  --details
-```
+Sampled mode는 각 set의 first/middle/last waveform 9개를 parse하고 전체 filename profile을 검사합니다.
+`--full`은 9,464개 waveform 전체에 같은 payload validation을 적용합니다. 2026-09-17 sampled
+validation은 profile compatibility와 waveform compatibility 모두 `PASS`를 반환했습니다.
 
-`data inspect`는 ZIP member payload를 읽거나 출력하지 않고 archive member count, archive/uncompressed size,
-path depth, extension 분포와 제한된 path sample을 요약합니다. 이 단계의 출력은 **inventory evidence**이며
-channel/time semantics 또는 Adapter compatibility evidence가 아닙니다.
+## 5. Canonical mapping
 
-이 요약과 이후 필요한 최소 local content inspection을 이용해 다음 항목을 확인합니다.
+`ImsBearingAdapter`는 acquisition file 하나를 bearing별 `CanonicalTimeSeries` 네 개로 분리합니다.
 
-1. top-level 및 nested directory inventory
-2. run/test 식별 방법
-3. acquisition filename과 timestamp semantics
-4. 각 run의 file count 및 실제 interval distribution
-5. text file delimiter/header 여부
-6. waveform sample count
-7. channel count와 channel-to-bearing mapping
-8. sampling rate를 official documentation과 local content 중 어디에서 authoritative하게 얻을 수 있는지
-9. malformed/extra/non-data file 처리
-10. source file provenance를 canonical metadata에 보존하는 방법
+| Source | Canonical asset | Channels |
+| --- | --- | --- |
+| Set 1 channel pairs | `set-1-bearing-{1..4}` | `x_axis_vibration`, `y_axis_vibration` |
+| Set 2 channels | `set-2-bearing-{1..4}` | `vibration` |
+| Set 3 channels | `set-3-bearing-{1..4}` | `vibration` |
 
-Generic `data inspect`는 1번의 반복 작업을 자동화하고 나머지 dataset semantics를 추측하지 않습니다. 관찰 결과를
-이 문서의 verified section으로 승격한 뒤에만 production adapter validator를 작성합니다.
+Canonical metadata는 다음 source provenance와 operating context를 보존합니다.
 
-## 5. Canonical contract questions
+- `dataset_id`, `test_id`, `bearing_number`, `acquisition_index`
+- `acquisition_timestamp`, `acquisition_time_basis=filename-local-clock`
+- `archive_scope=readme-documented|archive-extension`
+- `source_archive_member`, `source_file`
+- `rotational_speed_rpm=2000`, `radial_load_lb=6000`
 
-IMS source는 다음 질문으로 현재 `CanonicalTimeSeries`를 반증합니다.
+Within-acquisition sample time은 `sampling_rate_hz=20000`으로 표현하고 acquisition lifecycle time은 metadata의
+filename timestamp와 index로 표현합니다. Source directory naming과 channel-to-bearing mapping은 Adapter 책임입니다.
 
-### Asset identity
+## 6. Contract review and experiment decisions
 
-각 file의 channel이 어떤 bearing/measurement point를 의미하는지 source-specific mapping이 필요할 수 있습니다.
-Directory/test naming 자체를 canonical asset model로 승격하지 않습니다.
+현재 `CanonicalTimeSeries` 계약은 IMS waveform을 변환하는 데 충분합니다. Acquisition timestamp와
+source scope는 metadata에서 보존되며, sampling rate와 channel sequence는 typed canonical field를 사용합니다.
 
-### Acquisition time and sample time
+다음 결정은 model experiment protocol에서 고정합니다.
 
-Filename timestamp가 acquisition lifecycle time을 나타내고 file 내부 row position이 waveform sample time을 나타낸다면
-두 시간 의미를 명확히 구분해야 합니다. 현재 XJTU adapter처럼 단순 acquisition index/고정 period metadata만으로
-충분한지 확인합니다.
-
-### Channel semantics
-
-Test마다 sensor/channel configuration이 다르다면 단순 channel 문자열 이름으로 downstream 공통 처리가 충분한지
-확인합니다. Unit, sensor, measurement point 같은 의미가 공통 로직에서 반복적으로 필요할 때만 canonical extension을
-검토합니다.
-
-### Provenance
-
-Canonical record에서 최소한 dataset ID, source file, run/test identity, acquisition timestamp를 잃지 않아야 합니다.
-이 값 중 source-specific naming은 metadata/adapter에 남길 수 있으며 공통 contract field로 올리는 것은 반복 사용이
-확인된 뒤 결정합니다.
-
-## 6. Adapter implementation gate
-
-`ImsBearingAdapter` 또는 IMS-specific production validator는 다음 조건 이후에 구현합니다.
-
-- official archive 또는 그 원형을 보존한 local source를 실제로 확인했다.
-- synthetic fixture가 실제 source의 delimiter, width, timestamp/file naming semantics를 반영한다.
-- adapter가 source-specific directory/test convention을 core contract에 누출하지 않는다.
-- XJTU-SY의 sampling/acquisition convention을 IMS에 억지로 적용하지 않는다.
-- compatibility test와 문서가 실제로 검증한 범위를 과장하지 않는다.
-
-이 gate는 구현을 늦추기 위한 절차가 아니라 **compatibility is earned through validation**이라는 project 원칙을
-두 번째 dataset에서도 지키기 위한 것입니다.
-
-## 7. Field-data relevance
-
-IMS는 여전히 공개 benchmark이며 실제 plant historian이나 private OT source를 대신하지 않습니다. 다만 XJTU와 다른
-source convention을 조기에 경험함으로써 `CanonicalTimeSeries`가 특정 benchmark directory와 lifecycle convention에
-고정되는 것을 막는 역할을 합니다.
-
-Generic source inspection은 private/field export에서도 payload 내용을 출력하지 않는 구조 inventory로 재사용할 수
-있습니다. 다만 file/path name 자체가 asset/site 정보를 포함할 수 있으므로 `--details` 출력의 외부 공유 여부는
-해당 조직의 data-governance 정책을 따라야 합니다.
-
-이후 첫 private/field source에서는 별도로 access policy, asset/sensor identity, data quality, calibration/configuration
-history, maintenance event, censoring 및 external storage boundary를 검증합니다.
+1. Set 3 `readme-documented` 4,448개와 `archive-extension` 1,876개의 experiment scope
+2. Set 2/3 single-channel sensor orientation의 analysis label
+3. Full payload validation의 release/scheduled workflow 배치
+4. Acquisition timestamp timezone을 제공하는 authoritative source가 확보될 경우 time-basis refinement
 
 ## Sources
 

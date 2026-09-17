@@ -133,7 +133,8 @@ def test_cli_inspects_manual_dataset_source(
     assert "files: 1" in output
     assert "extension .csv: 1 file(s)" in output
     assert "representative file:" not in output
-    assert "upstream authenticity is not verified" in output
+    assert "inspection scope: structural inventory" in output
+    assert "inspection result: PASS" in output
 
 
 def test_cli_inspects_zip_structure_without_printing_payload(
@@ -166,8 +167,38 @@ def test_cli_inspects_zip_structure_without_printing_payload(
     assert "extension <none>: 2 file(s)" in output
     assert "top-level sample: 1st_test" in output
     assert "representative file: 1st_test/2003.10.22.12.06.24" in output
-    assert "file payload contents are not read" in output
+    assert "inspection scope: structural inventory" in output
+    assert "inspection result: PASS" in output
+    assert "prepared source state:" not in output
     assert "sensitive-value" not in output
+
+
+def test_cli_inspection_reports_nested_archive_preparation_requirement(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    archive_path = tmp_path / "ims.zip"
+    with ZipFile(archive_path, "w") as archive:
+        archive.writestr("4. Bearings/IMS.7z", "nested-archive-placeholder")
+
+    assert (
+        main(
+            [
+                "data",
+                "inspect",
+                "ims-bearings",
+                "--source",
+                str(archive_path),
+            ]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "extension .7z: 1 file(s)" in output
+    assert "inspection result: PASS" in output
+    assert "prepared source state: nested archive extraction required" in output
+    assert "industrial-phm data validate ims-bearings" in output
 
 
 def test_cli_rejects_empty_dataset_source(

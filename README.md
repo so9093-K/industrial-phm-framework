@@ -84,19 +84,17 @@ uv run industrial-phm data fetch ai4i-2020
 uv run industrial-phm data verify ai4i-2020
 ```
 
-IMS Bearings는 NASA PCoE 공식 ZIP endpoint를 registry에 등록하지만, source 등록 자체를 Adapter compatibility
-검증으로 취급하지 않습니다. 공식 archive를 실제로 준비한 뒤 directory/file/time/channel semantics를 확인하고
-그 결과에 근거해 IMS adapter를 별도로 구현합니다. 현재 manifest에는 upstream SHA-256이 pin되어 있지 않으므로
-local digest는 observational provenance이며 upstream authenticity 증명이 아닙니다.
+IMS Bearings는 NASA PCoE 공식 ZIP endpoint를 registry에 등록합니다. `fetch`는 raw archive와 local
+SHA-256 provenance를 보존하고, extracted source의 `validate`는 3개 test·9,464개 acquisition profile과
+waveform compatibility를 검사합니다.
 
 ```bash
 uv run industrial-phm data fetch ims-bearings
 uv run industrial-phm data verify ims-bearings
 ```
 
-XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자동화 조건을 추가 확인해야 하는 데이터셋은
-`manual` provider로 등록합니다. 이 경우 CLI가 공식 source를 안내하며 package 설치/import 과정에서 임의로
-데이터를 다운로드하지 않습니다.
+XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하는 dataset은 `manual` provider로 등록합니다.
+CLI는 공식 source를 안내하고 사용자가 확인한 local source를 validation input으로 받습니다.
 
 원본 배포물 inventory와 압축 해제된 Adapter source의 의미는 구분합니다.
 
@@ -107,9 +105,16 @@ uv run industrial-phm data validate xjtu-sy \
   --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
 ```
 
-`data inspect`는 local inventory만 관찰하고, `data validate`는 관찰된 XJTU-SY source profile 및
-`XjtuSyAdapter`와의 호환성을 검사합니다. 둘 다 pinned upstream checksum이 없는 XJTU-SY의 authenticity를
-검증했다고 주장하지 않습니다. 상세 준비 절차는 [`data/README.md`](data/README.md)를 참조합니다.
+`data inspect`는 local inventory를 요약하고, `data validate`는 dataset source profile과 Adapter
+compatibility를 검사합니다. 상세 준비 절차는 [`data/README.md`](data/README.md)를 참조합니다.
+
+해제된 IMS prepared source는 NASA archive의 test/file/time/channel profile과 bearing별 canonical 변환
+계약을 검사합니다.
+
+```bash
+uv run industrial-phm data validate ims-bearings \
+  --source data/interim/ims-bearings/source
+```
 
 기본 raw data 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수 있습니다. 데이터셋 선정 근거와
 provenance 주의사항은 [`docs/research/dataset-selection.md`](docs/research/dataset-selection.md)를 참조합니다.
@@ -186,17 +191,20 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU-SY condition-stratified 5-fold bearing-run reference split과 leakage contract
 - acquisition별 해석 가능한 `vibration-statistical-v1` feature foundation
 - split-aware XJTU feature-characterization artifacts와 interactive-analysis spike
+- IMS Bearings 공식 archive의 nested ZIP → 7z → RAR 구조, 3개 extracted source directory와 representative
+  waveform shape/time inventory 확인
+- IMS Bearings 9,464 acquisition source validator와 bearing별 minimal canonical Adapter
 
 ### Current
 
-1. 현재 `CanonicalTimeSeries`의 assumptions와 real industrial data 관점의 known limitation 검토
-2. IMS Bearings 공식 source 등록과 local archive inspection을 통한 minimal contract exercise 준비
+1. IMS minimal Adapter 결과에 근거한 canonical contract falsification review
+2. IMS documented 4,448-file boundary 이후 1,876 acquisitions의 experiment/model scope 결정
 3. `fold-1 train` characterization artifact에 대한 XJTU interactive feature analysis를 병행
 
 ### Next
 
-1. 실제 IMS source에서 확인된 incompatibility가 있을 때만 최소 canonical contract refinement
-2. IMS minimal Adapter/contract test로 XJTU-specific convention이 core에 누출되지 않는지 확인
+1. IMS source 결과를 반영한 canonical contract refinement 판단
+2. IMS Adapter/contract test를 통한 core의 dataset-neutral boundary 검증
 3. XJTU interactive analysis에서 확인된 gap만 characterization code로 승격
 4. feature subset, reference data, normalization, sampling/weighting의 version-controlled experiment configuration 정의
 5. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline

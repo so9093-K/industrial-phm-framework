@@ -66,6 +66,7 @@ jobs:
         run: |
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/xjtu-sy.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ai4i-2020.toml'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ims-bearings.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-condition-stratified-5fold-v1.toml'
           unzip -p dist/*.whl '*dist-info/entry_points.txt' | grep -q 'industrial-phm = industrial_phm.cli:main'
 
