@@ -86,10 +86,33 @@ uv run python scripts/xjtu_feature_characterization.py \
 자동 feature selection 결과가 아니며 reference-data rule, normalization, sampling/weighting policy는 여전히
 experiment decision입니다.
 
-현재 artifact로 먼저 interactive feature analysis를 시작할 수 있습니다. 실제 사용 중 반복적으로 필요한
-trajectory, condition/channel comparison, bearing overlay 또는 추가 통계가 확인되면 reusable analysis 또는
-characterization code로 승격합니다. Characterization을 완성한 뒤에야 interactive analysis를 시작해야 한다고
-가정하지 않습니다.
+현재 artifact로 먼저 interactive feature analysis를 시작할 수 있습니다. Jupyter와 다른 interactive-analysis 도구는
+CSV/JSON 형식을 각자 다시 해석하지 않고 공통 read-only helper를 사용할 수 있습니다.
+
+```python
+from pathlib import Path
+
+from industrial_phm.experiments.xjtu_feature_analysis import load_xjtu_feature_analysis
+
+root = Path("data/processed/xjtu-sy/vibration-statistical-v1-characterization")
+analysis = load_xjtu_feature_analysis(
+    root / "vibration-statistical-v1-fold-1-train-features.csv",
+    root / "xjtu-feature-characterization-summary-v1-fold-1-train.json",
+)
+
+series = analysis.feature_series(
+    "feature.Horizontal_vibration_signals.rms",
+    operating_condition="35Hz12kN",
+)
+```
+
+이 helper는 generated development artifacts의 schema/scope/count 일관성을 확인하고 condition, bearing, feature
+선택 및 retrospective lifecycle fraction을 제공합니다. Raw waveform을 읽거나 feature를 다시 계산하지 않으며,
+`test` scope를 interactive development analysis에 노출하지 않습니다.
+
+실제 사용 중 반복적으로 필요한 trajectory, condition/channel comparison, bearing overlay 또는 추가 통계가
+확인되면 reusable analysis 또는 characterization code로 승격합니다. Characterization을 완성한 뒤에야 interactive
+analysis를 시작해야 한다고 가정하지 않습니다.
 
 ## 운영 규칙
 
