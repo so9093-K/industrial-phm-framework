@@ -5,18 +5,39 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.contracts import CanonicalTimeSeries
-from industrial_phm.experiments import (
+from industrial_phm.experiments.xjtu_characterization import (
     XJTU_FEATURE_CHARACTERIZATION_SCHEMA_ID,
     XjtuFeatureCharacterizationError,
     write_xjtu_characterization_artifacts,
 )
 from industrial_phm.features import VibrationFeatureVector, extract_vibration_features
 
+_FOLD_1_TRAIN = (
+    "Bearing1_3",
+    "Bearing1_4",
+    "Bearing1_5",
+    "Bearing2_3",
+    "Bearing2_4",
+    "Bearing2_5",
+    "Bearing3_3",
+    "Bearing3_4",
+    "Bearing3_5",
+)
+
+
+def _condition_for(asset_id: str) -> str:
+    if asset_id.startswith("Bearing1_"):
+        return "35Hz12kN"
+    if asset_id.startswith("Bearing2_"):
+        return "37.5Hz11kN"
+    if asset_id.startswith("Bearing3_"):
+        return "40Hz10kN"
+    raise AssertionError(f"unexpected synthetic asset: {asset_id}")
+
 
 def _vector(
     *,
     asset_id: str,
-    operating_condition: str,
     acquisition_index: int,
     scale: float,
 ) -> VibrationFeatureVector:
@@ -36,50 +57,55 @@ def _vector(
         sampling_rate_hz=25_600.0,
         metadata={
             "dataset_id": "xjtu-sy",
-            "operating_condition": operating_condition,
+            "operating_condition": _condition_for(asset_id),
             "acquisition_index": acquisition_index,
         },
     )
     return extract_vibration_features(series)
 
 
-def test_characterization_writes_evidence_without_making_experiment_decisions(
+def _fold_1_train_vectors() -> list[VibrationFeatureVector]:
+    vectors: list[VibrationFeatureVector] = []
+    for asset_factor, asset_id in enumerate(_FOLD_1_TRAIN, start=1):
+        for acquisition_index in (1, 2, 3):
+            vectors.append(
+                _vector(
+                    asset_id=asset_id,
+                    acquisition_index=acquisition_index,
+                    scale=float(asset_factor * acquisition_index),
+                )
+            )
+    return vectors
+
+
+def test_characterization_writes_development_evidence_without_test_data(
     tmp_path: Path,
 ) -> None:
-    vectors = [
-        _vector(
-            asset_id="Bearing1_1",
-            operating_condition="35Hz12kN",
-            acquisition_index=index,
-            scale=float(index),
-        )
-        for index in (1, 2, 3)
-    ] + [
-        _vector(
-            asset_id="Bearing2_1",
-            operating_condition="37.5Hz11kN",
-            acquisition_index=index,
-            scale=float(index * 2),
-        )
-        for index in (1, 2, 3)
-    ]
+    artifacts = write_xjtu_characterization_artifacts(
+        _fold_1_train_vectors(),
+        tmp_path,
+        fold_id="fold-1",
+        partition="train",
+    )
 
-    artifacts = write_xjtu_characterization_artifacts(vectors, tmp_path)
-
-    assert artifacts.acquisition_count == 6
-    assert artifacts.bearing_run_count == 2
-    assert artifacts.operating_condition_count == 2
+    assert artifacts.acquisition_count == 27
+    assert artifacts.bearing_run_count == 9
+    assert artifacts.operating_condition_count == 3
+    assert artifacts.fold_id == "fold-1"
+    assert artifacts.partition == "train"
 
     with artifacts.feature_table_path.open(newline="", encoding="utf-8") as source:
         rows = list(csv.DictReader(source))
-    assert len(rows) == 6
-    assert rows[0]["asset_id"] == "Bearing1_1"
-    assert rows[0]["meta.acquisition_index"] == "1"
+    assert len(rows) == 27
+    assert {row["asset_id"] for row in rows} == set(_FOLD_1_TRAIN)
 
     summary = json.loads(artifacts.summary_path.read_text(encoding="utf-8"))
     assert summary["schema_id"] == XJTU_FEATURE_CHARACTERIZATION_SCHEMA_ID
-    assert summary["acquisition_count"] == 6
-    assert summary["bearing_run_count"] == 2
+    assert summary["acquisition_count"] == 27
+    assert summary["bearing_run_count"] == 9
+    assert summary["experiment_scope"]["fold_id"] == "fold-1"
+    assert summary["experiment_scope"]["partition"] == "train"
+    assert summary["experiment_scope"]["test_partition_included"] is False
     assert summary["run_length_imbalance"]["min_acquisitions"] == 3
     assert summary["run_length_imbalance"]["max_acquisitions"] == 3
 
@@ -104,14 +130,28 @@ def test_characterization_writes_evidence_without_making_experiment_decisions(
 
 def test_characterization_rejects_non_contiguous_lifecycle_records(tmp_path: Path) -> None:
     vectors = [
-        _vector(
-            asset_id="Bearing1_1",
-            operating_condition="35Hz12kN",
-            acquisition_index=index,
-            scale=float(index),
-        )
-        for index in (1, 3)
+        _vector(asset_id="Bearing1_3", acquisition_index=1, scale=1.0),
+        _vector(asset_id="Bearing1_3", acquisition_index=3, scale=3.0),
     ]
+    vectors.extend(
+        _vector(asset_id=asset_id, acquisition_index=1, scale=float(index))
+        for index, asset_id in enumerate(_FOLD_1_TRAIN[1:], start=2)
+    )
 
     with pytest.raises(XjtuFeatureCharacterizationError, match=r"contiguous 1\.\.N"):
-        write_xjtu_characterization_artifacts(vectors, tmp_path)
+        write_xjtu_characterization_artifacts(
+            vectors,
+            tmp_path,
+            fold_id="fold-1",
+            partition="train",
+        )
+
+
+def test_characterization_does_not_allow_test_partition(tmp_path: Path) -> None:
+    with pytest.raises(XjtuFeatureCharacterizationError, match="test is reserved"):
+        write_xjtu_characterization_artifacts(
+            _fold_1_train_vectors(),
+            tmp_path,
+            fold_id="fold-1",
+            partition="test",  # type: ignore[arg-type]
+        )
