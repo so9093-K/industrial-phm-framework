@@ -84,16 +84,29 @@ class XjtuSyAdapter:
     def iter_series(self, source: Path) -> Iterable[CanonicalTimeSeries]:
         """Read the extracted XJTU-SY dataset root lazily, one acquisition at a time."""
         for run in _iter_runs(source):
-            for acquisition_index, path in run.acquisitions:
-                yield _read_acquisition(
-                    source_root=source,
-                    condition_name=run.condition_name,
-                    speed_hz=run.speed_hz,
-                    load_kn=run.load_kn,
-                    bearing_dir=run.bearing_dir,
-                    acquisition_index=acquisition_index,
-                    path=path,
-                )
+            yield from _iter_run_series(source, run)
+
+    def iter_asset_series(
+        self,
+        source: Path,
+        asset_ids: Iterable[str],
+    ) -> Iterable[CanonicalTimeSeries]:
+        """Read only explicitly selected bearing runs without parsing other waveforms."""
+        requested_assets = frozenset(asset_ids)
+        if not requested_assets:
+            raise XjtuSySourceError("XJTU-SY asset selection must contain at least one bearing run")
+
+        runs = tuple(_iter_runs(source))
+        available_assets = {run.bearing_dir.name for run in runs}
+        unknown_assets = sorted(requested_assets - available_assets)
+        if unknown_assets:
+            raise XjtuSySourceError(
+                f"unknown XJTU-SY bearing run(s) requested: {unknown_assets}"
+            )
+
+        for run in runs:
+            if run.bearing_dir.name in requested_assets:
+                yield from _iter_run_series(source, run)
 
 
 def validate_xjtu_source(source: Path, *, full: bool = False) -> XjtuSyValidationReport:
@@ -131,6 +144,19 @@ def validate_xjtu_source(source: Path, *, full: bool = False) -> XjtuSyValidatio
         sampling_rate_hz=_SAMPLING_RATE_HZ,
         profile_issues=_profile_issues(observed),
     )
+
+
+def _iter_run_series(source: Path, run: _XjtuRun) -> Iterable[CanonicalTimeSeries]:
+    for acquisition_index, path in run.acquisitions:
+        yield _read_acquisition(
+            source_root=source,
+            condition_name=run.condition_name,
+            speed_hz=run.speed_hz,
+            load_kn=run.load_kn,
+            bearing_dir=run.bearing_dir,
+            acquisition_index=acquisition_index,
+            path=path,
+        )
 
 
 def _iter_runs(source: Path) -> Iterable[_XjtuRun]:
