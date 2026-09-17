@@ -117,6 +117,21 @@ PR 본문은 변경에 필요한 맥락만 남깁니다. 기본 구조는 다음
 불필요한 영향 범위나 후속 작업 목록을 반복하지 않습니다. PR은 여러 기능을 한 번에 묶는 release
 container가 아니라 **하나의 리뷰 가능한 변화 단위**가 되어야 합니다.
 
+### Stacked PRs
+
+가능하면 각 PR은 현재 `main`에서 분기해 독립적으로 리뷰합니다. 선행 변경에 의존해 stacked PR을 사용하는
+경우에는 중간 feature branch에 merge됐다는 사실을 `main` 통합으로 간주하지 않습니다.
+
+선행 PR이 `main`에 merge된 뒤 후속 PR마다 다음을 다시 확인합니다.
+
+1. base branch를 `main`으로 맞추고 필요하면 rebase 또는 새 branch로 변경을 옮깁니다.
+2. `main...head` diff에 해당 PR의 의도한 변경만 남는지 확인합니다.
+3. 최신 `main`을 기준으로 필수 CI를 다시 실행합니다.
+4. 위 조건을 만족한 뒤에만 후속 PR을 merge합니다.
+
+PR 상태의 `merged` 표시는 해당 PR의 base branch에 통합됐다는 뜻이며, base가 중간 feature branch라면
+`main`에 포함됐다는 보장이 아닙니다.
+
 ## ADR
 
 장기간 영향을 주는 구조적 결정은 `docs/adr`에 기록합니다. 모든 구현 선택을 ADR로 만들지는 않습니다.
