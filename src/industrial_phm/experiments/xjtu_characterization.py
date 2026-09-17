@@ -61,9 +61,9 @@ def characterize_xjtu_source(
 ) -> XjtuCharacterizationArtifacts:
     """Generate train/validation characterization artifacts from a complete XJTU source.
 
-    The complete source is compatibility-checked first. Every waveform is parsed through the
-    production Adapter/feature path, but only the explicitly requested non-test partition is
-    retained for characterization evidence. Test bearings are intentionally unavailable here.
+    The complete source is compatibility-checked first. Only the explicitly requested
+    non-test bearing runs are then parsed through the production Adapter/feature path.
+    Test bearing waveforms are intentionally unavailable to characterization.
     """
     validation = validate_xjtu_source(source)
     if not validation.profile_matches:
@@ -73,11 +73,8 @@ def characterize_xjtu_source(
         )
 
     _, _, selected_assets = _resolve_partition(fold_id, partition)
-    selected_asset_set = set(selected_assets)
-    vectors = (
-        vector
-        for vector in iter_vibration_features(XjtuSyAdapter().iter_series(source))
-        if vector.asset_id in selected_asset_set
+    vectors = iter_vibration_features(
+        XjtuSyAdapter().iter_asset_series(source, selected_assets)
     )
     return write_xjtu_characterization_artifacts(
         vectors,
