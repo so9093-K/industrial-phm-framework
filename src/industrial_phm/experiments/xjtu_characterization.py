@@ -182,8 +182,7 @@ def _validate_and_group(
     for vector in vectors:
         if vector.feature_set_id != VIBRATION_STATISTICAL_FEATURE_SET_ID:
             raise XjtuFeatureCharacterizationError(
-                "unexpected feature set for XJTU characterization: "
-                f"{vector.feature_set_id!r}"
+                f"unexpected feature set for XJTU characterization: {vector.feature_set_id!r}"
             )
         if tuple(vector.feature_names) != expected_feature_names:
             raise XjtuFeatureCharacterizationError(
@@ -253,9 +252,7 @@ def _build_summary(
     conditions = sorted({run.operating_condition for run in runs})
     by_condition = {
         condition: tuple(
-            vector
-            for vector in vectors
-            if vector.metadata["operating_condition"] == condition
+            vector for vector in vectors if vector.metadata["operating_condition"] == condition
         )
         for condition in conditions
     }
@@ -407,8 +404,7 @@ def _correlation_entries(
     feature_names: tuple[str, ...],
 ) -> list[dict[str, str | float | None]]:
     values = {
-        feature_name: _feature_values(vectors, feature_name)
-        for feature_name in feature_names
+        feature_name: _feature_values(vectors, feature_name) for feature_name in feature_names
     }
     entries: list[dict[str, str | float | None]] = []
     for left_index, left in enumerate(feature_names):
@@ -468,9 +464,7 @@ def _lifecycle_summary(
     run: _Run,
     feature_names: tuple[str, ...],
 ) -> dict[str, Any]:
-    segments: dict[str, list[VibrationFeatureVector]] = {
-        name: [] for name in _LIFECYCLE_SEGMENTS
-    }
+    segments: dict[str, list[VibrationFeatureVector]] = {name: [] for name in _LIFECYCLE_SEGMENTS}
     run_length = len(run.vectors)
     for position, vector in enumerate(run.vectors):
         segment_index = min(2, (position * 3) // run_length)
