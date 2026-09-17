@@ -44,6 +44,8 @@
   test trajectory를 이용한 post-hoc tuning도 leakage로 취급하도록 연구 경계를 명확히 했습니다.
 - XJTU feature characterization에서 반복 계산·집계는 split-aware automated artifact workflow가 담당하고,
   Notebook은 development evidence의 시각적 비교와 사람의 experiment decision에 집중하도록 역할을 구분했습니다.
+- XJTU 첫 numerical baseline의 primary development fold를 `fold-1`로 고정하고, `fold-1 test`는 decision freeze 이후
+  primary independent evaluation에만 사용하며 나머지 fold는 이후 robustness/sensitivity evidence로 구분했습니다.
 
 ### Fixed
 
