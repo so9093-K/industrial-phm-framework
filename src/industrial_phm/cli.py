@@ -80,7 +80,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--source",
         type=Path,
         required=True,
-        help="local file or directory acquired from the registered source",
+        help="local file, ZIP archive, or directory acquired from the registered source",
+    )
+    data_inspect.add_argument(
+        "--details",
+        action="store_true",
+        help="show bounded path samples; file payload contents are never printed",
     )
     data_inspect.set_defaults(handler=_run_data_inspect)
 
@@ -238,7 +243,7 @@ def _run_data_verify(args: argparse.Namespace) -> int:
         print(str(error), file=sys.stderr)
         return 2
 
-    path = dataset_archive_path(manifest, args.root)
+    path = dataset_archive_path(manifest, root=args.root)
     if path is None:
         print(
             f"{manifest.dataset_id} is a manual source without a framework-managed archive",
@@ -282,7 +287,24 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
     print(f"local source: {inspection.path}")
     print(f"source kind: {inspection.kind}")
     print(f"files: {inspection.file_count}")
-    print(f"bytes: {inspection.total_bytes}")
+    print(f"bytes: {inspection.source_bytes}")
+    if inspection.kind == "zip":
+        print(f"uncompressed bytes: {inspection.total_bytes}")
+    print(f"max path depth: {inspection.max_depth}")
+
+    for summary in inspection.extension_summaries:
+        extension = summary.extension or "<none>"
+        print(
+            f"extension {extension}: {summary.file_count} file(s), "
+            f"{summary.total_bytes} payload byte(s)"
+        )
+
+    if args.details:
+        for entry in inspection.top_level_entries:
+            print(f"top-level sample: {entry}")
+        for path_sample in inspection.representative_files:
+            print(f"representative file: {path_sample}")
+        print("inspection detail note: path samples only; file payload contents are not read")
 
     if inspection.file_count == 0:
         print(

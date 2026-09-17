@@ -85,7 +85,19 @@ uv run industrial-phm data verify ims-bearings
 해석해야 합니다. Local archive size/hash를 provenance로 기록할 수는 있지만 공식 upstream hash와의 일치를
 증명하지는 않습니다.
 
-Archive를 실제로 준비한 뒤 다음을 먼저 조사합니다.
+원본 ZIP을 압축 해제하기 전에 generic source inspection으로 archive metadata를 확인합니다.
+
+```bash
+uv run industrial-phm data inspect ims-bearings \
+  --source data/raw/ims-bearings/ims-bearing-data-set.zip \
+  --details
+```
+
+`data inspect`는 ZIP member payload를 읽거나 출력하지 않고 archive member count, archive/uncompressed size,
+path depth, extension 분포와 제한된 path sample을 요약합니다. 이 단계의 출력은 **inventory evidence**이며
+channel/time semantics 또는 Adapter compatibility evidence가 아닙니다.
+
+이 요약과 이후 필요한 최소 local content inspection을 이용해 다음 항목을 확인합니다.
 
 1. top-level 및 nested directory inventory
 2. run/test 식별 방법
@@ -98,7 +110,8 @@ Archive를 실제로 준비한 뒤 다음을 먼저 조사합니다.
 9. malformed/extra/non-data file 처리
 10. source file provenance를 canonical metadata에 보존하는 방법
 
-이 관찰을 `IMS source profile`의 verified section으로 승격한 뒤에만 production adapter validator를 작성합니다.
+Generic `data inspect`는 1번의 반복 작업을 자동화하고 나머지 dataset semantics를 추측하지 않습니다. 관찰 결과를
+이 문서의 verified section으로 승격한 뒤에만 production adapter validator를 작성합니다.
 
 ## 5. Canonical contract questions
 
@@ -145,6 +158,10 @@ Canonical record에서 최소한 dataset ID, source file, run/test identity, acq
 IMS는 여전히 공개 benchmark이며 실제 plant historian이나 private OT source를 대신하지 않습니다. 다만 XJTU와 다른
 source convention을 조기에 경험함으로써 `CanonicalTimeSeries`가 특정 benchmark directory와 lifecycle convention에
 고정되는 것을 막는 역할을 합니다.
+
+Generic source inspection은 private/field export에서도 payload 내용을 출력하지 않는 구조 inventory로 재사용할 수
+있습니다. 다만 file/path name 자체가 asset/site 정보를 포함할 수 있으므로 `--details` 출력의 외부 공유 여부는
+해당 조직의 data-governance 정책을 따라야 합니다.
 
 이후 첫 private/field source에서는 별도로 access policy, asset/sensor identity, data quality, calibration/configuration
 history, maintenance event, censoring 및 external storage boundary를 검증합니다.
