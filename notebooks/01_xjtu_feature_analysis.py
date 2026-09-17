@@ -41,7 +41,8 @@ def _(mo):
                 # XJTU-SY interactive feature analysis
 
                 This spike is fixed to the current `fold-1/train` development scope.
-                It consumes generated characterization artifacts and does not expose holdout-test data.
+                It consumes generated characterization artifacts and does not expose
+                holdout-test data.
                 """
             ),
             artifact_dir_input,
@@ -143,8 +144,8 @@ def _(
         [
             mo.md(
                 f"""
-                **Development scope:** `{characterization.split_id}` / `{characterization.fold_id}` /
-                `{characterization.partition}`  
+                **Development scope:** `{characterization.split_id}` /
+                `{characterization.fold_id}` / `{characterization.partition}`  
                 **Feature set:** `{characterization.feature_set_id}`  
                 **Artifacts:** `{artifact_dir}`
                 """
