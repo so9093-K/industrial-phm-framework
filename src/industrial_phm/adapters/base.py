@@ -15,7 +15,7 @@ class DomainAdapter(Protocol):
 
     @property
     def domain(self) -> str:
-        """Stable domain identifier used for configuration and provenance."""
+        """Stable dataset or equipment-domain identifier used for configuration and provenance."""
         ...
 
     def iter_series(self, source: Path) -> Iterable[CanonicalTimeSeries]:

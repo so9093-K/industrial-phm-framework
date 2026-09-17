@@ -9,7 +9,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm import __version__
-from industrial_phm.adapters import XjtuSySourceError, validate_xjtu_source
+from industrial_phm.adapters import (
+    ImsBearingSourceError,
+    XjtuSySourceError,
+    validate_ims_source,
+    validate_xjtu_source,
+)
 from industrial_phm.data.acquisition import (
     ManualAcquisitionRequired,
     dataset_archive_path,
@@ -73,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     data_inspect = data_commands.add_parser(
         "inspect",
-        help="inspect a local dataset source without claiming upstream authenticity",
+        help="summarize the structural inventory of a local dataset source",
     )
     data_inspect.add_argument("dataset_id")
     data_inspect.add_argument(
@@ -85,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     data_inspect.add_argument(
         "--details",
         action="store_true",
-        help="show bounded path samples; file payload contents are never printed",
+        help="show bounded path samples from structural metadata",
     )
     data_inspect.set_defaults(handler=_run_data_inspect)
 
@@ -206,7 +211,8 @@ def _run_data_status(args: argparse.Namespace) -> int:
 
     print(f"archive: {path}")
     print(f"local state: {'present' if path.is_file() else 'missing'}")
-    print(f"checksum policy: {'pinned' if manifest.sha256 is not None else 'not pinned'}")
+    checksum_policy = "manifest SHA-256" if manifest.sha256 is not None else "local SHA-256"
+    print(f"checksum policy: {checksum_policy}")
     return 0
 
 
@@ -232,7 +238,7 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
     print(f"bytes: {result.integrity.size_bytes}")
     print(f"sha256: {result.integrity.sha256}")
     if not result.checksum_pinned:
-        print("integrity note: manifest does not pin an upstream checksum; digest is observational")
+        print("integrity basis: local SHA-256 provenance")
     return 0
 
 
@@ -265,7 +271,7 @@ def _run_data_verify(args: argparse.Namespace) -> int:
     print(f"bytes: {integrity.size_bytes}")
     print(f"sha256: {integrity.sha256}")
     if manifest.sha256 is None:
-        print("integrity note: no checksum is pinned in the manifest; local digest only")
+        print("integrity basis: local SHA-256 provenance")
     return 0
 
 
@@ -304,7 +310,6 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
             print(f"top-level sample: {entry}")
         for path_sample in inspection.representative_files:
             print(f"representative file: {path_sample}")
-        print("inspection detail note: path samples only; file payload contents are not read")
 
     if inspection.file_count == 0:
         print(
@@ -313,7 +318,18 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
         )
         return 1
 
-    print("inspection note: local inventory only; upstream authenticity is not verified")
+    nested_archive_extensions = {".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".zip"}
+    nested_archives_observed = inspection.kind == "zip" and any(
+        summary.extension in nested_archive_extensions for summary in inspection.extension_summaries
+    )
+    print("inspection scope: structural inventory")
+    print("inspection result: PASS")
+    if nested_archives_observed:
+        print("prepared source state: nested archive extraction required")
+        print(
+            f"validation command: industrial-phm data validate {manifest.dataset_id} "
+            "--source <prepared-source>"
+        )
     return 0
 
 
@@ -324,12 +340,19 @@ def _run_data_validate(args: argparse.Namespace) -> int:
         print(str(error), file=sys.stderr)
         return 2
 
-    if manifest.dataset_id != "xjtu-sy":
-        print(
-            f"dataset-specific validation is not implemented for {manifest.dataset_id}",
-            file=sys.stderr,
-        )
-        return 2
+    if manifest.dataset_id == "xjtu-sy":
+        return _run_xjtu_data_validate(args, manifest.title)
+    if manifest.dataset_id == "ims-bearings":
+        return _run_ims_data_validate(args, manifest.title)
+
+    print(
+        f"dataset-specific validation is not implemented for {manifest.dataset_id}",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _run_xjtu_data_validate(args: argparse.Namespace, title: str) -> int:
 
     try:
         report = validate_xjtu_source(args.source, full=args.full)
@@ -337,8 +360,8 @@ def _run_data_validate(args: argparse.Namespace) -> int:
         print(f"dataset validation failed: {error}", file=sys.stderr)
         return 1
 
-    print(f"dataset: {manifest.dataset_id}")
-    print(f"title: {manifest.title}")
+    print("dataset: xjtu-sy")
+    print(f"title: {title}")
     print(f"local source: {report.source}")
     print(f"validation mode: {'full' if report.full else 'sampled'}")
     print(f"operating conditions: {report.operating_condition_count}")
@@ -354,17 +377,50 @@ def _run_data_validate(args: argparse.Namespace) -> int:
         print("profile compatibility: FAIL")
         for issue in report.profile_issues:
             print(f"profile issue: {issue}", file=sys.stderr)
-        print(
-            "validation note: local source is structurally readable but does not match the "
-            "observed complete XJTU-SY profile",
-            file=sys.stderr,
-        )
         return 1
 
     print("profile compatibility: PASS")
-    print(
-        "validation note: source/profile compatibility only; upstream authenticity is not verified"
-    )
+    return 0
+
+
+def _run_ims_data_validate(args: argparse.Namespace, title: str) -> int:
+    try:
+        report = validate_ims_source(args.source, full=args.full)
+    except (OSError, ImsBearingSourceError) as error:
+        print(f"dataset validation failed: {error}", file=sys.stderr)
+        return 1
+
+    print("dataset: ims-bearings")
+    print(f"title: {title}")
+    print(f"local source: {report.source}")
+    print(f"validation mode: {'full' if report.full else 'sampled'}")
+    print(f"tests: {len(report.tests)}")
+    print(f"acquisitions: {report.acquisition_count}")
+    print(f"waveform acquisitions checked: {report.checked_acquisition_count}")
+    print(f"samples per acquisition: {report.samples_per_acquisition}")
+    print(f"sampling rate hz: {report.sampling_rate_hz:g}")
+    for summary in report.tests:
+        print(
+            f"test {summary.test_id}: source={summary.source_directory}, "
+            f"acquisitions={summary.acquisition_count}, channels={summary.channel_count}, "
+            f"range={summary.first_acquisition_at.isoformat()}.."
+            f"{summary.last_acquisition_at.isoformat()}"
+        )
+        if summary.archive_extension_acquisition_count:
+            print(
+                f"test {summary.test_id} archive extension: "
+                f"{summary.archive_extension_acquisition_count} acquisition(s); "
+                f"README scope={summary.readme_acquisition_count} acquisition(s)"
+            )
+    print(f"waveform compatibility: PASS ({'full' if report.full else 'sampled'})")
+
+    if not report.profile_matches:
+        print("profile compatibility: FAIL")
+        for issue in report.profile_issues:
+            print(f"profile issue: {issue}", file=sys.stderr)
+        return 1
+
+    print("profile compatibility: PASS")
     return 0
 
 

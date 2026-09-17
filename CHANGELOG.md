@@ -24,6 +24,8 @@
   payload 내용을 출력하지 않고 확인하는 구조 inventory 요약.
 - NASA PCoE 공식 source를 사용하는 IMS Bearings dataset manifest와, local archive validation 전에는 adapter
   compatibility를 주장하지 않는 source-profile/conformance 기준.
+- 실제 NASA archive의 nested ZIP/7z/RAR 구조와 9,464 acquisition profile에 근거해 waveform을 bearing별 canonical
+  segment로 변환하는 `ImsBearingAdapter` 및 sampled/full `data validate ims-bearings` 흐름.
 - XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible exploratory-analysis notebook 기준선.
 - Git에 포함되지 않는 `data/` local workspace와 XJTU-SY 공식 Google Drive mirror의 반자동 획득 가이드.
 - 실제 XJTU-SY 15개 bearing run / 9,216 acquisition 구조에 근거한 acquisition 단위 `XjtuSyAdapter`.
