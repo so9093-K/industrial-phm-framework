@@ -73,9 +73,7 @@ def characterize_xjtu_source(
         )
 
     _, _, selected_assets = _resolve_partition(fold_id, partition)
-    vectors = iter_vibration_features(
-        XjtuSyAdapter().iter_asset_series(source, selected_assets)
-    )
+    vectors = iter_vibration_features(XjtuSyAdapter().iter_asset_series(source, selected_assets))
     return write_xjtu_characterization_artifacts(
         vectors,
         output_dir,
