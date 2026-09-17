@@ -51,6 +51,8 @@
 - 검증되지 않은 `degradation score`, `Feature Observatory`, `decision freeze` 같은 표현을 canonical terminology로
   사용하지 않고 anomaly score, interactive feature analysis, experiment configuration finalization처럼 의미가
   직접 드러나는 용어로 정리했습니다.
+- XJTU feature characterization의 사용자-facing 실행 경로를 설치 가능한
+  `industrial-phm feature characterize xjtu-sy` CLI로 단일화하고 repository-local 중복 script를 제거했습니다.
 
 ### Fixed
 

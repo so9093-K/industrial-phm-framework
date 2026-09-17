@@ -146,17 +146,17 @@ candidate를 검토합니다.
 나타내며, fold 간 성능 비교를 통해 `fold-1`을 고른 것이 아닙니다.
 
 ```bash
-uv run python scripts/xjtu_feature_characterization.py \
+uv run industrial-phm feature characterize xjtu-sy \
   --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
   --output-dir data/processed/xjtu-sy/vibration-statistical-v1-characterization \
   --fold-id fold-1 \
   --partition train
 ```
 
-Characterization API와 script는 향후 cross-fold robustness analysis를 위해 reference split의 다른 fold도 표현할 수
+Characterization API와 CLI는 향후 cross-fold robustness analysis를 위해 reference split의 다른 fold도 표현할 수
 있지만, **experiment configuration finalization 전에는 `fold-1` 이외의 fold를 development data로 사용하지
 않습니다.** `--partition`은 `train` 또는 `validation`만 허용합니다. `test`는 finalized configuration을 평가하는
-holdout partition이므로 characterization script에서 의도적으로 지원하지 않습니다. Validation artifact 역시
+holdout partition이므로 characterization CLI에서 의도적으로 지원하지 않습니다. Validation artifact 역시
 사전에 정의한 selection/calibration 목적에서만 사용하며 train과 자동으로 합치지 않습니다.
 
 Workflow는 complete prepared XJTU-SY source의 observed profile compatibility를 먼저 확인하고 production

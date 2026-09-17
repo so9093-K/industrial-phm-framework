@@ -69,7 +69,7 @@ uv run --with jupyter jupyter lab
 첫 numerical baseline의 development fold는 `fold-1`이며, characterization은 이 development scope에서 실행합니다.
 
 ```bash
-uv run python scripts/xjtu_feature_characterization.py \
+uv run industrial-phm feature characterize xjtu-sy \
   --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
   --output-dir data/processed/xjtu-sy/vibration-statistical-v1-characterization \
   --fold-id fold-1 \
