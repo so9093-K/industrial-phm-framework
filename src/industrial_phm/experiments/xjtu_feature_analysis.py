@@ -200,8 +200,7 @@ def _read_summary(path: Path) -> dict[str, Any]:
         raise XjtuFeatureAnalysisError("XJTU characterization summary must be a JSON object")
     if document.get("schema_id") != XJTU_FEATURE_CHARACTERIZATION_SCHEMA_ID:
         raise XjtuFeatureAnalysisError(
-            "unsupported XJTU characterization summary schema: "
-            f"{document.get('schema_id')!r}"
+            f"unsupported XJTU characterization summary schema: {document.get('schema_id')!r}"
         )
     if document.get("dataset_id") != "xjtu-sy":
         raise XjtuFeatureAnalysisError("characterization summary is not for XJTU-SY")
