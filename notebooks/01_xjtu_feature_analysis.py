@@ -22,9 +22,7 @@ def _():
 
 @app.cell
 def _(Path, XjtuFeatureAnalysisError, load_xjtu_feature_analysis, mo):
-    artifact_dir = Path(
-        "data/processed/xjtu-sy/vibration-statistical-v1-characterization"
-    )
+    artifact_dir = Path("data/processed/xjtu-sy/vibration-statistical-v1-characterization")
     _feature_table_path = artifact_dir / "vibration-statistical-v1-fold-1-train-features.csv"
     _summary_path = artifact_dir / "xjtu-feature-characterization-summary-v1-fold-1-train.json"
 
@@ -137,9 +135,7 @@ def _(
 
 @app.cell
 def _(analysis, bearing_selector, condition_selector, feature_selector):
-    _selected_condition = (
-        None if condition_selector.value == "All" else condition_selector.value
-    )
+    _selected_condition = None if condition_selector.value == "All" else condition_selector.value
     _selected_assets = None if bearing_selector.value == "All" else (bearing_selector.value,)
     selected_points = analysis.feature_series(
         feature_selector.value,
