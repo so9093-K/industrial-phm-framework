@@ -61,7 +61,8 @@ uv run --with jupyter jupyter lab
 ## Feature characterization artifact
 
 `vibration-statistical-v1`의 반복 가능한 feature 계산과 기초 집계를 Notebook 셀에서 다시 구현하지 않습니다.
-Characterization은 반드시 version-controlled reference split의 development partition을 명시해 실행합니다.
+Characterization은 reference experiment protocol이 고정한 primary development scope에서 실행합니다. 첫 numerical
+baseline의 primary development fold는 `fold-1`입니다.
 
 ```bash
 uv run python scripts/xjtu_feature_characterization.py \
@@ -71,9 +72,10 @@ uv run python scripts/xjtu_feature_characterization.py \
   --partition train
 ```
 
-`fold-1`은 명령 예시일 뿐 특정 fold가 더 우수하다는 의미가 아닙니다. 사용할 fold는 결과를 보기 전에 고정하고
-기록합니다. `--partition`은 `train` 또는 `validation`만 허용하며 test partition은 이 characterization workflow에서
-의도적으로 열지 않습니다.
+`fold-1`은 fold 간 결과 비교로 선택한 것이 아니라 primary development/evaluation 경계를 고정하기 위한 절차적
+선택입니다. Primary decision이 freeze되기 전에는 다른 fold를 추가 development evidence로 열지 않습니다.
+`--partition`은 `train` 또는 `validation`만 허용하며 test partition은 이 characterization workflow에서 의도적으로
+열지 않습니다. 다른 fold는 primary decision freeze 이후 secondary robustness/sensitivity analysis에서만 사용합니다.
 
 생성되는 CSV는 선택한 partition의 acquisition provenance와 feature 값을 보존하고, JSON summary는
 condition/run 통계, Pearson·Spearman correlation, run-length imbalance, retrospective lifecycle thirds를
