@@ -10,10 +10,22 @@ from functools import lru_cache
 from importlib import resources
 from typing import cast
 
+from industrial_phm.adapters.xjtu import XJTU_SY_CHANNELS
+from industrial_phm.experiments.config import (
+    ExperimentConfig,
+    ExperimentContext,
+    load_experiment_configs,
+)
+from industrial_phm.features import (
+    VIBRATION_STATISTICAL_FEATURE_SET_ID,
+    vibration_feature_names,
+)
+
 _DATASET_ID = "xjtu-sy"
 _SPLIT_UNIT = "bearing-run"
 _STRATEGY = "condition-stratified-rotating-holdout"
 _EXPECTED_FOLD_IDS = tuple(f"fold-{index}" for index in range(1, 6))
+_SUPPORTED_SAMPLING_POLICY_IDS = ("acquisition-uniform", "bearing-balanced")
 _EXPECTED_ASSETS = tuple(
     f"Bearing{condition}_{index}" for condition in range(1, 4) for index in range(1, 6)
 )
@@ -220,3 +232,21 @@ def get_xjtu_reference_split() -> XjtuSplitManifest:
         "xjtu-sy-condition-stratified-5fold-v1.toml"
     )
     return XjtuSplitManifest.from_toml(manifest.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
+def get_xjtu_isolation_forest_candidates() -> tuple[ExperimentConfig, ...]:
+    """Load the packaged fold-1 candidates through dataset-neutral config validation."""
+    split = get_xjtu_reference_split()
+    context = ExperimentContext(
+        dataset_id=split.dataset_id,
+        split_id=split.split_id,
+        fold_ids=tuple(fold.fold_id for fold in split.folds),
+        feature_set_id=VIBRATION_STATISTICAL_FEATURE_SET_ID,
+        feature_names=vibration_feature_names(XJTU_SY_CHANNELS),
+        supported_sampling_policy_ids=_SUPPORTED_SAMPLING_POLICY_IDS,
+    )
+    manifest = resources.files("industrial_phm.experiments.manifests").joinpath(
+        "xjtu-sy-isolation-forest-fold-1-candidates-v1.toml"
+    )
+    return load_experiment_configs(manifest.read_text(encoding="utf-8"), context=context)

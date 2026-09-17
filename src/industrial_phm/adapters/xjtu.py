@@ -11,7 +11,7 @@ from pathlib import Path
 from industrial_phm.contracts import CanonicalTimeSeries
 
 _DATASET_ID = "xjtu-sy"
-_EXPECTED_HEADER = (
+XJTU_SY_CHANNELS = (
     "Horizontal_vibration_signals",
     "Vertical_vibration_signals",
 )
@@ -137,7 +137,7 @@ def validate_xjtu_source(source: Path, *, full: bool = False) -> XjtuSyValidatio
         bearing_run_count=len(runs),
         acquisition_count=sum(len(run.acquisitions) for run in runs),
         checked_acquisition_count=checked_acquisition_count,
-        channels=_EXPECTED_HEADER,
+        channels=XJTU_SY_CHANNELS,
         samples_per_acquisition=_EXPECTED_SAMPLE_COUNT,
         sampling_rate_hz=_SAMPLING_RATE_HZ,
         profile_issues=_profile_issues(observed),
@@ -311,14 +311,14 @@ def _read_acquisition(
             except StopIteration as error:
                 raise XjtuSySourceError(f"XJTU-SY acquisition CSV is empty: {path}") from error
 
-            if header != _EXPECTED_HEADER:
+            if header != XJTU_SY_CHANNELS:
                 raise XjtuSySourceError(
                     "unexpected XJTU-SY CSV header for "
-                    f"{path}: expected {_EXPECTED_HEADER}, got {header}"
+                    f"{path}: expected {XJTU_SY_CHANNELS}, got {header}"
                 )
 
             for line_number, row in enumerate(reader, start=2):
-                if len(row) != len(_EXPECTED_HEADER):
+                if len(row) != len(XJTU_SY_CHANNELS):
                     raise XjtuSySourceError(
                         f"unexpected XJTU-SY CSV width at {path}:{line_number}: {len(row)}"
                     )
@@ -342,7 +342,7 @@ def _read_acquisition(
     return CanonicalTimeSeries(
         asset_id=bearing_dir.name,
         timestamps=None,
-        channels=_EXPECTED_HEADER,
+        channels=XJTU_SY_CHANNELS,
         values=values,
         sampling_rate_hz=_SAMPLING_RATE_HZ,
         metadata={

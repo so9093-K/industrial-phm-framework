@@ -77,15 +77,13 @@ def extract_vibration_features(series: CanonicalTimeSeries) -> VibrationFeatureV
     if sample_count < 2:
         raise VibrationFeatureError("vibration feature extraction requires at least two samples")
 
-    feature_names: list[str] = []
+    feature_names = vibration_feature_names(series.channels)
     feature_values: list[float] = []
 
     for channel_index, channel_name in enumerate(series.channels):
         channel_values = tuple(float(row[channel_index]) for row in series.values)
         statistics = _channel_statistics(channel_name, channel_values)
-        for statistic_name, value in zip(_STATISTIC_NAMES, statistics, strict=True):
-            feature_names.append(f"feature.{channel_name}.{statistic_name}")
-            feature_values.append(value)
+        feature_values.extend(statistics)
 
     return VibrationFeatureVector(
         feature_set_id=VIBRATION_STATISTICAL_FEATURE_SET_ID,
@@ -102,6 +100,22 @@ def iter_vibration_features(
     """Transform acquisitions lazily so a full dataset need not be materialized in memory."""
     for series in series_iterable:
         yield extract_vibration_features(series)
+
+
+def vibration_feature_names(channels: Sequence[str]) -> tuple[str, ...]:
+    """Return the ordered v1 feature schema for an ordered channel collection."""
+    channel_names = tuple(channels)
+    if not channel_names:
+        raise ValueError("channels must contain at least one channel")
+    if any(not channel_name.strip() for channel_name in channel_names):
+        raise ValueError("channel names must not be empty")
+    if len(channel_names) != len(set(channel_names)):
+        raise ValueError("channel names must be unique")
+    return tuple(
+        f"feature.{channel_name}.{statistic_name}"
+        for channel_name in channel_names
+        for statistic_name in _STATISTIC_NAMES
+    )
 
 
 def _channel_statistics(channel_name: str, samples: Sequence[float]) -> tuple[float, ...]:

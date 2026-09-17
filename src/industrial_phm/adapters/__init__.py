@@ -9,6 +9,7 @@ from industrial_phm.adapters.ims import (
     validate_ims_source,
 )
 from industrial_phm.adapters.xjtu import (
+    XJTU_SY_CHANNELS,
     XjtuSyAdapter,
     XjtuSySourceError,
     XjtuSyValidationReport,
@@ -16,6 +17,7 @@ from industrial_phm.adapters.xjtu import (
 )
 
 __all__ = [
+    "XJTU_SY_CHANNELS",
     "DomainAdapter",
     "ImsBearingAdapter",
     "ImsBearingSourceError",

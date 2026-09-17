@@ -6,6 +6,7 @@ from industrial_phm.contracts import CanonicalTimeSeries
 from industrial_phm.features import (
     VIBRATION_STATISTICAL_FEATURE_SET_ID,
     extract_vibration_features,
+    vibration_feature_names,
 )
 
 
@@ -26,6 +27,7 @@ def test_statistical_v1_feature_contract_is_stable_and_table_friendly() -> None:
     vector = extract_vibration_features(series)
 
     assert vector.feature_set_id == VIBRATION_STATISTICAL_FEATURE_SET_ID
+    assert vector.feature_names == vibration_feature_names(series.channels)
     assert vector.feature_names == (
         "feature.horizontal.mean",
         "feature.horizontal.rms",
