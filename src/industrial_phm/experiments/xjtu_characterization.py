@@ -10,9 +10,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
-from typing import Any
+from typing import Any, Literal
 
 from industrial_phm.adapters import XjtuSyAdapter, validate_xjtu_source
+from industrial_phm.experiments.xjtu import XjtuSplitFold, get_xjtu_reference_split
 from industrial_phm.features import (
     VIBRATION_STATISTICAL_FEATURE_SET_ID,
     VibrationFeatureVector,
@@ -20,8 +21,7 @@ from industrial_phm.features import (
 )
 
 XJTU_FEATURE_CHARACTERIZATION_SCHEMA_ID = "xjtu-feature-characterization-summary-v1"
-_FEATURE_TABLE_FILENAME = "vibration-statistical-v1-features.csv"
-_SUMMARY_FILENAME = "xjtu-feature-characterization-summary-v1.json"
+XjtuCharacterizationPartition = Literal["train", "validation"]
 _LIFECYCLE_SEGMENTS = ("early_third", "middle_third", "late_third")
 
 
@@ -37,6 +37,9 @@ class XjtuCharacterizationArtifacts:
     feature_table_path: Path
     summary_path: Path
     feature_set_id: str
+    split_id: str
+    fold_id: str
+    partition: XjtuCharacterizationPartition
     acquisition_count: int
     bearing_run_count: int
     operating_condition_count: int
@@ -52,11 +55,15 @@ class _Run:
 def characterize_xjtu_source(
     source: Path,
     output_dir: Path,
+    *,
+    fold_id: str,
+    partition: XjtuCharacterizationPartition,
 ) -> XjtuCharacterizationArtifacts:
-    """Generate characterization artifacts from one complete prepared XJTU-SY source.
+    """Generate train/validation characterization artifacts from a complete XJTU source.
 
-    Source compatibility is checked before the full feature pass. Feature extraction still
-    parses every acquisition, so an invalid waveform fails instead of being silently skipped.
+    The complete source is compatibility-checked first. Every waveform is parsed through the
+    production Adapter/feature path, but only the explicitly requested non-test partition is
+    retained for characterization evidence. Test bearings are intentionally unavailable here.
     """
     validation = validate_xjtu_source(source)
     if not validation.profile_matches:
@@ -65,26 +72,63 @@ def characterize_xjtu_source(
             "XJTU-SY source does not match the observed complete profile: " + issues
         )
 
-    vectors = tuple(iter_vibration_features(XjtuSyAdapter().iter_series(source)))
-    return write_xjtu_characterization_artifacts(vectors, output_dir)
+    _, _, selected_assets = _resolve_partition(fold_id, partition)
+    selected_asset_set = set(selected_assets)
+    vectors = (
+        vector
+        for vector in iter_vibration_features(XjtuSyAdapter().iter_series(source))
+        if vector.asset_id in selected_asset_set
+    )
+    return write_xjtu_characterization_artifacts(
+        vectors,
+        output_dir,
+        fold_id=fold_id,
+        partition=partition,
+    )
 
 
 def write_xjtu_characterization_artifacts(
     vectors: Iterable[VibrationFeatureVector],
     output_dir: Path,
+    *,
+    fold_id: str,
+    partition: XjtuCharacterizationPartition,
 ) -> XjtuCharacterizationArtifacts:
-    """Write deterministic feature-table and summary artifacts from XJTU feature vectors.
+    """Write deterministic train/validation feature and summary artifacts.
 
     The summary automates descriptive evidence generation. It does not select features,
-    define fault onset, choose a normal reference, or make a model decision.
+    define fault onset, choose a normal reference, inspect a test partition, or make a model
+    decision.
     """
+    split_id, _, selected_assets = _resolve_partition(fold_id, partition)
     materialized = tuple(vectors)
     feature_names, runs = _validate_and_group(materialized)
-    summary = _build_summary(materialized, feature_names, runs)
+    observed_assets = {run.asset_id for run in runs}
+    expected_assets = set(selected_assets)
+    if observed_assets != expected_assets:
+        missing = sorted(expected_assets - observed_assets)
+        unexpected = sorted(observed_assets - expected_assets)
+        raise XjtuFeatureCharacterizationError(
+            "XJTU characterization records must exactly cover the requested partition; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
+    summary = _build_summary(
+        materialized,
+        feature_names,
+        runs,
+        split_id=split_id,
+        fold_id=fold_id,
+        partition=partition,
+    )
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    feature_table_path = output_dir / _FEATURE_TABLE_FILENAME
-    summary_path = output_dir / _SUMMARY_FILENAME
+    feature_table_path = output_dir / (
+        f"vibration-statistical-v1-{fold_id}-{partition}-features.csv"
+    )
+    summary_path = output_dir / (
+        f"xjtu-feature-characterization-summary-v1-{fold_id}-{partition}.json"
+    )
     _write_feature_table(materialized, feature_names, feature_table_path)
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -96,10 +140,33 @@ def write_xjtu_characterization_artifacts(
         feature_table_path=feature_table_path,
         summary_path=summary_path,
         feature_set_id=VIBRATION_STATISTICAL_FEATURE_SET_ID,
+        split_id=split_id,
+        fold_id=fold_id,
+        partition=partition,
         acquisition_count=len(materialized),
         bearing_run_count=len(runs),
         operating_condition_count=len({run.operating_condition for run in runs}),
     )
+
+
+def _resolve_partition(
+    fold_id: str,
+    partition: XjtuCharacterizationPartition,
+) -> tuple[str, XjtuSplitFold, tuple[str, ...]]:
+    manifest = get_xjtu_reference_split()
+    fold = next((candidate for candidate in manifest.folds if candidate.fold_id == fold_id), None)
+    if fold is None:
+        raise XjtuFeatureCharacterizationError(f"unknown XJTU reference fold: {fold_id!r}")
+    if partition == "train":
+        assets = fold.train
+    elif partition == "validation":
+        assets = fold.validation
+    else:
+        raise XjtuFeatureCharacterizationError(
+            "feature characterization only permits train or validation partitions; "
+            "test is reserved for final evaluation"
+        )
+    return manifest.split_id, fold, assets
 
 
 def _validate_and_group(
@@ -110,6 +177,7 @@ def _validate_and_group(
 
     expected_feature_names = tuple(vectors[0].feature_names)
     grouped: dict[tuple[str, str], list[VibrationFeatureVector]] = defaultdict(list)
+    condition_by_asset: dict[str, str] = {}
 
     for vector in vectors:
         if vector.feature_set_id != VIBRATION_STATISTICAL_FEATURE_SET_ID:
@@ -130,6 +198,11 @@ def _validate_and_group(
         if not isinstance(operating_condition, str) or not operating_condition:
             raise XjtuFeatureCharacterizationError(
                 "XJTU feature vector requires non-empty operating_condition metadata"
+            )
+        previous_condition = condition_by_asset.setdefault(vector.asset_id, operating_condition)
+        if previous_condition != operating_condition:
+            raise XjtuFeatureCharacterizationError(
+                f"XJTU asset {vector.asset_id!r} appears in multiple operating conditions"
             )
         _acquisition_index(vector)
         grouped[(operating_condition, vector.asset_id)].append(vector)
@@ -172,6 +245,10 @@ def _build_summary(
     vectors: tuple[VibrationFeatureVector, ...],
     feature_names: tuple[str, ...],
     runs: tuple[_Run, ...],
+    *,
+    split_id: str,
+    fold_id: str,
+    partition: XjtuCharacterizationPartition,
 ) -> dict[str, Any]:
     conditions = sorted({run.operating_condition for run in runs})
     by_condition = {
@@ -223,6 +300,12 @@ def _build_summary(
         "schema_id": XJTU_FEATURE_CHARACTERIZATION_SCHEMA_ID,
         "dataset_id": "xjtu-sy",
         "feature_set_id": VIBRATION_STATISTICAL_FEATURE_SET_ID,
+        "experiment_scope": {
+            "split_id": split_id,
+            "fold_id": fold_id,
+            "partition": partition,
+            "test_partition_included": False,
+        },
         "acquisition_count": len(vectors),
         "bearing_run_count": len(runs),
         "operating_condition_count": len(conditions),
@@ -264,8 +347,8 @@ def _build_summary(
             "normalization": "undecided",
             "sampling_or_weighting": "undecided",
             "note": (
-                "This artifact supplies descriptive evidence only; experiment decisions "
-                "must be versioned separately after review."
+                "This artifact supplies descriptive development evidence only; experiment "
+                "decisions must be versioned separately before test evaluation."
             ),
         },
     }
