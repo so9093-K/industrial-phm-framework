@@ -13,11 +13,13 @@ from industrial_phm.data.validation import (
 )
 
 
-def test_registry_exposes_primary_and_smoke_datasets() -> None:
+def test_registry_exposes_registered_research_datasets() -> None:
     manifests = {manifest.dataset_id: manifest for manifest in list_datasets()}
 
-    assert set(manifests) >= {"xjtu-sy", "ai4i-2020"}
+    assert set(manifests) >= {"xjtu-sy", "ims-bearings", "ai4i-2020"}
     assert manifests["xjtu-sy"].provider == "manual"
+    assert manifests["ims-bearings"].provider == "url"
+    assert manifests["ims-bearings"].sha256 is None
     assert manifests["ai4i-2020"].provider == "url"
 
 
@@ -59,6 +61,7 @@ def test_cli_lists_registered_datasets(capsys: pytest.CaptureFixture[str]) -> No
 
     output = capsys.readouterr().out
     assert "xjtu-sy" in output
+    assert "ims-bearings" in output
     assert "ai4i-2020" in output
 
 

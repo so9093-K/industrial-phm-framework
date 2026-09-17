@@ -1,0 +1,7 @@
+id = "ims-bearings"
+title = "IMS Bearing Data Set"
+version = "official-publication"
+provider = "url"
+source_url = "https://phm-datasets.s3.amazonaws.com/NASA/4.+Bearings.zip"
+license = "NASA Open Data Portal: other-license-specified; verify source terms before use"
+archive_name = "ims-bearing-data-set.zip"

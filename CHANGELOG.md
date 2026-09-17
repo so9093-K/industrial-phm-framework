@@ -20,6 +20,8 @@
 - Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
 - `industrial-phm` CLI와 dataset manifest 기반 `data list/status/fetch/verify` acquisition 흐름.
 - 사용자가 직접 획득한 local dataset file/directory의 규모를 확인하는 `data inspect` 흐름.
+- NASA PCoE 공식 source를 사용하는 IMS Bearings dataset manifest와, local archive validation 전에는 adapter
+  compatibility를 주장하지 않는 source-profile/conformance 기준.
 - XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible exploratory-analysis notebook 기준선.
 - Git에 포함되지 않는 `data/` local workspace와 XJTU-SY 공식 Google Drive mirror의 반자동 획득 가이드.
 - 실제 XJTU-SY 15개 bearing run / 9,216 acquisition 구조에 근거한 acquisition 단위 `XjtuSyAdapter`.
