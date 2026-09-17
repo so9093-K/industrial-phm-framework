@@ -94,10 +94,11 @@ characterization code로 승격합니다. Characterization을 완성한 뒤에�
 ## Interactive feature analysis
 
 `01_xjtu_feature_analysis.py`는 generated characterization artifacts를 소비하는 marimo 기반 research-tooling
-interface입니다. 현재 `fold-1/train` development scope만 대상으로 하며 raw waveform, feature formula, model logic 또는
-holdout-test data를 UI에서 다시 다루지 않습니다.
+interface이며 optional research tooling environment의 첫 consumer입니다. 현재 `fold-1/train` development scope만
+대상으로 하며 raw waveform, feature formula, model logic 또는 holdout-test data를 UI에서 다시 다루지 않습니다.
 
-marimo와 Matplotlib은 production runtime과 분리된 `research` dependency group으로 실행합니다.
+marimo와 Matplotlib은 project-level `research` dependency group이 소유하며 production runtime 및
+dataset-specific adapter와 독립적으로 관리합니다.
 
 ```bash
 uv sync --locked --group research
@@ -105,10 +106,11 @@ uv run --locked --group research marimo edit notebooks/01_xjtu_feature_analysis.
 ```
 
 이 interface는 typed characterization loader를 통해 generated artifact만 읽습니다. Raw parsing, feature 계산,
-feature selection, preprocessing과 model fitting은 notebook 책임이 아닙니다. 현재 도구는 Python 3.14 strict check와
-실제 `fold-1/train` HTML execution을 반복 통과했고 source 형식이 일반 code review와 CI에 적합해 research group으로
-채택했습니다. 이 선택은 XJTU interactive analysis의 tooling 결정이며 canonical Research UX나 architecture
-contract가 아닙니다.
+feature selection, preprocessing과 model fitting은 version-controlled production code와 experiment contract가
+소유합니다. 현재 도구는 Python 3.14 strict check와
+실제 `fold-1/train` HTML execution을 반복 통과했고 source 형식이 일반 code review와 CI에 적합해 optional research
+tooling으로 채택했습니다. XJTU interactive analysis는 이 환경의 현재 consumer입니다. Canonical Research UX와
+architecture contract는 여러 workflow에서 반복 검증된 요구를 기준으로 별도 확정합니다.
 
 ## 운영 규칙
 
