@@ -160,7 +160,7 @@ def _summarize_source_entries(
             continue
 
         relative_name = relative_path.as_posix()
-        extension = relative_path.suffix.lower()
+        extension = _conservative_extension(relative_path)
 
         file_count += 1
         total_bytes += size_bytes
@@ -191,6 +191,19 @@ def _summarize_source_entries(
         top_level_entries=tuple(top_level_entries),
         representative_files=tuple(representative_files),
     )
+
+
+def _conservative_extension(path: PurePosixPath) -> str:
+    """Return a likely filename extension without treating timestamp suffixes as one."""
+
+    suffix = path.suffix.lower()
+    if not suffix:
+        return ""
+
+    token = suffix[1:]
+    if len(token) > 16 or not token.isalnum() or not any(char.isalpha() for char in token):
+        return ""
+    return suffix
 
 
 def _keep_smallest_unique(values: list[str], value: str) -> None:
