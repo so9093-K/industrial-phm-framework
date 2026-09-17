@@ -100,9 +100,7 @@ class XjtuSyAdapter:
         available_assets = {run.bearing_dir.name for run in runs}
         unknown_assets = sorted(requested_assets - available_assets)
         if unknown_assets:
-            raise XjtuSySourceError(
-                f"unknown XJTU-SY bearing run(s) requested: {unknown_assets}"
-            )
+            raise XjtuSySourceError(f"unknown XJTU-SY bearing run(s) requested: {unknown_assets}")
 
         for run in runs:
             if run.bearing_dir.name in requested_assets:
