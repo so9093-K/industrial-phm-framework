@@ -31,6 +31,9 @@
 - acquisition별 channel 통계와 provenance를 보존하는 versioned `vibration-statistical-v1` feature foundation.
 - correlation 하나에 종속되지 않고 lifecycle·condition·redundancy·run imbalance를 함께 보는 XJTU feature /
   degradation characterization research protocol.
+- XJTU reference split의 명시적 train/validation partition에서 feature table과 condition/run 통계,
+  Pearson·Spearman redundancy, retrospective lifecycle thirds, run-length imbalance를 재현 가능하게 생성하는
+  automated characterization workflow.
 
 ### Changed
 
@@ -39,6 +42,8 @@
   재구현하지 않도록 research workflow를 정리했습니다.
 - XJTU experiment protocol이 stateless feature extraction과 data-derived feature/reference selection을 구분하고,
   test trajectory를 이용한 post-hoc tuning도 leakage로 취급하도록 연구 경계를 명확히 했습니다.
+- XJTU feature characterization에서 반복 계산·집계는 split-aware automated artifact workflow가 담당하고,
+  Notebook은 development evidence의 시각적 비교와 사람의 experiment decision에 집중하도록 역할을 구분했습니다.
 
 ### Fixed
 
