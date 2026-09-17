@@ -119,12 +119,13 @@ filename timestamp와 index로 표현합니다. Source directory naming과 chann
 현재 `CanonicalTimeSeries` 계약은 IMS waveform을 변환하는 데 충분합니다. Acquisition timestamp와
 source scope는 metadata에서 보존되며, sampling rate와 channel sequence는 typed canonical field를 사용합니다.
 
-다음 결정은 model experiment protocol에서 고정합니다.
+Set 3를 사용하는 모든 IMS model experiment configuration은 source scope를 `readme-documented` 또는
+`readme-documented+archive-extension`으로 명시합니다. 첫 model experiment의 scope와 나머지 결정은
+IMS experiment protocol에서 고정합니다.
 
-1. Set 3 `readme-documented` 4,448개와 `archive-extension` 1,876개의 experiment scope
-2. Set 2/3 single-channel sensor orientation의 analysis label
-3. Full payload validation의 release/scheduled workflow 배치
-4. Acquisition timestamp timezone을 제공하는 authoritative source가 확보될 경우 time-basis refinement
+1. Set 2/3 single-channel sensor orientation의 analysis label
+2. Full payload validation의 release/scheduled workflow 배치
+3. Acquisition timestamp timezone을 제공하는 authoritative source가 확보될 경우 time-basis refinement
 
 ## Sources
 

@@ -197,24 +197,23 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. IMS minimal Adapter 결과에 근거한 canonical contract falsification review
-2. IMS documented 4,448-file boundary 이후 1,876 acquisitions의 experiment/model scope 결정
-3. `fold-1 train` characterization artifact에 대한 XJTU interactive feature analysis를 병행
+1. `fold-1 train` characterization artifact에 대한 XJTU interactive feature analysis
+2. feature subset, reference data, normalization, sampling/weighting 후보 결정
+3. 재현 가능한 research workflow에 대한 marimo 채택 평가
 
 ### Next
 
-1. IMS source 결과를 반영한 canonical contract refinement 판단
-2. IMS Adapter/contract test를 통한 core의 dataset-neutral boundary 검증
-3. XJTU interactive analysis에서 확인된 gap만 characterization code로 승격
-4. feature subset, reference data, normalization, sampling/weighting의 version-controlled experiment configuration 정의
-5. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline
-6. `fold-1 validation` development validation과 experiment configuration finalization
-7. 모델 독립 evaluation, `fold-1` holdout test evaluation, cross-fold robustness analysis
-8. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
-9. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-10. 데이터가 정당하게 지원하는 경우 RUL prognostics
-11. MIMII DUE를 통한 cross-domain evaluation
-12. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+1. Interactive analysis에서 반복 확인된 gap의 versioned characterization 개선
+2. 첫 Isolation Forest 실험을 표현하는 candidate experiment configuration
+3. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline
+4. model-independent development evaluator와 `fold-1 validation`
+5. experiment configuration finalization과 `fold-1` holdout test evaluation
+6. cross-fold robustness analysis
+7. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
+8. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+9. 데이터가 정당하게 지원하는 경우 RUL prognostics
+10. MIMII DUE를 통한 cross-domain evaluation
+11. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

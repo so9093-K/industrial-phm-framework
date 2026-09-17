@@ -217,11 +217,11 @@ Development fold 선택은 split manifest의 bearing assignment를 변경하지 
 reference split + development/holdout boundary
   -> fixed stateless feature foundation
   -> fold-1 train feature characterization + interactive analysis
-  -> versioned feature/reference/preprocessing candidate
+  -> versioned candidate experiment configuration
+  -> train-only fitted preprocessing state
+  -> Isolation Forest fit on train
   -> fold-1 development validation
   -> experiment configuration finalization
-  -> train-only fitted preprocessing state
-  -> Isolation Forest anomaly-scoring baseline
   -> fold-1 holdout test evaluation
   -> cross-fold robustness analysis
 ```
