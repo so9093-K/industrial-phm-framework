@@ -91,6 +91,27 @@ trajectory, condition/channel comparison, bearing overlay 또는 추가 통계�
 characterization code로 승격합니다. Characterization을 완성한 뒤에야 interactive analysis를 시작해야 한다고
 가정하지 않습니다.
 
+## Interactive feature analysis spike
+
+`01_xjtu_feature_analysis.py`는 generated characterization artifacts를 소비하는 marimo 기반 research-tooling
+spike입니다. 현재 `fold-1/train` development scope만 대상으로 하며 raw waveform, feature formula, model logic 또는
+holdout-test data를 UI에서 다시 다루지 않습니다.
+
+marimo와 Matplotlib은 아직 project/runtime dependency로 채택하지 않습니다. 현재 검증 버전을 일회성 dependency로
+실행합니다.
+
+```bash
+uv run --locked \
+  --with marimo==0.24.2 \
+  --with matplotlib==3.11.2 \
+  marimo edit notebooks/01_xjtu_feature_analysis.py
+```
+
+Spike의 목적, artifact boundary와 채택 기준은
+[`../docs/research/xjtu-interactive-feature-analysis.md`](../docs/research/xjtu-interactive-feature-analysis.md)에
+기록합니다. 실제 반복 사용이 확인되기 전에는 marimo를 canonical Research UX 또는 dependency group으로 승격하지
+않습니다.
+
 ## 운영 규칙
 
 1. Notebook은 exploratory analysis와 PoC용이며 production Source of Truth가 아닙니다.
@@ -109,7 +130,8 @@ characterization code로 승격합니다. Characterization을 완성한 뒤에�
 ## 현재 Notebook
 
 - `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
+- `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo spike.
 
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
-않습니다. 다음 interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제
-사용에서 확인된 분석 요구를 다시 reusable code로 승격하는 방향으로 진행합니다.
+않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제
+사용에서 확인된 분석 요구만 reusable code로 승격하는 방향으로 진행합니다.
