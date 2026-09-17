@@ -174,19 +174,15 @@ acquisition manifest에 challenge year, task, machine subset, published revision
 현재 단계의 기본 연구 순서는 다음으로 정합니다.
 
 ```text
-XJTU-SY source / adapter / split / feature-characterization foundation
+XJTU-SY + IMS source/adapter/canonical conformance baseline
         ↓
-canonical contract assumptions audit
+XJTU interactive feature analysis + research decisions
         ↓
-IMS official source registration + local source inspection
+candidate experiment configuration + train-only preprocessing
         ↓
-IMS minimal adapter / contract exercise
+Isolation Forest + development validation
         ↓
-minimal canonical refinement only if actual incompatibility is observed
-        ↓
-XJTU interactive analysis / experiment configuration / preprocessing
-        ↓
-Isolation Forest / development validation / holdout test evaluation
+configuration finalization + fold-1 holdout + cross-fold robustness
         ↓
 IMS model-pipeline portability
         ↓

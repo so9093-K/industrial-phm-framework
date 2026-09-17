@@ -1,10 +1,10 @@
 # Canonical Data Contract Boundary
 
-상태: architecture working boundary / pre-1.0 contract audit
+상태: architecture working boundary / XJTU-SY + IMS conformance verified
 
 이 문서는 `industrial-phm-framework`의 canonical data contract가 **무엇을 표준화하고 무엇을 표준화하지 않는지**,
-현재 `CanonicalTimeSeries`가 가진 가정과 한계, 실제 산업 데이터와 두 번째 benchmark에서 확인해야 할 항목을
-정의합니다.
+현재 `CanonicalTimeSeries`가 가진 가정과 한계, XJTU-SY와 IMS에서 검증한 범위, 실제 산업
+데이터와 cross-domain source에서 확인할 항목을 정의합니다.
 
 현재 contract는 XJTU-SY를 위해 고정된 schema가 아니며, 모든 산업 데이터를 하나의 universal schema로 미리
 추상화하려는 시도도 아닙니다. XJTU-SY는 첫 번째 concrete conformance case이고, IMS와 이후 실제 비공개/현장
@@ -187,18 +187,17 @@ requirement 없이 미리 도입하지 않습니다.
 
 Canonical contract를 한 dataset에서 완성한 뒤 일반화한다고 가정하지 않습니다. 다음 순서로 실제 반례를 찾습니다.
 
-### Case A — XJTU-SY
+### Case A — XJTU-SY conformance
 
-현재 첫 conformance case입니다. Fixed-rate multichannel vibration acquisition, operating-condition metadata,
-bearing-run lifecycle을 다룹니다.
+첫 conformance case로 fixed-rate multichannel vibration acquisition, operating-condition metadata, bearing-run
+lifecycle을 `CanonicalTimeSeries`와 XJTU-SY Adapter로 검증했습니다.
 
-### Case B — IMS minimal contract exercise
+### Case B — IMS conformance
 
-모델이나 feature 성능을 비교하기 전에 IMS source를 최소 adapter로 읽어 현재 contract가 자연스럽게 표현되는지
-확인합니다. 특히 asset identity, acquisition/lifecycle time, channel semantics, source provenance를 점검합니다.
-
-IMS 때문에 필요한 변화가 XJTU에도 자연스럽고 domain-neutral하다면 canonical contract 후보가 됩니다. IMS에만
-필요한 directory grammar나 benchmark convention은 adapter에 남깁니다.
+IMS의 timestamp filename, test별 channel configuration, irregular acquisition interval, nested archive provenance를
+`ImsBearingAdapter`로 표현했습니다. Asset identity, acquisition/lifecycle time, channel semantics, source
+provenance는 현재 contract와 metadata boundary에서 보존되었으며 현재 core contract를 유지합니다.
+이 결과는 bearing-vibration modality 내의 두 source에 대한 conformance evidence입니다.
 
 ### Case C — first private/field source
 
@@ -231,21 +230,19 @@ streaming abstraction을 미리 만들지 않습니다.
 
 ## 9. Near-term implementation order
 
-이 audit 자체는 `CanonicalTimeSeries` 또는 `DomainAdapter` 코드를 변경하지 않습니다.
-
 ```text
-current contract/source assumptions
+XJTU-SY + IMS conformance baseline
         ↓
-IMS minimal adapter / contract exercise
+retain current CanonicalTimeSeries boundary
         ↓
-observed incompatibilities
+XJTU interactive feature analysis + research decisions
         ↓
-minimal canonical/source refinement, if needed
+candidate experiment configuration
         ↓
-XJTU/IMS contract tests
+train-only preprocessing + Isolation Forest + development validation
         ↓
-first private/field source when available
+configuration finalization + holdout evaluation
 ```
 
-XJTU interactive analysis와 feature research는 이 작업과 병행할 수 있습니다. 단, XJTU-specific research need를
-곧바로 canonical data schema로 승격하지 않습니다.
+First private/field source와 MIMII DUE cross-domain source는 다음 canonical boundary review를 유발하는
+conformance case입니다. XJTU research decision은 experiment configuration이 소유합니다.
