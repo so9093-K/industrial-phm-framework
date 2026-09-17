@@ -78,7 +78,6 @@ def _(
         characterization = load_xjtu_characterization_artifacts(_feature_table, _summary)
     except XjtuCharacterizationArtifactError as error:
         mo.stop(True, mo.md(f"Characterization artifacts could not be loaded: `{error}`"))
-
     return artifact_dir, characterization
 
 
@@ -160,6 +159,27 @@ def _(
 
 
 @app.cell
+def _(characterization, mo):
+    _lengths = characterization.run_length_summary
+    _scope_row = (
+        f"| {len(characterization.records):,} | {len(characterization.asset_ids)} | "
+        f"{len(characterization.operating_conditions)} | "
+        f"{_lengths.min_acquisitions:,}-{_lengths.max_acquisitions:,} | "
+        f"{_lengths.median_acquisitions:,.1f} | {_lengths.max_to_min_ratio:,.2f} |"
+    )
+    mo.md(
+        f"""
+        ### Development evidence scope
+
+        | Acquisitions | Bearing runs | Conditions | Run length range | Median | Max/min ratio |
+        |---:|---:|---:|---:|---:|---:|
+        {_scope_row}
+        """
+    )
+    return
+
+
+@app.cell
 def _(bearing_selector, characterization, condition_selector):
     selected_records = tuple(
         record
@@ -171,6 +191,19 @@ def _(bearing_selector, characterization, condition_selector):
         and (bearing_selector.value == "All" or record.asset_id == bearing_selector.value)
     )
     return (selected_records,)
+
+
+@app.cell
+def _(bearing_selector, characterization, condition_selector):
+    selected_lifecycle_runs = tuple(
+        run
+        for run in characterization.lifecycle_runs
+        if (
+            condition_selector.value == "All" or run.operating_condition == condition_selector.value
+        )
+        and (bearing_selector.value == "All" or run.asset_id == bearing_selector.value)
+    )
+    return (selected_lifecycle_runs,)
 
 
 @app.cell
@@ -188,6 +221,50 @@ def _(
         **Operating condition:** `{condition_selector.value}`  
         **Bearing run:** `{bearing_selector.value}`  
         **Visible acquisitions:** `{len(selected_records)}` / `{len(characterization.records)}`
+        """
+    )
+    return
+
+
+@app.cell
+def _(characterization, condition_selector, feature_selector, mo):
+    _condition = None if condition_selector.value == "All" else condition_selector.value
+    _correlations = tuple(
+        correlation
+        for correlation in characterization.correlations_for(_condition)
+        if feature_selector.value in (correlation.left, correlation.right)
+    )
+    _strongest = sorted(
+        _correlations,
+        key=lambda correlation: max(
+            (
+                abs(value)
+                for value in (correlation.pearson, correlation.spearman)
+                if value is not None
+            ),
+            default=-1.0,
+        ),
+        reverse=True,
+    )[:5]
+    _rows = []
+    for _correlation in _strongest:
+        _other = (
+            _correlation.right if _correlation.left == feature_selector.value else _correlation.left
+        )
+        _pearson = "—" if _correlation.pearson is None else f"{_correlation.pearson:.4f}"
+        _spearman = "—" if _correlation.spearman is None else f"{_correlation.spearman:.4f}"
+        _rows.append(f"| `{_other.removeprefix('feature.')}` | {_pearson} | {_spearman} |")
+    _scope = "all train conditions" if _condition is None else _condition
+    _body = "\n".join(_rows) if _rows else "| _No feature pairs_ | — | — |"
+    mo.md(
+        f"""
+        ### Strongest pairwise associations
+
+        Scope: `{_scope}`. Ranked by the larger absolute Pearson/Spearman coefficient.
+
+        | Other feature | Pearson | Spearman |
+        |---|---:|---:|
+        {_body}
         """
     )
     return
@@ -238,18 +315,39 @@ def _(
 
 
 @app.cell
-def _(mo, x_axis_selector):
-    mo.md(
-        """
-        The retrospective lifecycle fraction uses each run's known final acquisition count.
-        It is for retrospective visualization only and must not be used as an online model input.
+def _(characterization, feature_selector, mo, plt, selected_lifecycle_runs):
+    _feature_index = characterization.feature_names.index(feature_selector.value)
+    _figure, _axis = plt.subplots(figsize=(10, 5))
+    for _run in selected_lifecycle_runs:
+        _axis.plot(
+            ("Early", "Middle", "Late"),
+            (
+                _run.early_means[_feature_index],
+                _run.middle_means[_feature_index],
+                _run.late_means[_feature_index],
+            ),
+            marker="o",
+            label=_run.asset_id,
+        )
+    _axis.set_xlabel("Retrospective lifecycle third")
+    _axis.set_ylabel(feature_selector.value)
+    _axis.set_title("Lifecycle-third feature means by bearing run")
+    if len(selected_lifecycle_runs) > 1:
+        _axis.legend()
+    _figure.tight_layout()
+    mo.vstack([_figure])
+    return
 
-        UI state is exploratory analysis state, not a feature-selection decision or experiment
-        configuration.
-        """
-        if x_axis_selector.value == "Retrospective lifecycle fraction"
-        else ""
-    )
+
+@app.cell
+def _(mo):
+    mo.md("""
+    Retrospective lifecycle fraction and lifecycle thirds use each run's known final acquisition
+    count. They are development evidence for offline comparison and are not online model inputs.
+
+    UI state is exploratory analysis state, not a feature-selection decision or experiment
+    configuration.
+    """)
     return
 
 

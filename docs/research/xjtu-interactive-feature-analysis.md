@@ -19,6 +19,9 @@ interaction을 검증하는 것입니다.
 - feature 선택
 - acquisition index / retrospective lifecycle fraction 전환
 - bearing-run별 feature trajectory 비교
+- train scope의 run-length imbalance 확인
+- 선택 feature의 global/condition별 pairwise correlation 후보 확인
+- bearing-run별 retrospective lifecycle-third feature mean 비교
 
 Retrospective lifecycle fraction은 각 run의 알려진 최종 acquisition count를 사용하는 사후 분석 축이며 online
 model input이 아닙니다.
@@ -26,7 +29,8 @@ model input이 아닙니다.
 ## Artifact boundary
 
 `industrial_phm.experiments.xjtu_characterization_artifacts`는 characterization CSV/JSON의 schema와 scope가 서로
-일치하는지 확인하는 작은 read-only loader입니다. 별도의 analysis framework가 아니며 새로운 통계, ranking 또는
+일치하는지 확인하는 작은 read-only loader입니다. Loader는 생성된 run-length, correlation, lifecycle-third evidence도
+feature table scope와 대조해 typed value로 전달합니다. 별도의 analysis framework가 아니며 새로운 통계, ranking 또는
 experiment decision을 만들지 않습니다.
 
 Interactive tool 내부에서 artifact parsing contract를 다시 구현하지 않습니다. 반대로 trajectory filtering이나
@@ -59,6 +63,7 @@ marimo를 research dependency로 채택하기 전에 최소한 다음을 실제 
 - 현재 XJTU feature-table 규모에서 interaction latency가 연구 흐름을 방해하지 않는가
 - raw parsing/feature formulas/model logic이 UI로 복제되지 않는가
 - holdout-test data가 development UI에 노출되지 않는가
+- generated summary evidence와 feature table scope의 불일치를 loader가 차단하는가
 - Git diff와 review가 기존 `.ipynb`보다 반복 workflow 유지에 실질적으로 유리한가
 
 이 기준이 충족되고 반복 사용이 확인되면 `research` dependency group 도입을 별도 결정합니다. 그렇지 않으면 spike를
