@@ -22,6 +22,11 @@ from industrial_phm.data.validation import (
     inspect_source,
     verify_sha256,
 )
+from industrial_phm.experiments.xjtu_characterization import (
+    XjtuFeatureCharacterizationError,
+    characterize_xjtu_source,
+)
+from industrial_phm.features import VibrationFeatureError
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
 
@@ -96,6 +101,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="parse every acquisition instead of representative first/middle/last samples",
     )
     data_validate.set_defaults(handler=_run_data_validate)
+
+    feature = subcommands.add_parser(
+        "feature",
+        help="run implemented feature extraction and characterization workflows",
+    )
+    feature_commands = feature.add_subparsers(dest="feature_command", required=True)
+
+    feature_characterize = feature_commands.add_parser(
+        "characterize",
+        help="generate split-aware descriptive feature characterization artifacts",
+    )
+    feature_characterize.add_argument("dataset_id")
+    feature_characterize.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by its Domain Adapter",
+    )
+    feature_characterize.add_argument(
+        "--output-dir",
+        type=Path,
+        required=True,
+        help="local output directory for generated characterization artifacts",
+    )
+    feature_characterize.add_argument(
+        "--fold-id",
+        required=True,
+        help="version-controlled reference fold, for example fold-1",
+    )
+    feature_characterize.add_argument(
+        "--partition",
+        choices=("train", "validation"),
+        default="train",
+        help="development partition to characterize; holdout test is unavailable",
+    )
+    feature_characterize.set_defaults(handler=_run_feature_characterize)
 
     return parser
 
@@ -302,4 +343,42 @@ def _run_data_validate(args: argparse.Namespace) -> int:
     print(
         "validation note: source/profile compatibility only; upstream authenticity is not verified"
     )
+    return 0
+
+
+def _run_feature_characterize(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"feature characterization is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        artifacts = characterize_xjtu_source(
+            args.source,
+            args.output_dir,
+            fold_id=args.fold_id,
+            partition=args.partition,
+        )
+    except (OSError, XjtuSySourceError, XjtuFeatureCharacterizationError, VibrationFeatureError) as error:
+        print(f"feature characterization failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {manifest.dataset_id}")
+    print(f"feature_set_id: {artifacts.feature_set_id}")
+    print(f"split_id: {artifacts.split_id}")
+    print(f"fold_id: {artifacts.fold_id}")
+    print(f"partition: {artifacts.partition}")
+    print(f"acquisitions: {artifacts.acquisition_count}")
+    print(f"bearing_runs: {artifacts.bearing_run_count}")
+    print(f"operating_conditions: {artifacts.operating_condition_count}")
+    print(f"feature_table: {artifacts.feature_table_path}")
+    print(f"summary: {artifacts.summary_path}")
     return 0
