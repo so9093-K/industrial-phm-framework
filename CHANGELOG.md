@@ -35,6 +35,8 @@
   Pearson·Spearman redundancy, retrospective lifecycle thirds, run-length imbalance를 재현 가능하게 생성하는
   automated characterization workflow.
 - ISO 13372/13374/13379/13381 계열과 일반적인 ML/data-science 용어를 우선하는 project terminology 기준선.
+- XJTU characterization CSV/JSON을 함께 검증해 읽고 condition, bearing, feature별 retrospective series를 제공하는
+  read-only interactive-analysis helper.
 
 ### Changed
 
