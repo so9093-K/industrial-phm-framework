@@ -14,9 +14,15 @@
 
 ### Canonical contract는 source format이 아니다
 
-CSV directory, historian, SQL database, object storage, OPC UA server, vendor API 같은 원천 차이는 acquisition/source
-integration과 Domain Adapter가 흡수합니다. PHM core가 source-specific protocol이나 directory grammar를 직접 알지
-않도록 유지합니다.
+CSV directory, historian, SQL database, object storage, OPC UA server, vendor API 같은 원천 차이는 PHM core 밖의
+acquisition/source-integration boundary가 흡수해야 합니다. PHM core가 source-specific protocol이나 directory
+grammar를 직접 알지 않도록 유지합니다.
+
+현재 구현 범위는 더 좁습니다. `DomainAdapter.iter_series()`는 `source: Path`를 받으므로 현재 production adapter는
+**file-backed prepared local source**를 전제로 합니다. 따라서 framework가 historian/OPC UA/database를 직접
+지원한다고 주장하지 않습니다. 첫 field integration에서는 우선 조직의 기존 권한과 ingestion 경계를 통해 허가된
+snapshot/export를 준비하고 그 source를 adapter에 전달할 수 있습니다. 실제로 direct non-file source를 반복해서
+지원해야 할 필요가 확인될 때만 source-handle 또는 ingestion interface 확장을 검토합니다.
 
 ### Canonical contract는 storage format이 아니다
 
@@ -52,10 +58,11 @@ time-series semantics를 참고하지만 core object를 특정 AAS/OPC UA/Sensor
 
 ## 3. Current assumptions and known limitations
 
-현재 contract가 암묵적으로 또는 명시적으로 가지는 가정은 다음과 같습니다.
+현재 contract와 adapter boundary가 암묵적으로 또는 명시적으로 가지는 가정은 다음과 같습니다.
 
 | 영역 | 현재 가정 | 이후 확인할 질문 |
 | --- | --- | --- |
+| source | `DomainAdapter`는 prepared local `Path`를 입력으로 받음 | historian/DB/API를 직접 읽어야 하는 반복 요구가 생기면 source interface를 분리할 것인가 |
 | asset | segment마다 하나의 `asset_id` | site/line/component/sensor hierarchy가 별도로 필요한가 |
 | time | segment 안에서 하나의 sample axis를 공유 | lifecycle time과 acquisition 내부 sample time을 분리해야 하는가 |
 | sampling | explicit timestamps 또는 하나의 regular sampling rate | channel별/asynchronous sampling을 어떻게 표현할 것인가 |
@@ -119,9 +126,32 @@ canonical physical time으로 취급하지 않습니다.
 
 ### External sources and storage
 
-원본 데이터를 repository의 `data/raw/`로 복사하는 것을 전제로 하지 않습니다. `data/`는 연구용 local workspace일
-뿐 production data lake가 아닙니다. Historian, database, object storage 또는 OT/IT source에 데이터가 남아 있어도
-source integration과 adapter를 통해 같은 core contract를 사용할 수 있어야 합니다.
+원본 데이터를 repository의 `data/raw/`로 복사하는 것을 production architecture의 전제로 하지 않습니다.
+`data/`는 연구용 local workspace일 뿐 production data lake가 아닙니다.
+
+다만 **현재 구현은 Path-backed adapter만 지원**합니다. 따라서 현장 source가 historian, database, object storage,
+OPC UA 또는 vendor API에 남아 있는 경우 첫 integration은 다음 두 형태 중 실제 요구가 작은 쪽을 사용합니다.
+
+```text
+existing authorized export/snapshot
+        ↓
+prepared local source
+        ↓
+DomainAdapter(Path)
+```
+
+또는 direct online integration이 실제로 필요하고 반복된다면:
+
+```text
+external system
+        ↓
+source-specific ingestion/client boundary
+        ↓
+canonical processing boundary
+```
+
+후자의 공통 interface는 첫 현장 source 전에 추측해서 만들지 않습니다. Credential/network/access policy와 raw data
+storage는 조직의 운영 시스템이 계속 소유할 수 있어야 합니다.
 
 ### Identity and operating context
 
@@ -172,10 +202,11 @@ IMS 때문에 필요한 변화가 XJTU에도 자연스럽고 domain-neutral하�
 
 ### Case C — first private/field source
 
-실제 비공개 산업 데이터가 확보되면 benchmark와 별도로 field-data conformance case로 사용합니다. Source가 file이
-아닐 수 있다는 점, access policy, quality flags, asset/sensor identity, maintenance/configuration history를 우선
-검토합니다. 원본 데이터를 공개하거나 repository에 복사하지 않아도 contract/adapter test를 수행할 수 있어야
-합니다.
+실제 비공개 산업 데이터가 확보되면 benchmark와 별도로 field-data conformance case로 사용합니다. 현재 Path-backed
+boundary로 authorized export/snapshot을 충분히 다룰 수 있는지 먼저 확인하고, direct historian/DB/API integration이
+실제 requirement라면 그때 source boundary를 확장합니다. Access policy, quality flags, asset/sensor identity,
+maintenance/configuration history를 우선 검토합니다. 원본 데이터를 공개하거나 repository에 복사하지 않아도
+contract/adapter test를 수행할 수 있어야 합니다.
 
 ### Case D — cross-domain source
 
@@ -192,23 +223,28 @@ Canonical contract 확장은 다음 조건을 우선합니다.
 4. 기존 dataset adapter와 contract test를 함께 재검증할 수 있다.
 5. pre-1.0 public-contract 변경은 CHANGELOG와 필요한 ADR에 기록한다.
 
+Source interface 확장도 같은 원칙을 따릅니다. 한 field source가 API라는 이유만으로 generic connector framework를
+만들지 않고, prepared `Path` boundary로 해결할 수 없는 반복 요구가 확인될 때만 별도 source abstraction을 둡니다.
+
 반대로 "산업에서는 언젠가 필요할 것 같다"는 이유만으로 AssetGraph, SensorRegistry, EventStore, QualityFramework,
 streaming abstraction을 미리 만들지 않습니다.
 
 ## 9. Near-term implementation order
 
-이 audit 자체는 `CanonicalTimeSeries` 코드를 변경하지 않습니다.
+이 audit 자체는 `CanonicalTimeSeries` 또는 `DomainAdapter` 코드를 변경하지 않습니다.
 
 ```text
-current contract assumptions
+current contract/source assumptions
         ↓
 IMS minimal adapter / contract exercise
         ↓
 observed incompatibilities
         ↓
-minimal canonical refinement, if needed
+minimal canonical/source refinement, if needed
         ↓
 XJTU/IMS contract tests
+        ↓
+first private/field source when available
 ```
 
 XJTU interactive analysis와 feature research는 이 작업과 병행할 수 있습니다. 단, XJTU-specific research need를
