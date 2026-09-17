@@ -1,22 +1,28 @@
 # Project Terminology
 
 이 문서는 `industrial-phm-framework`에서 연구·실험·PHM 기능을 설명할 때 사용하는 용어의 기준선입니다.
-새로운 프로젝트 고유 용어를 만들기보다 **ISO condition monitoring / prognostics 용어, 널리 쓰이는 ML·data-science
-용어, 일반적인 software engineering 용어**를 우선합니다.
+새로운 프로젝트 고유 용어를 만들기보다 **ISO condition-monitoring vocabulary와 concepts, 널리 쓰이는
+ML/data-science 용어, 일반적인 software-engineering 용어**를 우선합니다.
 
 용어는 구현 이름보다 먼저 의미를 고정하기 위한 문서입니다. 코드나 artifact 이름은 실제 기능이 생겼을 때 이
-정의와 일치하는 범위에서 추가합니다.
+정의와 일치하는 범위에서 추가합니다. ISO 표준의 정의를 임의로 재작성하거나 이 문서만으로 표준 적합성을
+주장하지 않습니다.
 
 ## 1. Terminology principles
 
-1. 표준이나 널리 쓰이는 용어가 있으면 프로젝트 고유 조어를 만들지 않습니다.
+1. ISO 13372처럼 명시적인 vocabulary 표준이나 널리 쓰이는 용어가 있으면 프로젝트 고유 조어를 만들지 않습니다.
 2. 같은 단어가 여러 의미를 가질 수 있으면 대상을 붙입니다. 예: `dataset validation`, `development validation`.
 3. 관찰된 값과 해석을 구분합니다. 모델이 직접 생성한 값은 그 의미가 검증되기 전까지 더 강한 PHM 의미를
    부여하지 않습니다.
 4. 연구용 UI나 Notebook 이름이 architecture 계층이나 Source of Truth가 되지 않습니다.
-5. 용어의 의미가 바뀌면 문서와 public contract를 함께 검토합니다.
+5. 표준 용어와 일반 ML 용어가 서로 다른 문제를 다루면 억지로 하나로 합치지 않습니다. 연구 lifecycle에는
+   일반적인 data-science/ML 용어를, machine condition monitoring 기능에는 ISO 계열 용어를 우선합니다.
+6. 용어의 의미가 바뀌면 관련 문서와 public contract를 함께 검토합니다.
 
 ## 2. Research and experiment lifecycle
+
+아래 용어는 주로 일반적인 data-science/ML 연구 lifecycle을 설명하기 위한 것입니다. ISO 13374 기능 block의
+이름을 연구 단계 이름으로 억지로 재사용하지 않습니다.
 
 ### Research objective
 
@@ -51,7 +57,7 @@ train partition에서만 fit합니다.
 ### Feature characterization
 
 Feature가 lifecycle, operating condition, channel, bearing/run, scale, redundancy 측면에서 실제로 어떻게
-동작하는지 기술적으로 분석하는 과정입니다. Characterization 결과는 feature selection과 같은 experiment
+동작하는지 기술적으로 분석하는 과정입니다. Characterization result는 feature selection과 같은 experiment
 결정을 지원하지만 자동으로 그 결정을 대신하지 않습니다.
 
 ### Interactive analysis
@@ -87,8 +93,9 @@ Finalized experiment configuration을 사람이 개발 과정에서 사용하지
 
 ### Cross-fold robustness analysis
 
-Primary development/test evaluation 이후 다른 pre-defined fold에서도 결과가 얼마나 안정적인지 확인하는 분석입니다.
-Parameter나 assumption을 의도적으로 바꾸는 sensitivity analysis와 구분합니다.
+Development/holdout evaluation 이후 다른 pre-defined fold에서도 결과가 얼마나 안정적인지 확인하는 분석입니다.
+Parameter나 assumption을 의도적으로 바꾸는 sensitivity analysis와 구분합니다. 이 표현은 ISO vocabulary가 아니라
+현재 split design을 설명하기 위한 일반적인 ML 용어입니다.
 
 ### Cross-dataset validation
 
@@ -96,13 +103,16 @@ Parameter나 assumption을 의도적으로 바꾸는 sensitivity analysis와 구
 검토하는 과정입니다. 다른 기관·환경의 독립 데이터가 실제 외부 검증 조건을 만족할 때는 `external validation`을
 사용할 수 있습니다.
 
-## 3. PHM terms
+## 3. PHM and condition-monitoring terms
+
+이 절은 ISO 13372 vocabulary와 ISO 13374/13379/13381 계열의 machine condition monitoring, diagnostics,
+prognostics 개념에 가능한 범위에서 정렬합니다. 아래 설명은 프로젝트에서의 사용 경계를 정리한 것이며 ISO
+원문의 normative definition을 대체하지 않습니다.
 
 ### Condition monitoring
 
-설비 상태를 측정·관찰하고 상태 변화에 관한 정보를 생산하는 상위 활동을 가리킵니다. 이 프로젝트의 PHM
-기능은 ISO 13374/13379/13381 계열의 condition monitoring, diagnostics, prognostics 용어와 가능한 범위에서
-정렬합니다.
+설비 상태를 측정·관찰하고 상태 변화에 관한 정보를 생산하는 상위 활동을 가리킵니다. 단순 anomaly detection,
+diagnostics, prognostics를 서로 동의어로 사용하지 않습니다.
 
 ### Anomaly score
 
@@ -114,13 +124,15 @@ Anomaly-detection model이 observation의 기준 분포 대비 비정상성을 �
 
 ### Degradation indicator
 
-설비 lifecycle에서 열화 진행과 의미 있게 연결된다고 분석·검증된 지표를 가리킵니다. 단순 anomaly score나
-feature trajectory에 이 이름을 선제적으로 부여하지 않습니다.
+설비 lifecycle에서 열화 진행과 의미 있게 연결된다고 분석·검증된 지표를 가리키기 위한 프로젝트 용어입니다.
+단순 anomaly score나 feature trajectory에 이 이름을 선제적으로 부여하지 않습니다. 표준의 특정 normative term을
+재정의하는 용도로 사용하지 않습니다.
 
 ### Health indicator (HI)
 
-설비의 health/degradation state를 요약하도록 구성되고 그 의미가 검토된 지표입니다. 특정 논문·방법이
-`Health Index`라는 이름을 명시적으로 사용하는 경우에만 그 명칭을 그대로 사용할 수 있습니다.
+설비의 health/degradation state를 요약하도록 구성되고 그 의미가 검토된 지표를 가리키는 PHM 문헌상의 일반적인
+표현으로 사용합니다. `Health Index`는 특정 방법이나 문헌이 그 명칭을 명시적으로 사용할 때 그대로 사용합니다.
+ISO 13372의 특정 정의를 이 문장으로 대체한다고 주장하지 않습니다.
 
 ### Diagnostics
 
@@ -170,6 +182,7 @@ code revision과 파일 관계를 기술하는 metadata artifact입니다. 필�
 
 이 문서는 표준 내용을 복제하는 문서가 아니라 프로젝트 vocabulary를 정렬하기 위한 기준입니다.
 
+- ISO 13372:2012, *Condition monitoring and diagnostics of machines — Vocabulary* (2023 재확인)
 - ISO 13374-1:2003, *Condition monitoring and diagnostics of machines — Data processing, communication and
   presentation — Part 1: General guidelines* (2025 재확인)
 - ISO 13374-4:2015, *Condition monitoring and diagnostics of machine systems — Data processing, communication and
