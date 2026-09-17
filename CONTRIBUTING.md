@@ -84,6 +84,17 @@ feat(contract): 공통 시계열 데이터 계약 정의
 좋은 commit은 파일 목록을 다시 말하기보다 **왜 변경했고 어떤 invariant를 지키는지** 남깁니다.
 서로 독립적으로 되돌리거나 리뷰할 수 있는 변경은 별도 commit으로 분리합니다.
 
+## Terminology
+
+연구·실험·PHM 기능을 새로 이름 붙일 때는 [`docs/terminology.md`](docs/terminology.md)를 먼저 확인합니다.
+
+- ISO condition-monitoring vocabulary나 널리 쓰이는 ML/software 용어가 있으면 프로젝트 고유 조어보다 우선합니다.
+- 관찰된 model output에 검증되지 않은 PHM 의미를 선제적으로 부여하지 않습니다. 예를 들어 anomaly-model output을
+  근거 없이 `degradation score`라고 부르지 않습니다.
+- UI나 Notebook의 임시 이름을 architecture 계층 또는 Source of Truth 이름으로 승격하지 않습니다.
+- 새로운 canonical term이 실제로 필요하면 기존 용어로 표현할 수 없는 이유를 PR에서 설명하고 terminology 문서와
+  함께 검토합니다.
+
 ## Pull Requests
 
 PR 제목도 같은 형식을 사용합니다.
