@@ -51,6 +51,20 @@ def test_xjtu_adapter_reads_acquisitions_lazily_in_numeric_order(tmp_path: Path)
     assert second.metadata["acquisition_index"] == 2
 
 
+def test_xjtu_adapter_selected_assets_do_not_parse_other_waveforms(tmp_path: Path) -> None:
+    selected = tmp_path / "40Hz10kN" / "Bearing3_1"
+    unselected = tmp_path / "40Hz10kN" / "Bearing3_2"
+    selected.mkdir(parents=True)
+    unselected.mkdir(parents=True)
+    _write_valid_acquisition(selected / "1.csv")
+    (unselected / "1.csv").write_text("invalid,header\nnot,a-waveform\n", encoding="utf-8")
+
+    series = list(XjtuSyAdapter().iter_asset_series(tmp_path, ("Bearing3_1",)))
+
+    assert len(series) == 1
+    assert series[0].asset_id == "Bearing3_1"
+
+
 def test_xjtu_adapter_rejects_non_contiguous_acquisition_sequence(tmp_path: Path) -> None:
     bearing = _bearing_dir(tmp_path)
     (bearing / "1.csv").touch()
