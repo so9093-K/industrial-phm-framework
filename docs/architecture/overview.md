@@ -11,6 +11,12 @@
 4. 분석 결과는 서비스와 생성형 AI에 어떻게 전달되는가?
 5. 최종 사용자는 어떤 결과를 소비하는가?
 
+`CanonicalTimeSeries`의 현재 가정, XJTU-SY에 과적합되지 않기 위한 확장 규칙, 실제 비공개/현장 데이터에서 확인할
+quality·provenance·security boundary는
+[`canonical-data-contract.md`](canonical-data-contract.md)를 기준으로 검토합니다. Canonical contract는 모든 산업
+데이터를 미리 포괄하는 universal schema가 아니라 실제 source가 추가될 때 공통 의미만 유지하는 adapter/core
+boundary입니다.
+
 ## 1. 시스템 아키텍처
 
 ![시스템 아키텍처](../../assets/system-architecture.svg)
@@ -31,8 +37,9 @@ Isolation Forest와 LSTM Autoencoder는 현재 계획된 reference implementatio
 ![모델 학습 및 평가](../../assets/model-training-evaluation.svg)
 
 그림은 입력 데이터에서 전처리·특징 생성, 데이터 분할, 모델 학습, 분석 결과 생성, 모델 평가, 비교·선택으로
-이어지는 전체 실험 수명주기를 보여줍니다. 구현에서는 같은 자산 또는 Run의 시간 구간이 train/test에 섞이지
-않도록 자산·Run 단위 분할을 우선합니다.
+이어지는 전체 실험 수명주기를 보여줍니다. 실제 split strategy는 deployment scenario와 데이터 구조에 맞게
+asset/run/time/site/cohort 같은 leakage boundary를 명시적으로 정합니다. XJTU-SY의 bearing-run split을 모든
+industrial dataset의 공통 split 규칙으로 일반화하지 않습니다.
 
 그림의 `전처리 및 특징 생성`은 파이프라인 책임을 나타내는 개념 단계입니다. scaler, normalizer, threshold,
 feature statistics처럼 데이터로부터 학습되는 상태는 split 이후 **train 범위에서만 fit**하고 validation/test에는
