@@ -6,6 +6,7 @@ from industrial_phm.features.vibration import (
     VibrationFeatureVector,
     extract_vibration_features,
     iter_vibration_features,
+    vibration_feature_names,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "VibrationFeatureVector",
     "extract_vibration_features",
     "iter_vibration_features",
+    "vibration_feature_names",
 ]

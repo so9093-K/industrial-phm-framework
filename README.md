@@ -8,7 +8,7 @@
 생성형 AI는 PHM 모델의 예측을 대신하지 않고, 구조화된 분석 결과를 해석하고 정비 의사결정을
 지원하는 상위 계층으로 통합합니다.
 
-> 현재 상태: first experiment design / pre-alpha (`0.0.1`)
+> 현재 상태: first experiment implementation / pre-alpha (`0.0.1`)
 
 ## Architecture
 
@@ -166,7 +166,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
 │   ├── data/               # dataset manifest·acquisition·validation
-│   ├── experiments/        # version-controlled experiment split/protocol inputs
+│   ├── experiments/        # version-controlled experiment split/config/protocol inputs
 │   └── features/           # stateless numerical feature extraction
 └── tests/
     ├── unit/
@@ -187,12 +187,13 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU-SY condition-stratified 5-fold bearing-run split과 leakage contract
 - `vibration-statistical-v1` feature, split-aware characterization artifact와 interactive analysis
 - `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
+- dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` 8개 factorial candidate
 
 ### Current
 
-1. candidate matrix를 표현하는 version-controlled ExperimentConfig
-2. train-only fitted preprocessing state
-3. Isolation Forest anomaly-scoring baseline
+1. identity와 robust scaling을 지원하는 train-only fitted preprocessing state
+2. acquisition-uniform과 bearing-balanced model-fitting policy
+3. prepared feature matrix를 소비하는 Isolation Forest anomaly-scoring baseline
 
 ### Next
 

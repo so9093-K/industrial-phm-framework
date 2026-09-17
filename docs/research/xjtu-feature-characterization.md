@@ -246,8 +246,8 @@ feature와 두 standard deviation을 제외한 14개 subset을 비교합니다. 
 
 첫 reference semantics는 모든 `fold-1/train` acquisition을 사용하는 `all-train-observations`입니다. 이는 healthy
 label이 아닙니다. Scaling은 identity와 train-fitted global robust scaling, sampling은 acquisition-uniform과
-bearing-balanced를 candidate dimension으로 둡니다. 정확한 조합, model parameter와 random seed는 다음
-ExperimentConfig가 소유하며 이 문서나 interactive widget state에 복사하지 않습니다.
+bearing-balanced를 candidate dimension으로 둡니다. 정확한 8개 factorial 조합, model parameter와 random seed는
+packaged `ExperimentConfig v1`이 소유합니다.
 
 현재 summary의 run/condition distribution, correlation, lifecycle thirds와 run-length evidence만으로 이 candidate
 dimension을 정의할 수 있으므로 characterization v2는 추가하지 않습니다. Model score를 해석할 때 새로운 통계가
