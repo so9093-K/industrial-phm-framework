@@ -17,7 +17,14 @@ def _():
         load_xjtu_characterization_artifacts,
     )
 
-    return Path, XjtuCharacterizationArtifactError, defaultdict, load_xjtu_characterization_artifacts, mo, plt
+    return (
+        Path,
+        XjtuCharacterizationArtifactError,
+        defaultdict,
+        load_xjtu_characterization_artifacts,
+        mo,
+        plt,
+    )
 
 
 @app.cell
@@ -33,7 +40,7 @@ def _(mo):
                 """
                 # XJTU-SY interactive feature analysis
 
-                This spike is intentionally fixed to the current `fold-1/train` development scope.
+                This spike is fixed to the current `fold-1/train` development scope.
                 It consumes generated characterization artifacts and does not expose holdout-test data.
                 """
             ),
@@ -186,8 +193,17 @@ def _(
 
 
 @app.cell
-def _(defaultdict, feature_selector, mo, plt, selected_records, x_axis_selector):
+def _(
+    characterization,
+    defaultdict,
+    feature_selector,
+    mo,
+    plt,
+    selected_records,
+    x_axis_selector,
+):
     mo.stop(not selected_records, mo.md("No acquisitions match the current selection."))
+    _feature_index = characterization.feature_names.index(feature_selector.value)
 
     _by_asset = defaultdict(list)
     for _record in selected_records:
@@ -206,7 +222,7 @@ def _(defaultdict, feature_selector, mo, plt, selected_records, x_axis_selector)
 
         _axis.plot(
             _x_values,
-            [record.feature_values[feature_selector.value] for record in _ordered],
+            [record.values[_feature_index] for record in _ordered],
             label=_asset_id,
         )
 
