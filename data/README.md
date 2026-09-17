@@ -15,6 +15,58 @@ data/
 `.gitignore`는 `data/raw/`, `data/interim/`, `data/processed/`를 제외합니다. dataset source/version/license의
 Source of Truth는 `src/industrial_phm/data/manifests/`에 유지합니다.
 
+## Local source inspection
+
+`industrial-phm data inspect`는 dataset-specific parsing 전에 local source의 **구조적 inventory**를 관찰하는
+공통 명령입니다. 일반 file, directory와 ZIP archive를 지원합니다.
+
+기본 출력은 file count, source size, path depth와 filename extension 분포를 보여줍니다. ZIP은 압축을 풀지 않고
+archive metadata를 읽어 member count와 uncompressed payload size를 함께 요약합니다.
+
+```bash
+uv run industrial-phm data inspect <dataset-id> --source <local-path>
+```
+
+Top-level 이름과 대표 상대경로가 실제 source layout을 이해하는 데 필요할 때만 `--details`를 사용합니다.
+Path sample은 최대 개수로 제한되며 file payload 내용은 출력하지 않습니다.
+
+```bash
+uv run industrial-phm data inspect <dataset-id> \
+  --source <local-path> \
+  --details
+```
+
+이 명령은 local inventory 관찰이며 upstream authenticity나 Domain Adapter compatibility를 증명하지 않습니다.
+Dataset-specific file semantics, channel mapping, sampling/time contract는 실제 source를 확인한 뒤 각 dataset validator가
+소유합니다. Private/field source에서도 payload 값을 기본 출력하지 않으므로 구조 확인에 사용할 수 있지만, path
+자체가 민감 정보일 수 있으면 `--details` 출력의 공유 범위를 별도로 통제합니다.
+
+## IMS Bearings
+
+IMS Bearings는 NASA PCoE 공식 ZIP endpoint를 framework manifest에 등록합니다. 먼저 원본 archive를 raw workspace에
+그대로 획득하고 local digest를 관찰합니다.
+
+```bash
+uv run industrial-phm data fetch ims-bearings
+uv run industrial-phm data verify ims-bearings
+```
+
+현재 manifest에는 upstream SHA-256이 pin되어 있지 않으므로 local digest는 provenance 기록이지 upstream
+authenticity 증명이 아닙니다.
+
+Adapter를 만들기 전에 원본 ZIP을 압축 해제하지 않고 구조부터 확인합니다.
+
+```bash
+uv run industrial-phm data inspect ims-bearings \
+  --source data/raw/ims-bearings/ims-bearing-data-set.zip \
+  --details
+```
+
+이 출력으로 archive member 수, 압축/비압축 규모, path depth, extension 분포, top-level 및 대표 member 경로를 먼저
+확인합니다. 실제 delimiter, channel count, sample count, timestamp/acquisition semantics는 이 generic inspection이
+추측하지 않습니다. 해당 의미는 실제 archive 관찰을 `docs/research/ims-source-profile.md`에 기록한 뒤 IMS-specific
+validator/adapter에서 검증합니다.
+
 ## XJTU-SY
 
 XJTU-SY 공식 repository는 여러 cloud mirror를 제공합니다. Framework의 manifest는 현재 `manual` provider를
