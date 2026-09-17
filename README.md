@@ -8,7 +8,7 @@
 생성형 AI는 PHM 모델의 예측을 대신하지 않고, 구조화된 분석 결과를 해석하고 정비 의사결정을
 지원하는 상위 계층으로 통합합니다.
 
-> 현재 상태: repository foundation / pre-alpha (`0.0.1`)
+> 현재 상태: first experiment design / pre-alpha (`0.0.1`)
 
 ## Architecture
 
@@ -180,40 +180,30 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Completed
 
-- repository/package/CI foundation과 `0.0.1` 개발 기준선
-- `CanonicalTimeSeries`와 `DomainAdapter` 경계
-- 공개 PHM 데이터셋 조사와 XJTU-SY first concrete case 선정
-- dataset registry와 명시적 `fetch`/`verify`/`inspect` CLI 기반
-- 아키텍처·Source of Truth·testing·UX/XAI 운영 원칙
-- XJTU-SY 3 operating conditions / 15 bearing runs / 9,216 acquisitions 실데이터 구조 확인
-- XJTU-SY acquisition 단위 Adapter와 regular waveform의 implicit sample-time contract 확장
-- XJTU-SY complete profile 및 Adapter compatibility를 반복 확인하는 `data validate` 흐름
-- XJTU-SY condition-stratified 5-fold bearing-run reference split과 leakage contract
-- acquisition별 해석 가능한 `vibration-statistical-v1` feature foundation
-- split-aware XJTU feature-characterization artifacts와 interactive-analysis spike
-- IMS Bearings 공식 archive의 nested ZIP → 7z → RAR 구조, 3개 extracted source directory와 representative
-  waveform shape/time inventory 확인
-- IMS Bearings 9,464 acquisition source validator와 bearing별 minimal canonical Adapter
+- repository/package/CI와 변경·테스트·문서 운영 기준선
+- dataset registry와 명시적 fetch/verify/inspect/validate workflow
+- `CanonicalTimeSeries`와 dataset별 `DomainAdapter` 책임 경계
+- XJTU-SY와 IMS 실제 source profile, validator, Adapter를 통한 canonical conformance
+- XJTU-SY condition-stratified 5-fold bearing-run split과 leakage contract
+- `vibration-statistical-v1` feature, split-aware characterization artifact와 interactive analysis
+- `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
 
 ### Current
 
-1. `fold-1 train` characterization artifact에 대한 XJTU interactive feature analysis
-2. feature subset, reference data, normalization, sampling/weighting 후보 결정
-3. 재현 가능한 research workflow에 대한 marimo 채택 평가
+1. candidate matrix를 표현하는 version-controlled ExperimentConfig
+2. train-only fitted preprocessing state
+3. Isolation Forest anomaly-scoring baseline
 
 ### Next
 
-1. Interactive analysis에서 반복 확인된 gap의 versioned characterization 개선
-2. 첫 Isolation Forest 실험을 표현하는 candidate experiment configuration
-3. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline
-4. model-independent development evaluator와 `fold-1 validation`
-5. experiment configuration finalization과 `fold-1` holdout test evaluation
-6. cross-fold robustness analysis
-7. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
-8. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-9. 데이터가 정당하게 지원하는 경우 RUL prognostics
-10. MIMII DUE를 통한 cross-domain evaluation
-11. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+1. model-independent development evaluator와 `fold-1 validation`
+2. experiment configuration finalization과 `fold-1` holdout test evaluation
+3. cross-fold robustness analysis
+4. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
+5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+6. 데이터가 정당하게 지원하는 경우 RUL prognostics
+7. MIMII DUE를 통한 cross-domain evaluation
+8. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

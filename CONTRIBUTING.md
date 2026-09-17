@@ -95,6 +95,25 @@ feat(contract): 공통 시계열 데이터 계약 정의
 - 새로운 canonical term이 실제로 필요하면 기존 용어로 표현할 수 없는 이유를 PR에서 설명하고 terminology 문서와
   함께 검토합니다.
 
+## Documentation
+
+새 파일을 만들기 전에 기존 authoritative owner를 갱신할 수 있는지 먼저 확인합니다. 문서는 작업 단계나 PR마다
+추가하지 않고, 변경 이후에도 유지되는 책임을 기준으로 나눕니다. Source-of-Truth mapping은
+[`docs/architecture/operational-foundation.md`](docs/architecture/operational-foundation.md)의
+`One Fact, One Authoritative Owner`를 따릅니다.
+
+- Root `README.md`: 현재 capability, 진입점과 project-level roadmap
+- Subsystem `README.md`: 해당 디렉터리의 실행 방법과 운영 규칙
+- `docs/architecture`: 여러 기능에 걸쳐 유지되는 책임과 contract boundary
+- `docs/adr`: 장기간 영향을 주는 구조 결정과 대안
+- `docs/research`: dataset 선택, 검증된 source profile, 반복 사용할 protocol과 research method
+- Manifest/config/code: 정확한 provenance, split, experiment parameter와 executable invariant
+- PR 본문: 조사 순서, 일회성 비교표, migration 과정과 review context
+
+새 문서는 독립적인 장기 소유 책임이 있고 기존 문서나 executable Source of Truth에 합치면 책임이 섞일 때만
+추가합니다. 새 문서를 추가하는 PR은 기존 owner로 충분하지 않은 이유와 갱신·폐기 조건을 설명합니다. 구현 직전의
+임시 계획, widget state, 생성 artifact의 전체 수치와 commit history 요약을 별도 문서로 승격하지 않습니다.
+
 ## Pull Requests
 
 PR 제목도 같은 형식을 사용합니다.
@@ -137,10 +156,13 @@ PR 상태의 `merged` 표시는 해당 PR의 base branch에 통합됐다는 뜻�
 장기간 영향을 주는 구조적 결정은 `docs/adr`에 기록합니다. 모든 구현 선택을 ADR로 만들지는 않습니다.
 결정이 바뀌면 기존 Accepted ADR을 조용히 수정하지 않고 새 ADR에서 supersede합니다.
 
-## CHANGELOG
+## Release and CHANGELOG
 
 `CHANGELOG.md`는 git log의 복사본이 아닙니다. 사용자가 알아야 할 기능, 호환성, 동작, 보안 또는 중요한
 개발 계약의 변화만 기록합니다.
+
+Package version의 authoritative owner는 `pyproject.toml`입니다. 기능·문서·실험 PR마다 version을 올리지 않고,
+외부 배포나 public compatibility 기준선을 선언하는 release 변경에서 tag와 artifact 정책을 함께 검토합니다.
 
 ## Compatibility
 

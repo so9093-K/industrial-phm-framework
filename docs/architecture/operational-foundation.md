@@ -14,23 +14,20 @@
 개발 명령을 `Makefile`, `just`, shell script 등 여러 wrapper로 중복하지 않습니다. 현재 개발 기준선은
 `uv lock --check`, `uv sync --locked`, Ruff, mypy, pytest, `uv build`입니다.
 
-프로젝트 CLI는 기능이 실제로 생길 때만 command를 추가합니다. 장기 namespace는 다음을 기준으로 하되
-빈 command tree를 미리 구현하지 않습니다.
+프로젝트 CLI는 기능이 실제로 생길 때만 command를 추가합니다. 현재 구현된 command tree는 다음과 같습니다.
 
 ```text
 industrial-phm
+├── doctor
 ├── data
 │   ├── list
+│   ├── status
 │   ├── fetch
 │   ├── verify
-│   ├── status
-│   └── inspect
-├── train
-├── evaluate
-├── infer
-├── artifact
-├── report
-└── doctor
+│   ├── inspect
+│   └── validate
+└── feature
+    └── characterize
 ```
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.
@@ -72,11 +69,18 @@ Single Source of Truth는 모든 설정을 하나의 파일에 넣는다는 의�
 | asset/run split | split manifest |
 | 실험 parameter | version-controlled experiment config |
 | model artifact provenance | artifact manifest |
+| 현재 capability와 project-level roadmap | root `README.md` |
+| subsystem 실행 방법과 운영 규칙 | 해당 directory의 `README.md` |
+| 검증된 dataset 관찰 사실 | dataset source profile |
+| 반복 사용할 research protocol/method | 해당 subject의 research 문서 |
 | secret/token/machine-specific path | environment/runtime configuration |
 | 장기 구조 결정 | ADR |
 | contract invariant | production code와 contract 문서 |
+| 작업 과정과 일회성 비교 결과 | PR 본문 또는 generated artifact |
 
 README나 발표 자료에 version, URL, threshold 같은 값을 불필요하게 복사하지 않습니다.
+문서도 작업 단계마다 새 파일을 만드는 방식으로 확장하지 않습니다. 기존 owner의 책임 안에 들어가는 변화는 해당
+문서를 갱신하고, 정확한 설정값과 실행 가능한 invariant는 manifest/config/code에 둡니다.
 
 ## 4. Configuration Boundary
 

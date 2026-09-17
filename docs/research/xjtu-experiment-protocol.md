@@ -209,15 +209,12 @@ Development fold 선택은 split manifest의 bearing assignment를 변경하지 
 `fold-1`의 development/holdout-test 역할을 설명하고, generated artifacts는 항상 실제 `split_id`, `fold_id`,
 `partition` provenance를 함께 기록해야 합니다.
 
-## 9. Next implementation boundary
+## 9. Experiment lifecycle
 
-이 protocol 이후의 기본 진행 순서는 다음과 같습니다.
+첫 baseline은 다음 lifecycle을 따릅니다. Project-level current status는 root README가 소유합니다.
 
 ```text
-reference split + development/holdout boundary
-  -> fixed stateless feature foundation
-  -> fold-1 train feature characterization + interactive analysis
-  -> versioned candidate experiment configuration
+versioned candidate experiment configuration
   -> train-only fitted preprocessing state
   -> Isolation Forest fit on train
   -> fold-1 development validation

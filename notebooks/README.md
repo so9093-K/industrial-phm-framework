@@ -18,7 +18,7 @@ Notebook에서 수행하기 적합한 작업:
 반복적으로 필요해지면 Jupyter, marimo 같은 도구는 이 로직과 generated artifacts를 소비하는 interface로 사용하고,
 도구 내부에 parser·feature formula·model implementation을 별도로 만들지 않습니다.
 
-장기간 유지할 split, threshold, metric, architecture 결정은 각각 experiment/research 문서나 ADR에 기록합니다.
+장기간 유지할 split과 experiment parameter는 manifest/config, architecture 결정은 ADR에 기록합니다.
 
 ## 실행
 
@@ -35,9 +35,9 @@ Jupyter 자체는 현재 product/runtime dependency로 고정하지 않습니다
 uv run --with jupyter jupyter lab
 ```
 
-이 방식에서는 notebook이 현재 checkout의 `industrial_phm` package를 그대로 import할 수 있습니다. 실제 XJTU-SY
-analysis에서 NumPy, SciPy, plotting 또는 interactive-analysis dependency가 반복적으로 필요하다고 확인되면 별도
-dependency group과 `uv.lock`에 함께 고정합니다.
+이 방식에서는 notebook이 현재 checkout의 `industrial_phm` package를 그대로 import할 수 있습니다. XJTU-SY
+interactive analysis에 반복 사용하는 dependency는 아래 `research` group과 `uv.lock`에 고정하며, 다른 일회성
+도구는 project dependency로 자동 승격하지 않습니다.
 
 ## XJTU-SY local source
 
@@ -91,26 +91,24 @@ trajectory, condition/channel comparison, bearing overlay 또는 추가 통계�
 characterization code로 승격합니다. Characterization을 완성한 뒤에야 interactive analysis를 시작해야 한다고
 가정하지 않습니다.
 
-## Interactive feature analysis spike
+## Interactive feature analysis
 
 `01_xjtu_feature_analysis.py`는 generated characterization artifacts를 소비하는 marimo 기반 research-tooling
-spike입니다. 현재 `fold-1/train` development scope만 대상으로 하며 raw waveform, feature formula, model logic 또는
+interface입니다. 현재 `fold-1/train` development scope만 대상으로 하며 raw waveform, feature formula, model logic 또는
 holdout-test data를 UI에서 다시 다루지 않습니다.
 
-marimo와 Matplotlib은 아직 project/runtime dependency로 채택하지 않습니다. 현재 검증 버전을 일회성 dependency로
-실행합니다.
+marimo와 Matplotlib은 production runtime과 분리된 `research` dependency group으로 실행합니다.
 
 ```bash
-uv run --locked \
-  --with marimo==0.24.2 \
-  --with matplotlib==3.11.2 \
-  marimo edit notebooks/01_xjtu_feature_analysis.py
+uv sync --locked --group research
+uv run --locked --group research marimo edit notebooks/01_xjtu_feature_analysis.py
 ```
 
-Spike의 목적, artifact boundary와 채택 기준은
-[`../docs/research/xjtu-interactive-feature-analysis.md`](../docs/research/xjtu-interactive-feature-analysis.md)에
-기록합니다. 실제 반복 사용이 확인되기 전에는 marimo를 canonical Research UX 또는 dependency group으로 승격하지
-않습니다.
+이 interface는 typed characterization loader를 통해 generated artifact만 읽습니다. Raw parsing, feature 계산,
+feature selection, preprocessing과 model fitting은 notebook 책임이 아닙니다. 현재 도구는 Python 3.14 strict check와
+실제 `fold-1/train` HTML execution을 반복 통과했고 source 형식이 일반 code review와 CI에 적합해 research group으로
+채택했습니다. 이 선택은 XJTU interactive analysis의 tooling 결정이며 canonical Research UX나 architecture
+contract가 아닙니다.
 
 ## 운영 규칙
 
@@ -130,7 +128,7 @@ Spike의 목적, artifact boundary와 채택 기준은
 ## 현재 Notebook
 
 - `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
-- `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo spike.
+- `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo interface.
 
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
 않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제

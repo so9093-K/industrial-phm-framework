@@ -228,21 +228,8 @@ Source interface 확장도 같은 원칙을 따릅니다. 한 field source가 AP
 반대로 "산업에서는 언젠가 필요할 것 같다"는 이유만으로 AssetGraph, SensorRegistry, EventStore, QualityFramework,
 streaming abstraction을 미리 만들지 않습니다.
 
-## 9. Near-term implementation order
+## 9. Next review boundary
 
-```text
-XJTU-SY + IMS conformance baseline
-        ↓
-retain current CanonicalTimeSeries boundary
-        ↓
-XJTU interactive feature analysis + research decisions
-        ↓
-candidate experiment configuration
-        ↓
-train-only preprocessing + Isolation Forest + development validation
-        ↓
-configuration finalization + holdout evaluation
-```
-
-First private/field source와 MIMII DUE cross-domain source는 다음 canonical boundary review를 유발하는
-conformance case입니다. XJTU research decision은 experiment configuration이 소유합니다.
+XJTU-SY와 IMS conformance 결과는 현재 `CanonicalTimeSeries` boundary를 유지할 근거를 제공합니다. 이후 model
+experiment 순서는 이 문서가 소유하지 않습니다. First private/field source나 MIMII DUE처럼 현재 bearing-vibration
+범위를 벗어난 실제 source가 새 공통 의미를 요구할 때 canonical boundary를 다시 검토합니다.

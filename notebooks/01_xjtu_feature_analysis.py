@@ -40,7 +40,7 @@ def _(mo):
                 """
                 # XJTU-SY interactive feature analysis
 
-                This spike is fixed to the current `fold-1/train` development scope.
+                This analysis is fixed to the current `fold-1/train` development scope.
                 It consumes generated characterization artifacts and does not expose
                 holdout-test data.
                 """
