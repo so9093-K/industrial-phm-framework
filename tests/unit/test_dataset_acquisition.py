@@ -65,6 +65,19 @@ def test_source_inspection_summarizes_nested_directory(tmp_path: Path) -> None:
     assert inspection.representative_files == ("bearing/run/sample.csv", "metadata.txt")
 
 
+def test_source_inspection_bounds_path_samples(tmp_path: Path) -> None:
+    for index in range(20):
+        asset = tmp_path / f"asset-{index:02d}"
+        asset.mkdir()
+        (asset / "sample.dat").write_text(str(index), encoding="utf-8")
+
+    inspection = inspect_source(tmp_path)
+
+    assert inspection.file_count == 20
+    assert inspection.top_level_entries == tuple(f"asset-{index:02d}" for index in range(12))
+    assert len(inspection.representative_files) == 12
+
+
 def test_source_inspection_reads_zip_metadata_without_member_payloads(tmp_path: Path) -> None:
     archive_path = tmp_path / "ims.zip"
     with ZipFile(archive_path, "w") as archive:
