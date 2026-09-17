@@ -2,7 +2,7 @@
 
 이 문서는 Dashboard 구현보다 먼저 사용자 역할과 정보 소비 구조를 정리합니다. UI framework나 화면 디자인을
 고정하기 위한 문서가 아니라, PHM 결과가 실제 의사결정에서 어떤 정보로 소비되어야 하는지 확인하기 위한
-초기 기준선입니다.
+초기 기준선입니다. 프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를 따릅니다.
 
 ## 1. 사용자 역할
 
@@ -50,7 +50,7 @@ Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도
 상태 평가 (Assessment)
 - status
 - anomaly score / threshold
-- health index / trend
+- health indicator / trend
 - RUL 또는 capability unavailable
 
 판단 근거 (Evidence)
@@ -78,8 +78,8 @@ Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도
 - recommended inspection or maintenance action
 ```
 
-모든 capability가 항상 존재한다고 가정하지 않습니다. RUL, uncertainty, explanation이 지원되지 않는 경우
-임의의 값이나 그럴듯한 설명으로 채우지 않고 명시적으로 unavailable 상태로 표현합니다.
+모든 capability가 항상 존재한다고 가정하지 않습니다. RUL, health indicator, uncertainty, explanation이 지원되지
+않는 경우 임의의 값이나 그럴듯한 설명으로 채우지 않고 명시적으로 unavailable 상태로 표현합니다.
 
 ## 3. 사람·AI·XAI의 책임
 

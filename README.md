@@ -30,7 +30,8 @@
 실행 인터페이스, 데이터 획득, Source of Truth, configuration 및 packaging 경계는
 [`docs/architecture/operational-foundation.md`](docs/architecture/operational-foundation.md)에 정리합니다.
 테스트 생성 기준은 [`docs/testing-policy.md`](docs/testing-policy.md), 사용자 역할과 결과 UX 기준은
-[`docs/product/overview.md`](docs/product/overview.md)를 참조합니다.
+[`docs/product/overview.md`](docs/product/overview.md)를 참조합니다. 연구·실험·PHM 기능에서 사용하는 공통 용어는
+[`docs/terminology.md`](docs/terminology.md)를 기준으로 합니다.
 
 ## Python Compatibility
 
@@ -104,9 +105,9 @@ provenance 주의사항은 [`docs/research/dataset-selection.md`](docs/research/
 
 ## Research Workflow
 
-`notebooks/`는 실제 산업 데이터를 관찰하고 EDA·contract 검증·모델 PoC를 수행하는 Research UX 공간입니다.
-Notebook은 production pipeline의 두 번째 구현이나 실험 결과의 Source of Truth가 아니며, 반복 가능한 로직은
-`src/industrial_phm/`로 승격합니다.
+`notebooks/`는 실제 산업 데이터를 관찰하고 EDA·contract 검증·작은 PoC를 수행하는 exploratory-analysis
+공간입니다. Notebook이나 interactive tool은 production pipeline의 두 번째 구현이나 실험 결과의 Source of Truth가
+아니며, 반복 가능한 계산 로직은 `src/industrial_phm/`로 승격합니다.
 
 프로젝트 환경은 lockfile 기준으로 준비하고 Jupyter는 현재 일회성 연구 도구로 실행합니다.
 
@@ -122,13 +123,15 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 참조합니다.
 
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
-[`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 평가 질문과 leakage
-경계를 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
+[`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 development/holdout-test
+경계와 leakage 규칙을 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
 
 Acquisition-level vibration baseline은 `industrial_phm.features`의 versioned feature set으로 계산합니다. Feature를
 상관계수 하나로 자동 선정하거나 test trajectory를 반복해서 보고 튜닝하지 않고,
-[`docs/research/xjtu-feature-characterization.md`](docs/research/xjtu-feature-characterization.md)의 development /
-evaluation 경계 안에서 lifecycle·condition·channel·redundancy를 함께 분석합니다.
+[`docs/research/xjtu-feature-characterization.md`](docs/research/xjtu-feature-characterization.md)에 따라
+lifecycle·condition·channel·redundancy를 분석합니다. Characterization을 완성한 뒤에야 interactive analysis를
+시작한다고 가정하지 않고, 현재 artifacts를 먼저 탐색하면서 실제로 반복되는 분석 요구를 reusable code로
+승격합니다.
 
 ## Repository Layout
 
@@ -140,8 +143,9 @@ evaluation 경계 안에서 lifecycle·condition·channel·redundancy를 함께 
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   ├── product/            # 사용자 역할과 결과 UX 기준
 │   ├── research/           # 데이터셋·benchmark·experiment protocol 조사
+│   ├── terminology.md      # 연구·실험·PHM 공통 용어 기준
 │   └── adr/                # Architecture Decision Records
-├── notebooks/              # EDA·contract 검증·모델 PoC용 Research UX
+├── notebooks/              # EDA·contract 검증·작은 PoC용 exploratory analysis
 ├── src/industrial_phm/
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
@@ -170,21 +174,25 @@ evaluation 경계 안에서 lifecycle·condition·channel·redundancy를 함께 
 - XJTU-SY complete profile 및 Adapter compatibility를 반복 확인하는 `data validate` 흐름
 - XJTU-SY condition-stratified 5-fold bearing-run reference split과 leakage contract
 - acquisition별 해석 가능한 `vibration-statistical-v1` feature foundation
+- split-aware XJTU feature-characterization artifacts
 
 ### Current
 
-1. train/validation 경계 안에서 XJTU feature·degradation behavior characterization
-2. feature configuration, run imbalance, normal-reference/normalization 필요성을 evidence로 결정
-3. 결정된 preprocessing state를 train-only로 fit하는 Isolation Forest 입력 contract 정의
+1. `fold-1 train` feature characterization 결과에 대한 interactive analysis
+2. 실제 탐색에서 확인되는 분석 gap만 reusable characterization/analysis code로 승격
+3. feature subset, reference data, normalization, sampling/weighting에 대한 experiment configuration candidate 정의
 
 ### Next
 
-1. Isolation Forest baseline과 모델 독립 evaluation
-2. IMS를 통한 same-modality portability 확인
-3. LSTM Autoencoder, reconstruction evidence, Health Index
-4. 데이터가 정당하게 지원하는 경우 RUL prognostics
-5. MIMII DUE를 통한 cross-domain 확장성 검증
-6. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
+1. `fold-1 validation`을 이용한 development validation과 experiment configuration finalization
+2. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline
+3. 모델 독립 evaluation과 `fold-1` holdout test evaluation
+4. 다른 predefined fold를 이용한 cross-fold robustness analysis
+5. IMS를 통한 cross-dataset validation
+6. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+7. 데이터가 정당하게 지원하는 경우 RUL prognostics
+8. MIMII DUE를 통한 cross-domain evaluation
+9. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 
@@ -194,6 +202,7 @@ evaluation 경계 안에서 lifecycle·condition·channel·redundancy를 함께 
 
 ## Governance
 
+- 공통 용어: [`docs/terminology.md`](docs/terminology.md)
 - 변경 이력: [`CHANGELOG.md`](CHANGELOG.md)
 - 기여 및 커밋/PR 규칙: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - 보안 정책: [`SECURITY.md`](SECURITY.md)

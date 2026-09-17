@@ -20,7 +20,7 @@
 - Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
 - `industrial-phm` CLI와 dataset manifest 기반 `data list/status/fetch/verify` acquisition 흐름.
 - 사용자가 직접 획득한 local dataset file/directory의 규모를 확인하는 `data inspect` 흐름.
-- XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible `notebooks/` Research UX 기준선.
+- XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible exploratory-analysis notebook 기준선.
 - Git에 포함되지 않는 `data/` local workspace와 XJTU-SY 공식 Google Drive mirror의 반자동 획득 가이드.
 - 실제 XJTU-SY 15개 bearing run / 9,216 acquisition 구조에 근거한 acquisition 단위 `XjtuSyAdapter`.
 - XJTU-SY local source profile과 regular waveform time-axis 결정을 기록한 research 문서 및 ADR-0005.
@@ -29,11 +29,12 @@
 - XJTU-SY 첫 numerical baseline을 위한 condition-stratified 5-fold bearing-run split manifest와
   leakage-prevention experiment protocol.
 - acquisition별 channel 통계와 provenance를 보존하는 versioned `vibration-statistical-v1` feature foundation.
-- correlation 하나에 종속되지 않고 lifecycle·condition·redundancy·run imbalance를 함께 보는 XJTU feature /
-  degradation characterization research protocol.
+- correlation 하나에 종속되지 않고 lifecycle·condition·redundancy·run imbalance를 함께 보는 XJTU feature
+  characterization research protocol.
 - XJTU reference split의 명시적 train/validation partition에서 feature table과 condition/run 통계,
   Pearson·Spearman redundancy, retrospective lifecycle thirds, run-length imbalance를 재현 가능하게 생성하는
   automated characterization workflow.
+- ISO 13372/13374/13379/13381 계열과 일반적인 ML/data-science 용어를 우선하는 project terminology 기준선.
 
 ### Changed
 
@@ -43,9 +44,13 @@
 - XJTU experiment protocol이 stateless feature extraction과 data-derived feature/reference selection을 구분하고,
   test trajectory를 이용한 post-hoc tuning도 leakage로 취급하도록 연구 경계를 명확히 했습니다.
 - XJTU feature characterization에서 반복 계산·집계는 split-aware automated artifact workflow가 담당하고,
-  Notebook은 development evidence의 시각적 비교와 사람의 experiment decision에 집중하도록 역할을 구분했습니다.
-- XJTU 첫 numerical baseline의 primary development fold를 `fold-1`로 고정하고, `fold-1 test`는 decision freeze 이후
-  primary independent evaluation에만 사용하며 나머지 fold는 이후 robustness/sensitivity evidence로 구분했습니다.
+  Notebook은 development result의 시각적 비교와 사람의 experiment decision에 집중하도록 역할을 구분했습니다.
+- XJTU 첫 numerical baseline에서 `fold-1`을 development fold로 고정하고, experiment configuration finalization 이후
+  `fold-1 test`로 holdout test evaluation을 수행하며 나머지 fold는 이후 cross-fold robustness analysis로
+  구분했습니다.
+- 검증되지 않은 `degradation score`, `Feature Observatory`, `decision freeze` 같은 표현을 canonical terminology로
+  사용하지 않고 anomaly score, interactive feature analysis, experiment configuration finalization처럼 의미가
+  직접 드러나는 용어로 정리했습니다.
 
 ### Fixed
 
