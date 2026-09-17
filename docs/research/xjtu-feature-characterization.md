@@ -213,8 +213,9 @@ Truth가 아니며, test partition을 feature decision 목적으로 열어보지
 - ruptures: change-point candidate 탐색
 - scikit-learn/SciPy: correlation clustering, model-based feature importance가 실제 필요해질 때 검토
 
-이 도구들은 현재 runtime dependency가 아닙니다. 특히 자동 profiling/ranking 결과는 domain validation 없이 feature
-selection contract가 되지 않습니다.
+이 도구들은 production runtime dependency가 아닙니다. marimo와 Matplotlib은 현재 XJTU interactive analysis를
+위한 optional `research` dependency group에 포함됩니다. 자동 profiling/ranking 결과는 domain validation 없이
+feature selection contract가 되지 않습니다.
 
 ## 9. Experiment decisions supported by characterization
 

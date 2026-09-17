@@ -48,12 +48,8 @@ jobs:
       - name: Check dependency lock
         run: uv lock --check
 
-      - name: Sync locked project environment
-        run: uv sync --locked
+      - name: Sync locked research environment
+        run: uv sync --locked --group research
 
       - name: Check marimo analysis file
-        run: |
-          uv run --locked \
-            --with marimo==0.24.2 \
-            --with matplotlib==3.11.2 \
-            marimo check notebooks/01_xjtu_feature_analysis.py
+        run: uv run --locked --group research marimo check --strict notebooks/01_xjtu_feature_analysis.py
