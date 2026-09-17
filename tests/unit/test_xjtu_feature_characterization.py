@@ -10,6 +10,10 @@ from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     write_xjtu_characterization_artifacts,
 )
+from industrial_phm.experiments.xjtu_feature_analysis import (
+    XjtuFeatureAnalysisError,
+    load_xjtu_feature_analysis,
+)
 from industrial_phm.features import VibrationFeatureVector, extract_vibration_features
 
 _FOLD_1_TRAIN = (
@@ -126,6 +130,98 @@ def test_characterization_writes_development_evidence_without_test_data(
 
     assert summary["decision_boundary"]["feature_selection"] == "undecided"
     assert summary["decision_boundary"]["normal_reference"] == "undecided"
+
+
+def test_feature_analysis_loads_generated_development_artifacts(tmp_path: Path) -> None:
+    artifacts = write_xjtu_characterization_artifacts(
+        _fold_1_train_vectors(),
+        tmp_path,
+        fold_id="fold-1",
+        partition="train",
+    )
+
+    analysis = load_xjtu_feature_analysis(
+        artifacts.feature_table_path,
+        artifacts.summary_path,
+    )
+
+    assert analysis.feature_set_id == "vibration-statistical-v1"
+    assert analysis.fold_id == "fold-1"
+    assert analysis.partition == "train"
+    assert analysis.bearing_run_count == 9
+    assert analysis.operating_condition_count == 3
+    assert analysis.operating_conditions == ("35Hz12kN", "37.5Hz11kN", "40Hz10kN")
+    assert analysis.asset_ids == tuple(sorted(_FOLD_1_TRAIN))
+    assert len(analysis.records) == 27
+
+    rms_name = "feature.Horizontal_vibration_signals.rms"
+    series = analysis.feature_series(rms_name, asset_ids=("Bearing1_3",))
+    assert [point.acquisition_index for point in series] == [1, 2, 3]
+    assert [point.retrospective_lifecycle_fraction for point in series] == pytest.approx(
+        [1 / 3, 2 / 3, 1.0]
+    )
+    assert [point.value for point in series] == sorted(point.value for point in series)
+
+
+def test_feature_analysis_filters_by_operating_condition(tmp_path: Path) -> None:
+    artifacts = write_xjtu_characterization_artifacts(
+        _fold_1_train_vectors(),
+        tmp_path,
+        fold_id="fold-1",
+        partition="train",
+    )
+    analysis = load_xjtu_feature_analysis(
+        artifacts.feature_table_path,
+        artifacts.summary_path,
+    )
+
+    rms_name = "feature.Vertical_vibration_signals.rms"
+    series = analysis.feature_series(rms_name, operating_condition="37.5Hz11kN")
+
+    assert {point.asset_id for point in series} == {"Bearing2_3", "Bearing2_4", "Bearing2_5"}
+    assert {point.operating_condition for point in series} == {"37.5Hz11kN"}
+
+
+def test_feature_analysis_rejects_unknown_feature_or_asset(tmp_path: Path) -> None:
+    artifacts = write_xjtu_characterization_artifacts(
+        _fold_1_train_vectors(),
+        tmp_path,
+        fold_id="fold-1",
+        partition="train",
+    )
+    analysis = load_xjtu_feature_analysis(
+        artifacts.feature_table_path,
+        artifacts.summary_path,
+    )
+
+    with pytest.raises(XjtuFeatureAnalysisError, match="unknown feature"):
+        analysis.feature_series("feature.missing")
+    with pytest.raises(XjtuFeatureAnalysisError, match="unknown XJTU asset"):
+        analysis.feature_series(
+            "feature.Horizontal_vibration_signals.rms",
+            asset_ids=("Bearing9_9",),
+        )
+
+
+def test_feature_analysis_rejects_test_scope_in_summary(tmp_path: Path) -> None:
+    artifacts = write_xjtu_characterization_artifacts(
+        _fold_1_train_vectors(),
+        tmp_path,
+        fold_id="fold-1",
+        partition="train",
+    )
+    summary = json.loads(artifacts.summary_path.read_text(encoding="utf-8"))
+    summary["experiment_scope"]["partition"] = "test"
+    artifacts.summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(XjtuFeatureAnalysisError, match="train or validation"):
+        load_xjtu_feature_analysis(
+            artifacts.feature_table_path,
+            artifacts.summary_path,
+        )
 
 
 def test_characterization_rejects_non_contiguous_lifecycle_records(tmp_path: Path) -> None:
