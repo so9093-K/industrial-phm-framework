@@ -114,6 +114,35 @@ series = analysis.feature_series(
 확인되면 reusable analysis 또는 characterization code로 승격합니다. Characterization을 완성한 뒤에야 interactive
 analysis를 시작해야 한다고 가정하지 않습니다.
 
+## marimo interactive-analysis spike
+
+`01_xjtu_feature_analysis.py`는 marimo가 반복 가능한 interactive feature analysis에 적합한지 확인하기 위한
+**experimental spike**입니다. Project/runtime dependency나 canonical research UI를 확정하는 변경이 아닙니다.
+
+먼저 위 `fold-1/train` characterization artifacts를 생성한 뒤 repository root에서 실행합니다.
+
+```bash
+uv run \
+  --with marimo==0.24.2 \
+  --with matplotlib==3.11.2 \
+  marimo edit notebooks/01_xjtu_feature_analysis.py
+```
+
+이 명령은 현재 project environment에 marimo/Matplotlib을 일회성으로 더해 실행합니다. Spike 단계에서는
+`pyproject.toml`이나 `uv.lock`에 research dependency를 고정하지 않습니다. 실제 반복 사용과 유지보수 가치가
+확인되면 별도 dependency group 도입을 검토합니다.
+
+Spike가 확인하려는 범위는 다음으로 제한합니다.
+
+- generated `fold-1/train` artifacts를 공통 read-only analysis helper를 통해 로드
+- operating condition, bearing run, feature를 선택해 acquisition-level trajectory를 비교
+- raw acquisition index와 retrospective lifecycle fraction 시각화를 전환
+- UI가 raw waveform parsing, feature extraction, experiment configuration을 소유하지 않는지 확인
+- holdout test partition이 interactive development analysis에 노출되지 않는지 확인
+
+Retrospective lifecycle fraction은 각 run의 최종 acquisition count를 알아야 계산할 수 있으므로 시각적 비교에만
+사용하고 online model input이나 fault-onset label로 해석하지 않습니다.
+
 ## 운영 규칙
 
 1. Notebook은 exploratory analysis와 PoC용이며 production Source of Truth가 아닙니다.
@@ -129,10 +158,11 @@ analysis를 시작해야 한다고 가정하지 않습니다.
 9. production validator를 Notebook에서 다시 구현하지 않습니다.
 10. 가능한 한 위에서 아래로 새 kernel에서 다시 실행해도 같은 의미의 결과가 나오는 형태를 유지합니다.
 
-## 현재 Notebook
+## 현재 analysis files
 
-- `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
+- `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 Jupyter inspection notebook.
+- `01_xjtu_feature_analysis.py`: generated characterization artifacts를 소비하는 marimo interactive-analysis spike.
 
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
-않습니다. 다음 interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제
-사용에서 확인된 분석 요구를 다시 reusable code로 승격하는 방향으로 진행합니다.
+않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제 사용에서
+확인된 분석 요구를 다시 reusable code로 승격하는 방향으로 진행합니다.
