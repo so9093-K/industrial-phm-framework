@@ -367,7 +367,12 @@ def _run_feature_characterize(args: argparse.Namespace) -> int:
             fold_id=args.fold_id,
             partition=args.partition,
         )
-    except (OSError, XjtuSySourceError, XjtuFeatureCharacterizationError, VibrationFeatureError) as error:
+    except (
+        OSError,
+        XjtuSySourceError,
+        XjtuFeatureCharacterizationError,
+        VibrationFeatureError,
+    ) as error:
         print(f"feature characterization failed: {error}", file=sys.stderr)
         return 1
 
