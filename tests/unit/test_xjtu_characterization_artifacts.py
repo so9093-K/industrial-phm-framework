@@ -81,7 +81,7 @@ def test_loads_matching_non_test_characterization_artifacts(tmp_path: Path) -> N
     assert data.asset_ids == ("Bearing1_3",)
     assert data.operating_conditions == ("35Hz12kN",)
     assert data.records[1].acquisition_index == 2
-    assert data.records[1].feature_values[_FEATURE_NAME] == pytest.approx(1.5)
+    assert data.records[1].values[0] == pytest.approx(1.5)
 
 
 def test_rejects_holdout_test_characterization_summary(tmp_path: Path) -> None:
