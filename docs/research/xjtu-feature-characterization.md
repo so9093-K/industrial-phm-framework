@@ -231,6 +231,27 @@ Characterization의 목적은 하나의 feature score를 만드는 것이 아니
 실제 decision이 생기면 experiment configuration/code/document의 적절한 Source of Truth로 승격합니다. 연구 중
 후보나 plot 자체를 architecture contract로 취급하지 않습니다.
 
+### Current `fold-1/train` conclusion
+
+현재 artifact는 3,246 acquisitions와 9개 bearing run을 포함하며 run-length max/min ratio는 36.07입니다.
+`Bearing3_4`가 전체 train acquisition의 46.67%를 차지하므로 acquisition-uniform과 bearing-balanced fitting을
+비교할 근거가 충분합니다. Condition마다 train bearing이 세 개이므로 이 scope에서 condition+bearing balancing은
+bearing balancing과 같은 total mass를 만듭니다.
+
+두 channel의 RMS와 population standard deviation은 모든 condition에서 0.998 이상의 Pearson/Spearman
+association을 보이며 `RMS² = mean² + standard_deviation²` 관계를 가집니다. 첫 model experiment는 전체 16개
+feature와 두 standard deviation을 제외한 14개 subset을 비교합니다. Absolute peak와 peak-to-peak는 association이
+높지만 정의가 같지 않으므로 유지합니다.
+
+첫 reference semantics는 모든 `fold-1/train` acquisition을 사용하는 `all-train-observations`입니다. 이는 healthy
+label이 아닙니다. Scaling은 identity와 train-fitted global robust scaling, sampling은 acquisition-uniform과
+bearing-balanced를 candidate dimension으로 둡니다. 정확한 조합, model parameter와 random seed는 다음
+ExperimentConfig가 소유하며 이 문서나 interactive widget state에 복사하지 않습니다.
+
+현재 summary의 run/condition distribution, correlation, lifecycle thirds와 run-length evidence만으로 이 candidate
+dimension을 정의할 수 있으므로 characterization v2는 추가하지 않습니다. Model score를 해석할 때 새로운 통계가
+반복적으로 필요해지면 그 요구를 다음 characterization version으로 승격합니다.
+
 ## References
 
 - Ayman et al., *Feature learning for bearing prognostics: A comprehensive review of machine/deep learning methods,

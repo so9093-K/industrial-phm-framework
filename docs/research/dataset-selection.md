@@ -169,20 +169,13 @@ noise-aware multi-channel processing 등이 반복적으로 나타납니다. 따
 DCASE 데이터는 challenge 중 file revision이 발생할 수 있으므로 dataset name만 기록해서는 부족합니다.
 acquisition manifest에 challenge year, task, machine subset, published revision/file name과 hash를 고정해야 합니다.
 
-## 8. Current Research Order
+## 8. Dataset Evaluation Order
 
-현재 단계의 기본 연구 순서는 다음으로 정합니다.
+Dataset별 검증 책임은 다음 순서로 확장합니다. Model 내부 구현 순서와 project-level current status는 각각 XJTU
+experiment protocol과 root README가 소유합니다.
 
 ```text
-XJTU-SY + IMS source/adapter/canonical conformance baseline
-        ↓
-XJTU interactive feature analysis + research decisions
-        ↓
-candidate experiment configuration + train-only preprocessing
-        ↓
-Isolation Forest + development validation
-        ↓
-configuration finalization + fold-1 holdout + cross-fold robustness
+XJTU-SY model lifecycle baseline
         ↓
 IMS model-pipeline portability
         ↓
@@ -199,19 +192,10 @@ AI4I는 framework의 연구 결론을 만드는 dataset이 아니라 acquisition
 첫 private/field source는 availability에 따라 이 순서 중간에 별도 conformance case로 들어올 수 있습니다. 공개
 benchmark를 모두 끝내야만 실제 source를 검토할 수 있다는 의미가 아닙니다.
 
-## 9. Acquisition Implementation Order
-
-1. dataset manifest schema와 explicit local/raw workspace boundary 유지
-2. XJTU-SY manual provider와 local validation 유지
-3. AI4I처럼 작은 URL provider로 fetch/verify behavior 검증
-4. IMS 공식 NASA URL을 registry에 등록하되 adapter compatibility와 분리
-5. IMS archive를 실제로 확보한 뒤 source profile을 검증하고 minimal adapter 작성
-6. MIMII DUE는 file checksum과 license boundary를 보존하는 acquisition 경로를 실제 필요 시 추가
-7. provider별 network smoke check는 PR unit suite와 분리
-
-Domain Adapter는 acquisition provider를 알지 않습니다. 현재 adapter protocol은 검증된 local `Path` source를
-받으며, field-data integration에서 database/historian/API source가 실제로 필요해질 때 source-boundary abstraction을
-재검토합니다. 아직 필요하지 않은 generic connector framework를 만들지 않습니다.
+Dataset acquisition의 현재 command와 준비 절차는 `data/README.md`, source/version/license/hash는 packaged dataset
+manifest가 소유합니다. Domain Adapter는 검증된 local source를 받으며 acquisition provider를 알지 않습니다.
+Historian, database 또는 API source가 prepared `Path` boundary로 반복해서 해결되지 않을 때 source interface를
+재검토합니다.
 
 ## Sources
 
