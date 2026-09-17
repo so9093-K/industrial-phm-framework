@@ -7,7 +7,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, cast
 
 from industrial_phm.experiments.xjtu_characterization import (
     XJTU_FEATURE_CHARACTERIZATION_SCHEMA_ID,
@@ -92,16 +92,16 @@ class XjtuFeatureAnalysis:
                     f"unknown XJTU asset ids requested for analysis: {unknown_assets}"
                 )
 
+        if operating_condition is not None and operating_condition not in self.operating_conditions:
+            raise XjtuFeatureAnalysisError(
+                f"unknown operating condition requested for analysis: {operating_condition!r}"
+            )
         selected = tuple(
             record
             for record in self.records
             if (operating_condition is None or record.operating_condition == operating_condition)
             and (selected_assets is None or record.asset_id in selected_assets)
         )
-        if operating_condition is not None and operating_condition not in self.operating_conditions:
-            raise XjtuFeatureAnalysisError(
-                f"unknown operating condition requested for analysis: {operating_condition!r}"
-            )
         if not selected:
             return ()
 
@@ -146,7 +146,7 @@ def load_xjtu_feature_analysis(
         raise XjtuFeatureAnalysisError(
             "interactive feature analysis only permits train or validation artifacts"
         )
-    partition: XjtuCharacterizationPartition = partition_value
+    partition = cast(XjtuCharacterizationPartition, partition_value)
     if scope.get("test_partition_included") is not False:
         raise XjtuFeatureAnalysisError(
             "interactive feature analysis requires characterization artifacts without test data"
@@ -252,7 +252,16 @@ def _read_feature_table(
             )
     if not records:
         raise XjtuFeatureAnalysisError("XJTU feature table must contain at least one record")
-    return tuple(records)
+    return tuple(
+        sorted(
+            records,
+            key=lambda record: (
+                record.operating_condition,
+                record.asset_id,
+                record.acquisition_index,
+            ),
+        )
+    )
 
 
 def _parse_record(
