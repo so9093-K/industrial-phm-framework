@@ -1,0 +1,59 @@
+name: Interactive Analysis
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/interactive-analysis.yml"
+      - "notebooks/01_xjtu_feature_analysis.py"
+      - "src/industrial_phm/experiments/xjtu_feature_analysis.py"
+      - "pyproject.toml"
+      - "uv.lock"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interactive-analysis.yml"
+      - "notebooks/01_xjtu_feature_analysis.py"
+      - "src/industrial_phm/experiments/xjtu_feature_analysis.py"
+      - "pyproject.toml"
+      - "uv.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interactive-analysis-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  marimo-check:
+    name: Python 3.14 marimo check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Check dependency lock
+        run: uv lock --check
+
+      - name: Sync locked project environment
+        run: uv sync --locked
+
+      - name: Check marimo analysis file
+        run: |
+          uv run --locked \
+            --with marimo==0.24.2 \
+            --with matplotlib==3.11.2 \
+            marimo check notebooks/01_xjtu_feature_analysis.py
