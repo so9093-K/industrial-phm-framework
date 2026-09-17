@@ -37,7 +37,12 @@ Feature 연구가 유연하다는 이유로 test bearing을 반복해서 보고 
 사라집니다. 첫 baseline에서는 `vibration-statistical-v1`의 formula와 feature name/order를 모델 결과를 보기 전에
 고정합니다.
 
-각 fold에서 다음 원칙을 사용합니다.
+[`xjtu-experiment-protocol.md`](xjtu-experiment-protocol.md)는 첫 numerical baseline의 **primary development fold를
+`fold-1`로 고정**합니다. 이 선택은 fold 간 characterization/model 결과를 비교해 더 좋아 보이는 fold를 고른 것이
+아니라, 사람이 반복적으로 관찰할 development scope와 이후 primary evaluation scope를 분리하기 위한 절차적
+경계입니다.
+
+Primary `fold-1`에서 다음 원칙을 사용합니다.
 
 - train: feature behavior 탐색과 data-derived preprocessing/reference fitting의 근거
 - validation: protocol에 미리 정의된 selection/calibration이 필요한 경우 사용
@@ -47,9 +52,11 @@ Test 결과를 보고 feature를 추가·제거하거나 reference rule을 바�
 기록합니다. 같은 test 결과를 이용해 변경한 뒤 그 test 성능을 다시 unbiased evidence처럼 보고하지 않습니다.
 
 특히 현재 5-fold rotating holdout에서는 모든 bearing이 한 번씩 test 역할을 하므로, 15개 bearing 전체를 먼저
-보고 global feature selection을 수행하면 모든 fold에 간접적인 test leakage가 생길 수 있습니다. 따라서
-characterization artifact도 **명시적인 fold의 train 또는 validation partition**만 대상으로 생성합니다. 이 단계의
-workflow는 test partition을 허용하지 않습니다.
+보고 global feature selection을 수행하면 모든 fold에 간접적인 test leakage가 생길 수 있습니다. Primary decision이
+freeze되기 전 characterization은 **`fold-1`의 train 또는 validation partition**만 대상으로 사용하고, 다른 fold의
+train/validation도 추가 development evidence로 미리 열지 않습니다. `fold-2`~`fold-5`는 primary decision freeze
+이후 secondary robustness/sensitivity analysis에서 사용할 수 있습니다. 이 단계의 workflow는 어느 fold에서도 test
+partition을 허용하지 않습니다.
 
 ## 3. Characterization dimensions
 
@@ -131,8 +138,8 @@ adaptation protocol 없이는 사용하지 않습니다.
 Acquisition을 사람이 하나씩 확인하는 방식으로 characterization하지 않습니다. 계산·집계·기초 진단은 반복
 가능한 코드가 담당하고, 사람은 **development partition의 evidence**를 바탕으로 experiment decision을 검토합니다.
 
-먼저 사용할 reference fold를 결과를 보기 전에 명시합니다. 아래 `fold-1`은 명령 형태를 보여주는 예시이며,
-특정 fold가 더 우수하다는 의미가 아닙니다.
+첫 numerical baseline의 primary development scope는 `fold-1`입니다. 아래 명령은 현재 baseline의 실제 development
+scope를 나타내며, fold 간 성능 비교를 통해 `fold-1`을 고른 것이 아닙니다.
 
 ```bash
 uv run python scripts/xjtu_feature_characterization.py \
@@ -142,6 +149,8 @@ uv run python scripts/xjtu_feature_characterization.py \
   --partition train
 ```
 
+Characterization API와 script는 향후 secondary robustness 분석을 위해 reference split의 다른 fold도 표현할 수
+있지만, **primary decision이 freeze되기 전에는 `fold-1` 이외의 fold를 development evidence로 사용하지 않습니다.**
 `--partition`은 `train` 또는 `validation`만 허용합니다. `test`는 feature/reference/model decision이 고정된 뒤
 independent evaluator가 사용할 데이터이므로 characterization script에서 의도적으로 지원하지 않습니다.
 Validation artifact 역시 validation을 사용하기로 사전에 정의한 selection/calibration 목적에서만 사용하며 train과
