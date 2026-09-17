@@ -191,7 +191,7 @@ def _(defaultdict, feature_selector, mo, plt, selected_points, x_axis_selector):
     if len(_by_asset) > 1:
         _axis.legend()
     _figure.tight_layout()
-    _figure
+    mo.vstack([_figure])
     return
 
 
