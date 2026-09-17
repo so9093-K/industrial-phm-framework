@@ -72,15 +72,26 @@ inspection·dataset-specific compatibility validation까지 구현하며, 모델
 uv run industrial-phm doctor
 uv run industrial-phm data list
 uv run industrial-phm data status xjtu-sy
+uv run industrial-phm data status ims-bearings
 uv run industrial-phm data status ai4i-2020
 ```
 
-자동 획득을 허용하는 작은 공개 데이터셋은 사용자가 명시적으로 `fetch`를 실행할 때만 내려받습니다.
-예를 들어 AI4I 2020은 UCI 공식 배포 ZIP을 `data/raw/ai4i-2020/` 아래에 보존합니다.
+자동 획득을 허용하는 공개 데이터셋은 사용자가 명시적으로 `fetch`를 실행할 때만 내려받습니다.
+AI4I 2020은 UCI 공식 배포 ZIP을 `data/raw/ai4i-2020/` 아래에 보존합니다.
 
 ```bash
 uv run industrial-phm data fetch ai4i-2020
 uv run industrial-phm data verify ai4i-2020
+```
+
+IMS Bearings는 NASA PCoE 공식 ZIP endpoint를 registry에 등록하지만, source 등록 자체를 Adapter compatibility
+검증으로 취급하지 않습니다. 공식 archive를 실제로 준비한 뒤 directory/file/time/channel semantics를 확인하고
+그 결과에 근거해 IMS adapter를 별도로 구현합니다. 현재 manifest에는 upstream SHA-256이 pin되어 있지 않으므로
+local digest는 observational provenance이며 upstream authenticity 증명이 아닙니다.
+
+```bash
+uv run industrial-phm data fetch ims-bearings
+uv run industrial-phm data verify ims-bearings
 ```
 
 XJTU-SY처럼 원 출처가 여러 cloud mirror를 제공하고 재배포·자동화 조건을 추가 확인해야 하는 데이터셋은
@@ -166,7 +177,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 - repository/package/CI foundation과 `0.0.1` 개발 기준선
 - `CanonicalTimeSeries`와 `DomainAdapter` 경계
-- 공개 PHM 데이터셋 조사 및 XJTU-SY primary / MIMII DUE secondary 역할 정의
+- 공개 PHM 데이터셋 조사와 XJTU-SY first concrete case 선정
 - dataset registry와 명시적 `fetch`/`verify`/`inspect` CLI 기반
 - 아키텍처·Source of Truth·testing·UX/XAI 운영 원칙
 - XJTU-SY 3 operating conditions / 15 bearing runs / 9,216 acquisitions 실데이터 구조 확인
@@ -174,28 +185,32 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU-SY complete profile 및 Adapter compatibility를 반복 확인하는 `data validate` 흐름
 - XJTU-SY condition-stratified 5-fold bearing-run reference split과 leakage contract
 - acquisition별 해석 가능한 `vibration-statistical-v1` feature foundation
-- split-aware XJTU feature-characterization artifacts
+- split-aware XJTU feature-characterization artifacts와 interactive-analysis spike
 
 ### Current
 
-1. `fold-1 train` feature characterization 결과에 대한 interactive analysis
-2. 실제 탐색에서 확인되는 분석 gap만 reusable characterization/analysis code로 승격
-3. feature subset, reference data, normalization, sampling/weighting에 대한 experiment configuration candidate 정의
+1. 현재 `CanonicalTimeSeries`의 assumptions와 real industrial data 관점의 known limitation 검토
+2. IMS Bearings 공식 source 등록과 local archive inspection을 통한 minimal contract exercise 준비
+3. `fold-1 train` characterization artifact에 대한 XJTU interactive feature analysis를 병행
 
 ### Next
 
-1. `fold-1 validation`을 이용한 development validation과 experiment configuration finalization
-2. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline
-3. 모델 독립 evaluation과 `fold-1` holdout test evaluation
-4. 다른 predefined fold를 이용한 cross-fold robustness analysis
-5. IMS를 통한 cross-dataset validation
-6. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-7. 데이터가 정당하게 지원하는 경우 RUL prognostics
-8. MIMII DUE를 통한 cross-domain evaluation
-9. 실제 모델 출력에 근거한 PHM result/artifact/inference contract
+1. 실제 IMS source에서 확인된 incompatibility가 있을 때만 최소 canonical contract refinement
+2. IMS minimal Adapter/contract test로 XJTU-specific convention이 core에 누출되지 않는지 확인
+3. XJTU interactive analysis에서 확인된 gap만 characterization code로 승격
+4. feature subset, reference data, normalization, sampling/weighting의 version-controlled experiment configuration 정의
+5. train-only fitted preprocessing state와 Isolation Forest anomaly-scoring baseline
+6. `fold-1 validation` development validation과 experiment configuration finalization
+7. 모델 독립 evaluation, `fold-1` holdout test evaluation, cross-fold robustness analysis
+8. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
+9. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+10. 데이터가 정당하게 지원하는 경우 RUL prognostics
+11. MIMII DUE를 통한 cross-domain evaluation
+12. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 
+- 첫 private/field source가 확보되면 access policy, quality, provenance, event/censoring, external-source boundary 검증
 - API와 역할 기반 dashboard
 - 구조화된 PHM 결과와 정비 지식을 사용하는 Generative AI/RAG
 - release/deployment 요구가 생긴 뒤 container·SBOM·attestation 검토
