@@ -27,6 +27,7 @@ class ModelFitInput:
     sampling_policy_id: str
     random_seed: int
     source_observation_count: int
+    reference_observation_count: int
 
     def __post_init__(self) -> None:
         for field_name in ("experiment_id", "feature_set_id", "sampling_policy_id"):
@@ -39,12 +40,14 @@ class ModelFitInput:
             raise ModelFitInputError("random_seed must be an integer")
         if self.random_seed < 0:
             raise ModelFitInputError("random_seed must be non-negative")
-        if (
-            isinstance(self.source_observation_count, bool)
-            or not isinstance(self.source_observation_count, int)
-            or self.source_observation_count <= 0
-        ):
-            raise ModelFitInputError("source_observation_count must be a positive integer")
+        for field_name in ("source_observation_count", "reference_observation_count"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ModelFitInputError(f"{field_name} must be a positive integer")
+        if self.reference_observation_count > self.source_observation_count:
+            raise ModelFitInputError(
+                "reference_observation_count cannot exceed source_observation_count"
+            )
 
         feature_names = _validated_names(
             self.feature_names,
@@ -75,7 +78,12 @@ class ModelFitInput:
 
     @property
     def fit_observation_count(self) -> int:
-        """Return the number of observations presented to model fitting."""
+        """Return the number of observations presented to model fitting.
+
+        ``source_observation_count`` is the complete configured partition,
+        ``reference_observation_count`` the subset the reference strategy admits, and this
+        the population the sampling policy actually presents to the model.
+        """
         return len(self.feature_rows)
 
 

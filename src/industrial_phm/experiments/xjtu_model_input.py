@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import random
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from typing import Literal
 
 from industrial_phm.adapters import get_xjtu_expected_acquisition_count
-from industrial_phm.experiments.config import ExperimentConfig
+from industrial_phm.experiments.config import ExperimentConfig, ReferenceStrategy
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
+from industrial_phm.experiments.xjtu_lifecycle import early_third_length
 from industrial_phm.features import VibrationFeatureVector
 from industrial_phm.models import ModelFitInput, ModelScoringInput
 from industrial_phm.preprocessing import (
@@ -61,13 +62,24 @@ def _prepare_model_fit_input(
     preprocessing_state: PreprocessingState,
     vectors: Sequence[VibrationFeatureVector],
 ) -> ModelFitInput:
+    """Transform the complete train partition, then restrict it to the reference population.
+
+    Preprocessing is already fitted from the complete partition. The reference strategy only
+    decides which transformed observations may act as model reference, and the sampling policy
+    then draws the model-fit population from those.
+    """
     transformed_rows = _transform_selected_features(config, preprocessing_state, vectors)
     observation_ids = _observation_ids(vectors)
+    reference_indices = _reference_indices(config, vectors)
 
     if config.sampling_policy_id == _ACQUISITION_UNIFORM:
-        selected_indices = tuple(range(len(vectors)))
+        selected_indices = reference_indices
     elif config.sampling_policy_id == _BEARING_BALANCED_RESAMPLE:
-        selected_indices = _bearing_balanced_indices(vectors, seed=config.random_seed)
+        selected_indices = _bearing_balanced_indices(
+            vectors,
+            reference_indices,
+            seed=config.random_seed,
+        )
     else:
         raise XjtuModelInputError(
             f"unsupported XJTU sampling policy: {config.sampling_policy_id!r}"
@@ -82,7 +94,33 @@ def _prepare_model_fit_input(
         sampling_policy_id=config.sampling_policy_id,
         random_seed=config.random_seed,
         source_observation_count=len(vectors),
+        reference_observation_count=len(reference_indices),
     )
+
+
+def _reference_indices(
+    config: ExperimentConfig,
+    vectors: Sequence[VibrationFeatureVector],
+) -> tuple[int, ...]:
+    """Return the indices the configured reference strategy admits as model reference."""
+    if config.reference_strategy is ReferenceStrategy.ALL_TRAIN_OBSERVATIONS:
+        return tuple(range(len(vectors)))
+    if config.reference_strategy is ReferenceStrategy.TRAIN_BEARING_EARLY_THIRD:
+        run_lengths = Counter(vector.asset_id for vector in vectors)
+        limits = {
+            asset_id: early_third_length(run_length) for asset_id, run_length in run_lengths.items()
+        }
+        indices = tuple(
+            index
+            for index, vector in enumerate(vectors)
+            if _acquisition_index(vector, vector_index=index) <= limits[vector.asset_id]
+        )
+        if not indices:
+            raise XjtuModelInputError(
+                "train-bearing early-third reference selected no observations"
+            )
+        return indices
+    raise XjtuModelInputError(f"unsupported XJTU reference strategy: {config.reference_strategy!r}")
 
 
 def prepare_xjtu_model_scoring_input(
@@ -289,15 +327,16 @@ def _acquisition_index(
 
 def _bearing_balanced_indices(
     vectors: Sequence[VibrationFeatureVector],
+    eligible_indices: Sequence[int],
     *,
     seed: int,
 ) -> tuple[int, ...]:
     indices_by_asset: dict[str, list[int]] = defaultdict(list)
-    for index, vector in enumerate(vectors):
-        indices_by_asset[vector.asset_id].append(index)
+    for index in eligible_indices:
+        indices_by_asset[vectors[index].asset_id].append(index)
 
     asset_ids = sorted(indices_by_asset)
-    target_size = len(vectors)
+    target_size = len(eligible_indices)
     base_quota, remainder = divmod(target_size, len(asset_ids))
     randomizer = random.Random(seed)
     remainder_order = asset_ids.copy()

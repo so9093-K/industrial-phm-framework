@@ -31,6 +31,9 @@ from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     characterize_xjtu_source,
 )
+from industrial_phm.experiments.xjtu_reference_comparison import (
+    run_xjtu_fold_1_reference_comparison,
+)
 from industrial_phm.experiments.xjtu_validation import run_xjtu_fold_1_validation
 from industrial_phm.features import VibrationFeatureError
 
@@ -189,6 +192,30 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     experiment_validate.set_defaults(handler=_run_experiment_validate)
+
+    experiment_reference = experiment_commands.add_parser(
+        "reference-compare",
+        help="run the frozen fold-1 H0/H1 reference-strategy development comparison",
+    )
+    experiment_reference.add_argument("dataset_id")
+    experiment_reference.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by its Domain Adapter",
+    )
+    experiment_reference.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated reference comparison result JSON",
+    )
+    experiment_reference.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_reference.set_defaults(handler=_run_experiment_reference_compare)
 
     return parser
 
@@ -547,4 +574,48 @@ def _run_experiment_validate(args: argparse.Namespace) -> int:
     print(f"result: {args.output}")
     if args.score_trajectory_dir is not None:
         print(f"score_trajectory_dir: {args.score_trajectory_dir}")
+    return 0
+
+
+def _run_experiment_reference_compare(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"reference comparison is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        result = run_xjtu_fold_1_reference_comparison(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"reference comparison failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {result.dataset_id}")
+    print(f"fold_id: {result.fold_id}")
+    print(f"partition: {result.partition}")
+    print(f"hypotheses: {len(result.hypotheses)}")
+    for hypothesis in result.hypotheses:
+        print(
+            f"  {hypothesis.reference_strategy}: "
+            f"complete={hypothesis.complete_train_observation_count} "
+            f"reference={hypothesis.reference_observation_count} "
+            f"fit={hypothesis.model_fit_observation_count} "
+            f"mean_late_vs_middle="
+            f"{hypothesis.mean_bearing_late_vs_middle_rank_probability}"
+        )
+    print(f"decision_rule_id: {result.decision_rule_id}")
+    print(f"selected_reference_strategy: {result.selected_reference_strategy}")
+    print(f"selected_experiment_id: {result.selected_experiment_id}")
+    print(f"result: {args.output}")
     return 0

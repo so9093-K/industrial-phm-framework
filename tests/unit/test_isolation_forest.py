@@ -59,6 +59,7 @@ def _fit_input(config: ExperimentConfig) -> ModelFitInput:
         sampling_policy_id=config.sampling_policy_id,
         random_seed=config.random_seed,
         source_observation_count=len(rows),
+        reference_observation_count=len(rows),
     )
 
 

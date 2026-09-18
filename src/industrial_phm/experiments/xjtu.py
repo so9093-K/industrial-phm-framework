@@ -235,10 +235,10 @@ def get_xjtu_reference_split() -> XjtuSplitManifest:
 
 
 @lru_cache(maxsize=1)
-def get_xjtu_isolation_forest_candidates() -> tuple[ExperimentConfig, ...]:
-    """Load the packaged fold-1 candidates through dataset-neutral config validation."""
+def xjtu_experiment_context() -> ExperimentContext:
+    """Return the dataset-owned split and feature context every XJTU config resolves against."""
     split = get_xjtu_reference_split()
-    context = ExperimentContext(
+    return ExperimentContext(
         dataset_id=split.dataset_id,
         split_id=split.split_id,
         fold_ids=tuple(fold.fold_id for fold in split.folds),
@@ -246,7 +246,20 @@ def get_xjtu_isolation_forest_candidates() -> tuple[ExperimentConfig, ...]:
         feature_names=vibration_feature_names(XJTU_SY_CHANNELS),
         supported_sampling_policy_ids=_SUPPORTED_SAMPLING_POLICY_IDS,
     )
-    manifest = resources.files("industrial_phm.experiments.manifests").joinpath(
+
+
+def load_packaged_xjtu_experiment_configs(manifest_name: str) -> tuple[ExperimentConfig, ...]:
+    """Load one packaged XJTU experiment manifest through dataset-neutral config validation."""
+    manifest = resources.files("industrial_phm.experiments.manifests").joinpath(manifest_name)
+    return load_experiment_configs(
+        manifest.read_text(encoding="utf-8"),
+        context=xjtu_experiment_context(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_xjtu_isolation_forest_candidates() -> tuple[ExperimentConfig, ...]:
+    """Load the packaged fold-1 candidates through dataset-neutral config validation."""
+    return load_packaged_xjtu_experiment_configs(
         "xjtu-sy-isolation-forest-fold-1-candidates-v2.toml"
     )
-    return load_experiment_configs(manifest.read_text(encoding="utf-8"), context=context)

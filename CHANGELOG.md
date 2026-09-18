@@ -27,6 +27,10 @@
 - `experiment validate --score-trajectory-dir`로 생성하는 train/validation acquisition별 anomaly-score
   trajectory artifact. Candidate selection과 분리된 development diagnosis이며 holdout test는 scoring하지 않습니다.
 
+- `ReferenceStrategy.train-bearing-early-third-v1`과 `experiment reference-compare`로 실행하는 fold-1
+  reference-only H0/H1 development 비교. complete train / reference-eligible / model-fit population을
+  `ModelFitInput`에서 의미상 분리합니다.
+
 ### Changed
 
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를

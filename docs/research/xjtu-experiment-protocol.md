@@ -394,6 +394,35 @@ Health Indicator monotonicity 또는 prognostic performance가 아닙니다.
 H0/H1 결정을 마친 뒤 하나의 finalized configuration을 별도 Source of Truth로 승격하고, 그 이후에만
 `fold-1 test` holdout evaluation을 수행합니다.
 
+
+#### 관찰된 H0/H1 비교 결과
+
+사전 고정한 규칙을 그대로 적용한 결과 **H1 `train-bearing-early-third-v1`을 채택**했습니다. Authoritative
+numerical evidence는
+[`results/xjtu-sy-iforest-fold-1-reference-comparison-v1.json`](results/xjtu-sy-iforest-fold-1-reference-comparison-v1.json)에
+보존합니다.
+
+| reference strategy | complete train | reference | model fit | mean `late_vs_middle_rank_probability` |
+| --- | ---: | ---: | ---: | ---: |
+| `all-train-observations` | 3,246 | 3,246 | 3,246 | 0.5685 |
+| `train-bearing-early-third-v1` | 3,246 | 1,084 | 1,084 | 0.8553 |
+
+Bearing별 값은 H0에서 `0.6670 / 0.6698 / 0.3688`, H1에서 `0.7760 / 0.9280 / 0.8619`입니다. H0의 Bearing3_2 값
+`0.3688`은 `0.5` 아래이므로 late-third가 middle-third보다 낮게 scoring됐다는 뜻이며, #55에서 관찰한 방향
+역전과 일치합니다.
+
+Full-run Spearman ρ는 규칙 4항에 따라 결정에 사용하지 않았고 기록만 합니다. 참고로 bearing-equal mean은
+`0.3038`에서 `0.7135`로, Bearing3_2는 `-0.6088`에서 `+0.2938`로 관찰됐습니다.
+
+이 비교로 확정할 수 있는 것은 **reference population에서 late-life observation을 제외하면 validation bearing의
+late-third가 middle-third보다 높게 scoring된다**는 관찰까지입니다. H1은 reference population을 1/3로 줄이므로
+score scale 자체가 달라지며, 이 artifact는 그 효과와 lifecycle shape 개선을 분리하지 않습니다. 통계는
+retrospective lifecycle third에 의존하므로 online 계산이 불가능하고, fault-onset accuracy나 Health Indicator
+monotonicity를 의미하지 않습니다.
+
+규칙 5항에 따라 이 결과를 근거로 reference window 비율을 바꾸거나 H2/H3를 같은 development loop에서 추가
+탐색하지 않습니다. 다음 단계는 finalized configuration 승격이며 `fold-1 test`는 그 이후에만 엽니다.
+
 ## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는
