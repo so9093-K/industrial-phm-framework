@@ -99,26 +99,20 @@ class XjtuLstmDevelopmentResult:
         ):
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-                raise XjtuLstmDevelopmentResultError(
-                    f"{field_name} must be a positive integer"
-                )
+                raise XjtuLstmDevelopmentResultError(f"{field_name} must be a positive integer")
         for field_name in (
             "reference_dropped_prefix_count",
             "validation_dropped_prefix_count",
         ):
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise XjtuLstmDevelopmentResultError(
-                    f"{field_name} must be a non-negative integer"
-                )
+                raise XjtuLstmDevelopmentResultError(f"{field_name} must be a non-negative integer")
         if not isinstance(self.training, LstmAutoencoderTrainingProvenance):
             raise XjtuLstmDevelopmentResultError(
                 "training must be LstmAutoencoderTrainingProvenance"
             )
         if not isinstance(self.evaluation, XjtuLstmDevelopmentEvaluation):
-            raise XjtuLstmDevelopmentResultError(
-                "evaluation must be XjtuLstmDevelopmentEvaluation"
-            )
+            raise XjtuLstmDevelopmentResultError("evaluation must be XjtuLstmDevelopmentEvaluation")
 
 
 def run_xjtu_lstm_development_evaluation(
@@ -171,9 +165,7 @@ def build_xjtu_lstm_development_result(
     if not isinstance(scores, ReconstructionScores):
         raise XjtuLstmDevelopmentResultError("scores must be ReconstructionScores")
     if not isinstance(evaluation, XjtuLstmDevelopmentEvaluation):
-        raise XjtuLstmDevelopmentResultError(
-            "evaluation must be XjtuLstmDevelopmentEvaluation"
-        )
+        raise XjtuLstmDevelopmentResultError("evaluation must be XjtuLstmDevelopmentEvaluation")
     if isinstance(source_acquisition_count, bool) or source_acquisition_count <= 0:
         raise XjtuLstmDevelopmentResultError("source_acquisition_count must be positive")
 
@@ -363,12 +355,8 @@ def _result_document(result: XjtuLstmDevelopmentResult) -> dict[str, Any]:
                     "source_acquisition_count": bearing.source_acquisition_count,
                     "score_window_count": bearing.score_window_count,
                     "dropped_prefix_count": bearing.dropped_prefix_count,
-                    "acquisition_order_spearman_rho": (
-                        bearing.acquisition_order_spearman_rho
-                    ),
-                    "late_vs_middle_rank_probability": (
-                        bearing.late_vs_middle_rank_probability
-                    ),
+                    "acquisition_order_spearman_rho": (bearing.acquisition_order_spearman_rho),
+                    "late_vs_middle_rank_probability": (bearing.late_vs_middle_rank_probability),
                     "mean_feature_residuals": list(bearing.mean_feature_residuals),
                 }
                 for bearing in evaluation.bearing_results
