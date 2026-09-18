@@ -104,7 +104,6 @@ def test_ims_cross_test_inspection_exposes_source_to_observation_cardinality() -
     assert "Declared code revision: 37e876da301f13acee4081178b4cb33bfa5cc415" in summary
 
 
-
 def test_xjtu_lstm_inspection_resolves_sequence_and_reconstruction_pipeline(
     tmp_path: Path,
 ) -> None:
@@ -217,7 +216,6 @@ def test_ims_inspection_rejects_population_drift(tmp_path: Path) -> None:
         inspect_experiment_result(result)
 
 
-
 def _write_xjtu_lstm_result(tmp_path: Path) -> Path:
     config = get_xjtu_lstm_development_configuration()
     fold = get_xjtu_reference_split().folds[0]
@@ -226,8 +224,7 @@ def _write_xjtu_lstm_result(tmp_path: Path) -> Path:
     source_count = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in all_assets)
     train_count = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.train)
     reference_count = sum(
-        early_third_length(get_xjtu_expected_acquisition_count(asset_id))
-        for asset_id in fold.train
+        early_third_length(get_xjtu_expected_acquisition_count(asset_id)) for asset_id in fold.train
     )
     validation_count = sum(
         get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.validation
@@ -239,8 +236,7 @@ def _write_xjtu_lstm_result(tmp_path: Path) -> Path:
     validation_windows = validation_count - validation_prefix
 
     residual_rows = tuple(
-        (float(index + 1) / 10.0,) * len(features)
-        for index in range(len(fold.validation))
+        (float(index + 1) / 10.0,) * len(features) for index in range(len(fold.validation))
     )
     bearing_results = tuple(
         XjtuLstmBearingEvaluation(
