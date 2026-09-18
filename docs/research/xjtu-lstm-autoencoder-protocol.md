@@ -200,9 +200,9 @@ artifact provenance에 기록해야 합니다. Runtime 제약으로 위 configur
 만들기 전에 protocol version을 갱신합니다.
 
 Training은 non-finite input, loss, gradient 또는 reconstructed value를 실패로 처리합니다. Final artifact에는
-epoch별 train loss, final loss, model parameter count, runtime/library version과 seed를 기록합니다. Fixed 50
-epochs는 최적 epoch 주장이나 convergence 보장이 아니라 validation-driven stopping decision을 추가하지 않는 첫
-재현성 기준입니다.
+epoch별 observation-weighted mean training loss, final-epoch mean training loss, model parameter count, framework
+version, device와 seed를 기록합니다. Fixed 50 epochs는 최적 epoch 주장이나 convergence 보장이 아니라
+validation-driven stopping decision을 추가하지 않는 첫 재현성 기준입니다.
 
 ## 6. Reconstruction score and evidence
 
@@ -254,7 +254,7 @@ reference assumption과 bearing-first statistic을 공유하지만 LSTM은 robus
 
 ## 8. Result, inspection and provenance
 
-향후 result schema는 최소 다음 사실을 보존해야 합니다.
+현재 `xjtu-lstm-development-result-v1` schema는 최소 다음 사실을 보존합니다.
 
 - dataset, split, fold, partition과 evidence class
 - feature schema와 train-fitted preprocessing provenance
@@ -283,8 +283,9 @@ Source
 -> Provenance
 ```
 
-LSTM result가 실제로 생성될 때 schema-specific reader를 추가하고 `ExperimentInspection`에 위 stage를 표현합니다.
-현재 XJTU/IMS Isolation Forest reader나 기존 result JSON을 이 protocol을 위해 변경하지 않습니다.
+`ExperimentInspection`의 schema-specific LSTM reader는 numerical evidence보다 먼저 위 stage를 검증하도록
+구현되어 있습니다. 기존 XJTU/IMS Isolation Forest reader와 result JSON은 이 protocol 때문에 변경하지 않으며,
+실제 LSTM numerical artifact는 clean `main` one-shot execution에서 처음 생성합니다.
 
 ## 9. Implementation order and acceptance boundary
 
@@ -296,8 +297,11 @@ protocol v1 merge
   -> dataset-neutral sequence/window contract와 XJTU edge 구현
   -> frozen configuration과 deterministic LSTM Autoencoder fit/reconstruction contract 구현
   -> reconstruction-error score와 per-feature residual contract 구현
-  -> clean main revision에서 fold-1 train/validation execution
-  -> result와 inspection reader 기록
+  -> XJTU retrospective development evaluator 구현
+  -> result/execution schema 구현
+  -> ExperimentInspection reader 구현
+  -> clean main revision에서 fold-1 train/validation one-shot execution
+  -> evidence-only PR로 numerical artifact와 interpretation 기록
 ```
 
 LSTM model implementation의 acceptance boundary는 다음과 같습니다.
@@ -306,7 +310,7 @@ LSTM model implementation의 acceptance boundary는 다음과 같습니다.
   sequence construction에 전달
 - immutable reference windows를 model 경계 안에서 CPU float32 tensor로 변환
 - encoder/latent/decoder architecture와 fixed 50 epochs, Adam, global-norm clipping, final-epoch state 적용
-- runtime version, device, precision, deterministic setting, seed, parameter count와 epoch loss provenance 보존
+- framework version, device, precision, deterministic setting, seed, parameter count와 epoch loss provenance 보존
 - reconstruction을 window와 right-edge source observation identity에 정렬
 - reconstruction score와 per-feature residual은 별도 scoring contract가 소유
 

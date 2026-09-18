@@ -99,6 +99,8 @@
 
 ### Changed
 
+- LSTM training provenance의 모호한 `final_loss` property를 실제 집계 의미가 드러나는
+  `final_epoch_mean_training_loss`로 변경하고 protocol/terminology의 evidence 전 구현 순서를 현재 계약과 정렬.
 - Developer Workbench의 low-fidelity information architecture를 Experiment Overview, Pipeline Lineage와 Evidence
   Explorer로 구체화하고 acquisition→window population unit transition, capability availability와 provenance를
   검토하는 acceptance criteria를 정의.

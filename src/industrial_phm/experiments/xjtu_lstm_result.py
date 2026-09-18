@@ -313,7 +313,7 @@ def _result_document(result: XjtuLstmDevelopmentResult) -> dict[str, Any]:
                 "batch_size": training.batch_size,
                 "epochs": training.epochs,
                 "epoch_losses": list(training.epoch_losses),
-                "final_epoch_mean_training_loss": training.final_loss,
+                "final_epoch_mean_training_loss": training.final_epoch_mean_training_loss,
             },
         },
         "scoring": {

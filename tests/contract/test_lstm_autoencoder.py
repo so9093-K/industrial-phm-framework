@@ -101,7 +101,7 @@ def test_lstm_fit_and_reconstruction_repeat_exactly_on_cpu() -> None:
     assert first.training.fit_window_count == construction.window_count == 6
     assert first.training.parameter_count == 298
     assert first.training.epochs == len(first.training.epoch_losses) == 2
-    assert first.training.final_loss == first.training.epoch_losses[-1]
+    assert first.training.final_epoch_mean_training_loss == first.training.epoch_losses[-1]
     assert first_reconstruction.window_count == construction.window_count
     assert first_reconstruction.aligned_source_observation_ids == tuple(
         window.aligned_source_observation_id for window in construction.windows

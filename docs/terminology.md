@@ -194,6 +194,18 @@ code revision과 파일 관계를 기술하는 metadata artifact입니다. 필�
 결과가 어떤 source, dataset version, split, feature/config, code revision 및 fitted state에서 생성됐는지 추적할
 수 있게 하는 정보입니다.
 
+### Model training provenance
+
+하나의 model fit이 어떤 framework/version, device, numeric precision, seed, fit population과 optimization
+configuration에서 실행됐는지 추적하는 training-specific provenance입니다. Model output이나 evaluation result와
+구분하며, framework-native tensor/module 자체를 public artifact에 노출한다는 의미는 아닙니다.
+
+### Final-epoch mean training loss
+
+마지막 training epoch에서 각 batch loss를 해당 batch의 observation/window 수로 가중해 전체 fit population에
+대해 계산한 평균 training loss입니다. Validation loss, checkpoint selection metric 또는 최종 evaluation
+metric과 구분합니다. 의미가 이 값인 경우 모호한 `final loss` 대신 이 표현을 사용합니다.
+
 ## 5. Terms to avoid as canonical names
 
 다음 표현은 설명용 비유나 UI 임시 이름으로는 사용할 수 있지만 architecture/code의 canonical term으로 고정하지
@@ -204,6 +216,8 @@ code revision과 파일 관계를 기술하는 metadata artifact입니다. 필�
 - `Evidence Bundle`: 실제 산출물은 `characterization artifacts`, `experiment artifacts`, `artifact manifest`로 부릅니다.
 - `Decision Freeze`: `experiment configuration finalization`을 사용합니다.
 - `Degradation score`: 실제 degradation 의미가 검증되지 않은 anomaly-model output에는 사용하지 않습니다.
+- `Final loss`: 어떤 population·epoch·aggregation의 loss인지 불분명하므로, 현재 LSTM training provenance에는
+  `final-epoch mean training loss`를 사용합니다.
 
 ## 6. Reference alignment
 
