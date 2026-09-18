@@ -83,8 +83,7 @@ def _selected_rows(
     characterization: XjtuCharacterizationData,
 ) -> tuple[tuple[float, ...], ...]:
     positions = {
-        feature_name: index
-        for index, feature_name in enumerate(characterization.feature_names)
+        feature_name: index for index, feature_name in enumerate(characterization.feature_names)
     }
     return tuple(
         tuple(record.values[positions[feature_name]] for feature_name in config.selected_features)

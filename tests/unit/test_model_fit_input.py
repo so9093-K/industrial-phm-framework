@@ -12,7 +12,7 @@ def test_model_fit_input_preserves_dataset_neutral_rows_and_source_identity() ->
         feature_names=("feature.a", "feature.b"),
         rows=((1.0, 2.0), (3.0, 4.0)),
         source_observation_ids=("observation-1", "observation-2"),
-        sampling_policy_id="group-balanced",
+        sampling_policy_id="reference-policy-v1",
         random_seed=42,
         input_observation_count=3,
     )
@@ -46,7 +46,7 @@ def test_model_fit_input_rejects_invalid_contract_values(
         "feature_names": ("feature.a", "feature.b"),
         "rows": ((1.0, 2.0), (3.0, 4.0)),
         "source_observation_ids": ("observation-1", "observation-2"),
-        "sampling_policy_id": "acquisition-uniform",
+        "sampling_policy_id": "reference-policy-v1",
         "random_seed": 42,
         "input_observation_count": 2,
     }
