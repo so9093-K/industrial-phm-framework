@@ -114,12 +114,24 @@ def test_xjtu_lstm_evaluation_preserves_full_run_lifecycle_and_bearing_weight() 
 
 def test_xjtu_lstm_evaluation_equal_weights_feature_residuals_across_bearings() -> None:
     result = evaluate_xjtu_lstm_development_scores(
-        _scores(lambda asset_index, _asset_id, _position, _source_count: asset_index + 1)
+        _scores(
+            lambda asset_index, _asset_id, position, _source_count: (
+                asset_index + 1 + position / 100_000.0
+            )
+        )
     )
 
-    assert result.mean_bearing_acquisition_order_spearman_rho is None
-    assert result.mean_bearing_late_vs_middle_rank_probability == pytest.approx(0.5)
-    assert all(value == pytest.approx(2.0) for value in result.mean_bearing_feature_residuals)
+    expected = sum(item.mean_feature_residuals[0] for item in result.bearing_results) / 3
+    assert result.mean_bearing_feature_residuals[0] == pytest.approx(expected)
+    assert result.mean_bearing_acquisition_order_spearman_rho == pytest.approx(1.0)
+    assert result.mean_bearing_late_vs_middle_rank_probability == pytest.approx(1.0)
+
+
+def test_xjtu_lstm_evaluation_rejects_undefined_statistic() -> None:
+    scores = _scores(lambda _asset_index, _asset_id, _position, _source_count: 1.0)
+
+    with pytest.raises(XjtuLstmDevelopmentEvaluationError, match="statistic is undefined"):
+        evaluate_xjtu_lstm_development_scores(scores)
 
 
 def test_xjtu_lstm_evaluation_rejects_shifted_score_coverage() -> None:
