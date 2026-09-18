@@ -58,6 +58,13 @@ uv run --locked pytest
 uv build
 ```
 
+LSTM/sequence model runtime을 다룰 때는 CPU reference extra와 compatibility contract를 함께 실행합니다.
+
+```bash
+uv sync --locked --extra deep-learning
+uv run --locked --extra deep-learning pytest tests/contract/test_deep_learning_runtime.py
+```
+
 의존성을 변경할 때는 `pyproject.toml`과 함께 `uv.lock`을 갱신하고 같은 변경 단위로 commit합니다.
 커밋, PR, 테스트 및 문서화 규칙은 [`CONTRIBUTING.md`](CONTRIBUTING.md)를 따릅니다.
 중요한 구조 결정은 [`docs/adr`](docs/adr)에 ADR로 남깁니다.
@@ -247,11 +254,12 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   inspection capability와 첫 presentation surface인 `experiment inspect` CLI
 - XJTU fold-1 train/validation의 retrospective development scope, sequence construction, reconstruction score와
   evidence 경계를 numerical execution 전에 고정한 LSTM Autoencoder protocol v1
+- Python 3.14와 Linux/macOS CPU wheel에서 deterministic LSTM training primitive를 검증한 PyTorch 2.14
+  `deep-learning` optional runtime
 
 ### Current
 
-1. Python 3.14 deep-learning dependency/runtime compatibility 검증
-2. dataset-neutral sequence/window contract와 XJTU edge 구현
+1. dataset-neutral sequence/window contract와 XJTU edge 구현
    - asset·partition·reference boundary와 contiguous acquisition lineage 검증
    - length 8 / stride 1 / right-edge alignment population 고정
 

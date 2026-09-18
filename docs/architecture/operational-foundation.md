@@ -109,6 +109,10 @@ README나 발표 자료에 version, URL, threshold 같은 값을 불필요하게
 - `[dependency-groups]`: 개발, 테스트, 문서, benchmark 같은 local workflow dependency
 - `[project.optional-dependencies]`: 사용자에게 실제 선택 설치 기능을 제공할 필요가 생긴 경우에만 추가
 
+Isolation Forest만 사용하는 설치가 deep-learning stack을 함께 받지 않도록 sequence model runtime은
+`deep-learning` optional dependency로 제공합니다. Reference execution에 사용하는 runtime·accelerator 선택과
+호환성 경계는 [ADR-0006](../adr/0006-use-pytorch-cpu-reference-runtime.md)이 소유합니다.
+
 `requirements.txt`를 `uv.lock`과 병행하는 두 번째 source of truth로 유지하지 않습니다. 외부 도구와의
 상호운용이 필요할 경우 release/export 단계에서 `pylock.toml`, requirements, CycloneDX SBOM 등으로
 생성합니다.

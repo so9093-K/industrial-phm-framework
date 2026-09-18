@@ -193,9 +193,10 @@ random seed                42
 reference execution        CPU deterministic mode
 ```
 
-Dependency/runtime 선택은 다음 compatibility PR이 소유합니다. 구현은 위 수학·shape·seed 의미를 보존하고 실제
-framework 및 version, deterministic setting과 device를 artifact provenance에 기록해야 합니다. Runtime 제약으로
-위 configuration을 구현할 수 없으면 numerical result를 만들기 전에 protocol version을 갱신합니다.
+Reference runtime은 [ADR-0006](../adr/0006-use-pytorch-cpu-reference-runtime.md)에 따라 PyTorch 2.14 CPU로
+고정합니다. 구현은 위 수학·shape·seed 의미를 보존하고 실제 framework version, deterministic setting과 device를
+artifact provenance에 기록해야 합니다. Runtime 제약으로 위 configuration을 구현할 수 없으면 numerical result를
+만들기 전에 protocol version을 갱신합니다.
 
 Training은 non-finite input, loss, gradient 또는 reconstructed value를 실패로 처리합니다. Final artifact에는
 epoch별 train loss, final loss, model parameter count, runtime/library version과 seed를 기록합니다. Fixed 50
@@ -288,7 +289,7 @@ Numerical evidence 전에 다음 순서를 지킵니다.
 
 ```text
 protocol v1 merge
-  -> Python 3.14 deep-learning dependency/runtime compatibility 검증
+  -> Python 3.14 / PyTorch 2.14 CPU compatibility contract 유지
   -> dataset-neutral sequence/window contract와 XJTU edge 구현
   -> LSTM Autoencoder fit/reconstruction-score contract 구현
   -> frozen configuration과 deterministic contract tests merge
