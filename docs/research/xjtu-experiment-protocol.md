@@ -473,6 +473,41 @@ performance가 아닙니다.
 Result artifact에는 experiment/config provenance, code revision, split/fold/partition, 그리고 complete train /
 reference-eligible / model-fit population count를 함께 보존합니다.
 
+
+#### 관찰된 fold-1 holdout 결과
+
+Finalized configuration `xjtu-sy-iforest-fold-1-finalized-v1`을 `fold-1 test`에서 한 번 평가했습니다.
+Authoritative numerical evidence는
+[`results/xjtu-sy-iforest-fold-1-holdout-v1.json`](results/xjtu-sy-iforest-fold-1-holdout-v1.json)에
+보존합니다. Population은 complete train 3,246 / reference 1,084 / model fit 1,084입니다.
+
+| partition | bearing | condition | N | ρ | `late_vs_middle` |
+| --- | --- | --- | ---: | ---: | ---: |
+| validation | Bearing1_2 | 35Hz12kN | 161 | 0.8930 | 0.7760 |
+| validation | Bearing2_2 | 37.5Hz11kN | 161 | 0.9538 | 0.9280 |
+| validation | Bearing3_2 | 40Hz10kN | 2,496 | 0.2938 | 0.8619 |
+| validation | **mean** | | | **0.7135** | **0.8553** |
+| test | Bearing1_1 | 35Hz12kN | 123 | 0.8533 | 0.9952 |
+| test | Bearing2_1 | 37.5Hz11kN | 491 | 0.5519 | 0.6303 |
+| test | Bearing3_1 | 40Hz10kN | 2,538 | 0.0178 | 0.4688 |
+| test | **mean** | | | **0.4743** | **0.6981** |
+
+**Development 결과가 그대로 재현되지 않았습니다.** 두 통계 모두 holdout에서 더 낮고, 특히 Bearing3_1의
+`late_vs_middle`은 `0.4688`로 `0.5` 아래입니다. 즉 이 run에서는 late-third가 middle-third보다 일관되게 높게
+scoring되지 않았습니다. 같은 configuration이 validation의 Bearing3_2에서는 `0.8619`를 보였으므로, H1이
+development에서 보인 개선이 holdout의 긴 `40Hz10kN` run으로 이어지지 않았습니다. Bearing3_1의 full-run ρ
+`0.0178`도 acquisition order와 anomaly score 사이에 사실상 단조 관계가 없음을 뜻합니다.
+
+Bearing1_1(`0.9952`)과 Bearing2_1(`0.6303`)은 기대한 방향을 보였습니다. 세 값을 run length 순으로 늘어놓으면
+`123 → 491 → 2,538`에 따라 `0.9952 → 0.6303 → 0.4688`로 단조 감소하지만, bearing이 3개뿐이고 operating
+condition과 run length가 서로 분리되지 않으므로 이 문서는 그 연관을 원인으로 주장하지 않습니다. 단일 holdout
+관찰이며 유의성도 주장하지 않습니다.
+
+이 결과를 근거로 configuration, reference strategy, feature, evaluation statistic 중 어느 것도 변경하지
+않았습니다. 변경이 필요하다고 판단되면 새 protocol/experiment version으로 기록하며, **같은 `fold-1 test`
+결과를 변경된 configuration의 unbiased holdout evidence로 다시 사용하지 않습니다.** `fold-1` holdout은 이
+실행으로 소진됐습니다.
+
 ## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는
