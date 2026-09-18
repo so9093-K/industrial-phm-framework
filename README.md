@@ -191,7 +191,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
 - dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` Isolation Forest 4개 active candidate
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
-- dataset-neutral `ModelFitInput`과 production feature vector 기반 XJTU sampling policy
+- dataset-neutral `ModelFitInput`/`ModelScoringInput`과 production feature vector 기반 XJTU fit/scoring 준비 경계
 
 ### Current
 

@@ -20,6 +20,7 @@
 - generated characterization artifact를 소비하는 optional marimo/Matplotlib research tooling environment.
 - dataset-neutral `ExperimentConfig v1`과 XJTU fold-1 Isolation Forest candidate configuration.
 - train provenance와 feature order를 고정하는 identity/robust `PreprocessingState`.
+- sampling-aware `ModelFitInput`과 unsampled `ModelScoringInput`의 dataset-neutral model input contract.
 
 ### Changed
 
@@ -31,8 +32,10 @@
   다른 fold와 holdout test를 development decision에 사용하지 않도록 protocol을 명확화.
 - 정확한 experiment parameter와 seed는 version-controlled config가, train-fitted scaling statistics는
   `PreprocessingState`가 소유하도록 Source of Truth를 분리.
-- XJTU model-fit sampling이 research characterization artifact가 아니라 production `VibrationFeatureVector`를
+- XJTU model-fit/scoring 준비가 research characterization artifact가 아니라 production `VibrationFeatureVector`를
   직접 소비하도록 경계를 정리하고, Isolation Forest active candidate를 sampling × feature subset 4개 v2로 축소.
+- model input의 `rows`, `input/output observation count`를 `feature_rows`, `source/fit observation count`로
+  명확화해 sampling 전후 의미를 이름에서 구분.
 
 ### Fixed
 

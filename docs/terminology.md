@@ -70,6 +70,13 @@ Feature table, characterization result, model output 같은 이미 계산된 결
 
 정의된 training data와 experiment configuration을 사용해 모델을 fit하고 candidate를 비교하는 과정입니다.
 
+### Model scoring
+
+Fitted model을 준비된 observation에 적용해 numerical model output을 생성하는 과정입니다. Isolation Forest의
+`score_samples`처럼 observation별 값을 계산하는 단계가 여기에 해당합니다. Model scoring 자체는 candidate
+quality를 판단하는 evaluation이 아니며, 이 프로젝트에서는 모델 출력의 방향과 의미를 명시적으로 정의한 뒤
+development evaluator가 그 값을 해석·비교합니다.
+
 ### Development validation
 
 Train에서 만든 feature/preprocessing/model candidate가 별도의 validation partition에서도 유지되는지 확인하고,
