@@ -18,6 +18,12 @@ from industrial_phm.experiments.xjtu import (
     get_xjtu_isolation_forest_candidates,
     get_xjtu_reference_split,
 )
+from industrial_phm.experiments.xjtu_evaluation import (
+    XjtuBearingScoreEvaluation,
+    XjtuDevelopmentEvaluation,
+    XjtuDevelopmentEvaluationError,
+    evaluate_xjtu_development_scores,
+)
 from industrial_phm.experiments.xjtu_model_input import (
     XjtuModelInputError,
     fit_xjtu_preprocessing_and_prepare_model_input,
@@ -34,10 +40,14 @@ __all__ = [
     "ModelFamily",
     "ReferenceStrategy",
     "ScalingStrategy",
+    "XjtuBearingScoreEvaluation",
+    "XjtuDevelopmentEvaluation",
+    "XjtuDevelopmentEvaluationError",
     "XjtuExperimentProtocolError",
     "XjtuModelInputError",
     "XjtuSplitFold",
     "XjtuSplitManifest",
+    "evaluate_xjtu_development_scores",
     "fit_xjtu_preprocessing_and_prepare_model_input",
     "get_xjtu_isolation_forest_candidates",
     "get_xjtu_reference_split",

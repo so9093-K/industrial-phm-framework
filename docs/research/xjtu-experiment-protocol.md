@@ -189,7 +189,29 @@ Precision, Recall, F1, PR-AUC, Early Detection Time 같은 supervised/early-warn
 protocol이 정의된 뒤 independent evaluator에서 계산합니다. 그 전에는 score trajectory와 feature behavior를
 sanity check할 수는 있지만 이를 detection accuracy로 보고하지 않습니다.
 
-## 8. Reproducibility contract
+## 8. Development evaluation criterion
+
+첫 Isolation Forest candidate 비교에서는 acquisition-level onset label을 만들지 않습니다. Validation evidence는
+각 bearing run에서 **acquisition index와 higher-is-more-anomalous anomaly score의 Spearman rank correlation**으로
+요약합니다.
+
+이 값은 anomaly score가 acquisition order와 얼마나 일관된 순위 관계를 보이는지 설명하는 통계이며
+`Health Indicator monotonicity`, fault-detection accuracy 또는 prognostic performance라고 부르지 않습니다.
+
+평가 규칙은 다음과 같습니다.
+
+- validation bearing마다 acquisition `1..N` 전체를 사용합니다.
+- bearing별 Spearman ρ를 먼저 계산하고, acquisition 수를 pooling하지 않습니다.
+- 전체 요약은 bearing별 ρ의 동일가중 산술평균을 사용합니다.
+- 한 bearing의 anomaly score가 상수라 correlation이 정의되지 않으면 `0`으로 대체하지 않고 undefined로 유지하며
+  전체 평균도 정의하지 않습니다.
+- iid significance를 가정하는 p-value를 candidate selection 근거로 사용하지 않습니다.
+- early/late 구간을 임의 healthy/fault label처럼 만들어 accuracy metric을 계산하지 않습니다.
+
+이 criterion은 `fold-1 validation`의 candidate 비교를 위한 descriptive development evidence입니다. 실제
+degradation indicator나 Health Indicator 의미를 주장하려면 별도의 분석과 검증이 필요합니다.
+
+## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는
 `industrial_phm.experiments.get_xjtu_reference_split()`을 통해 packaged manifest를 읽습니다.
@@ -209,7 +231,7 @@ Development fold 선택은 split manifest의 bearing assignment를 변경하지 
 `fold-1`의 development/holdout-test 역할을 설명하고, generated artifacts는 항상 실제 `split_id`, `fold_id`,
 `partition` provenance를 함께 기록해야 합니다.
 
-## 9. Experiment lifecycle
+## 10. Experiment lifecycle
 
 첫 baseline은 다음 lifecycle을 따릅니다. Project-level current status는 root README가 소유합니다.
 

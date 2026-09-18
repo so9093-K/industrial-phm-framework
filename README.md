@@ -194,15 +194,15 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - dataset-neutral `ModelFitInput`/`ModelScoringInput`과 acquisition-complete XJTU fit/scoring 준비 경계
 - 검증된 XJTU train feature vectors에서 preprocessing fit과 model-fit input을 함께 생성하는 실행 경로
 - dataset-neutral Isolation Forest fit/scoring과 higher-is-more-anomalous `AnomalyScores`
+- XJTU validation bearing별 acquisition-order Spearman ρ를 사용하는 model-independent development evaluator
 
 ### Current
 
-1. bearing-first, model-independent development evaluator 방법론 확정과 구현
+1. `fold-1 validation`과 experiment configuration finalization
 
 ### Next
 
-1. `fold-1 validation`과 experiment configuration finalization
-2. finalized configuration의 `fold-1` holdout test evaluation
+1. finalized configuration의 `fold-1` holdout test evaluation
 3. cross-fold robustness analysis
 4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
 5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
