@@ -215,15 +215,17 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - complete train / reference / model-fit population을 분리하는 reference strategy 계약과 fold-1 H0/H1 비교
 - 비교용 manifest와 분리해 정확히 하나의 configuration을 소유하는 fold-1 finalized experiment configuration
 - selection·calibration 없이 finalized configuration 하나만 소비하는 `fold-1` holdout evaluation 실행 경로
+- `fold-1` holdout test 1회 실행과 development 결과와의 대조 evidence
 
 ### Current
 
-1. finalized configuration의 `fold-1` holdout test 1회 실행
-   - 실행 경로는 구현·검증 완료. 실제 실행 전까지 `fold-1 test`는 계속 닫혀 있음
+1. `fold-1` holdout evidence 검토와 cross-fold robustness analysis 설계
+   - `fold-1` holdout은 1회 실행으로 소진됨. 같은 test 결과를 변경된 configuration의 evidence로
+     재사용하지 않음
 
 ### Next
 
-1. cross-fold robustness analysis
+1. cross-fold robustness analysis 실행
 2. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
 3. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
 4. 데이터가 정당하게 지원하는 경우 RUL prognostics

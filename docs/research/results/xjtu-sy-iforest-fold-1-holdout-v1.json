@@ -1,0 +1,52 @@
+{
+  "code_revision": "f079f9341401f68a6a0428156773129eb242635e",
+  "complete_train_observation_count": 3246,
+  "configuration": {
+    "model_family": "isolation-forest",
+    "random_seed": 42,
+    "reference_strategy": "train-bearing-early-third-v1",
+    "sampling_policy_id": "acquisition-uniform-v1",
+    "scaling_strategy": "identity"
+  },
+  "dataset_id": "xjtu-sy",
+  "experiment_id": "xjtu-sy-iforest-fold-1-finalized-v1",
+  "fold_id": "fold-1",
+  "holdout_bearings": [
+    {
+      "acquisition_order_spearman_rho": 0.8532973907211309,
+      "asset_id": "Bearing1_1",
+      "full_run_observation_count": 123,
+      "late_third_observation_count": 41,
+      "late_vs_middle_rank_probability": 0.9952409280190363,
+      "middle_third_observation_count": 41,
+      "operating_condition": "35Hz12kN"
+    },
+    {
+      "acquisition_order_spearman_rho": 0.5518994463813045,
+      "asset_id": "Bearing2_1",
+      "full_run_observation_count": 491,
+      "late_third_observation_count": 163,
+      "late_vs_middle_rank_probability": 0.6302558731108784,
+      "middle_third_observation_count": 164,
+      "operating_condition": "37.5Hz11kN"
+    },
+    {
+      "acquisition_order_spearman_rho": 0.017843257885725442,
+      "asset_id": "Bearing3_1",
+      "full_run_observation_count": 2538,
+      "late_third_observation_count": 846,
+      "late_vs_middle_rank_probability": 0.4687655438749448,
+      "middle_third_observation_count": 846,
+      "operating_condition": "40Hz10kN"
+    }
+  ],
+  "interpretation": "One-shot holdout evidence for the finalized fold-1 configuration. Both statistics are recorded descriptively; this evaluation performs no candidate selection, no reference comparison and no threshold calibration. The statistics describe retrospective lifecycle shape and are not fault-onset accuracy, Health Indicator monotonicity or prognostic performance.",
+  "mean_bearing_acquisition_order_spearman_rho": 0.4743466983293869,
+  "mean_bearing_late_vs_middle_rank_probability": 0.6980874483349532,
+  "model_fit_observation_count": 1084,
+  "partition": "test",
+  "reference_observation_count": 1084,
+  "schema_id": "xjtu-fold-1-holdout-result-v1",
+  "source_acquisition_count": 9216,
+  "split_id": "xjtu-sy-condition-stratified-5fold-v1"
+}
