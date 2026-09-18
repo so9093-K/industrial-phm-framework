@@ -61,6 +61,8 @@
   source/reference/fit/scoring population과 effective configuration, capability scope, code revision을
   developer-transparent result JSON에 기록합니다.
 
+- IMS Set 2 → Set 3 one-time cross-test evaluation 결과 artifact.
+
 ### Changed
 
 - XJTU 내부에 있던 Spearman ρ와 late-vs-middle rank probability의 순수 수학 계산을 두 번째 dataset
