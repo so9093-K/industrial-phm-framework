@@ -126,15 +126,15 @@ def score_reconstructions(
     feature_residuals: list[tuple[float, ...]] = []
     scores: list[float] = []
 
-    for window, reconstructed in zip(
-        construction.windows,
+    for model_input, reconstructed in zip(
+        reconstructions.model_input_values,
         reconstructions.values,
         strict=True,
     ):
         residuals = tuple(
             math.fsum(
                 (
-                    window.values[time_index][feature_index]
+                    model_input[time_index][feature_index]
                     - reconstructed[time_index][feature_index]
                 )
                 ** 2

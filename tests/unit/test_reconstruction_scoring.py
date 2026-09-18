@@ -59,6 +59,7 @@ def _reconstructions() -> SequenceReconstructions:
         asset_ids=(window.asset_id,),
         partition_ids=(window.partition_id,),
         aligned_source_observation_ids=(window.aligned_source_observation_id,),
+        model_input_values=(((1.0, 2.0), (3.0, 4.0)),),
         values=(((0.0, 2.0), (1.0, 5.0)),),
     )
 
@@ -112,6 +113,18 @@ def test_reconstruction_scoring_rejects_schema_or_identity_drift(
 
     with pytest.raises(ReconstructionScoringError, match=message):
         score_reconstructions(_construction(), reconstructions)
+
+
+def test_reconstruction_scoring_uses_model_consumed_input_values() -> None:
+    reconstructions = replace(
+        _reconstructions(),
+        model_input_values=(((1.5, 2.0), (3.0, 4.0)),),
+    )
+
+    result = score_reconstructions(_construction(), reconstructions)
+
+    assert result.feature_residuals == ((3.125, 0.5),)
+    assert result.scores == (1.8125,)
 
 
 def test_reconstruction_scores_reject_inconsistent_derived_values() -> None:

@@ -206,7 +206,9 @@ epochs는 최적 epoch 주장이나 convergence 보장이 아니라 validation-d
 
 ## 6. Reconstruction score and evidence
 
-한 window의 scaled input을 `X`, reconstruction을 `X_hat`이라 하고 shape를 `[8, 16]`이라 합니다. Feature `j`의
+한 window에서 **실제로 LSTM에 전달된 float32 scaled input**을 `X`, reconstruction을 `X_hat`이라 하고 shape를
+`[8, 16]`이라 합니다. `X`는 `SequenceWindow`가 tensor 변환 전에 보존한 Python float 값이 아니라 model
+runtime이 소비한 float32 값이며, reconstruction 결과와 함께 model boundary에서 보존합니다. Feature `j`의
 residual evidence와 window anomaly score는 다음으로 고정합니다.
 
 ```text
