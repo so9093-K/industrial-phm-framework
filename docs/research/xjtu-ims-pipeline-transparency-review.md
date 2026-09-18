@@ -122,4 +122,6 @@ summary에서 확인할 수 있어야 합니다.
 
 따라서 LSTM Autoencoder protocol은 inspection UX의 공통 stage 순서를 재사용하되, XJTU/IMS의 기존 numerical
 result를 fresh independent holdout으로 다시 해석하지 않습니다. 두 번째 model은 model-independent responsibility가
-실제로 반복되는지 검증하는 retrospective benchmark/development evidence로 시작합니다.
+실제로 반복되는지 검증하는 retrospective benchmark/development evidence로 시작합니다. 구체적인 scope와
+sequence population은 [`xjtu-lstm-autoencoder-protocol.md`](xjtu-lstm-autoencoder-protocol.md)에서 사전
+고정합니다.
