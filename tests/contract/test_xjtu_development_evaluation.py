@@ -45,9 +45,7 @@ def _scores(vectors, signs):
     for vector in vectors:
         acquisition_index = vector.metadata["acquisition_index"]
         assert isinstance(acquisition_index, int)
-        source_observation_ids.append(
-            f"{vector.asset_id}:acquisition-{acquisition_index}"
-        )
+        source_observation_ids.append(f"{vector.asset_id}:acquisition-{acquisition_index}")
         scores.append(signs[vector.asset_id] * float(acquisition_index))
     return AnomalyScores(
         experiment_id=config.experiment_id,
