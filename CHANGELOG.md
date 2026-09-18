@@ -24,6 +24,8 @@
 - scikit-learn 1.9 기반 Isolation Forest baseline과 observation-aligned `AnomalyScores` contract.
 - XJTU fold-1 candidate validation 실행, 결과 artifact와 deterministic selection rule.
 - XJTU validation을 bearing-first로 평가하는 acquisition-order Spearman ρ development evaluator.
+- `experiment validate --score-trajectory-dir`로 생성하는 train/validation acquisition별 anomaly-score
+  trajectory artifact. Candidate selection과 분리된 development diagnosis이며 holdout test는 scoring하지 않습니다.
 
 ### Changed
 

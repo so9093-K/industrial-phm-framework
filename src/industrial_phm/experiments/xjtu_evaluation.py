@@ -166,14 +166,15 @@ def _evaluate_bearing(
         asset_id=asset_id,
         operating_condition=next(iter(conditions)),
         observation_count=len(ordered),
-        acquisition_order_spearman_rho=_spearman_rho(acquisition_indices, scores),
+        acquisition_order_spearman_rho=spearman_rho(acquisition_indices, scores),
     )
 
 
-def _spearman_rho(
+def spearman_rho(
     left: Sequence[int | float],
     right: Sequence[int | float],
 ) -> float | None:
+    """Return the rank correlation of two aligned sequences, or None when it is undefined."""
     if len(left) != len(right) or len(left) < 2:
         raise XjtuDevelopmentEvaluationError(
             "Spearman correlation requires equal sequences with at least two values"

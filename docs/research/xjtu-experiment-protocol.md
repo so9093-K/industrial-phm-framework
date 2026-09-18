@@ -156,6 +156,9 @@ version-controlled experiment configuration으로 승격합니다.
 7. test trajectory를 반복해서 관찰해 feature formula, feature subset, reference-data rule을 바꾸는 행위도
    data-derived selection으로 취급합니다.
 8. Experiment configuration finalization 전에는 `fold-2`~`fold-5`를 추가 development data로 사용하지 않습니다.
+9. Data-derived preprocessing state는 **configured train partition 전체**에서 한 번 fit하며, model-fit sampling
+   policy는 그 뒤에 적용합니다. Sampling policy는 `PreprocessingState`를 다시 fit하거나 바꾸지 않습니다.
+   자세한 의미는 [`xjtu-feature-characterization.md`](xjtu-feature-characterization.md) §4를 따릅니다.
 
 특히 `전체 데이터 feature 통계 계산 -> split` 순서의 구현은 금지합니다. Architecture 문서의
 `전처리/특징 생성 -> 데이터 분할` 도식은 책임 흐름을 나타내며 learned state를 전체 데이터에 fit하라는 의미가
@@ -239,6 +242,79 @@ uv run industrial-phm experiment validate xjtu-sy \
 보존합니다. Artifact의 selection은 사전에 고정한 규칙을 그대로 적용한 결과입니다. Bearing별 correlation 방향이
 서로 다른 현재 evidence는 configuration finalization에서 condition/bearing variability를 함께 검토해야 함을
 보여줍니다.
+
+
+### Score-trajectory diagnosis
+
+Bearing별 Spearman ρ 하나는 **방향과 크기만** 알려주고 trajectory의 형태를 알려주지 않습니다. 같은 음의 ρ가
+전체 lifecycle에 걸친 단조 감소에서 나올 수도 있고, 특정 구간이 rank mass를 지배해서 나올 수도 있습니다. 이
+둘을 구분하지 못하면 configuration finalization에서 무엇을 바꿔야 하는지 결정할 수 없습니다.
+
+따라서 candidate selection과 **별개의 development diagnosis artifact**로 acquisition별 anomaly score를 보존합니다.
+
+```bash
+uv run industrial-phm experiment validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output docs/research/results/xjtu-sy-iforest-fold-1-validation-v1.json \
+  --code-revision "$(git rev-parse HEAD)" \
+  --score-trajectory-dir data/processed/xjtu-sy/fold-1-score-trajectory
+```
+
+이 diagnosis의 경계는 다음과 같습니다.
+
+- `--score-trajectory-dir`는 fit, score, selection 중 무엇도 바꾸지 않습니다. 같은 실행에서 이미 계산된 score를
+  기록할 뿐이므로 canonical validation artifact는 flag 유무와 무관하게 동일합니다.
+- `train` partition을 함께 scoring합니다. 이 값은 **in-sample**이며 model이 학습한 reference distribution이
+  어떤 모양인지 설명하기 위한 것입니다. Candidate selection이나 generalization 근거로 사용하지 않습니다.
+- `test` partition은 scoring하지 않습니다. Score trajectory 생성 경로는 `train`과 `validation`만 허용합니다.
+- Retrospective lifecycle thirds는 최종 run length를 알아야 계산되므로 online feature가 아니라 시각적·기술적
+  요약입니다. Feature characterization의 `early/middle/late_third` 구분과 같은 규칙을 사용합니다.
+- Bearing별 acquisition 수가 크게 다르므로 full-run ρ와 third별 ρ를 함께 봅니다. 둘이 다른 이야기를 하면
+  긴 run의 특정 구간이 full-run 요약을 지배하고 있다는 신호입니다.
+
+Score trajectory는 detection accuracy, Health Indicator monotonicity, degradation 해석이 아닙니다.
+[`xjtu-feature-characterization.md`](xjtu-feature-characterization.md) §7의 자동화 경계를 그대로 따릅니다.
+
+
+### Observed fold-1 validation evidence (2026-09-18)
+
+아래는 위 score-trajectory diagnosis로 관찰한 내용입니다. 수치의 authoritative owner는 생성 artifact이며,
+여기에는 configuration finalization 판단에 필요한 관찰만 남깁니다. 네 candidate 모두 같은 방향을 보였으므로
+아래 설명은 selected candidate 기준입니다.
+
+**1. Bearing3_2의 음의 ρ는 전체 lifecycle의 단조 감소가 아닙니다.**
+
+Lifecycle third별 ρ는 `early -0.14 / middle -0.70 / late +0.60`입니다. 즉 late third는 나머지 validation
+bearing(`+0.40`, `+0.40`)과 같은 양의 방향을 보이고, full-run ρ의 부호는 middle third가 결정합니다.
+Decile median anomaly score도 `0.514 → 0.447`까지 완만히 감소한 뒤 `0.482`로 다시 상승합니다.
+
+**2. operating condition만으로는 설명되지 않습니다.**
+
+Bearing3_2는 첫 decile부터 median `0.514`로 시작합니다. 이는 Bearing1_2/Bearing2_2가 **lifecycle 마지막**에
+도달하는 수준(`0.552`, `0.528`)에 가깝습니다. 반면 같은 `40Hz10kN`의 train bearing인 Bearing3_3과 Bearing3_4는
+`0.35` 부근에서 시작합니다. 따라서 `40Hz10kN`이 score를 전반적으로 올린다는 condition-only 설명은 현재
+evidence와 맞지 않습니다. 조건이 다른 Bearing1_4도 in-sample에서 음의 ρ(`-0.21`)를 보이므로 방향 역전은
+`40Hz10kN` 고유 현상도 아닙니다.
+
+현재 evidence로 확정할 수 있는 것은 여기까지입니다. 즉 **Bearing3_2가 fitted reference에서 lifecycle 초기부터
+높은 anomaly-score 위치에 있다**는 관찰과, condition-only 설명이 이를 설명하지 못한다는 것입니다. 왜 그 위치에
+있는지는 bearing-specific initial state, feature distribution 차이, 초기 latent damage 등 여러 설명이 남아
+있으므로 이 문서에서 하나의 원인으로 좁히지 않습니다.
+
+**3. 현재 evaluation criterion은 sharp onset에 거의 반응하지 않습니다.**
+
+`reference_strategy = all-train-observations`로 fit한 model은 train bearing Bearing3_3/Bearing3_4에서
+9개 decile 동안 median score가 `0.35` 부근으로 평탄하다가 마지막 decile에서 `0.56` / `0.49`로 상승합니다.
+이는 run-to-failure에서 기대할 수 있는 형태이지만, 같은 run의 full-run Spearman ρ는 `-0.16`과 `+0.06`으로
+사실상 0입니다. 반대로 전 구간에 걸쳐 완만히 상승하는 Bearing1_2/Bearing2_2는 `+0.75` 부근을 받습니다.
+
+즉 현재 criterion은 **점진적 drift를 높게, 후기 집중 onset을 낮게** 평가합니다. 이 성질은 §8 서두에서 이미
+"detection accuracy가 아니다"라고 선언한 범위 안에 있지만, 같은 통계를 candidate selection의 primary metric으로
+사용하고 있으므로 configuration finalization에서 함께 판단해야 합니다.
+
+이 관찰들은 development evidence이며 holdout test를 열지 않았습니다. Criterion, candidate, selection rule은
+이 관찰을 근거로 이 변경에서 수정하지 않았습니다. 변경이 필요하다고 판단되면 §8의 규칙과 candidate manifest를
+새 version으로 기록합니다.
 
 ## 9. Reproducibility contract
 

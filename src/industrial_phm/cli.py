@@ -179,6 +179,15 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="full Git commit SHA for the exact execution code",
     )
+    experiment_validate.add_argument(
+        "--score-trajectory-dir",
+        type=Path,
+        default=None,
+        help=(
+            "also write development-only train/validation anomaly-score trajectories "
+            "to this local directory"
+        ),
+    )
     experiment_validate.set_defaults(handler=_run_experiment_validate)
 
     return parser
@@ -522,6 +531,7 @@ def _run_experiment_validate(args: argparse.Namespace) -> int:
             args.source,
             args.output,
             code_revision=args.code_revision,
+            score_trajectory_dir=args.score_trajectory_dir,
         )
     except (OSError, ValueError) as error:
         print(f"experiment validation failed: {error}", file=sys.stderr)
@@ -535,4 +545,6 @@ def _run_experiment_validate(args: argparse.Namespace) -> int:
     print(f"selection_rule_id: {result.selection_rule_id}")
     print(f"selected_experiment_id: {result.selected_experiment_id}")
     print(f"result: {args.output}")
+    if args.score_trajectory_dir is not None:
+        print(f"score_trajectory_dir: {args.score_trajectory_dir}")
     return 0

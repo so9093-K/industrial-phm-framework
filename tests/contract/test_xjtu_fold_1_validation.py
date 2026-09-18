@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from industrial_phm.adapters import get_xjtu_expected_acquisition_count
 from industrial_phm.experiments import (
     XJTU_CANDIDATE_SELECTION_RULE_ID,
     XJTU_FOLD_1_VALIDATION_SCHEMA_ID,
@@ -14,9 +15,11 @@ from industrial_phm.experiments import (
     XjtuFoldValidationResult,
     evaluate_xjtu_fold_1_candidates,
     get_xjtu_isolation_forest_candidates,
+    get_xjtu_reference_split,
     select_xjtu_validation_candidate,
     write_xjtu_fold_1_validation_result,
 )
+from industrial_phm.features import VibrationFeatureVector
 
 _CODE_REVISION = "a" * 40
 
@@ -133,3 +136,59 @@ def test_candidate_selection_uses_experiment_id_as_total_order() -> None:
     earlier = replace(candidate, experiment_id="a-candidate")
 
     assert select_xjtu_validation_candidate((later, earlier)) is earlier
+
+
+def _fold_1_vectors(assets: tuple[str, ...]) -> tuple[VibrationFeatureVector, ...]:
+    config = get_xjtu_isolation_forest_candidates()[0]
+    feature_names = tuple(config.selected_features)
+    vectors: list[VibrationFeatureVector] = []
+    for asset_id in assets:
+        condition = f"condition-{asset_id[len('Bearing')]}"
+        for acquisition_index in range(1, get_xjtu_expected_acquisition_count(asset_id) + 1):
+            vectors.append(
+                VibrationFeatureVector(
+                    feature_set_id=config.feature_set_id,
+                    asset_id=asset_id,
+                    feature_names=feature_names,
+                    values=tuple(
+                        float(acquisition_index + position)
+                        for position in range(len(feature_names))
+                    ),
+                    metadata={
+                        "dataset_id": "xjtu-sy",
+                        "operating_condition": condition,
+                        "acquisition_index": acquisition_index,
+                    },
+                )
+            )
+    return tuple(vectors)
+
+
+def test_train_partition_is_scored_only_when_diagnosis_is_requested() -> None:
+    fold = next(item for item in get_xjtu_reference_split().folds if item.fold_id == "fold-1")
+    train_vectors = _fold_1_vectors(fold.train)
+    validation_vectors = _fold_1_vectors(fold.validation)
+
+    without = evaluate_xjtu_fold_1_candidates(
+        train_vectors,
+        validation_vectors,
+        code_revision=_CODE_REVISION,
+        source_acquisition_count=9216,
+    )
+    with_diagnosis = evaluate_xjtu_fold_1_candidates(
+        train_vectors,
+        validation_vectors,
+        code_revision=_CODE_REVISION,
+        source_acquisition_count=9216,
+        collect_score_trajectories=True,
+    )
+
+    assert without.score_trajectories == ()
+    assert len(with_diagnosis.score_trajectories) == len(with_diagnosis.candidates)
+    scored = {
+        (bearing.partition, bearing.asset_id)
+        for bearing in with_diagnosis.score_trajectories[0].bearings
+    }
+    assert {asset_id for partition, asset_id in scored if partition == "train"} == set(fold.train)
+    assert without.selected_experiment_id == with_diagnosis.selected_experiment_id
+    assert without.candidates == with_diagnosis.candidates
