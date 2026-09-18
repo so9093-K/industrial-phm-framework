@@ -1,0 +1,31 @@
+schema_id = "experiment-config-v1"
+
+[[experiment]]
+experiment_id = "ims-bearings-iforest-single-channel-cross-test-v1"
+dataset_id = "ims-bearings"
+split_id = "ims-single-channel-cross-test-v1"
+fold_id = "fold-1"
+fit_partition = "train"
+feature_set_id = "vibration-statistical-v1"
+selected_features = [
+  "feature.vibration.mean",
+  "feature.vibration.rms",
+  "feature.vibration.standard_deviation",
+  "feature.vibration.absolute_peak",
+  "feature.vibration.peak_to_peak",
+  "feature.vibration.crest_factor",
+  "feature.vibration.skewness",
+  "feature.vibration.excess_kurtosis",
+]
+reference_strategy = "all-train-observations"
+sampling_policy_id = "acquisition-uniform-v1"
+scaling_strategy = "identity"
+model_family = "isolation-forest"
+random_seed = 42
+
+[experiment.model_parameters]
+n_estimators = 256
+max_samples = "auto"
+contamination = "auto"
+max_features = 1.0
+bootstrap = false

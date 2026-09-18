@@ -32,7 +32,8 @@ industrial-phm
     ├── validate
     ├── reference-compare
     ├── holdout
-    └── cross-fold
+    ├── cross-fold
+    └── cross-test
 ```
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.

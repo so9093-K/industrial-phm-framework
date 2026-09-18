@@ -136,3 +136,101 @@ def test_experiment_validate_forwards_optional_score_trajectory_dir(
     assert exit_code == 0
     assert observed == {"score_trajectory_dir": trajectory_dir}
     assert f"score_trajectory_dir: {trajectory_dir}" in capsys.readouterr().out
+
+
+def test_experiment_cross_test_shows_effective_plan_and_pipeline_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source"
+    output = tmp_path / "ims-result.json"
+    revision = "d" * 40
+    observed: dict[str, object] = {}
+
+    def fake_cross_test(
+        received_source: Path,
+        received_output: Path,
+        *,
+        code_revision: str,
+    ) -> SimpleNamespace:
+        observed.update(
+            source=received_source,
+            output=received_output,
+            code_revision=code_revision,
+        )
+        bearing_results = tuple(
+            SimpleNamespace(
+                asset_id=f"set-3-bearing-{number}",
+                full_run_observation_count=4_448,
+                acquisition_order_spearman_rho=0.25 * number,
+                late_vs_middle_rank_probability=0.5 + 0.05 * number,
+            )
+            for number in range(1, 5)
+        )
+        return SimpleNamespace(
+            complete_train_observation_count=3_936,
+            reference_observation_count=3_936,
+            model_fit_observation_count=3_936,
+            scoring_observation_count=17_792,
+            bearing_results=bearing_results,
+            mean_bearing_acquisition_order_spearman_rho=0.625,
+            mean_bearing_late_vs_middle_rank_probability=0.625,
+            code_revision=code_revision,
+        )
+
+    monkeypatch.setattr(cli, "run_ims_cross_test_evaluation", fake_cross_test)
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "cross-test",
+            "ims-bearings",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--code-revision",
+            revision,
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed == {
+        "source": source,
+        "output": output,
+        "code_revision": revision,
+    }
+    captured = capsys.readouterr().out
+    assert "execution plan: IMS single-channel cross-test v1" in captured
+    assert "train: set-2 complete / 984 acquisitions / 3936 bearing vectors" in captured
+    assert (
+        "evaluation: set-3 readme-documented / 4448 acquisitions / 17792 bearing vectors"
+    ) in captured
+    assert "excluded: set-1, set-3:archive-extension" in captured
+    assert "selection/calibration: none" in captured
+    assert "source validation: completed" in captured
+    assert "populations: complete=3936 reference=3936 fit=3936 scoring=17792" in captured
+    assert f"code_revision: {revision}" in captured
+    assert f"result: {output}" in captured
+
+
+def test_experiment_cross_test_rejects_non_ims_dataset(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli.main(
+        [
+            "experiment",
+            "cross-test",
+            "xjtu-sy",
+            "--source",
+            "source",
+            "--output",
+            "result.json",
+            "--code-revision",
+            "e" * 40,
+        ]
+    )
+
+    assert exit_code == 2
+    assert "cross-test evaluation is not implemented for xjtu-sy" in capsys.readouterr().err

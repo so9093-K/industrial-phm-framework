@@ -225,21 +225,24 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - IMS Set 2 train → Set 3 README-documented evaluation으로 고정한 single-channel cross-test experiment protocol v1
 - PHM/ML 개발자가 source → feature → preprocessing → reference/sampling → model → scoring/evaluation lineage를
   effective configuration·population flow·provenance와 함께 검토하는 pipeline transparency UX baseline
+- IMS Set 2 complete train에서 preprocessing/model fit 후 Set 3 README-documented scope만 scoring하는
+  fixed single-channel cross-test execution contract와 developer-transparent result schema
 
 ### Current
 
-1. IMS single-channel cross-test execution contract 구현
-   - [`docs/research/ims-experiment-protocol.md`](docs/research/ims-experiment-protocol.md)의 Set 2 train /
-     Set 3 `readme-documented` evaluation 경계를 코드와 versioned config로 고정
-   - numerical Set 3 score는 implementation/tests가 merge되기 전까지 생성하지 않음
+1. clean main revision에서 IMS Set 3 one-time cross-test evaluation 실행 및 evidence 기록
+   - `experiment cross-test ims-bearings`가 Set 2 complete train / Set 3 `readme-documented` scope만 소비
+   - 실행 전 effective plan과 excluded scope를 확인하고, 결과에는 population flow·configuration·capability
+     boundary·code revision을 함께 기록
+   - numerical result를 본 뒤 같은 Set 3 scope를 변경된 configuration의 fresh evidence로 재사용하지 않음
 
 ### Next
 
-1. clean main revision에서 IMS Set 3 one-time cross-test evaluation 실행 및 evidence 기록
-2. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-3. 데이터가 정당하게 지원하는 경우 RUL prognostics
+1. XJTU와 IMS evidence를 같은 developer pipeline transparency 관점에서 비교·검토
+2. LSTM Autoencoder의 reconstruction/anomaly evidence protocol 결정
+3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
 4. MIMII DUE를 통한 cross-domain evaluation
-5. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

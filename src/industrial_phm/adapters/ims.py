@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from industrial_phm.contracts import CanonicalTimeSeries
 
@@ -149,6 +150,35 @@ class ImsBearingAdapter:
                     values=values,
                 )
 
+    def iter_test_series(
+        self,
+        source: Path,
+        test_id: str,
+        *,
+        archive_scope: Literal["all", "readme-documented"] = "all",
+    ) -> Iterable[CanonicalTimeSeries]:
+        """Read one IMS test without materializing excluded tests or archive-extension payloads."""
+        profile = _test_profile(test_id)
+        directory = source / profile.relative_directory
+        if not directory.is_dir():
+            raise ImsBearingSourceError(
+                f"IMS source is missing {test_id!r}: {profile.relative_directory.as_posix()}"
+            )
+        acquisitions = _scope_acquisitions(
+            profile,
+            _acquisition_files(directory),
+            archive_scope=archive_scope,
+        )
+        for acquisition_index, acquisition in enumerate(acquisitions, start=1):
+            values = _read_waveform(acquisition.path, profile.channel_count)
+            yield from _canonical_series(
+                source=source,
+                profile=profile,
+                acquisition=acquisition,
+                acquisition_index=acquisition_index,
+                values=values,
+            )
+
 
 def validate_ims_source(source: Path, *, full: bool = False) -> ImsBearingValidationReport:
     """Validate a prepared IMS source against the locally observed official archive profile."""
@@ -188,6 +218,35 @@ def validate_ims_source(source: Path, *, full: bool = False) -> ImsBearingValida
         sampling_rate_hz=_SAMPLING_RATE_HZ,
         profile_issues=_profile_issues(source, observed),
     )
+
+
+def _test_profile(test_id: str) -> _ImsTestProfile:
+    profile = next((item for item in _TEST_PROFILES if item.test_id == test_id), None)
+    if profile is None:
+        raise ImsBearingSourceError(f"unknown IMS test_id: {test_id!r}")
+    return profile
+
+
+def _scope_acquisitions(
+    profile: _ImsTestProfile,
+    acquisitions: tuple[_ImsAcquisition, ...],
+    *,
+    archive_scope: Literal["all", "readme-documented"],
+) -> tuple[_ImsAcquisition, ...]:
+    if archive_scope == "all":
+        return acquisitions
+    if archive_scope == "readme-documented":
+        selected = tuple(
+            acquisition
+            for acquisition in acquisitions
+            if acquisition.timestamp <= profile.readme_last_acquisition_at
+        )
+        if not selected:
+            raise ImsBearingSourceError(
+                f"IMS {profile.test_id} README-documented scope contains no acquisitions"
+            )
+        return selected
+    raise ImsBearingSourceError(f"unsupported IMS archive_scope: {archive_scope!r}")
 
 
 def _observed_tests(

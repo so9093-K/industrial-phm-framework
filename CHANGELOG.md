@@ -56,8 +56,15 @@
   complete/reference/fit/scoring population flow, effective configuration, provenance, unsupported capability를
   일관되게 표시하는 information architecture를 정의합니다.
 
+- `experiment cross-test`로 실행하는 IMS single-channel fixed cross-test 경로. Set 2 complete train에서
+  preprocessing과 Isolation Forest를 fit하고 Set 3의 `readme-documented` scope만 scoring하며,
+  source/reference/fit/scoring population과 effective configuration, capability scope, code revision을
+  developer-transparent result JSON에 기록합니다.
+
 ### Changed
 
+- XJTU 내부에 있던 Spearman ρ와 late-vs-middle rank probability의 순수 수학 계산을 두 번째 dataset
+  consumer가 생긴 시점에 dataset-neutral score-statistics helper로 승격하고 XJTU public wrapper는 유지합니다.
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를
   표현할 수 있도록 확장.
 - XJTU source/profile 검사를 production validator와 CLI로 이동하고 Notebook은 generated artifact를 소비하는
