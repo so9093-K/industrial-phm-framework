@@ -148,6 +148,10 @@ uv run industrial-phm experiment validate xjtu-sy \
   --code-revision "$(git rev-parse HEAD)"
 ```
 
+Bearing별 Spearman ρ 하나만으로는 score trajectory의 형태를 알 수 없으므로, 필요할 때
+`--score-trajectory-dir`로 acquisition별 anomaly score를 development diagnosis artifact로 함께 남깁니다. 이
+flag는 fit·score·selection을 바꾸지 않고, `train`/`validation`만 scoring하며 holdout test는 열지 않습니다.
+
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
 [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 development/holdout-test
 경계와 leakage 규칙을 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
@@ -206,10 +210,13 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - dataset-neutral Isolation Forest fit/scoring과 higher-is-more-anomalous `AnomalyScores`
 - XJTU validation bearing별 acquisition-order Spearman ρ를 사용하는 model-independent development evaluator
 - XJTU `fold-1 validation` candidate 실행과 reproducible result artifact
+- selection과 분리된 train/validation acquisition별 anomaly-score trajectory development diagnosis
 
 ### Current
 
 1. `fold-1 validation` evidence 검토와 experiment configuration finalization
+   - score-trajectory diagnosis 결과는
+     [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md) §8에 기록
 
 ### Next
 
