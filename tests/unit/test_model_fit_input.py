@@ -20,11 +20,13 @@ def test_model_fit_input_uses_explicit_feature_and_sampling_names() -> None:
         sampling_policy_id="reference-policy-v1",
         random_seed=42,
         source_observation_count=3,
+        reference_observation_count=3,
     )
 
     assert prepared.feature_rows == ((1.0, 2.0), (3.0, 4.0))
     assert prepared.source_observation_ids == ("observation-1", "observation-2")
     assert prepared.source_observation_count == 3
+    assert prepared.reference_observation_count == 3
     assert prepared.fit_observation_count == 2
 
     with pytest.raises(FrozenInstanceError):
@@ -40,6 +42,8 @@ def test_model_fit_input_uses_explicit_feature_and_sampling_names() -> None:
         ({"source_observation_ids": ("observation-1",)}, "same number"),
         ({"random_seed": -1}, "non-negative"),
         ({"source_observation_count": 0}, "positive integer"),
+        ({"reference_observation_count": 0}, "positive integer"),
+        ({"reference_observation_count": 3}, "cannot exceed source_observation_count"),
     ],
 )
 def test_model_fit_input_rejects_invalid_contract_values(
@@ -55,6 +59,7 @@ def test_model_fit_input_rejects_invalid_contract_values(
         "sampling_policy_id": "reference-policy-v1",
         "random_seed": 42,
         "source_observation_count": 2,
+        "reference_observation_count": 2,
     }
     values.update(changes)
 

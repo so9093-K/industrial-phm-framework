@@ -24,6 +24,7 @@ class FitPartition(StrEnum):
 
 class ReferenceStrategy(StrEnum):
     ALL_TRAIN_OBSERVATIONS = "all-train-observations"
+    TRAIN_BEARING_EARLY_THIRD = "train-bearing-early-third-v1"
 
 
 class ScalingStrategy(StrEnum):

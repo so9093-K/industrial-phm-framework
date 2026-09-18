@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -183,6 +184,28 @@ def spearman_rho(
         return float(correlation(_average_ranks(left), _average_ranks(right)))
     except StatisticsError:
         return None
+
+
+def late_vs_middle_rank_probability(
+    middle_scores: Sequence[float],
+    late_scores: Sequence[float],
+) -> float | None:
+    """Return P(late > middle) + 0.5 * P(late = middle) over all cross-segment pairs.
+
+    ``0.5`` means the late segment holds no consistent rank advantage over the middle one.
+    Returns ``None`` when either segment is empty, so the statistic stays undefined instead of
+    being imputed. Computed from mid-ranks of the pooled scores, which is exactly the pairwise
+    average of ``1.0`` / ``0.5`` / ``0.0`` without materializing every pair.
+    """
+    middle_count = len(middle_scores)
+    late_count = len(late_scores)
+    if middle_count == 0 or late_count == 0:
+        return None
+
+    pooled_ranks = _average_ranks(tuple(middle_scores) + tuple(late_scores))
+    late_rank_sum = math.fsum(pooled_ranks[middle_count:])
+    favourable = late_rank_sum - late_count * (late_count + 1) / 2.0
+    return float(favourable / (middle_count * late_count))
 
 
 def _average_ranks(values: Sequence[int | float]) -> tuple[float, ...]:

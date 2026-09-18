@@ -1,0 +1,78 @@
+schema_id = "experiment-config-v1"
+
+[[experiment]]
+experiment_id = "xjtu-sy-iforest-fold-1-reference-all-train-observations-v3"
+dataset_id = "xjtu-sy"
+split_id = "xjtu-sy-condition-stratified-5fold-v1"
+fold_id = "fold-1"
+fit_partition = "train"
+feature_set_id = "vibration-statistical-v1"
+selected_features = [
+  "feature.Horizontal_vibration_signals.mean",
+  "feature.Horizontal_vibration_signals.rms",
+  "feature.Horizontal_vibration_signals.standard_deviation",
+  "feature.Horizontal_vibration_signals.absolute_peak",
+  "feature.Horizontal_vibration_signals.peak_to_peak",
+  "feature.Horizontal_vibration_signals.crest_factor",
+  "feature.Horizontal_vibration_signals.skewness",
+  "feature.Horizontal_vibration_signals.excess_kurtosis",
+  "feature.Vertical_vibration_signals.mean",
+  "feature.Vertical_vibration_signals.rms",
+  "feature.Vertical_vibration_signals.standard_deviation",
+  "feature.Vertical_vibration_signals.absolute_peak",
+  "feature.Vertical_vibration_signals.peak_to_peak",
+  "feature.Vertical_vibration_signals.crest_factor",
+  "feature.Vertical_vibration_signals.skewness",
+  "feature.Vertical_vibration_signals.excess_kurtosis",
+]
+reference_strategy = "all-train-observations"
+sampling_policy_id = "acquisition-uniform-v1"
+scaling_strategy = "identity"
+model_family = "isolation-forest"
+random_seed = 42
+
+[experiment.model_parameters]
+n_estimators = 256
+max_samples = "auto"
+contamination = "auto"
+max_features = 1.0
+bootstrap = false
+
+
+[[experiment]]
+experiment_id = "xjtu-sy-iforest-fold-1-reference-train-bearing-early-third-v3"
+dataset_id = "xjtu-sy"
+split_id = "xjtu-sy-condition-stratified-5fold-v1"
+fold_id = "fold-1"
+fit_partition = "train"
+feature_set_id = "vibration-statistical-v1"
+selected_features = [
+  "feature.Horizontal_vibration_signals.mean",
+  "feature.Horizontal_vibration_signals.rms",
+  "feature.Horizontal_vibration_signals.standard_deviation",
+  "feature.Horizontal_vibration_signals.absolute_peak",
+  "feature.Horizontal_vibration_signals.peak_to_peak",
+  "feature.Horizontal_vibration_signals.crest_factor",
+  "feature.Horizontal_vibration_signals.skewness",
+  "feature.Horizontal_vibration_signals.excess_kurtosis",
+  "feature.Vertical_vibration_signals.mean",
+  "feature.Vertical_vibration_signals.rms",
+  "feature.Vertical_vibration_signals.standard_deviation",
+  "feature.Vertical_vibration_signals.absolute_peak",
+  "feature.Vertical_vibration_signals.peak_to_peak",
+  "feature.Vertical_vibration_signals.crest_factor",
+  "feature.Vertical_vibration_signals.skewness",
+  "feature.Vertical_vibration_signals.excess_kurtosis",
+]
+reference_strategy = "train-bearing-early-third-v1"
+sampling_policy_id = "acquisition-uniform-v1"
+scaling_strategy = "identity"
+model_family = "isolation-forest"
+random_seed = 42
+
+[experiment.model_parameters]
+n_estimators = 256
+max_samples = "auto"
+contamination = "auto"
+max_features = 1.0
+bootstrap = false

@@ -51,6 +51,7 @@ class FittedIsolationForest:
     sampling_policy_id: str
     random_seed: int
     source_observation_count: int
+    reference_observation_count: int
     fit_observation_count: int
     _estimator: _IsolationForestEstimator = field(repr=False, compare=False)
 
@@ -71,7 +72,11 @@ class FittedIsolationForest:
             or self.random_seed < 0
         ):
             raise IsolationForestError("random_seed must be a non-negative integer")
-        for field_name in ("source_observation_count", "fit_observation_count"):
+        for field_name in (
+            "source_observation_count",
+            "reference_observation_count",
+            "fit_observation_count",
+        ):
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise IsolationForestError(f"{field_name} must be a positive integer")
@@ -140,6 +145,7 @@ def fit_isolation_forest(
         sampling_policy_id=model_input.sampling_policy_id,
         random_seed=model_input.random_seed,
         source_observation_count=model_input.source_observation_count,
+        reference_observation_count=model_input.reference_observation_count,
         fit_observation_count=model_input.fit_observation_count,
         _estimator=estimator,
     )
