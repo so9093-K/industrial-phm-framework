@@ -563,6 +563,55 @@ Cross-fold 결과가 약하거나 condition/bearing variability가 커도 이 �
 research protocol/experiment version의 질문이며, 이미 소진된 `fold-1 test`를 변경된 configuration의 unbiased
 holdout으로 다시 사용할 수 없습니다.
 
+
+#### 관찰된 cross-fold robustness 결과
+
+Folds 2~5의 test partition을 한 번에 실행했습니다. Authoritative numerical evidence는
+[`results/xjtu-sy-iforest-cross-fold-robustness-v1.json`](results/xjtu-sy-iforest-cross-fold-robustness-v1.json)에
+보존합니다.
+
+| fold | bearing | condition | N | ρ | `late_vs_middle` |
+| --- | --- | --- | ---: | ---: | ---: |
+| fold-2 | Bearing1_2 | 35Hz12kN | 161 | 0.8958 | 0.7642 |
+| fold-2 | Bearing2_2 | 37.5Hz11kN | 161 | 0.9555 | 0.9235 |
+| fold-2 | Bearing3_2 | 40Hz10kN | 2,496 | 0.2646 | 0.8384 |
+| fold-3 | Bearing1_3 | 35Hz12kN | 158 | 0.9426 | 0.9880 |
+| fold-3 | Bearing2_3 | 37.5Hz11kN | 533 | 0.8733 | 1.0000 |
+| fold-3 | Bearing3_3 | 40Hz10kN | 371 | -0.1966 | 0.4927 |
+| fold-4 | Bearing1_4 | 35Hz12kN | 122 | 0.4078 | 0.7896 |
+| fold-4 | Bearing2_4 | 37.5Hz11kN | 42 | 0.7076 | 0.9235 |
+| fold-4 | Bearing3_4 | 40Hz10kN | 1,515 | 0.0332 | 0.6697 |
+| fold-5 | Bearing1_5 | 35Hz12kN | 52 | 0.9256 | 1.0000 |
+| fold-5 | Bearing2_5 | 37.5Hz11kN | 339 | 0.8913 | 0.9528 |
+| fold-5 | Bearing3_5 | 40Hz10kN | 114 | 0.3512 | 0.6122 |
+
+| 요약 | ρ | `late_vs_middle` |
+| --- | ---: | ---: |
+| 35Hz12kN (n=4) | 0.7930 | 0.8855 |
+| 37.5Hz11kN (n=4) | 0.8569 | 0.9499 |
+| 40Hz10kN (n=4) | 0.1131 | 0.6533 |
+| 전체 (n=12) | 0.5877 | 0.8295 |
+
+**변동은 fold가 아니라 operating condition을 따라 갈립니다.** `35Hz12kN`과 `37.5Hz11kN`은 네 fold에서
+`late_vs_middle`이 각각 `0.7642..1.0000`, `0.9235..1.0000`으로 고르게 높은 반면, `40Hz10kN`은
+`0.4927..0.8384`로 낮고 fold-3의 Bearing3_3은 `0.4927`로 `0.5` 아래입니다. Full-run ρ의 condition별 평균도
+`0.7930 / 0.8569 / 0.1131`로 갈립니다.
+
+**Run length는 이 차이를 설명하지 않습니다.** `40Hz10kN`의 네 run을 길이순으로 보면 `114 → 371 → 1,515 →
+2,496`에 대해 `late_vs_middle`이 `0.6122 → 0.4927 → 0.6697 → 0.8384`로 단조 관계가 없고, 가장 긴
+Bearing3_2가 오히려 해당 condition에서 가장 높습니다. `fold-1` holdout evidence에서 관찰된 run length 순
+감소(`0.9952 → 0.6303 → 0.4688`)는 이 12개 bearing에서 재현되지 않았으며, 그 문서가 원인을 주장하지 않은
+것은 적절했습니다.
+
+`fold-1` holdout 수치는 위 12-bearing aggregate에 합치지 않습니다. 별도로 비교하면 Bearing3_1의
+`late_vs_middle` `0.4688` 역시 `40Hz10kN`이 약한 양상과 같은 방향입니다. 다만 XJTU-SY는 condition마다 bearing이
+5개뿐이고 condition과 bearing 개체가 설계상 분리되지 않으므로, 이 문서는 관찰된 연관을 원인으로 주장하지
+않습니다. Cross-fold 결과는 post-holdout robustness evidence이며 fresh holdout이나 독립적인 cross-validation
+estimate가 아닙니다.
+
+이 결과를 근거로 finalized configuration, reference window, feature, model parameter, evaluation statistic 중
+어느 것도 재선택하거나 조정하지 않았습니다.
+
 ## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는

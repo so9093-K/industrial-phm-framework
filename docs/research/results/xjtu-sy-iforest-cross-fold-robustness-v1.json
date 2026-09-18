@@ -1,0 +1,215 @@
+{
+  "code_revision": "a56eb5004e2386318ffa4b7e715c9cdd0d3580d4",
+  "dataset_id": "xjtu-sy",
+  "evaluated_folds": [
+    "fold-2",
+    "fold-3",
+    "fold-4",
+    "fold-5"
+  ],
+  "finalized_experiment_id": "xjtu-sy-iforest-fold-1-finalized-v1",
+  "folds": [
+    {
+      "complete_train_observation_count": 5336,
+      "experiment_id": "xjtu-sy-iforest-fold-2-finalized-v1",
+      "fold_id": "fold-2",
+      "mean_bearing_acquisition_order_spearman_rho": 0.7053354724904309,
+      "mean_bearing_late_vs_middle_rank_probability": 0.8420158311999408,
+      "model_fit_observation_count": 1780,
+      "reference_observation_count": 1780,
+      "test_bearing_results": [
+        {
+          "acquisition_order_spearman_rho": 0.8958210373687021,
+          "asset_id": "Bearing1_2",
+          "full_run_observation_count": 161,
+          "late_third_observation_count": 53,
+          "late_vs_middle_rank_probability": 0.7641509433962265,
+          "middle_third_observation_count": 54,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.955549804462848,
+          "asset_id": "Bearing2_2",
+          "full_run_observation_count": 161,
+          "late_third_observation_count": 53,
+          "late_vs_middle_rank_probability": 0.9234800838574424,
+          "middle_third_observation_count": 54,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.26463557563974255,
+          "asset_id": "Bearing3_2",
+          "full_run_observation_count": 2496,
+          "late_third_observation_count": 832,
+          "late_vs_middle_rank_probability": 0.8384164663461539,
+          "middle_third_observation_count": 832,
+          "operating_condition": "40Hz10kN"
+        }
+      ],
+      "test_bearings": [
+        "Bearing1_2",
+        "Bearing2_2",
+        "Bearing3_2"
+      ]
+    },
+    {
+      "complete_train_observation_count": 6475,
+      "experiment_id": "xjtu-sy-iforest-fold-3-finalized-v1",
+      "fold_id": "fold-3",
+      "mean_bearing_acquisition_order_spearman_rho": 0.5397453754126793,
+      "mean_bearing_late_vs_middle_rank_probability": 0.8269161302503049,
+      "model_fit_observation_count": 2160,
+      "reference_observation_count": 2160,
+      "test_bearing_results": [
+        {
+          "acquisition_order_spearman_rho": 0.9426097459683369,
+          "asset_id": "Bearing1_3",
+          "full_run_observation_count": 158,
+          "late_third_observation_count": 52,
+          "late_vs_middle_rank_probability": 0.9880261248185777,
+          "middle_third_observation_count": 53,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.8732572255311001,
+          "asset_id": "Bearing2_3",
+          "full_run_observation_count": 533,
+          "late_third_observation_count": 177,
+          "late_vs_middle_rank_probability": 1.0,
+          "middle_third_observation_count": 178,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": -0.19663084526139912,
+          "asset_id": "Bearing3_3",
+          "full_run_observation_count": 371,
+          "late_third_observation_count": 123,
+          "late_vs_middle_rank_probability": 0.49272226593233676,
+          "middle_third_observation_count": 124,
+          "operating_condition": "40Hz10kN"
+        }
+      ],
+      "test_bearings": [
+        "Bearing1_3",
+        "Bearing2_3",
+        "Bearing3_3"
+      ]
+    },
+    {
+      "complete_train_observation_count": 7032,
+      "experiment_id": "xjtu-sy-iforest-fold-4-finalized-v1",
+      "fold_id": "fold-4",
+      "mean_bearing_acquisition_order_spearman_rho": 0.38287125203182915,
+      "mean_bearing_late_vs_middle_rank_probability": 0.7942779842276595,
+      "model_fit_observation_count": 2346,
+      "reference_observation_count": 2346,
+      "test_bearing_results": [
+        {
+          "acquisition_order_spearman_rho": 0.4077608625971099,
+          "asset_id": "Bearing1_4",
+          "full_run_observation_count": 122,
+          "late_third_observation_count": 40,
+          "late_vs_middle_rank_probability": 0.7896341463414634,
+          "middle_third_observation_count": 41,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.707641196013289,
+          "asset_id": "Bearing2_4",
+          "full_run_observation_count": 42,
+          "late_third_observation_count": 14,
+          "late_vs_middle_rank_probability": 0.923469387755102,
+          "middle_third_observation_count": 14,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.03321169748508854,
+          "asset_id": "Bearing3_4",
+          "full_run_observation_count": 1515,
+          "late_third_observation_count": 505,
+          "late_vs_middle_rank_probability": 0.6697304185864131,
+          "middle_third_observation_count": 505,
+          "operating_condition": "40Hz10kN"
+        }
+      ],
+      "test_bearings": [
+        "Bearing1_4",
+        "Bearing2_4",
+        "Bearing3_4"
+      ]
+    },
+    {
+      "complete_train_observation_count": 5559,
+      "experiment_id": "xjtu-sy-iforest-fold-5-finalized-v1",
+      "fold_id": "fold-5",
+      "mean_bearing_acquisition_order_spearman_rho": 0.7227153699548454,
+      "mean_bearing_late_vs_middle_rank_probability": 0.8549882068811766,
+      "model_fit_observation_count": 1855,
+      "reference_observation_count": 1855,
+      "test_bearing_results": [
+        {
+          "acquisition_order_spearman_rho": 0.925638179800222,
+          "asset_id": "Bearing1_5",
+          "full_run_observation_count": 52,
+          "late_third_observation_count": 17,
+          "late_vs_middle_rank_probability": 1.0,
+          "middle_third_observation_count": 17,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.8912952142159686,
+          "asset_id": "Bearing2_5",
+          "full_run_observation_count": 339,
+          "late_third_observation_count": 113,
+          "late_vs_middle_rank_probability": 0.9527762549925601,
+          "middle_third_observation_count": 113,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.35121271584834546,
+          "asset_id": "Bearing3_5",
+          "full_run_observation_count": 114,
+          "late_third_observation_count": 38,
+          "late_vs_middle_rank_probability": 0.6121883656509696,
+          "middle_third_observation_count": 38,
+          "operating_condition": "40Hz10kN"
+        }
+      ],
+      "test_bearings": [
+        "Bearing1_5",
+        "Bearing2_5",
+        "Bearing3_5"
+      ]
+    }
+  ],
+  "interpretation": "Post-holdout robustness evidence for the finalized configuration. Not a fresh holdout and not an independent cross-validation estimate: every fold-2..5 test bearing was already observed during fold-1 development, and fold-1 test bearings appear in later folds' train partitions. The consumed fold-1 holdout is not re-scored here and its numbers are not merged into these aggregates. Both statistics are recorded descriptively with no primary/secondary ranking.",
+  "operating_condition_summary": [
+    {
+      "bearing_count": 4,
+      "mean_bearing_acquisition_order_spearman_rho": 0.7929574564335927,
+      "mean_bearing_late_vs_middle_rank_probability": 0.8854528036390669,
+      "operating_condition": "35Hz12kN"
+    },
+    {
+      "bearing_count": 4,
+      "mean_bearing_acquisition_order_spearman_rho": 0.8569358600558015,
+      "mean_bearing_late_vs_middle_rank_probability": 0.9499314316512761,
+      "operating_condition": "37.5Hz11kN"
+    },
+    {
+      "bearing_count": 4,
+      "mean_bearing_acquisition_order_spearman_rho": 0.11310728592794436,
+      "mean_bearing_late_vs_middle_rank_probability": 0.6532643791289683,
+      "operating_condition": "40Hz10kN"
+    }
+  ],
+  "overall_summary": {
+    "bearing_count": 12,
+    "mean_bearing_acquisition_order_spearman_rho": 0.5876668674724462,
+    "mean_bearing_late_vs_middle_rank_probability": 0.8295495381397705
+  },
+  "schema_id": "xjtu-cross-fold-robustness-result-v1",
+  "scored_partition": "test",
+  "source_acquisition_count": 9216,
+  "split_id": "xjtu-sy-condition-stratified-5fold-v1"
+}
