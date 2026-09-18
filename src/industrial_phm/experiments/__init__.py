@@ -95,6 +95,12 @@ from industrial_phm.experiments.xjtu_lifecycle import (
     early_third_length,
     lifecycle_segment,
 )
+from industrial_phm.experiments.xjtu_lstm import (
+    XjtuLstmDevelopmentError,
+    XjtuLstmDevelopmentFit,
+    fit_xjtu_lstm_development_model,
+    get_xjtu_lstm_development_configuration,
+)
 from industrial_phm.experiments.xjtu_model_input import (
     XjtuModelInputError,
     fit_xjtu_preprocessing_and_prepare_model_input,
@@ -203,6 +209,8 @@ __all__ = [
     "XjtuHoldoutResult",
     "XjtuLifecycleError",
     "XjtuLifecycleSegmentScores",
+    "XjtuLstmDevelopmentError",
+    "XjtuLstmDevelopmentFit",
     "XjtuModelInputError",
     "XjtuReferenceComparisonError",
     "XjtuReferenceComparisonResult",
@@ -224,12 +232,14 @@ __all__ = [
     "evaluate_xjtu_fold_1_holdout",
     "evaluate_xjtu_reference_hypotheses",
     "fit_ims_preprocessing_and_prepare_model_input",
+    "fit_xjtu_lstm_development_model",
     "fit_xjtu_preprocessing_and_prepare_model_input",
     "fold_scoped_configuration",
     "get_ims_cross_test_configuration",
     "get_ims_cross_test_split",
     "get_xjtu_finalized_configuration",
     "get_xjtu_isolation_forest_candidates",
+    "get_xjtu_lstm_development_configuration",
     "get_xjtu_reference_hypotheses",
     "get_xjtu_reference_split",
     "ims_experiment_context",

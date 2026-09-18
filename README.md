@@ -262,17 +262,20 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   dataset-neutral sequence-window construction contract
 - fold-1 complete train preprocessing, bearing별 early-third reference와 validation acquisition을 공통 sequence
   contract에 연결하고 3,246→1,084→1,021 및 2,818→2,797 population lineage를 검증하는 XJTU edge
+- complete train vectors에서 robust preprocessing state를 직접 fit하고 1,021 reference windows로 deterministic
+  PyTorch LSTM Autoencoder를 학습하는 canonical XJTU execution path와 final-epoch training provenance
 
 ### Current
 
-1. LSTM Autoencoder fit/reconstruction scoring과 deterministic training contract 구현
+1. LSTM reconstruction-error scoring과 per-feature residual contract 구현
 
 ### Next
 
-1. fold-1 train/validation retrospective development evidence 실행 및 inspection 연결
-2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-3. MIMII DUE를 통한 cross-domain evaluation
-4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. clean-main fold-1 train/validation retrospective development evidence 실행
+2. LSTM result schema와 `ExperimentInspection` reader 연결
+3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+4. MIMII DUE를 통한 cross-domain evaluation
+5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

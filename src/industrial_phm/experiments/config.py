@@ -34,6 +34,7 @@ class ScalingStrategy(StrEnum):
 
 class ModelFamily(StrEnum):
     ISOLATION_FOREST = "isolation-forest"
+    LSTM_AUTOENCODER = "lstm-autoencoder"
 
 
 @dataclass(frozen=True, slots=True)
