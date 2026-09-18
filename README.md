@@ -218,17 +218,18 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - `fold-1` holdout test 1회 실행과 development 결과와의 대조 evidence
 - folds 2~5 test partition을 한 번에 실행하는 post-holdout cross-fold robustness 경로와 evidence
 - verified IMS source profile과 canonical mapping을 기준으로 확인한 feature 계층의 cross-dataset portability와 XJTU edge 가정 구분
+- IMS Set 2 train → Set 3 README-documented evaluation으로 고정한 single-channel cross-test experiment protocol v1
 
 ### Current
 
-1. IMS experiment protocol 결정
-   - split unit, `operating_condition` 표현, lifecycle segment 의미, Set 3 scope를 결과 전에 고정
-   - portability 관찰은
-     [`docs/research/ims-source-profile.md`](docs/research/ims-source-profile.md) §7에 기록
+1. IMS single-channel cross-test execution contract 구현
+   - [`docs/research/ims-experiment-protocol.md`](docs/research/ims-experiment-protocol.md)의 Set 2 train /
+     Set 3 `readme-documented` evaluation 경계를 코드와 versioned config로 고정
+   - numerical Set 3 score는 implementation/tests가 merge되기 전까지 생성하지 않음
 
 ### Next
 
-1. 고정된 IMS protocol에 따른 첫 IMS model experiment
+1. clean main revision에서 IMS Set 3 one-time cross-test evaluation 실행 및 evidence 기록
 2. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
 3. 데이터가 정당하게 지원하는 경우 RUL prognostics
 4. MIMII DUE를 통한 cross-domain evaluation
