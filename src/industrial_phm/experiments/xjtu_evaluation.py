@@ -133,9 +133,7 @@ def evaluate_xjtu_development_scores(
         _evaluate_bearing(asset_id, observations_by_asset[asset_id])
         for asset_id in sorted(expected_assets)
     )
-    correlations = tuple(
-        result.acquisition_order_spearman_rho for result in bearing_results
-    )
+    correlations = tuple(result.acquisition_order_spearman_rho for result in bearing_results)
     mean_rho = (
         float(fmean(correlation for correlation in correlations if correlation is not None))
         if all(correlation is not None for correlation in correlations)
