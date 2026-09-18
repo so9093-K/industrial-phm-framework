@@ -93,9 +93,7 @@ def test_xjtu_development_evaluation_keeps_constant_score_correlation_undefined(
         acquisition_index = vector.metadata["acquisition_index"]
         assert isinstance(acquisition_index, int)
         source_ids.append(f"{vector.asset_id}:acquisition-{acquisition_index}")
-        scores.append(
-            0.0 if vector.asset_id == assets[0] else float(acquisition_index)
-        )
+        scores.append(0.0 if vector.asset_id == assets[0] else float(acquisition_index))
 
     result = evaluate_xjtu_development_scores(
         config,
