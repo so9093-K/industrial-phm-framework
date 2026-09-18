@@ -93,6 +93,9 @@
 - XJTU LSTM preprocessing state, sequence population, deterministic training provenance, score semantics와 evaluation을
   `xjtu-lstm-development-result-v1` JSON으로 보존하고 source validation부터 artifact write까지 연결하는 one-shot
   retrospective development execution contract.
+- `xjtu-lstm-development-result-v1`을 검증해 Sequence Construction, model training, reconstruction
+  scoring, bearing-first retrospective evaluation과 capability/provenance를 같은 immutable
+  `ExperimentInspection` read model로 노출하는 LSTM result inspection reader.
 
 ### Changed
 
