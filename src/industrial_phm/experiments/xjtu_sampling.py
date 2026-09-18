@@ -8,10 +8,7 @@ from collections.abc import Sequence
 
 from industrial_phm.experiments.config import ExperimentConfig
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
-from industrial_phm.experiments.xjtu_characterization_artifacts import (
-    XjtuCharacterizationData,
-    XjtuCharacterizationRecord,
-)
+from industrial_phm.features import VibrationFeatureVector
 from industrial_phm.models import ModelFitInput
 from industrial_phm.preprocessing import PreprocessingError, PreprocessingState
 
@@ -27,21 +24,15 @@ class XjtuSamplingPolicyError(ValueError):
 def prepare_xjtu_model_fit_input(
     config: ExperimentConfig,
     preprocessing_state: PreprocessingState,
-    characterization: XjtuCharacterizationData,
+    vectors: Sequence[VibrationFeatureVector],
 ) -> ModelFitInput:
-    """Transform aligned XJTU feature records and resolve the configured sampling policy."""
-    records = characterization.records
-    _validate_context(config, preprocessing_state, characterization)
+    """Transform XJTU train feature vectors and resolve the configured sampling policy."""
+    _validate_context(config, preprocessing_state, vectors)
 
-    observation_ids = tuple(
-        f"{record.asset_id}:acquisition-{record.acquisition_index}" for record in records
-    )
-    if len(observation_ids) != len(set(observation_ids)):
-        raise XjtuSamplingPolicyError("XJTU pre-sampling observation identities must be unique")
-
+    source_feature_names = tuple(vectors[0].feature_names)
     selected_rows = _selected_feature_rows(
-        characterization.feature_names,
-        records,
+        source_feature_names,
+        vectors,
         config.selected_features,
     )
     try:
@@ -49,10 +40,14 @@ def prepare_xjtu_model_fit_input(
     except PreprocessingError as error:
         raise XjtuSamplingPolicyError(f"invalid XJTU preprocessing input: {error}") from error
 
+    observation_ids = tuple(_observation_id(vector) for vector in vectors)
+    if len(observation_ids) != len(set(observation_ids)):
+        raise XjtuSamplingPolicyError("XJTU pre-sampling observation identities must be unique")
+
     if config.sampling_policy_id == _ACQUISITION_UNIFORM:
-        selected_indices = tuple(range(len(records)))
+        selected_indices = tuple(range(len(vectors)))
     elif config.sampling_policy_id == _BEARING_BALANCED_RESAMPLE:
-        selected_indices = _bearing_balanced_indices(records, seed=config.random_seed)
+        selected_indices = _bearing_balanced_indices(vectors, seed=config.random_seed)
     else:
         raise XjtuSamplingPolicyError(
             f"unsupported XJTU sampling policy: {config.sampling_policy_id!r}"
@@ -66,14 +61,14 @@ def prepare_xjtu_model_fit_input(
         source_observation_ids=tuple(observation_ids[index] for index in selected_indices),
         sampling_policy_id=config.sampling_policy_id,
         random_seed=config.random_seed,
-        input_observation_count=len(records),
+        input_observation_count=len(vectors),
     )
 
 
 def _validate_context(
     config: ExperimentConfig,
     preprocessing_state: PreprocessingState,
-    characterization: XjtuCharacterizationData,
+    vectors: Sequence[VibrationFeatureVector],
 ) -> None:
     if config.dataset_id != _DATASET_ID:
         raise XjtuSamplingPolicyError(
@@ -98,25 +93,28 @@ def _validate_context(
                 f"preprocessing state {field_name} does not match experiment config"
             )
 
-    artifact_fields = (
-        ("split_id", characterization.split_id, config.split_id),
-        ("fold_id", characterization.fold_id, config.fold_id),
-        ("feature_set_id", characterization.feature_set_id, config.feature_set_id),
-        ("partition", characterization.partition, config.fit_partition.value),
-    )
-    for field_name, value, expected in artifact_fields:
-        if value != expected:
-            raise XjtuSamplingPolicyError(
-                f"XJTU characterization {field_name} does not match experiment config"
-            )
-
-    records = characterization.records
-    if not records:
-        raise XjtuSamplingPolicyError("XJTU sampling requires train observations")
-    if len(records) != preprocessing_state.observation_count:
+    if not vectors:
+        raise XjtuSamplingPolicyError("XJTU sampling requires train feature vectors")
+    if len(vectors) != preprocessing_state.observation_count:
         raise XjtuSamplingPolicyError(
-            "XJTU record count must match the preprocessing fit observation count"
+            "XJTU feature-vector count must match the preprocessing fit observation count"
         )
+
+    source_feature_names = tuple(vectors[0].feature_names)
+    for index, vector in enumerate(vectors):
+        if vector.feature_set_id != config.feature_set_id:
+            raise XjtuSamplingPolicyError(
+                f"XJTU feature vector {index} feature_set_id does not match experiment config"
+            )
+        if tuple(vector.feature_names) != source_feature_names:
+            raise XjtuSamplingPolicyError(
+                f"XJTU feature vector {index} feature schema does not match the first vector"
+            )
+        if vector.metadata.get("dataset_id") != _DATASET_ID:
+            raise XjtuSamplingPolicyError(
+                f"XJTU feature vector {index} must preserve dataset_id {_DATASET_ID!r}"
+            )
+        _acquisition_index(vector, index=index)
 
     split = get_xjtu_reference_split()
     if split.split_id != config.split_id:
@@ -130,57 +128,57 @@ def _validate_context(
         )
 
     expected_assets = set(fold.train)
-    observed_assets = {record.asset_id for record in records}
+    observed_assets = {vector.asset_id for vector in vectors}
     if observed_assets != expected_assets:
         missing = sorted(expected_assets - observed_assets)
         unexpected = sorted(observed_assets - expected_assets)
         raise XjtuSamplingPolicyError(
-            "XJTU sampling records must cover the configured train bearing runs; "
+            "XJTU sampling vectors must cover the configured train bearing runs; "
             f"missing={missing}, unexpected={unexpected}"
         )
 
 
 def _selected_feature_rows(
     source_feature_names: Sequence[str],
-    records: Sequence[XjtuCharacterizationRecord],
+    vectors: Sequence[VibrationFeatureVector],
     selected_features: Sequence[str],
 ) -> tuple[tuple[float, ...], ...]:
     source_names = tuple(source_feature_names)
-    if not source_names or len(source_names) != len(set(source_names)):
-        raise XjtuSamplingPolicyError(
-            "XJTU characterization feature_names must be non-empty and unique"
-        )
-
     positions = {feature_name: index for index, feature_name in enumerate(source_names)}
     missing = [feature_name for feature_name in selected_features if feature_name not in positions]
     if missing:
-        raise XjtuSamplingPolicyError(
-            f"XJTU characterization is missing selected feature(s): {missing}"
-        )
+        raise XjtuSamplingPolicyError(f"XJTU feature vectors are missing feature(s): {missing}")
 
     selected_positions = tuple(positions[feature_name] for feature_name in selected_features)
-    rows: list[tuple[float, ...]] = []
-    for row_index, record in enumerate(records):
-        if len(record.values) != len(source_names):
-            raise XjtuSamplingPolicyError(
-                f"XJTU characterization row {row_index} width must be {len(source_names)}, "
-                f"got {len(record.values)}"
-            )
-        rows.append(tuple(record.values[position] for position in selected_positions))
-    return tuple(rows)
+    return tuple(
+        tuple(vector.values[position] for position in selected_positions) for vector in vectors
+    )
+
+
+def _acquisition_index(vector: VibrationFeatureVector, *, index: int) -> int:
+    value = vector.metadata.get("acquisition_index")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise XjtuSamplingPolicyError(
+            f"XJTU feature vector {index} requires a positive integer acquisition_index"
+        )
+    return value
+
+
+def _observation_id(vector: VibrationFeatureVector) -> str:
+    return f"{vector.asset_id}:acquisition-{_acquisition_index(vector, index=0)}"
 
 
 def _bearing_balanced_indices(
-    records: Sequence[XjtuCharacterizationRecord],
+    vectors: Sequence[VibrationFeatureVector],
     *,
     seed: int,
 ) -> tuple[int, ...]:
     indices_by_asset: dict[str, list[int]] = defaultdict(list)
-    for index, record in enumerate(records):
-        indices_by_asset[record.asset_id].append(index)
+    for index, vector in enumerate(vectors):
+        indices_by_asset[vector.asset_id].append(index)
 
     asset_ids = sorted(indices_by_asset)
-    target_size = len(records)
+    target_size = len(vectors)
     base_quota, remainder = divmod(target_size, len(asset_ids))
     randomizer = random.Random(seed)
     remainder_order = asset_ids.copy()

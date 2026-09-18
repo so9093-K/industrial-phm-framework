@@ -245,9 +245,14 @@ feature와 두 standard deviation을 제외한 14개 subset을 비교합니다. 
 높지만 정의가 같지 않으므로 유지합니다.
 
 첫 reference semantics는 모든 `fold-1/train` acquisition을 사용하는 `all-train-observations`입니다. 이는 healthy
-label이 아닙니다. Scaling은 identity와 train-fitted global robust scaling, sampling은 acquisition-uniform과
-bearing-balanced를 candidate dimension으로 둡니다. 정확한 8개 factorial 조합, model parameter와 random seed는
-packaged `ExperimentConfig v1`이 소유합니다.
+label이 아닙니다. Sampling은 acquisition-uniform과 bearing-balanced resampling을 비교합니다.
+
+Isolation Forest candidate v2에서는 scaling을 identity로 고정합니다. 현재 robust scaling은 feature별 median
+subtraction과 positive IQR division으로 이루어진 affine transform이며, axis-aligned random split을 사용하는 첫
+Isolation Forest baseline에서 별도의 model hypothesis로 유지할 근거가 약합니다. Robust scaling capability 자체는
+`PreprocessingState`에 남겨 이후 distance/gradient-sensitive model에서 재사용할 수 있습니다. 따라서 active
+candidate는 sampling 2개 × feature subset 2개의 4개 조합이며, 정확한 조합·model parameter·random seed는 packaged
+`ExperimentConfig v1` instance가 소유합니다.
 
 현재 summary의 run/condition distribution, correlation, lifecycle thirds와 run-length evidence만으로 이 candidate
 dimension을 정의할 수 있으므로 characterization v2는 추가하지 않습니다. Model score를 해석할 때 새로운 통계가

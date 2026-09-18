@@ -189,9 +189,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU-SY condition-stratified 5-fold bearing-run split과 leakage contract
 - `vibration-statistical-v1` feature, split-aware characterization artifact와 interactive analysis
 - `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
-- dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` 8개 factorial candidate
+- dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` Isolation Forest 4개 active candidate
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
-- dataset-neutral `ModelFitInput`과 XJTU acquisition-uniform/bearing-balanced sampling policy
+- dataset-neutral `ModelFitInput`과 production feature vector 기반 XJTU sampling policy
 
 ### Current
 

@@ -18,7 +18,7 @@
 - XJTU-SY condition-stratified 5-fold bearing-run split과 leakage-aware experiment protocol.
 - acquisition별 `vibration-statistical-v1` feature와 split-aware characterization artifact workflow.
 - generated characterization artifact를 소비하는 optional marimo/Matplotlib research tooling environment.
-- dataset-neutral `ExperimentConfig v1`과 XJTU fold-1 Isolation Forest 8개 factorial candidate.
+- dataset-neutral `ExperimentConfig v1`과 XJTU fold-1 Isolation Forest candidate configuration.
 - train provenance와 feature order를 고정하는 identity/robust `PreprocessingState`.
 
 ### Changed
@@ -31,6 +31,8 @@
   다른 fold와 holdout test를 development decision에 사용하지 않도록 protocol을 명확화.
 - 정확한 experiment parameter와 seed는 version-controlled config가, train-fitted scaling statistics는
   `PreprocessingState`가 소유하도록 Source of Truth를 분리.
+- XJTU model-fit sampling이 research characterization artifact가 아니라 production `VibrationFeatureVector`를
+  직접 소비하도록 경계를 정리하고, Isolation Forest active candidate를 sampling × feature subset 4개 v2로 축소.
 
 ### Fixed
 
