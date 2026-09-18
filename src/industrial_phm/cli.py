@@ -50,10 +50,10 @@ from industrial_phm.experiments.xjtu_cross_fold import run_xjtu_cross_fold_robus
 from industrial_phm.experiments.xjtu_holdout import run_xjtu_fold_1_holdout_evaluation
 from industrial_phm.experiments.xjtu_lstm import get_xjtu_lstm_development_configuration
 from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_development_evaluation
-from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
 from industrial_phm.experiments.xjtu_reference_comparison import (
     run_xjtu_fold_1_reference_comparison,
 )
+from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
 from industrial_phm.experiments.xjtu_validation import run_xjtu_fold_1_validation
 from industrial_phm.features import VibrationFeatureError
 
