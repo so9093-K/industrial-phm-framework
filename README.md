@@ -243,7 +243,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - selection·calibration 없이 finalized configuration 하나만 소비하는 `fold-1` holdout evaluation 실행 경로
 - `fold-1` holdout test 1회 실행과 development 결과와의 대조 evidence
 - folds 2~5 test partition을 한 번에 실행하는 post-holdout cross-fold robustness 경로와 evidence
-- verified IMS source profile과 canonical mapping을 기준으로 확인한 feature 계층의 cross-dataset portability와 XJTU edge 가정 구분
+- verified IMS source profile과 canonical mapping을 기준으로 확인한 feature 계층의 cross-dataset portability와 XJTU dataset-specific boundary 가정 구분
 - IMS Set 2 train → Set 3 README-documented evaluation으로 고정한 single-channel cross-test experiment protocol v1
 - PHM/ML 개발자가 source → feature → preprocessing → reference/sampling → model → scoring/evaluation lineage를
   effective configuration·population flow·provenance와 함께 검토하는 pipeline transparency UX baseline 및
@@ -261,9 +261,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - source row lineage, contiguous sequence와 asset·partition boundary, length/stride와 right-edge alignment를 보존하는
   dataset-neutral sequence-window construction contract
 - fold-1 complete train preprocessing, bearing별 early-third reference와 validation acquisition을 공통 sequence
-  contract에 연결하고 3,246→1,084→1,021 및 2,818→2,797 population lineage를 검증하는 XJTU edge
+  contract에 연결하고 3,246→1,084→1,021 및 2,818→2,797 population lineage를 검증하는 XJTU dataset-specific boundary
 - complete train vectors에서 robust preprocessing state를 직접 fit하고 1,021 reference windows로 deterministic
-  PyTorch LSTM Autoencoder를 학습하는 canonical XJTU execution path와 final-epoch training provenance
+  PyTorch LSTM Autoencoder를 학습하는 protocol-defined XJTU execution path와 final-epoch training provenance
 - immutable sequence input과 reconstruction의 schema·window identity를 대조하고, robust-scaled feature space의
   feature별 시간축 MSE와 right-edge acquisition-aligned window score를 생성하는 reconstruction scoring contract
 - LSTM validation score를 original full-run lifecycle thirds에 정렬하고 bearing별 Spearman ρ,

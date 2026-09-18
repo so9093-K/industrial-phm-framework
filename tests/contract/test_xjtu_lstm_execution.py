@@ -47,7 +47,7 @@ def _vectors(partition: str) -> tuple[VibrationFeatureVector, ...]:
     return tuple(vectors)
 
 
-def test_canonical_xjtu_lstm_execution_connects_fit_and_validation_scoring() -> None:
+def test_xjtu_lstm_execution_connects_fit_and_validation_scoring() -> None:
     train = _vectors("train")
     validation = _vectors("validation")
 

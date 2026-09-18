@@ -79,9 +79,9 @@
   dataset-neutral sequence contract.
 - XJTU fold-1 complete train을 train-fitted preprocessing state로 transform한 뒤 bearing별 early-third reference
   1,084 acquisitions를 1,021 fit windows로, validation 2,818 acquisitions를 2,797 scoring windows로 구성하는
-  dataset edge와 frozen population validation.
+  dataset-specific boundary와 frozen population validation.
 - XJTU LSTM protocol v1의 단일 packaged configuration과 complete-train preprocessing fit부터 sequence construction,
-  deterministic CPU LSTM Autoencoder fit까지 연결하는 canonical execution path.
+  deterministic CPU LSTM Autoencoder fit까지 연결하는 protocol-defined execution path.
 - Immutable windows를 float32 tensor로 변환하고 fixed 50 epochs의 Adam, global-norm gradient clipping과 final-epoch
   model state를 적용하며 runtime·seed·loss·parameter count provenance를 보존하는 LSTM model contract.
 - Sequence input과 reconstruction의 schema·window identity를 정확히 결합하고, 실제 model runtime이 소비한

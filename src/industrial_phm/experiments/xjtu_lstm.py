@@ -1,4 +1,4 @@
-"""Frozen XJTU LSTM configuration and canonical model-fitting execution path."""
+"""Frozen XJTU LSTM configuration and protocol-defined model-fitting execution path."""
 
 from __future__ import annotations
 

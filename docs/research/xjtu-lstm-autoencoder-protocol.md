@@ -245,7 +245,7 @@ Lifecycle third boundary는 source acquisition count `N`에서 계산합니다. 
 
 Summary는 bearing별 statistic의 동일가중 평균을 사용합니다. Window pooling이나 run-length weighting을 model
 selection criterion으로 사용하지 않습니다. Undefined statistic, missing window, duplicate score alignment 또는
-non-finite residual은 canonical execution을 실패시킵니다.
+non-finite residual이 발생하면 protocol execution을 실패로 처리합니다.
 
 Isolation Forest와의 대조는 descriptive retrospective comparison입니다. 두 경로는 split, feature formula,
 reference assumption과 bearing-first statistic을 공유하지만 LSTM은 robust scaling과 sequence windows를
@@ -294,7 +294,7 @@ Numerical evidence 전에 다음 순서를 지킵니다.
 ```text
 protocol v1 merge
   -> Python 3.14 / PyTorch 2.14 CPU compatibility contract 유지
-  -> dataset-neutral sequence/window contract와 XJTU edge 구현
+  -> dataset-neutral sequence/window contract와 XJTU dataset-specific boundary 구현
   -> frozen configuration과 deterministic LSTM Autoencoder fit/reconstruction contract 구현
   -> reconstruction-error score와 per-feature residual contract 구현
   -> XJTU retrospective development evaluator 구현
@@ -306,7 +306,7 @@ protocol v1 merge
 
 LSTM model implementation의 acceptance boundary는 다음과 같습니다.
 
-- canonical XJTU execution이 complete train feature vectors에서 `PreprocessingState`를 직접 fit하고 같은 population을
+- protocol-defined XJTU execution이 complete train feature vectors에서 `PreprocessingState`를 직접 fit하고 같은 population을
   sequence construction에 전달
 - immutable reference windows를 model 경계 안에서 CPU float32 tensor로 변환
 - encoder/latent/decoder architecture와 fixed 50 epochs, Adam, global-norm clipping, final-epoch state 적용
