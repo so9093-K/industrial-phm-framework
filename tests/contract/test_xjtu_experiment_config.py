@@ -39,7 +39,7 @@ def test_packaged_xjtu_candidates_cover_the_full_factorial_matrix() -> None:
     )
     expected_dimensions = set(
         product(
-            ("acquisition-uniform", "bearing-balanced"),
+            ("acquisition-uniform-v1", "bearing-balanced-resample-v1"),
             (all_features, without_standard_deviation),
             (ScalingStrategy.IDENTITY, ScalingStrategy.ROBUST),
         )

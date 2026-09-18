@@ -26,7 +26,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "acquisition-uniform"
+sampling_policy_id = "acquisition-uniform-v1"
 scaling_strategy = "identity"
 model_family = "isolation-forest"
 random_seed = 42
@@ -64,7 +64,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "acquisition-uniform"
+sampling_policy_id = "acquisition-uniform-v1"
 scaling_strategy = "robust"
 model_family = "isolation-forest"
 random_seed = 42
@@ -100,7 +100,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "acquisition-uniform"
+sampling_policy_id = "acquisition-uniform-v1"
 scaling_strategy = "identity"
 model_family = "isolation-forest"
 random_seed = 42
@@ -136,7 +136,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "acquisition-uniform"
+sampling_policy_id = "acquisition-uniform-v1"
 scaling_strategy = "robust"
 model_family = "isolation-forest"
 random_seed = 42
@@ -174,7 +174,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "bearing-balanced"
+sampling_policy_id = "bearing-balanced-resample-v1"
 scaling_strategy = "identity"
 model_family = "isolation-forest"
 random_seed = 42
@@ -212,7 +212,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "bearing-balanced"
+sampling_policy_id = "bearing-balanced-resample-v1"
 scaling_strategy = "robust"
 model_family = "isolation-forest"
 random_seed = 42
@@ -248,7 +248,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "bearing-balanced"
+sampling_policy_id = "bearing-balanced-resample-v1"
 scaling_strategy = "identity"
 model_family = "isolation-forest"
 random_seed = 42
@@ -284,7 +284,7 @@ selected_features = [
   "feature.Vertical_vibration_signals.excess_kurtosis",
 ]
 reference_strategy = "all-train-observations"
-sampling_policy_id = "bearing-balanced"
+sampling_policy_id = "bearing-balanced-resample-v1"
 scaling_strategy = "robust"
 model_family = "isolation-forest"
 random_seed = 42
