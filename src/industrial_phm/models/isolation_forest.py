@@ -112,6 +112,13 @@ def fit_isolation_forest(
         raise IsolationForestError(
             "Isolation Forest max_features cannot exceed the model-fit feature count"
         )
+    if (
+        isinstance(parameters.max_samples, int)
+        and parameters.max_samples > model_input.fit_observation_count
+    ):
+        raise IsolationForestError(
+            "Isolation Forest max_samples cannot exceed the model-fit observation count"
+        )
 
     estimator = cast(
         _IsolationForestEstimator,

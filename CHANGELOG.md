@@ -43,6 +43,7 @@
 
 ### Fixed
 
+- Isolation Forest integer `max_samples`가 model-fit observation 수를 초과할 때 estimator가 silently fallback하지 않도록 fail-fast.
 - `CanonicalTimeSeries`가 mutable input container를 그대로 보관해 생성 이후 invariant가 깨질 수 있던 문제.
 - dataset acquisition User-Agent가 package version과 별도의 값을 사용하던 중복 version 문제.
 - `data inspect`가 empty directory를 usable source처럼 성공 처리하던 동작.

@@ -127,6 +127,13 @@ def test_isolation_forest_rejects_integer_max_features_above_schema_width() -> N
         fit_isolation_forest(config, _fit_input(config))
 
 
+def test_isolation_forest_rejects_integer_max_samples_above_fit_count() -> None:
+    config = _config({**_PARAMETERS, "max_samples": 42})
+
+    with pytest.raises(IsolationForestError, match="observation count"):
+        fit_isolation_forest(config, _fit_input(config))
+
+
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
