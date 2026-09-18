@@ -37,6 +37,10 @@ from industrial_phm.experiments.ims_model_input import (
     prepare_ims_model_fit_input,
     prepare_ims_model_scoring_input,
 )
+from industrial_phm.experiments.result_inspection import (
+    ExperimentResultInspectionError,
+    inspect_experiment_result,
+)
 from industrial_phm.experiments.xjtu import (
     XjtuExperimentProtocolError,
     XjtuSplitFold,
@@ -150,6 +154,7 @@ __all__ = [
     "ExperimentConfig",
     "ExperimentConfigError",
     "ExperimentContext",
+    "ExperimentResultInspectionError",
     "FitPartition",
     "ImsBearingCrossTestEvidence",
     "ImsCrossTestEvaluationError",
@@ -210,6 +215,7 @@ __all__ = [
     "get_xjtu_reference_hypotheses",
     "get_xjtu_reference_split",
     "ims_experiment_context",
+    "inspect_experiment_result",
     "late_vs_middle_rank_probability",
     "lifecycle_segment",
     "load_experiment_configs",

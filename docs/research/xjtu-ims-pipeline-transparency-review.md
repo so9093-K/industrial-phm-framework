@@ -1,10 +1,10 @@
 # XJTU / IMS Developer Pipeline Transparency Review
 
-상태: XJTU finalized fold-1 holdout와 IMS fixed cross-test evidence 기반 검토 완료
+상태: XJTU finalized fold-1 holdout와 IMS fixed cross-test evidence 검토 및 inspection 구현 완료
 
 이 문서는 두 numerical experiment의 성능을 합산하거나 순위를 비교하지 않습니다. 목적은 이미 실행된 두 경로를
 같은 developer pipeline stage로 읽었을 때 공통 contract와 dataset-specific 의미가 명확하게 구분되는지 확인하고,
-다음 inspection UX에 필요한 정보만 식별하는 것입니다.
+schema별 inspection UX가 제공해야 할 정보를 식별하고 구현 경계를 고정하는 것입니다.
 
 검토한 authoritative result는 다음과 같습니다.
 
@@ -78,17 +78,17 @@ UX는 source unit과 canonical/model observation unit을 함께 표시해야 합
 | One-time scope 상태 | protocol을 읽어야 `consumed` 의미 확인 가능 | artifact에 one-time 의미가 있으나 상태 vocabulary는 없음 | evaluation scope를 `consumed`로 표시 |
 | Code revision assurance | 선언된 revision만 기록 | 선언된 revision만 기록 | 우선 `declared code revision`으로 표시하고 checkout 대조 여부를 별도 상태로 구분 |
 
-따라서 현재 질문인 “개발자가 raw JSON이나 연구 문서를 읽지 않고도 두 실행의 차이를 이해할 수 있는가?”에 대한
-답은 아직 `아니요`입니다. IMS artifact는 대부분의 정보를 한 문서에 담지만 canonicalization cardinality와 channel
-lineage가 부족하고, XJTU artifact는 effective config와 capability를 여러 Source of Truth에서 조합해야 합니다.
+Artifact만 단독으로 읽으면 IMS의 canonicalization cardinality와 channel lineage, XJTU의 effective config와
+capability를 확인하기 어렵습니다. `experiment inspect`가 result와 packaged Source of Truth를 조합해 이 정보를
+같은 stage 순서로 표시합니다.
 
 이 결론은 기존 canonical evidence를 새 schema로 다시 쓰라는 의미가 아닙니다. 이미 기록된 result는 당시 실행의
 authoritative evidence로 유지하고, inspection layer가 result schema와 packaged config/contract에서 필요한 사실을
 읽어 같은 표시 순서로 조합하는 편이 provenance를 보존합니다.
 
-## 다음 inspection UX의 최소 범위
+## 구현된 inspection UX
 
-다음 구현은 `industrial-phm experiment inspect <result.json>` 형태의 read-only summary가 적절합니다.
+`industrial-phm experiment inspect <result.json>`은 다음 read-only summary 계약을 구현합니다.
 
 1. `xjtu-fold-1-holdout-result-v1`과 `ims-single-channel-cross-test-result-v1`을 각각 명시적으로 식별합니다.
 2. schema별 reader가 기존 result와 packaged config를 검증하고 effective facts를 해석합니다.
@@ -100,9 +100,16 @@ authoritative evidence로 유지하고, inspection layer가 result schema와 pac
 7. artifact의 code revision은 선언 provenance로 표시하고, 실행 checkout과 자동 대조한 기록이 없으면 attested로
    표현하지 않습니다.
 
-첫 구현에는 두 schema의 작은 reader와 text summary면 충분합니다. 세 번째 result schema와 두 번째 model family가
-실제로 반복되는 필드를 제공하기 전에는 generic artifact framework, universal result schema 또는 persistent pipeline
-state를 도입하지 않습니다.
+두 schema는 각각 작은 reader가 소유하며 기존 canonical result는 변경하지 않습니다. 세 번째 result schema와 두
+번째 model family가 실제로 반복되는 필드를 제공하기 전까지 이 경계를 유지합니다.
+
+```bash
+uv run industrial-phm experiment inspect \
+  docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json
+
+uv run industrial-phm experiment inspect \
+  docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json
+```
 
 ## LSTM Autoencoder로 이어지는 기준
 

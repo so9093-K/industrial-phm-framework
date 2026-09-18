@@ -4,6 +4,43 @@ from types import SimpleNamespace
 import pytest
 
 import industrial_phm.cli as cli
+from industrial_phm.experiments.result_inspection import ExperimentResultInspectionError
+
+
+def test_experiment_inspect_prints_read_only_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = tmp_path / "result.json"
+    observed: list[Path] = []
+
+    def fake_inspect(received_result: Path) -> str:
+        observed.append(received_result)
+        return "Experiment Result\n  Status: consumed"
+
+    monkeypatch.setattr(cli, "inspect_experiment_result", fake_inspect)
+
+    exit_code = cli.main(["experiment", "inspect", str(result)])
+
+    assert exit_code == 0
+    assert observed == [result]
+    assert capsys.readouterr().out == "Experiment Result\n  Status: consumed\n"
+
+
+def test_experiment_inspect_reports_invalid_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_inspect(result: Path) -> str:
+        raise ExperimentResultInspectionError(f"unsupported result: {result}")
+
+    monkeypatch.setattr(cli, "inspect_experiment_result", fake_inspect)
+
+    exit_code = cli.main(["experiment", "inspect", "unknown.json"])
+
+    assert exit_code == 1
+    assert "experiment result inspection failed: unsupported result" in capsys.readouterr().err
 
 
 def test_experiment_validate_routes_to_xjtu_fold_1_workflow(

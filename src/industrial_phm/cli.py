@@ -37,6 +37,10 @@ from industrial_phm.experiments.ims import (
     get_ims_cross_test_configuration,
 )
 from industrial_phm.experiments.ims_cross_test import run_ims_cross_test_evaluation
+from industrial_phm.experiments.result_inspection import (
+    ExperimentResultInspectionError,
+    inspect_experiment_result,
+)
 from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     characterize_xjtu_source,
@@ -172,6 +176,17 @@ def build_parser() -> argparse.ArgumentParser:
         dest="experiment_command",
         required=True,
     )
+    experiment_inspect = experiment_commands.add_parser(
+        "inspect",
+        help="show a read-only pipeline summary for a supported result artifact",
+    )
+    experiment_inspect.add_argument(
+        "result",
+        type=Path,
+        help="existing XJTU holdout or IMS cross-test result JSON",
+    )
+    experiment_inspect.set_defaults(handler=_run_experiment_inspect)
+
     experiment_validate = experiment_commands.add_parser(
         "validate",
         help="execute frozen development candidates against a validation partition",
@@ -658,6 +673,17 @@ def _run_experiment_validate(args: argparse.Namespace) -> int:
     print(f"result: {args.output}")
     if args.score_trajectory_dir is not None:
         print(f"score_trajectory_dir: {args.score_trajectory_dir}")
+    return 0
+
+
+def _run_experiment_inspect(args: argparse.Namespace) -> int:
+    try:
+        summary = inspect_experiment_result(args.result)
+    except (OSError, ExperimentResultInspectionError) as error:
+        print(f"experiment result inspection failed: {error}", file=sys.stderr)
+        return 1
+
+    print(summary)
     return 0
 
 
