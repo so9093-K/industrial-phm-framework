@@ -156,6 +156,9 @@ version-controlled experiment configuration으로 승격합니다.
 7. test trajectory를 반복해서 관찰해 feature formula, feature subset, reference-data rule을 바꾸는 행위도
    data-derived selection으로 취급합니다.
 8. Experiment configuration finalization 전에는 `fold-2`~`fold-5`를 추가 development data로 사용하지 않습니다.
+9. Data-derived preprocessing state는 **configured train partition 전체**에서 한 번 fit하며, model-fit sampling
+   policy는 그 뒤에 적용합니다. Sampling policy는 `PreprocessingState`를 다시 fit하거나 바꾸지 않습니다.
+   자세한 의미는 [`xjtu-feature-characterization.md`](xjtu-feature-characterization.md) §4를 따릅니다.
 
 특히 `전체 데이터 feature 통계 계산 -> split` 순서의 구현은 금지합니다. Architecture 문서의
 `전처리/특징 생성 -> 데이터 분할` 도식은 책임 흐름을 나타내며 learned state를 전체 데이터에 fit하라는 의미가
@@ -285,13 +288,18 @@ Lifecycle third별 ρ는 `early -0.14 / middle -0.70 / late +0.60`입니다. 즉
 bearing(`+0.40`, `+0.40`)과 같은 양의 방향을 보이고, full-run ρ의 부호는 middle third가 결정합니다.
 Decile median anomaly score도 `0.514 → 0.447`까지 완만히 감소한 뒤 `0.482`로 다시 상승합니다.
 
-**2. 원인은 condition이 아니라 reference distribution에서의 baseline 위치로 보입니다.**
+**2. operating condition만으로는 설명되지 않습니다.**
 
 Bearing3_2는 첫 decile부터 median `0.514`로 시작합니다. 이는 Bearing1_2/Bearing2_2가 **lifecycle 마지막**에
 도달하는 수준(`0.552`, `0.528`)에 가깝습니다. 반면 같은 `40Hz10kN`의 train bearing인 Bearing3_3과 Bearing3_4는
-`0.35` 부근에서 시작합니다. 따라서 `40Hz10kN`이 score를 전반적으로 올린다는 설명은 현재 evidence와 맞지 않고,
-Bearing3_2가 fitted reference에서 처음부터 희소한 영역에 있다는 설명이 관찰과 일치합니다. 조건이 다른
-Bearing1_4도 in-sample에서 음의 ρ(`-0.21`)를 보이므로 방향 역전은 `40Hz10kN` 고유 현상이 아닙니다.
+`0.35` 부근에서 시작합니다. 따라서 `40Hz10kN`이 score를 전반적으로 올린다는 condition-only 설명은 현재
+evidence와 맞지 않습니다. 조건이 다른 Bearing1_4도 in-sample에서 음의 ρ(`-0.21`)를 보이므로 방향 역전은
+`40Hz10kN` 고유 현상도 아닙니다.
+
+현재 evidence로 확정할 수 있는 것은 여기까지입니다. 즉 **Bearing3_2가 fitted reference에서 lifecycle 초기부터
+높은 anomaly-score 위치에 있다**는 관찰과, condition-only 설명이 이를 설명하지 못한다는 것입니다. 왜 그 위치에
+있는지는 bearing-specific initial state, feature distribution 차이, 초기 latent damage 등 여러 설명이 남아
+있으므로 이 문서에서 하나의 원인으로 좁히지 않습니다.
 
 **3. 현재 evaluation criterion은 sharp onset에 거의 반응하지 않습니다.**
 

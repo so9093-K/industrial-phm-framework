@@ -113,6 +113,21 @@ Characterization에서는 pooled 결과만 보고 결론을 내리지 않고 최
 봅니다. 이후 Isolation Forest training에서도 모든 acquisition을 동일 가중할지, bearing-balanced sampling을
 사용할지 별도 experiment decision이 필요합니다.
 
+### Preprocessing fit population과 model-fit sampling population은 의도적으로 다릅니다
+
+Scaling statistics는 configured train partition **전체**에서 한 번 fit하고, model-fit sampling policy는 그
+뒤에 적용합니다. 따라서 robust scaling과 bearing-balanced resampling을 함께 사용하면 median/IQR statistics는
+원래 acquisition-weighted train distribution을 유지하고, 그 위에서 model만 bearing-balanced resampled
+distribution으로 fit됩니다. 행 개수는 같아도 확률 질량이 다릅니다. 짧은 run은 model-fit population에서
+replication되고 긴 run은 downsampling되지만, scaler의 median/IQR에는 원래 acquisition frequency 그대로
+반영됩니다.
+
+Sampling policy는 `PreprocessingState`를 다시 fit하거나 바꾸지 않습니다. 이는 구현 부작용이 아니라 고정된
+계약이며, 같은 train rows에 대해 sampling policy가 달라도 동일한 center/scale이 나와야 한다는 사실을
+`test_preprocessing_fit_is_independent_of_model_fitting_sampling_policy`가 고정합니다. Sampling policy를
+scaling statistics에도 반영하려면 그것은 별도의 preprocessing 결정이므로 새 `ExperimentConfig` version으로
+기록합니다.
+
 ## 5. Normalized lifecycle은 retrospective analysis 전용
 
 서로 다른 길이의 run을 시각적으로 비교하기 위해 failure endpoint를 `1.0`으로 둔 normalized lifecycle axis를
