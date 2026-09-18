@@ -31,6 +31,7 @@ from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     characterize_xjtu_source,
 )
+from industrial_phm.experiments.xjtu_holdout import run_xjtu_fold_1_holdout_evaluation
 from industrial_phm.experiments.xjtu_reference_comparison import (
     run_xjtu_fold_1_reference_comparison,
 )
@@ -216,6 +217,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA for the exact execution code",
     )
     experiment_reference.set_defaults(handler=_run_experiment_reference_compare)
+
+    experiment_holdout = experiment_commands.add_parser(
+        "holdout",
+        help="evaluate the finalized fold-1 configuration on the holdout test partition once",
+    )
+    experiment_holdout.add_argument("dataset_id")
+    experiment_holdout.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by its Domain Adapter",
+    )
+    experiment_holdout.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated holdout result JSON",
+    )
+    experiment_holdout.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_holdout.set_defaults(handler=_run_experiment_holdout)
 
     return parser
 
@@ -617,5 +642,52 @@ def _run_experiment_reference_compare(args: argparse.Namespace) -> int:
     print(f"decision_rule_id: {result.decision_rule_id}")
     print(f"selected_reference_strategy: {result.selected_reference_strategy}")
     print(f"selected_experiment_id: {result.selected_experiment_id}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_holdout(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"holdout evaluation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        result = run_xjtu_fold_1_holdout_evaluation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"holdout evaluation failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {result.dataset_id}")
+    print(f"experiment_id: {result.experiment_id}")
+    print(f"fold_id: {result.fold_id}")
+    print(f"partition: {result.partition}")
+    print(f"reference_strategy: {result.reference_strategy}")
+    print(
+        f"populations: complete={result.complete_train_observation_count} "
+        f"reference={result.reference_observation_count} "
+        f"fit={result.model_fit_observation_count}"
+    )
+    for bearing in result.bearing_results:
+        print(
+            f"  {bearing.asset_id} ({bearing.operating_condition}) "
+            f"n={bearing.full_run_observation_count} "
+            f"rho={bearing.acquisition_order_spearman_rho} "
+            f"late_vs_middle={bearing.late_vs_middle_rank_probability}"
+        )
+    print(f"mean_rho: {result.mean_bearing_acquisition_order_spearman_rho}")
+    print(f"mean_late_vs_middle: {result.mean_bearing_late_vs_middle_rank_probability}")
     print(f"result: {args.output}")
     return 0

@@ -34,6 +34,9 @@
 - fold-1 development가 확정한 단일 `xjtu-sy-iforest-fold-1-finalized-v1` experiment configuration과
   축 drift를 로드 시점에 차단하는 검증. 비교용 v2/v3 manifest는 역사적 evidence로 보존합니다.
 
+- `experiment holdout`으로 실행하는 fold-1 holdout evaluation 경로. finalized configuration 하나만
+  소비하며 candidate/reference selection, threshold calibration, tunable parameter가 없습니다.
+
 ### Changed
 
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를

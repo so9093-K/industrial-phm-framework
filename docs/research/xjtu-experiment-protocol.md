@@ -445,6 +445,34 @@ H0/H1 결정을 마쳤으므로 development 비교 결과를 **정확히 하나�
 Finalized configuration이 존재한다는 사실 자체가 holdout 평가를 승인하지는 않습니다. `fold-1 test`는 별도
 holdout execution 경로가 이 configuration만 소비하도록 구현된 뒤에 한 번 엽니다.
 
+
+### Fold-1 holdout evaluation
+
+Holdout 평가 경로는 finalized configuration 하나만 소비합니다. Candidate 비교, reference 비교, threshold
+calibration, tunable parameter가 이 경로에 존재하지 않습니다. 결과를 보고 configuration을 바꾸고 싶다면 새
+protocol/experiment version으로 기록하며, 같은 test 결과를 변경된 configuration의 unbiased holdout evidence로
+다시 사용하지 않습니다.
+
+```bash
+uv run industrial-phm experiment holdout xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json \
+  --code-revision "$(git rev-parse HEAD)"
+```
+
+기록하는 통계는 development에서 사용한 두 가지입니다.
+
+- bearing별 full-run acquisition-order Spearman ρ와 bearing-equal mean
+- bearing별 `late_vs_middle_rank_probability`와 bearing-equal mean
+
+Holdout에는 selection이 없으므로 둘 사이에 primary/secondary 구분을 두지 않고 **둘 다 기술적으로 기록만**
+합니다. 한쪽을 빼면 development evidence와 비교할 수 없으므로 둘을 함께 남깁니다. 두 통계 모두 retrospective
+lifecycle shape를 설명하는 값이며 fault-onset accuracy, Health Indicator monotonicity, prognostic
+performance가 아닙니다.
+
+Result artifact에는 experiment/config provenance, code revision, split/fold/partition, 그리고 complete train /
+reference-eligible / model-fit population count를 함께 보존합니다.
+
 ## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는

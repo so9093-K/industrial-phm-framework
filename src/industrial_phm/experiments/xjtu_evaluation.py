@@ -171,6 +171,81 @@ def _evaluate_bearing(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class XjtuBearingScoreSeries:
+    """One bearing run's anomaly scores in ``1..N`` acquisition order."""
+
+    asset_id: str
+    operating_condition: str
+    acquisition_indices: tuple[int, ...]
+    scores: tuple[float, ...]
+
+    @property
+    def observation_count(self) -> int:
+        """Return how many acquisitions this run contributes."""
+        return len(self.scores)
+
+
+def align_xjtu_bearing_scores(
+    vectors: Sequence[VibrationFeatureVector],
+    anomaly_scores: AnomalyScores,
+) -> tuple[XjtuBearingScoreSeries, ...]:
+    """Align scores back to their bearing runs in lifecycle order.
+
+    Pure alignment shared by every partition. It does not decide which bearing runs belong to a
+    partition: callers validate partition membership before scoring.
+    """
+    score_by_observation_id = dict(
+        zip(anomaly_scores.source_observation_ids, anomaly_scores.scores, strict=True)
+    )
+    grouped: dict[str, list[tuple[int, str, float]]] = defaultdict(list)
+    seen: set[str] = set()
+
+    for vector_index, vector in enumerate(vectors):
+        acquisition_index = _positive_acquisition_index(vector, vector_index=vector_index)
+        observation_id = f"{vector.asset_id}:acquisition-{acquisition_index}"
+        if observation_id in seen:
+            raise XjtuDevelopmentEvaluationError(
+                f"XJTU feature vectors must have unique source observation identities; "
+                f"{observation_id!r} repeats"
+            )
+        seen.add(observation_id)
+        if observation_id not in score_by_observation_id:
+            raise XjtuDevelopmentEvaluationError(
+                f"anomaly scores are missing observation {observation_id!r}"
+            )
+        grouped[vector.asset_id].append(
+            (
+                acquisition_index,
+                _operating_condition(vector, vector_index=vector_index),
+                score_by_observation_id[observation_id],
+            )
+        )
+
+    if seen != set(score_by_observation_id):
+        raise XjtuDevelopmentEvaluationError(
+            "anomaly scores must align exactly with the supplied XJTU feature vectors"
+        )
+
+    series: list[XjtuBearingScoreSeries] = []
+    for asset_id in sorted(grouped):
+        ordered = sorted(grouped[asset_id], key=lambda item: item[0])
+        conditions = {condition for _, condition, _ in ordered}
+        if len(conditions) != 1:
+            raise XjtuDevelopmentEvaluationError(
+                f"bearing {asset_id} must have exactly one operating_condition"
+            )
+        series.append(
+            XjtuBearingScoreSeries(
+                asset_id=asset_id,
+                operating_condition=next(iter(conditions)),
+                acquisition_indices=tuple(index for index, _, _ in ordered),
+                scores=tuple(score for _, _, score in ordered),
+            )
+        )
+    return tuple(series)
+
+
 def spearman_rho(
     left: Sequence[int | float],
     right: Sequence[int | float],
