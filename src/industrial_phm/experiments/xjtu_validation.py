@@ -24,6 +24,13 @@ from industrial_phm.experiments.xjtu_model_input import (
     fit_xjtu_preprocessing_and_prepare_model_input,
     prepare_xjtu_model_scoring_input,
 )
+from industrial_phm.experiments.xjtu_score_trajectory import (
+    XjtuCandidateScoreTrajectory,
+    XjtuScoreTrajectoryReport,
+    build_xjtu_candidate_score_trajectory,
+    write_xjtu_score_trajectory_summary,
+    write_xjtu_score_trajectory_table,
+)
 from industrial_phm.features import VibrationFeatureVector, iter_vibration_features
 from industrial_phm.models import FittedIsolationForest, fit_isolation_forest
 
@@ -31,7 +38,10 @@ XJTU_FOLD_1_VALIDATION_SCHEMA_ID = "xjtu-fold-1-validation-result-v1"
 XJTU_CANDIDATE_SELECTION_RULE_ID = "max-mean-rho-parsimony-acquisition-uniform-v1"
 _FOLD_ID = "fold-1"
 _PARTITION: Literal["validation"] = "validation"
+_FIT_PARTITION: Literal["train"] = "train"
 _ACQUISITION_UNIFORM = "acquisition-uniform-v1"
+_SCORE_TRAJECTORY_TABLE = "xjtu-sy-iforest-fold-1-score-trajectory-v1.csv"
+_SCORE_TRAJECTORY_SUMMARY = "xjtu-sy-iforest-fold-1-score-trajectory-summary-v1.json"
 _FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -73,6 +83,7 @@ class XjtuFoldValidationResult:
     candidates: tuple[XjtuCandidateValidationResult, ...]
     selected_experiment_id: str
     selection_rule_id: str = XJTU_CANDIDATE_SELECTION_RULE_ID
+    score_trajectories: tuple[XjtuCandidateScoreTrajectory, ...] = ()
 
 
 def run_xjtu_fold_1_validation(
@@ -80,8 +91,13 @@ def run_xjtu_fold_1_validation(
     output_path: Path,
     *,
     code_revision: str,
+    score_trajectory_dir: Path | None = None,
 ) -> XjtuFoldValidationResult:
-    """Execute the four frozen candidates against fold-1 validation and write JSON evidence."""
+    """Execute the four frozen candidates against fold-1 validation and write JSON evidence.
+
+    ``score_trajectory_dir`` additionally writes development-only per-observation score
+    trajectories. It never changes the fit, the scores, or the selection artifact.
+    """
     _validate_code_revision(code_revision)
     source_report = validate_xjtu_source(source)
     if not source_report.profile_matches:
@@ -104,6 +120,8 @@ def run_xjtu_fold_1_validation(
         source_acquisition_count=source_report.acquisition_count,
     )
     write_xjtu_fold_1_validation_result(result, output_path)
+    if score_trajectory_dir is not None:
+        write_xjtu_score_trajectory_artifacts(result, score_trajectory_dir)
     return result
 
 
@@ -118,6 +136,7 @@ def evaluate_xjtu_fold_1_candidates(
     _validate_code_revision(code_revision)
     candidates = get_xjtu_isolation_forest_candidates()
     candidate_results: list[XjtuCandidateValidationResult] = []
+    trajectories: list[XjtuCandidateScoreTrajectory] = []
 
     for config in candidates:
         _validate_candidate_scope(config)
@@ -126,16 +145,35 @@ def evaluate_xjtu_fold_1_candidates(
             train_vectors,
         )
         model = fit_isolation_forest(config, fit_input)
-        scoring_input = prepare_xjtu_model_scoring_input(
-            config,
-            preprocessing_state,
-            validation_vectors,
-            partition=_PARTITION,
+        validation_scores = model.score(
+            prepare_xjtu_model_scoring_input(
+                config,
+                preprocessing_state,
+                validation_vectors,
+                partition=_PARTITION,
+            )
         )
         evaluation = evaluate_xjtu_development_scores(
             config,
             validation_vectors,
-            model.score(scoring_input),
+            validation_scores,
+        )
+        train_scores = model.score(
+            prepare_xjtu_model_scoring_input(
+                config,
+                preprocessing_state,
+                train_vectors,
+                partition=_FIT_PARTITION,
+            )
+        )
+        trajectories.append(
+            build_xjtu_candidate_score_trajectory(
+                config.experiment_id,
+                (
+                    (_FIT_PARTITION, train_vectors, train_scores),
+                    (_PARTITION, validation_vectors, validation_scores),
+                ),
+            )
         )
         candidate_results.append(
             _candidate_result(config, evaluation, fit_input.source_observation_count, model)
@@ -153,6 +191,7 @@ def evaluate_xjtu_fold_1_candidates(
         source_acquisition_count=source_acquisition_count,
         candidates=materialized,
         selected_experiment_id=selected.experiment_id,
+        score_trajectories=tuple(trajectories),
     )
 
 
@@ -191,6 +230,29 @@ def write_xjtu_fold_1_validation_result(
         json.dumps(_result_document(result), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def write_xjtu_score_trajectory_artifacts(
+    result: XjtuFoldValidationResult,
+    output_dir: Path,
+) -> tuple[Path, Path]:
+    """Write the development-only score-trajectory table and bearing summary."""
+    if not result.score_trajectories:
+        raise XjtuFoldValidationError(
+            "fold-1 validation result carries no score trajectories to write"
+        )
+    report = XjtuScoreTrajectoryReport(
+        code_revision=result.code_revision,
+        dataset_id=result.dataset_id,
+        split_id=result.split_id,
+        fold_id=result.fold_id,
+        candidates=result.score_trajectories,
+    )
+    table_path = output_dir / _SCORE_TRAJECTORY_TABLE
+    summary_path = output_dir / _SCORE_TRAJECTORY_SUMMARY
+    write_xjtu_score_trajectory_table(report, table_path)
+    write_xjtu_score_trajectory_summary(report, summary_path)
+    return table_path, summary_path
 
 
 def _candidate_result(

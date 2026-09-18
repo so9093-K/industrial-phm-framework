@@ -90,9 +90,13 @@ def prepare_xjtu_model_scoring_input(
     preprocessing_state: PreprocessingState,
     vectors: Sequence[VibrationFeatureVector],
     *,
-    partition: Literal["validation", "test"],
+    partition: _Partition,
 ) -> ModelScoringInput:
-    """Prepare unsampled XJTU validation or test features for model scoring."""
+    """Prepare one complete, unsampled XJTU partition for model scoring.
+
+    Scoring ``train`` is in-sample and describes the fitted reference distribution;
+    it never re-fits preprocessing and is not candidate-selection evidence.
+    """
     _validate_shared_context(config, preprocessing_state, vectors)
     _validate_partition_coverage(config, vectors, partition=partition)
 
