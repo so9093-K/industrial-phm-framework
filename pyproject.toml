@@ -26,7 +26,9 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "scikit-learn>=1.9.1,<1.10",
+]
 
 [project.scripts]
 industrial-phm = "industrial_phm.cli:main"

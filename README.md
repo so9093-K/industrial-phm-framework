@@ -12,7 +12,7 @@
 
 ## Architecture
 
-![System Architecture](assets/system-architecture.svg)
+![System Architecture](assets/system-architecture.png)
 
 아키텍처의 현재 기준선과 각 계층의 책임은
 [`docs/architecture/overview.md`](docs/architecture/overview.md)에 유지합니다.
@@ -154,7 +154,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ```text
 .
 ├── .github/                # CI 및 협업 템플릿
-├── assets/                 # canonical SVG 아키텍처 자산
+├── assets/                 # canonical PNG 아키텍처 자산
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   ├── product/            # 사용자 역할과 결과 UX 기준
@@ -193,15 +193,16 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
 - dataset-neutral `ModelFitInput`/`ModelScoringInput`과 acquisition-complete XJTU fit/scoring 준비 경계
 - 검증된 XJTU train feature vectors에서 preprocessing fit과 model-fit input을 함께 생성하는 실행 경로
+- dataset-neutral Isolation Forest fit/scoring과 higher-is-more-anomalous `AnomalyScores`
 
 ### Current
 
-1. prepared feature matrix를 소비하는 Isolation Forest anomaly-scoring baseline
+1. bearing-first, model-independent development evaluator 방법론 확정과 구현
 
 ### Next
 
-1. model-independent development evaluator와 `fold-1 validation`
-2. experiment configuration finalization과 `fold-1` holdout test evaluation
+1. `fold-1 validation`과 experiment configuration finalization
+2. finalized configuration의 `fold-1` holdout test evaluation
 3. cross-fold robustness analysis
 4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
 5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구

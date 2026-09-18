@@ -21,6 +21,7 @@
 - dataset-neutral `ExperimentConfig v1`과 XJTU fold-1 Isolation Forest candidate configuration.
 - train provenance와 feature order를 고정하는 identity/robust `PreprocessingState`.
 - sampling-aware `ModelFitInput`과 unsampled `ModelScoringInput`의 dataset-neutral model input contract.
+- scikit-learn 1.9 기반 Isolation Forest baseline과 observation-aligned `AnomalyScores` contract.
 
 ### Changed
 
