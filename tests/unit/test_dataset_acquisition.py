@@ -44,6 +44,24 @@ def test_file_integrity_reports_and_verifies_sha256(tmp_path: Path) -> None:
         verify_sha256(path, "0" * 64)
 
 
+def test_cli_verify_without_pinned_checksum_reports_local_provenance(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = get_dataset("ims-bearings")
+    assert manifest.archive_name is not None
+    archive_path = tmp_path / manifest.dataset_id / manifest.archive_name
+    archive_path.parent.mkdir(parents=True)
+    archive_path.write_bytes(b"local-ims-placeholder")
+
+    assert main(["data", "verify", "ims-bearings", "--root", str(tmp_path)]) == 0
+
+    output = capsys.readouterr().out
+    assert f"local file inspected: {archive_path}" in output
+    assert "verified local file:" not in output
+    assert "integrity basis: local SHA-256 provenance; no publisher checksum pinned" in output
+
+
 def test_source_inspection_summarizes_nested_directory(tmp_path: Path) -> None:
     nested = tmp_path / "bearing" / "run"
     nested.mkdir(parents=True)
@@ -134,7 +152,7 @@ def test_cli_inspects_manual_dataset_source(
     assert "extension .csv: 1 file(s)" in output
     assert "representative file:" not in output
     assert "inspection scope: structural inventory" in output
-    assert "inspection result: PASS" in output
+    assert "inspection state: completed" in output
 
 
 def test_cli_inspects_zip_structure_without_printing_payload(
@@ -168,7 +186,7 @@ def test_cli_inspects_zip_structure_without_printing_payload(
     assert "top-level sample: 1st_test" in output
     assert "representative file: 1st_test/2003.10.22.12.06.24" in output
     assert "inspection scope: structural inventory" in output
-    assert "inspection result: PASS" in output
+    assert "inspection state: completed" in output
     assert "prepared source state:" not in output
     assert "sensitive-value" not in output
 
@@ -196,7 +214,7 @@ def test_cli_inspection_reports_nested_archive_preparation_requirement(
 
     output = capsys.readouterr().out
     assert "extension .7z: 1 file(s)" in output
-    assert "inspection result: PASS" in output
+    assert "inspection state: completed" in output
     assert "prepared source state: nested archive extraction required" in output
     assert "industrial-phm data validate ims-bearings" in output
 

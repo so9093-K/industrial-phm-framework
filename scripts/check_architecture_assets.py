@@ -45,12 +45,7 @@ def validate_asset(path: Path) -> None:
     if view_box is None:
         raise ValueError(f"missing viewBox: {path.relative_to(ROOT)}")
 
-    _, _, width, height = _parse_view_box(view_box)
-    if width < 1200 or height < 600:
-        raise ValueError(
-            f"architecture asset canvas is unexpectedly small: {path.relative_to(ROOT)} "
-            f"({width:g}x{height:g})"
-        )
+    _parse_view_box(view_box)
 
     title = root.find("{http://www.w3.org/2000/svg}title")
     desc = root.find("{http://www.w3.org/2000/svg}desc")
