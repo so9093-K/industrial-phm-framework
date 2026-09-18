@@ -42,6 +42,10 @@
 - `experiment cross-fold`로 folds 2~5의 test partition을 한 번에 실행하는 post-holdout robustness 경로와
   결과 artifact. fold별로 preprocessing을 새로 fit하며 `fold-1 test`는 다시 scoring하지 않습니다.
 
+- verified IMS source profile과 canonical mapping을 기준으로 확인한 feature 계층의 cross-dataset
+  portability 관찰과, IMS experiment protocol이 결정해야 할 항목 정리. feature 계층이 dataset-neutral하게
+  유지됨을 두 domain의 channel 구성으로 고정하는 contract 테스트를 함께 추가합니다.
+
 ### Changed
 
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를
