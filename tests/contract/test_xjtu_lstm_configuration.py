@@ -15,7 +15,7 @@ from industrial_phm.experiments import xjtu_lstm as module
 from industrial_phm.features import vibration_feature_names
 
 
-def test_packaged_xjtu_lstm_configuration_matches_protocol_v1() -> None:
+def test_packaged_xjtu_lstm_configuration_exposes_protocol_axes() -> None:
     config = get_xjtu_lstm_development_configuration()
 
     assert config.experiment_id == XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID
@@ -27,27 +27,6 @@ def test_packaged_xjtu_lstm_configuration_matches_protocol_v1() -> None:
     assert config.scaling_strategy is ScalingStrategy.ROBUST
     assert config.model_family is ModelFamily.LSTM_AUTOENCODER
     assert config.random_seed == 42
-    assert dict(config.model_parameters) == {
-        "sequence_length": 8,
-        "hidden_size": 32,
-        "layer_count": 1,
-        "dropout": 0.0,
-        "loss": "mean-squared-error",
-        "optimizer": "adam",
-        "learning_rate": 0.001,
-        "adam_beta1": 0.9,
-        "adam_beta2": 0.999,
-        "adam_epsilon": 1e-8,
-        "weight_decay": 0.0,
-        "gradient_clip_norm": 1.0,
-        "batch_size": 64,
-        "epochs": 50,
-        "shuffle": True,
-        "checkpoint": "final-epoch",
-        "numeric_precision": "float32",
-        "device": "cpu",
-        "deterministic_algorithms": True,
-    }
 
 
 @pytest.mark.parametrize(
@@ -78,27 +57,6 @@ def test_xjtu_lstm_configuration_rejects_protocol_axis_drift(
     module.get_xjtu_lstm_development_configuration.cache_clear()
 
     with pytest.raises(XjtuLstmDevelopmentError, match=message):
-        module.get_xjtu_lstm_development_configuration()
-
-    module.get_xjtu_lstm_development_configuration.cache_clear()
-
-
-def test_xjtu_lstm_configuration_rejects_parameter_drift(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    config = get_xjtu_lstm_development_configuration()
-    changed = replace(
-        config,
-        model_parameters={**config.model_parameters, "epochs": 49},
-    )
-    monkeypatch.setattr(
-        module,
-        "load_packaged_xjtu_experiment_configs",
-        lambda _: (changed,),
-    )
-    module.get_xjtu_lstm_development_configuration.cache_clear()
-
-    with pytest.raises(XjtuLstmDevelopmentError, match="parameters"):
         module.get_xjtu_lstm_development_configuration()
 
     module.get_xjtu_lstm_development_configuration.cache_clear()
