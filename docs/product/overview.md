@@ -309,13 +309,20 @@ UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고�
 - effective source/version/provenance를 확인할 수 있을 것
 - destructive 또는 network-heavy 동작은 명시적으로 실행할 것
 
+현재 `experiment inspect <result.json>`은 XJTU finalized holdout와 IMS fixed cross-test result를 schema별로
+검증하고, source acquisition과 canonical/model observation 단위, effective configuration, population flow,
+capability와 declared provenance를 같은 stage 순서로 표시합니다. one-time evaluation scope는 `consumed`, 현재
+제공하지 않는 PHM 기능은 `unsupported`로 표현합니다.
+
+Schema-specific reader는 immutable `ExperimentInspection` read model을 만들고 CLI renderer가 이를 text로
+표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
+소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
+
 ## 6. UI 구현 시점
 
 지금 할 일:
 
 - 역할과 정보 요구 검증
-- developer pipeline transparency information architecture를 XJTU와 IMS workflow에서 검증
-- effective configuration / population flow / capability boundary를 CLI·artifact summary에서 어떻게 보여줄지 검토
 - PHM Result에 필요한 정보 범주 정의
 - 모델별 evidence/XAI 요구 확인
 - low-fidelity information architecture 검토

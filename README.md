@@ -157,6 +157,20 @@ flag는 model fit·validation scoring/evaluation·selection을 바꾸지 않고,
 in-sample scoring합니다. 이 development command 자체는 holdout을 scoring하지 않으며, fold-1 holdout은 별도
 finalized execution에서 이미 1회 사용되어 소진됐습니다.
 
+이미 기록된 XJTU finalized holdout과 IMS cross-test evidence는 read-only inspection으로 확인합니다. 두 schema는
+각자의 numerical interpretation을 유지하면서 source cardinality, effective feature/model configuration,
+population flow, capability와 declared code revision을 같은 stage 순서로 해석합니다. Schema reader가 생성하는
+immutable `ExperimentInspection` read model과 text renderer를 분리하며, CLI는 이 capability의 첫
+developer-facing presentation surface입니다.
+
+```bash
+uv run industrial-phm experiment inspect \
+  docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json
+
+uv run industrial-phm experiment inspect \
+  docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json
+```
+
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
 [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 development/holdout-test
 경계와 leakage 규칙을 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
@@ -229,20 +243,21 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - IMS Set 2 complete train에서 preprocessing/model fit 후 Set 3 README-documented scope만 scoring하는
   fixed single-channel cross-test execution contract와 developer-transparent result schema
 - XJTU finalized holdout과 IMS cross-test의 공통 pipeline stage, dataset-specific 의미와 inspection 정보 gap 비교
+- XJTU holdout과 IMS cross-test result를 schema별로 검증하고 effective pipeline lineage를 같은 순서로 표시하는
+  read-only `experiment inspect` summary
 
 ### Current
 
-1. XJTU와 IMS result schema를 읽는 developer-facing experiment inspection summary
-   - effective configuration, source-to-canonical cardinality와 population flow를 동일 stage 순서로 표시
-   - dataset별 numerical evidence와 해석 경계를 유지
+1. LSTM Autoencoder의 reconstruction/anomaly evidence protocol 결정
+   - 기존 evidence를 retrospective benchmark/development scope로 사용
+   - sequence/window population과 acquisition lineage 표시 계약 정의
 
 ### Next
 
-1. LSTM Autoencoder의 reconstruction/anomaly evidence protocol 결정
-2. deep-learning dependency compatibility 검증과 sequence/window contract 구현
-3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-4. MIMII DUE를 통한 cross-domain evaluation
-5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. deep-learning dependency compatibility 검증과 sequence/window contract 구현
+2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+3. MIMII DUE를 통한 cross-domain evaluation
+4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

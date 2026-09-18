@@ -63,6 +63,10 @@
 
 - IMS Set 2 → Set 3 one-time cross-test evaluation 결과 artifact.
 
+- XJTU finalized holdout와 IMS fixed cross-test result를 schema별로 검증하고 Source → Canonical → Feature →
+  Preprocessing → Reference → Population → Model → Scoring → Evaluation → Capability → Provenance 순서의
+  immutable read model로 해석하는 inspection capability와 첫 presentation surface인 `experiment inspect` CLI.
+
 ### Changed
 
 - XJTU finalized holdout과 IMS cross-test lineage를 같은 developer pipeline stage로 비교하고 schema-specific

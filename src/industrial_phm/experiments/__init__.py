@@ -37,6 +37,14 @@ from industrial_phm.experiments.ims_model_input import (
     prepare_ims_model_fit_input,
     prepare_ims_model_scoring_input,
 )
+from industrial_phm.experiments.result_inspection import (
+    ExperimentInspection,
+    ExperimentResultInspectionError,
+    InspectionFact,
+    InspectionStage,
+    inspect_experiment_result,
+    render_experiment_inspection_text,
+)
 from industrial_phm.experiments.xjtu import (
     XjtuExperimentProtocolError,
     XjtuSplitFold,
@@ -150,6 +158,8 @@ __all__ = [
     "ExperimentConfig",
     "ExperimentConfigError",
     "ExperimentContext",
+    "ExperimentInspection",
+    "ExperimentResultInspectionError",
     "FitPartition",
     "ImsBearingCrossTestEvidence",
     "ImsCrossTestEvaluationError",
@@ -157,6 +167,8 @@ __all__ = [
     "ImsCrossTestSplit",
     "ImsExperimentProtocolError",
     "ImsModelInputError",
+    "InspectionFact",
+    "InspectionStage",
     "ModelFamily",
     "ReferenceStrategy",
     "ScalingStrategy",
@@ -210,6 +222,7 @@ __all__ = [
     "get_xjtu_reference_hypotheses",
     "get_xjtu_reference_split",
     "ims_experiment_context",
+    "inspect_experiment_result",
     "late_vs_middle_rank_probability",
     "lifecycle_segment",
     "load_experiment_configs",
@@ -219,6 +232,7 @@ __all__ = [
     "prepare_ims_model_scoring_input",
     "prepare_xjtu_model_fit_input",
     "prepare_xjtu_model_scoring_input",
+    "render_experiment_inspection_text",
     "run_ims_cross_test_evaluation",
     "run_xjtu_cross_fold_robustness",
     "run_xjtu_fold_1_holdout_evaluation",
