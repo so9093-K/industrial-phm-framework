@@ -51,6 +51,11 @@
   `readme-documented` 4,448 acquisitions만 one-time cross-test evaluation에 사용하며, Set 1과
   archive-extension은 v1에서 제외합니다.
 
+- PHM/ML 개발자·연구자를 위한 pipeline transparency UX baseline. Source → canonicalization → feature →
+  preprocessing → reference/sampling → model fit/scoring → evaluation/result를 stage별로 검토하고,
+  complete/reference/fit/scoring population flow, effective configuration, provenance, unsupported capability를
+  일관되게 표시하는 information architecture를 정의합니다.
+
 ### Changed
 
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를

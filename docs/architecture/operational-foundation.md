@@ -29,7 +29,10 @@ industrial-phm
 ├── feature
 │   └── characterize
 └── experiment
-    └── validate
+    ├── validate
+    ├── reference-compare
+    ├── holdout
+    └── cross-fold
 ```
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.
@@ -133,14 +136,21 @@ Python compatibility, memory/layout 비용과 serialization boundary를 검증�
 Dashboard 구현은 PHM Result contract와 inference 경계가 안정된 뒤 진행하지만, 사용자가 어떤 정보를
 소비하는지는 지금부터 설계합니다.
 
-초기 역할은 다음 세 가지를 기준으로 검토합니다.
+초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview
 - 정비 엔지니어: trend, score/threshold, supporting evidence, 정비 이력과 원인 가설
 - 의사결정자: risk/urgency, maintenance priority, fleet-level summary
+- PHM/ML 개발자·연구자: pipeline stage, effective configuration, population flow, evaluation semantics와 provenance
 
 CLI 역시 현재 단계의 주요 사용자 인터페이스입니다. 실패 시 원인, 해결 방법, local state와 provenance를
 명확히 보여주는 것을 GUI와 동일한 UX 문제로 취급합니다.
+
+개발자용 pipeline transparency는 별도 orchestration framework를 추가하는 이유가 아닙니다. 기존
+`CanonicalTimeSeries`, feature vector, `PreprocessingState`, `ModelFitInput`, `AnomalyScores`,
+experiment result가 이미 소유한 사실을 사람이 단계별로 추적할 수 있게 보여주는 문제입니다. 표시를 위해 같은
+configuration/population/provenance를 두 번째 상태 저장소에 복제하지 않습니다. 구체적인 information
+architecture와 capability 표현은 [`../product/overview.md`](../product/overview.md)를 기준으로 합니다.
 
 ## 8. Validation Reuse
 
