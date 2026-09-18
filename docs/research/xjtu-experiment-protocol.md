@@ -492,7 +492,8 @@ Authoritative numerical evidence는
 | test | Bearing3_1 | 40Hz10kN | 2,538 | 0.0178 | 0.4688 |
 | test | **mean** | | | **0.4743** | **0.6981** |
 
-**Development 결과가 그대로 재현되지 않았습니다.** 두 통계 모두 holdout에서 더 낮고, 특히 Bearing3_1의
+**Development에서 관찰된 전체적인 수준과 bearing 간 양상이 holdout에서 그대로 재현되지는 않았습니다.**
+두 통계 모두 holdout에서 더 낮고, 특히 Bearing3_1의
 `late_vs_middle`은 `0.4688`로 `0.5` 아래입니다. 즉 이 run에서는 late-third가 middle-third보다 일관되게 높게
 scoring되지 않았습니다. 같은 configuration이 validation의 Bearing3_2에서는 `0.8619`를 보였으므로, H1이
 development에서 보인 개선이 holdout의 긴 `40Hz10kN` run으로 이어지지 않았습니다. Bearing3_1의 full-run ρ
@@ -507,6 +508,60 @@ condition과 run length가 서로 분리되지 않으므로 이 문서는 그 �
 않았습니다. 변경이 필요하다고 판단되면 새 protocol/experiment version으로 기록하며, **같은 `fold-1 test`
 결과를 변경된 configuration의 unbiased holdout evidence로 다시 사용하지 않습니다.** `fold-1` holdout은 이
 실행으로 소진됐습니다.
+
+### Cross-fold robustness analysis 사전 고정
+
+`fold-1` holdout을 소진한 뒤에는 finalized configuration의 선택을 다시 열지 않고 `fold-2`~`fold-5`에서
+**robustness evidence**를 수집합니다. 이 단계의 목적은 새 configuration을 고르거나 새로운 unbiased holdout
+성능을 주장하는 것이 아니라, fold-1에서 확정한 실험 semantics가 다른 bearing assignment에서도 어떤 변동을
+보이는지 기술적으로 확인하는 것입니다.
+
+이 결과는 fresh holdout이나 독립적인 cross-validation estimate가 아닙니다. `fold-2 test`의
+`Bearing1_2/Bearing2_2/Bearing3_2`는 이미 fold-1 validation에서 관찰했고, `fold-3`~`fold-5 test` bearing도
+fold-1 train에서 사용했습니다. 반대로 fold-1 test bearing 역시 이후 fold의 train/validation에 등장합니다.
+따라서 folds 2~5의 결과는 **post-holdout robustness evidence**로만 해석합니다.
+
+실행 범위는 결과를 보기 전에 다음과 같이 고정합니다.
+
+1. 새로 실행하는 대상은 `fold-2`~`fold-5`의 **test partition만**입니다. 각 fold의 validation partition은
+   scoring, selection, calibration에 사용하지 않습니다.
+2. 네 fold를 하나의 동일한 실행 경로에서 연속 처리하고 하나의 deterministic result artifact를 생성합니다.
+   Fold 결과를 하나씩 본 뒤 코드, metric 또는 configuration을 바꾸는 순차 tuning은 허용하지 않습니다.
+3. `fold-1 test`는 다시 scoring하지 않습니다. 기존 holdout artifact는 역사적 비교 근거로만 남기며
+   cross-fold production 실행이 이를 입력으로 읽어 aggregate를 만들지 않습니다.
+4. Finalized configuration에서 허용되는 유일한 실험 의미 변화는 target `fold_id`에 따른 partition assignment
+   입니다. Fold-scoped provenance를 위한 `experiment_id`는 달라질 수 있지만 새로운 model choice를 뜻하지
+   않습니다.
+5. Feature set/subset, reference strategy, sampling policy, scaling strategy, model family, model parameter,
+   random seed는 `xjtu-sy-iforest-fold-1-finalized-v1`과 동일하게 유지합니다.
+6. 각 target fold에서 preprocessing은 해당 fold의 complete train partition 전체에서 새로 fit합니다. 그 뒤
+   `train-bearing-early-third-v1`을 같은 `1..ceil(N/3)` 규칙으로 적용하고,
+   `acquisition-uniform-v1`으로 model fitting input을 만듭니다. 다른 fold에서 fit한 learned state를
+   재사용하지 않습니다.
+7. Complete train / reference-eligible / model-fit population count와 code revision,
+   split/fold/test-bearing provenance를 fold별로 기록합니다. 한 fold라도 source coverage나 metric 정의 조건을
+   위반하면 partial success를 canonical result로 기록하지 않습니다.
+
+평가 통계도 새로 고르지 않습니다. 각 test bearing에 대해 이미 holdout에서 사용한 두 descriptive statistic을
+그대로 계산합니다.
+
+- full-run acquisition-order Spearman ρ
+- `late_vs_middle_rank_probability`
+
+두 통계 사이에는 primary/secondary ranking을 두지 않습니다. Result artifact는 bearing별 값 외에 다음 요약을
+사전에 고정해 기록합니다.
+
+- fold별 3개 test bearing의 동일가중 평균
+- operating condition별 folds 2~5의 4개 test bearing 동일가중 평균
+- folds 2~5 전체 12개 test bearing의 동일가중 평균
+
+Run length로 가중한 pooled mean, candidate ranking, pass/fail threshold, p-value는 추가하지 않습니다.
+`fold-1` holdout 수치는 새 12-bearing aggregate에 합치지 않고 별도의 이미 관찰된 evidence로 비교합니다.
+
+Cross-fold 결과가 약하거나 condition/bearing variability가 커도 이 단계에서 finalized configuration을
+재선택하거나 reference window, feature, model parameter, metric을 조정하지 않습니다. 그런 변경은 새로운
+research protocol/experiment version의 질문이며, 이미 소진된 `fold-1 test`를 변경된 configuration의 unbiased
+holdout으로 다시 사용할 수 없습니다.
 
 ## 9. Reproducibility contract
 

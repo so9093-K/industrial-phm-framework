@@ -219,13 +219,15 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. `fold-1` holdout evidence 검토와 cross-fold robustness analysis 설계
-   - `fold-1` holdout은 1회 실행으로 소진됨. 같은 test 결과를 변경된 configuration의 evidence로
-     재사용하지 않음
+1. `fold-2`~`fold-5` cross-fold robustness analysis protocol 사전 고정
+   - finalized configuration의 model/feature/reference/sampling/scaling/seed semantics를 그대로 유지
+   - 각 fold의 test partition만 같은 실행 경로에서 평가하고 validation은 사용하지 않음
+   - 결과는 fresh holdout이나 새 model selection 근거가 아니라 post-holdout robustness evidence로만 해석
+   - `fold-1` holdout은 이미 소진됐으며 재실행하지 않음
 
 ### Next
 
-1. cross-fold robustness analysis 실행
+1. 사전 고정된 cross-fold robustness analysis 구현·실행
 2. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
 3. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
 4. 데이터가 정당하게 지원하는 경우 RUL prognostics
