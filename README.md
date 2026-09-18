@@ -64,9 +64,10 @@ uv build
 
 ## CLI and Dataset Acquisition
 
-프로젝트 기능은 설치 가능한 `industrial-phm` 명령으로 노출합니다. 현재는 데이터 획득·local source
-inspection·dataset-specific compatibility validation까지 구현하며, 모델 기능이 생기기 전에 빈
-`train`/`evaluate` 명령을 미리 만들지 않습니다.
+프로젝트 기능은 설치 가능한 `industrial-phm` 명령으로 노출합니다. 데이터 획득·local source
+inspection·dataset-specific compatibility validation, feature characterization과 현재 구현된 XJTU experiment
+workflow를 실제 책임 이름으로 노출하며, 필요가 확인되기 전에 빈 `train`/`evaluate` 명령을 미리 만들지
+않습니다.
 
 ```bash
 uv run industrial-phm doctor
@@ -138,8 +139,10 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 구현하지 않습니다. Notebook 운영 규칙과 현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를
 참조합니다.
 
-Version-controlled candidate를 실제 development validation에 실행할 때는 code revision을 명시하고 결과 JSON을
-생성합니다. 현재 구현은 XJTU-SY `fold-1`의 네 Isolation Forest candidate만 지원하며 holdout test는 열지 않습니다.
+Version-controlled candidate를 development validation에 실행할 때는 code revision을 명시하고 결과 JSON을
+생성합니다. XJTU 첫 baseline은 이후 reference comparison, finalized configuration, one-shot holdout과
+post-holdout cross-fold robustness까지 완료됐으며, 아래 `validate` 명령은 그 역사적 development workflow의
+재현 가능한 진입점입니다.
 
 ```bash
 uv run industrial-phm experiment validate xjtu-sy \
@@ -151,7 +154,8 @@ uv run industrial-phm experiment validate xjtu-sy \
 Bearing별 Spearman ρ 하나만으로는 score trajectory의 형태를 알 수 없으므로, 필요할 때
 `--score-trajectory-dir`로 acquisition별 anomaly score를 development diagnosis artifact로 함께 남깁니다. 이
 flag는 model fit·validation scoring/evaluation·selection을 바꾸지 않고, 요청된 경우에만 `train`을 추가
-in-sample scoring합니다. Holdout test는 열지 않습니다.
+in-sample scoring합니다. 이 development command 자체는 holdout을 scoring하지 않으며, fold-1 holdout은 별도
+finalized execution에서 이미 1회 사용되어 소진됐습니다.
 
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
 [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 development/holdout-test
@@ -219,6 +223,8 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - folds 2~5 test partition을 한 번에 실행하는 post-holdout cross-fold robustness 경로와 evidence
 - verified IMS source profile과 canonical mapping을 기준으로 확인한 feature 계층의 cross-dataset portability와 XJTU edge 가정 구분
 - IMS Set 2 train → Set 3 README-documented evaluation으로 고정한 single-channel cross-test experiment protocol v1
+- PHM/ML 개발자가 source → feature → preprocessing → reference/sampling → model → scoring/evaluation lineage를
+  effective configuration·population flow·provenance와 함께 검토하는 pipeline transparency UX baseline
 
 ### Current
 

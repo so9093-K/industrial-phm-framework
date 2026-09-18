@@ -36,7 +36,197 @@
 - fleet-level summary
 - 모델/데이터 적용 범위와 불확실성
 
-## 2. 대시보드 전에 PHM 결과 계약부터
+### PHM/ML 개발자·연구자
+
+현재 pre-alpha 단계의 직접 사용자는 pipeline을 구현·검토하고 experiment evidence를 해석하는
+PHM/ML 개발자와 연구자입니다. 이 역할에는 최종 anomaly score만큼 **어떤 변환과 population 경계를 거쳐
+그 결과가 만들어졌는지**가 중요합니다.
+
+- effective dataset/source, split/partition과 source scope
+- canonical channel/schema와 feature 생성·선택 결과
+- preprocessing fit scope와 실제 fitted state
+- complete source → reference-eligible → model-fit → scoring population 변화
+- effective model family/parameter/random seed와 score 방향
+- evaluation statistic, aggregation, 사용하지 않은 capability
+- artifact/config/code revision을 연결하는 provenance
+- leakage, excluded scope, unsupported capability, consumed holdout 같은 경고 상태
+
+## 2. Developer Pipeline Transparency
+
+개발자 UX에서 가장 먼저 투명해야 하는 것은 model explainability가 아니라 **pipeline lineage**입니다. 같은
+numerical score라도 source, feature schema, preprocessing fit population, reference rule, sampling, scoring
+partition이 다르면 의미가 달라집니다. 따라서 개발자용 CLI·interactive view·향후 UI는 아래 단계를 하나의
+추적 가능한 흐름으로 보여줄 수 있어야 합니다.
+
+```text
+Source
+  -> Canonicalization
+  -> Feature Extraction
+  -> Preprocessing
+  -> Reference Selection
+  -> Sampling
+  -> Model Fit
+  -> Model Scoring
+  -> Evaluation
+  -> Result
+```
+
+이 목록은 새로운 `GenericPipeline` runtime이나 orchestration framework를 뜻하지 않습니다. 실제 실행 책임은
+현재처럼 dataset-specific experiment edge와 dataset-neutral contract가 나눠 소유합니다. 여기서는 이미
+존재하는 contract/provenance를 **사람이 같은 방식으로 검토하기 위한 information architecture**만 정의합니다.
+
+### 단계별 표시 계약
+
+각 단계는 가능한 범위에서 다음 항목을 같은 순서로 보여줍니다.
+
+| 항목 | 개발자가 확인할 질문 |
+| --- | --- |
+| Status | 실행 가능한가, 완료됐는가, 실패/차단/제외됐는가? |
+| Input | 몇 개 observation, 어떤 schema/partition이 들어왔는가? |
+| Operation | 실제로 어떤 변환·선택·fit·score가 수행됐는가? |
+| Output | observation/schema가 어떻게 바뀌었는가? |
+| Configuration | 어떤 versioned setting이 유효했는가? |
+| Provenance | source/config/code revision을 어디까지 추적할 수 있는가? |
+| Validation | 어떤 invariant를 확인했고 무엇이 PASS/FAIL인가? |
+| Warnings | leakage 위험, excluded scope, unsupported capability가 있는가? |
+
+모든 단계가 모든 항목을 억지로 채울 필요는 없습니다. 예를 들어 stateless feature extraction에는 fitted state가
+없고 identity scaling에는 learned center/scale이 실질적으로 없습니다. 없는 정보를 추정해서 채우지 않고
+`not applicable` 또는 해당 capability가 없음을 명시합니다.
+
+### Pipeline stage 상태 vocabulary
+
+초기 표시 vocabulary는 아래 정도로 제한합니다.
+
+- `not-started`: 아직 실행하지 않음
+- `ready`: 필요한 선행 조건이 충족됨
+- `completed`: 해당 단계의 contract와 output이 정상적으로 생성됨
+- `failed`: 실행 또는 validation이 실패함
+- `blocked`: 선행 contract/source 문제로 실행할 수 없음
+- `excluded`: protocol/config에서 의도적으로 범위에서 제외됨
+- `unsupported`: 현재 구현이 해당 capability를 제공하지 않음
+- `consumed`: one-shot holdout처럼 이미 의사결정상 재사용하면 안 되는 evaluation scope
+
+이 vocabulary 역시 persistent workflow state machine을 새로 만들자는 요구가 아닙니다. 현재 artifact/config와
+protocol 상태를 UI/CLI에서 일관되게 설명하기 위한 표현 기준입니다.
+
+### Population flow는 first-class evidence
+
+특히 model fitting 전후의 population 변화는 별도 설명 없이도 볼 수 있어야 합니다.
+
+```text
+complete configured source
+        |
+        | fit preprocessing state on configured fit scope
+        | transform complete source with fitted state
+        v
+transformed complete source
+        |
+        | reference eligibility
+        v
+reference-eligible population
+        |
+        | sampling / weighting
+        v
+actual model-fit population
+
+scoring source
+        |
+        | transform with the same fitted preprocessing state
+        v
+scoring population --------------------> model scoring
+```
+
+현재 `ModelFitInput`의 `source_observation_count`, `reference_observation_count`,
+`fit_observation_count`처럼 이미 존재하는 contract를 이 표시의 Source of Truth로 사용합니다. UI를 위해
+동일 숫자를 별도 상태 저장소에 복제하지 않습니다.
+
+예를 들어 XJTU early-third reference와 IMS all-train reference는 다음처럼 차이가 즉시 보여야 합니다.
+
+```text
+XJTU:  complete 3,246 -> reference 1,084 -> fit 1,084
+IMS:   complete 3,936 -> reference 3,936 -> fit 3,936
+```
+
+### Effective configuration과 schema
+
+실행 전에는 source와 model parameter만 보여주는 것이 아니라 아래 effective configuration을 한 묶음으로
+검토할 수 있어야 합니다.
+
+- dataset / source scope / split / partition
+- input channels와 `feature_set_id`
+- generated feature 수, selected feature 이름과 수
+- preprocessing strategy와 fit partition
+- reference strategy와 sampling policy
+- model family / effective parameter / random seed
+- score 방향, 예: higher-is-more-anomalous
+- evaluation statistic과 aggregation rule
+- explicitly excluded source/partition/capability
+
+Feature formula가 같아도 channel-derived schema가 다를 수 있으므로 `feature_set_id`와 exact
+`feature_names`를 구분해서 보여줍니다.
+
+### 실행 전 plan과 실행 후 summary
+
+위험하거나 one-time 의미가 있는 experiment는 실행 전에 최소한의 effective plan을 보여줄 수 있어야 합니다.
+
+```text
+Train        Set 2 / 3,936 observations
+Evaluation   Set 3 README-documented / 17,792 observations
+Feature      vibration-statistical-v1 / 8 selected
+Reference    all-train-observations
+Model        isolation-forest / seed 42
+
+Excluded
+- Set 1
+- Set 3 archive-extension
+
+No candidate selection or threshold calibration will be performed.
+```
+
+실행 후에는 단순히 result path만 출력하지 않고 source validation, feature/preprocessing/model/scoring/evaluation
+완료 여부와 artifact/code revision을 요약할 수 있어야 합니다. 세부 fitted state나 observation-level table은
+필요할 때 drill-down합니다.
+
+### Result drill-down과 capability boundary
+
+개발자 결과 UX의 기본 순서는 다음과 같습니다.
+
+```text
+Summary
+  -> Pipeline / Population Flow
+  -> Effective Configuration
+  -> Evaluation Evidence
+  -> Data & Model Scope
+  -> Provenance
+  -> Raw Artifact
+```
+
+또한 현재 결과가 실제로 지원하는 capability와 지원하지 않는 capability를 함께 보여줍니다. 예를 들어 anomaly
+score와 retrospective temporal statistic만 존재한다면 이를 health assessment나 prognostics로 승격해서
+표시하지 않습니다.
+
+```text
+available
+- anomaly scoring
+- descriptive score-trajectory evaluation
+
+unsupported / not validated
+- thresholded state detection
+- health assessment
+- fault diagnostics
+- prognostics / RUL
+```
+
+### Pipeline transparency와 model explainability의 분리
+
+Pipeline transparency는 "어떤 데이터와 변환·설정으로 이 score가 만들어졌는가"를 설명합니다.
+Model explainability는 "왜 이 observation의 score가 높았는가"를 설명합니다. 둘은 별도 책임입니다.
+
+현재 우선순위는 pipeline transparency입니다. 모델별 feature contribution, residual attribution 같은 XAI는
+실제 model-specific evidence가 생겼을 때 추가하고, pipeline provenance 부족을 XAI로 대체하지 않습니다.
+
+## 3. 대시보드 전에 PHM 결과 계약부터
 
 Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도록 향후 공통 `PHMResult` 경계를
 둡니다. 구체적 schema는 실제 inference 요구가 확인된 뒤 정의하지만, UX 관점에서는 다음 정보 범주가
@@ -81,7 +271,7 @@ Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도
 모든 capability가 항상 존재한다고 가정하지 않습니다. RUL, health indicator, uncertainty, explanation이 지원되지
 않는 경우 임의의 값이나 그럴듯한 설명으로 채우지 않고 명시적으로 unavailable 상태로 표현합니다.
 
-## 3. 사람·AI·XAI의 책임
+## 4. 사람·AI·XAI의 책임
 
 수치 계산과 PHM 판단의 source of truth는 deterministic PHM pipeline입니다. Generative AI는 구조화된 결과와
 retrieved maintenance knowledge를 사용해 설명·가설 정리·권고 초안·보고서를 생성합니다.
@@ -102,7 +292,7 @@ attribution뿐 아니라 degradation trajectory, uncertainty, calibration이 판
 UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고가 같은 시각적 수준에서 섞이지 않도록 구분해야
 합니다. 특히 정비 조치가 실제 work order나 설비 제어로 이어지는 경우 승인 boundary를 별도로 둡니다.
 
-## 4. CLI도 UX
+## 5. CLI도 UX
 
 현재 단계에서 가장 먼저 사용되는 제품 인터페이스는 CLI일 가능성이 높습니다. 따라서 CLI도 다음 UX 기준을
 적용합니다.
@@ -113,11 +303,13 @@ UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고�
 - effective source/version/provenance를 확인할 수 있을 것
 - destructive 또는 network-heavy 동작은 명시적으로 실행할 것
 
-## 5. UI 구현 시점
+## 6. UI 구현 시점
 
 지금 할 일:
 
 - 역할과 정보 요구 검증
+- developer pipeline transparency information architecture를 XJTU와 IMS workflow에서 검증
+- effective configuration / population flow / capability boundary를 CLI·artifact summary에서 어떻게 보여줄지 검토
 - PHM Result에 필요한 정보 범주 정의
 - 모델별 evidence/XAI 요구 확인
 - low-fidelity information architecture 검토
