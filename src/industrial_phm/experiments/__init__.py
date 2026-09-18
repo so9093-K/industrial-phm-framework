@@ -18,6 +18,10 @@ from industrial_phm.experiments.xjtu import (
     get_xjtu_isolation_forest_candidates,
     get_xjtu_reference_split,
 )
+from industrial_phm.experiments.xjtu_sampling import (
+    XjtuSamplingPolicyError,
+    prepare_xjtu_model_fit_input,
+)
 
 __all__ = [
     "EXPERIMENT_CONFIG_SCHEMA_ID",
@@ -29,9 +33,11 @@ __all__ = [
     "ReferenceStrategy",
     "ScalingStrategy",
     "XjtuExperimentProtocolError",
+    "XjtuSamplingPolicyError",
     "XjtuSplitFold",
     "XjtuSplitManifest",
     "get_xjtu_isolation_forest_candidates",
     "get_xjtu_reference_split",
     "load_experiment_configs",
+    "prepare_xjtu_model_fit_input",
 ]

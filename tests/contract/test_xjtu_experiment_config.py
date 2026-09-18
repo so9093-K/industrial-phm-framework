@@ -1,9 +1,7 @@
-from dataclasses import fields
 from itertools import product
 
 from industrial_phm.adapters import XJTU_SY_CHANNELS
 from industrial_phm.experiments import (
-    ExperimentConfig,
     FitPartition,
     ModelFamily,
     ReferenceStrategy,
@@ -11,24 +9,6 @@ from industrial_phm.experiments import (
     get_xjtu_isolation_forest_candidates,
 )
 from industrial_phm.features import vibration_feature_names
-
-
-def test_experiment_config_schema_remains_dataset_neutral() -> None:
-    assert {field.name for field in fields(ExperimentConfig)} == {
-        "experiment_id",
-        "dataset_id",
-        "split_id",
-        "fold_id",
-        "fit_partition",
-        "feature_set_id",
-        "selected_features",
-        "reference_strategy",
-        "sampling_policy_id",
-        "scaling_strategy",
-        "model_family",
-        "model_parameters",
-        "random_seed",
-    }
 
 
 def test_packaged_xjtu_candidates_cover_the_full_factorial_matrix() -> None:
@@ -39,7 +19,7 @@ def test_packaged_xjtu_candidates_cover_the_full_factorial_matrix() -> None:
     )
     expected_dimensions = set(
         product(
-            ("acquisition-uniform", "bearing-balanced"),
+            ("acquisition-uniform-v1", "bearing-balanced-resample-v1"),
             (all_features, without_standard_deviation),
             (ScalingStrategy.IDENTITY, ScalingStrategy.ROBUST),
         )

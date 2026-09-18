@@ -40,21 +40,21 @@ def test_preprocessing_fit_is_independent_of_model_fitting_sampling_policy() -> 
     feature_names = ("feature.channel.rms",)
     rows = ((1.0,), (2.0,), (3.0,), (100.0,))
 
-    acquisition_uniform = fit_preprocessing_state(
-        _config("acquisition-uniform-v1", "acquisition-uniform"),
+    policy_a = fit_preprocessing_state(
+        _config("policy-a-experiment-v1", "policy-a-v1"),
         provenance,
         feature_names,
         rows,
     )
-    bearing_balanced = fit_preprocessing_state(
-        _config("bearing-balanced-v1", "bearing-balanced"),
+    policy_b = fit_preprocessing_state(
+        _config("policy-b-experiment-v1", "policy-b-v1"),
         provenance,
         feature_names,
         rows,
     )
 
-    assert acquisition_uniform.experiment_id != bearing_balanced.experiment_id
-    assert acquisition_uniform.observation_count == bearing_balanced.observation_count == 4
-    assert acquisition_uniform.fitted_center == bearing_balanced.fitted_center
-    assert acquisition_uniform.fitted_scale == bearing_balanced.fitted_scale
-    assert acquisition_uniform.zero_iqr_features == bearing_balanced.zero_iqr_features
+    assert policy_a.experiment_id != policy_b.experiment_id
+    assert policy_a.observation_count == policy_b.observation_count == 4
+    assert policy_a.fitted_center == policy_b.fitted_center
+    assert policy_a.fitted_scale == policy_b.fitted_scale
+    assert policy_a.zero_iqr_features == policy_b.zero_iqr_features

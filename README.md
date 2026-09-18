@@ -168,6 +168,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── data/               # dataset manifest·acquisition·validation
 │   ├── experiments/        # version-controlled experiment split/config/protocol inputs
 │   ├── features/           # stateless numerical feature extraction
+│   ├── models/             # model-fitting input과 model implementation
 │   └── preprocessing/      # train-fitted feature scaling state
 └── tests/
     ├── unit/
@@ -190,11 +191,11 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
 - dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` 8개 factorial candidate
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
+- dataset-neutral `ModelFitInput`과 XJTU acquisition-uniform/bearing-balanced sampling policy
 
 ### Current
 
-1. acquisition-uniform과 bearing-balanced model-fitting policy
-2. prepared feature matrix를 소비하는 Isolation Forest anomaly-scoring baseline
+1. prepared feature matrix를 소비하는 Isolation Forest anomaly-scoring baseline
 
 ### Next
 

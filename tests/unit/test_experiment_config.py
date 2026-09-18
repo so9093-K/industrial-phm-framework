@@ -18,7 +18,7 @@ def _config_toml(
     fold_id: str = "fold-1",
     fit_partition: str = "train",
     selected_feature: str = "feature.channel.rms",
-    sampling_policy_id: str = "acquisition-uniform",
+    sampling_policy_id: str = "reference-uniform-v1",
     include_seed: bool = True,
 ) -> str:
     seed = "random_seed = 42" if include_seed else ""
@@ -57,7 +57,7 @@ def _context() -> ExperimentContext:
         fold_ids=("fold-1", "fold-2"),
         feature_set_id="reference-features-v1",
         feature_names=("feature.channel.rms", "feature.channel.mean"),
-        supported_sampling_policy_ids=("acquisition-uniform",),
+        supported_sampling_policy_ids=("reference-uniform-v1",),
     )
 
 
@@ -66,7 +66,7 @@ def test_load_experiment_config_resolves_typed_immutable_candidate() -> None:
 
     assert config.fit_partition is FitPartition.TRAIN
     assert config.reference_strategy is ReferenceStrategy.ALL_TRAIN_OBSERVATIONS
-    assert config.sampling_policy_id == "acquisition-uniform"
+    assert config.sampling_policy_id == "reference-uniform-v1"
     assert config.scaling_strategy is ScalingStrategy.IDENTITY
     assert config.model_family is ModelFamily.ISOLATION_FOREST
     assert config.selected_features == ("feature.channel.rms",)
@@ -101,7 +101,7 @@ def test_config_parser_rejects_unsupported_or_incomplete_invariants(
         (_config_toml(fold_id="fold-9"), "unknown fold_id"),
         (_config_toml(selected_feature="feature.channel.unknown"), "unknown selected feature"),
         (
-            _config_toml(sampling_policy_id="run-uniform"),
+            _config_toml(sampling_policy_id="unsupported-policy-v1"),
             "unknown sampling_policy_id",
         ),
     ],
