@@ -17,8 +17,9 @@ RUL이나 label처럼 데이터가 제공하지 않는 정보는 명시적으로
 
 ## 4. Evaluation is independent of model implementation
 
-모델은 score/prediction을 생산하고 평가 계층은 이를 별도로 검증합니다. metric 계산을 LLM 또는 dashboard
-코드에 위임하지 않습니다.
+모델은 자신의 numerical output을 생산하고 평가 계층은 그 output을 별도로 해석·검증합니다. Anomaly score,
+reconstruction error, RUL estimate처럼 의미가 다른 출력을 모두 generic `prediction`으로 부르지 않으며,
+metric 계산을 LLM 또는 dashboard 코드에 위임하지 않습니다.
 
 ## 5. Artifacts require provenance
 
