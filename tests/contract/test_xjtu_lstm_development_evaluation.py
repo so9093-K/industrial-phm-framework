@@ -119,15 +119,11 @@ def test_xjtu_lstm_evaluation_equal_weights_feature_residuals_across_bearings() 
 
     assert result.mean_bearing_acquisition_order_spearman_rho is None
     assert result.mean_bearing_late_vs_middle_rank_probability == pytest.approx(0.5)
-    assert all(
-        value == pytest.approx(2.0) for value in result.mean_bearing_feature_residuals
-    )
+    assert all(value == pytest.approx(2.0) for value in result.mean_bearing_feature_residuals)
 
 
 def test_xjtu_lstm_evaluation_rejects_shifted_score_coverage() -> None:
-    scores = _scores(
-        lambda _asset_index, _asset_id, position, _source_count: float(position)
-    )
+    scores = _scores(lambda _asset_index, _asset_id, position, _source_count: float(position))
     first_asset = scores.asset_ids[0]
     invalid = replace(
         scores,
