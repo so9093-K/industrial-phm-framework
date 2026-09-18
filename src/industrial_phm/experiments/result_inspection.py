@@ -652,8 +652,7 @@ def _inspect_xjtu_lstm_development(
         get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.train
     )
     expected_reference_count = sum(
-        early_third_length(get_xjtu_expected_acquisition_count(asset_id))
-        for asset_id in fold.train
+        early_third_length(get_xjtu_expected_acquisition_count(asset_id)) for asset_id in fold.train
     )
     expected_validation_count = sum(
         get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.validation
@@ -1039,10 +1038,9 @@ def _inspect_xjtu_lstm_development(
         "evaluation.mean_bearing_late_vs_middle_rank_probability",
     )
     for feature_index, summary_value in enumerate(feature_summary_values):
-        expected_residual = (
-            math.fsum(values[feature_index] for values in bearing_feature_residuals)
-            / len(bearing_feature_residuals)
-        )
+        expected_residual = math.fsum(
+            values[feature_index] for values in bearing_feature_residuals
+        ) / len(bearing_feature_residuals)
         _expect_close(
             summary_value,
             expected_residual,
@@ -1200,10 +1198,7 @@ def _inspect_xjtu_lstm_development(
                     InspectionFact("Lifecycle", "original-full-run-thirds"),
                     InspectionFact("Statistics", ", ".join(statistics)),
                     InspectionFact("Aggregation", aggregation),
-                    *(
-                        InspectionFact("Bearing evidence", line)
-                        for line in bearing_lines
-                    ),
+                    *(InspectionFact("Bearing evidence", line) for line in bearing_lines),
                     InspectionFact("Mean rho", f"{mean_rho:.6g}"),
                     InspectionFact("Mean late-vs-middle", f"{mean_rank_probability:.6g}"),
                     InspectionFact(
@@ -1387,14 +1382,10 @@ def _number_sequence(
     result: list[float] = []
     for index, value in enumerate(raw):
         if isinstance(value, bool) or not isinstance(value, int | float):
-            raise ExperimentResultInspectionError(
-                f"{context}.{key}[{index}] must be a number"
-            )
+            raise ExperimentResultInspectionError(f"{context}.{key}[{index}] must be a number")
         number = float(value)
         if not math.isfinite(number):
-            raise ExperimentResultInspectionError(
-                f"{context}.{key}[{index}] must be finite"
-            )
+            raise ExperimentResultInspectionError(f"{context}.{key}[{index}] must be finite")
         result.append(number)
     return tuple(result)
 
