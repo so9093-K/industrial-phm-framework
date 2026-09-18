@@ -205,20 +205,21 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - 검증된 XJTU train feature vectors에서 preprocessing fit과 model-fit input을 함께 생성하는 실행 경로
 - dataset-neutral Isolation Forest fit/scoring과 higher-is-more-anomalous `AnomalyScores`
 - XJTU validation bearing별 acquisition-order Spearman ρ를 사용하는 model-independent development evaluator
+- XJTU `fold-1 validation` candidate 실행과 reproducible result artifact
 
 ### Current
 
-1. `fold-1 validation`과 experiment configuration finalization
+1. `fold-1 validation` evidence 검토와 experiment configuration finalization
 
 ### Next
 
 1. finalized configuration의 `fold-1` holdout test evaluation
-3. cross-fold robustness analysis
-4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
-5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-6. 데이터가 정당하게 지원하는 경우 RUL prognostics
-7. MIMII DUE를 통한 cross-domain evaluation
-8. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+2. cross-fold robustness analysis
+3. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
+4. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+5. 데이터가 정당하게 지원하는 경우 RUL prognostics
+6. MIMII DUE를 통한 cross-domain evaluation
+7. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

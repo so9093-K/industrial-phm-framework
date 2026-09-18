@@ -234,6 +234,12 @@ uv run industrial-phm experiment validate xjtu-sy \
   --code-revision "$(git rev-parse HEAD)"
 ```
 
+현재 fold-1 validation의 authoritative numerical evidence는
+[`results/xjtu-sy-iforest-fold-1-validation-v1.json`](results/xjtu-sy-iforest-fold-1-validation-v1.json)에
+보존합니다. Artifact의 selection은 사전에 고정한 규칙을 그대로 적용한 결과입니다. Bearing별 correlation 방향이
+서로 다른 현재 evidence는 configuration finalization에서 condition/bearing variability를 함께 검토해야 함을
+보여줍니다.
+
 ## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는

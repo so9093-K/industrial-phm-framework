@@ -1,0 +1,242 @@
+{
+  "candidates": [
+    {
+      "experiment_id": "xjtu-sy-iforest-fold-1-acquisition-uniform-full-16-identity-v2",
+      "feature_set_id": "vibration-statistical-v1",
+      "fit_observation_count": 3246,
+      "mean_bearing_acquisition_order_spearman_rho": 0.3038281892419236,
+      "model_family": "isolation-forest",
+      "model_parameters": {
+        "bootstrap": false,
+        "contamination": "auto",
+        "max_features": 1.0,
+        "max_samples": "auto",
+        "n_estimators": 256
+      },
+      "random_seed": 42,
+      "sampling_policy_id": "acquisition-uniform-v1",
+      "scaling_strategy": "identity",
+      "selected_features": [
+        "feature.Horizontal_vibration_signals.mean",
+        "feature.Horizontal_vibration_signals.rms",
+        "feature.Horizontal_vibration_signals.standard_deviation",
+        "feature.Horizontal_vibration_signals.absolute_peak",
+        "feature.Horizontal_vibration_signals.peak_to_peak",
+        "feature.Horizontal_vibration_signals.crest_factor",
+        "feature.Horizontal_vibration_signals.skewness",
+        "feature.Horizontal_vibration_signals.excess_kurtosis",
+        "feature.Vertical_vibration_signals.mean",
+        "feature.Vertical_vibration_signals.rms",
+        "feature.Vertical_vibration_signals.standard_deviation",
+        "feature.Vertical_vibration_signals.absolute_peak",
+        "feature.Vertical_vibration_signals.peak_to_peak",
+        "feature.Vertical_vibration_signals.crest_factor",
+        "feature.Vertical_vibration_signals.skewness",
+        "feature.Vertical_vibration_signals.excess_kurtosis"
+      ],
+      "source_observation_count": 3246,
+      "validation_bearings": [
+        {
+          "acquisition_order_spearman_rho": 0.7483005521049,
+          "asset_id": "Bearing1_2",
+          "observation_count": 161,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.7719778007821486,
+          "asset_id": "Bearing2_2",
+          "observation_count": 161,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": -0.6087937851612778,
+          "asset_id": "Bearing3_2",
+          "observation_count": 2496,
+          "operating_condition": "40Hz10kN"
+        }
+      ]
+    },
+    {
+      "experiment_id": "xjtu-sy-iforest-fold-1-acquisition-uniform-without-std-14-identity-v2",
+      "feature_set_id": "vibration-statistical-v1",
+      "fit_observation_count": 3246,
+      "mean_bearing_acquisition_order_spearman_rho": 0.273901361098233,
+      "model_family": "isolation-forest",
+      "model_parameters": {
+        "bootstrap": false,
+        "contamination": "auto",
+        "max_features": 1.0,
+        "max_samples": "auto",
+        "n_estimators": 256
+      },
+      "random_seed": 42,
+      "sampling_policy_id": "acquisition-uniform-v1",
+      "scaling_strategy": "identity",
+      "selected_features": [
+        "feature.Horizontal_vibration_signals.mean",
+        "feature.Horizontal_vibration_signals.rms",
+        "feature.Horizontal_vibration_signals.absolute_peak",
+        "feature.Horizontal_vibration_signals.peak_to_peak",
+        "feature.Horizontal_vibration_signals.crest_factor",
+        "feature.Horizontal_vibration_signals.skewness",
+        "feature.Horizontal_vibration_signals.excess_kurtosis",
+        "feature.Vertical_vibration_signals.mean",
+        "feature.Vertical_vibration_signals.rms",
+        "feature.Vertical_vibration_signals.absolute_peak",
+        "feature.Vertical_vibration_signals.peak_to_peak",
+        "feature.Vertical_vibration_signals.crest_factor",
+        "feature.Vertical_vibration_signals.skewness",
+        "feature.Vertical_vibration_signals.excess_kurtosis"
+      ],
+      "source_observation_count": 3246,
+      "validation_bearings": [
+        {
+          "acquisition_order_spearman_rho": 0.7518374741200828,
+          "asset_id": "Bearing1_2",
+          "observation_count": 161,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.7452754773406948,
+          "asset_id": "Bearing2_2",
+          "observation_count": 161,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": -0.6754088681660786,
+          "asset_id": "Bearing3_2",
+          "observation_count": 2496,
+          "operating_condition": "40Hz10kN"
+        }
+      ]
+    },
+    {
+      "experiment_id": "xjtu-sy-iforest-fold-1-bearing-balanced-full-16-identity-v2",
+      "feature_set_id": "vibration-statistical-v1",
+      "fit_observation_count": 3246,
+      "mean_bearing_acquisition_order_spearman_rho": 0.2922865954146465,
+      "model_family": "isolation-forest",
+      "model_parameters": {
+        "bootstrap": false,
+        "contamination": "auto",
+        "max_features": 1.0,
+        "max_samples": "auto",
+        "n_estimators": 256
+      },
+      "random_seed": 42,
+      "sampling_policy_id": "bearing-balanced-resample-v1",
+      "scaling_strategy": "identity",
+      "selected_features": [
+        "feature.Horizontal_vibration_signals.mean",
+        "feature.Horizontal_vibration_signals.rms",
+        "feature.Horizontal_vibration_signals.standard_deviation",
+        "feature.Horizontal_vibration_signals.absolute_peak",
+        "feature.Horizontal_vibration_signals.peak_to_peak",
+        "feature.Horizontal_vibration_signals.crest_factor",
+        "feature.Horizontal_vibration_signals.skewness",
+        "feature.Horizontal_vibration_signals.excess_kurtosis",
+        "feature.Vertical_vibration_signals.mean",
+        "feature.Vertical_vibration_signals.rms",
+        "feature.Vertical_vibration_signals.standard_deviation",
+        "feature.Vertical_vibration_signals.absolute_peak",
+        "feature.Vertical_vibration_signals.peak_to_peak",
+        "feature.Vertical_vibration_signals.crest_factor",
+        "feature.Vertical_vibration_signals.skewness",
+        "feature.Vertical_vibration_signals.excess_kurtosis"
+      ],
+      "source_observation_count": 3246,
+      "validation_bearings": [
+        {
+          "acquisition_order_spearman_rho": 0.7586208879687141,
+          "asset_id": "Bearing1_2",
+          "observation_count": 161,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.7720439383482862,
+          "asset_id": "Bearing2_2",
+          "observation_count": 161,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": -0.6538050400730607,
+          "asset_id": "Bearing3_2",
+          "observation_count": 2496,
+          "operating_condition": "40Hz10kN"
+        }
+      ]
+    },
+    {
+      "experiment_id": "xjtu-sy-iforest-fold-1-bearing-balanced-without-std-14-identity-v2",
+      "feature_set_id": "vibration-statistical-v1",
+      "fit_observation_count": 3246,
+      "mean_bearing_acquisition_order_spearman_rho": 0.23289241866830712,
+      "model_family": "isolation-forest",
+      "model_parameters": {
+        "bootstrap": false,
+        "contamination": "auto",
+        "max_features": 1.0,
+        "max_samples": "auto",
+        "n_estimators": 256
+      },
+      "random_seed": 42,
+      "sampling_policy_id": "bearing-balanced-resample-v1",
+      "scaling_strategy": "identity",
+      "selected_features": [
+        "feature.Horizontal_vibration_signals.mean",
+        "feature.Horizontal_vibration_signals.rms",
+        "feature.Horizontal_vibration_signals.absolute_peak",
+        "feature.Horizontal_vibration_signals.peak_to_peak",
+        "feature.Horizontal_vibration_signals.crest_factor",
+        "feature.Horizontal_vibration_signals.skewness",
+        "feature.Horizontal_vibration_signals.excess_kurtosis",
+        "feature.Vertical_vibration_signals.mean",
+        "feature.Vertical_vibration_signals.rms",
+        "feature.Vertical_vibration_signals.absolute_peak",
+        "feature.Vertical_vibration_signals.peak_to_peak",
+        "feature.Vertical_vibration_signals.crest_factor",
+        "feature.Vertical_vibration_signals.skewness",
+        "feature.Vertical_vibration_signals.excess_kurtosis"
+      ],
+      "source_observation_count": 3246,
+      "validation_bearings": [
+        {
+          "acquisition_order_spearman_rho": 0.6875948930296757,
+          "asset_id": "Bearing1_2",
+          "observation_count": 161,
+          "operating_condition": "35Hz12kN"
+        },
+        {
+          "acquisition_order_spearman_rho": 0.6935185185185185,
+          "asset_id": "Bearing2_2",
+          "observation_count": 161,
+          "operating_condition": "37.5Hz11kN"
+        },
+        {
+          "acquisition_order_spearman_rho": -0.6824361555432729,
+          "asset_id": "Bearing3_2",
+          "observation_count": 2496,
+          "operating_condition": "40Hz10kN"
+        }
+      ]
+    }
+  ],
+  "code_revision": "c04b361d2c5c2d920bf2f1343c3df8951d490ea3",
+  "dataset_id": "xjtu-sy",
+  "fold_id": "fold-1",
+  "partition": "validation",
+  "schema_id": "xjtu-fold-1-validation-result-v1",
+  "selected_experiment_id": "xjtu-sy-iforest-fold-1-acquisition-uniform-full-16-identity-v2",
+  "selection_rule": {
+    "id": "max-mean-rho-parsimony-acquisition-uniform-v1",
+    "primary": "maximize mean_bearing_acquisition_order_spearman_rho",
+    "tie_breakers": [
+      "fewer selected features",
+      "acquisition-uniform-v1",
+      "lexicographically smaller experiment_id"
+    ],
+    "undefined_mean": "ineligible"
+  },
+  "source_acquisition_count": 9216,
+  "split_id": "xjtu-sy-condition-stratified-5fold-v1"
+}
