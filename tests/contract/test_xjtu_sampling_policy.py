@@ -44,7 +44,8 @@ def _characterization(config: ExperimentConfig) -> XjtuCharacterizationData:
         acquisition_count = asset_position + (asset_position == len(fold.train))
         for acquisition_index in range(1, acquisition_count + 1):
             row = tuple(
-                float(row_number + feature_index) for feature_index in range(len(source_feature_names))
+                float(row_number + feature_index)
+                for feature_index in range(len(source_feature_names))
             )
             records.append(
                 XjtuCharacterizationRecord(
@@ -113,7 +114,10 @@ def test_acquisition_uniform_preserves_every_transformed_train_observation_once(
     config = _candidate("acquisition-uniform-v1")
     characterization = _characterization(config)
     state = _state(config, characterization)
-    transformed = state.transform(config.selected_features, _selected_rows(config, characterization))
+    transformed = state.transform(
+        config.selected_features,
+        _selected_rows(config, characterization),
+    )
 
     prepared = prepare_xjtu_model_fit_input(config, state, characterization)
 
