@@ -65,6 +65,9 @@
 
 ### Changed
 
+- XJTU finalized holdout과 IMS cross-test lineage를 같은 developer pipeline stage로 비교하고 schema-specific
+  experiment inspection에 필요한 information gap을 명시.
+
 - XJTU 내부에 있던 Spearman ρ와 late-vs-middle rank probability의 순수 수학 계산을 두 번째 dataset
   consumer가 생긴 시점에 dataset-neutral score-statistics helper로 승격하고 XJTU public wrapper는 유지합니다.
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를
