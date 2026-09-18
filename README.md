@@ -214,23 +214,21 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - selection과 분리된 train/validation acquisition별 anomaly-score trajectory development diagnosis
 - complete train / reference / model-fit population을 분리하는 reference strategy 계약과 fold-1 H0/H1 비교
 - 비교용 manifest와 분리해 정확히 하나의 configuration을 소유하는 fold-1 finalized experiment configuration
+- selection·calibration 없이 finalized configuration 하나만 소비하는 `fold-1` holdout evaluation 실행 경로
 
 ### Current
 
-1. finalized configuration만 소비하는 `fold-1` holdout evaluation 실행 경로 구현·검증
-   - candidate/reference selection 로직 없음
-   - `xjtu-sy-iforest-fold-1-finalized-v1` 하나만 소비
-   - 구현·리뷰 완료 전까지 `fold-1 test`는 계속 닫아둠
+1. finalized configuration의 `fold-1` holdout test 1회 실행
+   - 실행 경로는 구현·검증 완료. 실제 실행 전까지 `fold-1 test`는 계속 닫혀 있음
 
 ### Next
 
-1. finalized configuration의 `fold-1` holdout test 1회 실행
-2. cross-fold robustness analysis
-3. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
-4. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-5. 데이터가 정당하게 지원하는 경우 RUL prognostics
-6. MIMII DUE를 통한 cross-domain evaluation
-7. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+1. cross-fold robustness analysis
+2. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
+3. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+4. 데이터가 정당하게 지원하는 경우 RUL prognostics
+5. MIMII DUE를 통한 cross-domain evaluation
+6. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 
