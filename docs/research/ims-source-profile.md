@@ -127,6 +127,60 @@ IMS experiment protocol에서 고정합니다.
 2. Full payload validation의 release/scheduled workflow 배치
 3. Acquisition timestamp timezone을 제공하는 authoritative source가 확보될 경우 time-basis refinement
 
+## 7. Cross-dataset portability 관찰 (2026-09-18)
+
+XJTU-SY 첫 baseline이 한 사이클(development → diagnosis → reference decision → finalized configuration →
+one-shot holdout → post-holdout robustness)을 마친 시점에, 기존에 검증한 IMS local-source profile과
+Adapter canonical mapping을 기준으로 같은 feature interface가 IMS canonical representation에서도 유지되는지
+확인했습니다. 목적은 IMS에서 비슷한 수치를 얻는 것이 아니라 **어떤 계층이 dataset-neutral하게
+유지되고 어떤 가정이 XJTU edge에 남아야 하는지**를 구분하는 것입니다.
+
+### 그대로 재사용되는 계층
+
+`ImsBearingAdapter -> CanonicalTimeSeries -> vibration-statistical-v1` 경로는 수정 없이 동작합니다. IMS
+acquisition에서 추출한 feature vector의 `feature_set_id`는 XJTU와 같은 `vibration-statistical-v1`이고,
+`dataset_id`와 `acquisition_index` metadata도 보존됩니다. Feature formula가 한 acquisition만 입력으로 받는
+stateless transformation이므로 dataset 경계를 넘습니다.
+
+### Dataset마다 달라지는 것
+
+Feature **이름**은 channel 이름에서 파생되므로 dataset과 test set에 따라 달라집니다.
+
+| Source | Channels per bearing | Feature 수 |
+| --- | ---: | ---: |
+| XJTU-SY | 2 (`Horizontal_*`, `Vertical_*`) | 16 |
+| IMS set-1 | 2 (`x_axis_vibration`, `y_axis_vibration`) | 16 |
+| IMS set-2 / set-3 | 1 (`vibration`) | 8 |
+
+따라서 `feature_set_id`는 공유되지만 `selected_features`는 dataset-specific입니다. 현재 channel-derived
+feature schema에서는 IMS 안에서도 set-1과 set-2/3가 동일한 `selected_features` configuration을 그대로
+공유할 수 없습니다.
+
+### XJTU edge에 남아야 하는 가정
+
+현재 experiment 계층(`industrial_phm.experiments.xjtu_*`)은 IMS에 그대로 적용되지 않습니다. 이는 결함이
+아니라 경계가 의도대로 서 있다는 뜻이며, IMS experiment protocol이 아래 항목을 스스로 결정해야 합니다.
+
+- **Split unit**: XJTU는 bearing run 하나가 독립적인 run-to-failure trajectory입니다. IMS는 한 test에서
+  4개 bearing이 같은 shaft에서 동시에 기록되므로 acquisition timeline을 공유합니다. 같은 test의 bearing을
+  서로 다른 partition에 두는 것은 XJTU의 bearing-run 규칙과 같은 의미의 분리가 아닙니다. 게다가 독립적인
+  test는 3개뿐이라 XJTU의 5-fold rotating holdout을 그대로 옮길 수 없습니다.
+- **`operating_condition`**: IMS canonical metadata에는 이 key가 없습니다. 대신
+  `rotational_speed_rpm=2000`, `radial_load_lb=6000`이 보존되며 세 test가 모두 같은 조건입니다. XJTU
+  evaluation/characterization이 `operating_condition`을 요구하므로, IMS protocol은 이 값을 metadata로
+  기록할지 아니면 condition 축 없이 정의할지를 정해야 합니다.
+- **Lifecycle segment 의미**: XJTU의 retrospective thirds와 `train-bearing-early-third-v1` reference는 각
+  bearing이 자신의 run-to-failure lifecycle을 갖는다는 전제 위에 있습니다. IMS는 test 단위로 종료되고 어떤
+  bearing이 고장에 이르렀는지는 source README가 설명하지만 이 repository는 아직 이를 검증된 profile이나
+  acquisition-level label로 승격하지 않았습니다.
+- **Acquisition completeness**: XJTU는 bearing별 `1..N` 연속성을 검증합니다. IMS는 test별 acquisition 수가
+  고정이고 4개 bearing이 그 수를 공유하며, set-1과 set-3에는 restart/gap interval이 있습니다.
+- **Set 3 scope**: `readme-documented`(4,448)와 `archive-extension` 포함(6,324) 중 하나를 configuration이
+  명시해야 합니다.
+
+이 관찰들은 IMS experiment protocol의 입력이며, 이 문서가 그 결정을 대신 고정하지 않습니다. Feature 계층이
+dataset-neutral하게 유지된다는 사실 자체는 contract 테스트가 두 domain의 channel 구성으로 고정합니다.
+
 ## Sources
 
 - NASA Prognostics Center of Excellence Data Set Repository:
