@@ -275,16 +275,15 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. 모든 LSTM implementation contract를 `main`에 merge한 뒤 fold-1 train/validation retrospective development
-   evidence를 clean revision에서 한 번만 실행할 준비
+1. validated local XJTU-SY source에서 clean-main one-shot execution으로 fold-1 train/validation
+   retrospective development evidence를 한 번 생성하고 evidence-only PR로 기록
 
 ### Next
 
-1. clean-main one-shot execution으로 LSTM retrospective development evidence를 생성하고 evidence-only PR로 기록
-2. LSTM result reader를 사용해 Developer Workbench 첫 interactive prototype 검증
-3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-4. MIMII DUE를 통한 cross-domain evaluation
-5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. LSTM result reader를 사용해 Developer Workbench 첫 interactive prototype 검증
+2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+3. MIMII DUE를 통한 cross-domain evaluation
+4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 
