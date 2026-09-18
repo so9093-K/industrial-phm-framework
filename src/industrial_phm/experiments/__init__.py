@@ -102,6 +102,12 @@ from industrial_phm.experiments.xjtu_lstm import (
     get_xjtu_lstm_development_configuration,
     score_xjtu_lstm_development_validation,
 )
+from industrial_phm.experiments.xjtu_lstm_evaluation import (
+    XjtuLstmBearingEvaluation,
+    XjtuLstmDevelopmentEvaluation,
+    XjtuLstmDevelopmentEvaluationError,
+    evaluate_xjtu_lstm_development_scores,
+)
 from industrial_phm.experiments.xjtu_model_input import (
     XjtuModelInputError,
     fit_xjtu_preprocessing_and_prepare_model_input,
@@ -210,7 +216,10 @@ __all__ = [
     "XjtuHoldoutResult",
     "XjtuLifecycleError",
     "XjtuLifecycleSegmentScores",
+    "XjtuLstmBearingEvaluation",
     "XjtuLstmDevelopmentError",
+    "XjtuLstmDevelopmentEvaluation",
+    "XjtuLstmDevelopmentEvaluationError",
     "XjtuLstmDevelopmentFit",
     "XjtuModelInputError",
     "XjtuReferenceComparisonError",
@@ -229,6 +238,7 @@ __all__ = [
     "evaluate_ims_cross_test",
     "evaluate_xjtu_cross_fold_robustness",
     "evaluate_xjtu_development_scores",
+    "evaluate_xjtu_lstm_development_scores",
     "evaluate_xjtu_fold_1_candidates",
     "evaluate_xjtu_fold_1_holdout",
     "evaluate_xjtu_reference_hypotheses",
