@@ -24,8 +24,8 @@ from industrial_phm.experiments.xjtu_lstm_result import (
 )
 from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
 from industrial_phm.models import (
-    MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
     LstmAutoencoderTrainingProvenance,
+    MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
 )
 
 _REPOSITORY_ROOT = Path(__file__).parents[2]
