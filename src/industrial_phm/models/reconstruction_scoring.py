@@ -133,10 +133,8 @@ def score_reconstructions(
     ):
         residuals = tuple(
             math.fsum(
-                (
-                    model_input[time_index][feature_index]
-                    - reconstructed[time_index][feature_index]
-                ) ** 2
+                (model_input[time_index][feature_index] - reconstructed[time_index][feature_index])
+                ** 2
                 for time_index in range(sequence_length)
             )
             / sequence_length
