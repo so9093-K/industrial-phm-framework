@@ -40,8 +40,8 @@ class XjtuLstmBearingEvaluation:
     source_acquisition_count: int
     score_window_count: int
     dropped_prefix_count: int
-    acquisition_order_spearman_rho: float | None
-    late_vs_middle_rank_probability: float | None
+    acquisition_order_spearman_rho: float
+    late_vs_middle_rank_probability: float
     mean_feature_residuals: tuple[float, ...]
 
 
@@ -54,8 +54,8 @@ class XjtuLstmDevelopmentEvaluation:
     fold_id: str
     feature_names: tuple[str, ...]
     bearing_results: tuple[XjtuLstmBearingEvaluation, ...]
-    mean_bearing_acquisition_order_spearman_rho: float | None
-    mean_bearing_late_vs_middle_rank_probability: float | None
+    mean_bearing_acquisition_order_spearman_rho: float
+    mean_bearing_late_vs_middle_rank_probability: float
     mean_bearing_feature_residuals: tuple[float, ...]
     partition: Literal["validation"] = field(default="validation", init=False)
 
@@ -157,8 +157,8 @@ def evaluate_xjtu_lstm_development_scores(
         fold_id=config.fold_id,
         feature_names=tuple(scores.feature_names),
         bearing_results=bearing_results,
-        mean_bearing_acquisition_order_spearman_rho=_mean_if_all_defined(correlations),
-        mean_bearing_late_vs_middle_rank_probability=_mean_if_all_defined(rank_probabilities),
+        mean_bearing_acquisition_order_spearman_rho=float(fmean(correlations)),
+        mean_bearing_late_vs_middle_rank_probability=float(fmean(rank_probabilities)),
         mean_bearing_feature_residuals=mean_feature_residuals,
     )
 
@@ -200,6 +200,11 @@ def _evaluate_bearing(
         correlation = spearman_rho(positions, bearing_scores)
     except ScoreStatisticsError as error:
         raise XjtuLstmDevelopmentEvaluationError(str(error)) from error
+    rank_probability = late_vs_middle_rank_probability(middle_scores, late_scores)
+    if correlation is None or rank_probability is None:
+        raise XjtuLstmDevelopmentEvaluationError(
+            f"XJTU LSTM development statistic is undefined for {asset_id}"
+        )
 
     feature_residuals = tuple(
         float(fmean(row[index] for _, _, row, _ in ordered)) for index in range(feature_count)
@@ -210,15 +215,7 @@ def _evaluate_bearing(
         score_window_count=len(ordered),
         dropped_prefix_count=expected_positions[0] - 1,
         acquisition_order_spearman_rho=correlation,
-        late_vs_middle_rank_probability=late_vs_middle_rank_probability(
-            middle_scores,
-            late_scores,
-        ),
+        late_vs_middle_rank_probability=rank_probability,
         mean_feature_residuals=feature_residuals,
     )
 
-
-def _mean_if_all_defined(values: Sequence[float | None]) -> float | None:
-    if any(value is None for value in values):
-        return None
-    return float(fmean(value for value in values if value is not None))
