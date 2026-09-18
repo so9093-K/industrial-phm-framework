@@ -67,6 +67,10 @@
   Preprocessing → Reference → Population → Model → Scoring → Evaluation → Capability → Provenance 순서의
   immutable read model로 해석하는 inspection capability와 첫 presentation surface인 `experiment inspect` CLI.
 
+- XJTU `fold-1 train/validation`에 한정한 LSTM Autoencoder development protocol v1. Robust-scaled full 16-feature
+  input, train-bearing early-third reference, length 8 / stride 1 / right-edge sequence construction, deterministic
+  reconstruction training, residual evidence와 retrospective evaluation 경계를 numerical execution 전에 고정합니다.
+
 ### Changed
 
 - XJTU finalized holdout과 IMS cross-test lineage를 같은 developer pipeline stage로 비교하고 schema-specific

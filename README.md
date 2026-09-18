@@ -243,21 +243,25 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - IMS Set 2 complete train에서 preprocessing/model fit 후 Set 3 README-documented scope만 scoring하는
   fixed single-channel cross-test execution contract와 developer-transparent result schema
 - XJTU finalized holdout과 IMS cross-test의 공통 pipeline stage, dataset-specific 의미와 inspection 정보 gap 비교
-- XJTU holdout과 IMS cross-test result를 schema별로 검증하고 effective pipeline lineage를 같은 순서로 표시하는
-  read-only `experiment inspect` summary
+- XJTU holdout과 IMS cross-test result를 schema별로 검증해 immutable `ExperimentInspection`으로 해석하는
+  inspection capability와 첫 presentation surface인 `experiment inspect` CLI
+- XJTU fold-1 train/validation의 retrospective development scope, sequence construction, reconstruction score와
+  evidence 경계를 numerical execution 전에 고정한 LSTM Autoencoder protocol v1
 
 ### Current
 
-1. LSTM Autoencoder의 reconstruction/anomaly evidence protocol 결정
-   - 기존 evidence를 retrospective benchmark/development scope로 사용
-   - sequence/window population과 acquisition lineage 표시 계약 정의
+1. Python 3.14 deep-learning dependency/runtime compatibility 검증
+2. dataset-neutral sequence/window contract와 XJTU edge 구현
+   - asset·partition·reference boundary와 contiguous acquisition lineage 검증
+   - length 8 / stride 1 / right-edge alignment population 고정
 
 ### Next
 
-1. deep-learning dependency compatibility 검증과 sequence/window contract 구현
-2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-3. MIMII DUE를 통한 cross-domain evaluation
-4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. LSTM Autoencoder fit/reconstruction scoring과 deterministic training contract 구현
+2. fold-1 train/validation retrospective development evidence 실행 및 inspection 연결
+3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+4. MIMII DUE를 통한 cross-domain evaluation
+5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

@@ -64,6 +64,7 @@ Source
   -> Feature Extraction
   -> Preprocessing
   -> Reference Selection
+  -> Sequence Construction (sequence model only)
   -> Sampling
   -> Model Fit
   -> Model Scoring
@@ -74,6 +75,12 @@ Source
 이 목록은 새로운 `GenericPipeline` runtime이나 orchestration framework를 뜻하지 않습니다. 실제 실행 책임은
 현재처럼 dataset-specific experiment edge와 dataset-neutral contract가 나눠 소유합니다. 여기서는 이미
 존재하는 contract/provenance를 **사람이 같은 방식으로 검토하기 위한 information architecture**만 정의합니다.
+
+`Sequence Construction`은 acquisition-level feature row를 직접 소비하는 모델에는 `not applicable`이며, LSTM
+Autoencoder처럼 window를 소비하는 모델에서만 표시합니다. 이 stage는 window length/stride/input shape,
+asset·partition boundary, input acquisition 수, generated window 수, dropped prefix와 score alignment를
+보존합니다. 첫 구체적 계약은
+[`../research/xjtu-lstm-autoencoder-protocol.md`](../research/xjtu-lstm-autoencoder-protocol.md)가 소유합니다.
 
 ### 단계별 표시 계약
 
@@ -229,8 +236,8 @@ Model explainability는 "왜 이 observation의 score가 높았는가"를 설명
 XJTU finalized holdout과 IMS fixed cross-test를 이 information architecture로 대조한 결과는
 [`../research/xjtu-ims-pipeline-transparency-review.md`](../research/xjtu-ims-pipeline-transparency-review.md)에
 기록합니다. 두 실행은 공통 계산 계약을 재사용하지만 result schema의 정보 배치와 source-to-canonical cardinality
-표현이 달라, 다음 developer UX는 schema별 result reader가 같은 stage 순서의 read-only summary를 제공하는 범위로
-좁힙니다.
+표현이 달라, schema별 result reader가 같은 stage 순서의 immutable inspection read model을 만들고 CLI가 이를
+text로 표현합니다.
 
 ## 3. 대시보드 전에 PHM 결과 계약부터
 
