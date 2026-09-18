@@ -136,8 +136,7 @@ def score_reconstructions(
                 (
                     model_input[time_index][feature_index]
                     - reconstructed[time_index][feature_index]
-                )
-                ** 2
+                ) ** 2
                 for time_index in range(sequence_length)
             )
             / sequence_length
