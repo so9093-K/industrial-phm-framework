@@ -239,7 +239,105 @@ XJTU finalized holdout과 IMS fixed cross-test를 이 information architecture�
 표현이 달라, schema별 result reader가 같은 stage 순서의 immutable inspection read model을 만들고 CLI가 이를
 text로 표현합니다.
 
-## 3. 대시보드 전에 PHM 결과 계약부터
+## 3. Developer Workbench low-fidelity baseline
+
+Developer Workbench의 첫 대상은 운영 설비 dashboard가 아니라 version-controlled experiment evidence를 검토하는
+PHM/ML 개발자와 연구자입니다. 기존 `ExperimentInspection` read model을 아래 세 view가 함께 소비하며, view별
+persistent state나 별도 pipeline schema를 만들지 않습니다.
+
+```text
+Developer Workbench
+├─ Experiment Overview
+├─ Pipeline Lineage
+└─ Evidence Explorer
+```
+
+세 view는 동일한 experiment identity와 현재 선택한 pipeline stage/evidence scope를 공유합니다. 사용자는 overview에서
+실험 전체를 확인하고, lineage에서 population과 변환 경계를 추적한 뒤, evidence에서 수치 근거를 검토하고 원래
+artifact/provenance로 돌아갈 수 있어야 합니다.
+
+### Experiment Overview
+
+한 experiment가 무엇을 실행했고 현재 어떤 의미로 사용할 수 있는지 먼저 보여줍니다.
+
+```text
+Experiment / status / capability
+Effective configuration
+Population summary
+Evaluation summary
+Warnings and excluded scope
+Provenance
+```
+
+Acceptance criteria:
+
+- artifact를 직접 열지 않아도 dataset/source scope, split·partition, model family와 random seed를 식별할 수 있습니다.
+- complete/reference/model-fit/scoring population의 값과 단위를 함께 확인할 수 있습니다.
+- `available`, `unsupported`, `excluded`, `consumed` 상태가 numerical result와 분리되어 보입니다.
+- evaluation statistic과 aggregation rule을 함께 표시해 평균값의 계산 단위를 확인할 수 있습니다.
+- artifact path, configuration identity와 declared code revision으로 원본 provenance를 추적할 수 있습니다.
+
+### Pipeline Lineage
+
+Source부터 Provenance까지 ordered stage를 따라 input, operation과 output의 변화를 보여줍니다. 각 stage는 앞서 정의한
+Status, Input, Operation, Output, Configuration, Provenance, Validation, Warnings vocabulary를 사용합니다.
+
+Sequence model에서는 acquisition과 window를 같은 population 단위처럼 합산하지 않고 unit transition을 명시합니다.
+
+```text
+Reference Selection
+  1,084 acquisitions
+        |
+        | length 8 / stride 1 / asset boundary preserved
+        v
+Sequence Construction
+  1,021 windows / 63 dropped prefix acquisitions
+        |
+        v
+Model Fit
+  1,021 windows
+```
+
+Acceptance criteria:
+
+- 인접 stage마다 input/output population value와 unit이 보존되어 acquisition, sample, feature row와 window를 구분합니다.
+- Sequence Construction은 window length, stride, alignment, feature width, generated window 수와 dropped prefix를
+  표시합니다.
+- window가 asset·partition·reference boundary를 넘지 않았다는 validation 결과를 확인할 수 있습니다.
+- 선택한 stage의 effective configuration, validation과 warning을 다른 stage의 사실과 섞지 않고 검토할 수 있습니다.
+- 해당 모델에 적용되지 않는 stage는 생략하지 않고 `not applicable`로 표현합니다.
+
+### Evidence Explorer
+
+Validated result가 실제로 제공하는 model/evaluation evidence를 population scope와 함께 탐색합니다. 첫 sequence-model
+consumer에서는 acquisition-aligned reconstruction score trajectory, lifecycle retrospective statistic과 per-feature
+residual을 다룹니다.
+
+Acceptance criteria:
+
+- score의 방향, alignment target, population unit과 evaluation scope를 plot/table 가까이에 표시합니다.
+- bearing 또는 asset을 선택하면 해당 trajectory와 bearing-first statistic이 같은 selection context를 사용합니다.
+- per-feature residual은 robust-scaled feature space의 model evidence로 표시하고 physical fault contribution으로
+  이름을 바꾸지 않습니다.
+- threshold가 없는 result는 threshold line이나 normal/fault state를 만들지 않고 capability를 `unsupported`로
+  표시합니다.
+- displayed aggregate에서 source observation 또는 raw artifact까지 provenance를 따라갈 수 있습니다.
+
+### Prototype 진입 기준
+
+첫 interactive prototype은 LSTM result schema와 `ExperimentInspection` reader가 실제 Sequence Construction 및
+reconstruction evidence를 제공한 뒤 시작합니다. Prototype은 위 세 view의 navigation과 정보 이해도를 검증하며,
+frontend framework, API schema, authentication 또는 persistent workflow state를 선택하는 단계가 아닙니다.
+
+다음 질문을 representative XJTU와 IMS artifact로 답할 수 있으면 low-fidelity baseline을 충족한 것으로 봅니다.
+
+- 무엇을 어떤 data scope와 configuration으로 실행했는가?
+- 어느 stage에서 population의 값 또는 단위가 바뀌었는가?
+- model이 실제로 fit/scoring한 population은 무엇인가?
+- 현재 result가 제공하는 evidence와 제공하지 않는 PHM capability는 무엇인가?
+- 표시된 수치를 어떤 artifact, config와 code revision까지 추적할 수 있는가?
+
+## 4. 대시보드 전에 PHM 결과 계약부터
 
 Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도록 향후 공통 `PHMResult` 경계를
 둡니다. 구체적 schema는 실제 inference 요구가 확인된 뒤 정의하지만, UX 관점에서는 다음 정보 범주가
@@ -284,7 +382,7 @@ Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도
 모든 capability가 항상 존재한다고 가정하지 않습니다. RUL, health indicator, uncertainty, explanation이 지원되지
 않는 경우 임의의 값이나 그럴듯한 설명으로 채우지 않고 명시적으로 unavailable 상태로 표현합니다.
 
-## 4. 사람·AI·XAI의 책임
+## 5. 사람·AI·XAI의 책임
 
 수치 계산과 PHM 판단의 source of truth는 deterministic PHM pipeline입니다. Generative AI는 구조화된 결과와
 retrieved maintenance knowledge를 사용해 설명·가설 정리·권고 초안·보고서를 생성합니다.
@@ -305,7 +403,7 @@ attribution뿐 아니라 degradation trajectory, uncertainty, calibration이 판
 UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고가 같은 시각적 수준에서 섞이지 않도록 구분해야
 합니다. 특히 정비 조치가 실제 work order나 설비 제어로 이어지는 경우 승인 boundary를 별도로 둡니다.
 
-## 5. CLI도 UX
+## 6. CLI도 UX
 
 현재 단계에서 가장 먼저 사용되는 제품 인터페이스는 CLI일 가능성이 높습니다. 따라서 CLI도 다음 UX 기준을
 적용합니다.
@@ -325,7 +423,7 @@ Schema-specific reader는 immutable `ExperimentInspection` read model을 만들�
 표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
 소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
 
-## 6. UI 구현 시점
+## 7. UI 구현 시점
 
 지금 할 일:
 
