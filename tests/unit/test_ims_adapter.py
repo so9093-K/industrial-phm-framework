@@ -126,3 +126,36 @@ def test_ims_adapter_rejects_non_timestamp_filename(tmp_path: Path) -> None:
 
     with pytest.raises(ImsBearingSourceError, match="acquisition filename must match"):
         next(iter(ImsBearingAdapter().iter_series(tmp_path)))
+
+
+def test_ims_adapter_can_limit_set_3_to_readme_documented_scope(tmp_path: Path) -> None:
+    documented = tmp_path / "4th_test" / "txt" / "2004.04.04.19.01.57"
+    extension = tmp_path / "4th_test" / "txt" / "2004.04.04.19.11.57"
+    _write_acquisition(documented, (1.0, 2.0, 3.0, 4.0))
+    _write_acquisition(extension, (5.0, 6.0, 7.0, 8.0))
+
+    adapter = ImsBearingAdapter()
+    documented_series = list(
+        adapter.iter_test_series(
+            tmp_path,
+            "set-3",
+            archive_scope="readme-documented",
+        )
+    )
+    all_series = list(adapter.iter_test_series(tmp_path, "set-3", archive_scope="all"))
+
+    assert len(documented_series) == 4
+    assert {series.metadata["archive_scope"] for series in documented_series} == {
+        "readme-documented"
+    }
+    assert {series.metadata["acquisition_index"] for series in documented_series} == {1}
+    assert len(all_series) == 8
+    assert {series.metadata["archive_scope"] for series in all_series} == {
+        "readme-documented",
+        "archive-extension",
+    }
+
+
+def test_ims_adapter_rejects_unknown_test_scope(tmp_path: Path) -> None:
+    with pytest.raises(ImsBearingSourceError, match="unknown IMS test_id"):
+        next(iter(ImsBearingAdapter().iter_test_series(tmp_path, "unknown-test")))

@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-import math
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from statistics import StatisticsError, correlation, fmean
+from statistics import fmean
 from typing import Literal
 
 from industrial_phm.experiments.config import ExperimentConfig
+from industrial_phm.experiments.score_statistics import ScoreStatisticsError
+from industrial_phm.experiments.score_statistics import (
+    late_vs_middle_rank_probability as _late_vs_middle_rank_probability,
+)
+from industrial_phm.experiments.score_statistics import spearman_rho as _spearman_rho
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.features import VibrationFeatureVector
 from industrial_phm.models.output import AnomalyScores
@@ -250,52 +254,19 @@ def spearman_rho(
     left: Sequence[int | float],
     right: Sequence[int | float],
 ) -> float | None:
-    """Return the rank correlation of two aligned sequences, or None when it is undefined."""
-    if len(left) != len(right) or len(left) < 2:
-        raise XjtuDevelopmentEvaluationError(
-            "Spearman correlation requires equal sequences with at least two values"
-        )
+    """Preserve the XJTU public helper while delegating pure rank math."""
     try:
-        return float(correlation(_average_ranks(left), _average_ranks(right)))
-    except StatisticsError:
-        return None
+        return _spearman_rho(left, right)
+    except ScoreStatisticsError as error:
+        raise XjtuDevelopmentEvaluationError(str(error)) from error
 
 
 def late_vs_middle_rank_probability(
     middle_scores: Sequence[float],
     late_scores: Sequence[float],
 ) -> float | None:
-    """Return P(late > middle) + 0.5 * P(late = middle) over all cross-segment pairs.
-
-    ``0.5`` means the late segment holds no consistent rank advantage over the middle one.
-    Returns ``None`` when either segment is empty, so the statistic stays undefined instead of
-    being imputed. Computed from mid-ranks of the pooled scores, which is exactly the pairwise
-    average of ``1.0`` / ``0.5`` / ``0.0`` without materializing every pair.
-    """
-    middle_count = len(middle_scores)
-    late_count = len(late_scores)
-    if middle_count == 0 or late_count == 0:
-        return None
-
-    pooled_ranks = _average_ranks(tuple(middle_scores) + tuple(late_scores))
-    late_rank_sum = math.fsum(pooled_ranks[middle_count:])
-    favourable = late_rank_sum - late_count * (late_count + 1) / 2.0
-    return float(favourable / (middle_count * late_count))
-
-
-def _average_ranks(values: Sequence[int | float]) -> tuple[float, ...]:
-    indexed = sorted(enumerate(values), key=lambda item: item[1])
-    ranks = [0.0] * len(indexed)
-    position = 0
-    while position < len(indexed):
-        end = position + 1
-        while end < len(indexed) and indexed[end][1] == indexed[position][1]:
-            end += 1
-        average_rank = ((position + 1) + end) / 2.0
-        for ranked_position in range(position, end):
-            ranks[indexed[ranked_position][0]] = average_rank
-        position = end
-    return tuple(ranks)
+    """Preserve the XJTU public helper while delegating dataset-neutral rank math."""
+    return _late_vs_middle_rank_probability(middle_scores, late_scores)
 
 
 def _positive_acquisition_index(

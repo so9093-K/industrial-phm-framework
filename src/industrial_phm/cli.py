@@ -27,6 +27,16 @@ from industrial_phm.data.validation import (
     inspect_source,
     verify_sha256,
 )
+from industrial_phm.experiments.ims import (
+    IMS_BEARING_COUNT,
+    IMS_EVALUATION_ACQUISITION_COUNT,
+    IMS_EVALUATION_ARCHIVE_SCOPE,
+    IMS_EVALUATION_TEST_ID,
+    IMS_TRAIN_ACQUISITION_COUNT,
+    IMS_TRAIN_TEST_ID,
+    get_ims_cross_test_configuration,
+)
+from industrial_phm.experiments.ims_cross_test import run_ims_cross_test_evaluation
 from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     characterize_xjtu_source,
@@ -242,6 +252,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA for the exact execution code",
     )
     experiment_holdout.set_defaults(handler=_run_experiment_holdout)
+
+    experiment_cross_test = experiment_commands.add_parser(
+        "cross-test",
+        help="run the fixed IMS Set 2 to Set 3 one-time cross-test evaluation",
+    )
+    experiment_cross_test.add_argument("dataset_id")
+    experiment_cross_test.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by the IMS Domain Adapter",
+    )
+    experiment_cross_test.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated IMS cross-test result JSON",
+    )
+    experiment_cross_test.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_cross_test.set_defaults(handler=_run_experiment_cross_test)
 
     experiment_cross_fold = experiment_commands.add_parser(
         "cross-fold",
@@ -714,6 +748,78 @@ def _run_experiment_holdout(args: argparse.Namespace) -> int:
         )
     print(f"mean_rho: {result.mean_bearing_acquisition_order_spearman_rho}")
     print(f"mean_late_vs_middle: {result.mean_bearing_late_vs_middle_rank_probability}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_cross_test(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "ims-bearings":
+        print(
+            f"cross-test evaluation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    config = get_ims_cross_test_configuration()
+    train_vectors = IMS_TRAIN_ACQUISITION_COUNT * IMS_BEARING_COUNT
+    evaluation_vectors = IMS_EVALUATION_ACQUISITION_COUNT * IMS_BEARING_COUNT
+    print("execution plan: IMS single-channel cross-test v1")
+    print(
+        f"train: {IMS_TRAIN_TEST_ID} complete / "
+        f"{IMS_TRAIN_ACQUISITION_COUNT} acquisitions / {train_vectors} bearing vectors"
+    )
+    print(
+        f"evaluation: {IMS_EVALUATION_TEST_ID} {IMS_EVALUATION_ARCHIVE_SCOPE} / "
+        f"{IMS_EVALUATION_ACQUISITION_COUNT} acquisitions / "
+        f"{evaluation_vectors} bearing vectors"
+    )
+    print(f"feature: {config.feature_set_id} / {len(config.selected_features)} selected features")
+    print(f"reference: {config.reference_strategy.value}")
+    print(f"scaling: {config.scaling_strategy.value}")
+    print(f"sampling: {config.sampling_policy_id}")
+    print(f"model: {config.model_family.value} / seed {config.random_seed}")
+    print("excluded: set-1, set-3:archive-extension")
+    print("selection/calibration: none")
+
+    try:
+        result = run_ims_cross_test_evaluation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"cross-test evaluation failed: {error}", file=sys.stderr)
+        return 1
+
+    print("pipeline:")
+    print("  source validation: completed")
+    print("  feature extraction: completed")
+    print("  preprocessing: completed")
+    print("  model fit: completed")
+    print("  model scoring: completed")
+    print("  evaluation: completed")
+    print(
+        "populations: "
+        f"complete={result.complete_train_observation_count} "
+        f"reference={result.reference_observation_count} "
+        f"fit={result.model_fit_observation_count} "
+        f"scoring={result.scoring_observation_count}"
+    )
+    for bearing in result.bearing_results:
+        print(
+            f"  {bearing.asset_id}: n={bearing.full_run_observation_count} "
+            f"rho={bearing.acquisition_order_spearman_rho:.4f} "
+            f"late_vs_middle={bearing.late_vs_middle_rank_probability:.4f}"
+        )
+    print(f"mean_rho: {result.mean_bearing_acquisition_order_spearman_rho:.4f}")
+    print(f"mean_late_vs_middle: {result.mean_bearing_late_vs_middle_rank_probability:.4f}")
+    print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
 

@@ -1,0 +1,10 @@
+id = "ims-single-channel-cross-test-v1"
+dataset_id = "ims-bearings"
+split_unit = "test"
+strategy = "fixed-cross-test"
+fold_id = "fold-1"
+train_test_id = "set-2"
+evaluation_test_id = "set-3"
+evaluation_archive_scope = "readme-documented"
+train_acquisition_count = 984
+evaluation_acquisition_count = 4448
