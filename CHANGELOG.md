@@ -46,6 +46,11 @@
   portability 관찰과, IMS experiment protocol이 결정해야 할 항목 정리. feature 계층이 dataset-neutral하게
   유지됨을 두 domain의 channel 구성으로 고정하는 contract 테스트를 함께 추가합니다.
 
+- IMS single-channel 첫 model experiment의 source scope와 평가 경계를 결과 전에 고정한
+  `ims-experiment-protocol.md`. Set 2 complete train을 fit/reference로 사용하고 Set 3의
+  `readme-documented` 4,448 acquisitions만 one-time cross-test evaluation에 사용하며, Set 1과
+  archive-extension은 v1에서 제외합니다.
+
 ### Changed
 
 - regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를

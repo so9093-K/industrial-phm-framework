@@ -180,6 +180,8 @@ feature schema에서는 IMS 안에서도 set-1과 set-2/3가 동일한 `selected
 
 이 관찰들은 IMS experiment protocol의 입력이며, 이 문서가 그 결정을 대신 고정하지 않습니다. Feature 계층이
 dataset-neutral하게 유지된다는 사실 자체는 contract 테스트가 두 domain의 channel 구성으로 고정합니다.
+첫 numerical experiment의 실제 source scope, split, reference, model, evaluation 결정은
+[`ims-experiment-protocol.md`](ims-experiment-protocol.md)가 소유합니다.
 
 ## Sources
 
