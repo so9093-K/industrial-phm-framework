@@ -138,6 +138,16 @@ directory/schema 확인은 `data validate`로 production code에 이동했고, N
 구현하지 않습니다. Notebook 운영 규칙과 현재 연구 진입점은 [`notebooks/README.md`](notebooks/README.md)를
 참조합니다.
 
+Version-controlled candidate를 실제 development validation에 실행할 때는 code revision을 명시하고 결과 JSON을
+생성합니다. 현재 구현은 XJTU-SY `fold-1`의 네 Isolation Forest candidate만 지원하며 holdout test는 열지 않습니다.
+
+```bash
+uv run industrial-phm experiment validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output docs/research/results/xjtu-sy-iforest-fold-1-validation-v1.json \
+  --code-revision "$(git rev-parse HEAD)"
+```
+
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
 [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 development/holdout-test
 경계와 leakage 규칙을 설명하고, packaged split manifest가 실제 bearing-run assignment의 Source of Truth가 됩니다.
@@ -166,7 +176,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
 │   ├── data/               # dataset manifest·acquisition·validation
-│   ├── experiments/        # version-controlled experiment split/config/protocol inputs
+│   ├── experiments/        # experiment contract, split/config와 dataset-edge execution
 │   ├── features/           # stateless numerical feature extraction
 │   ├── models/             # model-fitting input과 model implementation
 │   └── preprocessing/      # train-fitted feature scaling state
