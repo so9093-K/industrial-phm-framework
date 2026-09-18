@@ -74,6 +74,10 @@
 - Python 3.14 CPU reference execution에서 LSTM forward/backward와 seeded deterministic update를 검증하는 PyTorch
   2.14 `deep-learning` optional runtime, CPU-only lock source와 CI compatibility contract.
 
+- ordered feature observations를 asset·partition·sequence boundary 안에서 fixed-length window로 변환하고 source row,
+  start/end identity, right-edge alignment, stride와 source observation→window population provenance를 보존하는
+  dataset-neutral sequence contract.
+
 ### Changed
 
 - XJTU finalized holdout과 IMS cross-test lineage를 같은 developer pipeline stage로 비교하고 schema-specific

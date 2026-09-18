@@ -209,7 +209,8 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── experiments/        # experiment contract, split/config와 dataset-edge execution
 │   ├── features/           # stateless numerical feature extraction
 │   ├── models/             # model-fitting input과 model implementation
-│   └── preprocessing/      # train-fitted feature scaling state
+│   ├── preprocessing/      # train-fitted feature scaling state
+│   └── sequences/          # feature-row window construction과 source lineage
 └── tests/
     ├── unit/
     └── contract/
@@ -256,12 +257,15 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   evidence 경계를 numerical execution 전에 고정한 LSTM Autoencoder protocol v1
 - Python 3.14와 Linux/macOS CPU wheel에서 deterministic LSTM training primitive를 검증한 PyTorch 2.14
   `deep-learning` optional runtime
+- source row lineage, contiguous sequence와 asset·partition boundary, length/stride와 right-edge alignment를 보존하는
+  dataset-neutral sequence-window construction contract
 
 ### Current
 
-1. dataset-neutral sequence/window contract와 XJTU edge 구현
+1. XJTU sequence construction edge 구현
+   - train reference population과 validation acquisition을 공통 sequence observation으로 변환
    - asset·partition·reference boundary와 contiguous acquisition lineage 검증
-   - length 8 / stride 1 / right-edge alignment population 고정
+   - length 8 / stride 1 / right-edge alignment로 1,084→1,021 및 2,818→2,797 population 고정
 
 ### Next
 
