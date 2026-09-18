@@ -26,8 +26,10 @@ industrial-phm
 │   ├── verify
 │   ├── inspect
 │   └── validate
-└── feature
-    └── characterize
+├── feature
+│   └── characterize
+└── experiment
+    └── validate
 ```
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.

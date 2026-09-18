@@ -35,6 +35,9 @@
   exploratory interface로 제한.
 - 첫 numerical baseline은 `fold-1` development/holdout 경계를 사용하며 configuration finalization 전에는
   다른 fold와 holdout test를 development decision에 사용하지 않도록 protocol을 명확화.
+- `fold-1` holdout을 열기 전에 reference semantics만 한 번 더 비교하도록 configuration finalization 결정을
+  고정. H0는 `all-train-observations`, H1은 train bearing별 early-third heuristic reference를 사용하며
+  feature/sampling/scaling/model parameter/seed는 selected v2에 고정하고 H0/H1 판정 규칙도 결과 전에 명시.
 - 정확한 experiment parameter와 seed는 version-controlled config가, train-fitted scaling statistics는
   `PreprocessingState`가 소유하도록 Source of Truth를 분리.
 - XJTU model-fit/scoring 준비가 research characterization artifact가 아니라 production `VibrationFeatureVector`를

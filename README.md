@@ -150,7 +150,8 @@ uv run industrial-phm experiment validate xjtu-sy \
 
 Bearing별 Spearman ρ 하나만으로는 score trajectory의 형태를 알 수 없으므로, 필요할 때
 `--score-trajectory-dir`로 acquisition별 anomaly score를 development diagnosis artifact로 함께 남깁니다. 이
-flag는 fit·score·selection을 바꾸지 않고, `train`/`validation`만 scoring하며 holdout test는 열지 않습니다.
+flag는 model fit·validation scoring/evaluation·selection을 바꾸지 않고, 요청된 경우에만 `train`을 추가
+in-sample scoring합니다. Holdout test는 열지 않습니다.
 
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
 [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md)가 development/holdout-test
@@ -214,19 +215,23 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. `fold-1 validation` evidence 검토와 experiment configuration finalization
-   - score-trajectory diagnosis 결과는
-     [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md) §8에 기록
+1. `fold-1` configuration finalization 전 reference-only v3 development
+   - H0 `all-train-observations`와 H1 `train-bearing-early-third-v1`만 비교
+   - feature/sampling/scaling/model parameter/seed는 selected v2 configuration에 고정
+   - H0/H1 판정 통계와 규칙은
+     [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md) §8에 사전 고정
+   - `fold-1 test`와 `fold-2`~`fold-5`는 configuration finalization 전까지 계속 닫아둠
 
 ### Next
 
-1. finalized configuration의 `fold-1` holdout test evaluation
-2. cross-fold robustness analysis
-3. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
-4. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-5. 데이터가 정당하게 지원하는 경우 RUL prognostics
-6. MIMII DUE를 통한 cross-domain evaluation
-7. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+1. reference-only H0/H1 comparison 구현·실행과 experiment configuration finalization
+2. finalized configuration의 `fold-1` holdout test evaluation
+3. cross-fold robustness analysis
+4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
+5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+6. 데이터가 정당하게 지원하는 경우 RUL prognostics
+7. MIMII DUE를 통한 cross-domain evaluation
+8. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

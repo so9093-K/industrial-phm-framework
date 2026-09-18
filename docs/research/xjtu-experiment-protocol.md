@@ -262,10 +262,12 @@ uv run industrial-phm experiment validate xjtu-sy \
 
 이 diagnosis의 경계는 다음과 같습니다.
 
-- `--score-trajectory-dir`는 fit, score, selection 중 무엇도 바꾸지 않습니다. 같은 실행에서 이미 계산된 score를
-  기록할 뿐이므로 canonical validation artifact는 flag 유무와 무관하게 동일합니다.
-- `train` partition을 함께 scoring합니다. 이 값은 **in-sample**이며 model이 학습한 reference distribution이
-  어떤 모양인지 설명하기 위한 것입니다. Candidate selection이나 generalization 근거로 사용하지 않습니다.
+- `--score-trajectory-dir`는 model fit, validation scoring/evaluation, candidate selection을 바꾸지
+  않습니다. Validation score는 기존 실행에서 계산한 값을 재사용하고, diagnosis를 요청한 경우에만 `train`
+  partition을 추가로 in-sample scoring합니다. 따라서 canonical validation artifact는 flag 유무와 무관하게
+  동일합니다.
+- 추가로 계산한 `train` score는 model이 학습한 reference distribution의 모양을 설명하기 위한 값입니다.
+  Candidate selection이나 generalization 근거로 사용하지 않습니다.
 - `test` partition은 scoring하지 않습니다. Score trajectory 생성 경로는 `train`과 `validation`만 허용합니다.
 - Retrospective lifecycle thirds는 최종 run length를 알아야 계산되므로 online feature가 아니라 시각적·기술적
   요약입니다. Feature characterization의 `early/middle/late_third` 구분과 같은 규칙을 사용합니다.
@@ -301,20 +303,96 @@ evidence와 맞지 않습니다. 조건이 다른 Bearing1_4도 in-sample에서 
 있는지는 bearing-specific initial state, feature distribution 차이, 초기 latent damage 등 여러 설명이 남아
 있으므로 이 문서에서 하나의 원인으로 좁히지 않습니다.
 
-**3. 현재 evaluation criterion은 sharp onset에 거의 반응하지 않습니다.**
+**3. 현재 evaluation criterion은 후기 집중 상승을 충분히 반영하지 못합니다.**
 
 `reference_strategy = all-train-observations`로 fit한 model은 train bearing Bearing3_3/Bearing3_4에서
 9개 decile 동안 median score가 `0.35` 부근으로 평탄하다가 마지막 decile에서 `0.56` / `0.49`로 상승합니다.
-이는 run-to-failure에서 기대할 수 있는 형태이지만, 같은 run의 full-run Spearman ρ는 `-0.16`과 `+0.06`으로
-사실상 0입니다. 반대로 전 구간에 걸쳐 완만히 상승하는 Bearing1_2/Bearing2_2는 `+0.75` 부근을 받습니다.
+이는 후기 lifecycle에 변화가 집중된 trajectory 후보이지만, 같은 run의 full-run Spearman ρ는 `-0.16`과
+`+0.06`으로 사실상 0입니다. 반대로 전 구간에 걸쳐 완만히 상승하는 Bearing1_2/Bearing2_2는 `+0.75`
+부근을 받습니다.
 
-즉 현재 criterion은 **점진적 drift를 높게, 후기 집중 onset을 낮게** 평가합니다. 이 성질은 §8 서두에서 이미
+즉 현재 criterion은 **점진적 drift를 높게, 후기 집중 상승을 낮게** 평가합니다. 이 성질은 §8 서두에서 이미
 "detection accuracy가 아니다"라고 선언한 범위 안에 있지만, 같은 통계를 candidate selection의 primary metric으로
 사용하고 있으므로 configuration finalization에서 함께 판단해야 합니다.
 
 이 관찰들은 development evidence이며 holdout test를 열지 않았습니다. Criterion, candidate, selection rule은
 이 관찰을 근거로 이 변경에서 수정하지 않았습니다. 변경이 필요하다고 판단되면 §8의 규칙과 candidate manifest를
 새 version으로 기록합니다.
+
+### 실험 설정 확정 전 reference-only v3 결정
+
+위 evidence를 검토한 뒤에도 `fold-1 test`는 계속 닫아둡니다. 현재 v2 configuration으로 holdout을 먼저
+평가하면 이후 reference semantics를 다시 개발하더라도 같은 `fold-1 test`를 변경된 configuration의 unbiased
+holdout evidence로 사용할 수 없습니다. 반대로 아래 development 비교가 새 reference를 지지하지 않으면 기존
+v2 configuration으로 돌아간 뒤 아직 관찰하지 않은 holdout을 사용할 수 있습니다.
+
+따라서 configuration finalization 전에 **reference semantics만 변경하는 development 비교를 한 번 수행**합니다.
+비교 대상은 다음 두 가설로 제한합니다.
+
+- **H0 — `all-train-observations`**: 현재 v2와 같이 complete `fold-1/train` acquisition 전체를 model
+  reference population으로 사용합니다.
+- **H1 — `train-bearing-early-third-v1`**: 각 `fold-1/train` bearing의 lifecycle 앞 1/3만 model
+  reference population으로 사용합니다. Bearing의 전체 acquisition 수를 `N`이라 할 때 acquisition index
+  `1..ceil(N/3)`를 포함합니다. 이 구간은 retrospective lifecycle boundary를 재사용한 **train-only heuristic
+  reference assumption**이며 healthy-state ground truth가 아닙니다. Complete historical train run의 최종 길이를
+  사용하는 offline reference fitting 규칙이지 inference 시점의 per-bearing adaptation 규칙이 아닙니다.
+
+Reference 이외의 실험 축은 selected v2 configuration에 고정합니다.
+
+- feature set/subset: `vibration-statistical-v1` full 16
+- preprocessing: complete configured train partition에서 fit한 identity scaling
+- model-fit sampling: `acquisition-uniform-v1`
+- model: Isolation Forest
+- model parameter: v2 selected candidate와 동일
+- random seed: `42`
+
+실행 순서도 고정합니다. Preprocessing state는 H0/H1과 무관하게 complete train partition 전체에서 먼저 fit하고,
+전체 train vector를 transform한 뒤 reference strategy로 model-fit eligibility를 제한합니다. 이번 비교는
+`acquisition-uniform-v1`만 사용하므로 reference population에 추가 resampling이나 bearing reweighting을
+적용하지 않습니다.
+
+H1부터는 complete train population, reference-eligible population, 실제 model-fit population이 서로 달라질 수
+있습니다. 구현과 generated comparison artifact는 이 세 population의 observation count를 의미상 구분해 보존해야
+하며, 기존 count 하나에 여러 의미를 겹쳐 싣지 않습니다. Complete train coverage 검증 역시 reference filtering
+전에 그대로 수행합니다.
+
+#### H0/H1 판정 통계
+
+기존 full-run acquisition-order Spearman ρ는 v2와의 연속성을 위해 계속 계산하고 기록하지만 H0/H1 reference
+선택의 primary statistic으로 사용하지 않습니다. #55 diagnosis에서 이 값이 후기 구간에 변화가 집중되는
+trajectory를 충분히 표현하지 못할 수 있음이 확인됐기 때문입니다.
+
+Reference 비교의 사전 고정 판정 통계는 `late_vs_middle_rank_probability`입니다. 각 validation bearing에서
+middle-third score `m`과 late-third score `l`의 모든 pair를 비교해 다음 값을 평균합니다.
+
+```text
+l > m   -> 1.0
+l = m   -> 0.5
+l < m   -> 0.0
+```
+
+값의 범위는 `0..1`이며 `0.5`는 late-third와 middle-third 사이에 일관된 순위 우위가 없다는 뜻입니다.
+각 bearing의 값을 먼저 계산하고 세 validation bearing의 동일가중 산술평균을 사용합니다. H1이 early-third를
+reference로 직접 사용하므로 early-third 자체와 비교하지 않고 바로 이전 lifecycle segment인 middle-third와
+late-third를 비교해 reference 구간을 낮게 scoring한 효과 자체를 성공으로 세지 않습니다.
+
+이 통계는 retrospective lifecycle shape를 설명하는 development statistic일 뿐 fault-onset accuracy,
+Health Indicator monotonicity 또는 prognostic performance가 아닙니다.
+
+판정 규칙은 H1 결과를 보기 전에 다음과 같이 고정합니다.
+
+1. H0와 H1 모두 세 validation bearing에서 `late_vs_middle_rank_probability`가 정의되어야 합니다.
+2. H1의 bearing-equal mean이 H0보다 **엄격하게 큰 경우에만** H1을 채택합니다.
+3. H1이 H0와 같거나 더 작으면 기존 H0를 유지합니다.
+4. Full-run Spearman ρ와 lifecycle-third Spearman ρ는 함께 기록하되 위 reference 선택을 뒤집는 보조
+   selection rule로 사용하지 않습니다.
+5. 이 비교에서 H1이 채택되지 않았다는 이유로 reference window 비율을 바꾸거나 H2/H3 전략을 같은
+   development loop에서 추가 탐색하지 않습니다. Measurement/contract 결함이 발견된 경우에만 holdout을 계속
+   닫아둔 채 새 version으로 문제를 수정합니다.
+
+이 decision을 구현하고 실행하는 동안 `fold-1 test`와 `fold-2`~`fold-5`의 어떤 partition도 열지 않습니다.
+H0/H1 결정을 마친 뒤 하나의 finalized configuration을 별도 Source of Truth로 승격하고, 그 이후에만
+`fold-1 test` holdout evaluation을 수행합니다.
 
 ## 9. Reproducibility contract
 
@@ -345,7 +423,9 @@ versioned candidate experiment configuration
   -> train-only fitted preprocessing state
   -> Isolation Forest fit on train
   -> fold-1 development validation
-  -> experiment configuration finalization
+  -> score-trajectory development diagnosis
+  -> reference-only H0/H1 development comparison
+  -> finalized experiment configuration
   -> fold-1 holdout test evaluation
   -> cross-fold robustness analysis
 ```
