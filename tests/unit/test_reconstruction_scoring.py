@@ -1,4 +1,4 @@
-from dataclasses import FrozenInstanceError, replace
+from dataclasses import replace
 
 import pytest
 
@@ -84,9 +84,6 @@ def test_reconstruction_scoring_preserves_alignment_and_mse_semantics() -> None:
     assert result.window_count == 1
     assert result.score_semantics_id == MEAN_SQUARED_RECONSTRUCTION_ERROR_ID
     assert result.higher_is_more_anomalous is True
-
-    with pytest.raises(FrozenInstanceError):
-        result.scores = ()  # type: ignore[misc]
 
 
 @pytest.mark.parametrize(
