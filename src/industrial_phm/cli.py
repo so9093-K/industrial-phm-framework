@@ -48,6 +48,9 @@ from industrial_phm.experiments.xjtu_characterization import (
 )
 from industrial_phm.experiments.xjtu_cross_fold import run_xjtu_cross_fold_robustness
 from industrial_phm.experiments.xjtu_holdout import run_xjtu_fold_1_holdout_evaluation
+from industrial_phm.experiments.xjtu_lstm import get_xjtu_lstm_development_configuration
+from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_development_evaluation
+from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
 from industrial_phm.experiments.xjtu_reference_comparison import (
     run_xjtu_fold_1_reference_comparison,
 )
@@ -316,6 +319,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA for the exact execution code",
     )
     experiment_cross_fold.set_defaults(handler=_run_experiment_cross_fold)
+
+    experiment_lstm_development = experiment_commands.add_parser(
+        "lstm-development",
+        help="run the frozen XJTU LSTM retrospective development evaluation",
+    )
+    experiment_lstm_development.add_argument("dataset_id")
+    experiment_lstm_development.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local XJTU-SY source consumed by the Domain Adapter",
+    )
+    experiment_lstm_development.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated LSTM development result JSON",
+    )
+    experiment_lstm_development.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_lstm_development.set_defaults(handler=_run_experiment_lstm_development)
 
     return parser
 
@@ -846,6 +873,68 @@ def _run_experiment_cross_test(args: argparse.Namespace) -> int:
         )
     print(f"mean_rho: {result.mean_bearing_acquisition_order_spearman_rho:.4f}")
     print(f"mean_late_vs_middle: {result.mean_bearing_late_vs_middle_rank_probability:.4f}")
+    print(f"code_revision: {result.code_revision}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_lstm_development(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"LSTM development evaluation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    config = get_xjtu_lstm_development_configuration()
+    print("execution plan: XJTU LSTM retrospective development v1")
+    print(f"scope: {config.split_id} / {config.fold_id} / train -> validation")
+    print(f"feature: {config.feature_set_id} / {len(config.selected_features)} selected features")
+    print(f"preprocessing: {config.scaling_strategy.value} / fit={config.fit_partition.value}")
+    print(f"reference: {config.reference_strategy.value}")
+    print(
+        "sequence: "
+        f"length={XJTU_LSTM_SEQUENCE_SPEC.length} "
+        f"stride={XJTU_LSTM_SEQUENCE_SPEC.stride} "
+        f"alignment={XJTU_LSTM_SEQUENCE_SPEC.alignment.value}"
+    )
+    print(f"model: {config.model_family.value} / seed {config.random_seed}")
+    print("evidence: retrospective-development-evidence")
+    print("holdout test: excluded")
+    print("selection/calibration: none")
+
+    try:
+        result = run_xjtu_lstm_development_evaluation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"LSTM development evaluation failed: {error}", file=sys.stderr)
+        return 1
+
+    print("pipeline:")
+    print("  source validation: completed")
+    print("  feature extraction: completed")
+    print("  preprocessing: completed")
+    print("  sequence construction: completed")
+    print("  model fit: completed")
+    print("  reconstruction scoring: completed")
+    print("  evaluation: completed")
+    print(
+        "populations: "
+        f"complete={result.preprocessing_fit_observation_count} acquisitions "
+        f"reference={result.reference_source_acquisition_count} acquisitions "
+        f"fit={result.reference_window_count} windows "
+        f"scoring={result.validation_window_count} windows"
+    )
+    print(f"framework: {result.training.runtime} {result.training.runtime_version}")
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
