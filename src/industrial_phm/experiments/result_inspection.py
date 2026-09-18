@@ -847,9 +847,13 @@ def _inspect_xjtu_lstm_development(
     configured_batch_size = config.model_parameters["batch_size"]
     configured_epochs = config.model_parameters["epochs"]
     if not isinstance(configured_device, str):
-        raise ExperimentResultInspectionError("configured model device must be a string")
+        raise ExperimentResultInspectionError(
+            "configured model device must be a string"
+        )
     if not isinstance(configured_precision, str):
-        raise ExperimentResultInspectionError("configured numeric_precision must be a string")
+        raise ExperimentResultInspectionError(
+            "configured numeric_precision must be a string"
+        )
     if not isinstance(configured_deterministic, bool):
         raise ExperimentResultInspectionError(
             "configured deterministic_algorithms must be a boolean"
@@ -880,13 +884,17 @@ def _inspect_xjtu_lstm_development(
         or not isinstance(configured_batch_size, int)
         or configured_batch_size <= 0
     ):
-        raise ExperimentResultInspectionError("configured batch_size must be a positive integer")
+        raise ExperimentResultInspectionError(
+            "configured batch_size must be a positive integer"
+        )
     if (
         isinstance(configured_epochs, bool)
         or not isinstance(configured_epochs, int)
         or configured_epochs <= 0
     ):
-        raise ExperimentResultInspectionError("configured epochs must be a positive integer")
+        raise ExperimentResultInspectionError(
+            "configured epochs must be a positive integer"
+        )
     _expect_equal(
         _positive_int(training, "batch_size", "model.training"),
         configured_batch_size,
