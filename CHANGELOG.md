@@ -76,6 +76,10 @@
 
 ### Changed
 
+- Developer Workbench의 low-fidelity information architecture를 Experiment Overview, Pipeline Lineage와 Evidence
+  Explorer로 구체화하고 acquisition→window population unit transition, capability availability와 provenance를
+  검토하는 acceptance criteria를 정의.
+
 - XJTU finalized holdout과 IMS cross-test lineage를 같은 developer pipeline stage로 비교하고 schema-specific
   experiment inspection에 필요한 information gap을 명시.
 

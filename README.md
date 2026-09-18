@@ -245,7 +245,8 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - verified IMS source profile과 canonical mapping을 기준으로 확인한 feature 계층의 cross-dataset portability와 XJTU edge 가정 구분
 - IMS Set 2 train → Set 3 README-documented evaluation으로 고정한 single-channel cross-test experiment protocol v1
 - PHM/ML 개발자가 source → feature → preprocessing → reference/sampling → model → scoring/evaluation lineage를
-  effective configuration·population flow·provenance와 함께 검토하는 pipeline transparency UX baseline
+  effective configuration·population flow·provenance와 함께 검토하는 pipeline transparency UX baseline 및
+  Experiment Overview / Pipeline Lineage / Evidence Explorer low-fidelity Developer Workbench 구조
 - IMS Set 2 → Set 3 one-time cross-test 실행과 preregistered temporal-shape statistic 관찰 evidence 기록
 - IMS Set 2 complete train에서 preprocessing/model fit 후 Set 3 README-documented scope만 scoring하는
   fixed single-channel cross-test execution contract와 developer-transparent result schema
