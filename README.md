@@ -217,22 +217,19 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ### Current
 
 1. 채택된 `train-bearing-early-third-v1` reference의 finalized experiment configuration 승격
-   - H0 `all-train-observations`와 H1 `train-bearing-early-third-v1`만 비교
-   - feature/sampling/scaling/model parameter/seed는 selected v2 configuration에 고정
-   - H0/H1 판정 통계와 규칙은
-     [`docs/research/xjtu-experiment-protocol.md`](docs/research/xjtu-experiment-protocol.md) §8에 사전 고정
-   - `fold-1 test`와 `fold-2`~`fold-5`는 configuration finalization 전까지 계속 닫아둠
+   - 비교용 candidate manifest가 아니라 **정확히 하나의 configuration**을 소유하는 별도 Source of Truth
+   - v2 candidate manifest와 v3 reference manifest는 각각 역사적 evidence로 그대로 보존
+   - `fold-1 test`와 `fold-2`~`fold-5`는 finalized configuration 승격 전까지 계속 닫아둠
 
 ### Next
 
 1. finalized configuration의 `fold-1` holdout test evaluation
-2. finalized configuration의 `fold-1` holdout test evaluation
-3. cross-fold robustness analysis
-4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
-5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-6. 데이터가 정당하게 지원하는 경우 RUL prognostics
-7. MIMII DUE를 통한 cross-domain evaluation
-8. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+2. cross-fold robustness analysis
+3. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
+4. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+5. 데이터가 정당하게 지원하는 경우 RUL prognostics
+6. MIMII DUE를 통한 cross-domain evaluation
+7. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

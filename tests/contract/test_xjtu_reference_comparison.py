@@ -45,7 +45,7 @@ def _hypothesis(
             XjtuBearingReferenceEvidence(
                 asset_id="Bearing3_2",
                 operating_condition="40Hz10kN",
-                observation_count=1664,
+                full_run_observation_count=2496,
                 middle_third_observation_count=832,
                 late_third_observation_count=832,
                 late_vs_middle_rank_probability=bearing_probability,
@@ -169,6 +169,11 @@ def test_comparison_result_writes_deterministic_population_provenance(tmp_path: 
     assert document["decision_rule"]["id"] == XJTU_REFERENCE_DECISION_RULE_ID
     assert document["selected_reference_strategy"] == alternative.reference_strategy
     recorded = document["hypotheses"][0]
+    bearing = recorded["validation_bearings"][0]
+    assert bearing["full_run_observation_count"] == 2496
+    assert bearing["middle_third_observation_count"] == 832
+    assert bearing["late_third_observation_count"] == 832
+    assert "observation_count" not in bearing
     assert recorded["complete_train_observation_count"] == 3246
     assert recorded["reference_observation_count"] == 1084
     assert recorded["model_fit_observation_count"] == 1084
