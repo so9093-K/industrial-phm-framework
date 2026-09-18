@@ -31,6 +31,7 @@ from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     characterize_xjtu_source,
 )
+from industrial_phm.experiments.xjtu_validation import run_xjtu_fold_1_validation
 from industrial_phm.features import VibrationFeatureError
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
@@ -147,6 +148,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="development partition to characterize; holdout test is unavailable",
     )
     feature_characterize.set_defaults(handler=_run_feature_characterize)
+
+    experiment = subcommands.add_parser(
+        "experiment",
+        help="run implemented model experiment workflows",
+    )
+    experiment_commands = experiment.add_subparsers(
+        dest="experiment_command",
+        required=True,
+    )
+    experiment_validate = experiment_commands.add_parser(
+        "validate",
+        help="execute frozen development candidates against a validation partition",
+    )
+    experiment_validate.add_argument("dataset_id")
+    experiment_validate.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by its Domain Adapter",
+    )
+    experiment_validate.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated validation result JSON",
+    )
+    experiment_validate.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_validate.set_defaults(handler=_run_experiment_validate)
 
     return parser
 
@@ -467,4 +500,39 @@ def _run_feature_characterize(args: argparse.Namespace) -> int:
     print(f"operating_conditions: {artifacts.operating_condition_count}")
     print(f"feature_table: {artifacts.feature_table_path}")
     print(f"summary: {artifacts.summary_path}")
+    return 0
+
+
+def _run_experiment_validate(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"experiment validation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        result = run_xjtu_fold_1_validation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"experiment validation failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {result.dataset_id}")
+    print(f"split_id: {result.split_id}")
+    print(f"fold_id: {result.fold_id}")
+    print(f"partition: {result.partition}")
+    print(f"candidates: {len(result.candidates)}")
+    print(f"selection_rule_id: {result.selection_rule_id}")
+    print(f"selected_experiment_id: {result.selected_experiment_id}")
+    print(f"result: {args.output}")
     return 0

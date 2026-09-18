@@ -208,8 +208,37 @@ sanity check할 수는 있지만 이를 detection accuracy로 보고하지 않�
 - iid significance를 가정하는 p-value를 candidate selection 근거로 사용하지 않습니다.
 - early/late 구간을 임의 healthy/fault label처럼 만들어 accuracy metric을 계산하지 않습니다.
 
+Candidate selection은 validation 결과를 실행하기 전에 다음 순서로 고정합니다.
+
+1. bearing별 correlation이 모두 정의되어 bearing-equal mean Spearman ρ가 계산된 candidate만 selection 대상으로 둡니다.
+2. mean bearing Spearman ρ가 가장 큰 candidate를 선택합니다.
+3. 정확한 동률에서는 selected feature 수가 적은 candidate를 우선합니다.
+4. feature 수도 같으면 원래 acquisition distribution을 보존하는 `acquisition-uniform-v1`을 우선합니다.
+5. 위 조건도 같으면 `experiment_id`의 사전순으로 하나를 결정합니다.
+
+모든 candidate의 mean이 정의되지 않으면 candidate를 선택하지 않습니다. 해당 결과는 그대로 evidence로 보존하고
+새 evaluation/configuration version에서 다음 결정을 다룹니다. Tie-breaker는 primary metric이 정확히 같은 경우에만
+적용하며 근소한 metric 차이를 임의 tolerance로 동률 처리하지 않습니다.
+
 이 criterion은 `fold-1 validation`의 candidate 비교를 위한 descriptive development evidence입니다. 실제
 degradation indicator나 Health Indicator 의미를 주장하려면 별도의 분석과 검증이 필요합니다.
+
+네 candidate는 다음 명령으로 같은 production feature/preprocessing/model 경로에서 실행합니다. `code-revision`은
+실행 코드가 포함된 full Git commit SHA이며, output JSON은 candidate별 config provenance, validation bearing별
+observation count와 ρ, bearing-equal mean 및 선택 결과를 기록합니다.
+
+```bash
+uv run industrial-phm experiment validate xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output docs/research/results/xjtu-sy-iforest-fold-1-validation-v1.json \
+  --code-revision "$(git rev-parse HEAD)"
+```
+
+현재 fold-1 validation의 authoritative numerical evidence는
+[`results/xjtu-sy-iforest-fold-1-validation-v1.json`](results/xjtu-sy-iforest-fold-1-validation-v1.json)에
+보존합니다. Artifact의 selection은 사전에 고정한 규칙을 그대로 적용한 결과입니다. Bearing별 correlation 방향이
+서로 다른 현재 evidence는 configuration finalization에서 condition/bearing variability를 함께 검토해야 함을
+보여줍니다.
 
 ## 9. Reproducibility contract
 
