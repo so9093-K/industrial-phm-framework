@@ -11,57 +11,29 @@
 
 ### Added
 
-- Python 3.14 기반 `src` layout과 uv project foundation.
-- 공통 `CanonicalTimeSeries` 데이터 계약.
-- 구조적 `DomainAdapter` protocol과 contract test 기반.
-- 초기 시스템, 모델 학습/평가, 서비스 아키텍처 문서.
-- ADR, 기여 규칙, CI 및 품질 검증 체계.
-- Apache License 2.0 라이선스 정책과 배포 메타데이터.
-- Python 3.14 dependency lock을 통한 재현 가능한 개발 환경.
-- `industrial-phm` CLI와 dataset manifest 기반 `data list/status/fetch/verify` acquisition 흐름.
-- 사용자가 직접 획득한 local dataset file/directory의 규모를 확인하는 `data inspect` 흐름.
-- `data inspect`에서 directory/ZIP source의 file count, size, path depth, extension 분포와 bounded path sample을
-  payload 내용을 출력하지 않고 확인하는 구조 inventory 요약.
-- NASA PCoE 공식 source를 사용하는 IMS Bearings dataset manifest와, local archive validation 전에는 adapter
-  compatibility를 주장하지 않는 source-profile/conformance 기준.
-- 실제 NASA archive의 nested ZIP/7z/RAR 구조와 9,464 acquisition profile에 근거해 waveform을 bearing별 canonical
-  segment로 변환하는 `ImsBearingAdapter` 및 sampled/full `data validate ims-bearings` 흐름.
-- XJTU-SY 실데이터 관찰과 Adapter/contract 검증을 위한 Jupyter-compatible exploratory-analysis notebook 기준선.
-- Git에 포함되지 않는 `data/` local workspace와 XJTU-SY 공식 Google Drive mirror의 반자동 획득 가이드.
-- 실제 XJTU-SY 15개 bearing run / 9,216 acquisition 구조에 근거한 acquisition 단위 `XjtuSyAdapter`.
-- XJTU-SY local source profile과 regular waveform time-axis 결정을 기록한 research 문서 및 ADR-0005.
-- XJTU-SY complete source profile, lifecycle sequence 및 representative/full waveform parsing을 자동 확인하는
-  `industrial-phm data validate xjtu-sy` 흐름.
-- XJTU-SY 첫 numerical baseline을 위한 condition-stratified 5-fold bearing-run split manifest와
-  leakage-prevention experiment protocol.
-- acquisition별 channel 통계와 provenance를 보존하는 versioned `vibration-statistical-v1` feature foundation.
-- correlation 하나에 종속되지 않고 lifecycle·condition·redundancy·run imbalance를 함께 보는 XJTU feature
-  characterization research protocol.
-- XJTU reference split의 명시적 train/validation partition에서 feature table과 condition/run 통계,
-  Pearson·Spearman redundancy, retrospective lifecycle thirds, run-length imbalance를 재현 가능하게 생성하는
-  automated characterization workflow.
-- ISO 13372/13374/13379/13381 계열과 일반적인 ML/data-science 용어를 우선하는 project terminology 기준선.
+- Python 3.14 기반 installable package, uv lockfile, CLI와 CI 기준선.
+- dataset manifest 기반 `data list/status/fetch/verify/inspect/validate` acquisition·inspection workflow.
+- dataset/source 차이를 격리하는 `DomainAdapter`와 domain-neutral `CanonicalTimeSeries` contract.
+- 실제 XJTU-SY와 IMS source profile, dataset-specific validator와 canonical Adapter.
+- XJTU-SY condition-stratified 5-fold bearing-run split과 leakage-aware experiment protocol.
+- acquisition별 `vibration-statistical-v1` feature와 split-aware characterization artifact workflow.
+- generated characterization artifact를 소비하는 optional marimo/Matplotlib research tooling environment.
+- dataset-neutral `ExperimentConfig v1`과 XJTU fold-1 Isolation Forest 8개 factorial candidate.
+- train provenance와 feature order를 고정하는 identity/robust `PreprocessingState`.
 
 ### Changed
 
-- `CanonicalTimeSeries`가 regular sampling rate를 제공하는 경우 explicit sample `timestamps` 없이도 waveform segment를 표현할 수 있도록 확장했습니다.
-- 초기 수동 XJTU directory/schema 검증을 반복 가능한 production validator로 승격하고 Notebook은 같은 검증을
-  재구현하지 않도록 research workflow를 정리했습니다.
-- XJTU experiment protocol이 stateless feature extraction과 data-derived feature/reference selection을 구분하고,
-  test trajectory를 이용한 post-hoc tuning도 leakage로 취급하도록 연구 경계를 명확히 했습니다.
-- XJTU feature characterization에서 반복 계산·집계는 split-aware automated artifact workflow가 담당하고,
-  Notebook은 development result의 시각적 비교와 사람의 experiment decision에 집중하도록 역할을 구분했습니다.
-- XJTU 첫 numerical baseline에서 `fold-1`을 development fold로 고정하고, experiment configuration finalization 이후
-  `fold-1 test`로 holdout test evaluation을 수행하며 나머지 fold는 이후 cross-fold robustness analysis로
-  구분했습니다.
-- 검증되지 않은 `degradation score`, `Feature Observatory`, `decision freeze` 같은 표현을 canonical terminology로
-  사용하지 않고 anomaly score, interactive feature analysis, experiment configuration finalization처럼 의미가
-  직접 드러나는 용어로 정리했습니다.
-- XJTU feature characterization의 사용자-facing 실행 경로를 설치 가능한
-  `industrial-phm feature characterize xjtu-sy` CLI로 단일화하고 repository-local 중복 script를 제거했습니다.
+- regular sampling rate가 제공되면 `CanonicalTimeSeries`가 explicit sample timestamp 없이도 waveform segment를
+  표현할 수 있도록 확장.
+- XJTU source/profile 검사를 production validator와 CLI로 이동하고 Notebook은 generated artifact를 소비하는
+  exploratory interface로 제한.
+- 첫 numerical baseline은 `fold-1` development/holdout 경계를 사용하며 configuration finalization 전에는
+  다른 fold와 holdout test를 development decision에 사용하지 않도록 protocol을 명확화.
+- 정확한 experiment parameter와 seed는 version-controlled config가, train-fitted scaling statistics는
+  `PreprocessingState`가 소유하도록 Source of Truth를 분리.
 
 ### Fixed
 
-- `CanonicalTimeSeries`가 mutable sequence 입력을 내부에 그대로 보관해 생성 이후 검증된 정렬 불변조건이 깨질 수 있던 문제를 수정했습니다.
-- dataset acquisition User-Agent가 package version과 별도로 `0.1`에 하드코딩되어 있던 중복 version 값을 제거했습니다.
-- `data inspect`가 파일이 하나도 없는 local directory를 연구 가능한 dataset source처럼 성공 처리하던 동작을 수정했습니다.
+- `CanonicalTimeSeries`가 mutable input container를 그대로 보관해 생성 이후 invariant가 깨질 수 있던 문제.
+- dataset acquisition User-Agent가 package version과 별도의 값을 사용하던 중복 version 문제.
+- `data inspect`가 empty directory를 usable source처럼 성공 처리하던 동작.

@@ -267,11 +267,14 @@ def _run_data_verify(args: argparse.Namespace) -> int:
         print(str(error), file=sys.stderr)
         return 1
 
-    print(f"verified local file: {integrity.path}")
+    if manifest.sha256 is None:
+        print(f"local file inspected: {integrity.path}")
+    else:
+        print(f"verified local file: {integrity.path}")
     print(f"bytes: {integrity.size_bytes}")
     print(f"sha256: {integrity.sha256}")
     if manifest.sha256 is None:
-        print("integrity basis: local SHA-256 provenance")
+        print("integrity basis: local SHA-256 provenance; no publisher checksum pinned")
     return 0
 
 
@@ -323,7 +326,7 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
         summary.extension in nested_archive_extensions for summary in inspection.extension_summaries
     )
     print("inspection scope: structural inventory")
-    print("inspection result: PASS")
+    print("inspection state: completed")
     if nested_archives_observed:
         print("prepared source state: nested archive extraction required")
         print(

@@ -112,24 +112,19 @@ service가 실제로 생긴 뒤 OCI container를 검토합니다.
 
 ## 6. Data Representation Boundary
 
-DataFrame library 하나를 전체 PHM 데이터 구조로 사용하지 않습니다. 데이터의 역할에 따라 표현을 분리합니다.
+Public contract와 storage/compute representation을 같은 것으로 취급하지 않습니다. 현재 canonical contract는
+특정 DataFrame, array 또는 tensor library에 종속되지 않는 의미와 invariant를 우선합니다.
 
-- dataset inventory, metadata, lifecycle observation, feature/result table: **Polars를 우선 검토**
-- dense numerical signal과 signal processing: NumPy/SciPy 계열 배열
-- sequence/deep model input: PyTorch Tensor 등 해당 모델의 native tensor
-- public canonical contract: 특정 DataFrame library에 종속되지 않는 명시적 계약
+실제 workload가 요구할 때 representation을 선택합니다.
 
-Polars를 tabular processing의 우선 후보로 두는 이유는 CSV/Parquet 같은 columnar source를 `scan_*`으로 읽고
-lazy query optimization, predicate/projection pushdown, streaming execution을 사용할 수 있기 때문입니다. 특히
-여러 asset/run의 feature table이나 lifecycle observation을 필터링·집계하는 단계와 잘 맞습니다.
+- raw/dense numerical signal은 signal processing과 모델이 요구하는 효율적인 array representation을 사용할 수 있습니다.
+- inventory, feature/result table은 columnar 또는 tabular representation을 사용할 수 있습니다.
+- deep/sequence model은 해당 모델 runtime의 native tensor를 사용할 수 있습니다.
+- public canonical contract는 위 구현 선택을 호출자에게 강제하지 않습니다.
 
-다만 `Polars가 pandas보다 빠르다`는 이유만으로 raw waveform이나 모델 tensor까지 DataFrame으로 감싸지
-않습니다. scikit-learn estimator 내부도 일반적으로 NumPy/SciPy 같은 homogeneous representation으로 변환하므로
-모델 경계에서는 불필요한 DataFrame 의존을 피합니다.
-
-현재는 실제 adapter/preprocessing이 Polars를 요구하기 전까지 runtime dependency에 추가하지 않습니다. 첫
-실데이터 pipeline에서 tabular processing 요구가 확인되면 Polars를 도입하고 정확한 버전과 Python 3.14 호환성을
-CI에서 검증합니다.
+특정 tabular library나 tensor stack을 미래 기본값으로 미리 고정하지 않습니다. 실제 adapter, feature workflow,
+model implementation 또는 규모 요구가 생기면 dependency와 representation을 그 consumer와 함께 도입하고
+Python compatibility, memory/layout 비용과 serialization boundary를 검증합니다.
 
 ## 7. UX Before UI Implementation
 

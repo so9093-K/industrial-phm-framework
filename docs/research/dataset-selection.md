@@ -30,7 +30,6 @@ boundary를 별도 conformance case로 검증합니다.
 | IMS Bearings | bearing vibration/degradation | **Early canonical-contract cross-check** | NASA PCoE가 공식 ZIP endpoint 제공 | NASA Open Data Portal은 `other-license-specified`; repository citation과 donor acknowledgement 요구를 보존하고 source terms 확인 |
 | MIMII DUE | industrial machine audio, normal/abnormal, source/target domain shift | **Cross-domain candidate** | Zenodo record/files API와 공개 checksum을 사용해 자동화 가능 | CC BY-NC-SA 4.0, Zenodo v1.01, DOI와 file checksum 보존 필요 |
 | AI4I 2020 | synthetic tabular predictive maintenance | smoke/example only | UCI 공식 ZIP으로 자동화 용이 | CC BY 4.0, DOI 제공. 실제 PHM evidence의 primary 근거로 사용하지 않음 |
-| DCASE 2026 Task 2 | dual-microphone industrial audio, normal-only training, domain shift/noise | modern stretch benchmark | challenge dataset policy에 맞춘 별도 acquisition 필요 | 2026 challenge rules/data revision을 dataset version과 함께 고정해야 함 |
 
 ## 3. Primary Concrete Case: XJTU-SY
 
@@ -103,16 +102,18 @@ minimal domain-neutral refinement, if justified
 XJTU modeling / later IMS model portability
 ```
 
-### Source-validation boundary
+### Verified source/adapter boundary
 
-NASA 공식 repository가 archive download와 citation을 제공한다는 사실은 확인되었지만, **archive 내부의 exact directory
-nesting, test별 file count, channel count, sample count, acquisition interval을 아직 production invariant로 검증한
-것은 아닙니다.** 논문·tutorial·community repository의 설명이 일부 엇갈리므로 해당 값을 복사해 validator에
-하드코딩하지 않습니다.
+실제 NASA archive를 획득해 nested archive와 prepared source를 조사했고, 현재 production validator와
+`ImsBearingAdapter`가 구현되어 있습니다. Prepared source는 3개 test와 총 9,464개 acquisition의
+filename/time/channel profile을 검사하며, sampled mode는 test별 first/middle/last waveform 총 9개를 실제로
+parse합니다. 정확한 archive layout, Set 3 README 범위와 archive extension, canonical mapping은
+[`ims-source-profile.md`](ims-source-profile.md)가 소유합니다.
 
-현재 단계에서는 공식 archive를 registry에 등록하고, 실제 local archive를 확보한 뒤 inventory/file content를 직접
-조사한 후에만 `ImsBearingAdapter`와 dataset-specific validator를 구현합니다. 상세 gate는
-[`ims-source-profile.md`](ims-source-profile.md)를 따릅니다.
+이 검증은 관찰한 NASA 배포 archive와 Adapter의 **source/profile compatibility**를 확인한 것입니다. Publisher가
+SHA-256을 제공하지 않았으므로 local digest를 upstream authenticity 증명으로 표현하지 않습니다. IMS의 다음
+역할은 별도 parser를 더 만드는 것이 아니라 XJTU에서 만든 model/preprocessing/evaluation interface가 같은
+bearing-vibration domain의 두 번째 source에서도 유지되는지 확인하는 것입니다.
 
 ### Acquisition/provenance policy
 
@@ -157,19 +158,7 @@ UCI AI4I 2020 Predictive Maintenance Dataset은 10,000-row synthetic dataset이�
 실제 CI가 매번 원격 UCI 서비스를 호출하도록 만들지는 않습니다. remote acquisition 자체의 test는 별도
 integration/smoke workflow로 분리합니다.
 
-## 7. 2026 Research Direction: DCASE Task 2
-
-DCASE 2026 Task 2는 noise-aware unsupervised anomalous sound detection을 다루며, normal-only training,
-domain shift, noisy factory condition과 near/far 두 microphone의 synchronized recording을 핵심 조건으로 둡니다.
-
-2026 제출 시스템들에서는 frozen/pretrained audio embedding과 k-NN/Mahalanobis 계열 anomaly scoring,
-noise-aware multi-channel processing 등이 반복적으로 나타납니다. 따라서 MIMII DUE 기반 cross-domain 실험이
-안정된 뒤 현대적 audio baseline의 stretch benchmark로 연결하기 좋습니다.
-
-DCASE 데이터는 challenge 중 file revision이 발생할 수 있으므로 dataset name만 기록해서는 부족합니다.
-acquisition manifest에 challenge year, task, machine subset, published revision/file name과 hash를 고정해야 합니다.
-
-## 8. Dataset Evaluation Order
+## 7. Dataset Evaluation Order
 
 Dataset별 검증 책임은 다음 순서로 확장합니다. Model 내부 구현 순서와 project-level current status는 각각 XJTU
 experiment protocol과 root README가 소유합니다.
@@ -182,8 +171,6 @@ IMS model-pipeline portability
 LSTM-AE / Health Indicator / supported prognostics
         ↓
 MIMII DUE cross-domain validation
-        ↓
-Optional DCASE 2026 stretch benchmark
 ```
 
 AI4I는 framework의 연구 결론을 만드는 dataset이 아니라 acquisition/CLI/example 같은 작은 workflow를 검증하는
@@ -207,5 +194,4 @@ Historian, database 또는 API source가 prepared `Path` boundary로 반복해�
 - MIMII DUE DOI: https://doi.org/10.5281/zenodo.4740355
 - UCI AI4I 2020: https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset
 - UCI AI4I DOI: https://doi.org/10.24432/C5HS5C
-- DCASE 2026 Task 2: https://dcase.community/challenge2026/task-first-shot-unsupervised-anomalous-sound-detection-for-machine-condition-monitoring
 - DCASE 2026 Task 2 results: https://dcase.community/challenge2026/task-first-shot-unsupervised-anomalous-sound-detection-for-machine-condition-monitoring-results
