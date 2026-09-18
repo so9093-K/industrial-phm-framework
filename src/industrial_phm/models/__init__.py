@@ -19,8 +19,15 @@ from industrial_phm.models.lstm_autoencoder import (
     fit_lstm_autoencoder,
 )
 from industrial_phm.models.output import AnomalyScores, AnomalyScoresError
+from industrial_phm.models.reconstruction_scoring import (
+    MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
+    ReconstructionScores,
+    ReconstructionScoringError,
+    score_reconstructions,
+)
 
 __all__ = [
+    "MEAN_SQUARED_RECONSTRUCTION_ERROR_ID",
     "AnomalyScores",
     "AnomalyScoresError",
     "FittedIsolationForest",
@@ -32,7 +39,10 @@ __all__ = [
     "ModelFitInputError",
     "ModelScoringInput",
     "ModelScoringInputError",
+    "ReconstructionScores",
+    "ReconstructionScoringError",
     "SequenceReconstructions",
     "fit_isolation_forest",
     "fit_lstm_autoencoder",
+    "score_reconstructions",
 ]

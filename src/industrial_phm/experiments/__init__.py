@@ -100,6 +100,7 @@ from industrial_phm.experiments.xjtu_lstm import (
     XjtuLstmDevelopmentFit,
     fit_xjtu_lstm_development_model,
     get_xjtu_lstm_development_configuration,
+    score_xjtu_lstm_development_validation,
 )
 from industrial_phm.experiments.xjtu_model_input import (
     XjtuModelInputError,
@@ -260,6 +261,7 @@ __all__ = [
     "run_xjtu_fold_1_holdout_evaluation",
     "run_xjtu_fold_1_reference_comparison",
     "run_xjtu_fold_1_validation",
+    "score_xjtu_lstm_development_validation",
     "select_xjtu_reference_hypothesis",
     "select_xjtu_validation_candidate",
     "summarize_xjtu_bearing_score_trajectories",

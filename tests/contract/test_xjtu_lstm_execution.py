@@ -14,6 +14,7 @@ from industrial_phm.experiments import (
     XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID,
     fit_xjtu_lstm_development_model,
     get_xjtu_reference_split,
+    score_xjtu_lstm_development_validation,
 )
 from industrial_phm.experiments import xjtu_lstm as module
 from industrial_phm.experiments.config import ExperimentConfig
@@ -74,7 +75,7 @@ def test_canonical_xjtu_lstm_execution_fits_state_from_the_supplied_complete_tra
 
     monkeypatch.setattr(module, "fit_preprocessing_state", recording_fit)
     fitted = fit_xjtu_lstm_development_model(train, validation)
-    reconstructions = fitted.model.reconstruct(fitted.sequence_inputs.validation)
+    scores = score_xjtu_lstm_development_validation(fitted)
 
     assert tuple(signature(fit_xjtu_lstm_development_model).parameters) == (
         "train_vectors",
@@ -90,7 +91,13 @@ def test_canonical_xjtu_lstm_execution_fits_state_from_the_supplied_complete_tra
     assert fitted.model.training.parameter_count == 15_376
     assert fitted.model.training.epochs == 50
     assert len(fitted.model.training.epoch_losses) == 50
-    assert reconstructions.window_count == 2_797
-    assert reconstructions.partition_ids == ("validation",) * 2_797
-    assert reconstructions.aligned_source_observation_ids[0] == "Bearing1_2:acquisition-8"
-    assert reconstructions.aligned_source_observation_ids[-1] == ("Bearing3_2:acquisition-2496")
+    assert scores.window_count == 2_797
+    assert scores.partition_ids == ("validation",) * 2_797
+    assert scores.aligned_source_observation_ids[0] == "Bearing1_2:acquisition-8"
+    assert scores.aligned_source_observation_ids[-1] == "Bearing3_2:acquisition-2496"
+    assert scores.aligned_source_positions[0] == 8
+    assert scores.aligned_source_positions[-1] == 2_496
+    assert len(scores.feature_residuals[0]) == 16
+    assert scores.scores[0] == pytest.approx(sum(scores.feature_residuals[0]) / 16)
+    assert all(score >= 0.0 for score in scores.scores)
+    assert scores.higher_is_more_anomalous is True

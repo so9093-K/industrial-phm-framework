@@ -26,6 +26,10 @@ from industrial_phm.models.lstm_autoencoder import (
     FittedLstmAutoencoder,
     fit_lstm_autoencoder,
 )
+from industrial_phm.models.reconstruction_scoring import (
+    ReconstructionScores,
+    score_reconstructions,
+)
 from industrial_phm.preprocessing import (
     PreprocessingError,
     PreprocessingFitProvenance,
@@ -182,6 +186,17 @@ def fit_xjtu_lstm_development_model(
         sequence_inputs=sequence_inputs,
         model=model,
     )
+
+
+def score_xjtu_lstm_development_validation(
+    fitted: XjtuLstmDevelopmentFit,
+) -> ReconstructionScores:
+    """Reconstruct and score the frozen validation sequence population."""
+    if not isinstance(fitted, XjtuLstmDevelopmentFit):
+        raise XjtuLstmDevelopmentError("fitted must be an XjtuLstmDevelopmentFit")
+    validation = fitted.sequence_inputs.validation
+    reconstructions = fitted.model.reconstruct(validation)
+    return score_reconstructions(validation, reconstructions)
 
 
 def _validate_train_feature_schema(
