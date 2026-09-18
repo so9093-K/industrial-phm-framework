@@ -132,9 +132,7 @@ def evaluate_xjtu_lstm_development_scores(
             raise XjtuLstmDevelopmentEvaluationError(
                 "XJTU LSTM score source identity must match its aligned acquisition position"
             )
-        grouped[asset_id].append(
-            (position, score, tuple(feature_residuals), source_observation_id)
-        )
+        grouped[asset_id].append((position, score, tuple(feature_residuals), source_observation_id))
 
     bearing_results = tuple(
         _evaluate_bearing(
@@ -145,12 +143,8 @@ def evaluate_xjtu_lstm_development_scores(
         for asset_id in expected_assets
     )
 
-    correlations = tuple(
-        result.acquisition_order_spearman_rho for result in bearing_results
-    )
-    rank_probabilities = tuple(
-        result.late_vs_middle_rank_probability for result in bearing_results
-    )
+    correlations = tuple(result.acquisition_order_spearman_rho for result in bearing_results)
+    rank_probabilities = tuple(result.late_vs_middle_rank_probability for result in bearing_results)
     feature_count = len(scores.feature_names)
     mean_feature_residuals = tuple(
         float(fmean(result.mean_feature_residuals[index] for result in bearing_results))
@@ -164,9 +158,7 @@ def evaluate_xjtu_lstm_development_scores(
         feature_names=tuple(scores.feature_names),
         bearing_results=bearing_results,
         mean_bearing_acquisition_order_spearman_rho=_mean_if_all_defined(correlations),
-        mean_bearing_late_vs_middle_rank_probability=_mean_if_all_defined(
-            rank_probabilities
-        ),
+        mean_bearing_late_vs_middle_rank_probability=_mean_if_all_defined(rank_probabilities),
         mean_bearing_feature_residuals=mean_feature_residuals,
     )
 
@@ -210,8 +202,7 @@ def _evaluate_bearing(
         raise XjtuLstmDevelopmentEvaluationError(str(error)) from error
 
     feature_residuals = tuple(
-        float(fmean(row[index] for _, _, row, _ in ordered))
-        for index in range(feature_count)
+        float(fmean(row[index] for _, _, row, _ in ordered)) for index in range(feature_count)
     )
     return XjtuLstmBearingEvaluation(
         asset_id=asset_id,
