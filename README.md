@@ -212,10 +212,11 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU validation bearing별 acquisition-order Spearman ρ를 사용하는 model-independent development evaluator
 - XJTU `fold-1 validation` candidate 실행과 reproducible result artifact
 - selection과 분리된 train/validation acquisition별 anomaly-score trajectory development diagnosis
+- complete train / reference / model-fit population을 분리하는 reference strategy 계약과 fold-1 H0/H1 비교
 
 ### Current
 
-1. `fold-1` configuration finalization 전 reference-only v3 development
+1. 채택된 `train-bearing-early-third-v1` reference의 finalized experiment configuration 승격
    - H0 `all-train-observations`와 H1 `train-bearing-early-third-v1`만 비교
    - feature/sampling/scaling/model parameter/seed는 selected v2 configuration에 고정
    - H0/H1 판정 통계와 규칙은
@@ -224,7 +225,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Next
 
-1. reference-only H0/H1 comparison 구현·실행과 experiment configuration finalization
+1. finalized configuration의 `fold-1` holdout test evaluation
 2. finalized configuration의 `fold-1` holdout test evaluation
 3. cross-fold robustness analysis
 4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
