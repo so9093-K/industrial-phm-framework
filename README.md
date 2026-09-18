@@ -268,10 +268,13 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   feature별 시간축 MSE와 right-edge acquisition-aligned window score를 생성하는 reconstruction scoring contract
 - LSTM validation score를 original full-run lifecycle thirds에 정렬하고 bearing별 Spearman ρ,
   late-vs-middle rank probability, feature residual mean과 equal-bearing summary를 계산하는 XJTU development evaluator
+- preprocessing fitted state, sequence population, deterministic training provenance, reconstruction score semantics,
+  evaluation과 capability를 보존하는 XJTU LSTM development result schema와 one-shot execution path
 
 ### Current
 
-1. LSTM result/execution schema와 `ExperimentInspection` reader를 numerical evidence 전에 코드로 고정
+1. LSTM result schema를 검증해 Sequence Construction과 reconstruction evidence를 노출하는
+   `ExperimentInspection` reader를 numerical evidence 전에 고정
 
 ### Next
 
