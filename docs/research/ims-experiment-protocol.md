@@ -238,6 +238,50 @@ Protocol PR에는 numerical score를 포함하지 않습니다. 다음 implement
 한 bearing이라도 scope/coverage/statistic contract를 만족하지 못하면 partial canonical result를 기록하지
 않습니다.
 
+## 10.1 관찰된 one-time cross-test 결과
+
+Clean main revision `37e876da301f13acee4081178b4cb33bfa5cc415`에서 preregistered 실행을 한 번 수행했습니다.
+Authoritative numerical evidence는
+[`results/ims-bearings-iforest-single-channel-cross-test-v1.json`](results/ims-bearings-iforest-single-channel-cross-test-v1.json)에
+보존합니다. 실행 전 `data validate ims-bearings`는 profile/waveform compatibility 모두 `PASS`였고, CLI가
+출력한 effective plan은 이 protocol이 고정한 scope와 일치했습니다.
+
+Population flow는 complete train 3,936 / reference 3,936 / model fit 3,936 / scoring 17,792입니다.
+Set 1과 Set 3 `archive-extension`은 실행 범위에서 제외됐습니다.
+
+| bearing | N | middle stage | late stage | ρ | `late_vs_middle` |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| set-3-bearing-1 | 4,448 | 1,483 | 1,482 | 0.1148 | 0.5549 |
+| set-3-bearing-2 | 4,448 | 1,483 | 1,482 | 0.0579 | 0.4852 |
+| set-3-bearing-3 | 4,448 | 1,483 | 1,482 | -0.0816 | 0.3735 |
+| set-3-bearing-4 | 4,448 | 1,483 | 1,482 | -0.4017 | 0.3585 |
+| **four-bearing equal-weight mean** | | | | **-0.0776** | **0.4430** |
+
+**Set 3에서는 late stage anomaly score가 middle stage보다 일관되게 높아지는 temporal-shape pattern이
+관찰되지 않았습니다.** 네 bearing 중 셋의 `late_vs_middle`이 `0.5` 아래이고 four-bearing equal-weight mean은
+`0.4430`이었습니다. 이는 preregistered descriptive statistic에 대한 관찰이며, configuration 전체의
+portability 성공/실패 판정이 아닙니다. §8이 pass/fail criterion을 두지 않기로 고정했으므로 이 문서도 그런
+판정을 사후에 도입하지 않습니다.
+
+Acquisition-order Spearman ρ는 bearing별로 `+0.1148`에서 `-0.4017`까지 방향과 크기가 달랐고, four-bearing
+equal-weight mean은 `-0.0776`이었습니다. 평균이 `0`에 가까운 것은 bearing 간 방향이 일관되지 않아 상쇄된
+결과이며 개별 run에 관계가 없다는 뜻이 아닙니다. 따라서 Set 3 bearing 전반에서 일관된 positive
+acquisition-order association은 관찰되지 않았습니다.
+
+정확한 관찰 범위는 **Set 2 전체 distribution을 reference로 학습한, XJTU에서 가져온 고정 Isolation Forest
+configuration이 Set 3에서 preregistered temporal-shape statistic상 일관된 later-stage increase를 보이지
+않았다**까지입니다. IMS-specific tuning을 수행하지 않았고 reference/feature/model parameter도 실행 전에
+고정한 값을 그대로 사용했으므로, 이 결과는 "IMS에서 Isolation Forest anomaly scoring이 불가능하다"는 주장이
+아닙니다. 또한 §8의 경계에 따라 fault-onset accuracy, thresholded State Detection, Health Assessment/Health
+Indicator 품질, fault diagnostics, Prognostic Assessment/RUL 중 어느 것도 의미하지 않습니다.
+
+§9에 따라 source README의 failure description은 이 해석에 사용하지 않았습니다. 어떤 bearing의 통계가 낮은지를
+failure element와 연결해 설명하지 않습니다.
+
+이 결과를 근거로 feature schema, reference strategy, sampling policy, scaling strategy, model parameter,
+evaluation statistic 중 어느 것도 조정하지 않았습니다. 같은 Set 3 scope를 변경된 configuration의 fresh
+evidence로 재사용하지 않으며, 변경이 필요하다면 새 protocol/experiment version으로 기록합니다.
+
 ## 11. V1에서 하지 않는 것
 
 - Set 1과 Set 2/3를 하나의 model feature schema로 합치기
