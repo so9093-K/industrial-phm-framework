@@ -85,8 +85,8 @@ class LstmAutoencoderTrainingProvenance:
         object.__setattr__(self, "epoch_losses", epoch_losses)
 
     @property
-    def final_loss(self) -> float:
-        """Return the fixed final-epoch training loss."""
+    def final_epoch_mean_training_loss(self) -> float:
+        """Return the observation-weighted mean training loss from the final epoch."""
         return self.epoch_losses[-1]
 
 
