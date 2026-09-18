@@ -95,8 +95,9 @@ def run_xjtu_fold_1_validation(
 ) -> XjtuFoldValidationResult:
     """Execute the four frozen candidates against fold-1 validation and write JSON evidence.
 
-    ``score_trajectory_dir`` additionally writes development-only per-observation score
-    trajectories. It never changes the fit, the scores, or the selection artifact.
+    ``score_trajectory_dir`` opts into development-only score-trajectory diagnosis: only then
+    is the train partition scored and are trajectories collected and written. It never changes
+    the fit, the validation scores, or the selection artifact.
     """
     _validate_code_revision(code_revision)
     source_report = validate_xjtu_source(source)
@@ -118,6 +119,7 @@ def run_xjtu_fold_1_validation(
         validation_vectors,
         code_revision=code_revision,
         source_acquisition_count=source_report.acquisition_count,
+        collect_score_trajectories=score_trajectory_dir is not None,
     )
     write_xjtu_fold_1_validation_result(result, output_path)
     if score_trajectory_dir is not None:
@@ -131,8 +133,14 @@ def evaluate_xjtu_fold_1_candidates(
     *,
     code_revision: str,
     source_acquisition_count: int,
+    collect_score_trajectories: bool = False,
 ) -> XjtuFoldValidationResult:
-    """Run the packaged candidates through one shared train/validation execution path."""
+    """Run the packaged candidates through one shared train/validation execution path.
+
+    ``collect_score_trajectories`` additionally scores the train partition in-sample so the
+    fitted reference distribution can be described. It is off by default because neither
+    candidate evaluation nor selection needs it.
+    """
     _validate_code_revision(code_revision)
     candidates = get_xjtu_isolation_forest_candidates()
     candidate_results: list[XjtuCandidateValidationResult] = []
@@ -158,23 +166,24 @@ def evaluate_xjtu_fold_1_candidates(
             validation_vectors,
             validation_scores,
         )
-        train_scores = model.score(
-            prepare_xjtu_model_scoring_input(
-                config,
-                preprocessing_state,
-                train_vectors,
-                partition=_FIT_PARTITION,
+        if collect_score_trajectories:
+            train_scores = model.score(
+                prepare_xjtu_model_scoring_input(
+                    config,
+                    preprocessing_state,
+                    train_vectors,
+                    partition=_FIT_PARTITION,
+                )
             )
-        )
-        trajectories.append(
-            build_xjtu_candidate_score_trajectory(
-                config.experiment_id,
-                (
-                    (_FIT_PARTITION, train_vectors, train_scores),
-                    (_PARTITION, validation_vectors, validation_scores),
-                ),
+            trajectories.append(
+                build_xjtu_candidate_score_trajectory(
+                    config.experiment_id,
+                    (
+                        (_FIT_PARTITION, train_vectors, train_scores),
+                        (_PARTITION, validation_vectors, validation_scores),
+                    ),
+                )
             )
-        )
         candidate_results.append(
             _candidate_result(config, evaluation, fit_input.source_observation_count, model)
         )
