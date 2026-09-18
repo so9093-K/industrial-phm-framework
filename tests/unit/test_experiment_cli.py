@@ -276,3 +276,88 @@ def test_experiment_cross_test_rejects_non_ims_dataset(
 
     assert exit_code == 2
     assert "cross-test evaluation is not implemented for xjtu-sy" in capsys.readouterr().err
+
+
+def test_experiment_lstm_development_shows_plan_and_routes_execution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source"
+    output = tmp_path / "lstm-result.json"
+    revision = "f" * 40
+    observed: dict[str, object] = {}
+
+    def fake_run(
+        received_source: Path,
+        received_output: Path,
+        *,
+        code_revision: str,
+    ) -> SimpleNamespace:
+        observed.update(
+            source=received_source,
+            output=received_output,
+            code_revision=code_revision,
+        )
+        return SimpleNamespace(
+            preprocessing_fit_observation_count=3_246,
+            reference_source_acquisition_count=1_084,
+            reference_window_count=1_021,
+            validation_window_count=2_797,
+            training=SimpleNamespace(runtime="pytorch", runtime_version="2.14.0"),
+            code_revision=code_revision,
+        )
+
+    monkeypatch.setattr(cli, "run_xjtu_lstm_development_evaluation", fake_run)
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "lstm-development",
+            "xjtu-sy",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--code-revision",
+            revision,
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed == {
+        "source": source,
+        "output": output,
+        "code_revision": revision,
+    }
+    captured = capsys.readouterr().out
+    assert "execution plan: XJTU LSTM retrospective development v1" in captured
+    assert "evidence: retrospective-development-evidence" in captured
+    assert "holdout test: excluded" in captured
+    assert "fit=1021 windows" in captured
+    assert "scoring=2797 windows" in captured
+    assert f"code_revision: {revision}" in captured
+    assert f"result: {output}" in captured
+
+
+def test_experiment_lstm_development_rejects_non_xjtu_dataset(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli.main(
+        [
+            "experiment",
+            "lstm-development",
+            "ims-bearings",
+            "--source",
+            "source",
+            "--output",
+            "result.json",
+            "--code-revision",
+            "f" * 40,
+        ]
+    )
+
+    assert exit_code == 2
+    assert "LSTM development evaluation is not implemented for ims-bearings" in (
+        capsys.readouterr().err
+    )

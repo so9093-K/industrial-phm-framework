@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -147,12 +148,5 @@ def test_xjtu_lstm_result_writes_reviewable_execution_contract(tmp_path: Path) -
 
 
 def test_xjtu_lstm_result_rejects_non_revision_identity() -> None:
-    result = _result()
-
     with pytest.raises(XjtuLstmDevelopmentResultError, match="40-character"):
-        XjtuLstmDevelopmentResult(
-            **{
-                field: ("not-a-revision" if field == "code_revision" else getattr(result, field))
-                for field in result.__dataclass_fields__
-            }
-        )
+        replace(_result(), code_revision="not-a-revision")
