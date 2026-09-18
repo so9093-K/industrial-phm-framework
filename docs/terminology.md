@@ -77,6 +77,26 @@ Fitted model을 준비된 observation에 적용해 numerical model output을 생
 quality를 판단하는 evaluation이 아니며, 이 프로젝트에서는 모델 출력의 방향과 의미를 명시적으로 정의한 뒤
 development evaluator가 그 값을 해석·비교합니다.
 
+### ML execution and PHM functional terminology
+
+ML 실행 용어와 PHM 기능 용어는 서로 다른 관점을 설명하며 자동으로 동의어가 되지 않습니다. 아래 대응은
+architecture 위치를 이해하기 위한 경계 설명이지 ISO/OSA-CBM functional block과의 적합성 선언이 아닙니다.
+
+| ML / experiment term | 현재 의미 | PHM 기능 용어와의 관계 |
+| --- | --- | --- |
+| feature extraction / preprocessing | observation을 model-ready representation으로 변환 | PHM data-processing 기능의 일부가 될 수 있지만 그 자체로 특정 functional block 적합성을 의미하지 않음 |
+| model fitting | train data로 model state를 학습 | research/model-development activity이며 runtime PHM functional block이 아님 |
+| model scoring | fitted model에서 observation별 numerical output 생성 | anomaly score 생성만으로 State Detection이 완료됐다고 보지 않음 |
+| anomaly score | 기준 분포 대비 비정상성을 나타내는 numerical model output | threshold·decision semantics·운영 검증이 생기면 State Detection의 evidence가 될 수 있음 |
+| development evaluation | candidate output을 validation data에서 비교·해석 | Health Assessment와 동의어가 아니며 experiment lifecycle에 속함 |
+| health assessment | 설비 condition/health에 대한 PHM-level assessment | generic model score보다 강한 의미이며 이를 지원하는 semantics와 evidence가 필요함 |
+| prognostic assessment | future condition, failure progression 또는 RUL 같은 미래 상태 평가 | generic `prediction`이라는 ML 표현과 구분하며 prognostic target과 uncertainty contract가 필요함 |
+| advisory generation | PHM 결과를 바탕으로 decision support 제공 | numerical model output 자체와 구분하고 사용자 승인·운영 절차를 별도로 고려함 |
+
+따라서 code/API 이름은 실제 계산 책임에 맞는 ML 용어를 우선합니다. `ModelScoringInput`이나
+`AnomalyScores`를 PHM 기능 이름으로 성급하게 바꾸지 않으며, State Detection·Health Assessment·Prognostic
+Assessment 같은 이름은 해당 기능의 의미와 검증 경계가 실제로 구현된 뒤 사용합니다.
+
 ### Development validation
 
 Train에서 만든 feature/preprocessing/model candidate가 별도의 validation partition에서도 유지되는지 확인하고,
