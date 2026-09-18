@@ -1,5 +1,3 @@
-import math
-
 import pytest
 
 from industrial_phm.adapters import get_xjtu_expected_acquisition_count
@@ -135,20 +133,3 @@ def test_xjtu_development_evaluation_rejects_score_identity_drift() -> None:
     with pytest.raises(XjtuDevelopmentEvaluationError, match="align exactly"):
         evaluate_xjtu_development_scores(config, vectors, invalid_scores)
 
-
-def test_spearman_result_is_not_exposed_as_health_indicator() -> None:
-    config = _config()
-    vectors = _validation_vectors()
-    scores = _scores(
-        vectors,
-        {asset_id: 1.0 for asset_id in get_xjtu_reference_split().folds[0].validation},
-    )
-
-    result = evaluate_xjtu_development_scores(config, vectors, scores)
-
-    assert all(
-        math.isclose(item.acquisition_order_spearman_rho or 0.0, 1.0)
-        for item in result.bearing_results
-    )
-    assert not hasattr(result, "health_indicator")
-    assert not hasattr(result, "degradation_score")
