@@ -264,15 +264,19 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   contract에 연결하고 3,246→1,084→1,021 및 2,818→2,797 population lineage를 검증하는 XJTU edge
 - complete train vectors에서 robust preprocessing state를 직접 fit하고 1,021 reference windows로 deterministic
   PyTorch LSTM Autoencoder를 학습하는 canonical XJTU execution path와 final-epoch training provenance
+- immutable sequence input과 reconstruction의 schema·window identity를 대조하고, robust-scaled feature space의
+  feature별 시간축 MSE와 right-edge acquisition-aligned window score를 생성하는 reconstruction scoring contract
 
 ### Current
 
-1. LSTM reconstruction-error scoring과 per-feature residual contract 구현
+1. LSTM-specific development evaluation, result/execution schema와 `ExperimentInspection` reader를 numerical
+   evidence 전에 코드로 고정
 
 ### Next
 
-1. clean-main fold-1 train/validation retrospective development evidence 실행
-2. LSTM result schema와 `ExperimentInspection` reader 연결
+1. 모든 LSTM implementation contract를 `main`에 merge한 뒤 fold-1 train/validation retrospective development
+   evidence를 clean revision에서 한 번 실행하고 evidence-only PR로 기록
+2. LSTM result reader를 사용해 Developer Workbench 첫 interactive prototype 검증
 3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
 4. MIMII DUE를 통한 cross-domain evaluation
 5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토

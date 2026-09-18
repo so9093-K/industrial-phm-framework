@@ -103,6 +103,7 @@ class SequenceReconstructions:
     asset_ids: Sequence[str]
     partition_ids: Sequence[str]
     aligned_source_observation_ids: Sequence[str]
+    model_input_values: Sequence[Sequence[Sequence[float]]]
     values: Sequence[Sequence[Sequence[float]]]
 
     def __post_init__(self) -> None:
@@ -128,16 +129,25 @@ class SequenceReconstructions:
                 _validate_text(value, field_name)
             identities[field_name] = values
 
-        reconstruction_values = tuple(
-            tuple(
-                _finite_values(row, f"reconstruction window {window_index} row {row_index}")
-                for row_index, row in enumerate(window)
-            )
-            for window_index, window in enumerate(self.values)
+        model_input_values = _validated_sequence_values(
+            self.model_input_values,
+            field_name="model input",
+            spec=self.spec,
+            feature_count=len(feature_names),
+        )
+        reconstruction_values = _validated_sequence_values(
+            self.values,
+            field_name="reconstruction",
+            spec=self.spec,
+            feature_count=len(feature_names),
         )
         window_count = len(reconstruction_values)
         if not window_count:
             raise LstmAutoencoderError("reconstruction values must contain at least one window")
+        if len(model_input_values) != window_count:
+            raise LstmAutoencoderError(
+                "model input values and reconstructions must contain the same window count"
+            )
         if any(len(values) != window_count for values in identities.values()):
             raise LstmAutoencoderError(
                 "reconstruction identities and values must contain the same window count"
@@ -146,20 +156,11 @@ class SequenceReconstructions:
             raise LstmAutoencoderError(
                 "aligned_source_observation_ids must be unique within reconstructions"
             )
-        for window_index, window in enumerate(reconstruction_values):
-            if len(window) != self.spec.length:
-                raise LstmAutoencoderError(
-                    f"reconstruction window {window_index} must contain {self.spec.length} rows"
-                )
-            if any(len(row) != len(feature_names) for row in window):
-                raise LstmAutoencoderError(
-                    f"reconstruction window {window_index} feature width must be "
-                    f"{len(feature_names)}"
-                )
 
         object.__setattr__(self, "feature_names", feature_names)
         for field_name, values in identities.items():
             object.__setattr__(self, field_name, values)
+        object.__setattr__(self, "model_input_values", model_input_values)
         object.__setattr__(self, "values", reconstruction_values)
 
     @property
@@ -228,6 +229,7 @@ class FittedLstmAutoencoder:
         finally:
             torch.use_deterministic_algorithms(original_deterministic_setting)
             torch.set_num_threads(original_thread_count)
+        model_input_values = inputs.to(device="cpu").tolist()
         values = torch.cat(reconstructed_batches, dim=0).to(device="cpu").tolist()
         return SequenceReconstructions(
             experiment_id=self.experiment_id,
@@ -241,6 +243,7 @@ class FittedLstmAutoencoder:
             aligned_source_observation_ids=tuple(
                 window.aligned_source_observation_id for window in construction.windows
             ),
+            model_input_values=model_input_values,
             values=values,
         )
 
@@ -465,6 +468,32 @@ def _validate_construction_context(
             raise LstmAutoencoderError(
                 f"sequence construction {field_name} does not match the LSTM model"
             )
+
+
+def _validated_sequence_values(
+    values: Sequence[Sequence[Sequence[float]]],
+    *,
+    field_name: str,
+    spec: SequenceWindowSpec,
+    feature_count: int,
+) -> tuple[tuple[tuple[float, ...], ...], ...]:
+    result = tuple(
+        tuple(
+            _finite_values(row, f"{field_name} window {window_index} row {row_index}")
+            for row_index, row in enumerate(window)
+        )
+        for window_index, window in enumerate(values)
+    )
+    for window_index, window in enumerate(result):
+        if len(window) != spec.length:
+            raise LstmAutoencoderError(
+                f"{field_name} window {window_index} must contain {spec.length} rows"
+            )
+        if any(len(row) != feature_count for row in window):
+            raise LstmAutoencoderError(
+                f"{field_name} window {window_index} feature width must be {feature_count}"
+            )
+    return result
 
 
 def _construction_tensor(torch: Any, construction: SequenceConstruction) -> Any:
