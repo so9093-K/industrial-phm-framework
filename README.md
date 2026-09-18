@@ -227,10 +227,10 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ### Next
 
 1. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
-3. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-4. 데이터가 정당하게 지원하는 경우 RUL prognostics
-5. MIMII DUE를 통한 cross-domain evaluation
-6. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+2. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+3. 데이터가 정당하게 지원하는 경우 RUL prognostics
+4. MIMII DUE를 통한 cross-domain evaluation
+5. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 

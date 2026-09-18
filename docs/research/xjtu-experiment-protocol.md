@@ -592,10 +592,14 @@ Folds 2~5의 test partition을 한 번에 실행했습니다. Authoritative nume
 | 40Hz10kN (n=4) | 0.1131 | 0.6533 |
 | 전체 (n=12) | 0.5877 | 0.8295 |
 
-**변동은 fold가 아니라 operating condition을 따라 갈립니다.** `35Hz12kN`과 `37.5Hz11kN`은 네 fold에서
-`late_vs_middle`이 각각 `0.7642..1.0000`, `0.9235..1.0000`으로 고르게 높은 반면, `40Hz10kN`은
-`0.4927..0.8384`로 낮고 fold-3의 Bearing3_3은 `0.4927`로 `0.5` 아래입니다. Full-run ρ의 condition별 평균도
-`0.7930 / 0.8569 / 0.1131`로 갈립니다.
+**현재 12-bearing descriptive summary에서는 operating condition별 차이가 fold별 평균 차이보다 더 뚜렷하게
+관찰됩니다.** `late_vs_middle`의 fold별 평균은 `0.8420 / 0.8269 / 0.7943 / 0.8550`으로 비슷한 반면 condition별
+평균은 `0.8855 / 0.9499 / 0.6533`입니다. `35Hz12kN`과 `37.5Hz11kN`은 네 fold에서 `late_vs_middle`이 각각
+`0.7642..1.0000`, `0.9235..1.0000`으로 고르게 높은 반면, `40Hz10kN`은 `0.4927..0.8384`로 낮고 fold-3의
+Bearing3_3은 `0.4927`로 `0.5` 아래입니다. Full-run ρ의 condition별 평균도 `0.7930 / 0.8569 / 0.1131`입니다.
+
+이 설계는 operating condition effect를 bearing identity나 다른 차이로부터 분리해 추정하는 실험이 아닙니다.
+따라서 위 관찰은 descriptive summary이며 causal estimate가 아닙니다.
 
 **Run length는 이 차이를 설명하지 않습니다.** `40Hz10kN`의 네 run을 길이순으로 보면 `114 → 371 → 1,515 →
 2,496`에 대해 `late_vs_middle`이 `0.6122 → 0.4927 → 0.6697 → 0.8384`로 단조 관계가 없고, 가장 긴
