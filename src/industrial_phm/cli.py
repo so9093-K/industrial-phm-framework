@@ -31,6 +31,7 @@ from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
     characterize_xjtu_source,
 )
+from industrial_phm.experiments.xjtu_cross_fold import run_xjtu_cross_fold_robustness
 from industrial_phm.experiments.xjtu_holdout import run_xjtu_fold_1_holdout_evaluation
 from industrial_phm.experiments.xjtu_reference_comparison import (
     run_xjtu_fold_1_reference_comparison,
@@ -241,6 +242,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA for the exact execution code",
     )
     experiment_holdout.set_defaults(handler=_run_experiment_holdout)
+
+    experiment_cross_fold = experiment_commands.add_parser(
+        "cross-fold",
+        help="collect post-holdout robustness evidence across folds 2-5 in one pass",
+    )
+    experiment_cross_fold.add_argument("dataset_id")
+    experiment_cross_fold.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local dataset root consumed by its Domain Adapter",
+    )
+    experiment_cross_fold.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated cross-fold robustness result JSON",
+    )
+    experiment_cross_fold.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_cross_fold.set_defaults(handler=_run_experiment_cross_fold)
 
     return parser
 
@@ -689,5 +714,56 @@ def _run_experiment_holdout(args: argparse.Namespace) -> int:
         )
     print(f"mean_rho: {result.mean_bearing_acquisition_order_spearman_rho}")
     print(f"mean_late_vs_middle: {result.mean_bearing_late_vs_middle_rank_probability}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_cross_fold(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"cross-fold robustness is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        result = run_xjtu_cross_fold_robustness(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"cross-fold robustness failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"dataset: {result.dataset_id}")
+    print(f"finalized_experiment_id: {result.finalized_experiment_id}")
+    for fold in result.folds:
+        print(
+            f"  {fold.fold_id}: test={','.join(fold.test_bearings)} "
+            f"complete={fold.complete_train_observation_count} "
+            f"reference={fold.reference_observation_count} "
+            f"fit={fold.model_fit_observation_count} "
+            f"mean_rho={fold.mean_bearing_acquisition_order_spearman_rho:.4f} "
+            f"mean_late_vs_middle={fold.mean_bearing_late_vs_middle_rank_probability:.4f}"
+        )
+    for summary in result.condition_summaries:
+        print(
+            f"  {summary.operating_condition} (n={summary.bearing_count}): "
+            f"mean_rho={summary.mean_bearing_acquisition_order_spearman_rho:.4f} "
+            f"mean_late_vs_middle={summary.mean_bearing_late_vs_middle_rank_probability:.4f}"
+        )
+    print(
+        f"overall (n={result.overall_bearing_count}): "
+        f"mean_rho={result.overall_mean_bearing_acquisition_order_spearman_rho:.4f} "
+        f"mean_late_vs_middle="
+        f"{result.overall_mean_bearing_late_vs_middle_rank_probability:.4f}"
+    )
     print(f"result: {args.output}")
     return 0
