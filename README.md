@@ -260,21 +260,19 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   `deep-learning` optional runtime
 - source row lineage, contiguous sequence와 asset·partition boundary, length/stride와 right-edge alignment를 보존하는
   dataset-neutral sequence-window construction contract
+- fold-1 complete train preprocessing, bearing별 early-third reference와 validation acquisition을 공통 sequence
+  contract에 연결하고 3,246→1,084→1,021 및 2,818→2,797 population lineage를 검증하는 XJTU edge
 
 ### Current
 
-1. XJTU sequence construction edge 구현
-   - train reference population과 validation acquisition을 공통 sequence observation으로 변환
-   - asset·partition·reference boundary와 contiguous acquisition lineage 검증
-   - length 8 / stride 1 / right-edge alignment로 1,084→1,021 및 2,818→2,797 population 고정
+1. LSTM Autoencoder fit/reconstruction scoring과 deterministic training contract 구현
 
 ### Next
 
-1. LSTM Autoencoder fit/reconstruction scoring과 deterministic training contract 구현
-2. fold-1 train/validation retrospective development evidence 실행 및 inspection 연결
-3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-4. MIMII DUE를 통한 cross-domain evaluation
-5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. fold-1 train/validation retrospective development evidence 실행 및 inspection 연결
+2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+3. MIMII DUE를 통한 cross-domain evaluation
+4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

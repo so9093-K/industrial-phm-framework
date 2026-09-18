@@ -96,7 +96,8 @@ window 수나 run length가 scaling state를 바꾸지 않으므로 preprocessin
 Sequence construction은 `Preprocessing`과 `Model Fit` 사이의 명시적 pipeline stage입니다.
 
 ```text
-sequence_id          = asset_id + start acquisition + end acquisition
+sequence_id          = bearing-run asset_id
+window_id            = sequence_id + start acquisition + end acquisition
 window_length        = 8 acquisitions
 stride               = 1 acquisition
 feature_width        = 16
