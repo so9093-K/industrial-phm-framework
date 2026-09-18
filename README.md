@@ -213,6 +213,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU `fold-1 validation` candidate 실행과 reproducible result artifact
 - selection과 분리된 train/validation acquisition별 anomaly-score trajectory development diagnosis
 - complete train / reference / model-fit population을 분리하는 reference strategy 계약과 fold-1 H0/H1 비교
+- 비교용 manifest와 분리해 정확히 하나의 configuration을 소유하는 fold-1 finalized experiment configuration
 
 ### Current
 

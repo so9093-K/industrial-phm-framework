@@ -423,6 +423,28 @@ monotonicity를 의미하지 않습니다.
 규칙 5항에 따라 이 결과를 근거로 reference window 비율을 바꾸거나 H2/H3를 같은 development loop에서 추가
 탐색하지 않습니다. 다음 단계는 finalized configuration 승격이며 `fold-1 test`는 그 이후에만 엽니다.
 
+
+### Finalized experiment configuration
+
+H0/H1 결정을 마쳤으므로 development 비교 결과를 **정확히 하나의 configuration**으로 승격합니다.
+`xjtu-sy-iforest-fold-1-finalized-v1`이 그 Source of Truth이며
+`industrial_phm.experiments.get_xjtu_finalized_configuration()`으로 읽습니다.
+
+승격 방식은 다음 경계를 지킵니다.
+
+- 비교용 manifest를 수정해 후보를 하나만 남기지 않습니다. v2 candidate manifest(4개)와 v3 reference
+  manifest(2개)는 각각 어떤 비교가 실제로 실행됐는지를 보존하는 역사적 evidence이며 그대로 둡니다.
+- Finalized configuration은 별도 manifest에 experiment를 하나만 담습니다. 둘 이상이면 로드가 실패합니다.
+- `experiment_id`는 비교 실험의 한쪽 팔 이름을 재사용하지 않습니다. `...-reference-train-bearing-early-third-v3`를
+  그대로 승격하면 이후 holdout 결과가 "H1 실험의 결과"로 읽히기 때문입니다.
+- 축 구성은 로드 시점에 검증합니다. `reference_strategy`는 채택된 `train-bearing-early-third-v1`이어야 하고,
+  나머지 축은 selected v2 candidate와 모두 같아야 합니다. 어긋나면 로드가 실패합니다.
+- 이 검증은 packaged manifest만 대조합니다. 생성된 research artifact를 production code가 읽어 검증하면
+  Source of Truth 방향이 뒤집히므로 그렇게 하지 않습니다.
+
+Finalized configuration이 존재한다는 사실 자체가 holdout 평가를 승인하지는 않습니다. `fold-1 test`는 별도
+holdout execution 경로가 이 configuration만 소비하도록 구현된 뒤에 한 번 엽니다.
+
 ## 9. Reproducibility contract
 
 Split assignment는 모델 코드 안에 하드코딩하지 않습니다. Downstream experiment code는
