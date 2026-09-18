@@ -111,6 +111,33 @@ def test_finalized_configuration_rejects_a_reopened_grid(
     module.get_xjtu_finalized_configuration.cache_clear()
 
 
+def test_finalized_configuration_is_the_adopted_hypothesis_promoted() -> None:
+    """Every effective axis must equal the adopted H1; only the identity is new."""
+    config = get_xjtu_finalized_configuration()
+    adopted = next(
+        hypothesis
+        for hypothesis in get_xjtu_reference_hypotheses()
+        if hypothesis.reference_strategy is ReferenceStrategy.TRAIN_BEARING_EARLY_THIRD
+    )
+
+    assert config.experiment_id != adopted.experiment_id
+    for axis in (
+        "dataset_id",
+        "split_id",
+        "fold_id",
+        "fit_partition",
+        "feature_set_id",
+        "reference_strategy",
+        "sampling_policy_id",
+        "scaling_strategy",
+        "model_family",
+        "random_seed",
+    ):
+        assert getattr(config, axis) == getattr(adopted, axis), axis
+    assert tuple(config.selected_features) == tuple(adopted.selected_features)
+    assert dict(config.model_parameters) == dict(adopted.model_parameters)
+
+
 def test_comparison_manifests_are_preserved_as_historical_evidence() -> None:
     assert len(get_xjtu_isolation_forest_candidates()) == 4
     assert len(get_xjtu_reference_hypotheses()) == 2
