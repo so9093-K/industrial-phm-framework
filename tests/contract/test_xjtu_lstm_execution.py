@@ -19,6 +19,7 @@ from industrial_phm.features import (
     VibrationFeatureVector,
     vibration_feature_names,
 )
+
 _FEATURE_NAMES = vibration_feature_names(XJTU_SY_CHANNELS)
 
 
