@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import Any
 
 from industrial_phm.experiments.config import ExperimentConfig, ModelFamily
@@ -608,9 +609,8 @@ def _validate_text(value: object, field_name: str) -> None:
 
 def _require_torch() -> Any:
     try:
-        import torch
+        return import_module("torch")
     except ModuleNotFoundError as error:  # pragma: no cover - exercised in base-only CI process.
         raise LstmAutoencoderError(
             "LSTM Autoencoder requires the project deep-learning extra"
         ) from error
-    return torch
