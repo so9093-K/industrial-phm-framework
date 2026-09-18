@@ -841,12 +841,24 @@ def _inspect_xjtu_lstm_development(
         raise ExperimentResultInspectionError(
             "model.training.framework_version must match the PyTorch 2.14 reference runtime"
         )
-    expected_training_text = (
-        ("device", config.model_parameters["device"]),
-        ("numeric_precision", config.model_parameters["numeric_precision"]),
+    configured_device = config.model_parameters["device"]
+    configured_precision = config.model_parameters["numeric_precision"]
+    configured_deterministic = config.model_parameters["deterministic_algorithms"]
+    configured_batch_size = config.model_parameters["batch_size"]
+    configured_epochs = config.model_parameters["epochs"]
+    if not isinstance(configured_device, str):
+        raise ExperimentResultInspectionError("configured model device must be a string")
+    if not isinstance(configured_precision, str):
+        raise ExperimentResultInspectionError("configured numeric_precision must be a string")
+    if not isinstance(configured_deterministic, bool):
+        raise ExperimentResultInspectionError(
+            "configured deterministic_algorithms must be a boolean"
+        )
+    for field_name, expected in (
+        ("device", configured_device),
+        ("numeric_precision", configured_precision),
         ("sampling_policy_id", config.sampling_policy_id),
-    )
-    for field_name, expected in expected_training_text:
+    ):
         _expect_equal(
             _text(training, field_name, "model.training"),
             expected,
@@ -854,7 +866,7 @@ def _inspect_xjtu_lstm_development(
         )
     _expect_equal(
         _boolean(training, "deterministic_algorithms", "model.training"),
-        config.model_parameters["deterministic_algorithms"],
+        configured_deterministic,
         "model.training.deterministic_algorithms",
     )
     _expect_equal(
@@ -863,13 +875,25 @@ def _inspect_xjtu_lstm_development(
         "model.training.fit_window_count",
     )
     parameter_count = _positive_int(training, "parameter_count", "model.training")
+    if (
+        isinstance(configured_batch_size, bool)
+        or not isinstance(configured_batch_size, int)
+        or configured_batch_size <= 0
+    ):
+        raise ExperimentResultInspectionError("configured batch_size must be a positive integer")
+    if (
+        isinstance(configured_epochs, bool)
+        or not isinstance(configured_epochs, int)
+        or configured_epochs <= 0
+    ):
+        raise ExperimentResultInspectionError("configured epochs must be a positive integer")
     _expect_equal(
         _positive_int(training, "batch_size", "model.training"),
-        config.model_parameters["batch_size"],
+        configured_batch_size,
         "model.training.batch_size",
     )
     epochs = _positive_int(training, "epochs", "model.training")
-    _expect_equal(epochs, config.model_parameters["epochs"], "model.training.epochs")
+    _expect_equal(epochs, configured_epochs, "model.training.epochs")
     epoch_losses = _number_sequence(training, "epoch_losses", "model.training")
     _expect_equal(len(epoch_losses), epochs, "model.training.epoch_losses length")
     if any(loss < 0.0 for loss in epoch_losses):
@@ -902,7 +926,7 @@ def _inspect_xjtu_lstm_development(
     )
     _expect_equal(
         _text(scoring, "input_numeric_precision", "scoring"),
-        config.model_parameters["numeric_precision"],
+        configured_precision,
         "scoring.input_numeric_precision",
     )
     scoring_window_count = _positive_int(scoring, "window_count", "scoring")
