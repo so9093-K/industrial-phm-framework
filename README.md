@@ -270,16 +270,17 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   late-vs-middle rank probability, feature residual mean과 equal-bearing summary를 계산하는 XJTU development evaluator
 - preprocessing fitted state, sequence population, deterministic training provenance, reconstruction score semantics,
   evaluation과 capability를 보존하는 XJTU LSTM development result schema와 one-shot execution path
+- XJTU LSTM development result를 schema별로 검증해 Sequence Construction, model training, reconstruction scoring,
+  bearing-first evaluation과 capability를 immutable `ExperimentInspection`으로 해석하는 reader
 
 ### Current
 
-1. LSTM result schema를 검증해 Sequence Construction과 reconstruction evidence를 노출하는
-   `ExperimentInspection` reader를 numerical evidence 전에 고정
+1. 모든 LSTM implementation contract를 `main`에 merge한 뒤 fold-1 train/validation retrospective development
+   evidence를 clean revision에서 한 번만 실행할 준비
 
 ### Next
 
-1. 모든 LSTM implementation contract를 `main`에 merge한 뒤 fold-1 train/validation retrospective development
-   evidence를 clean revision에서 한 번 실행하고 evidence-only PR로 기록
+1. clean-main one-shot execution으로 LSTM retrospective development evidence를 생성하고 evidence-only PR로 기록
 2. LSTM result reader를 사용해 Developer Workbench 첫 interactive prototype 검증
 3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
 4. MIMII DUE를 통한 cross-domain evaluation
