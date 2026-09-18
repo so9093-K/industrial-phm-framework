@@ -194,4 +194,3 @@ Historian, database 또는 API source가 prepared `Path` boundary로 반복해�
 - MIMII DUE DOI: https://doi.org/10.5281/zenodo.4740355
 - UCI AI4I 2020: https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset
 - UCI AI4I DOI: https://doi.org/10.24432/C5HS5C
-- DCASE 2026 Task 2 results: https://dcase.community/challenge2026/task-first-shot-unsupervised-anomalous-sound-detection-for-machine-condition-monitoring-results
