@@ -13,6 +13,7 @@ from industrial_phm.adapters.xjtu import (
     XjtuSyAdapter,
     XjtuSySourceError,
     XjtuSyValidationReport,
+    get_xjtu_expected_acquisition_count,
     validate_xjtu_source,
 )
 
@@ -26,6 +27,7 @@ __all__ = [
     "XjtuSyAdapter",
     "XjtuSySourceError",
     "XjtuSyValidationReport",
+    "get_xjtu_expected_acquisition_count",
     "validate_ims_source",
     "validate_xjtu_source",
 ]

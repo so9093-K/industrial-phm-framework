@@ -47,7 +47,7 @@ def _provenance() -> PreprocessingFitProvenance:
         dataset_id="reference-dataset",
         split_id="reference-split-v1",
         fold_id="fold-1",
-        partition="train",
+        fit_partition=FitPartition.TRAIN,
         feature_set_id="reference-features-v1",
     )
 
@@ -103,7 +103,6 @@ def test_robust_state_uses_global_train_median_and_linear_iqr() -> None:
         (replace(_provenance(), dataset_id="other-dataset"), "dataset_id"),
         (replace(_provenance(), split_id="other-split"), "split_id"),
         (replace(_provenance(), fold_id="fold-2"), "fold_id"),
-        (replace(_provenance(), partition="validation"), "partition"),
         (replace(_provenance(), feature_set_id="other-features"), "feature_set_id"),
     ],
 )
@@ -113,6 +112,11 @@ def test_fit_rejects_provenance_outside_configured_train_scope(
 ) -> None:
     with pytest.raises(PreprocessingError, match=field_name):
         fit_preprocessing_state(_config(), provenance, _FEATURE_NAMES, ((1.0, 2.0),))
+
+
+def test_fit_provenance_rejects_untyped_partition_value() -> None:
+    with pytest.raises(PreprocessingError, match="fit_partition"):
+        replace(_provenance(), fit_partition="validation")
 
 
 @pytest.mark.parametrize(

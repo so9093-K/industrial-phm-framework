@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from industrial_phm.adapters import XjtuSyAdapter, XjtuSySourceError
+from industrial_phm.adapters import (
+    XjtuSyAdapter,
+    XjtuSySourceError,
+    get_xjtu_expected_acquisition_count,
+)
 
 _VALID_HEADER = "Horizontal_vibration_signals,Vertical_vibration_signals\n"
 _VALID_ROW = "0.0,0.0\n"
@@ -80,3 +84,11 @@ def test_xjtu_adapter_rejects_unexpected_csv_header(tmp_path: Path) -> None:
 
     with pytest.raises(XjtuSySourceError, match="unexpected XJTU-SY CSV header"):
         next(iter(XjtuSyAdapter().iter_series(tmp_path)))
+
+
+def test_xjtu_source_profile_exposes_one_acquisition_count_source_of_truth() -> None:
+    assert get_xjtu_expected_acquisition_count("Bearing1_1") == 123
+    assert get_xjtu_expected_acquisition_count("Bearing3_4") == 1_515
+
+    with pytest.raises(XjtuSySourceError, match="unknown XJTU-SY bearing run"):
+        get_xjtu_expected_acquisition_count("Bearing4_1")

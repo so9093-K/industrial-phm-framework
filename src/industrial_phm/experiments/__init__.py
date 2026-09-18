@@ -20,6 +20,7 @@ from industrial_phm.experiments.xjtu import (
 )
 from industrial_phm.experiments.xjtu_model_input import (
     XjtuModelInputError,
+    fit_xjtu_preprocessing_and_prepare_model_input,
     prepare_xjtu_model_fit_input,
     prepare_xjtu_model_scoring_input,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "XjtuModelInputError",
     "XjtuSplitFold",
     "XjtuSplitManifest",
+    "fit_xjtu_preprocessing_and_prepare_model_input",
     "get_xjtu_isolation_forest_candidates",
     "get_xjtu_reference_split",
     "load_experiment_configs",
