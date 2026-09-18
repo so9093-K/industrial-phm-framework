@@ -1,6 +1,5 @@
 import pytest
 
-from industrial_phm.adapters import get_xjtu_expected_acquisition_count
 from industrial_phm.experiments import (
     XjtuDevelopmentEvaluationError,
     evaluate_xjtu_development_scores,
@@ -17,14 +16,12 @@ def _config():
 
 def _validation_vectors():
     config = _config()
-    fold = get_xjtu_reference_split().folds[0]
+    assets = get_xjtu_reference_split().folds[0].validation
+    counts = (2, 3, 5)
     vectors: list[VibrationFeatureVector] = []
-    for asset_id in fold.validation:
+    for asset_id, count in zip(assets, counts, strict=True):
         condition = f"condition-{asset_id[len('Bearing')]}"
-        for acquisition_index in range(
-            1,
-            get_xjtu_expected_acquisition_count(asset_id) + 1,
-        ):
+        for acquisition_index in range(1, count + 1):
             vectors.append(
                 VibrationFeatureVector(
                     feature_set_id=config.feature_set_id,
@@ -133,3 +130,16 @@ def test_xjtu_development_evaluation_rejects_score_identity_drift() -> None:
     with pytest.raises(XjtuDevelopmentEvaluationError, match="align exactly"):
         evaluate_xjtu_development_scores(config, vectors, invalid_scores)
 
+
+def test_xjtu_development_evaluation_rejects_non_validation_scope() -> None:
+    config = _config()
+    vectors = _validation_vectors()
+    missing_asset = get_xjtu_reference_split().folds[0].validation[0]
+    partial_vectors = tuple(vector for vector in vectors if vector.asset_id != missing_asset)
+    scores = _scores(
+        partial_vectors,
+        {asset_id: 1.0 for asset_id in get_xjtu_reference_split().folds[0].validation},
+    )
+
+    with pytest.raises(XjtuDevelopmentEvaluationError, match="validation bearings"):
+        evaluate_xjtu_development_scores(config, partial_vectors, scores)
