@@ -52,11 +52,16 @@ class XjtuReferenceComparisonError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class XjtuBearingReferenceEvidence:
-    """One validation bearing's retrospective lifecycle-shape evidence."""
+    """One validation bearing's retrospective lifecycle-shape evidence.
+
+    Each statistic is recorded next to the population it was computed on:
+    ``acquisition_order_spearman_rho`` covers the complete ``1..N`` run, while
+    ``late_vs_middle_rank_probability`` compares the two lifecycle-third groups.
+    """
 
     asset_id: str
     operating_condition: str
-    observation_count: int
+    full_run_observation_count: int
     middle_third_observation_count: int
     late_third_observation_count: int
     late_vs_middle_rank_probability: float | None
@@ -243,15 +248,16 @@ def _hypothesis_result(
     condition_by_asset = {
         bearing.asset_id: bearing.operating_condition for bearing in evaluation.bearing_results
     }
+    full_run_count_by_asset = {
+        bearing.asset_id: bearing.observation_count for bearing in evaluation.bearing_results
+    }
     segments = _validation_segment_scores(validation_vectors, scores)
 
     bearing_results = tuple(
         XjtuBearingReferenceEvidence(
             asset_id=asset_id,
             operating_condition=condition_by_asset[asset_id],
-            observation_count=(
-                len(segments[asset_id][MIDDLE_THIRD]) + len(segments[asset_id][LATE_THIRD])
-            ),
+            full_run_observation_count=full_run_count_by_asset[asset_id],
             middle_third_observation_count=len(segments[asset_id][MIDDLE_THIRD]),
             late_third_observation_count=len(segments[asset_id][LATE_THIRD]),
             late_vs_middle_rank_probability=late_vs_middle_rank_probability(
@@ -421,7 +427,7 @@ def _hypothesis_document(hypothesis: XjtuReferenceHypothesisResult) -> dict[str,
             {
                 "asset_id": bearing.asset_id,
                 "operating_condition": bearing.operating_condition,
-                "observation_count": bearing.observation_count,
+                "full_run_observation_count": bearing.full_run_observation_count,
                 "middle_third_observation_count": bearing.middle_third_observation_count,
                 "late_third_observation_count": bearing.late_third_observation_count,
                 "late_vs_middle_rank_probability": bearing.late_vs_middle_rank_probability,

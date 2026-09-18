@@ -1,5 +1,5 @@
 {
-  "code_revision": "04be54a725c0377b2014e6047748a4d790c4a98d",
+  "code_revision": "416ff0642a1c14d02a46facd1d1720af329debac",
   "dataset_id": "xjtu-sy",
   "decision_rule": {
     "adopt_alternative": "only when strictly greater than all-train-observations",
@@ -24,28 +24,28 @@
         {
           "acquisition_order_spearman_rho": 0.7483005521049,
           "asset_id": "Bearing1_2",
+          "full_run_observation_count": 161,
           "late_third_observation_count": 53,
           "late_vs_middle_rank_probability": 0.66701607267645,
           "middle_third_observation_count": 54,
-          "observation_count": 107,
           "operating_condition": "35Hz12kN"
         },
         {
           "acquisition_order_spearman_rho": 0.7719778007821486,
           "asset_id": "Bearing2_2",
+          "full_run_observation_count": 161,
           "late_third_observation_count": 53,
           "late_vs_middle_rank_probability": 0.6698113207547169,
           "middle_third_observation_count": 54,
-          "observation_count": 107,
           "operating_condition": "37.5Hz11kN"
         },
         {
           "acquisition_order_spearman_rho": -0.6087937851612778,
           "asset_id": "Bearing3_2",
+          "full_run_observation_count": 2496,
           "late_third_observation_count": 832,
           "late_vs_middle_rank_probability": 0.36881558570636097,
           "middle_third_observation_count": 832,
-          "observation_count": 1664,
           "operating_condition": "40Hz10kN"
         }
       ]
@@ -62,28 +62,28 @@
         {
           "acquisition_order_spearman_rho": 0.8929807913503566,
           "asset_id": "Bearing1_2",
+          "full_run_observation_count": 161,
           "late_third_observation_count": 53,
           "late_vs_middle_rank_probability": 0.7760307477288609,
           "middle_third_observation_count": 54,
-          "observation_count": 107,
           "operating_condition": "35Hz12kN"
         },
         {
           "acquisition_order_spearman_rho": 0.9537813434552564,
           "asset_id": "Bearing2_2",
+          "full_run_observation_count": 161,
           "late_third_observation_count": 53,
           "late_vs_middle_rank_probability": 0.9280223619846262,
           "middle_third_observation_count": 54,
-          "observation_count": 107,
           "operating_condition": "37.5Hz11kN"
         },
         {
           "acquisition_order_spearman_rho": 0.2938462890477051,
           "asset_id": "Bearing3_2",
+          "full_run_observation_count": 2496,
           "late_third_observation_count": 832,
           "late_vs_middle_rank_probability": 0.8618655232988166,
           "middle_third_observation_count": 832,
-          "observation_count": 1664,
           "operating_condition": "40Hz10kN"
         }
       ]
