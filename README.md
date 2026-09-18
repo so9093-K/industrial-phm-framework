@@ -213,17 +213,18 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU `fold-1 validation` candidate 실행과 reproducible result artifact
 - selection과 분리된 train/validation acquisition별 anomaly-score trajectory development diagnosis
 - complete train / reference / model-fit population을 분리하는 reference strategy 계약과 fold-1 H0/H1 비교
+- 비교용 manifest와 분리해 정확히 하나의 configuration을 소유하는 fold-1 finalized experiment configuration
 
 ### Current
 
-1. 채택된 `train-bearing-early-third-v1` reference의 finalized experiment configuration 승격
-   - 비교용 candidate manifest가 아니라 **정확히 하나의 configuration**을 소유하는 별도 Source of Truth
-   - v2 candidate manifest와 v3 reference manifest는 각각 역사적 evidence로 그대로 보존
-   - `fold-1 test`와 `fold-2`~`fold-5`는 finalized configuration 승격 전까지 계속 닫아둠
+1. finalized configuration만 소비하는 `fold-1` holdout evaluation 실행 경로 구현·검증
+   - candidate/reference selection 로직 없음
+   - `xjtu-sy-iforest-fold-1-finalized-v1` 하나만 소비
+   - 구현·리뷰 완료 전까지 `fold-1 test`는 계속 닫아둠
 
 ### Next
 
-1. finalized configuration의 `fold-1` holdout test evaluation
+1. finalized configuration의 `fold-1` holdout test 1회 실행
 2. cross-fold robustness analysis
 3. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
 4. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구

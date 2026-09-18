@@ -27,6 +27,11 @@ from industrial_phm.experiments.xjtu_evaluation import (
     evaluate_xjtu_development_scores,
     late_vs_middle_rank_probability,
 )
+from industrial_phm.experiments.xjtu_finalized import (
+    XJTU_FINALIZED_CONFIGURATION_ID,
+    XjtuFinalizedConfigurationError,
+    get_xjtu_finalized_configuration,
+)
 from industrial_phm.experiments.xjtu_lifecycle import (
     LIFECYCLE_SEGMENTS,
     XjtuLifecycleError,
@@ -82,6 +87,7 @@ __all__ = [
     "EXPERIMENT_CONFIG_SCHEMA_ID",
     "LIFECYCLE_SEGMENTS",
     "XJTU_CANDIDATE_SELECTION_RULE_ID",
+    "XJTU_FINALIZED_CONFIGURATION_ID",
     "XJTU_FOLD_1_VALIDATION_SCHEMA_ID",
     "XJTU_REFERENCE_COMPARISON_SCHEMA_ID",
     "XJTU_REFERENCE_DECISION_RULE_ID",
@@ -101,6 +107,7 @@ __all__ = [
     "XjtuDevelopmentEvaluation",
     "XjtuDevelopmentEvaluationError",
     "XjtuExperimentProtocolError",
+    "XjtuFinalizedConfigurationError",
     "XjtuFoldValidationError",
     "XjtuFoldValidationResult",
     "XjtuLifecycleError",
@@ -120,6 +127,7 @@ __all__ = [
     "evaluate_xjtu_fold_1_candidates",
     "evaluate_xjtu_reference_hypotheses",
     "fit_xjtu_preprocessing_and_prepare_model_input",
+    "get_xjtu_finalized_configuration",
     "get_xjtu_isolation_forest_candidates",
     "get_xjtu_reference_hypotheses",
     "get_xjtu_reference_split",
