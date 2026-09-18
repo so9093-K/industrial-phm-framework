@@ -5,7 +5,7 @@
 
 설비·데이터셋별 차이는 Domain Adapter에 격리하고, 공통 데이터 계약을 기준으로
 전처리, 상태 평가, 이상 탐지, prognostics, 평가 및 서비스 계층을 확장하는 것을 목표로 합니다.
-생성형 AI는 PHM 모델의 예측을 대신하지 않고, 구조화된 분석 결과를 해석하고 정비 의사결정을
+생성형 AI는 PHM 모델의 수치 출력을 대신 계산하지 않고, 구조화된 분석 결과를 해석하고 정비 의사결정을
 지원하는 상위 계층으로 통합합니다.
 
 > 현재 상태: first experiment implementation / pre-alpha (`0.0.1`)
@@ -191,7 +191,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
 - dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` Isolation Forest 4개 active candidate
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
-- dataset-neutral `ModelFitInput`과 production feature vector 기반 XJTU sampling policy
+- dataset-neutral `ModelFitInput`/`ModelScoringInput`과 production feature vector 기반 XJTU fit/scoring 준비 경계
 
 ### Current
 
