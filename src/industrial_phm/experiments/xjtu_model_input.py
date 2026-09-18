@@ -114,7 +114,8 @@ def _validate_shared_context(
     for vector_index, vector in enumerate(vectors):
         if vector.feature_set_id != config.feature_set_id:
             raise XjtuModelInputError(
-                f"XJTU feature vector {vector_index} feature_set_id does not match experiment config"
+                "XJTU feature vector "
+                f"{vector_index} feature_set_id does not match experiment config"
             )
         if tuple(vector.feature_names) != source_feature_names:
             raise XjtuModelInputError(
