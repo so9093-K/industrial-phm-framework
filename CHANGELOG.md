@@ -77,6 +77,9 @@
 - ordered feature observations를 asset·partition·sequence boundary 안에서 fixed-length window로 변환하고 source row,
   start/end identity, right-edge alignment, stride와 source observation→window population provenance를 보존하는
   dataset-neutral sequence contract.
+- XJTU fold-1 complete train을 train-fitted preprocessing state로 transform한 뒤 bearing별 early-third reference
+  1,084 acquisitions를 1,021 fit windows로, validation 2,818 acquisitions를 2,797 scoring windows로 구성하는
+  dataset edge와 frozen population validation.
 
 ### Changed
 

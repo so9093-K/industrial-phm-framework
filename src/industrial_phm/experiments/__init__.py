@@ -127,6 +127,13 @@ from industrial_phm.experiments.xjtu_score_trajectory import (
     write_xjtu_score_trajectory_summary,
     write_xjtu_score_trajectory_table,
 )
+from industrial_phm.experiments.xjtu_sequence import (
+    XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID,
+    XJTU_LSTM_SEQUENCE_SPEC,
+    XjtuSequenceConstructionError,
+    XjtuSequenceInputs,
+    prepare_xjtu_lstm_sequence_inputs,
+)
 from industrial_phm.experiments.xjtu_validation import (
     XJTU_CANDIDATE_SELECTION_RULE_ID,
     XJTU_FOLD_1_VALIDATION_SCHEMA_ID,
@@ -152,6 +159,8 @@ __all__ = [
     "XJTU_FINALIZED_CONFIGURATION_ID",
     "XJTU_FOLD_1_VALIDATION_SCHEMA_ID",
     "XJTU_HOLDOUT_RESULT_SCHEMA_ID",
+    "XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID",
+    "XJTU_LSTM_SEQUENCE_SPEC",
     "XJTU_REFERENCE_COMPARISON_SCHEMA_ID",
     "XJTU_REFERENCE_DECISION_RULE_ID",
     "XJTU_SCORE_TRAJECTORY_SCHEMA_ID",
@@ -201,6 +210,8 @@ __all__ = [
     "XjtuScoreObservation",
     "XjtuScoreTrajectoryError",
     "XjtuScoreTrajectoryReport",
+    "XjtuSequenceConstructionError",
+    "XjtuSequenceInputs",
     "XjtuSplitFold",
     "XjtuSplitManifest",
     "align_xjtu_bearing_scores",
@@ -230,6 +241,7 @@ __all__ = [
     "load_packaged_xjtu_experiment_configs",
     "prepare_ims_model_fit_input",
     "prepare_ims_model_scoring_input",
+    "prepare_xjtu_lstm_sequence_inputs",
     "prepare_xjtu_model_fit_input",
     "prepare_xjtu_model_scoring_input",
     "render_experiment_inspection_text",
