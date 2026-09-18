@@ -39,6 +39,7 @@
   명확화해 sampling 전후 의미를 이름에서 구분.
 - XJTU model input이 source profile의 acquisition sequence 전체성을 검증하고, train feature vectors에서
   preprocessing fit과 sampling-aware model input을 함께 생성하도록 실행 경계를 강화.
+- architecture PNG는 reference diagram으로 유지하고 이미지 전용 binary/canvas 검증을 CI에서 제거.
 
 ### Fixed
 

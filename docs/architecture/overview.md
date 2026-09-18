@@ -66,10 +66,6 @@ payload를 명시할 예정입니다. 그 전까지는 문서에서 미래 schem
 계산하는 source of truth가 되지 않습니다. 실제 정비 작업이나 설비 제어로 이어지는 조치는 별도의 사용자 승인
 및 운영 절차를 거쳐야 합니다.
 
-## 아키텍처 자산 Source of Truth
+## Reference Diagrams
 
-세 아키텍처 그림은 `assets/*.png`가 repository의 canonical asset입니다. 같은 그림의 SVG/WebP 복제본을 병행
-관리하지 않으며, CI에서 PNG 구조와 README/architecture 문서 참조를 검증합니다.
-
-그림은 구조 또는 책임이 실제로 바뀔 때 수정합니다. 시각적 단순화를 위해 이미 검토된 단계나 관계를 임의로
-삭제하지 않으며, 가독성 검수는 원본 크기뿐 아니라 README 축소 렌더링에서도 수행합니다.
+세 그림은 framework의 전체 책임과 흐름을 설명하는 reference diagram입니다. 구현 진행 상태는 README Roadmap에서 관리합니다.
