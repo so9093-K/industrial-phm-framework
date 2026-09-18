@@ -84,9 +84,9 @@
   deterministic CPU LSTM Autoencoder fit까지 연결하는 canonical execution path.
 - Immutable windows를 float32 tensor로 변환하고 fixed 50 epochs의 Adam, global-norm gradient clipping과 final-epoch
   model state를 적용하며 runtime·seed·loss·parameter count provenance를 보존하는 LSTM model contract.
-- Sequence input과 reconstruction의 schema·window identity를 정확히 결합하고, feature별 시간축 MSE와
-  right-edge source observation에 정렬된 higher-is-more-anomalous window score를 생성하는 reconstruction scoring
-  contract.
+- Sequence input과 reconstruction의 schema·window identity를 정확히 결합하고, 실제 model runtime이 소비한
+  float32 input을 기준으로 feature별 시간축 MSE와 right-edge source observation에 정렬된
+  higher-is-more-anomalous window score를 생성하는 reconstruction scoring contract.
 
 ### Changed
 

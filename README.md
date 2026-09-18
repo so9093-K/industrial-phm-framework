@@ -269,14 +269,17 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. clean-main fold-1 train/validation retrospective development evidence 실행
+1. LSTM-specific development evaluation, result/execution schema와 `ExperimentInspection` reader를 numerical
+   evidence 전에 코드로 고정
 
 ### Next
 
-1. LSTM result schema와 `ExperimentInspection` reader 연결
-2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-3. MIMII DUE를 통한 cross-domain evaluation
-4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. 모든 LSTM implementation contract를 `main`에 merge한 뒤 fold-1 train/validation retrospective development
+   evidence를 clean revision에서 한 번 실행하고 evidence-only PR로 기록
+2. LSTM result reader를 사용해 Developer Workbench 첫 interactive prototype 검증
+3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+4. MIMII DUE를 통한 cross-domain evaluation
+5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 
