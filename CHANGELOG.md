@@ -87,6 +87,9 @@
 - Sequence input과 reconstruction의 schema·window identity를 정확히 결합하고, 실제 model runtime이 소비한
   float32 input을 기준으로 feature별 시간축 MSE와 right-edge source observation에 정렬된
   higher-is-more-anomalous window score를 생성하는 reconstruction scoring contract.
+- XJTU LSTM validation score를 original full-run lifecycle thirds에 정렬해 bearing별 acquisition-order Spearman ρ,
+  late-vs-middle rank probability와 feature residual mean을 계산하고 3-bearing equal-weight summary를 보존하는
+  development evaluation contract.
 
 ### Changed
 

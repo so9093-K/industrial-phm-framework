@@ -266,11 +266,12 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   PyTorch LSTM Autoencoder를 학습하는 canonical XJTU execution path와 final-epoch training provenance
 - immutable sequence input과 reconstruction의 schema·window identity를 대조하고, robust-scaled feature space의
   feature별 시간축 MSE와 right-edge acquisition-aligned window score를 생성하는 reconstruction scoring contract
+- LSTM validation score를 original full-run lifecycle thirds에 정렬하고 bearing별 Spearman ρ,
+  late-vs-middle rank probability, feature residual mean과 equal-bearing summary를 계산하는 XJTU development evaluator
 
 ### Current
 
-1. LSTM-specific development evaluation, result/execution schema와 `ExperimentInspection` reader를 numerical
-   evidence 전에 코드로 고정
+1. LSTM result/execution schema와 `ExperimentInspection` reader를 numerical evidence 전에 코드로 고정
 
 ### Next
 
