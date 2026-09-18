@@ -292,21 +292,21 @@ Numerical evidence 전에 다음 순서를 지킵니다.
 protocol v1 merge
   -> Python 3.14 / PyTorch 2.14 CPU compatibility contract 유지
   -> dataset-neutral sequence/window contract와 XJTU edge 구현
-  -> LSTM Autoencoder fit/reconstruction-score contract 구현
-  -> frozen configuration과 deterministic contract tests merge
+  -> frozen configuration과 deterministic LSTM Autoencoder fit/reconstruction contract 구현
+  -> reconstruction-error score와 per-feature residual contract 구현
   -> clean main revision에서 fold-1 train/validation execution
   -> result와 inspection reader 기록
 ```
 
-다음 implementation PR의 acceptance boundary는 다음과 같습니다.
+LSTM model implementation의 acceptance boundary는 다음과 같습니다.
 
-- input feature rows와 acquisition identity를 보존하는 immutable window contract
-- asset/partition/reference boundary 교차 차단
-- contiguous acquisition coverage와 exact population arithmetic 검증
-- right-edge score alignment와 prefix-drop provenance
-- train-only preprocessing state 재사용
-- model runtime과 sequence construction 책임 분리
-- model implementation 없이도 검증 가능한 window contract tests
+- canonical XJTU execution이 complete train feature vectors에서 `PreprocessingState`를 직접 fit하고 같은 population을
+  sequence construction에 전달
+- immutable reference windows를 model 경계 안에서 CPU float32 tensor로 변환
+- encoder/latent/decoder architecture와 fixed 50 epochs, Adam, global-norm clipping, final-epoch state 적용
+- runtime version, device, precision, deterministic setting, seed, parameter count와 epoch loss provenance 보존
+- reconstruction을 window와 right-edge source observation identity에 정렬
+- reconstruction score와 per-feature residual은 별도 scoring contract가 소유
 
 IMS, MIMII, thresholding, test execution, dashboard와 `PHMResult` schema는 이 protocol PR의 범위가 아닙니다.
 

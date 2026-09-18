@@ -25,7 +25,11 @@ _DATASET_ID = "xjtu-sy"
 _SPLIT_UNIT = "bearing-run"
 _STRATEGY = "condition-stratified-rotating-holdout"
 _EXPECTED_FOLD_IDS = tuple(f"fold-{index}" for index in range(1, 6))
-_SUPPORTED_SAMPLING_POLICY_IDS = ("acquisition-uniform-v1", "bearing-balanced-resample-v1")
+_SUPPORTED_SAMPLING_POLICY_IDS = (
+    "acquisition-uniform-v1",
+    "bearing-balanced-resample-v1",
+    "reference-window-uniform-v1",
+)
 _EXPECTED_ASSETS = tuple(
     f"Bearing{condition}_{index}" for condition in range(1, 4) for index in range(1, 6)
 )

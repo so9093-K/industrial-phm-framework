@@ -1,0 +1,53 @@
+schema_id = "experiment-config-v1"
+
+[[experiment]]
+experiment_id = "xjtu-lstm-autoencoder-fold-1-development-v1"
+dataset_id = "xjtu-sy"
+split_id = "xjtu-sy-condition-stratified-5fold-v1"
+fold_id = "fold-1"
+fit_partition = "train"
+feature_set_id = "vibration-statistical-v1"
+selected_features = [
+  "feature.Horizontal_vibration_signals.mean",
+  "feature.Horizontal_vibration_signals.rms",
+  "feature.Horizontal_vibration_signals.standard_deviation",
+  "feature.Horizontal_vibration_signals.absolute_peak",
+  "feature.Horizontal_vibration_signals.peak_to_peak",
+  "feature.Horizontal_vibration_signals.crest_factor",
+  "feature.Horizontal_vibration_signals.skewness",
+  "feature.Horizontal_vibration_signals.excess_kurtosis",
+  "feature.Vertical_vibration_signals.mean",
+  "feature.Vertical_vibration_signals.rms",
+  "feature.Vertical_vibration_signals.standard_deviation",
+  "feature.Vertical_vibration_signals.absolute_peak",
+  "feature.Vertical_vibration_signals.peak_to_peak",
+  "feature.Vertical_vibration_signals.crest_factor",
+  "feature.Vertical_vibration_signals.skewness",
+  "feature.Vertical_vibration_signals.excess_kurtosis",
+]
+reference_strategy = "train-bearing-early-third-v1"
+sampling_policy_id = "reference-window-uniform-v1"
+scaling_strategy = "robust"
+model_family = "lstm-autoencoder"
+random_seed = 42
+
+[experiment.model_parameters]
+sequence_length = 8
+hidden_size = 32
+layer_count = 1
+dropout = 0.0
+loss = "mean-squared-error"
+optimizer = "adam"
+learning_rate = 0.001
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+adam_epsilon = 1e-8
+weight_decay = 0.0
+gradient_clip_norm = 1.0
+batch_size = 64
+epochs = 50
+shuffle = true
+checkpoint = "final-epoch"
+numeric_precision = "float32"
+device = "cpu"
+deterministic_algorithms = true
