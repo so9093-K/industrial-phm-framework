@@ -57,10 +57,7 @@ def test_canonical_xjtu_lstm_execution_connects_fit_and_validation_scoring() -> 
     assert fitted.config.experiment_id == XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID
     assert fitted.preprocessing_state.experiment_id == fitted.config.experiment_id
     assert fitted.preprocessing_state.observation_count == len(train)
-    assert (
-        fitted.model.training.fit_window_count
-        == fitted.sequence_inputs.reference.window_count
-    )
+    assert fitted.model.training.fit_window_count == fitted.sequence_inputs.reference.window_count
     assert scores.window_count == fitted.sequence_inputs.validation.window_count
     assert scores.feature_names == _FEATURE_NAMES
     assert scores.partition_ids == ("validation",) * scores.window_count
