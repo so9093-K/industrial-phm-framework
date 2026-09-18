@@ -226,6 +226,12 @@ Model explainability는 "왜 이 observation의 score가 높았는가"를 설명
 현재 우선순위는 pipeline transparency입니다. 모델별 feature contribution, residual attribution 같은 XAI는
 실제 model-specific evidence가 생겼을 때 추가하고, pipeline provenance 부족을 XAI로 대체하지 않습니다.
 
+XJTU finalized holdout과 IMS fixed cross-test를 이 information architecture로 대조한 결과는
+[`../research/xjtu-ims-pipeline-transparency-review.md`](../research/xjtu-ims-pipeline-transparency-review.md)에
+기록합니다. 두 실행은 공통 계산 계약을 재사용하지만 result schema의 정보 배치와 source-to-canonical cardinality
+표현이 달라, 다음 developer UX는 schema별 result reader가 같은 stage 순서의 read-only summary를 제공하는 범위로
+좁힙니다.
+
 ## 3. 대시보드 전에 PHM 결과 계약부터
 
 Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도록 향후 공통 `PHMResult` 경계를

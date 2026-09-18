@@ -11,3 +11,4 @@ parameter는 각각 PR과 version-controlled ExperimentConfig가 소유합니다
 - [IMS Bearing Data Set Source Profile](ims-source-profile.md)
 - [XJTU-SY Reference Experiment Protocol](xjtu-experiment-protocol.md)
 - [XJTU-SY Feature & Degradation Characterization](xjtu-feature-characterization.md)
+- [XJTU / IMS Developer Pipeline Transparency Review](xjtu-ims-pipeline-transparency-review.md)

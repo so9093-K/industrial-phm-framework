@@ -228,19 +228,21 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - IMS Set 2 → Set 3 one-time cross-test 실행과 preregistered temporal-shape statistic 관찰 evidence 기록
 - IMS Set 2 complete train에서 preprocessing/model fit 후 Set 3 README-documented scope만 scoring하는
   fixed single-channel cross-test execution contract와 developer-transparent result schema
+- XJTU finalized holdout과 IMS cross-test의 공통 pipeline stage, dataset-specific 의미와 inspection 정보 gap 비교
 
 ### Current
 
-1. XJTU와 IMS evidence를 같은 developer pipeline transparency 관점에서 비교·검토
-   - Set 3에서 일관된 later-stage increase가 관찰되지 않은 IMS evidence를 함께 다룸
-   - 두 dataset의 evidence를 합치지 않고 각 protocol이 소유한 해석 경계를 유지
+1. XJTU와 IMS result schema를 읽는 developer-facing experiment inspection summary
+   - effective configuration, source-to-canonical cardinality와 population flow를 동일 stage 순서로 표시
+   - dataset별 numerical evidence와 해석 경계를 유지
 
 ### Next
 
 1. LSTM Autoencoder의 reconstruction/anomaly evidence protocol 결정
-2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-3. MIMII DUE를 통한 cross-domain evaluation
-4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+2. deep-learning dependency compatibility 검증과 sequence/window contract 구현
+3. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
+4. MIMII DUE를 통한 cross-domain evaluation
+5. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 
