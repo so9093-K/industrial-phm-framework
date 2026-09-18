@@ -218,4 +218,3 @@ def _evaluate_bearing(
         late_vs_middle_rank_probability=rank_probability,
         mean_feature_residuals=feature_residuals,
     )
-
