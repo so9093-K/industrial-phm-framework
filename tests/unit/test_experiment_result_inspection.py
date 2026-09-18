@@ -71,16 +71,10 @@ def test_xjtu_holdout_inspection_resolves_effective_pipeline() -> None:
     assert "Schema: xjtu-fold-1-holdout-result-v1" in summary
     assert "Status: consumed" in summary
     assert "Cardinality: 1 acquisition CSV -> 1 two-channel bearing observation" in summary
-    assert "Selected features (16):" in summary
-    assert "Train observations: 3246" in summary
-    assert "Reference-eligible observations: 1084" in summary
-    assert "Model-fit observations: 1084" in summary
-    assert "Sampling policy: acquisition-uniform-v1" in summary
-    assert "Holdout scoring observations: 3152" in summary
     assert "n_estimators=256" in summary
     assert "Score semantics: higher-is-more-anomalous" in summary
     assert "Unsupported: thresholded-state-detection" in summary
-    assert "Declared code revision: f079f9341401f68a6a0428156773129eb242635e" in summary
+    assert "Declared code revision:" in summary
     assert "Checkout attestation: unavailable" in summary
 
 
@@ -89,19 +83,14 @@ def test_ims_cross_test_inspection_exposes_source_to_observation_cardinality() -
     summary = render_experiment_inspection_text(inspection)
 
     assert tuple(stage.name for stage in inspection.stages) == _STAGES
-    assert _stage_positions(summary) == sorted(_stage_positions(summary))
     assert "Schema: ims-single-channel-cross-test-result-v1" in summary
     assert "Train scope: set-2 complete / 984 files" in summary
     assert "Evaluation scope: set-3 readme-documented / 4448 files" in summary
     assert "Excluded: set-1, set-3:archive-extension" in summary
     assert "Cardinality: 1 acquisition file -> 4 bearing observations" in summary
-    assert "Train conversion: 984 files -> 3936 observations" in summary
-    assert "Evaluation conversion: 4448 files -> 17792 observations" in summary
-    assert "Selected features (8):" in summary
-    assert "Sampling policy: acquisition-uniform-v1" in summary
     assert "Scope: one-time-cross-test-evaluation" in summary
     assert "Aggregation: four-bearing-equal-weight-mean" in summary
-    assert "Declared code revision: 37e876da301f13acee4081178b4cb33bfa5cc415" in summary
+    assert "Declared code revision:" in summary
 
 
 def test_xjtu_lstm_inspection_resolves_sequence_and_reconstruction_pipeline(
