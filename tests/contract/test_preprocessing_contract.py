@@ -41,13 +41,13 @@ def test_preprocessing_fit_is_independent_of_model_fitting_sampling_policy() -> 
     rows = ((1.0,), (2.0,), (3.0,), (100.0,))
 
     acquisition_uniform = fit_preprocessing_state(
-        _config("acquisition-uniform-v1", "acquisition-uniform"),
+        _config("policy-a-experiment-v1", "policy-a-v1"),
         provenance,
         feature_names,
         rows,
     )
     bearing_balanced = fit_preprocessing_state(
-        _config("bearing-balanced-v1", "bearing-balanced"),
+        _config("policy-b-experiment-v1", "policy-b-v1"),
         provenance,
         feature_names,
         rows,
