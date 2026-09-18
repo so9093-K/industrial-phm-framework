@@ -216,23 +216,21 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - 비교용 manifest와 분리해 정확히 하나의 configuration을 소유하는 fold-1 finalized experiment configuration
 - selection·calibration 없이 finalized configuration 하나만 소비하는 `fold-1` holdout evaluation 실행 경로
 - `fold-1` holdout test 1회 실행과 development 결과와의 대조 evidence
+- folds 2~5 test partition을 한 번에 실행하는 post-holdout cross-fold robustness 경로와 evidence
 
 ### Current
 
-1. `fold-2`~`fold-5` cross-fold robustness analysis protocol 사전 고정
-   - finalized configuration의 model/feature/reference/sampling/scaling/seed semantics를 그대로 유지
-   - 각 fold의 test partition만 같은 실행 경로에서 평가하고 validation은 사용하지 않음
-   - 결과는 fresh holdout이나 새 model selection 근거가 아니라 post-holdout robustness evidence로만 해석
-   - `fold-1` holdout은 이미 소진됐으며 재실행하지 않음
+1. cross-fold robustness evidence 검토
+   - folds 2~5의 test partition만 한 번에 실행해 생성한 단일 artifact를 근거로 사용
+   - post-holdout robustness evidence이며 fresh holdout이나 새 model selection 근거가 아님
 
 ### Next
 
-1. 사전 고정된 cross-fold robustness analysis 구현·실행
-2. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
-3. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
-4. 데이터가 정당하게 지원하는 경우 RUL prognostics
-5. MIMII DUE를 통한 cross-domain evaluation
-6. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
+1. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
+2. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
+3. 데이터가 정당하게 지원하는 경우 RUL prognostics
+4. MIMII DUE를 통한 cross-domain evaluation
+5. 실제 여러 모델 출력에 근거한 PHM result/artifact/inference contract
 
 ### Later
 
