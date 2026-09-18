@@ -19,7 +19,7 @@ boundary입니다.
 
 ## 1. 시스템 아키텍처
 
-![시스템 아키텍처](../../assets/system-architecture.svg)
+![산업 설비 데이터부터 사용자까지 이어지는 시스템 아키텍처](../../assets/system-architecture.png)
 
 원천 산업 설비 데이터는 Domain Adapter에서 공통 데이터 구조로 변환됩니다. 이후 공통 PHM 코어는
 전처리·특징 생성, 이상 탐지, 건전성 평가, RUL 예측 등 데이터가 지원하는 PHM 기능을 수행하고,
@@ -34,7 +34,7 @@ Isolation Forest와 LSTM Autoencoder는 현재 계획된 reference implementatio
 
 ## 2. 모델 학습 및 평가
 
-![모델 학습 및 평가](../../assets/model-training-evaluation.svg)
+![입력 데이터부터 모델 비교와 선택까지 이어지는 모델 학습 및 평가 파이프라인](../../assets/model-training-evaluation.png)
 
 그림은 입력 데이터에서 전처리·특징 생성, 데이터 분할, 모델 학습, 분석 결과 생성, 모델 평가, 비교·선택으로
 이어지는 전체 실험 수명주기를 보여줍니다. 실제 split strategy는 deployment scenario와 데이터 구조에 맞게
@@ -52,7 +52,7 @@ ground truth가 정의된 경우에만 사용합니다.
 
 ## 3. 서비스 아키텍처
 
-![서비스 아키텍처](../../assets/service-architecture.svg)
+![모델 산출물부터 대시보드와 생성형 AI를 거쳐 사용자에게 전달되는 서비스 아키텍처](../../assets/service-architecture.png)
 
 학습된 모델 산출물은 추론 서비스에서 사용되고, 추론 결과는 결과 API를 통해 대시보드와 생성형 AI 등 상위
 소비자에게 전달됩니다. 현재 도식의 `분석 결과 공유`는 대시보드와 생성형 AI가 동일한 분석 context를 활용할 수
@@ -68,8 +68,8 @@ payload를 명시할 예정입니다. 그 전까지는 문서에서 미래 schem
 
 ## 아키텍처 자산 Source of Truth
 
-세 아키텍처 그림은 `assets/*.svg`가 canonical source입니다. PNG/WebP 복제본을 병행 관리하지 않으며,
-CI에서 SVG 구조와 README/architecture 문서 참조를 검증합니다.
+세 아키텍처 그림은 `assets/*.png`가 repository의 canonical asset입니다. 같은 그림의 SVG/WebP 복제본을 병행
+관리하지 않으며, CI에서 PNG 구조와 README/architecture 문서 참조를 검증합니다.
 
 그림은 구조 또는 책임이 실제로 바뀔 때 수정합니다. 시각적 단순화를 위해 이미 검토된 단계나 관계를 임의로
 삭제하지 않으며, 가독성 검수는 원본 크기뿐 아니라 README 축소 렌더링에서도 수행합니다.

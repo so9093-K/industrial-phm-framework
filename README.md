@@ -12,7 +12,7 @@
 
 ## Architecture
 
-![System Architecture](assets/system-architecture.svg)
+![System Architecture](assets/system-architecture.png)
 
 아키텍처의 현재 기준선과 각 계층의 책임은
 [`docs/architecture/overview.md`](docs/architecture/overview.md)에 유지합니다.
@@ -154,7 +154,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ```text
 .
 ├── .github/                # CI 및 협업 템플릿
-├── assets/                 # canonical SVG 아키텍처 자산
+├── assets/                 # canonical PNG 아키텍처 자산
 ├── docs/
 │   ├── architecture/       # 시스템 구조와 설계 원칙
 │   ├── product/            # 사용자 역할과 결과 UX 기준
