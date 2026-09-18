@@ -6,10 +6,11 @@ import json
 import math
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
-from industrial_phm.adapters import XJTU_SY_CHANNELS
+from industrial_phm.adapters import XJTU_SY_CHANNELS, get_xjtu_expected_acquisition_count
 from industrial_phm.experiments.config import ExperimentConfig, ExperimentParameter
 from industrial_phm.experiments.ims import (
     IMS_BEARING_COUNT,
@@ -24,6 +25,7 @@ from industrial_phm.experiments.ims_cross_test import IMS_CROSS_TEST_RESULT_SCHE
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.experiments.xjtu_finalized import get_xjtu_finalized_configuration
 from industrial_phm.experiments.xjtu_holdout import XJTU_HOLDOUT_RESULT_SCHEMA_ID
+from industrial_phm.experiments.xjtu_lifecycle import early_third_length
 
 _SCORE_SEMANTICS = "higher-is-more-anomalous"
 _FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
@@ -43,8 +45,38 @@ class ExperimentResultInspectionError(ValueError):
     """Raised when a result cannot be inspected as a supported evidence schema."""
 
 
-def inspect_experiment_result(path: Path) -> str:
-    """Validate and summarize one supported result artifact without modifying it."""
+InspectionFactValue = str | int | float
+
+
+@dataclass(frozen=True, slots=True)
+class InspectionFact:
+    """One display-independent fact resolved from evidence and packaged contracts."""
+
+    label: str
+    value: InspectionFactValue
+
+
+@dataclass(frozen=True, slots=True)
+class InspectionStage:
+    """One ordered pipeline stage in an experiment inspection read model."""
+
+    name: str
+    status: str
+    facts: tuple[InspectionFact, ...]
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentInspection:
+    """Presentation-neutral read model for one validated experiment result."""
+
+    schema_id: str
+    status: str
+    stages: tuple[InspectionStage, ...]
+
+
+def inspect_experiment_result(path: Path) -> ExperimentInspection:
+    """Validate and interpret one supported result artifact without modifying it."""
     try:
         document = cast(object, json.loads(path.read_text(encoding="utf-8")))
     except json.JSONDecodeError as error:
@@ -53,18 +85,30 @@ def inspect_experiment_result(path: Path) -> str:
     root = _mapping(document, "result root")
     schema_id = _text(root, "schema_id", "result root")
     if schema_id == XJTU_HOLDOUT_RESULT_SCHEMA_ID:
-        lines = _inspect_xjtu_holdout(root, path)
+        return _inspect_xjtu_holdout(root, path)
     elif schema_id == IMS_CROSS_TEST_RESULT_SCHEMA_ID:
-        lines = _inspect_ims_cross_test(root, path)
-    else:
-        raise ExperimentResultInspectionError(
-            f"unsupported experiment result schema_id {schema_id!r}; expected one of "
-            f"{XJTU_HOLDOUT_RESULT_SCHEMA_ID!r}, {IMS_CROSS_TEST_RESULT_SCHEMA_ID!r}"
-        )
+        return _inspect_ims_cross_test(root, path)
+    raise ExperimentResultInspectionError(
+        f"unsupported experiment result schema_id {schema_id!r}; expected one of "
+        f"{XJTU_HOLDOUT_RESULT_SCHEMA_ID!r}, {IMS_CROSS_TEST_RESULT_SCHEMA_ID!r}"
+    )
+
+
+def render_experiment_inspection_text(inspection: ExperimentInspection) -> str:
+    """Render an experiment inspection for the developer-facing CLI surface."""
+    lines = [
+        "Experiment Result",
+        f"  Schema: {inspection.schema_id}",
+        f"  Status: {inspection.status}",
+    ]
+    for stage in inspection.stages:
+        lines.extend(("", stage.name, f"  Status: {stage.status}"))
+        lines.extend(f"  {fact.label}: {fact.value}" for fact in stage.facts)
+        lines.extend(f"  Warning: {warning}" for warning in stage.warnings)
     return "\n".join(lines)
 
 
-def _inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> list[str]:
+def _inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> ExperimentInspection:
     config = get_xjtu_finalized_configuration()
     _validate_xjtu_identity(root, config)
 
@@ -114,81 +158,164 @@ def _inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> list[str]:
         for index, bearing in enumerate(bearings)
     )
     _expect_equal(artifact_assets, tuple(fold.test), "XJTU holdout bearing order")
+    profile_assets = tuple(dict.fromkeys((*fold.train, *fold.validation, *fold.test)))
+    expected_source_count = sum(
+        get_xjtu_expected_acquisition_count(asset_id) for asset_id in profile_assets
+    )
+    expected_complete_count = sum(
+        get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.train
+    )
+    expected_reference_count = sum(
+        early_third_length(get_xjtu_expected_acquisition_count(asset_id)) for asset_id in fold.train
+    )
+    expected_scoring_count = sum(
+        get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.test
+    )
+    _expect_equal(source_count, expected_source_count, "XJTU source acquisition count")
+    _expect_equal(complete_count, expected_complete_count, "XJTU complete train population")
+    _expect_equal(reference_count, expected_reference_count, "XJTU reference population")
+    _expect_equal(fit_count, expected_reference_count, "XJTU model-fit population")
+    for index, (bearing, asset_id) in enumerate(zip(bearings, artifact_assets, strict=True)):
+        _expect_equal(
+            _positive_int(
+                bearing,
+                "full_run_observation_count",
+                f"holdout_bearings[{index}]",
+            ),
+            get_xjtu_expected_acquisition_count(asset_id),
+            f"holdout_bearings[{index}].full_run_observation_count",
+        )
+    _expect_equal(scoring_count, expected_scoring_count, "XJTU scoring population")
 
     parameters = _format_parameters(config.model_parameters)
     declared_revision = _revision(root, "code_revision", "result root")
-    return [
-        "Experiment Result",
-        f"  Schema: {XJTU_HOLDOUT_RESULT_SCHEMA_ID}",
-        "  Status: consumed",
-        "",
-        "Source",
-        "  Status: completed",
-        f"  Dataset: {config.dataset_id}",
-        f"  Complete source profile: {source_count} acquisition CSV files",
-        f"  Split scope: {config.split_id} / {config.fold_id} / test",
-        f"  Selected holdout bearings: {', '.join(artifact_assets)}",
-        "",
-        "Canonical",
-        "  Status: completed",
-        f"  Channels: {', '.join(XJTU_SY_CHANNELS)}",
-        "  Cardinality: 1 acquisition CSV -> 1 two-channel bearing observation",
-        "",
-        "Feature",
-        "  Status: completed",
-        f"  Feature set: {config.feature_set_id}",
-        f"  Selected features ({len(config.selected_features)}): "
-        f"{', '.join(config.selected_features)}",
-        "",
-        "Preprocessing",
-        "  Status: completed",
-        f"  Fit scope: {config.fit_partition.value} / {complete_count} observations",
-        f"  Scaling: {config.scaling_strategy.value}",
-        "",
-        "Reference",
-        "  Status: completed",
-        f"  Strategy: {config.reference_strategy.value}",
-        f"  Eligible observations: {reference_count}",
-        "",
-        "Population",
-        "  Status: completed",
-        f"  Sampling policy: {config.sampling_policy_id}",
-        f"  Train observations: {complete_count}",
-        f"  Reference-eligible observations: {reference_count}",
-        f"  Model-fit observations: {fit_count}",
-        f"  Holdout scoring observations: {scoring_count}",
-        "",
-        "Model",
-        "  Status: completed",
-        f"  Family: {config.model_family.value}",
-        f"  Parameters: {parameters}",
-        f"  Random seed: {config.random_seed}",
-        f"  Score semantics: {_SCORE_SEMANTICS}",
-        "",
-        "Scoring",
-        "  Status: completed",
-        f"  Scope: {len(bearings)} unseen holdout bearings / {scoring_count} observations",
-        "",
-        "Evaluation",
-        "  Status: consumed",
-        "  Statistics: acquisition-order-spearman-rho, lifecycle-late-vs-middle-rank-probability",
-        f"  Aggregation: {len(bearings)}-bearing equal-weight mean",
-        *evaluation_lines,
-        f"  Mean rho: {mean_rho:.6g}",
-        f"  Mean late-vs-middle: {mean_rank_probability:.6g}",
-        "  Selection or threshold calibration: none",
-        "",
-        "Capability",
-        f"  Available: {', '.join(_AVAILABLE_CAPABILITIES)}",
-        f"  Unsupported: {', '.join(_UNSUPPORTED_CAPABILITIES)}",
-        "",
-        "Provenance",
-        f"  Experiment: {config.experiment_id}",
-        f"  Split: {config.split_id} / {config.fold_id}",
-        f"  Declared code revision: {declared_revision}",
-        "  Checkout attestation: unavailable",
-        f"  Artifact: {path}",
-    ]
+    return ExperimentInspection(
+        schema_id=XJTU_HOLDOUT_RESULT_SCHEMA_ID,
+        status="consumed",
+        stages=(
+            InspectionStage(
+                "Source",
+                "completed",
+                (
+                    InspectionFact("Dataset", config.dataset_id),
+                    InspectionFact(
+                        "Complete source profile", f"{source_count} acquisition CSV files"
+                    ),
+                    InspectionFact("Split scope", f"{config.split_id} / {config.fold_id} / test"),
+                    InspectionFact("Selected holdout bearings", ", ".join(artifact_assets)),
+                ),
+            ),
+            InspectionStage(
+                "Canonical",
+                "completed",
+                (
+                    InspectionFact("Channels", ", ".join(XJTU_SY_CHANNELS)),
+                    InspectionFact(
+                        "Cardinality",
+                        "1 acquisition CSV -> 1 two-channel bearing observation",
+                    ),
+                ),
+            ),
+            InspectionStage(
+                "Feature",
+                "completed",
+                (
+                    InspectionFact("Feature set", config.feature_set_id),
+                    InspectionFact(
+                        f"Selected features ({len(config.selected_features)})",
+                        ", ".join(config.selected_features),
+                    ),
+                ),
+            ),
+            InspectionStage(
+                "Preprocessing",
+                "completed",
+                (
+                    InspectionFact(
+                        "Fit scope",
+                        f"{config.fit_partition.value} / {complete_count} observations",
+                    ),
+                    InspectionFact("Scaling", config.scaling_strategy.value),
+                ),
+            ),
+            InspectionStage(
+                "Reference",
+                "completed",
+                (
+                    InspectionFact("Strategy", config.reference_strategy.value),
+                    InspectionFact("Eligible observations", reference_count),
+                ),
+            ),
+            InspectionStage(
+                "Population",
+                "completed",
+                (
+                    InspectionFact("Sampling policy", config.sampling_policy_id),
+                    InspectionFact("Train observations", complete_count),
+                    InspectionFact("Reference-eligible observations", reference_count),
+                    InspectionFact("Model-fit observations", fit_count),
+                    InspectionFact("Holdout scoring observations", scoring_count),
+                ),
+            ),
+            InspectionStage(
+                "Model",
+                "completed",
+                (
+                    InspectionFact("Family", config.model_family.value),
+                    InspectionFact("Parameters", parameters),
+                    InspectionFact("Random seed", config.random_seed),
+                    InspectionFact("Score semantics", _SCORE_SEMANTICS),
+                ),
+            ),
+            InspectionStage(
+                "Scoring",
+                "completed",
+                (
+                    InspectionFact(
+                        "Scope",
+                        f"{len(bearings)} unseen holdout bearings / {scoring_count} observations",
+                    ),
+                ),
+            ),
+            InspectionStage(
+                "Evaluation",
+                "consumed",
+                (
+                    InspectionFact(
+                        "Statistics",
+                        "acquisition-order-spearman-rho, lifecycle-late-vs-middle-rank-probability",
+                    ),
+                    InspectionFact("Aggregation", f"{len(bearings)}-bearing equal-weight mean"),
+                    *(
+                        InspectionFact("Bearing evidence", line.removeprefix("  "))
+                        for line in evaluation_lines
+                    ),
+                    InspectionFact("Mean rho", f"{mean_rho:.6g}"),
+                    InspectionFact("Mean late-vs-middle", f"{mean_rank_probability:.6g}"),
+                    InspectionFact("Selection or threshold calibration", "none"),
+                ),
+            ),
+            InspectionStage(
+                "Capability",
+                "completed",
+                (
+                    InspectionFact("Available", ", ".join(_AVAILABLE_CAPABILITIES)),
+                    InspectionFact("Unsupported", ", ".join(_UNSUPPORTED_CAPABILITIES)),
+                ),
+            ),
+            InspectionStage(
+                "Provenance",
+                "completed",
+                (
+                    InspectionFact("Experiment", config.experiment_id),
+                    InspectionFact("Split", f"{config.split_id} / {config.fold_id}"),
+                    InspectionFact("Declared code revision", declared_revision),
+                    InspectionFact("Checkout attestation", "unavailable"),
+                    InspectionFact("Artifact", str(path)),
+                ),
+            ),
+        ),
+    )
 
 
 def _validate_xjtu_identity(root: Mapping[str, object], config: ExperimentConfig) -> None:
@@ -219,7 +346,7 @@ def _validate_xjtu_identity(root: Mapping[str, object], config: ExperimentConfig
         _expect_equal(value, config_expected, f"configuration.{config_field}")
 
 
-def _inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> list[str]:
+def _inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> ExperimentInspection:
     config = get_ims_cross_test_configuration()
     provenance = _mapping_field(root, "provenance", "result root")
     _validate_ims_identity(provenance, config)
@@ -326,83 +453,149 @@ def _inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> list[str]
     excluded = _text_sequence(source_scope, "excluded", "source_scope")
     declared_revision = _revision(provenance, "code_revision", "provenance")
 
-    return [
-        "Experiment Result",
-        f"  Schema: {IMS_CROSS_TEST_RESULT_SCHEMA_ID}",
-        "  Status: consumed",
-        "",
-        "Source",
-        "  Status: completed",
-        f"  Dataset: {config.dataset_id}",
-        f"  Verified source profile: {verified_source_count} acquisition files",
-        f"  Train scope: {IMS_TRAIN_TEST_ID} complete / {train_acquisitions} files",
-        f"  Evaluation scope: {IMS_EVALUATION_TEST_ID} {IMS_EVALUATION_ARCHIVE_SCOPE} / "
-        f"{evaluation_acquisitions} files",
-        f"  Excluded: {', '.join(excluded)}",
-        "",
-        "Canonical",
-        "  Status: completed",
-        "  Channels: vibration",
-        f"  Cardinality: 1 acquisition file -> {IMS_BEARING_COUNT} bearing observations",
-        f"  Train conversion: {train_acquisitions} files -> {train_observations} observations",
-        f"  Evaluation conversion: {evaluation_acquisitions} files -> "
-        f"{scoring_observations} observations",
-        "",
-        "Feature",
-        "  Status: completed",
-        f"  Feature set: {config.feature_set_id}",
-        f"  Selected features ({len(selected_features)}): {', '.join(selected_features)}",
-        "",
-        "Preprocessing",
-        "  Status: completed",
-        f"  Fit scope: {config.fit_partition.value} / {complete_count} observations",
-        f"  Scaling: {config.scaling_strategy.value}",
-        "",
-        "Reference",
-        "  Status: completed",
-        f"  Strategy: {config.reference_strategy.value}",
-        f"  Eligible observations: {reference_count}",
-        "",
-        "Population",
-        "  Status: completed",
-        f"  Sampling policy: {config.sampling_policy_id}",
-        f"  Train observations: {complete_count}",
-        f"  Reference-eligible observations: {reference_count}",
-        f"  Model-fit observations: {fit_count}",
-        f"  Cross-test scoring observations: {artifact_scoring_count}",
-        "",
-        "Model",
-        "  Status: completed",
-        f"  Family: {config.model_family.value}",
-        f"  Parameters: {_format_parameters(config.model_parameters)}",
-        f"  Random seed: {config.random_seed}",
-        f"  Score semantics: {_SCORE_SEMANTICS}",
-        "",
-        "Scoring",
-        "  Status: completed",
-        f"  Scope: {evaluation_bearings} Set 3 bearings / {artifact_scoring_count} observations",
-        "",
-        "Evaluation",
-        "  Status: consumed",
-        f"  Scope: {partition_semantics}",
-        f"  Statistics: {', '.join(statistics)}",
-        f"  Aggregation: {aggregation}",
-        *evaluation_lines,
-        f"  Mean rho: {mean_rho:.6g}",
-        f"  Mean late-vs-middle: {mean_rank_probability:.6g}",
-        "  Selection or threshold calibration: none",
-        "",
-        "Capability",
-        f"  Available: {', '.join(available)}",
-        f"  Unsupported: {', '.join(unsupported)}",
-        "",
-        "Provenance",
-        f"  Experiment: {config.experiment_id}",
-        f"  Split: {config.split_id} / {config.fold_id}",
-        f"  Declared code revision: {declared_revision}",
-        "  Checkout attestation: unavailable",
-        f"  Artifact: {path}",
-    ]
+    return ExperimentInspection(
+        schema_id=IMS_CROSS_TEST_RESULT_SCHEMA_ID,
+        status="consumed",
+        stages=(
+            InspectionStage(
+                "Source",
+                "completed",
+                (
+                    InspectionFact("Dataset", config.dataset_id),
+                    InspectionFact(
+                        "Verified source profile",
+                        f"{verified_source_count} acquisition files",
+                    ),
+                    InspectionFact(
+                        "Train scope",
+                        f"{IMS_TRAIN_TEST_ID} complete / {train_acquisitions} files",
+                    ),
+                    InspectionFact(
+                        "Evaluation scope",
+                        f"{IMS_EVALUATION_TEST_ID} {IMS_EVALUATION_ARCHIVE_SCOPE} / "
+                        f"{evaluation_acquisitions} files",
+                    ),
+                    InspectionFact("Excluded", ", ".join(excluded)),
+                ),
+            ),
+            InspectionStage(
+                "Canonical",
+                "completed",
+                (
+                    InspectionFact("Channels", "vibration"),
+                    InspectionFact(
+                        "Cardinality",
+                        f"1 acquisition file -> {IMS_BEARING_COUNT} bearing observations",
+                    ),
+                    InspectionFact(
+                        "Train conversion",
+                        f"{train_acquisitions} files -> {train_observations} observations",
+                    ),
+                    InspectionFact(
+                        "Evaluation conversion",
+                        f"{evaluation_acquisitions} files -> {scoring_observations} observations",
+                    ),
+                ),
+            ),
+            InspectionStage(
+                "Feature",
+                "completed",
+                (
+                    InspectionFact("Feature set", config.feature_set_id),
+                    InspectionFact(
+                        f"Selected features ({len(selected_features)})",
+                        ", ".join(selected_features),
+                    ),
+                ),
+            ),
+            InspectionStage(
+                "Preprocessing",
+                "completed",
+                (
+                    InspectionFact(
+                        "Fit scope",
+                        f"{config.fit_partition.value} / {complete_count} observations",
+                    ),
+                    InspectionFact("Scaling", config.scaling_strategy.value),
+                ),
+            ),
+            InspectionStage(
+                "Reference",
+                "completed",
+                (
+                    InspectionFact("Strategy", config.reference_strategy.value),
+                    InspectionFact("Eligible observations", reference_count),
+                ),
+            ),
+            InspectionStage(
+                "Population",
+                "completed",
+                (
+                    InspectionFact("Sampling policy", config.sampling_policy_id),
+                    InspectionFact("Train observations", complete_count),
+                    InspectionFact("Reference-eligible observations", reference_count),
+                    InspectionFact("Model-fit observations", fit_count),
+                    InspectionFact("Cross-test scoring observations", artifact_scoring_count),
+                ),
+            ),
+            InspectionStage(
+                "Model",
+                "completed",
+                (
+                    InspectionFact("Family", config.model_family.value),
+                    InspectionFact("Parameters", _format_parameters(config.model_parameters)),
+                    InspectionFact("Random seed", config.random_seed),
+                    InspectionFact("Score semantics", _SCORE_SEMANTICS),
+                ),
+            ),
+            InspectionStage(
+                "Scoring",
+                "completed",
+                (
+                    InspectionFact(
+                        "Scope",
+                        f"{evaluation_bearings} Set 3 bearings / "
+                        f"{artifact_scoring_count} observations",
+                    ),
+                ),
+            ),
+            InspectionStage(
+                "Evaluation",
+                "consumed",
+                (
+                    InspectionFact("Scope", partition_semantics),
+                    InspectionFact("Statistics", ", ".join(statistics)),
+                    InspectionFact("Aggregation", aggregation),
+                    *(
+                        InspectionFact("Bearing evidence", line.removeprefix("  "))
+                        for line in evaluation_lines
+                    ),
+                    InspectionFact("Mean rho", f"{mean_rho:.6g}"),
+                    InspectionFact("Mean late-vs-middle", f"{mean_rank_probability:.6g}"),
+                    InspectionFact("Selection or threshold calibration", "none"),
+                ),
+            ),
+            InspectionStage(
+                "Capability",
+                "completed",
+                (
+                    InspectionFact("Available", ", ".join(available)),
+                    InspectionFact("Unsupported", ", ".join(unsupported)),
+                ),
+            ),
+            InspectionStage(
+                "Provenance",
+                "completed",
+                (
+                    InspectionFact("Experiment", config.experiment_id),
+                    InspectionFact("Split", f"{config.split_id} / {config.fold_id}"),
+                    InspectionFact("Declared code revision", declared_revision),
+                    InspectionFact("Checkout attestation", "unavailable"),
+                    InspectionFact("Artifact", str(path)),
+                ),
+            ),
+        ),
+    )
 
 
 def _validate_ims_identity(provenance: Mapping[str, object], config: ExperimentConfig) -> None:

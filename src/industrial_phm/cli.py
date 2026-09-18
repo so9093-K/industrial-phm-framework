@@ -40,6 +40,7 @@ from industrial_phm.experiments.ims_cross_test import run_ims_cross_test_evaluat
 from industrial_phm.experiments.result_inspection import (
     ExperimentResultInspectionError,
     inspect_experiment_result,
+    render_experiment_inspection_text,
 )
 from industrial_phm.experiments.xjtu_characterization import (
     XjtuFeatureCharacterizationError,
@@ -678,12 +679,12 @@ def _run_experiment_validate(args: argparse.Namespace) -> int:
 
 def _run_experiment_inspect(args: argparse.Namespace) -> int:
     try:
-        summary = inspect_experiment_result(args.result)
+        inspection = inspect_experiment_result(args.result)
     except (OSError, ExperimentResultInspectionError) as error:
         print(f"experiment result inspection failed: {error}", file=sys.stderr)
         return 1
 
-    print(summary)
+    print(render_experiment_inspection_text(inspection))
     return 0
 
 

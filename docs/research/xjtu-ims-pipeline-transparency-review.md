@@ -91,7 +91,8 @@ authoritative evidence로 유지하고, inspection layer가 result schema와 pac
 `industrial-phm experiment inspect <result.json>`은 다음 read-only summary 계약을 구현합니다.
 
 1. `xjtu-fold-1-holdout-result-v1`과 `ims-single-channel-cross-test-result-v1`을 각각 명시적으로 식별합니다.
-2. schema별 reader가 기존 result와 packaged config를 검증하고 effective facts를 해석합니다.
+2. schema별 reader가 기존 result와 packaged config를 검증하고 immutable `ExperimentInspection` read model을
+   생성합니다.
 3. 출력 순서는 `Source → Canonical → Feature → Preprocessing → Reference → Population → Model → Scoring →
    Evaluation → Capability → Provenance`로 고정합니다.
 4. source acquisition과 canonical/model observation의 단위를 분리해 표시합니다.
@@ -100,8 +101,9 @@ authoritative evidence로 유지하고, inspection layer가 result schema와 pac
 7. artifact의 code revision은 선언 provenance로 표시하고, 실행 checkout과 자동 대조한 기록이 없으면 attested로
    표현하지 않습니다.
 
-두 schema는 각각 작은 reader가 소유하며 기존 canonical result는 변경하지 않습니다. 세 번째 result schema와 두
-번째 model family가 실제로 반복되는 필드를 제공하기 전까지 이 경계를 유지합니다.
+두 schema는 각각 작은 reader가 소유하며 text rendering은 read model과 분리합니다. 기존 canonical result는
+authoritative evidence로 유지합니다. 세 번째 result schema와 두 번째 model family가 실제로 반복되는 필드를
+제공하기 전까지 이 경계를 유지합니다.
 
 ```bash
 uv run industrial-phm experiment inspect \

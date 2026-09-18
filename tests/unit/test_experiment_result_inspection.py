@@ -5,8 +5,10 @@ from typing import cast
 import pytest
 
 from industrial_phm.experiments.result_inspection import (
+    ExperimentInspection,
     ExperimentResultInspectionError,
     inspect_experiment_result,
+    render_experiment_inspection_text,
 )
 
 _REPOSITORY_ROOT = Path(__file__).parents[2]
@@ -29,8 +31,11 @@ _STAGES = (
 
 
 def test_xjtu_holdout_inspection_resolves_effective_pipeline() -> None:
-    summary = inspect_experiment_result(_XJTU_RESULT)
+    inspection = inspect_experiment_result(_XJTU_RESULT)
+    summary = render_experiment_inspection_text(inspection)
 
+    assert isinstance(inspection, ExperimentInspection)
+    assert tuple(stage.name for stage in inspection.stages) == _STAGES
     assert _stage_positions(summary) == sorted(_stage_positions(summary))
     assert "Schema: xjtu-fold-1-holdout-result-v1" in summary
     assert "Status: consumed" in summary
@@ -49,8 +54,10 @@ def test_xjtu_holdout_inspection_resolves_effective_pipeline() -> None:
 
 
 def test_ims_cross_test_inspection_exposes_source_to_observation_cardinality() -> None:
-    summary = inspect_experiment_result(_IMS_RESULT)
+    inspection = inspect_experiment_result(_IMS_RESULT)
+    summary = render_experiment_inspection_text(inspection)
 
+    assert tuple(stage.name for stage in inspection.stages) == _STAGES
     assert _stage_positions(summary) == sorted(_stage_positions(summary))
     assert "Schema: ims-single-channel-cross-test-result-v1" in summary
     assert "Train scope: set-2 complete / 984 files" in summary
@@ -86,6 +93,8 @@ def test_inspection_rejects_malformed_json(tmp_path: Path) -> None:
     ("field", "replacement", "message"),
     (
         ("experiment_id", "drifted-experiment", "experiment_id does not match"),
+        ("source_acquisition_count", 9_215, "XJTU source acquisition count"),
+        ("complete_train_observation_count", 9_999, "XJTU complete train population"),
         ("model_fit_observation_count", 1_083, "model fit and reference observation counts"),
     ),
 )
@@ -101,6 +110,31 @@ def test_xjtu_inspection_rejects_protocol_drift(
     result.write_text(json.dumps(document), encoding="utf-8")
 
     with pytest.raises(ExperimentResultInspectionError, match=message):
+        inspect_experiment_result(result)
+
+
+def test_xjtu_inspection_rejects_holdout_bearing_count_drift(tmp_path: Path) -> None:
+    document = _read_object(_XJTU_RESULT)
+    bearings = cast(list[dict[str, object]], document["holdout_bearings"])
+    bearings[0]["full_run_observation_count"] = 122
+    result = tmp_path / "drifted-xjtu-bearing.json"
+    result.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match=r"holdout_bearings\[0\]\.full_run_observation_count",
+    ):
+        inspect_experiment_result(result)
+
+
+def test_xjtu_inspection_rejects_reference_population_drift(tmp_path: Path) -> None:
+    document = _read_object(_XJTU_RESULT)
+    document["reference_observation_count"] = 1_083
+    document["model_fit_observation_count"] = 1_083
+    result = tmp_path / "drifted-xjtu-reference.json"
+    result.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ExperimentResultInspectionError, match="XJTU reference population"):
         inspect_experiment_result(result)
 
 

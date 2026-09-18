@@ -159,7 +159,9 @@ finalized execution에서 이미 1회 사용되어 소진됐습니다.
 
 이미 기록된 XJTU finalized holdout과 IMS cross-test evidence는 read-only inspection으로 확인합니다. 두 schema는
 각자의 numerical interpretation을 유지하면서 source cardinality, effective feature/model configuration,
-population flow, capability와 declared code revision을 같은 stage 순서로 표시합니다.
+population flow, capability와 declared code revision을 같은 stage 순서로 해석합니다. Schema reader가 생성하는
+immutable `ExperimentInspection` read model과 text renderer를 분리하며, CLI는 이 capability의 첫
+developer-facing presentation surface입니다.
 
 ```bash
 uv run industrial-phm experiment inspect \

@@ -314,6 +314,10 @@ UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고�
 capability와 declared provenance를 같은 stage 순서로 표시합니다. one-time evaluation scope는 `consumed`, 현재
 제공하지 않는 PHM 기능은 `unsupported`로 표현합니다.
 
+Schema-specific reader는 immutable `ExperimentInspection` read model을 만들고 CLI renderer가 이를 text로
+표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
+소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
+
 ## 6. UI 구현 시점
 
 지금 할 일:

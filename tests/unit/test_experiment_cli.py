@@ -4,7 +4,10 @@ from types import SimpleNamespace
 import pytest
 
 import industrial_phm.cli as cli
-from industrial_phm.experiments.result_inspection import ExperimentResultInspectionError
+from industrial_phm.experiments.result_inspection import (
+    ExperimentInspection,
+    ExperimentResultInspectionError,
+)
 
 
 def test_experiment_inspect_prints_read_only_summary(
@@ -15,9 +18,9 @@ def test_experiment_inspect_prints_read_only_summary(
     result = tmp_path / "result.json"
     observed: list[Path] = []
 
-    def fake_inspect(received_result: Path) -> str:
+    def fake_inspect(received_result: Path) -> ExperimentInspection:
         observed.append(received_result)
-        return "Experiment Result\n  Status: consumed"
+        return ExperimentInspection(schema_id="test-result-v1", status="consumed", stages=())
 
     monkeypatch.setattr(cli, "inspect_experiment_result", fake_inspect)
 
@@ -25,14 +28,16 @@ def test_experiment_inspect_prints_read_only_summary(
 
     assert exit_code == 0
     assert observed == [result]
-    assert capsys.readouterr().out == "Experiment Result\n  Status: consumed\n"
+    assert capsys.readouterr().out == (
+        "Experiment Result\n  Schema: test-result-v1\n  Status: consumed\n"
+    )
 
 
 def test_experiment_inspect_reports_invalid_result(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    def fake_inspect(result: Path) -> str:
+    def fake_inspect(result: Path) -> ExperimentInspection:
         raise ExperimentResultInspectionError(f"unsupported result: {result}")
 
     monkeypatch.setattr(cli, "inspect_experiment_result", fake_inspect)
