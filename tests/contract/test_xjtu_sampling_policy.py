@@ -23,8 +23,7 @@ def _candidate(policy_id: str) -> ExperimentConfig:
     return next(
         candidate
         for candidate in get_xjtu_isolation_forest_candidates()
-        if candidate.sampling_policy_id == policy_id
-        and len(candidate.selected_features) == 14
+        if candidate.sampling_policy_id == policy_id and len(candidate.selected_features) == 14
     )
 
 
