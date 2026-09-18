@@ -28,12 +28,14 @@ class PreprocessingFitProvenance:
     dataset_id: str
     split_id: str
     fold_id: str
-    partition: str
+    fit_partition: FitPartition
     feature_set_id: str
 
     def __post_init__(self) -> None:
-        for field_name in ("dataset_id", "split_id", "fold_id", "partition", "feature_set_id"):
+        for field_name in ("dataset_id", "split_id", "fold_id", "feature_set_id"):
             _validate_text(getattr(self, field_name), field_name)
+        if self.fit_partition is not FitPartition.TRAIN:
+            raise PreprocessingError("preprocessing fit_partition must be train")
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,7 +195,7 @@ def _require_fit_provenance(
         ("dataset_id", provenance.dataset_id, config.dataset_id),
         ("split_id", provenance.split_id, config.split_id),
         ("fold_id", provenance.fold_id, config.fold_id),
-        ("partition", provenance.partition, config.fit_partition.value),
+        ("fit_partition", provenance.fit_partition, config.fit_partition),
         ("feature_set_id", provenance.feature_set_id, config.feature_set_id),
     )
     for field_name, value, configured in expected:

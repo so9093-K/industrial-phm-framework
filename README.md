@@ -191,7 +191,8 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - `fold-1/train` evidence에서 도출한 첫 model experiment candidate dimensions
 - dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` Isolation Forest 4개 active candidate
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
-- dataset-neutral `ModelFitInput`/`ModelScoringInput`과 production feature vector 기반 XJTU fit/scoring 준비 경계
+- dataset-neutral `ModelFitInput`/`ModelScoringInput`과 acquisition-complete XJTU fit/scoring 준비 경계
+- 검증된 XJTU train feature vectors에서 preprocessing fit과 model-fit input을 함께 생성하는 실행 경로
 - dataset-neutral Isolation Forest fit/scoring과 higher-is-more-anomalous `AnomalyScores`
 
 ### Current
@@ -203,7 +204,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 1. `fold-1 validation`과 experiment configuration finalization
 2. finalized configuration의 `fold-1` holdout test evaluation
 3. cross-fold robustness analysis
-4. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
+4. IMS에서 같은 feature/preprocessing/model/evaluation interface의 cross-dataset portability 확인
 5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
 6. 데이터가 정당하게 지원하는 경우 RUL prognostics
 7. MIMII DUE를 통한 cross-domain evaluation

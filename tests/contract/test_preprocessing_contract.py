@@ -34,7 +34,7 @@ def test_preprocessing_fit_is_independent_of_model_fitting_sampling_policy() -> 
         dataset_id="reference-dataset",
         split_id="reference-split-v1",
         fold_id="fold-1",
-        partition="train",
+        fit_partition=FitPartition.TRAIN,
         feature_set_id="reference-features-v1",
     )
     feature_names = ("feature.channel.rms",)
