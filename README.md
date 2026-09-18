@@ -192,15 +192,16 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - dataset-neutral `ExperimentConfig v1`과 XJTU `fold-1` Isolation Forest 4개 active candidate
 - train provenance와 feature schema를 고정하는 identity/robust `PreprocessingState`
 - dataset-neutral `ModelFitInput`/`ModelScoringInput`과 production feature vector 기반 XJTU fit/scoring 준비 경계
+- dataset-neutral Isolation Forest fit/scoring과 higher-is-more-anomalous `AnomalyScores`
 
 ### Current
 
-1. prepared feature matrix를 소비하는 Isolation Forest anomaly-scoring baseline
+1. bearing-first, model-independent development evaluator 방법론 확정과 구현
 
 ### Next
 
-1. model-independent development evaluator와 `fold-1 validation`
-2. experiment configuration finalization과 `fold-1` holdout test evaluation
+1. `fold-1 validation`과 experiment configuration finalization
+2. finalized configuration의 `fold-1` holdout test evaluation
 3. cross-fold robustness analysis
 4. IMS에서 같은 model/pipeline interface의 cross-dataset portability 확인
 5. LSTM Autoencoder, reconstruction evidence, Health Indicator 연구
