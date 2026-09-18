@@ -247,6 +247,6 @@ def get_xjtu_isolation_forest_candidates() -> tuple[ExperimentConfig, ...]:
         supported_sampling_policy_ids=_SUPPORTED_SAMPLING_POLICY_IDS,
     )
     manifest = resources.files("industrial_phm.experiments.manifests").joinpath(
-        "xjtu-sy-isolation-forest-fold-1-candidates-v1.toml"
+        "xjtu-sy-isolation-forest-fold-1-candidates-v2.toml"
     )
     return load_experiment_configs(manifest.read_text(encoding="utf-8"), context=context)
