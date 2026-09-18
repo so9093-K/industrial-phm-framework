@@ -50,6 +50,9 @@
 - `fold-1` holdout을 열기 전에 reference semantics만 한 번 더 비교하도록 configuration finalization 결정을
   고정. H0는 `all-train-observations`, H1은 train bearing별 early-third heuristic reference를 사용하며
   feature/sampling/scaling/model parameter/seed는 selected v2에 고정하고 H0/H1 판정 규칙도 결과 전에 명시.
+- `fold-1` holdout 소진 이후 `fold-2`~`fold-5`는 fresh holdout이 아니라 post-holdout robustness evidence로
+  만 사용하도록 규칙을 고정. 각 fold의 test partition만 한 번의 동일 실행에서 평가하고 finalized
+  configuration의 model/feature/reference/sampling/scaling/seed semantics와 descriptive metric을 유지합니다.
 - 정확한 experiment parameter와 seed는 version-controlled config가, train-fitted scaling statistics는
   `PreprocessingState`가 소유하도록 Source of Truth를 분리.
 - XJTU model-fit/scoring 준비가 research characterization artifact가 아니라 production `VibrationFeatureVector`를
