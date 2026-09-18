@@ -7,19 +7,37 @@ from collections import defaultdict
 from collections.abc import Sequence
 from typing import Literal
 
+from industrial_phm.adapters import get_xjtu_expected_acquisition_count
 from industrial_phm.experiments.config import ExperimentConfig
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.features import VibrationFeatureVector
 from industrial_phm.models import ModelFitInput, ModelScoringInput
-from industrial_phm.preprocessing import PreprocessingError, PreprocessingState
+from industrial_phm.preprocessing import (
+    PreprocessingError,
+    PreprocessingFitProvenance,
+    PreprocessingState,
+    fit_preprocessing_state,
+)
 
 _DATASET_ID = "xjtu-sy"
 _ACQUISITION_UNIFORM = "acquisition-uniform-v1"
 _BEARING_BALANCED_RESAMPLE = "bearing-balanced-resample-v1"
+_Partition = Literal["train", "validation", "test"]
 
 
 class XjtuModelInputError(ValueError):
     """Raised when XJTU feature vectors cannot form a valid model input."""
+
+
+def fit_xjtu_preprocessing_and_prepare_model_input(
+    config: ExperimentConfig,
+    vectors: Sequence[VibrationFeatureVector],
+) -> tuple[PreprocessingState, ModelFitInput]:
+    """Fit preprocessing from a complete XJTU train partition and prepare model-fit input."""
+    _validate_vector_context(config, vectors)
+    _validate_partition_coverage(config, vectors, partition="train")
+    preprocessing_state = _fit_preprocessing_state(config, vectors)
+    return preprocessing_state, _prepare_model_fit_input(config, preprocessing_state, vectors)
 
 
 def prepare_xjtu_model_fit_input(
@@ -35,6 +53,14 @@ def prepare_xjtu_model_fit_input(
             "XJTU train feature-vector count must match the preprocessing fit observation count"
         )
 
+    return _prepare_model_fit_input(config, preprocessing_state, vectors)
+
+
+def _prepare_model_fit_input(
+    config: ExperimentConfig,
+    preprocessing_state: PreprocessingState,
+    vectors: Sequence[VibrationFeatureVector],
+) -> ModelFitInput:
     transformed_rows = _transform_selected_features(config, preprocessing_state, vectors)
     observation_ids = _observation_ids(vectors)
 
@@ -84,10 +110,7 @@ def _validate_shared_context(
     preprocessing_state: PreprocessingState,
     vectors: Sequence[VibrationFeatureVector],
 ) -> None:
-    if config.dataset_id != _DATASET_ID:
-        raise XjtuModelInputError(
-            f"XJTU model input requires dataset_id {_DATASET_ID!r}, got {config.dataset_id!r}"
-        )
+    _validate_vector_context(config, vectors)
 
     state_fields = (
         ("experiment_id", preprocessing_state.experiment_id, config.experiment_id),
@@ -106,6 +129,16 @@ def _validate_shared_context(
             raise XjtuModelInputError(
                 f"preprocessing state {field_name} does not match experiment config"
             )
+
+
+def _validate_vector_context(
+    config: ExperimentConfig,
+    vectors: Sequence[VibrationFeatureVector],
+) -> None:
+    if config.dataset_id != _DATASET_ID:
+        raise XjtuModelInputError(
+            f"XJTU model input requires dataset_id {_DATASET_ID!r}, got {config.dataset_id!r}"
+        )
 
     if not vectors:
         raise XjtuModelInputError("XJTU model input requires feature vectors")
@@ -134,7 +167,7 @@ def _validate_partition_coverage(
     config: ExperimentConfig,
     vectors: Sequence[VibrationFeatureVector],
     *,
-    partition: Literal["train", "validation", "test"],
+    partition: _Partition,
 ) -> None:
     split = get_xjtu_reference_split()
     if split.split_id != config.split_id:
@@ -150,17 +183,67 @@ def _validate_partition_coverage(
     expected_assets = set(getattr(fold, partition))
     observed_assets = {vector.asset_id for vector in vectors}
     if observed_assets != expected_assets:
-        missing = sorted(expected_assets - observed_assets)
-        unexpected = sorted(observed_assets - expected_assets)
+        missing_assets = sorted(expected_assets - observed_assets)
+        unexpected_assets = sorted(observed_assets - expected_assets)
         raise XjtuModelInputError(
             f"XJTU model input must cover the configured {partition} bearing runs; "
-            f"missing={missing}, unexpected={unexpected}"
+            f"missing={missing_assets}, unexpected={unexpected_assets}"
         )
+
+    acquisition_indices_by_asset: dict[str, set[int]] = defaultdict(set)
+    for vector_index, vector in enumerate(vectors):
+        acquisition_indices_by_asset[vector.asset_id].add(
+            _acquisition_index(vector, vector_index=vector_index)
+        )
+    for asset_id in sorted(expected_assets):
+        expected_count = get_xjtu_expected_acquisition_count(asset_id)
+        expected_indices = set(range(1, expected_count + 1))
+        observed_indices = acquisition_indices_by_asset[asset_id]
+        if observed_indices != expected_indices:
+            missing_indices = sorted(expected_indices - observed_indices)
+            unexpected_indices = sorted(observed_indices - expected_indices)
+            raise XjtuModelInputError(
+                f"XJTU model input must cover the complete {partition} acquisition sequence "
+                f"for {asset_id}; expected=1..{expected_count}, "
+                f"missing={missing_indices[:10]}, unexpected={unexpected_indices[:10]}"
+            )
+
+
+def _fit_preprocessing_state(
+    config: ExperimentConfig,
+    vectors: Sequence[VibrationFeatureVector],
+) -> PreprocessingState:
+    try:
+        return fit_preprocessing_state(
+            config,
+            PreprocessingFitProvenance(
+                dataset_id=config.dataset_id,
+                split_id=config.split_id,
+                fold_id=config.fold_id,
+                fit_partition=config.fit_partition,
+                feature_set_id=config.feature_set_id,
+            ),
+            config.selected_features,
+            _selected_feature_rows(config, vectors),
+        )
+    except PreprocessingError as error:
+        raise XjtuModelInputError(f"invalid XJTU preprocessing fit input: {error}") from error
 
 
 def _transform_selected_features(
     config: ExperimentConfig,
     preprocessing_state: PreprocessingState,
+    vectors: Sequence[VibrationFeatureVector],
+) -> tuple[tuple[float, ...], ...]:
+    selected_rows = _selected_feature_rows(config, vectors)
+    try:
+        return preprocessing_state.transform(config.selected_features, selected_rows)
+    except PreprocessingError as error:
+        raise XjtuModelInputError(f"invalid XJTU preprocessing input: {error}") from error
+
+
+def _selected_feature_rows(
+    config: ExperimentConfig,
     vectors: Sequence[VibrationFeatureVector],
 ) -> tuple[tuple[float, ...], ...]:
     source_feature_names = tuple(vectors[0].feature_names)
@@ -172,13 +255,9 @@ def _transform_selected_features(
         raise XjtuModelInputError(f"XJTU feature vectors are missing feature(s): {missing}")
 
     selected_positions = tuple(positions[feature_name] for feature_name in config.selected_features)
-    selected_rows = tuple(
+    return tuple(
         tuple(vector.values[position] for position in selected_positions) for vector in vectors
     )
-    try:
-        return preprocessing_state.transform(config.selected_features, selected_rows)
-    except PreprocessingError as error:
-        raise XjtuModelInputError(f"invalid XJTU preprocessing input: {error}") from error
 
 
 def _observation_ids(vectors: Sequence[VibrationFeatureVector]) -> tuple[str, ...]:

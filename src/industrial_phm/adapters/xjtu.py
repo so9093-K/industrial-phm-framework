@@ -107,6 +107,18 @@ class XjtuSyAdapter:
                 yield from _iter_run_series(source, run)
 
 
+def get_xjtu_expected_acquisition_count(asset_id: str) -> int:
+    """Return the observed complete-source acquisition count for one bearing run."""
+    matches = tuple(
+        acquisition_count
+        for (_, expected_asset_id), acquisition_count in _EXPECTED_RUN_ACQUISITIONS.items()
+        if expected_asset_id == asset_id
+    )
+    if len(matches) != 1:
+        raise XjtuSySourceError(f"unknown XJTU-SY bearing run: {asset_id!r}")
+    return matches[0]
+
+
 def validate_xjtu_source(source: Path, *, full: bool = False) -> XjtuSyValidationReport:
     """Validate local XJTU-SY structure and representative or complete waveform content.
 

@@ -36,6 +36,8 @@
   직접 소비하도록 경계를 정리하고, Isolation Forest active candidate를 sampling × feature subset 4개 v2로 축소.
 - model input의 `rows`, `input/output observation count`를 `feature_rows`, `source/fit observation count`로
   명확화해 sampling 전후 의미를 이름에서 구분.
+- XJTU model input이 source profile의 acquisition sequence 전체성을 검증하고, train feature vectors에서
+  preprocessing fit과 sampling-aware model input을 함께 생성하도록 실행 경계를 강화.
 
 ### Fixed
 
