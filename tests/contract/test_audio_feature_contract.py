@@ -21,7 +21,7 @@ def _silent_clip(
         asset_id="fan/section-00",
         timestamps=None,
         channels=channels,
-        values=[(0.0,) for _ in range(sample_count)],
+        values=[(0.0,)] * sample_count,
         sampling_rate_hz=sampling_rate_hz,
         metadata={
             "dataset_id": "mimii-due",
