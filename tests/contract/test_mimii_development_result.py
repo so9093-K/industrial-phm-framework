@@ -221,6 +221,7 @@ def test_mimii_development_result_writes_deterministic_provenance_json(tmp_path:
     result = build_mimii_development_result(
         _complete_synthetic_evidence(),
         code_revision=_CODE_REVISION,
+        source_clip_count=36_433,
     )
     output_path = tmp_path / "mimii-development.json"
 
