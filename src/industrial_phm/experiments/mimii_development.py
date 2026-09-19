@@ -285,9 +285,12 @@ class MimiiDevelopmentResult:
                 "MIMII section results must use deterministic machine-major order"
             )
 
-        expected_machine_summaries, expected_domain_summaries, expected_overall, expected_combined = (
-            _aggregate_complete_section_results(self.section_results)
-        )
+        (
+            expected_machine_summaries,
+            expected_domain_summaries,
+            expected_overall,
+            expected_combined,
+        ) = _aggregate_complete_section_results(self.section_results)
         if self.machine_summaries != expected_machine_summaries:
             raise MimiiDevelopmentResultError(
                 "machine summaries do not match section-level evaluation evidence"
