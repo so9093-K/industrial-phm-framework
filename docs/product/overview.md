@@ -337,6 +337,12 @@ frontend framework, API schema, authentication 또는 persistent workflow state�
 - 현재 result가 제공하는 evidence와 제공하지 않는 PHM capability는 무엇인가?
 - 표시된 수치를 어떤 artifact, config와 code revision까지 추적할 수 있는가?
 
+첫 LSTM-centric low-fidelity implementation은 `notebooks/02_developer_workbench.py`에 있습니다. Version-controlled
+XJTU LSTM development artifact를 기존 schema-specific reader로 먼저 검증하고, 같은 `ExperimentInspection`
+stage와 artifact evidence를 세 view가 공유합니다. 이 implementation은 navigation, population unit 이해,
+score/residual semantics와 provenance 추적을 검토하기 위한 research-tooling interface이며
+frontend/API/persistent state 결정을 만들지 않습니다.
+
 ## 4. 대시보드 전에 PHM 결과 계약부터
 
 Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도록 향후 공통 `PHMResult` 경계를

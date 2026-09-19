@@ -11,6 +11,9 @@
 
 ### Added
 
+- Validated XJTU LSTM evidence를 같은 selection/provenance context에서 Experiment Overview, Pipeline Lineage와
+  Evidence Explorer로 검토하는 marimo 기반 LSTM-centric Developer Workbench prototype. Acquisition-aligned score,
+  retrospective statistic과 robust-scaled feature residual을 표시하며 unsupported PHM capability를 함께 보존합니다.
 - Python 3.14 기반 installable package, uv lockfile, CLI와 CI 기준선.
 - dataset manifest 기반 `data list/status/fetch/verify/inspect/validate` acquisition·inspection workflow.
 - dataset/source 차이를 격리하는 `DomainAdapter`와 domain-neutral `CanonicalTimeSeries` contract.

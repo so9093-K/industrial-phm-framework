@@ -4,16 +4,20 @@ on:
   pull_request:
     paths:
       - ".github/workflows/interactive-analysis.yml"
-      - "notebooks/01_xjtu_feature_analysis.py"
+      - "notebooks/*.py"
       - "src/industrial_phm/experiments/xjtu_characterization_artifacts.py"
+      - "src/industrial_phm/experiments/result_inspection.py"
+      - "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
       - "pyproject.toml"
       - "uv.lock"
   push:
     branches: [main]
     paths:
       - ".github/workflows/interactive-analysis.yml"
-      - "notebooks/01_xjtu_feature_analysis.py"
+      - "notebooks/*.py"
       - "src/industrial_phm/experiments/xjtu_characterization_artifacts.py"
+      - "src/industrial_phm/experiments/result_inspection.py"
+      - "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
       - "pyproject.toml"
       - "uv.lock"
 
@@ -51,5 +55,12 @@ jobs:
       - name: Sync locked research environment
         run: uv sync --locked --group research
 
-      - name: Check marimo analysis file
-        run: uv run --locked --group research marimo check --strict notebooks/01_xjtu_feature_analysis.py
+      - name: Check marimo analysis files
+        run: uv run --locked --group research marimo check --strict notebooks/*.py
+
+      - name: Execute Developer Workbench against validated experiment evidence
+        run: |
+          uv run --locked --group research marimo export html \
+            notebooks/02_developer_workbench.py \
+            --no-include-code \
+            --output /tmp/developer-workbench.html

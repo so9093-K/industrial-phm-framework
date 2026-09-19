@@ -109,8 +109,27 @@ uv run --locked --group research marimo edit notebooks/01_xjtu_feature_analysis.
 feature selection, preprocessing과 model fitting은 version-controlled production code와 experiment contract가
 소유합니다. 현재 도구는 Python 3.14 strict check와
 실제 `fold-1/train` HTML execution을 반복 통과했고 source 형식이 일반 code review와 CI에 적합해 optional research
-tooling으로 채택했습니다. XJTU interactive analysis는 이 환경의 현재 consumer입니다. Canonical Research UX와
-architecture contract는 여러 workflow에서 반복 검증된 요구를 기준으로 별도 확정합니다.
+tooling으로 채택했습니다. XJTU interactive analysis는 이 환경의 현재 consumer입니다. Research UX와 architecture
+contract는 여러 workflow에서 반복 검증된 요구를 기준으로 별도 확정합니다.
+
+## Developer Workbench prototype
+
+`02_developer_workbench.py`는 version-controlled experiment evidence를 검토하는 PHM/ML 개발자·연구자용
+LSTM-centric low-fidelity interface입니다. 첫 consumer는 version-controlled XJTU LSTM development result이며, 기존
+`ExperimentInspection`이 검증하고 해석한 동일 artifact를 세 view에서 공유합니다.
+
+- Experiment Overview: identity, effective population, evaluation, capability와 provenance
+- Pipeline Lineage: ordered stage와 acquisition→window population unit transition
+- Evidence Explorer: validation bearing별 acquisition-aligned score trajectory, retrospective statistic과
+  robust-scaled per-feature reconstruction residual
+
+```bash
+uv run --locked --group research marimo edit notebooks/02_developer_workbench.py
+```
+
+Workbench는 artifact를 수정하거나 별도 pipeline schema를 저장하지 않습니다. Evidence Explorer에도 threshold,
+normal/fault 상태, health assessment, diagnostics 또는 RUL을 추가하지 않으며 표시된 score와 residual의 제한된
+semantics를 함께 보여줍니다.
 
 ## 운영 규칙
 
@@ -131,6 +150,8 @@ architecture contract는 여러 workflow에서 반복 검증된 요구를 기준
 
 - `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
 - `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo interface.
+- `02_developer_workbench.py`: validated experiment inspection과 authoritative evidence를 공유하는 LSTM-centric
+  low-fidelity Workbench.
 
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
 않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제
