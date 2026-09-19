@@ -11,8 +11,10 @@ from pathlib import Path
 from industrial_phm import __version__
 from industrial_phm.adapters import (
     ImsBearingSourceError,
+    MimiiDueSourceError,
     XjtuSySourceError,
     validate_ims_source,
+    validate_mimii_due_source,
     validate_xjtu_source,
 )
 from industrial_phm.data.acquisition import (
@@ -132,7 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     data_validate.add_argument(
         "--full",
         action="store_true",
-        help="parse every acquisition instead of representative first/middle/last samples",
+        help="check every waveform instead of representative samples",
     )
     data_validate.set_defaults(handler=_run_data_validate)
 
@@ -543,12 +545,48 @@ def _run_data_validate(args: argparse.Namespace) -> int:
         return _run_xjtu_data_validate(args, manifest.title)
     if manifest.dataset_id == "ims-bearings":
         return _run_ims_data_validate(args, manifest.title)
+    if manifest.dataset_id == "mimii-due":
+        return _run_mimii_data_validate(args, manifest.title)
 
     print(
         f"dataset-specific validation is not implemented for {manifest.dataset_id}",
         file=sys.stderr,
     )
     return 2
+
+
+def _run_mimii_data_validate(args: argparse.Namespace, title: str) -> int:
+    try:
+        report = validate_mimii_due_source(args.source, full=args.full)
+    except (OSError, MimiiDueSourceError) as error:
+        print(f"dataset validation failed: {error}", file=sys.stderr)
+        return 1
+
+    print("dataset: mimii-due")
+    print(f"title: {title}")
+    print(f"local source: {report.source}")
+    print(f"validation mode: {'full' if report.full else 'sampled'}")
+    print(f"machines: {report.machine_count}")
+    print(f"sections: {report.section_count}")
+    print(f"clips: {report.clip_count}")
+    print(f"train clips: {report.train_clip_count}")
+    print(f"test clips: {report.test_clip_count}")
+    print(f"WAV headers checked: {report.checked_wav_count}")
+    print(f"channels: {report.channels}")
+    print(f"sample width bits: {report.sample_width_bits}")
+    print(f"sampling rate hz: {report.sampling_rate_hz:g}")
+    print(f"frames per clip: {report.frames_per_clip}")
+    print(f"duration seconds: {report.duration_seconds:g}")
+    print(f"WAV header compatibility: PASS ({'full' if report.full else 'sampled'})")
+
+    if not report.profile_matches:
+        print("profile compatibility: FAIL")
+        for issue in report.profile_issues:
+            print(f"profile issue: {issue}", file=sys.stderr)
+        return 1
+
+    print("profile compatibility: PASS")
+    return 0
 
 
 def _run_xjtu_data_validate(args: argparse.Namespace, title: str) -> int:

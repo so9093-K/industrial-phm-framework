@@ -106,6 +106,8 @@
 
 - `mimii-due` dataset manifest(`provider = "manual"`, CC BY-NC-SA 4.0)와 Zenodo record·file checksum·local
   inventory를 기록한 MIMII DUE source profile.
+- MIMII DUE prepared source의 directory·filename grammar, observed clip population과 16-bit mono 16 kHz WAV
+  header compatibility를 검증하는 dataset-specific validator와 `data validate mimii-due` CLI.
 
 ### Changed
 

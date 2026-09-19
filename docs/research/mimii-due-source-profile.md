@@ -1,6 +1,6 @@
 # MIMII DUE Source Profile
 
-상태: official record verified / local inventory observed / Adapter 미구현
+상태: official record verified / local inventory observed / source validator 구현 / Adapter 미구현
 
 이 문서는 MIMII DUE의 source record, license boundary, 실제 local inventory와 canonical mapping 쟁점을 기록합니다.
 MIMII DUE는 XJTU-SY와 IMS에 이은 세 번째 source이며, bearing-vibration 범위를 벗어나는 첫 cross-domain case
@@ -163,9 +163,19 @@ Source에는 표기 불일치가 그대로 있습니다. Fan은 `strength`와 �
 이 쟁점들은 Adapter를 구현하면서 contract test로 확인합니다. 실제 구현에서 현재 contract로 의미를 잃지 않고
 표현하기 어렵다는 것이 드러날 때만 canonical contract 변경을 검토합니다.
 
-## 8. 다음 단계에서 결정할 것
+## 8. 구현된 source validator
 
-- Audio-specific `DomainAdapter`와 source validator: 이 profile의 구조, filename grammar, WAV header 불변식 검증
+`industrial-phm data validate mimii-due`는 prepared source의 visible file 전체에 대해 directory/filename grammar와
+group·machine·domain·split·label count를 검사합니다. 기본 mode는 각 관찰 stratum의 first/middle/last WAV
+header를 확인하고, `--full`은 36,433개 WAV header를 모두 확인합니다.
+
+이 validator는 WAV payload normalization, audio feature 계산 또는 clip label의 sample-level 투영을 수행하지
+않습니다. Source profile 호환성만 production code로 반복 검증하며, Adapter/canonical mapping은 다음 변경이
+소유합니다.
+
+## 9. 다음 단계에서 결정할 것
+
+- Audio-specific `DomainAdapter`: validator가 고정한 구조·filename 의미를 canonical mapping으로 보존
 - Clip metadata key 이름과 원문 attribute 보존 방식
 - Evaluation test audio(4884786)와 ground truth(5257674)의 획득·검증 여부
 - Experiment protocol: 대상 machine·section·domain, train/evaluation scope, label 사용 방식, feature와
