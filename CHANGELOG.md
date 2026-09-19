@@ -111,6 +111,10 @@
 - MIMII DUE WAV clip을 `pcm_amplitude` single-channel `CanonicalTimeSeries`로 변환하고 source
   group·machine·section·domain·split·clip label·원문 attribute와 PCM encoding provenance를 metadata에 보존하는
   audio `DomainAdapter`. Clip label은 sample `labels`로 투영하지 않고 PCM amplitude도 Adapter에서 정규화하지 않습니다.
+- XJTU LSTM retrospective evidence를 정비 엔지니어 역할의 Evidence Summary / Trend & Observations /
+  Limits & Provenance로 재배치하는 Maintenance Evidence Review low-fidelity prototype. Threshold/state,
+  diagnosis, maintenance priority, RUL을 생성하지 않고 experiment evidence와 future operational result 경계를
+  product contract에 명시합니다.
 
 ### Changed
 
