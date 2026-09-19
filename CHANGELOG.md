@@ -125,6 +125,10 @@
 - `AnomalyScores`와 binary labels를 source observation ID로 late-bind해 full ROC AUC와 standardized
   partial ROC AUC를 계산하는 dataset-neutral evaluator 및 zero를 epsilon으로 바꾸지 않는 unit-interval
   harmonic-mean helper.
+- MIMII development v1의 하나의 packaged base configuration을 15개 machine type × section model config로
+  결정적으로 resolve하는 dataset-specific contract. Section별 source normal train 전체와 target normal 3개를
+  complete population으로 검증해 robust preprocessing/all-train model input을 만들고, test `clip_label`을
+  읽지 않는 source/target scoring input을 분리합니다.
 
 ### Changed
 
