@@ -129,6 +129,12 @@
   결정적으로 resolve하는 dataset-specific contract. Section별 source normal train 전체와 target normal 3개를
   complete population으로 검증해 robust preprocessing/all-train model input을 만들고, test `clip_label`을
   읽지 않는 source/target scoring input을 분리합니다.
+- MIMII dev source를 machine/section 단위로 lazy decode→log-mel feature→robust preprocessing→Isolation Forest
+  fit/score하고 test label을 evaluator에서 source identity로 late-bind하는 development runner. 30개
+  machine/section/domain AUC·pAUC strata, section별 fitted preprocessing provenance, machine/domain/global harmonic
+  summaries와 capability boundary를 `mimii-due-domain-shift-development-result-v1` JSON으로 기록합니다.
+- `industrial-phm experiment mimii-development` CLI와 representation parameter spec을 추가해 clean revision의
+  numerical execution이 protocol/feature/model/evaluator 설정을 결과 artifact에서 재현할 수 있게 했습니다.
 
 ### Changed
 
