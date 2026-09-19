@@ -72,6 +72,7 @@ from industrial_phm.experiments.mimii_development import (
     build_mimii_development_result,
     evaluate_mimii_development,
     evaluate_mimii_section_development,
+    run_mimii_development_evaluation,
     write_mimii_development_result,
 )
 from industrial_phm.experiments.mimii_model_input import (
@@ -358,6 +359,7 @@ __all__ = [
     "prepare_xjtu_model_scoring_input",
     "render_experiment_inspection_text",
     "run_ims_cross_test_evaluation",
+    "run_mimii_development_evaluation",
     "run_xjtu_cross_fold_robustness",
     "run_xjtu_fold_1_holdout_evaluation",
     "run_xjtu_fold_1_reference_comparison",
