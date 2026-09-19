@@ -85,27 +85,15 @@ def test_mimii_adapter_keeps_clip_label_in_metadata_not_sample_labels(tmp_path: 
 
 def test_mimii_adapter_iterates_only_requested_section_scope(tmp_path: Path) -> None:
     _write_wav(
-        tmp_path
-        / "dev"
-        / "fan"
-        / "train"
-        / "section_00_source_train_normal_0000_ambient.wav",
+        tmp_path / "dev" / "fan" / "train" / "section_00_source_train_normal_0000_ambient.wav",
         (1,),
     )
     _write_wav(
-        tmp_path
-        / "dev"
-        / "fan"
-        / "train"
-        / "section_01_source_train_normal_0000_ambient.wav",
+        tmp_path / "dev" / "fan" / "train" / "section_01_source_train_normal_0000_ambient.wav",
         (2,),
     )
     _write_wav(
-        tmp_path
-        / "eval"
-        / "fan"
-        / "train"
-        / "section_03_source_train_normal_0000_ambient.wav",
+        tmp_path / "eval" / "fan" / "train" / "section_03_source_train_normal_0000_ambient.wav",
         (3,),
     )
 
