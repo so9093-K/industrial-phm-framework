@@ -115,6 +115,10 @@
   Limits & Provenance로 재배치하는 Maintenance Evidence Review low-fidelity prototype. Threshold/state,
   diagnosis, maintenance priority, RUL을 생성하지 않고 experiment evidence와 future operational result 경계를
   product contract에 명시합니다.
+- MIMII DUE sections 00–02를 development, sections 03–05를 external evaluation으로 분리하고
+  label-blind scoring, `audio-logmel-statistical-v1` 128-feature representation, section-level Isolation Forest,
+  machine/section/domain AUC·pAUC와 evaluation ground-truth late-binding을 numerical result 전에 고정한
+  experiment protocol v1.
 
 ### Changed
 
