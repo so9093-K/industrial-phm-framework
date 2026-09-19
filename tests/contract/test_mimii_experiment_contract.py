@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 
-from industrial_phm.experiments.mimii import (
+from industrial_phm.experiments import (
     MIMII_DEVELOPMENT_CONFIGURATION_ID,
     MIMII_DEVELOPMENT_FOLD_ID,
     MIMII_DEVELOPMENT_SECTIONS,
