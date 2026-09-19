@@ -279,11 +279,11 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. XJTU LSTM result reader와 raw trajectory evidence를 사용하는 Developer Workbench 첫 interactive prototype 검증
+1. Developer Workbench prototype에서 실제 XJTU LSTM evidence의 navigation, population unit과 capability 이해도 검증
 
 ### Next
 
-1. Isolation Forest와 LSTM 실제 result에서 반복되는 result/artifact/inference contract 승격 범위 검토
+1. Workbench 사용 결과를 기준으로 Isolation Forest와 LSTM result의 반복되는 inspection/evidence 경계 승격 범위 검토
 2. MIMII DUE를 통한 cross-domain evaluation
 3. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
