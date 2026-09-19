@@ -32,26 +32,6 @@ def _():
 
 
 @app.cell
-def _(mo):
-    mo.md(
-        """
-# Maintenance Evidence Review
-
-This low-fidelity prototype asks a narrow product question:
-
-**Can a maintenance engineer understand recorded anomaly evidence, its limits,
-and its provenance without turning retrospective experiment evidence into an
-operational diagnosis or maintenance decision?**
-
-The view is read-only. It consumes one version-controlled XJTU LSTM development
-artifact and does not create asset status, alarms, fault diagnosis, maintenance
-priority, or RUL.
-        """
-    )
-    return
-
-
-@app.cell
 def _(
     ExperimentResultInspectionError,
     Path,
@@ -110,6 +90,19 @@ def _(document):
 
 @app.cell
 def _(bearing_summaries, mo):
+    header = mo.md(
+        """
+        # Maintenance Evidence Review
+
+        Can a maintenance engineer understand recorded anomaly evidence, its limits,
+        and its provenance without turning retrospective experiment evidence into an
+        operational diagnosis or maintenance decision?
+
+        This read-only prototype consumes one version-controlled XJTU LSTM development
+        artifact. It does not create asset status, alarms, fault diagnosis, maintenance
+        priority, or RUL.
+        """
+    )
     bearing_selector = mo.ui.dropdown(
         options=list(bearing_summaries),
         value=next(iter(bearing_summaries)),
@@ -121,7 +114,7 @@ def _(bearing_summaries, mo):
         inline=True,
         label="Maintenance review view",
     )
-    return bearing_selector, view_selector
+    return bearing_selector, header, view_selector
 
 
 @app.cell
@@ -356,13 +349,13 @@ def _(artifact_path, facts_table, inspection, mo, selected_bearing, stage_by_nam
 
 
 @app.cell
-def _(limits_view, mo, summary_view, trend_view, view_selector):
+def _(header, limits_view, mo, summary_view, trend_view, view_selector):
     _views = {
         "Evidence Summary": summary_view,
         "Trend & Observations": trend_view,
         "Limits & Provenance": limits_view,
     }
-    mo.vstack([view_selector, _views[view_selector.value]], gap=1.5)
+    mo.vstack([header, view_selector, _views[view_selector.value]], gap=1.5)
     return
 
 
