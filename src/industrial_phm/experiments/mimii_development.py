@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from industrial_phm.adapters import MimiiDueAdapter, validate_mimii_due_source
 from industrial_phm.experiments.binary_ranking import (
     BinaryRankingEvaluation,
     evaluate_binary_anomaly_ranking,
@@ -40,6 +41,7 @@ from industrial_phm.features import (
     AudioLogMelRepresentationSpec,
     audio_logmel_feature_names,
     audio_logmel_representation_spec,
+    iter_audio_logmel_features,
 )
 from industrial_phm.models import fit_isolation_forest
 
@@ -195,6 +197,7 @@ class MimiiDevelopmentResult:
     """Serializable evidence for the frozen MIMII DUE development protocol."""
 
     code_revision: str
+    verified_source_clip_count: int
     protocol_id: str
     configuration_id: str
     dataset_id: str
@@ -218,6 +221,14 @@ class MimiiDevelopmentResult:
 
     def __post_init__(self) -> None:
         _validate_code_revision(self.code_revision)
+        if (
+            isinstance(self.verified_source_clip_count, bool)
+            or not isinstance(self.verified_source_clip_count, int)
+            or self.verified_source_clip_count <= 0
+        ):
+            raise MimiiDevelopmentResultError(
+                "verified_source_clip_count must be a positive integer"
+            )
         if self.protocol_id != MIMII_DEVELOPMENT_PROTOCOL_ID:
             raise MimiiDevelopmentResultError("protocol_id does not match MIMII development v1")
         if self.configuration_id != MIMII_DEVELOPMENT_CONFIGURATION_ID:
@@ -319,25 +330,99 @@ def evaluate_mimii_section_development(
     )
 
 
+def run_mimii_development_evaluation(
+    source: Path,
+    output_path: Path,
+    *,
+    code_revision: str,
+) -> MimiiDevelopmentResult:
+    """Run the frozen MIMII development path section-by-section and write evidence."""
+    _validate_code_revision(code_revision)
+    source_report = validate_mimii_due_source(source)
+    if not source_report.profile_matches:
+        raise MimiiDevelopmentResultError(
+            "MIMII DUE source does not match the verified v1.01 profile: "
+            + "; ".join(source_report.profile_issues)
+        )
+
+    adapter = MimiiDueAdapter()
+
+    def section_inputs() -> Iterable[MimiiSectionDevelopmentInput]:
+        for scope in iter_mimii_development_section_scopes():
+            vectors = tuple(
+                iter_audio_logmel_features(
+                    adapter.iter_section_series(
+                        source,
+                        group="dev",
+                        machine_type=scope.machine_type,
+                        section=scope.section,
+                    )
+                )
+            )
+            train_vectors = tuple(
+                vector for vector in vectors if vector.metadata.get("split") == "train"
+            )
+            source_test_vectors = tuple(
+                vector
+                for vector in vectors
+                if vector.metadata.get("split") == "test"
+                and vector.metadata.get("domain") == "source"
+            )
+            target_test_vectors = tuple(
+                vector
+                for vector in vectors
+                if vector.metadata.get("split") == "test"
+                and vector.metadata.get("domain") == "target"
+            )
+            yield MimiiSectionDevelopmentInput(
+                machine_type=scope.machine_type,
+                section=scope.section,
+                train_vectors=train_vectors,
+                source_test_vectors=source_test_vectors,
+                target_test_vectors=target_test_vectors,
+            )
+
+    result = evaluate_mimii_development(
+        section_inputs(),
+        code_revision=code_revision,
+        source_clip_count=source_report.clip_count,
+    )
+    write_mimii_development_result(result, output_path)
+    return result
+
+
 def evaluate_mimii_development(
     section_inputs: Iterable[MimiiSectionDevelopmentInput],
     *,
     code_revision: str,
+    source_clip_count: int,
 ) -> MimiiDevelopmentResult:
     """Evaluate section inputs sequentially and aggregate the complete development result."""
+    _validate_code_revision(code_revision)
     section_results = tuple(
         evaluate_mimii_section_development(section_input) for section_input in section_inputs
     )
-    return build_mimii_development_result(section_results, code_revision=code_revision)
+    return build_mimii_development_result(
+        section_results,
+        code_revision=code_revision,
+        source_clip_count=source_clip_count,
+    )
 
 
 def build_mimii_development_result(
     section_results: Sequence[MimiiSectionDevelopmentEvidence],
     *,
     code_revision: str,
+    source_clip_count: int,
 ) -> MimiiDevelopmentResult:
     """Aggregate exactly fifteen section-model results into one immutable evidence object."""
     _validate_code_revision(code_revision)
+    if (
+        isinstance(source_clip_count, bool)
+        or not isinstance(source_clip_count, int)
+        or source_clip_count <= 0
+    ):
+        raise MimiiDevelopmentResultError("source_clip_count must be a positive integer")
     ordered = _ordered_complete_section_results(section_results)
     config = get_mimii_development_configuration()
 
@@ -379,6 +464,7 @@ def build_mimii_development_result(
 
     return MimiiDevelopmentResult(
         code_revision=code_revision,
+        verified_source_clip_count=source_clip_count,
         protocol_id=MIMII_DEVELOPMENT_PROTOCOL_ID,
         configuration_id=MIMII_DEVELOPMENT_CONFIGURATION_ID,
         dataset_id=config.dataset_id,
@@ -519,6 +605,7 @@ def _result_document(result: MimiiDevelopmentResult) -> dict[str, Any]:
             "evidence_class": MIMII_DEVELOPMENT_EVIDENCE_CLASS,
         },
         "source_scope": {
+            "verified_source_clip_count": result.verified_source_clip_count,
             "source_group": "dev",
             "machine_types": list(MIMII_MACHINE_TYPES),
             "sections": list(MIMII_DEVELOPMENT_SECTIONS),
