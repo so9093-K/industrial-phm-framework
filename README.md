@@ -124,6 +124,14 @@ uv run industrial-phm data validate ims-bearings \
   --source data/interim/ims-bearings/source
 ```
 
+MIMII DUE prepared source는 development/evaluation directory grammar, filename metadata, 전체 clip count와
+16 kHz mono PCM WAV header compatibility를 검사합니다.
+
+```bash
+uv run industrial-phm data validate mimii-due \
+  --source data/interim/mimii-due/source
+```
+
 기본 raw data 위치는 `data/raw`이고 `INDUSTRIAL_PHM_DATA_DIR`로 변경할 수 있습니다. 데이터셋 선정 근거와
 provenance 주의사항은 [`docs/research/dataset-selection.md`](docs/research/dataset-selection.md)를 참조합니다.
 
@@ -282,14 +290,16 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   구성과 capability 검증만 module 내부 helper로 정리
 - MIMII DUE Zenodo record·license·file checksum 검증, `mimii-due` manual manifest와 local inventory 기반
   source profile
+- MIMII DUE prepared source의 directory/filename/count profile과 16 kHz mono PCM WAV header를 검증하는
+  dataset-specific validator와 `data validate mimii-due` CLI
 
 ### Current
 
-1. MIMII DUE audio-specific source validator와 `DomainAdapter`
-   - [`docs/research/mimii-due-source-profile.md`](docs/research/mimii-due-source-profile.md)의 구조,
-     filename grammar, WAV header 불변식 검증
+1. MIMII DUE audio-specific `DomainAdapter`와 canonical conformance
    - clip label·domain·section·원문 attribute를 sample이 아닌 clip metadata로 보존
+   - PCM signed 16-bit amplitude를 Adapter에서 임의 normalization하지 않고 source 의미를 유지
    - `CanonicalTimeSeries`의 audio modality 적합성을 contract test로 확인
+   - 실제 의미 손실이 확인되기 전에는 canonical public field를 추가하지 않음
 
 ### Next
 
