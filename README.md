@@ -280,13 +280,16 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   표시하고, 세 실제 result의 Overview/Lineage 및 detailed evidence availability를 검토하는 Developer Workbench
 - 세 result reader에서 반복되는 inspection 책임의 최소 승격 범위 검토. 새 public type 없이 반복된 stage
   구성과 capability 검증만 module 내부 helper로 정리
+- MIMII DUE Zenodo record·license·file checksum 검증, `mimii-due` manual manifest와 local inventory 기반
+  source profile
 
 ### Current
 
-1. MIMII DUE source-first 작업
-   - license, Zenodo version/checksum provenance, source inventory
-   - audio file/profile contract와 machine/domain/source-target metadata
-   - audio-specific `DomainAdapter`와 `CanonicalTimeSeries`의 audio modality 적합성 확인
+1. MIMII DUE audio-specific source validator와 `DomainAdapter`
+   - [`docs/research/mimii-due-source-profile.md`](docs/research/mimii-due-source-profile.md)의 구조,
+     filename grammar, WAV header 불변식 검증
+   - clip label·domain·section·원문 attribute를 sample이 아닌 clip metadata로 보존
+   - `CanonicalTimeSeries`의 audio modality 적합성을 contract test로 확인
 
 ### Next
 

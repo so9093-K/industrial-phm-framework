@@ -104,6 +104,9 @@
   retrospective evidence. 세 validation bearing의 equal-weight mean Spearman ρ는 `0.627559`, mean late-vs-middle
   rank probability는 `0.681636`이며 acquisition-aligned score와 16-feature residual을 함께 보존합니다.
 
+- `mimii-due` dataset manifest(`provider = "manual"`, CC BY-NC-SA 4.0)와 Zenodo record·file checksum·local
+  inventory를 기록한 MIMII DUE source profile.
+
 ### Changed
 
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset

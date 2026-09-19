@@ -144,6 +144,9 @@ MIMII DUE는 CC BY-NC-SA 4.0입니다. Apache-2.0인 framework source repository
 동일 라이선스로 오해하게 해서는 안 됩니다. repository에는 manifest와 acquisition logic만 두고 원본 데이터는
 local/cache에 유지합니다.
 
+검증한 record, file checksum, local inventory와 canonical mapping 쟁점은
+[`mimii-due-source-profile.md`](mimii-due-source-profile.md)가 소유합니다.
+
 ## 6. Smoke Dataset: AI4I 2020
 
 UCI AI4I 2020 Predictive Maintenance Dataset은 10,000-row synthetic dataset이며 UCI가 CC BY 4.0, DOI
