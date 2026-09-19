@@ -32,6 +32,31 @@ class AudioFeatureError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class AudioLogMelRepresentationSpec:
+    """Stable numerical parameters needed to reproduce audio-logmel-statistical-v1."""
+
+    sample_rate_hz: float = _SAMPLE_RATE_HZ
+    sample_count: int = _SAMPLE_COUNT
+    pcm_full_scale_divisor: float = _PCM_DIVISOR
+    frame_length_samples: int = _FRAME_LENGTH
+    hop_length_samples: int = _HOP_LENGTH
+    window: str = "symmetric-hann"
+    centering: bool = False
+    padding: str = "none"
+    fft_size: int = _FFT_SIZE
+    power_normalization: str = "abs-rfft-squared-divide-window-power"
+    mel_scale: str = "htk"
+    mel_band_count: int = _MEL_BAND_COUNT
+    minimum_frequency_hz: float = 0.0
+    maximum_frequency_hz: float = _SAMPLE_RATE_HZ / 2.0
+    mel_filter_normalization: str = "triangular-peak-one-no-area-normalization"
+    log_floor: float = _LOG_FLOOR
+    frame_count: int = _EXPECTED_FRAME_COUNT
+    feature_count: int = _MEL_BAND_COUNT * 2
+    clip_aggregation: str = "per-band-frame-mean-population-std-interleaved"
+
+
+@dataclass(frozen=True, slots=True)
 class AudioFeatureVector:
     """Immutable clip-level audio feature vector with source provenance."""
 
@@ -129,6 +154,11 @@ def iter_audio_logmel_features(
     """Transform audio clips lazily so dataset waveforms are not materialized together."""
     for series in series_iterable:
         yield extract_audio_logmel_features(series)
+
+
+def audio_logmel_representation_spec() -> AudioLogMelRepresentationSpec:
+    """Return the immutable protocol-defined representation parameters."""
+    return AudioLogMelRepresentationSpec()
 
 
 def audio_logmel_feature_names() -> tuple[str, ...]:
