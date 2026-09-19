@@ -116,10 +116,13 @@ def test_mimii_section_development_fits_scores_then_late_binds_labels(
 ) -> None:
     evidence = evaluate_mimii_section_development(fan_section_input)
 
-    assert evidence.experiment_id == get_mimii_section_configuration(
-        "fan",
-        "00",
-    ).experiment_id
+    assert (
+        evidence.experiment_id
+        == get_mimii_section_configuration(
+            "fan",
+            "00",
+        ).experiment_id
+    )
     assert evidence.source_train_count == 1_000
     assert evidence.target_train_count == 3
     assert evidence.preprocessing_fit_count == 1_003
