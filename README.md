@@ -294,23 +294,26 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   dataset-specific validator와 `data validate mimii-due` CLI
 - MIMII DUE 16-bit PCM clip을 normalization 없이 `CanonicalTimeSeries`로 옮기고 clip label·domain·section·
   원문 attribute를 metadata에 보존하는 audio `DomainAdapter`와 cross-domain canonical conformance
+- XJTU LSTM retrospective evidence를 정비 엔지니어 관점의 Evidence Summary / Trend & Observations /
+  Limits & Provenance로 재배치하고 anomaly evidence를 diagnosis·maintenance priority·RUL로 승격하지 않는
+  role-specific Maintenance Evidence Review low-fidelity UX baseline
 
 ### Current
 
-1. 사용자 역할별 UX contract와 analysis-to-decision boundary 재검토
-   - 기존 Developer Workbench의 Experiment Overview / Pipeline Lineage / Evidence Explorer는 유지
-   - 정비 엔지니어가 anomaly evidence, trend, limitation과 provenance를 이해하는 read-only vertical slice 검토
-   - retrospective experiment evidence와 향후 operational PHM result를 같은 schema로 억지 통합하지 않음
-   - frontend/API/authentication을 고정하지 않고 information architecture와 capability 표현을 먼저 검증
+1. MIMII DUE experiment protocol v1을 numerical result보다 먼저 고정
+   - development/evaluation source scope와 source/target domain 사용 규칙
+   - clip label 접근 시점과 leakage boundary
+   - audio representation, preprocessing, reference/model/scoring ownership
+   - clip-level metric, machine/section/domain aggregation과 capability claim
+   - evaluation test audio/ground-truth record가 필요해지는 시점과 provenance 검증 절차
 
 ### Next
 
-1. MIMII DUE experiment protocol을 numerical result보다 먼저 고정
-2. audio representation과 model-independent clip-level evaluator를 protocol 목적에 맞게 정의
-3. 고정된 protocol에 따른 MIMII DUE numerical evidence
-4. 네 번째 result schema가 생긴 뒤 inspection public abstraction 필요성을 재검토
-5. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
-6. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
+1. protocol에 고정된 audio representation과 model-independent clip-level evaluator 구현
+2. 고정된 protocol에 따른 MIMII DUE numerical evidence
+3. 네 번째 result schema가 생긴 뒤 inspection public abstraction 필요성을 재검토
+4. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
+5. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
 
 ### Later
 

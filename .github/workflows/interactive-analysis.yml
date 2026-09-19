@@ -75,3 +75,10 @@ jobs:
             notebooks/02_developer_workbench.py \
             --no-include-code \
             --output /tmp/developer-workbench-ims-iforest.html
+
+      - name: Execute Maintenance Evidence Review
+        run: |
+          uv run --locked --group research marimo export html \
+            notebooks/03_maintenance_evidence_review.py \
+            --no-include-code \
+            --output /tmp/maintenance-evidence-review.html

@@ -359,43 +359,122 @@ Construction을 `not applicable`로, raw trajectory/residual을 보존하지 않
 `not recorded`로 표현합니다. 이 implementation은 navigation, population unit, evidence availability와 provenance
 이해도를 검토하기 위한 research-tooling interface이며 frontend/API/persistent state 결정을 만들지 않습니다.
 
-## 4. 대시보드 전에 PHM 결과 계약부터
+## 4. Maintenance Evidence Review low-fidelity baseline
 
-Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도록 향후 공통 `PHMResult` 경계를
-둡니다. 구체적 schema는 실제 inference 요구가 확인된 뒤 정의하지만, UX 관점에서는 다음 정보 범주가
-필요한지 검토합니다.
+Developer Workbench가 PHM/ML 개발자의 pipeline transparency를 검증했다면, 두 번째 role-specific prototype은
+정비 엔지니어가 **기록된 anomaly evidence를 과도하게 해석하지 않고 이해할 수 있는지**를 확인합니다.
+
+현재 대표 consumer는 `notebooks/03_maintenance_evidence_review.py`이며 XJTU LSTM development artifact의
+acquisition-aligned reconstruction score와 per-feature residual을 재계산하지 않고 그대로 소비합니다. 이 화면은
+운영 dashboard가 아니라 retrospective experiment evidence를 정비 역할의 정보 밀도로 다시 배치한
+research-tooling interface입니다.
 
 ```text
-식별 정보 (Identity)
-- asset
+Maintenance Evidence Review
+├─ Evidence Summary
+├─ Trend & Observations
+└─ Limits & Provenance
+```
+
+### Evidence Summary
+
+정비 사용자가 첫 화면에서 확인해야 하는 것은 "고장인가?"가 아니라 **무슨 evidence가 기록되어 있고 어디까지
+해석 가능한가**입니다.
+
+- 선택한 bearing/evidence scope
+- score window 수와 score 방향
+- acquisition-order association과 late-vs-middle retrospective statistic
+- 현재 evidence가 지원하는 검토 질문
+- threshold/state/diagnosis/priority/RUL이 지원되지 않는다는 제한
+- experiment warning과 artifact provenance
+
+`consumed`, `unsupported`, `not recorded` 같은 기존 vocabulary를 역할별 화면에서 다른 의미로 바꾸지 않습니다.
+
+### Trend & Observations
+
+Trajectory와 high-score observation을 보여주되 threshold line, normal/fault state, alarm level을 만들지 않습니다.
+Per-feature reconstruction residual은 robust-scaled model space의 mismatch evidence로 표시하고 physical fault
+contribution이나 root-cause attribution으로 이름을 바꾸지 않습니다.
+
+### Limits & Provenance
+
+사용자는 최소한 다음을 확인할 수 있어야 합니다.
+
+- 이 결과가 retrospective development evidence인지 operational inference인지
+- thresholded state detection, diagnosis, health assessment, RUL 중 무엇이 unsupported인지
+- 어떤 evaluation scope와 code/artifact provenance에서 수치가 나왔는지
+- 화면이 제공하지 않는 의미를 어디에서도 추론해 생성하지 않았는지
+
+Acceptance criteria:
+
+- 사용자가 선택한 evidence scope와 score semantics를 artifact JSON을 직접 열지 않고 식별할 수 있습니다.
+- anomaly evidence와 fault diagnosis가 다른 capability라는 점이 화면에서 즉시 보입니다.
+- threshold가 없는 experiment에서 alarm/state/maintenance priority를 생성하지 않습니다.
+- feature residual을 causal fault contribution으로 표현하지 않습니다.
+- displayed evidence에서 repository artifact와 declared code revision으로 돌아갈 수 있습니다.
+- role-specific presentation을 위해 별도 result storage, duplicated numerical state 또는 `PHMResult` schema를
+  만들지 않습니다.
+- frontend framework, API, authentication과 work-order action은 이 prototype의 결정 범위가 아닙니다.
+
+## 5. Experiment evidence와 operational result 경계
+
+현재 repository의 authoritative result는 주로 **experiment evidence**입니다. 이는 dataset/split, fit/reference
+population, model configuration, retrospective/fixed evaluation과 code revision을 설명하기 위한 artifact입니다.
+
+향후 운영 UI가 소비할 **operational result**는 다른 질문을 가져야 합니다.
+
+```text
+Experiment evidence                 Future operational result
+-------------------------------     --------------------------------
+dataset / source scope              physical asset / measurement point
+split / partition                   observation time
+fit/reference/scoring population    inference input and data quality
+experiment configuration            deployed model/config identity
+evaluation statistic                validated score/state semantics
+consumed/excluded scope             availability/out-of-scope state
+code/artifact provenance            deployment/inference provenance
+```
+
+Experiment artifact에서 observation time, validated alarm state, maintenance priority 또는 current asset health를
+추론해 operational field로 만들지 않습니다. 반대로 향후 operational result가 생겨도 experiment split이나
+development statistic을 억지로 항상 포함시키지 않습니다.
+
+Operational schema의 이름과 구체적인 public type은 아직 고정하지 않습니다. 첫 실제 inference workflow 또는
+private/field source에서 identity, time, data quality, threshold/state semantics와 deployment provenance가 실제로
+필요해지는 시점에 contract를 정의합니다. 그 전까지 `ExperimentInspection`을 operational result로 확장하거나
+범용 `PHMResult`를 선제적으로 만들지 않습니다.
+
+UX 관점에서 향후 operational boundary에서 검토할 정보 범주는 다음과 같습니다.
+
+```text
+Identity
+- asset / measurement point
 - observation time
 
-상태 평가 (Assessment)
-- status
-- anomaly score / threshold
-- health indicator / trend
-- RUL 또는 capability unavailable
+Assessment
+- validated score / state semantics
+- threshold, health indicator, RUL 또는 capability unavailable
 
-판단 근거 (Evidence)
+Evidence
 - supporting observations
 - data quality
 - applicable operating context
 
-모델 설명 (Explanation, optional)
+Explanation (optional)
 - feature/channel/time contribution
 - reconstruction residual 또는 모델 고유 설명 근거
 - explanation method / scope
 
-불확실성 (Uncertainty, optional)
+Uncertainty (optional)
 - confidence / interval / calibration information
 - unsupported 또는 out-of-scope 상태
 
-추적 정보 (Provenance)
-- model/artifact version
+Provenance
+- deployed model/artifact version
 - preprocessing/config revision
-- dataset/source lineage
+- source/inference lineage
 
-의사결정 지원 (Decision support)
+Decision support (optional)
 - interpretation
 - possible causes
 - recommended inspection or maintenance action
@@ -404,7 +483,7 @@ Dashboard와 Generative AI가 model implementation을 직접 소비하지 않도
 모든 capability가 항상 존재한다고 가정하지 않습니다. RUL, health indicator, uncertainty, explanation이 지원되지
 않는 경우 임의의 값이나 그럴듯한 설명으로 채우지 않고 명시적으로 unavailable 상태로 표현합니다.
 
-## 5. 사람·AI·XAI의 책임
+## 6. 사람·AI·XAI의 책임
 
 수치 계산과 PHM 판단의 source of truth는 deterministic PHM pipeline입니다. Generative AI는 구조화된 결과와
 retrieved maintenance knowledge를 사용해 설명·가설 정리·권고 초안·보고서를 생성합니다.
@@ -417,7 +496,7 @@ attribution뿐 아니라 degradation trajectory, uncertainty, calibration이 판
 따라서 초기 원칙은 다음과 같습니다.
 
 - 모델은 가능하면 자신의 수치 출력과 함께 검증 가능한 evidence/explanation artifact를 생성합니다.
-- `PHMResult`는 explanation을 optional capability로 수용할 수 있어야 합니다.
+- 향후 operational result boundary는 explanation을 optional capability로 수용할 수 있어야 합니다.
 - 설명 방법을 하나의 SHAP/LIME 인터페이스로 성급하게 표준화하지 않습니다.
 - GenAI는 모델 score만 보고 원인을 만들어내지 않고, 전달된 evidence와 retrieved knowledge의 범위 안에서만 설명합니다.
 - 설명이 제공되지 않거나 신뢰할 수 없는 경우 그 한계를 사용자에게 그대로 보여줍니다.
@@ -425,7 +504,7 @@ attribution뿐 아니라 degradation trajectory, uncertainty, calibration이 판
 UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고가 같은 시각적 수준에서 섞이지 않도록 구분해야
 합니다. 특히 정비 조치가 실제 work order나 설비 제어로 이어지는 경우 승인 boundary를 별도로 둡니다.
 
-## 6. CLI도 UX
+## 7. CLI도 UX
 
 현재 단계에서 가장 먼저 사용되는 제품 인터페이스는 CLI일 가능성이 높습니다. 따라서 CLI도 다음 UX 기준을
 적용합니다.
