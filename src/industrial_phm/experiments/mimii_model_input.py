@@ -130,7 +130,11 @@ def _validate_state(
         ("split_id", preprocessing_state.split_id, config.split_id),
         ("fold_id", preprocessing_state.fold_id, config.fold_id),
         ("feature_set_id", preprocessing_state.feature_set_id, config.feature_set_id),
-        ("feature_names", tuple(preprocessing_state.feature_names), tuple(config.selected_features)),
+        (
+            "feature_names",
+            tuple(preprocessing_state.feature_names),
+            tuple(config.selected_features),
+        ),
         ("reference_strategy", preprocessing_state.reference_strategy, config.reference_strategy),
         ("scaling_strategy", preprocessing_state.scaling_strategy, config.scaling_strategy),
     )
