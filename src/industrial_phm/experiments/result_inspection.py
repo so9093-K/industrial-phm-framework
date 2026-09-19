@@ -107,6 +107,53 @@ def _acquisition_level_sequence_stage() -> InspectionStage:
     )
 
 
+def _capability_stage(
+    available: Sequence[str],
+    unsupported: Sequence[str],
+) -> InspectionStage:
+    return InspectionStage(
+        "Capability",
+        "completed",
+        (
+            InspectionFact("Available", ", ".join(available)),
+            InspectionFact("Unsupported", ", ".join(unsupported)),
+        ),
+    )
+
+
+def _provenance_stage(
+    config: ExperimentConfig,
+    declared_revision: str,
+    path: Path,
+    *,
+    evidence_facts: tuple[InspectionFact, ...] = (),
+) -> InspectionStage:
+    return InspectionStage(
+        "Provenance",
+        "completed",
+        (
+            InspectionFact("Experiment", config.experiment_id),
+            InspectionFact("Split", f"{config.split_id} / {config.fold_id}"),
+            *evidence_facts,
+            InspectionFact("Declared code revision", declared_revision),
+            InspectionFact("Checkout attestation", "unavailable"),
+            InspectionFact("Artifact", str(path)),
+        ),
+    )
+
+
+def _validated_capability_scope(
+    root: Mapping[str, object],
+    expected_available: tuple[str, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    capability = _mapping_field(root, "capability_scope", "result root")
+    available = _text_sequence(capability, "available", "capability_scope")
+    unsupported = _text_sequence(capability, "unsupported_or_not_validated", "capability_scope")
+    _expect_equal(available, expected_available, "available capability scope")
+    _expect_equal(unsupported, _UNSUPPORTED_CAPABILITIES, "unsupported capability scope")
+    return available, unsupported
+
+
 def inspect_experiment_result(path: Path) -> ExperimentInspection:
     """Validate and interpret one supported result artifact without modifying it."""
     try:
@@ -331,25 +378,8 @@ def _inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> ExperimentI
                     InspectionFact("Selection or threshold calibration", "none"),
                 ),
             ),
-            InspectionStage(
-                "Capability",
-                "completed",
-                (
-                    InspectionFact("Available", ", ".join(_AVAILABLE_CAPABILITIES)),
-                    InspectionFact("Unsupported", ", ".join(_UNSUPPORTED_CAPABILITIES)),
-                ),
-            ),
-            InspectionStage(
-                "Provenance",
-                "completed",
-                (
-                    InspectionFact("Experiment", config.experiment_id),
-                    InspectionFact("Split", f"{config.split_id} / {config.fold_id}"),
-                    InspectionFact("Declared code revision", declared_revision),
-                    InspectionFact("Checkout attestation", "unavailable"),
-                    InspectionFact("Artifact", str(path)),
-                ),
-            ),
+            _capability_stage(_AVAILABLE_CAPABILITIES, _UNSUPPORTED_CAPABILITIES),
+            _provenance_stage(config, declared_revision, path),
         ),
     )
 
@@ -481,11 +511,7 @@ def _inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> Experimen
         evaluation, "mean_bearing_late_vs_middle_rank_probability", "evaluation"
     )
 
-    capability = _mapping_field(root, "capability_scope", "result root")
-    available = _text_sequence(capability, "available", "capability_scope")
-    unsupported = _text_sequence(capability, "unsupported_or_not_validated", "capability_scope")
-    _expect_equal(available, _AVAILABLE_CAPABILITIES, "available capability scope")
-    _expect_equal(unsupported, _UNSUPPORTED_CAPABILITIES, "unsupported capability scope")
+    available, unsupported = _validated_capability_scope(root, _AVAILABLE_CAPABILITIES)
     excluded = _text_sequence(source_scope, "excluded", "source_scope")
     declared_revision = _revision(provenance, "code_revision", "provenance")
 
@@ -612,25 +638,8 @@ def _inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> Experimen
                     InspectionFact("Selection or threshold calibration", "none"),
                 ),
             ),
-            InspectionStage(
-                "Capability",
-                "completed",
-                (
-                    InspectionFact("Available", ", ".join(available)),
-                    InspectionFact("Unsupported", ", ".join(unsupported)),
-                ),
-            ),
-            InspectionStage(
-                "Provenance",
-                "completed",
-                (
-                    InspectionFact("Experiment", config.experiment_id),
-                    InspectionFact("Split", f"{config.split_id} / {config.fold_id}"),
-                    InspectionFact("Declared code revision", declared_revision),
-                    InspectionFact("Checkout attestation", "unavailable"),
-                    InspectionFact("Artifact", str(path)),
-                ),
-            ),
+            _capability_stage(available, unsupported),
+            _provenance_stage(config, declared_revision, path),
         ),
     )
 
@@ -1143,15 +1152,7 @@ def _inspect_xjtu_lstm_development(
             f"evaluation.feature_residual_summary[{feature_index}].mean_residual",
         )
 
-    capability = _mapping_field(root, "capability_scope", "result root")
-    available = _text_sequence(capability, "available", "capability_scope")
-    unsupported = _text_sequence(
-        capability,
-        "unsupported_or_not_validated",
-        "capability_scope",
-    )
-    _expect_equal(available, _LSTM_AVAILABLE_CAPABILITIES, "available capability scope")
-    _expect_equal(unsupported, _UNSUPPORTED_CAPABILITIES, "unsupported capability scope")
+    available, unsupported = _validated_capability_scope(root, _LSTM_AVAILABLE_CAPABILITIES)
 
     return ExperimentInspection(
         schema_id=XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID,
@@ -1312,27 +1313,13 @@ def _inspect_xjtu_lstm_development(
                     "Retrospective development evidence; not a fresh holdout or test result.",
                 ),
             ),
-            InspectionStage(
-                "Capability",
-                "completed",
-                (
-                    InspectionFact("Available", ", ".join(available)),
-                    InspectionFact("Unsupported", ", ".join(unsupported)),
-                ),
-            ),
-            InspectionStage(
-                "Provenance",
-                "completed",
-                (
-                    InspectionFact("Experiment", config.experiment_id),
-                    InspectionFact("Split", f"{config.split_id} / {config.fold_id}"),
-                    InspectionFact(
-                        "Evidence class",
-                        XJTU_LSTM_DEVELOPMENT_EVIDENCE_CLASS,
-                    ),
-                    InspectionFact("Declared code revision", declared_revision),
-                    InspectionFact("Checkout attestation", "unavailable"),
-                    InspectionFact("Artifact", str(path)),
+            _capability_stage(available, unsupported),
+            _provenance_stage(
+                config,
+                declared_revision,
+                path,
+                evidence_facts=(
+                    InspectionFact("Evidence class", XJTU_LSTM_DEVELOPMENT_EVIDENCE_CLASS),
                 ),
             ),
         ),

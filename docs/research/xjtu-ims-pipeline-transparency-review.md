@@ -132,3 +132,43 @@ LSTM artifact가 보존한 acquisition-aligned trajectory와 feature residual에
 기록하지 않은 Isolation Forest result에서는 `not recorded`입니다. 이 차이는 model capability나 result JSON layout을
 하나로 합치는 근거가 아닙니다. LSTM의 구체적인 scope와 sequence population은
 [`xjtu-lstm-autoencoder-protocol.md`](xjtu-lstm-autoencoder-protocol.md)가 소유합니다.
+
+## 최소 승격 범위 검토
+
+XJTU Isolation Forest holdout, IMS Isolation Forest cross-test, XJTU LSTM development 세 result reader가 같은
+`ExperimentInspection` stage vocabulary를 실제로 사용하게 된 시점에, 반복되는 책임 중 무엇을 공통 contract로
+올릴지 검토했습니다.
+
+### 비교
+
+| 책임 | XJTU IF | IMS IF | XJTU LSTM | 판단 |
+| --- | --- | --- | --- | --- |
+| 12-stage 순서 | 같음 | 같음 | 같음 | 이미 `ExperimentInspection`이 소유 |
+| Provenance stage 구성 | 같음 | 같음 | 같음 + `Evidence class` | module 내부 helper로 추출 |
+| Capability stage 구성 | 같음 | 같음 | 같음 | module 내부 helper로 추출 |
+| `capability_scope` 검증 | artifact에 없음, 상수 사용 | 같음 | 같음 (available 기대값만 다름) | module 내부 helper로 추출 |
+| Sequence Construction | `not applicable` | `not applicable` | window 실제 evidence | 기존 helper 유지 |
+| Source / Canonical cardinality | acquisition → bearing | acquisition → bearing 4 | acquisition → bearing | schema별 유지 |
+| Reference 의미 | early third | all train | early third | schema별 유지 |
+| Evaluation segmentation | lifecycle third | test stage | lifecycle third + residual | schema별 유지 |
+| Scoring 의미 | IF anomaly score | IF anomaly score | reconstruction error | schema별 유지 |
+| 저장 JSON shape | 고유 | 고유 | 고유 | 통합하지 않음 |
+
+### 결정
+
+- **새 public type을 만들지 않습니다.** 공개 contract는 계속 `ExperimentInspection` / `InspectionStage` /
+  `InspectionFact` 세 read model입니다. 세 reader에서 반복된 것은 presentation 단계의 stage 구성과
+  capability 검증이며, 저장 schema가 같다는 근거는 아닙니다.
+- **실제로 세 번 반복된 코드만 같은 module의 private helper로 옮겼습니다.** Provenance stage, Capability
+  stage, `capability_scope` 검증입니다. 세 committed artifact의 rendered inspection text가 변경 전과
+  바이트 단위로 같음을 확인했습니다.
+- **Result JSON serialization은 통합하지 않습니다.** 각 schema reader가 자기 schema를 검증하고 공통 read
+  model만 생성합니다.
+- **Stage status는 계속 문서화된 vocabulary로 둡니다.** [`../product/overview.md`](../product/overview.md)가
+  pipeline stage 상태, evidence availability, capability를 별개 vocabulary로 소유합니다. 이를 enum 같은 typed
+  public contract로 올리는 것은 네 번째 result schema가 같은 vocabulary를 필요로 하는지 확인한 뒤 판단합니다.
+- **Operational inference output과 experiment evidence는 분리합니다.** `ExperimentInspection`은 이미 기록된
+  experiment evidence를 읽는 read model이며 inference 결과 contract가 아닙니다.
+
+`GenericPipeline`, universal result schema, `PHMResult`, model registry는 이 검토 범위에서 근거가 확인되지
+않아 계속 보류합니다. 다음 재검토 시점은 MIMII DUE result schema가 네 번째 reader로 들어올 때입니다.
