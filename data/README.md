@@ -89,6 +89,42 @@ uv run industrial-phm data validate ims-bearings \
 extension 1,876개를 분리해 보고합니다. 정확한 profile과 canonical mapping은
 [`../docs/research/ims-source-profile.md`](../docs/research/ims-source-profile.md)에서 관리합니다.
 
+## MIMII DUE
+
+MIMII DUE는 `manual` provider로 등록되어 있으며 원본 archive와 추출본을 repository에 재배포하지 않습니다.
+현재 prepared source root는 다음 구조를 전제로 합니다.
+
+```text
+data/interim/mimii-due/source/
+├── dev/{fan,gearbox,pump,slider,valve}/
+│   ├── train/
+│   ├── source_test/
+│   └── target_test/
+└── eval/{fan,gearbox,pump,slider,valve}/
+    └── train/
+```
+
+Dataset-specific validator는 모든 visible file의 directory/filename grammar와 clip population을 확인하고,
+기본 sampled mode에서는 관찰된 group/machine/domain/split/label stratum별 대표 WAV header를 검사합니다.
+
+```bash
+uv run industrial-phm data validate mimii-due \
+  --source data/interim/mimii-due/source
+```
+
+모든 36,433개 WAV header를 확인해야 할 때만 `--full`을 사용합니다. 이 검증은 waveform payload를
+정규화하거나 audio feature를 계산하지 않으며, 16-bit PCM / mono / 16 kHz / 160,000 frames라는 source
+compatibility만 확인합니다.
+
+```bash
+uv run industrial-phm data validate mimii-due \
+  --source data/interim/mimii-due/source \
+  --full
+```
+
+정확한 record, license, checksum, clip count, filename attribute와 canonical mapping 쟁점은
+[`../docs/research/mimii-due-source-profile.md`](../docs/research/mimii-due-source-profile.md)가 소유합니다.
+
 ## XJTU-SY
 
 XJTU-SY 공식 repository는 여러 cloud mirror를 제공합니다. Framework의 manifest는 현재 `manual` provider를
