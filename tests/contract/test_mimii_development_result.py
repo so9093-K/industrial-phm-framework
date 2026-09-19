@@ -186,6 +186,7 @@ def test_mimii_development_result_aggregates_thirty_strata_without_dcase_claim()
     result = build_mimii_development_result(
         tuple(reversed(_complete_synthetic_evidence())),
         code_revision=_CODE_REVISION,
+        source_clip_count=36_433,
     )
 
     assert len(result.section_results) == 15
@@ -212,6 +213,7 @@ def test_mimii_development_result_requires_all_fifteen_section_scopes() -> None:
         build_mimii_development_result(
             _complete_synthetic_evidence()[:-1],
             code_revision=_CODE_REVISION,
+            source_clip_count=36_433,
         )
 
 
@@ -227,6 +229,7 @@ def test_mimii_development_result_writes_deterministic_provenance_json(tmp_path:
     document = json.loads(output_path.read_text(encoding="utf-8"))
     assert document["schema_id"] == MIMII_DEVELOPMENT_RESULT_SCHEMA_ID
     assert document["provenance"]["code_revision"] == _CODE_REVISION
+    assert document["source_scope"]["verified_source_clip_count"] == 36_433
     assert document["representation"]["feature_set_id"] == "audio-logmel-statistical-v1"
     assert document["representation"]["feature_count"] == 128
     assert len(document["section_models"]) == 15
