@@ -28,6 +28,7 @@ from industrial_phm.experiments.mimii import (
     get_mimii_development_configuration,
     get_mimii_section_configuration,
     iter_mimii_development_section_scopes,
+    mimii_expected_train_domain_counts,
 )
 from industrial_phm.experiments.mimii_model_input import (
     fit_mimii_preprocessing_and_prepare_model_input,
@@ -127,17 +128,30 @@ class MimiiSectionDevelopmentEvidence:
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise MimiiDevelopmentResultError(f"{field_name} must be a positive integer")
-        if (
-            self.preprocessing_fit_count
-            != self.reference_count
-            != self.model_fit_count
-        ):
+        if len(
+            {
+                self.preprocessing_fit_count,
+                self.reference_count,
+                self.model_fit_count,
+            }
+        ) != 1:
             raise MimiiDevelopmentResultError(
                 "MIMII section preprocessing/reference/model-fit counts must be identical"
             )
         if self.source_train_count + self.target_train_count != self.model_fit_count:
             raise MimiiDevelopmentResultError(
                 "MIMII section source/target train counts must sum to model_fit_count"
+            )
+        expected_source, expected_target = mimii_expected_train_domain_counts(
+            self.machine_type,
+            self.section,
+        )
+        if (self.source_train_count, self.target_train_count) != (
+            expected_source,
+            expected_target,
+        ):
+            raise MimiiDevelopmentResultError(
+                "MIMII section train counts do not match the verified source profile"
             )
         _validate_preprocessing_values(
             self.fitted_center,
