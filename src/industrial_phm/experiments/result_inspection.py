@@ -12,6 +12,27 @@ from typing import cast
 
 from industrial_phm.adapters import XJTU_SY_CHANNELS, get_xjtu_expected_acquisition_count
 from industrial_phm.experiments.config import ExperimentConfig, ExperimentParameter
+from industrial_phm.experiments.binary_ranking import harmonic_mean_unit_interval
+from industrial_phm.experiments.mimii import (
+    MIMII_DEVELOPMENT_CONFIGURATION_ID,
+    MIMII_DEVELOPMENT_FOLD_ID,
+    MIMII_DEVELOPMENT_PROTOCOL_ID,
+    MIMII_DEVELOPMENT_SECTIONS,
+    MIMII_DEVELOPMENT_SPLIT_ID,
+    MIMII_DUE_DATASET_ID,
+    MIMII_MACHINE_TYPES,
+    get_mimii_development_configuration,
+    get_mimii_section_configuration,
+    iter_mimii_development_section_scopes,
+    mimii_expected_train_domain_counts,
+)
+from industrial_phm.experiments.mimii_development import (
+    MIMII_DEVELOPMENT_AVAILABLE_CAPABILITIES,
+    MIMII_DEVELOPMENT_EVIDENCE_CLASS,
+    MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE,
+    MIMII_DEVELOPMENT_RESULT_SCHEMA_ID,
+    MIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES,
+)
 from industrial_phm.experiments.ims import (
     IMS_BEARING_COUNT,
     IMS_EVALUATION_ACQUISITION_COUNT,
@@ -36,6 +57,10 @@ from industrial_phm.experiments.xjtu_lstm_result import (
     XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID,
 )
 from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
+from industrial_phm.features import (
+    audio_logmel_feature_names,
+    audio_logmel_representation_spec,
+)
 from industrial_phm.models.reconstruction_scoring import (
     MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
     ReconstructionScores,
@@ -107,6 +132,19 @@ def _acquisition_level_sequence_stage() -> InspectionStage:
     )
 
 
+def _clip_level_sequence_stage() -> InspectionStage:
+    return InspectionStage(
+        "Sequence Construction",
+        "not applicable",
+        (
+            InspectionFact(
+                "Reason",
+                "model consumes one fixed feature vector per audio clip",
+            ),
+        ),
+    )
+
+
 def _capability_stage(
     available: Sequence[str],
     unsupported: Sequence[str],
@@ -169,10 +207,13 @@ def inspect_experiment_result(path: Path) -> ExperimentInspection:
         return _inspect_ims_cross_test(root, path)
     elif schema_id == XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID:
         return _inspect_xjtu_lstm_development(root, path)
+    elif schema_id == MIMII_DEVELOPMENT_RESULT_SCHEMA_ID:
+        return _inspect_mimii_development(root, path)
     raise ExperimentResultInspectionError(
         f"unsupported experiment result schema_id {schema_id!r}; expected one of "
         f"{XJTU_HOLDOUT_RESULT_SCHEMA_ID!r}, {IMS_CROSS_TEST_RESULT_SCHEMA_ID!r}, "
-        f"{XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID!r}"
+        f"{XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID!r}, "
+        f"{MIMII_DEVELOPMENT_RESULT_SCHEMA_ID!r}"
     )
 
 
