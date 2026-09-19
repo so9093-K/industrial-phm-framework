@@ -81,3 +81,33 @@ def test_mimii_adapter_keeps_clip_label_in_metadata_not_sample_labels(tmp_path: 
     assert series.metadata["clip_label"] == "anomaly"
     assert series.metadata["source_file_number"] == 42
     assert series.metadata["raw_attribute"] is None
+
+
+def test_mimii_adapter_iterates_only_requested_section_scope(tmp_path: Path) -> None:
+    _write_wav(
+        tmp_path / "dev" / "fan" / "train" / "section_00_source_train_normal_0000_ambient.wav",
+        (1,),
+    )
+    _write_wav(
+        tmp_path / "dev" / "fan" / "train" / "section_01_source_train_normal_0000_ambient.wav",
+        (2,),
+    )
+    _write_wav(
+        tmp_path / "eval" / "fan" / "train" / "section_03_source_train_normal_0000_ambient.wav",
+        (3,),
+    )
+
+    series = tuple(
+        MimiiDueAdapter().iter_section_series(
+            tmp_path,
+            group="dev",
+            machine_type="fan",
+            section="00",
+        )
+    )
+
+    assert len(series) == 1
+    assert series[0].asset_id == "fan/section-00"
+    assert series[0].values[0] == (1.0,)
+    assert series[0].metadata["source_group"] == "dev"
+    assert series[0].metadata["section"] == "00"

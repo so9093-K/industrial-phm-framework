@@ -39,6 +39,12 @@ from industrial_phm.experiments.ims import (
     get_ims_cross_test_configuration,
 )
 from industrial_phm.experiments.ims_cross_test import run_ims_cross_test_evaluation
+from industrial_phm.experiments.mimii import (
+    MIMII_DEVELOPMENT_SECTIONS,
+    MIMII_MACHINE_TYPES,
+    get_mimii_development_configuration,
+)
+from industrial_phm.experiments.mimii_development import run_mimii_development_evaluation
 from industrial_phm.experiments.result_inspection import (
     ExperimentResultInspectionError,
     inspect_experiment_result,
@@ -345,6 +351,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA for the exact execution code",
     )
     experiment_lstm_development.set_defaults(handler=_run_experiment_lstm_development)
+
+    experiment_mimii_development = experiment_commands.add_parser(
+        "mimii-development",
+        help="run the frozen MIMII DUE sections 00-02 development evaluation",
+    )
+    experiment_mimii_development.add_argument("dataset_id")
+    experiment_mimii_development.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local MIMII DUE source consumed by the Domain Adapter",
+    )
+    experiment_mimii_development.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated MIMII development result JSON",
+    )
+    experiment_mimii_development.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA for the exact execution code",
+    )
+    experiment_mimii_development.set_defaults(handler=_run_experiment_mimii_development)
 
     return parser
 
@@ -973,6 +1003,80 @@ def _run_experiment_lstm_development(args: argparse.Namespace) -> int:
         f"scoring={result.validation_window_count} windows"
     )
     print(f"framework: {result.training.runtime} {result.training.runtime_version}")
+    print(f"code_revision: {result.code_revision}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_mimii_development(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "mimii-due":
+        print(
+            f"MIMII development evaluation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    config = get_mimii_development_configuration()
+    print("execution plan: MIMII DUE domain-shift development v1")
+    print(
+        f"scope: {config.split_id} / {config.fold_id} / "
+        f"{len(MIMII_MACHINE_TYPES)} machine types x {len(MIMII_DEVELOPMENT_SECTIONS)} sections"
+    )
+    print(f"feature: {config.feature_set_id} / {len(config.selected_features)} selected features")
+    print(f"preprocessing: {config.scaling_strategy.value} / fit={config.fit_partition.value}")
+    print(f"reference: {config.reference_strategy.value}")
+    print(f"sampling: {config.sampling_policy_id}")
+    print(f"model: {config.model_family.value} / seed {config.random_seed}")
+    print("scoring: source_test + target_test / higher-is-more-anomalous")
+    print("labels: evaluator edge only")
+    print("external evaluation: sections 03-05 excluded")
+    print("threshold/calibration: none")
+
+    try:
+        result = run_mimii_development_evaluation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"MIMII development evaluation failed: {error}", file=sys.stderr)
+        return 1
+
+    source_summary = next(
+        item for item in result.domain_summaries if item.scope_id == "domain:source"
+    )
+    target_summary = next(
+        item for item in result.domain_summaries if item.scope_id == "domain:target"
+    )
+    print("pipeline:")
+    print("  source validation: completed")
+    print("  audio representation: completed")
+    print("  section preprocessing/model fit: completed")
+    print("  source/target scoring: completed")
+    print("  label late-binding evaluation: completed")
+    print(f"section_models: {len(result.section_results)}")
+    print(
+        "source_domain: "
+        f"auc_hmean={source_summary.roc_auc_harmonic_mean:.6f} "
+        f"pauc_hmean={source_summary.partial_roc_auc_harmonic_mean:.6f}"
+    )
+    print(
+        "target_domain: "
+        f"auc_hmean={target_summary.roc_auc_harmonic_mean:.6f} "
+        f"pauc_hmean={target_summary.partial_roc_auc_harmonic_mean:.6f}"
+    )
+    print(
+        "overall: "
+        f"auc_hmean={result.overall_summary.roc_auc_harmonic_mean:.6f} "
+        f"pauc_hmean={result.overall_summary.partial_roc_auc_harmonic_mean:.6f}"
+    )
+    print(f"mimii_domain_shift_summary: {result.mimii_domain_shift_summary:.6f}")
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0

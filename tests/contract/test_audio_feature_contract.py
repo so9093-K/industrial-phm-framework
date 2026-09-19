@@ -7,6 +7,7 @@ from industrial_phm.features import (
     AUDIO_LOGMEL_STATISTICAL_FEATURE_SET_ID,
     AudioFeatureError,
     audio_logmel_feature_names,
+    audio_logmel_representation_spec,
     extract_audio_logmel_features,
 )
 
@@ -100,3 +101,24 @@ def test_audio_logmel_statistical_v1_requires_signed_integer_pcm_scale() -> None
 
     with pytest.raises(AudioFeatureError, match="integer-valued PCM"):
         extract_audio_logmel_features(series)
+
+
+def test_audio_logmel_representation_spec_exposes_reproducible_parameters() -> None:
+    spec = audio_logmel_representation_spec()
+
+    assert spec.sample_rate_hz == 16_000.0
+    assert spec.sample_count == 160_000
+    assert spec.pcm_full_scale_divisor == 32_768.0
+    assert spec.frame_length_samples == 1_024
+    assert spec.hop_length_samples == 512
+    assert spec.window == "symmetric-hann"
+    assert spec.centering is False
+    assert spec.padding == "none"
+    assert spec.fft_size == 1_024
+    assert spec.mel_scale == "htk"
+    assert spec.mel_band_count == 64
+    assert spec.minimum_frequency_hz == 0.0
+    assert spec.maximum_frequency_hz == 8_000.0
+    assert spec.log_floor == 1e-12
+    assert spec.frame_count == 311
+    assert spec.feature_count == 128
