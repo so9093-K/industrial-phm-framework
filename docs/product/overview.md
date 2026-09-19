@@ -273,7 +273,8 @@ Acceptance criteria:
 
 - artifact를 직접 열지 않아도 dataset/source scope, split·partition, model family와 random seed를 식별할 수 있습니다.
 - complete/reference/model-fit/scoring population의 값과 단위를 함께 확인할 수 있습니다.
-- `available`, `unsupported`, `excluded`, `consumed` 상태가 numerical result와 분리되어 보입니다.
+- `available`, `unsupported`, `not applicable`, `not recorded`, `excluded`, `consumed` 상태가 numerical result와
+  분리되어 보입니다.
 - evaluation statistic과 aggregation rule을 함께 표시해 평균값의 계산 단위를 확인할 수 있습니다.
 - artifact path, configuration identity와 declared code revision으로 원본 provenance를 추적할 수 있습니다.
 
@@ -337,11 +338,12 @@ frontend framework, API schema, authentication 또는 persistent workflow state�
 - 현재 result가 제공하는 evidence와 제공하지 않는 PHM capability는 무엇인가?
 - 표시된 수치를 어떤 artifact, config와 code revision까지 추적할 수 있는가?
 
-첫 LSTM-centric low-fidelity implementation은 `notebooks/02_developer_workbench.py`에 있습니다. Version-controlled
-XJTU LSTM development artifact를 기존 schema-specific reader로 먼저 검증하고, 같은 `ExperimentInspection`
-stage와 artifact evidence를 세 view가 공유합니다. 이 implementation은 navigation, population unit 이해,
-score/residual semantics와 provenance 추적을 검토하기 위한 research-tooling interface이며
-frontend/API/persistent state 결정을 만들지 않습니다.
+Cross-schema low-fidelity implementation은 `notebooks/02_developer_workbench.py`에 있습니다. Version-controlled XJTU
+Isolation Forest holdout, IMS Isolation Forest cross-test와 XJTU LSTM development artifact를 각각 schema-specific
+reader로 검증하고 같은 `ExperimentInspection` stage vocabulary로 표시합니다. Acquisition-level model은 Sequence
+Construction을 `not applicable`로, raw trajectory/residual을 보존하지 않은 result는 detailed evidence를
+`not recorded`로 표현합니다. 이 implementation은 navigation, population unit, evidence availability와 provenance
+이해도를 검토하기 위한 research-tooling interface이며 frontend/API/persistent state 결정을 만들지 않습니다.
 
 ## 4. 대시보드 전에 PHM 결과 계약부터
 

@@ -91,20 +91,23 @@ capability를 확인하기 어렵습니다. `experiment inspect`가 result와 pa
 
 `industrial-phm experiment inspect <result.json>`은 다음 read-only summary 계약을 구현합니다.
 
-1. `xjtu-fold-1-holdout-result-v1`과 `ims-single-channel-cross-test-result-v1`을 각각 명시적으로 식별합니다.
+1. `xjtu-fold-1-holdout-result-v1`, `ims-single-channel-cross-test-result-v1`과
+   `xjtu-lstm-development-result-v1`을 각각 명시적으로 식별합니다.
 2. schema별 reader가 기존 result와 packaged config를 검증하고 immutable `ExperimentInspection` read model을
    생성합니다.
-3. 출력 순서는 `Source → Canonical → Feature → Preprocessing → Reference → Population → Model → Scoring →
-   Evaluation → Capability → Provenance`로 고정합니다.
-4. source acquisition과 canonical/model observation의 단위를 분리해 표시합니다.
-5. XJTU와 IMS numerical metric을 하나의 성능값으로 합산하거나 공통 pass/fail 판정으로 바꾸지 않습니다.
-6. holdout/cross-test scope는 `consumed`, 지원하지 않는 PHM 기능은 `unsupported`로 표시합니다.
-7. artifact의 code revision은 선언 provenance로 표시하고, 실행 checkout과 자동 대조한 기록이 없으면 attested로
+3. 출력 순서는 `Source → Canonical → Feature → Preprocessing → Reference → Sequence Construction → Population →
+   Model → Scoring → Evaluation → Capability → Provenance`로 고정합니다.
+4. Acquisition-level model의 Sequence Construction은 `not applicable`로 표시하고 LSTM은 실제 acquisition→window
+   population 전환을 표시합니다.
+5. source acquisition, canonical/model observation과 sequence window 단위를 분리해 표시합니다.
+6. XJTU와 IMS numerical metric을 하나의 성능값으로 합산하거나 공통 pass/fail 판정으로 바꾸지 않습니다.
+7. holdout/cross-test scope는 `consumed`, 지원하지 않는 PHM 기능은 `unsupported`로 표시합니다.
+8. artifact의 code revision은 선언 provenance로 표시하고, 실행 checkout과 자동 대조한 기록이 없으면 attested로
    표현하지 않습니다.
 
-두 schema는 각각 작은 reader가 소유하며 text rendering은 read model과 분리합니다. 기존 version-controlled
-result artifact는 authoritative evidence로 유지합니다. 세 번째 result schema와 두 번째 model family가 실제로
-반복되는 필드를 제공하기 전까지 이 경계를 유지합니다.
+세 schema는 각각 작은 reader가 소유하며 text rendering은 read model과 분리합니다. 기존 version-controlled result
+artifact는 authoritative evidence로 유지합니다. Reader가 공유하는 stage vocabulary보다 result JSON layout을
+일찍 통합하지 않습니다.
 
 ```bash
 uv run industrial-phm experiment inspect \
@@ -112,17 +115,20 @@ uv run industrial-phm experiment inspect \
 
 uv run industrial-phm experiment inspect \
   docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json
+
+uv run industrial-phm experiment inspect \
+  docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json
 ```
 
-## LSTM Autoencoder로 이어지는 기준
+## LSTM Autoencoder cross-schema 확인
 
-이 비교는 두 번째 model protocol에서 새로 보여줘야 할 stage도 분명하게 합니다. Acquisition-level feature sequence를
-사용한다면 `Preprocessing`과 `Model Fit` 사이에 `Sequence Construction`이 추가되고, input acquisition 수, window
-length/stride, asset·partition boundary, generated window 수, dropped prefix와 window-to-acquisition lineage를 같은
-summary에서 확인할 수 있어야 합니다.
+LSTM result reader는 `Preprocessing`과 `Model Fit` 사이의 `Sequence Construction`에서 input acquisition 수, window
+length/stride, asset·partition boundary, generated window 수, dropped prefix와 window-to-acquisition lineage를
+표시합니다. XJTU/IMS Isolation Forest reader는 같은 stage를 생략하지 않고 acquisition-level feature observation을
+직접 소비한다는 이유와 함께 `not applicable`로 표시합니다.
 
-따라서 LSTM Autoencoder protocol은 inspection UX의 공통 stage 순서를 재사용하되, XJTU/IMS의 기존 numerical
-result를 fresh independent holdout으로 다시 해석하지 않습니다. 두 번째 model은 model-independent responsibility가
-실제로 반복되는지 검증하는 retrospective benchmark/development evidence로 시작합니다. 구체적인 scope와
-sequence population은 [`xjtu-lstm-autoencoder-protocol.md`](xjtu-lstm-autoencoder-protocol.md)에서 사전
-고정합니다.
+Developer Workbench는 세 schema의 Overview와 Lineage를 이 공통 stage 순서로 표시합니다. Detailed Evidence는 XJTU
+LSTM artifact가 보존한 acquisition-aligned trajectory와 feature residual에만 `available`이며, 해당 raw evidence를
+기록하지 않은 Isolation Forest result에서는 `not recorded`입니다. 이 차이는 model capability나 result JSON layout을
+하나로 합치는 근거가 아닙니다. LSTM의 구체적인 scope와 sequence population은
+[`xjtu-lstm-autoencoder-protocol.md`](xjtu-lstm-autoencoder-protocol.md)가 소유합니다.

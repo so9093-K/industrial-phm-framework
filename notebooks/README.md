@@ -115,13 +115,14 @@ contract는 여러 workflow에서 반복 검증된 요구를 기준으로 별도
 ## Developer Workbench prototype
 
 `02_developer_workbench.py`는 version-controlled experiment evidence를 검토하는 PHM/ML 개발자·연구자용
-LSTM-centric low-fidelity interface입니다. 첫 consumer는 version-controlled XJTU LSTM development result이며, 기존
-`ExperimentInspection`이 검증하고 해석한 동일 artifact를 세 view에서 공유합니다.
+low-fidelity interface입니다. XJTU Isolation Forest holdout, IMS Isolation Forest cross-test와 XJTU LSTM development
+result를 선택할 수 있으며, 기존 `ExperimentInspection`이 검증하고 해석한 artifact를 세 view에서 공유합니다.
 
 - Experiment Overview: identity, effective population, evaluation, capability와 provenance
-- Pipeline Lineage: ordered stage와 acquisition→window population unit transition
-- Evidence Explorer: validation bearing별 acquisition-aligned score trajectory, retrospective statistic과
-  robust-scaled per-feature reconstruction residual
+- Pipeline Lineage: ordered stage, acquisition→window population unit transition과 acquisition-level model의
+  `Sequence Construction = not applicable`
+- Evidence Explorer: artifact가 제공하는 aggregate evaluation을 표시하고, LSTM result에서만 validation bearing별
+  acquisition-aligned score trajectory와 robust-scaled per-feature reconstruction residual 제공
 
 ```bash
 uv run --locked --group research marimo edit notebooks/02_developer_workbench.py
@@ -129,7 +130,8 @@ uv run --locked --group research marimo edit notebooks/02_developer_workbench.py
 
 Workbench는 artifact를 수정하거나 별도 pipeline schema를 저장하지 않습니다. Evidence Explorer에도 threshold,
 normal/fault 상태, health assessment, diagnostics 또는 RUL을 추가하지 않으며 표시된 score와 residual의 제한된
-semantics를 함께 보여줍니다.
+semantics를 함께 보여줍니다. Acquisition-aligned trajectory나 feature residual을 기록하지 않은 IF result는
+상세 evidence를 `not recorded`로 표시하며 aggregate statistic에서 raw evidence를 재구성하지 않습니다.
 
 ## 운영 규칙
 
@@ -150,8 +152,8 @@ semantics를 함께 보여줍니다.
 
 - `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
 - `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo interface.
-- `02_developer_workbench.py`: validated experiment inspection과 authoritative evidence를 공유하는 LSTM-centric
-  low-fidelity Workbench.
+- `02_developer_workbench.py`: XJTU/IMS와 Isolation Forest/LSTM의 validated inspection 및 evidence availability를
+  비교하는 low-fidelity Workbench.
 
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
 않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제

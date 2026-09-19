@@ -41,19 +41,6 @@ _STAGES = (
     "Feature",
     "Preprocessing",
     "Reference",
-    "Population",
-    "Model",
-    "Scoring",
-    "Evaluation",
-    "Capability",
-    "Provenance",
-)
-_LSTM_STAGES = (
-    "Source",
-    "Canonical",
-    "Feature",
-    "Preprocessing",
-    "Reference",
     "Sequence Construction",
     "Population",
     "Model",
@@ -96,6 +83,21 @@ def test_ims_cross_test_inspection_exposes_source_to_observation_cardinality() -
     assert "Declared code revision:" in summary
 
 
+@pytest.mark.parametrize("result_path", (_XJTU_RESULT, _IMS_RESULT))
+def test_acquisition_level_model_reports_sequence_construction_not_applicable(
+    result_path: Path,
+) -> None:
+    inspection = inspect_experiment_result(result_path)
+    sequence_stage = next(
+        stage for stage in inspection.stages if stage.name == "Sequence Construction"
+    )
+
+    assert sequence_stage.status == "not applicable"
+    assert tuple((fact.label, fact.value) for fact in sequence_stage.facts) == (
+        ("Reason", "model consumes acquisition-level feature observations"),
+    )
+
+
 def test_xjtu_lstm_inspection_resolves_sequence_and_reconstruction_pipeline(
     tmp_path: Path,
 ) -> None:
@@ -104,10 +106,11 @@ def test_xjtu_lstm_inspection_resolves_sequence_and_reconstruction_pipeline(
     inspection = inspect_experiment_result(result_path)
     summary = render_experiment_inspection_text(inspection)
 
-    assert tuple(stage.name for stage in inspection.stages) == _LSTM_STAGES
+    assert tuple(stage.name for stage in inspection.stages) == _STAGES
     assert "Schema: xjtu-lstm-development-result-v1" in summary
     assert "Status: completed" in summary
     assert "Sequence Construction" in summary
+    assert "Status: not applicable" not in summary
     assert "Model-fit windows:" in summary
     assert "Framework: pytorch 2.14.0" in summary
     assert "Final epoch mean training loss:" in summary
