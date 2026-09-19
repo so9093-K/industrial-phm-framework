@@ -1,5 +1,13 @@
 """Numerical feature extraction for canonical PHM signals."""
 
+from industrial_phm.features.audio import (
+    AUDIO_LOGMEL_STATISTICAL_FEATURE_SET_ID,
+    AudioFeatureError,
+    AudioFeatureVector,
+    audio_logmel_feature_names,
+    extract_audio_logmel_features,
+    iter_audio_logmel_features,
+)
 from industrial_phm.features.vibration import (
     VIBRATION_STATISTICAL_FEATURE_SET_ID,
     VibrationFeatureError,
@@ -10,9 +18,15 @@ from industrial_phm.features.vibration import (
 )
 
 __all__ = [
+    "AUDIO_LOGMEL_STATISTICAL_FEATURE_SET_ID",
+    "AudioFeatureError",
+    "AudioFeatureVector",
     "VIBRATION_STATISTICAL_FEATURE_SET_ID",
     "VibrationFeatureError",
     "VibrationFeatureVector",
+    "audio_logmel_feature_names",
+    "extract_audio_logmel_features",
+    "iter_audio_logmel_features",
     "extract_vibration_features",
     "iter_vibration_features",
     "vibration_feature_names",
