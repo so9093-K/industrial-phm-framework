@@ -90,12 +90,12 @@
 - XJTU LSTM validation score를 original full-run lifecycle thirds에 정렬해 bearing별 acquisition-order Spearman ρ,
   late-vs-middle rank probability와 feature residual mean을 계산하고 3-bearing equal-weight summary를 보존하는
   development evaluation contract.
-- XJTU LSTM preprocessing state, sequence population, deterministic training provenance, score semantics와 evaluation을
-  `xjtu-lstm-development-result-v1` JSON으로 보존하고 source validation부터 artifact write까지 연결하는 one-shot
-  retrospective development execution contract.
-- `xjtu-lstm-development-result-v1`을 검증해 Sequence Construction, model training, reconstruction
-  scoring, bearing-first retrospective evaluation과 capability/provenance를 같은 immutable
-  `ExperimentInspection` read model로 노출하는 LSTM result inspection reader.
+- XJTU LSTM preprocessing state, sequence population, deterministic training provenance, acquisition-aligned score
+  trajectory, per-window feature residual과 evaluation을 `xjtu-lstm-development-result-v1` JSON으로 보존하고 source
+  validation부터 artifact write까지 연결하는 one-shot retrospective development execution contract.
+- `xjtu-lstm-development-result-v1`의 raw score/residual evidence에서 bearing-first statistic을 다시 계산하고 Sequence
+  Construction, model training, reconstruction scoring, retrospective evaluation과 capability/provenance를 같은
+  immutable `ExperimentInspection` read model로 노출하는 LSTM result inspection reader.
 
 ### Changed
 

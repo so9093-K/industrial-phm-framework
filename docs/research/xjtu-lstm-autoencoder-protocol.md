@@ -262,7 +262,9 @@ reference assumption과 bearing-first statistic을 공유하지만 LSTM은 robus
 - sequence length/stride/alignment/boundary, input shape와 window population
 - asset별 source count, generated window count, dropped prefix
 - exact model/training configuration, runtime/device, seed와 epoch loss
-- score semantics, bearing별 evaluation과 feature residual summary
+- score semantics와 validation bearing별 acquisition-aligned score trajectory
+- 각 score window의 source observation identity, acquisition index와 16-feature reconstruction residual
+- raw trajectory에서 계산한 bearing별 evaluation과 feature residual summary
 - available/unsupported capability
 - declared code revision과 artifact identity
 
@@ -284,8 +286,9 @@ Source
 ```
 
 `ExperimentInspection`의 schema-specific LSTM reader는 numerical evidence보다 먼저 위 stage를 검증하도록
-구현되어 있습니다. 기존 XJTU/IMS Isolation Forest reader와 result JSON은 이 protocol 때문에 변경하지 않으며,
-실제 LSTM numerical artifact는 clean `main` one-shot execution에서 처음 생성합니다.
+구현되어 있습니다. Reader는 artifact의 raw trajectory에서 bearing-first statistic과 feature residual summary를
+다시 계산해 stored aggregate와 대조합니다. 기존 XJTU/IMS Isolation Forest reader와 result JSON은 이 protocol
+때문에 변경하지 않으며, 실제 LSTM numerical artifact는 clean `main` one-shot execution에서 처음 생성합니다.
 
 ## 9. Implementation order and acceptance boundary
 

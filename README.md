@@ -269,9 +269,11 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - LSTM validation score를 original full-run lifecycle thirds에 정렬하고 bearing별 Spearman ρ,
   late-vs-middle rank probability, feature residual mean과 equal-bearing summary를 계산하는 XJTU development evaluator
 - preprocessing fitted state, sequence population, deterministic training provenance, reconstruction score semantics,
-  evaluation과 capability를 보존하는 XJTU LSTM development result schema와 one-shot execution path
-- XJTU LSTM development result를 schema별로 검증해 Sequence Construction, model training, reconstruction scoring,
-  bearing-first evaluation과 capability를 immutable `ExperimentInspection`으로 해석하는 reader
+  acquisition-aligned score trajectory, per-window feature residual, evaluation과 capability를 보존하는 XJTU LSTM
+  development result schema와 one-shot execution path
+- XJTU LSTM development result의 raw trajectory에서 bearing-first aggregate를 다시 검증하고 Sequence Construction,
+  model training, reconstruction scoring, evaluation과 capability를 immutable `ExperimentInspection`으로 해석하는
+  reader
 
 ### Current
 

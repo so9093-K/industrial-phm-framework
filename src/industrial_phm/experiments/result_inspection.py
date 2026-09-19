@@ -27,6 +27,10 @@ from industrial_phm.experiments.xjtu_finalized import get_xjtu_finalized_configu
 from industrial_phm.experiments.xjtu_holdout import XJTU_HOLDOUT_RESULT_SCHEMA_ID
 from industrial_phm.experiments.xjtu_lifecycle import early_third_length
 from industrial_phm.experiments.xjtu_lstm import get_xjtu_lstm_development_configuration
+from industrial_phm.experiments.xjtu_lstm_evaluation import (
+    XjtuLstmDevelopmentEvaluationError,
+    evaluate_xjtu_lstm_development_scores,
+)
 from industrial_phm.experiments.xjtu_lstm_result import (
     XJTU_LSTM_DEVELOPMENT_EVIDENCE_CLASS,
     XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID,
@@ -34,6 +38,8 @@ from industrial_phm.experiments.xjtu_lstm_result import (
 from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
 from industrial_phm.models.reconstruction_scoring import (
     MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
+    ReconstructionScores,
+    ReconstructionScoringError,
 )
 
 _SCORE_SEMANTICS = "higher-is-more-anomalous"
@@ -935,6 +941,19 @@ def _inspect_xjtu_lstm_development(
         expected_validation_windows,
         "XJTU LSTM scoring window population",
     )
+    trajectory_scores = _xjtu_lstm_trajectory_scores(
+        scoring,
+        experiment_id=config.experiment_id,
+        feature_set_id=config.feature_set_id,
+        feature_names=selected_features,
+        validation_assets=tuple(fold.validation),
+    )
+    try:
+        trajectory_evaluation = evaluate_xjtu_lstm_development_scores(trajectory_scores)
+    except XjtuLstmDevelopmentEvaluationError as error:
+        raise ExperimentResultInspectionError(
+            f"scoring.trajectories violate the XJTU LSTM evaluation contract: {error}"
+        ) from error
 
     evaluation = _mapping_field(root, "evaluation", "result root")
     _expect_equal(
@@ -973,6 +992,16 @@ def _inspect_xjtu_lstm_development(
         "mean_bearing_late_vs_middle_rank_probability",
         "evaluation",
     )
+    _expect_close(
+        mean_rho,
+        trajectory_evaluation.mean_bearing_acquisition_order_spearman_rho,
+        "evaluation.mean_bearing_acquisition_order_spearman_rho from score trajectories",
+    )
+    _expect_close(
+        mean_rank_probability,
+        trajectory_evaluation.mean_bearing_late_vs_middle_rank_probability,
+        "evaluation.mean_bearing_late_vs_middle_rank_probability from score trajectories",
+    )
 
     raw_feature_summary = _sequence(evaluation, "feature_residual_summary", "evaluation")
     _expect_equal(
@@ -994,6 +1023,11 @@ def _inspect_xjtu_lstm_development(
         residual = _number(feature, "mean_residual", context)
         if residual < 0.0:
             raise ExperimentResultInspectionError(f"{context}.mean_residual must be non-negative")
+        _expect_close(
+            residual,
+            trajectory_evaluation.mean_bearing_feature_residuals[index],
+            f"{context}.mean_residual from score trajectories",
+        )
         feature_summary_values.append(residual)
 
     raw_bearings = _sequence(evaluation, "bearings", "evaluation")
@@ -1002,8 +1036,13 @@ def _inspect_xjtu_lstm_development(
     bearing_rhos: list[float] = []
     bearing_rank_probabilities: list[float] = []
     bearing_feature_residuals: list[tuple[float, ...]] = []
-    for index, (raw_bearing, expected_asset) in enumerate(
-        zip(raw_bearings, fold.validation, strict=True)
+    for index, (raw_bearing, expected_asset, trajectory_bearing) in enumerate(
+        zip(
+            raw_bearings,
+            fold.validation,
+            trajectory_evaluation.bearing_results,
+            strict=True,
+        )
     ):
         context = f"evaluation.bearings[{index}]"
         bearing = _mapping(raw_bearing, context)
@@ -1033,6 +1072,16 @@ def _inspect_xjtu_lstm_development(
         )
         rho = _number(bearing, "acquisition_order_spearman_rho", context)
         rank_probability = _number(bearing, "late_vs_middle_rank_probability", context)
+        _expect_close(
+            rho,
+            trajectory_bearing.acquisition_order_spearman_rho,
+            f"{context}.acquisition_order_spearman_rho from score trajectory",
+        )
+        _expect_close(
+            rank_probability,
+            trajectory_bearing.late_vs_middle_rank_probability,
+            f"{context}.late_vs_middle_rank_probability from score trajectory",
+        )
         residuals = _number_sequence(bearing, "mean_feature_residuals", context)
         _expect_equal(
             len(residuals),
@@ -1042,6 +1091,14 @@ def _inspect_xjtu_lstm_development(
         if any(value < 0.0 for value in residuals):
             raise ExperimentResultInspectionError(
                 f"{context}.mean_feature_residuals must be non-negative"
+            )
+        for feature_index, (residual, expected_residual) in enumerate(
+            zip(residuals, trajectory_bearing.mean_feature_residuals, strict=True)
+        ):
+            _expect_close(
+                residual,
+                expected_residual,
+                f"{context}.mean_feature_residuals[{feature_index}] from score trajectory",
             )
         bearing_rhos.append(rho)
         bearing_rank_probabilities.append(rank_probability)
@@ -1212,6 +1269,11 @@ def _inspect_xjtu_lstm_development(
                         f"{len(validation_bearings)} validation bearings / "
                         f"{scoring_window_count} windows",
                     ),
+                    InspectionFact(
+                        "Trajectory evidence",
+                        f"{trajectory_scores.window_count} acquisition-aligned scores / "
+                        f"{len(selected_features)} residual features",
+                    ),
                 ),
             ),
             InspectionStage(
@@ -1260,6 +1322,114 @@ def _inspect_xjtu_lstm_development(
             ),
         ),
     )
+
+
+def _xjtu_lstm_trajectory_scores(
+    scoring: Mapping[str, object],
+    *,
+    experiment_id: str,
+    feature_set_id: str,
+    feature_names: tuple[str, ...],
+    validation_assets: tuple[str, ...],
+) -> ReconstructionScores:
+    raw_trajectories = _sequence(scoring, "trajectories", "scoring")
+    _expect_equal(
+        len(raw_trajectories),
+        len(validation_assets),
+        "scoring.trajectories bearing count",
+    )
+
+    window_ids: list[str] = []
+    sequence_ids: list[str] = []
+    asset_ids: list[str] = []
+    partition_ids: list[str] = []
+    source_observation_ids: list[str] = []
+    acquisition_indexes: list[int] = []
+    scores: list[float] = []
+    feature_residuals: list[tuple[float, ...]] = []
+
+    for trajectory_index, (raw_trajectory, expected_asset) in enumerate(
+        zip(raw_trajectories, validation_assets, strict=True)
+    ):
+        trajectory_context = f"scoring.trajectories[{trajectory_index}]"
+        trajectory = _mapping(raw_trajectory, trajectory_context)
+        asset_id = _text(trajectory, "asset_id", trajectory_context)
+        _expect_equal(asset_id, expected_asset, f"{trajectory_context}.asset_id")
+        observations = _sequence(trajectory, "observations", trajectory_context)
+        source_count = get_xjtu_expected_acquisition_count(asset_id)
+        expected_positions = tuple(
+            range(
+                XJTU_LSTM_SEQUENCE_SPEC.length,
+                source_count + 1,
+                XJTU_LSTM_SEQUENCE_SPEC.stride,
+            )
+        )
+        _expect_equal(
+            len(observations),
+            len(expected_positions),
+            f"{trajectory_context}.observations length",
+        )
+
+        for observation_index, (raw_observation, expected_position) in enumerate(
+            zip(observations, expected_positions, strict=True)
+        ):
+            context = f"{trajectory_context}.observations[{observation_index}]"
+            observation = _mapping(raw_observation, context)
+            position = _positive_int(observation, "acquisition_index", context)
+            _expect_equal(position, expected_position, f"{context}.acquisition_index")
+            expected_window_id = (
+                f"{asset_id}:window-{position - XJTU_LSTM_SEQUENCE_SPEC.length + 1}-{position}"
+            )
+            window_id = _text(observation, "window_id", context)
+            _expect_equal(window_id, expected_window_id, f"{context}.window_id")
+            source_observation_id = _text(observation, "source_observation_id", context)
+            _expect_equal(
+                source_observation_id,
+                f"{asset_id}:acquisition-{position}",
+                f"{context}.source_observation_id",
+            )
+            score = _number(observation, "score", context)
+            if score < 0.0:
+                raise ExperimentResultInspectionError(f"{context}.score must be non-negative")
+            residuals = _number_sequence(observation, "feature_residuals", context)
+            _expect_equal(
+                len(residuals),
+                len(feature_names),
+                f"{context}.feature_residuals width",
+            )
+            if any(residual < 0.0 for residual in residuals):
+                raise ExperimentResultInspectionError(
+                    f"{context}.feature_residuals must be non-negative"
+                )
+
+            window_ids.append(window_id)
+            sequence_ids.append(asset_id)
+            asset_ids.append(asset_id)
+            partition_ids.append("validation")
+            source_observation_ids.append(source_observation_id)
+            acquisition_indexes.append(position)
+            scores.append(score)
+            feature_residuals.append(residuals)
+
+    try:
+        return ReconstructionScores(
+            experiment_id=experiment_id,
+            feature_set_id=feature_set_id,
+            feature_names=feature_names,
+            spec=XJTU_LSTM_SEQUENCE_SPEC,
+            window_ids=tuple(window_ids),
+            sequence_ids=tuple(sequence_ids),
+            asset_ids=tuple(asset_ids),
+            partition_ids=tuple(partition_ids),
+            aligned_source_observation_ids=tuple(source_observation_ids),
+            aligned_source_positions=tuple(acquisition_indexes),
+            scores=tuple(scores),
+            feature_residuals=tuple(feature_residuals),
+        )
+    except ReconstructionScoringError as error:
+        raise ExperimentResultInspectionError(
+            f"scoring.trajectories violate the reconstruction score contract: {error}"
+        ) from error
 
 
 def _validate_ims_identity(provenance: Mapping[str, object], config: ExperimentConfig) -> None:
