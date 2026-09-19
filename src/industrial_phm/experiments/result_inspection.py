@@ -767,10 +767,10 @@ def _inspect_mimii_development(
         ("mel_filter_normalization", spec.mel_filter_normalization),
         ("clip_aggregation", spec.clip_aggregation),
     )
-    for field_name, expected in representation_text:
+    for field_name, expected_text in representation_text:
         _expect_equal(
             _text(representation, field_name, "representation"),
-            expected,
+            expected_text,
             f"representation.{field_name}",
         )
     representation_int = (
@@ -782,10 +782,10 @@ def _inspect_mimii_development(
         ("frame_count", spec.frame_count),
         ("feature_count", spec.feature_count),
     )
-    for field_name, expected in representation_int:
+    for field_name, expected_int in representation_int:
         _expect_equal(
             _positive_int(representation, field_name, "representation"),
-            expected,
+            expected_int,
             f"representation.{field_name}",
         )
     representation_number = (
@@ -795,10 +795,10 @@ def _inspect_mimii_development(
         ("maximum_frequency_hz", spec.maximum_frequency_hz),
         ("log_floor", spec.log_floor),
     )
-    for field_name, expected in representation_number:
+    for field_name, expected_number in representation_number:
         _expect_close(
             _number(representation, field_name, "representation"),
-            expected,
+            expected_number,
             f"representation.{field_name}",
         )
     _expect_equal(
