@@ -102,8 +102,7 @@ def test_mimii_section_model_fit_rejects_incomplete_target_train_population(
         vector
         for vector in fan_section_00_train_vectors
         if not (
-            vector.metadata["domain"] == "target"
-            and vector.metadata["source_file_number"] == 2
+            vector.metadata["domain"] == "target" and vector.metadata["source_file_number"] == 2
         )
     )
 
