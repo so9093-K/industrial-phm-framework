@@ -278,16 +278,21 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   [XJTU LSTM fold-1 train/validation retrospective evidence](docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json)
 - XJTU/IMS Isolation Forest의 Sequence Construction applicability와 LSTM window population을 같은 ordered stage로
   표시하고, 세 실제 result의 Overview/Lineage 및 detailed evidence availability를 검토하는 Developer Workbench
+- 세 result reader에서 반복되는 inspection 책임의 최소 승격 범위 검토. 새 public type 없이 반복된 stage
+  구성과 capability 검증만 module 내부 helper로 정리
 
 ### Current
 
-1. XJTU Isolation Forest, IMS Isolation Forest와 XJTU LSTM에서 반복되는 inspection/evidence 경계의 최소 승격 범위
-   검토
+1. MIMII DUE source-first 작업
+   - license, Zenodo version/checksum provenance, source inventory
+   - audio file/profile contract와 machine/domain/source-target metadata
+   - audio-specific `DomainAdapter`와 `CanonicalTimeSeries`의 audio modality 적합성 확인
 
 ### Next
 
-1. MIMII DUE를 통한 cross-domain evaluation
-2. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. MIMII DUE experiment protocol을 numerical result보다 먼저 고정
+2. 고정된 protocol에 따른 MIMII DUE numerical evidence
+3. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 
