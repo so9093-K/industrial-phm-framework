@@ -22,6 +22,14 @@ ToyADMOS2의 ToyCar/ToyTrain을 포함하지 않고 MIMII DUE의 다섯 real-mac
 
 첫 task는 **domain-shift clip-level unsupervised anomaly scoring**입니다.
 
+고정 identity는 다음과 같습니다.
+
+~~~text
+protocol_id              = mimii-due-domain-shift-iforest-v1
+development_split_id     = mimii-due-dev-sections-00-02-v1
+external_evaluation_id   = mimii-due-eval-sections-03-05-v1
+~~~
+
 V1에서 지원하는 numerical claim은 normal/anomaly test clip의 ranking discrimination을 AUC와 low-FPR pAUC로
 기술하는 것까지입니다. Thresholded state detection, fault diagnosis, health assessment, Health Indicator와
 RUL은 이 protocol의 capability가 아닙니다.
@@ -245,6 +253,11 @@ feature.logmel.band_63.std
 V1에는 delta, delta-delta, spectral augmentation, learned embedding, pretrained audio model 또는
 feature selection이 없습니다.
 
+Representation 구현은 NumPy FFT와 명시된 수학식만 사용하고, 이 baseline을 위해 librosa/soundfile 같은
+audio-specific runtime dependency를 추가하지 않습니다. Canonical waveform은 Adapter에서 clip 하나씩 받아 즉시
+feature vector로 축약하고 다음 clip으로 넘어갑니다. Dataset 전체 waveform이나 여러 160,000-sample
+CanonicalTimeSeries를 feature extraction을 위해 동시에 materialize하지 않습니다.
+
 ## 7. Preprocessing, reference와 sampling
 
 각 machine-section model은 자신의 complete training population에서 preprocessing state를 fit합니다.
@@ -332,8 +345,15 @@ Per-stratum AUC/pAUC가 numerical evidence의 primary owner입니다. Aggregate�
 6. 전체 30 strata × {AUC, pAUC} 60 values의 harmonic mean인
    **mimii_domain_shift_summary**
 
-Harmonic mean은 positive metric values에 적용합니다. AUC/pAUC는 sklearn standardized ROC metric 범위에서
-계산되므로 0이 관찰되면 epsilon으로 조용히 치환하지 않고 해당 값과 aggregate rule을 명시적으로 검토합니다.
+Harmonic mean은 다음 deterministic rule을 사용합니다.
+
+~~~text
+values 중 하나라도 0.0이면 harmonic_mean = 0.0
+그 외에는 harmonic_mean = N / sum(1/value)
+~~~
+
+Negative metric value나 non-finite value는 허용하지 않습니다. DCASE evaluator처럼 epsilon을 넣어 0을 작은 양수로
+바꾸지 않으며, source metric을 그대로 보존한 summary를 만듭니다.
 
 mimii_domain_shift_summary는 DCASE official score와 구조적으로 유사한 project summary이지만,
 ToyCar/ToyTrain이 없으므로 **DCASE official score라고 이름 붙이지 않습니다.**
