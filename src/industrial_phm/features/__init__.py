@@ -19,9 +19,9 @@ from industrial_phm.features.vibration import (
 
 __all__ = [
     "AUDIO_LOGMEL_STATISTICAL_FEATURE_SET_ID",
+    "VIBRATION_STATISTICAL_FEATURE_SET_ID",
     "AudioFeatureError",
     "AudioFeatureVector",
-    "VIBRATION_STATISTICAL_FEATURE_SET_ID",
     "VibrationFeatureError",
     "VibrationFeatureVector",
     "audio_logmel_feature_names",
