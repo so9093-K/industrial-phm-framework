@@ -1,0 +1,7 @@
+id = "mimii-due"
+title = "MIMII DUE"
+version = "zenodo-v1.01"
+provider = "manual"
+source_url = "https://zenodo.org/records/4740355"
+citation_doi = "10.5281/zenodo.4740355"
+license = "CC BY-NC-SA 4.0; keep source data local and do not redistribute it through this repository"

@@ -17,11 +17,14 @@ from industrial_phm.data.validation import (
 def test_registry_exposes_registered_research_datasets() -> None:
     manifests = {manifest.dataset_id: manifest for manifest in list_datasets()}
 
-    assert set(manifests) >= {"xjtu-sy", "ims-bearings", "ai4i-2020"}
+    assert set(manifests) >= {"xjtu-sy", "ims-bearings", "ai4i-2020", "mimii-due"}
     assert manifests["xjtu-sy"].provider == "manual"
     assert manifests["ims-bearings"].provider == "url"
     assert manifests["ims-bearings"].sha256 is None
     assert manifests["ai4i-2020"].provider == "url"
+    assert manifests["mimii-due"].provider == "manual"
+    assert manifests["mimii-due"].citation_doi == "10.5281/zenodo.4740355"
+    assert "CC BY-NC-SA 4.0" in manifests["mimii-due"].license_name
 
 
 def test_manual_source_never_triggers_implicit_network_fetch(tmp_path: Path) -> None:
