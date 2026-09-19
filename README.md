@@ -184,6 +184,18 @@ uv run industrial-phm experiment inspect \
 
 uv run industrial-phm experiment inspect \
   docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json
+
+
+MIMII DUE의 first audio development path는 protocol-fixed sections 00–02만 사용하며, test label은 scoring path가
+아니라 evaluator edge에서만 결합합니다. 실제 numerical evidence는 implementation이 merge된 clean `main`
+revision에서 다음 명령으로 생성합니다.
+
+```bash
+uv run industrial-phm experiment mimii-development mimii-due \
+  --source data/interim/mimii-due/source \
+  --output docs/research/results/mimii-due-iforest-domain-shift-development-v1.json \
+  --code-revision "$(git rev-parse HEAD)"
+```
 ```
 
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
@@ -306,15 +318,18 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - 하나의 packaged MIMII development base configuration을 15개 machine type × section model identity로
   결정적으로 resolve하고, complete source/target normal train population에서 robust preprocessing과
   all-train `clip-uniform-v1` model input을 만들며 test label을 읽지 않는 scoring-input boundary
+- MIMII dev source를 section 단위로 streaming해 15개 fixed Isolation Forest를 fit/score하고, evaluator edge에서
+  labels를 late-bind해 30 machine/section/domain AUC·pAUC strata와 harmonic summaries를 생성하는
+  `mimii-due-domain-shift-development-result-v1` execution/result contract와 CLI
 
 ### Current
 
-1. MIMII DUE development evaluator와 result/provenance schema 구현
-   - 15 section-specific Isolation Forest fit과 source/target test score orchestration
-   - test labels를 evaluator edge에서 source identity로 late-bind
-   - 30 machine/section/domain strata의 AUC·pAUC와 protocol-defined harmonic summaries
-   - representation/preprocessing/population/model/scoring/evaluation provenance result schema
-   - numerical development score는 full implementation/tests merge 이후 clean `main`에서만 생성
+1. frozen protocol에 따른 sections 00–02 MIMII development numerical evidence
+   - prepared source를 `data validate mimii-due`로 다시 확인
+   - clean `main` revision에서 `experiment mimii-development` 실행
+   - 같은 revision/configuration의 deterministic rerun으로 result artifact 재현성 확인
+   - 30 machine/section/domain AUC·pAUC와 source/target harmonic summary를 capability boundary 안에서 해석
+   - authoritative numerical artifact와 code revision을 `docs/research/results/`에 기록
 
 ### Next
 
