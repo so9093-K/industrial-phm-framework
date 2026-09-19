@@ -183,14 +183,11 @@ class MimiiDueAdapter:
         clips = tuple(
             clip
             for clip in _collect_clips(source)
-            if clip.group == group
-            and clip.machine == machine_type
-            and clip.section == section
+            if clip.group == group and clip.machine == machine_type and clip.section == section
         )
         if not clips:
             raise MimiiDueSourceError(
-                "MIMII DUE source contains no clips for "
-                f"{group}/{machine_type}/section-{section}"
+                f"MIMII DUE source contains no clips for {group}/{machine_type}/section-{section}"
             )
         for clip in clips:
             yield _canonical_series(source, clip)
