@@ -26,6 +26,25 @@ MIMII_DEVELOPMENT_FOLD_ID = "fold-1"
 MIMII_DEVELOPMENT_CONFIGURATION_ID = "mimii-due-iforest-domain-shift-development-v1"
 MIMII_MACHINE_TYPES = ("fan", "gearbox", "pump", "slider", "valve")
 MIMII_DEVELOPMENT_SECTIONS = ("00", "01", "02")
+MIMII_TARGET_TRAIN_COUNT_PER_SECTION = 3
+
+_EXPECTED_SOURCE_TRAIN_COUNT = {
+    ("fan", "00"): 1_000,
+    ("fan", "01"): 1_000,
+    ("fan", "02"): 1_000,
+    ("gearbox", "00"): 1_001,
+    ("gearbox", "01"): 1_008,
+    ("gearbox", "02"): 1_008,
+    ("pump", "00"): 1_000,
+    ("pump", "01"): 1_000,
+    ("pump", "02"): 1_000,
+    ("slider", "00"): 1_000,
+    ("slider", "01"): 1_000,
+    ("slider", "02"): 1_000,
+    ("valve", "00"): 1_000,
+    ("valve", "01"): 1_000,
+    ("valve", "02"): 1_000,
+}
 
 _CONFIG_MANIFEST = "mimii-due-iforest-domain-shift-development-v1.toml"
 _SUPPORTED_SAMPLING_POLICY_IDS = ("clip-uniform-v1",)
@@ -68,6 +87,18 @@ class MimiiSectionScope:
     def experiment_id(self) -> str:
         """Return the unique model experiment identity for this section scope."""
         return f"{MIMII_DEVELOPMENT_CONFIGURATION_ID}--{self.machine_type}-section-{self.section}"
+
+
+def mimii_expected_train_domain_counts(
+    machine_type: str,
+    section: str,
+) -> tuple[int, int]:
+    """Return protocol-fixed source/target normal train counts for one development section."""
+    scope = MimiiSectionScope(machine_type=machine_type, section=section)
+    return (
+        _EXPECTED_SOURCE_TRAIN_COUNT[(scope.machine_type, scope.section)],
+        MIMII_TARGET_TRAIN_COUNT_PER_SECTION,
+    )
 
 
 def mimii_development_context() -> ExperimentContext:
