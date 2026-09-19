@@ -184,7 +184,7 @@ uv run industrial-phm experiment inspect \
 
 uv run industrial-phm experiment inspect \
   docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json
-
+```
 
 MIMII DUE의 first audio development path는 protocol-fixed sections 00–02만 사용하며, test label은 scoring path가
 아니라 evaluator edge에서만 결합합니다. 실제 numerical evidence는 implementation이 merge된 clean `main`
@@ -195,7 +195,6 @@ uv run industrial-phm experiment mimii-development mimii-due \
   --source data/interim/mimii-due/source \
   --output docs/research/results/mimii-due-iforest-domain-shift-development-v1.json \
   --code-revision "$(git rev-parse HEAD)"
-```
 ```
 
 첫 numerical PHM baseline의 data partition은 모델 코드에서 임의로 만들지 않습니다.
