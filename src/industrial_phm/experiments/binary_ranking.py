@@ -82,8 +82,7 @@ def evaluate_binary_anomaly_ranking(
         )
 
     labels = tuple(
-        _binary_label(labels_by_observation_id[observation_id])
-        for observation_id in score_ids
+        _binary_label(labels_by_observation_id[observation_id]) for observation_id in score_ids
     )
     anomaly_count = sum(labels)
     normal_count = len(labels) - anomaly_count
