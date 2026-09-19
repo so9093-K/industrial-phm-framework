@@ -1,6 +1,6 @@
 # MIMII DUE Source Profile
 
-상태: official record verified / local inventory observed / source validator 구현 / Adapter 미구현
+상태: official record verified / local inventory observed / source validator 구현 / Adapter·canonical conformance 구현
 
 이 문서는 MIMII DUE의 source record, license boundary, 실제 local inventory와 canonical mapping 쟁점을 기록합니다.
 MIMII DUE는 XJTU-SY와 IMS에 이은 세 번째 source이며, bearing-vibration 범위를 벗어나는 첫 cross-domain case
@@ -144,24 +144,28 @@ Source에는 표기 불일치가 그대로 있습니다. Fan은 `strength`와 �
 `strenght`), gearbox는 `none`과 `None`이 공존합니다. Adapter는 이를 조용히 정정하지 않고 원문 attribute
 문자열을 보존합니다. 정규화가 필요하면 원문과 별도로, 규칙을 명시해 적용합니다.
 
-## 7. Canonical mapping 쟁점
+## 7. Canonical mapping 결과
 
-`CanonicalTimeSeries`로 한 clip을 표현하는 데 새 필드는 필요하지 않아 보입니다.
+현재 `CanonicalTimeSeries`로 한 clip을 새 public field 없이 표현할 수 있음을 Adapter contract test로
+확인했습니다.
 
-- `timestamps=None`, `sampling_rate_hz=16000`, channel 1개로 waveform을 표현할 수 있습니다. 규모는 160,000 × 1로
-  XJTU acquisition(32,768 × 2)과 같은 범주입니다.
-- Clip label은 sample 단위 `labels` 필드에 복사하지 않습니다. 16만 개 sample마다 같은 값을 반복하면 clip 속성을
-  sample 속성처럼 보이게 만들기 때문입니다. XJTU Adapter가 lifecycle 정보를 sample에 투영하지 않은 것과 같은
-  원칙입니다. Label, domain, section, split, 원문 attribute는 clip metadata로 둡니다.
-- Asset 의미가 bearing과 다릅니다. Source가 제공하는 식별 단위는 machine type과 section이며, clip 사이에
-  run-to-failure 순서를 나타내는 값이 없습니다. 따라서 XJTU/IMS evaluation이 쓰는 acquisition order, lifecycle
-  third, late-vs-middle 통계는 이 source에 그대로 적용할 근거가 없습니다. Section이 물리적으로 무엇을 뜻하는지는
-  source 문서로 확인한 뒤 Adapter metadata 이름을 정합니다.
-- `vibration-statistical-v1`은 channel 이름에 무관하게 계산은 되지만, audio에 대한 적절한 feature로 채택하지
-  않습니다. Audio feature는 protocol에서 별도로 정합니다.
+- `asset_id`: `fan/section-00`처럼 machine type과 source section을 조합한 stable source identity입니다.
+  Section을 machine serial number, physical lifecycle 또는 run-to-failure asset으로 해석하지 않습니다.
+- `timestamps=None`, `sampling_rate_hz=16000`, `channels=("pcm_amplitude",)`, values 160,000 × 1로
+  waveform을 표현합니다.
+- PCM signed 16-bit sample은 `pcm-s16le` source encoding을 metadata에 남기고, Adapter에서 `[-1, 1]`
+  normalization을 수행하지 않은 동일 amplitude scale의 numeric value로 옮깁니다.
+- Clip label은 sample 단위 `labels`에 복사하지 않으며 `labels=None`, `rul=None`을 유지합니다.
+  Label, domain, section, split, source group과 원문 attribute는 clip metadata에 둡니다.
+- Filename의 `NNNN`은 `source_file_number`로만 보존하고 acquisition order, lifecycle position 또는 연속
+  timestamp 의미를 만들지 않습니다.
+- Test filename에는 operating attribute가 없으므로 test operating condition을 추정하지 않습니다.
+- `vibration-statistical-v1`은 계산 가능하다는 이유만으로 audio feature로 채택하지 않습니다. Audio
+  representation은 experiment protocol에서 별도로 결정합니다.
 
-이 쟁점들은 Adapter를 구현하면서 contract test로 확인합니다. 실제 구현에서 현재 contract로 의미를 잃지 않고
-표현하기 어렵다는 것이 드러날 때만 canonical contract 변경을 검토합니다.
+Adapter는 clip을 하나씩 lazy하게 읽지만 현재 `CanonicalTimeSeries` 자체는 rectangular in-memory Python
+numeric values를 소유합니다. 160,000 × 1 audio clip에서 이 representation이 실제 병목이 되는지는 이후 audio
+feature consumer에서 측정하고, 반복 비용이 확인되기 전에는 array/storage abstraction을 추가하지 않습니다.
 
 ## 8. 구현된 source validator
 
@@ -170,13 +174,11 @@ group·machine·domain·split·label count를 검사합니다. 기본 mode는 �
 header를 확인하고, `--full`은 36,433개 WAV header를 모두 확인합니다.
 
 이 validator는 WAV payload normalization, audio feature 계산 또는 clip label의 sample-level 투영을 수행하지
-않습니다. Source profile 호환성만 production code로 반복 검증하며, Adapter/canonical mapping은 다음 변경이
-소유합니다.
+않습니다. Source profile 호환성만 production code로 반복 검증하며, Adapter는 같은 parser/header invariant를
+재사용해 canonical waveform을 생성합니다.
 
 ## 9. 다음 단계에서 결정할 것
 
-- Audio-specific `DomainAdapter`: validator가 고정한 구조·filename 의미를 canonical mapping으로 보존
-- Clip metadata key 이름과 원문 attribute 보존 방식
 - Evaluation test audio(4884786)와 ground truth(5257674)의 획득·검증 여부
 - Experiment protocol: 대상 machine·section·domain, train/evaluation scope, label 사용 방식, feature와
   preprocessing ownership, model family, metric과 aggregation, capability claim
