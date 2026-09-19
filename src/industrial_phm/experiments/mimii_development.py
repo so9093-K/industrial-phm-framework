@@ -49,13 +49,13 @@ MIMII_DEVELOPMENT_RESULT_SCHEMA_ID = "mimii-due-domain-shift-development-result-
 MIMII_DEVELOPMENT_EVIDENCE_CLASS = "labeled-offline-development-evidence"
 
 _FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
-MIMII_DEVELOPMENTMIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE = 0.1
-MIMII_DEVELOPMENTMIMII_DEVELOPMENT_AVAILABLE_CAPABILITIES = (
+MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE = 0.1
+MIMII_DEVELOPMENT_AVAILABLE_CAPABILITIES = (
     "clip-level-anomaly-scoring",
     "labeled-offline-development-discrimination-evaluation",
     "source-target-domain-stratified-auc-pauc-evidence",
 )
-MIMII_DEVELOPMENTMIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES = (
+MIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES = (
     "thresholded-state-detection",
     "online-alerting",
     "fault-diagnostics",
