@@ -194,4 +194,4 @@ def _hz_to_mel(frequency_hz: float) -> float:
 
 
 def _mel_to_hz(mel: float) -> float:
-    return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
+    return 700.0 * (math.pow(10.0, mel / 2595.0) - 1.0)
