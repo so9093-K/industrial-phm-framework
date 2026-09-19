@@ -361,3 +361,104 @@ def test_experiment_lstm_development_rejects_non_xjtu_dataset(
     assert "LSTM development evaluation is not implemented for ims-bearings" in (
         capsys.readouterr().err
     )
+
+
+def test_experiment_mimii_development_shows_plan_and_routes_execution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source"
+    output = tmp_path / "mimii-result.json"
+    revision = "9" * 40
+    observed: dict[str, object] = {}
+
+    def fake_run(
+        received_source: Path,
+        received_output: Path,
+        *,
+        code_revision: str,
+    ) -> SimpleNamespace:
+        observed.update(
+            source=received_source,
+            output=received_output,
+            code_revision=code_revision,
+        )
+        return SimpleNamespace(
+            section_results=tuple(object() for _ in range(15)),
+            domain_summaries=(
+                SimpleNamespace(
+                    scope_id="domain:source",
+                    roc_auc_harmonic_mean=0.8,
+                    partial_roc_auc_harmonic_mean=0.7,
+                ),
+                SimpleNamespace(
+                    scope_id="domain:target",
+                    roc_auc_harmonic_mean=0.6,
+                    partial_roc_auc_harmonic_mean=0.5,
+                ),
+            ),
+            overall_summary=SimpleNamespace(
+                roc_auc_harmonic_mean=0.69,
+                partial_roc_auc_harmonic_mean=0.59,
+            ),
+            mimii_domain_shift_summary=0.63,
+            code_revision=code_revision,
+        )
+
+    monkeypatch.setattr(cli, "run_mimii_development_evaluation", fake_run)
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "mimii-development",
+            "mimii-due",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--code-revision",
+            revision,
+        ]
+    )
+
+    assert exit_code == 0
+    assert observed == {
+        "source": source,
+        "output": output,
+        "code_revision": revision,
+    }
+    captured = capsys.readouterr().out
+    assert "execution plan: MIMII DUE domain-shift development v1" in captured
+    assert "5 machine types x 3 sections" in captured
+    assert "labels: evaluator edge only" in captured
+    assert "external evaluation: sections 03-05 excluded" in captured
+    assert "section_models: 15" in captured
+    assert "source_domain: auc_hmean=0.800000 pauc_hmean=0.700000" in captured
+    assert "target_domain: auc_hmean=0.600000 pauc_hmean=0.500000" in captured
+    assert "mimii_domain_shift_summary: 0.630000" in captured
+    assert f"code_revision: {revision}" in captured
+    assert f"result: {output}" in captured
+
+
+def test_experiment_mimii_development_rejects_non_mimii_dataset(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli.main(
+        [
+            "experiment",
+            "mimii-development",
+            "xjtu-sy",
+            "--source",
+            "source",
+            "--output",
+            "result.json",
+            "--code-revision",
+            "9" * 40,
+        ]
+    )
+
+    assert exit_code == 2
+    assert "MIMII development evaluation is not implemented for xjtu-sy" in (
+        capsys.readouterr().err
+    )
