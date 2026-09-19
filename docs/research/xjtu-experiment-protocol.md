@@ -539,8 +539,8 @@ fold-1 train에서 사용했습니다. 반대로 fold-1 test bearing 역시 이�
    `acquisition-uniform-v1`으로 model fitting input을 만듭니다. 다른 fold에서 fit한 learned state를
    재사용하지 않습니다.
 7. Complete train / reference-eligible / model-fit population count와 code revision,
-   split/fold/test-bearing provenance를 fold별로 기록합니다. 한 fold라도 source coverage나 metric 정의 조건을
-   위반하면 partial success를 canonical result로 기록하지 않습니다.
+   split/fold/test-bearing provenance를 fold별로 기록합니다. Authoritative result artifact는 모든 target fold가
+   source coverage와 metric 정의 조건을 충족한 완전한 execution만 기록합니다.
 
 평가 통계도 새로 고르지 않습니다. 각 test bearing에 대해 이미 holdout에서 사용한 두 descriptive statistic을
 그대로 계산합니다.

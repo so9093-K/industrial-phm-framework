@@ -105,6 +105,8 @@
 
 ### Changed
 
+- Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset
+  validation 순서를 Workbench cross-schema 검토 → MIMII DUE → 근거 기반 Health Indicator/RUL 재검토로 갱신했습니다.
 - LSTM training provenance의 모호한 `final_loss` property를 실제 집계 의미가 드러나는
   `final_epoch_mean_training_loss`로 변경하고 protocol/terminology의 evidence 전 구현 순서를 현재 계약과 정렬.
 - Developer Workbench의 low-fidelity information architecture를 Experiment Overview, Pipeline Lineage와 Evidence

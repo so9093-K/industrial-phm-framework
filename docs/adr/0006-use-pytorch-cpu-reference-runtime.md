@@ -11,8 +11,8 @@ hidden size 32인 encoder/decoder LSTM, Adam update와 global-norm gradient clip
 CI에서 실제로 실행할 수 있는 runtime을 선택해야 합니다.
 
 Runtime 선택은 canonical time-series와 sequence/window public contract의 representation을 결정하지 않습니다.
-Native tensor는 model implementation 경계 안에서 사용하고 dataset edge와 공통 contract는 runtime에 독립적으로
-유지합니다.
+Native tensor는 model implementation 경계 안에서 사용하고 dataset-specific boundary와 공통 contract는 runtime에
+독립적으로 유지합니다.
 
 ## Decision
 

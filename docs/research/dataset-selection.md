@@ -158,20 +158,27 @@ UCI AI4I 2020 Predictive Maintenance Dataset은 10,000-row synthetic dataset이�
 실제 CI가 매번 원격 UCI 서비스를 호출하도록 만들지는 않습니다. remote acquisition 자체의 test는 별도
 integration/smoke workflow로 분리합니다.
 
-## 7. Dataset Evaluation Order
+## 7. Dataset and Evidence Validation Order
 
-Dataset별 검증 책임은 다음 순서로 확장합니다. Model 내부 구현 순서와 project-level current status는 각각 XJTU
-experiment protocol과 root README가 소유합니다.
+Dataset별 검증 책임은 다음 순서로 확장합니다. Project-level current status의 Source of Truth는 root README이며,
+이 문서는 dataset 선택과 evidence validation의 현재 순서만 요약합니다.
 
 ```text
-XJTU-SY model lifecycle baseline
+XJTU-SY model lifecycle baseline + IMS model-pipeline portability
         ↓
-IMS model-pipeline portability
+XJTU LSTM numerical evidence + LSTM-centric Developer Workbench
         ↓
-LSTM-AE / Health Indicator / supported prognostics
+XJTU / IMS / model-family cross-schema evidence review
         ↓
 MIMII DUE cross-domain validation
+        ↓
+event/onset/censoring 근거가 확보된 경우에만 Health Indicator / RUL 범위 재검토
 ```
+
+MIMII DUE에서는 source, license, checksum, audio-specific Adapter와 canonical data boundary를 먼저 검증합니다.
+Experiment protocol과 evaluation definition은 그 다음에 고정하며 model implementation을 선행하지 않습니다.
+Health Indicator와 RUL은 complete run-to-failure라는 dataset 설명만으로 정당화하지 않고 defensible event/onset,
+censoring, lifecycle target, uncertainty와 independent evaluation 근거가 생긴 뒤 별도 연구 범위로 검토합니다.
 
 AI4I는 framework의 연구 결론을 만드는 dataset이 아니라 acquisition/CLI/example 같은 작은 workflow를 검증하는
 보조 데이터로만 취급합니다.

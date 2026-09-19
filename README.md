@@ -206,7 +206,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
 │   ├── data/               # dataset manifest·acquisition·validation
-│   ├── experiments/        # experiment contract, split/config와 dataset-edge execution
+│   ├── experiments/        # experiment contract, split/config와 dataset-specific execution
 │   ├── features/           # stateless numerical feature extraction
 │   ├── models/             # model-fitting input과 model implementation
 │   ├── preprocessing/      # train-fitted feature scaling state
