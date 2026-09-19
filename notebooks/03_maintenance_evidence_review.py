@@ -310,9 +310,7 @@ def _(
 
 @app.cell
 def _(artifact_path, facts_table, inspection, mo, selected_bearing, stage_by_name):
-    _selected_warnings = [
-        warning for stage in inspection.stages for warning in stage.warnings
-    ]
+    _selected_warnings = [warning for stage in inspection.stages for warning in stage.warnings]
     _warning_block = (
         mo.callout(
             mo.md("\n".join(f"- {warning}" for warning in _selected_warnings)),
