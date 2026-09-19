@@ -856,9 +856,7 @@ def _inspect_mimii_development(
     total_target_scoring = 0
     evaluations: dict[tuple[str, str, str], tuple[float, float]] = {}
 
-    for index, (raw_section, scope) in enumerate(
-        zip(raw_sections, expected_scopes, strict=True)
-    ):
+    for index, (raw_section, scope) in enumerate(zip(raw_sections, expected_scopes, strict=True)):
         context = f"section_models[{index}]"
         section = _mapping(raw_section, context)
         _expect_equal(
@@ -1149,8 +1147,7 @@ def _inspect_mimii_development(
                     InspectionFact("Selected feature count", len(expected_features)),
                     InspectionFact(
                         "Representation",
-                        f"{spec.mel_band_count} HTK mel bands / "
-                        "frame mean+population-std",
+                        f"{spec.mel_band_count} HTK mel bands / frame mean+population-std",
                     ),
                 ),
             ),
@@ -1289,9 +1286,7 @@ def _mimii_evaluation_metrics(
         ("partial_roc_auc", partial_roc_auc),
     ):
         if not 0.0 <= value <= 1.0:
-            raise ExperimentResultInspectionError(
-                f"{context}.{field_name} must be in [0, 1]"
-            )
+            raise ExperimentResultInspectionError(f"{context}.{field_name} must be in [0, 1]")
     _expect_close(
         _number(values, "max_false_positive_rate", context),
         MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE,
