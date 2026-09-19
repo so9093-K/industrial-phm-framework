@@ -274,18 +274,18 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU LSTM development result의 raw trajectory에서 bearing-first aggregate를 다시 검증하고 Sequence Construction,
   model training, reconstruction scoring, evaluation과 capability를 immutable `ExperimentInspection`으로 해석하는
   reader
+- clean `main` revision `6f0d9593...`에서 두 번의 deterministic execution으로 동일 SHA-256을 확인한
+  [XJTU LSTM fold-1 train/validation retrospective evidence](docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json)
 
 ### Current
 
-1. validated local XJTU-SY source에서 clean-main one-shot execution으로 fold-1 train/validation
-   retrospective development evidence를 한 번 생성하고 evidence-only PR로 기록
+1. XJTU LSTM result reader와 raw trajectory evidence를 사용하는 Developer Workbench 첫 interactive prototype 검증
 
 ### Next
 
-1. LSTM result reader를 사용해 Developer Workbench 첫 interactive prototype 검증
-2. 두 번째 model 결과까지 확인한 뒤 반복되는 result/artifact/inference contract 승격 검토
-3. MIMII DUE를 통한 cross-domain evaluation
-4. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. Isolation Forest와 LSTM 실제 result에서 반복되는 result/artifact/inference contract 승격 범위 검토
+2. MIMII DUE를 통한 cross-domain evaluation
+3. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

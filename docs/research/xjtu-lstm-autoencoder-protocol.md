@@ -1,6 +1,6 @@
 # XJTU LSTM Autoencoder Development Protocol
 
-상태: development protocol v1 / numerical execution 전 사전 고정
+상태: development protocol v1 / fold-1 train-validation retrospective evidence 기록 완료
 
 Protocol ID: `xjtu-lstm-autoencoder-fold-1-development-v1`
 
@@ -285,14 +285,15 @@ Source
 -> Provenance
 ```
 
-`ExperimentInspection`의 schema-specific LSTM reader는 numerical evidence보다 먼저 위 stage를 검증하도록
-구현되어 있습니다. Reader는 artifact의 raw trajectory에서 bearing-first statistic과 feature residual summary를
-다시 계산해 stored aggregate와 대조합니다. 기존 XJTU/IMS Isolation Forest reader와 result JSON은 이 protocol
-때문에 변경하지 않으며, 실제 LSTM numerical artifact는 clean `main` one-shot execution에서 처음 생성합니다.
+`ExperimentInspection`의 schema-specific LSTM reader는 위 stage를 검증합니다. Reader는 artifact의 raw
+trajectory에서 bearing-first statistic과 feature residual summary를 다시 계산해 stored aggregate와 대조합니다.
+기존 XJTU/IMS Isolation Forest reader와 result JSON은 이 protocol 때문에 변경하지 않습니다. 실제 numerical
+evidence는 [`results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json`](results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json)에
+기록합니다.
 
 ## 9. Implementation order and acceptance boundary
 
-Numerical evidence 전에 다음 순서를 지킵니다.
+Protocol v1은 다음 순서로 구현과 numerical evidence를 분리했습니다.
 
 ```text
 protocol v1 merge
@@ -325,6 +326,81 @@ Reconstruction scoring contract는 다음 경계를 소유합니다.
 - score 방향을 `higher-is-more-anomalous`로 고정하고 threshold나 binary state 없이 연속 evidence를 제공
 
 IMS, MIMII, thresholding, test execution, dashboard와 `PHMResult` schema는 이 protocol PR의 범위가 아닙니다.
+
+## 10. Numerical evidence and interpretation
+
+Canonical artifact는 clean `main` revision `6f0d959317ab956c08418db2d19a46bae4bcf48a`에서 생성했습니다.
+동일 revision과 source에서 독립 실행한 두 JSON은 SHA-256
+`de276f43849a16efa740c9eea600f88d3f581cdbd782a4d02ac0f4f192712a09`로 byte 단위까지 일치했습니다.
+PyTorch 2.14.0 CPU, seed 42와 deterministic algorithms 조건에서 protocol population은 다음과 같이 보존됐습니다.
+
+```text
+complete train     3,246 acquisitions
+reference          1,084 acquisitions
+model fit          1,021 windows
+validation         2,818 acquisitions
+scoring            2,797 windows
+model parameters  15,376
+```
+
+Epoch 1 mean training loss는 `2.020321`이고 final-epoch mean training loss는 `0.248351`로 87.7% 감소했습니다.
+최솟값은 fixed final epoch에서 관찰됐습니다. 이는 frozen 50-epoch optimization path가 실행됐다는 provenance이며,
+validation 기반 best epoch 선택이나 convergence 보장은 아닙니다.
+
+### Validation trajectory evidence
+
+Lifecycle median은 score가 존재하는 acquisition을 original full-run thirds에 정렬한 값입니다. 각 bearing의 첫 7개
+acquisition은 sequence prefix이므로 score population에서 제외됩니다.
+
+| bearing | windows | Spearman ρ | late-vs-middle | early median | middle median | late median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Bearing1_2 | 154 | 0.791534 | 0.623340 | 0.566517 | 4.889127 | 6.014418 |
+| Bearing2_2 | 154 | 0.741265 | 0.691474 | 0.138190 | 2.283341 | 2.564811 |
+| Bearing3_2 | 2,489 | 0.349877 | 0.730095 | 2.374405 | 2.699967 | 3.789143 |
+| equal-bearing mean | — | 0.627559 | 0.681636 | — | — | — |
+
+`Bearing1_2`와 `Bearing2_2`는 early에서 middle로 큰 score level 상승을 보이고 late median이 더 높습니다.
+두 bearing 모두 middle third 내부에서는 단조 증가가 아니지만 전체 lifecycle rank association은 강한 양수입니다.
+
+`Bearing3_2`는 하나의 지속적인 상승선이 아닙니다. Early-third 내부 ρ는 `-0.482062`, middle-third는
+`0.572708`, late-third는 `-0.083365`입니다. Acquisition 621에서 전체 최대 score `47.235655`가 관찰되고,
+10% lifecycle bin median은 `3.376 → 2.194 → 2.148 → 2.262 → 2.025 → 3.153 → 4.154 → 3.675 → 3.843 → 3.551`
+형태입니다. 따라서 global positive ρ와 late-vs-middle statistic은 초기 하강 뒤 중·후기 score level이 높아진
+다단계 trajectory를 요약하며, score를 단조 health indicator나 fault-onset 위치로 해석하지 않습니다.
+
+### Reconstruction residual evidence
+
+Equal-bearing mean residual 상위 feature는 다음과 같습니다.
+
+| rank | feature | mean residual |
+| ---: | --- | ---: |
+| 1 | Vertical excess kurtosis | 12.175523 |
+| 2 | Vertical RMS | 5.371034 |
+| 3 | Vertical standard deviation | 5.077737 |
+| 4 | Vertical skewness | 4.896923 |
+| 5 | Horizontal skewness | 4.115905 |
+
+`Bearing3_2`에서는 Vertical excess kurtosis가 feature residual 합의 44.6%를 차지하고 상위 3개 feature가 64.0%를
+차지합니다. `Bearing1_2`와 `Bearing2_2`의 상위 3개 비중은 각각 36.9%, 37.2%입니다. 이는 robust-scaled
+reconstruction mismatch가 `Bearing3_2`에서 impulsiveness와 higher-order statistics에 더 집중됐다는 model
+evidence입니다. Original engineering unit의 물리적 기여도나 failure cause attribution으로 해석하지 않습니다.
+
+### Isolation Forest development evidence와의 대조
+
+기존 selected Isolation Forest validation의 bearing별 ρ는 `0.748301`, `0.771978`, `-0.608794`이고 equal-bearing
+mean은 `0.303828`이었습니다. LSTM은 각각 `0.791534`, `0.741265`, `0.349877`, mean `0.627559`입니다. 특히
+`Bearing3_2`의 direction은 서로 다릅니다. 두 경로는 scaling, reference population, sequence context와 score
+semantics가 함께 다르고 LSTM protocol은 Isolation Forest evidence를 본 뒤 정의됐으므로 model-family 우위를
+주장하지 않습니다. 이 대조는 같은 raw feature domain에서도 model과 reference contract에 따라 trajectory
+해석이 달라짐을 보여주는 retrospective evidence입니다.
+
+### Conclusion
+
+Protocol v1의 연구 질문에는 제한적으로 긍정적인 evidence가 있습니다. Frozen LSTM path는 세 validation bearing에
+대해 재현 가능한 higher-is-more-anomalous trajectory를 생성했고 late segment는 middle보다 높은 rank를 보였습니다.
+동시에 raw trajectory는 bearing별 비단조성과 feature residual 집중을 드러냅니다. 현재 capability는 descriptive
+anomaly scoring과 reconstruction residual evidence이며 thresholded state, fault onset, health assessment와 RUL로
+확장되지 않습니다.
 
 ## References
 
