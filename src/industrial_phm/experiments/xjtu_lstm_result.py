@@ -83,6 +83,7 @@ class XjtuLstmDevelopmentResult:
     random_seed: int
     training: LstmAutoencoderTrainingProvenance
     score_semantics_id: str
+    scores: ReconstructionScores
     evaluation: XjtuLstmDevelopmentEvaluation
 
     def __post_init__(self) -> None:
@@ -111,8 +112,34 @@ class XjtuLstmDevelopmentResult:
             raise XjtuLstmDevelopmentResultError(
                 "training must be LstmAutoencoderTrainingProvenance"
             )
+        if not isinstance(self.scores, ReconstructionScores):
+            raise XjtuLstmDevelopmentResultError("scores must be ReconstructionScores")
         if not isinstance(self.evaluation, XjtuLstmDevelopmentEvaluation):
             raise XjtuLstmDevelopmentResultError("evaluation must be XjtuLstmDevelopmentEvaluation")
+        if self.scores.experiment_id != self.experiment_id:
+            raise XjtuLstmDevelopmentResultError("score experiment identity must match the result")
+        if self.scores.feature_set_id != self.feature_set_id:
+            raise XjtuLstmDevelopmentResultError("score feature_set_id must match the result")
+        if tuple(self.scores.feature_names) != self.selected_features:
+            raise XjtuLstmDevelopmentResultError("score feature schema must match the result")
+        if self.scores.window_count != self.validation_window_count:
+            raise XjtuLstmDevelopmentResultError(
+                "score population must match validation_window_count"
+            )
+        if self.scores.score_semantics_id != self.score_semantics_id:
+            raise XjtuLstmDevelopmentResultError("score semantics must match the result")
+        if (
+            self.scores.spec.length != self.sequence_length
+            or self.scores.spec.stride != self.sequence_stride
+            or self.scores.spec.alignment.value != self.sequence_alignment
+        ):
+            raise XjtuLstmDevelopmentResultError("score window spec must match the result")
+        if any(partition_id != "validation" for partition_id in self.scores.partition_ids):
+            raise XjtuLstmDevelopmentResultError("result scores must belong to validation")
+        evaluation_assets = tuple(item.asset_id for item in self.evaluation.bearing_results)
+        score_assets = tuple(dict.fromkeys(self.scores.asset_ids))
+        if score_assets != evaluation_assets:
+            raise XjtuLstmDevelopmentResultError("score bearing order must match the evaluation")
 
 
 def run_xjtu_lstm_development_evaluation(
@@ -226,6 +253,7 @@ def build_xjtu_lstm_development_result(
         random_seed=config.random_seed,
         training=training,
         score_semantics_id=scores.score_semantics_id,
+        scores=scores,
         evaluation=evaluation,
     )
 
@@ -322,6 +350,7 @@ def _result_document(result: XjtuLstmDevelopmentResult) -> dict[str, Any]:
             "alignment": result.sequence_alignment,
             "input_numeric_precision": training.numeric_precision,
             "window_count": result.validation_window_count,
+            "trajectories": _score_trajectory_documents(result.scores, fold.validation),
         },
         "evaluation": {
             "partition_semantics": XJTU_LSTM_DEVELOPMENT_EVIDENCE_CLASS,
@@ -373,6 +402,55 @@ def _result_document(result: XjtuLstmDevelopmentResult) -> dict[str, Any]:
             "assessment, fault diagnosis, prognostics, or RUL claims."
         ),
     }
+
+
+def _score_trajectory_documents(
+    scores: ReconstructionScores,
+    asset_order: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    observations_by_asset: dict[str, list[dict[str, Any]]] = {
+        asset_id: [] for asset_id in asset_order
+    }
+    for (
+        window_id,
+        asset_id,
+        source_observation_id,
+        acquisition_index,
+        score,
+        feature_residuals,
+    ) in zip(
+        scores.window_ids,
+        scores.asset_ids,
+        scores.aligned_source_observation_ids,
+        scores.aligned_source_positions,
+        scores.scores,
+        scores.feature_residuals,
+        strict=True,
+    ):
+        if asset_id not in observations_by_asset:
+            raise XjtuLstmDevelopmentResultError(
+                f"score trajectory contains unexpected bearing {asset_id!r}"
+            )
+        observations_by_asset[asset_id].append(
+            {
+                "window_id": window_id,
+                "source_observation_id": source_observation_id,
+                "acquisition_index": acquisition_index,
+                "score": score,
+                "feature_residuals": list(feature_residuals),
+            }
+        )
+
+    return [
+        {
+            "asset_id": asset_id,
+            "observations": sorted(
+                observations_by_asset[asset_id],
+                key=lambda observation: observation["acquisition_index"],
+            ),
+        }
+        for asset_id in asset_order
+    ]
 
 
 def _validate_code_revision(value: str) -> None:

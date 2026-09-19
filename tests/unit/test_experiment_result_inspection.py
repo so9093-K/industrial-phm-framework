@@ -15,17 +15,20 @@ from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.experiments.xjtu_lifecycle import early_third_length
 from industrial_phm.experiments.xjtu_lstm import get_xjtu_lstm_development_configuration
 from industrial_phm.experiments.xjtu_lstm_evaluation import (
-    XjtuLstmBearingEvaluation,
-    XjtuLstmDevelopmentEvaluation,
+    evaluate_xjtu_lstm_development_scores,
 )
 from industrial_phm.experiments.xjtu_lstm_result import (
     XjtuLstmDevelopmentResult,
     write_xjtu_lstm_development_result,
 )
-from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
+from industrial_phm.experiments.xjtu_sequence import (
+    XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID,
+    XJTU_LSTM_SEQUENCE_SPEC,
+)
 from industrial_phm.models import (
     MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
     LstmAutoencoderTrainingProvenance,
+    ReconstructionScores,
 )
 
 _REPOSITORY_ROOT = Path(__file__).parents[2]
@@ -109,6 +112,7 @@ def test_xjtu_lstm_inspection_resolves_sequence_and_reconstruction_pipeline(
     assert "Framework: pytorch 2.14.0" in summary
     assert "Final epoch mean training loss:" in summary
     assert "Semantics: mean-squared-reconstruction-error-v1" in summary
+    assert "Trajectory evidence: 2797 acquisition-aligned scores / 16 residual features" in summary
     assert "Scope: retrospective-development-evidence" in summary
     assert "Unsupported: thresholded-state-detection" in summary
 
@@ -125,6 +129,58 @@ def test_xjtu_lstm_inspection_rejects_sequence_population_drift(tmp_path: Path) 
     with pytest.raises(
         ExperimentResultInspectionError,
         match=r"sequence_construction\.validation\.window_count",
+    ):
+        inspect_experiment_result(drifted)
+
+
+def test_xjtu_lstm_inspection_rejects_trajectory_alignment_drift(tmp_path: Path) -> None:
+    result_path = _write_xjtu_lstm_result(tmp_path)
+    document = _read_object(result_path)
+    scoring = cast(dict[str, object], document["scoring"])
+    trajectories = cast(list[dict[str, object]], scoring["trajectories"])
+    observations = cast(list[dict[str, object]], trajectories[0]["observations"])
+    observations[0]["acquisition_index"] = 9
+    drifted = tmp_path / "drifted-lstm-trajectory.json"
+    drifted.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match=r"scoring\.trajectories\[0\]\.observations\[0\]\.acquisition_index",
+    ):
+        inspect_experiment_result(drifted)
+
+
+def test_xjtu_lstm_inspection_rejects_trajectory_residual_drift(tmp_path: Path) -> None:
+    result_path = _write_xjtu_lstm_result(tmp_path)
+    document = _read_object(result_path)
+    scoring = cast(dict[str, object], document["scoring"])
+    trajectories = cast(list[dict[str, object]], scoring["trajectories"])
+    observations = cast(list[dict[str, object]], trajectories[0]["observations"])
+    observations[0]["feature_residuals"] = [0.0] * 16
+    drifted = tmp_path / "drifted-lstm-residual.json"
+    drifted.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match="mean feature residual",
+    ):
+        inspect_experiment_result(drifted)
+
+
+def test_xjtu_lstm_inspection_rejects_aggregate_drift_from_raw_trajectory(
+    tmp_path: Path,
+) -> None:
+    result_path = _write_xjtu_lstm_result(tmp_path)
+    document = _read_object(result_path)
+    evaluation = cast(dict[str, object], document["evaluation"])
+    bearings = cast(list[dict[str, object]], evaluation["bearings"])
+    bearings[0]["acquisition_order_spearman_rho"] = 0.5
+    drifted = tmp_path / "drifted-lstm-aggregate.json"
+    drifted.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match="acquisition_order_spearman_rho from score trajectory",
     ):
         inspect_experiment_result(drifted)
 
@@ -224,35 +280,8 @@ def _write_xjtu_lstm_result(tmp_path: Path) -> Path:
     reference_windows = reference_count - reference_prefix
     validation_windows = validation_count - validation_prefix
 
-    residual_rows = tuple(
-        (float(index + 1) / 10.0,) * len(features) for index in range(len(fold.validation))
-    )
-    bearing_results = tuple(
-        XjtuLstmBearingEvaluation(
-            asset_id=asset_id,
-            source_acquisition_count=get_xjtu_expected_acquisition_count(asset_id),
-            score_window_count=get_xjtu_expected_acquisition_count(asset_id) - prefix_width,
-            dropped_prefix_count=prefix_width,
-            acquisition_order_spearman_rho=0.2 + index * 0.1,
-            late_vs_middle_rank_probability=0.6 + index * 0.1,
-            mean_feature_residuals=residual_rows[index],
-        )
-        for index, asset_id in enumerate(fold.validation)
-    )
-    mean_feature_residuals = tuple(
-        sum(row[index] for row in residual_rows) / len(residual_rows)
-        for index in range(len(features))
-    )
-    evaluation = XjtuLstmDevelopmentEvaluation(
-        experiment_id=config.experiment_id,
-        split_id=config.split_id,
-        fold_id=config.fold_id,
-        feature_names=features,
-        bearing_results=bearing_results,
-        mean_bearing_acquisition_order_spearman_rho=0.3,
-        mean_bearing_late_vs_middle_rank_probability=0.7,
-        mean_bearing_feature_residuals=mean_feature_residuals,
-    )
+    scores = _xjtu_lstm_scores()
+    evaluation = evaluate_xjtu_lstm_development_scores(scores)
     epochs = int(config.model_parameters["epochs"])
     epoch_losses = tuple(1.0 - index / 100.0 for index in range(epochs))
     training = LstmAutoencoderTrainingProvenance(
@@ -300,11 +329,49 @@ def _write_xjtu_lstm_result(tmp_path: Path) -> Path:
         random_seed=config.random_seed,
         training=training,
         score_semantics_id=MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
+        scores=scores,
         evaluation=evaluation,
     )
     output = tmp_path / "xjtu-lstm.json"
     write_xjtu_lstm_development_result(result, output)
     return output
+
+
+def _xjtu_lstm_scores() -> ReconstructionScores:
+    config = get_xjtu_lstm_development_configuration()
+    feature_names = tuple(config.selected_features)
+    window_ids: list[str] = []
+    asset_ids: list[str] = []
+    source_ids: list[str] = []
+    positions: list[int] = []
+    scores: list[float] = []
+    residuals: list[tuple[float, ...]] = []
+    for asset_index, asset_id in enumerate(get_xjtu_reference_split().folds[0].validation):
+        source_count = get_xjtu_expected_acquisition_count(asset_id)
+        for position in range(XJTU_LSTM_SEQUENCE_SPEC.length, source_count + 1):
+            score = float(asset_index + 1 + position / 100_000.0)
+            window_ids.append(
+                f"{asset_id}:window-{position - XJTU_LSTM_SEQUENCE_SPEC.length + 1}-{position}"
+            )
+            asset_ids.append(asset_id)
+            source_ids.append(f"{asset_id}:acquisition-{position}")
+            positions.append(position)
+            scores.append(score)
+            residuals.append((score,) * len(feature_names))
+    return ReconstructionScores(
+        experiment_id=XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID,
+        feature_set_id=config.feature_set_id,
+        feature_names=feature_names,
+        spec=XJTU_LSTM_SEQUENCE_SPEC,
+        window_ids=tuple(window_ids),
+        sequence_ids=tuple(asset_ids),
+        asset_ids=tuple(asset_ids),
+        partition_ids=("validation",) * len(scores),
+        aligned_source_observation_ids=tuple(source_ids),
+        aligned_source_positions=tuple(positions),
+        scores=tuple(scores),
+        feature_residuals=tuple(residuals),
+    )
 
 
 def _stage_positions(summary: str) -> list[int]:

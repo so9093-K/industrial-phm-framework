@@ -1,4 +1,5 @@
 from functools import cache
+from pathlib import Path
 
 import pytest
 
@@ -10,9 +11,13 @@ from industrial_phm.adapters import (
 )
 from industrial_phm.experiments import (
     XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID,
+    build_xjtu_lstm_development_result,
+    evaluate_xjtu_lstm_development_scores,
     fit_xjtu_lstm_development_model,
     get_xjtu_reference_split,
+    inspect_experiment_result,
     score_xjtu_lstm_development_validation,
+    write_xjtu_lstm_development_result,
 )
 from industrial_phm.features import (
     VIBRATION_STATISTICAL_FEATURE_SET_ID,
@@ -47,12 +52,29 @@ def _vectors(partition: str) -> tuple[VibrationFeatureVector, ...]:
     return tuple(vectors)
 
 
-def test_xjtu_lstm_execution_connects_fit_and_validation_scoring() -> None:
+def test_xjtu_lstm_execution_connects_fit_scoring_result_and_inspection(
+    tmp_path: Path,
+) -> None:
     train = _vectors("train")
     validation = _vectors("validation")
 
     fitted = fit_xjtu_lstm_development_model(train, validation)
     scores = score_xjtu_lstm_development_validation(fitted)
+    evaluation = evaluate_xjtu_lstm_development_scores(scores)
+    fold = get_xjtu_reference_split().folds[0]
+    profile_assets = tuple(dict.fromkeys((*fold.train, *fold.validation, *fold.test)))
+    result = build_xjtu_lstm_development_result(
+        fitted,
+        scores,
+        evaluation,
+        code_revision="a" * 40,
+        source_acquisition_count=sum(
+            get_xjtu_expected_acquisition_count(asset_id) for asset_id in profile_assets
+        ),
+    )
+    output = tmp_path / "xjtu-lstm-development.json"
+    write_xjtu_lstm_development_result(result, output)
+    inspection = inspect_experiment_result(output)
 
     assert fitted.config.experiment_id == XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID
     assert fitted.preprocessing_state.experiment_id == fitted.config.experiment_id
@@ -63,3 +85,11 @@ def test_xjtu_lstm_execution_connects_fit_and_validation_scoring() -> None:
     assert scores.partition_ids == ("validation",) * scores.window_count
     assert len(scores.feature_residuals[0]) == len(_FEATURE_NAMES)
     assert scores.higher_is_more_anomalous is True
+    assert result.scores == scores
+    assert tuple(stage.name for stage in inspection.stages)[5:10] == (
+        "Sequence Construction",
+        "Population",
+        "Model",
+        "Scoring",
+        "Evaluation",
+    )
