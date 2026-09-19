@@ -279,7 +279,8 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. Developer Workbench prototype에서 실제 XJTU LSTM evidence의 navigation, population unit과 capability 이해도 검증
+1. 첫 LSTM-centric Developer Workbench prototype에서 실제 XJTU evidence의 navigation, population unit과
+   capability 이해도 검증
 
 ### Next
 

@@ -35,7 +35,7 @@ def _():
 def _(mo):
     artifact_input = mo.ui.text(
         value="docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json",
-        label="Canonical experiment artifact",
+        label="Version-controlled evidence artifact",
         full_width=True,
     )
     mo.vstack(
@@ -69,7 +69,7 @@ def _(
     mo.stop(
         not artifact_path.is_file(),
         mo.callout(
-            f"Canonical experiment artifact was not found: `{artifact_path}`",
+            f"Version-controlled evidence artifact was not found: `{artifact_path}`",
             kind="warn",
             title="Artifact unavailable",
         ),
@@ -184,7 +184,7 @@ def _(artifact_path, fact_value, facts_table, inspection, mo, stage_by_name):
             _warnings,
             mo.md("### Provenance"),
             facts_table(_provenance),
-            mo.md(f"Canonical artifact: `{artifact_path}`"),
+            mo.md(f"Evidence artifact: `{artifact_path}`"),
         ],
         gap=1.2,
     )
@@ -351,7 +351,7 @@ def _(
                 f"""
                 **Experiment:** `{provenance["experiment_id"]}`<br>
                 **Declared code revision:** `{provenance["code_revision"]}`<br>
-                **Canonical artifact:** `{artifact_path}`
+                **Evidence artifact:** `{artifact_path}`
                 """
             ),
         ],

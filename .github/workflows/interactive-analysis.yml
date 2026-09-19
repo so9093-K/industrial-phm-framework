@@ -58,7 +58,7 @@ jobs:
       - name: Check marimo analysis files
         run: uv run --locked --group research marimo check --strict notebooks/*.py
 
-      - name: Execute Developer Workbench against canonical evidence
+      - name: Execute Developer Workbench against validated experiment evidence
         run: |
           uv run --locked --group research marimo export html \
             notebooks/02_developer_workbench.py \
