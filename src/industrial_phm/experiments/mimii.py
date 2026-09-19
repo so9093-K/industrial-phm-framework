@@ -55,7 +55,9 @@ class MimiiSectionScope:
                 f"unsupported MIMII machine_type: {self.machine_type!r}"
             )
         if self.section not in MIMII_DEVELOPMENT_SECTIONS:
-            raise MimiiExperimentProtocolError(f"unsupported MIMII development section: {self.section!r}")
+            raise MimiiExperimentProtocolError(
+                f"unsupported MIMII development section: {self.section!r}"
+            )
 
     @property
     def asset_id(self) -> str:
@@ -117,7 +119,8 @@ def get_mimii_development_configuration() -> ExperimentConfig:
 
     if tuple(config.selected_features) != audio_logmel_feature_names():
         raise MimiiExperimentProtocolError(
-            "MIMII development selected_features must be the full audio-logmel-statistical-v1 schema"
+            "MIMII development selected_features must be the full "
+            "audio-logmel-statistical-v1 schema"
         )
     if dict(config.model_parameters) != _EXPECTED_MODEL_PARAMETERS:
         raise MimiiExperimentProtocolError(
@@ -152,7 +155,8 @@ def get_mimii_section_scope(config: ExperimentConfig) -> MimiiSectionScope:
         expected = get_mimii_section_configuration(scope.machine_type, scope.section)
         if config != expected:
             raise MimiiExperimentProtocolError(
-                f"MIMII section configuration drift for {scope.machine_type}/section-{scope.section}"
+                "MIMII section configuration drift for "
+                f"{scope.machine_type}/section-{scope.section}"
             )
         return scope
     raise MimiiExperimentProtocolError(
