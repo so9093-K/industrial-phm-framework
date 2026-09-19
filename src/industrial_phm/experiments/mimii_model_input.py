@@ -17,6 +17,7 @@ from industrial_phm.experiments.mimii import (
     MimiiExperimentProtocolError,
     MimiiSectionScope,
     get_mimii_section_scope,
+    mimii_expected_train_domain_counts,
 )
 from industrial_phm.features import AudioFeatureVector, audio_logmel_feature_names
 from industrial_phm.models import ModelFitInput, ModelScoringInput
@@ -29,24 +30,7 @@ from industrial_phm.preprocessing import (
 
 MimiiDomain = Literal["source", "target"]
 
-_EXPECTED_SOURCE_TRAIN_COUNT = {
-    ("fan", "00"): 1_000,
-    ("fan", "01"): 1_000,
-    ("fan", "02"): 1_000,
-    ("gearbox", "00"): 1_001,
-    ("gearbox", "01"): 1_008,
-    ("gearbox", "02"): 1_008,
-    ("pump", "00"): 1_000,
-    ("pump", "01"): 1_000,
-    ("pump", "02"): 1_000,
-    ("slider", "00"): 1_000,
-    ("slider", "01"): 1_000,
-    ("slider", "02"): 1_000,
-    ("valve", "00"): 1_000,
-    ("valve", "01"): 1_000,
-    ("valve", "02"): 1_000,
-}
-_EXPECTED_TARGET_TRAIN_COUNT = 3
+
 
 
 class MimiiModelInputError(ValueError):
@@ -162,8 +146,11 @@ def _validate_train_population(
             )
         counts[domain] += 1
 
-    expected_source = _EXPECTED_SOURCE_TRAIN_COUNT[(scope.machine_type, scope.section)]
-    expected = {"source": expected_source, "target": _EXPECTED_TARGET_TRAIN_COUNT}
+    expected_source, expected_target = mimii_expected_train_domain_counts(
+        scope.machine_type,
+        scope.section,
+    )
+    expected = {"source": expected_source, "target": expected_target}
     if dict(counts) != expected:
         raise MimiiModelInputError(
             f"MIMII {scope.machine_type}/section-{scope.section} train domain counts "
