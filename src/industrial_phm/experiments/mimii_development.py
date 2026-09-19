@@ -130,13 +130,16 @@ class MimiiSectionDevelopmentEvidence:
             value = getattr(self, field_name)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
                 raise MimiiDevelopmentResultError(f"{field_name} must be a positive integer")
-        if len(
-            {
-                self.preprocessing_fit_count,
-                self.reference_count,
-                self.model_fit_count,
-            }
-        ) != 1:
+        if (
+            len(
+                {
+                    self.preprocessing_fit_count,
+                    self.reference_count,
+                    self.model_fit_count,
+                }
+            )
+            != 1
+        ):
             raise MimiiDevelopmentResultError(
                 "MIMII section preprocessing/reference/model-fit counts must be identical"
             )
@@ -640,9 +643,7 @@ def _validate_preprocessing_values(
     if not all(math.isfinite(value) for value in fitted_center):
         raise MimiiDevelopmentResultError("MIMII fitted_center must contain finite values")
     if not all(math.isfinite(value) and value > 0.0 for value in fitted_scale):
-        raise MimiiDevelopmentResultError(
-            "MIMII fitted_scale must contain finite positive values"
-        )
+        raise MimiiDevelopmentResultError("MIMII fitted_scale must contain finite positive values")
     unknown_zero_iqr = sorted(set(zero_iqr_features) - set(audio_logmel_feature_names()))
     if unknown_zero_iqr:
         raise MimiiDevelopmentResultError(
