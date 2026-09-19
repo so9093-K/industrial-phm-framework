@@ -1,5 +1,11 @@
 """Reproducible experiment inputs and protocol contracts."""
 
+from industrial_phm.experiments.binary_ranking import (
+    BinaryRankingEvaluation,
+    BinaryRankingEvaluationError,
+    evaluate_binary_anomaly_ranking,
+    harmonic_mean_unit_interval,
+)
 from industrial_phm.experiments.config import (
     EXPERIMENT_CONFIG_SCHEMA_ID,
     ExperimentConfig,
@@ -188,6 +194,8 @@ __all__ = [
     "XJTU_REFERENCE_COMPARISON_SCHEMA_ID",
     "XJTU_REFERENCE_DECISION_RULE_ID",
     "XJTU_SCORE_TRAJECTORY_SCHEMA_ID",
+    "BinaryRankingEvaluation",
+    "BinaryRankingEvaluationError",
     "ExperimentConfig",
     "ExperimentConfigError",
     "ExperimentContext",
@@ -249,6 +257,7 @@ __all__ = [
     "build_xjtu_candidate_score_trajectory",
     "build_xjtu_lstm_development_result",
     "early_third_length",
+    "evaluate_binary_anomaly_ranking",
     "evaluate_ims_cross_test",
     "evaluate_xjtu_cross_fold_robustness",
     "evaluate_xjtu_development_scores",
@@ -267,6 +276,7 @@ __all__ = [
     "get_xjtu_lstm_development_configuration",
     "get_xjtu_reference_hypotheses",
     "get_xjtu_reference_split",
+    "harmonic_mean_unit_interval",
     "ims_experiment_context",
     "inspect_experiment_result",
     "late_vs_middle_rank_probability",

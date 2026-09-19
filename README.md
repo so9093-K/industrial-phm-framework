@@ -300,15 +300,18 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - MIMII DUE sections 00–02 development와 sections 03–05 external evaluation을 분리하고 label leakage,
   `audio-logmel-statistical-v1`, section-level Isolation Forest, AUC/pAUC와 one-shot ground-truth access를
   numerical result 전에 고정한 [experiment protocol v1](docs/research/mimii-due-experiment-protocol.md)
+- protocol-defined 16 kHz/10-second PCM clip을 64-band log-mel frame statistic의 128-feature vector로 축약하는
+  `audio-logmel-statistical-v1` representation과 observation ID로 labels를 late-bind하는 dataset-neutral
+  binary AUC/pAUC evaluator
 
 ### Current
 
-1. MIMII DUE protocol-defined development implementation
-   - `audio-logmel-statistical-v1` 128-feature deterministic representation과 contract test
-   - machine type × section train/reference/preprocessing/model-fit population boundary
-   - label-blind scoring path와 machine/section/domain AUC·pAUC evaluator
-   - frozen Isolation Forest configuration과 development result/provenance schema
-   - numerical development score는 implementation/tests merge 이후 clean `main`에서만 생성
+1. MIMII DUE machine type × section development boundary 구현
+   - dev sections 00–02 source/target normal train population selection
+   - protocol-defined robust preprocessing + all-train reference + clip-uniform model-fit input
+   - fixed Isolation Forest fit과 label-blind source/target test scoring
+   - machine/section/domain evaluator 연결과 development result/provenance schema
+   - numerical development score는 full implementation/tests merge 이후 clean `main`에서만 생성
 
 ### Next
 

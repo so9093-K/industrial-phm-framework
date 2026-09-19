@@ -119,6 +119,12 @@
   label-blind scoring, `audio-logmel-statistical-v1` 128-feature representation, section-level Isolation Forest,
   machine/section/domain AUC·pAUC와 evaluation ground-truth late-binding을 numerical result 전에 고정한
   experiment protocol v1.
+- 16 kHz mono signed-PCM 10-second clip을 symmetric-Hann STFT, 64 HTK mel bands와 log-energy mean/std로
+  128-feature vector로 변환하는 `audio-logmel-statistical-v1` representation. Waveform은 clip 단위로 소비하고
+  dataset 전체 waveform materialization이나 audio-specific runtime dependency를 추가하지 않습니다.
+- `AnomalyScores`와 binary labels를 source observation ID로 late-bind해 full ROC AUC와 standardized
+  partial ROC AUC를 계산하는 dataset-neutral evaluator 및 zero를 epsilon으로 바꾸지 않는 unit-interval
+  harmonic-mean helper.
 
 ### Changed
 

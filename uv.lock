@@ -301,6 +301,7 @@ name = "industrial-phm-framework"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "numpy" },
     { name = "scikit-learn" },
 ]
 
@@ -324,6 +325,7 @@ research = [
 
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2.5.3,<3" },
     { name = "scikit-learn", specifier = ">=1.9.1,<1.10" },
     { name = "torch", marker = "extra == 'deep-learning'", specifier = ">=2.14.0,<2.15", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "industrial-phm-framework", extra = "deep-learning" } },
 ]
