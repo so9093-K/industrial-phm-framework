@@ -81,7 +81,10 @@ def evaluate_binary_anomaly_ranking(
             f"missing={missing}, unexpected={unexpected}"
         )
 
-    labels = tuple(_binary_label(labels_by_observation_id[observation_id]) for observation_id in score_ids)
+    labels = tuple(
+        _binary_label(labels_by_observation_id[observation_id])
+        for observation_id in score_ids
+    )
     anomaly_count = sum(labels)
     normal_count = len(labels) - anomaly_count
     if normal_count == 0 or anomaly_count == 0:
