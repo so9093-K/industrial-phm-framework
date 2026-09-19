@@ -68,13 +68,7 @@ def test_mimii_adapter_maps_pcm_clip_without_normalization(tmp_path: Path) -> No
 
 
 def test_mimii_adapter_keeps_clip_label_in_metadata_not_sample_labels(tmp_path: Path) -> None:
-    path = (
-        tmp_path
-        / "dev"
-        / "pump"
-        / "target_test"
-        / "section_02_target_test_anomaly_0042.wav"
-    )
+    path = tmp_path / "dev" / "pump" / "target_test" / "section_02_target_test_anomaly_0042.wav"
     _write_wav(path, (123,))
 
     series = next(iter(MimiiDueAdapter().iter_series(tmp_path)))
