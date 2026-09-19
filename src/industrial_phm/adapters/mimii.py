@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import re
+import struct
 import wave
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from industrial_phm.contracts import CanonicalTimeSeries
+
+_DATASET_ID = "mimii-due"
 _MACHINE_TYPES = ("fan", "gearbox", "pump", "slider", "valve")
 _GROUP_SECTIONS = {
     "dev": ("00", "01", "02"),
@@ -17,7 +22,9 @@ _GROUP_DIRECTORIES = {
     "dev": ("train", "source_test", "target_test"),
     "eval": ("train",),
 }
-_CHANNEL_COUNT = 1
+MIMII_DUE_CHANNELS = ("pcm_amplitude",)
+
+_CHANNEL_COUNT = len(MIMII_DUE_CHANNELS)
 _SAMPLE_WIDTH_BITS = 16
 _SAMPLING_RATE_HZ = 16_000.0
 _FRAMES_PER_CLIP = 160_000
@@ -136,6 +143,49 @@ class _MimiiDueClip:
     label: str
     clip_number: int
     raw_attribute: str | None
+
+
+class MimiiDueAdapter:
+    """Yield one canonical audio waveform segment for each MIMII DUE WAV clip."""
+
+    @property
+    def domain(self) -> str:
+        """Return the stable dataset/domain identifier."""
+        return _DATASET_ID
+
+    def iter_series(self, source: Path) -> Iterable[CanonicalTimeSeries]:
+        """Read prepared MIMII DUE clips lazily without preprocessing PCM amplitude."""
+        clips = _collect_clips(source)
+        if not clips:
+            raise MimiiDueSourceError(f"MIMII DUE source contains no WAV clips: {source}")
+
+        for clip in clips:
+            yield _canonical_series(source, clip)
+
+
+def _canonical_series(source: Path, clip: _MimiiDueClip) -> CanonicalTimeSeries:
+    values = _read_wav_values(clip.path)
+    return CanonicalTimeSeries(
+        asset_id=f"{clip.machine}/section-{clip.section}",
+        timestamps=None,
+        channels=MIMII_DUE_CHANNELS,
+        values=values,
+        sampling_rate_hz=_SAMPLING_RATE_HZ,
+        metadata={
+            "dataset_id": _DATASET_ID,
+            "source_group": clip.group,
+            "machine_type": clip.machine,
+            "section": clip.section,
+            "domain": clip.domain,
+            "split": clip.split,
+            "clip_label": clip.label,
+            "source_file_number": clip.clip_number,
+            "raw_attribute": clip.raw_attribute,
+            "sample_encoding": "pcm-s16le",
+            "sample_width_bits": _SAMPLE_WIDTH_BITS,
+            "source_file": clip.path.relative_to(source).as_posix(),
+        },
+    )
 
 
 def validate_mimii_due_source(
@@ -309,16 +359,38 @@ def _validation_clips(
     return tuple(selected)
 
 
+def _read_wav_values(path: Path) -> tuple[tuple[float], ...]:
+    try:
+        with wave.open(str(path), "rb") as source:
+            _validate_open_wav_header(source, path)
+            payload = source.readframes(_FRAMES_PER_CLIP)
+    except (EOFError, OSError, wave.Error) as error:
+        raise MimiiDueSourceError(f"failed to read MIMII DUE WAV {path}: {error}") from error
+
+    expected_bytes = _FRAMES_PER_CLIP * (_SAMPLE_WIDTH_BITS // 8)
+    if len(payload) != expected_bytes:
+        raise MimiiDueSourceError(
+            f"truncated MIMII DUE WAV payload for {path}: "
+            f"expected {expected_bytes} bytes, got {len(payload)}"
+        )
+
+    return tuple((float(sample),) for (sample,) in struct.iter_unpack("<h", payload))
+
+
 def _validate_wav_header(path: Path) -> None:
     try:
         with wave.open(str(path), "rb") as source:
-            channels = source.getnchannels()
-            sample_width_bits = source.getsampwidth() * 8
-            sampling_rate_hz = float(source.getframerate())
-            frame_count = source.getnframes()
-            compression = source.getcomptype()
+            _validate_open_wav_header(source, path)
     except (EOFError, OSError, wave.Error) as error:
         raise MimiiDueSourceError(f"failed to read MIMII DUE WAV header {path}: {error}") from error
+
+
+def _validate_open_wav_header(source: wave.Wave_read, path: Path) -> None:
+    channels = source.getnchannels()
+    sample_width_bits = source.getsampwidth() * 8
+    sampling_rate_hz = float(source.getframerate())
+    frame_count = source.getnframes()
+    compression = source.getcomptype()
 
     observed = (
         channels,

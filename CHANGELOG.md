@@ -108,6 +108,9 @@
   inventory를 기록한 MIMII DUE source profile.
 - MIMII DUE prepared source의 directory·filename grammar, observed clip population과 16-bit mono 16 kHz WAV
   header compatibility를 검증하는 dataset-specific validator와 `data validate mimii-due` CLI.
+- MIMII DUE WAV clip을 `pcm_amplitude` single-channel `CanonicalTimeSeries`로 변환하고 source
+  group·machine·section·domain·split·clip label·원문 attribute와 PCM encoding provenance를 metadata에 보존하는
+  audio `DomainAdapter`. Clip label은 sample `labels`로 투영하지 않고 PCM amplitude도 Adapter에서 정규화하지 않습니다.
 
 ### Changed
 

@@ -292,24 +292,28 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   source profile
 - MIMII DUE prepared source의 directory/filename/count profile과 16 kHz mono PCM WAV header를 검증하는
   dataset-specific validator와 `data validate mimii-due` CLI
+- MIMII DUE 16-bit PCM clip을 normalization 없이 `CanonicalTimeSeries`로 옮기고 clip label·domain·section·
+  원문 attribute를 metadata에 보존하는 audio `DomainAdapter`와 cross-domain canonical conformance
 
 ### Current
 
-1. MIMII DUE audio-specific `DomainAdapter`와 canonical conformance
-   - clip label·domain·section·원문 attribute를 sample이 아닌 clip metadata로 보존
-   - PCM signed 16-bit amplitude를 Adapter에서 임의 normalization하지 않고 source 의미를 유지
-   - `CanonicalTimeSeries`의 audio modality 적합성을 contract test로 확인
-   - 실제 의미 손실이 확인되기 전에는 canonical public field를 추가하지 않음
+1. 사용자 역할별 UX contract와 analysis-to-decision boundary 재검토
+   - 기존 Developer Workbench의 Experiment Overview / Pipeline Lineage / Evidence Explorer는 유지
+   - 정비 엔지니어가 anomaly evidence, trend, limitation과 provenance를 이해하는 read-only vertical slice 검토
+   - retrospective experiment evidence와 향후 operational PHM result를 같은 schema로 억지 통합하지 않음
+   - frontend/API/authentication을 고정하지 않고 information architecture와 capability 표현을 먼저 검증
 
 ### Next
 
 1. MIMII DUE experiment protocol을 numerical result보다 먼저 고정
-2. 고정된 protocol에 따른 MIMII DUE numerical evidence
-3. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+2. audio representation과 model-independent clip-level evaluator를 protocol 목적에 맞게 정의
+3. 고정된 protocol에 따른 MIMII DUE numerical evidence
+4. 네 번째 result schema가 생긴 뒤 inspection public abstraction 필요성을 재검토
+5. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
+6. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
 
 ### Later
 
-- 첫 private/field source가 확보되면 access policy, quality, provenance, event/censoring, external-source boundary 검증
 - API와 역할 기반 dashboard
 - 구조화된 PHM 결과와 정비 지식을 사용하는 Generative AI/RAG
 - release/deployment 요구가 생긴 뒤 container·SBOM·attestation 검토
