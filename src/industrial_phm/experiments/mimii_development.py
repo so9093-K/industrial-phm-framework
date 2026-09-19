@@ -168,6 +168,11 @@ class MimiiSectionDevelopmentEvidence:
             raise MimiiDevelopmentResultError(
                 "target evaluation count must match target scoring count"
             )
+        for evaluation in (self.source_evaluation, self.target_evaluation):
+            if evaluation.max_false_positive_rate != _MAX_FALSE_POSITIVE_RATE:
+                raise MimiiDevelopmentResultError(
+                    "MIMII section pAUC max_false_positive_rate must be 0.1"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,21 +254,55 @@ class MimiiDevelopmentResult:
             raise MimiiDevelopmentResultError(
                 "representation must be AudioLogMelRepresentationSpec"
             )
-        if len(self.section_results) != len(MIMII_MACHINE_TYPES) * len(
-            MIMII_DEVELOPMENT_SECTIONS
-        ):
-            raise MimiiDevelopmentResultError("MIMII development must contain 15 section results")
-        if len(self.machine_summaries) != len(MIMII_MACHINE_TYPES):
-            raise MimiiDevelopmentResultError("MIMII development must contain 5 machine summaries")
-        if len(self.domain_summaries) != 2:
-            raise MimiiDevelopmentResultError("MIMII development must contain 2 domain summaries")
-        if self.overall_summary.stratum_count != 30:
-            raise MimiiDevelopmentResultError("MIMII overall summary must cover 30 strata")
-        if not math.isfinite(self.mimii_domain_shift_summary) or not (
-            0.0 <= self.mimii_domain_shift_summary <= 1.0
-        ):
+        if self.representation != audio_logmel_representation_spec():
             raise MimiiDevelopmentResultError(
-                "mimii_domain_shift_summary must be a finite unit-interval metric"
+                "representation parameters do not match audio-logmel-statistical-v1"
+            )
+
+        config = get_mimii_development_configuration()
+        expected_axes = (
+            ("fit_partition", self.fit_partition, config.fit_partition.value),
+            ("scaling_strategy", self.scaling_strategy, config.scaling_strategy.value),
+            ("reference_strategy", self.reference_strategy, config.reference_strategy.value),
+            ("sampling_policy_id", self.sampling_policy_id, config.sampling_policy_id),
+            ("model_family", self.model_family, config.model_family.value),
+            ("random_seed", self.random_seed, config.random_seed),
+            (
+                "model_parameters",
+                self.model_parameters,
+                tuple(sorted(config.model_parameters.items())),
+            ),
+        )
+        for field_name, observed, expected in expected_axes:
+            if observed != expected:
+                raise MimiiDevelopmentResultError(
+                    f"{field_name} does not match the frozen MIMII development configuration"
+                )
+
+        ordered_sections = _ordered_complete_section_results(self.section_results)
+        if self.section_results != ordered_sections:
+            raise MimiiDevelopmentResultError(
+                "MIMII section results must use deterministic machine-major order"
+            )
+
+        expected_machine_summaries, expected_domain_summaries, expected_overall, expected_combined = (
+            _aggregate_complete_section_results(self.section_results)
+        )
+        if self.machine_summaries != expected_machine_summaries:
+            raise MimiiDevelopmentResultError(
+                "machine summaries do not match section-level evaluation evidence"
+            )
+        if self.domain_summaries != expected_domain_summaries:
+            raise MimiiDevelopmentResultError(
+                "domain summaries do not match section-level evaluation evidence"
+            )
+        if self.overall_summary != expected_overall:
+            raise MimiiDevelopmentResultError(
+                "overall summary does not match section-level evaluation evidence"
+            )
+        if self.mimii_domain_shift_summary != expected_combined:
+            raise MimiiDevelopmentResultError(
+                "mimii_domain_shift_summary does not match section-level evaluation evidence"
             )
 
 
@@ -426,41 +465,12 @@ def build_mimii_development_result(
     ordered = _ordered_complete_section_results(section_results)
     config = get_mimii_development_configuration()
 
-    machine_summaries = tuple(
-        _aggregate(
-            f"machine:{machine_type}",
-            tuple(
-                evaluation
-                for result in ordered
-                if result.machine_type == machine_type
-                for evaluation in (result.source_evaluation, result.target_evaluation)
-            ),
-        )
-        for machine_type in MIMII_MACHINE_TYPES
-    )
-    domain_summaries = tuple(
-        _aggregate(
-            f"domain:{domain}",
-            tuple(
-                result.source_evaluation if domain == "source" else result.target_evaluation
-                for result in ordered
-            ),
-        )
-        for domain in ("source", "target")
-    )
-    all_evaluations = tuple(
-        evaluation
-        for result in ordered
-        for evaluation in (result.source_evaluation, result.target_evaluation)
-    )
-    overall_summary = _aggregate("mimii-only:all-strata", all_evaluations)
-    mimii_domain_shift_summary = harmonic_mean_unit_interval(
-        tuple(
-            metric
-            for evaluation in all_evaluations
-            for metric in (evaluation.roc_auc, evaluation.partial_roc_auc)
-        )
-    )
+    (
+        machine_summaries,
+        domain_summaries,
+        overall_summary,
+        mimii_domain_shift_summary,
+    ) = _aggregate_complete_section_results(ordered)
 
     return MimiiDevelopmentResult(
         code_revision=code_revision,
@@ -522,6 +532,52 @@ def _ordered_complete_section_results(
             f"unexpected={sorted(observed_keys - expected_keys)}"
         )
     return tuple(by_scope[(scope.machine_type, scope.section)] for scope in expected_scopes)
+
+
+def _aggregate_complete_section_results(
+    section_results: Sequence[MimiiSectionDevelopmentEvidence],
+) -> tuple[
+    tuple[MimiiAggregateEvidence, ...],
+    tuple[MimiiAggregateEvidence, ...],
+    MimiiAggregateEvidence,
+    float,
+]:
+    machine_summaries = tuple(
+        _aggregate(
+            f"machine:{machine_type}",
+            tuple(
+                evaluation
+                for result in section_results
+                if result.machine_type == machine_type
+                for evaluation in (result.source_evaluation, result.target_evaluation)
+            ),
+        )
+        for machine_type in MIMII_MACHINE_TYPES
+    )
+    domain_summaries = tuple(
+        _aggregate(
+            f"domain:{domain}",
+            tuple(
+                result.source_evaluation if domain == "source" else result.target_evaluation
+                for result in section_results
+            ),
+        )
+        for domain in ("source", "target")
+    )
+    all_evaluations = tuple(
+        evaluation
+        for result in section_results
+        for evaluation in (result.source_evaluation, result.target_evaluation)
+    )
+    overall_summary = _aggregate("mimii-only:all-strata", all_evaluations)
+    combined_summary = harmonic_mean_unit_interval(
+        tuple(
+            metric
+            for evaluation in all_evaluations
+            for metric in (evaluation.roc_auc, evaluation.partial_roc_auc)
+        )
+    )
+    return machine_summaries, domain_summaries, overall_summary, combined_summary
 
 
 def _aggregate(
