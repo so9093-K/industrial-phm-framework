@@ -3,11 +3,11 @@ from dataclasses import replace
 import pytest
 
 from industrial_phm.experiments import (
-    ReferenceStrategy,
     MimiiModelInputError,
+    ReferenceStrategy,
     fit_mimii_preprocessing_and_prepare_model_input,
-    prepare_mimii_model_scoring_input,
     get_mimii_section_configuration,
+    prepare_mimii_model_scoring_input,
 )
 from industrial_phm.features import AudioFeatureVector, audio_logmel_feature_names
 
