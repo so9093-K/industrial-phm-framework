@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -237,3 +238,29 @@ def test_mimii_development_result_writes_deterministic_provenance_json(tmp_path:
     assert document["evaluation"]["stratum_unit"] == "machine-type-x-section-x-domain"
     assert document["evaluation"]["dcase_official_score"] is False
     assert "thresholded-state-detection" in document["capability"]["unsupported"]
+
+
+def test_mimii_section_evidence_rejects_non_protocol_partial_auc_boundary() -> None:
+    evidence = _synthetic_section_evidence("fan", "00")
+    invalid_source_evaluation = replace(
+        evidence.source_evaluation,
+        max_false_positive_rate=0.2,
+    )
+
+    with pytest.raises(MimiiDevelopmentResultError, match="max_false_positive_rate"):
+        replace(evidence, source_evaluation=invalid_source_evaluation)
+
+
+def test_mimii_development_result_rejects_summary_drift() -> None:
+    result = build_mimii_development_result(
+        _complete_synthetic_evidence(),
+        code_revision=_CODE_REVISION,
+        source_clip_count=36_433,
+    )
+    drifted_overall = replace(
+        result.overall_summary,
+        roc_auc_harmonic_mean=result.overall_summary.roc_auc_harmonic_mean + 0.01,
+    )
+
+    with pytest.raises(MimiiDevelopmentResultError, match="overall summary"):
+        replace(result, overall_summary=drifted_overall)
