@@ -235,8 +235,8 @@ Protocol PR에는 numerical score를 포함하지 않습니다. 다음 implement
 - four-bearing equal-weight mean
 - rotational speed / radial load context
 
-한 bearing이라도 scope/coverage/statistic contract를 만족하지 못하면 partial canonical result를 기록하지
-않습니다.
+Authoritative result artifact는 모든 bearing이 scope, coverage와 statistic contract를 충족한 완전한 execution만
+기록합니다.
 
 ## 10.1 관찰된 one-time cross-test 결과
 

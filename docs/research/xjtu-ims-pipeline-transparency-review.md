@@ -33,7 +33,8 @@ scope에는 포함하지 않습니다. 각 result의 numerical interpretation은
 
 이 비교에서 재사용이 실제로 확인된 범위는 canonical time series, feature formula, train-only preprocessing,
 model-fit/scoring input, Isolation Forest, anomaly-score 방향과 rank statistic 계산입니다. Split, reference,
-evaluation scope와 result interpretation은 서로 다른 source 의미를 보존하므로 dataset edge에 남아야 합니다.
+evaluation scope와 result interpretation은 서로 다른 source 의미를 보존하므로 dataset-specific boundary에 남아야
+합니다.
 
 ## Population flow
 
@@ -82,9 +83,9 @@ Artifact만 단독으로 읽으면 IMS의 canonicalization cardinality와 channe
 capability를 확인하기 어렵습니다. `experiment inspect`가 result와 packaged Source of Truth를 조합해 이 정보를
 같은 stage 순서로 표시합니다.
 
-이 결론은 기존 canonical evidence를 새 schema로 다시 쓰라는 의미가 아닙니다. 이미 기록된 result는 당시 실행의
-authoritative evidence로 유지하고, inspection layer가 result schema와 packaged config/contract에서 필요한 사실을
-읽어 같은 표시 순서로 조합하는 편이 provenance를 보존합니다.
+이 결론은 기존 authoritative evidence artifact를 새 schema로 다시 쓰라는 의미가 아닙니다. 이미 기록된 result는
+당시 실행의 authoritative evidence로 유지하고, inspection layer가 result schema와 packaged config/contract에서
+필요한 사실을 읽어 같은 표시 순서로 조합하는 편이 provenance를 보존합니다.
 
 ## 구현된 inspection UX
 
@@ -101,9 +102,9 @@ authoritative evidence로 유지하고, inspection layer가 result schema와 pac
 7. artifact의 code revision은 선언 provenance로 표시하고, 실행 checkout과 자동 대조한 기록이 없으면 attested로
    표현하지 않습니다.
 
-두 schema는 각각 작은 reader가 소유하며 text rendering은 read model과 분리합니다. 기존 canonical result는
-authoritative evidence로 유지합니다. 세 번째 result schema와 두 번째 model family가 실제로 반복되는 필드를
-제공하기 전까지 이 경계를 유지합니다.
+두 schema는 각각 작은 reader가 소유하며 text rendering은 read model과 분리합니다. 기존 version-controlled
+result artifact는 authoritative evidence로 유지합니다. 세 번째 result schema와 두 번째 model family가 실제로
+반복되는 필드를 제공하기 전까지 이 경계를 유지합니다.
 
 ```bash
 uv run industrial-phm experiment inspect \
