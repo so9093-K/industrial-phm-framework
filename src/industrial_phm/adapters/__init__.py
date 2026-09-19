@@ -25,13 +25,13 @@ from industrial_phm.adapters.xjtu import (
 )
 
 __all__ = [
+    "MIMII_DUE_CHANNELS",
     "XJTU_SY_CHANNELS",
     "DomainAdapter",
     "ImsBearingAdapter",
     "ImsBearingSourceError",
     "ImsBearingTestSummary",
     "ImsBearingValidationReport",
-    "MIMII_DUE_CHANNELS",
     "MimiiDueAdapter",
     "MimiiDueSourceError",
     "MimiiDueValidationReport",
