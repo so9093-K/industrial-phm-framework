@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
+from functools import lru_cache
 from types import MappingProxyType
 
 import numpy as np
@@ -103,15 +104,19 @@ def extract_audio_logmel_features(series: CanonicalTimeSeries) -> AudioFeatureVe
     """Extract the fixed 128-value log-mel statistical representation from one clip."""
     _validate_audio_series(series)
 
-    pcm_values = tuple(float(row[0]) for row in series.values)
-    if not all(math.isfinite(value) for value in pcm_values):
+    pcm_values = np.fromiter(
+        (row[0] for row in series.values),
+        dtype=np.float64,
+        count=_SAMPLE_COUNT,
+    )
+    if not bool(np.all(np.isfinite(pcm_values))):
         raise AudioFeatureError("audio PCM amplitude contains non-finite values")
-    if any(value < -32_768.0 or value > 32_767.0 for value in pcm_values):
+    if bool(np.any((pcm_values < -32_768.0) | (pcm_values > 32_767.0))):
         raise AudioFeatureError("audio PCM amplitude must stay within signed 16-bit range")
-    if any(value != math.trunc(value) for value in pcm_values):
+    if not bool(np.all(pcm_values == np.trunc(pcm_values))):
         raise AudioFeatureError("audio PCM amplitude must contain integer-valued PCM samples")
 
-    samples = np.asarray(pcm_values, dtype=np.float64) / _PCM_DIVISOR
+    samples = pcm_values / _PCM_DIVISOR
     window = 0.5 - 0.5 * np.cos(
         2.0 * np.pi * np.arange(_FRAME_LENGTH, dtype=np.float64) / (_FRAME_LENGTH - 1)
     )
@@ -179,6 +184,7 @@ def _validate_audio_series(series: CanonicalTimeSeries) -> None:
         raise AudioFeatureError("audio-logmel-statistical-v1 requires exactly 160000 samples")
 
 
+@lru_cache(maxsize=1)
 def _mel_filterbank() -> tuple[tuple[float, ...], ...]:
     nyquist_hz = _SAMPLE_RATE_HZ / 2.0
     lower_mel = _hz_to_mel(0.0)
