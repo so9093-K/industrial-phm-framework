@@ -142,6 +142,7 @@ def _(bearing_selector, bearing_summaries, trajectories):
 @app.cell
 def _(
     artifact_path,
+    bearing_selector,
     fact_value,
     inspection,
     mo,
