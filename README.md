@@ -297,23 +297,27 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - XJTU LSTM retrospective evidence를 정비 엔지니어 관점의 Evidence Summary / Trend & Observations /
   Limits & Provenance로 재배치하고 anomaly evidence를 diagnosis·maintenance priority·RUL로 승격하지 않는
   role-specific Maintenance Evidence Review low-fidelity UX baseline
+- MIMII DUE sections 00–02 development와 sections 03–05 external evaluation을 분리하고 label leakage,
+  `audio-logmel-statistical-v1`, section-level Isolation Forest, AUC/pAUC와 one-shot ground-truth access를
+  numerical result 전에 고정한 [experiment protocol v1](docs/research/mimii-due-experiment-protocol.md)
 
 ### Current
 
-1. MIMII DUE experiment protocol v1을 numerical result보다 먼저 고정
-   - development/evaluation source scope와 source/target domain 사용 규칙
-   - clip label 접근 시점과 leakage boundary
-   - audio representation, preprocessing, reference/model/scoring ownership
-   - clip-level metric, machine/section/domain aggregation과 capability claim
-   - evaluation test audio/ground-truth record가 필요해지는 시점과 provenance 검증 절차
+1. MIMII DUE protocol-defined development implementation
+   - `audio-logmel-statistical-v1` 128-feature deterministic representation과 contract test
+   - machine type × section train/reference/preprocessing/model-fit population boundary
+   - label-blind scoring path와 machine/section/domain AUC·pAUC evaluator
+   - frozen Isolation Forest configuration과 development result/provenance schema
+   - numerical development score는 implementation/tests merge 이후 clean `main`에서만 생성
 
 ### Next
 
-1. protocol에 고정된 audio representation과 model-independent clip-level evaluator 구현
-2. 고정된 protocol에 따른 MIMII DUE numerical evidence
-3. 네 번째 result schema가 생긴 뒤 inspection public abstraction 필요성을 재검토
-4. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
-5. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
+1. frozen protocol에 따른 sections 00–02 MIMII development numerical evidence
+2. development review 후 configuration을 external evaluation에 freeze하거나 명시적인 protocol v2로 전환
+3. freeze 후 evaluation test audio를 먼저 score하고 ground truth를 나중에 결합하는 sections 03–05 external evidence
+4. 네 번째 result schema가 생긴 뒤 inspection public abstraction 필요성을 재검토
+5. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
+6. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
 
 ### Later
 

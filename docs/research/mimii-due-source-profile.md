@@ -177,11 +177,17 @@ header를 확인하고, `--full`은 36,433개 WAV header를 모두 확인합니�
 않습니다. Source profile 호환성만 production code로 반복 검증하며, Adapter는 같은 parser/header invariant를
 재사용해 canonical waveform을 생성합니다.
 
-## 9. 다음 단계에서 결정할 것
+## 9. Experiment boundary handoff
 
-- Evaluation test audio(4884786)와 ground truth(5257674)의 획득·검증 여부
-- Experiment protocol: 대상 machine·section·domain, train/evaluation scope, label 사용 방식, feature와
-  preprocessing ownership, model family, metric과 aggregation, capability claim
+Source 위의 experiment 의미는
+[`mimii-due-experiment-protocol.md`](mimii-due-experiment-protocol.md)가 소유합니다. Protocol v1은
+sections 00–02를 development로, sections 03–05 test를 external evaluation으로 분리하고 representation,
+label leakage boundary, model grouping과 AUC/pAUC evaluation을 numerical result 전에 고정했습니다.
+
+이 source profile에 남은 acquisition 책임은 external evaluation을 실제로 시작하기 직전에 Zenodo 4884786
+evaluation test audio와 5257674 ground truth의 license, checksum과 local inventory를 같은 source-first
+절차로 검증하는 것입니다. Ground truth는 protocol에 따라 anomaly-score artifact가 고정된 뒤 evaluator에
+결합하며 source profile이 model/scoring 의미를 소유하지 않습니다.
 
 ## Sources
 
