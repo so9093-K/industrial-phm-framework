@@ -9,6 +9,8 @@ from industrial_phm.adapters.ims import (
     validate_ims_source,
 )
 from industrial_phm.adapters.mimii import (
+    MIMII_DUE_CHANNELS,
+    MimiiDueAdapter,
     MimiiDueSourceError,
     MimiiDueValidationReport,
     validate_mimii_due_source,
@@ -29,6 +31,8 @@ __all__ = [
     "ImsBearingSourceError",
     "ImsBearingTestSummary",
     "ImsBearingValidationReport",
+    "MIMII_DUE_CHANNELS",
+    "MimiiDueAdapter",
     "MimiiDueSourceError",
     "MimiiDueValidationReport",
     "XjtuSyAdapter",
