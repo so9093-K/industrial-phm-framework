@@ -67,10 +67,7 @@ class MimiiSectionScope:
     @property
     def experiment_id(self) -> str:
         """Return the unique model experiment identity for this section scope."""
-        return (
-            f"{MIMII_DEVELOPMENT_CONFIGURATION_ID}--"
-            f"{self.machine_type}-section-{self.section}"
-        )
+        return f"{MIMII_DEVELOPMENT_CONFIGURATION_ID}--{self.machine_type}-section-{self.section}"
 
 
 def mimii_development_context() -> ExperimentContext:
