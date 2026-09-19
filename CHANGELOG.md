@@ -96,6 +96,9 @@
 - `xjtu-lstm-development-result-v1`의 raw score/residual evidence에서 bearing-first statistic을 다시 계산하고 Sequence
   Construction, model training, reconstruction scoring, retrospective evaluation과 capability/provenance를 같은
   immutable `ExperimentInspection` read model로 노출하는 LSTM result inspection reader.
+- Clean `main`의 frozen XJTU LSTM protocol을 두 번 실행해 byte-identical SHA-256을 확인한 fold-1 train/validation
+  retrospective evidence. 세 validation bearing의 equal-weight mean Spearman ρ는 `0.627559`, mean late-vs-middle
+  rank probability는 `0.681636`이며 acquisition-aligned score와 16-feature residual을 함께 보존합니다.
 
 ### Changed
 
