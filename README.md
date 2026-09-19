@@ -303,14 +303,17 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - protocol-defined 16 kHz/10-second PCM clip을 64-band log-mel frame statistic의 128-feature vector로 축약하는
   `audio-logmel-statistical-v1` representation과 observation ID로 labels를 late-bind하는 dataset-neutral
   binary AUC/pAUC evaluator
+- 하나의 packaged MIMII development base configuration을 15개 machine type × section model identity로
+  결정적으로 resolve하고, complete source/target normal train population에서 robust preprocessing과
+  all-train `clip-uniform-v1` model input을 만들며 test label을 읽지 않는 scoring-input boundary
 
 ### Current
 
-1. MIMII DUE machine type × section development boundary 구현
-   - dev sections 00–02 source/target normal train population selection
-   - protocol-defined robust preprocessing + all-train reference + clip-uniform model-fit input
-   - fixed Isolation Forest fit과 label-blind source/target test scoring
-   - machine/section/domain evaluator 연결과 development result/provenance schema
+1. MIMII DUE development evaluator와 result/provenance schema 구현
+   - 15 section-specific Isolation Forest fit과 source/target test score orchestration
+   - test labels를 evaluator edge에서 source identity로 late-bind
+   - 30 machine/section/domain strata의 AUC·pAUC와 protocol-defined harmonic summaries
+   - representation/preprocessing/population/model/scoring/evaluation provenance result schema
    - numerical development score는 full implementation/tests merge 이후 clean `main`에서만 생성
 
 ### Next
