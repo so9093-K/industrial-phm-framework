@@ -35,17 +35,17 @@ def _():
 def _(mo):
     mo.md(
         """
-        # Maintenance Evidence Review
+# Maintenance Evidence Review
 
-        This low-fidelity prototype asks a narrow product question:
+This low-fidelity prototype asks a narrow product question:
 
-        **Can a maintenance engineer understand recorded anomaly evidence, its limits,
-        and its provenance without turning retrospective experiment evidence into an
-        operational diagnosis or maintenance decision?**
+**Can a maintenance engineer understand recorded anomaly evidence, its limits,
+and its provenance without turning retrospective experiment evidence into an
+operational diagnosis or maintenance decision?**
 
-        The view is read-only. It consumes one version-controlled XJTU LSTM development
-        artifact and does not create asset status, alarms, fault diagnosis, maintenance
-        priority, or RUL.
+The view is read-only. It consumes one version-controlled XJTU LSTM development
+artifact and does not create asset status, alarms, fault diagnosis, maintenance
+priority, or RUL.
         """
     )
     return
