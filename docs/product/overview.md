@@ -108,6 +108,7 @@ asset·partition boundary, input acquisition 수, generated window 수, dropped 
 - `not-started`: 아직 실행하지 않음
 - `ready`: 필요한 선행 조건이 충족됨
 - `completed`: 해당 단계의 contract와 output이 정상적으로 생성됨
+- `not applicable`: 해당 model/protocol에는 stage가 적용되지 않으며 stage output을 추론하거나 생성하지 않음
 - `failed`: 실행 또는 validation이 실패함
 - `blocked`: 선행 contract/source 문제로 실행할 수 없음
 - `excluded`: protocol/config에서 의도적으로 범위에서 제외됨
@@ -116,6 +117,17 @@ asset·partition boundary, input acquisition 수, generated window 수, dropped 
 
 이 vocabulary 역시 persistent workflow state machine을 새로 만들자는 요구가 아닙니다. 현재 artifact/config와
 protocol 상태를 UI/CLI에서 일관되게 설명하기 위한 표현 기준입니다.
+
+### Evidence availability vocabulary
+
+Pipeline stage 상태와 artifact가 보존한 evidence의 상세 수준을 분리합니다.
+
+- `available`: artifact가 해당 detailed evidence와 provenance를 직접 보존함
+- `not recorded`: artifact가 해당 detailed evidence를 보존하지 않으며 aggregate에서 이를 추론하거나 생성하지 않음
+
+`not recorded`는 stage 실패나 capability `unsupported`를 뜻하지 않습니다. 예를 들어 Isolation Forest result는
+anomaly scoring과 aggregate temporal evaluation을 제공하지만 acquisition-aligned raw trajectory와 per-feature
+residual을 기록하지 않을 수 있습니다.
 
 ### Population flow는 first-class evidence
 
@@ -273,8 +285,10 @@ Acceptance criteria:
 
 - artifact를 직접 열지 않아도 dataset/source scope, split·partition, model family와 random seed를 식별할 수 있습니다.
 - complete/reference/model-fit/scoring population의 값과 단위를 함께 확인할 수 있습니다.
-- `available`, `unsupported`, `not applicable`, `not recorded`, `excluded`, `consumed` 상태가 numerical result와
-  분리되어 보입니다.
+- pipeline stage의 `completed`, `not applicable`, `excluded`, `consumed` 상태가 numerical result와 분리되어
+  보입니다.
+- detailed evidence의 `available`과 `not recorded`가 capability 의미와 분리되어 보입니다.
+- capability의 `available`과 `unsupported`가 evidence availability와 분리되어 보입니다.
 - evaluation statistic과 aggregation rule을 함께 표시해 평균값의 계산 단위를 확인할 수 있습니다.
 - artifact path, configuration identity와 declared code revision으로 원본 provenance를 추적할 수 있습니다.
 
