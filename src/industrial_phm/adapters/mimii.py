@@ -12,6 +12,7 @@ from pathlib import Path
 
 from industrial_phm.contracts import CanonicalTimeSeries
 
+_DATASET_ID = "mimii-due"
 _MACHINE_TYPES = ("fan", "gearbox", "pump", "slider", "valve")
 _GROUP_SECTIONS = {
     "dev": ("00", "01", "02"),
@@ -150,7 +151,7 @@ class MimiiDueAdapter:
     @property
     def domain(self) -> str:
         """Return the stable dataset/domain identifier."""
-        return "mimii-due"
+        return _DATASET_ID
 
     def iter_series(self, source: Path) -> Iterable[CanonicalTimeSeries]:
         """Read prepared MIMII DUE clips lazily without preprocessing PCM amplitude."""
@@ -171,7 +172,7 @@ def _canonical_series(source: Path, clip: _MimiiDueClip) -> CanonicalTimeSeries:
         values=values,
         sampling_rate_hz=_SAMPLING_RATE_HZ,
         metadata={
-            "dataset_id": "mimii-due",
+            "dataset_id": _DATASET_ID,
             "source_group": clip.group,
             "machine_type": clip.machine,
             "section": clip.section,
