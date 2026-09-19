@@ -93,8 +93,7 @@ def extract_audio_logmel_features(series: CanonicalTimeSeries) -> AudioFeatureVe
     frames = np.lib.stride_tricks.sliding_window_view(samples, _FRAME_LENGTH)[::_HOP_LENGTH]
     if frames.shape != (_EXPECTED_FRAME_COUNT, _FRAME_LENGTH):
         raise AudioFeatureError(
-            "audio-logmel-statistical-v1 requires exactly "
-            f"{_EXPECTED_FRAME_COUNT} complete frames"
+            f"audio-logmel-statistical-v1 requires exactly {_EXPECTED_FRAME_COUNT} complete frames"
         )
 
     spectrum = np.fft.rfft(frames * window, n=_FFT_SIZE, axis=1)
@@ -143,17 +142,11 @@ def audio_logmel_feature_names() -> tuple[str, ...]:
 
 def _validate_audio_series(series: CanonicalTimeSeries) -> None:
     if tuple(series.channels) != _EXPECTED_CHANNELS:
-        raise AudioFeatureError(
-            "audio-logmel-statistical-v1 requires channels=('pcm_amplitude',)"
-        )
+        raise AudioFeatureError("audio-logmel-statistical-v1 requires channels=('pcm_amplitude',)")
     if series.sampling_rate_hz != _SAMPLE_RATE_HZ:
-        raise AudioFeatureError(
-            "audio-logmel-statistical-v1 requires sampling_rate_hz=16000"
-        )
+        raise AudioFeatureError("audio-logmel-statistical-v1 requires sampling_rate_hz=16000")
     if len(series.values) != _SAMPLE_COUNT:
-        raise AudioFeatureError(
-            "audio-logmel-statistical-v1 requires exactly 160000 samples"
-        )
+        raise AudioFeatureError("audio-logmel-statistical-v1 requires exactly 160000 samples")
 
 
 def _mel_filterbank() -> tuple[tuple[float, ...], ...]:
