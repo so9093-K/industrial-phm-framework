@@ -51,13 +51,7 @@ def test_mimii_validator_preserves_filename_grammar_without_normalizing_attribut
 
 
 def test_mimii_validator_rejects_directory_filename_semantic_drift(tmp_path: Path) -> None:
-    path = (
-        tmp_path
-        / "dev"
-        / "pump"
-        / "source_test"
-        / "section_00_target_test_normal_0000.wav"
-    )
+    path = tmp_path / "dev" / "pump" / "source_test" / "section_00_target_test_normal_0000.wav"
     _write_wav(path)
 
     with pytest.raises(MimiiDueSourceError, match="domain does not match directory"):
