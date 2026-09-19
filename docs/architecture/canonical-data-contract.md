@@ -1,9 +1,9 @@
 # Canonical Data Contract Boundary
 
-상태: architecture working boundary / XJTU-SY + IMS conformance verified
+상태: architecture working boundary / XJTU-SY + IMS + MIMII DUE conformance verified
 
 이 문서는 `industrial-phm-framework`의 canonical data contract가 **무엇을 표준화하고 무엇을 표준화하지 않는지**,
-현재 `CanonicalTimeSeries`가 가진 가정과 한계, XJTU-SY와 IMS에서 검증한 범위, 실제 산업
+현재 `CanonicalTimeSeries`가 가진 가정과 한계, XJTU-SY·IMS·MIMII DUE에서 검증한 범위, 실제 산업
 데이터와 cross-domain source에서 확인할 항목을 정의합니다.
 
 현재 contract는 XJTU-SY를 위해 고정된 schema가 아니며, 모든 산업 데이터를 하나의 universal schema로 미리
@@ -207,10 +207,23 @@ boundary로 authorized export/snapshot을 충분히 다룰 수 있는지 먼저 
 maintenance/configuration history를 우선 검토합니다. 원본 데이터를 공개하거나 repository에 복사하지 않아도
 contract/adapter test를 수행할 수 있어야 합니다.
 
-### Case D — cross-domain source
+### Case D — MIMII DUE cross-domain conformance
 
-MIMII DUE 같은 다른 machine/modality를 통해 vibration-bearing에만 맞춘 의미가 core로 새어 나오지 않았는지
-검증합니다.
+MIMII DUE의 16 kHz mono 16-bit PCM machine audio를 세 번째 source이자 첫 cross-domain case로 검증했습니다.
+한 WAV clip은 `timestamps=None`, `sampling_rate_hz=16000`, `channels=("pcm_amplitude",)`인
+`CanonicalTimeSeries` 하나로 표현합니다.
+
+Clip-level normal/anomaly label, source/target domain, section, split과 원문 operating attribute는 sample-aligned
+`labels`로 투영하지 않고 metadata에 보존합니다. PCM signed 16-bit sample은 Adapter에서 `[-1, 1]` 같은
+학습용 normalization을 수행하지 않고 같은 amplitude scale의 numeric value로 옮깁니다.
+
+`asset_id`는 source가 안정적으로 제공하는 machine type과 section을 조합해 `fan/section-00` 같은 source
+identity로 사용합니다. Section을 machine serial number, physical lifecycle 또는 run-to-failure asset으로
+확대 해석하지 않습니다. Filename의 `NNNN`도 source file number로만 보존하며 acquisition/lifecycle order를
+생성하지 않습니다.
+
+이 conformance에서 audio modality를 표현하기 위한 새 canonical public field는 필요하지 않았습니다. 따라서
+현재 core contract를 유지합니다.
 
 ## 8. Rules for changing the canonical contract
 
@@ -230,6 +243,7 @@ streaming abstraction을 미리 만들지 않습니다.
 
 ## 9. Next review boundary
 
-XJTU-SY와 IMS conformance 결과는 현재 `CanonicalTimeSeries` boundary를 유지할 근거를 제공합니다. 이후 model
-experiment 순서는 이 문서가 소유하지 않습니다. First private/field source나 MIMII DUE처럼 현재 bearing-vibration
-범위를 벗어난 실제 source가 새 공통 의미를 요구할 때 canonical boundary를 다시 검토합니다.
+XJTU-SY, IMS와 MIMII DUE conformance 결과는 현재 `CanonicalTimeSeries` boundary를 유지할 근거를 제공합니다.
+이후 model experiment 순서는 이 문서가 소유하지 않습니다. 다음 canonical 재검토는 first private/field source에서
+quality, asset/sensor identity, maintenance/event/censoring 또는 external-source boundary처럼 현재 metadata와
+Path-backed Adapter로 의미 손실 없이 표현하기 어려운 실제 요구가 확인될 때 수행합니다.
