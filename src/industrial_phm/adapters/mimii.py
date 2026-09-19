@@ -162,6 +162,39 @@ class MimiiDueAdapter:
         for clip in clips:
             yield _canonical_series(source, clip)
 
+    def iter_section_series(
+        self,
+        source: Path,
+        *,
+        group: str,
+        machine_type: str,
+        section: str,
+    ) -> Iterable[CanonicalTimeSeries]:
+        """Read exactly one source-group/machine/section scope lazily."""
+        if group not in _GROUP_SECTIONS:
+            raise MimiiDueSourceError(f"unsupported MIMII DUE source group: {group!r}")
+        if machine_type not in _MACHINE_TYPES:
+            raise MimiiDueSourceError(f"unsupported MIMII DUE machine type: {machine_type!r}")
+        if section not in _GROUP_SECTIONS[group]:
+            raise MimiiDueSourceError(
+                f"unsupported MIMII DUE section {section!r} for group {group!r}"
+            )
+
+        clips = tuple(
+            clip
+            for clip in _collect_clips(source)
+            if clip.group == group
+            and clip.machine == machine_type
+            and clip.section == section
+        )
+        if not clips:
+            raise MimiiDueSourceError(
+                "MIMII DUE source contains no clips for "
+                f"{group}/{machine_type}/section-{section}"
+            )
+        for clip in clips:
+            yield _canonical_series(source, clip)
+
 
 def _canonical_series(source: Path, clip: _MimiiDueClip) -> CanonicalTimeSeries:
     values = _read_wav_values(clip.path)
