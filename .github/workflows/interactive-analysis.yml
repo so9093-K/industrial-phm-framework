@@ -58,9 +58,20 @@ jobs:
       - name: Check marimo analysis files
         run: uv run --locked --group research marimo check --strict notebooks/*.py
 
-      - name: Execute Developer Workbench against validated experiment evidence
+      - name: Execute Developer Workbench across validated experiment evidence
         run: |
-          uv run --locked --group research marimo export html \
+          INDUSTRIAL_PHM_WORKBENCH_ARTIFACT=docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
+            uv run --locked --group research marimo export html \
             notebooks/02_developer_workbench.py \
             --no-include-code \
-            --output /tmp/developer-workbench.html
+            --output /tmp/developer-workbench-xjtu-lstm.html
+          INDUSTRIAL_PHM_WORKBENCH_ARTIFACT=docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json \
+            uv run --locked --group research marimo export html \
+            notebooks/02_developer_workbench.py \
+            --no-include-code \
+            --output /tmp/developer-workbench-xjtu-iforest.html
+          INDUSTRIAL_PHM_WORKBENCH_ARTIFACT=docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json \
+            uv run --locked --group research marimo export html \
+            notebooks/02_developer_workbench.py \
+            --no-include-code \
+            --output /tmp/developer-workbench-ims-iforest.html

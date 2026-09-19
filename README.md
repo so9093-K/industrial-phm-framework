@@ -276,17 +276,18 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   reader
 - clean `main` revision `6f0d9593...`에서 두 번의 deterministic execution으로 동일 SHA-256을 확인한
   [XJTU LSTM fold-1 train/validation retrospective evidence](docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json)
+- XJTU/IMS Isolation Forest의 Sequence Construction applicability와 LSTM window population을 같은 ordered stage로
+  표시하고, 세 실제 result의 Overview/Lineage 및 detailed evidence availability를 검토하는 Developer Workbench
 
 ### Current
 
-1. 첫 LSTM-centric Developer Workbench prototype에서 실제 XJTU evidence의 navigation, population unit과
-   capability 이해도 검증
+1. XJTU Isolation Forest, IMS Isolation Forest와 XJTU LSTM에서 반복되는 inspection/evidence 경계의 최소 승격 범위
+   검토
 
 ### Next
 
-1. Workbench 사용 결과를 기준으로 Isolation Forest와 LSTM result의 반복되는 inspection/evidence 경계 승격 범위 검토
-2. MIMII DUE를 통한 cross-domain evaluation
-3. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
+1. MIMII DUE를 통한 cross-domain evaluation
+2. event/onset/censoring 근거가 확보된 경우 Health Indicator/RUL 연구 범위 재검토
 
 ### Later
 

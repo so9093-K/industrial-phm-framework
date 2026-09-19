@@ -94,6 +94,19 @@ class ExperimentInspection:
     stages: tuple[InspectionStage, ...]
 
 
+def _acquisition_level_sequence_stage() -> InspectionStage:
+    return InspectionStage(
+        "Sequence Construction",
+        "not applicable",
+        (
+            InspectionFact(
+                "Reason",
+                "model consumes acquisition-level feature observations",
+            ),
+        ),
+    )
+
+
 def inspect_experiment_result(path: Path) -> ExperimentInspection:
     """Validate and interpret one supported result artifact without modifying it."""
     try:
@@ -268,6 +281,7 @@ def _inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> ExperimentI
                     InspectionFact("Eligible observations", reference_count),
                 ),
             ),
+            _acquisition_level_sequence_stage(),
             InspectionStage(
                 "Population",
                 "completed",
@@ -549,6 +563,7 @@ def _inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> Experimen
                     InspectionFact("Eligible observations", reference_count),
                 ),
             ),
+            _acquisition_level_sequence_stage(),
             InspectionStage(
                 "Population",
                 "completed",

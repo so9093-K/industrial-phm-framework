@@ -11,9 +11,9 @@
 
 ### Added
 
-- Validated XJTU LSTM evidence를 같은 selection/provenance context에서 Experiment Overview, Pipeline Lineage와
-  Evidence Explorer로 검토하는 marimo 기반 LSTM-centric Developer Workbench prototype. Acquisition-aligned score,
-  retrospective statistic과 robust-scaled feature residual을 표시하며 unsupported PHM capability를 함께 보존합니다.
+- XJTU/IMS Isolation Forest와 XJTU LSTM evidence를 같은 Experiment Overview와 Pipeline Lineage vocabulary로 검토하는
+  marimo 기반 Developer Workbench. Acquisition-level model의 Sequence Construction을 `not applicable`로 표시하고,
+  raw trajectory/residual이 없는 result의 detailed evidence를 `not recorded`로 구분합니다.
 - Python 3.14 기반 installable package, uv lockfile, CLI와 CI 기준선.
 - dataset manifest 기반 `data list/status/fetch/verify/inspect/validate` acquisition·inspection workflow.
 - dataset/source 차이를 격리하는 `DomainAdapter`와 domain-neutral `CanonicalTimeSeries` contract.
@@ -67,8 +67,9 @@
 - IMS Set 2 → Set 3 one-time cross-test evaluation 결과 artifact.
 
 - XJTU finalized holdout와 IMS fixed cross-test result를 schema별로 검증하고 Source → Canonical → Feature →
-  Preprocessing → Reference → Population → Model → Scoring → Evaluation → Capability → Provenance 순서의
-  immutable read model로 해석하는 inspection capability와 첫 presentation surface인 `experiment inspect` CLI.
+  Preprocessing → Reference → Sequence Construction → Population → Model → Scoring → Evaluation → Capability →
+  Provenance 순서의 immutable read model로 해석하는 inspection capability와 첫 presentation surface인
+  `experiment inspect` CLI.
 
 - XJTU `fold-1 train/validation`에 한정한 LSTM Autoencoder development protocol v1. Robust-scaled full 16-feature
   input, train-bearing early-third reference, length 8 / stride 1 / right-edge sequence construction, deterministic
