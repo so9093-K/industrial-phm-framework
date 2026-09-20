@@ -650,6 +650,49 @@ Artifact는
 이 단계는 **성능 수치를 만들지 않습니다.** Label을 한 번도 읽지 않았으므로 AUC/pAUC는 evaluator가 ground
 truth를 결합한 뒤에만 계산됩니다.
 
+## 14.5 관찰된 external evaluation evidence
+
+Clean revision `528645a875d5c9a0fbffd2745b03d6973e7c30a7`에서 §12의 마지막 단계를 수행했습니다. Evaluator는
+SHA-256 `ff7290ae67604c2595e75094cdb9856c8fa143a4f1ebee70e35c32589d979a96` score artifact와 ground truth CSV만
+읽었고 audio나 model에는 접근하지 않았습니다. Artifact는
+[`results/mimii-due-iforest-domain-shift-external-result-v1.json`](results/mimii-due-iforest-domain-shift-external-result-v1.json)
+이며 두 번 실행한 결과가 byte-identical입니다.
+
+| Scope | ROC AUC hmean | standardized pAUC hmean |
+| --- | ---: | ---: |
+| `domain:source` (strata 15) | 0.5626 | 0.5073 |
+| `domain:target` (strata 15) | 0.5355 | 0.5107 |
+| `mimii-only:all-strata` (strata 30) | 0.5487 | 0.5090 |
+
+`mimii_domain_shift_summary` = 0.5281.
+
+Development(sections 00–02)와 나란히 보면 다음과 같습니다. 두 값은 서로 다른 section과 서로 다른 fit
+population에서 나온 것이므로 같은 모집단의 반복 측정이 아닙니다.
+
+| Scope | development | external |
+| --- | ---: | ---: |
+| source AUC | 0.5859 | 0.5626 |
+| target AUC | 0.5516 | 0.5355 |
+| overall AUC | 0.5682 | 0.5487 |
+| overall pAUC | 0.5093 | 0.5090 |
+
+Machine type별 AUC harmonic mean은 development 대비 gearbox `0.5809 → 0.5966`, fan `0.5444 → 0.5475`로
+비슷하거나 소폭 높고, pump `0.5494 → 0.5300`, slider `0.6251 → 0.5826`, valve `0.5492 → 0.4984`로 낮습니다.
+Development에서 가장 높았던 slider가 external에서는 gearbox보다 낮고, valve는 `0.5` 아래입니다. 즉
+**machine type별 상대 순서가 development와 external에서 유지되지 않았습니다.**
+
+30개 stratum 분포는 AUC가 최소 `0.4444`, 중앙값 `0.5494`, 최대 `0.7375`이고 8개가 `0.5` 아래입니다.
+Standardized pAUC는 중앙값 `0.5014`이고 14개가 `0.5` 아래입니다. Development에서 관찰한 성질, 즉 전체 순위에서는
+chance보다 나은 방향이 보이지만 FPR 0.1 이하 구간에서는 chance와 구분되지 않는다는 점이 external에서도
+유지됩니다.
+
+이 값은 DCASE official score가 아니며(`dcase_official_score = false`), threshold, selection, calibration을
+수행하지 않았습니다. Capability 선언은 development와 동일하게 thresholded state detection, fault diagnostics,
+health assessment, Health Indicator, prognostics/RUL을 지원하지 않습니다.
+
+`fold-1` holdout과 마찬가지로 sections 03–05 external evaluation은 이 실행으로 소진됐습니다. 이 결과를 보고
+configuration을 바꾼 뒤 같은 scope를 변경된 configuration의 unbiased evidence로 재사용하지 않습니다.
+
 ## 15. V1에서 하지 않는 것
 
 - vibration-statistical-v1을 audio에 재사용

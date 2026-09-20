@@ -304,6 +304,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - MIMII sections 00–02 development evidence 검토와 external evaluation용 v1 configuration freeze 결정
 - MIMII evaluation test audio·ground truth record 검증과 label-free filename grammar 확인
 - ground truth reader가 없는 label-blind external scoring 경로와 재현 가능한 score artifact
+- 고정된 score artifact와 ground truth를 evaluator edge에서 결합하는 sections 03–05 external evidence
 - MIMII DUE prepared source의 directory/filename/count profile과 16 kHz mono PCM WAV header를 검증하는
   dataset-specific validator와 `data validate mimii-due` CLI
 - MIMII DUE 16-bit PCM clip을 normalization 없이 `CanonicalTimeSeries`로 옮기고 clip label·domain·section·
@@ -331,9 +332,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. external evaluator late-binding 구현
-   - 고정된 label-blind score artifact와 ground truth CSV를 evaluator edge에서 결합
-   - machine × section × domain AUC·pAUC를 한 번 계산하고 external evidence로 기록
+1. MIMII external evidence 검토와 이후 연구 범위 결정
+   - development와 external을 합치지 않고 각각의 scope 안에서 해석
+   - v2 후보를 검토한다면 새 protocol version으로 분리
 
 ### Next
 
