@@ -419,6 +419,12 @@ Development result artifact에는 최소 다음 정보를 보존합니다.
 - result schema ID
 - experiment/protocol ID and version
 - dataset ID = mimii-due
+- packaged dataset version
+- acquisition provider
+- source record URL
+- citation DOI
+- dataset license/redistribution notice
+- verified prepared-source clip count
 - source group = dev
 - sections = 00, 01, 02
 - full 40-character code revision
