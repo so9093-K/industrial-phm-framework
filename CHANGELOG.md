@@ -159,6 +159,8 @@
 - label 없는 MIMII evaluation-test source reader와 validator. clip record에 label field가 없어 scorer가
   label을 복원할 수 없습니다.
 
+- `experiment mimii-external-score`로 생성하는 label-blind MIMII external score artifact.
+
 ### Changed
 
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset
