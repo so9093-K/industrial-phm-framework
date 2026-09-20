@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from industrial_phm.data import get_dataset
 from industrial_phm.experiments.binary_ranking import (
     BinaryRankingEvaluation,
     harmonic_mean_unit_interval,
@@ -234,6 +235,14 @@ def test_mimii_development_result_writes_deterministic_provenance_json(tmp_path:
     document = json.loads(output_path.read_text(encoding="utf-8"))
     assert document["schema_id"] == MIMII_DEVELOPMENT_RESULT_SCHEMA_ID
     assert document["provenance"]["code_revision"] == _CODE_REVISION
+    source_record = get_dataset("mimii-due")
+    assert document["source_scope"]["dataset_record"] == {
+        "version": source_record.version,
+        "provider": source_record.provider,
+        "source_url": source_record.source_url,
+        "citation_doi": source_record.citation_doi,
+        "license": source_record.license_name,
+    }
     assert document["source_scope"]["verified_source_clip_count"] == 36_433
     assert document["representation"]["feature_set_id"] == "audio-logmel-statistical-v1"
     assert document["representation"]["feature_count"] == 128
