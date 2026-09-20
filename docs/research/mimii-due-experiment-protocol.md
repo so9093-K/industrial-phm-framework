@@ -514,6 +514,9 @@ external evaluation freeze or explicit v2 decision
 
 Protocol PR에는 model score나 generated numerical result를 넣지 않습니다.
 
+실제 authoritative development execution 명령과 deterministic rerun/inspection 절차는
+[`mimii-due-development-execution-runbook.md`](mimii-due-development-execution-runbook.md)가 소유합니다.
+
 ## 15. V1에서 하지 않는 것
 
 - vibration-statistical-v1을 audio에 재사용
