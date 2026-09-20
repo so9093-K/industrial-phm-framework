@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from industrial_phm.adapters import XJTU_SY_CHANNELS, get_xjtu_expected_acquisition_count
+from industrial_phm.data import get_dataset
 from industrial_phm.experiments.binary_ranking import harmonic_mean_unit_interval
 from industrial_phm.experiments.config import ExperimentConfig, ExperimentParameter
 from industrial_phm.experiments.ims import (
@@ -708,6 +709,26 @@ def _inspect_mimii_development(
     declared_revision = _revision(provenance, "code_revision", "provenance")
 
     source_scope = _mapping_field(root, "source_scope", "result root")
+    source_record = _mapping_field(source_scope, "dataset_record", "source_scope")
+    manifest = get_dataset(MIMII_DUE_DATASET_ID)
+    if manifest.citation_doi is None:
+        raise ExperimentResultInspectionError(
+            "packaged MIMII dataset manifest must declare citation_doi"
+        )
+    expected_source_record = (
+        ("version", manifest.version),
+        ("provider", manifest.provider),
+        ("source_url", manifest.source_url),
+        ("citation_doi", manifest.citation_doi),
+        ("license", manifest.license_name),
+    )
+    for field_name, expected_source_value in expected_source_record:
+        _expect_equal(
+            _text(source_record, field_name, "source_scope.dataset_record"),
+            expected_source_value,
+            f"source_scope.dataset_record.{field_name}",
+        )
+
     verified_source_count = _positive_int(
         source_scope,
         "verified_source_clip_count",
@@ -1121,6 +1142,10 @@ def _inspect_mimii_development(
                         "Verified source profile",
                         f"{verified_source_count} WAV clips",
                     ),
+                    InspectionFact("Dataset version", manifest.version),
+                    InspectionFact("Source record", manifest.source_url),
+                    InspectionFact("Citation DOI", manifest.citation_doi),
+                    InspectionFact("Dataset license", manifest.license_name),
                     InspectionFact("Source group", "dev"),
                     InspectionFact("Machine types", ", ".join(machine_types)),
                     InspectionFact("Sections", ", ".join(sections)),
