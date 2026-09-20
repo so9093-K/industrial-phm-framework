@@ -331,7 +331,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ### Current
 
 1. sections 03–05 external evaluation 실행 경로 구현
-   - freeze된 v1 configuration으로 evaluation test clip을 label 없이 먼저 scoring
+   - label 없는 evaluation-test source reader는 구현 완료
+   - freeze된 v1 configuration으로 sections 03–05 train에 새 section model을 fit하고 evaluation test clip을
+     label 없이 scoring해 immutable score artifact 생성
    - score artifact를 고정한 뒤 ground truth CSV를 evaluator edge에서 나중에 결합
    - `0`/`1` label 값의 의미를 source 문서 근거와 함께 protocol에 고정
 
