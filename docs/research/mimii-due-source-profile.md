@@ -60,9 +60,69 @@ Record 4740355에는 evaluation section의 **test audio가 없습니다.** Zenod
 | 4884786 | DCASE 2021 Challenge Task 2 Evaluation Dataset | evaluation test audio |
 | 5257674 | Ground Truth for DCASE 2021 Challenge Task 2 Evaluation Dataset | evaluation test 정답 label |
 
-즉 evaluation section(03~05)의 test clip과 그 정답 label은 각각 별도 record에 있습니다. 이 repository는 두
-record를 아직 획득하거나 검증하지 않았습니다. 어떤 partition을 어떤 label로 평가할지는 experiment protocol이
-결정하며, 그 전에 필요한 record의 license, checksum, inventory를 같은 방식으로 확인합니다.
+즉 evaluation section(03~05)의 test clip과 그 정답 label은 각각 별도 record에 있습니다. 두 record는
+2026-09-20에 아래 §3.1처럼 획득·검증했습니다. 어떤 partition을 어떤 label로 평가할지는 experiment protocol이
+결정합니다.
+
+### 3.1 Evaluation record 검증 (2026-09-20)
+
+두 record 모두 `cc-by-nc-sa-4.0`, version `1.0`이며 MIMII DUE record와 같은 license boundary를 적용합니다.
+
+Record 4884786은 7개 ZIP을 제공하지만 `eval_data_ToyCar_test.zip`과 `eval_data_ToyTrain_test.zip`은 ToyADMOS2
+machine이며 MIMII가 아닙니다. MIMII protocol scope는 fan, gearbox, pump, slider, valve 5종이므로 이 두 파일은
+획득하지 않았습니다.
+
+| File | Record | Bytes | MD5 |
+| --- | ---: | ---: | --- |
+| `eval_data_fan_test.zip` | 4884786 | 303,544,739 | `933cae49ac0fe9c3cb759c386b21cd11` |
+| `eval_data_gearbox_test.zip` | 4884786 | 389,421,888 | `ee1cd888f44d0d3f865c5701f3b8f002` |
+| `eval_data_pump_test.zip` | 4884786 | 304,595,577 | `40d9dce5f150afebb01de7123d63130d` |
+| `eval_data_slider_test.zip` | 4884786 | 318,073,279 | `90eb36feb333c854459f2f3e0ef147d7` |
+| `eval_data_valve_test.zip` | 4884786 | 302,450,310 | `9f9ad80365b20fae46540502afad1d34` |
+| `ground_truth_data.zip` | 5257674 | 32,663 | `af8bbeee280b860bdf177ee341d51f11` |
+
+획득한 6개 파일 모두 공개 MD5와 일치했습니다. Local 경로는 archive가 `data/raw/mimii-due-eval/`, 추출본이
+`data/interim/mimii-due/eval-source/`입니다.
+
+#### Audio inventory
+
+```text
+eval-source/audio/{fan,gearbox,pump,slider,valve}/
+├── source_test/    section 03·04·05
+└── target_test/    section 03·04·05
+```
+
+WAV 6,235개이며 header는 dev와 동일하게 **전부** mono, 16-bit PCM, 16,000 Hz, 160,000 frames(10.000 s)입니다.
+
+| Machine | source 03/04/05 | target 03/04/05 | 합계 |
+| --- | --- | --- | ---: |
+| fan | 200 / 200 / 200 | 200 / 200 / 200 | 1,200 |
+| gearbox | 234 / 252 / 210 | 286 / 234 / 212 | 1,428 |
+| pump | 200 / 200 / 200 | 200 / 200 / 200 | 1,200 |
+| slider | 200 / 200 / 204 | 200 / 200 / 203 | 1,207 |
+| valve | 200 / 200 / 200 | 200 / 200 / 200 | 1,200 |
+
+#### Filename grammar: label이 없습니다
+
+```text
+section_{SS}_{source|target}_test_{NNNN}.wav
+```
+
+Dev test filename에는 `normal`/`anomaly`가 들어 있지만 **evaluation test filename에는 없습니다.** 6,235개
+전부를 검사했고 `normal` 또는 `anomaly` 토큰을 가진 파일은 0개, 위 grammar를 벗어난 파일도 0개입니다.
+
+이는 label late-binding이 문서상의 약속이 아니라 **source 구조로 보장된다**는 뜻입니다. Scoring 단계가 clip
+파일만 소비하는 한 label에 접근할 경로 자체가 없습니다.
+
+#### Ground truth
+
+`ground_truth_data.zip`은 CSV 42개를 담고 있고 그중 MIMII 관련이 30개(5 machine × 3 section × 2 domain)입니다.
+나머지 12개는 ToyADMOS2용입니다. 각 CSV는 header 없이 `filename,value` 두 열이며, MIMII CSV 30개의 행 합계는
+6,235로 audio clip 수와 정확히 일치합니다.
+
+관찰된 value는 `0`과 `1` 두 가지이고 분포는 `1`이 3,129개, `0`이 3,106개입니다. **이 값이 각각 어떤 clip
+상태를 뜻하는지는 이 repository가 source 문서로 확인한 사실이 아니므로 여기서 단정하지 않습니다.** 매핑은
+external evaluation protocol이 source 문서 근거와 함께 고정합니다.
 
 ## 4. Observed local structure
 

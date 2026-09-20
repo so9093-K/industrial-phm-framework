@@ -153,6 +153,9 @@
 
 - MIMII DUE development evidence 검토와 sections 03–05 external evaluation을 위한 v1 configuration freeze 결정.
 
+- MIMII DUE evaluation test audio(Zenodo 4884786)와 ground truth(5257674) record 검증 기록. evaluation test
+  filename에 label이 없어 late-binding이 source 구조로 보장됨을 확인했습니다.
+
 ### Changed
 
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset
