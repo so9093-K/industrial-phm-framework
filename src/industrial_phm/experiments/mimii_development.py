@@ -263,8 +263,8 @@ class MimiiDevelopmentResult:
             ("citation_doi", self.citation_doi, source_record.citation_doi),
             ("license_name", self.license_name, source_record.license_name),
         )
-        for field_name, observed, expected in expected_source_record:
-            if observed != expected:
+        for field_name, observed, expected_record_value in expected_source_record:
+            if observed != expected_record_value:
                 raise MimiiDevelopmentResultError(
                     f"{field_name} does not match the packaged MIMII DUE dataset manifest"
                 )
