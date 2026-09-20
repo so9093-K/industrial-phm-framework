@@ -487,7 +487,10 @@ Unsupported / not validated:
 
 ## 14. Implementation order
 
-Numerical score를 보기 전에 다음 순서를 지킵니다.
+Numerical score를 보기 전에 다음 순서를 지킵니다. Authoritative development execution은
+`--code-revision`이 현재 Git `HEAD`와 정확히 일치하고 tracked working tree가 clean인 checkout에서만
+CLI가 시작됩니다. Untracked/ignored local dataset과 output은 이 clean check에 포함하지 않습니다.
+
 
 ~~~text
 this protocol PR

@@ -331,6 +331,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 1. frozen protocol에 따른 sections 00–02 MIMII development numerical evidence
    - prepared source를 `data validate mimii-due`로 다시 확인
    - clean `main` revision에서 `experiment mimii-development` 실행
+   - CLI가 declared `--code-revision` = current Git HEAD 및 tracked working tree clean 상태를 실행 전에 검증
    - 같은 revision/configuration의 deterministic rerun으로 result artifact 재현성 확인
    - 30 machine/section/domain AUC·pAUC와 source/target harmonic summary를 capability boundary 안에서 해석
    - authoritative numerical artifact와 code revision, dataset record provenance를 `docs/research/results/`에 기록

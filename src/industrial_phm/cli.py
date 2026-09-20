@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -372,7 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
     experiment_mimii_development.add_argument(
         "--code-revision",
         required=True,
-        help="full Git commit SHA for the exact execution code",
+        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
     )
     experiment_mimii_development.set_defaults(handler=_run_experiment_mimii_development)
 
@@ -386,6 +387,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     handler = args.handler
     return int(handler(args))
+
+
+def _verify_clean_git_revision(declared_revision: str) -> None:
+    """Require a clean tracked checkout whose HEAD matches the declared evidence revision."""
+    try:
+        head_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError(
+            "cannot verify the current Git checkout; run authoritative MIMII evidence "
+            "from a Git working tree"
+        ) from error
+
+    observed_revision = head_result.stdout.strip()
+    if observed_revision != declared_revision:
+        raise ValueError(
+            "declared code revision does not match current Git HEAD; "
+            f"declared={declared_revision}, head={observed_revision}"
+        )
+    if status_result.stdout.strip():
+        raise ValueError(
+            "tracked Git working tree is dirty; commit or revert tracked changes before "
+            "authoritative MIMII execution"
+        )
 
 
 def _add_data_root_argument(parser: argparse.ArgumentParser) -> None:
@@ -1022,6 +1057,12 @@ def _run_experiment_mimii_development(args: argparse.Namespace) -> int:
         )
         return 2
 
+    try:
+        _verify_clean_git_revision(args.code_revision)
+    except ValueError as error:
+        print(f"MIMII development revision verification failed: {error}", file=sys.stderr)
+        return 1
+
     config = get_mimii_development_configuration()
     print("execution plan: MIMII DUE domain-shift development v1")
     print(
@@ -1037,6 +1078,7 @@ def _run_experiment_mimii_development(args: argparse.Namespace) -> int:
     print("labels: evaluator edge only")
     print("external evaluation: sections 03-05 excluded")
     print("threshold/calibration: none")
+    print(f"revision verification: clean tracked checkout @ {args.code_revision}")
 
     try:
         result = run_mimii_development_evaluation(
