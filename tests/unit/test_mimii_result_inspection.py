@@ -50,6 +50,10 @@ def test_mimii_development_inspection_exposes_domain_shift_evidence_boundary(
     assert "Schema: mimii-due-domain-shift-development-result-v1" in summary
     assert "Status: completed" in summary
     assert "Dataset: mimii-due" in summary
+    assert "Dataset version: zenodo-v1.01" in summary
+    assert "Source record: https://zenodo.org/records/4740355" in summary
+    assert "Citation DOI: 10.5281/zenodo.4740355" in summary
+    assert "Dataset license: CC BY-NC-SA 4.0" in summary
     assert "Source group: dev" in summary
     assert "Selected feature count: 128" in summary
     assert "Section models: 15" in summary
@@ -82,6 +86,24 @@ def test_mimii_development_inspection_rejects_aggregate_drift(tmp_path: Path) ->
     with pytest.raises(
         ExperimentResultInspectionError,
         match=r"evaluation.overall_summary.roc_auc_harmonic_mean",
+    ):
+        inspect_experiment_result(drifted)
+
+
+def test_mimii_development_inspection_rejects_dataset_record_drift(
+    tmp_path: Path,
+) -> None:
+    result_path = _write_mimii_result(tmp_path)
+    document = _read_object(result_path)
+    source_scope = cast(dict[str, object], document["source_scope"])
+    dataset_record = cast(dict[str, object], source_scope["dataset_record"])
+    dataset_record["source_url"] = "https://example.invalid/unverified"
+    drifted = tmp_path / "mimii-source-record-drift.json"
+    drifted.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match=r"source_scope\.dataset_record\.source_url",
     ):
         inspect_experiment_result(drifted)
 
