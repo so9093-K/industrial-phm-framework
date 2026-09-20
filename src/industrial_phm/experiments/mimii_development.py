@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from industrial_phm.adapters import MimiiDueAdapter, validate_mimii_due_source
+from industrial_phm.data import get_dataset
 from industrial_phm.experiments.binary_ranking import (
     BinaryRankingEvaluation,
     evaluate_binary_anomaly_ranking,
@@ -209,6 +210,11 @@ class MimiiDevelopmentResult:
     protocol_id: str
     configuration_id: str
     dataset_id: str
+    dataset_version: str
+    source_provider: str
+    source_url: str
+    citation_doi: str
+    license_name: str
     split_id: str
     fold_id: str
     feature_set_id: str
@@ -245,6 +251,23 @@ class MimiiDevelopmentResult:
             )
         if self.dataset_id != MIMII_DUE_DATASET_ID:
             raise MimiiDevelopmentResultError("dataset_id does not match MIMII DUE")
+        source_record = get_dataset(MIMII_DUE_DATASET_ID)
+        if source_record.citation_doi is None:
+            raise MimiiDevelopmentResultError(
+                "packaged MIMII DUE dataset manifest must declare citation_doi"
+            )
+        expected_source_record = (
+            ("dataset_version", self.dataset_version, source_record.version),
+            ("source_provider", self.source_provider, source_record.provider),
+            ("source_url", self.source_url, source_record.source_url),
+            ("citation_doi", self.citation_doi, source_record.citation_doi),
+            ("license_name", self.license_name, source_record.license_name),
+        )
+        for field_name, observed_record_value, expected_record_value in expected_source_record:
+            if observed_record_value != expected_record_value:
+                raise MimiiDevelopmentResultError(
+                    f"{field_name} does not match the packaged MIMII DUE dataset manifest"
+                )
         if self.split_id != MIMII_DEVELOPMENT_SPLIT_ID:
             raise MimiiDevelopmentResultError("split_id does not match MIMII development v1")
         if self.fold_id != MIMII_DEVELOPMENT_FOLD_ID:
@@ -470,6 +493,11 @@ def build_mimii_development_result(
         raise MimiiDevelopmentResultError("source_clip_count must be a positive integer")
     ordered = _ordered_complete_section_results(section_results)
     config = get_mimii_development_configuration()
+    source_record = get_dataset(MIMII_DUE_DATASET_ID)
+    if source_record.citation_doi is None:
+        raise MimiiDevelopmentResultError(
+            "packaged MIMII DUE dataset manifest must declare citation_doi"
+        )
 
     (
         machine_summaries,
@@ -484,6 +512,11 @@ def build_mimii_development_result(
         protocol_id=MIMII_DEVELOPMENT_PROTOCOL_ID,
         configuration_id=MIMII_DEVELOPMENT_CONFIGURATION_ID,
         dataset_id=config.dataset_id,
+        dataset_version=source_record.version,
+        source_provider=source_record.provider,
+        source_url=source_record.source_url,
+        citation_doi=source_record.citation_doi,
+        license_name=source_record.license_name,
         split_id=config.split_id,
         fold_id=config.fold_id,
         feature_set_id=config.feature_set_id,
@@ -665,6 +698,13 @@ def _result_document(result: MimiiDevelopmentResult) -> dict[str, Any]:
             "evidence_class": MIMII_DEVELOPMENT_EVIDENCE_CLASS,
         },
         "source_scope": {
+            "dataset_record": {
+                "version": result.dataset_version,
+                "provider": result.source_provider,
+                "source_url": result.source_url,
+                "citation_doi": result.citation_doi,
+                "license": result.license_name,
+            },
             "verified_source_clip_count": result.verified_source_clip_count,
             "source_group": "dev",
             "machine_types": list(MIMII_MACHINE_TYPES),
