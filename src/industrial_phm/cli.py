@@ -373,7 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
     experiment_mimii_development.add_argument(
         "--code-revision",
         required=True,
-        help="full Git commit SHA for the exact execution code",
+        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
     )
     experiment_mimii_development.set_defaults(handler=_run_experiment_mimii_development)
 
