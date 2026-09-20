@@ -323,6 +323,8 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - MIMII development result의 15 section population/preprocessing, 30 source/target AUC·pAUC strata,
   harmonic aggregate, DCASE non-official flag와 capability boundary를 재검증해 공통 Source → Evaluation →
   Provenance inspection read model로 해석하는 `experiment inspect` reader
+- MIMII numerical artifact가 packaged dataset manifest의 version/provider/source URL/DOI/license identity를
+  `source_scope.dataset_record`에 보존하고 inspection이 같은 manifest와 재대조하는 source-record provenance
 
 ### Current
 
@@ -331,7 +333,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
    - clean `main` revision에서 `experiment mimii-development` 실행
    - 같은 revision/configuration의 deterministic rerun으로 result artifact 재현성 확인
    - 30 machine/section/domain AUC·pAUC와 source/target harmonic summary를 capability boundary 안에서 해석
-   - authoritative numerical artifact와 code revision을 `docs/research/results/`에 기록
+   - authoritative numerical artifact와 code revision, dataset record provenance를 `docs/research/results/`에 기록
 
 ### Next
 
