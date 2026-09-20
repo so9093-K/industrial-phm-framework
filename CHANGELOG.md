@@ -138,6 +138,9 @@
 - MIMII development result inspection reader. 15 section exact coverage와 population/preprocessing state,
   30 machine/section/domain AUC·pAUC, harmonic summaries, evaluator-only label join, DCASE non-official flag,
   capability와 code provenance를 다시 검증한 뒤 기존 ExperimentInspection stage vocabulary로 노출합니다.
+- MIMII development evidence에 packaged dataset manifest의 version, provider, Zenodo source URL, citation DOI와
+  dataset license를 source record provenance로 동결하고 inspection 시 packaged manifest와 다시 대조하는
+  provenance boundary.
 
 ### Changed
 
