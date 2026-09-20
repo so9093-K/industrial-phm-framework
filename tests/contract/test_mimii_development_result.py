@@ -252,6 +252,17 @@ def test_mimii_development_result_writes_deterministic_provenance_json(tmp_path:
     assert "thresholded-state-detection" in document["capability"]["unsupported"]
 
 
+def test_mimii_development_result_rejects_dataset_record_drift() -> None:
+    result = build_mimii_development_result(
+        _complete_synthetic_evidence(),
+        code_revision=_CODE_REVISION,
+        source_clip_count=36_433,
+    )
+
+    with pytest.raises(MimiiDevelopmentResultError, match="dataset_version"):
+        replace(result, dataset_version="drifted-version")
+
+
 def test_mimii_section_evidence_rejects_non_protocol_partial_auc_boundary() -> None:
     evidence = _synthetic_section_evidence("fan", "00")
     invalid_source_evaluation = replace(
