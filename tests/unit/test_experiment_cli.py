@@ -243,7 +243,6 @@ def test_experiment_cross_test_shows_effective_plan_and_pipeline_summary(
         "output": output,
         "code_revision": revision,
     }
-    assert verified == [revision]
     captured = capsys.readouterr().out
     assert "execution plan: IMS single-channel cross-test v1" in captured
     assert "train: set-2 complete / 984 acquisitions / 3936 bearing vectors" in captured
@@ -435,6 +434,7 @@ def test_experiment_mimii_development_shows_plan_and_routes_execution(
         "output": output,
         "code_revision": revision,
     }
+    assert verified == [revision]
     captured = capsys.readouterr().out
     assert "execution plan: MIMII DUE domain-shift development v1" in captured
     assert "5 machine types x 3 sections" in captured
