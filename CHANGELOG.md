@@ -141,6 +141,8 @@
 - MIMII development result에 packaged dataset manifest의 version, provider, source URL, citation DOI와 license를
   source-record provenance로 보존하고 inspection 시 동일 manifest와 재검증합니다. Prepared source 실행은
   record checksum을 다시 계산한다고 주장하지 않으며, archive MD5 evidence는 source profile이 계속 소유합니다.
+- `experiment mimii-development`가 expensive numerical execution 전에 declared code revision과 current Git
+  HEAD의 일치 및 tracked working tree clean 상태를 확인하는 authoritative-evidence revision guard.
 
 ### Changed
 
