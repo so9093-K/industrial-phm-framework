@@ -144,6 +144,10 @@
 - `experiment mimii-development`가 expensive numerical execution 전에 declared code revision과 current Git
   HEAD의 일치 및 tracked working tree clean 상태를 확인하는 authoritative-evidence revision guard.
 
+- MIMII development numerical evidence의 authoritative 실행 절차를 full source validation → clean revision
+  verification → 두 번의 독립 execution → byte/SHA-256 reproducibility → result inspection → repository artifact
+  승격 순서로 고정한 execution runbook.
+
 ### Changed
 
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset
