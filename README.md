@@ -328,23 +328,17 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. frozen protocol에 따른 sections 00–02 MIMII development numerical evidence
-   - [authoritative execution runbook](docs/research/mimii-due-development-execution-runbook.md)의 순서대로 실행
-   - prepared source를 `data validate mimii-due`로 다시 확인
-   - clean `main` revision에서 `experiment mimii-development` 실행
-   - CLI가 declared `--code-revision` = current Git HEAD 및 tracked working tree clean 상태를 실행 전에 검증
-   - 같은 revision/configuration의 deterministic rerun으로 result artifact 재현성 확인
-   - 30 machine/section/domain AUC·pAUC와 source/target harmonic summary를 capability boundary 안에서 해석
-   - authoritative numerical artifact와 code revision, dataset record provenance를 `docs/research/results/`에 기록
+1. MIMII development evidence 검토와 configuration freeze 여부 결정
+   - source/target strata AUC·pAUC와 domain gap을 capability boundary 안에서만 해석
+   - v1을 유지하면 external evaluation용으로 freeze하고, 변경이 필요하면 protocol/configuration v2를 먼저
+     version-control한 뒤 별도 evidence로 분리
 
 ### Next
 
-1. frozen protocol에 따른 sections 00–02 MIMII development numerical evidence
-2. development review 후 configuration을 external evaluation에 freeze하거나 명시적인 protocol v2로 전환
-3. freeze 후 evaluation test audio를 먼저 score하고 ground truth를 나중에 결합하는 sections 03–05 external evidence
-4. 네 번째 result schema가 생긴 뒤 inspection public abstraction 필요성을 재검토
-5. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
-6. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
+1. freeze 후 evaluation test audio를 먼저 score하고 ground truth를 나중에 결합하는 sections 03–05 external evidence
+2. 네 result reader에서 반복되는 inspection 책임 재측정과 최소 승격 범위 재검토
+3. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
+4. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
 
 ### Later
 
