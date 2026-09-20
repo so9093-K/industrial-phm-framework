@@ -234,6 +234,16 @@ def test_mimii_development_result_writes_deterministic_provenance_json(tmp_path:
     document = json.loads(output_path.read_text(encoding="utf-8"))
     assert document["schema_id"] == MIMII_DEVELOPMENT_RESULT_SCHEMA_ID
     assert document["provenance"]["code_revision"] == _CODE_REVISION
+    assert document["source_scope"]["dataset_record"] == {
+        "citation_doi": "10.5281/zenodo.4740355",
+        "license": (
+            "CC BY-NC-SA 4.0; keep source data local and do not redistribute it "
+            "through this repository"
+        ),
+        "provider": "manual",
+        "source_url": "https://zenodo.org/records/4740355",
+        "version": "zenodo-v1.01",
+    }
     assert document["source_scope"]["verified_source_clip_count"] == 36_433
     assert document["representation"]["feature_set_id"] == "audio-logmel-statistical-v1"
     assert document["representation"]["feature_count"] == 128
@@ -252,6 +262,17 @@ def test_mimii_section_evidence_rejects_non_protocol_partial_auc_boundary() -> N
 
     with pytest.raises(MimiiDevelopmentResultError, match="max_false_positive_rate"):
         replace(evidence, source_evaluation=invalid_source_evaluation)
+
+
+def test_mimii_development_result_rejects_dataset_record_drift() -> None:
+    result = build_mimii_development_result(
+        _complete_synthetic_evidence(),
+        code_revision=_CODE_REVISION,
+        source_clip_count=36_433,
+    )
+
+    with pytest.raises(MimiiDevelopmentResultError, match="dataset_version"):
+        replace(result, dataset_version="unverified-version")
 
 
 def test_mimii_development_result_rejects_summary_drift() -> None:
