@@ -302,6 +302,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - MIMII DUE Zenodo record·license·file checksum 검증, `mimii-due` manual manifest와 local inventory 기반
   source profile
 - MIMII sections 00–02 development evidence 검토와 external evaluation용 v1 configuration freeze 결정
+- MIMII evaluation test audio·ground truth record 검증과 label-free filename grammar 확인
 - MIMII DUE prepared source의 directory/filename/count profile과 16 kHz mono PCM WAV header를 검증하는
   dataset-specific validator와 `data validate mimii-due` CLI
 - MIMII DUE 16-bit PCM clip을 normalization 없이 `CanonicalTimeSeries`로 옮기고 clip label·domain·section·
@@ -329,9 +330,12 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. freeze된 v1으로 sections 03–05 external evaluation 준비
-   - evaluation test audio(Zenodo 4884786)와 ground truth(5257674)의 license·checksum·inventory 검증
-   - label을 보지 않고 score를 먼저 고정한 뒤 ground truth를 나중에 결합하는 실행 경로 구현
+1. sections 03–05 external evaluation 실행 경로 구현
+   - label 없는 evaluation-test source reader는 구현 완료
+   - freeze된 v1 configuration으로 sections 03–05 train에 새 section model을 fit하고 evaluation test clip을
+     label 없이 scoring해 immutable score artifact 생성
+   - score artifact를 고정한 뒤 ground truth CSV를 evaluator edge에서 나중에 결합
+   - `0`/`1` label 값의 의미를 source 문서 근거와 함께 protocol에 고정
 
 ### Next
 

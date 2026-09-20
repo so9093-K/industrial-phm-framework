@@ -39,6 +39,15 @@ _FILENAME_PATTERN = re.compile(
     r"(?:_(?P<raw_attribute>.+))?\.wav$"
 )
 
+MIMII_EVALUATION_TEST_SECTIONS = ("03", "04", "05")
+_EVALUATION_TEST_DIRECTORIES = ("source_test", "target_test")
+_EVALUATION_TEST_FILENAME_PATTERN = re.compile(
+    r"^section_(?P<section>\d{2})_"
+    r"(?P<domain>source|target)_"
+    r"test_"
+    r"(?P<clip_number>\d{4})\.wav$"
+)
+
 _EXPECTED_COUNTS = {
     ("dev", "fan", "source", "train", "normal"): 3_000,
     ("dev", "fan", "source", "train", "anomaly"): 0,
@@ -216,6 +225,214 @@ def _canonical_series(source: Path, clip: _MimiiDueClip) -> CanonicalTimeSeries:
             "source_file": clip.path.relative_to(source).as_posix(),
         },
     )
+
+
+@dataclass(frozen=True, slots=True)
+class MimiiDueEvaluationTestClip:
+    """One MIMII DUE evaluation-test clip.
+
+    This record intentionally has no label field. Evaluation-test filenames carry no
+    normal/anomaly token, so a scorer reading this source cannot recover or infer one.
+    """
+
+    path: Path
+    machine: str
+    section: str
+    domain: str
+    clip_number: int
+
+
+@dataclass(frozen=True, slots=True)
+class MimiiDueEvaluationTestReport:
+    """Compatibility summary for a prepared MIMII DUE evaluation-test source."""
+
+    source: Path
+    full: bool
+    machine_count: int
+    section_count: int
+    clip_count: int
+    checked_wav_count: int
+    channels: int
+    sample_width_bits: int
+    sampling_rate_hz: float
+    frames_per_clip: int
+    duration_seconds: float
+    profile_issues: tuple[str, ...]
+
+    @property
+    def profile_matches(self) -> bool:
+        """Return whether the evaluation-test source matches the observed profile."""
+        return not self.profile_issues
+
+
+def iter_mimii_evaluation_test_clips(
+    source: Path,
+    *,
+    machine_type: str | None = None,
+    section: str | None = None,
+    domain: str | None = None,
+) -> tuple[MimiiDueEvaluationTestClip, ...]:
+    """Collect evaluation-test clips in deterministic order without reading labels."""
+    if machine_type is not None and machine_type not in _MACHINE_TYPES:
+        raise MimiiDueSourceError(f"unsupported MIMII DUE machine type: {machine_type!r}")
+    if section is not None and section not in MIMII_EVALUATION_TEST_SECTIONS:
+        raise MimiiDueSourceError(f"unsupported MIMII DUE evaluation section: {section!r}")
+    if domain is not None and domain not in ("source", "target"):
+        raise MimiiDueSourceError(f"unsupported MIMII DUE domain: {domain!r}")
+
+    clips = _collect_evaluation_test_clips(source)
+    selected = tuple(
+        clip
+        for clip in clips
+        if (machine_type is None or clip.machine == machine_type)
+        and (section is None or clip.section == section)
+        and (domain is None or clip.domain == domain)
+    )
+    if not selected:
+        raise MimiiDueSourceError(
+            "MIMII DUE evaluation-test source contains no clips for the requested scope"
+        )
+    return selected
+
+
+def read_mimii_evaluation_test_series(
+    source: Path,
+    clip: MimiiDueEvaluationTestClip,
+) -> CanonicalTimeSeries:
+    """Read one evaluation-test clip as canonical audio without any label metadata."""
+    return CanonicalTimeSeries(
+        asset_id=f"{clip.machine}/section-{clip.section}",
+        timestamps=None,
+        channels=MIMII_DUE_CHANNELS,
+        values=_read_wav_values(clip.path),
+        sampling_rate_hz=_SAMPLING_RATE_HZ,
+        metadata={
+            "dataset_id": _DATASET_ID,
+            "source_group": "eval",
+            "machine_type": clip.machine,
+            "section": clip.section,
+            "domain": clip.domain,
+            "split": "test",
+            "source_file_number": clip.clip_number,
+            "sample_encoding": "pcm-s16le",
+            "sample_width_bits": _SAMPLE_WIDTH_BITS,
+            "source_file": clip.path.relative_to(source).as_posix(),
+        },
+    )
+
+
+def validate_mimii_evaluation_test_source(
+    source: Path,
+    *,
+    full: bool = False,
+) -> MimiiDueEvaluationTestReport:
+    """Validate evaluation-test structure, label-free filename grammar, and WAV headers."""
+    clips = _collect_evaluation_test_clips(source)
+    if not clips:
+        raise MimiiDueSourceError(
+            f"MIMII DUE evaluation-test source contains no WAV clips: {source}"
+        )
+
+    if full:
+        selected = clips
+    else:
+        seen: dict[tuple[str, str, str], MimiiDueEvaluationTestClip] = {}
+        for clip in clips:
+            seen.setdefault((clip.machine, clip.section, clip.domain), clip)
+        selected = tuple(seen.values())
+    for clip in selected:
+        _validate_wav_header(clip.path)
+
+    issues: list[str] = []
+    machines = {clip.machine for clip in clips}
+    missing_machines = sorted(set(_MACHINE_TYPES) - machines)
+    if missing_machines:
+        issues.append(f"missing evaluation-test machine types: {missing_machines}")
+    sections = {clip.section for clip in clips}
+    missing_sections = sorted(set(MIMII_EVALUATION_TEST_SECTIONS) - sections)
+    if missing_sections:
+        issues.append(f"missing evaluation-test sections: {missing_sections}")
+    for machine in sorted(machines):
+        for section_id in sorted(sections):
+            for domain_id in ("source", "target"):
+                if not any(
+                    clip.machine == machine
+                    and clip.section == section_id
+                    and clip.domain == domain_id
+                    for clip in clips
+                ):
+                    issues.append(
+                        f"missing evaluation-test clips for {machine}/section-{section_id}"
+                        f"/{domain_id}"
+                    )
+
+    return MimiiDueEvaluationTestReport(
+        source=source,
+        full=full,
+        machine_count=len(machines),
+        section_count=len(sections),
+        clip_count=len(clips),
+        checked_wav_count=len(selected),
+        channels=_CHANNEL_COUNT,
+        sample_width_bits=_SAMPLE_WIDTH_BITS,
+        sampling_rate_hz=_SAMPLING_RATE_HZ,
+        frames_per_clip=_FRAMES_PER_CLIP,
+        duration_seconds=_DURATION_SECONDS,
+        profile_issues=tuple(issues),
+    )
+
+
+def _collect_evaluation_test_clips(source: Path) -> tuple[MimiiDueEvaluationTestClip, ...]:
+    if not source.is_dir():
+        raise MimiiDueSourceError(
+            f"MIMII DUE evaluation-test source directory does not exist: {source}"
+        )
+
+    clips: list[MimiiDueEvaluationTestClip] = []
+    for machine in _MACHINE_TYPES:
+        machine_dir = source / machine
+        if not machine_dir.is_dir():
+            continue
+        for directory_name in _EVALUATION_TEST_DIRECTORIES:
+            directory = machine_dir / directory_name
+            if not directory.is_dir():
+                continue
+            for path in sorted(directory.iterdir(), key=lambda item: item.name):
+                if path.name.startswith("."):
+                    continue
+                if not path.is_file():
+                    raise MimiiDueSourceError(
+                        f"unexpected MIMII DUE entry inside clip directory: {path}"
+                    )
+                match = _EVALUATION_TEST_FILENAME_PATTERN.fullmatch(path.name)
+                if match is None:
+                    raise MimiiDueSourceError(
+                        f"unexpected MIMII DUE evaluation-test filename grammar: {path.name!r}"
+                    )
+                section = match.group("section")
+                if section not in MIMII_EVALUATION_TEST_SECTIONS:
+                    raise MimiiDueSourceError(
+                        f"unexpected MIMII DUE evaluation-test section: {section!r}"
+                    )
+                domain = match.group("domain")
+                expected_domain = directory_name.removesuffix("_test")
+                if domain != expected_domain:
+                    raise MimiiDueSourceError(
+                        f"MIMII DUE evaluation-test clip {path.name!r} declares domain "
+                        f"{domain!r} inside {directory_name!r}"
+                    )
+                clips.append(
+                    MimiiDueEvaluationTestClip(
+                        path=path,
+                        machine=machine,
+                        section=section,
+                        domain=domain,
+                        clip_number=int(match.group("clip_number")),
+                    )
+                )
+
+    clips.sort(key=lambda clip: clip.path.relative_to(source).as_posix())
+    return tuple(clips)
 
 
 def validate_mimii_due_source(
