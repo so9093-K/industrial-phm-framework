@@ -151,6 +151,8 @@
 - MIMII DUE sections 00–02 development numerical evidence artifact. 두 번의 deterministic 실행이 byte-identical이며
   full source validation과 inspection을 통과한 결과만 승격했습니다.
 
+- MIMII DUE development evidence 검토와 sections 03–05 external evaluation을 위한 v1 configuration freeze 결정.
+
 ### Changed
 
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset
