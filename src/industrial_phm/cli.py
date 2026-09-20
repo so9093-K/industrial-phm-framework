@@ -48,6 +48,7 @@ from industrial_phm.experiments.mimii import (
     get_mimii_external_section_configuration,
 )
 from industrial_phm.experiments.mimii_development import run_mimii_development_evaluation
+from industrial_phm.experiments.mimii_external_evaluation import run_mimii_external_evaluation
 from industrial_phm.experiments.mimii_external_scoring import run_mimii_external_scoring
 from industrial_phm.experiments.result_inspection import (
     ExperimentResultInspectionError,
@@ -409,6 +410,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
     )
     experiment_mimii_external.set_defaults(handler=_run_experiment_mimii_external_score)
+
+    experiment_mimii_evaluate = experiment_commands.add_parser(
+        "mimii-external-evaluate",
+        help="join ground truth with a fixed MIMII score artifact and compute external evidence",
+    )
+    experiment_mimii_evaluate.add_argument("dataset_id")
+    experiment_mimii_evaluate.add_argument(
+        "--score-artifact",
+        type=Path,
+        required=True,
+        help="immutable label-blind score artifact produced by mimii-external-score",
+    )
+    experiment_mimii_evaluate.add_argument(
+        "--ground-truth-dir",
+        type=Path,
+        required=True,
+        help="local directory holding the evaluation ground-truth CSV files",
+    )
+    experiment_mimii_evaluate.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated external evaluation result JSON",
+    )
+    experiment_mimii_evaluate.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
+    )
+    experiment_mimii_evaluate.set_defaults(handler=_run_experiment_mimii_external_evaluate)
 
     return parser
 
@@ -1260,5 +1291,60 @@ def _run_experiment_mimii_external_score(args: argparse.Namespace) -> int:
     print(f"verified evaluation clips: {result.verified_evaluation_clip_count}")
     print(f"scored clips: {result.scored_clip_count}")
     print(f"code_revision: {result.code_revision}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_mimii_external_evaluate(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "mimii-due":
+        print(
+            f"MIMII external evaluation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        _verify_clean_git_revision(args.code_revision)
+    except ValueError as error:
+        print(f"MIMII external evaluation revision verification failed: {error}", file=sys.stderr)
+        return 1
+
+    print("execution plan: MIMII DUE external evaluation v1 (late-bound labels)")
+    print(f"score artifact: {args.score_artifact}")
+    print(f"ground truth: {args.ground_truth_dir}")
+    print("label mapping: 0=normal, 1=anomaly (Zenodo 5257674 description)")
+    print("evaluator reads: fixed scores + ground truth only; no audio, no model fit")
+    print("threshold/calibration: none")
+    print(f"revision verification: clean tracked checkout @ {args.code_revision}")
+
+    try:
+        result = run_mimii_external_evaluation(
+            args.score_artifact,
+            args.ground_truth_dir,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"MIMII external evaluation failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"strata: {len(result.strata)}")
+    print(f"score artifact sha256: {result.score_artifact_sha256}")
+    for summary in result.domain_summaries:
+        print(
+            f"  {summary.scope_id}: auc_hmean={summary.roc_auc_harmonic_mean:.6f} "
+            f"pauc_hmean={summary.partial_roc_auc_harmonic_mean:.6f}"
+        )
+    print(
+        f"  overall: auc_hmean={result.overall_summary.roc_auc_harmonic_mean:.6f} "
+        f"pauc_hmean={result.overall_summary.partial_roc_auc_harmonic_mean:.6f}"
+    )
+    print(f"mimii_domain_shift_summary: {result.domain_shift_summary:.6f}")
     print(f"result: {args.output}")
     return 0
