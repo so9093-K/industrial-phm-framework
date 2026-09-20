@@ -329,6 +329,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ### Current
 
 1. frozen protocol에 따른 sections 00–02 MIMII development numerical evidence
+   - [authoritative execution runbook](docs/research/mimii-due-development-execution-runbook.md)의 순서대로 실행
    - prepared source를 `data validate mimii-due`로 다시 확인
    - clean `main` revision에서 `experiment mimii-development` 실행
    - CLI가 declared `--code-revision` = current Git HEAD 및 tracked working tree clean 상태를 실행 전에 검증
