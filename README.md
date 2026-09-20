@@ -301,6 +301,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   구성과 capability 검증만 module 내부 helper로 정리
 - MIMII DUE Zenodo record·license·file checksum 검증, `mimii-due` manual manifest와 local inventory 기반
   source profile
+- MIMII sections 00–02 development evidence 검토와 external evaluation용 v1 configuration freeze 결정
 - MIMII DUE prepared source의 directory/filename/count profile과 16 kHz mono PCM WAV header를 검증하는
   dataset-specific validator와 `data validate mimii-due` CLI
 - MIMII DUE 16-bit PCM clip을 normalization 없이 `CanonicalTimeSeries`로 옮기고 clip label·domain·section·
@@ -328,14 +329,13 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. MIMII development evidence 검토와 configuration freeze 여부 결정
-   - source/target strata AUC·pAUC와 domain gap을 capability boundary 안에서만 해석
-   - v1을 유지하면 external evaluation용으로 freeze하고, 변경이 필요하면 protocol/configuration v2를 먼저
-     version-control한 뒤 별도 evidence로 분리
+1. freeze된 v1으로 sections 03–05 external evaluation 준비
+   - evaluation test audio(Zenodo 4884786)와 ground truth(5257674)의 license·checksum·inventory 검증
+   - label을 보지 않고 score를 먼저 고정한 뒤 ground truth를 나중에 결합하는 실행 경로 구현
 
 ### Next
 
-1. freeze 후 evaluation test audio를 먼저 score하고 ground truth를 나중에 결합하는 sections 03–05 external evidence
+1. sections 03–05 external evidence 실행
 2. 네 result reader에서 반복되는 inspection 책임 재측정과 최소 승격 범위 재검토
 3. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
 4. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토

@@ -564,6 +564,65 @@ Machine type별 요약(각 strata 6개):
 - 이 수치를 보고 representation, preprocessing, model parameter, evaluator를 조정하지 않았습니다. 변경이
   필요하다고 판단되면 protocol/configuration v2를 먼저 version-control하고 별도 evidence로 분리합니다.
 
+## 14.2 Development evidence 검토와 freeze 결정
+
+§14.1의 artifact 안에서만 읽은 관찰입니다. 외부 수치나 다른 실행을 끌어오지 않았습니다.
+
+### Stratum 분포
+
+30개 stratum(machine type × section × domain)의 값은 다음과 같습니다.
+
+| 통계 | ROC AUC | standardized pAUC |
+| --- | ---: | ---: |
+| 최소 | 0.4934 | 0.4779 |
+| 중앙값 | 0.5660 | 0.5049 |
+| 최대 | 0.7176 | 0.6233 |
+| 0.5 미만 stratum 수 | 1 / 30 | 12 / 30 |
+
+ROC AUC는 30개 중 29개가 0.5 이상이고 중앙값이 0.5660입니다. 반면 standardized pAUC는 중앙값이 0.5049이고
+30개 중 12개가 0.5 아래입니다. 즉 **전체 순위에서는 chance보다 나은 방향이 관찰되지만, false positive rate
+0.1 이하 구간으로 제한하면 chance 수준과 구분되지 않습니다.**
+
+### Domain gap
+
+Section별 `source AUC − target AUC`는 최소 `-0.0843`, 중앙값 `+0.0249`, 최대 `+0.1521`이고 15개 중 10개가
+양수입니다. Domain summary 수준에서는 source 0.5859 > target 0.5516이지만, section 단위로 보면 방향이 일정하지
+않습니다. 예를 들어 gearbox section 00은 target이 source보다 높고(`-0.0768`), slider section 02는 source가
+target보다 높습니다(`+0.1521`).
+
+따라서 이 evidence는 "target domain이 일관되게 더 어렵다"를 뒷받침하지 않습니다. 관찰할 수 있는 것은
+**section 단위 변동이 domain 평균 차이보다 크다**는 사실까지입니다.
+
+### Machine type
+
+AUC harmonic mean은 slider 0.6251, gearbox 0.5809, pump 0.5494, valve 0.5492, fan 0.5444입니다. 이 차이가
+machine type의 물리적 특성 때문인지, section 구성이나 clip 분포 때문인지는 이 artifact가 구분해 주지 않으므로
+원인을 주장하지 않습니다.
+
+### Population 비대칭
+
+모든 section에서 target domain train clip은 3개이고 source domain train clip은 1,000~1,008개입니다. Reference와
+model fit population은 이 둘을 합친 complete normal train입니다. 이 비대칭은 protocol이 사전에 고정한 source
+구성에서 온 것이며 이번 실행에서 조정하지 않았습니다.
+
+### Freeze 결정
+
+**V1 configuration을 sections 03–05 external evaluation용으로 freeze합니다.**
+
+근거는 development 수치가 아닙니다. 위 수치를 근거로 configuration을 바꾸면 결과를 보고 설정을 조정하는 것이
+되어 external evaluation이 unbiased evidence로서 갖는 의미가 사라집니다. Freeze 근거는 다음 두 가지입니다.
+
+1. V1은 §1의 질문(같은 evidence discipline이 vibration이 아닌 audio source에서도 성립하는가)을 위해 사전에
+   고정한 baseline입니다. External evaluation은 그 baseline이 관찰하지 않은 section에서 어떤 evidence를
+   만들어내는지를 묻는 별도 질문이며, baseline을 바꾸면 그 질문에 답할 수 없습니다.
+2. External evaluation 실행 경로 자체(label을 보지 않고 score를 먼저 고정한 뒤 ground truth를 나중에 결합)가
+   아직 한 번도 검증되지 않았습니다. 이 경로를 검증하는 데 필요한 것은 높은 점수가 아니라 고정된 configuration
+   입니다.
+
+더 강한 representation을 비교하고 싶다면 protocol/configuration v2로 별도 version을 만들고 자신의 development
+evidence부터 생성합니다. V2는 이 artifact를 근거로 정당화하지 않으며, v1 external evidence를 v2의 evidence로
+재사용하지도 않습니다.
+
 ## 15. V1에서 하지 않는 것
 
 - vibration-statistical-v1을 audio에 재사용
