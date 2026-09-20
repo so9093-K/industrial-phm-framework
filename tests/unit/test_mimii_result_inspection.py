@@ -116,7 +116,7 @@ def test_mimii_development_inspection_rejects_section_population_drift(
 
     with pytest.raises(
         ExperimentResultInspectionError,
-        match=r"section_models[0].population_flow.target_train_clip_count",
+        match=r"section_models\[0\]\.population_flow\.target_train_clip_count",
     ):
         inspect_experiment_result(drifted)
 
