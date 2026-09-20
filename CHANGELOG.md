@@ -161,6 +161,8 @@
 
 - `experiment mimii-external-score`로 생성하는 label-blind MIMII external score artifact.
 
+- `experiment mimii-external-evaluate`로 생성하는 sections 03–05 late-bound external evaluation evidence.
+
 ### Changed
 
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset

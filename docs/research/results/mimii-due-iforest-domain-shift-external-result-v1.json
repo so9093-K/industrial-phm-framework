@@ -1,0 +1,446 @@
+{
+  "capability_scope": {
+    "available": [
+      "clip-level-anomaly-scoring",
+      "late-bound-external-discrimination-evaluation",
+      "source-target-domain-stratified-auc-pauc-evidence"
+    ],
+    "unsupported_or_not_validated": [
+      "thresholded-state-detection",
+      "online-alerting",
+      "fault-diagnostics",
+      "fault-classification",
+      "health-assessment",
+      "health-indicator",
+      "prognostics-rul",
+      "causal-explanation",
+      "maintenance-recommendation-priority"
+    ]
+  },
+  "evaluation": {
+    "aggregation": "harmonic-mean-with-zero-preserved",
+    "dcase_official_score": false,
+    "domain_summaries": [
+      {
+        "partial_roc_auc_harmonic_mean": 0.5072962789933085,
+        "roc_auc_harmonic_mean": 0.5625749249381283,
+        "scope_id": "domain:source",
+        "stratum_count": 15
+      },
+      {
+        "partial_roc_auc_harmonic_mean": 0.5106554757171613,
+        "roc_auc_harmonic_mean": 0.5355075789194894,
+        "scope_id": "domain:target",
+        "stratum_count": 15
+      }
+    ],
+    "machine_summaries": [
+      {
+        "partial_roc_auc_harmonic_mean": 0.5078992913839884,
+        "roc_auc_harmonic_mean": 0.5474659030818929,
+        "scope_id": "machine:fan",
+        "stratum_count": 6
+      },
+      {
+        "partial_roc_auc_harmonic_mean": 0.514681215968339,
+        "roc_auc_harmonic_mean": 0.596636832472521,
+        "scope_id": "machine:gearbox",
+        "stratum_count": 6
+      },
+      {
+        "partial_roc_auc_harmonic_mean": 0.5005316351809036,
+        "roc_auc_harmonic_mean": 0.5299650057379196,
+        "scope_id": "machine:pump",
+        "stratum_count": 6
+      },
+      {
+        "partial_roc_auc_harmonic_mean": 0.5220823017895907,
+        "roc_auc_harmonic_mean": 0.5826220046118071,
+        "scope_id": "machine:slider",
+        "stratum_count": 6
+      },
+      {
+        "partial_roc_auc_harmonic_mean": 0.5003431848735387,
+        "roc_auc_harmonic_mean": 0.4984136599703775,
+        "scope_id": "machine:valve",
+        "stratum_count": 6
+      }
+    ],
+    "max_false_positive_rate": 0.1,
+    "metrics": [
+      "roc-auc",
+      "standardized-partial-roc-auc:max-fpr=0.1"
+    ],
+    "mimii_domain_shift_summary": 0.5280925210441194,
+    "overall_summary": {
+      "partial_roc_auc_harmonic_mean": 0.5089703347533496,
+      "roc_auc_harmonic_mean": 0.5487076516674811,
+      "scope_id": "mimii-only:all-strata",
+      "stratum_count": 30
+    },
+    "selection_or_threshold_calibration": "none",
+    "strata": [
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "fan",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5068421052631579,
+        "roc_auc": 0.6416,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "fan",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5173684210526316,
+        "roc_auc": 0.516,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "fan",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.48947368421052634,
+        "roc_auc": 0.4882999999999999,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "fan",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.48,
+        "roc_auc": 0.4813,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "fan",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5126315789473684,
+        "roc_auc": 0.5744,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "fan",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5463157894736842,
+        "roc_auc": 0.6264,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 104,
+        "domain": "source",
+        "machine_type": "gearbox",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 130,
+        "observation_count": 234,
+        "partial_roc_auc": 0.5028807225163501,
+        "roc_auc": 0.5607248520710059,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 182,
+        "domain": "target",
+        "machine_type": "gearbox",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 104,
+        "observation_count": 286,
+        "partial_roc_auc": 0.4991546914623838,
+        "roc_auc": 0.5229289940828402,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 108,
+        "domain": "source",
+        "machine_type": "gearbox",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 144,
+        "observation_count": 252,
+        "partial_roc_auc": 0.5435347628330085,
+        "roc_auc": 0.6821630658436214,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 130,
+        "domain": "target",
+        "machine_type": "gearbox",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 104,
+        "observation_count": 234,
+        "partial_roc_auc": 0.537994394269698,
+        "roc_auc": 0.6295118343195266,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 102,
+        "domain": "source",
+        "machine_type": "gearbox",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 108,
+        "observation_count": 210,
+        "partial_roc_auc": 0.4899285250162443,
+        "roc_auc": 0.6240922294843864,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 102,
+        "domain": "target",
+        "machine_type": "gearbox",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 110,
+        "observation_count": 212,
+        "partial_roc_auc": 0.5191856646965006,
+        "roc_auc": 0.5868983957219251,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "pump",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.48526315789473684,
+        "roc_auc": 0.512,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "pump",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.49,
+        "roc_auc": 0.4808,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "pump",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5236842105263158,
+        "roc_auc": 0.5633,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "pump",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5,
+        "roc_auc": 0.495,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "pump",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.4942105263157895,
+        "roc_auc": 0.5307000000000001,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "pump",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5121052631578947,
+        "roc_auc": 0.6216,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "slider",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5047368421052632,
+        "roc_auc": 0.5783,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "slider",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.4963157894736842,
+        "roc_auc": 0.5713,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "slider",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.4805263157894737,
+        "roc_auc": 0.538,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "slider",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.4863157894736842,
+        "roc_auc": 0.4849,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 101,
+        "domain": "source",
+        "machine_type": "slider",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 103,
+        "observation_count": 204,
+        "partial_roc_auc": 0.6064394380163617,
+        "roc_auc": 0.7374795732000385,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "slider",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 103,
+        "observation_count": 203,
+        "partial_roc_auc": 0.5847726111394993,
+        "roc_auc": 0.6486407766990291,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "valve",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5094736842105263,
+        "roc_auc": 0.5703,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "valve",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.49842105263157893,
+        "roc_auc": 0.4444,
+        "section": "03"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "valve",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.49684210526315786,
+        "roc_auc": 0.46469999999999995,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "valve",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.5163157894736842,
+        "roc_auc": 0.503,
+        "section": "04"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "source",
+        "machine_type": "valve",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.48736842105263156,
+        "roc_auc": 0.49950000000000006,
+        "section": "05"
+      },
+      {
+        "anomaly_count": 100,
+        "domain": "target",
+        "machine_type": "valve",
+        "max_false_positive_rate": 0.1,
+        "normal_count": 100,
+        "observation_count": 200,
+        "partial_roc_auc": 0.49473684210526314,
+        "roc_auc": 0.5284,
+        "section": "05"
+      }
+    ],
+    "stratum_unit": "machine-type-x-section-x-domain"
+  },
+  "evidence_class": "late-bound-external-evaluation-evidence",
+  "interpretation": "Late-bound external evaluation of a configuration frozen before evaluation sections were opened. Ranking metrics do not create thresholded state, diagnosis, health indicator, maintenance priority, or RUL.",
+  "provenance": {
+    "code_revision": "528645a875d5c9a0fbffd2745b03d6973e7c30a7",
+    "configuration_id": "mimii-due-iforest-domain-shift-external-v1",
+    "dataset_id": "mimii-due",
+    "dataset_record": {
+      "citation_doi": "10.5281/zenodo.4740355",
+      "license": "CC BY-NC-SA 4.0; keep source data local and do not redistribute it through this repository",
+      "provider": "manual",
+      "source_url": "https://zenodo.org/records/4740355",
+      "version": "zenodo-v1.01"
+    },
+    "protocol_id": "mimii-due-domain-shift-iforest-v1",
+    "split_id": "mimii-due-eval-sections-03-05-v1"
+  },
+  "schema_id": "mimii-due-domain-shift-external-result-v1",
+  "score_binding": {
+    "ground_truth_record": "https://zenodo.org/records/5257674",
+    "label_join": "ground-truth-csv-joined-at-evaluator-edge",
+    "label_mapping": {
+      "0": "normal",
+      "1": "anomaly"
+    },
+    "note": "Scores were fixed by a label-blind scoring run before any ground truth was read. This evaluator reads no audio, fits no model, and rescores no clip.",
+    "score_artifact_code_revision": "479bd3fcee41544cc673350fad685aa9bc78621f",
+    "score_artifact_sha256": "ff7290ae67604c2595e75094cdb9856c8fa143a4f1ebee70e35c32589d979a96",
+    "score_semantics": "higher-is-more-anomalous",
+    "scored_clip_count": 6235
+  }
+}
