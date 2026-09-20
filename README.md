@@ -320,6 +320,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 - MIMII dev source를 section 단위로 streaming해 15개 fixed Isolation Forest를 fit/score하고, evaluator edge에서
   labels를 late-bind해 30 machine/section/domain AUC·pAUC strata와 harmonic summaries를 생성하는
   `mimii-due-domain-shift-development-result-v1` execution/result contract와 CLI
+- MIMII development result의 15 section population/preprocessing, 30 source/target AUC·pAUC strata,
+  harmonic aggregate, DCASE non-official flag와 capability boundary를 재검증해 공통 Source → Evaluation →
+  Provenance inspection read model로 해석하는 `experiment inspect` reader
 
 ### Current
 

@@ -135,6 +135,9 @@
   summaries와 capability boundary를 `mimii-due-domain-shift-development-result-v1` JSON으로 기록합니다.
 - `industrial-phm experiment mimii-development` CLI와 representation parameter spec을 추가해 clean revision의
   numerical execution이 protocol/feature/model/evaluator 설정을 결과 artifact에서 재현할 수 있게 했습니다.
+- MIMII development result inspection reader. 15 section exact coverage와 population/preprocessing state,
+  30 machine/section/domain AUC·pAUC, harmonic summaries, evaluator-only label join, DCASE non-official flag,
+  capability와 code provenance를 다시 검증한 뒤 기존 ExperimentInspection stage vocabulary로 노출합니다.
 
 ### Changed
 

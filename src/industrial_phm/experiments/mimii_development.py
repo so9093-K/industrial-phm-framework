@@ -49,13 +49,13 @@ MIMII_DEVELOPMENT_RESULT_SCHEMA_ID = "mimii-due-domain-shift-development-result-
 MIMII_DEVELOPMENT_EVIDENCE_CLASS = "labeled-offline-development-evidence"
 
 _FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
-_MAX_FALSE_POSITIVE_RATE = 0.1
-_AVAILABLE_CAPABILITIES = (
+MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE = 0.1
+MIMII_DEVELOPMENT_AVAILABLE_CAPABILITIES = (
     "clip-level-anomaly-scoring",
     "labeled-offline-development-discrimination-evaluation",
     "source-target-domain-stratified-auc-pauc-evidence",
 )
-_UNSUPPORTED_CAPABILITIES = (
+MIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES = (
     "thresholded-state-detection",
     "online-alerting",
     "fault-diagnostics",
@@ -172,7 +172,7 @@ class MimiiSectionDevelopmentEvidence:
                 "target evaluation count must match target scoring count"
             )
         for evaluation in (self.source_evaluation, self.target_evaluation):
-            if evaluation.max_false_positive_rate != _MAX_FALSE_POSITIVE_RATE:
+            if evaluation.max_false_positive_rate != MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE:
                 raise MimiiDevelopmentResultError(
                     "MIMII section pAUC max_false_positive_rate must be 0.1"
                 )
@@ -336,7 +336,7 @@ def evaluate_mimii_section_development(
     source_evaluation = evaluate_binary_anomaly_ranking(
         source_scores,
         _labels_by_source_identity(section_input.source_test_vectors),
-        max_false_positive_rate=_MAX_FALSE_POSITIVE_RATE,
+        max_false_positive_rate=MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE,
     )
 
     target_scoring_input = prepare_mimii_model_scoring_input(
@@ -349,7 +349,7 @@ def evaluate_mimii_section_development(
     target_evaluation = evaluate_binary_anomaly_ranking(
         target_scores,
         _labels_by_source_identity(section_input.target_test_vectors),
-        max_false_positive_rate=_MAX_FALSE_POSITIVE_RATE,
+        max_false_positive_rate=MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE,
     )
 
     source_train_count = sum(
@@ -722,7 +722,7 @@ def _result_document(result: MimiiDevelopmentResult) -> dict[str, Any]:
                 "roc-auc",
                 "standardized-partial-roc-auc:max-fpr=0.1",
             ],
-            "max_false_positive_rate": _MAX_FALSE_POSITIVE_RATE,
+            "max_false_positive_rate": MIMII_DEVELOPMENT_MAX_FALSE_POSITIVE_RATE,
             "aggregation": "harmonic-mean-with-zero-preserved",
             "machine_summaries": [_aggregate_document(item) for item in result.machine_summaries],
             "domain_summaries": [_aggregate_document(item) for item in result.domain_summaries],
@@ -731,8 +731,8 @@ def _result_document(result: MimiiDevelopmentResult) -> dict[str, Any]:
             "dcase_official_score": False,
         },
         "capability": {
-            "available": list(_AVAILABLE_CAPABILITIES),
-            "unsupported": list(_UNSUPPORTED_CAPABILITIES),
+            "available": list(MIMII_DEVELOPMENT_AVAILABLE_CAPABILITIES),
+            "unsupported": list(MIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES),
         },
     }
 
