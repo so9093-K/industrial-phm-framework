@@ -243,6 +243,7 @@ def test_experiment_cross_test_shows_effective_plan_and_pipeline_summary(
         "output": output,
         "code_revision": revision,
     }
+    assert verified == [revision]
     captured = capsys.readouterr().out
     assert "execution plan: IMS single-channel cross-test v1" in captured
     assert "train: set-2 complete / 984 acquisitions / 3936 bearing vectors" in captured
@@ -406,6 +407,12 @@ def test_experiment_mimii_development_shows_plan_and_routes_execution(
             code_revision=code_revision,
         )
 
+    verified: list[str] = []
+
+    def fake_verify(revision_to_verify: str) -> None:
+        verified.append(revision_to_verify)
+
+    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
     monkeypatch.setattr(cli, "run_mimii_development_evaluation", fake_run)
 
     exit_code = cli.main(
@@ -433,12 +440,130 @@ def test_experiment_mimii_development_shows_plan_and_routes_execution(
     assert "5 machine types x 3 sections" in captured
     assert "labels: evaluator edge only" in captured
     assert "external evaluation: sections 03-05 excluded" in captured
+    assert f"revision verification: clean tracked checkout @ {revision}" in captured
     assert "section_models: 15" in captured
     assert "source_domain: auc_hmean=0.800000 pauc_hmean=0.700000" in captured
     assert "target_domain: auc_hmean=0.600000 pauc_hmean=0.500000" in captured
     assert "mimii_domain_shift_summary: 0.630000" in captured
     assert f"code_revision: {revision}" in captured
     assert f"result: {output}" in captured
+
+
+def test_verify_clean_git_revision_accepts_matching_clean_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    revision = "a" * 40
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> SimpleNamespace:
+        assert check is True
+        assert capture_output is True
+        assert text is True
+        calls.append(tuple(command))
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return SimpleNamespace(stdout=revision + "\n")
+        if command[:3] == ["git", "status", "--porcelain"]:
+            return SimpleNamespace(stdout="")
+        raise AssertionError(f"unexpected git command: {command}")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    cli._verify_clean_git_revision(revision)
+
+    assert calls == [
+        ("git", "rev-parse", "HEAD"),
+        ("git", "status", "--porcelain", "--untracked-files=no"),
+    ]
+
+
+def test_verify_clean_git_revision_rejects_declared_head_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declared = "a" * 40
+    observed = "b" * 40
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> SimpleNamespace:
+        del check, capture_output, text
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return SimpleNamespace(stdout=observed + "\n")
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="does not match current Git HEAD"):
+        cli._verify_clean_git_revision(declared)
+
+
+def test_verify_clean_git_revision_rejects_dirty_tracked_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    revision = "c" * 40
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> SimpleNamespace:
+        del check, capture_output, text
+        if command[:3] == ["git", "rev-parse", "HEAD"]:
+            return SimpleNamespace(stdout=revision + "\n")
+        return SimpleNamespace(stdout=" M README.md\n")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    with pytest.raises(ValueError, match="tracked Git working tree is dirty"):
+        cli._verify_clean_git_revision(revision)
+
+
+def test_experiment_mimii_development_stops_before_execution_on_revision_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    executed = False
+
+    def fake_verify(_: str) -> None:
+        raise ValueError("declared code revision does not match current Git HEAD")
+
+    def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+        nonlocal executed
+        executed = True
+        raise AssertionError("execution must not start when revision verification fails")
+
+    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(cli, "run_mimii_development_evaluation", fake_run)
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "mimii-development",
+            "mimii-due",
+            "--source",
+            str(tmp_path / "source"),
+            "--output",
+            str(tmp_path / "result.json"),
+            "--code-revision",
+            "d" * 40,
+        ]
+    )
+
+    assert exit_code == 1
+    assert executed is False
+    assert "revision verification failed" in capsys.readouterr().err
 
 
 def test_experiment_mimii_development_rejects_non_mimii_dataset(
