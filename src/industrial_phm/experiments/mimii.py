@@ -26,6 +26,9 @@ MIMII_DEVELOPMENT_FOLD_ID = "fold-1"
 MIMII_DEVELOPMENT_CONFIGURATION_ID = "mimii-due-iforest-domain-shift-development-v1"
 MIMII_MACHINE_TYPES = ("fan", "gearbox", "pump", "slider", "valve")
 MIMII_DEVELOPMENT_SECTIONS = ("00", "01", "02")
+MIMII_EXTERNAL_SECTIONS = ("03", "04", "05")
+MIMII_EXTERNAL_SPLIT_ID = "mimii-due-eval-sections-03-05-v1"
+MIMII_EXTERNAL_CONFIGURATION_ID = "mimii-due-iforest-domain-shift-external-v1"
 MIMII_TARGET_TRAIN_COUNT_PER_SECTION = 3
 
 _EXPECTED_SOURCE_TRAIN_COUNT = {
@@ -44,6 +47,21 @@ _EXPECTED_SOURCE_TRAIN_COUNT = {
     ("valve", "00"): 1_000,
     ("valve", "01"): 1_000,
     ("valve", "02"): 1_000,
+    ("fan", "03"): 1_000,
+    ("fan", "04"): 1_000,
+    ("fan", "05"): 1_000,
+    ("gearbox", "03"): 1_005,
+    ("gearbox", "04"): 1_092,
+    ("gearbox", "05"): 1_008,
+    ("pump", "03"): 1_000,
+    ("pump", "04"): 1_000,
+    ("pump", "05"): 1_000,
+    ("slider", "03"): 1_000,
+    ("slider", "04"): 1_000,
+    ("slider", "05"): 1_000,
+    ("valve", "03"): 1_000,
+    ("valve", "04"): 1_000,
+    ("valve", "05"): 1_000,
 }
 
 _CONFIG_MANIFEST = "mimii-due-iforest-domain-shift-development-v1.toml"
@@ -73,10 +91,8 @@ class MimiiSectionScope:
             raise MimiiExperimentProtocolError(
                 f"unsupported MIMII machine_type: {self.machine_type!r}"
             )
-        if self.section not in MIMII_DEVELOPMENT_SECTIONS:
-            raise MimiiExperimentProtocolError(
-                f"unsupported MIMII development section: {self.section!r}"
-            )
+        if self.section not in (*MIMII_DEVELOPMENT_SECTIONS, *MIMII_EXTERNAL_SECTIONS):
+            raise MimiiExperimentProtocolError(f"unsupported MIMII section: {self.section!r}")
 
     @property
     def asset_id(self) -> str:
@@ -84,9 +100,19 @@ class MimiiSectionScope:
         return f"{self.machine_type}/section-{self.section}"
 
     @property
+    def source_group(self) -> str:
+        """Return the prepared-source group that owns this section."""
+        return "dev" if self.section in MIMII_DEVELOPMENT_SECTIONS else "eval"
+
+    @property
     def experiment_id(self) -> str:
         """Return the unique model experiment identity for this section scope."""
-        return f"{MIMII_DEVELOPMENT_CONFIGURATION_ID}--{self.machine_type}-section-{self.section}"
+        base = (
+            MIMII_DEVELOPMENT_CONFIGURATION_ID
+            if self.source_group == "dev"
+            else MIMII_EXTERNAL_CONFIGURATION_ID
+        )
+        return f"{base}--{self.machine_type}-section-{self.section}"
 
 
 def mimii_expected_train_domain_counts(
@@ -157,6 +183,37 @@ def get_mimii_development_configuration() -> ExperimentConfig:
     return config
 
 
+def iter_mimii_external_section_scopes() -> tuple[MimiiSectionScope, ...]:
+    """Return all fifteen external-evaluation section scopes in machine-major order."""
+    return tuple(
+        MimiiSectionScope(machine_type=machine_type, section=section)
+        for machine_type in MIMII_MACHINE_TYPES
+        for section in MIMII_EXTERNAL_SECTIONS
+    )
+
+
+def get_mimii_external_section_configuration(
+    machine_type: str,
+    section: str,
+) -> ExperimentConfig:
+    """Re-target the frozen development configuration at one external section.
+
+    Only the experiment identity and the split identity change. Representation,
+    preprocessing, reference, sampling, model family, model parameters and seed stay
+    exactly as the frozen v1 configuration declares them.
+    """
+    scope = MimiiSectionScope(machine_type=machine_type, section=section)
+    if scope.source_group != "eval":
+        raise MimiiExperimentProtocolError(
+            f"external configuration requires an evaluation section, got {section!r}"
+        )
+    return replace(
+        get_mimii_development_configuration(),
+        experiment_id=scope.experiment_id,
+        split_id=MIMII_EXTERNAL_SPLIT_ID,
+    )
+
+
 def iter_mimii_development_section_scopes() -> tuple[MimiiSectionScope, ...]:
     """Return all fifteen section-model scopes in deterministic machine-major order."""
     return tuple(
@@ -177,10 +234,17 @@ def get_mimii_section_configuration(
 
 def get_mimii_section_scope(config: ExperimentConfig) -> MimiiSectionScope:
     """Resolve and validate the section scope owned by one derived configuration."""
-    for scope in iter_mimii_development_section_scopes():
+    for scope in (
+        *iter_mimii_development_section_scopes(),
+        *iter_mimii_external_section_scopes(),
+    ):
         if config.experiment_id != scope.experiment_id:
             continue
-        expected = get_mimii_section_configuration(scope.machine_type, scope.section)
+        expected = (
+            get_mimii_section_configuration(scope.machine_type, scope.section)
+            if scope.source_group == "dev"
+            else get_mimii_external_section_configuration(scope.machine_type, scope.section)
+        )
         if config != expected:
             raise MimiiExperimentProtocolError(
                 "MIMII section configuration drift for "

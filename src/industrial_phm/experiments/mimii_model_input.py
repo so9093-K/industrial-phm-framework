@@ -12,7 +12,6 @@ from industrial_phm.experiments.config import (
     ScalingStrategy,
 )
 from industrial_phm.experiments.mimii import (
-    MIMII_DEVELOPMENT_SECTIONS,
     MIMII_DUE_DATASET_ID,
     MimiiExperimentProtocolError,
     MimiiSectionScope,
@@ -180,8 +179,6 @@ def _validate_vector_context(
         )
     if not vectors:
         raise MimiiModelInputError("MIMII model input requires feature vectors")
-    if scope.section not in MIMII_DEVELOPMENT_SECTIONS:
-        raise MimiiModelInputError("MIMII model input requires a development section")
 
     expected_schema = audio_logmel_feature_names()
     if tuple(config.selected_features) != expected_schema:
@@ -201,7 +198,7 @@ def _validate_vector_context(
                 f"MIMII feature vector {index} asset_id must be {scope.asset_id!r}"
             )
         _require_metadata(vector, index=index, key="dataset_id", expected=MIMII_DUE_DATASET_ID)
-        _require_metadata(vector, index=index, key="source_group", expected="dev")
+        _require_metadata(vector, index=index, key="source_group", expected=scope.source_group)
         _require_metadata(vector, index=index, key="machine_type", expected=scope.machine_type)
         _require_metadata(vector, index=index, key="section", expected=scope.section)
         _source_file(vector, index=index)

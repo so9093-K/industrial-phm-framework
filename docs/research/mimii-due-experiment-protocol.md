@@ -623,6 +623,33 @@ model fit population은 이 둘을 합친 complete normal train입니다. 이 �
 evidence부터 생성합니다. V2는 이 artifact를 근거로 정당화하지 않으며, v1 external evidence를 v2의 evidence로
 재사용하지도 않습니다.
 
+## 14.3 External evaluation ground-truth label 의미
+
+Ground truth record 5257674의 공식 description이 CSV 두 번째 열의 의미를 다음과 같이 정의합니다.
+
+> The second column shows the condition label (i.e., 0: normal or 1: anomaly).
+
+따라서 external evaluation에서 `0`은 normal, `1`은 anomaly로 결합합니다. 이 매핑은 source 문서 근거이며
+score 분포나 결과를 보고 정한 값이 아닙니다.
+
+## 14.4 관찰된 label-blind external scoring
+
+Clean revision `479bd3fcee41544cc673350fad685aa9bc78621f`에서 §12 순서의 scoring 단계를 수행했습니다.
+Artifact는
+[`results/mimii-due-iforest-domain-shift-external-score-v1.json`](results/mimii-due-iforest-domain-shift-external-score-v1.json)
+입니다.
+
+- sections 03–05 normal train으로 section model 15개를 새로 fit했습니다. Development model을 재사용하지
+  않았습니다.
+- Evaluation test clip 6,235개를 모두 scoring했고 verified clip 수와 일치합니다(source 3,100 / target 3,135).
+- 같은 revision/source/configuration으로 두 번 실행한 결과가 byte-identical이며 SHA-256은
+  `ff7290ae67604c2595e75094cdb9856c8fa143a4f1ebee70e35c32589d979a96`입니다.
+- Artifact에는 `source_file`, `domain`, `anomaly_score`만 있습니다. `clip_label`, `condition_label`,
+  `"normal"`, `"anomaly"` 문자열이 0건입니다.
+
+이 단계는 **성능 수치를 만들지 않습니다.** Label을 한 번도 읽지 않았으므로 AUC/pAUC는 evaluator가 ground
+truth를 결합한 뒤에만 계산됩니다.
+
 ## 15. V1에서 하지 않는 것
 
 - vibration-statistical-v1을 audio에 재사용
