@@ -517,6 +517,53 @@ Protocol PR에는 model score나 generated numerical result를 넣지 않습니�
 실제 authoritative development execution 명령과 deterministic rerun/inspection 절차는
 [`mimii-due-development-execution-runbook.md`](mimii-due-development-execution-runbook.md)가 소유합니다.
 
+## 14.1 관찰된 development evidence
+
+Runbook 절차를 clean `main` revision `40fd3d044ce8a511cd0ec5f437e1c55f63197dc3`에서 한 번 수행했습니다.
+Authoritative numerical evidence는
+[`results/mimii-due-iforest-domain-shift-development-v1.json`](results/mimii-due-iforest-domain-shift-development-v1.json)에
+보존합니다.
+
+실행 조건과 재현성:
+
+- `data validate mimii-due --full`: WAV header 36,433개 전부 PASS, profile compatibility PASS
+- 같은 revision/configuration/source로 두 번 실행한 결과가 byte-identical
+- 두 run의 SHA-256 모두 `89b52add2e74298e235f9c71fb1b115e805a01669c24c4b380f2b6e74c1d4e2a`
+- `experiment inspect` PASS, artifact `provenance.code_revision`이 실행 revision과 일치,
+  `source_scope.dataset_record`가 packaged `mimii-due` manifest와 일치
+- section model 15개, model-fit clip 15,062개(source 15,017 / target 45), scoring clip 6,221개
+
+Domain별 harmonic summary(strata 15개씩)와 전체 요약(strata 30개):
+
+| Scope | ROC AUC hmean | standardized pAUC hmean |
+| --- | ---: | ---: |
+| `domain:source` | 0.5859 | 0.5176 |
+| `domain:target` | 0.5516 | 0.5013 |
+| `mimii-only:all-strata` | 0.5682 | 0.5093 |
+
+`mimii_domain_shift_summary` = 0.5372.
+
+Machine type별 요약(각 strata 6개):
+
+| Machine | ROC AUC hmean | standardized pAUC hmean |
+| --- | ---: | ---: |
+| fan | 0.5444 | 0.5057 |
+| gearbox | 0.5809 | 0.4934 |
+| pump | 0.5494 | 0.5151 |
+| slider | 0.6251 | 0.5328 |
+| valve | 0.5492 | 0.5012 |
+
+관찰 범위:
+
+- 이 값들은 sections 00–02 **development evidence**이며 sections 03–05 external evaluation이 아닙니다.
+  DCASE official score도 아닙니다(`dcase_official_score = false`).
+- Threshold, selection, calibration을 수행하지 않았습니다. Label은 evaluator edge에서만 결합했습니다.
+- `capability` 필드가 선언한 대로 thresholded state detection, online alerting, fault diagnostics,
+  fault classification, health assessment, health indicator, prognostics/RUL, causal explanation,
+  maintenance recommendation은 이 evidence가 지원하지 않습니다.
+- 이 수치를 보고 representation, preprocessing, model parameter, evaluator를 조정하지 않았습니다. 변경이
+  필요하다고 판단되면 protocol/configuration v2를 먼저 version-control하고 별도 evidence로 분리합니다.
+
 ## 15. V1에서 하지 않는 것
 
 - vibration-statistical-v1을 audio에 재사용
