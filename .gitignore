@@ -36,3 +36,4 @@ htmlcov/
 # Notebooks
 .ipynb_checkpoints/
 /notebooks/__marimo__/
+/apps/__marimo__/
