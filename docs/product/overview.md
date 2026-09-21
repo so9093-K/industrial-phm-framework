@@ -248,11 +248,12 @@ Model explainability는 "왜 이 observation의 score가 높았는가"를 설명
 현재 우선순위는 pipeline transparency입니다. 모델별 feature contribution, residual attribution 같은 XAI는
 실제 model-specific evidence가 생겼을 때 추가하고, pipeline provenance 부족을 XAI로 대체하지 않습니다.
 
-XJTU finalized holdout과 IMS fixed cross-test를 이 information architecture로 대조한 결과는
-[`../research/xjtu-ims-pipeline-transparency-review.md`](../research/xjtu-ims-pipeline-transparency-review.md)에
-기록합니다. 두 실행은 공통 계산 계약을 재사용하지만 result schema의 정보 배치와 source-to-canonical cardinality
-표현이 달라, schema별 result reader가 같은 stage 순서의 immutable inspection read model을 만들고 CLI가 이를
-text로 표현합니다.
+XJTU finalized holdout과 IMS fixed cross-test에서 확인한 공통 presentation 책임은 현재
+`ExperimentInspection`의 ordered stage vocabulary와 schema-specific reader에 반영되어 있습니다. 두 실행은 공통
+계산 계약을 재사용하지만 result schema의 정보 배치와 source-to-canonical cardinality 표현은 계속 다르므로,
+저장 schema를 통합하지 않고 각 reader가 같은 immutable inspection read model을 만든 뒤 CLI와 interactive
+surface가 이를 소비합니다. Canonical artifact와 human-review representation의 운영 경계는
+[`../research/evidence-artifact-policy.md`](../research/evidence-artifact-policy.md)를 따릅니다.
 
 ## 3. Developer Workbench low-fidelity baseline
 
