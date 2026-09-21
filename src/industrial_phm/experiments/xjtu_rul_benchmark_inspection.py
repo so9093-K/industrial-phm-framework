@@ -570,6 +570,3 @@ def _validate_rul_benchmark_lifecycle_rows(
                 expected,
                 f"{position} lifecycle {aggregate_field}",
             )
-
-
-
