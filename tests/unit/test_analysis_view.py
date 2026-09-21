@@ -123,6 +123,8 @@ def test_prognostics_view_preserves_recorded_target_semantics() -> None:
     assert evidence.target_unit == "acquisition-interval"
     assert evidence.endpoint_semantics == "last-recorded-acquisition"
     assert evidence.target_formula == "N-k"
+    assert evidence.target_is_clipped is False
+    assert evidence.target_is_normalized is False
     assert evidence.support_first_acquisition == 8
     assert evidence.support_prediction_count == 2_797
 
