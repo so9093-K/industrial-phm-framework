@@ -1,14 +1,35 @@
 # industrial-phm-framework
 
-이기종 산업 설비 시계열 데이터를 공통 분석 구조로 연결하기 위한 모듈형 PHM
-(Prognostics and Health Management) 프레임워크입니다.
+산업 센서 데이터를 Python 기반 PHM 분석으로 연결해 이상 변화와 열화 evidence를 확인하고,
+분석 근거를 시각화하며, 생성형 AI를 통해 사용자가 결과와 분석 과정을 이해하고 활용할 수 있게 하는
+모듈형 PHM(Prognostics and Health Management) 분석 시스템입니다.
 
-설비·데이터셋별 차이는 Domain Adapter에 격리하고, 공통 데이터 계약을 기준으로
-전처리, 상태 평가, 이상 탐지, prognostics, 평가 및 서비스 계층을 확장하는 것을 목표로 합니다.
-생성형 AI는 PHM 모델의 수치 출력을 대신 계산하지 않고, 구조화된 분석 결과를 해석하고 정비 의사결정을
-지원하는 상위 계층으로 통합합니다.
+설비·데이터셋별 차이는 Domain Adapter에 격리하고, 공통 데이터 계약을 기준으로 전처리, 이상 탐지,
+상태·열화 평가와 prognostics/RUL 같은 PHM capability를 데이터가 지원하는 범위에서 확장합니다.
+생성형 AI는 PHM 모델의 수치 출력을 대신 계산하지 않고 구조화된 분석 결과와 evidence를 설명하는
+사용자 계층으로 통합합니다.
 
-> 현재 상태: first experiment implementation / pre-alpha (`0.0.1`)
+> 현재 상태: end-to-end analysis application vertical slice / pre-alpha (`0.0.1`)
+
+## Product Flow
+
+현재 제품 방향은 새로운 dataset이나 model family를 계속 추가하기 전에, 이미 검증된 production 분석 코드와
+evidence를 하나의 사용자 흐름으로 연결하는 것입니다.
+
+```text
+Sensor data
+  -> validation / canonicalization
+  -> Python PHM analysis
+  -> anomaly / condition / degradation / RUL (capability-dependent)
+  -> evidence visualization
+  -> Generative AI explanation / Q&A
+  -> user interface
+```
+
+모든 source가 모든 capability를 제공한다고 가정하지 않습니다. 현재 지원되는 anomaly evidence는 그대로
+사용하고, RUL/prognostics처럼 추가 근거가 필요한 capability는 적합한 source에서 구현한 뒤 같은 분석 화면에
+통합합니다. Pipeline lineage, experiment provenance와 capability boundary는 사용자 결과를 뒷받침하는
+drill-down transparency로 유지합니다.
 
 ## Architecture
 
@@ -332,22 +353,28 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 
 ### Current
 
-1. MIMII external evidence 검토와 이후 연구 범위 결정
-   - development와 external을 합치지 않고 각각의 scope 안에서 해석
-   - v2 후보를 검토한다면 새 protocol version으로 분리
+1. end-to-end PHM Analysis Application vertical slice
+   - 기존 validator, Domain Adapter, feature/sequence, model, evidence artifact를 다시 구현하지 않고 사용자 분석 흐름으로 연결
+   - UI가 experiment JSON을 직접 해석하지 않도록 analysis read model과 application use case를 도입
+   - sensor/feature trajectory와 anomaly score를 같은 context에서 시각화하고, 검증된 threshold policy가 있는 경우
+     contiguous anomaly interval과 supporting evidence를 표시
+   - 구조화된 PHM evidence를 입력으로 사용하는 Generative AI 설명과 analysis-scoped Q&A를 첫 제품 흐름에 포함
+   - 기존 `ExperimentInspection`, Developer Workbench와 Maintenance Evidence Review의 transparency/evidence
+     원칙을 상세 drill-down으로 재사용
 
 ### Next
 
-1. sections 03–05 external evidence 실행
-2. 네 result reader에서 반복되는 inspection 책임 재측정과 최소 승격 범위 재검토
-3. 첫 private/field source에서 quality, identity, event/censoring과 external-source boundary를 검증
-4. event/onset/censoring 근거가 확보된 경우에만 Health Indicator/RUL 연구 범위를 재검토
+1. XJTU run-to-failure source에서 RUL/prognostics protocol, target construction, baseline/sequence model,
+   evaluation evidence를 구현하고 같은 Analysis Application에 capability로 통합
+2. RUL과 사용자 해석에 실제로 필요한 범위에서 health/degradation representation과 uncertainty를 추가
+3. local/general sensor input, analysis bundle 저장과 사용자 report/export 흐름을 검증
+4. 완성된 analysis flow를 첫 private/field source에 적용해 quality, identity, event/censoring과 source boundary를 검증
 
 ### Later
 
-- API와 역할 기반 dashboard
-- 구조화된 PHM 결과와 정비 지식을 사용하는 Generative AI/RAG
-- release/deployment 요구가 생긴 뒤 container·SBOM·attestation 검토
+- live inference와 역할별 operational view, work-order/maintenance-system 연동
+- 정비 문서·이력 검색이 실제 설명 품질에 필요해진 뒤 Generative AI retrieval/RAG 확장
+- release/deployment 요구가 생긴 뒤 service API, container·SBOM·attestation과 산업 protocol 연동 검토
 
 ## Governance
 
