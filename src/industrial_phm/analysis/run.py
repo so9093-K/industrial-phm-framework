@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from industrial_phm.analysis.view import AnalysisView, AnalysisViewError, load_xjtu_lstm_analysis_view
+from industrial_phm.analysis.view import (
+    AnalysisView,
+    AnalysisViewError,
+    load_xjtu_lstm_analysis_view,
+)
 from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_development_evaluation
 
 
