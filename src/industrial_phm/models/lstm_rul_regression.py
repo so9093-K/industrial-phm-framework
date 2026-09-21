@@ -116,18 +116,14 @@ class FittedLstmRulRegressor:
         _positive_int(self.layer_count, "layer_count")
         _validate_text(self.sampling_policy_id, "sampling_policy_id")
         if not isinstance(self.training, LstmRulTrainingProvenance):
-            raise LstmRulRegressionError(
-                "training must be an LstmRulTrainingProvenance"
-            )
+            raise LstmRulRegressionError("training must be an LstmRulTrainingProvenance")
         _positive_int(self._batch_size, "batch_size")
         if self.training.sampling_policy_id != self.sampling_policy_id:
             raise LstmRulRegressionError(
                 "training sampling_policy_id must match the fitted LSTM regressor"
             )
         if self.training.batch_size != self._batch_size:
-            raise LstmRulRegressionError(
-                "training batch_size must match the fitted LSTM regressor"
-            )
+            raise LstmRulRegressionError("training batch_size must match the fitted LSTM regressor")
         object.__setattr__(self, "feature_names", feature_names)
 
     def predict(self, construction: SequenceConstruction) -> tuple[float, ...]:
@@ -314,9 +310,7 @@ def _train(
                 raise LstmRulRegressionError("LSTM RUL gradient norm is non-finite")
             optimizer.step()
             if any(not bool(torch.isfinite(parameter).all()) for parameter in module.parameters()):
-                raise LstmRulRegressionError(
-                    "LSTM RUL parameter state contains non-finite values"
-                )
+                raise LstmRulRegressionError("LSTM RUL parameter state contains non-finite values")
             weighted_losses.append(float(loss.detach().item()) * int(batch_inputs.shape[0]))
         epoch_losses.append(math.fsum(weighted_losses) / window_count)
     return tuple(epoch_losses)
@@ -356,9 +350,7 @@ def _validate_fit_context(
     if config.model_family is not ModelFamily.LSTM_REGRESSION:
         raise LstmRulRegressionError("model_family must be lstm-regression")
     if config.sampling_policy_id != _SAMPLING_POLICY_ID:
-        raise LstmRulRegressionError(
-            f"LSTM RUL sampling_policy_id must be {_SAMPLING_POLICY_ID!r}"
-        )
+        raise LstmRulRegressionError(f"LSTM RUL sampling_policy_id must be {_SAMPLING_POLICY_ID!r}")
     _validate_construction_context(
         construction,
         feature_set_id=config.feature_set_id,
@@ -423,9 +415,7 @@ def _validated_targets(
             raise LstmRulRegressionError("target_values must contain numerical values")
         target = float(value)
         if not math.isfinite(target) or target < 0.0:
-            raise LstmRulRegressionError(
-                "target_values must contain finite non-negative values"
-            )
+            raise LstmRulRegressionError("target_values must contain finite non-negative values")
         targets.append(target)
     result = tuple(targets)
     if len(result) != expected_count:
@@ -515,9 +505,7 @@ def _bounded_float(
 ) -> float:
     number = _numeric_float(value, field_name)
     if not minimum <= number < maximum:
-        raise LstmRulRegressionError(
-            f"LSTM RUL {field_name} must fall in [{minimum}, {maximum})"
-        )
+        raise LstmRulRegressionError(f"LSTM RUL {field_name} must fall in [{minimum}, {maximum})")
     return number
 
 
@@ -569,9 +557,7 @@ def _validated_names(values: Sequence[str], field_name: str) -> tuple[str, ...]:
 
 def _validate_text(value: object, field_name: str) -> None:
     if not isinstance(value, str) or not value.strip() or value != value.strip():
-        raise LstmRulRegressionError(
-            f"{field_name} must be a trimmed non-empty string"
-        )
+        raise LstmRulRegressionError(f"{field_name} must be a trimmed non-empty string")
 
 
 def _require_torch() -> Any:
