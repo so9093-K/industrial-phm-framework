@@ -261,7 +261,8 @@ def _(
             analysis_revision_input,
             analysis_run_button,
             mo.md(
-                "Runtime requirement: `uv sync --locked --group research --extra deep-learning`.  \n"
+                "Runtime requirement: "
+                "`uv sync --locked --group research --extra deep-learning`.  \n"
                 "This execution preserves retrospective-development semantics; it is not "
                 "live asset inference."
             ),
