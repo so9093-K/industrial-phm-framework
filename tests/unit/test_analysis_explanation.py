@@ -80,7 +80,7 @@ def test_openai_generator_uses_stateless_responses_request(
     captured: dict[str, Any] = {}
 
     class FakeResponse:
-        def __enter__(self) -> "FakeResponse":
+        def __enter__(self) -> FakeResponse:
             return self
 
         def __exit__(self, *args: object) -> None:
@@ -139,7 +139,7 @@ def test_openai_generator_requires_output_text(
     context = build_analysis_explanation_context(analysis, "Bearing1_2")
 
     class FakeResponse:
-        def __enter__(self) -> "FakeResponse":
+        def __enter__(self) -> FakeResponse:
             return self
 
         def __exit__(self, *args: object) -> None:
