@@ -632,6 +632,148 @@ def test_experiment_rul_validation_stops_on_revision_drift(
     assert "RUL validation revision verification failed" in capsys.readouterr().err
 
 
+def test_experiment_rul_benchmark_routes_frozen_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source"
+    output = tmp_path / "rul-benchmark.json"
+    revision = "6" * 40
+    observed: dict[str, object] = {}
+    verified: list[str] = []
+
+    def fake_verify(revision_to_verify: str) -> None:
+        verified.append(revision_to_verify)
+
+    def fake_run(
+        received_source: Path,
+        received_output: Path,
+        *,
+        code_revision: str,
+    ) -> SimpleNamespace:
+        observed.update(
+            source=received_source,
+            output=received_output,
+            code_revision=code_revision,
+        )
+        point = SimpleNamespace(
+            mean_asset_mean_absolute_error=55.0,
+            mean_asset_root_mean_squared_error=70.0,
+            mean_asset_mean_signed_error=-12.0,
+            mean_asset_normalized_mean_absolute_error=0.11,
+        )
+        lifecycle = SimpleNamespace(
+            position_summaries=(
+                SimpleNamespace(
+                    position="early",
+                    mean_asset_mean_absolute_error=40.0,
+                    mean_asset_root_mean_squared_error=50.0,
+                    mean_asset_mean_signed_error=-5.0,
+                    mean_asset_normalized_mean_absolute_error=0.08,
+                ),
+                SimpleNamespace(
+                    position="middle",
+                    mean_asset_mean_absolute_error=50.0,
+                    mean_asset_root_mean_squared_error=65.0,
+                    mean_asset_mean_signed_error=-10.0,
+                    mean_asset_normalized_mean_absolute_error=0.10,
+                ),
+                SimpleNamespace(
+                    position="late",
+                    mean_asset_mean_absolute_error=75.0,
+                    mean_asset_root_mean_squared_error=90.0,
+                    mean_asset_mean_signed_error=-21.0,
+                    mean_asset_normalized_mean_absolute_error=0.15,
+                ),
+            )
+        )
+        return SimpleNamespace(
+            point_evaluation=point,
+            lifecycle_evaluation=lifecycle,
+            code_revision=code_revision,
+        )
+
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(
+        experiment_commands,
+        "run_xjtu_rul_lstm_heldout_benchmark",
+        fake_run,
+    )
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "rul-benchmark",
+            "xjtu-sy",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--code-revision",
+            revision,
+        ]
+    )
+
+    assert exit_code == 0
+    assert verified == [revision]
+    assert observed == {
+        "source": source,
+        "output": output,
+        "code_revision": revision,
+    }
+    captured = capsys.readouterr().out
+    assert "execution plan: XJTU RUL frozen held-out benchmark v1" in captured
+    assert "selected method: xjtu-sy-rul-lstm-fold-1-v1 / frozen from validation" in captured
+    assert "not pristine external" in captured
+    assert "uncertainty/calibration: unsupported in RUL v1" in captured
+    assert "operational primary method: none" in captured
+    assert "benchmark: mae=55.000000 rmse=70.000000 signed=-12.000000" in captured
+    assert "late: mae=75.000000 rmse=90.000000 signed=-21.000000" in captured
+    assert f"result: {output}" in captured
+
+
+def test_experiment_rul_benchmark_stops_on_revision_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    executed = False
+
+    def fake_verify(_: str) -> None:
+        raise ValueError("declared code revision does not match current Git HEAD")
+
+    def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+        nonlocal executed
+        executed = True
+        raise AssertionError("execution must not start when revision verification fails")
+
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(
+        experiment_commands,
+        "run_xjtu_rul_lstm_heldout_benchmark",
+        fake_run,
+    )
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "rul-benchmark",
+            "xjtu-sy",
+            "--source",
+            str(tmp_path / "source"),
+            "--output",
+            str(tmp_path / "result.json"),
+            "--code-revision",
+            "6" * 40,
+        ]
+    )
+
+    assert exit_code == 1
+    assert executed is False
+    assert "RUL benchmark revision verification failed" in capsys.readouterr().err
+
+
 def test_experiment_lstm_development_rejects_non_xjtu_dataset(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
