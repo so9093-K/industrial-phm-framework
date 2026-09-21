@@ -80,8 +80,7 @@ def _(analysis, asset_selector):
 def _(analysis, mo):
     def facts_table(stage):
         rows = "\n".join(
-            f"| {fact.label} | {str(fact.value).replace('|', '&#124;')} |"
-            for fact in stage.facts
+            f"| {fact.label} | {str(fact.value).replace('|', '&#124;')} |" for fact in stage.facts
         )
         if not rows:
             rows = "| - | - |"
@@ -196,8 +195,7 @@ def _(analysis, mo, plt, selected_asset):
             mo.md(
                 "### Highest recorded scores\n\n"
                 "| Acquisition | Source observation | Score |\n"
-                "| ---: | --- | ---: |\n"
-                + top_rows
+                "| ---: | --- | ---: |\n" + top_rows
             ),
         ],
         gap=1.2,
