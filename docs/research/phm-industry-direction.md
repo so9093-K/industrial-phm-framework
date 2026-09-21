@@ -245,16 +245,15 @@ design을 검토할 때 참고하는 external reference입니다.
 
 ### Current
 
-1. XJTU frozen RUL held-out numerical benchmark 실행
-2. evidence lifecycle과 user-facing interpretation boundary 완결
+1. local/general input boundary를 현재 validation/Adapter contract에 연결
+2. 첫 private/field source에서 identity, data quality, event/censoring, provenance를 검증
+3. public retrospective benchmark와 field evidence의 의미 경계를 유지하면서 실제 domain shift를 관찰
 
 ### Near term
 
-1. local/general input boundary
-2. private/field source
-3. domain shift와 source/data-quality evidence
-4. fault semantics가 있는 diagnostics
-5. uncertainty/calibration
+1. fault semantics가 있는 source에서 diagnostics capability 검증
+2. field evidence를 기준으로 uncertainty/calibration population과 coverage policy 설계
+3. operational/live inference identity/time/data-quality/deployment provenance contract 정의
 
 ### Operational phase
 
