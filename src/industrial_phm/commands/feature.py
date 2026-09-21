@@ -55,4 +55,3 @@ def _run_feature_characterize(args: argparse.Namespace) -> int:
     print(f"feature_table: {artifacts.feature_table_path}")
     print(f"summary: {artifacts.summary_path}")
     return 0
-
