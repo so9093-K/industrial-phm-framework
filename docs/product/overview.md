@@ -632,7 +632,26 @@ RUL 숫자 하나만 보여주면 사용자가 물리적 failure time으로 읽�
 
 Target에 clipping이 없으므로 음수 추정이 기록될 수 있습니다. 화면은 이를 0으로 바닥 처리하지 않고 기록된 값
 그대로 보여주며, 음수가 있으면 그 사실을 함께 표시합니다.
-- Generative AI가 RUL 수치와 uncertainty/limitation을 구조화된 evidence로 설명하도록 확장
+
+### Generative AI가 RUL evidence를 설명하는 경계
+
+Generative AI 설명은 evidence scope로 분리합니다. Anomaly scope와 prognostics scope는 서로 다른 structured
+context와 서로 다른 boundary 지시를 사용하며, 한 scope의 evidence가 다른 scope의 설명에 섞이지 않습니다.
+
+Prognostics context에 담기는 것은 validated read model에서 읽어온 값뿐입니다.
+
+| 전달 항목 | 목적 |
+| --- | --- |
+| method별 recorded estimate와 as-of acquisition | 재계산 없이 기록된 값만 설명하게 함 |
+| target 의미·unit·formula·clipping 여부 | 숫자가 무엇을 세는지 숫자와 분리되지 않게 함 |
+| support 정의와 prediction 수 | 오차가 어떤 구간에서 계산됐는지 고정 |
+| retrospective validation 오차 | 해석의 근거를 development evidence로 한정 |
+| unavailable capability 목록 | 없는 capability를 만들어내지 않게 함 |
+| `primary_method_id` (현재 `None`) | 여러 method를 하나의 운영 답으로 고르지 않게 함 |
+
+모델에게 주는 지시는 다음을 금지합니다: RUL 재계산·외삽·단위 변환, calendar date나 물리적 failure time으로의
+번역, failure threshold·alarm/state·maintenance deadline·confidence interval 생성, 그리고 검증되지 않은 primary
+method 선택. Target에 clipping이 없으므로 음수 추정도 0으로 올리지 않고 기록된 대로 보고하게 합니다.
 
 그 이후에는 report/export, local/general sensor input, 적합한 source의 diagnostics, private/field source와 live
 inference를 같은 완성된 application 안에서 확장합니다. Frontend framework, service API, authentication,

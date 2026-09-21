@@ -25,7 +25,9 @@ def _():
     from industrial_phm.genai import (
         AnalysisExplanationError,
         build_analysis_explanation_context,
+        build_prognostics_explanation_context,
         generate_openai_analysis_explanation,
+        generate_openai_prognostics_explanation,
     )
 
     return (
@@ -34,8 +36,10 @@ def _():
         AnalysisViewError,
         Path,
         build_analysis_explanation_context,
+        build_prognostics_explanation_context,
         derive_early_scored_window_review_threshold,
         generate_openai_analysis_explanation,
+        generate_openai_prognostics_explanation,
         load_xjtu_lstm_analysis_view,
         load_xjtu_rul_analysis_view,
         mo,
@@ -166,7 +170,36 @@ def _(mo):
         label="Generate AI explanation",
         kind="success",
     )
-    return explanation_question, explanation_run
+    explanation_scope = mo.ui.radio(
+        options=["Anomaly evidence", "Prognostics evidence"],
+        value="Anomaly evidence",
+        label="Evidence scope",
+    )
+    return explanation_question, explanation_run, explanation_scope
+
+
+@app.cell
+def _(
+    AnalysisExplanationError,
+    asset_selector,
+    build_prognostics_explanation_context,
+    prognostics_analysis,
+    prognostics_error,
+):
+    if prognostics_analysis is None:
+        prognostics_explanation_context = None
+        prognostics_context_error = prognostics_error
+    else:
+        try:
+            prognostics_explanation_context = build_prognostics_explanation_context(
+                prognostics_analysis,
+                asset_selector.value,
+            )
+            prognostics_context_error = ""
+        except AnalysisExplanationError as error:
+            prognostics_explanation_context = None
+            prognostics_context_error = str(error)
+    return prognostics_context_error, prognostics_explanation_context
 
 
 @app.cell
@@ -462,15 +495,49 @@ def _(
     explanation_model,
     explanation_question,
     explanation_run,
+    explanation_scope,
     generate_openai_analysis_explanation,
+    generate_openai_prognostics_explanation,
     mo,
+    prognostics_context_error,
+    prognostics_explanation_context,
 ):
+    _explains_prognostics = explanation_scope.value == "Prognostics evidence"
+    if _explains_prognostics:
+        _boundary = (
+            "This layer explains recorded RUL evidence; it does not recompute the "
+            "estimate, convert it into a physical failure time, or create an "
+            "unsupported failure threshold, alarm/state, maintenance priority, or "
+            "confidence interval."
+        )
+        _context_note = (
+            "Context: recorded estimate per method, target semantics and unit, "
+            "retrospective validation error, capability limits, and selected "
+            "pipeline/provenance facts."
+        )
+    else:
+        _boundary = (
+            "This layer explains recorded PHM evidence; it does not replace the "
+            "numerical analysis or create unsupported diagnosis, alarm/state, "
+            "maintenance priority, health indicator, or RUL."
+        )
+        _context_note = (
+            "Context: top recorded scores, feature residual evidence, capability "
+            "limits, and selected pipeline/provenance facts."
+        )
+
     if not explanation_configured:
         explanation_output = mo.callout(
             "Set OPENAI_API_KEY and INDUSTRIAL_PHM_GENAI_MODEL in the application "
             "environment to enable generative explanation.",
             kind="info",
             title="AI explanation is not configured",
+        )
+    elif _explains_prognostics and prognostics_explanation_context is None:
+        explanation_output = mo.callout(
+            prognostics_context_error,
+            kind="warn",
+            title="Prognostics evidence is unavailable",
         )
     elif not explanation_run.value:
         explanation_output = mo.callout(
@@ -480,15 +547,32 @@ def _(
             kind="info",
             title="Ready",
         )
+    elif _explains_prognostics:
+        try:
+            explanation_output = mo.md(
+                generate_openai_prognostics_explanation(
+                    prognostics_explanation_context,
+                    api_key=explanation_api_key,
+                    model=explanation_model,
+                    question=explanation_question.value.strip() or None,
+                )
+            )
+        except AnalysisExplanationError as error:
+            explanation_output = mo.callout(
+                str(error),
+                kind="danger",
+                title="AI explanation failed",
+            )
     else:
         try:
-            generated_explanation = generate_openai_analysis_explanation(
-                explanation_context,
-                api_key=explanation_api_key,
-                model=explanation_model,
-                question=explanation_question.value.strip() or None,
+            explanation_output = mo.md(
+                generate_openai_analysis_explanation(
+                    explanation_context,
+                    api_key=explanation_api_key,
+                    model=explanation_model,
+                    question=explanation_question.value.strip() or None,
+                )
             )
-            explanation_output = mo.md(generated_explanation)
         except AnalysisExplanationError as error:
             explanation_output = mo.callout(
                 str(error),
@@ -499,20 +583,11 @@ def _(
     ai_explanation_view = mo.vstack(
         [
             mo.md("## AI Explanation"),
-            mo.callout(
-                "This layer explains recorded PHM evidence; it does not replace the "
-                "numerical analysis or create unsupported diagnosis, alarm/state, "
-                "maintenance priority, health indicator, or RUL.",
-                kind="warn",
-                title="Generative AI boundary",
-            ),
+            mo.callout(_boundary, kind="warn", title="Generative AI boundary"),
+            explanation_scope,
             explanation_question,
             explanation_run,
-            mo.md(
-                f"Model: `{explanation_model or 'not configured'}`  \n"
-                "Context: top recorded scores, feature residual evidence, capability "
-                "limits, and selected pipeline/provenance facts."
-            ),
+            mo.md(f"Model: `{explanation_model or 'not configured'}`  \n{_context_note}"),
             explanation_output,
         ],
         gap=1.2,

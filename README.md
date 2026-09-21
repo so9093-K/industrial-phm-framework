@@ -110,8 +110,9 @@ artifact를 같은 Analysis Explorer의 Summary/Evidence/AI Explanation으로 �
 실행에는 `--extra deep-learning` runtime이 필요합니다.
 
 생성형 AI 설명/Q&A는 optional이며 `OPENAI_API_KEY`와 `INDUSTRIAL_PHM_GENAI_MODEL`을 실행 환경에 제공했을 때만
-활성화됩니다. LLM은 raw sensor를 다시 분석하지 않고 bounded structured PHM evidence를 설명합니다. 지원 범위와
-앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.
+활성화됩니다. LLM은 raw sensor를 다시 분석하지 않고 bounded structured PHM evidence를 설명합니다. `AI Explanation`
+화면의 evidence scope로 anomaly evidence와 prognostics evidence 중 무엇을 설명할지 선택하며, 두 scope는 서로 다른
+context와 서로 다른 boundary 지시를 사용합니다. 지원 범위와 앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.
 
 ## CLI and Dataset Acquisition
 
@@ -443,7 +444,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
    - Analysis Explorer에 Prognostics 화면을 추가해 recorded 추정치와 target 의미, as-of acquisition,
      uncertainty/failure-threshold 미지원 상태를 같은 화면에서 표시하고 method 비교를 development
      comparison으로 분리
-   - 다음 구현은 Generative AI explanation에 RUL evidence와 한계를 구조화된 context로 연결
+   - Generative AI explanation을 evidence scope로 분리해 prognostics context는 recorded estimate와 target
+     의미, retrospective validation error, unavailable capability만 구조화해 전달하고, 모델이 RUL을 다시
+     계산하거나 physical failure time·failure threshold·confidence interval을 만들어내지 못하게 지시
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 

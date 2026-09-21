@@ -11,6 +11,14 @@
 
 ### Added
 
+- Generative AI explanation의 prognostics evidence scope. Analysis Explorer `AI Explanation` 화면에서
+  anomaly evidence와 prognostics evidence 중 설명 대상을 고르며, prognostics context는 validated read model에서
+  읽은 method별 recorded estimate와 as-of acquisition, target 의미/unit/formula/clipping 여부, common support,
+  retrospective validation 오차, unavailable capability, 그리고 아직 `None`인 `primary_method_id`만 전달합니다.
+  Boundary 지시는 RUL 재계산·외삽·단위 변환, physical failure time이나 calendar date로의 번역, failure
+  threshold·alarm/state·maintenance deadline·confidence interval 생성, 검증되지 않은 primary method 선택을
+  금지하고, clipping이 없는 target이므로 음수 추정도 0으로 올리지 않고 기록된 대로 보고하게 합니다.
+
 - 기존 `xjtu-rul-baseline-validation-result-v1`을 변경하지 않고 age-only, feature-Ridge, temporal-LSTM을
   같은 fold-1 validation target/evaluator에서 비교하는 `xjtu-rul-three-model-validation-result-v1` evidence
   schema/runner/CLI. Temporal method의 train-only preprocessing, right-edge sequence population, deterministic

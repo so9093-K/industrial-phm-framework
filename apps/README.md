@@ -10,7 +10,8 @@ Research notebook과 달리 새로운 parser, feature formula, model fitting 또
 
 - Analysis Summary: 선택한 asset의 anomaly-evidence trajectory, descriptive score-exceedance interval과 현재 capability
 - Evidence: high-score observations와 feature residual evidence
-- AI Explanation: bounded structured evidence 기반 생성형 AI 설명과 analysis-scoped Q&A
+- AI Explanation: anomaly/prognostics evidence scope를 선택해 bounded structured evidence만 전달하는
+  생성형 AI 설명과 analysis-scoped Q&A
 - Analysis Details: 기존 `ExperimentInspection` pipeline/provenance drill-down
 
 현재 result에는 validated State Detection threshold가 없습니다. 대신 earliest-third scored windows의 q95를
@@ -77,6 +78,9 @@ AI 탭에서 질문을 입력하고 **Generate AI explanation**을 눌렀을 때
 asset 선택, graph/evidence 탐색과 CI HTML export는 API 요청을 만들지 않습니다.
 
 전송 context는 raw waveform이나 전체 score trajectory가 아니라 선택 asset의 bounded structured evidence입니다.
+**Evidence scope** 선택에 따라 서로 다른 context와 서로 다른 boundary 지시를 사용합니다.
+
+Anomaly evidence scope:
 
 - top recorded anomaly scores
 - aggregate feature residual evidence
@@ -84,8 +88,20 @@ asset 선택, graph/evidence 탐색과 CI HTML export는 API 요청을 만들지
 - available / unsupported capability
 - Source / Model / Evaluation / Provenance facts
 
-Responses API 요청은 `store=false`로 실행합니다. 생성형 AI 출력은 PHM numerical result가 아니며, unsupported
-diagnosis, alarm/state, maintenance priority, health indicator 또는 RUL을 새 capability처럼 만들지 않습니다.
+Prognostics evidence scope:
+
+- method별 recorded RUL estimate와 as-of acquisition index
+- target 의미, unit, formula, clipping 여부
+- common support 정의와 prediction 수
+- method별 retrospective validation 오차
+- available / unsupported capability와 검증되지 않은 `primary_method_id`
+- Source / Model / Evaluation / Provenance facts
+
+Responses API 요청은 `store=false`로 실행합니다. 생성형 AI 출력은 PHM numerical result가 아닙니다. Anomaly
+scope에서는 unsupported diagnosis, alarm/state, maintenance priority, health indicator 또는 RUL을 새 capability처럼
+만들지 않습니다. Prognostics scope에서는 기록된 estimate를 다시 계산하거나 외삽하지 않고, 이를 calendar date나
+물리적 failure time으로 번역하지 않으며, failure threshold·maintenance deadline·confidence interval을 만들지
+않습니다.
 
 ## 운영 원칙
 
