@@ -41,7 +41,12 @@ from industrial_phm.prognostics import RulPointEvaluation, RulPredictionSeries
 XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID = "xjtu-rul-lstm-fold-1-benchmark-result-v1"
 XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS = "protocol-frozen-retrospective-benchmark-evidence"
 _FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
-_UNSUPPORTED_CAPABILITIES = (
+XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES = (
+    "prognostics-rul-point-estimate",
+    "retrospective-benchmark-error-evidence",
+    "lifecycle-position-diagnostics",
+)
+XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES = (
     "prediction-interval",
     "uncertainty-calibration",
     "validated-physical-failure-threshold",
@@ -400,12 +405,8 @@ def xjtu_rul_lstm_benchmark_document(result: XjtuRulLstmBenchmarkResult) -> dict
             "lifecycle_position": _lifecycle_evaluation_document(result.lifecycle_evaluation),
         },
         "capability_scope": {
-            "available": [
-                "prognostics-rul-point-estimate",
-                "retrospective-benchmark-error-evidence",
-                "lifecycle-position-diagnostics",
-            ],
-            "unsupported_or_not_validated": list(_UNSUPPORTED_CAPABILITIES),
+            "available": list(XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES),
+            "unsupported_or_not_validated": list(XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES),
         },
         "interpretation": (
             "Protocol-frozen retrospective benchmark evidence for the validation-selected "

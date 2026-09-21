@@ -102,6 +102,15 @@ contract 문제를 별도 변경으로 해결한 뒤, 새 clean revision에서 �
 
 ## 6. Evidence review
 
+먼저 shared inspection read model로 schema/protocol drift를 검증합니다.
+
+```bash
+uv run industrial-phm experiment inspect /tmp/xjtu-rul-benchmark-run-1.json
+uv run industrial-phm experiment inspect /tmp/xjtu-rul-benchmark-run-2.json
+```
+
+두 artifact 모두 같은 stage vocabulary와 benchmark scope를 통과해야 합니다.
+
 Result에서 최소 다음을 확인합니다.
 
 - `provenance.code_revision`이 execution revision과 정확히 일치

@@ -235,8 +235,10 @@ from industrial_phm.experiments.xjtu_rul_baseline_result import (
     write_xjtu_rul_baseline_validation_result,
 )
 from industrial_phm.experiments.xjtu_rul_benchmark_result import (
+    XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES,
     XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
     XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID,
+    XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES,
     XjtuRulLstmBenchmarkResult,
     XjtuRulLstmBenchmarkResultError,
     build_xjtu_rul_lstm_benchmark_result,
@@ -356,8 +358,10 @@ __all__ = [
     "XJTU_REFERENCE_DECISION_RULE_ID",
     "XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS",
     "XJTU_RUL_BASELINE_VALIDATION_RESULT_SCHEMA_ID",
+    "XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES",
     "XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS",
     "XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID",
+    "XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES",
     "XJTU_RUL_LSTM_METHOD_ID",
     "XJTU_RUL_LSTM_SEQUENCE_SPEC",
     "XJTU_RUL_PROTOCOL_ID",
