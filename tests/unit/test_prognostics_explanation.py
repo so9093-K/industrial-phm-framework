@@ -44,6 +44,19 @@ def test_prognostics_context_reports_unvalidated_capabilities_as_unavailable() -
     assert "prognostics-rul-point-estimate" in context.available_capabilities
 
 
+def test_prognostics_context_carries_evaluation_scope_and_warnings() -> None:
+    analysis = load_xjtu_rul_analysis_view(_RUL_RESULT)
+
+    context = build_prognostics_explanation_context(analysis, "Bearing1_2")
+
+    assert context.evaluation_scope == "retrospective-development-validation"
+    assert context.holdout_test_used is False
+    assert context.field_validated is False
+    assert any("recorded-end acquisition interval" in item for item in context.evaluation_warnings)
+    assert any("holdout test is excluded" in item for item in context.evaluation_warnings)
+    assert any("uncertainty intervals" in item for item in context.evaluation_warnings)
+
+
 def test_prognostics_context_keeps_method_comparison_without_a_primary_method() -> None:
     analysis = load_xjtu_rul_analysis_view(_RUL_RESULT)
 
@@ -119,6 +132,10 @@ def test_rendered_prognostics_input_is_deterministic_and_carries_limits() -> Non
     assert evidence["primary_method_id"] is None
     assert evidence["uncertainty_interval_available"] is False
     assert evidence["physical_failure_threshold_validated"] is False
+    assert evidence["evaluation_scope"] == "retrospective-development-validation"
+    assert evidence["holdout_test_used"] is False
+    assert evidence["field_validated"] is False
+    assert evidence["evaluation_warnings"]
 
 
 def test_rendered_prognostics_input_rejects_an_untrimmed_question() -> None:
@@ -183,4 +200,6 @@ def test_prognostics_generator_sends_rul_boundary_instructions(
     assert "physical failure time" in instructions
     assert "failure threshold" in instructions
     assert "primary_method_id is null" in instructions
+    assert "evaluation_scope" in instructions
+    assert "never broaden validation" in instructions
     assert "test-secret" not in body["input"]
