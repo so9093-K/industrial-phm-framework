@@ -11,6 +11,7 @@
 
 ### Added
 
+- XJTU RUL v1 finalization decision. Protocol §8의 frozen equal-bearing validation MAE rule을 그대로 적용해 `xjtu-sy-rul-lstm-fold-1-v1`을 validation-selected candidate로 기록하되 operational primary와 분리하고, 현재 calibration population으로 nominal coverage를 정당화하지 않아 v1 prediction interval/uncertainty calibration을 `unsupported/not validated`로 freeze했습니다. 다음 numerical step은 lifecycle-position diagnostics 후 frozen candidate held-out benchmark입니다.
 - Generative AI explanation의 prognostics evidence scope. Analysis Explorer `AI Explanation` 화면에서
   anomaly evidence와 prognostics evidence 중 설명 대상을 고르며, prognostics context는 validated read model에서
   읽은 method별 recorded estimate와 as-of acquisition, target 의미/unit/formula/clipping 여부, common support,
