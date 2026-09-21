@@ -115,8 +115,7 @@ def score_exceedance_intervals(
     for observation in asset.observations:
         exceeds = observation.score > threshold.value
         contiguous = (
-            not current
-            or observation.acquisition_index == current[-1].acquisition_index + 1
+            not current or observation.acquisition_index == current[-1].acquisition_index + 1
         )
         if exceeds and contiguous:
             current.append(observation)
