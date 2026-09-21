@@ -57,7 +57,9 @@ class RulPredictionSeries:
         observations = tuple(self.observations)
         if not observations:
             raise RulPredictionError("observations must contain at least one RUL prediction")
-        if not all(isinstance(observation, RulPredictionObservation) for observation in observations):
+        if not all(
+            isinstance(observation, RulPredictionObservation) for observation in observations
+        ):
             raise RulPredictionError(
                 "observations must contain only RulPredictionObservation values"
             )
