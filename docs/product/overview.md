@@ -589,12 +589,15 @@ prepared XJTU source
 따라서 첫 vertical slice의 완성 조건인 **분석 실행 → 변화 구간 확인 → evidence 시각화 → AI 설명 →
 분석 과정 확인**은 충족합니다. 이 상태를 유지한 채 새로운 PHM capability를 같은 application에 추가합니다.
 
-현재 다음 제품 확장은 RUL/prognostics입니다.
+현재 RUL/prognostics vertical slice는 development evidence 기준으로 application까지 연결되어 있습니다.
 
-- XJTU run-to-failure data에서 RUL target/split/evaluation semantics를 고정
-- baseline과 sequence-based prognostics를 같은 evidence lifecycle에서 비교
-- estimate와 함께 uncertainty/range를 기록
-- `AnalysisView`와 Analysis Explorer에 RUL을 optional capability로 추가
+- XJTU run-to-failure data의 RUL target/split/evaluation semantics 고정
+- age-only / feature-Ridge / temporal LSTM을 같은 evidence lifecycle에서 비교
+- protocol-fixed lifecycle-position diagnostics 추가
+- validation-selected method와 operational primary method를 분리
+- uncertainty/calibration 근거가 부족한 v1에서는 prediction interval을 explicit unsupported로 유지
+- compatible한 prognostics artifact를 `AnalysisView`와 Analysis Explorer에 attached evidence로 구성
+- frozen held-out benchmark runner/schema/inspection은 구현 완료, 실제 numerical artifact 실행은 prepared source 단계로 남김
 
 ### Capability composition
 
