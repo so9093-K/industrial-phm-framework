@@ -1,5 +1,10 @@
 """User-facing analysis application and read models built from validated PHM evidence."""
 
+from industrial_phm.analysis.compatibility import (
+    AnalysisEvidenceCompatibility,
+    EvidenceRelationship,
+    compare_analysis_evidence,
+)
 from industrial_phm.analysis.intervals import (
     ReviewScoreThreshold,
     ScoreExceedanceInterval,
@@ -20,6 +25,7 @@ from industrial_phm.analysis.run import (
 )
 from industrial_phm.analysis.view import (
     AnalysisAssetEvidence,
+    AnalysisEvidenceIdentity,
     AnalysisObservation,
     AnalysisView,
     AnalysisViewError,
@@ -33,11 +39,14 @@ from industrial_phm.analysis.view import (
 
 __all__ = [
     "AnalysisAssetEvidence",
+    "AnalysisEvidenceCompatibility",
+    "AnalysisEvidenceIdentity",
     "AnalysisObservation",
     "AnalysisRunError",
     "AnalysisView",
     "AnalysisViewError",
     "AnomalyEvidence",
+    "EvidenceRelationship",
     "PrognosticsAssetEvidence",
     "PrognosticsAssetSummary",
     "PrognosticsEvidence",
@@ -47,6 +56,7 @@ __all__ = [
     "ScoreExceedanceInterval",
     "ScoreIntervalError",
     "XjtuLstmAnalysisRun",
+    "compare_analysis_evidence",
     "derive_early_scored_window_review_threshold",
     "load_xjtu_lstm_analysis_view",
     "load_xjtu_rul_analysis_view",
