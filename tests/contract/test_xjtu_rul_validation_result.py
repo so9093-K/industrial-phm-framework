@@ -358,3 +358,22 @@ def test_three_model_result_rejects_mismatched_common_support_count() -> None:
         match="common-support evaluation count",
     ):
         replace(result, common_support_age_evaluation=invalid_evaluation)
+
+
+def test_three_model_result_rejects_common_support_partition_drift() -> None:
+    result = _result()
+    first = result.common_support_feature_evaluation.asset_results[0]
+    invalid_first = replace(first, partition_id="test")
+    invalid_evaluation = replace(
+        result.common_support_feature_evaluation,
+        asset_results=(
+            invalid_first,
+            *result.common_support_feature_evaluation.asset_results[1:],
+        ),
+    )
+
+    with pytest.raises(
+        XjtuRulThreeModelValidationResultError,
+        match="validation partition",
+    ):
+        replace(result, common_support_feature_evaluation=invalid_evaluation)
