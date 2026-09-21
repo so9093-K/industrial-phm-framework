@@ -103,7 +103,7 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 - [연구 문서](docs/research/README.md) — 실험 프로토콜, RUL 연구, 실행 기록
 - [기여 방법](CONTRIBUTING.md) — 개발 환경, 코드 변경, 테스트 방법
 
-변경 이력은 [CHANGELOG](CHANGELOG.md), 테스트 기준은 [Testing Policy](docs/testing-policy.md)를 참조합니다.
+자세한 변경 내용은 [변경 이력](CHANGELOG.md), 테스트 기준은 [테스트 정책](docs/testing-policy.md)을 참조합니다.
 
 ## 라이선스
 
