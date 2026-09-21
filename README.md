@@ -100,9 +100,10 @@ uv sync --locked --group research
 uv run --locked --group research marimo edit apps/analysis_explorer.py
 ```
 
-현재 첫 consumer는 XJTU LSTM retrospective evidence입니다. Acquisition-aligned anomaly-evidence trajectory와
-feature residual을 보여주지만, validated threshold가 기록되지 않았으므로 normal/fault state나 anomaly interval을
-임의로 생성하지 않습니다. 지원 범위와 앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.
+현재 첫 consumer는 XJTU LSTM retrospective evidence입니다. Acquisition-aligned anomaly-evidence trajectory,
+feature residual과 descriptive score-exceedance interval을 보여줍니다. Interval은 earliest-third scored-window
+q95 review threshold를 사용하며 validated normal/fault state나 alarm threshold와 구분합니다. 지원 범위와 앱 책임은
+[`apps/README.md`](apps/README.md)를 따릅니다.
 
 ## CLI and Dataset Acquisition
 
