@@ -70,6 +70,10 @@ from industrial_phm.experiments.xjtu_rul_baseline_result import (
     XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS,
     run_xjtu_rul_baseline_validation,
 )
+from industrial_phm.experiments.xjtu_rul_benchmark_result import (
+    XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
+    run_xjtu_rul_lstm_heldout_benchmark,
+)
 from industrial_phm.experiments.xjtu_rul_validation_result import (
     XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS,
     run_xjtu_rul_three_model_validation,
@@ -412,6 +416,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
     )
     experiment_rul_validation.set_defaults(handler=_run_experiment_rul_validation)
+
+    experiment_rul_benchmark = experiment_commands.add_parser(
+        "rul-benchmark",
+        help="run frozen validation-selected XJTU LSTM on the fold-1 held-out benchmark",
+    )
+    experiment_rul_benchmark.add_argument("dataset_id")
+    experiment_rul_benchmark.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local XJTU-SY source consumed by the Domain Adapter",
+    )
+    experiment_rul_benchmark.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated frozen RUL benchmark result JSON",
+    )
+    experiment_rul_benchmark.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
+    )
+    experiment_rul_benchmark.set_defaults(handler=_run_experiment_rul_benchmark)
 
     experiment_mimii_development = experiment_commands.add_parser(
         "mimii-development",
@@ -1333,6 +1361,79 @@ def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
         f"rmse={temporal.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={temporal_nmae:.6f}"
     )
+    print(f"code_revision: {result.code_revision}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_rul_benchmark(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"RUL held-out benchmark is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        _verify_clean_git_revision(args.code_revision)
+    except ValueError as error:
+        print(f"RUL benchmark revision verification failed: {error}", file=sys.stderr)
+        return 1
+
+    print("execution plan: XJTU RUL frozen held-out benchmark v1")
+    print("scope: xjtu-sy-condition-stratified-5fold-v1 / fold-1 / train -> test")
+    print("selected method: xjtu-sy-rul-lstm-fold-1-v1 / frozen from validation")
+    print("target: recorded-end N-k / acquisition-interval / no clipping")
+    print("sequence: length=8 / right-edge / acquisitions 1-7 have no prediction")
+    print("lifecycle diagnostics: complete-run early/middle/late thirds / equal-bearing mean")
+    print(f"evidence: {XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS}")
+    print("benchmark status: retrospective project-history benchmark; not pristine external")
+    print("uncertainty/calibration: unsupported in RUL v1")
+    print("operational primary method: none")
+    print(f"revision verification: clean tracked checkout @ {args.code_revision}")
+
+    try:
+        result = run_xjtu_rul_lstm_heldout_benchmark(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"RUL held-out benchmark failed: {error}", file=sys.stderr)
+        return 1
+
+    point = result.point_evaluation
+    normalized_mae = point.mean_asset_normalized_mean_absolute_error
+    if normalized_mae is None:
+        print("RUL benchmark result is missing normalized MAE evidence", file=sys.stderr)
+        return 1
+
+    print("pipeline:")
+    print("  source validation / feature extraction / RUL targets: completed")
+    print("  train-only preprocessing / temporal LSTM fit: completed")
+    print("  held-out point prediction: completed")
+    print("  lifecycle-position diagnostics: completed")
+    print(
+        "benchmark: "
+        f"mae={point.mean_asset_mean_absolute_error:.6f} "
+        f"rmse={point.mean_asset_root_mean_squared_error:.6f} "
+        f"signed={point.mean_asset_mean_signed_error:.6f} "
+        f"normalized_mae={normalized_mae:.6f}"
+    )
+    for summary in result.lifecycle_evaluation.position_summaries:
+        print(
+            f"  {summary.position}: "
+            f"mae={summary.mean_asset_mean_absolute_error:.6f} "
+            f"rmse={summary.mean_asset_root_mean_squared_error:.6f} "
+            f"signed={summary.mean_asset_mean_signed_error:.6f} "
+            f"normalized_mae={summary.mean_asset_normalized_mean_absolute_error:.6f}"
+        )
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
