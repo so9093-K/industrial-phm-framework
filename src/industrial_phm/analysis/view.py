@@ -65,7 +65,12 @@ class AnomalyEvidence:
 
 @dataclass(frozen=True, slots=True)
 class PrognosticsAssetEvidence:
-    """Point-error evidence for one asset under one prediction method."""
+    """Point-error evidence for one asset under one prediction method.
+
+    ``last_recorded_*`` fields repeat the final recorded prediction of the validation run.
+    They are read back from the artifact, never recomputed, and describe a retrospective
+    run rather than a live estimate.
+    """
 
     asset_id: str
     prediction_count: int
@@ -73,6 +78,8 @@ class PrognosticsAssetEvidence:
     root_mean_squared_error: float
     mean_signed_error: float
     normalized_mean_absolute_error: float
+    last_recorded_acquisition_index: int
+    last_recorded_remaining_useful_life: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,6 +261,10 @@ def load_xjtu_rul_analysis_view(path: Path) -> AnalysisView:
         cast(str, method["method_id"]): cast(str, method["kind"])
         for method in cast(list[dict[str, object]], document["methods"])
     }
+    last_predictions = {
+        cast(str, method["method_id"]): _last_recorded_predictions(method)
+        for method in cast(list[dict[str, object]], document["methods"])
+    }
 
     methods: list[PrognosticsMethodEvidence] = []
     for method_id in sorted(evaluations):
@@ -275,16 +286,7 @@ def load_xjtu_rul_analysis_view(path: Path) -> AnalysisView:
                     evaluation, "mean_asset_normalized_mean_absolute_error"
                 ),
                 assets=tuple(
-                    PrognosticsAssetEvidence(
-                        asset_id=cast(str, bearing["asset_id"]),
-                        prediction_count=cast(int, bearing["prediction_count"]),
-                        mean_absolute_error=_number(bearing, "mean_absolute_error"),
-                        root_mean_squared_error=_number(bearing, "root_mean_squared_error"),
-                        mean_signed_error=_number(bearing, "mean_signed_error"),
-                        normalized_mean_absolute_error=_number(
-                            bearing, "normalized_mean_absolute_error"
-                        ),
-                    )
+                    _prognostics_asset(bearing, last_predictions[method_id])
                     for bearing in cast(list[dict[str, object]], evaluation["bearings"])
                 ),
             )
@@ -321,3 +323,40 @@ def _inspect(path: Path) -> ExperimentInspection:
 
 def _number(values: dict[str, object], key: str) -> float:
     return float(cast(int | float, values[key]))
+
+
+def _last_recorded_predictions(method: dict[str, object]) -> dict[str, tuple[int, float]]:
+    recorded: dict[str, tuple[int, float]] = {}
+    for trajectory in cast(list[dict[str, object]], method["predictions"]):
+        observations = cast(list[dict[str, object]], trajectory["observations"])
+        if not observations:
+            continue
+        final = max(observations, key=lambda item: cast(int, item["acquisition_index"]))
+        recorded[cast(str, trajectory["asset_id"])] = (
+            cast(int, final["acquisition_index"]),
+            float(cast(int | float, final["predicted_remaining_useful_life"])),
+        )
+    return recorded
+
+
+def _prognostics_asset(
+    bearing: dict[str, object],
+    last_predictions: dict[str, tuple[int, float]],
+) -> PrognosticsAssetEvidence:
+    asset_id = cast(str, bearing["asset_id"])
+    try:
+        acquisition_index, remaining_useful_life = last_predictions[asset_id]
+    except KeyError as error:
+        raise AnalysisViewError(
+            f"evaluated asset {asset_id!r} has no recorded prediction trajectory"
+        ) from error
+    return PrognosticsAssetEvidence(
+        asset_id=asset_id,
+        prediction_count=cast(int, bearing["prediction_count"]),
+        mean_absolute_error=_number(bearing, "mean_absolute_error"),
+        root_mean_squared_error=_number(bearing, "root_mean_squared_error"),
+        mean_signed_error=_number(bearing, "mean_signed_error"),
+        normalized_mean_absolute_error=_number(bearing, "normalized_mean_absolute_error"),
+        last_recorded_acquisition_index=acquisition_index,
+        last_recorded_remaining_useful_life=remaining_useful_life,
+    )
