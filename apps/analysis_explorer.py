@@ -204,12 +204,17 @@ def _(analysis, mo, plt, selected_asset):
 
 
 @app.cell
-def _(analysis, facts_table, mo, stage_by_name):
+def _(analysis, mo):
     stage_selector = mo.ui.dropdown(
         options=[stage.name for stage in analysis.inspection.stages],
         value="Scoring",
         label="Pipeline stage",
     )
+    return (stage_selector,)
+
+
+@app.cell
+def _(analysis, facts_table, mo, stage_by_name, stage_selector):
     selected_stage = stage_by_name[stage_selector.value]
     warning_block = (
         mo.callout(
