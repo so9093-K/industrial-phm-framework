@@ -31,8 +31,8 @@ from industrial_phm.experiments.xjtu_rul_evaluation import (
 from industrial_phm.experiments.xjtu_rul_lstm import (
     XJTU_RUL_LSTM_METHOD_ID,
     XjtuRulLstmFit,
-    get_xjtu_rul_lstm_configuration,
     fit_xjtu_rul_lstm_model,
+    get_xjtu_rul_lstm_configuration,
     predict_xjtu_rul_lstm,
 )
 from industrial_phm.features import iter_vibration_features
@@ -121,7 +121,9 @@ class XjtuRulLstmBenchmarkResult:
                 "selected_features must match the frozen LSTM configuration"
             )
         if self.sequence_length != 8 or self.sequence_stride != 1:
-            raise XjtuRulLstmBenchmarkResultError("sequence contract must remain length 8 / stride 1")
+            raise XjtuRulLstmBenchmarkResultError(
+                "sequence contract must remain length 8 / stride 1"
+            )
         if self.random_seed != 42:
             raise XjtuRulLstmBenchmarkResultError("random_seed must remain 42")
         if not self.deterministic_algorithms:
@@ -136,7 +138,9 @@ class XjtuRulLstmBenchmarkResult:
             )
         for series in predictions:
             if series.partition_id != "test":
-                raise XjtuRulLstmBenchmarkResultError("benchmark predictions must use test partition")
+                raise XjtuRulLstmBenchmarkResultError(
+                    "benchmark predictions must use test partition"
+                )
             if series.prediction_method_id != XJTU_RUL_LSTM_METHOD_ID:
                 raise XjtuRulLstmBenchmarkResultError(
                     "benchmark predictions must use the validation-selected LSTM"
@@ -176,8 +180,16 @@ class XjtuRulLstmBenchmarkResult:
             )
 
         object.__setattr__(self, "selected_features", tuple(self.selected_features))
-        object.__setattr__(self, "fitted_center", tuple(float(value) for value in self.fitted_center))
-        object.__setattr__(self, "fitted_scale", tuple(float(value) for value in self.fitted_scale))
+        object.__setattr__(
+            self,
+            "fitted_center",
+            tuple(float(value) for value in self.fitted_center),
+        )
+        object.__setattr__(
+            self,
+            "fitted_scale",
+            tuple(float(value) for value in self.fitted_scale),
+        )
         object.__setattr__(self, "zero_iqr_features", tuple(self.zero_iqr_features))
         object.__setattr__(self, "model_parameters", tuple(self.model_parameters))
         object.__setattr__(self, "epoch_losses", tuple(float(value) for value in self.epoch_losses))
