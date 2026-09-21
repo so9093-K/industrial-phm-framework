@@ -1,6 +1,7 @@
 # PHM Industry Direction and Research Context (2025–2026)
 
 상태: product/research direction reference  
+외부 출처 재검증: 2026-09-21  
 범위: 공개 연구·표준·산업 사례를 현재 `industrial-phm-framework`의 roadmap 판단에 연결하는 배경 문서
 
 이 문서는 특정 model family를 채택하기 위한 benchmark 문서가 아닙니다. 최근 PHM/Predictive Maintenance의
