@@ -97,9 +97,7 @@ def _partition_assets(fold: XjtuSplitFold, partition: str) -> tuple[str, ...]:
         return fold.validation
     if partition == "test":
         return fold.test
-    raise XjtuRulTargetError(
-        "XJTU RUL partition must be one of 'train', 'validation', or 'test'"
-    )
+    raise XjtuRulTargetError("XJTU RUL partition must be one of 'train', 'validation', or 'test'")
 
 
 def _complete_partition_vectors(
