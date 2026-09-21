@@ -406,9 +406,7 @@ def xjtu_rul_lstm_benchmark_document(result: XjtuRulLstmBenchmarkResult) -> dict
         },
         "capability_scope": {
             "available": list(XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES),
-            "unsupported_or_not_validated": list(
-                XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES
-            ),
+            "unsupported_or_not_validated": list(XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES),
         },
         "interpretation": (
             "Protocol-frozen retrospective benchmark evidence for the validation-selected "
