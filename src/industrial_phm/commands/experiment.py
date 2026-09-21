@@ -852,4 +852,3 @@ def _run_experiment_mimii_external_evaluate(args: argparse.Namespace) -> int:
     print(f"mimii_domain_shift_summary: {result.domain_shift_summary:.6f}")
     print(f"result: {args.output}")
     return 0
-
