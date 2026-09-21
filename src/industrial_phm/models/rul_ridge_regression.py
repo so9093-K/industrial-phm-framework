@@ -56,17 +56,13 @@ class FittedRulRidgeRegressor:
         for field_name in ("experiment_id", "feature_set_id", "sampling_policy_id"):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip() or value != value.strip():
-                raise RulRidgeRegressionError(
-                    f"{field_name} must be a trimmed non-empty string"
-                )
+                raise RulRidgeRegressionError(f"{field_name} must be a trimmed non-empty string")
 
         feature_names = tuple(self.feature_names)
         if not feature_names or len(feature_names) != len(set(feature_names)):
             raise RulRidgeRegressionError("feature_names must contain unique values")
         if any(not name.strip() or name != name.strip() for name in feature_names):
-            raise RulRidgeRegressionError(
-                "feature_names must contain trimmed non-empty strings"
-            )
+            raise RulRidgeRegressionError("feature_names must contain trimmed non-empty strings")
         object.__setattr__(self, "feature_names", feature_names)
 
         for field_name in (
@@ -174,9 +170,7 @@ def _validated_targets(
             raise RulRidgeRegressionError("target_values must contain only numerical values")
         target = float(value)
         if not math.isfinite(target) or target < 0.0:
-            raise RulRidgeRegressionError(
-                "target_values must contain finite non-negative values"
-            )
+            raise RulRidgeRegressionError("target_values must contain finite non-negative values")
         targets.append(target)
 
     result = tuple(targets)
