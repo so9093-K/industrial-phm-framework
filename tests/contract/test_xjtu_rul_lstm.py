@@ -47,8 +47,7 @@ def _vectors(partition: str) -> tuple[VibrationFeatureVector, ...]:
                     asset_id=asset_id,
                     feature_names=_FEATURE_NAMES,
                     values=tuple(
-                        (target_signal / max(float(run_length - 1), 1.0))
-                        + feature_index * 0.001
+                        (target_signal / max(float(run_length - 1), 1.0)) + feature_index * 0.001
                         for feature_index in range(len(_FEATURE_NAMES))
                     ),
                     metadata={
@@ -124,9 +123,7 @@ def test_xjtu_rul_lstm_predicts_right_edge_subset_and_uses_same_evaluator() -> N
     for series in predictions:
         expected_count = get_xjtu_expected_acquisition_count(series.asset_id) - 7
         assert len(series.observations) == expected_count
-        assert series.observations[0].source_observation_id == (
-            f"{series.asset_id}:acquisition-8"
-        )
+        assert series.observations[0].source_observation_id == (f"{series.asset_id}:acquisition-8")
         assert series.observations[-1].source_observation_id == (
             f"{series.asset_id}:acquisition-{get_xjtu_expected_acquisition_count(series.asset_id)}"
         )
