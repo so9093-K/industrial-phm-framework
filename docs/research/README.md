@@ -18,3 +18,4 @@ parameter는 각각 PR과 version-controlled ExperimentConfig가 소유합니다
 - [MIMII DUE Development Evidence Execution Runbook](mimii-due-development-execution-runbook.md)
 - [XJTU-SY RUL / Prognostics Protocol v1](xjtu-rul-prognostics-protocol.md)
 - [XJTU-SY RUL v1 Finalization Decision](xjtu-rul-v1-finalization.md)
+- [XJTU-SY RUL v1 Held-out Benchmark Execution Runbook](xjtu-rul-benchmark-execution-runbook.md)
