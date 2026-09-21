@@ -1,5 +1,6 @@
 from dataclasses import replace
 from functools import cache
+from itertools import pairwise
 
 import pytest
 
@@ -54,6 +55,15 @@ def test_xjtu_rul_targets_preserve_fold_1_population_and_recorded_end_semantics(
     assert all(series.target_definition_id == XJTU_RUL_TARGET_DEFINITION_ID for series in targets)
     assert all(series.unit == XJTU_RUL_TARGET_UNIT for series in targets)
     assert all(series.partition_id == "train" for series in targets)
+
+    for series in targets:
+        run_length = get_xjtu_expected_acquisition_count(series.asset_id)
+        assert series.observations[0].remaining_useful_life == float(run_length - 1)
+        assert series.observations[-1].remaining_useful_life == 0.0
+        assert all(
+            current.remaining_useful_life == previous.remaining_useful_life - 1.0
+            for previous, current in pairwise(series.observations)
+        )
 
     by_asset = {series.asset_id: series for series in targets}
     bearing = by_asset["Bearing1_5"]
