@@ -100,7 +100,9 @@ class FittedRulRidgeRegressor:
                 "model-scoring feature schema does not match the fitted Ridge regressor"
             )
 
-        predictions = tuple(float(value) for value in self._estimator.predict(model_input.feature_rows))
+        predictions = tuple(
+            float(value) for value in self._estimator.predict(model_input.feature_rows)
+        )
         if len(predictions) != model_input.observation_count:
             raise RulRidgeRegressionError(
                 "Ridge prediction count does not match model-scoring input"
