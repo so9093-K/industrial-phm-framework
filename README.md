@@ -9,7 +9,7 @@
 생성형 AI는 PHM 모델의 수치 출력을 대신 계산하지 않고 구조화된 분석 결과와 evidence를 설명하는
 사용자 계층으로 통합합니다.
 
-> 현재 상태: end-to-end analysis application vertical slice / pre-alpha (`0.0.1`)
+> 현재 상태: first end-to-end Analysis Application vertical slice complete / RUL·prognostics current / pre-alpha (`0.0.1`)
 
 ## Product Flow
 
@@ -265,6 +265,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── terminology.md      # 연구·실험·PHM 공통 용어 기준
 │   └── adr/                # Architecture Decision Records
 ├── notebooks/              # EDA·contract 검증·작은 PoC용 exploratory analysis
+├── apps/                   # validated PHM evidence를 소비하는 사용자-facing Analysis Application
 ├── src/industrial_phm/
 │   ├── contracts/          # 도메인 중립 데이터 계약
 │   ├── adapters/           # 설비/데이터셋별 변환 경계
@@ -273,14 +274,16 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── features/           # stateless numerical feature extraction
 │   ├── models/             # model-fitting input과 model implementation
 │   ├── preprocessing/      # train-fitted feature scaling state
-│   └── sequences/          # feature-row window construction과 source lineage
+│   ├── sequences/          # feature-row window construction과 source lineage
+│   ├── analysis/           # source-to-analysis orchestration, read model과 review interval
+│   └── genai/              # structured PHM evidence 기반 생성형 AI 설명 경계
 └── tests/
     ├── unit/
     └── contract/
 ```
 
-필요해지기 전까지 빈 `models/`, `apps/`, `pipelines/` 등의 디렉터리를 미리 만들지 않습니다.
-실제 기능 PR에서 책임과 경계를 검토한 뒤 추가합니다.
+`analysis/`, `genai/`, `apps/`는 실제 consumer가 생긴 기능 PR에서 추가했습니다. 앞으로도 빈 `pipelines/`
+같은 계층을 미리 만들지 않고 실제 반복 책임과 사용자 요구가 확인될 때 경계를 추가합니다.
 
 ## Roadmap
 
@@ -373,25 +376,31 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
   Provenance inspection read model로 해석하는 `experiment inspect` reader
 - MIMII numerical artifact가 packaged dataset manifest의 version/provider/source URL/DOI/license identity를
   `source_scope.dataset_record`에 보존하고 inspection이 같은 manifest와 재대조하는 source-record provenance
+- validated XJTU LSTM evidence를 UI가 raw experiment JSON 없이 소비하는 immutable `AnalysisView` read model
+- 결과 → evidence → pipeline/provenance drill-down으로 구성된 첫 사용자-facing PHM Analysis Explorer
+- bounded structured PHM evidence만 외부 모델에 전달하고 unsupported diagnosis/RUL 등을 생성하지 않는
+  Generative AI 설명과 analysis-scoped Q&A
+- prepared XJTU-SY source에서 기존 frozen LSTM pipeline을 실행하고 생성 artifact를 동일 `AnalysisView`로
+  재검증해 Summary/Evidence/AI Explanation으로 연결하는 source-to-analysis vertical slice
+- earliest-third scored-window q95 descriptive review threshold와 acquisition-contiguous score-exceedance interval을
+  사용해 변화가 집중된 구간을 표시하되 fault/state/alarm 의미로 승격하지 않는 review capability
 
 ### Current
 
-1. end-to-end PHM Analysis Application vertical slice
-   - 기존 validator, Domain Adapter, feature/sequence, model, evidence artifact를 다시 구현하지 않고 사용자 분석 흐름으로 연결
-   - UI가 experiment JSON을 직접 해석하지 않도록 analysis read model과 application use case를 도입
-   - sensor/feature trajectory와 anomaly score를 같은 context에서 시각화하고, 검증된 threshold policy가 있는 경우
-     contiguous anomaly interval과 supporting evidence를 표시
-   - 구조화된 PHM evidence를 입력으로 사용하는 Generative AI 설명과 analysis-scoped Q&A를 첫 제품 흐름에 포함
-   - 기존 `ExperimentInspection`, Developer Workbench와 Maintenance Evidence Review의 transparency/evidence
-     원칙을 상세 drill-down으로 재사용
+1. XJTU run-to-failure source 기반 RUL / Prognostics v1
+   - end-of-life와 RUL target 의미, cycle/acquisition 단위와 leakage boundary를 protocol에서 먼저 고정
+   - 단순 baseline과 sequence-based RUL model을 같은 split/evaluation contract에서 비교
+   - point estimate만이 아니라 prediction range/uncertainty와 evaluation evidence를 함께 기록
+   - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
+   - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
 ### Next
 
-1. XJTU run-to-failure source에서 RUL/prognostics protocol, target construction, baseline/sequence model,
-   evaluation evidence를 구현하고 같은 Analysis Application에 capability로 통합
-2. RUL과 사용자 해석에 실제로 필요한 범위에서 health/degradation representation과 uncertainty를 추가
-3. local/general sensor input, analysis bundle 저장과 사용자 report/export 흐름을 검증
-4. 완성된 analysis flow를 첫 private/field source에 적용해 quality, identity, event/censoring과 source boundary를 검증
+1. RUL 구현에서 실제 필요가 확인된 범위의 health/degradation representation과 uncertainty/calibration 고도화
+2. analysis result 저장 단위를 정리하고 사용자 report/export 흐름 추가
+3. CSV/WAV 등 local/general sensor input을 현재 validation/Adapter 경계에 연결
+4. fault label과 diagnostic semantics가 있는 적합한 source에서 diagnostics capability 검증
+5. 완성된 analysis flow를 첫 private/field source에 적용해 data quality, identity, event/censoring과 source boundary 검증
 
 ### Later
 
