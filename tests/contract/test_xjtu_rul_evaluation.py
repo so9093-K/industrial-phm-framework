@@ -97,9 +97,7 @@ def test_xjtu_rul_evaluator_records_equal_bearing_metrics_and_normalization() ->
         1.0 / (get_xjtu_expected_acquisition_count(asset_id) - 1)
         for asset_id in ("Bearing1_2", "Bearing2_2", "Bearing3_2")
     )
-    assert result.mean_asset_normalized_mean_absolute_error == pytest.approx(
-        expected_normalized
-    )
+    assert result.mean_asset_normalized_mean_absolute_error == pytest.approx(expected_normalized)
 
 
 def test_xjtu_rul_evaluator_accepts_sequence_like_right_edge_subset() -> None:
