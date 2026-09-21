@@ -383,9 +383,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
     )
-    experiment_rul_baseline_validation.set_defaults(
-        handler=_run_experiment_rul_baseline_validation
-    )
+    experiment_rul_baseline_validation.set_defaults(handler=_run_experiment_rul_baseline_validation)
 
     experiment_mimii_development = experiment_commands.add_parser(
         "mimii-development",
@@ -1193,9 +1191,7 @@ def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
         f"validation={result.validation_source_acquisition_count} acquisitions"
     )
     age_normalized_mae = result.age_evaluation.mean_asset_normalized_mean_absolute_error
-    feature_normalized_mae = (
-        result.feature_evaluation.mean_asset_normalized_mean_absolute_error
-    )
+    feature_normalized_mae = result.feature_evaluation.mean_asset_normalized_mean_absolute_error
     if age_normalized_mae is None or feature_normalized_mae is None:
         print("RUL baseline result is missing normalized MAE evidence", file=sys.stderr)
         return 1
