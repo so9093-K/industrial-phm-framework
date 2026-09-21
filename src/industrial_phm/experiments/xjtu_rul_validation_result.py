@@ -130,10 +130,10 @@ class XjtuRulThreeModelValidationResult:
             "temporal_device": "cpu",
             "temporal_numeric_precision": "float32",
         }
-        for field_name, expected in expected_text.items():
-            if getattr(self, field_name) != expected:
+        for field_name, expected_text_value in expected_text.items():
+            if getattr(self, field_name) != expected_text_value:
                 raise XjtuRulThreeModelValidationResultError(
-                    f"{field_name} must equal {expected!r}"
+                    f"{field_name} must equal {expected_text_value!r}"
                 )
 
         expected_int = {
@@ -148,9 +148,11 @@ class XjtuRulThreeModelValidationResult:
             "temporal_batch_size": 64,
             "temporal_epochs": 50,
         }
-        for field_name, expected in expected_int.items():
-            if getattr(self, field_name) != expected:
-                raise XjtuRulThreeModelValidationResultError(f"{field_name} must equal {expected}")
+        for field_name, expected_int_value in expected_int.items():
+            if getattr(self, field_name) != expected_int_value:
+                raise XjtuRulThreeModelValidationResultError(
+                    f"{field_name} must equal {expected_int_value}"
+                )
 
         selected_features = tuple(self.temporal_selected_features)
         fitted_center = tuple(float(value) for value in self.temporal_fitted_center)
