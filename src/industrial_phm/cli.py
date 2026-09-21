@@ -539,4 +539,3 @@ def _run_doctor(args: argparse.Namespace) -> int:
     print(f"data root: {default_data_root()}")
     print(f"registered datasets: {len(list_datasets())}")
     return 0
-
