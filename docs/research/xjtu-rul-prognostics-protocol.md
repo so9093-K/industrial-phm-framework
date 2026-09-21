@@ -196,11 +196,32 @@ v1은 복잡한 temporal model 하나의 성능만 기록하지 않습니다. �
 목적은 센서 evidence 없이 단순히 "시간이 지났기 때문에 RUL이 줄어든다"는 정보가 어느 정도 설명력을 가지는지
 측정하는 것입니다.
 
+v1의 첫 age-only comparator는 numerical validation 결과를 보기 전에 다음과 같이 고정합니다.
+
+```text
+fit:
+  train bearing별 recorded endpoint acquisition N_i
+  -> equal-bearing arithmetic mean N_bar_train
+
+predict at acquisition k:
+  predicted RUL = N_bar_train - k
+```
+
+즉 train bearing의 endpoint distribution에서 **평균 endpoint 하나만 fit**하고 prediction-time에는 현재
+acquisition index `k`만 사용합니다. Operating condition, vibration feature value, target bearing의 endpoint,
+normalized lifecycle fraction과 future acquisition count를 입력으로 사용하지 않습니다. Negative prediction도
+0으로 clamp하지 않고 model bias/error evidence로 그대로 evaluator에 전달합니다.
+
+이 comparator는 높은 성능을 목표로 하는 model이 아니라 이후 sensor-feature/sequence model이 단순 age information
+이상으로 실제 추가 정보를 제공하는지 확인하기 위한 lower-complexity reference입니다.
+
 금지되는 입력:
 
 - target bearing total lifetime
 - normalized lifecycle fraction
 - future acquisition count
+- operating condition
+- vibration feature value
 
 ### B. Acquisition-feature baseline
 
