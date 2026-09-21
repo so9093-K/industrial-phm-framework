@@ -524,8 +524,7 @@ def test_experiment_rul_validation_routes_three_model_evidence(
             ),
             temporal_train_window_count=3_183,
             temporal_predictions=tuple(
-                SimpleNamespace(observations=tuple(range(count)))
-                for count in (154, 790, 1_853)
+                SimpleNamespace(observations=tuple(range(count))) for count in (154, 790, 1_853)
             ),
             temporal_evaluation=temporal,
             code_revision=code_revision,
