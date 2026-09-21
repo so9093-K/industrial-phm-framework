@@ -68,7 +68,7 @@ def test_score_exceedance_intervals_group_contiguous_observations() -> None:
 
 
 def test_score_exceedance_interval_preserves_source_lineage() -> None:
-    asset = _asset((1.0, 2.0, 3.0, 5.0, 6.0, 1.0))
+    asset = _asset((1.0, 2.0, 3.0, 5.0, 6.0, 1.0, 1.0, 1.0, 1.0))
     threshold = derive_early_scored_window_review_threshold(asset, quantile=0.95)
 
     interval = score_exceedance_intervals(asset, threshold)[0]
@@ -81,8 +81,8 @@ def test_score_exceedance_interval_preserves_source_lineage() -> None:
 
 def test_exceeding_scores_with_acquisition_gap_are_separate_intervals() -> None:
     asset = _asset(
-        (1.0, 2.0, 3.0, 5.0, 6.0),
-        positions=(1, 2, 3, 5, 7),
+        (1.0, 2.0, 3.0, 5.0, 6.0, 1.0, 1.0, 1.0, 1.0),
+        positions=(1, 2, 3, 5, 7, 8, 9, 10, 11),
     )
     threshold = derive_early_scored_window_review_threshold(asset, quantile=0.95)
 
