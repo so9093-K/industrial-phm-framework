@@ -66,13 +66,13 @@ from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_developmen
 from industrial_phm.experiments.xjtu_reference_comparison import (
     run_xjtu_fold_1_reference_comparison,
 )
-from industrial_phm.experiments.xjtu_rul_benchmark_result import (
-    XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
-    run_xjtu_rul_lstm_heldout_benchmark,
-)
 from industrial_phm.experiments.xjtu_rul_baseline_result import (
     XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS,
     run_xjtu_rul_baseline_validation,
+)
+from industrial_phm.experiments.xjtu_rul_benchmark_result import (
+    XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
+    run_xjtu_rul_lstm_heldout_benchmark,
 )
 from industrial_phm.experiments.xjtu_rul_validation_result import (
     XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS,
