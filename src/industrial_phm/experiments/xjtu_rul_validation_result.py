@@ -19,6 +19,7 @@ from industrial_phm.experiments.config import ExperimentParameter
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.experiments.xjtu_rul import build_xjtu_recorded_end_rul_targets
 from industrial_phm.experiments.xjtu_rul_age_baseline import (
+    XJTU_AGE_ONLY_RUL_METHOD_ID,
     fit_xjtu_age_only_rul_baseline,
     predict_xjtu_age_only_rul,
 )
@@ -31,6 +32,7 @@ from industrial_phm.experiments.xjtu_rul_evaluation import (
     evaluate_xjtu_rul_point_predictions,
 )
 from industrial_phm.experiments.xjtu_rul_feature_baseline import (
+    XJTU_FEATURE_RIDGE_RUL_METHOD_ID,
     fit_xjtu_feature_rul_baseline,
     predict_xjtu_feature_rul,
 )
@@ -112,6 +114,8 @@ class XjtuRulThreeModelValidationResult:
     temporal_epoch_losses: Sequence[float]
     temporal_predictions: Sequence[RulPredictionSeries]
     temporal_evaluation: RulPointEvaluation
+    common_support_age_evaluation: RulPointEvaluation
+    common_support_feature_evaluation: RulPointEvaluation
 
     def __post_init__(self) -> None:
         if not isinstance(self.baseline_result, XjtuRulBaselineValidationResult):
@@ -222,6 +226,16 @@ class XjtuRulThreeModelValidationResult:
             self.temporal_evaluation,
             baseline_result=self.baseline_result,
         )
+        _validate_common_support_evaluation(
+            self.common_support_age_evaluation,
+            method_id=XJTU_AGE_ONLY_RUL_METHOD_ID,
+            baseline_result=self.baseline_result,
+        )
+        _validate_common_support_evaluation(
+            self.common_support_feature_evaluation,
+            method_id=XJTU_FEATURE_RIDGE_RUL_METHOD_ID,
+            baseline_result=self.baseline_result,
+        )
 
         object.__setattr__(self, "temporal_selected_features", selected_features)
         object.__setattr__(self, "temporal_fitted_center", fitted_center)
@@ -310,12 +324,24 @@ def run_xjtu_rul_three_model_validation(
         temporal_predictions,
         partition="validation",
     )
+    common_support_age_evaluation = evaluate_xjtu_rul_point_predictions(
+        validation_targets,
+        _restrict_predictions_to_temporal_support(age_predictions),
+        partition="validation",
+    )
+    common_support_feature_evaluation = evaluate_xjtu_rul_point_predictions(
+        validation_targets,
+        _restrict_predictions_to_temporal_support(feature_predictions),
+        partition="validation",
+    )
 
     result = build_xjtu_rul_three_model_validation_result(
         baseline_result,
         temporal_fitted,
         temporal_predictions,
         temporal_evaluation,
+        common_support_age_evaluation=common_support_age_evaluation,
+        common_support_feature_evaluation=common_support_feature_evaluation,
     )
     write_xjtu_rul_three_model_validation_result(result, output_path)
     return result
@@ -326,6 +352,9 @@ def build_xjtu_rul_three_model_validation_result(
     temporal_fitted: XjtuRulLstmFit,
     temporal_predictions: Sequence[RulPredictionSeries],
     temporal_evaluation: RulPointEvaluation,
+    *,
+    common_support_age_evaluation: RulPointEvaluation,
+    common_support_feature_evaluation: RulPointEvaluation,
 ) -> XjtuRulThreeModelValidationResult:
     """Build immutable three-model evidence from completed frozen executions."""
     if not isinstance(temporal_fitted, XjtuRulLstmFit):
@@ -368,6 +397,8 @@ def build_xjtu_rul_three_model_validation_result(
         temporal_epoch_losses=tuple(training.epoch_losses),
         temporal_predictions=tuple(temporal_predictions),
         temporal_evaluation=temporal_evaluation,
+        common_support_age_evaluation=common_support_age_evaluation,
+        common_support_feature_evaluation=common_support_feature_evaluation,
     )
 
 
@@ -400,35 +431,67 @@ def xjtu_rul_three_model_validation_document(
     methods = list(cast(list[dict[str, Any]], baseline["methods"]))
     methods.append(_temporal_method_document(result))
 
-    comparison = dict(cast(dict[str, Any], baseline["comparison"]))
-    comparison.update(
-        {
+    baseline_full_run_comparison = dict(
+        cast(dict[str, Any], baseline["comparison"])
+    )
+    common_support_comparison = {
+        "support": {
+            "definition": "temporal-common-support",
+            "first_acquisition": result.temporal_sequence_length,
+            "last_acquisition": "recorded-end-N",
+            "dropped_prefix_per_bearing": result.temporal_sequence_length - 1,
+            "total_prediction_count": sum(
+                item.prediction_count for item in result.temporal_evaluation.asset_results
+            ),
+        },
+        "evaluations": {
+            XJTU_AGE_ONLY_RUL_METHOD_ID: _evaluation_document(
+                result.common_support_age_evaluation
+            ),
+            XJTU_FEATURE_RIDGE_RUL_METHOD_ID: _evaluation_document(
+                result.common_support_feature_evaluation
+            ),
+            XJTU_RUL_LSTM_METHOD_ID: _evaluation_document(result.temporal_evaluation),
+        },
+        "deltas": {
+            "feature_minus_age_mean_asset_mae": (
+                result.common_support_feature_evaluation.mean_asset_mean_absolute_error
+                - result.common_support_age_evaluation.mean_asset_mean_absolute_error
+            ),
             "temporal_minus_age_mean_asset_mae": (
                 result.temporal_evaluation.mean_asset_mean_absolute_error
-                - result.baseline_result.age_evaluation.mean_asset_mean_absolute_error
+                - result.common_support_age_evaluation.mean_asset_mean_absolute_error
             ),
             "temporal_minus_feature_mean_asset_mae": (
                 result.temporal_evaluation.mean_asset_mean_absolute_error
-                - result.baseline_result.feature_evaluation.mean_asset_mean_absolute_error
+                - result.common_support_feature_evaluation.mean_asset_mean_absolute_error
+            ),
+            "feature_minus_age_mean_asset_rmse": (
+                result.common_support_feature_evaluation.mean_asset_root_mean_squared_error
+                - result.common_support_age_evaluation.mean_asset_root_mean_squared_error
             ),
             "temporal_minus_age_mean_asset_rmse": (
                 result.temporal_evaluation.mean_asset_root_mean_squared_error
-                - result.baseline_result.age_evaluation.mean_asset_root_mean_squared_error
+                - result.common_support_age_evaluation.mean_asset_root_mean_squared_error
             ),
             "temporal_minus_feature_mean_asset_rmse": (
                 result.temporal_evaluation.mean_asset_root_mean_squared_error
-                - result.baseline_result.feature_evaluation.mean_asset_root_mean_squared_error
+                - result.common_support_feature_evaluation.mean_asset_root_mean_squared_error
+            ),
+            "feature_minus_age_mean_asset_normalized_mae": (
+                _required_normalized_mae(result.common_support_feature_evaluation)
+                - _required_normalized_mae(result.common_support_age_evaluation)
             ),
             "temporal_minus_age_mean_asset_normalized_mae": (
                 _required_normalized_mae(result.temporal_evaluation)
-                - _required_normalized_mae(result.baseline_result.age_evaluation)
+                - _required_normalized_mae(result.common_support_age_evaluation)
             ),
             "temporal_minus_feature_mean_asset_normalized_mae": (
                 _required_normalized_mae(result.temporal_evaluation)
-                - _required_normalized_mae(result.baseline_result.feature_evaluation)
+                - _required_normalized_mae(result.common_support_feature_evaluation)
             ),
-        }
-    )
+        },
+    }
 
     return {
         "schema_id": XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID,
@@ -436,14 +499,17 @@ def xjtu_rul_three_model_validation_document(
         "source_scope": baseline["source_scope"],
         "target": baseline["target"],
         "methods": methods,
-        "comparison": comparison,
+        "baseline_full_run_comparison": baseline_full_run_comparison,
+        "common_support_comparison": common_support_comparison,
         "capability_scope": baseline["capability_scope"],
         "interpretation": (
             "Protocol-frozen retrospective development evidence on fold-1 validation "
             "bearing runs. It compares age-only, current-acquisition feature Ridge, and "
             "8-acquisition temporal LSTM point estimates with the same recorded-end RUL "
-            "target and bearing-first evaluator. The temporal method begins at acquisition "
-            "8 because earlier rows do not have complete sequence context. Test bearings "
+            "target and bearing-first evaluator. Pairwise method deltas are computed only "
+            "on the shared acquisition-8..N support; full-run age/Ridge comparison remains "
+            "separately recorded. The temporal method begins at acquisition 8 because "
+            "earlier rows do not have complete sequence context. Test bearings "
             "remain excluded, and no uncertainty, physical-failure-threshold, field, or "
             "maintenance-decision validation is claimed."
         ),
@@ -501,6 +567,71 @@ def _temporal_method_document(
         "evaluation": _evaluation_document(result.temporal_evaluation),
         "predictions": _prediction_documents(result.temporal_predictions),
     }
+
+
+def _restrict_predictions_to_temporal_support(
+    predictions: Sequence[RulPredictionSeries],
+) -> tuple[RulPredictionSeries, ...]:
+    result: list[RulPredictionSeries] = []
+    for series in predictions:
+        observations = tuple(
+            observation
+            for observation in series.observations
+            if _acquisition_index(
+                series.asset_id,
+                observation.source_observation_id,
+            )
+            >= 8
+        )
+        result.append(
+            RulPredictionSeries(
+                prediction_method_id=series.prediction_method_id,
+                target_definition_id=series.target_definition_id,
+                unit=series.unit,
+                asset_id=series.asset_id,
+                partition_id=series.partition_id,
+                observations=observations,
+            )
+        )
+    return tuple(result)
+
+
+def _validate_common_support_evaluation(
+    evaluation: RulPointEvaluation,
+    *,
+    method_id: str,
+    baseline_result: XjtuRulBaselineValidationResult,
+) -> None:
+    if not isinstance(evaluation, RulPointEvaluation):
+        raise XjtuRulThreeModelValidationResultError(
+            "common-support evaluation must be a RulPointEvaluation"
+        )
+    if evaluation.prediction_method_id != method_id:
+        raise XjtuRulThreeModelValidationResultError(
+            f"common-support evaluation method must equal {method_id!r}"
+        )
+    if evaluation.target_definition_id != baseline_result.target_definition_id:
+        raise XjtuRulThreeModelValidationResultError(
+            "common-support evaluation target definition must match baseline evidence"
+        )
+    if evaluation.unit != baseline_result.target_unit:
+        raise XjtuRulThreeModelValidationResultError(
+            "common-support evaluation unit must match baseline evidence"
+        )
+    _required_normalized_mae(evaluation)
+
+    expected_assets = tuple(sorted(get_xjtu_reference_split().folds[0].validation))
+    if tuple(item.asset_id for item in evaluation.asset_results) != expected_assets:
+        raise XjtuRulThreeModelValidationResultError(
+            "common-support evaluation bearing population must match fold-1 validation"
+        )
+    for item in evaluation.asset_results:
+        expected_count = get_xjtu_expected_acquisition_count(item.asset_id) - 7
+        if item.prediction_count != expected_count:
+            raise XjtuRulThreeModelValidationResultError(
+                f"common-support evaluation count for {item.asset_id} must equal "
+                f"{expected_count}"
+            )
 
 
 def _validate_temporal_prediction_evaluation(
