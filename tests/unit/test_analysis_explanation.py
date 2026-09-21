@@ -28,7 +28,9 @@ def test_explanation_context_preserves_recorded_capability_boundaries() -> None:
     context = build_analysis_explanation_context(analysis, "Bearing1_2")
 
     assert context.asset_id == "Bearing1_2"
-    assert context.analyzed_window_count == len(analysis.asset("Bearing1_2").observations)
+    assert context.analyzed_window_count == len(
+        analysis.require_anomaly_evidence().asset("Bearing1_2").observations
+    )
     assert len(context.highest_scores) == 5
     assert tuple(item.score for item in context.highest_scores) == tuple(
         sorted((item.score for item in context.highest_scores), reverse=True)

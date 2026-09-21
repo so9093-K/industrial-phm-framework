@@ -86,8 +86,8 @@ def _(get_analysis):
 @app.cell
 def _(analysis, mo):
     asset_selector = mo.ui.dropdown(
-        options=[asset.asset_id for asset in analysis.assets],
-        value=analysis.assets[0].asset_id,
+        options=[asset.asset_id for asset in analysis.require_anomaly_evidence().assets],
+        value=analysis.require_anomaly_evidence().assets[0].asset_id,
         label="Analysis target",
     )
     view_selector = mo.ui.radio(
@@ -121,7 +121,7 @@ def _(
     derive_early_scored_window_review_threshold,
     score_exceedance_intervals,
 ):
-    selected_asset = analysis.asset(asset_selector.value)
+    selected_asset = analysis.require_anomaly_evidence().asset(asset_selector.value)
     review_threshold = derive_early_scored_window_review_threshold(selected_asset)
     review_intervals = score_exceedance_intervals(selected_asset, review_threshold)
     return review_intervals, review_threshold, selected_asset
@@ -399,7 +399,11 @@ def _(
 @app.cell
 def _(analysis, mo, plt, selected_asset):
     residual_pairs = sorted(
-        zip(analysis.feature_names, selected_asset.mean_feature_residuals, strict=True),
+        zip(
+            analysis.require_anomaly_evidence().feature_names,
+            selected_asset.mean_feature_residuals,
+            strict=True,
+        ),
         key=lambda pair: pair[1],
     )
     residual_figure, residual_axis = plt.subplots(figsize=(11, 6))
@@ -548,8 +552,8 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
             warning_block,
             mo.md(
                 f"Evidence class: **{analysis.evidence_class}**  \n"
-                f"Score semantics: **{analysis.score_semantics_id}**  \n"
-                f"Direction: **{analysis.score_direction}**  \n"
+                f"Score semantics: **{analysis.require_anomaly_evidence().score_semantics_id}**  \n"
+                f"Direction: **{analysis.require_anomaly_evidence().score_direction}**  \n"
                 f"Artifact: `{analysis.artifact_path}`"
             ),
         ],

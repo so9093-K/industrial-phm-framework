@@ -17,7 +17,12 @@ from industrial_phm.analysis.view import (
     AnalysisObservation,
     AnalysisView,
     AnalysisViewError,
+    AnomalyEvidence,
+    PrognosticsAssetEvidence,
+    PrognosticsEvidence,
+    PrognosticsMethodEvidence,
     load_xjtu_lstm_analysis_view,
+    load_xjtu_rul_analysis_view,
 )
 
 __all__ = [
@@ -26,12 +31,17 @@ __all__ = [
     "AnalysisRunError",
     "AnalysisView",
     "AnalysisViewError",
+    "AnomalyEvidence",
+    "PrognosticsAssetEvidence",
+    "PrognosticsEvidence",
+    "PrognosticsMethodEvidence",
     "ReviewScoreThreshold",
     "ScoreExceedanceInterval",
     "ScoreIntervalError",
     "XjtuLstmAnalysisRun",
     "derive_early_scored_window_review_threshold",
     "load_xjtu_lstm_analysis_view",
+    "load_xjtu_rul_analysis_view",
     "run_xjtu_lstm_analysis_from_source",
     "score_exceedance_intervals",
 ]
