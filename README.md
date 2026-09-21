@@ -168,6 +168,8 @@ uv run industrial-phm experiment rul-baseline-validation xjtu-sy \
 ```
 
 세 frozen RUL method를 같은 validation evidence에 비교하려면 deep-learning extra를 포함한 새 command를 사용합니다.
+Age-only와 feature-Ridge의 기존 full-run evidence는 그대로 보존하되, temporal-LSTM이 acquisition 8부터만 예측하므로 세 method의 pairwise delta는 동일한 acquisition 8..N common support에서 다시 평가합니다. 서로 다른 observation support의 aggregate metric을 직접 빼지 않습니다.
+
 
 ```bash
 uv run --extra deep-learning industrial-phm experiment rul-validation xjtu-sy \
