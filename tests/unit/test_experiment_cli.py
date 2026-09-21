@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 import industrial_phm.cli as cli
+import industrial_phm.commands.experiment as experiment_commands
 from industrial_phm.experiments.result_inspection import (
     ExperimentInspection,
     ExperimentResultInspectionError,
@@ -22,7 +23,7 @@ def test_experiment_inspect_prints_read_only_summary(
         observed.append(received_result)
         return ExperimentInspection(schema_id="test-result-v1", status="consumed", stages=())
 
-    monkeypatch.setattr(cli, "inspect_experiment_result", fake_inspect)
+    monkeypatch.setattr(experiment_commands, "inspect_experiment_result", fake_inspect)
 
     exit_code = cli.main(["experiment", "inspect", str(result)])
 
@@ -40,7 +41,7 @@ def test_experiment_inspect_reports_invalid_result(
     def fake_inspect(result: Path) -> ExperimentInspection:
         raise ExperimentResultInspectionError(f"unsupported result: {result}")
 
-    monkeypatch.setattr(cli, "inspect_experiment_result", fake_inspect)
+    monkeypatch.setattr(experiment_commands, "inspect_experiment_result", fake_inspect)
 
     exit_code = cli.main(["experiment", "inspect", "unknown.json"])
 
@@ -81,7 +82,7 @@ def test_experiment_validate_routes_to_xjtu_fold_1_workflow(
             selected_experiment_id="selected-candidate-v2",
         )
 
-    monkeypatch.setattr(cli, "run_xjtu_fold_1_validation", fake_validate)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_fold_1_validation", fake_validate)
 
     exit_code = cli.main(
         [
@@ -157,7 +158,7 @@ def test_experiment_validate_forwards_optional_score_trajectory_dir(
             selected_experiment_id="selected-candidate-v2",
         )
 
-    monkeypatch.setattr(cli, "run_xjtu_fold_1_validation", fake_validate)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_fold_1_validation", fake_validate)
 
     exit_code = cli.main(
         [
@@ -221,7 +222,7 @@ def test_experiment_cross_test_shows_effective_plan_and_pipeline_summary(
             code_revision=code_revision,
         )
 
-    monkeypatch.setattr(cli, "run_ims_cross_test_evaluation", fake_cross_test)
+    monkeypatch.setattr(experiment_commands, "run_ims_cross_test_evaluation", fake_cross_test)
 
     exit_code = cli.main(
         [
@@ -308,7 +309,7 @@ def test_experiment_lstm_development_shows_plan_and_routes_execution(
             code_revision=code_revision,
         )
 
-    monkeypatch.setattr(cli, "run_xjtu_lstm_development_evaluation", fake_run)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_lstm_development_evaluation", fake_run)
 
     exit_code = cli.main(
         [
@@ -381,8 +382,8 @@ def test_experiment_rul_baseline_validation_routes_frozen_evidence(
             code_revision=code_revision,
         )
 
-    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
-    monkeypatch.setattr(cli, "run_xjtu_rul_baseline_validation", fake_run)
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_rul_baseline_validation", fake_run)
 
     exit_code = cli.main(
         [
@@ -453,8 +454,8 @@ def test_experiment_rul_baseline_validation_stops_on_revision_drift(
         executed = True
         raise AssertionError("execution must not start when revision verification fails")
 
-    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
-    monkeypatch.setattr(cli, "run_xjtu_rul_baseline_validation", fake_run)
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_rul_baseline_validation", fake_run)
 
     exit_code = cli.main(
         [
@@ -530,8 +531,8 @@ def test_experiment_rul_validation_routes_three_model_evidence(
             code_revision=code_revision,
         )
 
-    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
-    monkeypatch.setattr(cli, "run_xjtu_rul_three_model_validation", fake_run)
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_rul_three_model_validation", fake_run)
 
     exit_code = cli.main(
         [
@@ -609,8 +610,8 @@ def test_experiment_rul_validation_stops_on_revision_drift(
         executed = True
         raise AssertionError("execution must not start when revision verification fails")
 
-    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
-    monkeypatch.setattr(cli, "run_xjtu_rul_three_model_validation", fake_run)
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(experiment_commands, "run_xjtu_rul_three_model_validation", fake_run)
 
     exit_code = cli.main(
         [
@@ -702,8 +703,8 @@ def test_experiment_mimii_development_shows_plan_and_routes_execution(
     def fake_verify(revision_to_verify: str) -> None:
         verified.append(revision_to_verify)
 
-    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
-    monkeypatch.setattr(cli, "run_mimii_development_evaluation", fake_run)
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(experiment_commands, "run_mimii_development_evaluation", fake_run)
 
     exit_code = cli.main(
         [
@@ -763,9 +764,9 @@ def test_verify_clean_git_revision_accepts_matching_clean_checkout(
             return SimpleNamespace(stdout="")
         raise AssertionError(f"unexpected git command: {command}")
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(experiment_commands.subprocess, "run", fake_run)
 
-    cli._verify_clean_git_revision(revision)
+    experiment_commands._verify_clean_git_revision(revision)
 
     assert calls == [
         ("git", "rev-parse", "HEAD"),
@@ -791,10 +792,10 @@ def test_verify_clean_git_revision_rejects_declared_head_mismatch(
             return SimpleNamespace(stdout=observed + "\n")
         return SimpleNamespace(stdout="")
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(experiment_commands.subprocess, "run", fake_run)
 
     with pytest.raises(ValueError, match="does not match current Git HEAD"):
-        cli._verify_clean_git_revision(declared)
+        experiment_commands._verify_clean_git_revision(declared)
 
 
 def test_verify_clean_git_revision_rejects_dirty_tracked_tree(
@@ -814,10 +815,10 @@ def test_verify_clean_git_revision_rejects_dirty_tracked_tree(
             return SimpleNamespace(stdout=revision + "\n")
         return SimpleNamespace(stdout=" M README.md\n")
 
-    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(experiment_commands.subprocess, "run", fake_run)
 
     with pytest.raises(ValueError, match="tracked Git working tree is dirty"):
-        cli._verify_clean_git_revision(revision)
+        experiment_commands._verify_clean_git_revision(revision)
 
 
 def test_experiment_mimii_development_stops_before_execution_on_revision_drift(
@@ -835,8 +836,8 @@ def test_experiment_mimii_development_stops_before_execution_on_revision_drift(
         executed = True
         raise AssertionError("execution must not start when revision verification fails")
 
-    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
-    monkeypatch.setattr(cli, "run_mimii_development_evaluation", fake_run)
+    monkeypatch.setattr(experiment_commands, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(experiment_commands, "run_mimii_development_evaluation", fake_run)
 
     exit_code = cli.main(
         [
