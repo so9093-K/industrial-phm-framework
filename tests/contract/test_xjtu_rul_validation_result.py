@@ -146,6 +146,26 @@ def _result() -> XjtuRulThreeModelValidationResult:
         temporal_predictions,
         partition="validation",
     )
+    common_support_age_predictions = _predictions(
+        XJTU_AGE_ONLY_RUL_METHOD_ID,
+        offset=2.0,
+        first_acquisition=8,
+    )
+    common_support_feature_predictions = _predictions(
+        XJTU_FEATURE_RIDGE_RUL_METHOD_ID,
+        offset=1.0,
+        first_acquisition=8,
+    )
+    common_support_age_evaluation = evaluate_xjtu_rul_point_predictions(
+        _targets(),
+        common_support_age_predictions,
+        partition="validation",
+    )
+    common_support_feature_evaluation = evaluate_xjtu_rul_point_predictions(
+        _targets(),
+        common_support_feature_predictions,
+        partition="validation",
+    )
     return XjtuRulThreeModelValidationResult(
         baseline_result=baseline,
         temporal_experiment_id=XJTU_RUL_LSTM_METHOD_ID,
@@ -199,6 +219,8 @@ def _result() -> XjtuRulThreeModelValidationResult:
         temporal_epoch_losses=tuple(float(50 - index) for index in range(50)),
         temporal_predictions=temporal_predictions,
         temporal_evaluation=temporal_evaluation,
+        common_support_age_evaluation=common_support_age_evaluation,
+        common_support_feature_evaluation=common_support_feature_evaluation,
     )
 
 
@@ -235,10 +257,25 @@ def test_three_model_result_preserves_frozen_methods_and_temporal_prefix(
         observations = cast(list[dict[str, object]], series["observations"])
         assert observations[0]["acquisition_index"] == 8
 
-    comparison = cast(dict[str, object], document["comparison"])
-    assert comparison["feature_minus_age_mean_asset_mae"] == pytest.approx(-1.0)
-    assert comparison["temporal_minus_age_mean_asset_mae"] == pytest.approx(-1.5)
-    assert comparison["temporal_minus_feature_mean_asset_mae"] == pytest.approx(-0.5)
+    baseline_comparison = cast(
+        dict[str, object],
+        document["baseline_full_run_comparison"],
+    )
+    assert baseline_comparison["feature_minus_age_mean_asset_mae"] == pytest.approx(-1.0)
+
+    comparison = cast(dict[str, object], document["common_support_comparison"])
+    support = cast(dict[str, object], comparison["support"])
+    assert support == {
+        "definition": "temporal-common-support",
+        "first_acquisition": 8,
+        "last_acquisition": "recorded-end-N",
+        "dropped_prefix_per_bearing": 7,
+        "total_prediction_count": 2_797,
+    }
+    deltas = cast(dict[str, object], comparison["deltas"])
+    assert deltas["feature_minus_age_mean_asset_mae"] == pytest.approx(-1.0)
+    assert deltas["temporal_minus_age_mean_asset_mae"] == pytest.approx(-1.5)
+    assert deltas["temporal_minus_feature_mean_asset_mae"] == pytest.approx(-0.5)
 
 
 def test_three_model_result_keeps_test_bearings_excluded(tmp_path: Path) -> None:
@@ -306,4 +343,19 @@ def test_three_model_result_rejects_non_finite_training_loss() -> None:
         match="finite and non-negative",
     ):
         replace(result, temporal_epoch_losses=invalid_losses)
+
+def test_three_model_result_rejects_mismatched_common_support_count() -> None:
+    result = _result()
+    first = result.common_support_age_evaluation.asset_results[0]
+    invalid_first = replace(first, prediction_count=first.prediction_count + 1)
+    invalid_evaluation = replace(
+        result.common_support_age_evaluation,
+        asset_results=(invalid_first, *result.common_support_age_evaluation.asset_results[1:]),
+    )
+
+    with pytest.raises(
+        XjtuRulThreeModelValidationResultError,
+        match="common-support evaluation count",
+    ):
+        replace(result, common_support_age_evaluation=invalid_evaluation)
 
