@@ -275,6 +275,7 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 │   ├── models/             # model-fitting input과 model implementation
 │   ├── preprocessing/      # train-fitted feature scaling state
 │   ├── sequences/          # feature-row window construction과 source lineage
+│   ├── prognostics/        # dataset-neutral RUL target/prognostics capability contracts
 │   ├── analysis/           # source-to-analysis orchestration, read model과 review interval
 │   └── genai/              # structured PHM evidence 기반 생성형 AI 설명 경계
 └── tests/
@@ -394,7 +395,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
    - 기존 fold-1 test의 project-history 노출을 명시하고 RUL 결과를 pristine external holdout으로 재포장하지 않음
    - age-only / acquisition-feature baseline과 sequence-based RUL model을 같은 split/evaluation contract에서 비교
    - point estimate와 uncertainty를 분리하고 method/calibration/coverage evidence가 있을 때만 prediction range 제공
-   - 다음 구현은 acquisition-aligned RUL target contract와 XJTU target construction
+   - dataset-neutral `RulTargetObservation` / `RulTargetSeries`와 XJTU fold-1 complete-partition
+     recorded-end target construction으로 acquisition-aligned RUL target 경계를 구현
+   - 다음 구현은 age-only / acquisition-feature baseline과 model-independent RUL evaluator
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
