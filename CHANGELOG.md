@@ -11,6 +11,7 @@
 
 ### Added
 
+- Validated AnalysisView를 deterministic Markdown으로 내보내는 `analysis report` CLI와 report renderer. Anomaly artifact를 primary scope로 사용하고 compatible한 prognostics artifact만 attached evidence로 포함하며, 별도 revision/source-byte-identity 한계와 capability/inspection warning을 report에 보존합니다.
 - Analysis evidence compatibility/provenance contract. AnalysisView가 dataset/split/fold/revision과 train/evaluation population, excluded scope, verified source acquisition count를 artifact에서 보존하고, 서로 다른 anomaly/prognostics artifact는 population scope가 맞을 때만 같은 Explorer surface에서 attached evidence로 표시합니다. Exact source byte identity는 현재 artifact가 기록하지 않으므로 미검증 상태를 명시하며, revision이 달라도 하나의 실행으로 합치지 않습니다.
 - Validation-selected temporal LSTM을 fold-1 held-out bearing에 적용하는 XJTU RUL benchmark result schema/runner/CLI와 execution runbook. Point error와 protocol-fixed early/middle/late lifecycle diagnostics를 기록하고, operational primary와 uncertainty/physical-failure/field/maintenance capability는 승격하지 않습니다.
 - XJTU RUL protocol §9.1 lifecycle-position evaluator. Complete recorded lifecycle을 `early/middle/late` thirds로 고정하고, sequence dropped prefix로 boundary를 다시 나누지 않은 채 bearing별 prediction count·MAE·RMSE·signed error·normalized MAE와 equal-bearing aggregate를 기록할 수 있게 했습니다.
