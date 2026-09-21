@@ -223,9 +223,7 @@ def _evaluate_series(
     *,
     normalization_scale: float | None,
 ) -> RulAssetPointEvaluation:
-    if not isinstance(targets, RulTargetSeries) or not isinstance(
-        predictions, RulPredictionSeries
-    ):
+    if not isinstance(targets, RulTargetSeries) or not isinstance(predictions, RulPredictionSeries):
         raise RulEvaluationError("internal RUL evaluation series types are inconsistent")
 
     target_ids = tuple(observation.source_observation_id for observation in targets.observations)
@@ -246,9 +244,7 @@ def _evaluate_series(
 
     target_positions = tuple(target_index[observation_id] for observation_id in prediction_ids)
     if any(current <= previous for previous, current in pairwise(target_positions)):
-        raise RulEvaluationError(
-            "RUL prediction observations must preserve target lifecycle order"
-        )
+        raise RulEvaluationError("RUL prediction observations must preserve target lifecycle order")
 
     errors = tuple(
         prediction.predicted_remaining_useful_life
