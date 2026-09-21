@@ -9,7 +9,11 @@ from industrial_phm.analysis import (
 )
 
 
-def _asset(scores: tuple[float, ...], *, positions: tuple[int, ...] | None = None) -> AnalysisAssetEvidence:
+def _asset(
+    scores: tuple[float, ...],
+    *,
+    positions: tuple[int, ...] | None = None,
+) -> AnalysisAssetEvidence:
     observed_positions = positions or tuple(range(1, len(scores) + 1))
     observations = tuple(
         AnalysisObservation(
