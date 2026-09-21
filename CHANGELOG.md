@@ -11,6 +11,10 @@
 
 ### Added
 
+- XJTU RUL protocol의 frozen acquisition-feature Ridge comparator. 전체 16개 vibration-statistical feature를
+  complete train partition에서 robust scaling하고 bearing-balanced resampling으로 fit하며, raw `N - k` target을
+  source observation identity로 정렬합니다. Validation/test에서는 동일 preprocessing state와 model을 사용하고
+  output을 clamp하지 않은 채 기존 bearing-first RUL evaluator에 전달합니다.
 - XJTU RUL protocol의 first age-only comparator. Complete train bearing target에서 endpoint를 equal-bearing mean으로
   fit하고 validation/test prediction에는 current acquisition index만 사용합니다. Target bearing endpoint,
   operating condition과 vibration feature value를 prediction input에서 제외하고 negative prediction도 clamp하지
