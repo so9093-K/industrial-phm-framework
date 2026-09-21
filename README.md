@@ -453,12 +453,12 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
    - v1 uncertainty는 독립적인 calibration/coverage 근거가 부족하므로 prediction interval을 만들지 않고 `unsupported/not validated`로 freeze; held-out benchmark는 point prediction evidence만 생성
    - validation-selected temporal LSTM을 fold-1 held-out bearing에 적용하는 `experiment rul-benchmark` runner/result schema와 lifecycle-position evidence contract를 추가; 실제 numerical artifact는 benchmark runbook에 따라 clean main/prepared source에서 생성
    - validated AnalysisView에서 deterministic Markdown report를 생성하는 `analysis report` export 경로를 추가; anomaly artifact가 primary scope를 소유하고 compatible한 prognostics artifact만 attached evidence로 포함
+   - MB 단위 canonical numerical artifact와 human-review summary/report를 분리하는 evidence storage/review policy를 고정하고, `cli.py`의 실행 handler를 data/feature/experiment/analysis command family 모듈로 분리해 parser surface는 유지하면서 구현 책임을 축소
 
 ### Next
 
 1. benchmark runbook에 따라 frozen temporal LSTM candidate의 retrospective held-out numerical artifact 생성·검증
-2. analysis result 저장 단위와 large artifact review 정책 정리
-3. CSV/WAV 등 local/general sensor input을 현재 validation/Adapter 경계에 연결
+2. CSV/WAV 등 local/general sensor input을 현재 validation/Adapter 경계에 연결
 4. fault label과 diagnostic semantics가 있는 적합한 source에서 diagnostics capability 검증
 5. 완성된 analysis flow를 첫 private/field source에 적용해 data quality, identity, event/censoring과 source boundary 검증
 
