@@ -25,6 +25,11 @@ from industrial_phm.models.reconstruction_scoring import (
     ReconstructionScoringError,
     score_reconstructions,
 )
+from industrial_phm.models.rul_ridge_regression import (
+    FittedRulRidgeRegressor,
+    RulRidgeRegressionError,
+    fit_rul_ridge_regression,
+)
 
 __all__ = [
     "MEAN_SQUARED_RECONSTRUCTION_ERROR_ID",
@@ -32,6 +37,7 @@ __all__ = [
     "AnomalyScoresError",
     "FittedIsolationForest",
     "FittedLstmAutoencoder",
+    "FittedRulRidgeRegressor",
     "IsolationForestError",
     "LstmAutoencoderError",
     "LstmAutoencoderTrainingProvenance",
@@ -41,8 +47,10 @@ __all__ = [
     "ModelScoringInputError",
     "ReconstructionScores",
     "ReconstructionScoringError",
+    "RulRidgeRegressionError",
     "SequenceReconstructions",
     "fit_isolation_forest",
     "fit_lstm_autoencoder",
+    "fit_rul_ridge_regression",
     "score_reconstructions",
 ]
