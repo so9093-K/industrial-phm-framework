@@ -1192,19 +1192,25 @@ def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
         f"train={result.train_source_acquisition_count} acquisitions "
         f"validation={result.validation_source_acquisition_count} acquisitions"
     )
+    age_normalized_mae = result.age_evaluation.mean_asset_normalized_mean_absolute_error
+    feature_normalized_mae = (
+        result.feature_evaluation.mean_asset_normalized_mean_absolute_error
+    )
+    if age_normalized_mae is None or feature_normalized_mae is None:
+        print("RUL baseline result is missing normalized MAE evidence", file=sys.stderr)
+        return 1
+
     print(
         "age-only: "
         f"mae={result.age_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.age_evaluation.mean_asset_root_mean_squared_error:.6f} "
-        f"normalized_mae="
-        f"{result.age_evaluation.mean_asset_normalized_mean_absolute_error:.6f}"
+        f"normalized_mae={age_normalized_mae:.6f}"
     )
     print(
         "feature-ridge: "
         f"mae={result.feature_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.feature_evaluation.mean_asset_root_mean_squared_error:.6f} "
-        f"normalized_mae="
-        f"{result.feature_evaluation.mean_asset_normalized_mean_absolute_error:.6f}"
+        f"normalized_mae={feature_normalized_mae:.6f}"
     )
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
