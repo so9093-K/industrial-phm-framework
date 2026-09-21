@@ -178,11 +178,8 @@ def _(analysis, mo, plt, selected_asset):
         reverse=True,
     )[:10]
     top_rows = "\n".join(
-        "| {index} | `{source}` | {score:.6f} |".format(
-            index=observation.acquisition_index,
-            source=observation.source_observation_id,
-            score=observation.score,
-        )
+        f"| {observation.acquisition_index} | "
+        f"`{observation.source_observation_id}` | {observation.score:.6f} |"
         for observation in top_observations
     )
 
