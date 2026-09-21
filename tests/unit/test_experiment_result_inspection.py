@@ -21,6 +21,11 @@ from industrial_phm.experiments.xjtu_lstm_result import (
     XjtuLstmDevelopmentResult,
     write_xjtu_lstm_development_result,
 )
+from industrial_phm.experiments.xjtu_rul import (
+    XJTU_RUL_PROTOCOL_ID,
+    XJTU_RUL_TARGET_DEFINITION_ID,
+    XJTU_RUL_TARGET_UNIT,
+)
 from industrial_phm.experiments.xjtu_rul_benchmark_result import (
     XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES,
     XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
@@ -446,7 +451,7 @@ def _write_rul_benchmark_document(tmp_path: Path) -> Path:
         "schema_id": XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID,
         "provenance": {
             "code_revision": "b" * 40,
-            "protocol_id": "xjtu-sy-rul-prognostics-protocol-v1",
+            "protocol_id": XJTU_RUL_PROTOCOL_ID,
             "dataset_id": "xjtu-sy",
             "split_id": "xjtu-sy-condition-stratified-5fold-v1",
             "fold_id": "fold-1",
@@ -469,8 +474,8 @@ def _write_rul_benchmark_document(tmp_path: Path) -> Path:
             "selection_rule": "fold-1-validation-equal-bearing-mean-mae",
         },
         "target": {
-            "definition_id": "xjtu-sy-recorded-end-rul-v1",
-            "unit": "acquisition-interval",
+            "definition_id": XJTU_RUL_TARGET_DEFINITION_ID,
+            "unit": XJTU_RUL_TARGET_UNIT,
             "endpoint_semantics": "last-recorded-acquisition",
             "formula": "N-k",
             "prediction_alignment": "right-edge-acquisition",
@@ -508,8 +513,8 @@ def _write_rul_benchmark_document(tmp_path: Path) -> Path:
             "point": {
                 "aggregation": "equal-bearing-mean",
                 "prediction_method_id": XJTU_RUL_LSTM_METHOD_ID,
-                "target_definition_id": "xjtu-sy-recorded-end-rul-v1",
-                "unit": "acquisition-interval",
+                "target_definition_id": XJTU_RUL_TARGET_DEFINITION_ID,
+                "unit": XJTU_RUL_TARGET_UNIT,
                 "mean_asset_mean_absolute_error": 2.0,
                 "mean_asset_root_mean_squared_error": 3.0,
                 "mean_asset_mean_signed_error": -2.0,
@@ -524,8 +529,8 @@ def _write_rul_benchmark_document(tmp_path: Path) -> Path:
                     "semantics": "retrospective-evaluation-only",
                 },
                 "prediction_method_id": XJTU_RUL_LSTM_METHOD_ID,
-                "target_definition_id": "xjtu-sy-recorded-end-rul-v1",
-                "unit": "acquisition-interval",
+                "target_definition_id": XJTU_RUL_TARGET_DEFINITION_ID,
+                "unit": XJTU_RUL_TARGET_UNIT,
                 "aggregation": "equal-bearing-mean-within-lifecycle-position",
                 "bearing_positions": lifecycle_rows,
                 "position_summaries": lifecycle_summaries,
@@ -570,7 +575,7 @@ def test_rul_inspection_reports_target_semantics_not_physical_failure() -> None:
     scoring = next(stage for stage in inspection.stages if stage.name == "Scoring")
 
     facts = {fact.label: fact.value for fact in scoring.facts}
-    assert facts["Target unit"] == "acquisition-interval"
+    assert facts["Target unit"] == XJTU_RUL_TARGET_UNIT
     assert facts["Endpoint semantics"] == "last-recorded-acquisition"
     assert any("not a validated physical failure time" in text for text in scoring.warnings)
 
