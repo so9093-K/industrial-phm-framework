@@ -29,8 +29,9 @@ boundary입니다.
 계산을 대신하지 않고, 계산된 분석 결과와 정비 지식을 바탕으로 설명·질의응답·정비 지원을 제공하는 상위
 계층으로 취급합니다.
 
-Isolation Forest와 LSTM Autoencoder는 현재 계획된 reference implementation이며 공통 PHM 코어 자체를
-정의하지 않습니다. 다른 모델도 같은 책임 경계를 지키는 범위에서 교체·추가할 수 있어야 합니다.
+Isolation Forest, LSTM Autoencoder, RUL Ridge와 temporal LSTM은 현재 evidence path에서 사용되는
+reference implementations이며 공통 PHM 코어 자체를 정의하지 않습니다. 새로운 모델도 동일한 contract/evaluation
+경계를 지키고 기존 evidence gap을 실제로 해결하는 경우에 추가합니다.
 
 ## 2. 모델 학습 및 평가
 
