@@ -388,9 +388,13 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
 ### Current
 
 1. XJTU run-to-failure source 기반 RUL / Prognostics v1
-   - end-of-life와 RUL target 의미, cycle/acquisition 단위와 leakage boundary를 protocol에서 먼저 고정
-   - 단순 baseline과 sequence-based RUL model을 같은 split/evaluation contract에서 비교
-   - point estimate만이 아니라 prediction range/uncertainty와 evaluation evidence를 함께 기록
+   - [RUL / Prognostics protocol v1](docs/research/xjtu-rul-prognostics-protocol.md)에서 마지막 recorded acquisition을
+     dataset-observed endpoint로 사용하고 `N - k` acquisition interval target, bearing-run split과 leakage
+     boundary를 고정
+   - 기존 fold-1 test의 project-history 노출을 명시하고 RUL 결과를 pristine external holdout으로 재포장하지 않음
+   - age-only / acquisition-feature baseline과 sequence-based RUL model을 같은 split/evaluation contract에서 비교
+   - point estimate와 uncertainty를 분리하고 method/calibration/coverage evidence가 있을 때만 prediction range 제공
+   - 다음 구현은 acquisition-aligned RUL target contract와 XJTU target construction
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 

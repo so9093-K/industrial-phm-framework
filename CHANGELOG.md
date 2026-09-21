@@ -11,6 +11,10 @@
 
 ### Added
 
+- XJTU-SY RUL / Prognostics numerical implementation 전에 마지막 recorded acquisition을 dataset-observed endpoint로
+  사용하는 `N - k` acquisition-interval target, bearing-run leakage boundary, age/feature/sequence baseline ladder,
+  bearing-first evaluation, uncertainty evidence 요구와 UI/GenAI dependency boundary를 고정한 protocol v1.
+
 - XJTU LSTM anomaly-evidence trajectory의 earliest-third scored-window q95를 descriptive review threshold로 사용해
   threshold 초과 acquisition-contiguous observation을 score-exceedance interval로 표시하는 Analysis Explorer
   기능. 이 interval은 retrospective review aid이며 validated fault/state/alarm semantics를 만들지 않습니다.

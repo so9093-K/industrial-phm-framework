@@ -187,6 +187,28 @@ ISO 13372의 특정 정의를 이 문장으로 대체한다고 주장하지 않�
 미래 상태, failure progression 또는 remaining useful life와 같은 미래 거동을 추정하는 활동입니다. RUL은
 prognostics capability 중 하나이며 데이터와 target contract가 정당하게 지원할 때만 도입합니다.
 
+### Remaining useful life (RUL)
+
+정의된 end-of-life 또는 prognosis endpoint까지 남은 사용량·시간·cycle 등을 추정한 prognostics output입니다.
+RUL 값은 endpoint와 unit이 함께 정의되어야 하며, 단순 anomaly score 또는 lifecycle ordering에서 자동으로
+파생되는 의미가 아닙니다.
+
+### Recorded-end RUL target
+
+완전한 run-to-failure record처럼 마지막 recorded observation이 존재하는 retrospective source에서, 그 recorded
+endpoint까지 남은 interval을 target으로 정의하는 방식입니다. XJTU-SY RUL protocol v1에서는 acquisition index
+`k`, final recorded acquisition `N`에 대해 `N - k` acquisition intervals를 사용합니다.
+
+이 target은 dataset-observed endpoint에 대한 retrospective target이며 validated physical failure threshold,
+field failure definition 또는 maintenance threshold와 동의어가 아닙니다.
+
+### Prediction interval / uncertainty evidence
+
+RUL point estimate 주변의 불확실성을 표현하는 numerical evidence입니다. Range를 표시하려면 사용한 method,
+fit/calibration population, interval level의 의미와 empirical evaluation을 함께 기록합니다. 임의 percentage나
+UI 편의를 위해 만든 범위를 prediction interval로 부르지 않습니다. Calibration 근거가 충분하지 않으면 point
+estimate는 제공하더라도 interval capability는 `unsupported` 또는 `not validated`로 유지할 수 있습니다.
+
 ### Normal-condition reference / reference data
 
 Anomaly 또는 상태 비교의 기준으로 사용하는 train-derived reference population/data입니다. XJTU-SY에 공식
