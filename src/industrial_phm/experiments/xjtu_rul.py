@@ -34,8 +34,7 @@ def build_xjtu_recorded_end_rul_targets(
     partition: _Partition,
 ) -> tuple[RulTargetSeries, ...]:
     """Build complete fold-1 RUL target series aligned to feature observation identities."""
-    fold = _fold_1()
-    expected_assets = _partition_assets(fold, partition)
+    expected_assets = get_xjtu_rul_partition_assets(partition)
     ordered_by_asset = _complete_partition_vectors(
         vectors,
         partition=partition,
@@ -80,6 +79,11 @@ def build_xjtu_recorded_end_rul_targets(
                 )
 
     return tuple(series)
+
+
+def get_xjtu_rul_partition_assets(partition: _Partition) -> tuple[str, ...]:
+    """Return the authoritative fold-1 bearing runs for one RUL partition."""
+    return _partition_assets(_fold_1(), partition)
 
 
 def _fold_1() -> XjtuSplitFold:
