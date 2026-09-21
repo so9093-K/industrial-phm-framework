@@ -107,7 +107,6 @@ def test_xjtu_rul_lstm_configuration_rejects_protocol_axis_drift(
         lambda _: (replace(config, **changes),),
     )
     rul_module.get_xjtu_rul_lstm_configuration.cache_clear()
-
     with pytest.raises(XjtuRulLstmError, match=message):
         rul_module.get_xjtu_rul_lstm_configuration()
 
