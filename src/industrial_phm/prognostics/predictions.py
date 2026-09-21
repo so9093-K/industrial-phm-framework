@@ -77,9 +77,7 @@ class RulPredictionSeries:
             source_observation_ids.append(observation.source_observation_id)
 
         if len(source_observation_ids) != len(set(source_observation_ids)):
-            raise RulPredictionError(
-                "RUL prediction source observation identities must be unique"
-            )
+            raise RulPredictionError("RUL prediction source observation identities must be unique")
 
         object.__setattr__(self, "observations", observations)
 
