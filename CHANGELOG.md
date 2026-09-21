@@ -234,6 +234,7 @@
 
 ### Changed
 
+- Prognostics GenAI context가 retrospective development validation scope, holdout 사용 여부, field validation 여부와 Scoring/Evaluation inspection warnings를 구조화해 전달합니다. 모델 instruction은 이 범위를 넓혀 해석하지 못하도록 명시합니다.
 - Prognostics presentation capability는 `available` 목록에 명시된 경우에만 활성화되는 fail-closed 규칙으로 판정합니다. `target_clipping`/`target_normalization`도 result artifact의 target semantics를 `PrognosticsEvidence`까지 그대로 전달해 summary/GenAI 계층이 같은 사실을 별도로 하드코딩하지 않도록 정리했습니다.
 - 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를
   XJTU run-to-failure 기반 RUL/prognostics v1 통합으로 이동했습니다.
