@@ -177,6 +177,8 @@
 
 ### Changed
 
+- 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를
+  XJTU run-to-failure 기반 RUL/prognostics v1 통합으로 이동했습니다.
 - 프로젝트의 현재 제품 단계를 experiment/dataset 확장 중심에서 end-to-end PHM Analysis Application vertical slice로
   전환했습니다. 기존 analysis/evidence를 사용자 결과·시각화·Generative AI 설명으로 연결하고,
   `ExperimentInspection`은 transparency drill-down으로 재사용하며, RUL/prognostics는 지원 가능한 source에서
