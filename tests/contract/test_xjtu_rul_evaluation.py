@@ -133,8 +133,7 @@ def test_xjtu_rul_lifecycle_diagnostics_use_full_recorded_thirds() -> None:
     )
 
     counts = {
-        (item.asset_id, item.position): item.prediction_count
-        for item in result.asset_results
+        (item.asset_id, item.position): item.prediction_count for item in result.asset_results
     }
     assert counts == {
         ("Bearing1_2", "early"): 47,
