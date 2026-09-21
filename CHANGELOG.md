@@ -231,6 +231,7 @@
 
 ### Changed
 
+- Prognostics presentation capability는 `available` 목록에 명시된 경우에만 활성화되는 fail-closed 규칙으로 판정합니다. `target_clipping`/`target_normalization`도 result artifact의 target semantics를 `PrognosticsEvidence`까지 그대로 전달해 summary/GenAI 계층이 같은 사실을 별도로 하드코딩하지 않도록 정리했습니다.
 - 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를
   XJTU run-to-failure 기반 RUL/prognostics v1 통합으로 이동했습니다.
 - 프로젝트의 현재 제품 단계를 experiment/dataset 확장 중심에서 end-to-end PHM Analysis Application vertical slice로
