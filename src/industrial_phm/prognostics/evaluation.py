@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from statistics import fmean
 
 from industrial_phm.prognostics.predictions import RulPredictionSeries
@@ -244,7 +245,7 @@ def _evaluate_series(
         )
 
     target_positions = tuple(target_index[observation_id] for observation_id in prediction_ids)
-    if any(current <= previous for previous, current in zip(target_positions, target_positions[1:])):
+    if any(current <= previous for previous, current in pairwise(target_positions)):
         raise RulEvaluationError(
             "RUL prediction observations must preserve target lifecycle order"
         )
