@@ -653,10 +653,16 @@ Prognostics context에 담기는 것은 validated read model에서 읽어온 값
 번역, failure threshold·alarm/state·maintenance deadline·confidence interval 생성, 그리고 검증되지 않은 primary
 method 선택. Target에 clipping이 없으므로 음수 추정도 0으로 올리지 않고 기록된 대로 보고하게 합니다.
 
-그 이후에는 report/export, local/general sensor input, 적합한 source의 diagnostics, private/field source와 live
-inference를 같은 완성된 application 안에서 확장합니다. Frontend framework, service API, authentication,
-work-order integration, RAG 같은 기술은 실제 제품 요구가 생길 때 도입하며 현재 vertical slice의 완성을
-선행 조건으로 다시 미루지 않습니다.
+Deterministic report/export는 validated AnalysisView를 그대로 Markdown으로 렌더링하며 수치 재계산을 하지
+않습니다. `industrial-phm analysis report`는 anomaly artifact를 primary scope로 사용하고, 별도 prognostics
+artifact는 dataset/split/fold/population compatibility를 통과한 경우에만 attached evidence로 포함합니다.
+Report에는 timestamp를 넣지 않아 동일 입력에서 byte-stable text를 만들 수 있고, exact source byte identity가
+artifact에 기록되지 않은 현재 한계도 그대로 표시합니다.
+
+그 이후에는 local/general sensor input, 적합한 source의 diagnostics, private/field source와 live inference를
+같은 완성된 application 안에서 확장합니다. Frontend framework, service API, authentication, work-order
+integration, RAG 같은 기술은 실제 제품 요구가 생길 때 도입하며 현재 vertical slice의 완성을 선행 조건으로
+다시 미루지 않습니다.
 
 완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
 사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
