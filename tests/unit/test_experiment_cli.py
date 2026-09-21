@@ -562,12 +562,10 @@ def test_experiment_rul_validation_routes_three_model_evidence(
     assert "temporal_fit=3183 windows temporal_validation_predictions=2797" in captured
     assert "age-only(full-run): mae=100.000000 rmse=120.000000 normalized_mae=0.200000" in captured
     assert (
-        "feature-ridge(full-run): mae=80.000000 rmse=95.000000 normalized_mae=0.160000"
-        in captured
+        "feature-ridge(full-run): mae=80.000000 rmse=95.000000 normalized_mae=0.160000" in captured
     )
     assert (
-        "temporal-lstm(acq8..N): mae=70.000000 rmse=90.000000 normalized_mae=0.140000"
-        in captured
+        "temporal-lstm(acq8..N): mae=70.000000 rmse=90.000000 normalized_mae=0.140000" in captured
     )
     assert f"code_revision: {revision}" in captured
     assert f"result: {output}" in captured
