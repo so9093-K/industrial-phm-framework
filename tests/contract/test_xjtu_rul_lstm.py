@@ -1,6 +1,6 @@
+import math
 from dataclasses import replace
 from functools import cache
-import math
 
 import pytest
 
@@ -8,12 +8,12 @@ pytest.importorskip("torch", reason="install the deep-learning extra")
 
 from industrial_phm.adapters import XJTU_SY_CHANNELS, get_xjtu_expected_acquisition_count
 from industrial_phm.experiments import (
+    XJTU_RUL_LSTM_METHOD_ID,
+    XJTU_RUL_LSTM_SEQUENCE_SPEC,
     FitPartition,
     ModelFamily,
     ReferenceStrategy,
     ScalingStrategy,
-    XJTU_RUL_LSTM_METHOD_ID,
-    XJTU_RUL_LSTM_SEQUENCE_SPEC,
     XjtuRulLstmError,
     build_xjtu_recorded_end_rul_targets,
     evaluate_xjtu_rul_point_predictions,
