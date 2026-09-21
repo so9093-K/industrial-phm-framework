@@ -145,9 +145,7 @@ def load_xjtu_lstm_analysis_view(path: Path) -> AnalysisView:
         score_direction=cast(str, scoring["direction"]),
         feature_names=feature_names,
         available_capabilities=tuple(cast(list[str], capability["available"])),
-        unsupported_capabilities=tuple(
-            cast(list[str], capability["unsupported_or_not_validated"])
-        ),
+        unsupported_capabilities=tuple(cast(list[str], capability["unsupported_or_not_validated"])),
         assets=tuple(assets),
         inspection=inspection,
     )
