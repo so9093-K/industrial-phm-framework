@@ -17,12 +17,8 @@ from industrial_phm.adapters import (
 )
 from industrial_phm.experiments.config import ExperimentParameter
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
-from industrial_phm.experiments.xjtu_rul import (
-    XJTU_RUL_PROTOCOL_ID,
-    build_xjtu_recorded_end_rul_targets,
-)
+from industrial_phm.experiments.xjtu_rul import build_xjtu_recorded_end_rul_targets
 from industrial_phm.experiments.xjtu_rul_age_baseline import (
-    XJTU_AGE_ONLY_RUL_METHOD_ID,
     fit_xjtu_age_only_rul_baseline,
     predict_xjtu_age_only_rul,
 )
@@ -35,7 +31,6 @@ from industrial_phm.experiments.xjtu_rul_evaluation import (
     evaluate_xjtu_rul_point_predictions,
 )
 from industrial_phm.experiments.xjtu_rul_feature_baseline import (
-    XJTU_FEATURE_RIDGE_RUL_METHOD_ID,
     fit_xjtu_feature_rul_baseline,
     predict_xjtu_feature_rul,
 )
