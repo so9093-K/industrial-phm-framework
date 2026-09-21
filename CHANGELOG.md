@@ -11,6 +11,11 @@
 
 ### Added
 
+- 기존 `xjtu-rul-baseline-validation-result-v1`을 변경하지 않고 age-only, feature-Ridge, temporal-LSTM을
+  같은 fold-1 validation target/evaluator에서 비교하는 `xjtu-rul-three-model-validation-result-v1` evidence
+  schema/runner/CLI. Temporal method의 train-only preprocessing, right-edge sequence population, deterministic
+  PyTorch training provenance, acquisition-8..N prediction subset과 pairwise MAE/RMSE/normalized-MAE delta를
+  보존하며 held-out test와 uncertainty/field validation을 결과 범위에서 제외합니다.
 - XJTU RUL protocol의 frozen temporal LSTM comparator. Complete fold-1 train acquisition에서만 robust scaling을
   fit하고 8-acquisition right-edge sequence window를 구성해 raw `N - k` target을 aligned source identity에
   결합합니다. Dataset-neutral supervised LSTM regressor는 deterministic CPU execution과 final-epoch provenance를
