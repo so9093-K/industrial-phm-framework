@@ -209,6 +209,13 @@ from industrial_phm.experiments.xjtu_reference_comparison import (
     select_xjtu_reference_hypothesis,
     write_xjtu_reference_comparison_result,
 )
+from industrial_phm.experiments.xjtu_rul import (
+    XJTU_RUL_PROTOCOL_ID,
+    XJTU_RUL_TARGET_DEFINITION_ID,
+    XJTU_RUL_TARGET_UNIT,
+    XjtuRulTargetError,
+    build_xjtu_recorded_end_rul_targets,
+)
 from industrial_phm.experiments.xjtu_score_trajectory import (
     XJTU_SCORE_TRAJECTORY_SCHEMA_ID,
     XjtuBearingScoreTrajectory,
@@ -281,6 +288,9 @@ __all__ = [
     "XJTU_LSTM_SEQUENCE_SPEC",
     "XJTU_REFERENCE_COMPARISON_SCHEMA_ID",
     "XJTU_REFERENCE_DECISION_RULE_ID",
+    "XJTU_RUL_PROTOCOL_ID",
+    "XJTU_RUL_TARGET_DEFINITION_ID",
+    "XJTU_RUL_TARGET_UNIT",
     "XJTU_SCORE_TRAJECTORY_SCHEMA_ID",
     "BinaryRankingEvaluation",
     "BinaryRankingEvaluationError",
@@ -350,6 +360,7 @@ __all__ = [
     "XjtuReferenceComparisonError",
     "XjtuReferenceComparisonResult",
     "XjtuReferenceHypothesisResult",
+    "XjtuRulTargetError",
     "XjtuScoreObservation",
     "XjtuScoreTrajectoryError",
     "XjtuScoreTrajectoryReport",
@@ -361,6 +372,7 @@ __all__ = [
     "build_mimii_development_result",
     "build_xjtu_candidate_score_trajectory",
     "build_xjtu_lstm_development_result",
+    "build_xjtu_recorded_end_rul_targets",
     "early_third_length",
     "evaluate_binary_anomaly_ranking",
     "evaluate_ims_cross_test",
