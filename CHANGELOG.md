@@ -11,6 +11,9 @@
 
 ### Added
 
+- Analysis Explorer에서 earliest-third recorded scored windows의 q95 descriptive review threshold를 계산하고,
+  threshold를 초과하는 acquisition-contiguous score-exceedance interval을 trajectory와 표에서 확인하는 기능.
+  이 threshold/interval은 retrospective review evidence이며 validated normal/fault state나 alarm을 생성하지 않습니다.
 - Validated XJTU LSTM analysis evidence를 사용자 결과 중심으로 검토하는 첫 PHM Analysis Explorer.
   Acquisition-aligned anomaly-evidence trajectory, high-score observation, feature residual과 capability를 표시하고
   기존 `ExperimentInspection` pipeline/provenance를 Analysis Details drill-down으로 재사용합니다.
