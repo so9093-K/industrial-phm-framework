@@ -36,6 +36,7 @@ def _run_data_list(args: argparse.Namespace) -> int:
         )
     return 0
 
+
 def _run_data_status(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -64,6 +65,7 @@ def _run_data_status(args: argparse.Namespace) -> int:
     print(f"checksum policy: {checksum_policy}")
     return 0
 
+
 def _run_data_fetch(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -88,6 +90,7 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
     if not result.checksum_pinned:
         print("integrity basis: local SHA-256 provenance")
     return 0
+
 
 def _run_data_verify(args: argparse.Namespace) -> int:
     try:
@@ -123,6 +126,7 @@ def _run_data_verify(args: argparse.Namespace) -> int:
     if manifest.sha256 is None:
         print("integrity basis: local SHA-256 provenance; no publisher checksum pinned")
     return 0
+
 
 def _run_data_inspect(args: argparse.Namespace) -> int:
     try:
@@ -181,6 +185,7 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
         )
     return 0
 
+
 def _run_data_validate(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -200,6 +205,7 @@ def _run_data_validate(args: argparse.Namespace) -> int:
         file=sys.stderr,
     )
     return 2
+
 
 def _run_mimii_data_validate(args: argparse.Namespace, title: str) -> int:
     try:
@@ -234,6 +240,7 @@ def _run_mimii_data_validate(args: argparse.Namespace, title: str) -> int:
     print("profile compatibility: PASS")
     return 0
 
+
 def _run_xjtu_data_validate(args: argparse.Namespace, title: str) -> int:
 
     try:
@@ -263,6 +270,7 @@ def _run_xjtu_data_validate(args: argparse.Namespace, title: str) -> int:
 
     print("profile compatibility: PASS")
     return 0
+
 
 def _run_ims_data_validate(args: argparse.Namespace, title: str) -> int:
     try:
