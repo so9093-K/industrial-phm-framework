@@ -11,6 +11,10 @@
 
 ### Added
 
+- XJTU RUL protocol의 first age-only comparator. Complete train bearing target에서 endpoint를 equal-bearing mean으로
+  fit하고 validation/test prediction에는 current acquisition index만 사용합니다. Target bearing endpoint,
+  operating condition과 vibration feature value를 prediction input에서 제외하고 negative prediction도 clamp하지
+  않아 sensor-aware baseline의 실제 추가 가치를 비교할 수 있게 합니다.
 - Dataset-neutral RUL prediction contract와 identity-aligned point evaluator. Sequence model의 dropped prefix를 허용하는
   ordered prediction subset을 target lifecycle에 결합하고 asset별 MAE/RMSE/mean signed error를 먼저 계산한 뒤
   equal-asset 평균으로 집계합니다. XJTU policy edge는 complete recorded-end target을 재검증하고 bearing별
