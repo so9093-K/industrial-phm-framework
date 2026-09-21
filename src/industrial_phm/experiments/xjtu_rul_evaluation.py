@@ -96,9 +96,7 @@ def _validate_target_series(series: RulTargetSeries, *, partition: str) -> None:
         f"{series.asset_id}:acquisition-{acquisition_index}"
         for acquisition_index in range(1, run_length + 1)
     )
-    observed_ids = tuple(
-        observation.source_observation_id for observation in series.observations
-    )
+    observed_ids = tuple(observation.source_observation_id for observation in series.observations)
     if observed_ids != expected_ids:
         raise XjtuRulEvaluationError(
             f"XJTU RUL targets for {series.asset_id} must cover complete ordered acquisition 1.."
