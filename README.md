@@ -401,7 +401,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      bearing-first equal-weight MAE/RMSE/bias와 `N - 1` normalized MAE policy를 적용
    - train bearing endpoint의 equal-bearing mean과 현재 acquisition index만 사용하는 leakage-safe age-only
      baseline을 고정·구현하고 기존 point evaluator에 연결
-   - 다음 구현은 acquisition-feature regression baseline과 age-only 대비 validation comparison
+   - full 16-feature + train-only robust scaling + bearing-balanced resampling + frozen Ridge(alpha=1.0)로
+     acquisition-feature baseline을 구현하고 age-only와 동일 evaluator에서 비교할 수 있게 연결
+   - 다음 구현은 실제 XJTU validation numerical evidence를 artifact로 고정하고 sequence-based RUL model로 확장
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
