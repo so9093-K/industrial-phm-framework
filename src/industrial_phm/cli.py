@@ -10,6 +10,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm import __version__
+from industrial_phm.analysis import (
+    AnalysisReportError,
+    AnalysisViewError,
+    load_xjtu_lstm_analysis_view,
+    load_xjtu_rul_analysis_view,
+    write_analysis_report_markdown,
+)
 from industrial_phm.adapters import (
     ImsBearingSourceError,
     MimiiDueSourceError,
@@ -100,6 +107,40 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subcommands.add_parser("doctor", help="show runtime and data-root information")
     doctor.set_defaults(handler=_run_doctor)
+
+    analysis = subcommands.add_parser(
+        "analysis",
+        help="render and export validated user-facing analysis evidence",
+    )
+    analysis_commands = analysis.add_subparsers(dest="analysis_command", required=True)
+    analysis_report = analysis_commands.add_parser(
+        "report",
+        help="write a deterministic Markdown report from validated analysis artifacts",
+    )
+    analysis_report.add_argument(
+        "--anomaly",
+        type=Path,
+        required=True,
+        help="validated XJTU LSTM anomaly evidence artifact",
+    )
+    analysis_report.add_argument(
+        "--asset",
+        required=True,
+        help="asset identity to render",
+    )
+    analysis_report.add_argument(
+        "--prognostics",
+        type=Path,
+        default=None,
+        help="optional compatible prognostics evidence artifact",
+    )
+    analysis_report.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination Markdown report path",
+    )
+    analysis_report.set_defaults(handler=_run_analysis_report)
 
     data = subcommands.add_parser("data", help="inspect, validate, and acquire registered datasets")
     data_commands = data.add_subparsers(dest="data_command", required=True)
@@ -578,6 +619,32 @@ def _add_data_root_argument(parser: argparse.ArgumentParser) -> None:
         default=default_data_root(),
         help=f"raw data root (default: ${DATA_ROOT_ENV} or data/raw)",
     )
+
+
+def _run_analysis_report(args: argparse.Namespace) -> int:
+    try:
+        analysis = load_xjtu_lstm_analysis_view(args.anomaly)
+        prognostics = (
+            None
+            if args.prognostics is None
+            else load_xjtu_rul_analysis_view(args.prognostics)
+        )
+        write_analysis_report_markdown(
+            analysis,
+            args.asset,
+            args.output,
+            prognostics=prognostics,
+        )
+    except (OSError, AnalysisReportError, AnalysisViewError) as error:
+        print(f"analysis report failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"asset: {args.asset}")
+    print(f"anomaly artifact: {args.anomaly}")
+    if args.prognostics is not None:
+        print(f"attached prognostics artifact: {args.prognostics}")
+    print(f"report: {args.output}")
+    return 0
 
 
 def _run_doctor(args: argparse.Namespace) -> int:
