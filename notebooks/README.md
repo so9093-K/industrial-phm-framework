@@ -171,7 +171,6 @@ time, data quality, state semantics와 deployment provenance를 구분하는 것
 
 ## 현재 Notebook
 
-- `00_xjtu_source_inspection.ipynb`: 초기 XJTU-SY local source 조사와 contract 질문을 남긴 inspection notebook.
 - `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo interface.
 - `02_developer_workbench.py`: XJTU/IMS와 Isolation Forest/LSTM의 validated inspection 및 evidence availability를
   비교하는 low-fidelity Developer Workbench.

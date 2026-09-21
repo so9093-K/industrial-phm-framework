@@ -54,13 +54,16 @@ ground truth가 정의된 경우에만 사용합니다.
 
 ![모델 산출물부터 대시보드와 생성형 AI를 거쳐 사용자에게 전달되는 서비스 아키텍처](../../assets/service-architecture.png)
 
-학습된 모델 산출물은 추론 서비스에서 사용되고, 추론 결과는 결과 API를 통해 대시보드와 생성형 AI 등 상위
-소비자에게 전달됩니다. 현재 도식의 `분석 결과 공유`는 대시보드와 생성형 AI가 동일한 분석 context를 활용할 수
+이 도식의 서비스/추론 계층은 향후 operational deployment에서 필요한 책임 경계를 설명하는 reference이며,
+현재 pre-alpha application이 이미 service API나 live inference runtime을 제공한다는 의미는 아닙니다. 현재
+Analysis Explorer와 report/GenAI 계층은 validated versioned evidence artifact와 `AnalysisView` read model을
+소비합니다. `분석 결과 공유`는 여러 presentation consumer가 같은 validated evidence context를 사용할 수
 있다는 의미이며, 한쪽이 다른 쪽의 필수 선행 계층이라는 의미는 아닙니다.
 
-향후 실제 inference 결과가 두 종류 이상의 모델에서 안정적으로 확인되면 구조화된 `PHMResult` 계약으로 결과
-payload를 명시할 예정입니다. 그 전까지는 문서에서 미래 schema를 확정하거나 그림에 임의 필드를 추가하지
-않습니다.
+Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
+operational output에서 반복되는 공통 payload 요구가 확인되기 전에는 universal `PHMResult`, generic workflow
+engine 또는 결과 registry를 선제적으로 만들지 않습니다. 향후 live inference contract가 필요해지면 experiment
+evidence와 분리된 operational identity/time/data-quality/deployment provenance 요구에서 다시 설계합니다.
 
 생성형 AI는 상태 해석, 가능한 원인 정리, 정비 권고 초안과 보고서 생성을 지원할 수 있지만 PHM 수치를 다시
 계산하는 source of truth가 되지 않습니다. 실제 정비 작업이나 설비 제어로 이어지는 조치는 별도의 사용자 승인
