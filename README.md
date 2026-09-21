@@ -438,8 +438,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      byte-identical임을 확인하고 `docs/research/results/`에 기록
    - prognostics evidence를 공통 `ExperimentInspection` read model로 읽는 reader를 추가해 UI가 raw result
      JSON을 직접 파싱하지 않도록 분리
-   - 다음 구현은 capability composition으로 확장한 `AnalysisView`와 Explorer에 RUL method comparison
-     evidence를 연결
+   - `AnalysisView`를 capability composition으로 확장해 anomaly evidence와 prognostics evidence를 독립
+     capability로 분리하고, 없는 capability는 빈 값으로 채우지 않고 명시적으로 실패하도록 정리
+   - 다음 구현은 Analysis Explorer에 RUL method comparison evidence를 development comparison으로 연결
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 

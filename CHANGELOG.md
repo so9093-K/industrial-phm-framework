@@ -217,6 +217,8 @@
 - XJTU three-model RUL validation result를 공통 `ExperimentInspection` stage vocabulary로 읽는 inspection
   reader.
 
+- `AnalysisView`의 capability composition과 XJTU RUL prognostics evidence read model.
+
 ### Changed
 
 - 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를

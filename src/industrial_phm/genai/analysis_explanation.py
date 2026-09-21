@@ -76,7 +76,8 @@ def build_analysis_explanation_context(
     ):
         raise AnalysisExplanationError("evidence_limit must be a positive integer")
 
-    asset = analysis.asset(asset_id)
+    anomaly = analysis.require_anomaly_evidence()
+    asset = anomaly.asset(asset_id)
     highest_scores = tuple(
         RankedScoreEvidence(
             acquisition_index=observation.acquisition_index,
@@ -92,7 +93,7 @@ def build_analysis_explanation_context(
     top_feature_residuals = tuple(
         RankedFeatureEvidence(feature_name=feature_name, mean_squared_residual=residual)
         for feature_name, residual in sorted(
-            zip(analysis.feature_names, asset.mean_feature_residuals, strict=True),
+            zip(anomaly.feature_names, asset.mean_feature_residuals, strict=True),
             key=lambda pair: pair[1],
             reverse=True,
         )[:evidence_limit]
@@ -101,8 +102,8 @@ def build_analysis_explanation_context(
     return AnalysisExplanationContext(
         asset_id=asset.asset_id,
         evidence_class=analysis.evidence_class,
-        score_semantics_id=analysis.score_semantics_id,
-        score_direction=analysis.score_direction,
+        score_semantics_id=anomaly.score_semantics_id,
+        score_direction=anomaly.score_direction,
         analyzed_window_count=asset.score_window_count,
         acquisition_order_spearman_rho=asset.acquisition_order_spearman_rho,
         late_vs_middle_rank_probability=asset.late_vs_middle_rank_probability,

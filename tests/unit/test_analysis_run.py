@@ -55,7 +55,7 @@ def test_analysis_run_connects_existing_runner_to_validated_view(
     assert result.source == source
     assert result.result_path == output
     assert result.analysis.schema_id == "xjtu-lstm-development-result-v1"
-    assert result.analysis.asset("Bearing1_2").observations
+    assert result.analysis.require_anomaly_evidence().asset("Bearing1_2").observations
 
 
 def test_analysis_run_exposes_execution_failure_as_application_error(

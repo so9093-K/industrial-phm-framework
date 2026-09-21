@@ -594,6 +594,28 @@ prepared XJTU source
 - baseline과 sequence-based prognostics를 같은 evidence lifecycle에서 비교
 - estimate와 함께 uncertainty/range를 기록
 - `AnalysisView`와 Analysis Explorer에 RUL을 optional capability로 추가
+
+### Capability composition
+
+`AnalysisView`는 모든 PHM 값을 하나의 nullable record로 모으지 않습니다. Identity/provenance와 capability
+선언을 공통으로 두고, 실제 evidence는 capability별로 구성합니다.
+
+```text
+AnalysisView
+├ identity / provenance / inspection
+├ available / unsupported capabilities
+├ anomaly_evidence?
+└ prognostics_evidence?
+```
+
+Artifact가 어떤 capability를 담지 않으면 해당 evidence는 **없는 상태로 둡니다.** 빈 값이나 0으로 채우지
+않습니다. Surface가 없는 capability를 요구하면 `require_anomaly_evidence()` /
+`require_prognostics_evidence()`가 명시적으로 실패하므로, 값이 비어 있는 이유가 capability 부재인지 데이터
+부재인지 혼동되지 않습니다.
+
+Prognostics evidence는 `primary_method_id`를 갖지만 method 선택이 검증되기 전까지 `None`으로 유지합니다.
+여러 method를 동시에 보여주는 화면은 **development comparison evidence**이며, 같은 asset에 대한 여러 개의
+답으로 표시하지 않습니다.
 - Generative AI가 RUL 수치와 uncertainty/limitation을 구조화된 evidence로 설명하도록 확장
 
 그 이후에는 report/export, local/general sensor input, 적합한 source의 diagnostics, private/field source와 live
