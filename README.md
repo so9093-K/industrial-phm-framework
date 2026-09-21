@@ -49,7 +49,7 @@ industrial source
 | Acoustic domain-shift evaluation | ✅ Implemented | MIMII DUE development/external evidence |
 | RUL point estimation | 🧪 Development evidence | XJTU age-only / Ridge / temporal LSTM |
 | Frozen RUL held-out execution path | ✅ Implemented | runner, schema, lifecycle diagnostics, inspection runbook |
-| Frozen RUL held-out numerical artifact | ⏳ Pending | prepared XJTU source에서 two-run deterministic execution 필요 |
+| Frozen RUL held-out numerical artifact | ✅ Recorded | two-run deterministic execution, byte-identical canonical benchmark artifact |
 | RUL prediction interval | — Not validated | v1에서 explicit unsupported |
 | Validated physical failure threshold | — Not validated | recorded-end target을 physical failure time으로 승격하지 않음 |
 | Fault diagnosis | — Not validated | fault semantics가 있는 적합한 source 필요 |
@@ -200,7 +200,7 @@ uv run --locked industrial-phm data validate xjtu-sy \
 
 ## RUL / Prognostics v1
 
-현재 XJTU RUL v1은 protocol-frozen development evidence까지 구현되어 있습니다.
+현재 XJTU RUL v1은 protocol-frozen development evidence와 retrospective held-out benchmark evidence까지 기록되어 있습니다.
 
 - target: `N-k`, unit = acquisition interval
 - split: bearing-run boundary
