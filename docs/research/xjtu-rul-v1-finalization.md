@@ -122,3 +122,62 @@ Held-out 실행 전에 protocol §9.1의 lifecycle-position diagnostics를 구�
 
 그 뒤 frozen candidate benchmark runner/result schema를 추가하고 prepared XJTU source가 있는 clean tracked
 checkout에서 numerical artifact를 생성합니다.
+
+## 7. 실행된 held-out benchmark 기록
+
+§6의 implementation이 완료된 뒤 runbook 절차대로 benchmark를 실행했습니다. 이 절은 실행 사실과 기록된
+숫자만 남기며, 결과를 본 뒤 새로운 판정 기준이나 threshold를 만들지 않습니다.
+
+```text
+execution revision : 2ae41acc16c45bf922f3b6ad8a228103d16d0982
+prepared source    : 3 conditions / 15 bearing runs / 9,216 acquisitions (profile PASS)
+run 1 / run 2      : byte-identical
+sha256             : 874860c9a959e62311e959dc4609b022058cfb75ca4f107cf901d43b641b0fbf
+artifact           : docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json
+```
+
+Equal-bearing mean point evidence (acquisition interval 단위, 3,131 predictions):
+
+| metric | value |
+| --- | ---: |
+| mean asset MAE | 458.251 |
+| mean asset RMSE | 541.233 |
+| mean asset signed error | -445.204 |
+| mean asset normalized MAE | 0.3313 |
+
+Bearing별 기록:
+
+| bearing | predictions | MAE | RMSE | signed | normalized MAE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Bearing1_1 | 116 | 21.927 | 26.960 | 0.872 | 0.1797 |
+| Bearing2_1 | 484 | 170.636 | 209.261 | -156.695 | 0.3482 |
+| Bearing3_1 | 2,531 | 1,182.190 | 1,387.477 | -1,179.790 | 0.4660 |
+
+Lifecycle-position diagnostic (evaluation-only, equal-bearing mean):
+
+| position | predictions | MAE | normalized MAE |
+| --- | ---: | ---: | ---: |
+| early | 1,030 | 790.831 | 0.5585 |
+| middle | 1,051 | 455.316 | 0.3289 |
+| late | 1,050 | 133.096 | 0.1139 |
+
+기록된 관찰:
+
+- Absolute error는 recorded run length와 같은 방향으로 커졌습니다. 가장 짧은 Bearing1_1의 MAE가 가장
+  작고 가장 긴 Bearing3_1이 가장 큽니다. Normalized MAE에서도 같은 순서가 유지되므로 run length로
+  normalize해도 순서가 뒤집히지 않았습니다. 이 관찰은 원인 설명이 아니며, 3개 bearing으로 run length
+  효과와 operating condition 효과를 분리할 수 없습니다.
+- Signed error는 Bearing2_1과 Bearing3_1에서 크게 음수입니다. 기록된 잔여 수명을 과소추정한 방향입니다.
+  Bearing1_1의 signed error는 +0.872로 거의 0입니다.
+- Lifecycle position별 error는 early에서 late로 단조 감소했습니다. Lifecycle thirds는 complete recorded
+  lifecycle 기준의 retrospective evaluation-only diagnostic이며 degradation-onset label이 아닙니다.
+
+한계:
+
+- 이 bearing들은 project history의 anomaly/robustness 연구에 이미 노출된 적이 있으므로 pristine external
+  holdout이나 independent external validation이 아닙니다.
+- `operational_primary_method_id`는 `null`로 유지됩니다.
+- prediction interval, uncertainty calibration, validated physical failure threshold, field RUL validation,
+  maintenance decision recommendation은 모두 unsupported입니다.
+- Protocol §8에 따라 이 결과를 본 뒤 RUL v1의 target, split, feature schema, sequence, LSTM configuration,
+  lifecycle boundary, primary metric, selection rule, uncertainty policy를 변경하지 않습니다.

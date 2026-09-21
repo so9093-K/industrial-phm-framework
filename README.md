@@ -6,7 +6,7 @@
 이상 변화와 RUL/prognostics 결과를 사용자 화면·report·생성형 AI 설명까지 연결하는 Python 기반 프레임워크입니다.
 
 > **Status:** pre-alpha `0.0.1` · first end-to-end Analysis Application vertical slice complete ·
-> XJTU RUL/prognostics v1 numerical held-out benchmark execution pending
+> XJTU RUL/prognostics v1 held-out benchmark executed and recorded as retrospective benchmark evidence
 
 이 프로젝트는 **데이터와 검증된 evidence가 지원하지 않는 capability를 주장하지 않습니다.**
 LLM도 PHM 수치를 다시 계산하지 않고, numerical core가 만든 구조화된 evidence와 limitation만 설명합니다.
@@ -211,7 +211,9 @@ uv run --locked industrial-phm data validate xjtu-sy \
 - lifecycle diagnostics: early / middle / late thirds
 - uncertainty interval: unsupported / not validated
 - frozen held-out runner + result schema + inspection: implemented
-- actual held-out numerical artifact: pending prepared-source execution
+- held-out numerical artifact: [`xjtu-sy-rul-lstm-fold-1-benchmark-v1.json`](docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json)
+  (equal-bearing mean MAE 458.251 acquisition intervals, normalized MAE 0.3313, 3,131 predictions over
+  Bearing1_1 / Bearing2_1 / Bearing3_1)
 
 Held-out 실행 절차는
 [`docs/research/xjtu-rul-benchmark-execution-runbook.md`](docs/research/xjtu-rul-benchmark-execution-runbook.md),
@@ -275,15 +277,13 @@ CPython 3.14 free-threaded build와 다른 Python minor version은 현재 검증
 
 **Now**
 
-1. Prepared XJTU source에서 frozen temporal LSTM held-out benchmark를 two-run deterministic procedure로 실행·검증
-2. Canonical benchmark artifact를 versioned evidence로 승격하고 RUL v1 epic 마감
+1. CSV/WAV 등 local/general sensor input을 validation/Adapter boundary에 연결
+2. 첫 private/field source에서 identity, data quality, event/censoring, provenance를 검증
 
 **Next**
 
-1. CSV/WAV 등 local/general sensor input을 validation/Adapter boundary에 연결
-2. 첫 private/field source에서 identity, data quality, event/censoring, provenance를 검증
-3. fault semantics가 있는 source에서 diagnostics capability 검증
-4. field evidence가 확보되면 uncertainty/calibration과 operational/live inference contract 확장
+1. fault semantics가 있는 source에서 diagnostics capability 검증
+2. field evidence가 확보되면 uncertainty/calibration과 operational/live inference contract 확장
 
 **Later, when evidence warrants it**
 

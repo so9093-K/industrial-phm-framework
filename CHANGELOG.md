@@ -11,6 +11,19 @@
 
 ### Added
 
+- XJTU-SY RUL v1 held-out benchmark의 실제 numerical artifact
+  `docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json`. Prepared local source(3 conditions /
+  15 bearing runs / 9,216 acquisitions, profile PASS)에서 clean tracked revision
+  `2ae41acc16c45bf922f3b6ad8a228103d16d0982`로 runbook 절차를 실행했고, 독립 실행 두 개가 byte-identical
+  (SHA-256 `874860c9a959e62311e959dc4609b022058cfb75ca4f107cf901d43b641b0fbf`)이며 두 artifact 모두 shared
+  inspection read model을 통과했습니다. Validation-selected temporal LSTM을 fold-1 held-out
+  Bearing1_1 / Bearing2_1 / Bearing3_1에 적용해 3,131개 prediction에서 equal-bearing mean MAE 458.251
+  acquisition interval, normalized MAE 0.3313을 기록했습니다. Lifecycle-position diagnostic은 early 790.831 →
+  middle 455.316 → late 133.096으로 감소합니다. 이 bearing들은 project history의 anomaly/robustness 연구에
+  노출된 적이 있어 pristine external holdout이 아니며, `operational_primary_method_id`는 `null`로 유지되고
+  prediction interval / uncertainty calibration / validated physical failure threshold / field RUL validation /
+  maintenance decision recommendation은 모두 unsupported입니다.
+
 - Frozen XJTU RUL held-out benchmark result를 기존 `ExperimentInspection` stage vocabulary로 검증·요약하는 reader. Validation-selected LSTM identity, null operational primary, test-bearing population, point/lifecycle aggregate, capability boundary와 retrospective benchmark limitation을 확인하며 aggregate/capability drift를 거부합니다.
 - Validated AnalysisView를 deterministic Markdown으로 내보내는 `analysis report` CLI와 report renderer. Anomaly artifact를 primary scope로 사용하고 compatible한 prognostics artifact만 attached evidence로 포함하며, 별도 revision/source-byte-identity 한계와 capability/inspection warning을 report에 보존합니다.
 - Analysis evidence compatibility/provenance contract. AnalysisView가 dataset/split/fold/revision과 train/evaluation population, excluded scope, verified source acquisition count를 artifact에서 보존하고, 서로 다른 anomaly/prognostics artifact는 population scope가 맞을 때만 같은 Explorer surface에서 attached evidence로 표시합니다. Exact source byte identity는 현재 artifact가 기록하지 않으므로 미검증 상태를 명시하며, revision이 달라도 하나의 실행으로 합치지 않습니다.
