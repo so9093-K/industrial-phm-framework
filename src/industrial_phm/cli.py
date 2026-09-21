@@ -1225,13 +1225,13 @@ def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
         return 1
 
     print(
-        "age-only(full-run): "
+        "age-only: "
         f"mae={result.age_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.age_evaluation.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={age_normalized_mae:.6f}"
     )
     print(
-        "feature-ridge(full-run): "
+        "feature-ridge: "
         f"mae={result.feature_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.feature_evaluation.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={feature_normalized_mae:.6f}"
@@ -1316,13 +1316,13 @@ def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
         f"{sum(len(series.observations) for series in result.temporal_predictions)}"
     )
     print(
-        "age-only: "
+        "age-only(full-run): "
         f"mae={age.mean_asset_mean_absolute_error:.6f} "
         f"rmse={age.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={age_nmae:.6f}"
     )
     print(
-        "feature-ridge: "
+        "feature-ridge(full-run): "
         f"mae={feature.mean_asset_mean_absolute_error:.6f} "
         f"rmse={feature.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={feature_nmae:.6f}"
