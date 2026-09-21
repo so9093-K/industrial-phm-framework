@@ -250,6 +250,7 @@
 
 ### Changed
 
+- Root README를 197-line minimal landing page로 다시 압축했습니다. Capability, architecture, quickstart, evidence/limits, roadmap과 핵심 docs만 남기고 중복된 RUL 상세·research direction·repository layout 설명을 authoritative 문서로 이동했습니다.
 - Root README를 experiment history 중심 문서에서 capability/status, quickstart, evidence boundary와 roadmap 중심의 product landing page로 재구성했습니다. 2025–2026 PHM의 uncertainty·robustness·domain shift·human-in-the-loop·LLM copilot·industrial integration 흐름과 관련 표준/산업 사례는 별도 research note로 분리했습니다.
 - CLI implementation handler를 `commands/data.py`, `commands/feature.py`, `commands/experiment.py`, `commands/analysis.py`로 분리했습니다. Public command/parser surface는 유지하고 `cli.py`는 parser wiring과 entrypoint 중심으로 축소했습니다. Evidence artifact는 canonical machine evidence와 deterministic human-review representation을 분리하는 저장·리뷰 정책을 추가했습니다.
 - Prognostics GenAI context가 retrospective development validation scope, holdout 사용 여부, field validation 여부와 Scoring/Evaluation inspection warnings를 구조화해 전달합니다. 모델 instruction은 이 범위를 넓혀 해석하지 못하도록 명시합니다.
