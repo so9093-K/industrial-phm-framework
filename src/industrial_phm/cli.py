@@ -37,11 +37,13 @@ from industrial_phm.data.registry import list_datasets
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
 
+
 def default_data_root() -> Path:
     """Return the explicit environment override or repository-local raw-data default."""
 
     configured = os.environ.get(DATA_ROOT_ENV)
     return Path(configured) if configured else Path("data/raw")
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the stable CLI surface for currently implemented features."""
@@ -512,6 +514,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
@@ -520,6 +523,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     handler = args.handler
     return int(handler(args))
 
+
 def _add_data_root_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--root",
@@ -527,6 +531,7 @@ def _add_data_root_argument(parser: argparse.ArgumentParser) -> None:
         default=default_data_root(),
         help=f"raw data root (default: ${DATA_ROOT_ENV} or data/raw)",
     )
+
 
 def _run_doctor(args: argparse.Namespace) -> int:
     del args
