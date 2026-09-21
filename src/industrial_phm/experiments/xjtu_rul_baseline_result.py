@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from industrial_phm.adapters import XjtuSyAdapter, validate_xjtu_source
+from industrial_phm.adapters import (
+    XjtuSyAdapter,
+    get_xjtu_expected_acquisition_count,
+    validate_xjtu_source,
+)
 from industrial_phm.experiments.config import ExperimentParameter
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.experiments.xjtu_rul import (
@@ -319,7 +323,7 @@ def build_xjtu_rul_baseline_validation_result(
         target_unit=XJTU_RUL_TARGET_UNIT,
         train_source_acquisition_count=state.observation_count,
         validation_source_acquisition_count=sum(
-            series.observation_count for series in feature_predictions
+            len(series.observations) for series in feature_predictions
         ),
         age_train_asset_ids=tuple(age_fitted.train_asset_ids),
         age_train_endpoint_acquisitions=tuple(age_fitted.train_endpoint_acquisitions),
@@ -556,9 +560,23 @@ def _validate_prediction_evaluation_pair(
             "evaluation bearing population must match fold-1 validation"
         )
     for series in prediction_series:
-        if len(series.observations) <= 0:
+        expected_count = get_xjtu_expected_acquisition_count(series.asset_id)
+        if len(series.observations) != expected_count:
             raise XjtuRulBaselineValidationResultError(
-                "validation prediction series must not be empty"
+                f"validation predictions for {series.asset_id} must contain "
+                f"{expected_count} acquisitions"
+            )
+        expected_ids = tuple(
+            f"{series.asset_id}:acquisition-{index}"
+            for index in range(1, expected_count + 1)
+        )
+        observed_ids = tuple(
+            observation.source_observation_id for observation in series.observations
+        )
+        if observed_ids != expected_ids:
+            raise XjtuRulBaselineValidationResultError(
+                f"validation predictions for {series.asset_id} must preserve "
+                "complete acquisition order"
             )
 
 
