@@ -102,7 +102,11 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 
 현재 첫 consumer는 XJTU LSTM retrospective evidence입니다. Acquisition-aligned anomaly-evidence trajectory와
 feature residual을 보여주지만, validated threshold가 기록되지 않았으므로 normal/fault state나 anomaly interval을
-임의로 생성하지 않습니다. 지원 범위와 앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.
+임의로 생성하지 않습니다.
+
+생성형 AI 설명/Q&A는 optional이며 `OPENAI_API_KEY`와 `INDUSTRIAL_PHM_GENAI_MODEL`을 실행 환경에 제공했을 때만
+활성화됩니다. LLM은 raw sensor를 다시 분석하지 않고 bounded structured PHM evidence를 설명합니다. 지원 범위와
+앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.
 
 ## CLI and Dataset Acquisition
 
