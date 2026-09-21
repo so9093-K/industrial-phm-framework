@@ -59,3 +59,23 @@ Dashboard framework는 결과 계약과 service boundary가 안정된 이후 선
 테스트는 public behavior, explicit contract 또는 known regression을 보호해야 합니다. coverage 수치만 높이거나
 private implementation detail을 고정하는 테스트, production validation을 재구현하는 테스트를 만들지 않습니다.
 대형 외부 데이터와 network 검증은 기본 unit/contract suite와 분리합니다.
+
+## 12. Capability growth preserves dependency direction
+
+Anomaly, Prognostics/RUL, Diagnostics처럼 새로운 PHM capability가 추가되어도 numerical 계산의 책임을
+presentation 계층으로 올리지 않습니다.
+
+```text
+numerical capability
+  -> validated evidence artifact
+  -> analysis read model
+  -> UI / GenAI / report
+```
+
+UI, 생성형 AI와 report는 artifact에 없는 수치나 capability를 재계산·보정·추정하지 않습니다. 새 capability는
+먼저 자신의 numerical/evaluation/evidence 의미를 명시하고 Analysis 계층에서 조합합니다.
+
+두 번째 구현이 생겼다는 이유만으로 universal result schema, generic workflow engine 또는 모든 PHM 기능을
+포괄하는 base abstraction을 만들지 않습니다. 두 개 이상의 실제 consumer에서 같은 책임과 변경 이유가
+반복될 때만 작은 공통 contract로 승격합니다. Core package는 `apps`나 특정 presentation framework에
+의존하지 않으며 optional consumer가 numerical core의 import/runtime requirement를 역전시키지 않게 합니다.
