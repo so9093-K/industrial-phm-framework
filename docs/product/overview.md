@@ -465,10 +465,11 @@ Provenance
 Generative AI explanation context
 ```
 
-RUL/prognostics가 구현되면 같은 read model에 지원 가능한 capability로 추가합니다. 해당 source나 model이 RUL을
-지원하지 않으면 임의 값을 만들지 않고 unavailable로 유지합니다. 이 경계의 목적은 experiment artifact의 내부
-schema를 UI가 직접 해석하게 만들지 않으면서도, field source나 live inference가 오기 전부터 완결된 분석 경험을
-제공하는 것입니다.
+RUL/prognostics는 현재 같은 read model의 optional capability로 구현되어 있습니다. Compatible한
+prognostics artifact가 있을 때만 attached evidence로 구성하고, 해당 source나 artifact가 RUL을 지원하지 않으면
+임의 값을 만들지 않고 unavailable로 유지합니다. 이 경계의 목적은 experiment artifact의 내부 schema를 UI가
+직접 해석하게 만들지 않으면서도, field source나 live inference가 오기 전부터 완결된 분석 경험을 제공하는
+것입니다.
 
 Operational schema의 이름과 구체적인 public type은 아직 고정하지 않습니다. 첫 실제 inference workflow 또는
 private/field source에서 identity, time, data quality, threshold/state semantics와 deployment provenance가 실제로
