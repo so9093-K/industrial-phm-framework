@@ -9,6 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from industrial_phm.analysis import AnalysisView
+from industrial_phm.experiments import InspectionStage
 
 _OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses"
 _EXPLANATION_INSTRUCTIONS = (
@@ -211,7 +212,7 @@ def _response_output_text(document: object) -> str:
     return "\n".join(texts)
 
 
-def _stage_facts(stage: object) -> tuple[tuple[str, str], ...]:
+def _stage_facts(stage: InspectionStage) -> tuple[tuple[str, str], ...]:
     facts = getattr(stage, "facts", ())
     return tuple((str(fact.label), str(fact.value)) for fact in facts)
 
