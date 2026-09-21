@@ -529,9 +529,9 @@ __all__ = [
     "write_xjtu_reference_comparison_result",
     "write_xjtu_rul_baseline_validation_result",
     "write_xjtu_rul_three_model_validation_result",
-    "xjtu_rul_three_model_validation_document",
     "write_xjtu_score_trajectory_artifacts",
     "write_xjtu_score_trajectory_summary",
     "write_xjtu_score_trajectory_table",
     "xjtu_experiment_context",
+    "xjtu_rul_three_model_validation_document",
 ]
