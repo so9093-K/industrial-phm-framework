@@ -533,9 +533,7 @@ def _write_rul_benchmark_document(tmp_path: Path) -> Path:
         },
         "capability_scope": {
             "available": list(XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES),
-            "unsupported_or_not_validated": list(
-                XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES
-            ),
+            "unsupported_or_not_validated": list(XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES),
         },
         "interpretation": "protocol-frozen retrospective benchmark evidence",
     }
