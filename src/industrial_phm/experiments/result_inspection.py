@@ -751,9 +751,13 @@ def _inspect_xjtu_rul_lstm_benchmark(
         "source_scope",
     )
     expected_train = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.train)
-    expected_benchmark = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.test)
+    expected_benchmark = sum(
+        get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.test
+    )
     all_bearings = (*fold.train, *fold.validation, *fold.test)
-    expected_source = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in all_bearings)
+    expected_source = sum(
+        get_xjtu_expected_acquisition_count(asset_id) for asset_id in all_bearings
+    )
     _expect_equal(train_acquisitions, expected_train, "source_scope.train_source_acquisition_count")
     _expect_equal(
         benchmark_acquisitions,
@@ -1003,7 +1007,11 @@ def _inspect_xjtu_rul_lstm_benchmark(
                     InspectionFact(
                         "Benchmark predictions",
                         sum(
-                            _positive_int(row, "prediction_count", "evaluation.point.bearings entry")
+                            _positive_int(
+                                row,
+                                "prediction_count",
+                                "evaluation.point.bearings entry",
+                            )
                             for row in bearing_rows
                         ),
                     ),
@@ -1125,7 +1133,9 @@ def _validate_rul_benchmark_lifecycle_rows(
     expected_assets: tuple[str, ...],
 ) -> None:
     positions = ("early", "middle", "late")
-    expected_pairs = tuple((asset_id, position) for asset_id in expected_assets for position in positions)
+    expected_pairs = tuple(
+        (asset_id, position) for asset_id in expected_assets for position in positions
+    )
     observed_pairs = tuple(
         (
             _text(row, "asset_id", "benchmark lifecycle row"),
