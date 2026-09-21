@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +54,7 @@ XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID = (
 XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS = (
     "protocol-frozen-retrospective-three-model-development-evidence"
 )
+_FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
 _EXPECTED_TEMPORAL_PARAMETERS: dict[str, ExperimentParameter] = {
     "sequence_length": 8,
@@ -196,16 +199,36 @@ class XjtuRulThreeModelValidationResult:
             raise XjtuRulThreeModelValidationResultError(
                 "temporal deterministic_algorithms must be true"
             )
-        if self.temporal_parameter_count <= 0:
+        if (
+            isinstance(self.temporal_parameter_count, bool)
+            or not isinstance(self.temporal_parameter_count, int)
+            or self.temporal_parameter_count <= 0
+        ):
             raise XjtuRulThreeModelValidationResultError(
-                "temporal_parameter_count must be positive"
+                "temporal_parameter_count must be a positive integer"
+            )
+        if (
+            not isinstance(self.temporal_runtime_version, str)
+            or not self.temporal_runtime_version.strip()
+            or self.temporal_runtime_version != self.temporal_runtime_version.strip()
+        ):
+            raise XjtuRulThreeModelValidationResultError(
+                "temporal_runtime_version must be a trimmed non-empty string"
             )
         if len(epoch_losses) != self.temporal_epochs:
             raise XjtuRulThreeModelValidationResultError(
                 "temporal_epoch_losses must contain one value per epoch"
             )
+        if any(not math.isfinite(loss) or loss < 0.0 for loss in epoch_losses):
+            raise XjtuRulThreeModelValidationResultError(
+                "temporal_epoch_losses must be finite and non-negative"
+            )
 
-        _validate_temporal_prediction_evaluation(predictions, self.temporal_evaluation)
+        _validate_temporal_prediction_evaluation(
+            predictions,
+            self.temporal_evaluation,
+            baseline_result=self.baseline_result,
+        )
 
         object.__setattr__(self, "temporal_selected_features", selected_features)
         object.__setattr__(self, "temporal_fitted_center", fitted_center)
@@ -228,6 +251,7 @@ def run_xjtu_rul_three_model_validation(
     code_revision: str,
 ) -> XjtuRulThreeModelValidationResult:
     """Run all three frozen RUL methods on fold-1 validation without reading test."""
+    _validate_code_revision(code_revision)
     source_report = validate_xjtu_source(source)
     if not source_report.profile_matches:
         raise XjtuRulThreeModelValidationResultError(
@@ -495,6 +519,8 @@ def _temporal_method_document(
 def _validate_temporal_prediction_evaluation(
     predictions: Sequence[RulPredictionSeries],
     evaluation: RulPointEvaluation,
+    *,
+    baseline_result: XjtuRulBaselineValidationResult,
 ) -> None:
     if not isinstance(evaluation, RulPointEvaluation):
         raise XjtuRulThreeModelValidationResultError(
@@ -503,6 +529,14 @@ def _validate_temporal_prediction_evaluation(
     if evaluation.prediction_method_id != XJTU_RUL_LSTM_METHOD_ID:
         raise XjtuRulThreeModelValidationResultError(
             "temporal evaluation method identity must match the frozen LSTM"
+        )
+    if evaluation.target_definition_id != baseline_result.target_definition_id:
+        raise XjtuRulThreeModelValidationResultError(
+            "temporal evaluation target definition must match baseline evidence"
+        )
+    if evaluation.unit != baseline_result.target_unit:
+        raise XjtuRulThreeModelValidationResultError(
+            "temporal evaluation unit must match baseline evidence"
         )
     _required_normalized_mae(evaluation)
 
@@ -523,6 +557,17 @@ def _validate_temporal_prediction_evaluation(
         raise XjtuRulThreeModelValidationResultError(
             "all temporal predictions must use the frozen LSTM method identity"
         )
+    if any(
+        series.target_definition_id != baseline_result.target_definition_id
+        for series in prediction_series
+    ):
+        raise XjtuRulThreeModelValidationResultError(
+            "temporal prediction target definition must match baseline evidence"
+        )
+    if any(series.unit != baseline_result.target_unit for series in prediction_series):
+        raise XjtuRulThreeModelValidationResultError(
+            "temporal prediction unit must match baseline evidence"
+        )
 
     evaluation_assets = tuple(item.asset_id for item in evaluation.asset_results)
     if evaluation_assets != tuple(sorted(fold.validation)):
@@ -530,6 +575,9 @@ def _validate_temporal_prediction_evaluation(
             "temporal evaluation bearing population must match fold-1 validation"
         )
 
+    evaluation_count_by_asset = {
+        item.asset_id: item.prediction_count for item in evaluation.asset_results
+    }
     for series in prediction_series:
         run_length = get_xjtu_expected_acquisition_count(series.asset_id)
         expected_count = run_length - 7
@@ -542,6 +590,11 @@ def _validate_temporal_prediction_evaluation(
             f"{series.asset_id}:acquisition-{index}"
             for index in range(8, run_length + 1)
         )
+        if evaluation_count_by_asset[series.asset_id] != expected_count:
+            raise XjtuRulThreeModelValidationResultError(
+                f"temporal evaluation count for {series.asset_id} must equal "
+                f"{expected_count}"
+            )
         observed_ids = tuple(
             observation.source_observation_id for observation in series.observations
         )
@@ -627,3 +680,10 @@ def _acquisition_index(asset_id: str, source_observation_id: str) -> int:
             "prediction source identity must end in a positive acquisition index"
         )
     return int(suffix)
+
+
+def _validate_code_revision(value: str) -> None:
+    if not _FULL_GIT_REVISION.fullmatch(value):
+        raise XjtuRulThreeModelValidationResultError(
+            "code_revision must be a full 40-character lowercase Git commit SHA"
+        )
