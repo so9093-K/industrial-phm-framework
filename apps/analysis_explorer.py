@@ -15,6 +15,7 @@ def _():
     from industrial_phm.analysis import (
         AnalysisRunError,
         AnalysisViewError,
+        compare_analysis_evidence,
         derive_early_scored_window_review_threshold,
         load_xjtu_lstm_analysis_view,
         load_xjtu_rul_analysis_view,
@@ -37,6 +38,7 @@ def _():
         Path,
         build_analysis_explanation_context,
         build_prognostics_explanation_context,
+        compare_analysis_evidence,
         derive_early_scored_window_review_threshold,
         generate_openai_analysis_explanation,
         generate_openai_prognostics_explanation,
@@ -184,11 +186,23 @@ def _(
     asset_selector,
     build_prognostics_explanation_context,
     prognostics_analysis,
+    prognostics_compatibility,
     prognostics_error,
 ):
     if prognostics_analysis is None:
         prognostics_explanation_context = None
         prognostics_context_error = prognostics_error
+    elif prognostics_compatibility is None or not prognostics_compatibility.compatible:
+        prognostics_explanation_context = None
+        _reasons = (
+            "unknown compatibility"
+            if prognostics_compatibility is None
+            else "; ".join(prognostics_compatibility.reasons)
+        )
+        prognostics_context_error = (
+            "Attached prognostics evidence is not compatible with the current anomaly "
+            f"artifact: {_reasons}"
+        )
     else:
         try:
             prognostics_explanation_context = build_prognostics_explanation_context(
@@ -283,6 +297,8 @@ def _(
                 set_analysis(completed_run.analysis)
                 analysis_run_output = mo.callout(
                     "Analysis completed and the active Analysis Explorer result was updated. "
+                    "Any attached prognostics artifact is rechecked for population/provenance "
+                    "compatibility before it is shown with this result. "
                     f"Artifact: `{completed_run.result_path}`",
                     kind="success",
                     title="Analysis completed",
@@ -421,11 +437,11 @@ def _(
                 "| ---: | ---: | ---: | ---: |\n" + interval_rows
             ),
             mo.md(
-                "### Available now\n\n"
+                "### Available in the current anomaly artifact\n\n"
                 + "\n".join(f"- {item}" for item in analysis.available_capabilities)
             ),
             mo.md(
-                "### Not available in this result\n\n"
+                "### Not available in the current anomaly artifact\n\n"
                 + "\n".join(f"- {item}" for item in analysis.unsupported_capabilities)
             ),
         ],
@@ -664,10 +680,22 @@ def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
 
 
 @app.cell
+def _(analysis, compare_analysis_evidence, prognostics_analysis):
+    prognostics_compatibility = (
+        None
+        if prognostics_analysis is None
+        else compare_analysis_evidence(analysis, prognostics_analysis)
+    )
+    return (prognostics_compatibility,)
+
+
+@app.cell
 def _(
+    analysis,
     asset_selector,
     mo,
     prognostics_analysis,
+    prognostics_compatibility,
     prognostics_error,
     summarize_prognostics_for_asset,
 ):
@@ -680,6 +708,25 @@ def _(
                     + " Remaining-useful-life evidence is not available for this analysis.",
                     kind="neutral",
                     title="Prognostics evidence unavailable",
+                ),
+            ],
+            gap=1.2,
+        )
+    elif prognostics_compatibility is None or not prognostics_compatibility.compatible:
+        _reasons = (
+            "Compatibility could not be evaluated."
+            if prognostics_compatibility is None
+            else "\n".join(f"- {reason}" for reason in prognostics_compatibility.reasons)
+        )
+        prognostics_view = mo.vstack(
+            [
+                mo.md("## Prognostics"),
+                mo.callout(
+                    "The attached prognostics artifact is not population-compatible with "
+                    "the current anomaly artifact, so it is not shown as part of this "
+                    "analysis surface.\n\n" + _reasons,
+                    kind="danger",
+                    title="Attached evidence is incompatible",
                 ),
             ],
             gap=1.2,
@@ -701,6 +748,17 @@ def _(
                 mo.md("## Prognostics"),
                 asset_selector,
                 mo.callout(
+                    "This prognostics evidence is attached from a separate validated "
+                    "artifact. Population/split scope matches the current anomaly artifact, "
+                    "but the two artifacts are not one execution and exact source byte "
+                    "identity is not recorded. "
+                    f"Current anomaly revision: `{analysis.identity.code_revision}`. "
+                    f"Attached prognostics revision: "
+                    f"`{prognostics_analysis.identity.code_revision}`.",
+                    kind="info",
+                    title="Attached separate evidence",
+                ),
+                mo.callout(
                     "These are **retrospective development estimates**, not a live "
                     "remaining-life readout. One unit is "
                     f"**{prognostics_summary.target_description}**. It is not a validated "
@@ -712,7 +770,7 @@ def _(
                     [
                         mo.stat(
                             f"{_low:,.1f} to {_high:,.1f}",
-                            label="Recorded estimate range",
+                            label="Method estimate span",
                             caption=f"across {len(prognostics_summary.methods)} methods",
                         ),
                         mo.stat(
