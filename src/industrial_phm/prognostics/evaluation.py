@@ -106,7 +106,7 @@ def evaluate_rul_point_predictions(
     targets: Sequence[RulTargetSeries],
     predictions: Sequence[RulPredictionSeries],
     *,
-    normalization_scale_by_series: Mapping[_SeriesKey, float] | None = None,
+    normalization_scale_by_series: Mapping[tuple[str, str], float] | None = None,
 ) -> RulPointEvaluation:
     """Evaluate source-aligned predictions, aggregating metrics with equal asset weight."""
     target_series = tuple(targets)
