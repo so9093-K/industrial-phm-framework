@@ -117,7 +117,9 @@ def test_xjtu_rul_lstm_predicts_right_edge_subset_and_uses_same_evaluator() -> N
         partition="validation",
     )
 
-    assert tuple(series.asset_id for series in predictions) == get_xjtu_reference_split().folds[0].validation
+    assert tuple(series.asset_id for series in predictions) == (
+        get_xjtu_reference_split().folds[0].validation
+    )
     assert sum(len(series.observations) for series in predictions) == 2_797
     for series in predictions:
         expected_count = get_xjtu_expected_acquisition_count(series.asset_id) - 7
