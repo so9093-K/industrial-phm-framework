@@ -19,3 +19,4 @@ parameter는 각각 PR과 version-controlled ExperimentConfig가 소유합니다
 - [XJTU-SY RUL / Prognostics Protocol v1](xjtu-rul-prognostics-protocol.md)
 - [XJTU-SY RUL v1 Finalization Decision](xjtu-rul-v1-finalization.md)
 - [XJTU-SY RUL v1 Held-out Benchmark Execution Runbook](xjtu-rul-benchmark-execution-runbook.md)
+- [Evidence Artifact Storage and Review Policy](evidence-artifact-policy.md)
