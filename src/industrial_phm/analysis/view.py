@@ -109,6 +109,8 @@ class PrognosticsEvidence:
     target_formula: str
     endpoint_semantics: str
     prediction_alignment: str
+    target_is_clipped: bool
+    target_is_normalized: bool
     support_definition: str
     support_first_acquisition: int
     support_prediction_count: int
@@ -306,6 +308,8 @@ def load_xjtu_rul_analysis_view(path: Path) -> AnalysisView:
             target_formula=cast(str, target["formula"]),
             endpoint_semantics=cast(str, target["endpoint_semantics"]),
             prediction_alignment=cast(str, target["prediction_alignment"]),
+            target_is_clipped=cast(bool, target["target_clipping"]),
+            target_is_normalized=cast(bool, target["target_normalization"]),
             support_definition=cast(str, support["definition"]),
             support_first_acquisition=cast(int, support["first_acquisition"]),
             support_prediction_count=cast(int, support["total_prediction_count"]),

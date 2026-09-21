@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -31,6 +32,20 @@ def test_summary_states_what_one_predicted_unit_means() -> None:
 
 def test_summary_marks_uncertainty_and_failure_threshold_as_unavailable() -> None:
     summary = _summary()
+
+    assert summary.uncertainty_interval_available is False
+    assert summary.physical_failure_threshold_validated is False
+
+
+def test_summary_capabilities_fail_closed_when_scope_omits_them() -> None:
+    view = load_xjtu_rul_analysis_view(_RUL_RESULT)
+    view = replace(
+        view,
+        available_capabilities=("prognostics-rul-point-estimate",),
+        unsupported_capabilities=(),
+    )
+
+    summary = summarize_prognostics_for_asset(view, "Bearing1_2")
 
     assert summary.uncertainty_interval_available is False
     assert summary.physical_failure_threshold_validated is False
