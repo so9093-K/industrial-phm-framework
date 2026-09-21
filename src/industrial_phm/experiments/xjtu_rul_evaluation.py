@@ -68,5 +68,3 @@ def evaluate_xjtu_rul_point_predictions(
         )
     except RulEvaluationError as error:
         raise XjtuRulEvaluationError(f"invalid XJTU RUL point evaluation input: {error}") from error
-
-
