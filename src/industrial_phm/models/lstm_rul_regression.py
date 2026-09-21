@@ -11,6 +11,7 @@ from typing import Any
 from industrial_phm.experiments.config import ExperimentConfig, ModelFamily
 from industrial_phm.sequences import SequenceConstruction, SequenceWindowSpec
 
+_SAMPLING_POLICY_ID = "sequence-window-uniform-v1"
 _MODEL_PARAMETER_NAMES = {
     "sequence_length",
     "hidden_size",
@@ -354,6 +355,10 @@ def _validate_fit_context(
 ) -> None:
     if config.model_family is not ModelFamily.LSTM_REGRESSION:
         raise LstmRulRegressionError("model_family must be lstm-regression")
+    if config.sampling_policy_id != _SAMPLING_POLICY_ID:
+        raise LstmRulRegressionError(
+            f"LSTM RUL sampling_policy_id must be {_SAMPLING_POLICY_ID!r}"
+        )
     _validate_construction_context(
         construction,
         feature_set_id=config.feature_set_id,
