@@ -11,6 +11,9 @@
 
 ### Added
 
+- Analysis Explorer의 선택 asset에 대해 bounded structured PHM evidence만 전송하는 Generative AI 설명/Q&A.
+  API credential과 model이 명시적으로 설정된 경우에만 run button으로 OpenAI Responses API를 호출하고,
+  `store=false` stateless request와 capability/limitation instruction boundary를 적용합니다.
 - Validated XJTU LSTM analysis evidence를 사용자 결과 중심으로 검토하는 첫 PHM Analysis Explorer.
   Acquisition-aligned anomaly-evidence trajectory, high-score observation, feature residual과 capability를 표시하고
   기존 `ExperimentInspection` pipeline/provenance를 Analysis Details drill-down으로 재사용합니다.
