@@ -73,8 +73,7 @@ def test_xjtu_age_only_baseline_fits_equal_bearing_mean_train_endpoint() -> None
     baseline = fit_xjtu_age_only_rul_baseline(_train_targets())
     train_assets = get_xjtu_reference_split().folds[0].train
     expected_endpoints = tuple(
-        float(get_xjtu_expected_acquisition_count(asset_id))
-        for asset_id in train_assets
+        float(get_xjtu_expected_acquisition_count(asset_id)) for asset_id in train_assets
     )
 
     assert baseline.prediction_method_id == XJTU_AGE_ONLY_RUL_METHOD_ID
@@ -123,12 +122,8 @@ def test_xjtu_age_only_prediction_accepts_contiguous_prefix_without_target_endpo
     }
     assert all(len(series.observations) == 5 for series in predictions)
     for series in predictions:
-        assert series.observations[0].source_observation_id == (
-            f"{series.asset_id}:acquisition-1"
-        )
-        assert series.observations[-1].source_observation_id == (
-            f"{series.asset_id}:acquisition-5"
-        )
+        assert series.observations[0].source_observation_id == (f"{series.asset_id}:acquisition-1")
+        assert series.observations[-1].source_observation_id == (f"{series.asset_id}:acquisition-5")
 
 
 def test_xjtu_age_only_prediction_preserves_negative_outputs_without_clamping() -> None:
@@ -141,8 +136,7 @@ def test_xjtu_age_only_prediction_preserves_negative_outputs_without_clamping() 
 
     bearing3 = next(series for series in predictions if series.asset_id == "Bearing3_2")
     assert any(
-        observation.predicted_remaining_useful_life < 0.0
-        for observation in bearing3.observations
+        observation.predicted_remaining_useful_life < 0.0 for observation in bearing3.observations
     )
 
 
@@ -183,9 +177,7 @@ def test_xjtu_age_only_fit_rejects_non_train_targets() -> None:
 def test_xjtu_age_only_prediction_rejects_missing_partition_asset() -> None:
     baseline = fit_xjtu_age_only_rul_baseline(_train_targets())
     vectors = tuple(
-        vector
-        for vector in _prefix_vectors("validation", 5)
-        if vector.asset_id != "Bearing3_2"
+        vector for vector in _prefix_vectors("validation", 5) if vector.asset_id != "Bearing3_2"
     )
 
     with pytest.raises(XjtuAgeOnlyRulBaselineError, match="configured validation"):
