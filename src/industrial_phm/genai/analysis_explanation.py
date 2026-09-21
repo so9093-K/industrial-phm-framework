@@ -32,7 +32,9 @@ _PROGNOSTICS_INSTRUCTIONS = (
     "capability as unavailable. When primary_method_id is null, present the methods as "
     "development comparison evidence and do not select one as the operational answer. "
     "When the target is not clipped, report a negative estimate as recorded rather than "
-    "raising it to zero or calling it a past failure."
+    "raising it to zero or calling it a past failure. Respect evaluation_scope, "
+    "holdout_test_used, field_validated, and evaluation_warnings exactly as provided; "
+    "never broaden validation beyond the recorded population."
 )
 
 
@@ -213,6 +215,10 @@ class PrognosticsExplanationContext:
     primary_method_id: str | None
     uncertainty_interval_available: bool
     physical_failure_threshold_validated: bool
+    evaluation_scope: str
+    holdout_test_used: bool
+    field_validated: bool
+    evaluation_warnings: tuple[str, ...]
     available_capabilities: tuple[str, ...]
     unsupported_capabilities: tuple[str, ...]
     source_facts: tuple[tuple[str, str], ...]
@@ -262,6 +268,13 @@ def build_prognostics_explanation_context(
         primary_method_id=summary.primary_method_id,
         uncertainty_interval_available=summary.uncertainty_interval_available,
         physical_failure_threshold_validated=summary.physical_failure_threshold_validated,
+        evaluation_scope="retrospective-development-validation",
+        holdout_test_used=False,
+        field_validated=False,
+        evaluation_warnings=(
+            *_stage_warnings(stage_by_name["Scoring"]),
+            *_stage_warnings(stage_by_name["Evaluation"]),
+        ),
         available_capabilities=analysis.available_capabilities,
         unsupported_capabilities=analysis.unsupported_capabilities,
         source_facts=_stage_facts(stage_by_name["Source"]),
@@ -389,6 +402,11 @@ def _response_output_text(document: object) -> str:
     if not texts:
         raise AnalysisExplanationError("OpenAI Responses API response contained no output text")
     return "\n".join(texts)
+
+
+def _stage_warnings(stage: InspectionStage) -> tuple[str, ...]:
+    warnings = getattr(stage, "warnings", ())
+    return tuple(str(warning) for warning in warnings)
 
 
 def _stage_facts(stage: InspectionStage) -> tuple[tuple[str, str], ...]:
