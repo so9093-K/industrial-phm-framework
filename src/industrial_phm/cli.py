@@ -70,6 +70,10 @@ from industrial_phm.experiments.xjtu_rul_baseline_result import (
     XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS,
     run_xjtu_rul_baseline_validation,
 )
+from industrial_phm.experiments.xjtu_rul_validation_result import (
+    XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS,
+    run_xjtu_rul_three_model_validation,
+)
 from industrial_phm.experiments.xjtu_sequence import XJTU_LSTM_SEQUENCE_SPEC
 from industrial_phm.experiments.xjtu_validation import run_xjtu_fold_1_validation
 from industrial_phm.features import VibrationFeatureError
@@ -385,6 +389,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     experiment_rul_baseline_validation.set_defaults(handler=_run_experiment_rul_baseline_validation)
 
+    experiment_rul_validation = experiment_commands.add_parser(
+        "rul-validation",
+        help="run frozen XJTU age, Ridge, and temporal-LSTM RUL validation comparison",
+    )
+    experiment_rul_validation.add_argument("dataset_id")
+    experiment_rul_validation.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local XJTU-SY source consumed by the Domain Adapter",
+    )
+    experiment_rul_validation.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated three-model RUL validation result JSON",
+    )
+    experiment_rul_validation.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
+    )
+    experiment_rul_validation.set_defaults(handler=_run_experiment_rul_validation)
+
     experiment_mimii_development = experiment_commands.add_parser(
         "mimii-development",
         help="run the frozen MIMII DUE sections 00-02 development evaluation",
@@ -511,7 +539,7 @@ def _verify_clean_git_revision(declared_revision: str) -> None:
     if status_result.stdout.strip():
         raise ValueError(
             "tracked Git working tree is dirty; commit or revert tracked changes before "
-            "authoritative MIMII execution"
+            "authoritative evidence execution"
         )
 
 
@@ -1207,6 +1235,103 @@ def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
         f"mae={result.feature_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.feature_evaluation.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={feature_normalized_mae:.6f}"
+    )
+    print(f"code_revision: {result.code_revision}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"RUL three-model validation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        _verify_clean_git_revision(args.code_revision)
+    except ValueError as error:
+        print(f"RUL validation revision verification failed: {error}", file=sys.stderr)
+        return 1
+
+    print("execution plan: XJTU RUL three-model validation v1")
+    print("scope: xjtu-sy-condition-stratified-5fold-v1 / fold-1 / train -> validation")
+    print("target: recorded-end N-k / acquisition-interval / no clipping")
+    print("methods: age-only / feature-Ridge / 8-acquisition temporal LSTM")
+    print("temporal prefix: acquisitions 1-7 excluded from temporal prediction only")
+    print(
+        "metric support: full-run age/Ridge retained; pairwise three-model deltas use "
+        "acquisition 8..N common support"
+    )
+    print(f"evidence: {XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS}")
+    print("holdout test: excluded")
+    print("uncertainty/calibration: unsupported in this result")
+    print(f"revision verification: clean tracked checkout @ {args.code_revision}")
+
+    try:
+        result = run_xjtu_rul_three_model_validation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"RUL three-model validation failed: {error}", file=sys.stderr)
+        return 1
+
+    age = result.baseline_result.age_evaluation
+    feature = result.baseline_result.feature_evaluation
+    temporal = result.temporal_evaluation
+    normalized = (
+        age.mean_asset_normalized_mean_absolute_error,
+        feature.mean_asset_normalized_mean_absolute_error,
+        temporal.mean_asset_normalized_mean_absolute_error,
+    )
+    if any(value is None for value in normalized):
+        print("RUL validation result is missing normalized MAE evidence", file=sys.stderr)
+        return 1
+    age_nmae, feature_nmae, temporal_nmae = normalized
+    assert age_nmae is not None
+    assert feature_nmae is not None
+    assert temporal_nmae is not None
+
+    print("pipeline:")
+    print("  source validation / feature extraction / RUL targets: completed")
+    print("  age-only fit/prediction: completed")
+    print("  feature preprocessing/Ridge fit/prediction: completed")
+    print("  temporal preprocessing/sequence/LSTM fit/prediction: completed")
+    print("  shared bearing-first evaluation: completed")
+    print(
+        "populations: "
+        f"train={result.baseline_result.train_source_acquisition_count} acquisitions "
+        f"validation={result.baseline_result.validation_source_acquisition_count} acquisitions "
+        f"temporal_fit={result.temporal_train_window_count} windows "
+        "temporal_validation_predictions="
+        f"{sum(len(series.observations) for series in result.temporal_predictions)}"
+    )
+    print(
+        "age-only(full-run): "
+        f"mae={age.mean_asset_mean_absolute_error:.6f} "
+        f"rmse={age.mean_asset_root_mean_squared_error:.6f} "
+        f"normalized_mae={age_nmae:.6f}"
+    )
+    print(
+        "feature-ridge(full-run): "
+        f"mae={feature.mean_asset_mean_absolute_error:.6f} "
+        f"rmse={feature.mean_asset_root_mean_squared_error:.6f} "
+        f"normalized_mae={feature_nmae:.6f}"
+    )
+    print(
+        "temporal-lstm(acq8..N): "
+        f"mae={temporal.mean_asset_mean_absolute_error:.6f} "
+        f"rmse={temporal.mean_asset_root_mean_squared_error:.6f} "
+        f"normalized_mae={temporal_nmae:.6f}"
     )
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")

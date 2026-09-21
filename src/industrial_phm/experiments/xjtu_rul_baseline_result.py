@@ -350,12 +350,21 @@ def write_xjtu_rul_baseline_validation_result(
     """Write deterministic JSON for protocol-frozen retrospective validation evidence."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(_result_document(result), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            xjtu_rul_baseline_validation_document(result),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
 
-def _result_document(result: XjtuRulBaselineValidationResult) -> dict[str, Any]:
+def xjtu_rul_baseline_validation_document(
+    result: XjtuRulBaselineValidationResult,
+) -> dict[str, Any]:
+    """Return the JSON-compatible document without performing file I/O."""
     fold = get_xjtu_reference_split().folds[0]
     return {
         "schema_id": XJTU_RUL_BASELINE_VALIDATION_RESULT_SCHEMA_ID,

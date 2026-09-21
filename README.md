@@ -167,6 +167,17 @@ uv run industrial-phm experiment rul-baseline-validation xjtu-sy \
   --code-revision "$(git rev-parse HEAD)"
 ```
 
+세 frozen RUL method를 같은 validation evidence에 비교하려면 deep-learning extra를 포함한 새 command를 사용합니다.
+Age-only와 feature-Ridge의 기존 full-run evidence는 그대로 보존하되, temporal-LSTM이 acquisition 8부터만 예측하므로 세 method의 pairwise delta는 동일한 acquisition 8..N common support에서 다시 평가합니다. 서로 다른 observation support의 aggregate metric을 직접 빼지 않습니다.
+
+
+```bash
+uv run --extra deep-learning industrial-phm experiment rul-validation xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json \
+  --code-revision "$(git rev-parse HEAD)"
+```
+
 `data inspect`는 local inventory를 요약하고, `data validate`는 dataset source profile과 Adapter
 compatibility를 검사합니다. 상세 준비 절차는 [`data/README.md`](data/README.md)를 참조합니다.
 
@@ -421,7 +432,10 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
    - complete train acquisition을 train-only robust scaling한 뒤 8-acquisition right-edge window를 구성하고,
      raw `N - k` target을 window right edge source identity에 정렬하는 deterministic supervised LSTM RUL model을 구현.
      Validation/test는 같은 fitted scaling과 sequence contract를 사용하며 첫 7 acquisition은 context 부족으로 예측하지 않음
-   - 다음 구현은 age-only / feature-Ridge / temporal-LSTM을 실제 validation evidence artifact에서 함께 비교
+   - 기존 two-baseline artifact를 유지한 채 age-only / feature-Ridge / temporal-LSTM을 한 source scan과 동일
+     target/evaluator에서 비교하는 versioned three-model validation evidence schema/runner/CLI를 추가
+   - 다음 구현은 prepared XJTU source에서 실제 three-model numerical artifact를 생성·검증하고 product-facing
+     AnalysisView/Explorer에 RUL method comparison evidence를 연결
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
