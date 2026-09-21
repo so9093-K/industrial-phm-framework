@@ -1,7 +1,7 @@
 # industrial-phm-framework
 
 산업 설비의 센서 데이터를 분석해 **이상 변화와 RUL(잔여수명)**을 살펴보고,
-분석 결과를 화면·보고서·생성형 AI 설명으로 확인할 수 있는 Python 기반 PHM 프레임워크입니다.
+분석 결과를 화면·보고서·생성형 AI 설명으로 확인할 수 있는 Python 기반 PHM(고장예지·건전성 관리) 프레임워크입니다.
 
 현재는 공개 데이터셋을 중심으로 분석 흐름과 결과 검증 방식을 개발하고 있으며,
 주 사용자는 PHM/ML 개발자와 연구자입니다.
@@ -10,9 +10,8 @@
 
 <!--
 Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
-권장 경로: assets/analysis-explorer.png
-
-![Analysis Explorer 화면](assets/analysis-explorer.png)
+권장 파일: assets/analysis-explorer.png
+자산 관리 규칙은 assets/README.md를 참조합니다.
 -->
 
 ## 전체 구조
@@ -37,7 +36,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 
 ## 빠르게 시작하기
 
-검증된 개발 환경은 CPython `3.14.x`와 repository의 `uv.lock`입니다.
+검증된 개발 환경은 CPython `3.14.x`와 저장소의 `uv.lock`입니다.
 
 ### 1. 환경 준비
 
@@ -49,7 +48,7 @@ uv run --locked industrial-phm doctor
 
 ### 2. 기존 분석 결과 확인
 
-Raw dataset을 내려받지 않아도 repository에 기록된 분석 결과를 확인할 수 있습니다.
+원본 데이터셋을 내려받지 않아도 저장소에 기록된 분석 결과를 확인할 수 있습니다.
 
 ```bash
 uv run --locked industrial-phm experiment inspect \
@@ -109,4 +108,4 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 ## 라이선스
 
 [Apache License 2.0](LICENSE)을 사용합니다.
-Dataset의 원본 라이선스와 출처는 각 manifest와 데이터 문서를 따릅니다.
+데이터셋의 원본 라이선스와 출처는 각 데이터 문서를 따릅니다.
