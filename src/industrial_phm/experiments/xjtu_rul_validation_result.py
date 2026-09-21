@@ -431,9 +431,7 @@ def xjtu_rul_three_model_validation_document(
     methods = list(cast(list[dict[str, Any]], baseline["methods"]))
     methods.append(_temporal_method_document(result))
 
-    baseline_full_run_comparison = dict(
-        cast(dict[str, Any], baseline["comparison"])
-    )
+    baseline_full_run_comparison = dict(cast(dict[str, Any], baseline["comparison"]))
     common_support_comparison = {
         "support": {
             "definition": "temporal-common-support",
@@ -445,9 +443,7 @@ def xjtu_rul_three_model_validation_document(
             ),
         },
         "evaluations": {
-            XJTU_AGE_ONLY_RUL_METHOD_ID: _evaluation_document(
-                result.common_support_age_evaluation
-            ),
+            XJTU_AGE_ONLY_RUL_METHOD_ID: _evaluation_document(result.common_support_age_evaluation),
             XJTU_FEATURE_RIDGE_RUL_METHOD_ID: _evaluation_document(
                 result.common_support_feature_evaluation
             ),
@@ -629,8 +625,7 @@ def _validate_common_support_evaluation(
         expected_count = get_xjtu_expected_acquisition_count(item.asset_id) - 7
         if item.prediction_count != expected_count:
             raise XjtuRulThreeModelValidationResultError(
-                f"common-support evaluation count for {item.asset_id} must equal "
-                f"{expected_count}"
+                f"common-support evaluation count for {item.asset_id} must equal {expected_count}"
             )
 
 
