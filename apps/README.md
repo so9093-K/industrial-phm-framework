@@ -8,13 +8,16 @@ Research notebook과 달리 새로운 parser, feature formula, model fitting 또
 
 `analysis_explorer.py`는 현재 XJTU LSTM retrospective evidence를 첫 concrete consumer로 사용합니다.
 
-- Analysis Summary: 선택한 asset의 anomaly-evidence trajectory와 현재 capability
+- Analysis Summary: 선택한 asset의 anomaly-evidence trajectory, descriptive score-exceedance interval과 현재 capability
 - Evidence: high-score observations와 feature residual evidence
 - AI Explanation: bounded structured evidence 기반 생성형 AI 설명과 analysis-scoped Q&A
 - Analysis Details: 기존 `ExperimentInspection` pipeline/provenance drill-down
 
-현재 result에는 validated threshold가 없으므로 normal/fault state나 anomaly interval을 생성하지 않습니다.
-RUL 역시 현재 artifact가 지원하지 않으며, 향후 RUL capability가 구현되면 같은 analysis surface에 추가합니다.
+현재 result에는 validated State Detection threshold가 없습니다. 대신 earliest-third scored windows의 q95를
+retrospective **descriptive review threshold**로 사용해 score-exceedance interval을 표시합니다. 이 구간은
+anomaly evidence가 집중된 위치를 빠르게 찾기 위한 review aid이며 normal/fault state, alarm, diagnosis 또는
+maintenance decision을 의미하지 않습니다. RUL 역시 현재 artifact가 지원하지 않으며, 향후 RUL capability가
+구현되면 같은 analysis surface에 추가합니다.
 
 실행:
 

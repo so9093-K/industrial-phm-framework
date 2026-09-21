@@ -11,6 +11,9 @@
 
 ### Added
 
+- XJTU LSTM anomaly-evidence trajectory의 earliest-third scored-window q95를 descriptive review threshold로 사용해
+  threshold 초과 acquisition-contiguous observation을 score-exceedance interval로 표시하는 Analysis Explorer
+  기능. 이 interval은 retrospective review aid이며 validated fault/state/alarm semantics를 만들지 않습니다.
 - Analysis Explorer의 `Run Analysis` view에서 prepared XJTU-SY source를 기존 frozen LSTM pipeline으로 실행하고,
   생성 result를 동일한 `AnalysisView`로 재검증해 Summary/Evidence/AI Explanation에 즉시 연결하는
   source-to-analysis product vertical slice.

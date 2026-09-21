@@ -15,8 +15,10 @@ def _():
     from industrial_phm.analysis import (
         AnalysisRunError,
         AnalysisViewError,
+        derive_early_scored_window_review_threshold,
         load_xjtu_lstm_analysis_view,
         run_xjtu_lstm_analysis_from_source,
+        score_exceedance_intervals,
     )
     from industrial_phm.genai import (
         AnalysisExplanationError,
@@ -30,12 +32,14 @@ def _():
         AnalysisViewError,
         Path,
         build_analysis_explanation_context,
+        derive_early_scored_window_review_threshold,
         generate_openai_analysis_explanation,
         load_xjtu_lstm_analysis_view,
         mo,
         os,
         plt,
         run_xjtu_lstm_analysis_from_source,
+        score_exceedance_intervals,
     )
 
 
@@ -111,9 +115,16 @@ def _(analysis, mo):
 
 
 @app.cell
-def _(analysis, asset_selector):
+def _(
+    analysis,
+    asset_selector,
+    derive_early_scored_window_review_threshold,
+    score_exceedance_intervals,
+):
     selected_asset = analysis.asset(asset_selector.value)
-    return (selected_asset,)
+    review_threshold = derive_early_scored_window_review_threshold(selected_asset)
+    review_intervals = score_exceedance_intervals(selected_asset, review_threshold)
+    return review_intervals, review_threshold, selected_asset
 
 
 @app.cell
@@ -288,18 +299,45 @@ def _(analysis, mo):
 
 
 @app.cell
-def _(analysis, asset_selector, mo, plt, selected_asset):
+def _(
+    analysis,
+    asset_selector,
+    mo,
+    plt,
+    review_intervals,
+    review_threshold,
+    selected_asset,
+):
     score_figure, score_axis = plt.subplots(figsize=(11, 4.5))
     score_axis.plot(
         [observation.acquisition_index for observation in selected_asset.observations],
         [observation.score for observation in selected_asset.observations],
         linewidth=1.2,
     )
+    score_axis.axhline(review_threshold.value, linestyle="--", linewidth=1.0)
+    for interval in review_intervals:
+        score_axis.axvspan(
+            interval.start_acquisition_index,
+            interval.end_acquisition_index,
+            alpha=0.12,
+        )
     score_axis.set_xlabel("Acquisition index")
     score_axis.set_ylabel("Reconstruction mismatch score")
     score_axis.set_title(f"{selected_asset.asset_id} anomaly-evidence trajectory")
     score_axis.grid(alpha=0.2)
     score_figure.tight_layout()
+
+    interval_rows = "\n".join(
+        f"| {interval.start_acquisition_index} | {interval.end_acquisition_index} | "
+        f"{interval.observation_count} | {interval.peak_score:.6f} |"
+        for interval in sorted(
+            review_intervals,
+            key=lambda item: item.peak_score,
+            reverse=True,
+        )[:10]
+    )
+    if not interval_rows:
+        interval_rows = "| - | - | 0 | - |"
 
     summary_view = mo.vstack(
         [
@@ -318,25 +356,31 @@ def _(analysis, asset_selector, mo, plt, selected_asset):
                         caption="Spearman rho",
                     ),
                     mo.stat(
-                        f"{selected_asset.late_vs_middle_rank_probability:.3f}",
-                        label="Late vs middle",
-                        caption="retrospective evidence",
+                        f"{len(review_intervals)}",
+                        label="Review intervals",
+                        caption="score exceeds review threshold",
                     ),
                     mo.stat(
-                        "Unavailable",
-                        label="Anomaly intervals",
-                        caption="validated threshold not recorded",
+                        f"{review_threshold.value:.4f}",
+                        label="Review threshold",
+                        caption="early scored-window q95",
                     ),
                 ],
                 widths="equal",
             ),
             score_figure,
             mo.callout(
-                "Higher score means larger reconstruction mismatch in this analysis. "
-                "No validated threshold is recorded, so this view does not create a "
-                "normal/fault state or anomaly interval yet.",
+                "Shaded regions are score-exceedance intervals for retrospective review. "
+                "The threshold is the 95th percentile of the earliest third of recorded "
+                "scored windows. It is not a validated normal/fault state threshold and "
+                "does not create an alarm, fault interval, or diagnosis.",
                 kind="warn",
-                title="Current interpretation boundary",
+                title="Review-threshold semantics",
+            ),
+            mo.md(
+                "### Highest score-exceedance intervals\n\n"
+                "| Start | End | Windows | Peak score |\n"
+                "| ---: | ---: | ---: | ---: |\n" + interval_rows
             ),
             mo.md(
                 "### Available now\n\n"

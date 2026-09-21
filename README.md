@@ -101,8 +101,9 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 ```
 
 현재 첫 consumer는 XJTU LSTM retrospective evidence입니다. Acquisition-aligned anomaly-evidence trajectory와
-feature residual을 보여주지만, validated threshold가 기록되지 않았으므로 normal/fault state나 anomaly interval을
-임의로 생성하지 않습니다.
+feature residual을 보여주며, early scored-window distribution에서 계산한 descriptive review threshold로
+score-exceedance interval을 표시합니다. 이 threshold는 validated normal/fault State Detection threshold가
+아니므로 fault state, alarm 또는 diagnosis를 생성하지 않습니다.
 
 Prepared XJTU-SY source가 있으면 `Run Analysis` view에서 기존 frozen LSTM pipeline을 직접 실행하고, 생성된
 artifact를 같은 Analysis Explorer의 Summary/Evidence/AI Explanation으로 이어서 검토할 수 있습니다. 실제 LSTM
