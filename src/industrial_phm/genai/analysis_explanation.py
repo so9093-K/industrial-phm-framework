@@ -8,7 +8,11 @@ from typing import cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from industrial_phm.analysis import AnalysisView
+from industrial_phm.analysis import (
+    AnalysisView,
+    AnalysisViewError,
+    summarize_prognostics_for_asset,
+)
 from industrial_phm.experiments import InspectionStage
 
 _OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses"
@@ -17,6 +21,18 @@ _EXPLANATION_INSTRUCTIONS = (
     "and limits. Never invent fault diagnosis, root cause, alarm/state, maintenance priority, "
     "health indicator, or RUL unless that capability is explicitly available. "
     "State unsupported conclusions as unavailable."
+)
+_PROGNOSTICS_INSTRUCTIONS = (
+    "Explain only the provided remaining-useful-life evidence. Do not recompute, extrapolate, "
+    "or convert the recorded estimates: report every number in the provided unit and never "
+    "translate one into a calendar date, a clock duration, or a physical failure time. "
+    "Describe what one predicted unit means using target_meaning exactly as provided. "
+    "Never introduce a failure threshold, alarm or state, maintenance deadline, or confidence "
+    "interval unless the evidence marks that capability as available; state each unavailable "
+    "capability as unavailable. When primary_method_id is null, present the methods as "
+    "development comparison evidence and do not select one as the operational answer. "
+    "When the target is not clipped, report a negative estimate as recorded rather than "
+    "raising it to zero or calling it a past failure."
 )
 
 
@@ -124,9 +140,8 @@ def render_analysis_explanation_input(
     question: str | None = None,
 ) -> str:
     """Render deterministic model input from one structured analysis context."""
-    if question is not None and (not question.strip() or question != question.strip()):
-        raise AnalysisExplanationError("question must be a trimmed non-empty string when provided")
-    payload = {
+    _validate_question(question)
+    payload: dict[str, object] = {
         "task": (
             "Explain this PHM analysis to a user. Use the recorded evidence and capability "
             "boundaries exactly as provided."
@@ -148,6 +163,163 @@ def generate_openai_analysis_explanation(
     timeout_seconds: float = 30.0,
 ) -> str:
     """Generate one stateless explanation with the OpenAI Responses API."""
+    return _post_openai_response(
+        render_analysis_explanation_input(context, question=question),
+        instructions=_EXPLANATION_INSTRUCTIONS,
+        api_key=api_key,
+        model=model,
+        endpoint=endpoint,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class PrognosticsMethodComparison:
+    """One compared method's recorded estimate and validation error for one asset."""
+
+    method_id: str
+    kind: str
+    last_recorded_acquisition_index: int
+    last_recorded_remaining_useful_life: float
+    prediction_count: int
+    mean_absolute_error: float
+    root_mean_squared_error: float
+    mean_signed_error: float
+    normalized_mean_absolute_error: float
+
+
+@dataclass(frozen=True, slots=True)
+class PrognosticsExplanationContext:
+    """Structured remaining-useful-life evidence sent to a generative model.
+
+    Every field is read back from a validated artifact. Target semantics, support definition,
+    and unavailable capabilities travel with the numbers so the estimates cannot be presented
+    as a validated physical failure time.
+    """
+
+    asset_id: str
+    evidence_class: str
+    target_definition_id: str
+    target_unit: str
+    target_meaning: str
+    target_formula: str
+    endpoint_semantics: str
+    prediction_alignment: str
+    target_is_clipped: bool
+    support_definition: str
+    support_first_acquisition: int
+    support_prediction_count: int
+    methods: tuple[PrognosticsMethodComparison, ...]
+    primary_method_id: str | None
+    uncertainty_interval_available: bool
+    physical_failure_threshold_validated: bool
+    available_capabilities: tuple[str, ...]
+    unsupported_capabilities: tuple[str, ...]
+    source_facts: tuple[tuple[str, str], ...]
+    model_facts: tuple[tuple[str, str], ...]
+    evaluation_facts: tuple[tuple[str, str], ...]
+    provenance_facts: tuple[tuple[str, str], ...]
+
+
+def build_prognostics_explanation_context(
+    analysis: AnalysisView,
+    asset_id: str,
+) -> PrognosticsExplanationContext:
+    """Build structured RUL context without recomputing any recorded estimate."""
+    try:
+        summary = summarize_prognostics_for_asset(analysis, asset_id)
+    except AnalysisViewError as error:
+        raise AnalysisExplanationError(str(error)) from error
+
+    stage_by_name = {stage.name: stage for stage in analysis.inspection.stages}
+    return PrognosticsExplanationContext(
+        asset_id=summary.asset_id,
+        evidence_class=summary.evidence_class,
+        target_definition_id=summary.target_definition_id,
+        target_unit=summary.target_unit,
+        target_meaning=summary.target_description,
+        target_formula=summary.target_formula,
+        endpoint_semantics=summary.endpoint_semantics,
+        prediction_alignment=summary.prediction_alignment,
+        target_is_clipped=summary.target_is_clipped,
+        support_definition=summary.support_definition,
+        support_first_acquisition=summary.support_first_acquisition,
+        support_prediction_count=summary.support_prediction_count,
+        methods=tuple(
+            PrognosticsMethodComparison(
+                method_id=row.method_id,
+                kind=row.kind,
+                last_recorded_acquisition_index=row.last_recorded_acquisition_index,
+                last_recorded_remaining_useful_life=row.last_recorded_remaining_useful_life,
+                prediction_count=row.prediction_count,
+                mean_absolute_error=row.mean_absolute_error,
+                root_mean_squared_error=row.root_mean_squared_error,
+                mean_signed_error=row.mean_signed_error,
+                normalized_mean_absolute_error=row.normalized_mean_absolute_error,
+            )
+            for row in summary.methods
+        ),
+        primary_method_id=summary.primary_method_id,
+        uncertainty_interval_available=summary.uncertainty_interval_available,
+        physical_failure_threshold_validated=summary.physical_failure_threshold_validated,
+        available_capabilities=analysis.available_capabilities,
+        unsupported_capabilities=analysis.unsupported_capabilities,
+        source_facts=_stage_facts(stage_by_name["Source"]),
+        model_facts=_stage_facts(stage_by_name["Model"]),
+        evaluation_facts=_stage_facts(stage_by_name["Evaluation"]),
+        provenance_facts=_stage_facts(stage_by_name["Provenance"]),
+    )
+
+
+def render_prognostics_explanation_input(
+    context: PrognosticsExplanationContext,
+    *,
+    question: str | None = None,
+) -> str:
+    """Render deterministic model input from one structured prognostics context."""
+    _validate_question(question)
+    payload: dict[str, object] = {
+        "task": (
+            "Explain this remaining-useful-life evidence to a user. Use the recorded "
+            "estimates, target semantics, and capability boundaries exactly as provided."
+        ),
+        "prognostics_evidence": asdict(context),
+    }
+    if question is not None:
+        payload["user_question"] = question
+    return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def generate_openai_prognostics_explanation(
+    context: PrognosticsExplanationContext,
+    *,
+    api_key: str,
+    model: str,
+    question: str | None = None,
+    endpoint: str = _OPENAI_RESPONSES_ENDPOINT,
+    timeout_seconds: float = 30.0,
+) -> str:
+    """Generate one stateless RUL explanation with the OpenAI Responses API."""
+    return _post_openai_response(
+        render_prognostics_explanation_input(context, question=question),
+        instructions=_PROGNOSTICS_INSTRUCTIONS,
+        api_key=api_key,
+        model=model,
+        endpoint=endpoint,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def _post_openai_response(
+    rendered_input: str,
+    *,
+    instructions: str,
+    api_key: str,
+    model: str,
+    endpoint: str,
+    timeout_seconds: float,
+) -> str:
+    """Send one stateless Responses API request and return its output text."""
     _validate_secret(api_key, "api_key")
     _validate_text(model, "model")
     _validate_text(endpoint, "endpoint")
@@ -160,8 +332,8 @@ def generate_openai_analysis_explanation(
         {
             "model": model,
             "store": False,
-            "instructions": _EXPLANATION_INSTRUCTIONS,
-            "input": render_analysis_explanation_input(context, question=question),
+            "instructions": instructions,
+            "input": rendered_input,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -222,6 +394,11 @@ def _response_output_text(document: object) -> str:
 def _stage_facts(stage: InspectionStage) -> tuple[tuple[str, str], ...]:
     facts = getattr(stage, "facts", ())
     return tuple((str(fact.label), str(fact.value)) for fact in facts)
+
+
+def _validate_question(question: str | None) -> None:
+    if question is not None and (not question.strip() or question != question.strip()):
+        raise AnalysisExplanationError("question must be a trimmed non-empty string when provided")
 
 
 def _validate_secret(value: str, field_name: str) -> None:
