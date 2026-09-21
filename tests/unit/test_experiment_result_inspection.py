@@ -384,6 +384,19 @@ def _xjtu_lstm_scores() -> ReconstructionScores:
     )
 
 
+def _benchmark_lifecycle_prediction_count(asset_id: str, position: str) -> int:
+    run_length = get_xjtu_expected_acquisition_count(asset_id)
+    early_end = (run_length + 2) // 3
+    middle_end = (2 * run_length + 2) // 3
+    if position == "early":
+        return max(early_end - 7, 0)
+    if position == "middle":
+        return middle_end - early_end
+    if position == "late":
+        return run_length - middle_end
+    raise AssertionError(f"unexpected lifecycle position: {position}")
+
+
 def _write_rul_benchmark_document(tmp_path: Path) -> Path:
     fold = get_xjtu_reference_split().folds[0]
     all_bearings = (*fold.train, *fold.validation, *fold.test)
@@ -408,7 +421,7 @@ def _write_rul_benchmark_document(tmp_path: Path) -> Path:
             "asset_id": asset_id,
             "partition_id": "test",
             "position": position,
-            "prediction_count": 1,
+            "prediction_count": _benchmark_lifecycle_prediction_count(asset_id, position),
             "mean_absolute_error": float(position_index),
             "root_mean_squared_error": float(position_index + 1),
             "mean_signed_error": float(-position_index),
