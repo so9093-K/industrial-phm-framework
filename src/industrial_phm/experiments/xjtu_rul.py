@@ -78,12 +78,81 @@ def build_xjtu_recorded_end_rul_targets(
                     "XJTU RUL target source identity drifted from the ordered feature observation"
                 )
 
-    return tuple(series)
+    return validate_xjtu_recorded_end_rul_targets(series, partition=partition)
+
+
+def validate_xjtu_recorded_end_rul_targets(
+    targets: Sequence[RulTargetSeries],
+    *,
+    partition: _Partition,
+) -> tuple[RulTargetSeries, ...]:
+    """Validate complete recorded-end target semantics and return manifest-ordered series."""
+    target_series = tuple(targets)
+    expected_assets = get_xjtu_rul_partition_assets(partition)
+    expected_asset_set = set(expected_assets)
+
+    observed_assets = {series.asset_id for series in target_series}
+    if observed_assets != expected_asset_set:
+        raise XjtuRulTargetError(
+            f"XJTU RUL targets must cover configured {partition} bearing runs; "
+            f"missing={sorted(expected_asset_set - observed_assets)}, "
+            f"unexpected={sorted(observed_assets - expected_asset_set)}"
+        )
+    if len(target_series) != len(expected_assets):
+        raise XjtuRulTargetError("XJTU RUL target series must contain unique bearing runs")
+
+    by_asset = {series.asset_id: series for series in target_series}
+    ordered: list[RulTargetSeries] = []
+    for asset_id in expected_assets:
+        series = by_asset[asset_id]
+        _validate_recorded_end_target_series(series, partition=partition)
+        ordered.append(series)
+    return tuple(ordered)
 
 
 def get_xjtu_rul_partition_assets(partition: _Partition) -> tuple[str, ...]:
     """Return the authoritative fold-1 bearing runs for one RUL partition."""
     return _partition_assets(_fold_1(), partition)
+
+
+def _validate_recorded_end_target_series(
+    series: RulTargetSeries,
+    *,
+    partition: str,
+) -> None:
+    if series.partition_id != partition:
+        raise XjtuRulTargetError(
+            f"XJTU RUL target series must preserve partition {partition!r}"
+        )
+    if series.target_definition_id != XJTU_RUL_TARGET_DEFINITION_ID:
+        raise XjtuRulTargetError(
+            "XJTU RUL target series must use the recorded-end target definition"
+        )
+    if series.unit != XJTU_RUL_TARGET_UNIT:
+        raise XjtuRulTargetError("XJTU RUL target series must use acquisition-interval unit")
+
+    run_length = get_xjtu_expected_acquisition_count(series.asset_id)
+    expected_ids = tuple(
+        f"{series.asset_id}:acquisition-{acquisition_index}"
+        for acquisition_index in range(1, run_length + 1)
+    )
+    observed_ids = tuple(
+        observation.source_observation_id for observation in series.observations
+    )
+    if observed_ids != expected_ids:
+        raise XjtuRulTargetError(
+            f"XJTU RUL targets for {series.asset_id} must cover complete ordered acquisition 1.."
+            f"{run_length}"
+        )
+
+    expected_values = tuple(float(run_length - index) for index in range(1, run_length + 1))
+    observed_values = tuple(
+        observation.remaining_useful_life for observation in series.observations
+    )
+    if observed_values != expected_values:
+        raise XjtuRulTargetError(
+            f"XJTU RUL targets for {series.asset_id} must preserve N-k recorded-end semantics"
+        )
 
 
 def _fold_1() -> XjtuSplitFold:
