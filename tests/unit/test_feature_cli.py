@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 import industrial_phm.cli as cli
+import industrial_phm.commands.feature as feature_commands
 
 
 def test_feature_characterize_routes_to_xjtu_workflow(
@@ -40,7 +41,7 @@ def test_feature_characterize_routes_to_xjtu_workflow(
             summary_path=received_output_dir / "summary.json",
         )
 
-    monkeypatch.setattr(cli, "characterize_xjtu_source", fake_characterize)
+    monkeypatch.setattr(feature_commands, "characterize_xjtu_source", fake_characterize)
 
     exit_code = cli.main(
         [
