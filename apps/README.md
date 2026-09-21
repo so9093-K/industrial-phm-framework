@@ -14,11 +14,15 @@ Research notebook과 달리 새로운 parser, feature formula, model fitting 또
   생성형 AI 설명과 analysis-scoped Q&A
 - Analysis Details: 기존 `ExperimentInspection` pipeline/provenance drill-down
 
-현재 result에는 validated State Detection threshold가 없습니다. 대신 earliest-third scored windows의 q95를
-retrospective **descriptive review threshold**로 사용해 score-exceedance interval을 표시합니다. 이 구간은
-anomaly evidence가 집중된 위치를 빠르게 찾기 위한 review aid이며 normal/fault state, alarm, diagnosis 또는
-maintenance decision을 의미하지 않습니다. RUL 역시 현재 artifact가 지원하지 않으며, 향후 RUL capability가
-구현되면 같은 analysis surface에 추가합니다.
+현재 anomaly evidence에는 validated State Detection threshold가 없습니다. 대신 earliest-third scored
+windows의 q95를 retrospective **descriptive review threshold**로 사용해 score-exceedance interval을 표시합니다.
+이 구간은 anomaly evidence가 집중된 위치를 빠르게 찾기 위한 review aid이며 normal/fault state, alarm,
+diagnosis 또는 maintenance decision을 의미하지 않습니다.
+
+Prognostics는 별도 validated RUL artifact가 현재 anomaly artifact와 dataset/split/fold/population scope
+compatibility를 통과할 때만 attached evidence로 표시합니다. Compatible하더라도 두 artifact를 하나의 execution으로
+합치지 않으며, 현재 RUL v1은 operational primary method, prediction interval, validated physical failure threshold와
+field validation을 제공하지 않습니다.
 
 실행:
 
@@ -27,12 +31,16 @@ uv sync --locked --group research
 uv run --locked --group research marimo edit apps/analysis_explorer.py
 ```
 
-다른 compatible artifact를 지정할 때는 environment variable을 사용합니다.
+다른 anomaly/prognostics artifact를 지정할 때는 environment variable을 사용합니다.
 
 ```bash
-INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=path/to/result.json \
+INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=path/to/anomaly-result.json \
+INDUSTRIAL_PHM_PROGNOSTICS_ARTIFACT=path/to/prognostics-result.json \
   uv run --locked --group research marimo edit apps/analysis_explorer.py
 ```
+
+Attached prognostics artifact는 로드 성공만으로 같은 analysis context가 되지 않으며, Explorer가 artifact-owned
+identity를 비교해 compatibility를 다시 확인합니다.
 
 현재 loader가 지원하지 않는 schema는 화면에서 임의로 해석하지 않고 실패합니다.
 
