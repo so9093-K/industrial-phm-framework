@@ -215,6 +215,11 @@ from industrial_phm.experiments.xjtu_rul import (
     XJTU_RUL_TARGET_UNIT,
     XjtuRulTargetError,
     build_xjtu_recorded_end_rul_targets,
+    get_xjtu_rul_partition_assets,
+)
+from industrial_phm.experiments.xjtu_rul_evaluation import (
+    XjtuRulEvaluationError,
+    evaluate_xjtu_rul_point_predictions,
 )
 from industrial_phm.experiments.xjtu_score_trajectory import (
     XJTU_SCORE_TRAJECTORY_SCHEMA_ID,
@@ -360,6 +365,7 @@ __all__ = [
     "XjtuReferenceComparisonError",
     "XjtuReferenceComparisonResult",
     "XjtuReferenceHypothesisResult",
+    "XjtuRulEvaluationError",
     "XjtuRulTargetError",
     "XjtuScoreObservation",
     "XjtuScoreTrajectoryError",
@@ -384,6 +390,7 @@ __all__ = [
     "evaluate_xjtu_fold_1_holdout",
     "evaluate_xjtu_lstm_development_scores",
     "evaluate_xjtu_reference_hypotheses",
+    "evaluate_xjtu_rul_point_predictions",
     "fit_ims_preprocessing_and_prepare_model_input",
     "fit_mimii_preprocessing_and_prepare_model_input",
     "fit_xjtu_lstm_development_model",
@@ -400,6 +407,7 @@ __all__ = [
     "get_xjtu_lstm_development_configuration",
     "get_xjtu_reference_hypotheses",
     "get_xjtu_reference_split",
+    "get_xjtu_rul_partition_assets",
     "harmonic_mean_unit_interval",
     "ims_experiment_context",
     "inspect_experiment_result",
