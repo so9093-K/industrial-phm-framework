@@ -710,7 +710,8 @@ def _inspect_xjtu_rul_lstm_benchmark(
     path: Path,
 ) -> ExperimentInspection:
     """Read the protocol-frozen RUL held-out benchmark through the shared read model."""
-    fold = get_xjtu_reference_split().folds[0]
+    split = get_xjtu_reference_split()
+    fold = split.folds[0]
 
     provenance = _mapping_field(root, "provenance", "result root")
     _expect_equal(
@@ -727,7 +728,8 @@ def _inspect_xjtu_rul_lstm_benchmark(
     split_id = _text(provenance, "split_id", "provenance")
     fold_id = _text(provenance, "fold_id", "provenance")
     declared_revision = _revision(provenance, "code_revision", "provenance")
-    _expect_equal(dataset_id, "xjtu-sy", "provenance.dataset_id")
+    _expect_equal(dataset_id, split.dataset_id, "provenance.dataset_id")
+    _expect_equal(split_id, split.split_id, "provenance.split_id")
     _expect_equal(fold_id, fold.fold_id, "provenance.fold_id")
 
     source_scope = _mapping_field(root, "source_scope", "result root")
@@ -856,6 +858,16 @@ def _inspect_xjtu_rul_lstm_benchmark(
         "evaluation.point.prediction_method_id",
     )
     _expect_equal(
+        _text(point, "target_definition_id", "evaluation.point"),
+        XJTU_RUL_TARGET_DEFINITION_ID,
+        "evaluation.point.target_definition_id",
+    )
+    _expect_equal(
+        _text(point, "unit", "evaluation.point"),
+        XJTU_RUL_TARGET_UNIT,
+        "evaluation.point.unit",
+    )
+    _expect_equal(
         _text(point, "aggregation", "evaluation.point"),
         "equal-bearing-mean",
         "evaluation.point.aggregation",
@@ -866,6 +878,21 @@ def _inspect_xjtu_rul_lstm_benchmark(
     )
     _validate_rul_benchmark_point_rows(bearing_rows, fold.test, point)
 
+    _expect_equal(
+        _text(lifecycle, "prediction_method_id", "evaluation.lifecycle_position"),
+        XJTU_RUL_LSTM_METHOD_ID,
+        "evaluation.lifecycle_position.prediction_method_id",
+    )
+    _expect_equal(
+        _text(lifecycle, "target_definition_id", "evaluation.lifecycle_position"),
+        XJTU_RUL_TARGET_DEFINITION_ID,
+        "evaluation.lifecycle_position.target_definition_id",
+    )
+    _expect_equal(
+        _text(lifecycle, "unit", "evaluation.lifecycle_position"),
+        XJTU_RUL_TARGET_UNIT,
+        "evaluation.lifecycle_position.unit",
+    )
     _expect_equal(
         _text(lifecycle, "aggregation", "evaluation.lifecycle_position"),
         "equal-bearing-mean-within-lifecycle-position",
@@ -1161,6 +1188,28 @@ def _validate_rul_benchmark_lifecycle_rows(
         "mean_asset_mean_signed_error",
         "mean_asset_normalized_mean_absolute_error",
     )
+    for row in rows:
+        asset_id = _text(row, "asset_id", "benchmark lifecycle row")
+        position = _text(row, "position", "benchmark lifecycle row")
+        _expect_equal(
+            _text(row, "partition_id", "benchmark lifecycle row"),
+            "test",
+            f"{asset_id} {position} lifecycle partition",
+        )
+        run_length = get_xjtu_expected_acquisition_count(asset_id)
+        early_end = math.ceil(run_length / 3)
+        middle_end = math.ceil(2 * run_length / 3)
+        expected_counts = {
+            "early": max(early_end - 7, 0),
+            "middle": middle_end - early_end,
+            "late": run_length - middle_end,
+        }
+        _expect_equal(
+            _positive_int(row, "prediction_count", "benchmark lifecycle row"),
+            expected_counts[position],
+            f"{asset_id} {position} lifecycle prediction count",
+        )
+
     for summary, position in zip(summaries, positions, strict=True):
         _expect_equal(
             _text(summary, "position", "benchmark lifecycle summary"),
