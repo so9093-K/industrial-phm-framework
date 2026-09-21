@@ -538,6 +538,7 @@ def _validate_prediction_evaluation_pair(
         raise XjtuRulBaselineValidationResultError(
             "evaluation unit must match the XJTU RUL protocol"
         )
+    _required_normalized_mae(evaluation)
 
     prediction_series = tuple(predictions)
     fold = get_xjtu_reference_split().folds[0]
