@@ -32,6 +32,32 @@ INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=path/to/result.json \
 
 현재 loader가 지원하지 않는 schema는 화면에서 임의로 해석하지 않고 실패합니다.
 
+### Prepared source에서 분석 실행
+
+Analysis Explorer의 **Run Analysis** view는 기존 XJTU LSTM numerical pipeline을 다시 구현하지 않고
+`industrial_phm.analysis.run_xjtu_lstm_analysis_from_source`를 호출합니다.
+
+실제 분석 실행에는 PyTorch optional runtime이 필요합니다.
+
+```bash
+uv sync --locked --group research --extra deep-learning
+
+export INDUSTRIAL_PHM_XJTU_SOURCE="data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets"
+export INDUSTRIAL_PHM_ANALYSIS_OUTPUT="artifacts/analysis/xjtu-lstm-analysis.json"
+export INDUSTRIAL_PHM_CODE_REVISION="<40-character-git-sha>"
+
+uv run --locked --group research --extra deep-learning \
+  marimo edit apps/analysis_explorer.py
+```
+
+Run button을 누르면 prepared source validation, Domain Adapter, feature extraction, preprocessing, sequence
+construction, LSTM fit/scoring, evaluation, result artifact write가 기존 frozen runner에서 실행됩니다. 실행이
+성공하면 새 artifact를 동일한 `AnalysisView`로 다시 검증하고 앱의 active result를 교체하므로,
+**Analysis Summary → Evidence → AI Explanation → Analysis Details**가 새 분석 결과를 즉시 사용합니다.
+
+실행이 실패하면 기존 loaded result는 유지합니다. 이 경로는 현재 XJTU fold-1 retrospective development
+protocol을 실행하는 첫 product vertical slice이며 live operational inference로 표시하지 않습니다.
+
 ### Generative AI explanation
 
 AI 설명은 optional runtime 기능입니다. API credential이나 model을 코드/설정 파일에 저장하지 않고 실행 환경에서
