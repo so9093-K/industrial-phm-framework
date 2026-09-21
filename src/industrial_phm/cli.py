@@ -1225,13 +1225,13 @@ def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
         return 1
 
     print(
-        "age-only: "
+        "age-only(full-run): "
         f"mae={result.age_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.age_evaluation.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={age_normalized_mae:.6f}"
     )
     print(
-        "feature-ridge: "
+        "feature-ridge(full-run): "
         f"mae={result.feature_evaluation.mean_asset_mean_absolute_error:.6f} "
         f"rmse={result.feature_evaluation.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={feature_normalized_mae:.6f}"
@@ -1266,6 +1266,10 @@ def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
     print("target: recorded-end N-k / acquisition-interval / no clipping")
     print("methods: age-only / feature-Ridge / 8-acquisition temporal LSTM")
     print("temporal prefix: acquisitions 1-7 excluded from temporal prediction only")
+    print(
+        "metric support: full-run age/Ridge retained; pairwise three-model deltas use "
+        "acquisition 8..N common support"
+    )
     print(f"evidence: {XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS}")
     print("holdout test: excluded")
     print("uncertainty/calibration: unsupported in this result")
@@ -1324,7 +1328,7 @@ def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
         f"normalized_mae={feature_nmae:.6f}"
     )
     print(
-        "temporal-lstm: "
+        "temporal-lstm(acq8..N): "
         f"mae={temporal.mean_asset_mean_absolute_error:.6f} "
         f"rmse={temporal.mean_asset_root_mean_squared_error:.6f} "
         f"normalized_mae={temporal_nmae:.6f}"
