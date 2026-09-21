@@ -10,13 +10,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm import __version__
-from industrial_phm.analysis import (
-    AnalysisReportError,
-    AnalysisViewError,
-    load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
-    write_analysis_report_markdown,
-)
 from industrial_phm.adapters import (
     ImsBearingSourceError,
     MimiiDueSourceError,
@@ -24,6 +17,13 @@ from industrial_phm.adapters import (
     validate_ims_source,
     validate_mimii_due_source,
     validate_xjtu_source,
+)
+from industrial_phm.analysis import (
+    AnalysisReportError,
+    AnalysisViewError,
+    load_xjtu_lstm_analysis_view,
+    load_xjtu_rul_analysis_view,
+    write_analysis_report_markdown,
 )
 from industrial_phm.data.acquisition import (
     ManualAcquisitionRequired,
