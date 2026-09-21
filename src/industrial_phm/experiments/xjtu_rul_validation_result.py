@@ -43,9 +43,7 @@ from industrial_phm.experiments.xjtu_rul_lstm import (
 from industrial_phm.features import iter_vibration_features
 from industrial_phm.prognostics import RulPointEvaluation, RulPredictionSeries
 
-XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID = (
-    "xjtu-rul-three-model-validation-result-v1"
-)
+XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID = "xjtu-rul-three-model-validation-result-v1"
 XJTU_RUL_THREE_MODEL_VALIDATION_EVIDENCE_CLASS = (
     "protocol-frozen-retrospective-three-model-development-evidence"
 )
@@ -152,9 +150,7 @@ class XjtuRulThreeModelValidationResult:
         }
         for field_name, expected in expected_int.items():
             if getattr(self, field_name) != expected:
-                raise XjtuRulThreeModelValidationResultError(
-                    f"{field_name} must equal {expected}"
-                )
+                raise XjtuRulThreeModelValidationResultError(f"{field_name} must equal {expected}")
 
         selected_features = tuple(self.temporal_selected_features)
         fitted_center = tuple(float(value) for value in self.temporal_fitted_center)
@@ -331,9 +327,7 @@ def build_xjtu_rul_three_model_validation_result(
 ) -> XjtuRulThreeModelValidationResult:
     """Build immutable three-model evidence from completed frozen executions."""
     if not isinstance(temporal_fitted, XjtuRulLstmFit):
-        raise XjtuRulThreeModelValidationResultError(
-            "temporal_fitted must be an XjtuRulLstmFit"
-        )
+        raise XjtuRulThreeModelValidationResultError("temporal_fitted must be an XjtuRulLstmFit")
 
     config = temporal_fitted.config
     state = temporal_fitted.preprocessing_state
@@ -356,9 +350,7 @@ def build_xjtu_rul_three_model_validation_result(
         temporal_train_source_observation_count=sequence.source_observation_count,
         temporal_train_sequence_count=sequence.sequence_count,
         temporal_train_window_count=sequence.window_count,
-        temporal_train_dropped_prefix_observation_count=(
-            sequence.dropped_prefix_observation_count
-        ),
+        temporal_train_dropped_prefix_observation_count=(sequence.dropped_prefix_observation_count),
         temporal_model_family=config.model_family.value,
         temporal_model_parameters=tuple(sorted(config.model_parameters.items())),
         temporal_random_seed=config.random_seed,
@@ -479,9 +471,7 @@ def _temporal_method_document(
             "length": result.temporal_sequence_length,
             "stride": result.temporal_sequence_stride,
             "alignment": result.temporal_sequence_alignment,
-            "train_source_observation_count": (
-                result.temporal_train_source_observation_count
-            ),
+            "train_source_observation_count": (result.temporal_train_source_observation_count),
             "train_sequence_count": result.temporal_train_sequence_count,
             "train_window_count": result.temporal_train_window_count,
             "train_dropped_prefix_observation_count": (
@@ -545,10 +535,7 @@ def _validate_temporal_prediction_evaluation(
         raise XjtuRulThreeModelValidationResultError(
             "temporal evidence may only contain validation predictions"
         )
-    if any(
-        series.prediction_method_id != XJTU_RUL_LSTM_METHOD_ID
-        for series in prediction_series
-    ):
+    if any(series.prediction_method_id != XJTU_RUL_LSTM_METHOD_ID for series in prediction_series):
         raise XjtuRulThreeModelValidationResultError(
             "all temporal predictions must use the frozen LSTM method identity"
         )
@@ -582,13 +569,11 @@ def _validate_temporal_prediction_evaluation(
                 f"{expected_count} right-edge acquisitions"
             )
         expected_ids = tuple(
-            f"{series.asset_id}:acquisition-{index}"
-            for index in range(8, run_length + 1)
+            f"{series.asset_id}:acquisition-{index}" for index in range(8, run_length + 1)
         )
         if evaluation_count_by_asset[series.asset_id] != expected_count:
             raise XjtuRulThreeModelValidationResultError(
-                f"temporal evaluation count for {series.asset_id} must equal "
-                f"{expected_count}"
+                f"temporal evaluation count for {series.asset_id} must equal {expected_count}"
             )
         observed_ids = tuple(
             observation.source_observation_id for observation in series.observations
@@ -607,9 +592,7 @@ def _evaluation_document(evaluation: RulPointEvaluation) -> dict[str, Any]:
         "target_definition_id": evaluation.target_definition_id,
         "unit": evaluation.unit,
         "mean_asset_mean_absolute_error": evaluation.mean_asset_mean_absolute_error,
-        "mean_asset_root_mean_squared_error": (
-            evaluation.mean_asset_root_mean_squared_error
-        ),
+        "mean_asset_root_mean_squared_error": (evaluation.mean_asset_root_mean_squared_error),
         "mean_asset_mean_signed_error": evaluation.mean_asset_mean_signed_error,
         "mean_asset_normalized_mean_absolute_error": (
             evaluation.mean_asset_normalized_mean_absolute_error
