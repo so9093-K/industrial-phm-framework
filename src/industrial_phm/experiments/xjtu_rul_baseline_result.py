@@ -44,9 +44,7 @@ from industrial_phm.prognostics import (
 )
 
 XJTU_RUL_BASELINE_VALIDATION_RESULT_SCHEMA_ID = "xjtu-rul-baseline-validation-result-v1"
-XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS = (
-    "protocol-frozen-retrospective-development-evidence"
-)
+XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS = "protocol-frozen-retrospective-development-evidence"
 
 _FULL_GIT_REVISION = re.compile(r"^[0-9a-f]{40}$")
 _AVAILABLE_CAPABILITIES = (
@@ -130,9 +128,7 @@ class XjtuRulBaselineValidationResult:
         }
         for field_name, expected in expected_text.items():
             if getattr(self, field_name) != expected:
-                raise XjtuRulBaselineValidationResultError(
-                    f"{field_name} must equal {expected!r}"
-                )
+                raise XjtuRulBaselineValidationResultError(f"{field_name} must equal {expected!r}")
 
         age_train_asset_ids = tuple(self.age_train_asset_ids)
         age_endpoints = tuple(float(value) for value in self.age_train_endpoint_acquisitions)
@@ -302,9 +298,7 @@ def build_xjtu_rul_baseline_validation_result(
     """Resolve immutable evidence from already completed fit, prediction, and evaluation."""
     _validate_code_revision(code_revision)
     if not isinstance(age_fitted, XjtuAgeOnlyRulBaseline):
-        raise XjtuRulBaselineValidationResultError(
-            "age_fitted must be an XjtuAgeOnlyRulBaseline"
-        )
+        raise XjtuRulBaselineValidationResultError("age_fitted must be an XjtuAgeOnlyRulBaseline")
     if not isinstance(feature_fitted, XjtuFeatureRulBaselineFit):
         raise XjtuRulBaselineValidationResultError(
             "feature_fitted must be an XjtuFeatureRulBaselineFit"
@@ -394,9 +388,7 @@ def _result_document(result: XjtuRulBaselineValidationResult) -> dict[str, Any]:
                 "kind": "age-only-baseline",
                 "fit": {
                     "train_assets": list(result.age_train_asset_ids),
-                    "train_endpoint_acquisitions": list(
-                        result.age_train_endpoint_acquisitions
-                    ),
+                    "train_endpoint_acquisitions": list(result.age_train_endpoint_acquisitions),
                     "fitted_mean_endpoint_acquisition": (
                         result.age_fitted_mean_endpoint_acquisition
                     ),
@@ -415,9 +407,7 @@ def _result_document(result: XjtuRulBaselineValidationResult) -> dict[str, Any]:
                 "preprocessing": {
                     "fit_partition": result.feature_fit_partition,
                     "scaling_strategy": result.feature_scaling_strategy,
-                    "fit_observation_count": (
-                        result.feature_preprocessing_fit_observation_count
-                    ),
+                    "fit_observation_count": (result.feature_preprocessing_fit_observation_count),
                     "fitted_center": list(result.feature_fitted_center),
                     "fitted_scale": list(result.feature_fitted_scale),
                     "zero_iqr_features": list(result.feature_zero_iqr_features),
@@ -469,9 +459,7 @@ def _evaluation_document(evaluation: RulPointEvaluation) -> dict[str, Any]:
         "target_definition_id": evaluation.target_definition_id,
         "unit": evaluation.unit,
         "mean_asset_mean_absolute_error": evaluation.mean_asset_mean_absolute_error,
-        "mean_asset_root_mean_squared_error": (
-            evaluation.mean_asset_root_mean_squared_error
-        ),
+        "mean_asset_root_mean_squared_error": (evaluation.mean_asset_root_mean_squared_error),
         "mean_asset_mean_signed_error": evaluation.mean_asset_mean_signed_error,
         "mean_asset_normalized_mean_absolute_error": (
             evaluation.mean_asset_normalized_mean_absolute_error
@@ -523,9 +511,7 @@ def _validate_prediction_evaluation_pair(
     method_id: str,
 ) -> None:
     if not isinstance(evaluation, RulPointEvaluation):
-        raise XjtuRulBaselineValidationResultError(
-            "evaluation must be a RulPointEvaluation"
-        )
+        raise XjtuRulBaselineValidationResultError("evaluation must be a RulPointEvaluation")
     if evaluation.prediction_method_id != method_id:
         raise XjtuRulBaselineValidationResultError(
             f"evaluation prediction_method_id must equal {method_id!r}"
@@ -551,9 +537,7 @@ def _validate_prediction_evaluation_pair(
             "RUL baseline evidence may only contain validation predictions"
         )
     if any(series.prediction_method_id != method_id for series in prediction_series):
-        raise XjtuRulBaselineValidationResultError(
-            f"all predictions must use method {method_id!r}"
-        )
+        raise XjtuRulBaselineValidationResultError(f"all predictions must use method {method_id!r}")
 
     evaluation_assets = tuple(item.asset_id for item in evaluation.asset_results)
     if evaluation_assets != tuple(sorted(fold.validation)):
@@ -568,8 +552,7 @@ def _validate_prediction_evaluation_pair(
                 f"{expected_count} acquisitions"
             )
         expected_ids = tuple(
-            f"{series.asset_id}:acquisition-{index}"
-            for index in range(1, expected_count + 1)
+            f"{series.asset_id}:acquisition-{index}" for index in range(1, expected_count + 1)
         )
         observed_ids = tuple(
             observation.source_observation_id for observation in series.observations
