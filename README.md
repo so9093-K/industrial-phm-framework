@@ -449,10 +449,12 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      계산하거나 physical failure time·failure threshold·confidence interval을 만들어내지 못하게 지시
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
+   - protocol §8의 frozen selection rule을 적용해 temporal LSTM을 validation-selected candidate로 finalization하되, operational primary는 별도 검증 전까지 `None`으로 유지
+   - v1 uncertainty는 독립적인 calibration/coverage 근거가 부족하므로 prediction interval을 만들지 않고 `unsupported/not validated`로 freeze; held-out benchmark는 point prediction evidence만 생성
 
 ### Next
 
-1. RUL 구현에서 실제 필요가 확인된 범위의 health/degradation representation과 uncertainty/calibration 고도화
+1. RUL protocol §9.1 lifecycle-position diagnostics를 구현하고 frozen temporal LSTM candidate의 retrospective held-out benchmark 실행
 2. analysis result 저장 단위를 정리하고 사용자 report/export 흐름 추가
 3. CSV/WAV 등 local/general sensor input을 현재 validation/Adapter 경계에 연결
 4. fault label과 diagnostic semantics가 있는 적합한 source에서 diagnostics capability 검증
