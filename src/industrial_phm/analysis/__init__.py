@@ -18,6 +18,11 @@ from industrial_phm.analysis.prognostics_summary import (
     prognostics_asset_ids,
     summarize_prognostics_for_asset,
 )
+from industrial_phm.analysis.report import (
+    AnalysisReportError,
+    render_analysis_report_markdown,
+    write_analysis_report_markdown,
+)
 from industrial_phm.analysis.run import (
     AnalysisRunError,
     XjtuLstmAnalysisRun,
@@ -42,6 +47,7 @@ __all__ = [
     "AnalysisEvidenceCompatibility",
     "AnalysisEvidenceIdentity",
     "AnalysisObservation",
+    "AnalysisReportError",
     "AnalysisRunError",
     "AnalysisView",
     "AnalysisViewError",
@@ -61,7 +67,9 @@ __all__ = [
     "load_xjtu_lstm_analysis_view",
     "load_xjtu_rul_analysis_view",
     "prognostics_asset_ids",
+    "render_analysis_report_markdown",
     "run_xjtu_lstm_analysis_from_source",
     "score_exceedance_intervals",
     "summarize_prognostics_for_asset",
+    "write_analysis_report_markdown",
 ]
