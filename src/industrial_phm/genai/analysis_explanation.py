@@ -69,7 +69,11 @@ def build_analysis_explanation_context(
     evidence_limit: int = 5,
 ) -> AnalysisExplanationContext:
     """Build bounded structured context without recomputing numerical PHM evidence."""
-    if isinstance(evidence_limit, bool) or not isinstance(evidence_limit, int) or evidence_limit <= 0:
+    if (
+        isinstance(evidence_limit, bool)
+        or not isinstance(evidence_limit, int)
+        or evidence_limit <= 0
+    ):
         raise AnalysisExplanationError("evidence_limit must be a positive integer")
 
     asset = analysis.asset(asset_id)
@@ -178,7 +182,9 @@ def generate_openai_analysis_explanation(
             f"OpenAI Responses API returned HTTP {error.code}: {detail}"
         ) from error
     except URLError as error:
-        raise AnalysisExplanationError(f"OpenAI Responses API request failed: {error.reason}") from error
+        raise AnalysisExplanationError(
+            f"OpenAI Responses API request failed: {error.reason}"
+        ) from error
 
     try:
         document = cast(object, json.loads(payload))
