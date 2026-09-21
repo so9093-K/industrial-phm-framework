@@ -157,6 +157,16 @@ uv run industrial-phm data validate xjtu-sy \
   --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
 ```
 
+Prepared XJTU-SY source에서 frozen RUL baseline validation evidence를 생성할 때는 clean tracked checkout의
+현재 revision을 명시합니다. 이 실행은 fold-1 train/validation만 소비하고 test bearing은 읽지 않습니다.
+
+```bash
+uv run industrial-phm experiment rul-baseline-validation xjtu-sy \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --output docs/research/results/xjtu-sy-rul-baseline-fold-1-validation-v1.json \
+  --code-revision "$(git rev-parse HEAD)"
+```
+
 `data inspect`는 local inventory를 요약하고, `data validate`는 dataset source profile과 Adapter
 compatibility를 검사합니다. 상세 준비 절차는 [`data/README.md`](data/README.md)를 참조합니다.
 
@@ -403,7 +413,12 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      baseline을 고정·구현하고 기존 point evaluator에 연결
    - full 16-feature + train-only robust scaling + bearing-balanced resampling + frozen Ridge(alpha=1.0)로
      acquisition-feature baseline을 구현하고 age-only와 동일 evaluator에서 비교할 수 있게 연결
-   - 다음 구현은 실제 XJTU validation numerical evidence를 artifact로 고정하고 sequence-based RUL model로 확장
+   - age-only와 feature-Ridge의 fold-1 train→validation 실행을 같은 target/evaluator에서 수행하고
+     code revision, per-bearing prediction/evaluation, preprocessing/model provenance와 test exclusion을 보존하는
+     versioned validation evidence schema/runner/CLI를 구현
+   - XJTU-SY는 manual source이므로 실제 numerical artifact는 사용자가 검증한 prepared source와 clean tracked
+     Git checkout에서만 생성하며, source가 없는 CI에서 validation 숫자를 합성하거나 대신 기록하지 않음
+   - 다음 구현은 sequence-based RUL model을 같은 target/evaluator/evidence contract에 연결
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
