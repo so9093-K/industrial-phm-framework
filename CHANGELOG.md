@@ -237,6 +237,7 @@
 
 ### Changed
 
+- Root README를 experiment history 중심 문서에서 capability/status, quickstart, evidence boundary와 roadmap 중심의 product landing page로 재구성했습니다. 2025–2026 PHM의 uncertainty·robustness·domain shift·human-in-the-loop·LLM copilot·industrial integration 흐름과 관련 표준/산업 사례는 별도 research note로 분리했습니다.
 - CLI implementation handler를 `commands/data.py`, `commands/feature.py`, `commands/experiment.py`, `commands/analysis.py`로 분리했습니다. Public command/parser surface는 유지하고 `cli.py`는 parser wiring과 entrypoint 중심으로 축소했습니다. Evidence artifact는 canonical machine evidence와 deterministic human-review representation을 분리하는 저장·리뷰 정책을 추가했습니다.
 - Prognostics GenAI context가 retrospective development validation scope, holdout 사용 여부, field validation 여부와 Scoring/Evaluation inspection warnings를 구조화해 전달합니다. 모델 instruction은 이 범위를 넓혀 해석하지 못하도록 명시합니다.
 - Prognostics presentation capability는 `available` 목록에 명시된 경우에만 활성화되는 fail-closed 규칙으로 판정합니다. `target_clipping`/`target_normalization`도 result artifact의 target semantics를 `PrognosticsEvidence`까지 그대로 전달해 summary/GenAI 계층이 같은 사실을 별도로 하드코딩하지 않도록 정리했습니다.
