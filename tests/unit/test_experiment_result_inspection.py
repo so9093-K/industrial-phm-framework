@@ -21,6 +21,13 @@ from industrial_phm.experiments.xjtu_lstm_result import (
     XjtuLstmDevelopmentResult,
     write_xjtu_lstm_development_result,
 )
+from industrial_phm.experiments.xjtu_rul_benchmark_result import (
+    XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES,
+    XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
+    XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID,
+    XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES,
+)
+from industrial_phm.experiments.xjtu_rul_lstm import XJTU_RUL_LSTM_METHOD_ID
 from industrial_phm.experiments.xjtu_sequence import (
     XJTU_LSTM_DEVELOPMENT_PROTOCOL_ID,
     XJTU_LSTM_SEQUENCE_SPEC,
@@ -377,6 +384,153 @@ def _xjtu_lstm_scores() -> ReconstructionScores:
     )
 
 
+def _write_rul_benchmark_document(tmp_path: Path) -> Path:
+    fold = get_xjtu_reference_split().folds[0]
+    all_bearings = (*fold.train, *fold.validation, *fold.test)
+    source_count = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in all_bearings)
+    train_count = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.train)
+    benchmark_count = sum(get_xjtu_expected_acquisition_count(asset_id) for asset_id in fold.test)
+
+    point_rows = [
+        {
+            "asset_id": asset_id,
+            "partition_id": "test",
+            "prediction_count": get_xjtu_expected_acquisition_count(asset_id) - 7,
+            "mean_absolute_error": float(index),
+            "root_mean_squared_error": float(index + 1),
+            "mean_signed_error": float(-index),
+            "normalized_mean_absolute_error": float(index) / 10.0,
+        }
+        for index, asset_id in enumerate(sorted(fold.test), start=1)
+    ]
+    lifecycle_rows = [
+        {
+            "asset_id": asset_id,
+            "partition_id": "test",
+            "position": position,
+            "prediction_count": 1,
+            "mean_absolute_error": float(position_index),
+            "root_mean_squared_error": float(position_index + 1),
+            "mean_signed_error": float(-position_index),
+            "normalized_mean_absolute_error": float(position_index) / 10.0,
+        }
+        for asset_id in fold.test
+        for position_index, position in enumerate(("early", "middle", "late"), start=1)
+    ]
+    lifecycle_summaries = [
+        {
+            "position": position,
+            "bearing_count": len(fold.test),
+            "mean_asset_mean_absolute_error": float(position_index),
+            "mean_asset_root_mean_squared_error": float(position_index + 1),
+            "mean_asset_mean_signed_error": float(-position_index),
+            "mean_asset_normalized_mean_absolute_error": float(position_index) / 10.0,
+        }
+        for position_index, position in enumerate(("early", "middle", "late"), start=1)
+    ]
+
+    document = {
+        "schema_id": XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID,
+        "provenance": {
+            "code_revision": "b" * 40,
+            "protocol_id": "xjtu-sy-rul-prognostics-protocol-v1",
+            "dataset_id": "xjtu-sy",
+            "split_id": "xjtu-sy-condition-stratified-5fold-v1",
+            "fold_id": "fold-1",
+            "evidence_class": XJTU_RUL_LSTM_BENCHMARK_EVIDENCE_CLASS,
+        },
+        "source_scope": {
+            "verified_source_acquisition_count": source_count,
+            "train_bearings": list(fold.train),
+            "benchmark_bearings": list(fold.test),
+            "train_source_acquisition_count": train_count,
+            "benchmark_source_acquisition_count": benchmark_count,
+            "project_history_limitation": (
+                "fold-1 test bearings were previously observed by project anomaly/robustness "
+                "work; this is not a pristine external holdout"
+            ),
+        },
+        "selection": {
+            "validation_selected_method_id": XJTU_RUL_LSTM_METHOD_ID,
+            "operational_primary_method_id": None,
+            "selection_rule": "fold-1-validation-equal-bearing-mean-mae",
+        },
+        "target": {
+            "definition_id": "xjtu-sy-recorded-end-rul-v1",
+            "unit": "acquisition-interval",
+            "endpoint_semantics": "last-recorded-acquisition",
+            "formula": "N-k",
+            "prediction_alignment": "right-edge-acquisition",
+            "target_clipping": False,
+            "target_normalization": False,
+        },
+        "method": {
+            "method_id": XJTU_RUL_LSTM_METHOD_ID,
+            "kind": "temporal-sequence-lstm-regression",
+            "feature_schema": {
+                "feature_set_id": "vibration-statistical-v1",
+                "selected_features": ["rms"],
+                "selected_feature_count": 1,
+            },
+            "preprocessing": {
+                "fit_partition": "train",
+                "scaling_strategy": "robust",
+                "fit_observation_count": train_count,
+            },
+            "sequence": {
+                "length": 8,
+                "stride": 1,
+                "alignment": "right-edge",
+                "train_window_count": train_count - 63,
+                "benchmark_dropped_prefix_per_bearing": 7,
+            },
+            "model": {
+                "random_seed": 42,
+                "device": "cpu",
+                "numeric_precision": "float32",
+                "deterministic_algorithms": True,
+            },
+        },
+        "evaluation": {
+            "point": {
+                "aggregation": "equal-bearing-mean",
+                "prediction_method_id": XJTU_RUL_LSTM_METHOD_ID,
+                "target_definition_id": "xjtu-sy-recorded-end-rul-v1",
+                "unit": "acquisition-interval",
+                "mean_asset_mean_absolute_error": 2.0,
+                "mean_asset_root_mean_squared_error": 3.0,
+                "mean_asset_mean_signed_error": -2.0,
+                "mean_asset_normalized_mean_absolute_error": 0.2,
+                "bearings": point_rows,
+            },
+            "lifecycle_position": {
+                "boundary": {
+                    "early": "1..ceil(N/3)",
+                    "middle": "ceil(N/3)+1..ceil(2N/3)",
+                    "late": "ceil(2N/3)+1..N",
+                    "semantics": "retrospective-evaluation-only",
+                },
+                "prediction_method_id": XJTU_RUL_LSTM_METHOD_ID,
+                "target_definition_id": "xjtu-sy-recorded-end-rul-v1",
+                "unit": "acquisition-interval",
+                "aggregation": "equal-bearing-mean-within-lifecycle-position",
+                "bearing_positions": lifecycle_rows,
+                "position_summaries": lifecycle_summaries,
+            },
+        },
+        "capability_scope": {
+            "available": list(XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES),
+            "unsupported_or_not_validated": list(
+                XJTU_RUL_LSTM_BENCHMARK_UNSUPPORTED_CAPABILITIES
+            ),
+        },
+        "interpretation": "protocol-frozen retrospective benchmark evidence",
+    }
+    output = tmp_path / "xjtu-rul-benchmark.json"
+    output.write_text(json.dumps(document), encoding="utf-8")
+    return output
+
+
 def _stage_positions(summary: str) -> list[int]:
     return [summary.index(f"\n{stage}\n") for stage in _STAGES]
 
@@ -443,6 +597,67 @@ def test_rul_inspection_rejects_evidence_class_drift(tmp_path: Path) -> None:
 
     with pytest.raises(ExperimentResultInspectionError, match="evidence_class"):
         inspect_experiment_result(drifted)
+
+
+def test_rul_benchmark_inspection_uses_shared_stage_vocabulary(tmp_path: Path) -> None:
+    result = _write_rul_benchmark_document(tmp_path)
+
+    inspection = inspect_experiment_result(result)
+    summary = render_experiment_inspection_text(inspection)
+
+    assert inspection.schema_id == XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID
+    assert tuple(stage.name for stage in inspection.stages) == _STAGES
+    assert "Validation-selected method: xjtu-sy-rul-lstm-fold-1-v1" in summary
+    assert "Operational primary method: none" in summary
+    assert "Lifecycle positions: early, middle, late" in summary
+    assert "protocol-frozen-retrospective-benchmark-evidence" in summary
+    assert "not a pristine external holdout" in summary
+
+
+def test_rul_benchmark_inspection_rejects_point_aggregate_drift(tmp_path: Path) -> None:
+    result = _write_rul_benchmark_document(tmp_path)
+    document = _read_object(result)
+    evaluation = cast(dict[str, object], document["evaluation"])
+    point = cast(dict[str, object], evaluation["point"])
+    point["mean_asset_mean_absolute_error"] = 999.0
+    result.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match="mean_asset_mean_absolute_error",
+    ):
+        inspect_experiment_result(result)
+
+
+def test_rul_benchmark_inspection_rejects_operational_primary(tmp_path: Path) -> None:
+    result = _write_rul_benchmark_document(tmp_path)
+    document = _read_object(result)
+    selection = cast(dict[str, object], document["selection"])
+    selection["operational_primary_method_id"] = XJTU_RUL_LSTM_METHOD_ID
+    result.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match="operational_primary_method_id must remain null",
+    ):
+        inspect_experiment_result(result)
+
+
+def test_rul_benchmark_inspection_rejects_capability_drift(tmp_path: Path) -> None:
+    result = _write_rul_benchmark_document(tmp_path)
+    document = _read_object(result)
+    capability = cast(dict[str, object], document["capability_scope"])
+    capability["available"] = [
+        *XJTU_RUL_LSTM_BENCHMARK_AVAILABLE_CAPABILITIES,
+        "prediction-interval",
+    ]
+    result.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ExperimentResultInspectionError,
+        match="benchmark available capability scope",
+    ):
+        inspect_experiment_result(result)
 
 
 def test_rul_inspection_requires_three_methods(tmp_path: Path) -> None:
