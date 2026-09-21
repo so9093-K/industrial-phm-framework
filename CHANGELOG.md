@@ -165,6 +165,10 @@
 
 ### Changed
 
+- 프로젝트의 현재 제품 단계를 experiment/dataset 확장 중심에서 end-to-end PHM Analysis Application vertical slice로
+  전환했습니다. 기존 analysis/evidence를 사용자 결과·시각화·Generative AI 설명으로 연결하고,
+  `ExperimentInspection`은 transparency drill-down으로 재사용하며, RUL/prognostics는 지원 가능한 source에서
+  같은 application에 추가되는 핵심 PHM capability로 정렬합니다.
 - Dataset-specific execution boundary와 authoritative evidence artifact 용어를 문서 전반에서 정렬하고, dataset
   validation 순서를 Workbench cross-schema 검토 → MIMII DUE → 근거 기반 Health Indicator/RUL 재검토로 갱신했습니다.
 - LSTM training provenance의 모호한 `final_loss` property를 실제 집계 의미가 드러나는
