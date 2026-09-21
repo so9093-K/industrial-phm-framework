@@ -616,6 +616,22 @@ Artifact가 어떤 capability를 담지 않으면 해당 evidence는 **없는 �
 Prognostics evidence는 `primary_method_id`를 갖지만 method 선택이 검증되기 전까지 `None`으로 유지합니다.
 여러 method를 동시에 보여주는 화면은 **development comparison evidence**이며, 같은 asset에 대한 여러 개의
 답으로 표시하지 않습니다.
+
+### Prognostics 화면이 함께 보여야 하는 것
+
+RUL 숫자 하나만 보여주면 사용자가 물리적 failure time으로 읽습니다. 따라서 추정치와 다음 항목을 **같은
+화면에서** 함께 제시합니다.
+
+| 항목 | 현재 evidence가 말할 수 있는 것 |
+| --- | --- |
+| Target 의미 | 기록된 run의 마지막 acquisition까지 남은 acquisition interval (`N-k`) |
+| As-of | 추정이 기록된 마지막 acquisition index |
+| Method | 비교된 method와 각각의 validation 오차 |
+| Uncertainty interval | not available |
+| Physical failure threshold | not validated |
+
+Target에 clipping이 없으므로 음수 추정이 기록될 수 있습니다. 화면은 이를 0으로 바닥 처리하지 않고 기록된 값
+그대로 보여주며, 음수가 있으면 그 사실을 함께 표시합니다.
 - Generative AI가 RUL 수치와 uncertainty/limitation을 구조화된 evidence로 설명하도록 확장
 
 그 이후에는 report/export, local/general sensor input, 적합한 source의 diagnostics, private/field source와 live

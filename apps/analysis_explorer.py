@@ -17,8 +17,10 @@ def _():
         AnalysisViewError,
         derive_early_scored_window_review_threshold,
         load_xjtu_lstm_analysis_view,
+        load_xjtu_rul_analysis_view,
         run_xjtu_lstm_analysis_from_source,
         score_exceedance_intervals,
+        summarize_prognostics_for_asset,
     )
     from industrial_phm.genai import (
         AnalysisExplanationError,
@@ -35,11 +37,13 @@ def _():
         derive_early_scored_window_review_threshold,
         generate_openai_analysis_explanation,
         load_xjtu_lstm_analysis_view,
+        load_xjtu_rul_analysis_view,
         mo,
         os,
         plt,
         run_xjtu_lstm_analysis_from_source,
         score_exceedance_intervals,
+        summarize_prognostics_for_asset,
     )
 
 
@@ -93,6 +97,7 @@ def _(analysis, mo):
     view_selector = mo.ui.radio(
         options=[
             "Analysis Summary",
+            "Prognostics",
             "Evidence",
             "AI Explanation",
             "Run Analysis",
@@ -563,18 +568,152 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
 
 
 @app.cell
+def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
+    prognostics_artifact_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_PROGNOSTICS_ARTIFACT",
+            "docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json",
+        )
+    )
+    if prognostics_artifact_path.is_file():
+        try:
+            prognostics_analysis = load_xjtu_rul_analysis_view(prognostics_artifact_path)
+            prognostics_error = ""
+        except AnalysisViewError as error:
+            prognostics_analysis = None
+            prognostics_error = str(error)
+    else:
+        prognostics_analysis = None
+        prognostics_error = f"No prognostics evidence artifact at `{prognostics_artifact_path}`."
+    return prognostics_analysis, prognostics_error
+
+
+@app.cell
+def _(
+    asset_selector,
+    mo,
+    prognostics_analysis,
+    prognostics_error,
+    summarize_prognostics_for_asset,
+):
+    if prognostics_analysis is None:
+        prognostics_view = mo.vstack(
+            [
+                mo.md("## Prognostics"),
+                mo.callout(
+                    prognostics_error
+                    + " Remaining-useful-life evidence is not available for this analysis.",
+                    kind="neutral",
+                    title="Prognostics evidence unavailable",
+                ),
+            ],
+            gap=1.2,
+        )
+    else:
+        prognostics_summary = summarize_prognostics_for_asset(
+            prognostics_analysis,
+            asset_selector.value,
+        )
+        _low, _high = prognostics_summary.estimate_range
+        _method_rows = "\n".join(
+            f"| `{row.method_id}` | {row.last_recorded_remaining_useful_life:,.1f} | "
+            f"{row.mean_absolute_error:,.1f} | {row.mean_signed_error:,.1f} | "
+            f"{row.prediction_count:,} |"
+            for row in prognostics_summary.methods
+        )
+        prognostics_view = mo.vstack(
+            [
+                mo.md("## Prognostics"),
+                asset_selector,
+                mo.callout(
+                    "These are **retrospective development estimates**, not a live "
+                    "remaining-life readout. One unit is "
+                    f"**{prognostics_summary.target_description}**. It is not a validated "
+                    "physical failure time.",
+                    kind="warn",
+                    title="What the number means",
+                ),
+                mo.hstack(
+                    [
+                        mo.stat(
+                            f"{_low:,.1f} to {_high:,.1f}",
+                            label="Recorded estimate range",
+                            caption=f"across {len(prognostics_summary.methods)} methods",
+                        ),
+                        mo.stat(
+                            "acquisition "
+                            f"{prognostics_summary.methods[0].last_recorded_acquisition_index:,}",
+                            label="As of",
+                            caption="last recorded acquisition of the run",
+                        ),
+                        mo.stat(
+                            "not available",
+                            label="Uncertainty interval",
+                            caption="no calibrated interval in this evidence",
+                        ),
+                        mo.stat(
+                            "not validated",
+                            label="Physical failure threshold",
+                            caption="target is the recorded endpoint",
+                        ),
+                    ],
+                    widths="equal",
+                ),
+                mo.md(
+                    "### Method comparison (development evidence)\n\n"
+                    "| Method | Recorded estimate | MAE | Signed error | Predictions |\n"
+                    "| --- | ---: | ---: | ---: | ---: |\n" + _method_rows
+                ),
+                mo.callout(
+                    "No method is selected as the operational answer for this asset. "
+                    "These rows compare candidate methods on recorded validation error; "
+                    "they are not several competing remaining-life answers.",
+                    kind="warn",
+                    title="No selected method",
+                ),
+                mo.md(
+                    "### Recorded scope\n\n"
+                    f"- Target definition: `{prognostics_summary.target_definition_id}`\n"
+                    f"- Support: {prognostics_summary.support_definition} from acquisition "
+                    f"{prognostics_summary.support_first_acquisition}"
+                    f" ({prognostics_summary.support_prediction_count:,} predictions)\n"
+                    f"- Evidence class: {prognostics_summary.evidence_class}\n"
+                    f"- Artifact: `{prognostics_summary.artifact_path}`"
+                ),
+            ]
+            + (
+                [
+                    mo.callout(
+                        "At least one method recorded a negative remaining-life estimate. "
+                        "The target is not clipped, so negative values are kept as recorded "
+                        "instead of being floored at zero.",
+                        kind="danger",
+                        title="Negative estimate recorded",
+                    )
+                ]
+                if prognostics_summary.has_negative_estimate
+                else []
+            ),
+            gap=1.2,
+        )
+    return (prognostics_view,)
+
+
+@app.cell
 def _(
     ai_explanation_view,
     details_view,
     evidence_view,
     header,
     mo,
+    prognostics_view,
     run_analysis_view,
     summary_view,
     view_selector,
 ):
     views = {
         "Analysis Summary": summary_view,
+        "Prognostics": prognostics_view,
         "Evidence": evidence_view,
         "AI Explanation": ai_explanation_view,
         "Run Analysis": run_analysis_view,

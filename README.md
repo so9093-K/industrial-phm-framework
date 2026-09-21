@@ -440,7 +440,10 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      JSON을 직접 파싱하지 않도록 분리
    - `AnalysisView`를 capability composition으로 확장해 anomaly evidence와 prognostics evidence를 독립
      capability로 분리하고, 없는 capability는 빈 값으로 채우지 않고 명시적으로 실패하도록 정리
-   - 다음 구현은 Analysis Explorer에 RUL method comparison evidence를 development comparison으로 연결
+   - Analysis Explorer에 Prognostics 화면을 추가해 recorded 추정치와 target 의미, as-of acquisition,
+     uncertainty/failure-threshold 미지원 상태를 같은 화면에서 표시하고 method 비교를 development
+     comparison으로 분리
+   - 다음 구현은 Generative AI explanation에 RUL evidence와 한계를 구조화된 context로 연결
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 

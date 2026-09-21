@@ -219,6 +219,8 @@
 
 - `AnalysisView`의 capability composition과 XJTU RUL prognostics evidence read model.
 
+- Analysis Explorer Prognostics 화면과 presentation-independent prognostics summary helper.
+
 ### Changed
 
 - 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를
