@@ -311,4 +311,3 @@ def _run_ims_data_validate(args: argparse.Namespace, title: str) -> int:
 
     print("profile compatibility: PASS")
     return 0
-
