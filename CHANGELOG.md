@@ -11,6 +11,10 @@
 
 ### Added
 
+- Dataset-neutral `RulTargetObservation` / `RulTargetSeries` contract와 기존 XJTU bearing-run split/source profile을
+  재사용하는 fold-1 recorded-end RUL target construction. 각 acquisition을 canonical source identity에 맞춰
+  `N - k` acquisition interval target으로 정렬하고 complete partition coverage, dataset/feature schema와
+  duplicate/missing acquisition을 fail-fast 검증합니다.
 - XJTU-SY RUL / Prognostics numerical implementation 전에 마지막 recorded acquisition을 dataset-observed endpoint로
   사용하는 `N - k` acquisition-interval target, bearing-run leakage boundary, age/feature/sequence baseline ladder,
   bearing-first evaluation, uncertainty evidence 요구와 UI/GenAI dependency boundary를 고정한 protocol v1.
