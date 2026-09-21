@@ -539,7 +539,7 @@ def _verify_clean_git_revision(declared_revision: str) -> None:
     if status_result.stdout.strip():
         raise ValueError(
             "tracked Git working tree is dirty; commit or revert tracked changes before "
-            "authoritative MIMII execution"
+            "authoritative evidence execution"
         )
 
 
