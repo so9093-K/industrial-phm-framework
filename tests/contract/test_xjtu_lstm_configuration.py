@@ -65,6 +65,7 @@ def test_xjtu_lstm_configuration_rejects_protocol_axis_drift(
 
     module.get_xjtu_lstm_development_configuration.cache_clear()
 
+
 def test_packaged_xjtu_rul_lstm_configuration_exposes_frozen_protocol_axes() -> None:
     config = get_xjtu_rul_lstm_configuration()
 
@@ -111,4 +112,3 @@ def test_xjtu_rul_lstm_configuration_rejects_protocol_axis_drift(
         rul_module.get_xjtu_rul_lstm_configuration()
 
     rul_module.get_xjtu_rul_lstm_configuration.cache_clear()
-
