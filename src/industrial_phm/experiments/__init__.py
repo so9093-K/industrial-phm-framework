@@ -236,6 +236,10 @@ from industrial_phm.experiments.xjtu_rul_baseline_result import (
 )
 from industrial_phm.experiments.xjtu_rul_evaluation import (
     XjtuRulEvaluationError,
+    XjtuRulLifecyclePositionAssetEvaluation,
+    XjtuRulLifecyclePositionEvaluation,
+    XjtuRulLifecyclePositionSummary,
+    evaluate_xjtu_rul_lifecycle_position_errors,
     evaluate_xjtu_rul_point_predictions,
 )
 from industrial_phm.experiments.xjtu_rul_feature_baseline import (
@@ -425,6 +429,9 @@ __all__ = [
     "XjtuRulBaselineValidationResult",
     "XjtuRulBaselineValidationResultError",
     "XjtuRulEvaluationError",
+    "XjtuRulLifecyclePositionAssetEvaluation",
+    "XjtuRulLifecyclePositionEvaluation",
+    "XjtuRulLifecyclePositionSummary",
     "XjtuRulLstmError",
     "XjtuRulLstmFit",
     "XjtuRulTargetError",
@@ -455,6 +462,7 @@ __all__ = [
     "evaluate_xjtu_fold_1_holdout",
     "evaluate_xjtu_lstm_development_scores",
     "evaluate_xjtu_reference_hypotheses",
+    "evaluate_xjtu_rul_lifecycle_position_errors",
     "evaluate_xjtu_rul_point_predictions",
     "fit_ims_preprocessing_and_prepare_model_input",
     "fit_mimii_preprocessing_and_prepare_model_input",

@@ -314,6 +314,19 @@ Aggregate는 bearing별 metric을 먼저 계산한 뒤 **equal-bearing arithmeti
 위해 retrospective evaluator는 bearing의 recorded lifecycle을 early/middle/late thirds로 나누어 error를
 기술할 수 있습니다.
 
+이 thirds는 evaluation-only diagnostic입니다. Exact boundary는 held-out benchmark 전에 다음과 같이
+고정합니다. Complete recorded lifecycle의 acquisition ordinal을 1-based `k`, run length를 `N`이라고 할 때:
+
+```text
+early   = 1 .. ceil(N / 3)
+middle  = ceil(N / 3) + 1 .. ceil(2N / 3)
+late    = ceil(2N / 3) + 1 .. N
+```
+
+Sequence model처럼 early acquisition 일부에 prediction이 없으면 complete lifecycle boundary 자체를 다시
+나누지 않습니다. 해당 acquisition은 단순히 diagnostic prediction population에 포함되지 않으며, 각 third의
+실제 prediction count를 함께 기록합니다. Lifecycle diagnostic은 candidate selection metric을 변경하지 않습니다.
+
 이 thirds는 evaluation-only diagnostic입니다.
 
 - model input이 아님
