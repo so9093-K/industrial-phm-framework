@@ -320,6 +320,7 @@ def test_three_model_result_rejects_temporal_parameter_drift() -> None:
     ):
         replace(result, temporal_model_parameters=changed)
 
+
 def test_three_model_runner_rejects_invalid_revision_before_source_io(
     tmp_path: Path,
 ) -> None:
@@ -343,6 +344,7 @@ def test_three_model_result_rejects_non_finite_training_loss() -> None:
         match="finite and non-negative",
     ):
         replace(result, temporal_epoch_losses=invalid_losses)
+
 
 def test_three_model_result_rejects_mismatched_common_support_count() -> None:
     result = _result()
