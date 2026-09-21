@@ -11,6 +11,10 @@
 
 ### Added
 
+- Dataset-neutral RUL prediction contract와 identity-aligned point evaluator. Sequence model의 dropped prefix를 허용하는
+  ordered prediction subset을 target lifecycle에 결합하고 asset별 MAE/RMSE/mean signed error를 먼저 계산한 뒤
+  equal-asset 평균으로 집계합니다. XJTU policy edge는 complete recorded-end target을 재검증하고 bearing별
+  `N - 1` normalization scale만 제공해 model implementation과 평가 의미를 분리합니다.
 - Dataset-neutral `RulTargetObservation` / `RulTargetSeries` contract와 기존 XJTU bearing-run split/source profile을
   재사용하는 fold-1 recorded-end RUL target construction. 각 acquisition을 canonical source identity에 맞춰
   `N - k` acquisition interval target으로 정렬하고 complete partition coverage, dataset/feature schema와
