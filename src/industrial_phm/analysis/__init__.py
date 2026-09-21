@@ -1,5 +1,10 @@
-"""User-facing analysis read models built from validated PHM evidence."""
+"""User-facing analysis application and read models built from validated PHM evidence."""
 
+from industrial_phm.analysis.run import (
+    AnalysisRunError,
+    XjtuLstmAnalysisRun,
+    run_xjtu_lstm_analysis_from_source,
+)
 from industrial_phm.analysis.view import (
     AnalysisAssetEvidence,
     AnalysisObservation,
@@ -10,8 +15,11 @@ from industrial_phm.analysis.view import (
 
 __all__ = [
     "AnalysisAssetEvidence",
+    "AnalysisRunError",
     "AnalysisObservation",
     "AnalysisView",
     "AnalysisViewError",
+    "XjtuLstmAnalysisRun",
     "load_xjtu_lstm_analysis_view",
+    "run_xjtu_lstm_analysis_from_source",
 ]
