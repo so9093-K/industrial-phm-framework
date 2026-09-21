@@ -76,7 +76,7 @@ def test_analysis_run_exposes_execution_failure_as_application_error(
         fake_runner,
     )
 
-    with pytest.raises(AnalysisRunError, match="analysis execution failed.*source profile drift"):
+    with pytest.raises(AnalysisRunError, match=r"analysis execution failed.*source profile drift"):
         run_xjtu_lstm_analysis_from_source(
             tmp_path / "source",
             tmp_path / "result.json",
