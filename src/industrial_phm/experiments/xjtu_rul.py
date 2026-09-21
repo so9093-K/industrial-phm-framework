@@ -65,10 +65,13 @@ def build_xjtu_recorded_end_rul_targets(
         )
 
         vectors_for_asset = ordered_by_asset[asset_id]
-        for vector, target in zip(vectors_for_asset, observations, strict=True):
-            acquisition_index = _acquisition_index(vector, vector_index=acquisition_index_for(vector))
-            expected_source_id = f"{asset_id}:acquisition-{acquisition_index}"
-            if target.source_observation_id != expected_source_id:
+        for acquisition_index, (vector, target) in enumerate(
+            zip(vectors_for_asset, observations, strict=True),
+            start=1,
+        ):
+            observed_index = _acquisition_index(vector, vector_index=acquisition_index - 1)
+            expected_source_id = f"{asset_id}:acquisition-{observed_index}"
+            if observed_index != acquisition_index or target.source_observation_id != expected_source_id:
                 raise XjtuRulTargetError(
                     "XJTU RUL target source identity drifted from the ordered feature observation"
                 )
@@ -170,8 +173,3 @@ def _acquisition_index(vector: VibrationFeatureVector, *, vector_index: int) -> 
             f"XJTU RUL feature vector {vector_index} requires a positive integer acquisition_index"
         )
     return value
-
-
-def acquisition_index_for(vector: VibrationFeatureVector) -> int:
-    """Return the validated XJTU acquisition index for an already validated vector."""
-    return _acquisition_index(vector, vector_index=0)
