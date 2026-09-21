@@ -362,9 +362,7 @@ def _evidence_identity(
         code_revision=cast(str, provenance["code_revision"]),
         evaluation_partition=evaluation_partition,
         train_asset_ids=tuple(sorted(cast(list[str], source_scope["train_bearings"]))),
-        evaluation_asset_ids=tuple(
-            sorted(cast(list[str], source_scope[evaluation_asset_key]))
-        ),
+        evaluation_asset_ids=tuple(sorted(cast(list[str], source_scope[evaluation_asset_key]))),
         excluded_scope=tuple(sorted(cast(list[str], source_scope["excluded"]))),
         verified_source_acquisition_count=cast(
             int,
