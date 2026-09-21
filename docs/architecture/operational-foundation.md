@@ -19,6 +19,8 @@
 ```text
 industrial-phm
 ├── doctor
+├── analysis
+│   └── report
 ├── data
 │   ├── list
 │   ├── status
@@ -29,11 +31,19 @@ industrial-phm
 ├── feature
 │   └── characterize
 └── experiment
+    ├── inspect
     ├── validate
     ├── reference-compare
     ├── holdout
     ├── cross-fold
-    └── cross-test
+    ├── cross-test
+    ├── lstm-development
+    ├── rul-baseline-validation
+    ├── rul-validation
+    ├── rul-benchmark
+    ├── mimii-development
+    ├── mimii-external-score
+    └── mimii-external-evaluate
 ```
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.
