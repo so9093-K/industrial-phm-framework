@@ -78,15 +78,17 @@ def test_score_exceedance_interval_preserves_source_lineage() -> None:
 def test_exceeding_scores_with_acquisition_gap_are_separate_intervals() -> None:
     asset = _asset(
         (1.0, 2.0, 3.0, 5.0, 6.0),
-        positions=(1, 2, 3, 5, 6),
+        positions=(1, 2, 3, 5, 7),
     )
     threshold = derive_early_scored_window_review_threshold(asset, quantile=0.95)
 
     intervals = score_exceedance_intervals(asset, threshold)
 
-    assert len(intervals) == 1
+    assert len(intervals) == 2
     assert intervals[0].start_acquisition_index == 5
-    assert intervals[0].end_acquisition_index == 6
+    assert intervals[0].end_acquisition_index == 5
+    assert intervals[1].start_acquisition_index == 7
+    assert intervals[1].end_acquisition_index == 7
 
 
 @pytest.mark.parametrize("quantile", (0.0, 1.0, -0.1, 1.1))
