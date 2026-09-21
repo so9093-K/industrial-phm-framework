@@ -101,9 +101,7 @@ def fit_xjtu_age_only_rul_baseline(
             f"invalid XJTU train targets for age-only baseline: {error}"
         ) from error
 
-    endpoints = tuple(
-        series.observations[0].remaining_useful_life + 1.0 for series in validated
-    )
+    endpoints = tuple(series.observations[0].remaining_useful_life + 1.0 for series in validated)
     return XjtuAgeOnlyRulBaseline(
         train_asset_ids=tuple(series.asset_id for series in validated),
         train_endpoint_acquisitions=endpoints,
@@ -119,9 +117,7 @@ def predict_xjtu_age_only_rul(
 ) -> tuple[RulPredictionSeries, ...]:
     """Predict RUL from train-fitted mean endpoint and current acquisition index only."""
     if not isinstance(baseline, XjtuAgeOnlyRulBaseline):
-        raise XjtuAgeOnlyRulBaselineError(
-            "baseline must be an XjtuAgeOnlyRulBaseline"
-        )
+        raise XjtuAgeOnlyRulBaselineError("baseline must be an XjtuAgeOnlyRulBaseline")
     ordered = _ordered_prediction_vectors(vectors, partition=partition)
 
     return tuple(
@@ -164,8 +160,7 @@ def _ordered_prediction_vectors(
     for vector_index, vector in enumerate(vectors):
         if not isinstance(vector, VibrationFeatureVector):
             raise XjtuAgeOnlyRulBaselineError(
-                f"XJTU age-only feature observation {vector_index} "
-                "must be a VibrationFeatureVector"
+                f"XJTU age-only feature observation {vector_index} must be a VibrationFeatureVector"
             )
         if vector.metadata.get("dataset_id") != _DATASET_ID:
             raise XjtuAgeOnlyRulBaselineError(
@@ -174,8 +169,7 @@ def _ordered_prediction_vectors(
             )
         if vector.asset_id not in expected_asset_set:
             raise XjtuAgeOnlyRulBaselineError(
-                f"XJTU age-only prediction received asset outside {partition}: "
-                f"{vector.asset_id!r}"
+                f"XJTU age-only prediction received asset outside {partition}: {vector.asset_id!r}"
             )
 
         acquisition_index = _positive_acquisition_index(vector, vector_index=vector_index)
