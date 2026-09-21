@@ -5,6 +5,8 @@ on:
     paths:
       - ".github/workflows/interactive-analysis.yml"
       - "notebooks/*.py"
+      - "apps/*.py"
+      - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/experiments/xjtu_characterization_artifacts.py"
       - "src/industrial_phm/experiments/result_inspection.py"
       - "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
@@ -15,6 +17,8 @@ on:
     paths:
       - ".github/workflows/interactive-analysis.yml"
       - "notebooks/*.py"
+      - "apps/*.py"
+      - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/experiments/xjtu_characterization_artifacts.py"
       - "src/industrial_phm/experiments/result_inspection.py"
       - "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
@@ -56,7 +60,7 @@ jobs:
         run: uv sync --locked --group research
 
       - name: Check marimo analysis files
-        run: uv run --locked --group research marimo check --strict notebooks/*.py
+        run: uv run --locked --group research marimo check --strict notebooks/*.py apps/*.py
 
       - name: Execute Developer Workbench across validated experiment evidence
         run: |
@@ -82,3 +86,11 @@ jobs:
             notebooks/03_maintenance_evidence_review.py \
             --no-include-code \
             --output /tmp/maintenance-evidence-review.html
+
+      - name: Execute PHM Analysis Explorer
+        run: |
+          INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
+            uv run --locked --group research marimo export html \
+            apps/analysis_explorer.py \
+            --no-include-code \
+            --output /tmp/analysis-explorer.html

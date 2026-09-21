@@ -11,6 +11,9 @@
 
 ### Added
 
+- Validated XJTU LSTM analysis evidence를 사용자 결과 중심으로 검토하는 첫 PHM Analysis Explorer.
+  Acquisition-aligned anomaly-evidence trajectory, high-score observation, feature residual과 capability를 표시하고
+  기존 `ExperimentInspection` pipeline/provenance를 Analysis Details drill-down으로 재사용합니다.
 - XJTU/IMS Isolation Forest와 XJTU LSTM evidence를 같은 Experiment Overview와 Pipeline Lineage vocabulary로 검토하는
   marimo 기반 Developer Workbench. Acquisition-level model의 Sequence Construction을 `not applicable`로 표시하고,
   raw trajectory/residual이 없는 result의 detailed evidence를 `not recorded`로 구분합니다.
