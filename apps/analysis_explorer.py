@@ -13,8 +13,23 @@ def _():
     import matplotlib.pyplot as plt
 
     from industrial_phm.analysis import AnalysisViewError, load_xjtu_lstm_analysis_view
+    from industrial_phm.genai import (
+        AnalysisExplanationError,
+        build_analysis_explanation_context,
+        generate_openai_analysis_explanation,
+    )
 
-    return AnalysisViewError, Path, load_xjtu_lstm_analysis_view, mo, os, plt
+    return (
+        AnalysisExplanationError,
+        AnalysisViewError,
+        Path,
+        build_analysis_explanation_context,
+        generate_openai_analysis_explanation,
+        load_xjtu_lstm_analysis_view,
+        mo,
+        os,
+        plt,
+    )
 
 
 @app.cell
@@ -53,7 +68,7 @@ def _(analysis, mo):
         label="Analysis target",
     )
     view_selector = mo.ui.radio(
-        options=["Analysis Summary", "Evidence", "Analysis Details"],
+        options=["Analysis Summary", "Evidence", "AI Explanation", "Analysis Details"],
         value="Analysis Summary",
         inline=True,
         label="View",
@@ -74,6 +89,43 @@ def _(analysis, mo):
 def _(analysis, asset_selector):
     selected_asset = analysis.asset(asset_selector.value)
     return (selected_asset,)
+
+
+@app.cell
+def _(
+    analysis,
+    build_analysis_explanation_context,
+    os,
+    selected_asset,
+):
+    explanation_context = build_analysis_explanation_context(
+        analysis,
+        selected_asset.asset_id,
+    )
+    explanation_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    explanation_model = os.environ.get("INDUSTRIAL_PHM_GENAI_MODEL", "").strip()
+    explanation_configured = bool(explanation_api_key and explanation_model)
+    return (
+        explanation_api_key,
+        explanation_configured,
+        explanation_context,
+        explanation_model,
+    )
+
+
+@app.cell
+def _(mo):
+    explanation_question = mo.ui.text_area(
+        value="이 분석 결과에서 관찰된 변화와 현재 해석 가능한 범위를 설명해주세요.",
+        label="Ask about this analysis",
+        rows=3,
+        full_width=True,
+    )
+    explanation_run = mo.ui.run_button(
+        label="Generate AI explanation",
+        kind="success",
+    )
+    return explanation_question, explanation_run
 
 
 @app.cell
@@ -204,6 +256,73 @@ def _(analysis, mo, plt, selected_asset):
 
 
 @app.cell
+def _(
+    AnalysisExplanationError,
+    explanation_api_key,
+    explanation_configured,
+    explanation_context,
+    explanation_model,
+    explanation_question,
+    explanation_run,
+    generate_openai_analysis_explanation,
+    mo,
+):
+    if not explanation_configured:
+        explanation_output = mo.callout(
+            "Set OPENAI_API_KEY and INDUSTRIAL_PHM_GENAI_MODEL in the application "
+            "environment to enable generative explanation.",
+            kind="info",
+            title="AI explanation is not configured",
+        )
+    elif not explanation_run.value:
+        explanation_output = mo.callout(
+            "The model is called only when you press Generate AI explanation. "
+            "Only bounded structured analysis evidence is sent; the raw sensor trajectory "
+            "is not sent by this feature.",
+            kind="info",
+            title="Ready",
+        )
+    else:
+        try:
+            generated_explanation = generate_openai_analysis_explanation(
+                explanation_context,
+                api_key=explanation_api_key,
+                model=explanation_model,
+                question=explanation_question.value.strip() or None,
+            )
+            explanation_output = mo.md(generated_explanation)
+        except AnalysisExplanationError as error:
+            explanation_output = mo.callout(
+                str(error),
+                kind="danger",
+                title="AI explanation failed",
+            )
+
+    ai_explanation_view = mo.vstack(
+        [
+            mo.md("## AI Explanation"),
+            mo.callout(
+                "This layer explains recorded PHM evidence; it does not replace the "
+                "numerical analysis or create unsupported diagnosis, alarm/state, "
+                "maintenance priority, health indicator, or RUL.",
+                kind="warn",
+                title="Generative AI boundary",
+            ),
+            explanation_question,
+            explanation_run,
+            mo.md(
+                f"Model: `{explanation_model or 'not configured'}`  \n"
+                "Context: top recorded scores, feature residual evidence, capability "
+                "limits, and selected pipeline/provenance facts."
+            ),
+            explanation_output,
+        ],
+        gap=1.2,
+    )
+    return (ai_explanation_view,)
+
+
+@app.cell
 def _(analysis, mo):
     stage_selector = mo.ui.dropdown(
         options=[stage.name for stage in analysis.inspection.stages],
@@ -251,10 +370,19 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
 
 
 @app.cell
-def _(details_view, evidence_view, header, mo, summary_view, view_selector):
+def _(
+    ai_explanation_view,
+    details_view,
+    evidence_view,
+    header,
+    mo,
+    summary_view,
+    view_selector,
+):
     views = {
         "Analysis Summary": summary_view,
         "Evidence": evidence_view,
+        "AI Explanation": ai_explanation_view,
         "Analysis Details": details_view,
     }
     mo.vstack([header, view_selector, views[view_selector.value]], gap=1.5)
