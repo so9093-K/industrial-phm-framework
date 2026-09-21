@@ -102,7 +102,7 @@ def summarize_prognostics_for_asset(
             )
         )
 
-    unsupported = set(view.unsupported_capabilities)
+    available = set(view.available_capabilities)
     return PrognosticsAssetSummary(
         asset_id=asset_id,
         target_definition_id=evidence.target_definition_id,
@@ -110,16 +110,16 @@ def summarize_prognostics_for_asset(
         target_formula=evidence.target_formula,
         endpoint_semantics=evidence.endpoint_semantics,
         prediction_alignment=evidence.prediction_alignment,
-        target_is_clipped=False,
+        target_is_clipped=evidence.target_is_clipped,
         support_definition=evidence.support_definition,
         support_first_acquisition=evidence.support_first_acquisition,
         support_prediction_count=evidence.support_prediction_count,
         methods=tuple(rows),
         primary_method_id=evidence.primary_method_id,
-        uncertainty_interval_available=not any(
-            capability in unsupported for capability in _UNCERTAINTY_CAPABILITIES
+        uncertainty_interval_available=all(
+            capability in available for capability in _UNCERTAINTY_CAPABILITIES
         ),
-        physical_failure_threshold_validated=_FAILURE_THRESHOLD_CAPABILITY not in unsupported,
+        physical_failure_threshold_validated=_FAILURE_THRESHOLD_CAPABILITY in available,
         evidence_class=view.evidence_class,
         artifact_path=view.artifact_path,
     )
