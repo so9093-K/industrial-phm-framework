@@ -1,6 +1,6 @@
 # XJTU-SY RUL v1 Held-out Benchmark Execution Runbook
 
-상태: execution procedure frozen before benchmark numerical evidence
+상태: execution procedure frozen · 절차대로 1회 실행 완료 (§8)
 
 이 runbook은 validation-selected temporal LSTM을 fold-1 held-out bearing에 적용하는 RUL v1 마지막 numerical
 execution 절차를 고정합니다. Selection과 uncertainty decision은
@@ -28,6 +28,10 @@ uv run industrial-phm data validate xjtu-sy \
 ```
 
 complete local source profile이 PASS하지 않으면 benchmark를 실행하지 않습니다.
+
+`--source`는 environment-local prepared source root이며 operating-condition 디렉터리를 직접 포함하는 경로를
+가리킵니다. 실제 경로는 환경마다 다르므로 위 예시 경로를 그대로 쓰지 말고 준비된 root를 지정합니다. 이
+값은 protocol scope가 아니라 실행 환경 설정입니다.
 
 ## 3. Frozen scope
 
@@ -147,7 +151,12 @@ PR evidence note에는 다음을 기록합니다.
 - project-history limitation
 - unsupported capability boundary
 
-## 8. No post-benchmark retuning
+## 8. Executed run
+
+이 절차는 revision `2ae41acc16c45bf922f3b6ad8a228103d16d0982`에서 한 번 실행됐습니다. 실행 기록과 숫자는
+[`xjtu-rul-v1-finalization.md`](xjtu-rul-v1-finalization.md) §7에 있습니다.
+
+## 9. No post-benchmark retuning
 
 이 artifact를 본 뒤 같은 RUL v1에서 다음을 변경하지 않습니다.
 
