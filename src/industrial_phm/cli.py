@@ -625,9 +625,7 @@ def _run_analysis_report(args: argparse.Namespace) -> int:
     try:
         analysis = load_xjtu_lstm_analysis_view(args.anomaly)
         prognostics = (
-            None
-            if args.prognostics is None
-            else load_xjtu_rul_analysis_view(args.prognostics)
+            None if args.prognostics is None else load_xjtu_rul_analysis_view(args.prognostics)
         )
         write_analysis_report_markdown(
             analysis,
