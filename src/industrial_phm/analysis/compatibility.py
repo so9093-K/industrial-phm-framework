@@ -75,9 +75,7 @@ def compare_analysis_evidence(
             "evidence comes from a separate artifact and must not be presented as one execution"
         )
     if not same_revision:
-        warnings.append(
-            "code revision differs between primary and attached evidence"
-        )
+        warnings.append("code revision differs between primary and attached evidence")
 
     compatible = not reasons
     if not compatible:
