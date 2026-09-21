@@ -71,7 +71,10 @@ def build_xjtu_recorded_end_rul_targets(
         ):
             observed_index = _acquisition_index(vector, vector_index=acquisition_index - 1)
             expected_source_id = f"{asset_id}:acquisition-{observed_index}"
-            if observed_index != acquisition_index or target.source_observation_id != expected_source_id:
+            if (
+                observed_index != acquisition_index
+                or target.source_observation_id != expected_source_id
+            ):
                 raise XjtuRulTargetError(
                     "XJTU RUL target source identity drifted from the ordered feature observation"
                 )
@@ -106,7 +109,9 @@ def _complete_partition_vectors(
     expected_assets: Sequence[str],
 ) -> dict[str, tuple[VibrationFeatureVector, ...]]:
     if not vectors:
-        raise XjtuRulTargetError(f"XJTU RUL {partition} target construction requires feature vectors")
+        raise XjtuRulTargetError(
+            f"XJTU RUL {partition} target construction requires feature vectors"
+        )
 
     by_asset: dict[str, dict[int, VibrationFeatureVector]] = defaultdict(dict)
     for vector_index, vector in enumerate(vectors):
