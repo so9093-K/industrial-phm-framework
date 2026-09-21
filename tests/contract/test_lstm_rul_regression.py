@@ -130,6 +130,13 @@ def test_lstm_rul_rejects_parameter_contract_drift(
         fit_lstm_rul_regression(_config(parameters), _construction(), _targets())
 
 
+def test_lstm_rul_fit_rejects_sampling_policy_drift() -> None:
+    config = replace(_config(), sampling_policy_id="acquisition-uniform-v1")
+
+    with pytest.raises(LstmRulRegressionError, match="sampling_policy_id"):
+        fit_lstm_rul_regression(config, _construction(), _targets())
+
+
 def test_lstm_rul_fit_rejects_non_train_windows() -> None:
     with pytest.raises(LstmRulRegressionError, match="train windows"):
         fit_lstm_rul_regression(
