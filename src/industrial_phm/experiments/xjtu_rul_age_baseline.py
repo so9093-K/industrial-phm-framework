@@ -46,31 +46,45 @@ class XjtuAgeOnlyRulBaseline:
 
     def __post_init__(self) -> None:
         train_asset_ids = tuple(self.train_asset_ids)
-        endpoints = tuple(float(value) for value in self.train_endpoint_acquisitions)
-        if not train_asset_ids:
-            raise XjtuAgeOnlyRulBaselineError("train_asset_ids must not be empty")
-        if len(train_asset_ids) != len(set(train_asset_ids)):
-            raise XjtuAgeOnlyRulBaselineError("train_asset_ids must be unique")
-        if len(endpoints) != len(train_asset_ids):
+        expected_train_assets = get_xjtu_rul_partition_assets("train")
+        if train_asset_ids != expected_train_assets:
+            raise XjtuAgeOnlyRulBaselineError(
+                "train_asset_ids must match the configured fold-1 train bearing order"
+            )
+
+        endpoints: list[float] = []
+        for value in self.train_endpoint_acquisitions:
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise XjtuAgeOnlyRulBaselineError(
+                    "train_endpoint_acquisitions must contain numerical values"
+                )
+            endpoint = float(value)
+            if not math.isfinite(endpoint) or endpoint <= 0.0:
+                raise XjtuAgeOnlyRulBaselineError(
+                    "train_endpoint_acquisitions must contain finite positive values"
+                )
+            endpoints.append(endpoint)
+        endpoint_values = tuple(endpoints)
+        if len(endpoint_values) != len(train_asset_ids):
             raise XjtuAgeOnlyRulBaselineError(
                 "train_endpoint_acquisitions must align one-to-one with train_asset_ids"
             )
-        if any(not math.isfinite(value) or value <= 0.0 for value in endpoints):
-            raise XjtuAgeOnlyRulBaselineError(
-                "train_endpoint_acquisitions must contain finite positive values"
-            )
-        expected_mean = float(fmean(endpoints))
+        expected_mean = float(fmean(endpoint_values))
+        fitted_value = self.fitted_mean_endpoint_acquisition
         if (
-            not math.isfinite(self.fitted_mean_endpoint_acquisition)
-            or self.fitted_mean_endpoint_acquisition <= 0.0
-            or self.fitted_mean_endpoint_acquisition != expected_mean
+            isinstance(fitted_value, bool)
+            or not isinstance(fitted_value, int | float)
+            or not math.isfinite(float(fitted_value))
+            or float(fitted_value) <= 0.0
+            or float(fitted_value) != expected_mean
         ):
             raise XjtuAgeOnlyRulBaselineError(
                 "fitted_mean_endpoint_acquisition must equal the train-bearing endpoint mean"
             )
 
         object.__setattr__(self, "train_asset_ids", train_asset_ids)
-        object.__setattr__(self, "train_endpoint_acquisitions", endpoints)
+        object.__setattr__(self, "train_endpoint_acquisitions", endpoint_values)
+        object.__setattr__(self, "fitted_mean_endpoint_acquisition", float(fitted_value))
 
 
 def fit_xjtu_age_only_rul_baseline(
