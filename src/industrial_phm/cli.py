@@ -63,6 +63,10 @@ from industrial_phm.experiments.xjtu_cross_fold import run_xjtu_cross_fold_robus
 from industrial_phm.experiments.xjtu_holdout import run_xjtu_fold_1_holdout_evaluation
 from industrial_phm.experiments.xjtu_lstm import get_xjtu_lstm_development_configuration
 from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_development_evaluation
+from industrial_phm.experiments.xjtu_rul_baseline_result import (
+    XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS,
+    run_xjtu_rul_baseline_validation,
+)
 from industrial_phm.experiments.xjtu_reference_comparison import (
     run_xjtu_fold_1_reference_comparison,
 )
@@ -357,6 +361,32 @@ def build_parser() -> argparse.ArgumentParser:
     )
     experiment_lstm_development.set_defaults(handler=_run_experiment_lstm_development)
 
+    experiment_rul_baseline_validation = experiment_commands.add_parser(
+        "rul-baseline-validation",
+        help="run frozen XJTU age-only and feature-Ridge RUL validation baselines",
+    )
+    experiment_rul_baseline_validation.add_argument("dataset_id")
+    experiment_rul_baseline_validation.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared local XJTU-SY source consumed by the Domain Adapter",
+    )
+    experiment_rul_baseline_validation.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="destination for the generated RUL baseline validation result JSON",
+    )
+    experiment_rul_baseline_validation.add_argument(
+        "--code-revision",
+        required=True,
+        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
+    )
+    experiment_rul_baseline_validation.set_defaults(
+        handler=_run_experiment_rul_baseline_validation
+    )
+
     experiment_mimii_development = experiment_commands.add_parser(
         "mimii-development",
         help="run the frozen MIMII DUE sections 00-02 development evaluation",
@@ -470,7 +500,7 @@ def _verify_clean_git_revision(declared_revision: str) -> None:
         )
     except (OSError, subprocess.CalledProcessError) as error:
         raise ValueError(
-            "cannot verify the current Git checkout; run authoritative MIMII evidence "
+            "cannot verify the current Git checkout; run authoritative evidence "
             "from a Git working tree"
         ) from error
 
@@ -1102,6 +1132,80 @@ def _run_experiment_lstm_development(args: argparse.Namespace) -> int:
         f"scoring={result.validation_window_count} windows"
     )
     print(f"framework: {result.training.runtime} {result.training.runtime_version}")
+    print(f"code_revision: {result.code_revision}")
+    print(f"result: {args.output}")
+    return 0
+
+
+def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
+    try:
+        manifest = get_dataset(args.dataset_id)
+    except UnknownDatasetError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+
+    if manifest.dataset_id != "xjtu-sy":
+        print(
+            f"RUL baseline validation is not implemented for {manifest.dataset_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        _verify_clean_git_revision(args.code_revision)
+    except ValueError as error:
+        print(f"RUL baseline revision verification failed: {error}", file=sys.stderr)
+        return 1
+
+    print("execution plan: XJTU RUL baseline validation v1")
+    print("scope: xjtu-sy-condition-stratified-5fold-v1 / fold-1 / train -> validation")
+    print("target: recorded-end N-k / acquisition-interval / no clipping")
+    print("age baseline: train mean endpoint - current acquisition index")
+    print(
+        "feature baseline: 16 vibration features / train-only robust scaling / "
+        "bearing-balanced Ridge(alpha=1.0)"
+    )
+    print(f"evidence: {XJTU_RUL_BASELINE_VALIDATION_EVIDENCE_CLASS}")
+    print("holdout test: excluded")
+    print("uncertainty/calibration: unsupported in this result")
+    print(f"revision verification: clean tracked checkout @ {args.code_revision}")
+
+    try:
+        result = run_xjtu_rul_baseline_validation(
+            args.source,
+            args.output,
+            code_revision=args.code_revision,
+        )
+    except (OSError, ValueError) as error:
+        print(f"RUL baseline validation failed: {error}", file=sys.stderr)
+        return 1
+
+    print("pipeline:")
+    print("  source validation: completed")
+    print("  feature extraction: completed")
+    print("  RUL target construction: completed")
+    print("  age-only fit/prediction: completed")
+    print("  feature preprocessing/Ridge fit/prediction: completed")
+    print("  bearing-first evaluation: completed")
+    print(
+        "populations: "
+        f"train={result.train_source_acquisition_count} acquisitions "
+        f"validation={result.validation_source_acquisition_count} acquisitions"
+    )
+    print(
+        "age-only: "
+        f"mae={result.age_evaluation.mean_asset_mean_absolute_error:.6f} "
+        f"rmse={result.age_evaluation.mean_asset_root_mean_squared_error:.6f} "
+        f"normalized_mae="
+        f"{result.age_evaluation.mean_asset_normalized_mean_absolute_error:.6f}"
+    )
+    print(
+        "feature-ridge: "
+        f"mae={result.feature_evaluation.mean_asset_mean_absolute_error:.6f} "
+        f"rmse={result.feature_evaluation.mean_asset_root_mean_squared_error:.6f} "
+        f"normalized_mae="
+        f"{result.feature_evaluation.mean_asset_normalized_mean_absolute_error:.6f}"
+    )
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
