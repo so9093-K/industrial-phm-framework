@@ -71,13 +71,9 @@ class XjtuFeatureRulBaselineFit:
         if not isinstance(self.config, ExperimentConfig):
             raise XjtuFeatureRulBaselineError("config must be an ExperimentConfig")
         if not isinstance(self.preprocessing_state, PreprocessingState):
-            raise XjtuFeatureRulBaselineError(
-                "preprocessing_state must be a PreprocessingState"
-            )
+            raise XjtuFeatureRulBaselineError("preprocessing_state must be a PreprocessingState")
         if not isinstance(self.model, FittedRulRidgeRegressor):
-            raise XjtuFeatureRulBaselineError(
-                "model must be a FittedRulRidgeRegressor"
-            )
+            raise XjtuFeatureRulBaselineError("model must be a FittedRulRidgeRegressor")
 
         experiment_ids = {
             self.config.experiment_id,
@@ -88,10 +84,7 @@ class XjtuFeatureRulBaselineFit:
             raise XjtuFeatureRulBaselineError(
                 "configuration, preprocessing state, and model must share method identity"
             )
-        if (
-            self.preprocessing_state.observation_count
-            != self.model.source_observation_count
-        ):
+        if self.preprocessing_state.observation_count != self.model.source_observation_count:
             raise XjtuFeatureRulBaselineError(
                 "preprocessing fit population must match complete train population"
             )
@@ -169,11 +162,9 @@ def fit_xjtu_feature_rul_baseline(
     }
 
     try:
-        preprocessing_state, model_input = (
-            fit_xjtu_preprocessing_and_prepare_model_input(
-                config,
-                ordered_train,
-            )
+        preprocessing_state, model_input = fit_xjtu_preprocessing_and_prepare_model_input(
+            config,
+            ordered_train,
         )
     except XjtuModelInputError as error:
         raise XjtuFeatureRulBaselineError(
@@ -182,8 +173,7 @@ def fit_xjtu_feature_rul_baseline(
 
     try:
         target_values = tuple(
-            target_by_id[observation_id]
-            for observation_id in model_input.source_observation_ids
+            target_by_id[observation_id] for observation_id in model_input.source_observation_ids
         )
     except KeyError as error:
         raise XjtuFeatureRulBaselineError(
@@ -212,9 +202,7 @@ def predict_xjtu_feature_rul(
 ) -> tuple[RulPredictionSeries, ...]:
     """Predict one complete partition from current-acquisition vibration features only."""
     if not isinstance(fitted, XjtuFeatureRulBaselineFit):
-        raise XjtuFeatureRulBaselineError(
-            "fitted must be an XjtuFeatureRulBaselineFit"
-        )
+        raise XjtuFeatureRulBaselineError("fitted must be an XjtuFeatureRulBaselineFit")
 
     ordered_vectors = _ordered_complete_vectors(vectors, partition=partition)
     try:
@@ -278,8 +266,7 @@ def _ordered_complete_vectors(
             )
         if vector.asset_id not in asset_rank:
             raise XjtuFeatureRulBaselineError(
-                f"XJTU feature RUL input received asset outside {partition}: "
-                f"{vector.asset_id!r}"
+                f"XJTU feature RUL input received asset outside {partition}: {vector.asset_id!r}"
             )
 
     return tuple(
