@@ -65,7 +65,7 @@ def evaluate_xjtu_rul_point_predictions(
             f"XJTU RUL prediction series must preserve partition {partition!r}"
         )
 
-    normalization_scales = {
+    normalization_scales: dict[tuple[str, str], float] = {
         (asset_id, partition): float(max(get_xjtu_expected_acquisition_count(asset_id) - 1, 1))
         for asset_id in expected_assets
     }
