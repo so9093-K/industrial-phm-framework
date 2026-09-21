@@ -88,6 +88,7 @@ def _verify_clean_git_revision(declared_revision: str) -> None:
             "authoritative evidence execution"
         )
 
+
 def _run_experiment_validate(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -125,6 +126,7 @@ def _run_experiment_validate(args: argparse.Namespace) -> int:
         print(f"score_trajectory_dir: {args.score_trajectory_dir}")
     return 0
 
+
 def _run_experiment_inspect(args: argparse.Namespace) -> int:
     try:
         inspection = inspect_experiment_result(args.result)
@@ -134,6 +136,7 @@ def _run_experiment_inspect(args: argparse.Namespace) -> int:
 
     print(render_experiment_inspection_text(inspection))
     return 0
+
 
 def _run_experiment_reference_compare(args: argparse.Namespace) -> int:
     try:
@@ -177,6 +180,7 @@ def _run_experiment_reference_compare(args: argparse.Namespace) -> int:
     print(f"selected_experiment_id: {result.selected_experiment_id}")
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_holdout(args: argparse.Namespace) -> int:
     try:
@@ -223,6 +227,7 @@ def _run_experiment_holdout(args: argparse.Namespace) -> int:
     print(f"mean_late_vs_middle: {result.mean_bearing_late_vs_middle_rank_probability}")
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_cross_test(args: argparse.Namespace) -> int:
     try:
@@ -295,6 +300,7 @@ def _run_experiment_cross_test(args: argparse.Namespace) -> int:
     print(f"result: {args.output}")
     return 0
 
+
 def _run_experiment_lstm_development(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -355,6 +361,7 @@ def _run_experiment_lstm_development(args: argparse.Namespace) -> int:
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
     try:
@@ -432,6 +439,7 @@ def _run_experiment_rul_baseline_validation(args: argparse.Namespace) -> int:
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
     try:
@@ -529,6 +537,7 @@ def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
     print(f"result: {args.output}")
     return 0
 
+
 def _run_experiment_rul_benchmark(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -600,6 +609,7 @@ def _run_experiment_rul_benchmark(args: argparse.Namespace) -> int:
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_mimii_development(args: argparse.Namespace) -> int:
     try:
@@ -681,6 +691,7 @@ def _run_experiment_mimii_development(args: argparse.Namespace) -> int:
     print(f"result: {args.output}")
     return 0
 
+
 def _run_experiment_cross_fold(args: argparse.Namespace) -> int:
     try:
         manifest = get_dataset(args.dataset_id)
@@ -730,6 +741,7 @@ def _run_experiment_cross_fold(args: argparse.Namespace) -> int:
     )
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_mimii_external_score(args: argparse.Namespace) -> int:
     try:
@@ -785,6 +797,7 @@ def _run_experiment_mimii_external_score(args: argparse.Namespace) -> int:
     print(f"code_revision: {result.code_revision}")
     print(f"result: {args.output}")
     return 0
+
 
 def _run_experiment_mimii_external_evaluate(args: argparse.Namespace) -> int:
     try:
