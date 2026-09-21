@@ -10,6 +10,7 @@ Research notebook과 달리 새로운 parser, feature formula, model fitting 또
 
 - Analysis Summary: 선택한 asset의 anomaly-evidence trajectory와 현재 capability
 - Evidence: high-score observations와 feature residual evidence
+- AI Explanation: bounded structured evidence 기반 생성형 AI 설명과 analysis-scoped Q&A
 - Analysis Details: 기존 `ExperimentInspection` pipeline/provenance drill-down
 
 현재 result에는 validated threshold가 없으므로 normal/fault state나 anomaly interval을 생성하지 않습니다.
@@ -30,6 +31,32 @@ INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=path/to/result.json \
 ```
 
 현재 loader가 지원하지 않는 schema는 화면에서 임의로 해석하지 않고 실패합니다.
+
+### Generative AI explanation
+
+AI 설명은 optional runtime 기능입니다. API credential이나 model을 코드/설정 파일에 저장하지 않고 실행 환경에서
+명시적으로 제공합니다.
+
+```bash
+export OPENAI_API_KEY="..."
+export INDUSTRIAL_PHM_GENAI_MODEL="<enabled-model-id>"
+
+uv run --locked --group research marimo edit apps/analysis_explorer.py
+```
+
+AI 탭에서 질문을 입력하고 **Generate AI explanation**을 눌렀을 때만 외부 API를 호출합니다. 초기 화면 로드,
+asset 선택, graph/evidence 탐색과 CI HTML export는 API 요청을 만들지 않습니다.
+
+전송 context는 raw waveform이나 전체 score trajectory가 아니라 선택 asset의 bounded structured evidence입니다.
+
+- top recorded anomaly scores
+- aggregate feature residual evidence
+- score semantics
+- available / unsupported capability
+- Source / Model / Evaluation / Provenance facts
+
+Responses API 요청은 `store=false`로 실행합니다. 생성형 AI 출력은 PHM numerical result가 아니며, unsupported
+diagnosis, alarm/state, maintenance priority, health indicator 또는 RUL을 새 capability처럼 만들지 않습니다.
 
 ## 운영 원칙
 
