@@ -159,9 +159,7 @@ def evaluate_xjtu_rul_lifecycle_position_errors(
             ),
             mean_asset_normalized_mean_absolute_error=float(
                 fmean(
-                    row.normalized_mean_absolute_error
-                    for row in rows
-                    if row.position == position
+                    row.normalized_mean_absolute_error for row in rows if row.position == position
                 )
             ),
         )
