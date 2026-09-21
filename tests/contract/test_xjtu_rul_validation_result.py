@@ -71,9 +71,7 @@ def _predictions(
                     asset_id=series.asset_id,
                     partition_id=series.partition_id,
                     source_observation_id=observation.source_observation_id,
-                    predicted_remaining_useful_life=(
-                        observation.remaining_useful_life + offset
-                    ),
+                    predicted_remaining_useful_life=(observation.remaining_useful_life + offset),
                 )
                 for index, observation in enumerate(series.observations, start=1)
                 if index >= first_acquisition
@@ -231,9 +229,7 @@ def test_three_model_result_preserves_frozen_methods_and_temporal_prefix(
     assert sequence["validation_dropped_prefix_per_bearing"] == 7
 
     predictions = cast(list[dict[str, object]], temporal["predictions"])
-    assert sum(
-        len(cast(list[object], series["observations"])) for series in predictions
-    ) == 2_797
+    assert sum(len(cast(list[object], series["observations"])) for series in predictions) == 2_797
     for series in predictions:
         observations = cast(list[dict[str, object]], series["observations"])
         assert observations[0]["acquisition_index"] == 8
