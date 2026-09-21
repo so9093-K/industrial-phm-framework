@@ -61,7 +61,9 @@ jobs:
           uv run --locked --extra deep-learning pytest \
             tests/contract/test_deep_learning_runtime.py \
             tests/contract/test_lstm_autoencoder.py \
-            tests/contract/test_xjtu_lstm_execution.py
+            tests/contract/test_lstm_rul_regression.py \
+            tests/contract/test_xjtu_lstm_execution.py \
+            tests/contract/test_xjtu_rul_lstm.py
 
       - name: Build package
         run: uv build
@@ -74,6 +76,7 @@ jobs:
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-condition-stratified-5fold-v1.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-isolation-forest-fold-1-candidates-v2.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-lstm-autoencoder-fold-1-development-v1.toml'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-rul-lstm-fold-1-v1.toml'
           unzip -p dist/*.whl '*dist-info/entry_points.txt' | grep -q 'industrial-phm = industrial_phm.cli:main'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: deep-learning'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: torch.*extra == .deep-learning.'
