@@ -19,6 +19,7 @@ from industrial_phm.features import (
     VibrationFeatureVector,
     vibration_feature_names,
 )
+from industrial_phm.prognostics import RulTargetSeries
 
 _FEATURE_NAMES = vibration_feature_names(XJTU_SY_CHANNELS)
 
@@ -64,7 +65,7 @@ def _vector(
 
 
 @cache
-def _train_targets():
+def _train_targets() -> tuple[RulTargetSeries, ...]:
     return build_xjtu_recorded_end_rul_targets(_vectors("train"), partition="train")
 
 
