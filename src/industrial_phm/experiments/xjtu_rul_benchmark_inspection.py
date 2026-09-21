@@ -15,6 +15,8 @@ from industrial_phm.experiments.result_inspection import (
     InspectionStage,
     _boolean,
     _capability_stage,
+    _expect_close,
+    _expect_equal,
     _integer,
     _mapping,
     _mapping_field,
@@ -24,8 +26,6 @@ from industrial_phm.experiments.result_inspection import (
     _sequence,
     _text,
     _text_sequence,
-    _expect_close,
-    _expect_equal,
 )
 from industrial_phm.experiments.xjtu import get_xjtu_reference_split
 from industrial_phm.experiments.xjtu_rul import (
