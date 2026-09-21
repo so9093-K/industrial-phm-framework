@@ -11,6 +11,10 @@
 
 ### Added
 
+- XJTU RUL age-only/feature-Ridge fold-1 validation을 실제 prepared source에서 동일 target/evaluator로 실행하는
+  versioned evidence schema, deterministic JSON writer와 CLI. Artifact는 clean tracked Git revision, train/validation
+  source scope, test exclusion, target semantics, preprocessing/model provenance, per-bearing prediction/evaluation과
+  baseline delta를 보존하며 prediction interval/field validation을 지원 범위로 승격하지 않습니다.
 - XJTU RUL protocol의 frozen acquisition-feature Ridge comparator. 전체 16개 vibration-statistical feature를
   complete train partition에서 robust scaling하고 bearing-balanced resampling으로 fit하며, raw `N - k` target을
   source observation identity로 정렬합니다. Validation/test에서는 동일 preprocessing state와 model을 사용하고
