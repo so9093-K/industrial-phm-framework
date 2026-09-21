@@ -19,6 +19,11 @@ from industrial_phm.models.lstm_autoencoder import (
     fit_lstm_autoencoder,
 )
 from industrial_phm.models.output import AnomalyScores, AnomalyScoresError
+from industrial_phm.models.rul_ridge_regression import (
+    FittedRulRidgeRegressor,
+    RulRidgeRegressionError,
+    fit_rul_ridge_regression,
+)
 from industrial_phm.models.reconstruction_scoring import (
     MEAN_SQUARED_RECONSTRUCTION_ERROR_ID,
     ReconstructionScores,
@@ -32,6 +37,7 @@ __all__ = [
     "AnomalyScoresError",
     "FittedIsolationForest",
     "FittedLstmAutoencoder",
+    "FittedRulRidgeRegressor",
     "IsolationForestError",
     "LstmAutoencoderError",
     "LstmAutoencoderTrainingProvenance",
@@ -40,9 +46,11 @@ __all__ = [
     "ModelScoringInput",
     "ModelScoringInputError",
     "ReconstructionScores",
+    "RulRidgeRegressionError",
     "ReconstructionScoringError",
     "SequenceReconstructions",
     "fit_isolation_forest",
     "fit_lstm_autoencoder",
+    "fit_rul_ridge_regression",
     "score_reconstructions",
 ]
