@@ -83,6 +83,5 @@ def test_evaluation_asset_mismatch_blocks_evidence_composition() -> None:
 
     assert compatibility.compatible is False
     assert any(
-        reason.startswith("evaluation_asset_ids differs:")
-        for reason in compatibility.reasons
+        reason.startswith("evaluation_asset_ids differs:") for reason in compatibility.reasons
     )
