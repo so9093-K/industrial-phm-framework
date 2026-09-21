@@ -22,6 +22,16 @@ def test_xjtu_lstm_analysis_view_preserves_user_facing_evidence() -> None:
     assert view.schema_id == "xjtu-lstm-development-result-v1"
     assert view.status == "completed"
     assert view.evidence_class == "retrospective-development-evidence"
+    assert view.identity.dataset_id == "xjtu-sy"
+    assert view.identity.split_id == "xjtu-sy-condition-stratified-5fold-v1"
+    assert view.identity.fold_id == "fold-1"
+    assert view.identity.evaluation_partition == "validation"
+    assert view.identity.evaluation_asset_ids == (
+        "Bearing1_2",
+        "Bearing2_2",
+        "Bearing3_2",
+    )
+    assert view.identity.verified_source_acquisition_count == 9_216
     assert (
         view.require_anomaly_evidence().score_semantics_id == "mean-squared-reconstruction-error-v1"
     )

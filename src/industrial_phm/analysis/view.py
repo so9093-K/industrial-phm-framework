@@ -25,6 +25,21 @@ class AnalysisViewError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class AnalysisEvidenceIdentity:
+    """Artifact-owned identity used to decide whether evidence can share one surface."""
+
+    dataset_id: str
+    split_id: str
+    fold_id: str
+    code_revision: str
+    evaluation_partition: str
+    train_asset_ids: tuple[str, ...]
+    evaluation_asset_ids: tuple[str, ...]
+    excluded_scope: tuple[str, ...]
+    verified_source_acquisition_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class AnalysisObservation:
     """One recorded score observation with model evidence."""
 
@@ -138,6 +153,7 @@ class AnalysisView:
     status: str
     evidence_class: str
     artifact_path: str
+    identity: AnalysisEvidenceIdentity
     available_capabilities: tuple[str, ...]
     unsupported_capabilities: tuple[str, ...]
     inspection: ExperimentInspection
@@ -179,6 +195,7 @@ def load_xjtu_lstm_analysis_view(path: Path) -> AnalysisView:
     scoring = cast(dict[str, object], document["scoring"])
     evaluation = cast(dict[str, object], document["evaluation"])
     capability = cast(dict[str, object], document["capability_scope"])
+    source_scope = cast(dict[str, object], document["source_scope"])
 
     feature_names = tuple(cast(list[str], feature_schema["selected_features"]))
     summaries = {
@@ -231,6 +248,12 @@ def load_xjtu_lstm_analysis_view(path: Path) -> AnalysisView:
         status=inspection.status,
         evidence_class=cast(str, provenance["evidence_class"]),
         artifact_path=str(path),
+        identity=_evidence_identity(
+            provenance,
+            source_scope,
+            evaluation_partition="validation",
+            evaluation_asset_key="validation_bearings",
+        ),
         available_capabilities=tuple(cast(list[str], capability["available"])),
         unsupported_capabilities=tuple(cast(list[str], capability["unsupported_or_not_validated"])),
         inspection=inspection,
@@ -256,6 +279,7 @@ def load_xjtu_rul_analysis_view(path: Path) -> AnalysisView:
     provenance = cast(dict[str, object], document["provenance"])
     target = cast(dict[str, object], document["target"])
     capability = cast(dict[str, object], document["capability_scope"])
+    source_scope = cast(dict[str, object], document["source_scope"])
     comparison = cast(dict[str, object], document["common_support_comparison"])
     support = cast(dict[str, object], comparison["support"])
     evaluations = cast(dict[str, object], comparison["evaluations"])
@@ -299,6 +323,12 @@ def load_xjtu_rul_analysis_view(path: Path) -> AnalysisView:
         status=inspection.status,
         evidence_class=cast(str, provenance["evidence_class"]),
         artifact_path=str(path),
+        identity=_evidence_identity(
+            provenance,
+            source_scope,
+            evaluation_partition="validation",
+            evaluation_asset_key="validation_bearings",
+        ),
         available_capabilities=tuple(cast(list[str], capability["available"])),
         unsupported_capabilities=tuple(cast(list[str], capability["unsupported_or_not_validated"])),
         inspection=inspection,
@@ -314,6 +344,29 @@ def load_xjtu_rul_analysis_view(path: Path) -> AnalysisView:
             support_first_acquisition=cast(int, support["first_acquisition"]),
             support_prediction_count=cast(int, support["total_prediction_count"]),
             methods=tuple(methods),
+        ),
+    )
+
+
+def _evidence_identity(
+    provenance: dict[str, object],
+    source_scope: dict[str, object],
+    *,
+    evaluation_partition: str,
+    evaluation_asset_key: str,
+) -> AnalysisEvidenceIdentity:
+    return AnalysisEvidenceIdentity(
+        dataset_id=cast(str, provenance["dataset_id"]),
+        split_id=cast(str, provenance["split_id"]),
+        fold_id=cast(str, provenance["fold_id"]),
+        code_revision=cast(str, provenance["code_revision"]),
+        evaluation_partition=evaluation_partition,
+        train_asset_ids=tuple(sorted(cast(list[str], source_scope["train_bearings"]))),
+        evaluation_asset_ids=tuple(sorted(cast(list[str], source_scope[evaluation_asset_key]))),
+        excluded_scope=tuple(sorted(cast(list[str], source_scope["excluded"]))),
+        verified_source_acquisition_count=cast(
+            int,
+            source_scope["verified_source_acquisition_count"],
         ),
     )
 

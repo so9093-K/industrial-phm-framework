@@ -11,6 +11,7 @@
 
 ### Added
 
+- Analysis evidence compatibility/provenance contract. AnalysisView가 dataset/split/fold/revision과 train/evaluation population, excluded scope, verified source acquisition count를 artifact에서 보존하고, 서로 다른 anomaly/prognostics artifact는 population scope가 맞을 때만 같은 Explorer surface에서 attached evidence로 표시합니다. Exact source byte identity는 현재 artifact가 기록하지 않으므로 미검증 상태를 명시하며, revision이 달라도 하나의 실행으로 합치지 않습니다.
 - Validation-selected temporal LSTM을 fold-1 held-out bearing에 적용하는 XJTU RUL benchmark result schema/runner/CLI와 execution runbook. Point error와 protocol-fixed early/middle/late lifecycle diagnostics를 기록하고, operational primary와 uncertainty/physical-failure/field/maintenance capability는 승격하지 않습니다.
 - XJTU RUL protocol §9.1 lifecycle-position evaluator. Complete recorded lifecycle을 `early/middle/late` thirds로 고정하고, sequence dropped prefix로 boundary를 다시 나누지 않은 채 bearing별 prediction count·MAE·RMSE·signed error·normalized MAE와 equal-bearing aggregate를 기록할 수 있게 했습니다.
 - XJTU RUL v1 finalization decision. Protocol §8의 frozen equal-bearing validation MAE rule을 그대로 적용해 `xjtu-sy-rul-lstm-fold-1-v1`을 validation-selected candidate로 기록하되 operational primary와 분리하고, 현재 calibration population으로 nominal coverage를 정당화하지 않아 v1 prediction interval/uncertainty calibration을 `unsupported/not validated`로 freeze했습니다. 다음 numerical step은 lifecycle-position diagnostics 후 frozen candidate held-out benchmark입니다.
