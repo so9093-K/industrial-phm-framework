@@ -15,8 +15,8 @@ from industrial_phm.analysis.view import (
 
 __all__ = [
     "AnalysisAssetEvidence",
-    "AnalysisRunError",
     "AnalysisObservation",
+    "AnalysisRunError",
     "AnalysisView",
     "AnalysisViewError",
     "XjtuLstmAnalysisRun",
