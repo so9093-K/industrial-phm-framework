@@ -418,7 +418,10 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      versioned validation evidence schema/runner/CLI를 구현
    - XJTU-SY는 manual source이므로 실제 numerical artifact는 사용자가 검증한 prepared source와 clean tracked
      Git checkout에서만 생성하며, source가 없는 CI에서 validation 숫자를 합성하거나 대신 기록하지 않음
-   - 다음 구현은 sequence-based RUL model을 같은 target/evaluator/evidence contract에 연결
+   - complete train acquisition을 train-only robust scaling한 뒤 8-acquisition right-edge window를 구성하고,
+     raw `N - k` target을 window right edge source identity에 정렬하는 deterministic supervised LSTM RUL model을 구현.
+     Validation/test는 같은 fitted scaling과 sequence contract를 사용하며 첫 7 acquisition은 context 부족으로 예측하지 않음
+   - 다음 구현은 age-only / feature-Ridge / temporal-LSTM을 실제 validation evidence artifact에서 함께 비교
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 

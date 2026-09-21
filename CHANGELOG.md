@@ -11,6 +11,11 @@
 
 ### Added
 
+- XJTU RUL protocol의 frozen temporal LSTM comparator. Complete fold-1 train acquisition에서만 robust scaling을
+  fit하고 8-acquisition right-edge sequence window를 구성해 raw `N - k` target을 aligned source identity에
+  결합합니다. Dataset-neutral supervised LSTM regressor는 deterministic CPU execution과 final-epoch provenance를
+  보존하며 prediction을 clamp하지 않습니다. Validation/test의 첫 7 acquisition은 필요한 sequence context가
+  없으므로 prediction subset에서 제외하고 기존 bearing-first RUL evaluator가 동일 target 의미로 평가합니다.
 - XJTU RUL age-only/feature-Ridge fold-1 validation을 실제 prepared source에서 동일 target/evaluator로 실행하는
   versioned evidence schema, deterministic JSON writer와 CLI. Artifact는 clean tracked Git revision, train/validation
   source scope, test exclusion, target semantics, preprocessing/model provenance, per-bearing prediction/evaluation과

@@ -29,6 +29,7 @@ _SUPPORTED_SAMPLING_POLICY_IDS = (
     "acquisition-uniform-v1",
     "bearing-balanced-resample-v1",
     "reference-window-uniform-v1",
+    "sequence-window-uniform-v1",
 )
 _EXPECTED_ASSETS = tuple(
     f"Bearing{condition}_{index}" for condition in range(1, 4) for index in range(1, 6)
