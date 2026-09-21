@@ -211,6 +211,9 @@
 
 - `experiment mimii-external-evaluate`로 생성하는 sections 03–05 late-bound external evaluation evidence.
 
+- XJTU fold-1 three-model RUL validation numerical artifact. age-only / feature-Ridge / temporal LSTM을
+  acquisition 8..N common support에서 비교한 development evidence입니다.
+
 ### Changed
 
 - 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를
