@@ -45,7 +45,7 @@ industrial source
 | Dataset acquisition / validation | ✅ Implemented | XJTU-SY, IMS Bearings, MIMII DUE; AI4I fetch/verify |
 | Canonical sensor contract | ✅ Implemented | dataset-specific Domain Adapters |
 | Vibration anomaly analysis | ✅ Implemented | XJTU Isolation Forest + LSTM Autoencoder evidence |
-| Cross-dataset portability | ✅ Implemented | XJTU → IMS fixed cross-test evidence |
+| Cross-run portability evidence | ✅ Implemented | IMS Set 2 train → Set 3 fixed cross-test |
 | Acoustic domain-shift evaluation | ✅ Implemented | MIMII DUE development/external evidence |
 | RUL point estimation | 🧪 Development evidence | XJTU age-only / Ridge / temporal LSTM |
 | Frozen RUL held-out execution path | ✅ Implemented | runner, schema, lifecycle diagnostics, inspection runbook |
@@ -65,7 +65,7 @@ industrial source
 | Source | Role in this repository |
 | --- | --- |
 | **XJTU-SY** | run-to-failure vibration, anomaly trajectory, retrospective RUL/prognostics |
-| **IMS Bearings** | 다른 bearing source에서 feature/model portability와 fixed cross-test 검증 |
+| **IMS Bearings** | Set 2 → Set 3 fixed cross-test로 framework/feature/model contract portability 검증 |
 | **MIMII DUE** | acoustic machine monitoring, label-blind scoring, domain shift / external evidence |
 | **AI4I 2020** | dataset registry / acquisition / integrity workflow의 lightweight public example |
 
@@ -313,7 +313,7 @@ CPython 3.14 free-threaded build와 다른 Python minor version은 현재 검증
 
 ## License and governance
 
-프로젝트는 [MIT License](LICENSE)를 따릅니다.
+프로젝트는 [Apache License 2.0](LICENSE)를 따릅니다.
 Dataset의 원본 license/provenance는 project license와 별개이며 각 manifest와 dataset 문서를 따릅니다.
 
 보안 정책은 [`SECURITY.md`](SECURITY.md),
