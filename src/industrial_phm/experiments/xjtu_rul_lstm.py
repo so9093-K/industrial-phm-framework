@@ -106,9 +106,7 @@ class XjtuRulLstmFit:
         if not isinstance(self.config, ExperimentConfig):
             raise XjtuRulLstmError("config must be an ExperimentConfig")
         if not isinstance(self.preprocessing_state, PreprocessingState):
-            raise XjtuRulLstmError(
-                "preprocessing_state must be a PreprocessingState"
-            )
+            raise XjtuRulLstmError("preprocessing_state must be a PreprocessingState")
         if not isinstance(self.train_sequence, SequenceConstruction):
             raise XjtuRulLstmError("train_sequence must be a SequenceConstruction")
         if not isinstance(self.model, FittedLstmRulRegressor):
@@ -132,9 +130,7 @@ class XjtuRulLstmFit:
                 "train sequence population must match the frozen temporal RUL protocol"
             )
         if self.model.training.fit_window_count != self.train_sequence.window_count:
-            raise XjtuRulLstmError(
-                "model fit population must match the train sequence population"
-            )
+            raise XjtuRulLstmError("model fit population must match the train sequence population")
 
 
 @lru_cache(maxsize=1)
@@ -142,9 +138,7 @@ def get_xjtu_rul_lstm_configuration() -> ExperimentConfig:
     """Return the single frozen XJTU temporal LSTM RUL configuration."""
     configs = load_packaged_xjtu_experiment_configs(_MANIFEST)
     if len(configs) != 1:
-        raise XjtuRulLstmError(
-            "XJTU temporal RUL manifest must contain exactly one experiment"
-        )
+        raise XjtuRulLstmError("XJTU temporal RUL manifest must contain exactly one experiment")
     config = configs[0]
     expected = (
         ("experiment_id", config.experiment_id, XJTU_RUL_LSTM_METHOD_ID),
@@ -175,13 +169,9 @@ def get_xjtu_rul_lstm_configuration() -> ExperimentConfig:
 
     expected_features = vibration_feature_names(XJTU_SY_CHANNELS)
     if tuple(config.selected_features) != expected_features:
-        raise XjtuRulLstmError(
-            "XJTU temporal RUL model requires the full 16-feature schema"
-        )
+        raise XjtuRulLstmError("XJTU temporal RUL model requires the full 16-feature schema")
     if dict(config.model_parameters) != _EXPECTED_PARAMETERS:
-        raise XjtuRulLstmError(
-            "XJTU temporal RUL model parameters must match the frozen protocol"
-        )
+        raise XjtuRulLstmError("XJTU temporal RUL model parameters must match the frozen protocol")
     return config
 
 
@@ -233,8 +223,7 @@ def fit_xjtu_rul_lstm_model(
     }
     try:
         target_values = tuple(
-            target_by_id[window.aligned_source_observation_id]
-            for window in train_sequence.windows
+            target_by_id[window.aligned_source_observation_id] for window in train_sequence.windows
         )
     except KeyError as error:
         raise XjtuRulLstmError(
@@ -244,9 +233,7 @@ def fit_xjtu_rul_lstm_model(
     try:
         model = fit_lstm_rul_regression(config, train_sequence, target_values)
     except LstmRulRegressionError as error:
-        raise XjtuRulLstmError(
-            f"failed to fit XJTU temporal LSTM RUL model: {error}"
-        ) from error
+        raise XjtuRulLstmError(f"failed to fit XJTU temporal LSTM RUL model: {error}") from error
 
     return XjtuRulLstmFit(
         config=config,
@@ -274,9 +261,7 @@ def predict_xjtu_rul_lstm(
     try:
         predicted_values = fitted.model.predict(construction)
     except LstmRulRegressionError as error:
-        raise XjtuRulLstmError(
-            f"invalid XJTU temporal RUL scoring input: {error}"
-        ) from error
+        raise XjtuRulLstmError(f"invalid XJTU temporal RUL scoring input: {error}") from error
 
     grouped: dict[str, list[RulPredictionObservation]] = defaultdict(list)
     for window, predicted in zip(
@@ -321,18 +306,14 @@ def prepare_xjtu_rul_sequence_construction(
             (vector.values for vector in ordered),
         )
     except PreprocessingError as error:
-        raise XjtuRulLstmError(
-            f"invalid XJTU temporal RUL preprocessing input: {error}"
-        ) from error
+        raise XjtuRulLstmError(f"invalid XJTU temporal RUL preprocessing input: {error}") from error
 
     observations = tuple(
         SequenceFeatureObservation(
             sequence_id=vector.asset_id,
             asset_id=vector.asset_id,
             partition_id=partition,
-            source_observation_id=(
-                f"{vector.asset_id}:acquisition-{_acquisition_index(vector)}"
-            ),
+            source_observation_id=(f"{vector.asset_id}:acquisition-{_acquisition_index(vector)}"),
             sequence_position=_acquisition_index(vector),
             feature_values=row,
         )
@@ -346,9 +327,7 @@ def prepare_xjtu_rul_sequence_construction(
             spec=XJTU_RUL_LSTM_SEQUENCE_SPEC,
         )
     except SequenceWindowError as error:
-        raise XjtuRulLstmError(
-            f"invalid XJTU temporal RUL sequence input: {error}"
-        ) from error
+        raise XjtuRulLstmError(f"invalid XJTU temporal RUL sequence input: {error}") from error
 
     _validate_partition_construction(construction, partition=partition)
     return construction
@@ -394,9 +373,7 @@ def _ordered_complete_vectors(
     partition: _Partition,
 ) -> tuple[VibrationFeatureVector, ...]:
     if not vectors:
-        raise XjtuRulLstmError(
-            f"XJTU temporal RUL {partition} input requires feature vectors"
-        )
+        raise XjtuRulLstmError(f"XJTU temporal RUL {partition} input requires feature vectors")
 
     expected_assets = get_xjtu_rul_partition_assets(partition)
     by_asset: dict[str, dict[int, VibrationFeatureVector]] = defaultdict(dict)
@@ -415,13 +392,11 @@ def _ordered_complete_vectors(
             )
         if vector.metadata.get("dataset_id") != _DATASET_ID:
             raise XjtuRulLstmError(
-                f"XJTU temporal RUL vector {vector_index} must preserve "
-                f"dataset_id {_DATASET_ID!r}"
+                f"XJTU temporal RUL vector {vector_index} must preserve dataset_id {_DATASET_ID!r}"
             )
         if vector.asset_id not in expected_assets:
             raise XjtuRulLstmError(
-                f"XJTU temporal RUL input received asset outside "
-                f"{partition}: {vector.asset_id!r}"
+                f"XJTU temporal RUL input received asset outside {partition}: {vector.asset_id!r}"
             )
         acquisition_index = _acquisition_index(vector)
         if acquisition_index in by_asset[vector.asset_id]:
@@ -452,9 +427,7 @@ def _ordered_complete_vectors(
                 f"missing={sorted(expected_indices - observed_indices)[:10]}, "
                 f"unexpected={sorted(observed_indices - expected_indices)[:10]}"
             )
-        ordered.extend(
-            by_asset[asset_id][index] for index in range(1, expected_count + 1)
-        )
+        ordered.extend(by_asset[asset_id][index] for index in range(1, expected_count + 1))
     return tuple(ordered)
 
 
@@ -467,9 +440,8 @@ def _validate_partition_construction(
     expected_source_count = sum(
         get_xjtu_expected_acquisition_count(asset_id) for asset_id in expected_assets
     )
-    expected_window_count = (
-        expected_source_count
-        - len(expected_assets) * (XJTU_RUL_LSTM_SEQUENCE_SPEC.length - 1)
+    expected_window_count = expected_source_count - len(expected_assets) * (
+        XJTU_RUL_LSTM_SEQUENCE_SPEC.length - 1
     )
     if partition == "train":
         expected_source_count = _EXPECTED_TRAIN_ACQUISITION_COUNT
@@ -510,9 +482,7 @@ def _validate_partition_construction(
                 f"RUL protocol; expected {configured!r}, got {value!r}"
             )
     if any(window.partition_id != partition for window in construction.windows):
-        raise XjtuRulLstmError(
-            f"{partition} RUL sequence windows must preserve partition identity"
-        )
+        raise XjtuRulLstmError(f"{partition} RUL sequence windows must preserve partition identity")
 
 
 def _acquisition_index(vector: VibrationFeatureVector) -> int:
