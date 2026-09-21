@@ -358,4 +358,3 @@ def test_three_model_result_rejects_mismatched_common_support_count() -> None:
         match="common-support evaluation count",
     ):
         replace(result, common_support_age_evaluation=invalid_evaluation)
-
