@@ -231,7 +231,44 @@ normalized lifecycle fraction과 future acquisition count를 입력으로 사용
 이 baseline은 temporal sequence model이 아니라 **현재 acquisition의 sensor-derived feature가 age-only baseline에
 비해 실제 추가 정보를 제공하는가**를 확인하는 비교점입니다.
 
-정확한 estimator와 parameter는 numerical result를 보기 전에 version-controlled configuration에서 고정합니다.
+첫 acquisition-feature comparator는 numerical validation 결과를 보기 전에 다음 configuration으로 고정합니다.
+
+```text
+feature_set:
+  vibration-statistical-v1 전체 16개 feature
+
+preprocessing:
+  robust scaling
+  fit population = complete fold-1 train acquisitions only
+
+model fit population:
+  reference = all train observations
+  sampling = bearing-balanced-resample-v1
+  random_seed = 42
+
+estimator:
+  Ridge regression
+  alpha = 1.0
+  fit_intercept = true
+  solver = svd
+
+target:
+  raw N-k acquisition intervals
+  no clipping / no target normalization
+```
+
+Prediction-time input에는 현재 acquisition의 16개 vibration feature만 들어갑니다. `acquisition_index`,
+operating condition, target bearing endpoint, normalized lifecycle fraction과 future acquisition feature는 estimator
+input에 넣지 않습니다. Robust-scaling state는 complete train partition에서만 fit하고 validation/test에는 동일
+state를 적용합니다.
+
+Bearing-balanced resampling은 길이가 크게 다른 train bearing 하나가 regression fit을 지배하지 않게 하기 위한
+training-population policy이며, target은 resampled source observation identity로 다시 정렬합니다. Validation과
+held-out benchmark prediction은 resampling하지 않습니다.
+
+Ridge output은 음수여도 0으로 clamp하지 않고 그대로 evaluator에 전달합니다. 이 baseline은 하나의 frozen
+comparator이므로 v1에서 alpha를 validation 결과로 tuning하지 않습니다. Configuration Source of Truth는
+`xjtu-sy-rul-feature-ridge-fold-1-v1.toml`입니다.
 
 ### C. Sequence RUL model
 
