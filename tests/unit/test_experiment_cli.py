@@ -475,6 +475,158 @@ def test_experiment_rul_baseline_validation_stops_on_revision_drift(
     assert "RUL baseline revision verification failed" in capsys.readouterr().err
 
 
+def test_experiment_rul_validation_routes_three_model_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source"
+    output = tmp_path / "rul-three-model.json"
+    revision = "8" * 40
+    observed: dict[str, object] = {}
+    verified: list[str] = []
+
+    def fake_verify(revision_to_verify: str) -> None:
+        verified.append(revision_to_verify)
+
+    def fake_run(
+        received_source: Path,
+        received_output: Path,
+        *,
+        code_revision: str,
+    ) -> SimpleNamespace:
+        observed.update(
+            source=received_source,
+            output=received_output,
+            code_revision=code_revision,
+        )
+        age = SimpleNamespace(
+            mean_asset_mean_absolute_error=100.0,
+            mean_asset_root_mean_squared_error=120.0,
+            mean_asset_normalized_mean_absolute_error=0.2,
+        )
+        feature = SimpleNamespace(
+            mean_asset_mean_absolute_error=80.0,
+            mean_asset_root_mean_squared_error=95.0,
+            mean_asset_normalized_mean_absolute_error=0.16,
+        )
+        temporal = SimpleNamespace(
+            mean_asset_mean_absolute_error=70.0,
+            mean_asset_root_mean_squared_error=90.0,
+            mean_asset_normalized_mean_absolute_error=0.14,
+        )
+        return SimpleNamespace(
+            baseline_result=SimpleNamespace(
+                train_source_acquisition_count=3_246,
+                validation_source_acquisition_count=2_818,
+                age_evaluation=age,
+                feature_evaluation=feature,
+            ),
+            temporal_train_window_count=3_183,
+            temporal_predictions=tuple(
+                SimpleNamespace(observations=tuple(range(count)))
+                for count in (154, 790, 1_853)
+            ),
+            temporal_evaluation=temporal,
+            code_revision=code_revision,
+        )
+
+    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(cli, "run_xjtu_rul_three_model_validation", fake_run)
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "rul-validation",
+            "xjtu-sy",
+            "--source",
+            str(source),
+            "--output",
+            str(output),
+            "--code-revision",
+            revision,
+        ]
+    )
+
+    assert exit_code == 0
+    assert verified == [revision]
+    assert observed == {
+        "source": source,
+        "output": output,
+        "code_revision": revision,
+    }
+    captured = capsys.readouterr().out
+    assert "execution plan: XJTU RUL three-model validation v1" in captured
+    assert "methods: age-only / feature-Ridge / 8-acquisition temporal LSTM" in captured
+    assert "holdout test: excluded" in captured
+    assert "temporal_fit=3183 windows temporal_validation_predictions=2797" in captured
+    assert "age-only: mae=100.000000 rmse=120.000000 normalized_mae=0.200000" in captured
+    assert "feature-ridge: mae=80.000000 rmse=95.000000 normalized_mae=0.160000" in captured
+    assert "temporal-lstm: mae=70.000000 rmse=90.000000 normalized_mae=0.140000" in captured
+    assert f"code_revision: {revision}" in captured
+    assert f"result: {output}" in captured
+
+
+def test_experiment_rul_validation_rejects_non_xjtu_dataset(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli.main(
+        [
+            "experiment",
+            "rul-validation",
+            "ims-bearings",
+            "--source",
+            "source",
+            "--output",
+            "result.json",
+            "--code-revision",
+            "8" * 40,
+        ]
+    )
+
+    assert exit_code == 2
+    assert "RUL three-model validation is not implemented for ims-bearings" in (
+        capsys.readouterr().err
+    )
+
+
+def test_experiment_rul_validation_stops_on_revision_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    executed = False
+
+    def fake_verify(_: str) -> None:
+        raise ValueError("declared code revision does not match current Git HEAD")
+
+    def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+        nonlocal executed
+        executed = True
+        raise AssertionError("execution must not start when revision verification fails")
+
+    monkeypatch.setattr(cli, "_verify_clean_git_revision", fake_verify)
+    monkeypatch.setattr(cli, "run_xjtu_rul_three_model_validation", fake_run)
+
+    exit_code = cli.main(
+        [
+            "experiment",
+            "rul-validation",
+            "xjtu-sy",
+            "--source",
+            str(tmp_path / "source"),
+            "--output",
+            str(tmp_path / "result.json"),
+            "--code-revision",
+            "8" * 40,
+        ]
+    )
+
+    assert exit_code == 1
+    assert executed is False
+    assert "RUL validation revision verification failed" in capsys.readouterr().err
+
+
 def test_experiment_lstm_development_rejects_non_xjtu_dataset(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
