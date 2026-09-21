@@ -121,9 +121,7 @@ def _validate_recorded_end_target_series(
     partition: str,
 ) -> None:
     if series.partition_id != partition:
-        raise XjtuRulTargetError(
-            f"XJTU RUL target series must preserve partition {partition!r}"
-        )
+        raise XjtuRulTargetError(f"XJTU RUL target series must preserve partition {partition!r}")
     if series.target_definition_id != XJTU_RUL_TARGET_DEFINITION_ID:
         raise XjtuRulTargetError(
             "XJTU RUL target series must use the recorded-end target definition"
@@ -136,9 +134,7 @@ def _validate_recorded_end_target_series(
         f"{series.asset_id}:acquisition-{acquisition_index}"
         for acquisition_index in range(1, run_length + 1)
     )
-    observed_ids = tuple(
-        observation.source_observation_id for observation in series.observations
-    )
+    observed_ids = tuple(observation.source_observation_id for observation in series.observations)
     if observed_ids != expected_ids:
         raise XjtuRulTargetError(
             f"XJTU RUL targets for {series.asset_id} must cover complete ordered acquisition 1.."
