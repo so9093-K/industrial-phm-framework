@@ -472,6 +472,61 @@ Analysis Explorer + GenAI
 Numerical result가 생긴 뒤 target/split/evaluation rule을 소급 변경하지 않습니다. 변경이 필요하면 protocol/config
 version을 올리고 이전 evidence와 의미를 구분합니다.
 
+## 14.1 관찰된 three-model validation evidence
+
+Clean revision `ba195fc9da2bfb48f4872bb180dbfd3afde4856c`에서 `experiment rul-validation`을 두 번 실행했고 두
+결과가 byte-identical입니다. SHA-256은
+`10dbca9388474e75e988630c99f65d592bafc928a4916a9865538c6228079e6d`이며 artifact는
+[`results/xjtu-sy-rul-three-model-fold-1-validation-v1.json`](results/xjtu-sy-rul-three-model-fold-1-validation-v1.json)
+입니다.
+
+Population은 train 3,246 acquisitions, validation 2,818 acquisitions, temporal fit 3,183 windows, temporal
+validation prediction 2,797입니다.
+
+### Common-support 비교
+
+세 모델 비교는 §9의 규칙대로 acquisition 8..N common support(bearing당 prefix 7개 제외, 총 2,797 prediction)
+에서만 수행합니다. Age/Ridge의 full-run 값은 artifact의 `baseline_full_run_comparison`에 따로 보존합니다.
+
+| Method | mean asset MAE | RMSE | normalized MAE | mean signed error |
+| --- | ---: | ---: | ---: | ---: |
+| age-only | 844.89 | 844.89 | 1.1172 | -578.67 |
+| feature-Ridge | 421.73 | 497.21 | 0.5346 | -315.45 |
+| temporal LSTM | 415.97 | 486.73 | 0.3263 | -399.00 |
+
+Ridge와 LSTM은 모두 age-only보다 MAE가 약 420 acquisition interval 낮습니다. 반면 **LSTM과 Ridge의 차이는
+mean asset MAE 기준 `-5.76`으로 두 baseline 대비 차이보다 훨씬 작습니다.** Normalized MAE에서는 격차가
+`-0.208`로 더 크게 나타나므로, 두 지표가 같은 순서를 주더라도 크기는 다르게 읽힙니다.
+
+### Bearing별 분포
+
+| Bearing | n | age MAE / signed | Ridge MAE / signed | LSTM MAE / signed |
+| --- | ---: | ---: | ---: | ---: |
+| Bearing1_2 | 154 | 199.7 / +199.7 | 72.7 / +13.5 | 37.3 / -32.9 |
+| Bearing2_2 | 154 | 199.7 / +199.7 | 114.8 / +110.8 | 44.6 / -0.9 |
+| Bearing3_2 | 2,489 | 2135.3 / -2135.3 | 1077.7 / -1070.7 | 1166.0 / -1163.1 |
+
+**Aggregate가 Bearing3_2 하나에 지배됩니다.** Bearing3_2는 validation prediction 2,797개 중 2,489개를
+차지하고 세 방법 모두에서 MAE가 나머지 두 bearing보다 한 자릿수 큽니다. Equal-bearing-mean을 쓰고 있으므로
+prediction 수로 가중되지는 않지만, bearing 세 개 중 하나가 이 정도로 다르면 mean 자체가 그 bearing의 값에
+크게 좌우됩니다.
+
+**Signed error가 bearing에 따라 부호가 다릅니다.** Bearing1_2와 Bearing2_2에서 age-only는 `+199.7`로 RUL을
+과대추정하고, Bearing3_2에서는 `-2135.3`으로 과소추정합니다. Ridge와 LSTM도 Bearing3_2에서 크게 음의 bias를
+갖습니다. 즉 세 방법 모두 긴 run에서 남은 수명을 짧게 예측합니다.
+
+Bearing3_2만 놓고 보면 **Ridge(1077.7)가 LSTM(1166.0)보다 MAE가 낮습니다.** Aggregate에서는 LSTM이 낮지만
+가장 큰 bearing에서는 순서가 반대입니다. 따라서 이 evidence는 "temporal LSTM이 Ridge보다 낫다"를 뒷받침하지
+않습니다.
+
+### 해석 경계
+
+- 이 값은 `fold-1 validation` **development evidence**이며 holdout test가 아닙니다.
+- Target은 `recorded-end N-k`이고 단위는 acquisition interval입니다. **물리적 failure time이 아닙니다.**
+- Artifact의 capability 선언대로 prediction interval, uncertainty calibration, validated physical failure
+  threshold, field RUL validation, maintenance decision recommendation은 지원하지 않습니다.
+- 이 결과를 보고 target, split, evaluation rule을 소급 변경하지 않았습니다.
+
 ## 15. References
 
 - XJTU-SY official dataset page:

@@ -434,8 +434,10 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
      Validation/test는 같은 fitted scaling과 sequence contract를 사용하며 첫 7 acquisition은 context 부족으로 예측하지 않음
    - 기존 two-baseline artifact를 유지한 채 age-only / feature-Ridge / temporal-LSTM을 한 source scan과 동일
      target/evaluator에서 비교하는 versioned three-model validation evidence schema/runner/CLI를 추가
-   - 다음 구현은 prepared XJTU source에서 실제 three-model numerical artifact를 생성·검증하고 product-facing
-     AnalysisView/Explorer에 RUL method comparison evidence를 연결
+   - prepared XJTU source에서 three-model numerical artifact를 생성해 두 번의 deterministic 실행이
+     byte-identical임을 확인하고 `docs/research/results/`에 기록
+   - 다음 구현은 prognostics evidence read model을 추가하고, capability composition으로 확장한 `AnalysisView`와
+     Explorer에 RUL method comparison evidence를 연결
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
