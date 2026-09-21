@@ -1308,7 +1308,8 @@ def _run_experiment_rul_validation(args: argparse.Namespace) -> int:
         f"train={result.baseline_result.train_source_acquisition_count} acquisitions "
         f"validation={result.baseline_result.validation_source_acquisition_count} acquisitions "
         f"temporal_fit={result.temporal_train_window_count} windows "
-        f"temporal_validation_predictions={sum(len(s.observations) for s in result.temporal_predictions)}"
+        "temporal_validation_predictions="
+        f"{sum(len(series.observations) for series in result.temporal_predictions)}"
     )
     print(
         "age-only: "
