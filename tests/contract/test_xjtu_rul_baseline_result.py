@@ -68,9 +68,7 @@ def _predictions(
                     asset_id=series.asset_id,
                     partition_id=series.partition_id,
                     source_observation_id=observation.source_observation_id,
-                    predicted_remaining_useful_life=(
-                        observation.remaining_useful_life + offset
-                    ),
+                    predicted_remaining_useful_life=(observation.remaining_useful_life + offset),
                 )
                 for observation in series.observations
             ),
@@ -96,8 +94,7 @@ def _result() -> XjtuRulBaselineValidationResult:
         partition="validation",
     )
     endpoints = tuple(
-        float(get_xjtu_expected_acquisition_count(asset_id))
-        for asset_id in fold.train
+        float(get_xjtu_expected_acquisition_count(asset_id)) for asset_id in fold.train
     )
     feature_count = len(config.selected_features)
     return XjtuRulBaselineValidationResult(
@@ -178,10 +175,10 @@ def test_xjtu_rul_baseline_result_writes_reviewable_validation_evidence(
     ] == pytest.approx(1.0)
 
     feature_predictions = cast(list[dict[str, object]], methods[1]["predictions"])
-    assert sum(
-        len(cast(list[object], series["observations"]))
-        for series in feature_predictions
-    ) == 2_818
+    assert (
+        sum(len(cast(list[object], series["observations"])) for series in feature_predictions)
+        == 2_818
+    )
 
     comparison = cast(dict[str, object], document["comparison"])
     assert comparison["feature_minus_age_mean_asset_mae"] == pytest.approx(-1.0)
@@ -212,8 +209,7 @@ def test_xjtu_rul_baseline_result_rejects_test_partition_prediction() -> None:
     result = _result()
     first = result.age_predictions[0]
     invalid_observations = tuple(
-        replace(observation, partition_id="test")
-        for observation in first.observations
+        replace(observation, partition_id="test") for observation in first.observations
     )
     invalid_first = replace(
         first,
