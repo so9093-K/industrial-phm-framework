@@ -32,6 +32,7 @@ from industrial_phm.models.rul_ridge_regression import (
 )
 
 __all__ = [
+    "MEAN_SQUARED_RECONSTRUCTION_ERROR_ID",
     "AnomalyScores",
     "AnomalyScoresError",
     "FittedIsolationForest",
@@ -40,7 +41,6 @@ __all__ = [
     "IsolationForestError",
     "LstmAutoencoderError",
     "LstmAutoencoderTrainingProvenance",
-    "MEAN_SQUARED_RECONSTRUCTION_ERROR_ID",
     "ModelFitInput",
     "ModelFitInputError",
     "ModelScoringInput",
