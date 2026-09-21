@@ -109,10 +109,16 @@ def score_exceedance_intervals(
     threshold: ReviewScoreThreshold,
 ) -> tuple[ScoreExceedanceInterval, ...]:
     """Group contiguous acquisition-aligned observations whose score exceeds the threshold."""
+    if threshold.reference_observation_count >= len(asset.observations):
+        raise ScoreIntervalError(
+            "review threshold reference scope must leave observations for interval review"
+        )
+
     runs: list[list[AnalysisObservation]] = []
     current: list[AnalysisObservation] = []
+    review_observations = asset.observations[threshold.reference_observation_count :]
 
-    for observation in asset.observations:
+    for observation in review_observations:
         exceeds = observation.score > threshold.value
         contiguous = (
             not current or observation.acquisition_index == current[-1].acquisition_index + 1
