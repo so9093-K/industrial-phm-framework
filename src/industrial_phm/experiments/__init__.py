@@ -216,6 +216,14 @@ from industrial_phm.experiments.xjtu_rul import (
     XjtuRulTargetError,
     build_xjtu_recorded_end_rul_targets,
     get_xjtu_rul_partition_assets,
+    validate_xjtu_recorded_end_rul_targets,
+)
+from industrial_phm.experiments.xjtu_rul_age_baseline import (
+    XJTU_AGE_ONLY_RUL_METHOD_ID,
+    XjtuAgeOnlyRulBaseline,
+    XjtuAgeOnlyRulBaselineError,
+    fit_xjtu_age_only_rul_baseline,
+    predict_xjtu_age_only_rul,
 )
 from industrial_phm.experiments.xjtu_rul_evaluation import (
     XjtuRulEvaluationError,
@@ -293,6 +301,7 @@ __all__ = [
     "XJTU_LSTM_SEQUENCE_SPEC",
     "XJTU_REFERENCE_COMPARISON_SCHEMA_ID",
     "XJTU_REFERENCE_DECISION_RULE_ID",
+    "XJTU_AGE_ONLY_RUL_METHOD_ID",
     "XJTU_RUL_PROTOCOL_ID",
     "XJTU_RUL_TARGET_DEFINITION_ID",
     "XJTU_RUL_TARGET_UNIT",
@@ -333,6 +342,8 @@ __all__ = [
     "ReferenceStrategy",
     "ScalingStrategy",
     "XjtuBearingHoldoutEvidence",
+    "XjtuAgeOnlyRulBaseline",
+    "XjtuAgeOnlyRulBaselineError",
     "XjtuBearingReferenceEvidence",
     "XjtuBearingRobustnessEvidence",
     "XjtuBearingScoreEvaluation",
@@ -392,6 +403,7 @@ __all__ = [
     "evaluate_xjtu_reference_hypotheses",
     "evaluate_xjtu_rul_point_predictions",
     "fit_ims_preprocessing_and_prepare_model_input",
+    "fit_xjtu_age_only_rul_baseline",
     "fit_mimii_preprocessing_and_prepare_model_input",
     "fit_xjtu_lstm_development_model",
     "fit_xjtu_preprocessing_and_prepare_model_input",
@@ -426,6 +438,7 @@ __all__ = [
     "prepare_mimii_model_scoring_input",
     "prepare_xjtu_lstm_sequence_inputs",
     "prepare_xjtu_model_fit_input",
+    "predict_xjtu_age_only_rul",
     "prepare_xjtu_model_scoring_input",
     "render_experiment_inspection_text",
     "run_ims_cross_test_evaluation",
@@ -452,6 +465,7 @@ __all__ = [
     "write_xjtu_reference_comparison_result",
     "write_xjtu_score_trajectory_artifacts",
     "write_xjtu_score_trajectory_summary",
+    "validate_xjtu_recorded_end_rul_targets",
     "write_xjtu_score_trajectory_table",
     "xjtu_experiment_context",
 ]
