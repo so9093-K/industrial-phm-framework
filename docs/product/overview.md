@@ -554,45 +554,52 @@ Schema-specific reader는 immutable `ExperimentInspection` read model을 만들�
 표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
 소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
 
-## 8. End-to-End Analysis Application 전환
+## 8. End-to-End Analysis Application 현재 상태
 
-현재 단계에서는 UI implementation을 더 이상 별도 미래 작업으로 두지 않습니다. 이미 존재하는 production
-validator, Adapter, feature/sequence, model, result artifact와 inspection을 재사용해 다음 vertical slice를
-실제로 연결합니다.
+첫 vertical slice는 현재 구현되어 있습니다. XJTU LSTM retrospective path를 기준으로 prepared source에서 기존
+production analysis runner를 실행하고, 생성 artifact를 validated `AnalysisView`로 다시 읽어 같은 사용자 화면에서
+결과·evidence·AI 설명·pipeline transparency를 이어서 검토할 수 있습니다.
 
 ```text
-데이터 선택
-  -> validation
-  -> Python PHM analysis
-  -> score / trend / capability
-  -> anomaly interval and evidence
-  -> visualization
+prepared XJTU source
+  -> validation / Adapter / feature / preprocessing / sequence
+  -> frozen LSTM fit / scoring / evaluation
+  -> evidence artifact
+  -> AnalysisView
+  -> anomaly-evidence trajectory
+  -> descriptive score-exceedance interval
+  -> supporting residual evidence
   -> Generative AI explanation / Q&A
-  -> transparency drill-down
+  -> pipeline / provenance drill-down
 ```
 
 현재 구현 범위:
 
-- analysis use case와 presentation read model
-- sensor/feature trajectory와 anomaly score의 동일 context 시각화
-- validated threshold policy가 존재할 때 contiguous anomaly interval 표시
-- 선택한 interval 또는 analysis scope의 supporting evidence 표시
-- 구조화된 evidence만 소비하는 Generative AI 설명과 analysis-scoped Q&A
-- `ExperimentInspection`과 기존 Workbench의 pipeline/provenance를 상세 보기로 재사용
-- capability unavailable 상태를 정상적인 제품 상태로 표시
+- prepared XJTU source에서 analysis를 명시적으로 실행하는 application use case
+- experiment JSON을 UI가 직접 해석하지 않게 하는 presentation-oriented `AnalysisView`
+- acquisition-aligned score trajectory와 model-space feature residual evidence 시각화
+- earliest-third scored-window q95를 사용한 retrospective **descriptive review threshold**
+- threshold 초과 acquisition-contiguous observation을 score-exceedance interval로 표시
+- review threshold/interval을 validated normal/fault State Detection, alarm, diagnosis와 명시적으로 분리
+- bounded structured evidence만 소비하는 Generative AI 설명과 analysis-scoped Q&A
+- `ExperimentInspection`의 pipeline/provenance를 Analysis Details drill-down으로 재사용
+- unavailable capability를 임의 값으로 채우지 않는 명시적 capability boundary
 
-이 vertical slice를 위해 frontend framework, service API, authentication 또는 persistent workflow engine을 먼저
-고정할 필요는 없습니다. 첫 사용자 surface는 현재 project dependency와 evidence ownership 원칙을 지키는 가장
-작은 구현으로 시작하고, 실제 사용 요구가 생길 때 presentation 기술을 교체하거나 확장할 수 있어야 합니다.
+따라서 첫 vertical slice의 완성 조건인 **분석 실행 → 변화 구간 확인 → evidence 시각화 → AI 설명 →
+분석 과정 확인**은 충족합니다. 이 상태를 유지한 채 새로운 PHM capability를 같은 application에 추가합니다.
 
-후속 확장:
+현재 다음 제품 확장은 RUL/prognostics입니다.
 
-- XJTU run-to-failure data에서 검증된 RUL/prognostics capability와 uncertainty를 같은 화면에 추가
-- analysis bundle과 report/export
-- local/general sensor input
-- private/field source와 live inference
-- 역할별 operational view, work-order integration과 조직/권한 기능
-- 정비 지식 retrieval이 실제 설명 품질에 필요할 때 Generative AI RAG 확장
+- XJTU run-to-failure data에서 RUL target/split/evaluation semantics를 고정
+- baseline과 sequence-based prognostics를 같은 evidence lifecycle에서 비교
+- estimate와 함께 uncertainty/range를 기록
+- `AnalysisView`와 Analysis Explorer에 RUL을 optional capability로 추가
+- Generative AI가 RUL 수치와 uncertainty/limitation을 구조화된 evidence로 설명하도록 확장
+
+그 이후에는 report/export, local/general sensor input, 적합한 source의 diagnostics, private/field source와 live
+inference를 같은 완성된 application 안에서 확장합니다. Frontend framework, service API, authentication,
+work-order integration, RAG 같은 기술은 실제 제품 요구가 생길 때 도입하며 현재 vertical slice의 완성을
+선행 조건으로 다시 미루지 않습니다.
 
 완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
 사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
