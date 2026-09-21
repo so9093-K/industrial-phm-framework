@@ -21,6 +21,7 @@ from industrial_phm.experiments import (
     evaluate_xjtu_rul_point_predictions,
     get_xjtu_feature_rul_configuration,
     get_xjtu_reference_split,
+    run_xjtu_rul_three_model_validation,
     write_xjtu_rul_three_model_validation_result,
 )
 from industrial_phm.prognostics import (
@@ -281,3 +282,28 @@ def test_three_model_result_rejects_temporal_parameter_drift() -> None:
         match="parameters",
     ):
         replace(result, temporal_model_parameters=changed)
+
+def test_three_model_runner_rejects_invalid_revision_before_source_io(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        XjtuRulThreeModelValidationResultError,
+        match="40-character",
+    ):
+        run_xjtu_rul_three_model_validation(
+            tmp_path / "missing-source",
+            tmp_path / "result.json",
+            code_revision="not-a-revision",
+        )
+
+
+def test_three_model_result_rejects_non_finite_training_loss() -> None:
+    result = _result()
+    invalid_losses = (*result.temporal_epoch_losses[:-1], float("nan"))
+
+    with pytest.raises(
+        XjtuRulThreeModelValidationResultError,
+        match="finite and non-negative",
+    ):
+        replace(result, temporal_epoch_losses=invalid_losses)
+
