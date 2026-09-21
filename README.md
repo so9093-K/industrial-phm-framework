@@ -1,60 +1,44 @@
 # industrial-phm-framework
 
-**Evidence-first industrial PHM framework for anomaly analysis, prognostics, visualization, and bounded GenAI explanation.**
+산업 설비의 센서 데이터를 분석해 **이상 변화와 RUL(잔여수명)**을 살펴보고,
+분석 결과를 화면·보고서·생성형 AI 설명으로 확인할 수 있는 Python 기반 PHM(고장예지·건전성 관리) 프레임워크입니다.
 
-산업 센서 데이터를 검증 가능한 PHM(Prognostics and Health Management) evidence로 변환하고,
-분석 결과를 Explorer, deterministic report, 생성형 AI 설명까지 연결하는 Python 기반 프레임워크입니다.
+현재는 공개 데이터셋을 중심으로 분석 흐름과 결과 검증 방식을 개발하고 있으며,
+주 사용자는 PHM/ML 개발자와 연구자입니다.
 
-> **Status:** pre-alpha `0.0.1` · end-to-end Analysis Application vertical slice complete ·
-> XJTU RUL v1 retrospective held-out benchmark recorded
+> 현재 버전: pre-alpha `0.0.1`
 
-**데이터와 검증된 evidence가 지원하지 않는 capability는 주장하지 않습니다.**
-LLM도 PHM 수치를 다시 계산하지 않고 numerical core가 만든 structured evidence와 limitation만 설명합니다.
+<!--
+Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
+권장 파일: assets/analysis-explorer.png
+자산 관리 규칙은 assets/README.md를 참조합니다.
+-->
 
-## What it does
+## 전체 구조
 
-| Capability | Status | Scope |
-| --- | --- | --- |
-| Source validation / canonicalization | ✅ | XJTU-SY, IMS Bearings, MIMII DUE, AI4I workflow |
-| Vibration anomaly evidence | ✅ | XJTU Isolation Forest + LSTM Autoencoder |
-| Cross-run / domain-shift evaluation | ✅ | IMS fixed cross-test, MIMII development/external evidence |
-| Retrospective RUL evidence | ✅ | XJTU age-only / Ridge / temporal LSTM + frozen held-out benchmark |
-| Explorer / report / GenAI explanation | ✅ | validated evidence only; GenAI is optional |
-| Diagnosis / RUL uncertainty / field validation / live inference | — | not validated or not implemented |
+![산업 설비 데이터부터 분석 결과까지 이어지는 시스템 구조](assets/system-architecture.png)
 
-현재 직접 사용자는 PHM/ML 개발자·연구자이며, 목표는 model zoo가 아니라
-**재현 가능한 evidence lifecycle과 명시적인 capability boundary**를 만드는 것입니다.
+센서 데이터는 데이터셋별 변환 단계를 거쳐 공통 분석 흐름으로 들어갑니다.
+분석 결과는 파일로 기록되고, 같은 결과를 Analysis Explorer·보고서·생성형 AI 설명에서 함께 사용합니다.
 
-## How it works
+자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
-```text
-industrial source
-  -> validation / Domain Adapter
-  -> canonical data / features
-  -> numerical model
-  -> model-independent evaluation
-  -> versioned evidence artifact
-  -> AnalysisView / ExperimentInspection
-  -> Explorer / report / bounded GenAI
-```
+## 주요 기능
 
-![System Architecture](assets/system-architecture.png)
+- **센서 데이터 준비** — XJTU-SY, IMS Bearings, MIMII DUE 등의 데이터 구조와 기본 품질을 확인하고 분석 가능한 형태로 변환합니다.
+- **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
+- **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
+- **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
+- **보고서 생성** — 분석 결과를 같은 수치와 내용으로 재현 가능한 Markdown 보고서로 저장합니다.
+- **생성형 AI 설명** — 계산이 끝난 분석 결과를 바탕으로 요약과 질의응답을 제공합니다.
 
-핵심 원칙은 네 가지입니다.
+현재 구현된 분석 화면과 실행 방법은 [Analysis Explorer 안내](apps/README.md)에 정리되어 있습니다.
 
-- **Domain boundary first** — dataset·설비별 차이는 Adapter/source contract에 격리합니다.
-- **Reproducible evidence** — split, configuration, code revision, evaluation과 provenance를 artifact에 보존합니다.
-- **Capability-aware** — 지원되지 않는 결과를 0, 추정값, 임의 interval로 채우지 않습니다.
-- **GenAI after PHM** — UI와 LLM은 numerical result를 재계산하거나 의미를 승격하지 않습니다.
+## 빠르게 시작하기
 
-상세 구조는 [Architecture](docs/architecture/overview.md),
-설계 원칙은 [Design Principles](docs/architecture/principles.md)를 참조합니다.
+검증된 개발 환경은 CPython `3.14.x`와 저장소의 `uv.lock`입니다.
 
-## Quickstart
-
-검증 기준은 CPython `3.14.x` GIL-enabled build와 repository의 `uv.lock`입니다.
-
-### 1. Set up
+### 1. 환경 준비
 
 ```bash
 uv python install 3.14
@@ -62,9 +46,9 @@ uv sync --locked
 uv run --locked industrial-phm doctor
 ```
 
-### 2. Inspect recorded evidence
+### 2. 기존 분석 결과 확인
 
-Raw dataset 없이도 version-controlled evidence를 inspection read model로 검토할 수 있습니다.
+원본 데이터셋을 내려받지 않아도 저장소에 기록된 분석 결과를 확인할 수 있습니다.
 
 ```bash
 uv run --locked industrial-phm experiment inspect \
@@ -74,123 +58,54 @@ uv run --locked industrial-phm experiment inspect \
   docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json
 ```
 
-### 3. Open the Analysis Explorer
+### 3. 분석 화면 열기
 
 ```bash
 uv sync --locked --group research
 uv run --locked --group research marimo edit apps/analysis_explorer.py
 ```
 
-Optional GenAI explanation은 `OPENAI_API_KEY`와 `INDUSTRIAL_PHM_GENAI_MODEL`이 있을 때만 활성화됩니다.
-앱 사용 범위는 [`apps/README.md`](apps/README.md)에 정리합니다.
+생성형 AI 설명 기능을 사용할 때는 `OPENAI_API_KEY`와 `INDUSTRIAL_PHM_GENAI_MODEL`을 실행 환경에 설정합니다.
 
-Deterministic Markdown report도 같은 validated `AnalysisView`를 사용합니다.
+## 사용한 데이터
 
-```bash
-uv run --locked industrial-phm analysis report \
-  --anomaly docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
-  --asset Bearing1_2 \
-  --output artifacts/reports/Bearing1_2.md
-```
-
-## Evidence and limits
-
-공개 dataset은 단순 demo가 아니라 서로 다른 PHM 질문을 검증하기 위해 사용합니다.
-
-| Source | Role |
+| 데이터 | 이 프로젝트에서의 활용 |
 | --- | --- |
-| **XJTU-SY** | run-to-failure vibration, anomaly trajectory, retrospective RUL |
-| **IMS Bearings** | Set 2 → Set 3 fixed cross-test portability evidence |
-| **MIMII DUE** | acoustic anomaly scoring and domain-shift evidence |
-| **AI4I 2020** | lightweight acquisition / registry / integrity workflow |
+| **XJTU-SY** | 베어링 진동 데이터의 이상 변화 분석과 RUL 연구 |
+| **IMS Bearings** | 서로 다른 베어링 실행 데이터에서 분석 흐름과 결과 변화를 확인 |
+| **MIMII DUE** | 기계 음향 데이터의 이상 분석과 환경 차이에 따른 변화 확인 |
+| **AI4I 2020** | 데이터 등록·다운로드·무결성 확인 흐름의 간단한 예제 |
 
-### RUL v1
+데이터 준비 방법과 출처는 [데이터 안내](data/README.md),
+데이터셋을 선택한 배경은 [연구 문서](docs/research/dataset-selection.md)를 참조합니다.
 
-XJTU RUL v1은 protocol-frozen development와 retrospective held-out benchmark evidence까지 기록되어 있습니다.
-
-- target: 마지막 recorded acquisition까지 남은 `N-k` acquisition interval
-- validation-selected method: temporal LSTM
-- operational primary method: none
-- held-out benchmark: Bearing1_1 / Bearing2_1 / Bearing3_1, 3,131 predictions
-- equal-bearing mean MAE: **458.251 acquisition intervals**
-- normalized MAE: **0.3313**
-- prediction interval / uncertainty calibration: **not validated**
-- validated physical failure threshold / field RUL validation: **not available**
-
-Canonical benchmark:
-[`xjtu-sy-rul-lstm-fold-1-benchmark-v1.json`](docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json)
-
-이 benchmark는 protocol-frozen **retrospective evidence**이며 pristine external validation이나 field validation이 아닙니다.
-Target도 validated physical failure time을 의미하지 않습니다.
-
-### Trust boundary
-
-- anomaly score를 자동으로 fault state, diagnosis, degradation state 또는 RUL로 승격하지 않습니다.
-- prediction interval은 calibration population과 coverage/width evidence가 있을 때만 capability로 선언합니다.
-- 서로 다른 anomaly/prognostics artifact는 compatible해도 하나의 execution으로 합치지 않습니다.
-- public benchmark evidence를 maintenance recommendation이나 operational answer로 표현하지 않습니다.
-- GenAI는 raw sensor를 다시 분석하거나 RUL을 재계산·보정·clipping하지 않습니다.
-
-세부 정책과 protocol:
-
-- [Evidence Artifact Policy](docs/research/evidence-artifact-policy.md)
-- [XJTU RUL Protocol](docs/research/xjtu-rul-prognostics-protocol.md)
-- [RUL Benchmark Runbook](docs/research/xjtu-rul-benchmark-execution-runbook.md)
-- [2025–2026 PHM Research & Industry Direction](docs/research/phm-industry-direction.md)
-
-## Roadmap
-
-| Horizon | Focus |
-| --- | --- |
-| **Now** | local/general sensor input, first private/field source, identity/data-quality/provenance |
-| **Next** | diagnostics semantics, uncertainty/calibration, operational/live inference contract |
-| **Later** | CMMS/EAM context, decision support, domain adaptation, SSL/foundation models, richer knowledge assistance |
-
-새 모델이나 platform은 roadmap 자체가 아니라 **실제 evidence gap을 해결할 때** 도입합니다.
-
-현재 방향은:
+## 현재 개발 방향
 
 ```text
-model-centric PHM
-  -> evidence-centric PHM        # current
-  -> decision-support PHM        # after field/operational evidence
+일반 CSV/WAV 센서 입력
+  -> 현장·비공개 데이터 연결
+  -> 고장 진단과 RUL 불확실성 검증
+  -> 실시간 분석과 유지보수 시스템 연계
 ```
 
-## Development
+현재 우선순위는 다양한 모델을 추가하는 것보다 실제 센서 데이터를 더 쉽게 연결하고,
+현장 데이터에서 분석 결과가 어떻게 달라지는지 확인하는 것입니다.
 
-```bash
-uv lock --check
-uv sync --locked
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv run --locked mypy
-uv run --locked pytest
-uv build
-```
+최근 PHM 연구와 산업 적용 방향은
+[PHM 연구·산업 동향](docs/research/phm-industry-direction.md)에 별도로 정리합니다.
 
-Deep-learning contract:
+## 더 자세히 보기
 
-```bash
-uv sync --locked --extra deep-learning
-uv run --locked --extra deep-learning pytest tests/contract/test_deep_learning_runtime.py
-```
+- [Analysis Explorer](apps/README.md) — 분석 화면과 실행 방법
+- [아키텍처](docs/architecture/overview.md) — 전체 구성과 책임 분리
+- [제품·UX 기준](docs/product/overview.md) — 분석 결과를 사용자에게 보여주는 방식
+- [데이터 준비](data/README.md) — 데이터셋 준비와 검증
+- [연구 문서](docs/research/README.md) — 실험 프로토콜, RUL 연구, 실행 기록
+- [기여 방법](CONTRIBUTING.md) — 개발 환경, 코드 변경, 테스트 방법
 
-CPython 3.14 free-threaded build와 다른 Python minor version은 현재 검증 범위가 아닙니다.
+자세한 변경 내용은 [변경 이력](CHANGELOG.md), 테스트 기준은 [테스트 정책](docs/testing-policy.md)을 참조합니다.
 
-## Documentation
+## 라이선스
 
-| Topic | Document |
-| --- | --- |
-| Product / result UX | [Product Overview](docs/product/overview.md) |
-| Architecture | [Architecture Overview](docs/architecture/overview.md) |
-| Operational / CLI boundary | [Operational Foundation](docs/architecture/operational-foundation.md) |
-| Dataset preparation | [Data Guide](data/README.md) |
-| Research protocols / runbooks | [Research Notes](docs/research/README.md) |
-| Contribution / testing | [CONTRIBUTING](CONTRIBUTING.md) · [Testing Policy](docs/testing-policy.md) |
-
-변경 이력은 [CHANGELOG](CHANGELOG.md), 공통 용어는 [Terminology](docs/terminology.md)를 참조합니다.
-
-## License
-
-[Apache License 2.0](LICENSE). Dataset license와 provenance는 project license와 별개이며
-각 manifest와 dataset 문서를 따릅니다.
+[Apache License 2.0](LICENSE)을 사용합니다.
+데이터셋의 원본 라이선스와 출처는 각 데이터 문서를 따릅니다.
