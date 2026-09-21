@@ -621,6 +621,10 @@ def _validate_common_support_evaluation(
         raise XjtuRulThreeModelValidationResultError(
             "common-support evaluation bearing population must match fold-1 validation"
         )
+    if any(item.partition_id != "validation" for item in evaluation.asset_results):
+        raise XjtuRulThreeModelValidationResultError(
+            "common-support evaluation must preserve the validation partition"
+        )
     for item in evaluation.asset_results:
         expected_count = get_xjtu_expected_acquisition_count(item.asset_id) - 7
         if item.prediction_count != expected_count:
@@ -683,6 +687,10 @@ def _validate_temporal_prediction_evaluation(
     if evaluation_assets != tuple(sorted(fold.validation)):
         raise XjtuRulThreeModelValidationResultError(
             "temporal evaluation bearing population must match fold-1 validation"
+        )
+    if any(item.partition_id != "validation" for item in evaluation.asset_results):
+        raise XjtuRulThreeModelValidationResultError(
+            "temporal evaluation must preserve the validation partition"
         )
 
     evaluation_count_by_asset = {
