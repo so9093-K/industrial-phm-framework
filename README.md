@@ -104,6 +104,10 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 feature residual을 보여주지만, validated threshold가 기록되지 않았으므로 normal/fault state나 anomaly interval을
 임의로 생성하지 않습니다.
 
+Prepared XJTU-SY source가 있으면 `Run Analysis` view에서 기존 frozen LSTM pipeline을 직접 실행하고, 생성된
+artifact를 같은 Analysis Explorer의 Summary/Evidence/AI Explanation으로 이어서 검토할 수 있습니다. 실제 LSTM
+실행에는 `--extra deep-learning` runtime이 필요합니다.
+
 생성형 AI 설명/Q&A는 optional이며 `OPENAI_API_KEY`와 `INDUSTRIAL_PHM_GENAI_MODEL`을 실행 환경에 제공했을 때만
 활성화됩니다. LLM은 raw sensor를 다시 분석하지 않고 bounded structured PHM evidence를 설명합니다. 지원 범위와
 앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.

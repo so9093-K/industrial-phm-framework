@@ -12,7 +12,12 @@ def _():
     import marimo as mo
     import matplotlib.pyplot as plt
 
-    from industrial_phm.analysis import AnalysisViewError, load_xjtu_lstm_analysis_view
+    from industrial_phm.analysis import (
+        AnalysisRunError,
+        AnalysisViewError,
+        load_xjtu_lstm_analysis_view,
+        run_xjtu_lstm_analysis_from_source,
+    )
     from industrial_phm.genai import (
         AnalysisExplanationError,
         build_analysis_explanation_context,
@@ -21,6 +26,7 @@ def _():
 
     return (
         AnalysisExplanationError,
+        AnalysisRunError,
         AnalysisViewError,
         Path,
         build_analysis_explanation_context,
@@ -29,6 +35,7 @@ def _():
         mo,
         os,
         plt,
+        run_xjtu_lstm_analysis_from_source,
     )
 
 
@@ -50,14 +57,26 @@ def _(AnalysisViewError, Path, load_xjtu_lstm_analysis_view, mo, os):
     )
 
     try:
-        analysis = load_xjtu_lstm_analysis_view(artifact_path)
+        initial_analysis = load_xjtu_lstm_analysis_view(artifact_path)
     except AnalysisViewError as error:
         mo.stop(
             True,
             mo.callout(str(error), kind="danger", title="Analysis validation failed"),
         )
 
-    return analysis, artifact_path
+    return artifact_path, initial_analysis
+
+
+@app.cell
+def _(initial_analysis, mo):
+    get_analysis, set_analysis = mo.state(initial_analysis)
+    return get_analysis, set_analysis
+
+
+@app.cell
+def _(get_analysis):
+    analysis = get_analysis()
+    return (analysis,)
 
 
 @app.cell
@@ -68,7 +87,13 @@ def _(analysis, mo):
         label="Analysis target",
     )
     view_selector = mo.ui.radio(
-        options=["Analysis Summary", "Evidence", "AI Explanation", "Analysis Details"],
+        options=[
+            "Analysis Summary",
+            "Evidence",
+            "AI Explanation",
+            "Run Analysis",
+            "Analysis Details",
+        ],
         value="Analysis Summary",
         inline=True,
         label="View",
@@ -126,6 +151,126 @@ def _(mo):
         kind="success",
     )
     return explanation_question, explanation_run
+
+
+@app.cell
+def _(mo, os):
+    analysis_source_input = mo.ui.text(
+        value=os.environ.get("INDUSTRIAL_PHM_XJTU_SOURCE", ""),
+        label="Prepared XJTU-SY source",
+        full_width=True,
+    )
+    analysis_output_input = mo.ui.text(
+        value=os.environ.get(
+            "INDUSTRIAL_PHM_ANALYSIS_OUTPUT",
+            "artifacts/analysis/xjtu-lstm-analysis.json",
+        ),
+        label="Result artifact path",
+        full_width=True,
+    )
+    analysis_revision_input = mo.ui.text(
+        value=os.environ.get("INDUSTRIAL_PHM_CODE_REVISION", ""),
+        label="Code revision (40-character Git SHA)",
+        full_width=True,
+    )
+    analysis_run_button = mo.ui.run_button(
+        label="Run XJTU LSTM analysis",
+        kind="success",
+    )
+    return (
+        analysis_output_input,
+        analysis_revision_input,
+        analysis_run_button,
+        analysis_source_input,
+    )
+
+
+@app.cell
+def _(
+    AnalysisRunError,
+    Path,
+    analysis_output_input,
+    analysis_revision_input,
+    analysis_run_button,
+    analysis_source_input,
+    mo,
+    run_xjtu_lstm_analysis_from_source,
+    set_analysis,
+):
+    if not analysis_run_button.value:
+        analysis_run_output = mo.callout(
+            "Configure a prepared XJTU-SY source, result path, and exact code revision, "
+            "then run the existing frozen LSTM analysis path. The current loaded result "
+            "remains active until a new execution completes successfully.",
+            kind="info",
+            title="Ready to run",
+        )
+    else:
+        source_value = analysis_source_input.value.strip()
+        output_value = analysis_output_input.value.strip()
+        revision_value = analysis_revision_input.value.strip()
+        missing = [
+            label
+            for label, value in (
+                ("prepared source", source_value),
+                ("result path", output_value),
+                ("code revision", revision_value),
+            )
+            if not value
+        ]
+        if missing:
+            analysis_run_output = mo.callout(
+                "Missing required input: " + ", ".join(missing),
+                kind="warn",
+                title="Analysis not started",
+            )
+        else:
+            try:
+                completed_run = run_xjtu_lstm_analysis_from_source(
+                    Path(source_value),
+                    Path(output_value),
+                    code_revision=revision_value,
+                )
+                set_analysis(completed_run.analysis)
+                analysis_run_output = mo.callout(
+                    "Analysis completed and the active Analysis Explorer result was updated. "
+                    f"Artifact: `{completed_run.result_path}`",
+                    kind="success",
+                    title="Analysis completed",
+                )
+            except AnalysisRunError as error:
+                analysis_run_output = mo.callout(
+                    str(error),
+                    kind="danger",
+                    title="Analysis failed",
+                )
+
+    run_analysis_view = mo.vstack(
+        [
+            mo.md("## Run Analysis"),
+            mo.callout(
+                "This executes the existing frozen XJTU LSTM retrospective development "
+                "pipeline. It validates the prepared source, extracts features, fits the "
+                "model, scores the validation bearings, writes the evidence artifact, "
+                "and reloads it through the same AnalysisView used by this application.",
+                kind="info",
+                title="Source → Python PHM analysis → user result",
+            ),
+            analysis_source_input,
+            analysis_output_input,
+            analysis_revision_input,
+            analysis_run_button,
+            mo.md(
+                "Runtime requirement: "
+                "`uv sync --locked --group research --extra deep-learning`.  \n"
+                "This execution preserves retrospective-development semantics; it is not "
+                "live asset inference."
+            ),
+            analysis_run_output,
+        ],
+        gap=1.2,
+    )
+    return (run_analysis_view,)
 
 
 @app.cell
@@ -376,6 +521,7 @@ def _(
     evidence_view,
     header,
     mo,
+    run_analysis_view,
     summary_view,
     view_selector,
 ):
@@ -383,6 +529,7 @@ def _(
         "Analysis Summary": summary_view,
         "Evidence": evidence_view,
         "AI Explanation": ai_explanation_view,
+        "Run Analysis": run_analysis_view,
         "Analysis Details": details_view,
     }
     mo.vstack([header, view_selector, views[view_selector.value]], gap=1.5)

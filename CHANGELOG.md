@@ -11,6 +11,9 @@
 
 ### Added
 
+- Analysis Explorer의 `Run Analysis` view에서 prepared XJTU-SY source를 기존 frozen LSTM pipeline으로 실행하고,
+  생성 result를 동일한 `AnalysisView`로 재검증해 Summary/Evidence/AI Explanation에 즉시 연결하는
+  source-to-analysis product vertical slice.
 - Analysis Explorer의 선택 asset에 대해 bounded structured PHM evidence만 전송하는 Generative AI 설명/Q&A.
   API credential과 model이 명시적으로 설정된 경우에만 run button으로 OpenAI Responses API를 호출하고,
   `store=false` stateless request와 capability/limitation instruction boundary를 적용합니다.
