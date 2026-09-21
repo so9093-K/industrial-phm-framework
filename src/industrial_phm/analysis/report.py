@@ -194,11 +194,7 @@ def _append_inspection_warnings(
     *,
     heading: str,
 ) -> None:
-    warnings = tuple(
-        warning
-        for stage in analysis.inspection.stages
-        for warning in stage.warnings
-    )
+    warnings = tuple(warning for stage in analysis.inspection.stages for warning in stage.warnings)
     if not warnings:
         return
     lines.extend(("", f"### {heading}", ""))
