@@ -250,6 +250,7 @@
 
 ### Changed
 
+- Root README를 한국 사용자 중심의 제품 소개 흐름으로 다시 구성했습니다. 영문 섹션 제목과 미지원 기능/신뢰 경계 중심 설명을 제거하고 전체 구조, 주요 기능, 빠른 시작, 사용 데이터, 개발 방향과 문서 링크에 집중했습니다. Analysis Explorer 화면 캡처는 향후 `assets/analysis-explorer.png`만 추가하면 상단 소개 영역에 연결할 수 있도록 위치와 자산 규칙을 준비했습니다.
 - Root README를 197-line minimal landing page로 다시 압축했습니다. Capability, architecture, quickstart, evidence/limits, roadmap과 핵심 docs만 남기고 중복된 RUL 상세·research direction·repository layout 설명을 authoritative 문서로 이동했습니다.
 - Root README를 experiment history 중심 문서에서 capability/status, quickstart, evidence boundary와 roadmap 중심의 product landing page로 재구성했습니다. 2025–2026 PHM의 uncertainty·robustness·domain shift·human-in-the-loop·LLM copilot·industrial integration 흐름과 관련 표준/산업 사례는 별도 research note로 분리했습니다.
 - CLI implementation handler를 `commands/data.py`, `commands/feature.py`, `commands/experiment.py`, `commands/analysis.py`로 분리했습니다. Public command/parser surface는 유지하고 `cli.py`는 parser wiring과 entrypoint 중심으로 축소했습니다. Evidence artifact는 canonical machine evidence와 deterministic human-review representation을 분리하는 저장·리뷰 정책을 추가했습니다.
