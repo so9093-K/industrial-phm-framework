@@ -149,6 +149,22 @@ Anomaly-detection model이 observation의 기준 분포 대비 비정상성을 �
 `Anomaly score`가 lifecycle degradation과 일관되게 연결된다는 근거가 생기기 전에는 이를 자동으로
 `degradation score`라고 부르지 않습니다.
 
+### Descriptive review threshold
+
+이미 기록된 anomaly score trajectory에서 사람이 변화 구간을 검토하기 위해 사용하는 명시적 descriptive
+threshold입니다. 현재 Analysis Explorer의 첫 정책은 earliest-third recorded scored windows의 nearest-rank
+95th percentile입니다.
+
+이 threshold는 retrospective presentation/analysis aid이며 State Detection의 validated normal/fault threshold,
+alarm threshold 또는 maintenance decision rule과 동의어가 아닙니다. Threshold를 초과한 contiguous observation은
+`score-exceedance interval`로 표시할 수 있지만 이를 자동으로 fault interval이라고 부르지 않습니다.
+
+### Score-exceedance interval
+
+Descriptive review threshold를 초과한 acquisition-aligned score observation이 연속해서 나타난 구간입니다.
+사용자가 anomaly evidence가 집중된 위치를 찾기 위한 presentation-level evidence이며, 별도의 state semantics가
+검증되기 전에는 normal/fault state, alarm 또는 diagnostic event를 의미하지 않습니다.
+
 ### Degradation indicator
 
 설비 lifecycle에서 열화 진행과 의미 있게 연결된다고 분석·검증된 지표를 가리키기 위한 프로젝트 용어입니다.
