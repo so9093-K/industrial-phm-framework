@@ -90,6 +90,20 @@ uv run --locked --extra deep-learning pytest tests/contract/test_deep_learning_r
 커밋, PR, 테스트 및 문서화 규칙은 [`CONTRIBUTING.md`](CONTRIBUTING.md)를 따릅니다.
 중요한 구조 결정은 [`docs/adr`](docs/adr)에 ADR로 남깁니다.
 
+## Analysis Application
+
+첫 사용자-facing PHM Analysis Explorer는 validated analysis evidence를 직접 소비하며,
+결과 → supporting evidence → pipeline/provenance drill-down 순서로 정보를 보여줍니다.
+
+```bash
+uv sync --locked --group research
+uv run --locked --group research marimo edit apps/analysis_explorer.py
+```
+
+현재 첫 consumer는 XJTU LSTM retrospective evidence입니다. Acquisition-aligned anomaly-evidence trajectory와
+feature residual을 보여주지만, validated threshold가 기록되지 않았으므로 normal/fault state나 anomaly interval을
+임의로 생성하지 않습니다. 지원 범위와 앱 책임은 [`apps/README.md`](apps/README.md)를 따릅니다.
+
 ## CLI and Dataset Acquisition
 
 프로젝트 기능은 설치 가능한 `industrial-phm` 명령으로 노출합니다. 데이터 획득·local source
