@@ -11,6 +11,7 @@
 
 ### Added
 
+- Validation-selected temporal LSTM을 fold-1 held-out bearing에 적용하는 XJTU RUL benchmark result schema/runner/CLI와 execution runbook. Point error와 protocol-fixed early/middle/late lifecycle diagnostics를 기록하고, operational primary와 uncertainty/physical-failure/field/maintenance capability는 승격하지 않습니다.
 - XJTU RUL protocol §9.1 lifecycle-position evaluator. Complete recorded lifecycle을 `early/middle/late` thirds로 고정하고, sequence dropped prefix로 boundary를 다시 나누지 않은 채 bearing별 prediction count·MAE·RMSE·signed error·normalized MAE와 equal-bearing aggregate를 기록할 수 있게 했습니다.
 - XJTU RUL v1 finalization decision. Protocol §8의 frozen equal-bearing validation MAE rule을 그대로 적용해 `xjtu-sy-rul-lstm-fold-1-v1`을 validation-selected candidate로 기록하되 operational primary와 분리하고, 현재 calibration population으로 nominal coverage를 정당화하지 않아 v1 prediction interval/uncertainty calibration을 `unsupported/not validated`로 freeze했습니다. 다음 numerical step은 lifecycle-position diagnostics 후 frozen candidate held-out benchmark입니다.
 - Generative AI explanation의 prognostics evidence scope. Analysis Explorer `AI Explanation` 화면에서
