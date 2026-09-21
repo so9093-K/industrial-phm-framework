@@ -36,4 +36,3 @@ def _run_analysis_report(args: argparse.Namespace) -> int:
         print(f"attached prognostics artifact: {args.prognostics}")
     print(f"report: {args.output}")
     return 0
-
