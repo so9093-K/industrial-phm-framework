@@ -386,3 +386,71 @@ def _read_object(path: Path) -> dict[str, object]:
     if not isinstance(value, dict):
         raise AssertionError("test fixture must be a JSON object")
     return cast(dict[str, object], value)
+
+
+_RUL_RESULT = _RESULTS / "xjtu-sy-rul-three-model-fold-1-validation-v1.json"
+
+
+def test_rul_three_model_result_uses_the_shared_stage_vocabulary() -> None:
+    """Prognostics evidence must be readable through the same inspection read model."""
+    inspection = inspect_experiment_result(_RUL_RESULT)
+
+    assert inspection.schema_id == "xjtu-rul-three-model-validation-result-v1"
+    assert tuple(stage.name for stage in inspection.stages) == _STAGES
+    assert {stage.status for stage in inspection.stages} == {"completed"}
+
+
+def test_rul_inspection_reports_target_semantics_not_physical_failure() -> None:
+    inspection = inspect_experiment_result(_RUL_RESULT)
+    scoring = next(stage for stage in inspection.stages if stage.name == "Scoring")
+
+    facts = {fact.label: fact.value for fact in scoring.facts}
+    assert facts["Target unit"] == "acquisition-interval"
+    assert facts["Endpoint semantics"] == "last-recorded-acquisition"
+    assert any("not a validated physical failure time" in text for text in scoring.warnings)
+
+
+def test_rul_inspection_lists_every_compared_method_on_common_support() -> None:
+    inspection = inspect_experiment_result(_RUL_RESULT)
+    model = next(stage for stage in inspection.stages if stage.name == "Model")
+    evaluation = next(stage for stage in inspection.stages if stage.name == "Evaluation")
+
+    method_ids = {fact.label for fact in model.facts if fact.label.startswith("xjtu-sy-")}
+    assert len(method_ids) == 3
+    metric_labels = {fact.label for fact in evaluation.facts if fact.label.startswith("xjtu-sy-")}
+    assert metric_labels == method_ids
+    facts = {fact.label: fact.value for fact in evaluation.facts}
+    assert facts["Support"] == "temporal-common-support"
+    assert facts["First acquisition"] == 8
+
+
+def test_rul_inspection_keeps_uncertainty_unsupported() -> None:
+    inspection = inspect_experiment_result(_RUL_RESULT)
+    capability = next(stage for stage in inspection.stages if stage.name == "Capability")
+
+    unsupported = next(fact.value for fact in capability.facts if fact.label == "Unsupported")
+    assert "prediction-interval" in str(unsupported)
+    assert "uncertainty-calibration" in str(unsupported)
+    assert "validated-physical-failure-threshold" in str(unsupported)
+
+
+def test_rul_inspection_rejects_evidence_class_drift(tmp_path: Path) -> None:
+    document = cast(dict[str, object], json.loads(_RUL_RESULT.read_text(encoding="utf-8")))
+    provenance = cast(dict[str, object], document["provenance"])
+    provenance["evidence_class"] = "field-validated-rul-evidence"
+    drifted = tmp_path / "drifted.json"
+    drifted.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ExperimentResultInspectionError, match="evidence_class"):
+        inspect_experiment_result(drifted)
+
+
+def test_rul_inspection_requires_three_methods(tmp_path: Path) -> None:
+    document = cast(dict[str, object], json.loads(_RUL_RESULT.read_text(encoding="utf-8")))
+    methods = cast(list[object], document["methods"])
+    document["methods"] = methods[:2]
+    drifted = tmp_path / "two-methods.json"
+    drifted.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ExperimentResultInspectionError, match="three methods"):
+        inspect_experiment_result(drifted)

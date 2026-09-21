@@ -171,4 +171,12 @@ XJTU Isolation Forest holdout, IMS Isolation Forest cross-test, XJTU LSTM develo
   experiment evidence를 읽는 read model이며 inference 결과 contract가 아닙니다.
 
 `GenericPipeline`, universal result schema, `PHMResult`, model registry는 이 검토 범위에서 근거가 확인되지
-않아 계속 보류합니다. 다음 재검토 시점은 MIMII DUE result schema가 네 번째 reader로 들어올 때입니다.
+않아 계속 보류합니다.
+
+### 재검토 조건 갱신 (2026-09-21)
+
+MIMII development, MIMII external, XJTU RUL three-model reader가 추가되어 현재 지원 schema는 여섯 개입니다.
+RUL reader는 anomaly 계열과 달리 target definition, 세 method 비교, common support 같은 prognostics 고유
+의미를 담지만 같은 12-stage vocabulary와 `ExperimentInspection`만으로 표현됐고 새 public type이 필요하지
+않았습니다. 따라서 stage status를 typed contract로 올리는 판단은 계속 보류하고, 여섯 reader의 반복 책임
+재측정은 별도 작업으로 둡니다.

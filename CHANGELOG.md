@@ -214,6 +214,9 @@
 - XJTU fold-1 three-model RUL validation numerical artifact. age-only / feature-Ridge / temporal LSTM을
   acquisition 8..N common support에서 비교한 development evidence입니다.
 
+- XJTU three-model RUL validation result를 공통 `ExperimentInspection` stage vocabulary로 읽는 inspection
+  reader.
+
 ### Changed
 
 - 첫 end-to-end Analysis Application vertical slice를 완료 상태로 전환하고, 현재 제품/연구 우선순위를
