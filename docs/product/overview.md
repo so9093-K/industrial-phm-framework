@@ -1,8 +1,11 @@
 # Product and UX Baseline
 
-이 문서는 Dashboard 구현보다 먼저 사용자 역할과 정보 소비 구조를 정리합니다. UI framework나 화면 디자인을
-고정하기 위한 문서가 아니라, PHM 결과가 실제 의사결정에서 어떤 정보로 소비되어야 하는지 확인하기 위한
-초기 기준선입니다. 프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를 따릅니다.
+이 문서는 PHM 결과가 실제 사용자에게 어떤 가치와 정보 구조로 전달되어야 하는지 정리하는 제품 기준선입니다.
+초기 low-fidelity UX 단계에서는 UI framework 선택을 미뤘지만, 현재는 이미 검증된 분석·evidence 계층을
+**end-to-end Analysis Application**으로 연결하면서 analysis contract와 사용자 화면을 함께 검증합니다.
+
+Frontend/API 기술을 먼저 고정하지 않는 원칙은 유지하되, UI 구현 자체를 미래 단계로 미루지는 않습니다.
+프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를 따릅니다.
 
 ## 1. 사용자 역할
 
@@ -439,6 +442,33 @@ Experiment artifact에서 observation time, validated alarm state, maintenance p
 추론해 operational field로 만들지 않습니다. 반대로 향후 operational result가 생겨도 experiment split이나
 development statistic을 억지로 항상 포함시키지 않습니다.
 
+
+### Analysis Application read model
+
+현재 Analysis Application을 만들기 위해 full operational result contract가 먼저 완성될 때까지 기다리지 않습니다.
+이미 검증된 experiment/analysis output을 사용자에게 보여주기 위한 **presentation-oriented read model**을 둘 수
+있습니다. 이 read model은 새로운 numerical Source of Truth나 universal `PHMResult`가 아니며, 기존 result와
+evidence를 재계산하거나 의미를 승격하지 않습니다.
+
+초기 범주는 다음과 같습니다.
+
+```text
+Identity / data summary
+Analysis summary
+Sensor or feature trajectory
+Anomaly score trajectory
+Anomaly interval (validated threshold policy가 있는 경우)
+Supporting evidence
+Capability / limitation
+Provenance
+Generative AI explanation context
+```
+
+RUL/prognostics가 구현되면 같은 read model에 지원 가능한 capability로 추가합니다. 해당 source나 model이 RUL을
+지원하지 않으면 임의 값을 만들지 않고 unavailable로 유지합니다. 이 경계의 목적은 experiment artifact의 내부
+schema를 UI가 직접 해석하게 만들지 않으면서도, field source나 live inference가 오기 전부터 완결된 분석 경험을
+제공하는 것입니다.
+
 Operational schema의 이름과 구체적인 public type은 아직 고정하지 않습니다. 첫 실제 inference workflow 또는
 private/field source에서 identity, time, data quality, threshold/state semantics와 deployment provenance가 실제로
 필요해지는 시점에 contract를 정의합니다. 그 전까지 `ExperimentInspection`을 operational result로 확장하거나
@@ -524,25 +554,49 @@ Schema-specific reader는 immutable `ExperimentInspection` read model을 만들�
 표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
 소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
 
-## 7. UI 구현 시점
+## 8. End-to-End Analysis Application 전환
 
-지금 할 일:
+현재 단계에서는 UI implementation을 더 이상 별도 미래 작업으로 두지 않습니다. 이미 존재하는 production
+validator, Adapter, feature/sequence, model, result artifact와 inspection을 재사용해 다음 vertical slice를
+실제로 연결합니다.
 
-- 역할과 정보 요구 검증
-- PHM Result에 필요한 정보 범주 정의
-- 모델별 evidence/XAI 요구 확인
-- low-fidelity information architecture 검토
-- CLI workflow 설계
+```text
+데이터 선택
+  -> validation
+  -> Python PHM analysis
+  -> score / trend / capability
+  -> anomaly interval and evidence
+  -> visualization
+  -> Generative AI explanation / Q&A
+  -> transparency drill-down
+```
 
-나중에 할 일:
+현재 구현 범위:
 
-- Dashboard framework 선택
-- API schema 고정
-- 시각화 library 선택
-- 권한/인증/조직별 화면 구현
+- analysis use case와 presentation read model
+- sensor/feature trajectory와 anomaly score의 동일 context 시각화
+- validated threshold policy가 존재할 때 contiguous anomaly interval 표시
+- 선택한 interval 또는 analysis scope의 supporting evidence 표시
+- 구조화된 evidence만 소비하는 Generative AI 설명과 analysis-scoped Q&A
+- `ExperimentInspection`과 기존 Workbench의 pipeline/provenance를 상세 보기로 재사용
+- capability unavailable 상태를 정상적인 제품 상태로 표시
 
-UI implementation을 늦춘다는 것은 UX를 늦춘다는 뜻이 아닙니다. 실제 모델·결과 계약이 안정되기 전에 특정
-frontend 구조가 backend contract를 고정하는 상황을 피합니다.
+이 vertical slice를 위해 frontend framework, service API, authentication 또는 persistent workflow engine을 먼저
+고정할 필요는 없습니다. 첫 사용자 surface는 현재 project dependency와 evidence ownership 원칙을 지키는 가장
+작은 구현으로 시작하고, 실제 사용 요구가 생길 때 presentation 기술을 교체하거나 확장할 수 있어야 합니다.
+
+후속 확장:
+
+- XJTU run-to-failure data에서 검증된 RUL/prognostics capability와 uncertainty를 같은 화면에 추가
+- analysis bundle과 report/export
+- local/general sensor input
+- private/field source와 live inference
+- 역할별 operational view, work-order integration과 조직/권한 기능
+- 정비 지식 retrieval이 실제 설명 품질에 필요할 때 Generative AI RAG 확장
+
+완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
+사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
+RUL·diagnosis·새 모델·새 source를 같은 시스템 안에서 확장합니다.
 
 ## References
 
