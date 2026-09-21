@@ -397,7 +397,9 @@ lifecycle·condition·channel·redundancy를 분석합니다. Characterization�
    - point estimate와 uncertainty를 분리하고 method/calibration/coverage evidence가 있을 때만 prediction range 제공
    - dataset-neutral `RulTargetObservation` / `RulTargetSeries`와 XJTU fold-1 complete-partition
      recorded-end target construction으로 acquisition-aligned RUL target 경계를 구현
-   - 다음 구현은 age-only / acquisition-feature baseline과 model-independent RUL evaluator
+   - dataset-neutral RUL prediction contract와 source-identity aligned point evaluator를 구현하고, XJTU edge에서
+     bearing-first equal-weight MAE/RMSE/bias와 `N - 1` normalized MAE policy를 적용
+   - 다음 구현은 frozen age-only baseline과 acquisition-feature baseline
    - RUL capability를 기존 `AnalysisView`, Analysis Explorer와 Generative AI explanation context에 추가
    - anomaly evidence → degradation/prognostics의 의미를 자동 승격하지 않고 실제 RUL evidence가 지원하는 범위만 표시
 
