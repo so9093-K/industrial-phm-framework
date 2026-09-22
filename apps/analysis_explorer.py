@@ -314,12 +314,8 @@ def _(
                 f"{analysis_run_plan.checked_acquisition_count:,} representative checks"
             )
         )
-        _plan_warnings = "\n".join(
-            f"- {warning}" for warning in analysis_run_plan.warnings
-        )
-        _plan_blockers = "\n".join(
-            f"- {blocker}" for blocker in analysis_run_plan.blockers
-        )
+        _plan_warnings = "\n".join(f"- {warning}" for warning in analysis_run_plan.warnings)
+        _plan_blockers = "\n".join(f"- {blocker}" for blocker in analysis_run_plan.blockers)
         _plan_status = (
             mo.callout(
                 "사전 검증에서 실행 차단 조건이 발견되지 않았습니다. "
