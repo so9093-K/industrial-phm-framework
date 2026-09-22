@@ -61,14 +61,13 @@ class AssetObservationSummary:
             if self.observed_start_at > self.observed_end_at:
                 raise ValueError("observed_start_at must not be after observed_end_at")
 
-        if self.sampling_rate_hz is not None:
-            if (
-                isinstance(self.sampling_rate_hz, bool)
-                or not isinstance(self.sampling_rate_hz, Real)
-                or not isfinite(self.sampling_rate_hz)
-                or self.sampling_rate_hz <= 0
-            ):
-                raise ValueError("sampling_rate_hz must be a positive finite number")
+        if self.sampling_rate_hz is not None and (
+            isinstance(self.sampling_rate_hz, bool)
+            or not isinstance(self.sampling_rate_hz, Real)
+            or not isfinite(self.sampling_rate_hz)
+            or self.sampling_rate_hz <= 0
+        ):
+            raise ValueError("sampling_rate_hz must be a positive finite number")
 
         if not isinstance(self.data_quality, DataQualityAssessment):
             raise ValueError("data_quality must be a DataQualityAssessment")
