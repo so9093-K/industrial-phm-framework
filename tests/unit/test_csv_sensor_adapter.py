@@ -168,3 +168,81 @@ def test_csv_layout_rejects_timestamp_as_sensor_channel() -> None:
             timestamp_column="timestamp",
             channel_columns=("timestamp",),
         )
+
+
+def test_timestamp_rate_consistency_reports_declared_rate_mismatch(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path,
+        "timestamp,vibration\n"
+        "2026-09-22T10:00:00+09:00,1.0\n"
+        "2026-09-22T10:00:01+09:00,2.0\n"
+        "2026-09-22T10:00:02+09:00,3.0\n",
+    )
+    layout = CsvSensorLayout(
+        asset_id="pump-01",
+        timestamp_column="timestamp",
+        channel_columns=("vibration",),
+        sampling_rate_hz=2.0,
+        sampling_rate_tolerance_ratio=0.05,
+    )
+
+    report = validate_csv_sensor_source(source, layout)
+
+    assert report.maximum_sampling_interval_deviation_ratio == pytest.approx(1.0)
+    assert [issue.code for issue in report.quality_issues] == ["sampling-rate-mismatch"]
+
+
+def test_timestamp_rate_consistency_respects_explicit_tolerance(tmp_path: Path) -> None:
+    source = _write_csv(
+        tmp_path,
+        "timestamp,vibration\n"
+        "2026-09-22T10:00:00+09:00,1.0\n"
+        "2026-09-22T10:00:01+09:00,2.0\n"
+        "2026-09-22T10:00:02+09:00,3.0\n",
+    )
+    layout = CsvSensorLayout(
+        asset_id="pump-01",
+        timestamp_column="timestamp",
+        channel_columns=("vibration",),
+        sampling_rate_hz=1.0,
+        sampling_rate_tolerance_ratio=0.0,
+    )
+
+    report = validate_csv_sensor_source(source, layout)
+
+    assert report.maximum_sampling_interval_deviation_ratio == 0.0
+    assert report.quality_issues == ()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"sampling_rate_tolerance_ratio": 0.1},
+        {
+            "timestamp_column": "timestamp",
+            "sampling_rate_tolerance_ratio": 0.1,
+        },
+    ],
+)
+def test_csv_layout_requires_both_time_sources_for_rate_tolerance(
+    kwargs: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match="requires timestamp_column and sampling_rate_hz"):
+        CsvSensorLayout(
+            asset_id="pump-01",
+            channel_columns=("vibration",),
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("tolerance", [-0.1, float("inf"), float("nan")])
+def test_csv_layout_rejects_invalid_sampling_rate_tolerance(tolerance: float) -> None:
+    with pytest.raises(ValueError, match="finite non-negative"):
+        CsvSensorLayout(
+            asset_id="pump-01",
+            timestamp_column="timestamp",
+            channel_columns=("vibration",),
+            sampling_rate_hz=1.0,
+            sampling_rate_tolerance_ratio=tolerance,
+        )
+
