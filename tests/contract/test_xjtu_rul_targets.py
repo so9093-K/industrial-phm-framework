@@ -170,6 +170,7 @@ def test_xjtu_rul_targets_reject_unknown_partition() -> None:
             partition="benchmark",  # type: ignore[arg-type]
         )
 
+
 def test_xjtu_rul_targets_reject_failure_endpoint_reinterpretation() -> None:
     targets = build_xjtu_recorded_end_rul_targets(_vectors("validation"), partition="validation")
     invalid = (

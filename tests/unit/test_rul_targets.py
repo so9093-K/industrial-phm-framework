@@ -91,6 +91,7 @@ def test_rul_target_series_rejects_duplicate_source_identity() -> None:
             observations=(first, duplicate),
         )
 
+
 def test_rul_target_series_accepts_confirmed_failure_endpoint() -> None:
     series = RulTargetSeries(
         target_definition_id="failure-rul-v1",
