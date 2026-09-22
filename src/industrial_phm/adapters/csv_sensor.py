@@ -31,6 +31,7 @@ class CsvSensorLayout:
     channel_columns: Sequence[str]
     timestamp_column: str | None = None
     sampling_rate_hz: float | None = None
+    sampling_rate_tolerance_ratio: float | None = None
     minimum_sample_count: int = 1
     delimiter: str = ","
     metadata: Mapping[str, _METADATA_VALUE] = field(default_factory=dict)
@@ -56,6 +57,18 @@ class CsvSensorLayout:
             not math.isfinite(self.sampling_rate_hz) or self.sampling_rate_hz <= 0
         ):
             raise ValueError("sampling_rate_hz must be a positive finite number")
+        if self.sampling_rate_tolerance_ratio is not None:
+            if self.timestamp_column is None or self.sampling_rate_hz is None:
+                raise ValueError(
+                    "sampling_rate_tolerance_ratio requires timestamp_column and sampling_rate_hz"
+                )
+            if (
+                not math.isfinite(self.sampling_rate_tolerance_ratio)
+                or self.sampling_rate_tolerance_ratio < 0
+            ):
+                raise ValueError(
+                    "sampling_rate_tolerance_ratio must be a finite non-negative number"
+                )
         if self.timestamp_column is None and self.sampling_rate_hz is None:
             raise ValueError("timestamp_column or sampling_rate_hz must be provided")
         if (
@@ -85,6 +98,7 @@ class CsvSensorValidationReport:
     last_timestamp: datetime | None
     minimum_interval_seconds: float | None
     maximum_interval_seconds: float | None
+    maximum_sampling_interval_deviation_ratio: float | None
     source_sha256: str
     source_size_bytes: int
     quality_issues: tuple[DataQualityIssue, ...]
@@ -204,7 +218,15 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
 
     timestamp_values = None if timestamps is None else tuple(timestamps)
     intervals = _validate_timestamp_order(timestamp_values)
-    issues = _quality_issues(intervals)
+    maximum_deviation_ratio = _maximum_sampling_interval_deviation_ratio(
+        intervals,
+        layout.sampling_rate_hz,
+    )
+    issues = _quality_issues(
+        intervals,
+        maximum_deviation_ratio,
+        layout.sampling_rate_tolerance_ratio,
+    )
 
     report = CsvSensorValidationReport(
         source=source,
@@ -217,6 +239,7 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
         last_timestamp=None if timestamp_values is None else timestamp_values[-1],
         minimum_interval_seconds=None if not intervals else min(intervals),
         maximum_interval_seconds=None if not intervals else max(intervals),
+        maximum_sampling_interval_deviation_ratio=maximum_deviation_ratio,
         source_sha256=_sha256_file(source),
         source_size_bytes=source.stat().st_size,
         quality_issues=issues,
@@ -293,19 +316,51 @@ def _validate_timestamp_order(
     return tuple(intervals)
 
 
-def _quality_issues(intervals: tuple[float, ...]) -> tuple[DataQualityIssue, ...]:
-    if len(intervals) < 2 or min(intervals) == max(intervals):
-        return ()
-    return (
-        DataQualityIssue(
-            code="irregular-sampling",
-            severity=DataQualitySeverity.WARNING,
-            message=(
-                "timestamp intervals are not uniform; preserve explicit timestamps and "
-                "do not infer a regular sampling grid"
-            ),
-        ),
-    )
+def _maximum_sampling_interval_deviation_ratio(
+    intervals: tuple[float, ...],
+    sampling_rate_hz: float | None,
+) -> float | None:
+    if not intervals or sampling_rate_hz is None:
+        return None
+
+    expected_interval = 1.0 / sampling_rate_hz
+    return max(abs(interval - expected_interval) / expected_interval for interval in intervals)
+
+
+def _quality_issues(
+    intervals: tuple[float, ...],
+    maximum_deviation_ratio: float | None,
+    sampling_rate_tolerance_ratio: float | None,
+) -> tuple[DataQualityIssue, ...]:
+    issues: list[DataQualityIssue] = []
+    if len(intervals) >= 2 and min(intervals) != max(intervals):
+        issues.append(
+            DataQualityIssue(
+                code="irregular-sampling",
+                severity=DataQualitySeverity.WARNING,
+                message=(
+                    "timestamp intervals are not uniform; preserve explicit timestamps and "
+                    "do not infer a regular sampling grid"
+                ),
+            )
+        )
+
+    if (
+        maximum_deviation_ratio is not None
+        and sampling_rate_tolerance_ratio is not None
+        and maximum_deviation_ratio > sampling_rate_tolerance_ratio
+    ):
+        issues.append(
+            DataQualityIssue(
+                code="sampling-rate-mismatch",
+                severity=DataQualitySeverity.WARNING,
+                message=(
+                    "explicit timestamp intervals exceed the declared sampling-rate tolerance; "
+                    "preserve the recorded timestamps and review source metadata"
+                ),
+            )
+        )
+    return tuple(issues)
 
 
 def _sha256_file(path: Path) -> str:

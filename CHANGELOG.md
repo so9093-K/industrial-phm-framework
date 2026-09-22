@@ -252,6 +252,7 @@
 
 ### Changed
 
+- Field CSV timestamp quality 검증에 explicit sampling-rate consistency check를 추가했습니다. Timestamp와 `sampling_rate_hz`를 함께 제공하면서 사용자가 `sampling_rate_tolerance_ratio`를 명시한 경우에만 관측 interval 편차를 계산하고, 허용 범위를 넘으면 `sampling-rate-mismatch` warning을 남깁니다. 자동 resampling이나 metadata 보정은 하지 않습니다.
 - Analysis Explorer가 detailed projector가 없는 inspectable artifact를 오류로 종료하지 않고 inspection-only 화면으로 엽니다. IMS/MIMII 같은 schema에서는 저장된 pipeline/capability/provenance만 표시하고, artifact에 없는 observation-level trajectory나 RUL evidence는 재구성하지 않습니다.
 - Analysis Explorer의 새 분석 실행 흐름을 `데이터 입력 -> 사전 검증/실행 계획 -> 실제 실행`으로 분리했습니다. 실행 계획은 application-level source validation을 재사용하며, 입력이 변경된 stale plan이나 blocker가 있는 plan으로 실제 LSTM 실행을 시작하지 않습니다.
 - Analysis Explorer의 첫 화면을 기술 지표 중심에서 사용자 검토 흐름 중심으로 재구성했습니다. 집중 확인 구간과 가장 높은 구간을 먼저 보여주고 Spearman rho/검토 기준값은 상세 정보로 이동했으며, AI 설명은 독립 메뉴 대신 이상 근거와 RUL 결과 문맥 안에서 사용하도록 배치했습니다.
