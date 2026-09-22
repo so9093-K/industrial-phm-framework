@@ -5,6 +5,16 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class RulEndpointKind(StrEnum):
+    """Meaning of the lifecycle endpoint used to define exact RUL targets."""
+
+    OBSERVED_RECORD_END = "observed-record-end"
+    CONFIRMED_FAILURE = "confirmed-failure"
+    RIGHT_CENSORED = "right-censored"
+    UNKNOWN = "unknown"
 
 
 class RulTargetError(ValueError):
@@ -42,10 +52,18 @@ class RulTargetSeries:
     asset_id: str
     partition_id: str
     observations: Sequence[RulTargetObservation]
+    endpoint_kind: RulEndpointKind = RulEndpointKind.UNKNOWN
 
     def __post_init__(self) -> None:
         for field_name in ("target_definition_id", "unit", "asset_id", "partition_id"):
             _validate_text(getattr(self, field_name), field_name)
+
+        if not isinstance(self.endpoint_kind, RulEndpointKind):
+            raise RulTargetError("endpoint_kind must be a RulEndpointKind")
+        if self.endpoint_kind is RulEndpointKind.RIGHT_CENSORED:
+            raise RulTargetError(
+                "right-censored lifecycle cannot define exact RUL target observations"
+            )
 
         observations = tuple(self.observations)
         if not observations:

@@ -11,6 +11,7 @@
 
 ### Added
 
+- Dataset-neutral RUL endpoint semantics. `RulTargetSeries`가 `observed-record-end`, `confirmed-failure`, `right-censored`, `unknown` endpoint 의미를 구분하며, exact RUL target으로 표현할 수 없는 right-censored lifecycle은 fail-fast로 차단합니다. XJTU-SY `N-k` target은 기존 수치/JSON을 바꾸지 않고 `observed-record-end`를 명시합니다.
 - 일반 산업 센서 export를 위한 `CsvSensorAdapter`와 최소 data-quality/provenance boundary. 한 CSV 파일을 한 asset segment로 mapping하고 channel/time basis를 명시적으로 요구하며, missing/non-numeric/non-finite 값과 timestamp 역행을 차단합니다. Irregular timestamp interval은 재격자화하지 않고 warning으로 보존하며 source SHA-256과 byte size를 canonical metadata/validation report에 기록합니다.
 - XJTU-SY RUL v1 held-out benchmark의 실제 numerical artifact
   `docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json`. Prepared local source(3 conditions /

@@ -12,12 +12,14 @@ from industrial_phm.experiments import (
     XjtuRulTargetError,
     build_xjtu_recorded_end_rul_targets,
     get_xjtu_reference_split,
+    validate_xjtu_recorded_end_rul_targets,
 )
 from industrial_phm.features import (
     VIBRATION_STATISTICAL_FEATURE_SET_ID,
     VibrationFeatureVector,
     vibration_feature_names,
 )
+from industrial_phm.prognostics import RulEndpointKind
 
 _FEATURE_NAMES = vibration_feature_names(XJTU_SY_CHANNELS)
 
@@ -55,6 +57,7 @@ def test_xjtu_rul_targets_preserve_fold_1_population_and_recorded_end_semantics(
     assert all(series.target_definition_id == XJTU_RUL_TARGET_DEFINITION_ID for series in targets)
     assert all(series.unit == XJTU_RUL_TARGET_UNIT for series in targets)
     assert all(series.partition_id == "train" for series in targets)
+    assert all(series.endpoint_kind is RulEndpointKind.OBSERVED_RECORD_END for series in targets)
 
     for series in targets:
         run_length = get_xjtu_expected_acquisition_count(series.asset_id)
@@ -166,3 +169,14 @@ def test_xjtu_rul_targets_reject_unknown_partition() -> None:
             _vectors("train"),
             partition="benchmark",  # type: ignore[arg-type]
         )
+
+
+def test_xjtu_rul_targets_reject_failure_endpoint_reinterpretation() -> None:
+    targets = build_xjtu_recorded_end_rul_targets(_vectors("validation"), partition="validation")
+    invalid = (
+        replace(targets[0], endpoint_kind=RulEndpointKind.CONFIRMED_FAILURE),
+        *targets[1:],
+    )
+
+    with pytest.raises(XjtuRulTargetError, match="observed-record-end endpoint semantics"):
+        validate_xjtu_recorded_end_rul_targets(invalid, partition="validation")
