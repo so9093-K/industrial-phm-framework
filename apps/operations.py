@@ -131,7 +131,15 @@ def _(
     timestamp_default,
 ):
     page_selector = mo.ui.radio(
-        options=["Overview", "Asset", "Investigation", "System Health"],
+        options=[
+            "Overview",
+            "Assets",
+            "Asset",
+            "Investigation",
+            "Data Quality",
+            "Maintenance",
+            "System Health",
+        ],
         value="Overview",
         inline=True,
         label="Operations",
@@ -396,6 +404,12 @@ def _(connection_status, mo, observation_detail, overview_stats, quality_view):
                         kind="neutral",
                         title="Findings · Unavailable",
                     ),
+                    mo.callout(
+                        "No validated alert policy exists for the current field source. "
+                        "Anomaly scores are not promoted to alerts without that policy.",
+                        kind="neutral",
+                        title="Alerts · Not validated",
+                    ),
                 ],
                 widths="equal",
             ),
@@ -507,6 +521,152 @@ def _(mo):
 
 @app.cell
 def _(mo, observation):
+    if observation is None:
+        assets_view = mo.vstack(
+            [
+                mo.md(
+                    "## Assets\n\n"
+                    "Fleet/asset inventory의 운영 자리입니다. 현재 bootstrap은 single-asset source이지만 "
+                    "목록 surface는 처음부터 유지합니다."
+                ),
+                mo.callout(
+                    "No observed asset is connected yet.",
+                    kind="neutral",
+                    title="Asset inventory · Empty",
+                ),
+            ],
+            gap=1.2,
+        )
+    else:
+        _last_observed = (
+            "Unavailable"
+            if observation.observed_end_at is None
+            else observation.observed_end_at.isoformat()
+        )
+        _row = (
+            f"| `{observation.asset_id}` | "
+            f"`{observation.measurement_point_id or 'Not recorded'}` | "
+            f"{_last_observed} | "
+            f"{observation.data_quality.state.value.upper()} | "
+            "Unavailable |"
+        )
+        assets_view = mo.vstack(
+            [
+                mo.md(
+                    "## Assets\n\n"
+                    "현재 연결된 observation population을 asset inventory 형태로 표시합니다. "
+                    "향후 multi-asset repository/API가 연결되면 같은 surface가 fleet list를 소비합니다."
+                ),
+                mo.md(
+                    "| Asset | Measurement point | Last observed | Data quality | Finding |\n"
+                    "| --- | --- | --- | --- | --- |\n" + _row
+                ),
+                mo.callout(
+                    "The current field bootstrap exposes one asset segment at a time. "
+                    "A one-row inventory is a source limitation, not the final fleet model.",
+                    kind="info",
+                    title="Current inventory scope",
+                ),
+            ],
+            gap=1.2,
+        )
+    return assets_view
+
+
+@app.cell
+def _(mo, observation, quality_view):
+    if observation is None:
+        _source_mapping = mo.callout(
+            "Load a prepared source to inspect its operational mapping.",
+            kind="neutral",
+            title="Source mapping · Unavailable",
+        )
+    else:
+        _source_mapping = mo.md(
+            "### Source mapping\n\n"
+            "| Field | Value |\n"
+            "| --- | --- |\n"
+            f"| Asset | `{observation.asset_id}` |\n"
+            f"| Source | `{observation.source_id}` |\n"
+            f"| Measurement point | "
+            f"`{observation.measurement_point_id or 'Not recorded'}` |\n"
+            f"| Channels | {', '.join(observation.channels)} |"
+        )
+
+    data_quality_view = mo.vstack(
+        [
+            mo.md(
+                "## Data Quality & Evidence\n\n"
+                "운영 판단 전에 source validation과 품질 evidence를 독립적으로 확인합니다."
+            ),
+            quality_view,
+            _source_mapping,
+            mo.callout(
+                "The current baseline does not auto-repair, resample, interpolate or "
+                "drop blocking source values to manufacture a PASS.",
+                kind="info",
+                title="Validation policy",
+            ),
+            mo.callout(
+                "Vendor quality flags, sensor calibration/replacement state and operating "
+                "context are not first-class evidence yet. Their absence is visible here "
+                "instead of being folded into a generic quality score.",
+                kind="neutral",
+                title="Additional quality semantics · Not recorded",
+            ),
+        ],
+        gap=1.2,
+    )
+    return data_quality_view
+
+
+@app.cell
+def _(mo):
+    maintenance_view = mo.vstack(
+        [
+            mo.md(
+                "## Maintenance\n\n"
+                "PHM finding 이후의 review/case/maintenance/post-validation 흐름을 위한 자리입니다."
+            ),
+            mo.hstack(
+                [
+                    mo.stat(
+                        "Not connected",
+                        label="Open cases",
+                        caption="No maintenance case repository yet",
+                    ),
+                    mo.stat(
+                        "Not connected",
+                        label="Work orders",
+                        caption="No CMMS/EAM integration yet",
+                    ),
+                    mo.stat(
+                        "Not connected",
+                        label="Maintenance history",
+                        caption="No asset maintenance history source yet",
+                    ),
+                    mo.stat(
+                        "Unavailable",
+                        label="Post-maintenance validation",
+                        caption="No completed maintenance event to validate",
+                    ),
+                ],
+                widths="equal",
+            ),
+            mo.callout(
+                "Future actions must preserve a human approval boundary. "
+                "The current UI does not create or dispatch maintenance work.",
+                kind="info",
+                title="Action boundary",
+            ),
+        ],
+        gap=1.2,
+    )
+    return maintenance_view
+
+
+@app.cell
+def _(mo, observation):
     source_health = (
         "Not connected"
         if observation is None
@@ -599,7 +759,10 @@ def _(
 @app.cell
 def _(
     asset_view,
+    assets_view,
+    data_quality_view,
     investigation_view,
+    maintenance_view,
     mo,
     overview_view,
     page_selector,
@@ -608,8 +771,11 @@ def _(
 ):
     views = {
         "Overview": overview_view,
+        "Assets": assets_view,
         "Asset": asset_view,
         "Investigation": investigation_view,
+        "Data Quality": data_quality_view,
+        "Maintenance": maintenance_view,
         "System Health": system_health_view,
     }
     header = mo.vstack(
