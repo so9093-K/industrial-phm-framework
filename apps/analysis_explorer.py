@@ -374,13 +374,13 @@ def _(
         summary_status = mo.callout(
             f"검토 기준값을 넘은 구간이 {anomaly_summary.review_interval_count}개 기록되었습니다. "
             "가장 높은 점수 구간은 acquisition "
-            f"{strongest_interval.start_acquisition_index}–"
+            f"{strongest_interval.start_acquisition_index}-"
             f"{strongest_interval.end_acquisition_index}입니다.",
             kind="warn",
             title="먼저 확인할 구간",
         )
         strongest_interval_label = (
-            f"{strongest_interval.start_acquisition_index}–"
+            f"{strongest_interval.start_acquisition_index}-"
             f"{strongest_interval.end_acquisition_index}"
         )
         strongest_peak_label = f"{strongest_interval.peak_score:.4f}"
@@ -432,14 +432,14 @@ def _(
 @app.cell
 def _(anomaly_summary, mo, plt):
     residual_pairs = tuple(reversed(anomaly_summary.ranked_feature_residuals))
-    selected_asset = anomaly_summary.asset
+    _selected_asset = anomaly_summary.asset
     residual_figure, residual_axis = plt.subplots(figsize=(11, 6))
     residual_axis.barh(
         [item.feature_name.removeprefix("feature.") for item in residual_pairs],
         [item.mean_squared_residual for item in residual_pairs],
     )
     residual_axis.set_xlabel("Mean squared residual in robust-scaled feature space")
-    residual_axis.set_title(f"{selected_asset.asset_id} model residual evidence")
+    residual_axis.set_title(f"{_selected_asset.asset_id} model residual evidence")
     residual_axis.grid(axis="x", alpha=0.2)
     residual_figure.tight_layout()
 

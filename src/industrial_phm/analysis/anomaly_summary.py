@@ -49,7 +49,11 @@ def summarize_anomaly_for_asset(
     evidence_limit: int = 10,
 ) -> AnomalyAssetSummary:
     """Summarize validated anomaly evidence without creating new PHM semantics."""
-    if isinstance(evidence_limit, bool) or not isinstance(evidence_limit, int) or evidence_limit <= 0:
+    if (
+        isinstance(evidence_limit, bool)
+        or not isinstance(evidence_limit, int)
+        or evidence_limit <= 0
+    ):
         raise ValueError("evidence_limit must be a positive integer")
 
     anomaly = analysis.require_anomaly_evidence()
