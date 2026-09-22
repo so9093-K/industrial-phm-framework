@@ -82,8 +82,7 @@ def render_analysis_report_markdown(
             f"- 결과 파일: `{analysis.artifact_path}`",
             f"- 점수 정의: `{anomaly.score_semantics_id}`",
             f"- 점수 방향: `{anomaly.score_direction}`",
-            f"- 후기 대비 중기 순위 확률: "
-            f"{asset.late_vs_middle_rank_probability:.6g}",
+            f"- 후기 대비 중기 순위 확률: {asset.late_vs_middle_rank_probability:.6g}",
             "",
             "### 분석 결과에 기록된 기능 범위",
             "",
@@ -180,10 +179,8 @@ def _append_prognostics(
             f"- Target clipping 적용: {str(summary.target_is_clipped).lower()}",
             f"- 평가 범위: {summary.support_definition}, acquisition "
             f"{summary.support_first_acquisition}",
-            f"- 불확실성 구간 제공: "
-            f"{str(summary.uncertainty_interval_available).lower()}",
-            f"- 물리적 고장 기준 검증: "
-            f"{str(summary.physical_failure_threshold_validated).lower()}",
+            f"- 불확실성 구간 제공: {str(summary.uncertainty_interval_available).lower()}",
+            f"- 물리적 고장 기준 검증: {str(summary.physical_failure_threshold_validated).lower()}",
             "",
             "이상 분석 artifact와 RUL artifact는 선언된 dataset/split/population 범위가 "
             "맞는지 확인해 함께 표시하지만, exact source byte identity는 현재 기록하지 않습니다.",
