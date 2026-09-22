@@ -153,3 +153,37 @@ def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
     assert timeline.segments[0].source_snapshot.name == "999-early.csv"
     assert timeline.latest.source_snapshot is not None
     assert timeline.latest.source_snapshot.name == "001-late.csv"
+
+
+
+def test_field_csv_timeline_directory_rejects_missing_directory(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="directory does not exist"):
+        load_field_csv_observation_timeline_directory(
+            tmp_path / "missing",
+            CsvSensorLayout(
+                asset_id="pump-01",
+                timestamp_column="timestamp",
+                channel_columns=("vibration_x",),
+            ),
+            source_id="field-export:pump-01",
+        )
+
+
+def test_field_csv_timeline_directory_rejects_empty_directory(
+    tmp_path: Path,
+) -> None:
+    history = tmp_path / "history"
+    history.mkdir()
+
+    with pytest.raises(ValueError, match="contains no CSV files"):
+        load_field_csv_observation_timeline_directory(
+            history,
+            CsvSensorLayout(
+                asset_id="pump-01",
+                timestamp_column="timestamp",
+                channel_columns=("vibration_x",),
+            ),
+            source_id="field-export:pump-01",
+        )
