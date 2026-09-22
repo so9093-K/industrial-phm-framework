@@ -12,6 +12,7 @@ from industrial_phm.application import (
 )
 from industrial_phm.contracts import DataQualityState
 
+
 def test_field_csv_validation_projects_into_operational_observation_summary(
     tmp_path: Path,
 ) -> None:
