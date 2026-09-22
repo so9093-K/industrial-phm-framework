@@ -133,9 +133,12 @@ def _validate_recorded_end_target_series(
         )
     if series.unit != XJTU_RUL_TARGET_UNIT:
         raise XjtuRulTargetError("XJTU RUL target series must use acquisition-interval unit")
-    if series.endpoint_kind is not RulEndpointKind.OBSERVED_RECORD_END:
+    if series.endpoint_kind not in (
+        RulEndpointKind.OBSERVED_RECORD_END,
+        RulEndpointKind.UNKNOWN,
+    ):
         raise XjtuRulTargetError(
-            "XJTU RUL target series must preserve observed-record-end endpoint semantics"
+            "XJTU RUL target series must not reinterpret observed-record-end endpoint semantics"
         )
 
     run_length = get_xjtu_expected_acquisition_count(series.asset_id)
