@@ -27,33 +27,25 @@ def render_analysis_report_markdown(
         raise AnalysisReportError(str(error)) from error
 
     lines = [
-        "# PHM Analysis Report",
+        "# PHM 분석 보고서",
         "",
-        "## Scope",
+        "## 분석 대상",
         "",
-        f"- Asset: `{asset.asset_id}`",
-        f"- Dataset: `{analysis.identity.dataset_id}`",
-        f"- Split: `{analysis.identity.split_id}` / `{analysis.identity.fold_id}`",
-        f"- Evidence class: `{analysis.evidence_class}`",
-        f"- Code revision: `{analysis.identity.code_revision}`",
-        f"- Artifact: `{analysis.artifact_path}`",
+        f"- 설비: `{asset.asset_id}`",
+        f"- 데이터셋: `{analysis.identity.dataset_id}`",
         "",
-        "This report renders validated evidence already present in the read model. "
-        "It does not refit a model, recompute PHM metrics, create a diagnosis, or infer RUL.",
+        "## 이상 변화 요약",
         "",
-        "## Anomaly evidence",
+        f"- 분석 구간 수: {asset.score_window_count}",
+        f"- 시간 순서와 이상 점수의 상관계수(Spearman rho): "
+        f"{asset.acquisition_order_spearman_rho:.6g}",
         "",
-        f"- Score semantics: `{anomaly.score_semantics_id}`",
-        f"- Direction: `{anomaly.score_direction}`",
-        f"- Recorded scored windows: {asset.score_window_count}",
-        f"- Acquisition-order Spearman rho: {asset.acquisition_order_spearman_rho:.6g}",
-        f"- Late-vs-middle rank probability: {asset.late_vs_middle_rank_probability:.6g}",
+        "### 점수가 높았던 관측값",
         "",
-        "### Highest recorded scores",
-        "",
-        "| Acquisition | Source observation | Score |",
+        "| Acquisition | 원본 관측값 | 점수 |",
         "| ---: | --- | ---: |",
     ]
+
     highest = sorted(asset.observations, key=lambda item: item.score, reverse=True)[:5]
     lines.extend(
         f"| {item.acquisition_index} | `{item.source_observation_id}` | {item.score:.6g} |"
@@ -68,34 +60,44 @@ def render_analysis_report_markdown(
     lines.extend(
         (
             "",
-            "### Highest recorded mean feature residuals",
+            "### 특징 잔차 상위 항목",
             "",
-            "| Feature | Mean squared residual |",
+            "| 특징 | 평균 제곱 잔차 |",
             "| --- | ---: |",
         )
     )
     lines.extend(f"| `{name}` | {value:.6g} |" for name, value in residuals)
 
+    if prognostics is not None:
+        _append_prognostics(lines, analysis, prognostics, asset.asset_id)
+
     lines.extend(
         (
             "",
-            "## Capability boundary",
+            "## 기술 정보",
             "",
-            "Available in the anomaly artifact:",
+            f"- Split: `{analysis.identity.split_id}` / `{analysis.identity.fold_id}`",
+            f"- Evidence class: `{analysis.evidence_class}`",
+            f"- Code revision: `{analysis.identity.code_revision}`",
+            f"- Artifact: `{analysis.artifact_path}`",
+            f"- Score semantics: `{anomaly.score_semantics_id}`",
+            f"- Direction: `{anomaly.score_direction}`",
+            f"- Late-vs-middle rank probability: "
+            f"{asset.late_vs_middle_rank_probability:.6g}",
+            "",
+            "### 분석 결과에 기록된 기능 범위",
+            "",
+            "사용 가능한 항목:",
             "",
             *[f"- {item}" for item in analysis.available_capabilities],
             "",
-            "Unsupported or not validated in the anomaly artifact:",
+            "지원하지 않거나 검증되지 않은 항목:",
             "",
             *[f"- {item}" for item in analysis.unsupported_capabilities],
         )
     )
 
-    _append_inspection_warnings(lines, analysis, heading="Anomaly evidence warnings")
-
-    if prognostics is not None:
-        _append_prognostics(lines, analysis, prognostics, asset.asset_id)
-
+    _append_inspection_warnings(lines, analysis, heading="이상 분석 기술 경고")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -125,11 +127,11 @@ def _append_prognostics(
     asset_id: str,
 ) -> None:
     compatibility = compare_analysis_evidence(analysis, prognostics)
-    lines.extend(("", "## Attached prognostics evidence", ""))
+    lines.extend(("", "## RUL 분석 결과", ""))
     if not compatibility.compatible:
         lines.append(
-            "The attached prognostics artifact was not included because its declared "
-            "population/protocol scope is incompatible with the anomaly artifact."
+            "현재 이상 분석 결과와 RUL 분석 결과의 데이터 범위가 맞지 않아 "
+            "같은 보고서의 결과로 표시하지 않았습니다."
         )
         lines.extend(f"- {reason}" for reason in compatibility.reasons)
         return
@@ -141,13 +143,36 @@ def _append_prognostics(
 
     lines.extend(
         (
-            "This is separate retrospective evidence, not another stage of the anomaly "
-            "artifact execution.",
+            "저장된 RUL 모델 결과를 같은 설비 기준으로 비교합니다. "
+            "이 표의 값은 실시간 설비 예측이 아니라 저장된 분석 결과입니다.",
+            "",
+            "| 방법 | 마지막 기록 시점 RUL 예측 | 기준 acquisition | 검증 MAE | Signed error |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        )
+    )
+    lines.extend(
+        (
+            f"| `{row.method_id}` | {row.last_recorded_remaining_useful_life:.6g} | "
+            f"{row.last_recorded_acquisition_index} | {row.mean_absolute_error:.6g} | "
+            f"{row.mean_signed_error:.6g} |"
+        )
+        for row in summary.methods
+    )
+
+    if summary.primary_method_id is None:
+        lines.extend(("", "현재 이 보고서에서 대표 RUL 모델을 별도로 지정하지 않습니다."))
+    else:
+        lines.extend(("", f"기록된 대표 모델: `{summary.primary_method_id}`"))
+
+    lines.extend(
+        (
+            "",
+            "### RUL 기술 정보",
             "",
             f"- Relationship: `{compatibility.relationship}`",
-            f"- Prognostics evidence class: `{summary.evidence_class}`",
-            f"- Prognostics code revision: `{prognostics.identity.code_revision}`",
-            f"- Prognostics artifact: `{summary.artifact_path}`",
+            f"- Evidence class: `{summary.evidence_class}`",
+            f"- Code revision: `{prognostics.identity.code_revision}`",
+            f"- Artifact: `{summary.artifact_path}`",
             f"- Target: `{summary.target_definition_id}`",
             f"- Unit: `{summary.target_unit}`",
             f"- Formula: `{summary.target_formula}`",
@@ -160,32 +185,11 @@ def _append_prognostics(
             f"- Physical failure threshold validated: "
             f"{str(summary.physical_failure_threshold_validated).lower()}",
             "",
-            "Exact source byte identity is not recorded in these artifacts; this attachment "
-            "only establishes matching declared dataset/split/population scope.",
-            "",
-            "### Method comparison",
-            "",
-            "| Method | Recorded estimate | As-of acquisition | MAE | Signed error |",
-            "| --- | ---: | ---: | ---: | ---: |",
+            "이상 분석 artifact와 RUL artifact는 선언된 dataset/split/population 범위가 "
+            "맞는지 확인해 함께 표시하지만, exact source byte identity는 현재 기록하지 않습니다.",
         )
     )
-    lines.extend(
-        (
-            f"| `{row.method_id}` | {row.last_recorded_remaining_useful_life:.6g} | "
-            f"{row.last_recorded_acquisition_index} | {row.mean_absolute_error:.6g} | "
-            f"{row.mean_signed_error:.6g} |"
-        )
-        for row in summary.methods
-    )
-    lines.extend(
-        (
-            "",
-            "No operational primary method is asserted by this report."
-            if summary.primary_method_id is None
-            else f"Recorded primary method: `{summary.primary_method_id}`",
-        )
-    )
-    _append_inspection_warnings(lines, prognostics, heading="Prognostics evidence warnings")
+    _append_inspection_warnings(lines, prognostics, heading="RUL 분석 기술 경고")
 
 
 def _append_inspection_warnings(
