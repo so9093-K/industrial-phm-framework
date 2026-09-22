@@ -188,9 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--sampling-rate-tolerance-ratio",
         type=float,
         default=None,
-        help=(
-            "optional maximum relative timestamp-interval deviation from declared sampling rate"
-        ),
+        help=("optional maximum relative timestamp-interval deviation from declared sampling rate"),
     )
     data_validate_csv.add_argument(
         "--minimum-sample-count",
