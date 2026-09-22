@@ -1,120 +1,116 @@
-# Analysis Applications
+# Analysis Explorer
 
-`apps/`는 validated PHM analysis result를 실제 사용자 흐름으로 연결하는 presentation surface입니다.
-Research notebook과 달리 새로운 parser, feature formula, model fitting 또는 evaluation을 구현하지 않습니다.
-수치와 capability의 Source of Truth는 `src/industrial_phm/`와 version-controlled evidence artifact에 남습니다.
+`apps/analysis_explorer.py`는 저장된 PHM 분석 결과를 화면에서 확인하고,
+준비된 XJTU-SY 데이터로 새 분석을 실행하는 사용자용 애플리케이션입니다.
 
-## PHM Analysis Explorer
+수치 계산은 앱에서 다시 구현하지 않고 `industrial_phm.analysis`의 기존 분석 경로를 사용합니다.
 
-`analysis_explorer.py`는 현재 XJTU LSTM retrospective evidence를 첫 concrete consumer로 사용합니다.
+## 바로 실행하기
 
-- Analysis Summary: 선택한 asset의 anomaly-evidence trajectory, descriptive score-exceedance interval과 현재 capability
-- Evidence: high-score observations와 feature residual evidence
-- AI Explanation: anomaly/prognostics evidence scope를 선택해 bounded structured evidence만 전달하는
-  생성형 AI 설명과 analysis-scoped Q&A
-- Analysis Details: 기존 `ExperimentInspection` pipeline/provenance drill-down
-
-현재 anomaly evidence에는 validated State Detection threshold가 없습니다. 대신 earliest-third scored
-windows의 q95를 retrospective **descriptive review threshold**로 사용해 score-exceedance interval을 표시합니다.
-이 구간은 anomaly evidence가 집중된 위치를 빠르게 찾기 위한 review aid이며 normal/fault state, alarm,
-diagnosis 또는 maintenance decision을 의미하지 않습니다.
-
-Prognostics는 별도 validated RUL artifact가 현재 anomaly artifact와 dataset/split/fold/population scope
-compatibility를 통과할 때만 attached evidence로 표시합니다. Compatible하더라도 두 artifact를 하나의 execution으로
-합치지 않으며, 현재 RUL v1은 operational primary method, prediction interval, validated physical failure threshold와
-field validation을 제공하지 않습니다.
-
-실행:
+원본 데이터셋 없이도 저장소에 포함된 예제 결과를 바로 확인할 수 있습니다.
 
 ```bash
-uv sync --locked --group research
-uv run --locked --group research marimo edit apps/analysis_explorer.py
+uv python install 3.14
+uv run --locked --group research marimo run apps/analysis_explorer.py
 ```
 
-다른 anomaly/prognostics artifact를 지정할 때는 environment variable을 사용합니다.
+기본 화면에서는 XJTU-SY LSTM 분석 결과가 열립니다.
+
+- **분석 요약** — 시간에 따른 이상 점수 변화와 집중 확인 구간
+- **이상 근거** — 점수가 높았던 관측값과 특징 잔차
+- **RUL 분석** — 저장된 RUL 모델 비교 결과
+- **AI 설명** — 현재 분석 결과를 바탕으로 한 선택 기능
+- **새 분석 실행** — 준비된 XJTU-SY 데이터로 분석 실행
+- **보고서 저장** — 선택한 설비의 Markdown 보고서 생성
+- **상세 정보** — 모델, 데이터 범위, 실행 이력 등 개발자용 세부 정보
+
+## 내 데이터로 분석하기
+
+현재 앱에서 직접 실행하는 분석 경로는 준비된 XJTU-SY 데이터셋을 대상으로 합니다.
+데이터 준비 방법은 [`data/README.md`](../data/README.md)의 XJTU-SY 절을 먼저 확인합니다.
+
+실제 LSTM 분석에는 deep-learning 의존성이 필요합니다.
 
 ```bash
-INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=path/to/anomaly-result.json \
-INDUSTRIAL_PHM_PROGNOSTICS_ARTIFACT=path/to/prognostics-result.json \
-  uv run --locked --group research marimo edit apps/analysis_explorer.py
+uv run --locked --group research --extra deep-learning \
+  marimo run apps/analysis_explorer.py
 ```
 
-Attached prognostics artifact는 로드 성공만으로 같은 analysis context가 되지 않으며, Explorer가 artifact-owned
-identity를 비교해 compatibility를 다시 확인합니다.
+앱의 **새 분석 실행**에서 준비된 데이터 폴더만 입력하면 됩니다.
 
-현재 loader가 지원하지 않는 schema는 화면에서 임의로 해석하지 않고 실패합니다.
+예시:
 
-### Prepared source에서 분석 실행
+```text
+data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+```
 
-Analysis Explorer의 **Run Analysis** view는 기존 XJTU LSTM numerical pipeline을 다시 구현하지 않고
-`industrial_phm.analysis.run_xjtu_lstm_analysis_from_source`를 호출합니다.
+결과 파일은 기본적으로 다음 위치에 저장됩니다.
 
-실제 분석 실행에는 PyTorch optional runtime이 필요합니다.
+```text
+artifacts/analysis/xjtu-lstm-analysis.json
+```
+
+Git revision은 현재 clean checkout의 HEAD를 자동으로 기록합니다.
+tracked file에 로컬 변경이 있으면 versioned 분석 결과 생성을 중단하고 먼저 commit 또는 revert하도록 안내합니다.
+
+필요한 경우 환경변수로 기본 경로를 바꿀 수 있습니다.
 
 ```bash
-uv sync --locked --group research --extra deep-learning
-
 export INDUSTRIAL_PHM_XJTU_SOURCE="data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets"
 export INDUSTRIAL_PHM_ANALYSIS_OUTPUT="artifacts/analysis/xjtu-lstm-analysis.json"
-export INDUSTRIAL_PHM_CODE_REVISION="<40-character-git-sha>"
 
 uv run --locked --group research --extra deep-learning \
-  marimo edit apps/analysis_explorer.py
+  marimo run apps/analysis_explorer.py
 ```
 
-Run button을 누르면 prepared source validation, Domain Adapter, feature extraction, preprocessing, sequence
-construction, LSTM fit/scoring, evaluation, result artifact write가 기존 frozen runner에서 실행됩니다. 실행이
-성공하면 새 artifact를 동일한 `AnalysisView`로 다시 검증하고 앱의 active result를 교체하므로,
-**Analysis Summary → Evidence → AI Explanation → Analysis Details**가 새 분석 결과를 즉시 사용합니다.
+분석이 성공하면 새 결과가 현재 Explorer에 바로 반영됩니다.
+실패하면 기존에 열려 있던 결과는 그대로 유지됩니다.
 
-실행이 실패하면 기존 loaded result는 유지합니다. 이 경로는 현재 XJTU fold-1 retrospective development
-protocol을 실행하는 첫 product vertical slice이며 live operational inference로 표시하지 않습니다.
+## 보고서 저장
 
-### Generative AI explanation
+Explorer의 **보고서 저장** 화면에서 현재 선택한 설비의 분석 결과를 Markdown으로 저장할 수 있습니다.
 
-AI 설명은 optional runtime 기능입니다. API credential이나 model을 코드/설정 파일에 저장하지 않고 실행 환경에서
-명시적으로 제공합니다.
+기본 위치:
+
+```text
+artifacts/reports/<asset-id>.md
+```
+
+CLI가 필요한 경우 기존 `analysis report` 명령도 사용할 수 있습니다.
+
+## 생성형 AI 설명
+
+AI 설명은 선택 기능입니다. 사용할 때만 실행 환경에 API key와 model을 설정합니다.
 
 ```bash
 export OPENAI_API_KEY="..."
 export INDUSTRIAL_PHM_GENAI_MODEL="<enabled-model-id>"
 
+uv run --locked --group research marimo run apps/analysis_explorer.py
+```
+
+AI 호출은 **AI 설명 생성** 버튼을 누를 때만 실행됩니다.
+
+## 다른 저장 결과 열기
+
+다른 분석 결과를 기본 화면에 열고 싶다면 환경변수로 artifact 경로를 지정합니다.
+
+```bash
+INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=path/to/anomaly-result.json \
+INDUSTRIAL_PHM_PROGNOSTICS_ARTIFACT=path/to/prognostics-result.json \
+  uv run --locked --group research marimo run apps/analysis_explorer.py
+```
+
+서로 다른 분석 결과가 같은 화면에 표시될 수 있는지는 앱이 저장된 dataset/split/population 정보를 이용해 다시 확인합니다.
+
+## 앱을 개발할 때
+
+일반 사용자는 `marimo run`을 사용합니다.
+앱 코드를 수정하거나 notebook cell을 편집할 때만 `marimo edit`을 사용합니다.
+
+```bash
 uv run --locked --group research marimo edit apps/analysis_explorer.py
 ```
 
-AI 탭에서 질문을 입력하고 **Generate AI explanation**을 눌렀을 때만 외부 API를 호출합니다. 초기 화면 로드,
-asset 선택, graph/evidence 탐색과 CI HTML export는 API 요청을 만들지 않습니다.
-
-전송 context는 raw waveform이나 전체 score trajectory가 아니라 선택 asset의 bounded structured evidence입니다.
-**Evidence scope** 선택에 따라 서로 다른 context와 서로 다른 boundary 지시를 사용합니다.
-
-Anomaly evidence scope:
-
-- top recorded anomaly scores
-- aggregate feature residual evidence
-- score semantics
-- available / unsupported capability
-- Source / Model / Evaluation / Provenance facts
-
-Prognostics evidence scope:
-
-- method별 recorded RUL estimate와 as-of acquisition index
-- target 의미, unit, formula, clipping 여부
-- common support 정의와 prediction 수
-- method별 retrospective validation 오차
-- available / unsupported capability와 검증되지 않은 `primary_method_id`
-- Source / Model / Evaluation / Provenance facts
-
-Responses API 요청은 `store=false`로 실행합니다. 생성형 AI 출력은 PHM numerical result가 아닙니다. Anomaly
-scope에서는 unsupported diagnosis, alarm/state, maintenance priority, health indicator 또는 RUL을 새 capability처럼
-만들지 않습니다. Prognostics scope에서는 기록된 estimate를 다시 계산하거나 외삽하지 않고, 이를 calendar date나
-물리적 failure time으로 번역하지 않으며, failure threshold·maintenance deadline·confidence interval을 만들지
-않습니다.
-
-## 운영 원칙
-
-1. 앱은 numerical evidence를 재계산하지 않습니다.
-2. 앱을 위해 별도 result database나 duplicated model state를 만들지 않습니다.
-3. capability가 없는 값을 UI convenience를 위해 추정하지 않습니다.
-4. pipeline/provenance transparency는 사용자 결과의 drill-down으로 제공합니다.
-5. 반복되는 presentation-independent 요구가 생기면 `industrial_phm.analysis`로 승격합니다.
+모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
+앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.

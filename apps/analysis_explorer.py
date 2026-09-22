@@ -13,6 +13,7 @@ def _():
     import matplotlib.pyplot as plt
 
     from industrial_phm.analysis import (
+        AnalysisReportError,
         AnalysisRunError,
         AnalysisViewError,
         compare_analysis_evidence,
@@ -22,6 +23,7 @@ def _():
         run_xjtu_lstm_analysis_from_source,
         score_exceedance_intervals,
         summarize_prognostics_for_asset,
+        write_analysis_report_markdown,
     )
     from industrial_phm.genai import (
         AnalysisExplanationError,
@@ -33,6 +35,7 @@ def _():
 
     return (
         AnalysisExplanationError,
+        AnalysisReportError,
         AnalysisRunError,
         AnalysisViewError,
         Path,
@@ -50,6 +53,7 @@ def _():
         run_xjtu_lstm_analysis_from_source,
         score_exceedance_intervals,
         summarize_prognostics_for_asset,
+        write_analysis_report_markdown,
     )
 
 
@@ -98,28 +102,28 @@ def _(analysis, mo):
     asset_selector = mo.ui.dropdown(
         options=[asset.asset_id for asset in analysis.require_anomaly_evidence().assets],
         value=analysis.require_anomaly_evidence().assets[0].asset_id,
-        label="Analysis target",
+        label="분석 대상",
     )
     view_selector = mo.ui.radio(
         options=[
-            "Analysis Summary",
-            "Prognostics",
-            "Evidence",
-            "AI Explanation",
-            "Run Analysis",
-            "Analysis Details",
+            "분석 요약",
+            "이상 근거",
+            "RUL 분석",
+            "AI 설명",
+            "새 분석 실행",
+            "보고서 저장",
+            "상세 정보",
         ],
-        value="Analysis Summary",
+        value="분석 요약",
         inline=True,
-        label="View",
+        label="보기",
     )
     header = mo.md(
         """
-        # PHM Analysis Explorer
+        # PHM 분석 Explorer
 
-        Review recorded PHM analysis evidence from a validated result without reading
-        experiment JSON directly. User-facing results come first; pipeline and provenance
-        remain available as drill-down details.
+        저장된 분석 결과를 JSON 파일을 직접 읽지 않고 확인할 수 있습니다.
+        결과를 먼저 보고, 모델과 실행 정보는 **상세 정보**에서 확인할 수 있습니다.
         """
     )
     return asset_selector, header, view_selector
@@ -164,18 +168,15 @@ def _(
 def _(mo):
     explanation_question = mo.ui.text_area(
         value="이 분석 결과에서 관찰된 변화와 현재 해석 가능한 범위를 설명해주세요.",
-        label="Ask about this analysis",
+        label="이 결과에 대해 질문하기",
         rows=3,
         full_width=True,
     )
-    explanation_run = mo.ui.run_button(
-        label="Generate AI explanation",
-        kind="success",
-    )
+    explanation_run = mo.ui.run_button(label="AI 설명 생성", kind="success")
     explanation_scope = mo.ui.radio(
-        options=["Anomaly evidence", "Prognostics evidence"],
-        value="Anomaly evidence",
-        label="Evidence scope",
+        options=["이상 분석 결과", "RUL 분석 결과"],
+        value="이상 분석 결과",
+        label="설명할 결과",
     )
     return explanation_question, explanation_run, explanation_scope
 
@@ -217,120 +218,96 @@ def _(
 
 
 @app.cell
-def _(mo, os):
+def _(Path, mo, os):
     analysis_source_input = mo.ui.text(
         value=os.environ.get("INDUSTRIAL_PHM_XJTU_SOURCE", ""),
-        label="Prepared XJTU-SY source",
+        label="준비된 XJTU-SY 데이터 폴더",
         full_width=True,
     )
-    analysis_output_input = mo.ui.text(
-        value=os.environ.get(
+    analysis_output_path = Path(
+        os.environ.get(
             "INDUSTRIAL_PHM_ANALYSIS_OUTPUT",
             "artifacts/analysis/xjtu-lstm-analysis.json",
-        ),
-        label="Result artifact path",
-        full_width=True,
+        )
     )
-    analysis_revision_input = mo.ui.text(
-        value=os.environ.get("INDUSTRIAL_PHM_CODE_REVISION", ""),
-        label="Code revision (40-character Git SHA)",
-        full_width=True,
-    )
-    analysis_run_button = mo.ui.run_button(
-        label="Run XJTU LSTM analysis",
-        kind="success",
-    )
-    return (
-        analysis_output_input,
-        analysis_revision_input,
-        analysis_run_button,
-        analysis_source_input,
-    )
+    analysis_run_button = mo.ui.run_button(label="분석 실행", kind="success")
+    return analysis_output_path, analysis_run_button, analysis_source_input
 
 
 @app.cell
 def _(
     AnalysisRunError,
     Path,
-    analysis_output_input,
-    analysis_revision_input,
+    analysis_output_path,
     analysis_run_button,
     analysis_source_input,
     mo,
     run_xjtu_lstm_analysis_from_source,
     set_analysis,
 ):
+    source_value = analysis_source_input.value.strip()
+    source_path = Path(source_value) if source_value else None
+    source_ready = source_path is not None and source_path.is_dir()
+
     if not analysis_run_button.value:
-        analysis_run_output = mo.callout(
-            "Configure a prepared XJTU-SY source, result path, and exact code revision, "
-            "then run the existing frozen LSTM analysis path. The current loaded result "
-            "remains active until a new execution completes successfully.",
-            kind="info",
-            title="Ready to run",
-        )
-    else:
-        source_value = analysis_source_input.value.strip()
-        output_value = analysis_output_input.value.strip()
-        revision_value = analysis_revision_input.value.strip()
-        missing = [
-            label
-            for label, value in (
-                ("prepared source", source_value),
-                ("result path", output_value),
-                ("code revision", revision_value),
-            )
-            if not value
-        ]
-        if missing:
+        if source_value and not source_ready:
             analysis_run_output = mo.callout(
-                "Missing required input: " + ", ".join(missing),
+                "입력한 데이터 폴더를 찾을 수 없습니다. 경로를 다시 확인해주세요.",
                 kind="warn",
-                title="Analysis not started",
+                title="데이터 폴더 확인 필요",
             )
         else:
-            try:
-                completed_run = run_xjtu_lstm_analysis_from_source(
-                    Path(source_value),
-                    Path(output_value),
-                    code_revision=revision_value,
-                )
-                set_analysis(completed_run.analysis)
-                analysis_run_output = mo.callout(
-                    "Analysis completed and the active Analysis Explorer result was updated. "
-                    "Any attached prognostics artifact is rechecked for population/provenance "
-                    "compatibility before it is shown with this result. "
-                    f"Artifact: `{completed_run.result_path}`",
-                    kind="success",
-                    title="Analysis completed",
-                )
-            except AnalysisRunError as error:
-                analysis_run_output = mo.callout(
-                    str(error),
-                    kind="danger",
-                    title="Analysis failed",
-                )
+            analysis_run_output = mo.callout(
+                "데이터 폴더를 지정한 뒤 분석 실행을 누르세요. "
+                "Git revision은 현재 clean checkout에서 자동으로 기록됩니다.",
+                kind="info",
+                title="분석 준비",
+            )
+    elif not source_value:
+        analysis_run_output = mo.callout(
+            "분석할 XJTU-SY 데이터 폴더를 입력해주세요.",
+            kind="warn",
+            title="분석을 시작하지 않았습니다",
+        )
+    elif not source_ready:
+        analysis_run_output = mo.callout(
+            "입력한 데이터 폴더를 찾을 수 없습니다. 경로를 확인해주세요.",
+            kind="warn",
+            title="분석을 시작하지 않았습니다",
+        )
+    else:
+        try:
+            completed_run = run_xjtu_lstm_analysis_from_source(
+                source_path,
+                analysis_output_path,
+            )
+            set_analysis(completed_run.analysis)
+            analysis_run_output = mo.callout(
+                "분석이 완료되어 현재 화면을 새 결과로 갱신했습니다. "
+                f"결과 파일: `{completed_run.result_path}`",
+                kind="success",
+                title="분석 완료",
+            )
+        except AnalysisRunError as error:
+            analysis_run_output = mo.callout(
+                f"분석을 완료하지 못했습니다. {error}",
+                kind="danger",
+                title="분석 실패",
+            )
 
     run_analysis_view = mo.vstack(
         [
-            mo.md("## Run Analysis"),
-            mo.callout(
-                "This executes the existing frozen XJTU LSTM retrospective development "
-                "pipeline. It validates the prepared source, extracts features, fits the "
-                "model, scores the validation bearings, writes the evidence artifact, "
-                "and reloads it through the same AnalysisView used by this application.",
-                kind="info",
-                title="Source → Python PHM analysis → user result",
+            mo.md("## 새 분석 실행"),
+            mo.md(
+                "준비된 XJTU-SY 데이터 폴더를 지정하면 데이터 확인부터 특징 추출, "
+                "LSTM 분석, 결과 저장까지 기존 분석 경로를 실행합니다."
             ),
             analysis_source_input,
-            analysis_output_input,
-            analysis_revision_input,
-            analysis_run_button,
             mo.md(
-                "Runtime requirement: "
-                "`uv sync --locked --group research --extra deep-learning`.  \n"
-                "This execution preserves retrospective-development semantics; it is not "
-                "live asset inference."
+                f"결과 저장 위치: `{analysis_output_path}`  \n"
+                "실제 분석 실행에는 deep-learning 의존성이 필요합니다."
             ),
+            analysis_run_button,
             analysis_run_output,
         ],
         gap=1.2,
@@ -354,7 +331,6 @@ def _(analysis, mo):
 
 @app.cell
 def _(
-    analysis,
     asset_selector,
     mo,
     plt,
@@ -377,7 +353,7 @@ def _(
         )
     score_axis.set_xlabel("Acquisition index")
     score_axis.set_ylabel("Reconstruction mismatch score")
-    score_axis.set_title(f"{selected_asset.asset_id} anomaly-evidence trajectory")
+    score_axis.set_title(f"{selected_asset.asset_id} anomaly-score trajectory")
     score_axis.grid(alpha=0.2)
     score_figure.tight_layout()
 
@@ -395,54 +371,44 @@ def _(
 
     summary_view = mo.vstack(
         [
-            mo.md("## Analysis Summary"),
+            mo.md("## 분석 요약"),
             asset_selector,
             mo.hstack(
                 [
                     mo.stat(
                         f"{selected_asset.score_window_count:,}",
-                        label="Analyzed windows",
-                        caption="acquisition-aligned",
+                        label="분석 구간",
+                        caption="시간 순서에 맞춘 분석 window",
                     ),
                     mo.stat(
                         f"{selected_asset.acquisition_order_spearman_rho:.3f}",
-                        label="Trend association",
+                        label="시간에 따른 변화",
                         caption="Spearman rho",
                     ),
                     mo.stat(
                         f"{len(review_intervals)}",
-                        label="Review intervals",
-                        caption="score exceeds review threshold",
+                        label="집중 확인 구간",
+                        caption="검토 기준값 초과 구간",
                     ),
                     mo.stat(
                         f"{review_threshold.value:.4f}",
-                        label="Review threshold",
-                        caption="early scored-window q95",
+                        label="검토 기준값",
+                        caption="초기 구간 점수의 q95",
                     ),
                 ],
                 widths="equal",
             ),
             score_figure,
-            mo.callout(
-                "Shaded regions are score-exceedance intervals for retrospective review. "
-                "The threshold is the 95th percentile of the earliest third of recorded "
-                "scored windows. It is not a validated normal/fault state threshold and "
-                "does not create an alarm, fault interval, or diagnosis.",
-                kind="warn",
-                title="Review-threshold semantics",
-            ),
             mo.md(
-                "### Highest score-exceedance intervals\n\n"
-                "| Start | End | Windows | Peak score |\n"
+                "### 점수가 높았던 구간\n\n"
+                "| 시작 | 종료 | 구간 수 | 최고 점수 |\n"
                 "| ---: | ---: | ---: | ---: |\n" + interval_rows
             ),
-            mo.md(
-                "### Available in the current anomaly artifact\n\n"
-                + "\n".join(f"- {item}" for item in analysis.available_capabilities)
-            ),
-            mo.md(
-                "### Not available in the current anomaly artifact\n\n"
-                + "\n".join(f"- {item}" for item in analysis.unsupported_capabilities)
+            mo.callout(
+                "음영 구간은 이상 점수가 상대적으로 높았던 위치를 빠르게 확인하기 위한 "
+                "검토용 표시입니다. 모델과 검증 세부 정보는 **상세 정보**에서 확인할 수 있습니다.",
+                kind="info",
+                title="그래프 읽는 방법",
             ),
         ],
         gap=1.2,
@@ -466,7 +432,7 @@ def _(analysis, mo, plt, selected_asset):
         [value for _, value in residual_pairs],
     )
     residual_axis.set_xlabel("Mean squared residual in robust-scaled feature space")
-    residual_axis.set_title(f"{selected_asset.asset_id} supporting model evidence")
+    residual_axis.set_title(f"{selected_asset.asset_id} model residual evidence")
     residual_axis.grid(axis="x", alpha=0.2)
     residual_figure.tight_layout()
 
@@ -483,17 +449,12 @@ def _(analysis, mo, plt, selected_asset):
 
     evidence_view = mo.vstack(
         [
-            mo.md("## Evidence"),
+            mo.md("## 이상 근거"),
+            mo.md("모델이 크게 다르게 재구성한 특징과 점수가 높았던 관측값을 확인합니다."),
             residual_figure,
-            mo.callout(
-                "Feature residuals are reconstruction mismatch evidence in model space. "
-                "They are not a physical fault contribution or root-cause diagnosis.",
-                kind="info",
-                title="Evidence semantics",
-            ),
             mo.md(
-                "### Highest recorded scores\n\n"
-                "| Acquisition | Source observation | Score |\n"
+                "### 점수가 높았던 관측값\n\n"
+                "| Acquisition | 원본 관측값 | 점수 |\n"
                 "| ---: | --- | ---: |\n" + top_rows
             ),
         ],
@@ -518,7 +479,7 @@ def _(
     prognostics_context_error,
     prognostics_explanation_context,
 ):
-    _explains_prognostics = explanation_scope.value == "Prognostics evidence"
+    _explains_prognostics = explanation_scope.value == "RUL 분석 결과"
     if _explains_prognostics:
         _boundary = (
             "This layer explains recorded RUL evidence; it does not recompute the "
@@ -547,13 +508,13 @@ def _(
             "Set OPENAI_API_KEY and INDUSTRIAL_PHM_GENAI_MODEL in the application "
             "environment to enable generative explanation.",
             kind="info",
-            title="AI explanation is not configured",
+            title="AI 설명 설정 필요",
         )
     elif _explains_prognostics and prognostics_explanation_context is None:
         explanation_output = mo.callout(
             prognostics_context_error,
             kind="warn",
-            title="Prognostics evidence is unavailable",
+            title="RUL 분석 결과 없음",
         )
     elif not explanation_run.value:
         explanation_output = mo.callout(
@@ -561,7 +522,7 @@ def _(
             "Only bounded structured analysis evidence is sent; the raw sensor trajectory "
             "is not sent by this feature.",
             kind="info",
-            title="Ready",
+            title="준비됨",
         )
     elif _explains_prognostics:
         try:
@@ -577,7 +538,7 @@ def _(
             explanation_output = mo.callout(
                 str(error),
                 kind="danger",
-                title="AI explanation failed",
+                title="AI 설명 실패",
             )
     else:
         try:
@@ -593,13 +554,13 @@ def _(
             explanation_output = mo.callout(
                 str(error),
                 kind="danger",
-                title="AI explanation failed",
+                title="AI 설명 실패",
             )
 
     ai_explanation_view = mo.vstack(
         [
-            mo.md("## AI Explanation"),
-            mo.callout(_boundary, kind="warn", title="Generative AI boundary"),
+            mo.md("## AI 설명"),
+            mo.callout(_boundary, kind="warn", title="AI 설명 범위"),
             explanation_scope,
             explanation_question,
             explanation_run,
@@ -616,7 +577,7 @@ def _(analysis, mo):
     stage_selector = mo.ui.dropdown(
         options=[stage.name for stage in analysis.inspection.stages],
         value="Scoring",
-        label="Pipeline stage",
+        label="분석 단계",
     )
     return (stage_selector,)
 
@@ -628,15 +589,15 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
         mo.callout(
             mo.md("\n".join(f"- {warning}" for warning in selected_stage.warnings)),
             kind="warn",
-            title="Stage warnings",
+            title="단계 경고",
         )
         if selected_stage.warnings
-        else mo.callout("No warnings recorded for this stage.", kind="success")
+        else mo.callout("이 단계에 기록된 경고가 없습니다.", kind="success")
     )
 
     details_view = mo.vstack(
         [
-            mo.md("## Analysis Details"),
+            mo.md("## 상세 정보"),
             mo.callout(
                 "These details explain how the displayed evidence was produced. "
                 "They are drill-down transparency, not the primary user result.",
@@ -702,12 +663,12 @@ def _(
     if prognostics_analysis is None:
         prognostics_view = mo.vstack(
             [
-                mo.md("## Prognostics"),
+                mo.md("## RUL 분석"),
                 mo.callout(
                     prognostics_error
                     + " Remaining-useful-life evidence is not available for this analysis.",
                     kind="neutral",
-                    title="Prognostics evidence unavailable",
+                    title="RUL 분석 결과 없음",
                 ),
             ],
             gap=1.2,
@@ -720,13 +681,13 @@ def _(
         )
         prognostics_view = mo.vstack(
             [
-                mo.md("## Prognostics"),
+                mo.md("## RUL 분석"),
                 mo.callout(
                     "The attached prognostics artifact is not population-compatible with "
                     "the current anomaly artifact, so it is not shown as part of this "
                     "analysis surface.\n\n" + _reasons,
                     kind="danger",
-                    title="Attached evidence is incompatible",
+                    title="현재 결과와 함께 표시할 수 없음",
                 ),
             ],
             gap=1.2,
@@ -745,7 +706,7 @@ def _(
         )
         prognostics_view = mo.vstack(
             [
-                mo.md("## Prognostics"),
+                mo.md("## RUL 분석"),
                 asset_selector,
                 mo.callout(
                     "This prognostics evidence is attached from a separate validated "
@@ -756,7 +717,7 @@ def _(
                     f"Attached prognostics revision: "
                     f"`{prognostics_analysis.identity.code_revision}`.",
                     kind="info",
-                    title="Attached separate evidence",
+                    title="별도 분석 결과",
                 ),
                 mo.callout(
                     "These are **retrospective development estimates**, not a live "
@@ -764,36 +725,36 @@ def _(
                     f"**{prognostics_summary.target_description}**. It is not a validated "
                     "physical failure time.",
                     kind="warn",
-                    title="What the number means",
+                    title="RUL 값의 의미",
                 ),
                 mo.hstack(
                     [
                         mo.stat(
                             f"{_low:,.1f} to {_high:,.1f}",
-                            label="Method estimate span",
+                            label="모델별 예측 범위",
                             caption=f"across {len(prognostics_summary.methods)} methods",
                         ),
                         mo.stat(
                             "acquisition "
                             f"{prognostics_summary.methods[0].last_recorded_acquisition_index:,}",
-                            label="As of",
+                            label="기준 acquisition",
                             caption="last recorded acquisition of the run",
                         ),
                         mo.stat(
                             "not available",
-                            label="Uncertainty interval",
+                            label="불확실성 구간",
                             caption="no calibrated interval in this evidence",
                         ),
                         mo.stat(
                             "not validated",
-                            label="Physical failure threshold",
+                            label="물리적 고장 기준",
                             caption="target is the recorded endpoint",
                         ),
                     ],
                     widths="equal",
                 ),
                 mo.md(
-                    "### Method comparison (development evidence)\n\n"
+                    "### 모델 비교\n\n"
                     "| Method | Recorded estimate | MAE | Signed error | Predictions |\n"
                     "| --- | ---: | ---: | ---: | ---: |\n" + _method_rows
                 ),
@@ -802,10 +763,10 @@ def _(
                     "These rows compare candidate methods on recorded validation error; "
                     "they are not several competing remaining-life answers.",
                     kind="warn",
-                    title="No selected method",
+                    title="대표 모델 미선택",
                 ),
                 mo.md(
-                    "### Recorded scope\n\n"
+                    "### 기술 정보\n\n"
                     f"- Target definition: `{prognostics_summary.target_definition_id}`\n"
                     f"- Support: {prognostics_summary.support_definition} from acquisition "
                     f"{prognostics_summary.support_first_acquisition}"
@@ -821,7 +782,7 @@ def _(
                         "The target is not clipped, so negative values are kept as recorded "
                         "instead of being floored at zero.",
                         kind="danger",
-                        title="Negative estimate recorded",
+                        title="음수 RUL 예측값 기록됨",
                     )
                 ]
                 if prognostics_summary.has_negative_estimate
@@ -833,6 +794,77 @@ def _(
 
 
 @app.cell
+def _(asset_selector, mo, os):
+    report_output_input = mo.ui.text(
+        value=os.environ.get(
+            "INDUSTRIAL_PHM_REPORT_OUTPUT",
+            f"artifacts/reports/{asset_selector.value}.md",
+        ),
+        label="보고서 저장 경로",
+        full_width=True,
+    )
+    report_run_button = mo.ui.run_button(label="Markdown 보고서 저장", kind="success")
+    return report_output_input, report_run_button
+
+
+@app.cell
+def _(
+    AnalysisReportError,
+    Path,
+    analysis,
+    asset_selector,
+    mo,
+    prognostics_analysis,
+    prognostics_compatibility,
+    report_output_input,
+    report_run_button,
+    write_analysis_report_markdown,
+):
+    if not report_run_button.value:
+        report_output = mo.callout(
+            "현재 선택한 설비의 분석 결과를 Markdown 파일로 저장할 수 있습니다.",
+            kind="info",
+            title="보고서 준비",
+        )
+    else:
+        try:
+            output_path = Path(report_output_input.value.strip())
+            attached_prognostics = (
+                prognostics_analysis
+                if prognostics_compatibility is not None and prognostics_compatibility.compatible
+                else None
+            )
+            write_analysis_report_markdown(
+                analysis,
+                asset_selector.value,
+                output_path,
+                prognostics=attached_prognostics,
+            )
+            report_output = mo.callout(
+                f"보고서를 저장했습니다: `{output_path}`",
+                kind="success",
+                title="보고서 저장 완료",
+            )
+        except (OSError, AnalysisReportError) as error:
+            report_output = mo.callout(
+                f"보고서를 저장하지 못했습니다. {error}",
+                kind="danger",
+                title="보고서 저장 실패",
+            )
+
+    report_view = mo.vstack(
+        [
+            mo.md("## 보고서 저장"),
+            report_output_input,
+            report_run_button,
+            report_output,
+        ],
+        gap=1.2,
+    )
+    return (report_view,)
+
+
+@app.cell
 def _(
     ai_explanation_view,
     details_view,
@@ -840,17 +872,19 @@ def _(
     header,
     mo,
     prognostics_view,
+    report_view,
     run_analysis_view,
     summary_view,
     view_selector,
 ):
     views = {
-        "Analysis Summary": summary_view,
-        "Prognostics": prognostics_view,
-        "Evidence": evidence_view,
-        "AI Explanation": ai_explanation_view,
-        "Run Analysis": run_analysis_view,
-        "Analysis Details": details_view,
+        "분석 요약": summary_view,
+        "이상 근거": evidence_view,
+        "RUL 분석": prognostics_view,
+        "AI 설명": ai_explanation_view,
+        "새 분석 실행": run_analysis_view,
+        "보고서 저장": report_view,
+        "상세 정보": details_view,
     }
     mo.vstack([header, view_selector, views[view_selector.value]], gap=1.5)
     return
