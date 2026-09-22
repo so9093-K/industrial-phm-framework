@@ -18,13 +18,12 @@ def _():
         AnalysisViewError,
         compare_analysis_evidence,
         derive_early_scored_window_review_threshold,
-        load_xjtu_lstm_analysis_view,
-        load_xjtu_rul_analysis_view,
         run_xjtu_lstm_analysis_from_source,
         score_exceedance_intervals,
         summarize_prognostics_for_asset,
         write_analysis_report_markdown,
     )
+    from industrial_phm.analysis.loader import load_analysis_view
     from industrial_phm.genai import (
         AnalysisExplanationError,
         build_analysis_explanation_context,
@@ -45,8 +44,7 @@ def _():
         derive_early_scored_window_review_threshold,
         generate_openai_analysis_explanation,
         generate_openai_prognostics_explanation,
-        load_xjtu_lstm_analysis_view,
-        load_xjtu_rul_analysis_view,
+        load_analysis_view,
         mo,
         os,
         plt,
@@ -58,7 +56,7 @@ def _():
 
 
 @app.cell
-def _(AnalysisViewError, Path, load_xjtu_lstm_analysis_view, mo, os):
+def _(AnalysisViewError, Path, load_analysis_view, mo, os):
     artifact_path = Path(
         os.environ.get(
             "INDUSTRIAL_PHM_ANALYSIS_ARTIFACT",
@@ -75,7 +73,7 @@ def _(AnalysisViewError, Path, load_xjtu_lstm_analysis_view, mo, os):
     )
 
     try:
-        initial_analysis = load_xjtu_lstm_analysis_view(artifact_path)
+        initial_analysis = load_analysis_view(artifact_path)
     except AnalysisViewError as error:
         mo.stop(
             True,
@@ -613,7 +611,7 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
 
 
 @app.cell
-def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
+def _(AnalysisViewError, Path, load_analysis_view, os):
     prognostics_artifact_path = Path(
         os.environ.get(
             "INDUSTRIAL_PHM_PROGNOSTICS_ARTIFACT",
@@ -622,7 +620,7 @@ def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
     )
     if prognostics_artifact_path.is_file():
         try:
-            prognostics_analysis = load_xjtu_rul_analysis_view(prognostics_artifact_path)
+            prognostics_analysis = load_analysis_view(prognostics_artifact_path)
             prognostics_error = ""
         except AnalysisViewError as error:
             prognostics_analysis = None

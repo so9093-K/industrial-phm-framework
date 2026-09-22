@@ -48,7 +48,7 @@ time-series semantics를 참고하지만 core object를 특정 AAS/OPC UA/Sensor
 - `asset_id`
 - explicit `timestamps` 또는 regular `sampling_rate_hz`
 - `channels`
-- rectangular sample-by-channel `values`
+- rectangular finite numeric sample-by-channel `values`
 - optional sample-aligned `labels`
 - optional sample-aligned `rul`
 - domain-neutral primitive `metadata`
@@ -67,7 +67,7 @@ time-series semantics를 참고하지만 core object를 특정 AAS/OPC UA/Sensor
 | time | segment 안에서 하나의 sample axis를 공유 | lifecycle time과 acquisition 내부 sample time을 분리해야 하는가 |
 | sampling | explicit timestamps 또는 하나의 regular sampling rate | channel별/asynchronous sampling을 어떻게 표현할 것인가 |
 | variables | channel은 고유한 문자열 이름 | unit, observed property, sensor, orientation/location이 first-class여야 하는가 |
-| payload | rectangular in-memory numeric matrix | large payload/external storage reference가 필요한가 |
+| payload | rectangular in-memory finite numeric matrix | large payload/external storage reference가 필요한가 |
 | labels | 존재하면 raw sample과 1:1 정렬 | event/run/interval 수준 annotation을 분리해야 하는가 |
 | RUL | 존재하면 raw sample과 1:1 정렬 | acquisition/lifecycle target 및 censoring을 별도로 표현해야 하는가 |
 | context | primitive `metadata`로 확장 | speed/load/environment 같은 operating context에 typed semantics가 필요한가 |
