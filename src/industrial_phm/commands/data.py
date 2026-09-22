@@ -27,6 +27,13 @@ from industrial_phm.data.validation import (
 )
 
 
+def _print_available_datasets(*, file: object = sys.stderr) -> None:
+    print(
+        "available datasets: " + ", ".join(manifest.dataset_id for manifest in list_datasets()),
+        file=file,
+    )
+
+
 def _run_data_list(args: argparse.Namespace) -> int:
     del args
     for manifest in list_datasets():
@@ -42,6 +49,7 @@ def _run_data_status(args: argparse.Namespace) -> int:
         manifest = get_dataset(args.dataset_id)
     except UnknownDatasetError as error:
         print(str(error), file=sys.stderr)
+        _print_available_datasets()
         return 2
 
     root = args.root
@@ -57,12 +65,18 @@ def _run_data_status(args: argparse.Namespace) -> int:
     path = dataset_archive_path(manifest, root)
     if path is None:
         print("local state: manual source; no framework-managed archive path")
+        print("next: follow the dataset preparation guide in data/README.md")
         return 0
 
+    present = path.is_file()
     print(f"archive: {path}")
-    print(f"local state: {'present' if path.is_file() else 'missing'}")
+    print(f"local state: {'present' if present else 'missing'}")
     checksum_policy = "manifest SHA-256" if manifest.sha256 is not None else "local SHA-256"
     print(f"checksum policy: {checksum_policy}")
+    if present:
+        print(f"next: industrial-phm data verify {manifest.dataset_id}")
+    else:
+        print(f"next: industrial-phm data fetch {manifest.dataset_id}")
     return 0
 
 
@@ -72,6 +86,7 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
         result = fetch_dataset(manifest, args.root)
     except UnknownDatasetError as error:
         print(str(error), file=sys.stderr)
+        _print_available_datasets()
         return 2
     except ManualAcquisitionRequired as error:
         print(str(error), file=sys.stderr)
@@ -79,6 +94,7 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
             "download from the official source and preserve provenance before import",
             file=sys.stderr,
         )
+        print("next: follow the dataset preparation guide in data/README.md", file=sys.stderr)
         return 2
     except (OSError, DatasetIntegrityError, ValueError) as error:
         print(f"dataset fetch failed: {error}", file=sys.stderr)
@@ -89,6 +105,10 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
     print(f"sha256: {result.integrity.sha256}")
     if not result.checksum_pinned:
         print("integrity basis: local SHA-256 provenance")
+    print(
+        f"next: industrial-phm data inspect {manifest.dataset_id} "
+        f"--source {result.path} --details"
+    )
     return 0
 
 
@@ -97,6 +117,7 @@ def _run_data_verify(args: argparse.Namespace) -> int:
         manifest = get_dataset(args.dataset_id)
     except UnknownDatasetError as error:
         print(str(error), file=sys.stderr)
+        _print_available_datasets()
         return 2
 
     path = dataset_archive_path(manifest, root=args.root)
@@ -106,6 +127,7 @@ def _run_data_verify(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         print(f"official source: {manifest.source_url}", file=sys.stderr)
+        print("next: follow the dataset preparation guide in data/README.md", file=sys.stderr)
         return 2
 
     try:
@@ -125,6 +147,10 @@ def _run_data_verify(args: argparse.Namespace) -> int:
     print(f"sha256: {integrity.sha256}")
     if manifest.sha256 is None:
         print("integrity basis: local SHA-256 provenance; no publisher checksum pinned")
+    print(
+        f"next: industrial-phm data inspect {manifest.dataset_id} "
+        f"--source {integrity.path} --details"
+    )
     return 0
 
 
@@ -134,6 +160,7 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
         inspection = inspect_source(args.source)
     except UnknownDatasetError as error:
         print(str(error), file=sys.stderr)
+        _print_available_datasets()
         return 2
     except (OSError, DatasetIntegrityError) as error:
         print(f"dataset inspection failed: {error}", file=sys.stderr)
@@ -169,6 +196,7 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
             "inspection state: empty local source; add dataset files before continuing",
             file=sys.stderr,
         )
+        print("next: follow the dataset preparation guide in data/README.md", file=sys.stderr)
         return 1
 
     nested_archive_extensions = {".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".zip"}
@@ -179,10 +207,13 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
     print("inspection state: completed")
     if nested_archives_observed:
         print("prepared source state: nested archive extraction required")
-        print(
-            f"validation command: industrial-phm data validate {manifest.dataset_id} "
-            "--source <prepared-source>"
-        )
+        print("next: extract the nested archive as described in data/README.md")
+    else:
+        print("next: prepare the adapter source layout described in data/README.md")
+    print(
+        f"then: industrial-phm data validate {manifest.dataset_id} "
+        "--source <prepared-source>"
+    )
     return 0
 
 
@@ -191,6 +222,7 @@ def _run_data_validate(args: argparse.Namespace) -> int:
         manifest = get_dataset(args.dataset_id)
     except UnknownDatasetError as error:
         print(str(error), file=sys.stderr)
+        _print_available_datasets()
         return 2
 
     if manifest.dataset_id == "xjtu-sy":
@@ -238,6 +270,7 @@ def _run_mimii_data_validate(args: argparse.Namespace, title: str) -> int:
         return 1
 
     print("profile compatibility: PASS")
+    print("next: see docs/research/README.md for the matching experiment workflow")
     return 0
 
 
@@ -269,6 +302,10 @@ def _run_xjtu_data_validate(args: argparse.Namespace, title: str) -> int:
         return 1
 
     print("profile compatibility: PASS")
+    print(
+        "next: uv run --locked --group research --extra deep-learning "
+        "marimo run apps/analysis_explorer.py"
+    )
     return 0
 
 
@@ -310,4 +347,5 @@ def _run_ims_data_validate(args: argparse.Namespace, title: str) -> int:
         return 1
 
     print("profile compatibility: PASS")
+    print("next: see docs/research/README.md for the matching experiment workflow")
     return 0
