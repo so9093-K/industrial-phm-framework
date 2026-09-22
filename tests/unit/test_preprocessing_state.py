@@ -97,6 +97,28 @@ def test_robust_state_uses_global_train_median_and_linear_iqr() -> None:
     assert transformed[3] == pytest.approx((1.0, 0.0))
 
 
+def test_robust_v1_preserves_nonzero_near_zero_iqr() -> None:
+    rows = (
+        (0.0, 10.0),
+        (1.0e-12, 20.0),
+        (2.0e-12, 30.0),
+        (3.0e-12, 40.0),
+    )
+
+    state = fit_preprocessing_state(
+        _config(scaling_strategy=ScalingStrategy.ROBUST),
+        _provenance(),
+        _FEATURE_NAMES,
+        rows,
+    )
+
+    assert state.fitted_scale[0] == pytest.approx(1.5e-12)
+    assert "feature.channel.mean" not in state.zero_iqr_features
+    transformed = state.transform(_FEATURE_NAMES, rows)
+    assert transformed[0][0] == pytest.approx(-1.0)
+    assert transformed[-1][0] == pytest.approx(1.0)
+
+
 @pytest.mark.parametrize(
     ("provenance", "field_name"),
     [
