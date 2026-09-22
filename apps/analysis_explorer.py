@@ -68,9 +68,9 @@ def _(AnalysisViewError, Path, load_xjtu_lstm_analysis_view, mo, os):
     mo.stop(
         not artifact_path.is_file(),
         mo.callout(
-            f"Analysis artifact was not found: `{artifact_path}`",
+            f"분석 결과 파일을 찾을 수 없습니다: `{artifact_path}`",
             kind="warn",
-            title="Analysis unavailable",
+            title="분석 결과를 열 수 없습니다",
         ),
     )
 
@@ -79,7 +79,7 @@ def _(AnalysisViewError, Path, load_xjtu_lstm_analysis_view, mo, os):
     except AnalysisViewError as error:
         mo.stop(
             True,
-            mo.callout(str(error), kind="danger", title="Analysis validation failed"),
+            mo.callout(str(error), kind="danger", title="분석 결과 검증 실패"),
         )
 
     return artifact_path, initial_analysis
@@ -196,13 +196,12 @@ def _(
     elif prognostics_compatibility is None or not prognostics_compatibility.compatible:
         prognostics_explanation_context = None
         _reasons = (
-            "unknown compatibility"
+            "결과 범위 호환성을 확인할 수 없음"
             if prognostics_compatibility is None
             else "; ".join(prognostics_compatibility.reasons)
         )
         prognostics_context_error = (
-            "Attached prognostics evidence is not compatible with the current anomaly "
-            f"artifact: {_reasons}"
+            f"현재 이상 분석 결과와 연결된 RUL 분석 결과의 범위가 맞지 않습니다: {_reasons}"
         )
     else:
         try:
@@ -323,7 +322,7 @@ def _(analysis, mo):
         )
         if not rows:
             rows = "| - | - |"
-        return mo.md("| Field | Value |\n| --- | --- |\n" + rows)
+        return mo.md("| 항목 | 값 |\n| --- | --- |\n" + rows)
 
     stage_by_name = {stage.name: stage for stage in analysis.inspection.stages}
     return facts_table, stage_by_name
@@ -482,31 +481,26 @@ def _(
     _explains_prognostics = explanation_scope.value == "RUL 분석 결과"
     if _explains_prognostics:
         _boundary = (
-            "This layer explains recorded RUL evidence; it does not recompute the "
-            "estimate, convert it into a physical failure time, or create an "
-            "unsupported failure threshold, alarm/state, maintenance priority, or "
-            "confidence interval."
+            "저장된 RUL 분석 결과를 설명합니다. RUL 값을 다시 계산하거나 물리적 고장 시점, "
+            "경보, 정비 우선순위 또는 신뢰구간을 새로 만들지 않습니다."
         )
         _context_note = (
-            "Context: recorded estimate per method, target semantics and unit, "
-            "retrospective validation error, capability limits, and selected "
-            "pipeline/provenance facts."
+            "설명에 사용하는 정보: 모델별 저장된 RUL 값, target 의미와 단위, "
+            "검증 오차, 기능 범위, 주요 실행 정보."
         )
     else:
         _boundary = (
-            "This layer explains recorded PHM evidence; it does not replace the "
-            "numerical analysis or create unsupported diagnosis, alarm/state, "
-            "maintenance priority, health indicator, or RUL."
+            "저장된 PHM 분석 결과를 설명합니다. 수치를 다시 계산하거나 고장 진단, 경보, "
+            "정비 우선순위 또는 RUL을 새로 만들지 않습니다."
         )
         _context_note = (
-            "Context: top recorded scores, feature residual evidence, capability "
-            "limits, and selected pipeline/provenance facts."
+            "설명에 사용하는 정보: 점수가 높았던 관측값, 특징 잔차, 기능 범위, 주요 실행 정보."
         )
 
     if not explanation_configured:
         explanation_output = mo.callout(
-            "Set OPENAI_API_KEY and INDUSTRIAL_PHM_GENAI_MODEL in the application "
-            "environment to enable generative explanation.",
+            "AI 설명을 사용하려면 실행 환경에 OPENAI_API_KEY와 "
+            "INDUSTRIAL_PHM_GENAI_MODEL을 설정하세요.",
             kind="info",
             title="AI 설명 설정 필요",
         )
@@ -518,9 +512,8 @@ def _(
         )
     elif not explanation_run.value:
         explanation_output = mo.callout(
-            "The model is called only when you press Generate AI explanation. "
-            "Only bounded structured analysis evidence is sent; the raw sensor trajectory "
-            "is not sent by this feature.",
+            "AI 설명 생성 버튼을 눌렀을 때만 모델을 호출합니다. 이 기능은 정리된 분석 정보만 "
+            "전송하며 원본 센서 trajectory는 전송하지 않습니다.",
             kind="info",
             title="준비됨",
         )
@@ -564,7 +557,7 @@ def _(
             explanation_scope,
             explanation_question,
             explanation_run,
-            mo.md(f"Model: `{explanation_model or 'not configured'}`  \n{_context_note}"),
+            mo.md(f"사용 모델: `{explanation_model or '설정되지 않음'}`  \n{_context_note}"),
             explanation_output,
         ],
         gap=1.2,
@@ -599,8 +592,8 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
         [
             mo.md("## 상세 정보"),
             mo.callout(
-                "These details explain how the displayed evidence was produced. "
-                "They are drill-down transparency, not the primary user result.",
+                "현재 화면의 결과가 어떤 데이터와 분석 단계에서 만들어졌는지 보여주는 "
+                "기술 정보입니다.",
                 kind="info",
             ),
             stage_selector,
@@ -608,10 +601,10 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
             facts_table(selected_stage),
             warning_block,
             mo.md(
-                f"Evidence class: **{analysis.evidence_class}**  \n"
-                f"Score semantics: **{analysis.require_anomaly_evidence().score_semantics_id}**  \n"
-                f"Direction: **{analysis.require_anomaly_evidence().score_direction}**  \n"
-                f"Artifact: `{analysis.artifact_path}`"
+                f"결과 분류: **{analysis.evidence_class}**  \n"
+                f"점수 의미: **{analysis.require_anomaly_evidence().score_semantics_id}**  \n"
+                f"점수 방향: **{analysis.require_anomaly_evidence().score_direction}**  \n"
+                f"결과 파일: `{analysis.artifact_path}`"
             ),
         ],
         gap=1.2,
@@ -665,8 +658,7 @@ def _(
             [
                 mo.md("## RUL 분석"),
                 mo.callout(
-                    prognostics_error
-                    + " Remaining-useful-life evidence is not available for this analysis.",
+                    prognostics_error + " 현재 분석에 연결할 RUL 결과가 없습니다.",
                     kind="neutral",
                     title="RUL 분석 결과 없음",
                 ),
@@ -675,7 +667,7 @@ def _(
         )
     elif prognostics_compatibility is None or not prognostics_compatibility.compatible:
         _reasons = (
-            "Compatibility could not be evaluated."
+            "결과 범위 호환성을 확인할 수 없습니다."
             if prognostics_compatibility is None
             else "\n".join(f"- {reason}" for reason in prognostics_compatibility.reasons)
         )
@@ -683,9 +675,8 @@ def _(
             [
                 mo.md("## RUL 분석"),
                 mo.callout(
-                    "The attached prognostics artifact is not population-compatible with "
-                    "the current anomaly artifact, so it is not shown as part of this "
-                    "analysis surface.\n\n" + _reasons,
+                    "연결된 RUL 결과의 데이터 범위가 현재 이상 분석 결과와 맞지 않아 "
+                    "같은 화면에 표시하지 않습니다.\n\n" + _reasons,
                     kind="danger",
                     title="현재 결과와 함께 표시할 수 없음",
                 ),
@@ -709,21 +700,17 @@ def _(
                 mo.md("## RUL 분석"),
                 asset_selector,
                 mo.callout(
-                    "This prognostics evidence is attached from a separate validated "
-                    "artifact. Population/split scope matches the current anomaly artifact, "
-                    "but the two artifacts are not one execution and exact source byte "
-                    "identity is not recorded. "
-                    f"Current anomaly revision: `{analysis.identity.code_revision}`. "
-                    f"Attached prognostics revision: "
-                    f"`{prognostics_analysis.identity.code_revision}`.",
+                    "RUL 결과는 별도의 저장된 분석 결과에서 가져옵니다. 데이터 범위는 현재 이상 "
+                    "분석 결과와 맞지만 두 결과는 하나의 실행에서 만들어진 것은 아닙니다. "
+                    f"이상 분석 revision: `{analysis.identity.code_revision}`. "
+                    f"RUL 분석 revision: `{prognostics_analysis.identity.code_revision}`.",
                     kind="info",
                     title="별도 분석 결과",
                 ),
                 mo.callout(
-                    "These are **retrospective development estimates**, not a live "
-                    "remaining-life readout. One unit is "
-                    f"**{prognostics_summary.target_description}**. It is not a validated "
-                    "physical failure time.",
+                    "아래 값은 저장된 데이터로 평가한 **RUL 분석 결과**이며 "
+                    "실시간 설비 잔여수명 값이 아닙니다. 한 단위는 "
+                    f"**{prognostics_summary.target_description}**입니다.",
                     kind="warn",
                     title="RUL 값의 의미",
                 ),
@@ -732,55 +719,53 @@ def _(
                         mo.stat(
                             f"{_low:,.1f} to {_high:,.1f}",
                             label="모델별 예측 범위",
-                            caption=f"across {len(prognostics_summary.methods)} methods",
+                            caption=f"{len(prognostics_summary.methods)}개 모델 비교",
                         ),
                         mo.stat(
                             "acquisition "
                             f"{prognostics_summary.methods[0].last_recorded_acquisition_index:,}",
                             label="기준 acquisition",
-                            caption="last recorded acquisition of the run",
+                            caption="마지막 기록 acquisition",
                         ),
                         mo.stat(
-                            "not available",
+                            "없음",
                             label="불확실성 구간",
-                            caption="no calibrated interval in this evidence",
+                            caption="보정된 구간 없음",
                         ),
                         mo.stat(
-                            "not validated",
+                            "미검증",
                             label="물리적 고장 기준",
-                            caption="target is the recorded endpoint",
+                            caption="recorded endpoint 기준",
                         ),
                     ],
                     widths="equal",
                 ),
                 mo.md(
                     "### 모델 비교\n\n"
-                    "| Method | Recorded estimate | MAE | Signed error | Predictions |\n"
+                    "| 모델 | 저장된 RUL 예측 | MAE | Signed error | 예측 수 |\n"
                     "| --- | ---: | ---: | ---: | ---: |\n" + _method_rows
                 ),
                 mo.callout(
-                    "No method is selected as the operational answer for this asset. "
-                    "These rows compare candidate methods on recorded validation error; "
-                    "they are not several competing remaining-life answers.",
+                    "현재 이 설비의 대표 RUL 모델은 별도로 지정하지 않습니다. "
+                    "아래 표는 여러 모델의 저장된 검증 결과를 비교합니다.",
                     kind="warn",
                     title="대표 모델 미선택",
                 ),
                 mo.md(
                     "### 기술 정보\n\n"
-                    f"- Target definition: `{prognostics_summary.target_definition_id}`\n"
-                    f"- Support: {prognostics_summary.support_definition} from acquisition "
-                    f"{prognostics_summary.support_first_acquisition}"
-                    f" ({prognostics_summary.support_prediction_count:,} predictions)\n"
-                    f"- Evidence class: {prognostics_summary.evidence_class}\n"
-                    f"- Artifact: `{prognostics_summary.artifact_path}`"
+                    f"- Target 정의: `{prognostics_summary.target_definition_id}`\n"
+                    f"- 평가 범위: {prognostics_summary.support_definition}, acquisition "
+                    f"{prognostics_summary.support_first_acquisition}부터 "
+                    f"{prognostics_summary.support_prediction_count:,}개 예측\n"
+                    f"- 결과 분류: {prognostics_summary.evidence_class}\n"
+                    f"- 결과 파일: `{prognostics_summary.artifact_path}`"
                 ),
             ]
             + (
                 [
                     mo.callout(
-                        "At least one method recorded a negative remaining-life estimate. "
-                        "The target is not clipped, so negative values are kept as recorded "
-                        "instead of being floored at zero.",
+                        "하나 이상의 모델에서 음수 RUL 예측값이 기록되었습니다. "
+                        "현재 target은 0으로 강제 보정하지 않으므로 저장된 값을 그대로 표시합니다.",
                         kind="danger",
                         title="음수 RUL 예측값 기록됨",
                     )

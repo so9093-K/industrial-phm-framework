@@ -32,9 +32,9 @@ def test_report_is_deterministic_for_same_read_models() -> None:
     )
 
     assert first == second
-    assert "# PHM Analysis Report" in first
-    assert "## Anomaly evidence" in first
-    assert "## Attached prognostics evidence" in first
+    assert "# PHM 분석 보고서" in first
+    assert "## 이상 변화 요약" in first
+    assert "## RUL 분석 결과" in first
 
 
 def test_report_keeps_attached_prognostics_as_separate_evidence() -> None:
@@ -48,11 +48,11 @@ def test_report_keeps_attached_prognostics_as_separate_evidence() -> None:
     )
 
     assert "compatible-separate-revision" in rendered
-    assert "separate retrospective evidence" in rendered
-    assert "Exact source byte identity is not recorded" in rendered
-    assert "No operational primary method is asserted" in rendered
-    assert "Uncertainty interval available: false" in rendered
-    assert "Physical failure threshold validated: false" in rendered
+    assert "저장된 RUL 모델 결과" in rendered
+    assert "exact source byte identity" in rendered
+    assert "대표 RUL 모델을 별도로 지정하지 않습니다" in rendered
+    assert "불확실성 구간 제공: false" in rendered
+    assert "물리적 고장 기준 검증: false" in rendered
 
 
 def test_report_preserves_inspection_warnings() -> None:
