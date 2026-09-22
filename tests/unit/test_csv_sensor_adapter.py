@@ -280,4 +280,3 @@ def test_csv_adapter_parses_the_same_byte_snapshot_recorded_in_provenance(
     assert series.values == ((1.0,), (2.0,), (3.0,))
     assert series.metadata["source_sha256"] == hashlib.sha256(original_payload).hexdigest()
     assert series.metadata["source_size_bytes"] == len(original_payload)
-
