@@ -11,6 +11,7 @@ from industrial_phm.application import (
     RegisteredSource,
     SourceAlreadyRegisteredError,
     SourceRegistryFormatError,
+    SourceRepository,
     UnknownRegisteredSourceError,
 )
 
@@ -37,6 +38,12 @@ def _source(
         ),
         registered_at=datetime.fromisoformat("2026-09-23T10:00:00+09:00"),
     )
+
+
+def test_json_source_repository_implements_source_repository_contract(tmp_path: Path) -> None:
+    repository = JsonSourceRepository(tmp_path / "sources.json")
+
+    assert isinstance(repository, SourceRepository)
 
 
 def test_json_source_repository_round_trip_survives_new_repository_instance(
