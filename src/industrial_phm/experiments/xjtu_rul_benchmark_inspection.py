@@ -8,7 +8,7 @@ from pathlib import Path
 from statistics import fmean
 
 from industrial_phm.adapters import XJTU_SY_CHANNELS, get_xjtu_expected_acquisition_count
-from industrial_phm.experiments.result_inspection import (
+from industrial_phm.experiments.result_inspection_support import (
     ExperimentInspection,
     ExperimentResultInspectionError,
     InspectionFact,
