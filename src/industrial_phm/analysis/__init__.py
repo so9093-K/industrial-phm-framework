@@ -1,5 +1,10 @@
 """User-facing analysis application and read models built from validated PHM evidence."""
 
+from industrial_phm.analysis.anomaly_summary import (
+    AnomalyAssetSummary,
+    RankedFeatureResidual,
+    summarize_anomaly_for_asset,
+)
 from industrial_phm.analysis.compatibility import (
     AnalysisEvidenceCompatibility,
     EvidenceRelationship,
@@ -17,6 +22,10 @@ from industrial_phm.analysis.prognostics_summary import (
     PrognosticsMethodRow,
     prognostics_asset_ids,
     summarize_prognostics_for_asset,
+)
+from industrial_phm.analysis.projectors.xjtu import (
+    load_xjtu_lstm_analysis_view,
+    load_xjtu_rul_analysis_view,
 )
 from industrial_phm.analysis.report import (
     AnalysisReportError,
@@ -40,8 +49,6 @@ from industrial_phm.analysis.view import (
     PrognosticsAssetEvidence,
     PrognosticsEvidence,
     PrognosticsMethodEvidence,
-    load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
 )
 
 __all__ = [
@@ -53,6 +60,7 @@ __all__ = [
     "AnalysisRunError",
     "AnalysisView",
     "AnalysisViewError",
+    "AnomalyAssetSummary",
     "AnomalyEvidence",
     "EvidenceRelationship",
     "PrognosticsAssetEvidence",
@@ -60,6 +68,7 @@ __all__ = [
     "PrognosticsEvidence",
     "PrognosticsMethodEvidence",
     "PrognosticsMethodRow",
+    "RankedFeatureResidual",
     "ReviewScoreThreshold",
     "ScoreExceedanceInterval",
     "ScoreIntervalError",
@@ -74,6 +83,7 @@ __all__ = [
     "render_analysis_report_markdown",
     "run_xjtu_lstm_analysis_from_source",
     "score_exceedance_intervals",
+    "summarize_anomaly_for_asset",
     "summarize_prognostics_for_asset",
     "write_analysis_report_markdown",
 ]

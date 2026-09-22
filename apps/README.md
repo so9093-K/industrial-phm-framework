@@ -16,13 +16,12 @@ uv run --locked --group research marimo run apps/analysis_explorer.py
 
 기본 화면에서는 XJTU-SY LSTM 분석 결과가 열립니다.
 
-- **분석 요약** — 시간에 따른 이상 점수 변화와 집중 확인 구간
-- **이상 근거** — 점수가 높았던 관측값과 특징 잔차
-- **RUL 분석** — 저장된 RUL 모델 비교 결과
-- **AI 설명** — 현재 분석 결과를 바탕으로 한 선택 기능
+- **결과 요약** — 집중 확인 구간과 가장 높은 구간을 먼저 보고 시간에 따른 점수 변화를 확인
+- **근거 확인** — 점수가 높았던 관측값, 특징 잔차와 해당 결과에 대한 선택적 AI 설명
+- **RUL 분석** — 저장된 RUL 모델 비교 결과와 해당 결과에 대한 선택적 AI 설명
 - **새 분석 실행** — 준비된 XJTU-SY 데이터로 분석 실행
 - **보고서 저장** — 선택한 설비의 Markdown 보고서 생성
-- **상세 정보** — 모델, 데이터 범위, 실행 이력 등 개발자용 세부 정보
+- **상세 정보** — 검토 기준값, Spearman rho, 모델, 데이터 범위와 실행 이력
 
 ## 내 데이터로 분석하기
 
@@ -89,6 +88,7 @@ export INDUSTRIAL_PHM_GENAI_MODEL="<enabled-model-id>"
 uv run --locked --group research marimo run apps/analysis_explorer.py
 ```
 
+AI 설명은 독립 화면이 아니라 **근거 확인** 또는 **RUL 분석** 문맥에서 사용합니다.
 AI 호출은 **AI 설명 생성** 버튼을 누를 때만 실행됩니다.
 
 ## 다른 저장 결과 열기
