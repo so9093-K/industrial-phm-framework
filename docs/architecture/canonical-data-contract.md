@@ -207,6 +207,16 @@ boundary로 authorized export/snapshot을 충분히 다룰 수 있는지 먼저 
 maintenance/configuration history를 우선 검토합니다. 원본 데이터를 공개하거나 repository에 복사하지 않아도
 contract/adapter test를 수행할 수 있어야 합니다.
 
+이 integration을 준비하기 위한 첫 구현으로 `CsvSensorAdapter`는 **한 CSV 파일을 한 asset의 한 canonical
+segment로 읽는 명시적 export/snapshot 경계**를 제공합니다. 사용자가 channel column과 timestamp 또는 regular
+sampling rate를 직접 선언하며, missing/non-numeric/non-finite 값과 non-increasing timestamp는 fail-fast로
+거부합니다. Explicit timestamp 간격이 일정하지 않으면 값을 재격자화하지 않고 `irregular-sampling` warning을
+남깁니다. 원본 file SHA-256과 byte size는 source provenance로 보존합니다.
+
+이 CSV adapter는 실제 private/field source conformance를 완료했다는 주장이 아닙니다. Historian/DB/OPC UA
+connector, maintenance event, sensor calibration, vendor quality flag semantics는 첫 실제 source가 요구할 때
+검토합니다.
+
 ### Case D — MIMII DUE cross-domain conformance
 
 MIMII DUE의 16 kHz mono 16-bit PCM machine audio를 세 번째 source이자 첫 cross-domain case로 검증했습니다.
