@@ -578,9 +578,19 @@ def _(mo, observation):
 def _(mo, observation, quality_view):
     if observation is None:
         _source_mapping = mo.callout(
-            "Load a prepared source to inspect its operational mapping.",
+            "Load a prepared source to inspect its operational mapping and provenance.",
             kind="neutral",
             title="Source mapping · Unavailable",
+        )
+        _snapshot_evidence = mo.callout(
+            "No exact source snapshot identity is available.",
+            kind="neutral",
+            title="Source snapshot · Unavailable",
+        )
+        _validation_policy = mo.callout(
+            "No source-validation policy is available.",
+            kind="neutral",
+            title="Validation policy · Unavailable",
         )
     else:
         _source_mapping = mo.md(
@@ -594,19 +604,62 @@ def _(mo, observation, quality_view):
             f"| Channels | {', '.join(observation.channels)} |"
         )
 
+        if observation.source_snapshot is None:
+            _snapshot_evidence = mo.callout(
+                "This observation does not provide exact byte-level source identity.",
+                kind="neutral",
+                title="Source snapshot · Not recorded",
+            )
+        else:
+            _snapshot_evidence = mo.md(
+                "### Source snapshot\n\n"
+                "| Field | Recorded value |\n"
+                "| --- | --- |\n"
+                f"| File | `{observation.source_snapshot.name}` |\n"
+                f"| SHA-256 | `{observation.source_snapshot.sha256}` |\n"
+                f"| Size | {observation.source_snapshot.size_bytes:,} bytes |"
+            )
+
+        if observation.validation_policy is None:
+            _validation_policy = mo.callout(
+                "This observation does not provide declared validation-policy evidence.",
+                kind="neutral",
+                title="Validation policy · Not recorded",
+            )
+        else:
+            _timestamp_field = (
+                observation.validation_policy.source_timestamp_field or "Not declared"
+            )
+            _tolerance = observation.validation_policy.sampling_rate_tolerance_ratio
+            _tolerance_label = (
+                "Not declared" if _tolerance is None else f"{_tolerance:g}"
+            )
+            _validation_policy = mo.md(
+                "### Validation policy\n\n"
+                "| Policy | Declared value |\n"
+                "| --- | --- |\n"
+                f"| Source timestamp field | `{_timestamp_field}` |\n"
+                f"| Minimum samples | "
+                f"{observation.validation_policy.minimum_sample_count:,} |\n"
+                f"| Sampling-rate tolerance ratio | {_tolerance_label} |"
+            )
+
     data_quality_view = mo.vstack(
         [
             mo.md(
                 "## Data Quality & Evidence\n\n"
-                "운영 판단 전에 source validation과 품질 evidence를 독립적으로 확인합니다."
+                "운영 판단 전에 source identity, validation policy와 품질 evidence를 "
+                "독립적으로 확인합니다."
             ),
             quality_view,
             _source_mapping,
+            _snapshot_evidence,
+            _validation_policy,
             mo.callout(
                 "The current baseline does not auto-repair, resample, interpolate or "
                 "drop blocking source values to manufacture a PASS.",
                 kind="info",
-                title="Validation policy",
+                title="Validation behavior",
             ),
             mo.callout(
                 "Vendor quality flags, sensor calibration/replacement state and operating "
@@ -619,7 +672,6 @@ def _(mo, observation, quality_view):
         gap=1.2,
     )
     return data_quality_view
-
 
 @app.cell
 def _(mo):
