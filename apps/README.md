@@ -35,7 +35,12 @@ uv run --locked --group research --extra deep-learning \
   marimo run apps/analysis_explorer.py
 ```
 
-앱의 **새 분석 실행**에서 준비된 데이터 폴더만 입력하면 됩니다.
+앱의 **새 분석 실행**에서 데이터 폴더와 결과 위치를 입력한 뒤,
+먼저 **데이터 확인 및 실행 계획 만들기**를 누릅니다. 이 단계에서는 representative acquisition으로
+source profile과 population을 확인하고 실제 LSTM fit/scoring은 시작하지 않습니다.
+
+계획에 차단 항목이 없고 입력이 변경되지 않은 경우에만 **분석 실행**으로 실제 분석을 시작합니다.
+데이터 폴더나 결과 위치를 계획 확인 뒤 변경하면 기존 계획은 오래된 것으로 표시되며 다시 확인해야 합니다.
 
 예시:
 
