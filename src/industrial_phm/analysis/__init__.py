@@ -12,15 +12,15 @@ from industrial_phm.analysis.intervals import (
     derive_early_scored_window_review_threshold,
     score_exceedance_intervals,
 )
-from industrial_phm.analysis.projectors.xjtu import (
-    load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
-)
 from industrial_phm.analysis.prognostics_summary import (
     PrognosticsAssetSummary,
     PrognosticsMethodRow,
     prognostics_asset_ids,
     summarize_prognostics_for_asset,
+)
+from industrial_phm.analysis.projectors.xjtu import (
+    load_xjtu_lstm_analysis_view,
+    load_xjtu_rul_analysis_view,
 )
 from industrial_phm.analysis.report import (
     AnalysisReportError,

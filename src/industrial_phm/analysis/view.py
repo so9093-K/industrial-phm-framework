@@ -158,5 +158,3 @@ class AnalysisView:
         if self.prognostics_evidence is None:
             raise AnalysisViewError(f"{self.schema_id!r} carries no prognostics evidence")
         return self.prognostics_evidence
-
-
