@@ -661,10 +661,11 @@ capability만 모아 작은 화면을 만드는 것이 아니라, 운영 사용�
 Operations
 ├ Overview
 │  ├ Asset / Last observed / Data quality
-│  ├ Condition
-│  ├ Findings
+│  ├ Condition / Alerts / Findings
 │  ├ RUL
 │  └ Maintenance
+├ Assets
+│  └ Fleet / asset inventory
 ├ Asset
 │  ├ Observation identity / time / channels / population
 │  ├ Data quality
@@ -675,6 +676,15 @@ Operations
 │  ├ Trend & Evidence
 │  ├ Prognostics
 │  └ Maintenance context
+├ Data Quality
+│  ├ Source mapping / validation policy
+│  ├ Recorded quality evidence
+│  └ Missing vendor/sensor quality semantics
+├ Maintenance
+│  ├ Case
+│  ├ Work order
+│  ├ Maintenance history
+│  └ Post-maintenance validation
 └ System Health
    ├ Source
    ├ Ingestion

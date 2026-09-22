@@ -22,9 +22,12 @@ asset/source ID, optional measurement point, channel과 time mapping을 입력�
 
 현재 화면:
 
-- **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/RUL/Maintenance capability
+- **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
+- **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — Finding, Trend & Evidence, Prognostics, Maintenance context의 운영 조사 구조
+- **Data Quality** — source mapping, validation policy, quality evidence와 아직 기록되지 않은 quality semantics
+- **Maintenance** — Case, work order, maintenance history, post-maintenance validation 자리
 - **System Health** — source, ingestion, analysis runtime, logs/metrics/traces observability 자리
 
 Research benchmark의 anomaly/RUL을 operational state로 복사하지 않습니다. Field analysis와 deployment
