@@ -364,10 +364,7 @@ def _(mo, observation):
                     kind="warn",
                     title=f"Data Quality · {observation.data_quality.state.value.upper()}",
                 ),
-                mo.md(
-                    "| Severity | Code | Evidence |\n"
-                    "| --- | --- | --- |\n" + _rows
-                ),
+                mo.md("| Severity | Code | Evidence |\n| --- | --- | --- |\n" + _rows),
             ],
             gap=0.8,
         )
