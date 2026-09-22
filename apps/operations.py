@@ -613,15 +613,24 @@ def _(mo, observation_timeline_view):
                 "관측 사실과 PHM evidence를 같은 흐름에서 검토하기 위한 운영 surface입니다."
             ),
             mo.callout(
-                "No operational finding is selected because no validated field finding "
-                "pipeline is connected yet.",
+                "The AnalysisRun contract now defines run ID, asset/measurement point, "
+                "observation window, execution time, data quality, source snapshot "
+                "provenance, model deployment and produced capability IDs. No field "
+                "analysis producer is connected yet, so no run instance is shown.",
+                kind="neutral",
+                title="Analysis Run · Not connected",
+            ),
+            mo.callout(
+                "OperationalFinding is available as an evidence-linked contract, but no "
+                "validated field finding pipeline has produced one yet. A finding must "
+                "reference a versioned finding semantics ID and supporting evidence.",
                 kind="neutral",
                 title="Finding · Unavailable",
             ),
             observation_timeline_view,
             mo.callout(
                 "Anomaly/condition trend will appear only after a field analysis run "
-                "produces evidence with validated operational semantics.",
+                "produces capability-specific evidence with validated operational semantics.",
                 kind="neutral",
                 title="PHM Trend & Evidence · Unavailable",
             ),
@@ -873,7 +882,7 @@ def _(mo, observation, timeline):
                     mo.stat(
                         "Not connected",
                         label="Analysis runtime",
-                        caption="No operational analysis service yet",
+                        caption="No AnalysisRun producer/service connected yet",
                     ),
                     mo.stat(
                         "Not instrumented",

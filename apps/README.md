@@ -38,8 +38,13 @@ directory가 지정되면 single source보다 우선합니다.
 
 Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
 condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
-복사하지 않습니다. Field analysis와 deployment semantics가 생기면 같은 자리의 `Unavailable` 상태가 실제
-validated evidence로 대체됩니다.
+복사하지 않습니다.
+
+운영 분석 결과를 받을 application contract는 `AnalysisRun`과 `OperationalFinding`으로 분리되어 있습니다.
+`AnalysisRun`은 execution/provenance envelope만 소유하고, `OperationalFinding`은 capability,
+finding-semantics, opaque state와 evidence reference만 소유합니다. Generic finding에 score, threshold,
+severity, RUL 또는 maintenance priority를 넣지 않습니다. 현재 Operations에는 이 contract의 producer가 아직
+연결되지 않았으므로 Investigation과 System Health에서 `Not connected`/`Unavailable`로 표시합니다.
 
 ## Analysis Explorer
 

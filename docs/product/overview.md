@@ -434,9 +434,29 @@ measurement_point_id, observation time range, channel/sample population과 aggre
 보존합니다. 이는 current asset health나 operational PHM result가 아니며 anomaly/state/diagnosis/RUL 의미를
 추가하지 않습니다.
 
-AnalysisRun, operational finding, deployment identity, validated threshold/state semantics 같은 더 강한
-operational contract는 실제 field analysis workflow에서 필요해지는 순서로 추가합니다. 그 전까지
-ExperimentInspection을 operational result로 확장하거나 범용 PHMResult를 선제적으로 만들지 않습니다.
+첫 stronger operational contract로 `AnalysisRun`과 `OperationalFinding`을 application layer에 추가했습니다.
+
+`AnalysisRun`은 다음 실행/provenance 사실만 보존합니다.
+
+- analysis run ID, asset/source/optional measurement-point identity
+- observation start/end와 execution start/end
+- aggregate `DataQualityAssessment`
+- optional model deployment identity
+- exact prepared source snapshot evidence
+- 해당 run이 실제로 생성한 capability ID 목록
+
+`OperationalFinding`은 state-like finding의 공통 envelope이며 finding/run/asset/measurement-point identity,
+observation time, capability ID, versioned finding-semantics ID, opaque state와 evidence reference만 보존합니다.
+Generic finding에 score, threshold, severity, diagnosis payload, RUL 또는 maintenance priority를 넣지 않습니다.
+Finding과 run의 identity/measurement-point/observation-window linkage는 별도 validator로 fail-fast 검증합니다.
+
+현재 field analysis producer는 아직 없습니다. 따라서 contract가 존재한다는 이유만으로 Operations가 finding을
+표시하지 않으며, 실제 source-appropriate analysis protocol이 이 contract를 생성할 때까지
+`Not connected`/`Unavailable` 상태를 유지합니다. Prognostics는 별도 capability type으로 다룰 예정이며
+field RUL semantics가 검증되기 전에 `OperationalPrognosticEstimate`를 선제 구현하지 않습니다.
+
+`ExperimentInspection`을 operational result로 확장하거나 범용 `PHMResult`를 만들지 않는 원칙은 그대로
+유지합니다.
 
 UX 관점에서 향후 operational boundary에서 검토할 정보 범주는 다음과 같습니다.
 

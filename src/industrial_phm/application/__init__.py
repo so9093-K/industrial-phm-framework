@@ -12,14 +12,22 @@ from industrial_phm.application.observation import (
     ObservationValidationPolicy,
     SourceSnapshotEvidence,
 )
+from industrial_phm.application.operational import (
+    AnalysisRun,
+    OperationalFinding,
+    validate_operational_finding_against_run,
+)
 
 __all__ = [
+    "AnalysisRun",
     "AssetObservationSummary",
     "AssetObservationTimeline",
     "ObservationValidationPolicy",
+    "OperationalFinding",
     "SourceSnapshotEvidence",
     "build_field_csv_observation_summary",
     "load_field_csv_observation_summary",
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",
+    "validate_operational_finding_against_run",
 ]
