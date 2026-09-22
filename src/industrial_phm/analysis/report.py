@@ -76,13 +76,13 @@ def render_analysis_report_markdown(
             "",
             "## 기술 정보",
             "",
-            f"- Split: `{analysis.identity.split_id}` / `{analysis.identity.fold_id}`",
-            f"- Evidence class: `{analysis.evidence_class}`",
-            f"- Code revision: `{analysis.identity.code_revision}`",
-            f"- Artifact: `{analysis.artifact_path}`",
-            f"- Score semantics: `{anomaly.score_semantics_id}`",
-            f"- Direction: `{anomaly.score_direction}`",
-            f"- Late-vs-middle rank probability: "
+            f"- 데이터 분할: `{analysis.identity.split_id}` / `{analysis.identity.fold_id}`",
+            f"- 결과 분류: `{analysis.evidence_class}`",
+            f"- 코드 버전(Git revision): `{analysis.identity.code_revision}`",
+            f"- 결과 파일: `{analysis.artifact_path}`",
+            f"- 점수 정의: `{anomaly.score_semantics_id}`",
+            f"- 점수 방향: `{anomaly.score_direction}`",
+            f"- 후기 대비 중기 순위 확률: "
             f"{asset.late_vs_middle_rank_probability:.6g}",
             "",
             "### 분석 결과에 기록된 기능 범위",
@@ -146,7 +146,7 @@ def _append_prognostics(
             "저장된 RUL 모델 결과를 같은 설비 기준으로 비교합니다. "
             "이 표의 값은 실시간 설비 예측이 아니라 저장된 분석 결과입니다.",
             "",
-            "| 방법 | 마지막 기록 시점 RUL 예측 | 기준 acquisition | 검증 MAE | Signed error |",
+            "| 방법 | 마지막 기록 시점 RUL 예측 | 기준 acquisition | 검증 MAE | 평균 부호 오차 |",
             "| --- | ---: | ---: | ---: | ---: |",
         )
     )
@@ -169,20 +169,20 @@ def _append_prognostics(
             "",
             "### RUL 기술 정보",
             "",
-            f"- Relationship: `{compatibility.relationship}`",
-            f"- Evidence class: `{summary.evidence_class}`",
-            f"- Code revision: `{prognostics.identity.code_revision}`",
-            f"- Artifact: `{summary.artifact_path}`",
-            f"- Target: `{summary.target_definition_id}`",
-            f"- Unit: `{summary.target_unit}`",
-            f"- Formula: `{summary.target_formula}`",
-            f"- Endpoint semantics: `{summary.endpoint_semantics}`",
-            f"- Target clipped: {str(summary.target_is_clipped).lower()}",
-            f"- Support: {summary.support_definition} from acquisition "
+            f"- 결과 관계: `{compatibility.relationship}`",
+            f"- 결과 분류: `{summary.evidence_class}`",
+            f"- 코드 버전(Git revision): `{prognostics.identity.code_revision}`",
+            f"- 결과 파일: `{summary.artifact_path}`",
+            f"- RUL target ID: `{summary.target_definition_id}`",
+            f"- 단위: `{summary.target_unit}`",
+            f"- 계산식: `{summary.target_formula}`",
+            f"- 종료점 의미: `{summary.endpoint_semantics}`",
+            f"- Target clipping 적용: {str(summary.target_is_clipped).lower()}",
+            f"- 평가 범위: {summary.support_definition}, acquisition "
             f"{summary.support_first_acquisition}",
-            f"- Uncertainty interval available: "
+            f"- 불확실성 구간 제공: "
             f"{str(summary.uncertainty_interval_available).lower()}",
-            f"- Physical failure threshold validated: "
+            f"- 물리적 고장 기준 검증: "
             f"{str(summary.physical_failure_threshold_validated).lower()}",
             "",
             "이상 분석 artifact와 RUL artifact는 선언된 dataset/split/population 범위가 "
