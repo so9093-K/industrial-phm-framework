@@ -114,7 +114,7 @@ jobs:
             --no-include-code \
             --output /tmp/analysis-explorer-mimii-inspection.html
 
-      - name: Execute PHM Operations observation surface
+      - name: Execute PHM Operations observation surfaces
         run: |
           cat > /tmp/operations-observation.csv <<'EOF'
           timestamp,vibration_x,temperature
@@ -132,4 +132,29 @@ jobs:
             uv run --locked --group research marimo export html \
             apps/operations.py \
             --no-include-code \
-            --output /tmp/phm-operations.html
+            --output /tmp/phm-operations-single.html
+
+          mkdir -p /tmp/operations-history
+          cat > /tmp/operations-history/segment-late.csv <<'EOF'
+          timestamp,vibration_x,temperature
+          2026-09-22T12:00:00+09:00,-2.0,43.0
+          2026-09-22T12:00:01+09:00,0.0,43.2
+          2026-09-22T12:00:02+09:00,2.0,43.4
+          EOF
+          cat > /tmp/operations-history/segment-early.csv <<'EOF'
+          timestamp,vibration_x,temperature
+          2026-09-22T09:00:00+09:00,-1.0,42.0
+          2026-09-22T09:00:01+09:00,0.0,42.2
+          2026-09-22T09:00:02+09:00,1.0,42.4
+          EOF
+          INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY=/tmp/operations-history \
+          INDUSTRIAL_PHM_OPERATIONS_ASSET_ID=ci-pump-01 \
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=ci-prepared-history \
+          INDUSTRIAL_PHM_OPERATIONS_MEASUREMENT_POINT_ID=drive-end-bearing \
+          INDUSTRIAL_PHM_OPERATIONS_CHANNELS=vibration_x,temperature \
+          INDUSTRIAL_PHM_OPERATIONS_TIMESTAMP_COLUMN=timestamp \
+          INDUSTRIAL_PHM_OPERATIONS_SAMPLING_RATE_HZ=1 \
+            uv run --locked --group research marimo export html \
+            apps/operations.py \
+            --no-include-code \
+            --output /tmp/phm-operations-history.html
