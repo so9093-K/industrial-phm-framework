@@ -37,7 +37,6 @@ from industrial_phm.experiments.xjtu_holdout import XJTU_HOLDOUT_RESULT_SCHEMA_I
 from industrial_phm.experiments.xjtu_inspection_support import (
     LSTM_AVAILABLE_CAPABILITIES,
     SCORE_SEMANTICS,
-    UNSUPPORTED_CAPABILITIES,
     format_parameters,
     validated_capability_scope,
 )

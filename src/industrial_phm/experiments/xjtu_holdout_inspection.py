@@ -15,6 +15,7 @@ from industrial_phm.experiments.result_inspection_support import (
     _capability_stage,
     _expect_equal,
     _integer,
+    _mapping,
     _mapping_field,
     _number,
     _positive_int,
