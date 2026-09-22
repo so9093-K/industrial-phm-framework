@@ -17,10 +17,6 @@ from industrial_phm.application.operational import (
     OperationalFinding,
     validate_operational_finding_against_run,
 )
-from industrial_phm.application.source_registry import (
-    JsonSourceRepository,
-    SourceRegistryFormatError,
-)
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
@@ -30,6 +26,10 @@ from industrial_phm.application.source_registration import (
     SourceRepository,
     SourceType,
     UnknownRegisteredSourceError,
+)
+from industrial_phm.application.source_registry import (
+    JsonSourceRepository,
+    SourceRegistryFormatError,
 )
 
 __all__ = [
