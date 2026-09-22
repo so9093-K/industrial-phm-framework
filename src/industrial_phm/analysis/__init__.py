@@ -35,6 +35,8 @@ from industrial_phm.analysis.report import (
 from industrial_phm.analysis.run import (
     AnalysisRunError,
     XjtuLstmAnalysisRun,
+    XjtuLstmAnalysisRunPlan,
+    plan_xjtu_lstm_analysis,
     run_xjtu_lstm_analysis_from_source,
 )
 from industrial_phm.analysis.view import (
@@ -71,10 +73,12 @@ __all__ = [
     "ScoreExceedanceInterval",
     "ScoreIntervalError",
     "XjtuLstmAnalysisRun",
+    "XjtuLstmAnalysisRunPlan",
     "compare_analysis_evidence",
     "derive_early_scored_window_review_threshold",
     "load_xjtu_lstm_analysis_view",
     "load_xjtu_rul_analysis_view",
+    "plan_xjtu_lstm_analysis",
     "prognostics_asset_ids",
     "render_analysis_report_markdown",
     "run_xjtu_lstm_analysis_from_source",
