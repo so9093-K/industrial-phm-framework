@@ -112,7 +112,8 @@ def plan_xjtu_lstm_analysis(
         "actual execution requires a clean tracked Git checkout when code_revision is not supplied"
     )
     warnings.append(
-        "this run produces retrospective development evidence, not live fault state or maintenance advice"
+        "this run produces retrospective development evidence, "
+        "not live fault state or maintenance advice"
     )
 
     return XjtuLstmAnalysisRunPlan(
