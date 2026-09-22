@@ -11,6 +11,7 @@
 
 ### Added
 
+- Operations observation read model에 prepared source snapshot filename/SHA-256/byte size와 declared validation policy(timestamp field, minimum sample count, sampling-rate tolerance)를 보존하고 Data Quality & Evidence 화면에서 직접 확인할 수 있게 했습니다. Absolute local path는 노출하지 않습니다.
 - 첫 PHM Operations interactive surface를 추가했습니다. Overview/Assets/Asset/Investigation/Data Quality/Maintenance/System Health 정보 구조와 Condition/Alert/Finding/RUL/Freshness/Sensor context/maintenance/telemetry capability 자리를 처음부터 제공하고, 현재 evidence가 없는 값은 `Not validated`/`Unavailable`/`Not connected`/`Not configured`/`Not instrumented` 상태로 명시합니다. Prepared field CSV는 application use case를 통해 observation/data-quality 사실만 표시합니다.
 - Prepared field CSV validation 결과를 Operations가 직접 artifact를 해석하지 않고 소비할 수 있도록 AssetObservationSummary application read model을 추가했습니다. Asset/source/measurement-point/time/channel/sample과 aggregate data-quality state만 전달하며 anomaly, alarm, diagnosis, RUL 또는 maintenance 의미는 만들지 않습니다. Adapter → application 경계를 첫 integration test로 고정했습니다.
 - Prepared field CSV export를 Python 코드 없이 검증하는 `industrial-phm data validate-csv` CLI. Asset/channel/time mapping을 명시적으로 받고 sample/channel/time basis, source SHA-256, quality PASS/WARN을 출력하며 모델 fitting이나 thresholding은 실행하지 않습니다.

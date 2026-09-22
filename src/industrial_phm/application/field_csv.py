@@ -9,7 +9,11 @@ from industrial_phm.adapters import (
     CsvSensorValidationReport,
     validate_csv_sensor_source,
 )
-from industrial_phm.application.observation import AssetObservationSummary
+from industrial_phm.application.observation import (
+    AssetObservationSummary,
+    ObservationValidationPolicy,
+    SourceSnapshotEvidence,
+)
 from industrial_phm.contracts import DataQualityAssessment
 
 
@@ -29,6 +33,16 @@ def build_field_csv_observation_summary(
         observed_start_at=report.first_timestamp,
         observed_end_at=report.last_timestamp,
         sampling_rate_hz=report.sampling_rate_hz,
+        source_snapshot=SourceSnapshotEvidence(
+            name=report.source.name,
+            sha256=report.source_sha256,
+            size_bytes=report.source_size_bytes,
+        ),
+        validation_policy=ObservationValidationPolicy(
+            source_timestamp_field=report.timestamp_column,
+            minimum_sample_count=report.minimum_sample_count,
+            sampling_rate_tolerance_ratio=report.sampling_rate_tolerance_ratio,
+        ),
         data_quality=DataQualityAssessment(report.quality_issues),
     )
 

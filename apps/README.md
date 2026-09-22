@@ -26,7 +26,7 @@ asset/source ID, optional measurement point, channel과 time mapping을 입력�
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — Finding, Trend & Evidence, Prognostics, Maintenance context의 운영 조사 구조
-- **Data Quality** — source mapping, validation policy, quality evidence와 아직 기록되지 않은 quality semantics
+- **Data Quality** — source mapping, exact snapshot SHA-256/byte size, declared validation policy, quality evidence와 아직 기록되지 않은 quality semantics
 - **Maintenance** — Case, work order, maintenance history, post-maintenance validation 자리
 - **System Health** — source, ingestion, analysis runtime, logs/metrics/traces observability 자리
 

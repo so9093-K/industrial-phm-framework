@@ -677,7 +677,8 @@ Operations
 │  ├ Prognostics
 │  └ Maintenance context
 ├ Data Quality
-│  ├ Source mapping / validation policy
+│  ├ Source mapping / exact snapshot identity
+│  ├ Declared validation policy
 │  ├ Recorded quality evidence
 │  └ Missing vendor/sensor quality semantics
 ├ Maintenance
@@ -702,10 +703,11 @@ Operations
 - `Not instrumented`: ingestion/runtime telemetry처럼 platform observability가 아직 계측되지 않음
 
 현재 연결된 concrete path는 prepared field CSV → adapter validation → `AssetObservationSummary`입니다.
-따라서 asset/source/measurement point, observation range, channel/sample population과 aggregate data quality는
-실제 값으로 표시할 수 있습니다. Condition/operational Finding/RUL/Maintenance는 research artifact에서
-추론하지 않으며 각각의 production boundary가 생길 때 현재 자리의 explicit state를 실제 evidence로
-대체합니다.
+따라서 asset/source/measurement point, observation range, channel/sample population, aggregate data quality뿐
+아니라 prepared snapshot filename/SHA-256/byte size와 timestamp field/minimum sample count/sampling-rate
+tolerance 같은 declared validation policy를 실제 값으로 표시합니다. Absolute local path는 operational read
+model에 올리지 않습니다. Condition/operational Finding/RUL/Maintenance는 research artifact에서 추론하지
+않으며 각각의 production boundary가 생길 때 현재 자리의 explicit state를 실제 evidence로 대체합니다.
 
 이 구조는 빈 placeholder를 유지하기 위한 것이 아니라 **다음 구현 순서를 UI에서 드러내는 executable product
 contract**입니다. 다음 작업은 이 surface에 field analysis run/operational finding을 연결하고, 별도

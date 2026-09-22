@@ -69,8 +69,9 @@ uv run --locked --group research marimo run apps/operations.py
 ```
 
 현재 Operations 앱은 prepared single-asset CSV bootstrap을 사용합니다. 화면에서 source path, asset/source ID,
-measurement point, channel/time mapping을 입력하면 application boundary를 통해 observation/data-quality
-summary를 표시합니다. Condition, Finding, RUL, Maintenance와 System Health 영역은 처음부터 존재하며
+measurement point, channel/time mapping을 입력하면 application boundary를 통해 observation/data-quality와
+exact source snapshot provenance(SHA-256/byte size), declared validation policy를 표시합니다. Condition,
+Finding, RUL, Maintenance와 System Health 영역은 처음부터 존재하며
 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로 표시합니다.
 
 CLI에서 저장된 결과의 기술 정보를 확인하려면 다음 명령을 사용할 수 있습니다.
