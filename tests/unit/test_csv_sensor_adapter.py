@@ -6,9 +6,9 @@ import pytest
 
 from industrial_phm.adapters import (
     CsvSensorAdapter,
-    DomainAdapter,
     CsvSensorLayout,
     CsvSensorSourceError,
+    DomainAdapter,
     validate_csv_sensor_source,
 )
 from industrial_phm.contracts import DataQualitySeverity
@@ -70,7 +70,7 @@ def test_timestamp_csv_reports_irregular_sampling_without_regridding(tmp_path: P
     )
 
     report = validate_csv_sensor_source(source, layout)
-    series = tuple(CsvSensorAdapter(layout).iter_series(source))[0]
+    series = next(iter(CsvSensorAdapter(layout).iter_series(source)))
 
     assert report.minimum_interval_seconds == 1.0
     assert report.maximum_interval_seconds == 2.0

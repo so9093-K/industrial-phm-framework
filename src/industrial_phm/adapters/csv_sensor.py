@@ -8,6 +8,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 from types import MappingProxyType
 
@@ -51,9 +52,10 @@ class CsvSensorLayout:
                 raise ValueError("timestamp_column must be non-empty when provided")
             if self.timestamp_column in channels:
                 raise ValueError("timestamp_column must not also be a channel column")
-        if self.sampling_rate_hz is not None:
-            if not math.isfinite(self.sampling_rate_hz) or self.sampling_rate_hz <= 0:
-                raise ValueError("sampling_rate_hz must be a positive finite number")
+        if self.sampling_rate_hz is not None and (
+            not math.isfinite(self.sampling_rate_hz) or self.sampling_rate_hz <= 0
+        ):
+            raise ValueError("sampling_rate_hz must be a positive finite number")
         if self.timestamp_column is None and self.sampling_rate_hz is None:
             raise ValueError("timestamp_column or sampling_rate_hz must be provided")
         if (
@@ -282,7 +284,7 @@ def _validate_timestamp_order(
         return ()
 
     intervals: list[float] = []
-    for previous, current in zip(timestamps, timestamps[1:]):
+    for previous, current in pairwise(timestamps):
         try:
             interval = (current - previous).total_seconds()
         except TypeError as error:
