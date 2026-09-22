@@ -708,6 +708,56 @@ slice에서 실제 요구가 확인될 때 도입합니다.
 사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
 RUL·diagnosis·새 모델·새 source를 같은 시스템 안에서 확장합니다.
 
+## 9. PHM Operations 현재 상태
+
+Operations UI의 첫 vertical slice는 `apps/operations.py`로 구현합니다. 이 surface의 목적은 현재 구현된
+capability만 모아 작은 화면을 만드는 것이 아니라, 운영 사용자가 실제로 필요로 하는 정보 구조를 먼저
+고정하고 각 값의 evidence 상태를 명확히 구분하는 것입니다.
+
+```text
+Operations
+├ Overview
+│  ├ Asset / Last observed / Data quality
+│  ├ Condition
+│  ├ Findings
+│  ├ RUL
+│  └ Maintenance
+├ Asset
+│  ├ Observation identity / time / channels / population
+│  ├ Data quality
+│  ├ Freshness
+│  └ Sensor context
+├ Investigation
+│  ├ Finding
+│  ├ Trend & Evidence
+│  ├ Prognostics
+│  └ Maintenance context
+└ System Health
+   ├ Source
+   ├ Ingestion
+   ├ Analysis runtime
+   └ Logs / metrics / traces
+```
+
+**UI 구조의 존재와 numerical/operational 사실의 존재를 분리합니다.** 사용자가 필요로 하는 영역은 값이
+아직 없더라도 숨기지 않습니다. 반면 값은 validated evidence가 있을 때만 표시합니다.
+
+- `Not validated`: 필요한 데이터는 있을 수 있으나 field-specific state/threshold 의미가 검증되지 않음
+- `Unavailable`: 해당 operational result/evidence가 현재 생성되지 않음
+- `Not connected`: maintenance/history/service 같은 외부 capability가 연결되지 않음
+- `Not configured`: freshness처럼 제품 정책이 아직 선언되지 않음
+- `Not instrumented`: ingestion/runtime telemetry처럼 platform observability가 아직 계측되지 않음
+
+현재 연결된 concrete path는 prepared field CSV → adapter validation → `AssetObservationSummary`입니다.
+따라서 asset/source/measurement point, observation range, channel/sample population과 aggregate data quality는
+실제 값으로 표시할 수 있습니다. Condition/operational Finding/RUL/Maintenance는 research artifact에서
+추론하지 않으며 각각의 production boundary가 생길 때 현재 자리의 explicit state를 실제 evidence로
+대체합니다.
+
+이 구조는 빈 placeholder를 유지하기 위한 것이 아니라 **다음 구현 순서를 UI에서 드러내는 executable product
+contract**입니다. 다음 작업은 이 surface에 field analysis run/operational finding을 연결하고, 별도
+source/analysis runtime telemetry를 correlation ID와 함께 계측하는 것입니다.
+
 ## References
 
 - ISO 9241-210 human-centred design overview: https://www.iso.org/standard/77520.html

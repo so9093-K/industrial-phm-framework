@@ -29,6 +29,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
+- **운영 관측 화면** — PHM Operations에서 asset/source 관측, data quality, PHM finding, RUL, maintenance, system health 자리를 같은 운영 구조에서 확인합니다. 아직 검증되지 않은 capability는 숨기지 않고 명시적 상태로 표시합니다.
 - **보고서 생성** — 분석 결과를 같은 수치와 내용으로 재현 가능한 Markdown 보고서로 저장합니다.
 - **생성형 AI 설명** — 계산이 끝난 분석 결과를 바탕으로 요약과 질의응답을 제공합니다.
 
@@ -60,6 +61,17 @@ uv run --locked --group research marimo run apps/analysis_explorer.py
 
 브라우저에서 기본 제공 XJTU-SY 분석 결과를 바로 확인할 수 있습니다.
 `uv run`이 lockfile 기준 프로젝트 환경을 확인하고 필요한 의존성을 준비합니다.
+
+운영 관측 surface는 별도 앱으로 실행합니다.
+
+```bash
+uv run --locked --group research marimo run apps/operations.py
+```
+
+현재 Operations 앱은 prepared single-asset CSV bootstrap을 사용합니다. 화면에서 source path, asset/source ID,
+measurement point, channel/time mapping을 입력하면 application boundary를 통해 observation/data-quality
+summary를 표시합니다. Condition, Finding, RUL, Maintenance와 System Health 영역은 처음부터 존재하며
+검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로 표시합니다.
 
 CLI에서 저장된 결과의 기술 정보를 확인하려면 다음 명령을 사용할 수 있습니다.
 
