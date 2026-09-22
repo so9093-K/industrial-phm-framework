@@ -34,38 +34,42 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 
 현재 구현된 분석 화면과 실행 방법은 [Analysis Explorer 안내](apps/README.md)에 정리되어 있습니다.
 
-## 빠르게 시작하기
+## 가장 빠르게 실행하기
 
-검증된 개발 환경은 CPython `3.14.x`와 저장소의 `uv.lock`입니다.
+GitHub 저장소 접근 권한, Git, [uv](https://docs.astral.sh/uv/)가 필요합니다.
+원본 센서 데이터를 내려받지 않아도 저장소에 포함된 예제 분석 결과를 바로 볼 수 있습니다.
 
-### 1. 환경 준비
+### 1. 저장소 가져오기
+
+```bash
+git clone https://github.com/so9093-K/industrial-phm-framework.git
+cd industrial-phm-framework
+```
+
+### 2. Python 준비
 
 ```bash
 uv python install 3.14
-uv sync --locked
-uv run --locked industrial-phm doctor
 ```
 
-### 2. 기존 분석 결과 확인
-
-원본 데이터셋을 내려받지 않아도 저장소에 기록된 분석 결과를 확인할 수 있습니다.
+### 3. Analysis Explorer 실행
 
 ```bash
-uv run --locked industrial-phm experiment inspect \
-  docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json
+uv run --locked --group research marimo run apps/analysis_explorer.py
+```
 
+브라우저에서 기본 제공 XJTU-SY 분석 결과를 바로 확인할 수 있습니다.
+`uv run`이 lockfile 기준 프로젝트 환경을 확인하고 필요한 의존성을 준비합니다.
+
+CLI에서 저장된 결과의 기술 정보를 확인하려면 다음 명령을 사용할 수 있습니다.
+
+```bash
 uv run --locked industrial-phm experiment inspect \
   docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json
 ```
 
-### 3. 분석 화면 열기
-
-```bash
-uv sync --locked --group research
-uv run --locked --group research marimo edit apps/analysis_explorer.py
-```
-
-생성형 AI 설명 기능을 사용할 때는 `OPENAI_API_KEY`와 `INDUSTRIAL_PHM_GENAI_MODEL`을 실행 환경에 설정합니다.
+직접 준비한 XJTU-SY 데이터로 새 분석을 실행하려면
+[Analysis Explorer 안내](apps/README.md)의 **내 데이터로 분석하기**를 따릅니다.
 
 ## 사용한 데이터
 
