@@ -250,6 +250,7 @@
 
 ### Changed
 
+- Git clone부터 Analysis Explorer 실행까지의 사용자 여정을 정리했습니다. README의 첫 실행을 `clone → Python 3.14 → marimo run`으로 단순화하고, Explorer 주요 화면을 한국어 결과 중심으로 재구성했습니다. 새 XJTU 분석은 데이터 폴더만 입력하면 현재 clean Git revision을 자동 기록하며, 결과 화면에서 Markdown 보고서를 바로 저장할 수 있습니다.
 - Root README를 한국 사용자 중심의 제품 소개 흐름으로 다시 구성했습니다. 영문 섹션 제목과 미지원 기능/신뢰 경계 중심 설명을 제거하고 전체 구조, 주요 기능, 빠른 시작, 사용 데이터, 개발 방향과 문서 링크에 집중했습니다. Analysis Explorer 화면 캡처는 향후 `assets/analysis-explorer.png`만 추가하면 상단 소개 영역에 연결할 수 있도록 위치와 자산 규칙을 준비했습니다.
 - Root README를 197-line minimal landing page로 다시 압축했습니다. Capability, architecture, quickstart, evidence/limits, roadmap과 핵심 docs만 남기고 중복된 RUL 상세·research direction·repository layout 설명을 authoritative 문서로 이동했습니다.
 - Root README를 experiment history 중심 문서에서 capability/status, quickstart, evidence boundary와 roadmap 중심의 product landing page로 재구성했습니다. 2025–2026 PHM의 uncertainty·robustness·domain shift·human-in-the-loop·LLM copilot·industrial integration 흐름과 관련 표준/산업 사례는 별도 research note로 분리했습니다.
