@@ -95,6 +95,21 @@ uv run --locked industrial-phm experiment inspect \
 현재 우선순위는 다양한 모델을 추가하는 것보다 실제 센서 데이터를 더 쉽게 연결하고,
 현장 데이터에서 분석 결과가 어떻게 달라지는지 확인하는 것입니다.
 
+준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
+
+```bash
+uv run --locked industrial-phm data validate-csv \
+  --source /path/to/pump.csv \
+  --asset-id pump-01 \
+  --channel vibration_x \
+  --channel vibration_y \
+  --sampling-rate-hz 12800
+```
+
+Timestamp column을 함께 사용하는 경우 `--timestamp-column`을 지정할 수 있고, declared sampling rate와
+timestamp interval의 consistency를 확인하려면 `--sampling-rate-tolerance-ratio`를 명시합니다. 이 명령은
+source structure/quality/provenance만 검증하며 모델 fitting이나 thresholding은 실행하지 않습니다.
+
 최근 PHM 연구와 산업 적용 방향은
 [PHM 연구·산업 동향](docs/research/phm-industry-direction.md)에 별도로 정리합니다.
 

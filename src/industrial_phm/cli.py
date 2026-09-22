@@ -17,6 +17,7 @@ from industrial_phm.commands.data import (
     _run_data_list,
     _run_data_status,
     _run_data_validate,
+    _run_data_validate_csv,
     _run_data_verify,
 )
 from industrial_phm.commands.experiment import (
@@ -149,6 +150,58 @@ def build_parser() -> argparse.ArgumentParser:
         help="check every waveform instead of representative samples",
     )
     data_validate.set_defaults(handler=_run_data_validate)
+
+    data_validate_csv = data_commands.add_parser(
+        "validate-csv",
+        help="validate a prepared single-asset field CSV export",
+    )
+    data_validate_csv.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help="prepared CSV sensor export",
+    )
+    data_validate_csv.add_argument(
+        "--asset-id",
+        required=True,
+        help="canonical asset identity for this CSV segment",
+    )
+    data_validate_csv.add_argument(
+        "--channel",
+        dest="channels",
+        action="append",
+        required=True,
+        help="sensor value column; repeat for multiple channels",
+    )
+    data_validate_csv.add_argument(
+        "--timestamp-column",
+        default=None,
+        help="optional ISO 8601 timestamp column",
+    )
+    data_validate_csv.add_argument(
+        "--sampling-rate-hz",
+        type=float,
+        default=None,
+        help="optional declared regular sampling rate in Hz",
+    )
+    data_validate_csv.add_argument(
+        "--sampling-rate-tolerance-ratio",
+        type=float,
+        default=None,
+        help=("optional maximum relative timestamp-interval deviation from declared sampling rate"),
+    )
+    data_validate_csv.add_argument(
+        "--minimum-sample-count",
+        type=int,
+        default=1,
+        help="minimum accepted data-row count",
+    )
+    data_validate_csv.add_argument(
+        "--delimiter",
+        default=",",
+        help="single-character CSV delimiter",
+    )
+    data_validate_csv.set_defaults(handler=_run_data_validate_csv)
 
     feature = subcommands.add_parser(
         "feature",

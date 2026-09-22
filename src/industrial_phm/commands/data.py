@@ -6,9 +6,12 @@ import argparse
 import sys
 
 from industrial_phm.adapters import (
+    CsvSensorLayout,
+    CsvSensorSourceError,
     ImsBearingSourceError,
     MimiiDueSourceError,
     XjtuSySourceError,
+    validate_csv_sensor_source,
     validate_ims_source,
     validate_mimii_due_source,
     validate_xjtu_source,
@@ -210,6 +213,58 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
     else:
         print("next: prepare the adapter source layout described in data/README.md")
     print(f"then: industrial-phm data validate {manifest.dataset_id} --source <prepared-source>")
+    return 0
+
+
+def _run_data_validate_csv(args: argparse.Namespace) -> int:
+    try:
+        layout = CsvSensorLayout(
+            asset_id=args.asset_id,
+            channel_columns=tuple(args.channels),
+            timestamp_column=args.timestamp_column,
+            sampling_rate_hz=args.sampling_rate_hz,
+            sampling_rate_tolerance_ratio=args.sampling_rate_tolerance_ratio,
+            minimum_sample_count=args.minimum_sample_count,
+            delimiter=args.delimiter,
+        )
+        report = validate_csv_sensor_source(args.source, layout)
+    except (CsvSensorSourceError, OSError, ValueError) as error:
+        print(f"field CSV validation failed: {error}", file=sys.stderr)
+        return 1
+
+    print("source kind: field-csv")
+    print(f"asset: {report.asset_id}")
+    print(f"local source: {report.source}")
+    print(f"samples: {report.sample_count}")
+    print(f"channels: {', '.join(report.channels)}")
+    if report.timestamp_column is not None:
+        print(f"timestamp column: {report.timestamp_column}")
+        if report.first_timestamp is not None:
+            print(f"first timestamp: {report.first_timestamp.isoformat()}")
+        if report.last_timestamp is not None:
+            print(f"last timestamp: {report.last_timestamp.isoformat()}")
+        if report.minimum_interval_seconds is not None:
+            print(f"minimum interval seconds: {report.minimum_interval_seconds:g}")
+        if report.maximum_interval_seconds is not None:
+            print(f"maximum interval seconds: {report.maximum_interval_seconds:g}")
+    if report.sampling_rate_hz is not None:
+        print(f"sampling rate hz: {report.sampling_rate_hz:g}")
+    if report.maximum_sampling_interval_deviation_ratio is not None:
+        print(
+            "maximum sampling interval deviation ratio: "
+            f"{report.maximum_sampling_interval_deviation_ratio:g}"
+        )
+    print(f"bytes: {report.source_size_bytes}")
+    print(f"sha256: {report.source_sha256}")
+
+    if report.quality_issues:
+        print("quality state: WARN")
+        for issue in report.quality_issues:
+            print(f"quality {issue.severity.value} [{issue.code}]: {issue.message}")
+    else:
+        print("quality state: PASS")
+    print("canonical mapping: READY")
+    print("scope: source validation only; no model fitting or thresholding performed")
     return 0
 
 
