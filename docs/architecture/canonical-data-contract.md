@@ -222,7 +222,10 @@ sampling rate를 직접 선언하며, missing/non-numeric/non-finite 값과 non-
 `sampling-rate-mismatch` warning을 남깁니다. Framework가 임의 tolerance로 sampling metadata를 수정하거나
 resampling하지 않습니다. 원본 file SHA-256과 byte size는 source provenance로 보존합니다. Adapter가 canonical
 segment를 만들 때 validation에서 관찰한 quality state/issue code와 sampling interval 최대 편차도 primitive
-metadata로 보존하므로 이후 feature projection에서 경고 provenance가 사라지지 않습니다.
+metadata로 보존하므로 이후 feature projection에서 경고 provenance가 사라지지 않습니다. CSV content는
+하나의 byte snapshot으로 읽고, 바로 그 bytes에서 UTF-8 text parsing과 SHA-256/byte-size provenance를 함께
+만듭니다. 따라서 adapter 실행 중 파일이 교체되더라도 parsed values와 기록된 digest가 서로 다른 file state를
+가리키지 않습니다.
 
 이 CSV adapter는 실제 private/field source conformance를 완료했다는 주장이 아닙니다. Historian/DB/OPC UA
 connector, maintenance event, sensor calibration, vendor quality flag semantics는 첫 실제 source가 요구할 때

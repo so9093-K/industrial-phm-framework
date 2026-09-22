@@ -253,6 +253,7 @@
 
 ### Changed
 
+- Field CSV parsing과 SHA-256/byte-size provenance를 동일 byte snapshot에서 계산하도록 바꿔, source file이 실행 중 변경될 때 parsed values와 기록된 digest가 서로 다른 file state를 가리킬 수 있는 TOCTOU 간극을 제거했습니다.
 - Field CSV validation에서 관찰한 source-quality state/issue code와 sampling interval 최대 편차를 canonical metadata에 보존하고, 기존 vibration feature projection이 해당 provenance를 그대로 전달하도록 계약 테스트를 추가했습니다.
 - Field CSV timestamp quality 검증에 explicit sampling-rate consistency check를 추가했습니다. Timestamp와 `sampling_rate_hz`를 함께 제공하면서 사용자가 `sampling_rate_tolerance_ratio`를 명시한 경우에만 관측 interval 편차를 계산하고, 허용 범위를 넘으면 `sampling-rate-mismatch` warning을 남깁니다. 자동 resampling이나 metadata 보정은 하지 않습니다.
 - Analysis Explorer가 detailed projector가 없는 inspectable artifact를 오류로 종료하지 않고 inspection-only 화면으로 엽니다. IMS/MIMII 같은 schema에서는 저장된 pipeline/capability/provenance만 표시하고, artifact에 없는 observation-level trajectory나 RUL evidence는 재구성하지 않습니다.
