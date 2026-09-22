@@ -78,7 +78,11 @@ def test_field_csv_quality_warning_survives_feature_projection(tmp_path: Path) -
     assert vector.metadata["source_quality_issue_count"] == 1
     assert vector.metadata["source_quality_issue_codes"] == "sampling-rate-mismatch"
     assert vector.metadata["source_sampling_interval_max_deviation_ratio"] == 1.0
+    assert vector.metadata["source_sampling_rate_tolerance_ratio"] == 0.05
+    assert vector.metadata["source_minimum_sample_count"] == 1
+    assert vector.metadata["source_csv_delimiter"] == ","
 
     record = vector.to_flat_record()
     assert record["meta.source_quality_state"] == "warning"
     assert record["meta.source_quality_issue_codes"] == "sampling-rate-mismatch"
+    assert record["meta.source_sampling_rate_tolerance_ratio"] == 0.05

@@ -254,6 +254,10 @@ def _run_data_validate_csv(args: argparse.Namespace) -> int:
             "maximum sampling interval deviation ratio: "
             f"{report.maximum_sampling_interval_deviation_ratio:g}"
         )
+    print(f"minimum sample count: {report.minimum_sample_count}")
+    print(f"csv delimiter: {report.delimiter!r}")
+    if report.sampling_rate_tolerance_ratio is not None:
+        print(f"sampling rate tolerance ratio: {report.sampling_rate_tolerance_ratio:g}")
     print(f"bytes: {report.source_size_bytes}")
     print(f"sha256: {report.source_sha256}")
 
