@@ -57,9 +57,7 @@ def test_xjtu_rul_targets_preserve_fold_1_population_and_recorded_end_semantics(
     assert all(series.target_definition_id == XJTU_RUL_TARGET_DEFINITION_ID for series in targets)
     assert all(series.unit == XJTU_RUL_TARGET_UNIT for series in targets)
     assert all(series.partition_id == "train" for series in targets)
-    assert all(
-        series.endpoint_kind is RulEndpointKind.OBSERVED_RECORD_END for series in targets
-    )
+    assert all(series.endpoint_kind is RulEndpointKind.OBSERVED_RECORD_END for series in targets)
 
     for series in targets:
         run_length = get_xjtu_expected_acquisition_count(series.asset_id)
@@ -181,4 +179,3 @@ def test_xjtu_rul_targets_reject_failure_endpoint_reinterpretation() -> None:
 
     with pytest.raises(XjtuRulTargetError, match="observed-record-end endpoint semantics"):
         validate_xjtu_recorded_end_rul_targets(invalid, partition="validation")
-

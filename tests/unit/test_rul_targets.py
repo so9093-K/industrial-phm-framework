@@ -126,4 +126,3 @@ def test_rul_target_series_rejects_untyped_endpoint_kind() -> None:
             observations=(_observation(),),
             endpoint_kind="observed-record-end",  # type: ignore[arg-type]
         )
-
