@@ -253,6 +253,10 @@
 
 - Analysis Explorer Prognostics 화면과 presentation-independent prognostics summary helper.
 
+### Removed
+
+- 역할 검증용으로 유지하던 `notebooks/03_maintenance_evidence_review.py`를 제거했습니다. 해당 prototype의 목적이었던 정비 관점 operational 정보구조 검증은 `apps/operations.py`로 이관했고, retrospective experiment evidence 검토는 Analysis Explorer/Developer Workbench에 남깁니다.
+
 ### Changed
 
 - Field CSV validation provenance에 CSV delimiter, minimum sample count, optional sampling-rate tolerance를 추가했습니다. Validation report, canonical metadata와 `data validate-csv` 출력이 같은 policy를 보존해 quality PASS/WARN이 어떤 입력 정책에서 결정됐는지 추적할 수 있습니다.

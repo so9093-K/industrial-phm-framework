@@ -96,13 +96,6 @@ jobs:
             --no-include-code \
             --output /tmp/developer-workbench-ims-iforest.html
 
-      - name: Execute Maintenance Evidence Review
-        run: |
-          uv run --locked --group research marimo export html \
-            notebooks/03_maintenance_evidence_review.py \
-            --no-include-code \
-            --output /tmp/maintenance-evidence-review.html
-
       - name: Execute PHM Analysis Explorer across supported surfaces
         run: |
           INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \

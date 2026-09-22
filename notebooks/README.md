@@ -133,26 +133,12 @@ normal/fault 상태, health assessment, diagnostics 또는 RUL을 추가하지 �
 semantics를 함께 보여줍니다. Acquisition-aligned trajectory나 feature residual을 기록하지 않은 IF result는
 상세 evidence를 `not recorded`로 표시하며 aggregate statistic에서 raw evidence를 재구성하지 않습니다.
 
-## Maintenance Evidence Review prototype
+## Operations transition
 
-`03_maintenance_evidence_review.py`는 같은 XJTU LSTM development evidence를 **정비 엔지니어의 정보 소비 관점**으로
-다시 배치하는 두 번째 role-specific low-fidelity interface입니다.
-
-- Evidence Summary: 선택한 bearing의 기록된 anomaly evidence와 해석 가능한 범위
-- Trend & Observations: acquisition-aligned reconstruction trajectory, high-score observation과 feature residual
-- Limits & Provenance: unsupported capability, retrospective evaluation scope와 artifact/code provenance
-
-```bash
-uv run --locked --group research marimo edit notebooks/03_maintenance_evidence_review.py
-```
-
-이 prototype은 운영 설비 dashboard가 아닙니다. Validation bearing을 live asset으로 부르거나 threshold가 없는
-score에서 alarm/fault state를 만들지 않습니다. Reconstruction residual도 fault contribution으로 바꾸지 않으며,
-maintenance priority, recommended action, diagnosis와 RUL을 생성하지 않습니다.
-
-목적은 기존 experiment evidence만으로 정비 역할이 evidence와 limitation을 이해할 수 있는지 검토하고, 향후
-field/inference source가 들어왔을 때 별도의 operational result contract에 실제로 필요한 identity, observation
-time, data quality, state semantics와 deployment provenance를 구분하는 것입니다.
+정비 역할의 low-fidelity evidence prototype은 실제 `apps/operations.py` surface가 생기면서 제거했습니다.
+Retrospective experiment evidence는 Analysis Explorer/Developer Workbench에서 계속 검토하고, operational
+identity·observation·quality·finding·maintenance 요구는 Operations application에서 실제 field boundary와 함께
+검증합니다.
 
 ## 운영 규칙
 
@@ -174,8 +160,6 @@ time, data quality, state semantics와 deployment provenance를 구분하는 것
 - `01_xjtu_feature_analysis.py`: generated `fold-1/train` characterization artifacts를 탐색하는 marimo interface.
 - `02_developer_workbench.py`: XJTU/IMS와 Isolation Forest/LSTM의 validated inspection 및 evidence availability를
   비교하는 low-fidelity Developer Workbench.
-- `03_maintenance_evidence_review.py`: XJTU LSTM retrospective evidence를 정비 엔지니어 관점의 evidence,
-  limitation과 provenance로 재배치하는 read-only role UX prototype.
 
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
 않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제
