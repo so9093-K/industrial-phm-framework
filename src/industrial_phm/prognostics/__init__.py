@@ -12,6 +12,7 @@ from industrial_phm.prognostics.predictions import (
     RulPredictionSeries,
 )
 from industrial_phm.prognostics.targets import (
+    RulEndpointKind,
     RulTargetError,
     RulTargetObservation,
     RulTargetSeries,
@@ -19,6 +20,7 @@ from industrial_phm.prognostics.targets import (
 
 __all__ = [
     "RulAssetPointEvaluation",
+    "RulEndpointKind",
     "RulEvaluationError",
     "RulPointEvaluation",
     "RulPredictionError",
