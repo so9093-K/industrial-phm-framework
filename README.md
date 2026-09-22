@@ -104,13 +104,18 @@ uv run --locked industrial-phm experiment inspect \
 ```text
 prepared 단일-asset CSV export 검증 / canonical mapping
   -> timestamped observation timeline + 첫 private/field source conformance
+  -> RegisteredSource control plane / persistence / Sources UX
   -> Operations UI에서 관측 / data quality / PHM evidence 연결
+  -> source lifecycle / freshness / live connector
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
 
 현재 우선순위는 다양한 모델을 추가하는 것보다 실제 센서 데이터를 더 쉽게 연결하고,
-현장 데이터에서 분석 결과가 어떻게 달라지는지 확인하는 것입니다.
+현장 데이터에서 분석 결과가 어떻게 달라지는지 확인하는 것입니다. File/file-directory source의
+등록 identity와 CSV mapping을 보존하는 최소 `RegisteredSource` / `FileSourceConfig` /
+`SourceRepository` control-plane contract가 추가되었지만, 영속 registry와 Sources UI, live connection
+health/ingestion을 제공한다는 의미는 아닙니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 

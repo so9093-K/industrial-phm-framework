@@ -79,6 +79,29 @@ evidence가 필요한 consumer는 validated `AnalysisView`를 요구합니다.
 Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
 operational output을 하나의 universal `PHMResult`로 합치지 않습니다.
 
+Prepared field source에는 observation data plane과 분리된 첫 source-registration control-plane contract도
+둡니다.
+
+```text
+RegisteredSource
+  └ FileSourceConfig
+       ├ source path / snapshot-or-history mode
+       ├ asset / measurement-point mapping
+       └ existing CsvSensorLayout validation semantics
+
+SourceRepository
+  ├ register
+  ├ get
+  └ list_sources
+```
+
+현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
+connection/health/active-ingestion 상태로 해석하지 않습니다. `InMemorySourceRepository`는 application
+workflow와 contract test를 위한 비영속 reference implementation이고, 재시작을 견디는 persistence와
+Sources UI, activation lifecycle, `received_at`/freshness, OPC UA/MQTT connector는 후속 경계입니다.
+또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
+지원하지 않는 field semantics를 새로 만들어내지 않습니다.
+
 Prepared field source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
 
 ```text

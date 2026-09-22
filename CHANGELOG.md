@@ -11,6 +11,7 @@
 
 ### Added
 
+- Prepared file/file-directory source를 application control plane에 등록하기 위한 최소 `RegisteredSource`, `FileSourceConfig`, `SourceRepository` 계약과 비영속 `InMemorySourceRepository` reference implementation을 추가했습니다. File config는 기존 `CsvSensorLayout`의 time/channel/validation invariant를 재사용하고 history-directory에는 explicit timestamp를 요구합니다. 등록 record 자체를 connection/health/active ingestion으로 해석하지 않으며 persistent registry, Sources UI, freshness와 live connector는 후속 범위로 남깁니다.
 - Research artifact와 분리된 최소 operational analysis contract로 `AnalysisRun`과 `OperationalFinding`을 추가했습니다. AnalysisRun은 observation/execution identity, data quality, source snapshot provenance, optional model deployment와 produced capability IDs만 소유하며, OperationalFinding은 versioned finding semantics/state/evidence linkage만 소유합니다. Generic finding에 score/threshold/severity/RUL/maintenance priority를 넣지 않습니다.
 - Prepared field CSV 여러 segment를 explicit recorded timestamp 기준으로 정렬하는 `AssetObservationTimeline`과 history-directory loader를 추가했습니다. 동일 asset/measurement point, explicit timestamp, strict non-overlap을 요구하며 filename 순서를 시간으로 사용하지 않습니다. Operations Asset/Investigation 화면에서 segment timeline과 latest observation을 확인할 수 있지만 이를 PHM trend로 승격하지 않습니다.
 - Operations observation read model에 prepared source snapshot filename/SHA-256/byte size와 declared validation policy(timestamp field, minimum sample count, sampling-rate tolerance)를 보존하고 Data Quality & Evidence 화면에서 직접 확인할 수 있게 했습니다. Absolute local path는 노출하지 않습니다.
