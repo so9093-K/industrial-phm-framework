@@ -67,9 +67,7 @@ def run_xjtu_lstm_analysis_from_source(
     the retrospective development semantics of the underlying experiment and immediately
     validates the generated artifact through the same AnalysisView used by the user surface.
     """
-    resolved_revision = (
-        _resolve_current_git_revision() if code_revision is None else code_revision
-    )
+    resolved_revision = _resolve_current_git_revision() if code_revision is None else code_revision
 
     try:
         run_xjtu_lstm_development_evaluation(
