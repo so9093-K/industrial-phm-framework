@@ -43,10 +43,10 @@ from industrial_phm.experiments.mimii_development import (
     MIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES,
 )
 from industrial_phm.experiments.result_inspection_support import (
-    ExperimentInspection as ExperimentInspection,
-    ExperimentResultInspectionError as ExperimentResultInspectionError,
-    InspectionFact as InspectionFact,
-    InspectionStage as InspectionStage,
+    ExperimentInspection,
+    ExperimentResultInspectionError,
+    InspectionFact,
+    InspectionStage,
     _boolean,
     _capability_stage,
     _expect_close,
@@ -114,6 +114,14 @@ _LSTM_AVAILABLE_CAPABILITIES = (
     *_AVAILABLE_CAPABILITIES,
     "reconstruction-residual-evidence",
 )
+
+__all__ = [
+    "ExperimentInspection",
+    "ExperimentResultInspectionError",
+    "InspectionFact",
+    "InspectionStage",
+    "inspect_experiment_result",
+]
 
 
 def _acquisition_level_sequence_stage() -> InspectionStage:
