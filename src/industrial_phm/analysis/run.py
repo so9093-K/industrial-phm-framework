@@ -98,9 +98,7 @@ def plan_xjtu_lstm_analysis(
         bearing_run_count = report.bearing_run_count
         checked_acquisition_count = report.checked_acquisition_count
         if not report.profile_matches:
-            blockers.extend(
-                f"source profile mismatch: {issue}" for issue in report.profile_issues
-            )
+            blockers.extend(f"source profile mismatch: {issue}" for issue in report.profile_issues)
 
     if result_path.exists():
         if result_path.is_dir():

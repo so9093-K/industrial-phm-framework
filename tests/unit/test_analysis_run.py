@@ -124,6 +124,7 @@ def test_analysis_run_resolves_current_revision_when_not_supplied(
     }
     assert result.analysis.schema_id == "xjtu-lstm-development-result-v1"
 
+
 def test_analysis_run_plan_reports_validated_source_without_executing_model(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -228,4 +229,3 @@ def test_analysis_run_plan_warns_before_replacing_existing_result(
 
     assert plan.ready_to_run is True
     assert any("will be replaced" in warning for warning in plan.warnings)
-

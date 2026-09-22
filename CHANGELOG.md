@@ -250,6 +250,7 @@
 
 ### Changed
 
+- Generative AI explanation 요청에 API credential을 붙일 수 있는 endpoint를 configured OpenAI Responses API endpoint로 제한해, 호출자가 임의 host로 secret-bearing request를 보낼 수 없도록 경계를 강화했습니다.
 - `CanonicalTimeSeries` canonical boundary가 sensor `values`, optional RUL과 sampling rate의 NaN/Inf를 거부하고, sensor/RUL payload의 non-numeric 및 boolean 값을 fail-fast 처리하도록 numeric/finite invariant를 강화했습니다.
 - Analysis Explorer에서 저장하는 Markdown 보고서를 사용자 결과 중심 한국어 구조로 개편했습니다. 이상 변화와 RUL 모델 비교를 먼저 보여주고 split/revision/artifact/capability와 inspection warning은 뒤쪽 기술 정보로 이동했습니다.
 - CLI onboarding을 개선했습니다. `doctor`가 Python, repository checkout, data root, research/deep-learning runtime 상태와 다음 Explorer 실행 명령을 보여주고, `data status/fetch/verify/inspect/validate`가 실패 또는 완료 후 다음 데이터 준비·검증 행동을 안내합니다.

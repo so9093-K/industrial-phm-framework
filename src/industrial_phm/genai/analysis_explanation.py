@@ -335,7 +335,7 @@ def _post_openai_response(
     """Send one stateless Responses API request and return its output text."""
     _validate_secret(api_key, "api_key")
     _validate_text(model, "model")
-    _validate_text(endpoint, "endpoint")
+    _validate_openai_endpoint(endpoint)
     if not isinstance(timeout_seconds, int | float) or isinstance(timeout_seconds, bool):
         raise AnalysisExplanationError("timeout_seconds must be numerical")
     if timeout_seconds <= 0:
@@ -422,6 +422,14 @@ def _validate_question(question: str | None) -> None:
 def _validate_secret(value: str, field_name: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise AnalysisExplanationError(f"{field_name} must be a non-empty string")
+
+
+def _validate_openai_endpoint(endpoint: str) -> None:
+    _validate_text(endpoint, "endpoint")
+    if endpoint != _OPENAI_RESPONSES_ENDPOINT:
+        raise AnalysisExplanationError(
+            "endpoint must be the configured OpenAI Responses API endpoint"
+        )
 
 
 def _validate_text(value: str, field_name: str) -> None:
