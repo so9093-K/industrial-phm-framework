@@ -26,17 +26,19 @@ private helper 호출 횟수, 내부 collection 종류, refactor 가능한 구�
 
 ## 3. Test Layers Grow with Real Features
 
-현재 repository는 `unit`과 `contract`만 유지합니다. 실제 경계가 생길 때만 다음 층을 추가합니다.
+현재 repository는 unit과 contract에 더해, 실제로 생긴 adapter → application 경계를 보호하는 최소
+integration test를 유지합니다. acceptance는 service/browser workflow가 실제로 생길 때 추가합니다.
 
 ```text
 tests/
 ├── unit/          # 한 component의 작은 behavior/invariant
 ├── contract/      # adapter/result/artifact 등 공유 경계
-├── integration/   # 실제 component 사이 연결이 생긴 뒤 추가
-└── acceptance/    # CLI/service workflow가 생긴 뒤 추가
+├── integration/   # 실제 component/application 경계
+└── acceptance/    # service/browser user workflow가 생긴 뒤 추가
 ```
 
-빈 test directory나 미래용 fixture framework를 미리 만들지 않습니다.
+Integration test도 concrete boundary를 보호해야 하며 미래용 directory나 fixture framework를 미리 만들지
+않습니다.
 
 ## 4. Do Not Reimplement Validation in Tests
 

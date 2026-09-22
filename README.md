@@ -87,7 +87,8 @@ uv run --locked industrial-phm experiment inspect \
 
 ```text
 prepared 단일-asset CSV export 검증 / canonical mapping
-  -> 첫 private/field source conformance
+  -> operational observation read model + 첫 private/field source conformance
+  -> Operations UI에서 관측 / data quality / PHM evidence 연결
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
