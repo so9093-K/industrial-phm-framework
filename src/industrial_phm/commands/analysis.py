@@ -8,17 +8,16 @@ import sys
 from industrial_phm.analysis import (
     AnalysisReportError,
     AnalysisViewError,
-    load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
     write_analysis_report_markdown,
 )
+from industrial_phm.analysis.loader import load_analysis_view
 
 
 def _run_analysis_report(args: argparse.Namespace) -> int:
     try:
-        analysis = load_xjtu_lstm_analysis_view(args.anomaly)
+        analysis = load_analysis_view(args.anomaly)
         prognostics = (
-            None if args.prognostics is None else load_xjtu_rul_analysis_view(args.prognostics)
+            None if args.prognostics is None else load_analysis_view(args.prognostics)
         )
         write_analysis_report_markdown(
             analysis,
