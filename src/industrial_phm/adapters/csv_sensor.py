@@ -95,6 +95,9 @@ class CsvSensorValidationReport:
     channels: tuple[str, ...]
     timestamp_column: str | None
     sampling_rate_hz: float | None
+    sampling_rate_tolerance_ratio: float | None
+    minimum_sample_count: int
+    delimiter: str
     first_timestamp: datetime | None
     last_timestamp: datetime | None
     minimum_interval_seconds: float | None
@@ -145,6 +148,11 @@ class CsvSensorAdapter:
                 "source_file": source.name,
                 "source_sha256": parsed.report.source_sha256,
                 "source_size_bytes": parsed.report.source_size_bytes,
+                "source_csv_delimiter": parsed.report.delimiter,
+                "source_minimum_sample_count": parsed.report.minimum_sample_count,
+                "source_sampling_rate_tolerance_ratio": (
+                    parsed.report.sampling_rate_tolerance_ratio
+                ),
                 **_quality_metadata(parsed.report),
             }
         )
@@ -242,6 +250,9 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
         channels=tuple(layout.channel_columns),
         timestamp_column=layout.timestamp_column,
         sampling_rate_hz=layout.sampling_rate_hz,
+        sampling_rate_tolerance_ratio=layout.sampling_rate_tolerance_ratio,
+        minimum_sample_count=layout.minimum_sample_count,
+        delimiter=layout.delimiter,
         first_timestamp=None if timestamp_values is None else timestamp_values[0],
         last_timestamp=None if timestamp_values is None else timestamp_values[-1],
         minimum_interval_seconds=None if not intervals else min(intervals),

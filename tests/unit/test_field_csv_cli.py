@@ -44,6 +44,8 @@ def test_validate_csv_cli_reports_canonical_readiness(
     assert "samples: 3" in captured.out
     assert "channels: vibration_x, vibration_y" in captured.out
     assert "sampling rate hz: 12800" in captured.out
+    assert "minimum sample count: 1" in captured.out
+    assert "csv delimiter: ','" in captured.out
     assert "sha256:" in captured.out
     assert "quality state: PASS" in captured.out
     assert "canonical mapping: READY" in captured.out
@@ -87,6 +89,7 @@ def test_validate_csv_cli_reports_quality_warning_without_failing(
     assert "quality state: WARN" in captured.out
     assert "[sampling-rate-mismatch]" in captured.out
     assert "maximum sampling interval deviation ratio: 1" in captured.out
+    assert "sampling rate tolerance ratio: 0.05" in captured.out
     assert captured.err == ""
 
 
