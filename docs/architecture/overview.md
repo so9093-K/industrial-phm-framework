@@ -77,9 +77,27 @@ versioned evidence artifact
 evidence가 필요한 consumer는 validated `AnalysisView`를 요구합니다.
 
 Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
-operational output에서 반복되는 공통 payload 요구가 확인되기 전에는 universal `PHMResult`, generic workflow
-engine 또는 결과 registry를 선제적으로 만들지 않습니다. 향후 live inference contract가 필요해지면 experiment
-evidence와 분리된 operational identity/time/data-quality/deployment provenance 요구에서 다시 설계합니다.
+operational output을 하나의 universal `PHMResult`로 합치지 않습니다.
+
+Prepared field source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
+
+```text
+prepared field observation / timeline
+  -> source-appropriate analysis producer (아직 미구현)
+  -> AnalysisRun
+       ├ execution / observation identity
+       ├ data quality / source provenance
+       ├ model deployment?
+       └ produced capability IDs
+  -> OperationalFinding?  # validated state-like capability만
+       └ evidence refs -> capability-specific evidence
+  -> Operations
+```
+
+`OperationalFinding`은 numerical payload container가 아닙니다. Score, threshold, residual, diagnosis evidence는
+각 capability가 소유하고 finding은 versioned semantics와 evidence linkage만 보존합니다. Prognostics도 같은
+finding에 억지로 넣지 않고 별도 capability contract가 실제 field requirement에서 필요할 때 추가합니다.
+Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 생성형 AI는 상태 해석, 가능한 원인 정리, 정비 권고 초안과 보고서 생성을 지원할 수 있지만 PHM 수치를 다시
 계산하는 source of truth가 되지 않습니다. 실제 정비 작업이나 설비 제어로 이어지는 조치는 별도의 사용자 승인
