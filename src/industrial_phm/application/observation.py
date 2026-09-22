@@ -22,8 +22,12 @@ class SourceSnapshotEvidence:
 
     def __post_init__(self) -> None:
         _validate_identifier(self.name, "source snapshot name")
-        if len(self.sha256) != 64 or any(character not in hexdigits for character in self.sha256):
-            raise ValueError("source snapshot sha256 must contain exactly 64 hexadecimal characters")
+        if len(self.sha256) != 64 or any(
+            character not in hexdigits for character in self.sha256
+        ):
+            raise ValueError(
+                "source snapshot sha256 must contain exactly 64 hexadecimal characters"
+            )
         if self.sha256 != self.sha256.lower():
             raise ValueError("source snapshot sha256 must use lowercase hexadecimal characters")
         if isinstance(self.size_bytes, bool) or not isinstance(self.size_bytes, int):
