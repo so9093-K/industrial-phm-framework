@@ -162,9 +162,7 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
             index_by_name = {name: index for index, name in enumerate(header)}
             channel_indexes = tuple(index_by_name[name] for name in layout.channel_columns)
             timestamp_index = (
-                None
-                if layout.timestamp_column is None
-                else index_by_name[layout.timestamp_column]
+                None if layout.timestamp_column is None else index_by_name[layout.timestamp_column]
             )
 
             values: list[tuple[float, ...]] = []
@@ -258,9 +256,7 @@ def _parse_numeric_cell(value: str, column: str, row_number: int) -> float:
             f"CSV row {row_number} column {column!r} must be numeric"
         ) from error
     if not math.isfinite(result):
-        raise CsvSensorSourceError(
-            f"CSV row {row_number} column {column!r} must be finite"
-        )
+        raise CsvSensorSourceError(f"CSV row {row_number} column {column!r} must be finite")
     return result
 
 

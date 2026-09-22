@@ -23,10 +23,7 @@ def _write_csv(tmp_path: Path, content: str) -> Path:
 def test_rate_based_csv_adapter_preserves_source_byte_identity(tmp_path: Path) -> None:
     source = _write_csv(
         tmp_path,
-        "vibration,temperature\n"
-        "1.0,20.0\n"
-        "2.0,20.5\n"
-        "3.0,21.0\n",
+        "vibration,temperature\n1.0,20.0\n2.0,20.5\n3.0,21.0\n",
     )
     layout = CsvSensorLayout(
         asset_id="pump-01",
@@ -116,9 +113,7 @@ def test_csv_adapter_rejects_missing_nonfinite_or_nonnumeric_values(
 def test_csv_adapter_rejects_non_increasing_timestamps(tmp_path: Path) -> None:
     source = _write_csv(
         tmp_path,
-        "timestamp,vibration\n"
-        "2026-09-22T10:00:01+09:00,1.0\n"
-        "2026-09-22T10:00:01+09:00,2.0\n",
+        "timestamp,vibration\n2026-09-22T10:00:01+09:00,1.0\n2026-09-22T10:00:01+09:00,2.0\n",
     )
     layout = CsvSensorLayout(
         asset_id="pump-01",
@@ -133,9 +128,7 @@ def test_csv_adapter_rejects_non_increasing_timestamps(tmp_path: Path) -> None:
 def test_csv_adapter_rejects_mixed_timestamp_awareness(tmp_path: Path) -> None:
     source = _write_csv(
         tmp_path,
-        "timestamp,vibration\n"
-        "2026-09-22T10:00:00,1.0\n"
-        "2026-09-22T10:00:01+09:00,2.0\n",
+        "timestamp,vibration\n2026-09-22T10:00:00,1.0\n2026-09-22T10:00:01+09:00,2.0\n",
     )
     layout = CsvSensorLayout(
         asset_id="pump-01",
