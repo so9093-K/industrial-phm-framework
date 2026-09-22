@@ -30,6 +30,7 @@ def test_rejects_validated_schema_without_analysis_projector() -> None:
     with pytest.raises(AnalysisViewError, match="analysis view does not support schema"):
         load_analysis_view(_XJTU_HOLDOUT_RESULT)
 
+
 @pytest.mark.parametrize(
     ("artifact", "schema_id"),
     [
@@ -57,4 +58,3 @@ def test_surface_includes_detailed_analysis_when_projector_exists() -> None:
     assert surface.analysis is not None
     assert surface.analysis.anomaly_evidence is not None
     assert surface.has_detailed_analysis is True
-
