@@ -1,8 +1,8 @@
 import hashlib
-
-import pytest
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 from industrial_phm.adapters import CsvSensorLayout
 from industrial_phm.application import (
@@ -11,7 +11,6 @@ from industrial_phm.application import (
     load_field_csv_observation_timeline_directory,
 )
 from industrial_phm.contracts import DataQualityState
-
 
 def test_field_csv_validation_projects_into_operational_observation_summary(
     tmp_path: Path,
@@ -60,7 +59,6 @@ def test_field_csv_validation_projects_into_operational_observation_summary(
     assert summary.validation_policy.sampling_rate_tolerance_ratio == 0.05
 
 
-
 def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
     tmp_path: Path,
 ) -> None:
@@ -103,7 +101,6 @@ def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
         "2026-09-22T11:00:01+09:00"
     )
 
-
 def test_field_csv_timeline_requires_explicit_timestamp_column(
     tmp_path: Path,
 ) -> None:
@@ -120,7 +117,6 @@ def test_field_csv_timeline_requires_explicit_timestamp_column(
             ),
             source_id="field-export:pump-01",
         )
-
 
 
 def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(

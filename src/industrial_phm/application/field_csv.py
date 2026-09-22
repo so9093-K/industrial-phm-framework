@@ -66,7 +66,6 @@ def load_field_csv_observation_summary(
     )
 
 
-
 def load_field_csv_observation_timeline(
     sources: Sequence[Path],
     layout: CsvSensorLayout,
@@ -106,10 +105,7 @@ def load_field_csv_observation_timeline(
             "field observation timeline timestamps must use consistent timezone awareness"
         ) from error
 
-    return AssetObservationTimeline(
-        tuple(summary for _, summary in dated_segments)
-    )
-
+    return AssetObservationTimeline(tuple(summary for _, summary in dated_segments))
 
 
 def load_field_csv_observation_timeline_directory(

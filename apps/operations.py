@@ -552,6 +552,10 @@ def _(mo, timeline):
     else:
         _rows = []
         for _index, _segment in enumerate(timeline.segments, start=1):
+            if _segment.observed_start_at is None or _segment.observed_end_at is None:
+                raise AssertionError(
+                    "validated observation timeline segment timestamps unexpectedly missing"
+                )
             _snapshot_name = (
                 "Not recorded"
                 if _segment.source_snapshot is None

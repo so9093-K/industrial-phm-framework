@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from math import isfinite
 from itertools import pairwise
+from math import isfinite
 from numbers import Real
 from string import hexdigits
 
@@ -229,7 +229,6 @@ class AssetObservationTimeline:
     def latest(self) -> AssetObservationSummary:
         """Return the latest observed segment."""
         return self.segments[-1]
-
 
 
 def _validate_identifier(value: str, field_name: str) -> None:
