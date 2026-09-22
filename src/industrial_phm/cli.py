@@ -537,14 +537,12 @@ def _add_data_root_argument(parser: argparse.ArgumentParser) -> None:
 
 def _run_doctor(args: argparse.Namespace) -> int:
     del args
-    python_version = (
-        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
-    )
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     python_supported = sys.version_info[:2] == (3, 14)
     data_root = default_data_root()
-    checkout_detected = Path("pyproject.toml").is_file() and Path(
-        "apps/analysis_explorer.py"
-    ).is_file()
+    checkout_detected = (
+        Path("pyproject.toml").is_file() and Path("apps/analysis_explorer.py").is_file()
+    )
     research_ui_installed = importlib.util.find_spec("marimo") is not None
     deep_learning_installed = importlib.util.find_spec("torch") is not None
 
@@ -554,10 +552,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
     print(f"data root: {data_root} ({'present' if data_root.exists() else 'not created'})")
     print(f"registered datasets: {len(list_datasets())}")
     print(f"research UI runtime: {'installed' if research_ui_installed else 'not installed'}")
-    print(
-        "deep-learning runtime: "
-        f"{'installed' if deep_learning_installed else 'not installed'}"
-    )
+    print(f"deep-learning runtime: {'installed' if deep_learning_installed else 'not installed'}")
     print("next:")
     if checkout_detected:
         print(
