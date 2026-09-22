@@ -68,11 +68,14 @@ uv run --locked --group research marimo run apps/analysis_explorer.py
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-현재 Operations 앱은 prepared single-asset CSV bootstrap을 사용합니다. 화면에서 source path, asset/source ID,
-measurement point, channel/time mapping을 입력하면 application boundary를 통해 observation/data-quality와
-exact source snapshot provenance(SHA-256/byte size), declared validation policy를 표시합니다. Condition,
-Finding, RUL, Maintenance와 System Health 영역은 처음부터 존재하며
-검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로 표시합니다.
+현재 Operations 앱은 prepared single-asset CSV snapshot 또는 같은 asset/measurement point의 timestamped
+CSV history directory를 bootstrap으로 사용할 수 있습니다. History directory의 각 파일은 독립 segment로
+검증되고 filename이 아니라 recorded timestamp로 정렬됩니다. 화면은 latest observation, segment timeline,
+data quality, exact source snapshot provenance(SHA-256/byte size), declared validation policy를 표시합니다.
+
+Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
+처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
+표시합니다.
 
 CLI에서 저장된 결과의 기술 정보를 확인하려면 다음 명령을 사용할 수 있습니다.
 
@@ -100,7 +103,7 @@ uv run --locked industrial-phm experiment inspect \
 
 ```text
 prepared 단일-asset CSV export 검증 / canonical mapping
-  -> operational observation read model + 첫 private/field source conformance
+  -> timestamped observation timeline + 첫 private/field source conformance
   -> Operations UI에서 관측 / data quality / PHM evidence 연결
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계

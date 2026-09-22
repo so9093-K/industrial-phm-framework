@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import pairwise
 from math import isfinite
 from numbers import Real
 from string import hexdigits
@@ -135,6 +136,99 @@ class AssetObservationSummary:
             raise ValueError("validation_policy must be ObservationValidationPolicy when provided")
 
         object.__setattr__(self, "channels", channels)
+
+
+@dataclass(frozen=True, slots=True)
+class AssetObservationTimeline:
+    """Time-ordered observed segments for one asset measurement point."""
+
+    segments: Sequence[AssetObservationSummary]
+
+    def __post_init__(self) -> None:
+        segments = tuple(self.segments)
+        if not segments:
+            raise ValueError("observation timeline must contain at least one segment")
+        if any(not isinstance(segment, AssetObservationSummary) for segment in segments):
+            raise ValueError(
+                "observation timeline segments must contain only AssetObservationSummary values"
+            )
+
+        asset_id = segments[0].asset_id
+        measurement_point_id = segments[0].measurement_point_id
+        expected_awareness: bool | None = None
+        for segment in segments:
+            if segment.asset_id != asset_id:
+                raise ValueError("observation timeline segments must share one asset_id")
+            if segment.measurement_point_id != measurement_point_id:
+                raise ValueError(
+                    "observation timeline segments must share one measurement_point_id"
+                )
+            if segment.observed_start_at is None or segment.observed_end_at is None:
+                raise ValueError(
+                    "observation timeline requires explicit observed start/end timestamps"
+                )
+
+            awareness = _is_timezone_aware(segment.observed_start_at)
+            if expected_awareness is None:
+                expected_awareness = awareness
+            elif awareness != expected_awareness:
+                raise ValueError(
+                    "observation timeline timestamps must use consistent timezone awareness"
+                )
+
+        for previous, current in pairwise(segments):
+            previous_end = previous.observed_end_at
+            current_start = current.observed_start_at
+            if previous_end is None or current_start is None:
+                raise AssertionError("validated timeline segment timestamps unexpectedly missing")
+            try:
+                overlaps_or_reverses = previous_end >= current_start
+            except TypeError as error:
+                raise ValueError(
+                    "observation timeline timestamps must use consistent timezone awareness"
+                ) from error
+            if overlaps_or_reverses:
+                raise ValueError(
+                    "observation timeline segments must be strictly ordered and non-overlapping"
+                )
+
+        object.__setattr__(self, "segments", segments)
+
+    @property
+    def asset_id(self) -> str:
+        """Return the common asset identity."""
+        return self.segments[0].asset_id
+
+    @property
+    def measurement_point_id(self) -> str | None:
+        """Return the common measurement-point identity."""
+        return self.segments[0].measurement_point_id
+
+    @property
+    def segment_count(self) -> int:
+        """Return the number of observed source segments."""
+        return len(self.segments)
+
+    @property
+    def observed_start_at(self) -> datetime:
+        """Return the first recorded observation timestamp."""
+        value = self.segments[0].observed_start_at
+        if value is None:
+            raise AssertionError("validated timeline start timestamp unexpectedly missing")
+        return value
+
+    @property
+    def observed_end_at(self) -> datetime:
+        """Return the last recorded observation timestamp."""
+        value = self.segments[-1].observed_end_at
+        if value is None:
+            raise AssertionError("validated timeline end timestamp unexpectedly missing")
+        return value
+
+    @property
+    def latest(self) -> AssetObservationSummary:
+        """Return the latest observed segment."""
+        return self.segments[-1]
 
 
 def _validate_identifier(value: str, field_name: str) -> None:

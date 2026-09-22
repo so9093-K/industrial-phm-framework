@@ -2,8 +2,9 @@
 
 상태: prepared export/snapshot baseline · 실제 private source 확보 시 실행
 
-이 runbook은 조직이 허가한 **단일 asset CSV export/snapshot**을 현재 canonical boundary에 연결할 수 있는지
-검증하는 절차입니다. Raw source를 repository에 복사하지 않고도 source identity, time basis, data quality와
+이 runbook은 조직이 허가한 **단일 asset CSV export/snapshot** 또는 같은 asset/measurement point의
+**timestamped segment history**를 현재 canonical/application boundary에 연결할 수 있는지 검증하는 절차입니다.
+Raw source를 repository에 복사하지 않고도 source identity, time basis, data quality, observation ordering과
 feature projection compatibility를 확인하는 것이 목적입니다.
 
 이 절차는 field model validation, live inference, maintenance recommendation 또는 historian integration을
@@ -15,6 +16,8 @@ feature projection compatibility를 확인하는 것이 목적입니다.
 - credential, token, certificate, database password는 repository/document/result artifact에 기록하지 않습니다.
 - raw CSV는 repository 밖의 local/authorized path에 둡니다.
 - 한 CSV 파일은 한 asset의 한 segment를 나타내야 합니다.
+- 여러 segment를 observation history로 묶을 때는 모두 같은 asset/measurement point 의미를 가져야 합니다.
+- History ordering에는 explicit timestamp가 필요하며 filename 순서를 시간 의미로 사용하지 않습니다.
 - 사용할 sensor column과 timestamp 또는 regular sampling rate를 source owner와 확인합니다.
 - source owner가 제공한 quality flag, maintenance/configuration event, calibration 의미가 있으면 별도로 기록해
   현재 CSV baseline이 이를 보존할 수 있는지 검토합니다.
@@ -54,6 +57,24 @@ uv run --locked industrial-phm data validate-csv \
 ```
 
 Framework가 임의 tolerance를 정하거나 resampling하지 않습니다.
+
+여러 prepared segment를 Operations observation history로 확인할 때는 각 파일을 같은 mapping으로 검증하고,
+history directory를 지정합니다.
+
+```bash
+export INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY=/authorized/path/pump-history
+export INDUSTRIAL_PHM_OPERATIONS_ASSET_ID=pump-01
+export INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=field-export:pump-01
+export INDUSTRIAL_PHM_OPERATIONS_MEASUREMENT_POINT_ID=drive-end-bearing
+export INDUSTRIAL_PHM_OPERATIONS_CHANNELS=vibration_x,vibration_y
+export INDUSTRIAL_PHM_OPERATIONS_TIMESTAMP_COLUMN=timestamp
+
+uv run --locked --group research marimo run apps/operations.py
+```
+
+각 CSV는 독립 source snapshot으로 SHA-256/byte size를 보존합니다. Application timeline은 recorded timestamp로
+segment를 정렬하며 overlap/reverse segment를 차단합니다. Timeline ordering은 source observation history일
+뿐 fault progression 또는 PHM trend를 뜻하지 않습니다.
 
 ## 3. PASS / WARN / failure interpretation
 
@@ -114,8 +135,8 @@ CSV adapter는 하나의 byte snapshot에서 parsing, SHA-256과 byte size를 �
 
 ## 5. Canonical / feature compatibility
 
-현재 executable contract는
-`tests/contract/test_field_csv_feature_path.py`에서 다음 경로를 검증합니다.
+현재 executable contract는 `tests/contract/test_field_csv_feature_path.py`와
+`tests/integration/test_field_csv_observation.py`에서 다음 경로를 검증합니다.
 
 ```text
 prepared field CSV
@@ -123,6 +144,12 @@ prepared field CSV
   -> CanonicalTimeSeries
   -> vibration-statistical-v1 feature projection
   -> source/quality/policy provenance preserved
+
+timestamped prepared CSV segments
+  -> per-segment validation / AssetObservationSummary
+  -> recorded-time ordering
+  -> AssetObservationTimeline
+  -> latest observation + segment evidence in Operations
 ```
 
 실제 source에서 이 경로를 사용할 때 dataset-specific split, reference population, threshold 또는 fault label을

@@ -15,23 +15,31 @@
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-현재 bootstrap은 prepared single-asset CSV입니다. 화면의 **Field source bootstrap**에서 source path,
-asset/source ID, optional measurement point, channel과 time mapping을 입력합니다. CSV는 adapter validation 뒤
-`AssetObservationSummary` application read model로 투영되며 UI가 `CsvSensorValidationReport`를 직접
-해석하지 않습니다.
+현재 bootstrap은 **prepared single-asset CSV snapshot** 또는 같은 asset/measurement point의
+**timestamped CSV history directory**입니다. 화면의 **Field source bootstrap**에서 single source path 또는
+history directory, asset/source ID, optional measurement point, channel과 time mapping을 입력합니다. History
+directory가 지정되면 single source보다 우선합니다.
+
+한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
+`AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
+`AssetObservationTimeline` application read model로 묶습니다. Timeline은 filename이나 directory iteration
+순서가 아니라 recorded observation time으로 정렬하며 overlap/reverse segment를 차단합니다. UI는
+`CsvSensorValidationReport`를 직접 해석하지 않습니다.
 
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
-- **Asset** — observation identity/time/channel/sample, data-quality evidence, freshness/sensor context 상태
-- **Investigation** — Finding, Trend & Evidence, Prognostics, Maintenance context의 운영 조사 구조
+- **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
+- **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
 - **Data Quality** — source mapping, exact snapshot SHA-256/byte size, declared validation policy, quality evidence와 아직 기록되지 않은 quality semantics
 - **Maintenance** — Case, work order, maintenance history, post-maintenance validation 자리
 - **System Health** — source, ingestion, analysis runtime, logs/metrics/traces observability 자리
 
-Research benchmark의 anomaly/RUL을 operational state로 복사하지 않습니다. Field analysis와 deployment
-semantics가 생기면 같은 자리의 `Unavailable` 상태가 실제 validated evidence로 대체됩니다.
+Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
+condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
+복사하지 않습니다. Field analysis와 deployment semantics가 생기면 같은 자리의 `Unavailable` 상태가 실제
+validated evidence로 대체됩니다.
 
 ## Analysis Explorer
 
