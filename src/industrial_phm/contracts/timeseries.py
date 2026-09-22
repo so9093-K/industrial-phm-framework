@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from math import isfinite
+from numbers import Real
 from types import MappingProxyType
 
 
@@ -48,8 +50,11 @@ class CanonicalTimeSeries:
             raise ValueError("channels must be unique")
         if timestamps is not None and len(timestamps) != len(values):
             raise ValueError("timestamps and values must have the same number of samples")
-        if self.sampling_rate_hz is not None and self.sampling_rate_hz <= 0:
-            raise ValueError("sampling_rate_hz must be positive when provided")
+        if self.sampling_rate_hz is not None:
+            if not isfinite(self.sampling_rate_hz):
+                raise ValueError("sampling_rate_hz must be finite when provided")
+            if self.sampling_rate_hz <= 0:
+                raise ValueError("sampling_rate_hz must be positive when provided")
         if timestamps is None and self.sampling_rate_hz is None:
             raise ValueError("timestamps may be omitted only when sampling_rate_hz is provided")
 
@@ -57,12 +62,30 @@ class CanonicalTimeSeries:
         for row in values:
             if len(row) != channel_count:
                 raise ValueError("each values row must match the number of channels")
+            if any(
+                isinstance(value, bool)
+                or not isinstance(value, Real)
+                or not isfinite(value)
+                for value in row
+            ):
+                raise ValueError("values must contain only finite numbers")
 
         sample_count = len(values)
         if labels is not None and len(labels) != sample_count:
             raise ValueError("labels must align with samples when provided")
-        if rul is not None and len(rul) != sample_count:
-            raise ValueError("rul must align with samples when provided")
+        if rul is not None:
+            if len(rul) != sample_count:
+                raise ValueError("rul must align with samples when provided")
+            if any(
+                value is not None
+                and (
+                    isinstance(value, bool)
+                    or not isinstance(value, Real)
+                    or not isfinite(value)
+                )
+                for value in rul
+            ):
+                raise ValueError("rul must contain only finite numbers or None")
 
         object.__setattr__(self, "timestamps", timestamps)
         object.__setattr__(self, "channels", channels)
