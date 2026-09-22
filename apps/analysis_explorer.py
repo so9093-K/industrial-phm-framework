@@ -201,8 +201,7 @@ def _(
             else "; ".join(prognostics_compatibility.reasons)
         )
         prognostics_context_error = (
-            "현재 이상 분석 결과와 연결된 RUL 분석 결과의 범위가 맞지 않습니다: "
-            f"{_reasons}"
+            f"현재 이상 분석 결과와 연결된 RUL 분석 결과의 범위가 맞지 않습니다: {_reasons}"
         )
     else:
         try:
@@ -659,8 +658,7 @@ def _(
             [
                 mo.md("## RUL 분석"),
                 mo.callout(
-                    prognostics_error
-                    + " 현재 분석에 연결할 RUL 결과가 없습니다.",
+                    prognostics_error + " 현재 분석에 연결할 RUL 결과가 없습니다.",
                     kind="neutral",
                     title="RUL 분석 결과 없음",
                 ),
