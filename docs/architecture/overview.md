@@ -97,7 +97,12 @@ SourceRepository
 
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
 connection/health/active-ingestion 상태로 해석하지 않습니다. `InMemorySourceRepository`는 application
-workflow와 contract test를 위한 비영속 reference implementation이고, 재시작을 견디는 persistence와
+workflow와 contract test를 위한 비영속 reference implementation이고, `JsonSourceRepository`는
+`industrial-phm-source-registry-v1` schema로 local registry를 재시작 이후에도 복원합니다. JSON writer는
+same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 partial write를 노출하지 않으며,
+reader는 schema/key/source type/duplicate ID를 fail-fast 검증합니다. 현재 구현은 single-writer local
+persistence 경계이며 cross-process write coordination은 아직 지원하지 않습니다.
+
 Sources UI, activation lifecycle, `received_at`/freshness, OPC UA/MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
