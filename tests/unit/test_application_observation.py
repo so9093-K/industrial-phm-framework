@@ -2,7 +2,11 @@ from datetime import datetime
 
 import pytest
 
-from industrial_phm.application import AssetObservationSummary
+from industrial_phm.application import (
+    AssetObservationSummary,
+    ObservationValidationPolicy,
+    SourceSnapshotEvidence,
+)
 from industrial_phm.contracts import DataQualityAssessment
 
 
@@ -10,6 +14,16 @@ def test_asset_observation_summary_preserves_operational_observation_facts() -> 
     start = datetime.fromisoformat("2026-09-22T10:00:00+09:00")
     end = datetime.fromisoformat("2026-09-22T10:00:02+09:00")
     channels = ["vibration_x", "temperature"]
+    snapshot = SourceSnapshotEvidence(
+        name="pump.csv",
+        sha256="a" * 64,
+        size_bytes=128,
+    )
+    policy = ObservationValidationPolicy(
+        source_timestamp_field="timestamp",
+        minimum_sample_count=3,
+        sampling_rate_tolerance_ratio=0.05,
+    )
 
     summary = AssetObservationSummary(
         asset_id="pump-01",
@@ -20,6 +34,8 @@ def test_asset_observation_summary_preserves_operational_observation_facts() -> 
         observed_start_at=start,
         observed_end_at=end,
         sampling_rate_hz=1.0,
+        source_snapshot=snapshot,
+        validation_policy=policy,
         data_quality=DataQualityAssessment(),
     )
     channels.append("rpm")
@@ -32,6 +48,25 @@ def test_asset_observation_summary_preserves_operational_observation_facts() -> 
     assert summary.observed_start_at == start
     assert summary.observed_end_at == end
     assert summary.sampling_rate_hz == 1.0
+    assert summary.source_snapshot == snapshot
+    assert summary.validation_policy == policy
+
+
+def test_source_snapshot_evidence_rejects_invalid_digest() -> None:
+    with pytest.raises(ValueError, match="64 hexadecimal"):
+        SourceSnapshotEvidence(
+            name="pump.csv",
+            sha256="not-a-digest",
+            size_bytes=128,
+        )
+
+
+def test_observation_validation_policy_rejects_negative_tolerance() -> None:
+    with pytest.raises(ValueError, match="non-negative"):
+        ObservationValidationPolicy(
+            minimum_sample_count=1,
+            sampling_rate_tolerance_ratio=-0.01,
+        )
 
 
 @pytest.mark.parametrize(
