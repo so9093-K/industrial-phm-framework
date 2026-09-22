@@ -109,3 +109,35 @@ def load_field_csv_observation_timeline(
     return AssetObservationTimeline(
         tuple(summary for _, summary in dated_segments)
     )
+
+
+
+def load_field_csv_observation_timeline_directory(
+    source_directory: Path,
+    layout: CsvSensorLayout,
+    *,
+    source_id: str,
+    measurement_point_id: str | None = None,
+) -> AssetObservationTimeline:
+    """Load immediate CSV files as one timestamp-ordered field observation timeline."""
+    if not source_directory.is_dir():
+        raise ValueError(
+            f"field observation timeline directory does not exist: {source_directory}"
+        )
+
+    sources = tuple(
+        path
+        for path in source_directory.iterdir()
+        if path.is_file() and path.suffix.lower() == ".csv"
+    )
+    if not sources:
+        raise ValueError(
+            f"field observation timeline directory contains no CSV files: {source_directory}"
+        )
+
+    return load_field_csv_observation_timeline(
+        sources,
+        layout,
+        source_id=source_id,
+        measurement_point_id=measurement_point_id,
+    )

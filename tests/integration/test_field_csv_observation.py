@@ -8,6 +8,7 @@ from industrial_phm.adapters import CsvSensorLayout
 from industrial_phm.application import (
     load_field_csv_observation_summary,
     load_field_csv_observation_timeline,
+    load_field_csv_observation_timeline_directory,
 )
 from industrial_phm.contracts import DataQualityState
 
@@ -119,3 +120,40 @@ def test_field_csv_timeline_requires_explicit_timestamp_column(
             ),
             source_id="field-export:pump-01",
         )
+
+
+
+def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
+    tmp_path: Path,
+) -> None:
+    history = tmp_path / "history"
+    history.mkdir()
+    (history / "001-late.csv").write_text(
+        "timestamp,vibration_x\n"
+        "2026-09-22T12:00:00+09:00,-3.0\n"
+        "2026-09-22T12:00:01+09:00,3.0\n",
+        encoding="utf-8",
+    )
+    (history / "999-early.csv").write_text(
+        "timestamp,vibration_x\n"
+        "2026-09-22T09:00:00+09:00,-1.0\n"
+        "2026-09-22T09:00:01+09:00,1.0\n",
+        encoding="utf-8",
+    )
+
+    timeline = load_field_csv_observation_timeline_directory(
+        history,
+        CsvSensorLayout(
+            asset_id="pump-01",
+            timestamp_column="timestamp",
+            channel_columns=("vibration_x",),
+        ),
+        source_id="field-export:pump-01",
+        measurement_point_id="drive-end-bearing",
+    )
+
+    assert timeline.segment_count == 2
+    assert timeline.segments[0].source_snapshot is not None
+    assert timeline.segments[0].source_snapshot.name == "999-early.csv"
+    assert timeline.latest.source_snapshot is not None
+    assert timeline.latest.source_snapshot.name == "001-late.csv"

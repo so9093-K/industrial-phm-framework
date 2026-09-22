@@ -4,6 +4,7 @@ from industrial_phm.application.field_csv import (
     build_field_csv_observation_summary,
     load_field_csv_observation_summary,
     load_field_csv_observation_timeline,
+    load_field_csv_observation_timeline_directory,
 )
 from industrial_phm.application.observation import (
     AssetObservationSummary,
@@ -20,4 +21,5 @@ __all__ = [
     "build_field_csv_observation_summary",
     "load_field_csv_observation_summary",
     "load_field_csv_observation_timeline",
+    "load_field_csv_observation_timeline_directory",
 ]
