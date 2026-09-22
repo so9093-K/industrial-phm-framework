@@ -1,4 +1,39 @@
-# Analysis Explorer
+# Applications
+
+현재 repository는 목적이 다른 두 interactive application을 분리합니다.
+
+- `apps/operations.py` — asset 관측, data quality, PHM/maintenance capability 상태와 system health를 보는 Operations surface
+- `apps/analysis_explorer.py` — experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
+
+## PHM Operations
+
+`apps/operations.py`는 운영 사용자가 **있어야 할 정보 구조를 처음부터 확인**할 수 있게 합니다. 현재 값이
+없다는 이유로 Condition, Finding, RUL, Maintenance 또는 System Health 영역을 숨기지 않습니다. 대신
+검증·연결 상태를 명시하고 값을 꾸며내지 않습니다.
+
+```bash
+uv run --locked --group research marimo run apps/operations.py
+```
+
+현재 bootstrap은 prepared single-asset CSV입니다. 화면의 **Field source bootstrap**에서 source path,
+asset/source ID, optional measurement point, channel과 time mapping을 입력합니다. CSV는 adapter validation 뒤
+`AssetObservationSummary` application read model로 투영되며 UI가 `CsvSensorValidationReport`를 직접
+해석하지 않습니다.
+
+현재 화면:
+
+- **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
+- **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
+- **Asset** — observation identity/time/channel/sample, data-quality evidence, freshness/sensor context 상태
+- **Investigation** — Finding, Trend & Evidence, Prognostics, Maintenance context의 운영 조사 구조
+- **Data Quality** — source mapping, validation policy, quality evidence와 아직 기록되지 않은 quality semantics
+- **Maintenance** — Case, work order, maintenance history, post-maintenance validation 자리
+- **System Health** — source, ingestion, analysis runtime, logs/metrics/traces observability 자리
+
+Research benchmark의 anomaly/RUL을 operational state로 복사하지 않습니다. Field analysis와 deployment
+semantics가 생기면 같은 자리의 `Unavailable` 상태가 실제 validated evidence로 대체됩니다.
+
+## Analysis Explorer
 
 apps/analysis_explorer.py는 저장된 PHM experiment/analysis evidence를 화면에서 검토하고,
 준비된 XJTU-SY 데이터로 새 분석을 실행하는 **PHM Workbench 성격의 interactive application**입니다.

@@ -1,8 +1,8 @@
 from datetime import datetime
 from pathlib import Path
 
-from industrial_phm.adapters import CsvSensorLayout, validate_csv_sensor_source
-from industrial_phm.application import build_field_csv_observation_summary
+from industrial_phm.adapters import CsvSensorLayout
+from industrial_phm.application import load_field_csv_observation_summary
 from industrial_phm.contracts import DataQualityState
 
 
@@ -17,7 +17,8 @@ def test_field_csv_validation_projects_into_operational_observation_summary(
         "2026-09-22T10:00:02+09:00,1.0\n",
         encoding="utf-8",
     )
-    report = validate_csv_sensor_source(
+
+    summary = load_field_csv_observation_summary(
         source,
         CsvSensorLayout(
             asset_id="pump-01",
@@ -26,10 +27,6 @@ def test_field_csv_validation_projects_into_operational_observation_summary(
             sampling_rate_hz=2.0,
             sampling_rate_tolerance_ratio=0.05,
         ),
-    )
-
-    summary = build_field_csv_observation_summary(
-        report,
         source_id="field-export:pump-01",
         measurement_point_id="drive-end-bearing",
     )

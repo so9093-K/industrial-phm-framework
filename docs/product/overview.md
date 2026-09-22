@@ -363,64 +363,7 @@ Construction을 `not applicable`로, raw trajectory/residual을 보존하지 않
 `not recorded`로 표현합니다. 이 implementation은 navigation, population unit, evidence availability와 provenance
 이해도를 검토하기 위한 research-tooling interface이며 frontend/API/persistent state 결정을 만들지 않습니다.
 
-## 4. Maintenance Evidence Review low-fidelity baseline
-
-Developer Workbench가 PHM/ML 개발자의 pipeline transparency를 검증했다면, 두 번째 role-specific prototype은
-정비 엔지니어가 **기록된 anomaly evidence를 과도하게 해석하지 않고 이해할 수 있는지**를 확인합니다.
-
-현재 대표 consumer는 `notebooks/03_maintenance_evidence_review.py`이며 XJTU LSTM development artifact의
-acquisition-aligned reconstruction score와 per-feature residual을 재계산하지 않고 그대로 소비합니다. 이 화면은
-운영 dashboard가 아니라 retrospective experiment evidence를 정비 역할의 정보 밀도로 다시 배치한
-research-tooling interface입니다.
-
-```text
-Maintenance Evidence Review
-├─ Evidence Summary
-├─ Trend & Observations
-└─ Limits & Provenance
-```
-
-### Evidence Summary
-
-정비 사용자가 첫 화면에서 확인해야 하는 것은 "고장인가?"가 아니라 **무슨 evidence가 기록되어 있고 어디까지
-해석 가능한가**입니다.
-
-- 선택한 bearing/evidence scope
-- score window 수와 score 방향
-- acquisition-order association과 late-vs-middle retrospective statistic
-- 현재 evidence가 지원하는 검토 질문
-- threshold/state/diagnosis/priority/RUL이 지원되지 않는다는 제한
-- experiment warning과 artifact provenance
-
-`consumed`, `unsupported`, `not recorded` 같은 기존 vocabulary를 역할별 화면에서 다른 의미로 바꾸지 않습니다.
-
-### Trend & Observations
-
-Trajectory와 high-score observation을 보여주되 threshold line, normal/fault state, alarm level을 만들지 않습니다.
-Per-feature reconstruction residual은 robust-scaled model space의 mismatch evidence로 표시하고 physical fault
-contribution이나 root-cause attribution으로 이름을 바꾸지 않습니다.
-
-### Limits & Provenance
-
-사용자는 최소한 다음을 확인할 수 있어야 합니다.
-
-- 이 결과가 retrospective development evidence인지 operational inference인지
-- thresholded state detection, diagnosis, health assessment, RUL 중 무엇이 unsupported인지
-- 어떤 evaluation scope와 code/artifact provenance에서 수치가 나왔는지
-- 화면이 제공하지 않는 의미를 어디에서도 추론해 생성하지 않았는지
-
-Acceptance criteria:
-
-- 사용자가 선택한 evidence scope와 score semantics를 artifact JSON을 직접 열지 않고 식별할 수 있습니다.
-- anomaly evidence와 fault diagnosis가 다른 capability라는 점이 화면에서 즉시 보입니다.
-- threshold가 없는 experiment에서 alarm/state/maintenance priority를 생성하지 않습니다.
-- feature residual을 causal fault contribution으로 표현하지 않습니다.
-- displayed evidence에서 repository artifact와 declared code revision으로 돌아갈 수 있습니다.
-- role-specific presentation을 위해 별도 result storage, duplicated numerical state 또는 `PHMResult` schema를
-  만들지 않습니다.
-- frontend framework, API, authentication과 work-order action은 이 prototype의 결정 범위가 아닙니다.
-
-## 5. Experiment evidence와 operational result 경계
+## 4. Experiment evidence와 operational result 경계
 
 현재 repository의 authoritative result는 주로 **experiment evidence**입니다. 이는 dataset/split, fit/reference
 population, model configuration, retrospective/fixed evaluation과 code revision을 설명하기 위한 artifact입니다.
@@ -534,7 +477,7 @@ Decision support (optional)
 모든 capability가 항상 존재한다고 가정하지 않습니다. RUL, health indicator, uncertainty, explanation이 지원되지
 않는 경우 임의의 값이나 그럴듯한 설명으로 채우지 않고 명시적으로 unavailable 상태로 표현합니다.
 
-## 6. 사람·AI·XAI의 책임
+## 5. 사람·AI·XAI의 책임
 
 수치 계산과 PHM 판단의 source of truth는 deterministic PHM pipeline입니다. Generative AI는 구조화된 결과와
 retrieved maintenance knowledge를 사용해 설명·가설 정리·권고 초안·보고서를 생성합니다.
@@ -555,7 +498,7 @@ attribution뿐 아니라 degradation trajectory, uncertainty, calibration이 판
 UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고가 같은 시각적 수준에서 섞이지 않도록 구분해야
 합니다. 특히 정비 조치가 실제 work order나 설비 제어로 이어지는 경우 승인 boundary를 별도로 둡니다.
 
-## 7. CLI도 UX
+## 6. CLI도 UX
 
 현재 단계에서 가장 먼저 사용되는 제품 인터페이스는 CLI일 가능성이 높습니다. 따라서 CLI도 다음 UX 기준을
 적용합니다.
@@ -575,7 +518,7 @@ Schema-specific reader는 immutable `ExperimentInspection` read model을 만들�
 표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
 소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
 
-## 8. End-to-End Analysis Application 현재 상태
+## 7. End-to-End Analysis Application 현재 상태
 
 첫 vertical slice는 현재 구현되어 있습니다. XJTU LSTM retrospective path를 기준으로 prepared source에서 기존
 production analysis runner를 실행하고, 생성 artifact를 inspection과 detailed projection 경계를 거쳐 같은 사용자
@@ -707,6 +650,66 @@ slice에서 실제 요구가 확인될 때 도입합니다.
 완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
 사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
 RUL·diagnosis·새 모델·새 source를 같은 시스템 안에서 확장합니다.
+
+## 8. PHM Operations 현재 상태
+
+Operations UI의 첫 vertical slice는 `apps/operations.py`로 구현합니다. 이 surface의 목적은 현재 구현된
+capability만 모아 작은 화면을 만드는 것이 아니라, 운영 사용자가 실제로 필요로 하는 정보 구조를 먼저
+고정하고 각 값의 evidence 상태를 명확히 구분하는 것입니다.
+
+```text
+Operations
+├ Overview
+│  ├ Asset / Last observed / Data quality
+│  ├ Condition / Alerts / Findings
+│  ├ RUL
+│  └ Maintenance
+├ Assets
+│  └ Fleet / asset inventory
+├ Asset
+│  ├ Observation identity / time / channels / population
+│  ├ Data quality
+│  ├ Freshness
+│  └ Sensor context
+├ Investigation
+│  ├ Finding
+│  ├ Trend & Evidence
+│  ├ Prognostics
+│  └ Maintenance context
+├ Data Quality
+│  ├ Source mapping / validation policy
+│  ├ Recorded quality evidence
+│  └ Missing vendor/sensor quality semantics
+├ Maintenance
+│  ├ Case
+│  ├ Work order
+│  ├ Maintenance history
+│  └ Post-maintenance validation
+└ System Health
+   ├ Source
+   ├ Ingestion
+   ├ Analysis runtime
+   └ Logs / metrics / traces
+```
+
+**UI 구조의 존재와 numerical/operational 사실의 존재를 분리합니다.** 사용자가 필요로 하는 영역은 값이
+아직 없더라도 숨기지 않습니다. 반면 값은 validated evidence가 있을 때만 표시합니다.
+
+- `Not validated`: 필요한 데이터는 있을 수 있으나 field-specific state/threshold 의미가 검증되지 않음
+- `Unavailable`: 해당 operational result/evidence가 현재 생성되지 않음
+- `Not connected`: maintenance/history/service 같은 외부 capability가 연결되지 않음
+- `Not configured`: freshness처럼 제품 정책이 아직 선언되지 않음
+- `Not instrumented`: ingestion/runtime telemetry처럼 platform observability가 아직 계측되지 않음
+
+현재 연결된 concrete path는 prepared field CSV → adapter validation → `AssetObservationSummary`입니다.
+따라서 asset/source/measurement point, observation range, channel/sample population과 aggregate data quality는
+실제 값으로 표시할 수 있습니다. Condition/operational Finding/RUL/Maintenance는 research artifact에서
+추론하지 않으며 각각의 production boundary가 생길 때 현재 자리의 explicit state를 실제 evidence로
+대체합니다.
+
+이 구조는 빈 placeholder를 유지하기 위한 것이 아니라 **다음 구현 순서를 UI에서 드러내는 executable product
+contract**입니다. 다음 작업은 이 surface에 field analysis run/operational finding을 연결하고, 별도
+source/analysis runtime telemetry를 correlation ID와 함께 계측하는 것입니다.
 
 ## References
 
