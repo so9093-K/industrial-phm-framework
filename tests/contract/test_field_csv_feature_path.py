@@ -15,11 +15,7 @@ from industrial_phm.features import (
 def test_field_csv_export_flows_into_vibration_feature_contract(tmp_path: Path) -> None:
     source = tmp_path / "pump.csv"
     source.write_text(
-        "vibration_x,vibration_y\n"
-        "-1.0,-2.0\n"
-        "0.0,-1.0\n"
-        "1.0,1.0\n"
-        "0.0,2.0\n",
+        "vibration_x,vibration_y\n-1.0,-2.0\n0.0,-1.0\n1.0,1.0\n0.0,2.0\n",
         encoding="utf-8",
     )
     layout = CsvSensorLayout(
