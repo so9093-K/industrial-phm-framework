@@ -52,6 +52,7 @@ def test_asset_observation_summary_preserves_operational_observation_facts() -> 
     assert summary.source_snapshot == snapshot
     assert summary.validation_policy == policy
 
+
 def test_source_snapshot_evidence_rejects_invalid_digest() -> None:
     with pytest.raises(ValueError, match="64 hexadecimal"):
         SourceSnapshotEvidence(
@@ -59,6 +60,7 @@ def test_source_snapshot_evidence_rejects_invalid_digest() -> None:
             sha256="not-a-digest",
             size_bytes=128,
         )
+
 
 def test_observation_validation_policy_rejects_negative_tolerance() -> None:
     with pytest.raises(ValueError, match="non-negative"):
@@ -91,6 +93,7 @@ def test_asset_observation_summary_rejects_invalid_identity(
     with pytest.raises(ValueError):
         AssetObservationSummary(**kwargs)  # type: ignore[arg-type]
 
+
 def test_asset_observation_summary_rejects_mixed_time_awareness() -> None:
     with pytest.raises(ValueError, match="timezone awareness"):
         AssetObservationSummary(
@@ -102,6 +105,7 @@ def test_asset_observation_summary_rejects_mixed_time_awareness() -> None:
             observed_end_at=datetime.fromisoformat("2026-09-22T10:00:01"),
             data_quality=DataQualityAssessment(),
         )
+
 
 def test_asset_observation_summary_rejects_reversed_observation_window() -> None:
     with pytest.raises(ValueError, match="must not be after"):
@@ -147,6 +151,7 @@ def test_asset_observation_timeline_preserves_ordered_segments() -> None:
     assert timeline.observed_end_at == second.observed_end_at
     assert timeline.latest is second
 
+
 def test_asset_observation_timeline_rejects_mixed_assets() -> None:
     first = AssetObservationSummary(
         asset_id="pump-01",
@@ -170,6 +175,7 @@ def test_asset_observation_timeline_rejects_mixed_assets() -> None:
     with pytest.raises(ValueError, match="share one asset_id"):
         AssetObservationTimeline((first, second))
 
+
 def test_asset_observation_timeline_rejects_missing_absolute_time() -> None:
     segment = AssetObservationSummary(
         asset_id="pump-01",
@@ -182,6 +188,7 @@ def test_asset_observation_timeline_rejects_missing_absolute_time() -> None:
 
     with pytest.raises(ValueError, match="explicit observed start/end"):
         AssetObservationTimeline((segment,))
+
 
 def test_asset_observation_timeline_rejects_overlapping_segments() -> None:
     first = AssetObservationSummary(

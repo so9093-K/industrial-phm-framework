@@ -80,9 +80,7 @@ def load_field_csv_observation_timeline(
     if len(set(source_paths)) != len(source_paths):
         raise ValueError("field observation timeline sources must be unique")
     if layout.timestamp_column is None:
-        raise ValueError(
-            "field observation timeline requires an explicit timestamp_column"
-        )
+        raise ValueError("field observation timeline requires an explicit timestamp_column")
 
     dated_segments: list[tuple[datetime, AssetObservationSummary]] = []
     for source in source_paths:
@@ -117,9 +115,7 @@ def load_field_csv_observation_timeline_directory(
 ) -> AssetObservationTimeline:
     """Load immediate CSV files as one timestamp-ordered field observation timeline."""
     if not source_directory.is_dir():
-        raise ValueError(
-            f"field observation timeline directory does not exist: {source_directory}"
-        )
+        raise ValueError(f"field observation timeline directory does not exist: {source_directory}")
 
     sources = tuple(
         path

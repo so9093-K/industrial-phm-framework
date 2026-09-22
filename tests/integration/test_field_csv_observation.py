@@ -65,16 +65,12 @@ def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
 ) -> None:
     early = tmp_path / "segment-z.csv"
     early.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-22T10:00:00+09:00,-1.0\n"
-        "2026-09-22T10:00:01+09:00,1.0\n",
+        "timestamp,vibration_x\n2026-09-22T10:00:00+09:00,-1.0\n2026-09-22T10:00:01+09:00,1.0\n",
         encoding="utf-8",
     )
     late = tmp_path / "segment-a.csv"
     late.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-22T11:00:00+09:00,-2.0\n"
-        "2026-09-22T11:00:01+09:00,2.0\n",
+        "timestamp,vibration_x\n2026-09-22T11:00:00+09:00,-2.0\n2026-09-22T11:00:01+09:00,2.0\n",
         encoding="utf-8",
     )
     layout = CsvSensorLayout(
@@ -95,12 +91,9 @@ def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
     assert timeline.segments[0].source_snapshot.name == "segment-z.csv"
     assert timeline.segments[1].source_snapshot is not None
     assert timeline.segments[1].source_snapshot.name == "segment-a.csv"
-    assert timeline.observed_start_at == datetime.fromisoformat(
-        "2026-09-22T10:00:00+09:00"
-    )
-    assert timeline.observed_end_at == datetime.fromisoformat(
-        "2026-09-22T11:00:01+09:00"
-    )
+    assert timeline.observed_start_at == datetime.fromisoformat("2026-09-22T10:00:00+09:00")
+    assert timeline.observed_end_at == datetime.fromisoformat("2026-09-22T11:00:01+09:00")
+
 
 def test_field_csv_timeline_requires_explicit_timestamp_column(
     tmp_path: Path,
@@ -126,15 +119,11 @@ def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
     history = tmp_path / "history"
     history.mkdir()
     (history / "001-late.csv").write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-22T12:00:00+09:00,-3.0\n"
-        "2026-09-22T12:00:01+09:00,3.0\n",
+        "timestamp,vibration_x\n2026-09-22T12:00:00+09:00,-3.0\n2026-09-22T12:00:01+09:00,3.0\n",
         encoding="utf-8",
     )
     (history / "999-early.csv").write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-22T09:00:00+09:00,-1.0\n"
-        "2026-09-22T09:00:01+09:00,1.0\n",
+        "timestamp,vibration_x\n2026-09-22T09:00:00+09:00,-1.0\n2026-09-22T09:00:01+09:00,1.0\n",
         encoding="utf-8",
     )
 
@@ -154,7 +143,6 @@ def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
     assert timeline.segments[0].source_snapshot.name == "999-early.csv"
     assert timeline.latest.source_snapshot is not None
     assert timeline.latest.source_snapshot.name == "001-late.csv"
-
 
 
 def test_field_csv_timeline_directory_rejects_missing_directory(
