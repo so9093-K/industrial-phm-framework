@@ -17,6 +17,7 @@ def _():
         AnalysisRunError,
         AnalysisViewError,
         compare_analysis_evidence,
+        plan_xjtu_lstm_analysis,
         run_xjtu_lstm_analysis_from_source,
         summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
@@ -45,6 +46,7 @@ def _():
         load_analysis_view,
         mo,
         os,
+        plan_xjtu_lstm_analysis,
         plt,
         run_xjtu_lstm_analysis_from_source,
         summarize_anomaly_for_asset,
@@ -208,72 +210,192 @@ def _(
 
 
 @app.cell
-def _(Path, mo, os):
+def _(mo, os):
     analysis_source_input = mo.ui.text(
         value=os.environ.get("INDUSTRIAL_PHM_XJTU_SOURCE", ""),
-        label="준비된 XJTU-SY 데이터 폴더",
+        label="1. 준비된 XJTU-SY 데이터 폴더",
         full_width=True,
     )
-    analysis_output_path = Path(
-        os.environ.get(
+    analysis_output_input = mo.ui.text(
+        value=os.environ.get(
             "INDUSTRIAL_PHM_ANALYSIS_OUTPUT",
             "artifacts/analysis/xjtu-lstm-analysis.json",
-        )
+        ),
+        label="결과 저장 위치",
+        full_width=True,
     )
-    analysis_run_button = mo.ui.run_button(label="분석 실행", kind="success")
-    return analysis_output_path, analysis_run_button, analysis_source_input
+    analysis_plan_button = mo.ui.run_button(label="2. 데이터 확인 및 실행 계획 만들기")
+    analysis_run_button = mo.ui.run_button(label="3. 분석 실행", kind="success")
+    return (
+        analysis_output_input,
+        analysis_plan_button,
+        analysis_run_button,
+        analysis_source_input,
+    )
+
+
+@app.cell
+def _(mo):
+    get_analysis_run_plan, set_analysis_run_plan = mo.state(None)
+    return get_analysis_run_plan, set_analysis_run_plan
+
+
+@app.cell
+def _(Path, analysis_output_input, analysis_source_input):
+    _run_source_value = analysis_source_input.value.strip()
+    _run_output_value = analysis_output_input.value.strip()
+    analysis_source_path = Path(_run_source_value) if _run_source_value else None
+    analysis_result_path = Path(_run_output_value) if _run_output_value else Path(".")
+    return analysis_result_path, analysis_source_path
+
+
+@app.cell
+def _(
+    analysis_plan_button,
+    analysis_result_path,
+    analysis_source_path,
+    plan_xjtu_lstm_analysis,
+    set_analysis_run_plan,
+):
+    if analysis_plan_button.value:
+        _prepared_plan = (
+            None
+            if analysis_source_path is None
+            else plan_xjtu_lstm_analysis(analysis_source_path, analysis_result_path)
+        )
+        set_analysis_run_plan(_prepared_plan)
+    return
+
+
+@app.cell
+def _(
+    analysis_result_path,
+    analysis_source_path,
+    get_analysis_run_plan,
+    mo,
+):
+    analysis_run_plan = get_analysis_run_plan()
+    analysis_plan_is_current = (
+        analysis_run_plan is not None
+        and analysis_source_path == analysis_run_plan.source
+        and analysis_result_path == analysis_run_plan.result_path
+    )
+
+    if analysis_source_path is None:
+        analysis_plan_view = mo.callout(
+            "먼저 분석할 XJTU-SY 데이터 폴더를 입력하세요.",
+            kind="info",
+            title="1. 데이터 선택",
+        )
+    elif analysis_run_plan is None:
+        analysis_plan_view = mo.callout(
+            "데이터 폴더와 결과 위치를 확인한 뒤 **데이터 확인 및 실행 계획 만들기**를 누르세요.",
+            kind="info",
+            title="2. 실행 전 확인 필요",
+        )
+    elif not analysis_plan_is_current:
+        analysis_plan_view = mo.callout(
+            "데이터 폴더 또는 결과 위치가 계획을 만든 뒤 변경되었습니다. "
+            "현재 입력으로 실행 계획을 다시 확인하세요.",
+            kind="warn",
+            title="실행 계획이 오래되었습니다",
+        )
+    else:
+        _plan_stage_rows = "\n".join(
+            f"{index}. {stage}"
+            for index, stage in enumerate(analysis_run_plan.pipeline_stages, start=1)
+        )
+        _plan_population = (
+            "확인 불가"
+            if analysis_run_plan.source_acquisition_count is None
+            else (
+                f"{analysis_run_plan.source_acquisition_count:,} acquisitions / "
+                f"{analysis_run_plan.bearing_run_count:,} bearing runs / "
+                f"{analysis_run_plan.checked_acquisition_count:,} representative checks"
+            )
+        )
+        _plan_warnings = "\n".join(f"- {warning}" for warning in analysis_run_plan.warnings)
+        _plan_blockers = "\n".join(f"- {blocker}" for blocker in analysis_run_plan.blockers)
+        _plan_status = (
+            mo.callout(
+                "사전 검증에서 실행 차단 조건이 발견되지 않았습니다. "
+                "아래 계획을 확인한 뒤 실제 분석을 실행할 수 있습니다.",
+                kind="success",
+                title="실행 준비됨",
+            )
+            if analysis_run_plan.ready_to_run
+            else mo.callout(
+                mo.md(_plan_blockers),
+                kind="danger",
+                title="실행 전 해결할 항목",
+            )
+        )
+        analysis_plan_view = mo.vstack(
+            [
+                _plan_status,
+                mo.md(
+                    "### 확인된 데이터\n\n"
+                    f"- Source: `{analysis_run_plan.source}`\n"
+                    f"- Population: {_plan_population}\n"
+                    f"- Result: `{analysis_run_plan.result_path}`"
+                ),
+                mo.md("### 실행 계획\n\n" + _plan_stage_rows),
+                mo.callout(
+                    mo.md(_plan_warnings),
+                    kind="warn",
+                    title="실행 전에 알아둘 점",
+                ),
+            ],
+            gap=1.0,
+        )
+    return analysis_plan_is_current, analysis_plan_view, analysis_run_plan
 
 
 @app.cell
 def _(
     AnalysisRunError,
-    Path,
-    analysis_output_path,
+    analysis_plan_is_current,
+    analysis_result_path,
     analysis_run_button,
-    analysis_source_input,
+    analysis_run_plan,
+    analysis_source_path,
     mo,
     run_xjtu_lstm_analysis_from_source,
     set_analysis,
 ):
-    source_value = analysis_source_input.value.strip()
-    source_path = Path(source_value) if source_value else None
-    source_ready = source_path is not None and source_path.is_dir()
-
     if not analysis_run_button.value:
-        if source_value and not source_ready:
-            analysis_run_output = mo.callout(
-                "입력한 데이터 폴더를 찾을 수 없습니다. 경로를 다시 확인해주세요.",
-                kind="warn",
-                title="데이터 폴더 확인 필요",
-            )
-        else:
-            analysis_run_output = mo.callout(
-                "데이터 폴더를 지정한 뒤 분석 실행을 누르세요. "
-                "Git revision은 현재 clean checkout에서 자동으로 기록됩니다.",
-                kind="info",
-                title="분석 준비",
-            )
-    elif not source_value:
         analysis_run_output = mo.callout(
-            "분석할 XJTU-SY 데이터 폴더를 입력해주세요.",
+            "실제 모델 실행은 **분석 실행**을 눌렀을 때만 시작합니다.",
+            kind="neutral",
+            title="3. 실행 대기",
+        )
+    elif analysis_source_path is None:
+        analysis_run_output = mo.callout(
+            "분석할 데이터 폴더를 입력하고 실행 계획부터 확인하세요.",
             kind="warn",
             title="분석을 시작하지 않았습니다",
         )
-    elif not source_ready:
+    elif analysis_run_plan is None or not analysis_plan_is_current:
         analysis_run_output = mo.callout(
-            "입력한 데이터 폴더를 찾을 수 없습니다. 경로를 확인해주세요.",
+            "현재 입력에 대한 실행 계획을 먼저 확인하세요.",
             kind="warn",
+            title="분석을 시작하지 않았습니다",
+        )
+    elif not analysis_run_plan.ready_to_run:
+        analysis_run_output = mo.callout(
+            "사전 검증의 실행 차단 항목을 해결한 뒤 계획을 다시 확인하세요.",
+            kind="danger",
             title="분석을 시작하지 않았습니다",
         )
     else:
         try:
             completed_run = run_xjtu_lstm_analysis_from_source(
-                source_path,
-                analysis_output_path,
+                analysis_source_path,
+                analysis_result_path,
             )
             set_analysis(completed_run.analysis)
             analysis_run_output = mo.callout(
-                "분석이 완료되어 현재 화면을 새 결과로 갱신했습니다. "
+                "분석이 완료되어 현재 Explorer를 새 결과로 갱신했습니다. "
                 f"결과 파일: `{completed_run.result_path}`",
                 kind="success",
                 title="분석 완료",
@@ -284,19 +406,30 @@ def _(
                 kind="danger",
                 title="분석 실패",
             )
+    return (analysis_run_output,)
 
+
+@app.cell
+def _(
+    analysis_output_input,
+    analysis_plan_button,
+    analysis_plan_view,
+    analysis_run_button,
+    analysis_run_output,
+    analysis_source_input,
+    mo,
+):
     run_analysis_view = mo.vstack(
         [
             mo.md("## 새 분석 실행"),
             mo.md(
-                "준비된 XJTU-SY 데이터 폴더를 지정하면 데이터 확인부터 특징 추출, "
-                "LSTM 분석, 결과 저장까지 기존 분석 경로를 실행합니다."
+                "실제 모델을 실행하기 전에 데이터 profile과 실행 범위를 먼저 확인합니다. "
+                "계획 확인 단계에서는 numerical model fit이나 scoring을 시작하지 않습니다."
             ),
             analysis_source_input,
-            mo.md(
-                f"결과 저장 위치: `{analysis_output_path}`  \n"
-                "실제 분석 실행에는 deep-learning 의존성이 필요합니다."
-            ),
+            analysis_output_input,
+            analysis_plan_button,
+            analysis_plan_view,
             analysis_run_button,
             analysis_run_output,
         ],
