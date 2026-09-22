@@ -831,8 +831,7 @@ def _(
             output_path = Path(report_output_input.value.strip())
             attached_prognostics = (
                 prognostics_analysis
-                if prognostics_compatibility is not None
-                and prognostics_compatibility.compatible
+                if prognostics_compatibility is not None and prognostics_compatibility.compatible
                 else None
             )
             write_analysis_report_markdown(
