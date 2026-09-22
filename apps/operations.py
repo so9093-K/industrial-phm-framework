@@ -14,24 +14,34 @@ def _():
     from industrial_phm.adapters import CsvSensorLayout, CsvSensorSourceError
     from industrial_phm.application import (
         AssetObservationSummary,
+        AssetObservationTimeline,
         load_field_csv_observation_summary,
+        load_field_csv_observation_timeline_directory,
     )
     from industrial_phm.contracts import DataQualityState
 
     return (
         AssetObservationSummary,
+        AssetObservationTimeline,
         CsvSensorLayout,
         CsvSensorSourceError,
         DataQualityState,
         Path,
         load_field_csv_observation_summary,
+        load_field_csv_observation_timeline_directory,
         mo,
         os,
     )
 
 
 @app.cell
-def _(CsvSensorLayout, CsvSensorSourceError, Path, load_field_csv_observation_summary):
+def _(
+    CsvSensorLayout,
+    CsvSensorSourceError,
+    Path,
+    load_field_csv_observation_summary,
+    load_field_csv_observation_timeline_directory,
+):
     def parse_channels(value: str) -> tuple[str, ...]:
         return tuple(item.strip() for item in value.split(",") if item.strip())
 
@@ -41,6 +51,7 @@ def _(CsvSensorLayout, CsvSensorSourceError, Path, load_field_csv_observation_su
     def load_observation(
         *,
         source_path: str,
+        history_directory: str,
         asset_id: str,
         source_id: str,
         measurement_point_id: str,
@@ -49,25 +60,36 @@ def _(CsvSensorLayout, CsvSensorSourceError, Path, load_field_csv_observation_su
         sampling_rate_hz: str,
     ):
         path_value = source_path.strip()
-        if not path_value:
-            return None, ""
+        history_value = history_directory.strip()
+        if not path_value and not history_value:
+            return None, None, ""
 
+        layout = CsvSensorLayout(
+            asset_id=asset_id.strip(),
+            timestamp_column=timestamp_column.strip() or None,
+            channel_columns=parse_channels(channels),
+            sampling_rate_hz=parse_sampling_rate(sampling_rate_hz),
+        )
         try:
+            if history_value:
+                timeline = load_field_csv_observation_timeline_directory(
+                    Path(history_value),
+                    layout,
+                    source_id=source_id.strip(),
+                    measurement_point_id=measurement_point_id.strip() or None,
+                )
+                return timeline.latest, timeline, ""
+
             summary = load_field_csv_observation_summary(
                 Path(path_value),
-                CsvSensorLayout(
-                    asset_id=asset_id.strip(),
-                    timestamp_column=timestamp_column.strip() or None,
-                    channel_columns=parse_channels(channels),
-                    sampling_rate_hz=parse_sampling_rate(sampling_rate_hz),
-                ),
+                layout,
                 source_id=source_id.strip(),
                 measurement_point_id=measurement_point_id.strip() or None,
             )
         except (CsvSensorSourceError, OSError, ValueError) as error:
-            return None, str(error)
+            return None, None, str(error)
 
-        return summary, ""
+        return summary, None, ""
 
     return load_observation, parse_channels, parse_sampling_rate
 
@@ -75,6 +97,10 @@ def _(CsvSensorLayout, CsvSensorSourceError, Path, load_field_csv_observation_su
 @app.cell
 def _(load_observation, os):
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
+    history_directory_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY",
+        "",
+    )
     asset_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_ASSET_ID", "asset-01")
     source_id_default = os.environ.get(
         "INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID",
@@ -97,8 +123,9 @@ def _(load_observation, os):
         "",
     )
 
-    initial_summary, initial_error = load_observation(
+    initial_summary, initial_timeline, initial_error = load_observation(
         source_path=source_default,
+        history_directory=history_directory_default,
         asset_id=asset_default,
         source_id=source_id_default,
         measurement_point_id=measurement_point_default,
@@ -109,8 +136,10 @@ def _(load_observation, os):
     return (
         asset_default,
         channels_default,
+        history_directory_default,
         initial_error,
         initial_summary,
+        initial_timeline,
         measurement_point_default,
         sampling_rate_default,
         source_default,
@@ -123,6 +152,7 @@ def _(load_observation, os):
 def _(
     asset_default,
     channels_default,
+    history_directory_default,
     measurement_point_default,
     mo,
     sampling_rate_default,
@@ -147,6 +177,11 @@ def _(
     source_input = mo.ui.text(
         value=source_default,
         label="Prepared field CSV path",
+        full_width=True,
+    )
+    history_directory_input = mo.ui.text(
+        value=history_directory_default,
+        label="Prepared history directory (optional; takes precedence)",
         full_width=True,
     )
     asset_input = mo.ui.text(value=asset_default, label="Asset ID", full_width=True)
@@ -179,6 +214,7 @@ def _(
     return (
         asset_input,
         channels_input,
+        history_directory_input,
         load_button,
         measurement_point_input,
         page_selector,
@@ -190,29 +226,40 @@ def _(
 
 
 @app.cell
-def _(initial_error, initial_summary, mo):
+def _(initial_error, initial_summary, initial_timeline, mo):
     get_observation, set_observation = mo.state(initial_summary)
+    get_timeline, set_timeline = mo.state(initial_timeline)
     get_load_error, set_load_error = mo.state(initial_error)
-    return get_load_error, get_observation, set_load_error, set_observation
+    return (
+        get_load_error,
+        get_observation,
+        get_timeline,
+        set_load_error,
+        set_observation,
+        set_timeline,
+    )
 
 
 @app.cell
 def _(
     asset_input,
     channels_input,
+    history_directory_input,
     load_button,
     load_observation,
     measurement_point_input,
     sampling_rate_input,
     set_load_error,
     set_observation,
+    set_timeline,
     source_id_input,
     source_input,
     timestamp_input,
 ):
     if load_button.value:
-        _summary, _error = load_observation(
+        _summary, _timeline, _error = load_observation(
             source_path=source_input.value,
+            history_directory=history_directory_input.value,
             asset_id=asset_input.value,
             source_id=source_id_input.value,
             measurement_point_id=measurement_point_input.value,
@@ -221,15 +268,17 @@ def _(
             sampling_rate_hz=sampling_rate_input.value,
         )
         set_observation(_summary)
+        set_timeline(_timeline)
         set_load_error(_error)
     return
 
 
 @app.cell
-def _(get_load_error, get_observation):
+def _(get_load_error, get_observation, get_timeline):
     observation = get_observation()
+    timeline = get_timeline()
     load_error = get_load_error()
-    return load_error, observation
+    return load_error, observation, timeline
 
 
 @app.cell
@@ -278,7 +327,7 @@ def _(DataQualityState, mo, observation):
 
 
 @app.cell
-def _(load_error, mo, observation):
+def _(load_error, mo, observation, timeline):
     if load_error:
         connection_status = mo.callout(
             load_error,
@@ -291,6 +340,14 @@ def _(load_error, mo, observation):
             "missing capabilities are explicit rather than hidden.",
             kind="neutral",
             title="Observation source not connected",
+        )
+    elif timeline is not None:
+        connection_status = mo.callout(
+            f"{timeline.segment_count} prepared field segments loaded and ordered by "
+            "their recorded timestamps. The latest segment is used for current "
+            "observation details; the timeline itself does not imply a PHM trend.",
+            kind="success",
+            title="Observation history loaded",
         )
     else:
         connection_status = mo.callout(
@@ -438,7 +495,7 @@ def _(connection_status, mo, observation_detail, overview_stats, quality_view):
 
 
 @app.cell
-def _(mo, observation, observation_detail, quality_view):
+def _(mo, observation, observation_detail, observation_timeline_view, quality_view):
     if observation is None:
         _identity = mo.callout(
             "Connect a prepared field source to inspect the asset and measurement point.",
@@ -462,6 +519,7 @@ def _(mo, observation, observation_detail, quality_view):
             mo.md("## Asset"),
             _identity,
             observation_detail,
+            observation_timeline_view,
             quality_view,
             mo.callout(
                 "Freshness policy is not configured. The UI shows the recorded source "
@@ -483,7 +541,67 @@ def _(mo, observation, observation_detail, quality_view):
 
 
 @app.cell
-def _(mo):
+def _(mo, timeline):
+    if timeline is None:
+        observation_timeline_view = mo.callout(
+            "Load a prepared history directory to review multiple timestamped "
+            "observation segments.",
+            kind="neutral",
+            title="Observation timeline · Unavailable",
+        )
+    else:
+        _rows = []
+        for _index, _segment in enumerate(timeline.segments, start=1):
+            _snapshot_name = (
+                "Not recorded"
+                if _segment.source_snapshot is None
+                else _segment.source_snapshot.name
+            )
+            _rows.append(
+                f"| {_index} | {_segment.observed_start_at.isoformat()} | "
+                f"{_segment.observed_end_at.isoformat()} | {_segment.sample_count:,} | "
+                f"{_segment.data_quality.state.value.upper()} | `{_snapshot_name}` |"
+            )
+        observation_timeline_view = mo.vstack(
+            [
+                mo.hstack(
+                    [
+                        mo.stat(
+                            str(timeline.segment_count),
+                            label="Observed segments",
+                            caption="Ordered by recorded source timestamp",
+                        ),
+                        mo.stat(
+                            timeline.observed_start_at.isoformat(),
+                            label="History start",
+                            caption="First recorded observation",
+                        ),
+                        mo.stat(
+                            timeline.observed_end_at.isoformat(),
+                            label="History end",
+                            caption="Latest recorded observation",
+                        ),
+                    ],
+                    widths="equal",
+                ),
+                mo.md(
+                    "| # | Observed start | Observed end | Samples | Quality | Source snapshot |\n"
+                    "| ---: | --- | --- | ---: | --- | --- |\n" + "\n".join(_rows)
+                ),
+                mo.callout(
+                    "This is an observation timeline only. Ordering source segments by "
+                    "recorded time does not create an anomaly, condition, health or RUL trend.",
+                    kind="info",
+                    title="Timeline semantics",
+                ),
+            ],
+            gap=0.8,
+        )
+    return observation_timeline_view
+
+
+@app.cell
+def _(mo, observation_timeline_view):
     investigation_view = mo.vstack(
         [
             mo.md(
@@ -496,11 +614,12 @@ def _(mo):
                 kind="neutral",
                 title="Finding · Unavailable",
             ),
+            observation_timeline_view,
             mo.callout(
-                "Anomaly/condition trend will appear here only after a field analysis "
-                "run produces evidence with validated operational semantics.",
+                "Anomaly/condition trend will appear only after a field analysis run "
+                "produces evidence with validated operational semantics.",
                 kind="neutral",
-                title="Trend & Evidence · Unavailable",
+                title="PHM Trend & Evidence · Unavailable",
             ),
             mo.callout(
                 "No operational RUL estimate is available. Research benchmark RUL is "
@@ -563,8 +682,9 @@ def _(mo, observation):
                     "| --- | --- | --- | --- | --- |\n" + _row
                 ),
                 mo.callout(
-                    "The current field bootstrap exposes one asset segment at a time. "
-                    "A one-row inventory is a source limitation, not the final fleet model.",
+                    "The current field bootstrap exposes one asset identity at a time, "
+                    "optionally across multiple timestamped segments. A one-row inventory "
+                    "is a source limitation, not the final fleet model.",
                     kind="info",
                     title="Current inventory scope",
                 ),
@@ -772,6 +892,7 @@ def _(mo, observation):
 def _(
     asset_input,
     channels_input,
+    history_directory_input,
     load_button,
     measurement_point_input,
     mo,
@@ -785,11 +906,14 @@ def _(
             "Field source bootstrap": mo.vstack(
                 [
                     mo.md(
-                        "현재 Operations prototype은 prepared single-asset CSV를 "
-                        "application boundary를 통해 읽습니다. "
-                        "이 입력은 historian/API를 대신하는 영구 제품 계약이 아닙니다."
+                        "현재 Operations prototype은 prepared single-asset CSV "
+                        "snapshot 또는 동일 asset의 timestamped CSV history directory를 "
+                        "application boundary를 통해 읽습니다. History directory가 "
+                        "입력되면 single CSV보다 우선합니다. 이 입력은 historian/API를 "
+                        "대신하는 영구 제품 계약이 아닙니다."
                     ),
                     source_input,
+                    history_directory_input,
                     mo.hstack([asset_input, source_id_input], widths="equal"),
                     mo.hstack(
                         [measurement_point_input, channels_input],
