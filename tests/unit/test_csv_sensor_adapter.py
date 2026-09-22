@@ -245,4 +245,3 @@ def test_csv_layout_rejects_invalid_sampling_rate_tolerance(tolerance: float) ->
             sampling_rate_hz=1.0,
             sampling_rate_tolerance_ratio=tolerance,
         )
-
