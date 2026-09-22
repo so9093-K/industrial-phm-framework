@@ -12,6 +12,11 @@ from industrial_phm.analysis.intervals import (
     derive_early_scored_window_review_threshold,
     score_exceedance_intervals,
 )
+from industrial_phm.analysis.anomaly_summary import (
+    AnomalyAssetSummary,
+    RankedFeatureResidual,
+    summarize_anomaly_for_asset,
+)
 from industrial_phm.analysis.prognostics_summary import (
     PrognosticsAssetSummary,
     PrognosticsMethodRow,
@@ -44,6 +49,7 @@ from industrial_phm.analysis.view import (
 
 __all__ = [
     "AnalysisAssetEvidence",
+    "AnomalyAssetSummary",
     "AnalysisEvidenceCompatibility",
     "AnalysisEvidenceIdentity",
     "AnalysisObservation",
@@ -58,6 +64,7 @@ __all__ = [
     "PrognosticsEvidence",
     "PrognosticsMethodEvidence",
     "PrognosticsMethodRow",
+    "RankedFeatureResidual",
     "ReviewScoreThreshold",
     "ScoreExceedanceInterval",
     "ScoreIntervalError",
@@ -70,6 +77,7 @@ __all__ = [
     "render_analysis_report_markdown",
     "run_xjtu_lstm_analysis_from_source",
     "score_exceedance_intervals",
+    "summarize_anomaly_for_asset",
     "summarize_prognostics_for_asset",
     "write_analysis_report_markdown",
 ]

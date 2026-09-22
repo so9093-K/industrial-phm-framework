@@ -250,6 +250,7 @@
 
 ### Changed
 
+- Analysis Explorer의 첫 화면을 기술 지표 중심에서 사용자 검토 흐름 중심으로 재구성했습니다. 집중 확인 구간과 가장 높은 구간을 먼저 보여주고 Spearman rho/검토 기준값은 상세 정보로 이동했으며, AI 설명은 독립 메뉴 대신 이상 근거와 RUL 결과 문맥 안에서 사용하도록 배치했습니다.
 - Analysis Explorer에서 저장하는 Markdown 보고서를 사용자 결과 중심 한국어 구조로 개편했습니다. 이상 변화와 RUL 모델 비교를 먼저 보여주고 split/revision/artifact/capability와 inspection warning은 뒤쪽 기술 정보로 이동했습니다.
 - CLI onboarding을 개선했습니다. `doctor`가 Python, repository checkout, data root, research/deep-learning runtime 상태와 다음 Explorer 실행 명령을 보여주고, `data status/fetch/verify/inspect/validate`가 실패 또는 완료 후 다음 데이터 준비·검증 행동을 안내합니다.
 - Git clone부터 Analysis Explorer 실행까지의 사용자 여정을 정리했습니다. README의 첫 실행을 `clone → Python 3.14 → marimo run`으로 단순화하고, Explorer 주요 화면을 한국어 결과 중심으로 재구성했습니다. 새 XJTU 분석은 데이터 폴더만 입력하면 현재 clean Git revision을 자동 기록하며, 결과 화면에서 Markdown 보고서를 바로 저장할 수 있습니다.
