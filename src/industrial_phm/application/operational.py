@@ -56,13 +56,8 @@ class AnalysisRun:
 
         if not isinstance(self.data_quality, DataQualityAssessment):
             raise ValueError("data_quality must be a DataQualityAssessment")
-        if any(
-            not isinstance(snapshot, SourceSnapshotEvidence)
-            for snapshot in source_snapshots
-        ):
-            raise ValueError(
-                "source_snapshots must contain only SourceSnapshotEvidence values"
-            )
+        if any(not isinstance(snapshot, SourceSnapshotEvidence) for snapshot in source_snapshots):
+            raise ValueError("source_snapshots must contain only SourceSnapshotEvidence values")
         snapshot_digests = tuple(snapshot.sha256 for snapshot in source_snapshots)
         if len(set(snapshot_digests)) != len(snapshot_digests):
             raise ValueError("source_snapshots must not repeat the same SHA-256")
@@ -127,14 +122,10 @@ def validate_operational_finding_against_run(
     if finding.asset_id != run.asset_id:
         raise ValueError("finding asset_id does not match the analysis run")
     if finding.measurement_point_id != run.measurement_point_id:
-        raise ValueError(
-            "finding measurement_point_id does not match the analysis run"
-        )
+        raise ValueError("finding measurement_point_id does not match the analysis run")
 
     try:
-        outside_window = not (
-            run.observed_start_at <= finding.observed_at <= run.observed_end_at
-        )
+        outside_window = not (run.observed_start_at <= finding.observed_at <= run.observed_end_at)
     except TypeError as error:
         raise ValueError(
             "finding observed_at must use timezone awareness compatible with the run"
