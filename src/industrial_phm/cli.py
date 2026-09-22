@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -535,7 +537,33 @@ def _add_data_root_argument(parser: argparse.ArgumentParser) -> None:
 
 def _run_doctor(args: argparse.Namespace) -> int:
     del args
+    python_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
+    python_supported = sys.version_info[:2] == (3, 14)
+    data_root = default_data_root()
+    checkout_detected = Path("pyproject.toml").is_file() and Path(
+        "apps/analysis_explorer.py"
+    ).is_file()
+    research_ui_installed = importlib.util.find_spec("marimo") is not None
+    deep_learning_installed = importlib.util.find_spec("torch") is not None
+
     print(f"industrial-phm {__version__}")
-    print(f"data root: {default_data_root()}")
+    print(f"python: {python_version} ({'supported' if python_supported else 'unsupported'})")
+    print(f"project checkout: {'detected' if checkout_detected else 'not detected'}")
+    print(f"data root: {data_root} ({'present' if data_root.exists() else 'not created'})")
     print(f"registered datasets: {len(list_datasets())}")
+    print(f"research UI runtime: {'installed' if research_ui_installed else 'not installed'}")
+    print(
+        "deep-learning runtime: "
+        f"{'installed' if deep_learning_installed else 'not installed'}"
+    )
+    print("next:")
+    if checkout_detected:
+        print(
+            "  open recorded example: "
+            "uv run --locked --group research marimo run apps/analysis_explorer.py"
+        )
+    else:
+        print("  run this command from an industrial-phm-framework repository checkout")
     return 0
