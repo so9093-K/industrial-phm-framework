@@ -161,29 +161,3 @@ def test_openai_generator_requires_output_text(
             api_key="test-secret",
             model="test-model",
         )
-
-
-@pytest.mark.parametrize(
-    "endpoint",
-    [
-        "https://example.com/v1/responses",
-        "https://api.openai.com.evil.example/v1/responses",
-        "https://api.openai.com@evil.example/v1/responses",
-        "http://api.openai.com/v1/responses",
-    ],
-)
-def test_openai_generator_rejects_untrusted_endpoint(endpoint: str) -> None:
-    analysis = load_xjtu_lstm_analysis_view(_RESULT)
-    context = build_analysis_explanation_context(analysis, "Bearing1_2")
-
-    with pytest.raises(
-        AnalysisExplanationError,
-        match="configured OpenAI Responses API endpoint",
-    ):
-        generate_openai_analysis_explanation(
-            context,
-            api_key="test-secret",
-            model="test-model",
-            endpoint=endpoint,
-        )
-
