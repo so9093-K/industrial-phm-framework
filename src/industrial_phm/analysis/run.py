@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from industrial_phm.adapters import XjtuSySourceError, validate_xjtu_source
 from industrial_phm.analysis.projectors.xjtu import load_xjtu_lstm_analysis_view
 from industrial_phm.analysis.view import AnalysisView, AnalysisViewError
 from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_development_evaluation
@@ -41,6 +42,85 @@ def _resolve_current_git_revision() -> str:
             "a versioned analysis result"
         )
     return head
+
+
+@dataclass(frozen=True, slots=True)
+class XjtuLstmAnalysisRunPlan:
+    """Read-only preflight plan for one XJTU LSTM retrospective analysis run."""
+
+    source: Path
+    result_path: Path
+    source_acquisition_count: int | None
+    bearing_run_count: int | None
+    checked_acquisition_count: int | None
+    pipeline_stages: tuple[str, ...]
+    blockers: tuple[str, ...]
+    warnings: tuple[str, ...]
+
+    @property
+    def ready_to_run(self) -> bool:
+        """Return whether the preflight plan has no known execution blocker."""
+        return not self.blockers
+
+
+_XJTU_LSTM_PIPELINE_STAGES = (
+    "validate prepared XJTU-SY source profile",
+    "extract vibration-statistical-v1 features",
+    "fit train-only robust preprocessing state",
+    "construct train/reference and validation sequences",
+    "fit deterministic CPU LSTM autoencoder",
+    "score validation reconstruction mismatch",
+    "evaluate retrospective development evidence",
+    "write and reload validated analysis artifact",
+)
+
+
+def plan_xjtu_lstm_analysis(
+    source: Path,
+    result_path: Path,
+) -> XjtuLstmAnalysisRunPlan:
+    """Validate run prerequisites without starting numerical model execution."""
+    blockers: list[str] = []
+    warnings: list[str] = []
+    source_acquisition_count: int | None = None
+    bearing_run_count: int | None = None
+    checked_acquisition_count: int | None = None
+
+    try:
+        report = validate_xjtu_source(source)
+    except (OSError, XjtuSySourceError) as error:
+        blockers.append(str(error))
+    else:
+        source_acquisition_count = report.acquisition_count
+        bearing_run_count = report.bearing_run_count
+        checked_acquisition_count = report.checked_acquisition_count
+        if not report.profile_matches:
+            blockers.extend(f"source profile mismatch: {issue}" for issue in report.profile_issues)
+
+    if result_path.exists():
+        if result_path.is_dir():
+            blockers.append(f"result path points to a directory: {result_path}")
+        else:
+            warnings.append(f"existing result file will be replaced: {result_path}")
+
+    warnings.append(
+        "actual execution requires a clean tracked Git checkout when code_revision is not supplied"
+    )
+    warnings.append(
+        "this run produces retrospective development evidence, "
+        "not live fault state or maintenance advice"
+    )
+
+    return XjtuLstmAnalysisRunPlan(
+        source=source,
+        result_path=result_path,
+        source_acquisition_count=source_acquisition_count,
+        bearing_run_count=bearing_run_count,
+        checked_acquisition_count=checked_acquisition_count,
+        pipeline_stages=_XJTU_LSTM_PIPELINE_STAGES,
+        blockers=tuple(blockers),
+        warnings=tuple(warnings),
+    )
 
 
 @dataclass(frozen=True, slots=True)
