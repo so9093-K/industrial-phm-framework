@@ -1,9 +1,12 @@
 # Analysis Explorer
 
-`apps/analysis_explorer.py`는 저장된 PHM 분석 결과를 화면에서 확인하고,
-준비된 XJTU-SY 데이터로 새 분석을 실행하는 사용자용 애플리케이션입니다.
+apps/analysis_explorer.py는 저장된 PHM experiment/analysis evidence를 화면에서 검토하고,
+준비된 XJTU-SY 데이터로 새 분석을 실행하는 **PHM Workbench 성격의 interactive application**입니다.
+운영 asset의 현재 관측 상태나 maintenance workflow를 소유하는 Operations dashboard는 아닙니다.
 
-수치 계산은 앱에서 다시 구현하지 않고 `industrial_phm.analysis`의 기존 분석 경로를 사용합니다.
+수치 계산은 앱에서 다시 구현하지 않고 industrial_phm.analysis의 기존 분석 경로를 사용합니다.
+Operations surface는 experiment artifact를 직접 소비하지 않고 별도의 application/operational read model을
+통해 구축합니다.
 
 ## 바로 실행하기
 

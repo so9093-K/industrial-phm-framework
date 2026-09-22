@@ -48,11 +48,12 @@ dataset version, code revision 등 재현과 추론에 필요한 provenance를 �
 `pyproject.toml`, `uv.lock`, dataset manifest, experiment config, artifact manifest, ADR 등 사실의 성격에 맞는
 권위 있는 위치를 하나 정하고 다른 계층은 이를 참조합니다.
 
-## 10. UX contracts precede UI implementation
+## 10. UI validates product contracts
 
-Dashboard framework는 결과 계약과 service boundary가 안정된 이후 선택하되, 사용자 역할과 필요한 정보는
-초기부터 검토합니다. CLI도 사용자 인터페이스로 취급하며 명령 구조, 오류 메시지, provenance 확인 경험을
-일관되게 유지합니다.
+사용자 역할과 필요한 정보는 문서에서만 검토하지 않고 실제 UI vertical slice에서 검증합니다. UI와
+operational contract는 함께 발전하되, presentation 계층이 experiment artifact 구조를 직접 소유하거나
+numerical PHM 의미를 새로 만들지 않습니다. Frontend framework와 service 기술은 실제 product boundary가
+요구하는 시점에 선택하고, CLI도 사용자 인터페이스로 취급해 오류·provenance 경험을 일관되게 유지합니다.
 
 ## 11. Tests justify their maintenance cost
 

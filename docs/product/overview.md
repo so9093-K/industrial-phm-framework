@@ -485,10 +485,15 @@ RUL/prognostics는 `AnalysisView`의 optional capability로 구현되어 있습�
 unavailable로 유지합니다. 반면 IMS/MIMII처럼 inspection은 가능하지만 detailed projector가 없는 artifact는
 같은 Explorer에서 inspection-only surface로 pipeline/capability/provenance까지만 표시합니다.
 
-Operational schema의 이름과 구체적인 public type은 아직 고정하지 않습니다. 첫 실제 inference workflow 또는
-private/field source에서 identity, time, data quality, threshold/state semantics와 deployment provenance가 실제로
-필요해지는 시점에 contract를 정의합니다. 그 전까지 `ExperimentInspection`을 operational result로 확장하거나
-범용 `PHMResult`를 선제적으로 만들지 않습니다.
+Prepared field CSV validation에서 이미 반복해서 필요한 첫 application-level 관측 read model은
+AssetObservationSummary로 분리합니다. 이 read model은 asset_id, explicit source_id, optional
+measurement_point_id, observation time range, channel/sample population과 aggregate data-quality state만
+보존합니다. 이는 current asset health나 operational PHM result가 아니며 anomaly/state/diagnosis/RUL 의미를
+추가하지 않습니다.
+
+AnalysisRun, operational finding, deployment identity, validated threshold/state semantics 같은 더 강한
+operational contract는 실제 field analysis workflow에서 필요해지는 순서로 추가합니다. 그 전까지
+ExperimentInspection을 operational result로 확장하거나 범용 PHMResult를 선제적으로 만들지 않습니다.
 
 UX 관점에서 향후 operational boundary에서 검토할 정보 범주는 다음과 같습니다.
 
@@ -604,6 +609,7 @@ prepared XJTU source
 - unavailable capability를 임의 값으로 채우지 않는 명시적 capability boundary
 - 동일 Explorer shell을 XJTU detailed artifact와 IMS/MIMII inspection-only artifact에 대해 CI export로 검증
 - prepared single-asset CSV export를 명시적 channel/time mapping으로 검증하고 canonical vibration feature 경계까지 연결하는 field-input baseline
+- validated field CSV의 asset/source/measurement-point/time/channel/data-quality 사실을 AssetObservationSummary application read model로 투영하는 operational observation baseline
 
 따라서 첫 vertical slice의 완성 조건인 **분석 실행 → 변화 구간 확인 → evidence 시각화 → AI 설명 →
 분석 과정 확인**은 충족합니다. 이 상태를 유지한 채 새로운 PHM capability를 같은 application에 추가합니다.
@@ -692,10 +698,11 @@ Prepared single-asset CSV export에 대해서는 local validation, source byte i
 canonical mapping과 vibration feature projection까지 baseline이 구현되어 있습니다. 이 경계는 아직 generic field
 analysis runtime이 아니며, MIMII WAV adapter도 generic field WAV contract로 승격하지 않습니다.
 
-다음 확장은 실제 private/field source conformance에서 asset/sensor identity, vendor quality flag,
-maintenance/configuration event와 source-specific diagnostics 요구를 확인한 뒤 진행합니다. Historian/API/live
-inference, frontend framework, service API, authentication, work-order integration, RAG 같은 기술도 실제 제품
-요구가 확인될 때 도입합니다.
+다음 확장은 실제 private/field source conformance와 Operations UI를 함께 진행하면서 asset/sensor identity,
+vendor quality flag, maintenance/configuration event와 source-specific diagnostics 요구를 확인합니다.
+AssetObservationSummary는 이 UI가 관측 사실을 experiment artifact와 분리해 소비하기 위한 첫 경계입니다.
+Historian/API/live inference, service API, authentication, work-order integration, RAG 같은 기술은 해당 vertical
+slice에서 실제 요구가 확인될 때 도입합니다.
 
 완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
 사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후

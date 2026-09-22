@@ -146,10 +146,20 @@ Public contract와 storage/compute representation을 같은 것으로 취급하�
 model implementation 또는 규모 요구가 생기면 dependency와 representation을 그 consumer와 함께 도입하고
 Python compatibility, memory/layout 비용과 serialization boundary를 검증합니다.
 
-## 7. UX Before UI Implementation
+## 7. UI and Operational Contracts Co-Evolve
 
-Dashboard 구현은 PHM Result contract와 inference 경계가 안정된 뒤 진행하지만, 사용자가 어떤 정보를
-소비하는지는 지금부터 설계합니다.
+운영 UI를 PHM result contract와 service boundary가 완성될 때까지 미루지 않습니다. 실제 field source와
+사용자 surface를 연결하면서 필요한 operational read model/API를 함께 검증합니다. 반대로 UI가 experiment
+artifact schema를 직접 해석하거나 numerical PHM 의미를 새로 만드는 것도 허용하지 않습니다.
+
+현재 presentation 책임은 두 축으로 분리합니다.
+
+- Analysis Explorer / Developer Workbench: version-controlled experiment evidence, pipeline, evaluation과 provenance 검토
+- Operations surface: asset/source/measurement point의 관측 상태, data quality, operational finding/evidence 검토
+
+첫 Operations slice는 관측 사실을 먼저 닫습니다. asset_id, source_id, optional measurement_point_id,
+observation time range, channel/sample population과 data-quality state를 application read model로 전달하고,
+anomaly/diagnosis/prognostics/maintenance 의미는 검증된 capability가 실제로 생길 때 별도 evidence로 붙입니다.
 
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
