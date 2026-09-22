@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import subprocess
 
 from industrial_phm.analysis.view import (
     AnalysisView,
@@ -15,6 +16,34 @@ from industrial_phm.experiments.xjtu_lstm_result import run_xjtu_lstm_developmen
 
 class AnalysisRunError(RuntimeError):
     """Raised when a user-facing analysis execution cannot complete."""
+
+
+def _resolve_current_git_revision() -> str:
+    """Return HEAD for a clean tracked checkout used by a user-triggered analysis run."""
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        tracked_status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise AnalysisRunError(
+            "cannot determine the current Git revision; run the analysis from a Git checkout"
+        ) from error
+
+    if tracked_status:
+        raise AnalysisRunError(
+            "tracked Git files have local changes; commit or revert them before creating "
+            "a versioned analysis result"
+        )
+    return head
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,7 +59,7 @@ def run_xjtu_lstm_analysis_from_source(
     source: Path,
     result_path: Path,
     *,
-    code_revision: str,
+    code_revision: str | None = None,
 ) -> XjtuLstmAnalysisRun:
     """Run the existing frozen XJTU LSTM path and return its validated presentation view.
 
@@ -38,11 +67,15 @@ def run_xjtu_lstm_analysis_from_source(
     the retrospective development semantics of the underlying experiment and immediately
     validates the generated artifact through the same AnalysisView used by the user surface.
     """
+    resolved_revision = (
+        _resolve_current_git_revision() if code_revision is None else code_revision
+    )
+
     try:
         run_xjtu_lstm_development_evaluation(
             source,
             result_path,
-            code_revision=code_revision,
+            code_revision=resolved_revision,
         )
     except (OSError, ValueError) as error:
         raise AnalysisRunError(f"XJTU LSTM analysis execution failed: {error}") from error
