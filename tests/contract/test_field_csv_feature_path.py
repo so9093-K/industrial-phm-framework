@@ -82,4 +82,3 @@ def test_field_csv_quality_warning_survives_feature_projection(tmp_path: Path) -
     record = vector.to_flat_record()
     assert record["meta.source_quality_state"] == "warning"
     assert record["meta.source_quality_issue_codes"] == "sampling-rate-mismatch"
-
