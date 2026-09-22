@@ -1,5 +1,3 @@
-import math
-
 import pytest
 
 from industrial_phm.contracts import CanonicalTimeSeries
@@ -25,10 +23,7 @@ def _series(
     )
 
 
-def test_vibration_features_reject_non_finite_or_degenerate_channels() -> None:
-    with pytest.raises(VibrationFeatureError, match="non-finite"):
-        extract_vibration_features(_series([(0.0, 0.0), (math.inf, 1.0)]))
-
+def test_vibration_features_reject_degenerate_channels() -> None:
     with pytest.raises(VibrationFeatureError, match="non-zero variance"):
         extract_vibration_features(_series([(1.0, 0.0), (1.0, 1.0), (1.0, 2.0)]))
 

@@ -154,3 +154,38 @@ def test_rejects_rul_length_mismatch() -> None:
             values=[[1.0], [2.0]],
             rul=[1.0],
         )
+
+
+@pytest.mark.parametrize("invalid_value", [float("nan"), float("inf"), float("-inf"), True, "1.0"])
+def test_rejects_non_finite_or_non_numeric_values(invalid_value: object) -> None:
+    with pytest.raises(ValueError, match="values must contain only finite numbers"):
+        CanonicalTimeSeries(
+            asset_id="asset-001",
+            timestamps=_timestamps(1),
+            channels=["sensor-a"],
+            values=[[invalid_value]],  # type: ignore[list-item]
+        )
+
+
+@pytest.mark.parametrize("sampling_rate_hz", [float("nan"), float("inf"), float("-inf")])
+def test_rejects_non_finite_sampling_rate(sampling_rate_hz: float) -> None:
+    with pytest.raises(ValueError, match="sampling_rate_hz must be finite"):
+        CanonicalTimeSeries(
+            asset_id="asset-001",
+            timestamps=None,
+            channels=["sensor-a"],
+            values=[[1.0]],
+            sampling_rate_hz=sampling_rate_hz,
+        )
+
+
+@pytest.mark.parametrize("invalid_rul", [float("nan"), float("inf"), float("-inf"), True, "1.0"])
+def test_rejects_non_finite_or_non_numeric_rul(invalid_rul: object) -> None:
+    with pytest.raises(ValueError, match="rul must contain only finite numbers or None"):
+        CanonicalTimeSeries(
+            asset_id="asset-001",
+            timestamps=_timestamps(1),
+            channels=["sensor-a"],
+            values=[[1.0]],
+            rul=[invalid_rul],  # type: ignore[list-item]
+        )
