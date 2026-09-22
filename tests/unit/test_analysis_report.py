@@ -51,8 +51,8 @@ def test_report_keeps_attached_prognostics_as_separate_evidence() -> None:
     assert "저장된 RUL 모델 결과" in rendered
     assert "exact source byte identity" in rendered
     assert "대표 RUL 모델을 별도로 지정하지 않습니다" in rendered
-    assert "Uncertainty interval available: false" in rendered
-    assert "Physical failure threshold validated: false" in rendered
+    assert "불확실성 구간 제공: false" in rendered
+    assert "물리적 고장 기준 검증: false" in rendered
 
 
 def test_report_preserves_inspection_warnings() -> None:
