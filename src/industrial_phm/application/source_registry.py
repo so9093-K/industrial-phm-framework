@@ -102,8 +102,7 @@ class JsonSourceRepository:
             raise SourceRegistryFormatError("source registry sources must be a JSON array")
 
         sources = tuple(
-            _parse_registered_source(item, index=index)
-            for index, item in enumerate(sources_raw)
+            _parse_registered_source(item, index=index) for index, item in enumerate(sources_raw)
         )
         source_ids = tuple(source.source_id for source in sources)
         if len(set(source_ids)) != len(source_ids):
@@ -116,12 +115,15 @@ class JsonSourceRepository:
             "schema": _REGISTRY_SCHEMA,
             "sources": [_serialize_registered_source(source) for source in ordered],
         }
-        rendered = json.dumps(
-            payload,
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
-        ) + "\n"
+        rendered = (
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
 
         self._path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path: Path | None = None
@@ -196,9 +198,7 @@ def _parse_registered_source(value: object, *, index: int) -> RegisteredSource:
                 source_path=_require_string(config["source_path"], f"{config_label}.source_path"),
                 asset_id=_require_string(config["asset_id"], f"{config_label}.asset_id"),
                 channel_columns=tuple(cast(list[str], channels_raw)),
-                mode=FileSourceMode(
-                    _require_string(config["mode"], f"{config_label}.mode")
-                ),
+                mode=FileSourceMode(_require_string(config["mode"], f"{config_label}.mode")),
                 measurement_point_id=_optional_string(
                     config["measurement_point_id"],
                     f"{config_label}.measurement_point_id",
