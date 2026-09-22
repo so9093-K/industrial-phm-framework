@@ -91,11 +91,18 @@ sample 1 ------------------------------- sample 32768
 ```
 
 현재 `CanonicalTimeSeries`는 acquisition 내부 waveform segment를 잘 표현하지만 acquisition이 lifecycle에서 언제
-발생했는지와 waveform 내부 sample time을 하나의 의미로 합치지 않습니다. IMS나 실제 historian data를 붙일 때
-segment/acquisition time과 sample time의 관계가 반복적으로 필요해진다면 그때 명시적 contract 확장을 검토합니다.
+발생했는지와 waveform 내부 sample time을 하나의 의미로 합치지 않습니다.
 
-Known final run length로 계산한 normalized lifecycle fraction은 retrospective analysis용이며 online input 또는
-canonical physical time으로 취급하지 않습니다.
+Prepared field CSV에서는 이 구분을 core schema 확장 없이 먼저 application layer에서 검증합니다. 한 CSV는 한
+canonical segment로 유지하고, explicit recorded timestamp가 있는 동일 asset/measurement point segment만
+`AssetObservationTimeline`으로 묶습니다. Timeline은 filename 또는 directory ordering을 시간 의미로 사용하지
+않고 각 segment의 recorded observation time으로 정렬하며 overlap/reverse segment를 차단합니다. 이는 관측
+segment ordering이지 lifecycle stage, anomaly trend 또는 health progression을 뜻하지 않습니다.
+
+IMS나 실제 historian data를 붙일 때 segment/acquisition time과 sample time의 관계가 더 풍부한 공통 contract로
+반복해서 필요해지면 그때 canonical/application boundary 확장을 다시 검토합니다. Known final run length로
+계산한 normalized lifecycle fraction은 retrospective analysis용이며 online input 또는 canonical physical
+time으로 취급하지 않습니다.
 
 ## 5. Standards concept mapping
 
