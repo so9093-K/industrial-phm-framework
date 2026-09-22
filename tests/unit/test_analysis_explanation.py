@@ -162,6 +162,7 @@ def test_openai_generator_requires_output_text(
             model="test-model",
         )
 
+
 @pytest.mark.parametrize(
     "endpoint",
     [
