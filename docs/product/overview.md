@@ -603,6 +603,7 @@ prepared XJTU source
 - `ExperimentInspection`의 pipeline/provenance를 Analysis Details drill-down으로 재사용
 - unavailable capability를 임의 값으로 채우지 않는 명시적 capability boundary
 - 동일 Explorer shell을 XJTU detailed artifact와 IMS/MIMII inspection-only artifact에 대해 CI export로 검증
+- prepared single-asset CSV export를 명시적 channel/time mapping으로 검증하고 canonical vibration feature 경계까지 연결하는 field-input baseline
 
 따라서 첫 vertical slice의 완성 조건인 **분석 실행 → 변화 구간 확인 → evidence 시각화 → AI 설명 →
 분석 과정 확인**은 충족합니다. 이 상태를 유지한 채 새로운 PHM capability를 같은 application에 추가합니다.
@@ -687,10 +688,14 @@ artifact는 dataset/split/fold/population compatibility를 통과한 경우에�
 Report에는 timestamp를 넣지 않아 동일 입력에서 byte-stable text를 만들 수 있고, exact source byte identity가
 artifact에 기록되지 않은 현재 한계도 그대로 표시합니다.
 
-그 이후에는 local/general sensor input, 적합한 source의 diagnostics, private/field source와 live inference를
-같은 완성된 application 안에서 확장합니다. Frontend framework, service API, authentication, work-order
-integration, RAG 같은 기술은 실제 제품 요구가 생길 때 도입하며 현재 vertical slice의 완성을 선행 조건으로
-다시 미루지 않습니다.
+Prepared single-asset CSV export에 대해서는 local validation, source byte identity, data-quality provenance,
+canonical mapping과 vibration feature projection까지 baseline이 구현되어 있습니다. 이 경계는 아직 generic field
+analysis runtime이 아니며, MIMII WAV adapter도 generic field WAV contract로 승격하지 않습니다.
+
+다음 확장은 실제 private/field source conformance에서 asset/sensor identity, vendor quality flag,
+maintenance/configuration event와 source-specific diagnostics 요구를 확인한 뒤 진행합니다. Historian/API/live
+inference, frontend framework, service API, authentication, work-order integration, RAG 같은 기술도 실제 제품
+요구가 확인될 때 도입합니다.
 
 완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
 사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
