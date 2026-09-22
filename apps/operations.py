@@ -842,12 +842,16 @@ def _(mo):
 
 
 @app.cell
-def _(mo, observation):
-    source_health = (
-        "Not connected"
-        if observation is None
-        else f"Prepared snapshot validated · {observation.sample_count:,} samples"
-    )
+def _(mo, observation, timeline):
+    if observation is None:
+        source_health = "Not connected"
+    elif timeline is None:
+        source_health = f"Prepared snapshot validated · {observation.sample_count:,} samples"
+    else:
+        source_health = (
+            f"Prepared history validated · {timeline.segment_count} segments · "
+            f"latest {observation.sample_count:,} samples"
+        )
     system_health_view = mo.vstack(
         [
             mo.md(
@@ -859,7 +863,7 @@ def _(mo, observation):
                     mo.stat(
                         source_health,
                         label="Source",
-                        caption="Current bootstrap is prepared CSV, not live ingestion",
+                        caption="Prepared CSV snapshot/history, not live ingestion",
                     ),
                     mo.stat(
                         "Not instrumented",
