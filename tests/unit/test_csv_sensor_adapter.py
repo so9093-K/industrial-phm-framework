@@ -39,6 +39,9 @@ def test_rate_based_csv_adapter_preserves_source_byte_identity(tmp_path: Path) -
     assert isinstance(adapter, DomainAdapter)
     assert adapter.domain == "field-csv"
     assert report.sample_count == 3
+    assert report.minimum_sample_count == 1
+    assert report.delimiter == ","
+    assert report.sampling_rate_tolerance_ratio is None
     assert report.quality_issues == ()
     assert report.source_sha256 == hashlib.sha256(source.read_bytes()).hexdigest()
     assert len(series) == 1
@@ -53,6 +56,9 @@ def test_rate_based_csv_adapter_preserves_source_byte_identity(tmp_path: Path) -
     assert series[0].metadata["source_quality_state"] == "pass"
     assert series[0].metadata["source_quality_issue_count"] == 0
     assert series[0].metadata["source_quality_issue_codes"] is None
+    assert series[0].metadata["source_csv_delimiter"] == ","
+    assert series[0].metadata["source_minimum_sample_count"] == 1
+    assert series[0].metadata["source_sampling_rate_tolerance_ratio"] is None
 
 
 def test_timestamp_csv_reports_irregular_sampling_without_regridding(tmp_path: Path) -> None:
@@ -195,6 +201,9 @@ def test_timestamp_rate_consistency_reports_declared_rate_mismatch(tmp_path: Pat
     report = validate_csv_sensor_source(source, layout)
 
     assert report.maximum_sampling_interval_deviation_ratio == pytest.approx(1.0)
+    assert report.sampling_rate_tolerance_ratio == 0.05
+    assert report.minimum_sample_count == 1
+    assert report.delimiter == ","
     assert [issue.code for issue in report.quality_issues] == ["sampling-rate-mismatch"]
 
 
