@@ -526,8 +526,8 @@ def _(mo, observation):
             [
                 mo.md(
                     "## Assets\n\n"
-                    "Fleet/asset inventory의 운영 자리입니다. 현재 bootstrap은 single-asset source이지만 "
-                    "목록 surface는 처음부터 유지합니다."
+                    "Fleet/asset inventory의 운영 자리입니다. 현재 bootstrap은 "
+                    "single-asset source이지만 목록 surface는 처음부터 유지합니다."
                 ),
                 mo.callout(
                     "No observed asset is connected yet.",
@@ -555,7 +555,8 @@ def _(mo, observation):
                 mo.md(
                     "## Assets\n\n"
                     "현재 연결된 observation population을 asset inventory 형태로 표시합니다. "
-                    "향후 multi-asset repository/API가 연결되면 같은 surface가 fleet list를 소비합니다."
+                    "향후 multi-asset repository/API가 연결되면 같은 surface가 "
+                    "fleet list를 소비합니다."
                 ),
                 mo.md(
                     "| Asset | Measurement point | Last observed | Data quality | Finding |\n"
