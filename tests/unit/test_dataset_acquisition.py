@@ -231,3 +231,36 @@ def test_cli_rejects_empty_dataset_source(
     captured = capsys.readouterr()
     assert "files: 0" in captured.out
     assert "empty local source" in captured.err
+
+
+def test_cli_status_guides_manual_dataset_to_preparation_docs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["data", "status", "xjtu-sy", "--root", str(tmp_path)]) == 0
+
+    output = capsys.readouterr().out
+    assert "local state: manual source" in output
+    assert "next: follow the dataset preparation guide in data/README.md" in output
+
+
+def test_cli_status_guides_missing_managed_dataset_to_fetch(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["data", "status", "ai4i-2020", "--root", str(tmp_path)]) == 0
+
+    output = capsys.readouterr().out
+    assert "local state: missing" in output
+    assert "next: industrial-phm data fetch ai4i-2020" in output
+
+
+def test_cli_unknown_dataset_lists_available_ids(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["data", "status", "does-not-exist"]) == 2
+
+    error = capsys.readouterr().err
+    assert "unknown dataset: does-not-exist" in error
+    assert "available datasets:" in error
+    assert "xjtu-sy" in error
