@@ -10,6 +10,7 @@ from industrial_phm.application import (
 )
 from industrial_phm.contracts import DataQualityAssessment
 
+
 def test_asset_observation_summary_preserves_operational_observation_facts() -> None:
     start = datetime.fromisoformat("2026-09-22T10:00:00+09:00")
     end = datetime.fromisoformat("2026-09-22T10:00:02+09:00")
