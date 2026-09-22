@@ -23,7 +23,7 @@ def _():
         summarize_prognostics_for_asset,
         write_analysis_report_markdown,
     )
-    from industrial_phm.analysis.loader import load_analysis_view
+    from industrial_phm.analysis.loader import load_analysis_surface, load_analysis_view
     from industrial_phm.genai import (
         AnalysisExplanationError,
         build_analysis_explanation_context,
@@ -43,6 +43,7 @@ def _():
         compare_analysis_evidence,
         generate_openai_analysis_explanation,
         generate_openai_prognostics_explanation,
+        load_analysis_surface,
         load_analysis_view,
         mo,
         os,
@@ -56,7 +57,7 @@ def _():
 
 
 @app.cell
-def _(AnalysisViewError, Path, load_analysis_view, mo, os):
+def _(AnalysisViewError, Path, load_analysis_surface, mo, os):
     artifact_path = Path(
         os.environ.get(
             "INDUSTRIAL_PHM_ANALYSIS_ARTIFACT",
@@ -73,13 +74,68 @@ def _(AnalysisViewError, Path, load_analysis_view, mo, os):
     )
 
     try:
-        initial_analysis = load_analysis_view(artifact_path)
+        initial_surface = load_analysis_surface(artifact_path)
     except AnalysisViewError as error:
         mo.stop(
             True,
             mo.callout(str(error), kind="danger", title="분석 결과 검증 실패"),
         )
 
+    if initial_surface.analysis is None:
+        _stage_views = []
+        for _stage in initial_surface.inspection.stages:
+            _fact_rows = "\n".join(
+                f"| {_fact.label} | {str(_fact.value).replace('|', '&#124;')} |"
+                for _fact in _stage.facts
+            )
+            if not _fact_rows:
+                _fact_rows = "| - | - |"
+            _stage_items = [
+                mo.md(
+                    f"### {_stage.name}\n\n"
+                    f"Status: **{_stage.status}**\n\n"
+                    "| 항목 | 값 |\n"
+                    "| --- | --- |\n"
+                    + _fact_rows
+                )
+            ]
+            if _stage.warnings:
+                _stage_items.append(
+                    mo.callout(
+                        mo.md("\n".join(f"- {_warning}" for _warning in _stage.warnings)),
+                        kind="warn",
+                        title=f"{_stage.name} 경고",
+                    )
+                )
+            _stage_views.append(mo.vstack(_stage_items, gap=0.8))
+
+        _inspection_only_view = mo.vstack(
+            [
+                mo.md(
+                    "# PHM 분석 Explorer\n\n"
+                    "이 artifact는 검증된 pipeline/capability 정보까지 확인할 수 있습니다."
+                ),
+                mo.callout(
+                    "현재 schema에는 Explorer가 표시할 observation-level anomaly trajectory 또는 "
+                    "RUL detailed projector가 없습니다. 저장된 inspection evidence만 표시하며, "
+                    "artifact에 없는 점수 trajectory나 진단 결과를 새로 만들지 않습니다.",
+                    kind="info",
+                    title="Inspection-only 결과",
+                ),
+                mo.md(
+                    "### Artifact\n\n"
+                    f"- Schema: `{initial_surface.inspection.schema_id}`\n"
+                    f"- Status: **{initial_surface.inspection.status}**\n"
+                    f"- File: `{initial_surface.artifact_path}`"
+                ),
+                *_stage_views,
+            ],
+            gap=1.2,
+        )
+        mo.stop(True, _inspection_only_view)
+
+    initial_analysis = initial_surface.analysis
+    assert initial_analysis is not None
     return artifact_path, initial_analysis
 
 
