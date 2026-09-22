@@ -86,9 +86,9 @@ uv run --locked industrial-phm experiment inspect \
 ## 현재 개발 방향
 
 ```text
-일반 CSV/WAV 센서 입력
-  -> 현장·비공개 데이터 연결
-  -> 고장 진단과 RUL 불확실성 검증
+prepared 단일-asset CSV export 검증 / canonical mapping
+  -> 첫 private/field source conformance
+  -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
 
@@ -109,6 +109,10 @@ uv run --locked industrial-phm data validate-csv \
 Timestamp column을 함께 사용하는 경우 `--timestamp-column`을 지정할 수 있고, declared sampling rate와
 timestamp interval의 consistency를 확인하려면 `--sampling-rate-tolerance-ratio`를 명시합니다. 이 명령은
 source structure/quality/provenance만 검증하며 모델 fitting이나 thresholding은 실행하지 않습니다.
+
+현재 일반 field-input contract는 CSV export/snapshot에 한정됩니다. MIMII의 WAV 입력은 dataset-specific
+audio adapter이며 generic field WAV adapter를 의미하지 않습니다. 실제 private source conformance, historian/API
+연결과 field model execution은 실제 source requirement를 확인한 뒤 확장합니다.
 
 최근 PHM 연구와 산업 적용 방향은
 [PHM 연구·산업 동향](docs/research/phm-industry-direction.md)에 별도로 정리합니다.
