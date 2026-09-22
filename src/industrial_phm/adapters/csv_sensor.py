@@ -57,8 +57,6 @@ class CsvSensorLayout:
             not math.isfinite(self.sampling_rate_hz) or self.sampling_rate_hz <= 0
         ):
             raise ValueError("sampling_rate_hz must be a positive finite number")
-        if self.timestamp_column is None and self.sampling_rate_hz is None:
-            raise ValueError("timestamp_column or sampling_rate_hz must be provided")
         if self.sampling_rate_tolerance_ratio is not None:
             if self.timestamp_column is None or self.sampling_rate_hz is None:
                 raise ValueError(
@@ -71,6 +69,8 @@ class CsvSensorLayout:
                 raise ValueError(
                     "sampling_rate_tolerance_ratio must be a finite non-negative number"
                 )
+        if self.timestamp_column is None and self.sampling_rate_hz is None:
+            raise ValueError("timestamp_column or sampling_rate_hz must be provided")
         if (
             isinstance(self.minimum_sample_count, bool)
             or not isinstance(self.minimum_sample_count, int)
