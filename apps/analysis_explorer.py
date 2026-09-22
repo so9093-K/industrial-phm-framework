@@ -95,8 +95,7 @@ def _(AnalysisViewError, Path, load_analysis_surface, mo, os):
                     f"### {_stage.name}\n\n"
                     f"Status: **{_stage.status}**\n\n"
                     "| 항목 | 값 |\n"
-                    "| --- | --- |\n"
-                    + _fact_rows
+                    "| --- | --- |\n" + _fact_rows
                 )
             ]
             if _stage.warnings:
