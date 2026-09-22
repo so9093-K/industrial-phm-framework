@@ -106,8 +106,7 @@ def _run_data_fetch(args: argparse.Namespace) -> int:
     if not result.checksum_pinned:
         print("integrity basis: local SHA-256 provenance")
     print(
-        f"next: industrial-phm data inspect {manifest.dataset_id} "
-        f"--source {result.path} --details"
+        f"next: industrial-phm data inspect {manifest.dataset_id} --source {result.path} --details"
     )
     return 0
 
@@ -210,10 +209,7 @@ def _run_data_inspect(args: argparse.Namespace) -> int:
         print("next: extract the nested archive as described in data/README.md")
     else:
         print("next: prepare the adapter source layout described in data/README.md")
-    print(
-        f"then: industrial-phm data validate {manifest.dataset_id} "
-        "--source <prepared-source>"
-    )
+    print(f"then: industrial-phm data validate {manifest.dataset_id} --source <prepared-source>")
     return 0
 
 
