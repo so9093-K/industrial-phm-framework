@@ -8,6 +8,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from io import StringIO
 from itertools import pairwise
 from pathlib import Path
 from types import MappingProxyType
@@ -110,6 +111,13 @@ class CsvSensorValidationReport:
 
 
 @dataclass(frozen=True, slots=True)
+class _CsvSourceSnapshot:
+    text: str
+    sha256: str
+    size_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
 class _ParsedCsvSensor:
     timestamps: tuple[datetime, ...] | None
     values: tuple[tuple[float, ...], ...]
@@ -165,51 +173,49 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
     if not source.is_file():
         raise CsvSensorSourceError(f"CSV sensor source file does not exist: {source}")
 
+    snapshot = _read_csv_source_snapshot(source)
+    reader = csv.reader(StringIO(snapshot.text, newline=""), delimiter=layout.delimiter)
     try:
-        with source.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.reader(handle, delimiter=layout.delimiter)
-            try:
-                header = tuple(next(reader))
-            except StopIteration as error:
-                raise CsvSensorSourceError("CSV sensor source is empty") from error
+        try:
+            header = tuple(next(reader))
+        except StopIteration as error:
+            raise CsvSensorSourceError("CSV sensor source is empty") from error
 
-            _validate_header(header, layout)
-            index_by_name = {name: index for index, name in enumerate(header)}
-            channel_indexes = tuple(index_by_name[name] for name in layout.channel_columns)
-            timestamp_index = (
-                None if layout.timestamp_column is None else index_by_name[layout.timestamp_column]
-            )
+        _validate_header(header, layout)
+        index_by_name = {name: index for index, name in enumerate(header)}
+        channel_indexes = tuple(index_by_name[name] for name in layout.channel_columns)
+        timestamp_index = (
+            None if layout.timestamp_column is None else index_by_name[layout.timestamp_column]
+        )
 
-            values: list[tuple[float, ...]] = []
-            timestamps: list[datetime] | None = [] if timestamp_index is not None else None
+        values: list[tuple[float, ...]] = []
+        timestamps: list[datetime] | None = [] if timestamp_index is not None else None
 
-            for row_number, row in enumerate(reader, start=2):
-                if len(row) != len(header):
-                    raise CsvSensorSourceError(
-                        f"CSV row {row_number} has {len(row)} fields; expected {len(header)}"
+        for row_number, row in enumerate(reader, start=2):
+            if len(row) != len(header):
+                raise CsvSensorSourceError(
+                    f"CSV row {row_number} has {len(row)} fields; expected {len(header)}"
+                )
+            values.append(
+                tuple(
+                    _parse_numeric_cell(
+                        row[index],
+                        layout.channel_columns[position],
+                        row_number,
                     )
-                values.append(
-                    tuple(
-                        _parse_numeric_cell(
-                            row[index],
-                            layout.channel_columns[position],
-                            row_number,
-                        )
-                        for position, index in enumerate(channel_indexes)
+                    for position, index in enumerate(channel_indexes)
+                )
+            )
+            if timestamps is not None and timestamp_index is not None:
+                timestamps.append(
+                    _parse_timestamp_cell(
+                        row[timestamp_index],
+                        layout.timestamp_column or "timestamp",
+                        row_number,
                     )
                 )
-                if timestamps is not None and timestamp_index is not None:
-                    timestamps.append(
-                        _parse_timestamp_cell(
-                            row[timestamp_index],
-                            layout.timestamp_column or "timestamp",
-                            row_number,
-                        )
-                    )
-    except UnicodeError as error:
-        raise CsvSensorSourceError(f"CSV sensor source is not valid UTF-8: {source}") from error
-    except OSError as error:
-        raise CsvSensorSourceError(f"cannot read CSV sensor source: {source}") from error
+    except csv.Error as error:
+        raise CsvSensorSourceError(f"cannot parse CSV sensor source: {source}") from error
 
     if len(values) < layout.minimum_sample_count:
         raise CsvSensorSourceError(
@@ -241,8 +247,8 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
         minimum_interval_seconds=None if not intervals else min(intervals),
         maximum_interval_seconds=None if not intervals else max(intervals),
         maximum_sampling_interval_deviation_ratio=maximum_deviation_ratio,
-        source_sha256=_sha256_file(source),
-        source_size_bytes=source.stat().st_size,
+        source_sha256=snapshot.sha256,
+        source_size_bytes=snapshot.size_bytes,
         quality_issues=issues,
     )
     return _ParsedCsvSensor(
@@ -376,9 +382,19 @@ def _quality_metadata(report: CsvSensorValidationReport) -> dict[str, _METADATA_
     }
 
 
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _read_csv_source_snapshot(source: Path) -> _CsvSourceSnapshot:
+    try:
+        payload = source.read_bytes()
+    except OSError as error:
+        raise CsvSensorSourceError(f"cannot read CSV sensor source: {source}") from error
+
+    try:
+        text = payload.decode("utf-8-sig")
+    except UnicodeError as error:
+        raise CsvSensorSourceError(f"CSV sensor source is not valid UTF-8: {source}") from error
+
+    return _CsvSourceSnapshot(
+        text=text,
+        sha256=hashlib.sha256(payload).hexdigest(),
+        size_bytes=len(payload),
+    )

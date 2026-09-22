@@ -251,3 +251,33 @@ def test_csv_layout_rejects_invalid_sampling_rate_tolerance(tolerance: float) ->
             sampling_rate_hz=1.0,
             sampling_rate_tolerance_ratio=tolerance,
         )
+
+
+def test_csv_adapter_parses_the_same_byte_snapshot_recorded_in_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _write_csv(tmp_path, "vibration\n1.0\n2.0\n3.0\n")
+    original_payload = source.read_bytes()
+    replacement_payload = b"vibration\n9.0\n10.0\n11.0\n"
+    original_read_bytes = Path.read_bytes
+
+    def read_then_replace(path: Path) -> bytes:
+        payload = original_read_bytes(path)
+        if path == source:
+            path.write_bytes(replacement_payload)
+        return payload
+
+    monkeypatch.setattr(Path, "read_bytes", read_then_replace)
+    layout = CsvSensorLayout(
+        asset_id="pump-01",
+        channel_columns=("vibration",),
+        sampling_rate_hz=100.0,
+    )
+
+    series = next(iter(CsvSensorAdapter(layout).iter_series(source)))
+
+    assert series.values == ((1.0,), (2.0,), (3.0,))
+    assert series.metadata["source_sha256"] == hashlib.sha256(original_payload).hexdigest()
+    assert series.metadata["source_size_bytes"] == len(original_payload)
+
