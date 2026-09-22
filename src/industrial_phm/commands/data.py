@@ -27,10 +27,10 @@ from industrial_phm.data.validation import (
 )
 
 
-def _print_available_datasets(*, file: object = sys.stderr) -> None:
+def _print_available_datasets() -> None:
     print(
         "available datasets: " + ", ".join(manifest.dataset_id for manifest in list_datasets()),
-        file=file,
+        file=sys.stderr,
     )
 
 
