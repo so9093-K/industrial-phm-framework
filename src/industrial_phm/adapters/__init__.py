@@ -1,6 +1,13 @@
 """Domain adapter boundary."""
 
 from industrial_phm.adapters.base import DomainAdapter
+from industrial_phm.adapters.csv_sensor import (
+    CsvSensorAdapter,
+    CsvSensorLayout,
+    CsvSensorSourceError,
+    CsvSensorValidationReport,
+    validate_csv_sensor_source,
+)
 from industrial_phm.adapters.ims import (
     ImsBearingAdapter,
     ImsBearingSourceError,
@@ -34,6 +41,10 @@ __all__ = [
     "MIMII_DUE_CHANNELS",
     "MIMII_EVALUATION_TEST_SECTIONS",
     "XJTU_SY_CHANNELS",
+    "CsvSensorAdapter",
+    "CsvSensorLayout",
+    "CsvSensorSourceError",
+    "CsvSensorValidationReport",
     "DomainAdapter",
     "ImsBearingAdapter",
     "ImsBearingSourceError",
@@ -50,6 +61,7 @@ __all__ = [
     "get_xjtu_expected_acquisition_count",
     "iter_mimii_evaluation_test_clips",
     "read_mimii_evaluation_test_series",
+    "validate_csv_sensor_source",
     "validate_ims_source",
     "validate_mimii_due_source",
     "validate_mimii_evaluation_test_source",

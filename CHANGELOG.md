@@ -11,6 +11,7 @@
 
 ### Added
 
+- 일반 산업 센서 export를 위한 `CsvSensorAdapter`와 최소 data-quality/provenance boundary. 한 CSV 파일을 한 asset segment로 mapping하고 channel/time basis를 명시적으로 요구하며, missing/non-numeric/non-finite 값과 timestamp 역행을 차단합니다. Irregular timestamp interval은 재격자화하지 않고 warning으로 보존하며 source SHA-256과 byte size를 canonical metadata/validation report에 기록합니다.
 - XJTU-SY RUL v1 held-out benchmark의 실제 numerical artifact
   `docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json`. Prepared local source(3 conditions /
   15 bearing runs / 9,216 acquisitions, profile PASS)에서 clean tracked revision
