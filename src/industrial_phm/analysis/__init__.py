@@ -18,6 +18,10 @@ from industrial_phm.analysis.prognostics_summary import (
     prognostics_asset_ids,
     summarize_prognostics_for_asset,
 )
+from industrial_phm.analysis.projectors.xjtu import (
+    load_xjtu_lstm_analysis_view,
+    load_xjtu_rul_analysis_view,
+)
 from industrial_phm.analysis.report import (
     AnalysisReportError,
     render_analysis_report_markdown,
@@ -38,8 +42,6 @@ from industrial_phm.analysis.view import (
     PrognosticsAssetEvidence,
     PrognosticsEvidence,
     PrognosticsMethodEvidence,
-    load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
 )
 
 __all__ = [

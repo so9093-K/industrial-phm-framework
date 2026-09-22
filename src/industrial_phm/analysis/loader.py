@@ -5,12 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from industrial_phm.analysis.view import (
-    AnalysisView,
-    AnalysisViewError,
+from industrial_phm.analysis.projectors.xjtu import (
     load_xjtu_lstm_analysis_view,
     load_xjtu_rul_analysis_view,
 )
+from industrial_phm.analysis.view import AnalysisView, AnalysisViewError
 from industrial_phm.experiments.result_inspection import (
     ExperimentResultInspectionError,
     inspect_experiment_result,
