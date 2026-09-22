@@ -43,10 +43,10 @@ from industrial_phm.experiments.mimii_development import (
     MIMII_DEVELOPMENT_UNSUPPORTED_CAPABILITIES,
 )
 from industrial_phm.experiments.result_inspection_support import (
-    ExperimentInspection,
-    ExperimentResultInspectionError,
-    InspectionFact,
-    InspectionStage,
+    ExperimentInspection as ExperimentInspection,
+    ExperimentResultInspectionError as ExperimentResultInspectionError,
+    InspectionFact as InspectionFact,
+    InspectionStage as InspectionStage,
     _boolean,
     _capability_stage,
     _expect_close,
