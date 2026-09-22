@@ -219,7 +219,8 @@ def test_cli_inspection_reports_nested_archive_preparation_requirement(
     assert "extension .7z: 1 file(s)" in output
     assert "inspection state: completed" in output
     assert "prepared source state: nested archive extraction required" in output
-    assert "industrial-phm data validate ims-bearings" in output
+    assert "next: extract the nested archive as described in data/README.md" in output
+    assert "then: industrial-phm data validate ims-bearings" in output
 
 
 def test_cli_rejects_empty_dataset_source(
