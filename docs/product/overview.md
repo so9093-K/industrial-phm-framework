@@ -451,7 +451,22 @@ development statistic을 억지로 항상 포함시키지 않습니다.
 있습니다. 이 read model은 새로운 numerical Source of Truth나 universal `PHMResult`가 아니며, 기존 result와
 evidence를 재계산하거나 의미를 승격하지 않습니다.
 
-초기 범주는 다음과 같습니다.
+현재 loading boundary는 `AnalysisSurface`와 optional `AnalysisView`로 나뉩니다.
+
+```text
+versioned artifact
+  -> ExperimentInspection
+  -> AnalysisSurface
+       ├ artifact identity / inspection
+       └ AnalysisView?  # detailed projector가 있을 때만
+```
+
+`ExperimentInspection`은 supported schema의 pipeline stage, capability, provenance를 검증합니다.
+`AnalysisSurface`는 이 inspection을 항상 보존하며, artifact가 실제로 detailed evidence를 기록하고 해당
+schema projector가 있을 때만 `AnalysisView`를 붙입니다. detailed projector가 없다는 이유로 aggregate
+artifact를 observation-level trajectory처럼 재구성하지 않습니다.
+
+`AnalysisView`가 제공하는 초기 범주는 다음과 같습니다.
 
 ```text
 Identity / data summary
@@ -465,11 +480,10 @@ Provenance
 Generative AI explanation context
 ```
 
-RUL/prognostics는 현재 같은 read model의 optional capability로 구현되어 있습니다. Compatible한
-prognostics artifact가 있을 때만 attached evidence로 구성하고, 해당 source나 artifact가 RUL을 지원하지 않으면
-임의 값을 만들지 않고 unavailable로 유지합니다. 이 경계의 목적은 experiment artifact의 내부 schema를 UI가
-직접 해석하게 만들지 않으면서도, field source나 live inference가 오기 전부터 완결된 분석 경험을 제공하는
-것입니다.
+RUL/prognostics는 `AnalysisView`의 optional capability로 구현되어 있습니다. Compatible한 prognostics artifact가
+있을 때만 attached evidence로 구성하고, 해당 source나 artifact가 RUL을 지원하지 않으면 임의 값을 만들지 않고
+unavailable로 유지합니다. 반면 IMS/MIMII처럼 inspection은 가능하지만 detailed projector가 없는 artifact는
+같은 Explorer에서 inspection-only surface로 pipeline/capability/provenance까지만 표시합니다.
 
 Operational schema의 이름과 구체적인 public type은 아직 고정하지 않습니다. 첫 실제 inference workflow 또는
 private/field source에서 identity, time, data quality, threshold/state semantics와 deployment provenance가 실제로
@@ -559,15 +573,17 @@ Schema-specific reader는 immutable `ExperimentInspection` read model을 만들�
 ## 8. End-to-End Analysis Application 현재 상태
 
 첫 vertical slice는 현재 구현되어 있습니다. XJTU LSTM retrospective path를 기준으로 prepared source에서 기존
-production analysis runner를 실행하고, 생성 artifact를 validated `AnalysisView`로 다시 읽어 같은 사용자 화면에서
-결과·evidence·AI 설명·pipeline transparency를 이어서 검토할 수 있습니다.
+production analysis runner를 실행하고, 생성 artifact를 inspection과 detailed projection 경계를 거쳐 같은 사용자
+화면에서 결과·evidence·AI 설명·pipeline transparency로 이어서 검토할 수 있습니다.
 
 ```text
 prepared XJTU source
   -> validation / Adapter / feature / preprocessing / sequence
   -> frozen LSTM fit / scoring / evaluation
   -> evidence artifact
-  -> AnalysisView
+  -> ExperimentInspection
+  -> AnalysisSurface
+  -> XJTU detailed projector / AnalysisView
   -> anomaly-evidence trajectory
   -> descriptive score-exceedance interval
   -> supporting residual evidence
@@ -578,7 +594,7 @@ prepared XJTU source
 현재 구현 범위:
 
 - prepared XJTU source에서 analysis를 명시적으로 실행하는 application use case
-- experiment JSON을 UI가 직접 해석하지 않게 하는 presentation-oriented `AnalysisView`
+- experiment JSON을 UI가 직접 해석하지 않게 하는 `AnalysisSurface` / `AnalysisView` loading boundary
 - acquisition-aligned score trajectory와 model-space feature residual evidence 시각화
 - earliest-third scored-window q95를 사용한 retrospective **descriptive review threshold**
 - threshold 초과 acquisition-contiguous observation을 score-exceedance interval로 표시
@@ -586,6 +602,7 @@ prepared XJTU source
 - bounded structured evidence만 소비하는 Generative AI 설명과 analysis-scoped Q&A
 - `ExperimentInspection`의 pipeline/provenance를 Analysis Details drill-down으로 재사용
 - unavailable capability를 임의 값으로 채우지 않는 명시적 capability boundary
+- 동일 Explorer shell을 XJTU detailed artifact와 IMS/MIMII inspection-only artifact에 대해 CI export로 검증
 
 따라서 첫 vertical slice의 완성 조건인 **분석 실행 → 변화 구간 확인 → evidence 시각화 → AI 설명 →
 분석 과정 확인**은 충족합니다. 이 상태를 유지한 채 새로운 PHM capability를 같은 application에 추가합니다.
@@ -602,21 +619,27 @@ prepared XJTU source
 
 ### Capability composition
 
-`AnalysisView`는 모든 PHM 값을 하나의 nullable record로 모으지 않습니다. Identity/provenance와 capability
-선언을 공통으로 두고, 실제 evidence는 capability별로 구성합니다.
+`AnalysisSurface`는 inspectable artifact와 detailed analysis 가능 여부를 분리합니다. 모든 supported schema는
+inspection을 가질 수 있지만, 모든 schema가 observation-level detailed evidence를 가질 필요는 없습니다.
 
 ```text
-AnalysisView
-├ identity / provenance / inspection
-├ available / unsupported capabilities
-├ anomaly_evidence?
-└ prognostics_evidence?
+AnalysisSurface
+├ artifact_path
+├ ExperimentInspection
+└ AnalysisView?
+     ├ identity / provenance / inspection
+     ├ available / unsupported capabilities
+     ├ anomaly_evidence?
+     └ prognostics_evidence?
 ```
 
-Artifact가 어떤 capability를 담지 않으면 해당 evidence는 **없는 상태로 둡니다.** 빈 값이나 0으로 채우지
-않습니다. Surface가 없는 capability를 요구하면 `require_anomaly_evidence()` /
-`require_prognostics_evidence()`가 명시적으로 실패하므로, 값이 비어 있는 이유가 capability 부재인지 데이터
-부재인지 혼동되지 않습니다.
+Detailed projector가 없으면 `AnalysisSurface.analysis`는 `None`이며 Explorer는 inspection-only 화면을
+사용합니다. 이는 artifact가 invalid하다는 뜻이 아니라 detailed evidence가 기록되지 않았다는 뜻입니다.
+
+`AnalysisView` 안에서도 artifact가 어떤 capability를 담지 않으면 해당 evidence는 **없는 상태로 둡니다.**
+빈 값이나 0으로 채우지 않습니다. Surface가 없는 capability를 요구하면
+`require_anomaly_evidence()` / `require_prognostics_evidence()`가 명시적으로 실패하므로, 값이 비어 있는
+이유가 capability 부재인지 데이터 부재인지 혼동되지 않습니다.
 
 Prognostics evidence는 `primary_method_id`를 갖지만 method 선택이 검증되기 전까지 `None`으로 유지합니다.
 여러 method를 동시에 보여주는 화면은 **development comparison evidence**이며, 같은 asset에 대한 여러 개의

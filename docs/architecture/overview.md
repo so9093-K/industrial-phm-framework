@@ -56,10 +56,25 @@ ground truth가 정의된 경우에만 사용합니다.
 ![모델 산출물부터 대시보드와 생성형 AI를 거쳐 사용자에게 전달되는 서비스 아키텍처](../../assets/service-architecture.png)
 
 이 도식의 서비스/추론 계층은 향후 operational deployment에서 필요한 책임 경계를 설명하는 reference이며,
-현재 pre-alpha application이 이미 service API나 live inference runtime을 제공한다는 의미는 아닙니다. 현재
-Analysis Explorer와 report/GenAI 계층은 validated versioned evidence artifact와 `AnalysisView` read model을
-소비합니다. `분석 결과 공유`는 여러 presentation consumer가 같은 validated evidence context를 사용할 수
-있다는 의미이며, 한쪽이 다른 쪽의 필수 선행 계층이라는 의미는 아닙니다.
+현재 pre-alpha application이 이미 service API나 live inference runtime을 제공한다는 의미는 아닙니다.
+
+현재 presentation loading 경계는 두 단계입니다. 모든 supported artifact는 schema-specific inspector를 통해
+`ExperimentInspection`으로 검증되고, `AnalysisSurface`는 이 inspection과 optional detailed `AnalysisView`를
+함께 전달합니다. observation-level anomaly trajectory나 RUL evidence를 실제 artifact가 보존하고 projector가
+존재할 때만 `AnalysisView`가 구성됩니다.
+
+```text
+versioned evidence artifact
+  -> schema-specific inspection
+  -> ExperimentInspection
+  -> AnalysisSurface
+       ├ inspection
+       └ AnalysisView? -> report / GenAI / detailed Explorer
+```
+
+따라서 Analysis Explorer는 IMS/MIMII처럼 detailed projector가 없는 artifact도 inspection-only surface로 열 수
+있지만, artifact에 없는 trajectory·RUL·진단 근거를 재구성하지 않습니다. report/GenAI처럼 detailed numerical
+evidence가 필요한 consumer는 validated `AnalysisView`를 요구합니다.
 
 Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
 operational output에서 반복되는 공통 payload 요구가 확인되기 전에는 universal `PHMResult`, generic workflow
