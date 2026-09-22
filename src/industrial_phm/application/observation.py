@@ -22,11 +22,13 @@ class SourceSnapshotEvidence:
 
     def __post_init__(self) -> None:
         _validate_identifier(self.name, "source snapshot name")
-        if len(self.sha256) != 64 or any(
+        has_invalid_character = any(
             character not in hexdigits for character in self.sha256
-        ):
+        )
+        if len(self.sha256) != 64 or has_invalid_character:
             raise ValueError(
-                "source snapshot sha256 must contain exactly 64 hexadecimal characters"
+                "source snapshot sha256 must contain exactly "
+                "64 hexadecimal characters"
             )
         if self.sha256 != self.sha256.lower():
             raise ValueError("source snapshot sha256 must use lowercase hexadecimal characters")
@@ -60,7 +62,8 @@ class ObservationValidationPolicy:
             or self.sampling_rate_tolerance_ratio < 0
         ):
             raise ValueError(
-                "sampling_rate_tolerance_ratio must be a finite non-negative number"
+                "sampling_rate_tolerance_ratio must be a finite "
+                "non-negative number"
             )
 
 
@@ -136,7 +139,8 @@ class AssetObservationSummary:
             ObservationValidationPolicy,
         ):
             raise ValueError(
-                "validation_policy must be ObservationValidationPolicy when provided"
+                "validation_policy must be ObservationValidationPolicy "
+                "when provided"
             )
 
         object.__setattr__(self, "channels", channels)

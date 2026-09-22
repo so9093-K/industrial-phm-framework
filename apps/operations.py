@@ -631,9 +631,7 @@ def _(mo, observation, quality_view):
                 observation.validation_policy.source_timestamp_field or "Not declared"
             )
             _tolerance = observation.validation_policy.sampling_rate_tolerance_ratio
-            _tolerance_label = (
-                "Not declared" if _tolerance is None else f"{_tolerance:g}"
-            )
+            _tolerance_label = "Not declared" if _tolerance is None else f"{_tolerance:g}"
             _validation_policy = mo.md(
                 "### Validation policy\n\n"
                 "| Policy | Declared value |\n"
