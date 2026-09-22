@@ -671,6 +671,7 @@ def _(mo, observation, quality_view):
     )
     return data_quality_view
 
+
 @app.cell
 def _(mo):
     maintenance_view = mo.vstack(
