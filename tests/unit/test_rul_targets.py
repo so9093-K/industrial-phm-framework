@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 
 from industrial_phm.prognostics import (
+    RulEndpointKind,
     RulTargetError,
     RulTargetObservation,
     RulTargetSeries,
@@ -53,6 +54,7 @@ def test_rul_target_series_freezes_ordered_observations() -> None:
 
     assert series.observations == (first, second)
     assert isinstance(series.observations, tuple)
+    assert series.endpoint_kind is RulEndpointKind.UNKNOWN
 
 
 @pytest.mark.parametrize(
@@ -87,4 +89,41 @@ def test_rul_target_series_rejects_duplicate_source_identity() -> None:
             asset_id="asset-a",
             partition_id="train",
             observations=(first, duplicate),
+        )
+
+
+def test_rul_target_series_accepts_confirmed_failure_endpoint() -> None:
+    series = RulTargetSeries(
+        target_definition_id="failure-rul-v1",
+        unit="cycle",
+        asset_id="asset-a",
+        partition_id="train",
+        observations=(_observation(),),
+        endpoint_kind=RulEndpointKind.CONFIRMED_FAILURE,
+    )
+
+    assert series.endpoint_kind is RulEndpointKind.CONFIRMED_FAILURE
+
+
+def test_rul_target_series_rejects_right_censored_exact_targets() -> None:
+    with pytest.raises(RulTargetError, match="right-censored lifecycle"):
+        RulTargetSeries(
+            target_definition_id="censored-rul-v1",
+            unit="cycle",
+            asset_id="asset-a",
+            partition_id="train",
+            observations=(_observation(),),
+            endpoint_kind=RulEndpointKind.RIGHT_CENSORED,
+        )
+
+
+def test_rul_target_series_rejects_untyped_endpoint_kind() -> None:
+    with pytest.raises(RulTargetError, match="endpoint_kind"):
+        RulTargetSeries(
+            target_definition_id="recorded-end-v1",
+            unit="cycle",
+            asset_id="asset-a",
+            partition_id="train",
+            observations=(_observation(),),
+            endpoint_kind="observed-record-end",  # type: ignore[arg-type]
         )

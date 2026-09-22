@@ -13,7 +13,11 @@ from industrial_phm.features import (
     VibrationFeatureVector,
     vibration_feature_names,
 )
-from industrial_phm.prognostics import RulTargetObservation, RulTargetSeries
+from industrial_phm.prognostics import (
+    RulEndpointKind,
+    RulTargetObservation,
+    RulTargetSeries,
+)
 
 XJTU_RUL_PROTOCOL_ID = "xjtu-sy-recorded-end-rul-v1"
 XJTU_RUL_TARGET_DEFINITION_ID = "xjtu-sy-recorded-end-acquisition-interval-v1"
@@ -60,6 +64,7 @@ def build_xjtu_recorded_end_rul_targets(
                 asset_id=asset_id,
                 partition_id=partition,
                 observations=observations,
+                endpoint_kind=RulEndpointKind.OBSERVED_RECORD_END,
             )
         )
 
@@ -128,6 +133,13 @@ def _validate_recorded_end_target_series(
         )
     if series.unit != XJTU_RUL_TARGET_UNIT:
         raise XjtuRulTargetError("XJTU RUL target series must use acquisition-interval unit")
+    if series.endpoint_kind not in (
+        RulEndpointKind.OBSERVED_RECORD_END,
+        RulEndpointKind.UNKNOWN,
+    ):
+        raise XjtuRulTargetError(
+            "XJTU RUL target series must not reinterpret observed-record-end endpoint semantics"
+        )
 
     run_length = get_xjtu_expected_acquisition_count(series.asset_id)
     expected_ids = tuple(

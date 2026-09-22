@@ -169,7 +169,13 @@ source에서 제공하는 quality/provenance를 잃지 않는 것을 우선합�
 
 실제 fleet에서는 failure보다 preventive maintenance나 observation 종료가 먼저 일어날 수 있습니다. Maintenance,
 failure, alarm, configuration-change event와 right-censored lifecycle을 raw waveform sample label 하나로 강제로
-표현하지 않습니다. 실제 prognostics requirement가 생기면 target/event contract를 별도로 검토합니다.
+표현하지 않습니다.
+
+Dataset-neutral `RulTargetSeries`는 exact target이 어떤 endpoint 의미를 사용하는지
+`RulEndpointKind`로 기록합니다. 현재 XJTU-SY target은 `observed-record-end`이며 마지막 기록점을 confirmed
+physical failure로 승격하지 않습니다. `right-censored` lifecycle은 실제 remaining life가 관측되지 않았으므로
+현재 exact `RulTargetSeries`로 만들 수 없습니다. 향후 censored prognostics가 필요하면 survival/censor-aware
+target/evaluator를 별도 contract로 추가합니다.
 
 ### Security and governance
 

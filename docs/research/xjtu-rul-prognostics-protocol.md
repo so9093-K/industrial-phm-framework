@@ -57,6 +57,10 @@ operational maintenance threshold
   = v1에서 정의하지 않음
 ```
 
+Executable target contract에서도 이 차이를 보존합니다. XJTU-SY의 `RulTargetSeries.endpoint_kind`는
+`observed-record-end`이며, `confirmed-failure`로 기록하지 않습니다. Right-censored lifecycle은 exact
+`N-k` ground truth가 아니므로 현재 `RulTargetSeries`로 구성하지 않습니다.
+
 ## 3. RUL target definition
 
 Bearing run의 acquisition index를 1-based `k`, 마지막 recorded acquisition index를 `N`이라고 할 때
