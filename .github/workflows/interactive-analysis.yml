@@ -10,7 +10,11 @@ on:
       - "src/industrial_phm/genai/**"
       - "src/industrial_phm/experiments/xjtu_characterization_artifacts.py"
       - "src/industrial_phm/experiments/result_inspection.py"
+      - "src/industrial_phm/experiments/result_inspection_support.py"
+      - "src/industrial_phm/experiments/*inspection*.py"
       - "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
+      - "docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json"
+      - "docs/research/results/mimii-due-iforest-domain-shift-development-v1.json"
       - "pyproject.toml"
       - "uv.lock"
   push:
@@ -23,7 +27,11 @@ on:
       - "src/industrial_phm/genai/**"
       - "src/industrial_phm/experiments/xjtu_characterization_artifacts.py"
       - "src/industrial_phm/experiments/result_inspection.py"
+      - "src/industrial_phm/experiments/result_inspection_support.py"
+      - "src/industrial_phm/experiments/*inspection*.py"
       - "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
+      - "docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json"
+      - "docs/research/results/mimii-due-iforest-domain-shift-development-v1.json"
       - "pyproject.toml"
       - "uv.lock"
 
@@ -89,10 +97,20 @@ jobs:
             --no-include-code \
             --output /tmp/maintenance-evidence-review.html
 
-      - name: Execute PHM Analysis Explorer
+      - name: Execute PHM Analysis Explorer across supported surfaces
         run: |
           INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
             uv run --locked --group research marimo export html \
             apps/analysis_explorer.py \
             --no-include-code \
-            --output /tmp/analysis-explorer.html
+            --output /tmp/analysis-explorer-xjtu-detailed.html
+          INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json \
+            uv run --locked --group research marimo export html \
+            apps/analysis_explorer.py \
+            --no-include-code \
+            --output /tmp/analysis-explorer-ims-inspection.html
+          INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/mimii-due-iforest-domain-shift-development-v1.json \
+            uv run --locked --group research marimo export html \
+            apps/analysis_explorer.py \
+            --no-include-code \
+            --output /tmp/analysis-explorer-mimii-inspection.html
