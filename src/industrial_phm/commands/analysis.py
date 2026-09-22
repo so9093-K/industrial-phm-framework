@@ -16,9 +16,7 @@ from industrial_phm.analysis.loader import load_analysis_view
 def _run_analysis_report(args: argparse.Namespace) -> int:
     try:
         analysis = load_analysis_view(args.anomaly)
-        prognostics = (
-            None if args.prognostics is None else load_analysis_view(args.prognostics)
-        )
+        prognostics = None if args.prognostics is None else load_analysis_view(args.prognostics)
         write_analysis_report_markdown(
             analysis,
             args.asset,
