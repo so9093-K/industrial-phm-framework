@@ -17,9 +17,8 @@ def _():
         AnalysisRunError,
         AnalysisViewError,
         compare_analysis_evidence,
-        derive_early_scored_window_review_threshold,
         run_xjtu_lstm_analysis_from_source,
-        score_exceedance_intervals,
+        summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
         write_analysis_report_markdown,
     )
@@ -41,7 +40,6 @@ def _():
         build_analysis_explanation_context,
         build_prognostics_explanation_context,
         compare_analysis_evidence,
-        derive_early_scored_window_review_threshold,
         generate_openai_analysis_explanation,
         generate_openai_prognostics_explanation,
         load_analysis_view,
@@ -49,7 +47,7 @@ def _():
         os,
         plt,
         run_xjtu_lstm_analysis_from_source,
-        score_exceedance_intervals,
+        summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
         write_analysis_report_markdown,
     )
@@ -104,15 +102,14 @@ def _(analysis, mo):
     )
     view_selector = mo.ui.radio(
         options=[
-            "분석 요약",
-            "이상 근거",
+            "결과 요약",
+            "근거 확인",
             "RUL 분석",
-            "AI 설명",
             "새 분석 실행",
             "보고서 저장",
             "상세 정보",
         ],
-        value="분석 요약",
+        value="결과 요약",
         inline=True,
         label="보기",
     )
@@ -120,24 +117,20 @@ def _(analysis, mo):
         """
         # PHM 분석 Explorer
 
-        저장된 분석 결과를 JSON 파일을 직접 읽지 않고 확인할 수 있습니다.
-        결과를 먼저 보고, 모델과 실행 정보는 **상세 정보**에서 확인할 수 있습니다.
+        저장된 분석 결과에서 **어디를 먼저 확인해야 하는지**부터 보여줍니다.
+        근거와 모델·실행 정보는 필요할 때 단계적으로 확인할 수 있습니다.
         """
     )
     return asset_selector, header, view_selector
 
 
 @app.cell
-def _(
-    analysis,
-    asset_selector,
-    derive_early_scored_window_review_threshold,
-    score_exceedance_intervals,
-):
-    selected_asset = analysis.require_anomaly_evidence().asset(asset_selector.value)
-    review_threshold = derive_early_scored_window_review_threshold(selected_asset)
-    review_intervals = score_exceedance_intervals(selected_asset, review_threshold)
-    return review_intervals, review_threshold, selected_asset
+def _(analysis, asset_selector, summarize_anomaly_for_asset):
+    anomaly_summary = summarize_anomaly_for_asset(analysis, asset_selector.value)
+    selected_asset = anomaly_summary.asset
+    review_threshold = anomaly_summary.review_threshold
+    review_intervals = anomaly_summary.review_intervals
+    return anomaly_summary, review_intervals, review_threshold, selected_asset
 
 
 @app.cell
@@ -328,6 +321,7 @@ def _(analysis, mo):
 
 @app.cell
 def _(
+    anomaly_summary,
     asset_selector,
     mo,
     plt,
@@ -366,10 +360,36 @@ def _(
     if not interval_rows:
         interval_rows = "| - | - | 0 | - |"
 
+    strongest_interval = anomaly_summary.strongest_review_interval
+    if strongest_interval is None:
+        summary_status = mo.callout(
+            "현재 결과에서는 검토 기준값을 넘은 연속 구간이 기록되지 않았습니다. "
+            "이 결과만으로 정상 상태를 확정하는 것은 아닙니다.",
+            kind="neutral",
+            title="집중 확인 구간 없음",
+        )
+        strongest_interval_label = "없음"
+        strongest_peak_label = "-"
+    else:
+        summary_status = mo.callout(
+            f"검토 기준값을 넘은 구간이 {anomaly_summary.review_interval_count}개 기록되었습니다. "
+            "가장 높은 점수 구간은 acquisition "
+            f"{strongest_interval.start_acquisition_index}-"
+            f"{strongest_interval.end_acquisition_index}입니다.",
+            kind="warn",
+            title="먼저 확인할 구간",
+        )
+        strongest_interval_label = (
+            f"{strongest_interval.start_acquisition_index}-"
+            f"{strongest_interval.end_acquisition_index}"
+        )
+        strongest_peak_label = f"{strongest_interval.peak_score:.4f}"
+
     summary_view = mo.vstack(
         [
-            mo.md("## 분석 요약"),
+            mo.md("## 결과 요약"),
             asset_selector,
+            summary_status,
             mo.hstack(
                 [
                     mo.stat(
@@ -378,19 +398,14 @@ def _(
                         caption="시간 순서에 맞춘 분석 window",
                     ),
                     mo.stat(
-                        f"{selected_asset.acquisition_order_spearman_rho:.3f}",
-                        label="시간에 따른 변화",
-                        caption="Spearman rho",
-                    ),
-                    mo.stat(
-                        f"{len(review_intervals)}",
+                        f"{anomaly_summary.review_interval_count}",
                         label="집중 확인 구간",
-                        caption="검토 기준값 초과 구간",
+                        caption="검토 기준값 초과 연속 구간",
                     ),
                     mo.stat(
-                        f"{review_threshold.value:.4f}",
-                        label="검토 기준값",
-                        caption="초기 구간 점수의 q95",
+                        strongest_interval_label,
+                        label="가장 높은 구간",
+                        caption=f"최고 점수 {strongest_peak_label}",
                     ),
                 ],
                 widths="equal",
@@ -402,10 +417,11 @@ def _(
                 "| ---: | ---: | ---: | ---: |\n" + interval_rows
             ),
             mo.callout(
-                "음영 구간은 이상 점수가 상대적으로 높았던 위치를 빠르게 확인하기 위한 "
-                "검토용 표시입니다. 모델과 검증 세부 정보는 **상세 정보**에서 확인할 수 있습니다.",
+                "음영 구간은 모델 mismatch 점수가 초기 reference보다 상대적으로 높았던 위치를 "
+                "검토하기 위한 표시입니다. 고장 판정·경보·정비 우선순위를 의미하지 않습니다. "
+                "수치 기준과 모델 정보는 **상세 정보**에서 확인할 수 있습니다.",
                 kind="info",
-                title="그래프 읽는 방법",
+                title="이 결과의 의미",
             ),
         ],
         gap=1.2,
@@ -414,34 +430,23 @@ def _(
 
 
 @app.cell
-def _(analysis, mo, plt, selected_asset):
-    residual_pairs = sorted(
-        zip(
-            analysis.require_anomaly_evidence().feature_names,
-            selected_asset.mean_feature_residuals,
-            strict=True,
-        ),
-        key=lambda pair: pair[1],
-    )
+def _(anomaly_summary, mo, plt):
+    residual_pairs = tuple(reversed(anomaly_summary.ranked_feature_residuals))
+    _selected_asset = anomaly_summary.asset
     residual_figure, residual_axis = plt.subplots(figsize=(11, 6))
     residual_axis.barh(
-        [name.removeprefix("feature.") for name, _ in residual_pairs],
-        [value for _, value in residual_pairs],
+        [item.feature_name.removeprefix("feature.") for item in residual_pairs],
+        [item.mean_squared_residual for item in residual_pairs],
     )
     residual_axis.set_xlabel("Mean squared residual in robust-scaled feature space")
-    residual_axis.set_title(f"{selected_asset.asset_id} model residual evidence")
+    residual_axis.set_title(f"{_selected_asset.asset_id} model residual evidence")
     residual_axis.grid(axis="x", alpha=0.2)
     residual_figure.tight_layout()
 
-    top_observations = sorted(
-        selected_asset.observations,
-        key=lambda observation: observation.score,
-        reverse=True,
-    )[:10]
     top_rows = "\n".join(
         f"| {observation.acquisition_index} | "
         f"`{observation.source_observation_id}` | {observation.score:.6f} |"
-        for observation in top_observations
+        for observation in anomaly_summary.ranked_observations
     )
 
     evidence_view = mo.vstack(
@@ -574,7 +579,15 @@ def _(analysis, mo):
 
 
 @app.cell
-def _(analysis, facts_table, mo, stage_by_name, stage_selector):
+def _(
+    analysis,
+    facts_table,
+    mo,
+    review_threshold,
+    selected_asset,
+    stage_by_name,
+    stage_selector,
+):
     selected_stage = stage_by_name[stage_selector.value]
     warning_block = (
         mo.callout(
@@ -602,6 +615,10 @@ def _(analysis, facts_table, mo, stage_by_name, stage_selector):
                 f"결과 분류: **{analysis.evidence_class}**  \n"
                 f"점수 의미: **{analysis.require_anomaly_evidence().score_semantics_id}**  \n"
                 f"점수 방향: **{analysis.require_anomaly_evidence().score_direction}**  \n"
+                f"시간 순서 상관계수(Spearman rho): "
+                f"**{selected_asset.acquisition_order_spearman_rho:.3f}**  \n"
+                f"검토 기준값: **{review_threshold.value:.4f}** "
+                f"(`{review_threshold.policy_id}`)  \n"
                 f"결과 파일: `{analysis.artifact_path}`"
             ),
         ],
@@ -861,10 +878,9 @@ def _(
     view_selector,
 ):
     views = {
-        "분석 요약": summary_view,
-        "이상 근거": evidence_view,
-        "RUL 분석": prognostics_view,
-        "AI 설명": ai_explanation_view,
+        "결과 요약": summary_view,
+        "근거 확인": mo.vstack([evidence_view, ai_explanation_view], gap=2.0),
+        "RUL 분석": mo.vstack([prognostics_view, ai_explanation_view], gap=2.0),
         "새 분석 실행": run_analysis_view,
         "보고서 저장": report_view,
         "상세 정보": details_view,
