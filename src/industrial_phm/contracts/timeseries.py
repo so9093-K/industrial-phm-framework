@@ -63,9 +63,7 @@ class CanonicalTimeSeries:
             if len(row) != channel_count:
                 raise ValueError("each values row must match the number of channels")
             if any(
-                isinstance(value, bool)
-                or not isinstance(value, Real)
-                or not isfinite(value)
+                isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value)
                 for value in row
             ):
                 raise ValueError("values must contain only finite numbers")
@@ -78,11 +76,7 @@ class CanonicalTimeSeries:
                 raise ValueError("rul must align with samples when provided")
             if any(
                 value is not None
-                and (
-                    isinstance(value, bool)
-                    or not isinstance(value, Real)
-                    or not isfinite(value)
-                )
+                and (isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value))
                 for value in rul
             ):
                 raise ValueError("rul must contain only finite numbers or None")

@@ -155,6 +155,7 @@ def test_rejects_rul_length_mismatch() -> None:
             rul=[1.0],
         )
 
+
 @pytest.mark.parametrize("invalid_value", [float("nan"), float("inf"), float("-inf"), True, "1.0"])
 def test_rejects_non_finite_or_non_numeric_values(invalid_value: object) -> None:
     with pytest.raises(ValueError, match="values must contain only finite numbers"):
