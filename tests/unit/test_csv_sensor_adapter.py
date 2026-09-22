@@ -50,6 +50,9 @@ def test_rate_based_csv_adapter_preserves_source_byte_identity(tmp_path: Path) -
     assert series[0].metadata["site"] == "pilot"
     assert series[0].metadata["source_adapter"] == "field-csv-v1"
     assert series[0].metadata["source_sha256"] == report.source_sha256
+    assert series[0].metadata["source_quality_state"] == "pass"
+    assert series[0].metadata["source_quality_issue_count"] == 0
+    assert series[0].metadata["source_quality_issue_codes"] is None
 
 
 def test_timestamp_csv_reports_irregular_sampling_without_regridding(tmp_path: Path) -> None:
@@ -74,6 +77,9 @@ def test_timestamp_csv_reports_irregular_sampling_without_regridding(tmp_path: P
     assert len(report.quality_issues) == 1
     assert report.quality_issues[0].code == "irregular-sampling"
     assert report.quality_issues[0].severity == DataQualitySeverity.WARNING
+    assert series.metadata["source_quality_state"] == "warning"
+    assert series.metadata["source_quality_issue_count"] == 1
+    assert series.metadata["source_quality_issue_codes"] == "irregular-sampling"
     assert series.sampling_rate_hz is None
     assert series.timestamps == (
         datetime.fromisoformat("2026-09-22T10:00:00+09:00"),

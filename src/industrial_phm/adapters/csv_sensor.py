@@ -137,6 +137,7 @@ class CsvSensorAdapter:
                 "source_file": source.name,
                 "source_sha256": parsed.report.source_sha256,
                 "source_size_bytes": parsed.report.source_size_bytes,
+                **_quality_metadata(parsed.report),
             }
         )
         if self._layout.timestamp_column is not None:
@@ -361,6 +362,18 @@ def _quality_issues(
             )
         )
     return tuple(issues)
+
+
+def _quality_metadata(report: CsvSensorValidationReport) -> dict[str, _METADATA_VALUE]:
+    issue_codes = ",".join(issue.code for issue in report.quality_issues) or None
+    return {
+        "source_quality_state": "warning" if report.has_warnings else "pass",
+        "source_quality_issue_count": len(report.quality_issues),
+        "source_quality_issue_codes": issue_codes,
+        "source_sampling_interval_max_deviation_ratio": (
+            report.maximum_sampling_interval_deviation_ratio
+        ),
+    }
 
 
 def _sha256_file(path: Path) -> str:
