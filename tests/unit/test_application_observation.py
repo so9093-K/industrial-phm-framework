@@ -4,6 +4,7 @@ import pytest
 
 from industrial_phm.application import (
     AssetObservationSummary,
+    AssetObservationTimeline,
     ObservationValidationPolicy,
     SourceSnapshotEvidence,
 )
@@ -117,3 +118,98 @@ def test_asset_observation_summary_rejects_reversed_observation_window() -> None
             observed_end_at=datetime.fromisoformat("2026-09-22T10:00:01+09:00"),
             data_quality=DataQualityAssessment(),
         )
+
+
+
+def test_asset_observation_timeline_preserves_ordered_segments() -> None:
+    first = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="field-export",
+        measurement_point_id="drive-end-bearing",
+        channels=("vibration_x",),
+        sample_count=2,
+        observed_start_at=datetime.fromisoformat("2026-09-22T10:00:00+09:00"),
+        observed_end_at=datetime.fromisoformat("2026-09-22T10:00:01+09:00"),
+        data_quality=DataQualityAssessment(),
+    )
+    second = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="field-export",
+        measurement_point_id="drive-end-bearing",
+        channels=("vibration_x",),
+        sample_count=2,
+        observed_start_at=datetime.fromisoformat("2026-09-22T11:00:00+09:00"),
+        observed_end_at=datetime.fromisoformat("2026-09-22T11:00:01+09:00"),
+        data_quality=DataQualityAssessment(),
+    )
+
+    timeline = AssetObservationTimeline((first, second))
+
+    assert timeline.asset_id == "pump-01"
+    assert timeline.measurement_point_id == "drive-end-bearing"
+    assert timeline.segment_count == 2
+    assert timeline.observed_start_at == first.observed_start_at
+    assert timeline.observed_end_at == second.observed_end_at
+    assert timeline.latest is second
+
+
+def test_asset_observation_timeline_rejects_mixed_assets() -> None:
+    first = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="field-export",
+        channels=("vibration_x",),
+        sample_count=1,
+        observed_start_at=datetime.fromisoformat("2026-09-22T10:00:00+09:00"),
+        observed_end_at=datetime.fromisoformat("2026-09-22T10:00:00+09:00"),
+        data_quality=DataQualityAssessment(),
+    )
+    second = AssetObservationSummary(
+        asset_id="pump-02",
+        source_id="field-export",
+        channels=("vibration_x",),
+        sample_count=1,
+        observed_start_at=datetime.fromisoformat("2026-09-22T11:00:00+09:00"),
+        observed_end_at=datetime.fromisoformat("2026-09-22T11:00:00+09:00"),
+        data_quality=DataQualityAssessment(),
+    )
+
+    with pytest.raises(ValueError, match="share one asset_id"):
+        AssetObservationTimeline((first, second))
+
+
+def test_asset_observation_timeline_rejects_missing_absolute_time() -> None:
+    segment = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="field-export",
+        channels=("vibration_x",),
+        sample_count=2,
+        sampling_rate_hz=1_000.0,
+        data_quality=DataQualityAssessment(),
+    )
+
+    with pytest.raises(ValueError, match="explicit observed start/end"):
+        AssetObservationTimeline((segment,))
+
+
+def test_asset_observation_timeline_rejects_overlapping_segments() -> None:
+    first = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="field-export",
+        channels=("vibration_x",),
+        sample_count=2,
+        observed_start_at=datetime.fromisoformat("2026-09-22T10:00:00+09:00"),
+        observed_end_at=datetime.fromisoformat("2026-09-22T10:00:10+09:00"),
+        data_quality=DataQualityAssessment(),
+    )
+    second = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="field-export",
+        channels=("vibration_x",),
+        sample_count=2,
+        observed_start_at=datetime.fromisoformat("2026-09-22T10:00:05+09:00"),
+        observed_end_at=datetime.fromisoformat("2026-09-22T10:00:15+09:00"),
+        data_quality=DataQualityAssessment(),
+    )
+
+    with pytest.raises(ValueError, match="strictly ordered and non-overlapping"):
+        AssetObservationTimeline((first, second))

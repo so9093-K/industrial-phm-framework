@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
 from industrial_phm.adapters import (
@@ -11,6 +13,7 @@ from industrial_phm.adapters import (
 )
 from industrial_phm.application.observation import (
     AssetObservationSummary,
+    AssetObservationTimeline,
     ObservationValidationPolicy,
     SourceSnapshotEvidence,
 )
@@ -60,4 +63,49 @@ def load_field_csv_observation_summary(
         report,
         source_id=source_id,
         measurement_point_id=measurement_point_id,
+    )
+
+
+
+def load_field_csv_observation_timeline(
+    sources: Sequence[Path],
+    layout: CsvSensorLayout,
+    *,
+    source_id: str,
+    measurement_point_id: str | None = None,
+) -> AssetObservationTimeline:
+    """Validate timestamped field CSV segments and order them by recorded observation time."""
+    source_paths = tuple(sources)
+    if not source_paths:
+        raise ValueError("field observation timeline requires at least one source")
+    if len(set(source_paths)) != len(source_paths):
+        raise ValueError("field observation timeline sources must be unique")
+    if layout.timestamp_column is None:
+        raise ValueError(
+            "field observation timeline requires an explicit timestamp_column"
+        )
+
+    dated_segments: list[tuple[datetime, AssetObservationSummary]] = []
+    for source in source_paths:
+        summary = load_field_csv_observation_summary(
+            source,
+            layout,
+            source_id=source_id,
+            measurement_point_id=measurement_point_id,
+        )
+        if summary.observed_start_at is None:
+            raise AssertionError(
+                "timestamped field CSV summary unexpectedly lacks observed_start_at"
+            )
+        dated_segments.append((summary.observed_start_at, summary))
+
+    try:
+        dated_segments.sort(key=lambda item: item[0])
+    except TypeError as error:
+        raise ValueError(
+            "field observation timeline timestamps must use consistent timezone awareness"
+        ) from error
+
+    return AssetObservationTimeline(
+        tuple(summary for _, summary in dated_segments)
     )
