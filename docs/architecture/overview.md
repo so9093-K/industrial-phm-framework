@@ -85,6 +85,14 @@ live protocol requirement는 generic connector framework를 먼저 만들지 않
 
 ```text
 OPC UA one-shot connector proof
+  OpcUaEndpointProbeConfig
+    └ anonymous / SecurityPolicy None endpoint
+  -> optional asyncua runtime
+  -> connect/session/disconnect
+  -> OpcUaEndpointProbeResult
+       ├ connected_at
+       └ disconnected_at
+
   OpcUaReadConfig
     ├ anonymous / SecurityPolicy None endpoint
     └ explicit channel_id -> variable NodeId mapping
@@ -233,8 +241,10 @@ surface까지 연결되었습니다. 현재 connector는 explicit variable NodeI
 quality/timestamp를 보존하고, application/registry는 같은 endpoint/NodeId mapping을 `RegisteredSource`로
 round-trip합니다. Operations는 FILE과 OPC UA detail을 type별로 표시하며 OPC UA source에서는 FILE 전용
 Load/Run action을 노출하지 않습니다. Operations Add source는 OPC UA endpoint와 explicit `channel_id,node_id`
-mapping을 입력받아 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. 이 registration workflow는
-network connect/test, browse 또는 read를 수행하지 않으며 `AssetObservationSummary` projection, connector lifecycle
+mapping을 입력받아 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Connector 계층에는 같은
+anonymous endpoint/timeout invariant를 재사용하는 `probe_opcua_endpoint` one-shot connect/disconnect boundary가
+있지만 registration workflow에는 아직 연결하지 않았습니다. Probe 성공은 한 시점의 reachability evidence일 뿐
+지속 connection/health state가 아닙니다. Registration은 browse/read를 수행하지 않으며 `AssetObservationSummary` projection, connector lifecycle
 execution, runtime receipt/connection telemetry, subscription/reconnect는 아직 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
 Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
 browse/discovery UX, subscription, reconnect/backoff/buffering은 후속 requirement에서 확장합니다.
