@@ -28,6 +28,13 @@ class SourceRuntimeCycleState(StrEnum):
     FAILED = "failed"
 
 
+class SourceRuntimeCycleFailureScope(StrEnum):
+    """Scope owning a failed runtime cycle."""
+
+    SOURCE = "source"
+    PLATFORM = "platform"
+
+
 @dataclass(frozen=True, slots=True)
 class SourceRuntimeCycleResult:
     """Result of one runtime attempt against a registered file source."""
@@ -38,6 +45,7 @@ class SourceRuntimeCycleResult:
     lifecycle_before: SourceLifecycleRecord
     lifecycle_after: SourceLifecycleRecord
     received: ReceivedRegisteredFileObservation | None = None
+    failure_scope: SourceRuntimeCycleFailureScope | None = None
     message: str | None = None
 
     def __post_init__(self) -> None:
@@ -57,6 +65,8 @@ class SourceRuntimeCycleResult:
         if self.state == SourceRuntimeCycleState.SUCCEEDED:
             if self.received is None:
                 raise ValueError("succeeded runtime cycle requires received observation")
+            if self.failure_scope is not None:
+                raise ValueError("succeeded runtime cycle must not carry failure_scope")
             if self.message is not None:
                 raise ValueError("succeeded runtime cycle must not carry a message")
             if self.lifecycle_after.state != SourceLifecycleState.ACTIVE:
@@ -68,11 +78,18 @@ class SourceRuntimeCycleResult:
         if self.state == SourceRuntimeCycleState.SKIPPED:
             if self.received is not None:
                 raise ValueError("skipped runtime cycle must not carry received observation")
+            if self.failure_scope is not None:
+                raise ValueError("skipped runtime cycle must not carry failure_scope")
             if self.lifecycle_after != self.lifecycle_before:
                 raise ValueError("skipped runtime cycle must not change lifecycle")
         elif self.state == SourceRuntimeCycleState.FAILED:
-            if self.lifecycle_after.state != SourceLifecycleState.ERROR:
-                raise ValueError("failed runtime cycle must transition lifecycle to error")
+            if self.failure_scope is None:
+                raise ValueError("failed runtime cycle requires failure_scope")
+            if self.failure_scope == SourceRuntimeCycleFailureScope.SOURCE:
+                if self.lifecycle_after.state != SourceLifecycleState.ERROR:
+                    raise ValueError("source failure must transition lifecycle to error")
+            elif self.lifecycle_after != self.lifecycle_before:
+                raise ValueError("platform failure must not change source lifecycle")
 
 
 def run_registered_file_source_cycle(
@@ -88,8 +105,9 @@ def run_registered_file_source_cycle(
 
     REGISTERED, PAUSED, or ERROR sources are skipped without source I/O. ACTIVE sources
     re-validate the current source bytes, create receipt evidence, and persist the latest
-    receipt. Source/runtime failures transition lifecycle ACTIVE -> ERROR with the concrete
-    failure detail. This is one explicit iteration, not a scheduler or background poller.
+    receipt. Source validation/I/O failures transition lifecycle ACTIVE -> ERROR with the
+    concrete failure detail. Platform runtime-state failures fail the cycle without changing
+    source lifecycle. This is one explicit iteration, not a scheduler or background poller.
     """
     source = source_repository.get(source_id)
     lifecycle_before = lifecycle_repository.get_lifecycle(source_id)
@@ -125,6 +143,7 @@ def run_registered_file_source_cycle(
                 lifecycle_before,
                 cycle_time,
                 error,
+                failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
             )
         if persisted_receipt is not None and received_at < persisted_receipt.received_at:
             raise ValueError("received_at override must not move backwards")
@@ -141,6 +160,7 @@ def run_registered_file_source_cycle(
             lifecycle_before,
             cycle_time,
             error,
+            failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
         )
 
     if (
@@ -162,6 +182,7 @@ def run_registered_file_source_cycle(
             lifecycle_before,
             cycle_time,
             error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
             received=received,
         )
 
@@ -182,16 +203,19 @@ def _failed_cycle(
     cycle_time: datetime,
     error: Exception,
     *,
+    failure_scope: SourceRuntimeCycleFailureScope,
     received: ReceivedRegisteredFileObservation | None = None,
 ) -> SourceRuntimeCycleResult:
     detail = _failure_detail(error)
-    lifecycle_after = transition_source_lifecycle(
-        lifecycle_repository,
-        source_id,
-        SourceLifecycleState.ERROR,
-        changed_at=cycle_time,
-        detail=detail,
-    )
+    lifecycle_after = lifecycle_before
+    if failure_scope == SourceRuntimeCycleFailureScope.SOURCE:
+        lifecycle_after = transition_source_lifecycle(
+            lifecycle_repository,
+            source_id,
+            SourceLifecycleState.ERROR,
+            changed_at=cycle_time,
+            detail=detail,
+        )
     return SourceRuntimeCycleResult(
         source_id=source_id,
         state=SourceRuntimeCycleState.FAILED,
@@ -199,6 +223,7 @@ def _failed_cycle(
         lifecycle_before=lifecycle_before,
         lifecycle_after=lifecycle_after,
         received=received,
+        failure_scope=failure_scope,
         message=detail,
     )
 
