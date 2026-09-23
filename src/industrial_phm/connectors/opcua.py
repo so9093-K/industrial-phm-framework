@@ -6,15 +6,19 @@ records one successful connect/disconnect interval without inferring ongoing hea
 The read boundary preserves OPC UA quality and source/server timestamps separately from
 the platform acceptance timestamp.
 
-Subscription, reconnect, credentials, certificates and continuous ingestion are later
-boundaries. Browse is intentionally bounded and returns candidate variable identity only.
+A bounded subscription boundary can collect a finite number of DataChange notifications
+without creating a background daemon. Reconnect, credentials, certificates and continuous
+ingestion remain later boundaries. Browse is intentionally bounded and returns candidate
+variable identity only.
 """
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from importlib import import_module
 from math import isfinite
 from numbers import Real
@@ -246,6 +250,189 @@ class OpcUaReadSnapshot:
             raise ValueError("observations must contain OpcUaNodeObservation values")
 
 
+class OpcUaSubscriptionCompletionReason(StrEnum):
+    """Why one bounded subscription collection stopped."""
+
+    MAX_EVENTS = "max-events"
+    TIMEOUT = "timeout"
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaSubscriptionConfig:
+    """Configuration for one bounded anonymous OPC UA DataChange subscription."""
+
+    endpoint_url: str
+    node_mappings: Sequence[OpcUaNodeMapping]
+    publishing_interval_ms: float = 500.0
+    session_timeout_seconds: float = 5.0
+    max_events: int = 1
+    queue_maxsize: int = 128
+    timeout_seconds: float = 4.0
+
+    def __post_init__(self) -> None:
+        read_config = OpcUaReadConfig(
+            endpoint_url=self.endpoint_url,
+            node_mappings=self.node_mappings,
+            timeout_seconds=self.timeout_seconds,
+        )
+        object.__setattr__(self, "node_mappings", tuple(read_config.node_mappings))
+        _validate_positive_finite(self.publishing_interval_ms, "publishing_interval_ms")
+        _validate_positive_finite(self.session_timeout_seconds, "session_timeout_seconds")
+        if isinstance(self.max_events, bool) or not isinstance(self.max_events, int):
+            raise ValueError("max_events must be an integer")
+        if self.max_events < 1:
+            raise ValueError("max_events must be at least 1")
+        if isinstance(self.queue_maxsize, bool) or not isinstance(self.queue_maxsize, int):
+            raise ValueError("queue_maxsize must be an integer")
+        if self.queue_maxsize < 1:
+            raise ValueError("queue_maxsize must be at least 1")
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaSubscriptionNotification:
+    """One DataChange notification projected with protocol timing/quality facts."""
+
+    observation: OpcUaNodeObservation
+    replayed: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.observation, OpcUaNodeObservation):
+            raise ValueError("observation must be an OpcUaNodeObservation")
+        if not isinstance(self.replayed, bool):
+            raise ValueError("replayed must be boolean")
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaSubscriptionResult:
+    """Result of one bounded subscription session."""
+
+    endpoint_url: str
+    connected_at: datetime
+    completed_at: datetime
+    completion_reason: OpcUaSubscriptionCompletionReason
+    notifications: tuple[OpcUaSubscriptionNotification, ...]
+
+    def __post_init__(self) -> None:
+        _validate_endpoint_url(self.endpoint_url)
+        if not isinstance(self.connected_at, datetime) or self.connected_at.utcoffset() is None:
+            raise ValueError("connected_at must be a timezone-aware datetime")
+        if not isinstance(self.completed_at, datetime) or self.completed_at.utcoffset() is None:
+            raise ValueError("completed_at must be a timezone-aware datetime")
+        if self.completed_at < self.connected_at:
+            raise ValueError("completed_at must not be before connected_at")
+        if not isinstance(self.completion_reason, OpcUaSubscriptionCompletionReason):
+            raise ValueError(
+                "completion_reason must be an OpcUaSubscriptionCompletionReason"
+            )
+        if not all(
+            isinstance(item, OpcUaSubscriptionNotification) for item in self.notifications
+        ):
+            raise ValueError(
+                "notifications must contain OpcUaSubscriptionNotification values"
+            )
+        if (
+            self.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
+            and not self.notifications
+        ):
+            raise ValueError("max-events completion requires at least one notification")
+
+
+async def collect_opcua_subscription_notifications(
+    config: OpcUaSubscriptionConfig,
+) -> OpcUaSubscriptionResult:
+    """Collect bounded DataChange notifications without reconnect or background execution."""
+    if not isinstance(config, OpcUaSubscriptionConfig):
+        raise ValueError("config must be an OpcUaSubscriptionConfig")
+
+    module = _load_asyncua_module()
+    client_type = _require_asyncua_client(module)
+    subscription_module = _load_asyncua_subscription_module()
+    data_change_type = getattr(subscription_module, "DataChangeEvent", None)
+    if not isinstance(data_change_type, type):
+        raise OpcUaRuntimeUnavailableError(
+            "asyncua subscription runtime does not expose DataChangeEvent"
+        )
+
+    client = client_type(
+        url=config.endpoint_url,
+        timeout=float(config.timeout_seconds),
+        auto_reconnect=False,
+    )
+    mapping_by_node_id = {
+        mapping.node_id: mapping for mapping in config.node_mappings
+    }
+    notifications: list[OpcUaSubscriptionNotification] = []
+    completion_reason = OpcUaSubscriptionCompletionReason.TIMEOUT
+
+    async with client:
+        connected_at = datetime.now(UTC)
+        nodes = [client.get_node(mapping.node_id) for mapping in config.node_mappings]
+        subscription = await client.create_subscription(
+            float(config.publishing_interval_ms),
+            queue_maxsize=config.queue_maxsize,
+        )
+        async with subscription:
+            await subscription.subscribe_data_change(nodes)
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + float(config.session_timeout_seconds)
+
+            while len(notifications) < config.max_events:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    break
+                event = await subscription.next_event(timeout=remaining)
+                if event is None:
+                    break
+                if not isinstance(event, data_change_type):
+                    continue
+
+                node = getattr(event, "node", None)
+                node_id = _opcua_node_id_string(node)
+                mapping = mapping_by_node_id.get(node_id)
+                if mapping is None:
+                    raise OpcUaSourceError(
+                        f"subscription event references unmapped node: {node_id}"
+                    )
+
+                event_data = getattr(event, "data", None)
+                monitored_item = getattr(event_data, "monitored_item", None)
+                data_value = (
+                    None if monitored_item is None else getattr(monitored_item, "Value", None)
+                )
+                if data_value is None:
+                    raise OpcUaSourceError(
+                        f"subscription DataChange has no DataValue: {node_id}"
+                    )
+
+                replayed = getattr(event, "replayed", False)
+                if not isinstance(replayed, bool):
+                    raise OpcUaSourceError(
+                        f"subscription replayed flag is invalid: {node_id}"
+                    )
+                notifications.append(
+                    OpcUaSubscriptionNotification(
+                        observation=_project_data_value(
+                            mapping,
+                            data_value,
+                            received_at=datetime.now(UTC),
+                        ),
+                        replayed=replayed,
+                    )
+                )
+
+            if len(notifications) >= config.max_events:
+                completion_reason = OpcUaSubscriptionCompletionReason.MAX_EVENTS
+            completed_at = datetime.now(UTC)
+
+    return OpcUaSubscriptionResult(
+        endpoint_url=config.endpoint_url,
+        connected_at=connected_at,
+        completed_at=completed_at,
+        completion_reason=completion_reason,
+        notifications=tuple(notifications),
+    )
+
+
 async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult:
     """Browse bounded hierarchical Object/Variable candidates without reading values."""
     if not isinstance(config, OpcUaBrowseConfig):
@@ -467,6 +654,21 @@ def _load_asyncua_client() -> Any:
     return _require_asyncua_client(_load_asyncua_module())
 
 
+def _load_asyncua_subscription_module() -> Any:
+    try:
+        return import_module("asyncua.common.subscription")
+    except ModuleNotFoundError as error:
+        if error.name not in {
+            "asyncua",
+            "asyncua.common",
+            "asyncua.common.subscription",
+        }:
+            raise
+        raise OpcUaRuntimeUnavailableError(
+            "OPC UA subscription runtime is unavailable; install the 'opcua' extra"
+        ) from error
+
+
 def _opcua_node_id_string(node: Any) -> str:
     node_id = getattr(node, "nodeid", None)
     to_string = None if node_id is None else getattr(node_id, "to_string", None)
@@ -496,8 +698,12 @@ def _opcua_display_name(value: Any) -> str:
 
 
 def _validate_timeout_seconds(value: float) -> None:
+    _validate_positive_finite(value, "timeout_seconds")
+
+
+def _validate_positive_finite(value: float, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value) or value <= 0:
-        raise ValueError("timeout_seconds must be a positive finite number")
+        raise ValueError(f"{field_name} must be a positive finite number")
 
 
 def _validate_endpoint_url(value: str) -> None:
