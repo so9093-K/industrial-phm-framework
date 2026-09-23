@@ -25,10 +25,12 @@ asset/measurement-point mapping, channels, timestamp/sampling policy와 registra
 등록 record와 별도로 `REGISTERED / ACTIVE / PAUSED / ERROR` lifecycle state를 보존하고 Sources에서
 Activate/Pause할 수 있습니다. ACTIVE는 future/source runtime의 administrative enablement일 뿐
 connection/health/freshness/active ingestion을 주장하지 않습니다. 기본 registry 경로는
-`artifacts/operations/source-registry.json`이며 필요하면 환경변수로 바꿀 수 있습니다.
+`artifacts/operations/source-registry.json`입니다. Latest accepted receipt는 별도 runtime-state 파일
+`artifacts/operations/source-runtime.json`에 저장합니다. 두 경로 모두 환경변수로 바꿀 수 있습니다.
 
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY="/path/to/source-registry.json"
+export INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME="/path/to/source-runtime.json"
 uv run --locked --group research marimo run apps/operations.py
 ```
 
@@ -87,10 +89,11 @@ freshness policy write가 발생하면 `industrial-phm-source-registry-v3`로 �
 
 ### Receipt timing
 
-Registered source의 **Load registered source**가 성공하면 `SourceReceiptEvidence`를 현재 Operations session에
-기록합니다. `received_at`은 source bytes가 기존 CSV/timeline validation을 통과한 뒤 application boundary에서
-수락된 시각입니다. Latest source timestamp는 `observed_at`으로 유지하며 두 시간이 모두 timezone-aware일 때
-signed observed→received lag를 계산합니다.
+Registered source의 **Load registered source**가 성공하면 `SourceReceiptEvidence`를 만들고
+`JsonSourceRuntimeRepository`에 source별 latest receipt를 기록합니다. `received_at`은 source bytes가 기존
+CSV/timeline validation을 통과한 뒤 application boundary에서 수락된 시각입니다. Latest source timestamp는
+`observed_at`으로 유지하며 두 시간이 모두 timezone-aware일 때 signed observed→received lag를 계산합니다.
+앱 재시작 시 runtime repository의 latest receipt를 복원해 Sources monitoring에 다시 사용합니다.
 
 Prepared file은 원래 sensor transport arrival을 보존하지 않으므로 이 `received_at`을 과거의 실제 네트워크
 도착 시각으로 해석하지 않습니다. Source timestamp가 naive이거나 없으면 delivery lag를 `Unavailable`로
@@ -111,9 +114,9 @@ missing/naive/future observed_at        -> UNAVAILABLE
 no source policy                        -> NOT_CONFIGURED
 ```
 
-Freshness는 timing-policy assessment일 뿐 connection/asset health 의미가 아닙니다. 현재 receipt는
-on-demand registered-source load의 session-local evidence라서 background monitoring이나 persistent
-freshness history를 의미하지 않습니다.
+Freshness는 timing-policy assessment일 뿐 connection/asset health 의미가 아닙니다. Latest receipt는
+runtime state에 영속되지만 전체 receipt history나 background polling을 의미하지 않습니다. Freshness는
+복원된 latest receipt와 현재 assessment time에서 다시 계산하므로 derived assessment 자체는 저장하지 않습니다.
 
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
 `AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
@@ -272,3 +275,25 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
 앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.
 
+
+
+### Runtime receipt state
+
+Source registration/lifecycle/freshness policy는 control-plane registry가 소유하고, latest accepted receipt는
+별도의 runtime repository가 소유합니다.
+
+```text
+source-registry.json
+  registration / mapping / lifecycle / freshness policy
+
+source-runtime.json
+  latest SourceReceiptEvidence per source
+```
+
+Runtime state schema는 `industrial-phm-source-runtime-v1`입니다. Source ID별 latest receipt만 deterministic하게
+저장하고 `received_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
+idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와
+같이 same-directory temporary file + flush/fsync + `os.replace`를 사용합니다.
+
+현재 runtime state는 connection status, retries, buffering, sequence counters, ingestion throughput, receipt
+history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 continuous ingestion runtime 자체는 아닙니다.
