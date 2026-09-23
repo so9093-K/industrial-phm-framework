@@ -673,10 +673,7 @@ def _(
     set_registration_success,
     set_registration_validation,
 ):
-    if (
-        browse_opcua_source_button.value
-        and registration_type_input.value == SourceType.OPCUA.value
-    ):
+    if browse_opcua_source_button.value and registration_type_input.value == SourceType.OPCUA.value:
         _endpoint = registration_opcua_endpoint_input.value.strip()
         _timeout_text = registration_opcua_timeout_input.value.strip()
         try:
@@ -826,8 +823,7 @@ def _(
         registration_opcua_timeout_input.value.strip(),
     )
     opcua_browse_is_current = (
-        opcua_browse_result is not None
-        and opcua_browse_signature == _current_signature
+        opcua_browse_result is not None and opcua_browse_signature == _current_signature
     )
     if opcua_browse_is_current:
         opcua_browse_variables_by_label = {
@@ -891,17 +887,13 @@ def _(
                     node_id=opcua_browse_variables_by_label[label].node_id,
                 )
                 for label in (
-                    ()
-                    if opcua_browse_selection is None
-                    else opcua_browse_selection.value
+                    () if opcua_browse_selection is None else opcua_browse_selection.value
                 )
             )
             _node_mappings = (
                 _selected_browse_mappings
                 if opcua_browse_is_current and _selected_browse_mappings
-                else parse_opcua_node_mappings(
-                    registration_opcua_node_mappings_input.value
-                )
+                else parse_opcua_node_mappings(registration_opcua_node_mappings_input.value)
             )
             _candidate = RegisteredSource(
                 source_id=registration_source_id_input.value.strip(),
@@ -1080,11 +1072,7 @@ def _(
             title="Browse variables · Stale",
         )
     else:
-        _browse_status = (
-            "TRUNCATED"
-            if opcua_browse_result.truncated
-            else "COMPLETE"
-        )
+        _browse_status = "TRUNCATED" if opcua_browse_result.truncated else "COMPLETE"
         _opcua_browse_view = mo.vstack(
             [
                 mo.hstack(
@@ -1113,8 +1101,7 @@ def _(
                 ),
                 (
                     opcua_browse_selection
-                    if opcua_browse_selection is not None
-                    and opcua_browse_result.variables
+                    if opcua_browse_selection is not None and opcua_browse_result.variables
                     else mo.callout(
                         "No Variable candidates were discovered within the current browse bounds.",
                         kind="neutral",
