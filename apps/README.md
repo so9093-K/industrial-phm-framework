@@ -35,8 +35,10 @@ uv run --locked --group research marimo run apps/operations.py
 ```
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
-inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**에서 현재 지원하는 등록 흐름은
-다음 네 단계입니다.
+inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**에서 현재 지원하는 등록 type은
+여전히 prepared CSV file/history-directory입니다. 별도 `industrial_phm.connectors.opcua` module의
+anonymous/NoSecurity one-shot read proof는 아직 Source Registry나 Operations UI에 연결하지 않습니다.
+현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
 ```text
 Source

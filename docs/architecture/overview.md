@@ -79,10 +79,25 @@ evidence가 필요한 consumer는 validated `AnalysisView`를 요구합니다.
 Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
 operational output을 하나의 universal `PHMResult`로 합치지 않습니다.
 
-Prepared field source에는 observation data plane과 분리된 첫 source-registration control-plane contract도
-둡니다.
+Prepared field source에는 observation data plane과 분리된 source-registration control-plane contract를 두고,
+live protocol requirement는 generic connector framework를 먼저 만들지 않고 concrete connector slice에서
+검증합니다. 첫 concrete live-protocol slice는 OPC UA입니다.
 
 ```text
+OPC UA one-shot connector proof
+  OpcUaReadConfig
+    ├ anonymous / SecurityPolicy None endpoint
+    └ explicit channel_id -> variable NodeId mapping
+  -> optional asyncua runtime
+  -> read_data_value(raise_on_bad_status=False)
+  -> OpcUaReadSnapshot
+       └ OpcUaNodeObservation[]
+            ├ finite numeric value?   # Good status only
+            ├ StatusCode / quality
+            ├ SourceTimestamp?
+            ├ ServerTimestamp?
+            └ platform received_at
+
 RegisteredSource
   └ FileSourceConfig
        ├ source path / snapshot-or-history mode
@@ -205,6 +220,13 @@ same-directory temp + flush/fsync + `os.replace`를 사용하고 received_at reg
 evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를
 막기 위해 fail-closed로 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며
 cross-process write coordination은 아직 지원하지 않습니다.
+
+OPC UA connector proof는 이 control plane과 아직 분리되어 있습니다. 현재 구현은 explicit variable
+NodeId를 한 번 읽어 protocol quality/timestamp를 보존하는 acquisition boundary이며 `RegisteredSource`,
+`AssetObservationSummary`, source lifecycle, runtime receipt repository, prepared-file polling 또는 Operations
+Sources에 자동 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
+browse/discovery UX, subscription, reconnect/backoff/buffering은 후속 requirement에서 확장합니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
 REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, ACTIVE one-shot runtime cycle, registry read surface와

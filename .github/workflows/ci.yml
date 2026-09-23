@@ -65,6 +65,9 @@ jobs:
             tests/contract/test_xjtu_lstm_execution.py \
             tests/contract/test_xjtu_rul_lstm.py
 
+      - name: Validate OPC UA runtime contract
+        run: uv run --locked --extra opcua pytest tests/contract/test_opcua_runtime.py
+
       - name: Build package
         run: uv build
 
@@ -80,6 +83,8 @@ jobs:
           unzip -p dist/*.whl '*dist-info/entry_points.txt' | grep -q 'industrial-phm = industrial_phm.cli:main'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: deep-learning'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: torch.*extra == .deep-learning.'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: opcua'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: asyncua.*extra == .opcua.'
 
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'

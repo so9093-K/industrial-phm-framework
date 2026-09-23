@@ -18,11 +18,13 @@ CSV directory, historian, SQL database, object storage, OPC UA server, vendor AP
 acquisition/source-integration boundary가 흡수해야 합니다. PHM core가 source-specific protocol이나 directory
 grammar를 직접 알지 않도록 유지합니다.
 
-현재 구현 범위는 더 좁습니다. `DomainAdapter.iter_series()`는 `source: Path`를 받으므로 현재 production adapter는
-**file-backed prepared local source**를 전제로 합니다. 따라서 framework가 historian/OPC UA/database를 직접
-지원한다고 주장하지 않습니다. 첫 field integration에서는 우선 조직의 기존 권한과 ingestion 경계를 통해 허가된
-snapshot/export를 준비하고 그 source를 adapter에 전달할 수 있습니다. 실제로 direct non-file source를 반복해서
-지원해야 할 필요가 확인될 때만 source-handle 또는 ingestion interface 확장을 검토합니다.
+현재 canonical adapter 범위는 더 좁습니다. `DomainAdapter.iter_series()`는 `source: Path`를 받으므로
+production adapter는 **file-backed prepared local source**를 전제로 합니다. 별도 connector boundary에는
+anonymous/NoSecurity OPC UA variable을 한 번 읽어 protocol value/quality/timestamp를 보존하는 concrete proof가
+있지만, 이 결과를 `CanonicalTimeSeries`로 자동 투영하거나 `DomainAdapter(source: Path)`를 대체하지 않습니다.
+첫 field integration에서는 우선 조직의 기존 권한과 ingestion 경계를 통해 허가된 snapshot/export를 준비하고
+그 source를 adapter에 전달할 수 있습니다. Direct non-file source 요구가 반복해서 확인될 때만 source-handle
+또는 ingestion interface 확장을 검토합니다.
 
 ### Canonical contract는 storage format이 아니다
 
@@ -136,8 +138,10 @@ time으로 취급하지 않습니다.
 원본 데이터를 repository의 `data/raw/`로 복사하는 것을 production architecture의 전제로 하지 않습니다.
 `data/`는 연구용 local workspace일 뿐 production data lake가 아닙니다.
 
-다만 **현재 구현은 Path-backed adapter만 지원**합니다. 따라서 현장 source가 historian, database, object storage,
-OPC UA 또는 vendor API에 남아 있는 경우 첫 integration은 다음 두 형태 중 실제 요구가 작은 쪽을 사용합니다.
+다만 **현재 canonical adapter는 Path-backed source만 지원**합니다. OPC UA는 별도 one-shot connector proof가
+있지만 아직 canonical/application ingestion contract로 승격되지 않았습니다. 따라서 현장 source가 historian,
+database, object storage, OPC UA 또는 vendor API에 남아 있는 경우 첫 integration은 다음 두 형태 중 실제 요구가
+작은 쪽을 사용합니다.
 
 ```text
 existing authorized export/snapshot
