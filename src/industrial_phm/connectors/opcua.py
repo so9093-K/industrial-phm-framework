@@ -312,12 +312,7 @@ def _load_asyncua_client() -> Any:
 
 
 def _validate_timeout_seconds(value: float) -> None:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, Real)
-        or not isfinite(value)
-        or value <= 0
-    ):
+    if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value) or value <= 0:
         raise ValueError("timeout_seconds must be a positive finite number")
 
 
