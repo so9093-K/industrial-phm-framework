@@ -45,6 +45,11 @@ from industrial_phm.application.source_receipt import (
     SourceReceiptEvidence,
     receive_registered_file_source_observation,
 )
+from industrial_phm.application.source_runtime import (
+    JsonSourceRuntimeRepository,
+    SourceRuntimeFormatError,
+    SourceRuntimeRepository,
+)
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
@@ -71,6 +76,7 @@ __all__ = [
     "FileSourceRegistrationValidation",
     "InMemorySourceRepository",
     "JsonSourceRepository",
+    "JsonSourceRuntimeRepository",
     "ObservationValidationPolicy",
     "OperationalFinding",
     "ReceivedRegisteredFileObservation",
@@ -86,6 +92,8 @@ __all__ = [
     "SourceLifecycleState",
     "SourceReceiptEvidence",
     "SourceRegistryFormatError",
+    "SourceRuntimeFormatError",
+    "SourceRuntimeRepository",
     "SourceRepository",
     "SourceSnapshotEvidence",
     "SourceType",
