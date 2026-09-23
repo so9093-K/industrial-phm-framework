@@ -69,6 +69,10 @@ class SourceLifecycleRecord:
             raise ValueError("changed_at must be timezone-aware")
         if self.detail is not None:
             _validate_identifier(self.detail, "detail")
+        if self.state == SourceLifecycleState.ERROR and self.detail is None:
+            raise ValueError("error lifecycle state requires detail")
+        if self.state != SourceLifecycleState.ERROR and self.detail is not None:
+            raise ValueError("detail is only supported for error lifecycle state")
 
     def transition_to(
         self,
