@@ -71,6 +71,23 @@ def test_source_lifecycle_rejects_same_state_and_backward_time() -> None:
         )
 
 
+def test_source_lifecycle_record_rejects_detail_state_mismatch() -> None:
+    with pytest.raises(ValueError, match="requires detail"):
+        SourceLifecycleRecord(
+            source_id="source-a",
+            state=SourceLifecycleState.ERROR,
+            changed_at=datetime.fromisoformat("2026-09-23T10:00:00+09:00"),
+        )
+
+    with pytest.raises(ValueError, match="only supported for error"):
+        SourceLifecycleRecord(
+            source_id="source-a",
+            state=SourceLifecycleState.ACTIVE,
+            changed_at=datetime.fromisoformat("2026-09-23T10:00:00+09:00"),
+            detail="should not be here",
+        )
+
+
 def test_source_lifecycle_error_requires_detail_and_detail_is_error_only() -> None:
     active = _record().transition_to(
         SourceLifecycleState.ACTIVE,
