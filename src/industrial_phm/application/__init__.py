@@ -27,6 +27,13 @@ from industrial_phm.application.operational import (
     OperationalFinding,
     validate_operational_finding_against_run,
 )
+from industrial_phm.application.source_freshness import (
+    SourceFreshnessAssessment,
+    SourceFreshnessPolicy,
+    SourceFreshnessPolicyRepository,
+    SourceFreshnessState,
+    assess_source_freshness,
+)
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleRepository,
@@ -70,6 +77,10 @@ __all__ = [
     "RegisteredFileObservation",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
+    "SourceFreshnessAssessment",
+    "SourceFreshnessPolicy",
+    "SourceFreshnessPolicyRepository",
+    "SourceFreshnessState",
     "SourceLifecycleRecord",
     "SourceLifecycleRepository",
     "SourceLifecycleState",
@@ -79,6 +90,7 @@ __all__ = [
     "SourceSnapshotEvidence",
     "SourceType",
     "UnknownRegisteredSourceError",
+    "assess_source_freshness",
     "build_field_csv_observation_summary",
     "discover_file_source",
     "load_field_csv_observation_summary",
