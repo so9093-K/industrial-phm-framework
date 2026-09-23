@@ -36,7 +36,7 @@ uv run --locked --group research marimo run apps/operations.py
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
 inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**는 prepared CSV file/history-directory와
-OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있습니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. Operations의 Run 버튼은 아직 FILE source에만 연결됩니다.
+OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있으며 Operations의 **Run active source once**가 FILE/OPC UA를 type-specific dispatch합니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. OPC UA 성공은 receipt/freshness state를 갱신하지만 아직 canonical `AssetObservationSummary`를 생성하지 않습니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
 ```text
@@ -91,19 +91,24 @@ freshness policy write가 발생하면 `industrial-phm-source-registry-v4`로 �
 
 ### Runtime execution cycle
 
-**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다. 현재 UI action은 FILE source에 연결되고, OPC UA one-shot runtime은 application API 단계까지 구현되어 있습니다.
+**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다. UI action은 선택된 source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 실행합니다.
 
 ```text
 REGISTERED / PAUSED / ERROR
   -> SKIPPED
 
-ACTIVE
+ACTIVE FILE
   -> registered source current bytes 재검증
+
+ACTIVE OPC UA
+  -> one-shot connect/read/disconnect
+
+Both
   -> SourceReceiptEvidence 생성
   -> latest runtime receipt persistence
   -> success: ACTIVE 유지
-  -> source validation/I/O failure: ERROR + failure detail
-  -> platform runtime-state failure: FAILED + ACTIVE 유지
+  -> source-owned failure: ERROR + failure detail
+  -> platform-owned failure: FAILED + ACTIVE 유지
 ```
 
 Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
