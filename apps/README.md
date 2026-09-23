@@ -77,15 +77,38 @@ REGISTERED -> ACTIVE <-> PAUSED
                  +----> ACTIVE / PAUSED
 ```
 
-등록 직후 상태는 `REGISTERED`입니다. `ACTIVE`는 향후 source runtime이 소비하도록 enable된
-administrative intent이고, `PAUSED`는 runtime consumption을 중지하려는 intent입니다. `ERROR`는 runtime
-실패를 기록하기 위한 상태이며 detail을 요구합니다. 현재 UI에서는 Activate/Pause만 노출하고 ERROR는 이후
-runtime이 실제 실패를 관측할 때 기록하도록 남겨 둡니다. Connection, freshness, `received_at`, retry/buffer
-telemetry는 아직 lifecycle state에서 추론하지 않습니다.
+등록 직후 상태는 `REGISTERED`입니다. `ACTIVE`는 source runtime이 소비하도록 enable된 administrative
+intent이고, `PAUSED`는 runtime consumption을 중지하려는 intent입니다. Sources의 **Run active source once**는
+ACTIVE 상태만 실제로 소비합니다. One-shot cycle이 source validation 또는 runtime persistence 실패를
+관측하면 ACTIVE → ERROR로 전이하고 concrete failure detail을 보존합니다. ERROR는 사용자가 Activate로
+명시적으로 복구한 뒤 다시 실행할 수 있습니다. Connection, freshness, retry/buffer telemetry를 lifecycle
+state 자체에서 추론하지는 않습니다.
 
 Registry는 기존 `industrial-phm-source-registry-v1`과 v2를 읽을 수 있습니다. v1 source는 implicit
 `REGISTERED`로 해석하고 v2의 explicit lifecycle은 그대로 유지합니다. 신규 등록, lifecycle 변경 또는
 freshness policy write가 발생하면 `industrial-phm-source-registry-v3`로 저장됩니다.
+
+### Runtime execution cycle
+
+**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다.
+
+```text
+REGISTERED / PAUSED / ERROR
+  -> SKIPPED
+
+ACTIVE
+  -> registered source current bytes 재검증
+  -> SourceReceiptEvidence 생성
+  -> latest runtime receipt persistence
+  -> success: ACTIVE 유지
+  -> source/runtime failure: ERROR + failure detail
+```
+
+Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
+ACTIVE lifecycle을 반드시 요구하고, 실패를 lifecycle evidence로 기록합니다. Runtime persistence failure가
+발생한 경우에도 이미 validation된 observation을 runtime success로 승격하지 않으며 cycle 자체는 FAILED입니다.
+현재는 사용자가 버튼으로 한 iteration을 실행하는 구조이고 background polling, retry/backoff, buffering,
+connector session은 아직 구현하지 않습니다.
 
 ### Receipt timing
 
@@ -152,7 +175,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, source-specific freshness policy, selected registered source → current Observation load + received_at/delivery-lag/freshness evidence, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, ACTIVE one-shot runtime cycle, source-specific freshness policy, selected registered source → current Observation load + received_at/delivery-lag/freshness evidence, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
