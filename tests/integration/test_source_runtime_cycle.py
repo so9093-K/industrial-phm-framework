@@ -9,6 +9,7 @@ from industrial_phm.application import (
     JsonSourceRuntimeRepository,
     RegisteredSource,
     SourceLifecycleState,
+    SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleState,
     run_registered_file_source_cycle,
     transition_source_lifecycle,
@@ -83,6 +84,7 @@ def test_registered_source_cycle_skips_non_active_source_without_io(
     assert result.lifecycle_before.state == SourceLifecycleState.REGISTERED
     assert result.lifecycle_after == result.lifecycle_before
     assert result.received is None
+    assert result.failure_scope is None
     assert runtime_repository.list_latest_receipts() == ()
 
 
@@ -103,6 +105,7 @@ def test_registered_source_cycle_records_receipt_for_active_source(
 
     assert result.state == SourceRuntimeCycleState.SUCCEEDED
     assert result.received is not None
+    assert result.failure_scope is None
     assert result.received.receipt.lag_seconds == 4.0
     assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
     assert runtime_repository.get_latest_receipt(source.source_id) == result.received.receipt
@@ -129,6 +132,7 @@ def test_registered_source_cycle_transitions_active_source_to_error_on_source_fa
 
     assert result.state == SourceRuntimeCycleState.FAILED
     assert result.received is None
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.SOURCE
     assert result.message is not None
     assert "numeric" in result.message
     lifecycle = source_repository.get_lifecycle(source.source_id)
@@ -137,7 +141,7 @@ def test_registered_source_cycle_transitions_active_source_to_error_on_source_fa
     assert runtime_repository.get_latest_receipt(source.source_id) is None
 
 
-def test_registered_source_cycle_marks_error_when_runtime_persistence_fails(
+def test_registered_source_cycle_reports_platform_failure_without_marking_source_error(
     tmp_path: Path,
 ) -> None:
     source_repository, _, source = _repositories(tmp_path)
@@ -156,9 +160,10 @@ def test_registered_source_cycle_marks_error_when_runtime_persistence_fails(
 
     assert result.state == SourceRuntimeCycleState.FAILED
     assert result.received is not None
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.PLATFORM
     assert result.message is not None
     assert "not a file" in result.message
-    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ERROR
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
 
 
 def test_registered_source_cycle_error_state_requires_explicit_reactivation(
@@ -184,6 +189,7 @@ def test_registered_source_cycle_error_state_requires_explicit_reactivation(
     )
 
     assert failed.state == SourceRuntimeCycleState.FAILED
+    assert failed.failure_scope == SourceRuntimeCycleFailureScope.SOURCE
     assert skipped.state == SourceRuntimeCycleState.SKIPPED
     assert skipped.lifecycle_before.state == SourceLifecycleState.ERROR
 
