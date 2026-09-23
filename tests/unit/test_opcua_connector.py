@@ -229,7 +229,7 @@ def test_opcua_runtime_does_not_mask_nested_dependency_import_error(
 
     monkeypatch.setattr(opcua_module, "import_module", _broken)
 
-    with pytest.raises(ModuleNotFoundError, match="nested dependency missing"):
+    with pytest.raises(ModuleNotFoundError, match="some_nested_dependency"):
         asyncio.run(
             read_opcua_snapshot(
                 OpcUaReadConfig(
