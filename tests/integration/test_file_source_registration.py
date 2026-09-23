@@ -12,6 +12,7 @@ from industrial_phm.application import (
     RegisteredSource,
     discover_file_source,
     load_registered_file_source_observation,
+    receive_registered_file_source_observation,
     register_file_source,
     validate_registered_file_source,
 )
@@ -139,6 +140,54 @@ def test_load_registered_snapshot_projects_current_observation(tmp_path: Path) -
     assert loaded.latest.measurement_point_id == source.measurement_point_id
     assert loaded.latest.source_snapshot is not None
     assert loaded.latest.source_snapshot.name == "pump.csv"
+
+
+def test_receive_registered_snapshot_records_platform_receipt_and_lag(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "pump.csv"
+    source_path.write_text(
+        "timestamp,vibration_x,temperature\n"
+        "2026-09-23T10:00:00+09:00,-1.0,42.0\n"
+        "2026-09-23T10:00:01+09:00,1.0,42.2\n",
+        encoding="utf-8",
+    )
+
+    received = receive_registered_file_source_observation(
+        _registered_source(source_path),
+        received_at=datetime.fromisoformat("2026-09-23T10:00:06+09:00"),
+    )
+
+    assert received.observation.latest.observed_end_at == datetime.fromisoformat(
+        "2026-09-23T10:00:01+09:00"
+    )
+    assert received.receipt.received_at == datetime.fromisoformat(
+        "2026-09-23T10:00:06+09:00"
+    )
+    assert received.receipt.lag_seconds == 5.0
+
+
+def test_receive_registered_snapshot_keeps_lag_unavailable_for_naive_source_time(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "pump.csv"
+    source_path.write_text(
+        "timestamp,vibration_x,temperature\n"
+        "2026-09-23T10:00:00,-1.0,42.0\n"
+        "2026-09-23T10:00:01,1.0,42.2\n",
+        encoding="utf-8",
+    )
+
+    received = receive_registered_file_source_observation(
+        _registered_source(source_path),
+        received_at=datetime.fromisoformat("2026-09-23T10:00:06+09:00"),
+    )
+
+    assert received.receipt.lag_seconds is None
+    assert (
+        received.receipt.lag_unavailable_reason
+        == "source observation timezone is unavailable"
+    )
 
 
 def test_load_registered_history_preserves_timeline_and_latest_segment(
