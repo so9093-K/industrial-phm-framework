@@ -15,6 +15,7 @@ def _():
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
+        JsonSourceRepository,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
     )
@@ -26,6 +27,7 @@ def _():
         CsvSensorLayout,
         CsvSensorSourceError,
         DataQualityState,
+        JsonSourceRepository,
         Path,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
@@ -95,7 +97,18 @@ def _(
 
 
 @app.cell
-def _(load_observation, os):
+def _(JsonSourceRepository, Path, load_observation, os):
+    source_registry_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
+        "artifacts/operations/source-registry.json",
+    )
+    try:
+        registered_sources = JsonSourceRepository(Path(source_registry_default)).list_sources()
+        source_registry_error = ""
+    except (OSError, ValueError) as error:
+        registered_sources = ()
+        source_registry_error = str(error)
+
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
     history_directory_default = os.environ.get(
         "INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY",
@@ -142,8 +155,11 @@ def _(load_observation, os):
         initial_timeline,
         measurement_point_default,
         sampling_rate_default,
+        registered_sources,
         source_default,
         source_id_default,
+        source_registry_default,
+        source_registry_error,
         timestamp_default,
     )
 
@@ -163,6 +179,7 @@ def _(
     page_selector = mo.ui.radio(
         options=[
             "Overview",
+            "Sources",
             "Assets",
             "Asset",
             "Investigation",
@@ -223,6 +240,173 @@ def _(
         source_input,
         timestamp_input,
     )
+
+
+@app.cell
+def _(mo, registered_sources):
+    if registered_sources:
+        source_selector = mo.ui.radio(
+            options=[source.source_id for source in registered_sources],
+            value=registered_sources[0].source_id,
+            label="Registered source",
+        )
+    else:
+        source_selector = None
+    return (source_selector,)
+
+
+@app.cell
+def _(
+    mo,
+    registered_sources,
+    source_registry_default,
+    source_registry_error,
+    source_selector,
+):
+    def escape_markdown_cell(value: str) -> str:
+        return (
+            value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`").replace("\n", " ")
+        )
+
+    if source_registry_error:
+        sources_view = mo.vstack(
+            [
+                mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
+                mo.callout(
+                    source_registry_error,
+                    kind="danger",
+                    title="Source registry unavailable",
+                ),
+                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+            ],
+            gap=1.2,
+        )
+    elif not registered_sources:
+        sources_view = mo.vstack(
+            [
+                mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
+                mo.callout(
+                    "No registered source exists in the configured local registry. "
+                    "The Add Source workflow is the next product boundary; the existing "
+                    "Field source bootstrap remains available for prepared-source inspection.",
+                    kind="neutral",
+                    title="Registered sources · Empty",
+                ),
+                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+            ],
+            gap=1.2,
+        )
+    else:
+        _rows = []
+        for _source in registered_sources:
+            _config = _source.config
+            _rows.append(
+                "| "
+                + " | ".join(
+                    [
+                        f"`{escape_markdown_cell(_source.source_id)}`",
+                        escape_markdown_cell(_source.name),
+                        _source.source_type.value,
+                        _config.mode.value,
+                        f"`{escape_markdown_cell(_config.asset_id)}`",
+                        _source.registered_at.isoformat(),
+                    ]
+                )
+                + " |"
+            )
+
+        _selected_id = (
+            registered_sources[0].source_id if source_selector is None else source_selector.value
+        )
+        _selected = next(
+            source for source in registered_sources if source.source_id == _selected_id
+        )
+        _selected_config = _selected.config
+        _measurement_point = _selected_config.measurement_point_id or "Not recorded"
+        _timestamp_column = _selected_config.timestamp_column or "Not declared"
+        _sampling_rate = (
+            "Not declared"
+            if _selected_config.sampling_rate_hz is None
+            else f"{_selected_config.sampling_rate_hz:g} Hz"
+        )
+        _tolerance = (
+            "Not declared"
+            if _selected_config.sampling_rate_tolerance_ratio is None
+            else f"{_selected_config.sampling_rate_tolerance_ratio:g}"
+        )
+
+        sources_view = mo.vstack(
+            [
+                mo.md(
+                    "## Sources\n\n"
+                    "재시작 후에도 보존되는 source registration control-plane record를 "
+                    "목록과 상세 설정으로 확인합니다."
+                ),
+                mo.hstack(
+                    [
+                        mo.stat(
+                            str(len(registered_sources)),
+                            label="Registered sources",
+                            caption="Persistent control-plane records",
+                        ),
+                        mo.stat(
+                            str(
+                                sum(
+                                    source.source_type.value == "file"
+                                    for source in registered_sources
+                                )
+                            ),
+                            label="File sources",
+                            caption="Current implemented source family",
+                        ),
+                        mo.stat(
+                            "Not instrumented",
+                            label="Connection health",
+                            caption="Registration does not imply connectivity",
+                        ),
+                        mo.stat(
+                            "Not connected",
+                            label="Ingestion",
+                            caption="No continuous source runtime yet",
+                        ),
+                    ],
+                    widths="equal",
+                ),
+                mo.md(
+                    "| Source ID | Name | Type | Mode | Asset | Registered at |\n"
+                    "| --- | --- | --- | --- | --- | --- |\n" + "\n".join(_rows)
+                ),
+                source_selector,
+                mo.md(
+                    "### Source detail\n\n"
+                    "| Field | Registered value |\n"
+                    "| --- | --- |\n"
+                    f"| Source ID | `{escape_markdown_cell(_selected.source_id)}` |\n"
+                    f"| Name | {escape_markdown_cell(_selected.name)} |\n"
+                    f"| Type | {_selected.source_type.value} |\n"
+                    f"| Mode | {_selected_config.mode.value} |\n"
+                    f"| Asset | `{escape_markdown_cell(_selected_config.asset_id)}` |\n"
+                    f"| Measurement point | `{escape_markdown_cell(_measurement_point)}` |\n"
+                    f"| Source path | `{escape_markdown_cell(_selected_config.source_path)}` |\n"
+                    f"| Channels | {', '.join(_selected_config.channel_columns)} |\n"
+                    f"| Timestamp column | `{escape_markdown_cell(_timestamp_column)}` |\n"
+                    f"| Sampling rate | {_sampling_rate} |\n"
+                    f"| Sampling-rate tolerance | {_tolerance} |\n"
+                    f"| Minimum samples | {_selected_config.minimum_sample_count:,} |\n"
+                    f"| Registered at | {_selected.registered_at.isoformat()} |"
+                ),
+                mo.callout(
+                    "This page shows registration configuration only. A registered source "
+                    "is not labeled online, healthy, fresh or actively ingested until those "
+                    "runtime capabilities are implemented and measured.",
+                    kind="info",
+                    title="Registration boundary",
+                ),
+                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+            ],
+            gap=1.2,
+        )
+    return sources_view
 
 
 @app.cell
@@ -926,8 +1110,9 @@ def _(
                         "현재 Operations prototype은 prepared single-asset CSV "
                         "snapshot 또는 동일 asset의 timestamped CSV history directory를 "
                         "application boundary를 통해 읽습니다. History directory가 "
-                        "입력되면 single CSV보다 우선합니다. 이 입력은 historian/API를 "
-                        "대신하는 영구 제품 계약이 아닙니다."
+                        "입력되면 single CSV보다 우선합니다. 등록 source는 Sources에서 "
+                        "별도 persistent control-plane record로 확인할 수 있으며, 이 bootstrap은 "
+                        "historian/API나 continuous ingestion을 대신하는 영구 제품 계약이 아닙니다."
                     ),
                     source_input,
                     history_directory_input,
@@ -960,10 +1145,12 @@ def _(
     overview_view,
     page_selector,
     source_setup,
+    sources_view,
     system_health_view,
 ):
     views = {
         "Overview": overview_view,
+        "Sources": sources_view,
         "Assets": assets_view,
         "Asset": asset_view,
         "Investigation": investigation_view,
@@ -971,17 +1158,16 @@ def _(
         "Maintenance": maintenance_view,
         "System Health": system_health_view,
     }
-    header = mo.vstack(
-        [
-            mo.md(
-                "# PHM Operations\n\n"
-                "설비 관측, 데이터 품질, PHM finding과 시스템 상태를 운영 관점에서 확인합니다."
-            ),
-            page_selector,
-            source_setup,
-        ],
-        gap=1.0,
-    )
+    _header_items = [
+        mo.md(
+            "# PHM Operations\n\n"
+            "설비 관측, 데이터 품질, PHM finding과 시스템 상태를 운영 관점에서 확인합니다."
+        ),
+        page_selector,
+    ]
+    if page_selector.value != "Sources":
+        _header_items.append(source_setup)
+    header = mo.vstack(_header_items, gap=1.0)
     mo.vstack([header, views[page_selector.value]], gap=1.5)
     return
 

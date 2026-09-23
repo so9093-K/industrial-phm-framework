@@ -116,12 +116,43 @@ jobs:
 
       - name: Execute PHM Operations observation surfaces
         run: |
+          uv run --locked --group research python - <<'PY'
+          from datetime import datetime
+          from pathlib import Path
+
+          from industrial_phm.application import (
+              FileSourceConfig,
+              FileSourceMode,
+              JsonSourceRepository,
+              RegisteredSource,
+          )
+
+          repository = JsonSourceRepository(Path("/tmp/operations-source-registry.json"))
+          repository.register(
+              RegisteredSource(
+                  source_id="ci-registered-file",
+                  name="CI registered file source",
+                  config=FileSourceConfig(
+                      source_path="/tmp/operations-observation.csv",
+                      asset_id="ci-pump-01",
+                      measurement_point_id="drive-end-bearing",
+                      channel_columns=("vibration_x", "temperature"),
+                      mode=FileSourceMode.SNAPSHOT,
+                      timestamp_column="timestamp",
+                      sampling_rate_hz=1.0,
+                  ),
+                  registered_at=datetime.fromisoformat("2026-09-23T09:00:00+09:00"),
+              )
+          )
+          PY
+
           cat > /tmp/operations-observation.csv <<'EOF'
           timestamp,vibration_x,temperature
           2026-09-22T10:00:00+09:00,-1.0,42.0
           2026-09-22T10:00:01+09:00,0.0,42.2
           2026-09-22T10:00:02+09:00,1.0,42.4
           EOF
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
           INDUSTRIAL_PHM_OPERATIONS_SOURCE=/tmp/operations-observation.csv \
           INDUSTRIAL_PHM_OPERATIONS_ASSET_ID=ci-pump-01 \
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=ci-prepared-csv \
@@ -147,6 +178,7 @@ jobs:
           2026-09-22T09:00:01+09:00,0.0,42.2
           2026-09-22T09:00:02+09:00,1.0,42.4
           EOF
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
           INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY=/tmp/operations-history \
           INDUSTRIAL_PHM_OPERATIONS_ASSET_ID=ci-pump-01 \
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=ci-prepared-history \
@@ -158,3 +190,10 @@ jobs:
             apps/operations.py \
             --no-include-code \
             --output /tmp/phm-operations-history.html
+
+          printf '{not-json' > /tmp/operations-source-registry-invalid.json
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry-invalid.json \
+            uv run --locked --group research marimo export html \
+            apps/operations.py \
+            --no-include-code \
+            --output /tmp/phm-operations-invalid-registry.html
