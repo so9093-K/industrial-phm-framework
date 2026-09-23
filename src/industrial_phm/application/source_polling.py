@@ -65,7 +65,9 @@ def poll_registered_source(
     implemented yet.
     """
     source = source_repository.get(source_id)
+    cycle_fn: Callable[[], SourceRuntimeCycleResult]
     if isinstance(source.config, FileSourceConfig):
+
         def _file_cycle() -> SourceRuntimeCycleResult:
             return run_registered_file_source_cycle(
                 source_repository,
@@ -76,6 +78,7 @@ def poll_registered_source(
 
         cycle_fn = _file_cycle
     elif isinstance(source.config, OpcUaSourceConfig):
+
         def _opcua_cycle() -> SourceRuntimeCycleResult:
             return asyncio.run(
                 run_registered_opcua_source_cycle(
@@ -103,6 +106,7 @@ def poll_registered_file_source(
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> Iterator[SourceRuntimeCycleResult]:
     """Yield prepared-file runtime cycles using the original FILE-only boundary."""
+
     def _file_cycle() -> SourceRuntimeCycleResult:
         return run_registered_file_source_cycle(
             source_repository,
