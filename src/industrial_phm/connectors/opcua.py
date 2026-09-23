@@ -69,7 +69,9 @@ class OpcUaBrowseVariable:
         _validate_identifier(self.display_name, "display_name")
         if not self.browse_path:
             raise ValueError("browse_path must not be empty")
-        if not all(isinstance(item, str) and item.strip() == item and item for item in self.browse_path):
+        if not all(
+            isinstance(item, str) and item.strip() == item and item for item in self.browse_path
+        ):
             raise ValueError("browse_path must contain non-empty trimmed strings")
 
 
@@ -94,7 +96,9 @@ class OpcUaBrowseResult:
             raise ValueError("completed_at must be a timezone-aware datetime")
         if self.completed_at < self.connected_at:
             raise ValueError("completed_at must not be before connected_at")
-        if isinstance(self.visited_node_count, bool) or not isinstance(self.visited_node_count, int):
+        if isinstance(self.visited_node_count, bool) or not isinstance(
+            self.visited_node_count, int
+        ):
             raise ValueError("visited_node_count must be an integer")
         if self.visited_node_count < 0:
             raise ValueError("visited_node_count must not be negative")
