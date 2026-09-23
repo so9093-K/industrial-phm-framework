@@ -473,6 +473,8 @@ def _opcua_node_id_string(node: Any) -> str:
     if not callable(to_string):
         raise OpcUaSourceError("browsed OPC UA node does not expose a NodeId")
     value = to_string()
+    if not isinstance(value, str):
+        raise OpcUaSourceError("browsed OPC UA NodeId string is unavailable")
     _validate_identifier(value, "node_id")
     return value
 
