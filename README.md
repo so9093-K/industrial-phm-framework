@@ -85,8 +85,11 @@ administrative intent일 뿐 실제 connection/health/freshness/continuous-inges
 Sources에서 source별 max observation age policy를 설정하면 현재 receipt evidence와 평가 시각을 사용해
 `FRESH / STALE / UNAVAILABLE / NOT_CONFIGURED` freshness state를 계산합니다. Freshness age는
 `assessment time - observed_at`이며 observed→received delivery lag와 분리합니다. Timestamp/timezone이 없거나
-source clock이 평가 시각보다 미래면 임의 상태를 만들지 않고 `UNAVAILABLE`로 남깁니다. Live
-connection/ingestion은 아직 `Not instrumented`/`Not connected`로 표시합니다.
+source clock이 평가 시각보다 미래면 임의 상태를 만들지 않고 `UNAVAILABLE`로 남깁니다. Registered-source
+load가 성공하면 latest receipt는 control-plane registry와 분리된 local runtime state에도 기록되어 앱 재시작
+후 Last received/lag/freshness를 다시 계산할 수 있습니다. 이 runtime state는 latest receipt만 보존하며
+connection health, retry/buffer 상태, receipt history는 아직 저장하지 않습니다. Live connection/ingestion은
+여전히 `Not instrumented`/`Not connected`로 표시합니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
@@ -138,9 +141,10 @@ freshness policy를 함께 보존하고 기존 v1/v2를 읽어 다음 write에�
 Activate/Pause와 max observation age policy 설정/해제가 가능하지만 ACTIVE나 FRESH를
 online/healthy/ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
 observed→received delivery lag evidence가 추가되었고, policy가 있으면 latest observation age를 별도로
-평가해 FRESH/STALE을 표시합니다. Receipt history 자체는 아직 session-local이며 persistent runtime receipt
-history와 live connection/ingestion은 후속 범위입니다. Browser upload/file-picker와 source edit/delete도
-아직 지원하지 않습니다.
+평가해 FRESH/STALE을 표시합니다. Latest accepted receipt는 별도
+`industrial-phm-source-runtime-v1` state에 영속되어 restart 후에도 monitoring read model이 복원되지만,
+receipt **history**와 continuous polling/connection telemetry는 아직 없습니다. Browser upload/file-picker,
+source edit/delete와 live connection/ingestion도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
