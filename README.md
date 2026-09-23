@@ -103,8 +103,7 @@ retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다.
 `industrial_phm.connectors.opcua` module의 OPC UA one-shot read proof와 같은 endpoint/NodeId mapping은
 `industrial-phm-source-registry-v4`에 영속할 수 있고 Operations Sources에서 type-specific detail로 확인할 수
 있습니다. Add source는 prepared file/history와 OPC UA browse/explicit-NodeId registration을 지원합니다. Application에는
-ACTIVE OPC UA source의 one-shot read → receipt persistence cycle이 있지만 Operations의 **Run active source once**와 CLI polling은
-아직 FILE runtime만 사용합니다. OPC UA lifecycle을 ACTIVE로 바꾼 것만으로 subscription/continuous ingestion이 시작되지는 않습니다.
+ACTIVE OPC UA source의 one-shot read → receipt persistence cycle을 Operations의 **Run active source once**에서 실행할 수 있습니다. UI action은 selected source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 dispatch합니다. CLI polling은 아직 FILE 전용이며, OPC UA lifecycle을 ACTIVE로 바꾼 것만으로 subscription/continuous ingestion이 시작되지는 않습니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
