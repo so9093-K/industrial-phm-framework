@@ -910,16 +910,12 @@ def _(
             gap=1.2,
         )
     else:
-        _lifecycle_by_id = {
-            record.source_id: record for record in source_lifecycle_records
-        }
+        _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
         _rows = []
         for _source in registered_sources:
             _config = _source.config
             _lifecycle = _lifecycle_by_id.get(_source.source_id)
-            _lifecycle_state = (
-                "Unavailable" if _lifecycle is None else _lifecycle.state.value
-            )
+            _lifecycle_state = "Unavailable" if _lifecycle is None else _lifecycle.state.value
             _rows.append(
                 "| "
                 + " | ".join(
@@ -945,9 +941,7 @@ def _(
         _selected_config = _selected.config
         _selected_lifecycle = _lifecycle_by_id.get(_selected.source_id)
         _lifecycle_state = (
-            "Unavailable"
-            if _selected_lifecycle is None
-            else _selected_lifecycle.state.value
+            "Unavailable" if _selected_lifecycle is None else _selected_lifecycle.state.value
         )
         _lifecycle_changed_at = (
             "Unavailable"
