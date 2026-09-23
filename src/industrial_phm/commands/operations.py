@@ -57,11 +57,7 @@ def _run_operations_poll_source(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
             else:
-                scope = (
-                    "unknown"
-                    if result.failure_scope is None
-                    else result.failure_scope.value
-                )
+                scope = "unknown" if result.failure_scope is None else result.failure_scope.value
                 print(
                     f"cycle {cycle_number}: failed scope={scope} "
                     f"reason={result.message or 'runtime cycle failed'}",
