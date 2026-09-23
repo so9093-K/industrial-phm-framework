@@ -13,11 +13,11 @@ from industrial_phm.application import (
     RegisteredOpcUaObservation,
     RegisteredSource,
     SourceConnectionAttemptOutcome,
-    project_registered_opcua_observation_summary,
     SourceLifecycleState,
     SourceReceiptEvidence,
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleState,
+    project_registered_opcua_observation_summary,
     run_registered_opcua_source_cycle,
     transition_source_lifecycle,
 )
