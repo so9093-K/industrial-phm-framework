@@ -77,20 +77,28 @@ class SourceHealthAssessment:
             if self.freshness.source_id != self.source_id:
                 raise ValueError("freshness must match source_id")
 
-        if self.data_flow_state in {
-            SourceDataFlowState.FRESHNESS_NOT_CONFIGURED,
-            SourceDataFlowState.FRESH,
-            SourceDataFlowState.STALE,
-            SourceDataFlowState.TIMING_UNAVAILABLE,
-        } and self.receipt is None:
+        if (
+            self.data_flow_state
+            in {
+                SourceDataFlowState.FRESHNESS_NOT_CONFIGURED,
+                SourceDataFlowState.FRESH,
+                SourceDataFlowState.STALE,
+                SourceDataFlowState.TIMING_UNAVAILABLE,
+            }
+            and self.receipt is None
+        ):
             raise ValueError("timing-derived data-flow state requires receipt evidence")
 
-        if self.data_flow_state in {
-            SourceDataFlowState.FRESHNESS_NOT_CONFIGURED,
-            SourceDataFlowState.FRESH,
-            SourceDataFlowState.STALE,
-            SourceDataFlowState.TIMING_UNAVAILABLE,
-        } and self.freshness is None:
+        if (
+            self.data_flow_state
+            in {
+                SourceDataFlowState.FRESHNESS_NOT_CONFIGURED,
+                SourceDataFlowState.FRESH,
+                SourceDataFlowState.STALE,
+                SourceDataFlowState.TIMING_UNAVAILABLE,
+            }
+            and self.freshness is None
+        ):
             raise ValueError("timing-derived data-flow state requires freshness assessment")
 
     @property
