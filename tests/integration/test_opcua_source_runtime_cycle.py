@@ -21,10 +21,10 @@ from industrial_phm.application import (
 )
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
-    OpcUaRuntimeUnavailableError,
-    OpcUaSourceError,
     OpcUaNodeObservation,
     OpcUaReadSnapshot,
+    OpcUaRuntimeUnavailableError,
+    OpcUaSourceError,
 )
 
 
