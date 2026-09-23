@@ -57,6 +57,7 @@ Conventional Commits의 구조를 따르되 제목과 본문은 기본적으로 
 - `refactor`: 의도한 외부 동작을 유지하는 구조 개선
 - `perf`: 성능 개선
 - `test`: 테스트 및 회귀 검증 개선
+- `research`: 재현 가능한 연구 실행, benchmark evidence, protocol freeze처럼 연구 근거를 기록하는 변경
 - `docs`: 문서만 변경
 - `build`: packaging/dependency/build 변경
 - `ci`: CI/CD 변경
@@ -66,7 +67,8 @@ Conventional Commits의 구조를 따르되 제목과 본문은 기본적으로 
 ### Preferred scopes
 
 `repo`, `core`, `contract`, `adapter`, `data`, `feature`, `model`, `evaluation`, `pipeline`,
-`artifact`, `api`, `dashboard`, `genai`, `docs`, `ci`, `release`
+`artifact`, `analysis`, `application`, `operations`, `connector`, `prognostics`, `api`, `dashboard`,
+`genai`, `cli`, `apps`, `docs`, `ci`, `release`
 
 새 scope를 만들기 전 기존 scope로 충분히 표현 가능한지 먼저 확인합니다.
 
@@ -135,6 +137,18 @@ PR 본문은 변경에 필요한 맥락만 남깁니다. 기본 구조는 다음
 설계 결정이나 관련 ADR이 없는 작은 변경에서는 해당 섹션을 생략합니다. PR template을 채우기 위해
 불필요한 영향 범위나 후속 작업 목록을 반복하지 않습니다. PR은 여러 기능을 한 번에 묶는 release
 container가 아니라 **하나의 리뷰 가능한 변화 단위**가 되어야 합니다.
+
+### Review and merge
+
+현재 single-maintainer 개발 단계에서는 별도 reviewer approval을 필수 조건으로 두지 않습니다. 대신 PR author는
+merge 전에 최신 `main` 기준 diff, 필수 CI, PR 제목과 문서/ADR/CHANGELOG 반영 필요 여부를 self-review합니다.
+협업자가 늘어나거나 보호가 필요한 운영 경계가 생기면 required approval을 별도 repository rule로 강화합니다.
+
+`main`의 history는 PR 단위 변경 의도를 읽을 수 있게 **squash merge를 기본값**으로 사용합니다. Branch 안에서는
+구현·테스트·format·문서 동기화 과정을 incremental commit으로 자유롭게 남길 수 있지만, 그 작업 과정 전체를
+`main`의 장기 history로 보존하지 않습니다. 서로 독립적으로 revert할 가치가 있는 변경이 둘 이상이면 micro
+commit을 그대로 merge하기보다 PR을 분리합니다. Merge commit 또는 rebase merge가 필요한 예외는 PR 본문에
+그 이유를 남깁니다.
 
 ### Stacked PRs
 
