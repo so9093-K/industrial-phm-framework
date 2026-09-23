@@ -1749,9 +1749,9 @@ def _(
                     ),
                     mo.callout(
                         "This is a multidimensional read model, not a single healthy/unhealthy "
-                        "verdict. One-shot read success and receipt timing still do not provide "
-                        "persistent connection telemetry, so connection remains NOT_INSTRUMENTED "
-                        "until an explicit connection-evidence runtime records that fact.",
+                        "verdict. Latest bounded attempt evidence is historical only; it does not "
+                        "provide current/session connection telemetry, so connection remains "
+                        "NOT_INSTRUMENTED.",
                         kind="info",
                         title="Health semantics",
                     ),
@@ -2076,11 +2076,11 @@ def _(
                     )
                     if source_runtime_error
                     else mo.callout(
-                        "Latest accepted registered-source receipt is persisted separately "
-                        "from the source registry. Only latest receipt timing is stored; "
-                        "connection status, retry/buffer state and receipt history are not.",
+                        "Latest receipt and bounded connection-attempt evidence are persisted "
+                        "separately from the source registry. Current connection status, "
+                        "retry/buffer state and receipt/attempt history are not stored.",
                         kind="info",
-                        title="Runtime receipt persistence",
+                        title="Runtime evidence persistence",
                     )
                 ),
                 _connection_attempt_evidence,
