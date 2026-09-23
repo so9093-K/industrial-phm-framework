@@ -27,6 +27,12 @@ from industrial_phm.application.operational import (
     OperationalFinding,
     validate_operational_finding_against_run,
 )
+from industrial_phm.application.source_lifecycle import (
+    SourceLifecycleRecord,
+    SourceLifecycleRepository,
+    SourceLifecycleState,
+    transition_source_lifecycle,
+)
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
@@ -58,6 +64,9 @@ __all__ = [
     "RegisteredFileObservation",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
+    "SourceLifecycleRecord",
+    "SourceLifecycleRepository",
+    "SourceLifecycleState",
     "SourceRegistryFormatError",
     "SourceRepository",
     "SourceSnapshotEvidence",
@@ -70,6 +79,7 @@ __all__ = [
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
     "register_file_source",
+    "transition_source_lifecycle",
     "validate_operational_finding_against_run",
     "validate_registered_file_source",
 ]
