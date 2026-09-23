@@ -237,8 +237,7 @@ def _coerce_numeric_value(value: object, mapping: OpcUaNodeMapping) -> float:
     numeric = float(value)
     if not isfinite(numeric):
         raise OpcUaSourceError(
-            "good OPC UA value must be finite for "
-            f"{mapping.channel_id} ({mapping.node_id})"
+            f"good OPC UA value must be finite for {mapping.channel_id} ({mapping.node_id})"
         )
     return numeric
 
