@@ -8,6 +8,7 @@ from industrial_phm.application import (
     FileSourceDiscoveryError,
     FileSourceMode,
     InMemorySourceRepository,
+    JsonSourceRepository,
     RegisteredSource,
     discover_file_source,
     register_file_source,
@@ -185,3 +186,20 @@ def test_register_file_source_does_not_persist_invalid_source(tmp_path: Path) ->
         register_file_source(source, repository)
 
     assert repository.list_sources() == ()
+
+
+def test_register_file_source_persists_to_json_repository(tmp_path: Path) -> None:
+    source_path = tmp_path / "pump.csv"
+    source_path.write_text(
+        "timestamp,vibration_x,temperature\n"
+        "2026-09-23T10:00:00+09:00,-1.0,42.0\n"
+        "2026-09-23T10:00:01+09:00,1.0,42.2\n",
+        encoding="utf-8",
+    )
+    source = _registered_source(source_path)
+    registry_path = tmp_path / "state" / "sources.json"
+
+    validation = register_file_source(source, JsonSourceRepository(registry_path))
+
+    assert validation.total_sample_count == 2
+    assert JsonSourceRepository(registry_path).get(source.source_id) == source
