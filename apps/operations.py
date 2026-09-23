@@ -36,6 +36,7 @@ def _():
         receive_registered_file_source_observation,
         register_file_source,
         run_registered_file_source_cycle,
+        run_registered_opcua_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
@@ -77,6 +78,7 @@ def _():
         mo,
         register_file_source,
         run_registered_file_source_cycle,
+        run_registered_opcua_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         ThreadPoolExecutor,
@@ -1725,9 +1727,9 @@ def _(
                     ),
                     mo.callout(
                         "This is a multidimensional read model, not a single healthy/unhealthy "
-                        "verdict. Registration and persistence alone do not provide live "
-                        "connector telemetry, so connection remains NOT_INSTRUMENTED until a "
-                        "source runtime records that evidence.",
+                        "verdict. One-shot read success and receipt timing still do not provide "
+                        "persistent connection telemetry, so connection remains NOT_INSTRUMENTED "
+                        "until an explicit connection-evidence runtime records that fact.",
                         kind="info",
                         title="Health semantics",
                     ),
@@ -1784,8 +1786,14 @@ def _(
                         f"| Receipt state | {_receipt_origin} |"
                     ),
                     mo.callout(
-                        "received_at is the time this prepared source load was accepted after "
-                        "validation. It is not reconstructed sensor transport arrival time.",
+                        (
+                            "received_at is the time this prepared source load was accepted after "
+                            "validation. It is not reconstructed sensor transport arrival time."
+                            if _selected_is_file
+                            else "received_at is the platform acceptance time after the one-shot "
+                            "OPC UA snapshot completed. It does not imply continuous transport "
+                            "arrival or a persistent connection."
+                        ),
                         kind="info",
                         title="Timing semantics",
                     ),
@@ -1839,9 +1847,9 @@ def _(
                             caption="Registration does not imply connectivity",
                         ),
                         mo.stat(
-                            "Type-specific",
+                            "One-shot",
                             label="Ingestion",
-                            caption="FILE one-shot; OPC UA runtime not connected yet",
+                            caption="FILE validation or OPC UA connect/read/disconnect",
                         ),
                     ],
                     widths="equal",
@@ -1896,17 +1904,7 @@ def _(
                     )
                 ),
                 mo.md("### Runtime execution"),
-                (
-                    run_active_source_button
-                    if _selected_is_file
-                    else mo.callout(
-                        "OPC UA registration is persisted, but an operational connector runtime "
-                        "is not connected yet. One-shot connector proof, subscription and "
-                        "connection telemetry remain separate boundaries.",
-                        kind="neutral",
-                        title="OPC UA runtime · Unavailable",
-                    )
-                ),
+                run_active_source_button,
                 (
                     mo.callout(
                         runtime_cycle_error,
@@ -1929,23 +1927,16 @@ def _(
                             )
                             if runtime_cycle_success
                             else mo.callout(
-                                "Run active source once consumes only ACTIVE lifecycle state. "
-                                "It re-validates the registered file/history source, records the "
-                                "latest receipt and leaves lifecycle ACTIVE on success. Source "
-                                "validation/I/O failure transitions ACTIVE → ERROR, while platform "
-                                "runtime-state failure fails the cycle without changing source "
-                                "lifecycle. This is one explicit iteration, not background "
-                                "polling.",
+                                "Run active source once dispatches to the selected source type. "
+                                "FILE re-validates current bytes; OPC UA performs one explicit "
+                                "connect/read/disconnect. Both record latest receipt evidence and "
+                                "leave lifecycle ACTIVE on success. Source-owned failures may "
+                                "transition ACTIVE → ERROR while platform failures keep lifecycle "
+                                "ACTIVE. This is one explicit iteration, not background polling.",
                                 kind="info",
                                 title="Runtime cycle semantics",
                             )
                         )
-                    )
-                    if _selected_is_file
-                    else mo.callout(
-                        "No runtime-cycle result is produced for OPC UA registration yet.",
-                        kind="neutral",
-                        title="Runtime evidence · Unavailable",
                     )
                 ),
                 mo.md("### Freshness policy"),
@@ -2074,12 +2065,17 @@ def _(initial_error, initial_summary, initial_timeline, mo):
 
 @app.cell
 def _(
+    FileSourceConfig,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
     Path,
     SourceRuntimeCycleState,
+    ThreadPoolExecutor,
+    asyncio,
     run_active_source_button,
     run_registered_file_source_cycle,
+    run_registered_opcua_source_cycle,
     set_load_error,
     set_observation,
     set_runtime_cycle_error,
@@ -2104,12 +2100,29 @@ def _(
             validate_distinct_source_state_paths(_registry_path, _runtime_path)
             _source_repository = JsonSourceRepository(_registry_path)
             _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
-            _result = run_registered_file_source_cycle(
-                _source_repository,
-                _source_repository,
-                _runtime_repository,
-                source_selector.value,
-            )
+            _source = _source_repository.get(source_selector.value)
+            if isinstance(_source.config, FileSourceConfig):
+                _result = run_registered_file_source_cycle(
+                    _source_repository,
+                    _source_repository,
+                    _runtime_repository,
+                    _source.source_id,
+                )
+            elif isinstance(_source.config, OpcUaSourceConfig):
+                def _run_opcua_cycle():
+                    return asyncio.run(
+                        run_registered_opcua_source_cycle(
+                            _source_repository,
+                            _source_repository,
+                            _runtime_repository,
+                            _source.source_id,
+                        )
+                    )
+
+                with ThreadPoolExecutor(max_workers=1) as _executor:
+                    _result = _executor.submit(_run_opcua_cycle).result()
+            else:
+                raise ValueError("unsupported registered source config")
             _sources = _source_repository.list_sources()
             _lifecycle_records = tuple(
                 _source_repository.get_lifecycle(source.source_id) for source in _sources
@@ -2130,15 +2143,25 @@ def _(
                     )
                 else:
                     _loaded = _received.observation
-                    set_observation(_loaded.latest)
-                    set_timeline(_loaded.timeline)
+                    if isinstance(_source.config, FileSourceConfig):
+                        set_observation(_loaded.latest)
+                        set_timeline(_loaded.timeline)
+                    else:
+                        set_observation(None)
+                        set_timeline(None)
                     set_source_receipt(_received.receipt)
                     set_load_error("")
                     set_runtime_cycle_error("")
                     set_runtime_cycle_skipped("")
+                    _projection_note = (
+                        ""
+                        if isinstance(_source.config, FileSourceConfig)
+                        else " · canonical observation projection unavailable"
+                    )
                     set_runtime_cycle_success(
                         f"Runtime cycle succeeded: {_result.source_id} · "
                         f"received {_received.receipt.received_at.isoformat()}"
+                        f"{_projection_note}"
                     )
             elif _result.state == SourceRuntimeCycleState.SKIPPED:
                 set_runtime_cycle_error("")
