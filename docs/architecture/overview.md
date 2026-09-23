@@ -99,10 +99,14 @@ OPC UA one-shot connector proof
             └ platform received_at
 
 RegisteredSource
-  └ FileSourceConfig
-       ├ source path / snapshot-or-history mode
+  ├ FileSourceConfig
+  │    ├ source path / snapshot-or-history mode
+  │    ├ asset / measurement-point mapping
+  │    └ existing CsvSensorLayout validation semantics
+  └ OpcUaSourceConfig
+       ├ opc.tcp endpoint / request timeout
        ├ asset / measurement-point mapping
-       └ existing CsvSensorLayout validation semantics
+       └ explicit channel_id -> variable NodeId mapping
 
 SourceRepository
   ├ register
@@ -206,9 +210,12 @@ Prepared-file polling runtime
     -> optional max_cycles : bounded deterministic run
 ```
 
-현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
-connection/health/active-ingestion 상태로 해석하지 않습니다. `InMemorySourceRepository`는 application
-workflow와 contract test를 위한 비영속 reference implementation이고, `JsonSourceRepository`는
+`RegisteredSource`는 현재 prepared file과 OPC UA source identity를 표현할 수 있지만, 등록 record가 존재한다는
+사실을 connection/health/active-ingestion 상태로 해석하지 않습니다. `OpcUaSourceConfig`는 기존
+`OpcUaReadConfig`의 endpoint/NodeId/timeout invariant를 재사용하며 endpoint reachability나 subscription을
+검증하지 않습니다. `InMemorySourceRepository`는 두 source type을 모두 보존하는 비영속 reference
+implementation입니다. 현재 `JsonSourceRepository`와 Operations Sources read surface는 file/file-directory만
+지원하므로 OPC UA source persistence는 명시적으로 fail-fast합니다. `JsonSourceRepository`는
 `industrial-phm-source-registry-v3` schema로 registration, lifecycle과 optional source-specific freshness
 policy를 재시작 이후에도 복원합니다. 기존 v1은 implicit REGISTERED/no-policy, v2는 explicit lifecycle/no-policy
 상태로 읽고 다음 write에서 v3로 승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤
@@ -221,10 +228,11 @@ evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 
 막기 위해 fail-closed로 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며
 cross-process write coordination은 아직 지원하지 않습니다.
 
-OPC UA connector proof는 이 control plane과 아직 분리되어 있습니다. 현재 구현은 explicit variable
-NodeId를 한 번 읽어 protocol quality/timestamp를 보존하는 acquisition boundary이며 `RegisteredSource`,
-`AssetObservationSummary`, source lifecycle, runtime receipt repository, prepared-file polling 또는 Operations
-Sources에 자동 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+OPC UA connector proof와 registration identity contract는 아직 persisted Operations runtime으로 연결되지
+않았습니다. 현재 connector는 explicit variable NodeId를 한 번 읽어 protocol quality/timestamp를 보존하고,
+application contract는 같은 endpoint/NodeId mapping을 `RegisteredSource` identity로 표현할 수 있습니다.
+하지만 OPC UA source의 JSON persistence, `AssetObservationSummary`, source lifecycle execution, runtime receipt
+repository, prepared-file polling 또는 Operations Sources UX에는 아직 자동 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
 Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
 browse/discovery UX, subscription, reconnect/backoff/buffering은 후속 requirement에서 확장합니다.
 
