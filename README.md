@@ -82,8 +82,9 @@ source load는 application acceptance 시각을 timezone-aware `received_at`으�
 않습니다. Source lifecycle은 `REGISTERED / ACTIVE / PAUSED / ERROR` control-plane state로 별도 보존하며
 Operations에서 Activate/Pause를 수행할 수 있습니다. ACTIVE source는 **Run active source once**로 한 번의
 runtime cycle을 실행할 수 있고, 성공하면 current observation/latest receipt를 갱신하며 ACTIVE를 유지합니다.
-Source validation 또는 runtime persistence가 실패하면 lifecycle은 ERROR로 전이합니다. 이 one-shot cycle은
-connection/health/continuous-ingestion의 증거가 아니며 background scheduler도 아닙니다.
+Source validation/I/O가 실패하면 concrete detail과 함께 lifecycle은 ERROR로 전이합니다. 반면 runtime-state
+persistence 같은 platform failure는 cycle을 FAILED로 만들되 source lifecycle은 ACTIVE로 유지합니다. 이
+one-shot cycle은 connection/health/continuous-ingestion의 증거가 아니며 background scheduler도 아닙니다.
 Sources에서 source별 max observation age policy를 설정하면 현재 receipt evidence와 평가 시각을 사용해
 `FRESH / STALE / UNAVAILABLE / NOT_CONFIGURED` freshness state를 계산합니다. Freshness age는
 `assessment time - observed_at`이며 observed→received delivery lag와 분리합니다. Timestamp/timezone이 없거나
