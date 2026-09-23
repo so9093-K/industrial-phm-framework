@@ -6,7 +6,6 @@ import csv
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from io import TextIOWrapper
 from pathlib import Path
 
 from industrial_phm.application.field_csv import (
