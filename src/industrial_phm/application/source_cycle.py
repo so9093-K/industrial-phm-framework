@@ -114,23 +114,20 @@ def run_registered_file_source_cycle(
     ):
         raise ValueError("received_at override must be a timezone-aware datetime")
 
-    try:
-        persisted_receipt = runtime_repository.get_latest_receipt(source_id)
-    except (OSError, ValueError) as error:
-        return _failed_cycle(
-            lifecycle_repository,
-            source_id,
-            lifecycle_before,
-            cycle_time,
-            error,
-        )
-
-    if (
-        received_at is not None
-        and persisted_receipt is not None
-        and received_at < persisted_receipt.received_at
-    ):
-        raise ValueError("received_at override must not move backwards")
+    persisted_receipt = None
+    if received_at is not None:
+        try:
+            persisted_receipt = runtime_repository.get_latest_receipt(source_id)
+        except (OSError, ValueError) as error:
+            return _failed_cycle(
+                lifecycle_repository,
+                source_id,
+                lifecycle_before,
+                cycle_time,
+                error,
+            )
+        if persisted_receipt is not None and received_at < persisted_receipt.received_at:
+            raise ValueError("received_at override must not move backwards")
 
     try:
         received = receive_registered_file_source_observation(
