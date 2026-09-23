@@ -80,9 +80,7 @@ class JsonSourceRepository:
         if not isinstance(source, RegisteredSource):
             raise ValueError("source must be RegisteredSource")
         if source.source_type != SourceType.FILE:
-            raise ValueError(
-                "JsonSourceRepository currently persists prepared file sources only"
-            )
+            raise ValueError("JsonSourceRepository currently persists prepared file sources only")
 
         sources, lifecycle, freshness = self._read_registry()
         if any(existing.source_id == source.source_id for existing in sources):
