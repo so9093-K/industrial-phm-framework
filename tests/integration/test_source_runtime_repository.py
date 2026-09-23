@@ -104,14 +104,10 @@ def test_json_source_runtime_repository_rejects_received_at_regression(
 ) -> None:
     path = tmp_path / "runtime.json"
     repository = JsonSourceRuntimeRepository(path)
-    repository.record_receipt(
-        _receipt(received_at="2026-09-23T10:01:05+09:00")
-    )
+    repository.record_receipt(_receipt(received_at="2026-09-23T10:01:05+09:00"))
 
     with pytest.raises(ValueError, match="must not move backwards"):
-        repository.record_receipt(
-            _receipt(received_at="2026-09-23T10:01:04+09:00")
-        )
+        repository.record_receipt(_receipt(received_at="2026-09-23T10:01:04+09:00"))
 
 
 def test_json_source_runtime_repository_rejects_conflict_at_same_received_at(
@@ -122,9 +118,7 @@ def test_json_source_runtime_repository_rejects_conflict_at_same_received_at(
     repository.record_receipt(_receipt())
 
     with pytest.raises(ValueError, match="same received_at"):
-        repository.record_receipt(
-            _receipt(observed_at="2026-09-23T09:59:00+09:00")
-        )
+        repository.record_receipt(_receipt(observed_at="2026-09-23T09:59:00+09:00"))
 
 
 def test_json_source_runtime_repository_allows_idempotent_same_receipt(
