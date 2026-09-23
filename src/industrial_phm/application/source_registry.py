@@ -444,6 +444,7 @@ def _parse_registered_source(
     registered_at_raw = _require_string(source["registered_at"], f"{label}.registered_at")
 
     try:
+        config: FileSourceConfig | OpcUaSourceConfig
         if source_type == SourceType.FILE:
             config = _parse_file_source_config(config_raw, config_label)
         else:
