@@ -52,9 +52,9 @@ class SourceHealthAssessment:
     connection_state: SourceConnectionState
     data_flow_state: SourceDataFlowState
     receipt: SourceReceiptEvidence | None = None
-    connection_attempt: SourceConnectionAttemptEvidence | None = None
     freshness: SourceFreshnessAssessment | None = None
     reason: str | None = None
+    connection_attempt: SourceConnectionAttemptEvidence | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
