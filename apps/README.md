@@ -36,9 +36,7 @@ uv run --locked --group research marimo run apps/operations.py
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
 inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**는 prepared CSV file/history-directory와
-OPC UA explicit-NodeId registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity,
-한 줄당 `channel_id,node_id` mapping과 timeout을 입력해 registry v4에 저장합니다. 이 단계는 endpoint에 연결하거나
-browse/read하지 않으며 anonymous/NoSecurity config validation만 재사용합니다. Live connector runtime은 아직 연결하지 않습니다.
+OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Live connector runtime은 아직 연결하지 않습니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
 ```text
@@ -228,7 +226,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA endpoint + explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE ACTIVE one-shot runtime cycle, source-specific freshness policy, selected FILE source → current Observation load + received_at/delivery-lag/freshness evidence, OPC UA runtime/connection capability의 명시적 unavailable 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE ACTIVE one-shot runtime cycle, source-specific freshness policy, selected FILE source → current Observation load + received_at/delivery-lag/freshness evidence, OPC UA runtime/connection capability의 명시적 unavailable 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
