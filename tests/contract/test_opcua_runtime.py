@@ -189,24 +189,17 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         assert received.receipt.observed_at == source_at
         assert received.receipt.received_at >= received.observation.snapshot.completed_at
 
-        assert (
-            subscription_result.completion_reason
-            == OpcUaSubscriptionCompletionReason.MAX_EVENTS
-        )
+        assert subscription_result.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
         assert len(subscription_result.notifications) == 2
         notifications_by_channel = {
-            item.observation.channel_id: item
-            for item in subscription_result.notifications
+            item.observation.channel_id: item for item in subscription_result.notifications
         }
         assert set(notifications_by_channel) == {"vibration_x", "temperature"}
         assert notifications_by_channel["vibration_x"].observation.value == 12.5
         assert notifications_by_channel["vibration_x"].observation.status_good is True
         assert notifications_by_channel["temperature"].observation.value is None
         assert notifications_by_channel["temperature"].observation.status_good is False
-        assert all(
-            item.replayed is False
-            for item in subscription_result.notifications
-        )
+        assert all(item.replayed is False for item in subscription_result.notifications)
 
         assert [result.state for result in poll_results] == [
             SourceRuntimeCycleState.SUCCEEDED,
