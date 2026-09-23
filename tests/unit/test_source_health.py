@@ -113,6 +113,28 @@ def test_active_source_without_receipt_is_explicitly_no_receipt() -> None:
     assert assessment.reason == "active source has no accepted receipt evidence"
 
 
+def test_reactivated_source_does_not_reuse_receipt_from_previous_active_epoch() -> None:
+    lifecycle = SourceLifecycleRecord(
+        source_id="source-a",
+        state=SourceLifecycleState.ACTIVE,
+        changed_at=datetime.fromisoformat("2026-09-23T10:05:10+09:00"),
+    )
+    receipt = _receipt(received_at="2026-09-23T10:04:05+09:00")
+
+    assessment = assess_source_health(
+        lifecycle,
+        receipt,
+        _policy(),
+        as_of=_as_of("2026-09-23T10:06:00+09:00"),
+    )
+
+    assert assessment.data_flow_state == SourceDataFlowState.NO_RECEIPT
+    assert assessment.latest_received_at == receipt.received_at
+    assert assessment.freshness is None
+    assert assessment.reason is not None
+    assert "current active lifecycle transition" in assessment.reason
+
+
 def test_active_source_without_freshness_policy_is_not_configured() -> None:
     assessment = assess_source_health(
         _lifecycle(SourceLifecycleState.ACTIVE),
