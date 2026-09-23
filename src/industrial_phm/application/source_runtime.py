@@ -87,7 +87,9 @@ class JsonSourceRuntimeRepository:
         try:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as error:
-            raise SourceRuntimeFormatError("source runtime state must contain valid JSON") from error
+            raise SourceRuntimeFormatError(
+                "source runtime state must contain valid JSON"
+            ) from error
 
         root = _require_mapping(raw, "source runtime root")
         _require_exact_keys(root, _ROOT_KEYS, "source runtime root")
