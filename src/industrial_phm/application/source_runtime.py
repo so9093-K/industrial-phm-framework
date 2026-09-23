@@ -71,9 +71,7 @@ class JsonSourceRuntimeRepository:
             if receipt.received_at < current.received_at:
                 raise ValueError("received_at must not move backwards")
             if receipt.received_at == current.received_at and receipt != current:
-                raise ValueError(
-                    "receipt with the same received_at must match persisted evidence"
-                )
+                raise ValueError("receipt with the same received_at must match persisted evidence")
 
         receipts[receipt.source_id] = receipt
         self._write_receipts(tuple(receipts.values()))
@@ -95,15 +93,11 @@ class JsonSourceRuntimeRepository:
         _require_exact_keys(root, _ROOT_KEYS, "source runtime root")
         schema = _require_string(root["schema"], "source runtime schema")
         if schema != _RUNTIME_SCHEMA:
-            raise SourceRuntimeFormatError(
-                f"unsupported source runtime schema: {schema!r}"
-            )
+            raise SourceRuntimeFormatError(f"unsupported source runtime schema: {schema!r}")
 
         receipts_raw = root["latest_receipts"]
         if not isinstance(receipts_raw, list):
-            raise SourceRuntimeFormatError(
-                "source runtime latest_receipts must be a JSON array"
-            )
+            raise SourceRuntimeFormatError("source runtime latest_receipts must be a JSON array")
         receipts = tuple(
             _parse_receipt(item, index=index) for index, item in enumerate(receipts_raw)
         )
@@ -155,9 +149,7 @@ class JsonSourceRuntimeRepository:
 def _serialize_receipt(receipt: SourceReceiptEvidence) -> dict[str, object]:
     return {
         "source_id": receipt.source_id,
-        "observed_at": (
-            None if receipt.observed_at is None else receipt.observed_at.isoformat()
-        ),
+        "observed_at": (None if receipt.observed_at is None else receipt.observed_at.isoformat()),
         "received_at": receipt.received_at.isoformat(),
     }
 
@@ -172,9 +164,7 @@ def _parse_receipt(value: object, *, index: int) -> SourceReceiptEvidence:
     try:
         return SourceReceiptEvidence(
             source_id=_require_string(receipt["source_id"], f"{label}.source_id"),
-            observed_at=(
-                None if observed_raw is None else datetime.fromisoformat(observed_raw)
-            ),
+            observed_at=(None if observed_raw is None else datetime.fromisoformat(observed_raw)),
             received_at=datetime.fromisoformat(
                 _require_string(receipt["received_at"], f"{label}.received_at")
             ),
