@@ -112,7 +112,7 @@ Both
 Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
 ACTIVE lifecycle을 반드시 요구합니다. FILE validation/I/O 또는 OPC UA data-contract/transport처럼 source-owned인 failure만 source lifecycle ERROR로 기록하고, runtime unavailable/caller-contract/internal/runtime-state persistence 같은 platform-owned failure는 cycle 자체는 FAILED지만 source lifecycle은 ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
 Operations UI는 사용자가 버튼으로 한 iteration을 실행하는 구조를 유지합니다. 별도 CLI
-`industrial-phm operations poll-source`는 같은 runtime cycle을 synchronous polling loop로 반복하지만,
+`industrial-phm operations poll-source`는 아직 FILE runtime cycle만 synchronous polling loop로 반복하며,
 background daemon, retry/backoff, buffering, connector session은 아직 구현하지 않습니다.
 
 ### Prepared-file polling runtime
@@ -154,7 +154,7 @@ SourceHealthAssessment
   └ freshness assessment?
 ```
 
-Prepared-file runtime은 connector session telemetry가 없으므로 file을 성공적으로 읽었거나 receipt가 fresh해도
+현재 FILE/OPC UA one-shot runtime은 persistent connector session telemetry를 기록하지 않으므로 read가 성공했거나 receipt가 fresh해도
 connection을 connected/healthy로 승격하지 않습니다. ACTIVE인데 아직 receipt가 없으면 NO_RECEIPT,
 source lifecycle ERROR면 SOURCE_ERROR, policy와 timing evidence가 있으면 freshness-derived data-flow state를
 표시합니다. PAUSED/ERROR에서 다시 ACTIVE로 전환한 경우 current lifecycle change보다 오래된 persisted
