@@ -1416,9 +1416,10 @@ def _(
                             else mo.callout(
                                 "Run active source once consumes only ACTIVE lifecycle state. "
                                 "It re-validates the registered file/history source, records the "
-                                "latest receipt and leaves lifecycle ACTIVE on success. Source or "
-                                "runtime persistence failure transitions ACTIVE → ERROR. This is "
-                                "one explicit iteration, not background polling.",
+                                "latest receipt and leaves lifecycle ACTIVE on success. Source "
+                                "validation/I/O failure transitions ACTIVE → ERROR, while platform "
+                                "runtime-state failure fails the cycle without changing source "
+                                "lifecycle. This is one explicit iteration, not background polling.",
                                 kind="info",
                                 title="Runtime cycle semantics",
                             )
@@ -1608,7 +1609,14 @@ def _(
             else:
                 set_runtime_cycle_success("")
                 set_runtime_cycle_skipped("")
-                set_runtime_cycle_error(_result.message or "runtime cycle failed")
+                _scope = (
+                    "unknown"
+                    if _result.failure_scope is None
+                    else _result.failure_scope.value
+                )
+                set_runtime_cycle_error(
+                    f"{_scope} failure · {_result.message or 'runtime cycle failed'}"
+                )
 
             try:
                 _registered_ids = {source.source_id for source in _sources}
