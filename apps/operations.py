@@ -1089,10 +1089,14 @@ def _(
     load_registered_source_button,
     mo,
     pause_source_button,
+    run_active_source_button,
     registered_sources,
     registered_source_load_error,
     registered_source_load_success,
     registration_view,
+    runtime_cycle_error,
+    runtime_cycle_skipped,
+    runtime_cycle_success,
     save_freshness_policy_button,
     source_freshness_policies,
     source_lifecycle_records,
@@ -1325,9 +1329,9 @@ def _(
                             caption="Registration does not imply connectivity",
                         ),
                         mo.stat(
-                            "Not connected",
+                            "One-shot only",
                             label="Ingestion",
-                            caption="No continuous source runtime yet",
+                            caption="Explicit runtime cycle; no continuous scheduler",
                         ),
                     ],
                     widths="equal",
@@ -1383,6 +1387,41 @@ def _(
                             "prove that a connection exists or that ingestion is running.",
                             kind="info",
                             title="Lifecycle semantics",
+                        )
+                    )
+                ),
+                mo.md("### Runtime execution"),
+                run_active_source_button,
+                (
+                    mo.callout(
+                        runtime_cycle_error,
+                        kind="danger",
+                        title="Runtime cycle failed",
+                    )
+                    if runtime_cycle_error
+                    else (
+                        mo.callout(
+                            runtime_cycle_skipped,
+                            kind="neutral",
+                            title="Runtime cycle skipped",
+                        )
+                        if runtime_cycle_skipped
+                        else (
+                            mo.callout(
+                                runtime_cycle_success,
+                                kind="success",
+                                title="Runtime cycle succeeded",
+                            )
+                            if runtime_cycle_success
+                            else mo.callout(
+                                "Run active source once consumes only ACTIVE lifecycle state. "
+                                "It re-validates the registered file/history source, records the "
+                                "latest receipt and leaves lifecycle ACTIVE on success. Source or "
+                                "runtime persistence failure transitions ACTIVE → ERROR. This is "
+                                "one explicit iteration, not background polling.",
+                                kind="info",
+                                title="Runtime cycle semantics",
+                            )
                         )
                     )
                 ),
