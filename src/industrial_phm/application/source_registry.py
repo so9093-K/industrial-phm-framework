@@ -56,6 +56,10 @@ class SourceRegistryFormatError(ValueError):
 class JsonSourceRepository:
     """Single-writer local JSON registration/lifecycle/freshness repository.
 
+    The current persisted schema supports prepared file sources only. OPC UA registration
+    can be represented by the application contract but is rejected here until the JSON
+    schema and Operations read surface are extended together.
+
     Version 1 and 2 registries remain readable. Version 1 sources receive an implicit
     REGISTERED lifecycle state; both legacy versions have no freshness policy unless a
     later write configures one. Any write persists version 3.
@@ -75,6 +79,8 @@ class JsonSourceRepository:
     def register(self, source: RegisteredSource) -> None:
         if not isinstance(source, RegisteredSource):
             raise ValueError("source must be RegisteredSource")
+        if source.source_type != SourceType.FILE:
+            raise ValueError("JsonSourceRepository currently persists prepared file sources only")
 
         sources, lifecycle, freshness = self._read_registry()
         if any(existing.source_id == source.source_id for existing in sources):
@@ -332,6 +338,8 @@ def _require_registered_source_id(
 
 def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
     config = source.config
+    if not isinstance(config, FileSourceConfig):
+        raise ValueError("JsonSourceRepository currently persists prepared file sources only")
     return {
         "source_id": source.source_id,
         "name": source.name,

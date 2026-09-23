@@ -18,6 +18,7 @@ from industrial_phm.application.observation import (
     SourceSnapshotEvidence,
 )
 from industrial_phm.application.source_registration import (
+    FileSourceConfig,
     FileSourceMode,
     RegisteredSource,
     SourceRepository,
@@ -191,7 +192,7 @@ def load_registered_file_source_observation(
     if not isinstance(source, RegisteredSource):
         raise ValueError("source must be RegisteredSource")
 
-    config = source.config
+    config = _require_file_source_config(source)
     layout = config.to_csv_sensor_layout()
     path = Path(config.source_path)
 
@@ -218,7 +219,7 @@ def validate_registered_file_source(
 ) -> FileSourceRegistrationValidation:
     """Run the registered-source observation loader for one registration candidate."""
     loaded = load_registered_file_source_observation(source)
-    config = source.config
+    config = _require_file_source_config(source)
     segments: tuple[AssetObservationSummary, ...] = (
         (loaded.latest,) if loaded.timeline is None else tuple(loaded.timeline.segments)
     )
@@ -337,3 +338,10 @@ def _read_preview_rows(
     except csv.Error as error:
         raise FileSourceDiscoveryError(f"cannot preview CSV source: {source}") from error
     return tuple(rows)
+
+
+def _require_file_source_config(source: RegisteredSource) -> FileSourceConfig:
+    config = source.config
+    if not isinstance(config, FileSourceConfig):
+        raise ValueError("registered file source must use FileSourceConfig")
+    return config

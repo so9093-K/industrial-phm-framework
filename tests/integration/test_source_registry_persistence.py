@@ -8,6 +8,7 @@ from industrial_phm.application import (
     FileSourceConfig,
     FileSourceMode,
     JsonSourceRepository,
+    OpcUaSourceConfig,
     RegisteredSource,
     SourceAlreadyRegisteredError,
     SourceFreshnessPolicy,
@@ -20,6 +21,7 @@ from industrial_phm.application import (
     UnknownRegisteredSourceError,
     transition_source_lifecycle,
 )
+from industrial_phm.connectors import OpcUaNodeMapping
 
 
 def _source(
@@ -486,3 +488,31 @@ def test_json_source_repository_rejects_freshness_policy_for_unregistered_source
 
     with pytest.raises(SourceRegistryFormatError, match="unregistered sources"):
         JsonSourceRepository(registry).list_sources()
+
+
+def test_json_source_repository_rejects_opcua_until_persistence_schema_supports_it(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = RegisteredSource(
+        source_id="opcua-source",
+        name="Pump OPC UA",
+        config=OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            measurement_point_id="drive-end-bearing",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+        ),
+        registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
+    )
+
+    with pytest.raises(ValueError, match="prepared file sources only"):
+        repository.register(source)
+
+    assert not registry.exists()

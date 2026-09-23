@@ -9,12 +9,14 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from industrial_phm.adapters import CsvSensorLayout
+from industrial_phm.connectors import OpcUaNodeMapping, OpcUaReadConfig
 
 
 class SourceType(StrEnum):
     """Supported registered-source families."""
 
     FILE = "file"
+    OPCUA = "opcua"
 
 
 class FileSourceMode(StrEnum):
@@ -71,6 +73,39 @@ class FileSourceConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class OpcUaSourceConfig:
+    """Registration-time configuration for the current OPC UA read boundary.
+
+    The config preserves endpoint and explicit node/channel mapping identity without
+    claiming that the endpoint is reachable, connected, subscribed, or healthy.
+    Authentication, certificates, browse/discovery and reconnect policy remain outside
+    this first registration contract.
+    """
+
+    endpoint_url: str
+    asset_id: str
+    node_mappings: Sequence[OpcUaNodeMapping]
+    measurement_point_id: str | None = None
+    timeout_seconds: float = 4.0
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.asset_id, "asset_id")
+        if self.measurement_point_id is not None:
+            _validate_identifier(self.measurement_point_id, "measurement_point_id")
+
+        read_config = self.to_opcua_read_config()
+        object.__setattr__(self, "node_mappings", tuple(read_config.node_mappings))
+
+    def to_opcua_read_config(self) -> OpcUaReadConfig:
+        """Build the existing one-shot connector config without changing semantics."""
+        return OpcUaReadConfig(
+            endpoint_url=self.endpoint_url,
+            node_mappings=tuple(self.node_mappings),
+            timeout_seconds=self.timeout_seconds,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class RegisteredSource:
     """Authoritative registration record for one operational source.
 
@@ -81,14 +116,14 @@ class RegisteredSource:
 
     source_id: str
     name: str
-    config: FileSourceConfig
+    config: FileSourceConfig | OpcUaSourceConfig
     registered_at: datetime
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
         _validate_identifier(self.name, "name")
-        if not isinstance(self.config, FileSourceConfig):
-            raise ValueError("config must be FileSourceConfig")
+        if not isinstance(self.config, (FileSourceConfig, OpcUaSourceConfig)):
+            raise ValueError("config must be FileSourceConfig or OpcUaSourceConfig")
         if not isinstance(self.registered_at, datetime):
             raise ValueError("registered_at must be a datetime")
         if self.registered_at.utcoffset() is None:
@@ -97,7 +132,9 @@ class RegisteredSource:
     @property
     def source_type(self) -> SourceType:
         """Return the source family implied by the registered config."""
-        return SourceType.FILE
+        if isinstance(self.config, FileSourceConfig):
+            return SourceType.FILE
+        return SourceType.OPCUA
 
     @property
     def asset_id(self) -> str:
