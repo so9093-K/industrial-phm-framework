@@ -127,8 +127,8 @@ def assess_source_health(
     """Combine explicit lifecycle and timing facts into a source-health read model.
 
     No connection success is inferred from file readability, receipt existence, or
-    freshness. The prepared-file runtime has no connector telemetry, so connection state
-    remains NOT_INSTRUMENTED.
+    freshness. Current FILE/OPC UA one-shot runtimes do not persist connection telemetry,
+    so connection state remains NOT_INSTRUMENTED.
     """
     if not isinstance(lifecycle, SourceLifecycleRecord):
         raise ValueError("lifecycle must be a SourceLifecycleRecord")

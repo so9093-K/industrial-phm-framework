@@ -94,17 +94,15 @@ load가 성공하면 latest receipt는 control-plane registry와 분리된 local
 후 Last received/lag/freshness를 다시 계산할 수 있습니다. 이 runtime state는 latest receipt만 보존하며
 connection health, retry/buffer 상태, receipt history는 아직 저장하지 않습니다. Sources는 lifecycle,
 latest receipt, source-specific freshness를 조합한 `SourceHealthAssessment`를 표시하지만 단일
-healthy/unhealthy 판정은 만들지 않습니다. Prepared-file runtime에는 connector telemetry가 없으므로
-Connection은 항상 `NOT_INSTRUMENTED`로 남고, Data flow는 INACTIVE/SOURCE_ERROR/NO_RECEIPT/FRESH/
-STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. Operations UI는
-one-shot 실행을 유지하고, CLI의 `operations poll-source`는 같은 runtime cycle을 caller-owned synchronous
-loop로 반복할 수 있습니다. 이 polling runtime은 background service나 live connector가 아니며,
+healthy/unhealthy 판정은 만들지 않습니다. 현재 FILE/OPC UA one-shot runtime은 persistent connection telemetry를 기록하지 않으므로
+Connection은 `NOT_INSTRUMENTED`로 남고, Data flow는 INACTIVE/SOURCE_ERROR/NO_RECEIPT/FRESH/
+STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. Operations UI는 FILE/OPC UA one-shot 실행을 지원하고, CLI의 `operations poll-source`는 아직 FILE runtime cycle만 caller-owned synchronous
+loop로 반복합니다. 이 polling runtime은 background service나 live connector가 아니며,
 retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다. 별도
 `industrial_phm.connectors.opcua` module의 OPC UA one-shot read proof와 같은 endpoint/NodeId mapping은
 `industrial-phm-source-registry-v4`에 영속할 수 있고 Operations Sources에서 type-specific detail로 확인할 수
 있습니다. Add source는 prepared file/history와 OPC UA browse/explicit-NodeId registration을 지원합니다. Application에는
-ACTIVE OPC UA source의 one-shot read → receipt persistence cycle이 있지만 Operations의 **Run active source once**와 CLI polling은
-아직 FILE runtime만 사용합니다. OPC UA lifecycle을 ACTIVE로 바꾼 것만으로 subscription/continuous ingestion이 시작되지는 않습니다.
+ACTIVE OPC UA source의 one-shot read → receipt persistence cycle을 Operations의 **Run active source once**에서 실행할 수 있습니다. UI action은 selected source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 dispatch합니다. CLI polling은 아직 FILE 전용이며, OPC UA lifecycle을 ACTIVE로 바꾼 것만으로 subscription/continuous ingestion이 시작되지는 않습니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
@@ -157,8 +155,8 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> first OPC UA one-shot read proof
   -> OPC UA registration contract / registry v4 persistence / Sources read + explicit registration UX
   -> OPC UA one-shot endpoint probe / bounded browse / mapping UX
-  -> registered OPC UA one-shot read + receipt persistence
-  -> Operations runtime action / connection telemetry / subscription-reconnect runtime
+  -> registered OPC UA one-shot read + receipt persistence + Operations manual run
+  -> persistent OPC UA connection telemetry / subscription-reconnect runtime
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
@@ -180,13 +178,13 @@ observed→received delivery lag evidence가 추가되었고, policy가 있으�
 receipt **history**와 connection telemetry는 아직 없습니다. Current lifecycle, persisted latest receipt와
 freshness policy를 묶은 source-health read model은 제공하지만 boolean healthy/unhealthy나 connection
 success를 추론하지 않습니다. Operations UI의 runtime cycle은 explicit single iteration이고, CLI의
-`operations poll-source`는 이 cycle을 일정 interval로 동기 반복합니다. Polling은 failure/non-ACTIVE에서
+`operations poll-source`는 FILE cycle을 일정 interval로 동기 반복합니다. OPC UA polling은 아직 지원하지 않습니다. Polling은 failure/non-ACTIVE에서
 즉시 멈추며 retry/backoff나 background daemon을 만들지 않습니다. Browser upload/file-picker, source
 edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol read, application-level
 `OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
 read surface까지 검증했습니다. Registry에 보존되는 endpoint는 anonymous/NoSecurity `opc.tcp`만 허용하고
 endpoint userinfo credential은 거부합니다. Operations Add source에서는 endpoint, asset/measurement point,
-browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application에는 registered OPC UA one-shot runtime/receipt persistence가 추가됐지만 Operations runtime 버튼과 CLI polling에는 아직 연결하지 않았습니다. Subscription/reconnect와 continuous ingestion도 아직 지원하지 않습니다.
+browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application의 registered OPC UA one-shot runtime/receipt persistence는 Operations **Run active source once**에도 연결됩니다. OPC UA 성공은 latest receipt/freshness evidence를 갱신하지만 아직 `AssetObservationSummary`로 투영하지 않으므로 기존 FILE observation/timeline을 현재 OPC UA 결과처럼 유지하지 않습니다. CLI polling은 아직 FILE 전용입니다. Subscription/reconnect와 continuous ingestion도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 

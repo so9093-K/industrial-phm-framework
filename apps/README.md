@@ -36,7 +36,7 @@ uv run --locked --group research marimo run apps/operations.py
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
 inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**는 prepared CSV file/history-directory와
-OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있습니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. Operations의 Run 버튼은 아직 FILE source에만 연결됩니다.
+OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있으며 Operations의 **Run active source once**가 FILE/OPC UA를 type-specific dispatch합니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. OPC UA 성공은 receipt/freshness state를 갱신하지만 아직 canonical `AssetObservationSummary`를 생성하지 않습니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
 ```text
@@ -79,9 +79,7 @@ REGISTERED -> ACTIVE <-> PAUSED
 
 등록 직후 상태는 `REGISTERED`입니다. `ACTIVE`는 source runtime이 소비하도록 enable된 administrative
 intent이고, `PAUSED`는 runtime consumption을 중지하려는 intent입니다. Sources의 **Run active source once**는
-ACTIVE 상태만 실제로 소비합니다. One-shot cycle의 source validation/I/O failure만 ACTIVE → ERROR로
-전이하고 concrete failure detail을 보존합니다. Runtime-state persistence 같은 platform failure는 cycle을
-FAILED로 표시하되 source lifecycle은 ACTIVE로 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한
+ACTIVE 상태만 실제로 소비합니다. FILE validation/I/O failure와 OPC UA의 explicit data-contract/transport `OSError`처럼 source-owned로 분류된 failure만 ACTIVE → ERROR로 전이하고 concrete detail을 보존합니다. OPC UA optional runtime 부재, caller-contract/internal error, runtime-state persistence 같은 platform-owned failure는 cycle을 FAILED로 표시하되 source lifecycle은 ACTIVE로 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한
 뒤 다시 실행할 수 있습니다. Connection, freshness, retry/buffer telemetry를 lifecycle state 자체에서
 추론하지는 않습니다.
 
@@ -91,27 +89,30 @@ freshness policy write가 발생하면 `industrial-phm-source-registry-v4`로 �
 
 ### Runtime execution cycle
 
-**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다. 현재 UI action은 FILE source에 연결되고, OPC UA one-shot runtime은 application API 단계까지 구현되어 있습니다.
+**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다. UI action은 선택된 source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 실행합니다.
 
 ```text
 REGISTERED / PAUSED / ERROR
   -> SKIPPED
 
-ACTIVE
+ACTIVE FILE
   -> registered source current bytes 재검증
+
+ACTIVE OPC UA
+  -> one-shot connect/read/disconnect
+
+Both
   -> SourceReceiptEvidence 생성
   -> latest runtime receipt persistence
   -> success: ACTIVE 유지
-  -> source validation/I/O failure: ERROR + failure detail
-  -> platform runtime-state failure: FAILED + ACTIVE 유지
+  -> source-owned failure: ERROR + failure detail
+  -> platform-owned failure: FAILED + ACTIVE 유지
 ```
 
 Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
-ACTIVE lifecycle을 반드시 요구합니다. Source validation/I/O failure만 source lifecycle ERROR로 기록하고,
-runtime-state persistence failure는 platform-owned failure로 분류해 cycle 자체는 FAILED지만 source lifecycle은
-ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
+ACTIVE lifecycle을 반드시 요구합니다. FILE validation/I/O 또는 OPC UA data-contract/transport처럼 source-owned인 failure만 source lifecycle ERROR로 기록하고, runtime unavailable/caller-contract/internal/runtime-state persistence 같은 platform-owned failure는 cycle 자체는 FAILED지만 source lifecycle은 ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
 Operations UI는 사용자가 버튼으로 한 iteration을 실행하는 구조를 유지합니다. 별도 CLI
-`industrial-phm operations poll-source`는 같은 runtime cycle을 synchronous polling loop로 반복하지만,
+`industrial-phm operations poll-source`는 아직 FILE runtime cycle만 synchronous polling loop로 반복하며,
 background daemon, retry/backoff, buffering, connector session은 아직 구현하지 않습니다.
 
 ### Prepared-file polling runtime
@@ -153,7 +154,7 @@ SourceHealthAssessment
   └ freshness assessment?
 ```
 
-Prepared-file runtime은 connector session telemetry가 없으므로 file을 성공적으로 읽었거나 receipt가 fresh해도
+현재 FILE/OPC UA one-shot runtime은 persistent connector session telemetry를 기록하지 않으므로 read가 성공했거나 receipt가 fresh해도
 connection을 connected/healthy로 승격하지 않습니다. ACTIVE인데 아직 receipt가 없으면 NO_RECEIPT,
 source lifecycle ERROR면 SOURCE_ERROR, policy와 timing evidence가 있으면 freshness-derived data-flow state를
 표시합니다. PAUSED/ERROR에서 다시 ACTIVE로 전환한 경우 current lifecycle change보다 오래된 persisted
@@ -225,7 +226,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE ACTIVE one-shot runtime cycle, source-specific freshness policy, selected FILE source → current Observation load + received_at/delivery-lag/freshness evidence, OPC UA runtime/connection capability의 명시적 unavailable 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE/OPC UA ACTIVE one-shot runtime cycle, source-specific freshness policy, latest received_at/delivery-lag/freshness evidence, FILE manual current Observation load, OPC UA canonical observation projection과 persistent connection telemetry의 명시적 unavailable 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
