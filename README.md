@@ -157,7 +157,7 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> OPC UA registration contract / registry v4 persistence / Sources read + explicit registration UX
   -> OPC UA one-shot endpoint probe / bounded browse / mapping UX
   -> registered OPC UA one-shot read + receipt persistence + Operations manual run
-  -> Operations runtime action / connection telemetry / subscription-reconnect runtime
+  -> persistent OPC UA connection telemetry / subscription-reconnect runtime
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
