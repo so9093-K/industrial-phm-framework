@@ -127,7 +127,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
                         OpcUaNodeMapping("temperature", temperature.nodeid.to_string()),
                     ),
                     publishing_interval_ms=50.0,
-                    session_timeout_seconds=2.0,
+                    collection_timeout_seconds=2.0,
                     max_events=2,
                     queue_maxsize=16,
                 )
