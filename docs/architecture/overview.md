@@ -99,6 +99,13 @@ SourceLifecycleRepository
   └ set_lifecycle
 
 SourceLifecycleRecord
+  └ REGISTERED / ACTIVE / PAUSED / ERROR
+
+SourceLifecycleRepository
+  ├ get_lifecycle
+  └ set_lifecycle
+
+SourceLifecycleRecord
   ├ REGISTERED
   ├ ACTIVE
   ├ PAUSED
