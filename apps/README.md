@@ -214,7 +214,7 @@ fail-closed로 차단합니다. Source ID별 latest receipt와 latest bounded co
 idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와
 같이 same-directory temporary file + flush/fsync + `os.replace`를 사용합니다.
 
-Latest connection-attempt evidence는 historical bounded-attempt fact일 뿐 current connection status가 아닙니다. 현재 runtime state는 retries, buffering, sequence counters, ingestion throughput, receipt/attempt
+Latest connection-attempt evidence는 historical bounded-attempt fact일 뿐 current connection status가 아닙니다. Operations Sources는 selected source의 latest attempt outcome, attempted/connected/completed timing과 failure detail을 별도 evidence block으로 표시합니다. 현재 runtime state는 retries, buffering, sequence counters, ingestion throughput, receipt/attempt
 history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 continuous ingestion runtime 자체는 아닙니다.
 
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
@@ -226,7 +226,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE/OPC UA ACTIVE one-shot runtime cycle, source-specific freshness policy, latest received_at/delivery-lag/freshness evidence, FILE manual current Observation load, OPC UA canonical observation projection, current connection telemetry와 latest attempt UI detail의 명시적 unavailable 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE/OPC UA ACTIVE one-shot runtime cycle, source-specific freshness policy, latest received_at/delivery-lag/freshness evidence, FILE manual current Observation load, OPC UA canonical observation projection과 current connection telemetry의 명시적 unavailable 상태, latest bounded connection-attempt outcome/timing/detail evidence
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조

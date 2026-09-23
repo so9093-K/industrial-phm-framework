@@ -156,7 +156,7 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> OPC UA one-shot endpoint probe / bounded browse / mapping UX
   -> registered OPC UA one-shot read + receipt persistence + Operations manual run
   -> OPC UA runtime → latest connection-attempt evidence 기록
-  -> Operations에서 latest attempt evidence 표시 / source-health inspection projection
+  -> Operations latest attempt evidence 표시 / source-health inspection projection 완료
   -> persistent session telemetry / subscription-reconnect runtime
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
@@ -175,7 +175,7 @@ Activate/Pause와 max observation age policy 설정/해제가 가능하고 ACTIV
 실행할 수 있지만 ACTIVE나 FRESH를 online/healthy/continuously-ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
 observed→received delivery lag evidence가 추가되었고, policy가 있으면 latest observation age를 별도로
 평가해 FRESH/STALE을 표시합니다. Latest accepted receipt는 별도
-`industrial-phm-source-runtime-v2` state에 영속되어 restart 후에도 monitoring read model이 복원됩니다. v1 receipt-only state도 읽을 수 있고 다음 write에서 v2로 승격됩니다. OPC UA one-shot runtime은 latest bounded connection-attempt evidence도 기록하지만 current connection state로 해석하지 않습니다. Receipt/attempt **history**도 아직 없습니다. Current lifecycle, persisted latest receipt와
+`industrial-phm-source-runtime-v2` state에 영속되어 restart 후에도 monitoring read model이 복원됩니다. v1 receipt-only state도 읽을 수 있고 다음 write에서 v2로 승격됩니다. OPC UA one-shot runtime은 latest bounded connection-attempt evidence도 기록하고 Operations Sources에서 outcome/timing/detail을 확인할 수 있지만 current connection state로 해석하지 않습니다. Receipt/attempt **history**도 아직 없습니다. Current lifecycle, persisted latest receipt와
 freshness policy를 묶은 source-health read model은 제공하지만 boolean healthy/unhealthy나 connection
 success를 추론하지 않습니다. Operations UI의 runtime cycle은 explicit single iteration이고, CLI의
 `operations poll-source`는 FILE cycle을 일정 interval로 동기 반복합니다. OPC UA polling은 아직 지원하지 않습니다. Polling은 failure/non-ACTIVE에서
