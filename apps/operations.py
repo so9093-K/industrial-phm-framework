@@ -134,7 +134,7 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_source_freshness_policies = tuple(
             policy
             for source in initial_registered_sources
-            if (policy := _source_repository.get_freshness_policy(source.source_id)) is not None
+            if (_policy := _source_repository.get_freshness_policy(source.source_id)) is not None
         )
         initial_source_registry_error = ""
     except (OSError, ValueError) as error:
@@ -582,7 +582,7 @@ def _(
                 tuple(
                     policy
                     for source in _sources
-                    if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+                    if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
                 )
             )
             set_source_registry_error("")
@@ -958,7 +958,7 @@ def _(
             _policies = tuple(
                 policy
                 for source in _sources
-                if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+                if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
             )
         except (LookupError, OSError, ValueError) as error:
             set_freshness_policy_success("")
@@ -1052,9 +1052,7 @@ def _(
         )
     else:
         _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
-        _freshness_policy_by_id = {
-            policy.source_id: policy for policy in source_freshness_policies
-        }
+        _freshness_policy_by_id = {policy.source_id: policy for policy in source_freshness_policies}
         _rows = []
         for _source in registered_sources:
             _config = _source.config
@@ -1157,11 +1155,7 @@ def _(
                 if _freshness.observation_age_seconds is None
                 else f"{_freshness.observation_age_seconds:+.3f} s"
             )
-            _freshness_reason = (
-                ""
-                if _freshness.reason is None
-                else f" · {_freshness.reason}"
-            )
+            _freshness_reason = "" if _freshness.reason is None else f" · {_freshness.reason}"
             _receipt_evidence = mo.vstack(
                 [
                     mo.md(
@@ -1290,9 +1284,7 @@ def _(
                     )
                 ),
                 mo.md("### Freshness policy"),
-                mo.md(
-                    f"Current max observation age: **{_freshness_policy_label}**"
-                ),
+                mo.md(f"Current max observation age: **{_freshness_policy_label}**"),
                 freshness_age_input,
                 mo.hstack(
                     [save_freshness_policy_button, clear_freshness_policy_button],
