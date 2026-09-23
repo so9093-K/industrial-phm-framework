@@ -730,6 +730,7 @@ def _(mo, registered_sources):
 def _(
     mo,
     registered_sources,
+    registration_view,
     source_registry_default,
     source_registry_error,
     source_selector,
@@ -743,6 +744,7 @@ def _(
         sources_view = mo.vstack(
             [
                 mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
+                registration_view,
                 mo.callout(
                     source_registry_error,
                     kind="danger",
@@ -758,8 +760,8 @@ def _(
                 mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
                 mo.callout(
                     "No registered source exists in the configured local registry. "
-                    "The Add Source workflow is the next product boundary; the existing "
-                    "Field source bootstrap remains available for prepared-source inspection.",
+                    "Use Add source above to discover, map, validate and register a prepared "
+                    "CSV file or timestamped history directory.",
                     kind="neutral",
                     title="Registered sources · Empty",
                 ),
@@ -813,6 +815,7 @@ def _(
                     "재시작 후에도 보존되는 source registration control-plane record를 "
                     "목록과 상세 설정으로 확인합니다."
                 ),
+                registration_view,
                 mo.hstack(
                     [
                         mo.stat(
