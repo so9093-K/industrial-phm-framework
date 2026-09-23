@@ -321,15 +321,9 @@ class OpcUaSubscriptionResult:
         if self.completed_at < self.connected_at:
             raise ValueError("completed_at must not be before connected_at")
         if not isinstance(self.completion_reason, OpcUaSubscriptionCompletionReason):
-            raise ValueError(
-                "completion_reason must be an OpcUaSubscriptionCompletionReason"
-            )
-        if not all(
-            isinstance(item, OpcUaSubscriptionNotification) for item in self.notifications
-        ):
-            raise ValueError(
-                "notifications must contain OpcUaSubscriptionNotification values"
-            )
+            raise ValueError("completion_reason must be an OpcUaSubscriptionCompletionReason")
+        if not all(isinstance(item, OpcUaSubscriptionNotification) for item in self.notifications):
+            raise ValueError("notifications must contain OpcUaSubscriptionNotification values")
         if (
             self.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
             and not self.notifications
@@ -358,9 +352,7 @@ async def collect_opcua_subscription_notifications(
         timeout=float(config.timeout_seconds),
         auto_reconnect=False,
     )
-    mapping_by_node_id = {
-        mapping.node_id: mapping for mapping in config.node_mappings
-    }
+    mapping_by_node_id = {mapping.node_id: mapping for mapping in config.node_mappings}
     notifications: list[OpcUaSubscriptionNotification] = []
     completion_reason = OpcUaSubscriptionCompletionReason.TIMEOUT
 
@@ -400,15 +392,11 @@ async def collect_opcua_subscription_notifications(
                     None if monitored_item is None else getattr(monitored_item, "Value", None)
                 )
                 if data_value is None:
-                    raise OpcUaSourceError(
-                        f"subscription DataChange has no DataValue: {node_id}"
-                    )
+                    raise OpcUaSourceError(f"subscription DataChange has no DataValue: {node_id}")
 
                 replayed = getattr(event, "replayed", False)
                 if not isinstance(replayed, bool):
-                    raise OpcUaSourceError(
-                        f"subscription replayed flag is invalid: {node_id}"
-                    )
+                    raise OpcUaSourceError(f"subscription replayed flag is invalid: {node_id}")
                 notifications.append(
                     OpcUaSubscriptionNotification(
                         observation=_project_data_value(
