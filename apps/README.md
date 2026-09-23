@@ -118,6 +118,28 @@ Freshness는 timing-policy assessment일 뿐 connection/asset health 의미가 �
 runtime state에 영속되지만 전체 receipt history나 background polling을 의미하지 않습니다. Freshness는
 복원된 latest receipt와 현재 assessment time에서 다시 계산하므로 derived assessment 자체는 저장하지 않습니다.
 
+
+### Runtime receipt state
+
+Source registration/lifecycle/freshness policy는 control-plane registry가 소유하고, latest accepted receipt는
+별도의 runtime repository가 소유합니다.
+
+```text
+source-registry.json
+  registration / mapping / lifecycle / freshness policy
+
+source-runtime.json
+  latest SourceReceiptEvidence per source
+```
+
+Runtime state schema는 `industrial-phm-source-runtime-v1`입니다. Source ID별 latest receipt만 deterministic하게
+저장하고 `received_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
+idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와
+같이 same-directory temporary file + flush/fsync + `os.replace`를 사용합니다.
+
+현재 runtime state는 connection status, retries, buffering, sequence counters, ingestion throughput, receipt
+history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 continuous ingestion runtime 자체는 아닙니다.
+
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
 `AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
 `AssetObservationTimeline` application read model로 묶습니다. Timeline은 filename이나 directory iteration
@@ -275,25 +297,3 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
 앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.
 
-
-
-### Runtime receipt state
-
-Source registration/lifecycle/freshness policy는 control-plane registry가 소유하고, latest accepted receipt는
-별도의 runtime repository가 소유합니다.
-
-```text
-source-registry.json
-  registration / mapping / lifecycle / freshness policy
-
-source-runtime.json
-  latest SourceReceiptEvidence per source
-```
-
-Runtime state schema는 `industrial-phm-source-runtime-v1`입니다. Source ID별 latest receipt만 deterministic하게
-저장하고 `received_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
-idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와
-같이 same-directory temporary file + flush/fsync + `os.replace`를 사용합니다.
-
-현재 runtime state는 connection status, retries, buffering, sequence counters, ingestion throughput, receipt
-history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 continuous ingestion runtime 자체는 아닙니다.
