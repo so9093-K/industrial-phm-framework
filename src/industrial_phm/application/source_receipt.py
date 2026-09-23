@@ -82,11 +82,17 @@ class RegisteredOpcUaObservation:
 
     @property
     def observed_at(self) -> datetime | None:
-        """Return the latest SourceTimestamp only when every mapped node provides one."""
+        """Return the complete-channel event-time watermark when timestamps are available.
+
+        For a multi-node snapshot the source-level timestamp must not be newer than any
+        mapped channel. The earliest SourceTimestamp is therefore used as the conservative
+        watermark for freshness/lag assessment. If any mapped node lacks SourceTimestamp,
+        source-level timing remains unavailable.
+        """
         timestamps = tuple(item.source_timestamp for item in self.snapshot.observations)
         if any(value is None for value in timestamps):
             return None
-        return max(value for value in timestamps if value is not None)
+        return min(value for value in timestamps if value is not None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,8 +135,10 @@ async def receive_registered_opcua_source_observation(
     """Read one registered OPC UA snapshot and record platform acceptance evidence.
 
     A source-level observation time is exposed only when every mapped DataValue carries
-    a SourceTimestamp. Missing protocol timestamps remain unavailable instead of being
-    replaced with platform receipt/completion time.
+    a SourceTimestamp. The earliest mapped SourceTimestamp is used as a conservative
+    complete-channel watermark so freshness cannot be overstated by one newer channel.
+    Missing protocol timestamps remain unavailable instead of being replaced with
+    platform receipt/completion time.
     """
     config = source.config
     if not isinstance(config, OpcUaSourceConfig):
