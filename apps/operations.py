@@ -487,8 +487,7 @@ def _(FileSourceMode, SourceType, mo, os):
         value="",
         label="Node mappings (one per line: channel_id,node_id)",
         placeholder=(
-            "vibration_x,ns=2;s=Machine/VibrationX\n"
-            "temperature,ns=2;s=Machine/Temperature"
+            "vibration_x,ns=2;s=Machine/VibrationX\ntemperature,ns=2;s=Machine/Temperature"
         ),
     )
     registration_opcua_timeout_input = mo.ui.text(
@@ -560,10 +559,7 @@ def _(
     set_registration_validation,
     set_source_discovery,
 ):
-    if (
-        discover_source_button.value
-        and registration_type_input.value == SourceType.FILE.value
-    ):
+    if discover_source_button.value and registration_type_input.value == SourceType.FILE.value:
         _path_value = registration_path_input.value.strip()
         _delimiter = registration_delimiter_input.value
         _mode_value = registration_mode_input.value
@@ -646,10 +642,7 @@ def _(
     source_discovery,
     source_registry_default,
 ):
-    if (
-        register_source_button.value
-        and registration_type_input.value == SourceType.FILE.value
-    ):
+    if register_source_button.value and registration_type_input.value == SourceType.FILE.value:
         _path_value = registration_path_input.value.strip()
         _mode_value = registration_mode_input.value
         _delimiter = registration_delimiter_input.value
@@ -772,9 +765,7 @@ def _(
                     node_mappings=parse_opcua_node_mappings(
                         registration_opcua_node_mappings_input.value
                     ),
-                    timeout_seconds=float(
-                        registration_opcua_timeout_input.value.strip()
-                    ),
+                    timeout_seconds=float(registration_opcua_timeout_input.value.strip()),
                 ),
                 registered_at=datetime.now().astimezone(),
             )
