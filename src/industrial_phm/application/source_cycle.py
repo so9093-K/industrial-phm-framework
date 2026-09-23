@@ -23,7 +23,11 @@ from industrial_phm.application.source_registration import (
     OpcUaSourceConfig,
     SourceRepository,
 )
-from industrial_phm.application.source_runtime import SourceRuntimeRepository
+from industrial_phm.application.source_runtime import (
+    SourceConnectionAttemptEvidence,
+    SourceConnectionAttemptOutcome,
+    SourceRuntimeRepository,
+)
 from industrial_phm.connectors import OpcUaRuntimeUnavailableError, OpcUaSourceError
 
 
@@ -235,6 +239,9 @@ async def run_registered_opcua_source_cycle(
     data-contract errors and transport OSError failures are source failures and transition
     ACTIVE -> ERROR. Missing runtime, caller-contract, unexpected internal, and receipt
     persistence failures remain platform failures and do not change source lifecycle.
+    Successful reads persist bounded connection-attempt evidence before receipt evidence.
+    Source-owned connector/read failures persist FAILED attempt evidence when runtime-state
+    persistence is available; this evidence never implies a current connected state.
     """
     source = source_repository.get(source_id)
     lifecycle_before = lifecycle_repository.get_lifecycle(source_id)
@@ -287,12 +294,29 @@ async def run_registered_opcua_source_cycle(
         if persisted_receipt is not None and received_at < persisted_receipt.received_at:
             raise ValueError("received_at override must not move backwards")
 
+    attempt_started_at = datetime.now(UTC)
     try:
         received = await receive_registered_opcua_source_observation(
             source,
             received_at=received_at,
         )
     except (OpcUaSourceError, OSError) as error:
+        attempt_completed_at = datetime.now(UTC)
+        detail = _failure_detail(error)
+        attempt = SourceConnectionAttemptEvidence(
+            source_id=source_id,
+            outcome=SourceConnectionAttemptOutcome.FAILED,
+            attempted_at=attempt_started_at,
+            completed_at=attempt_completed_at,
+            detail=detail,
+        )
+        try:
+            runtime_repository.record_connection_attempt(attempt)
+        except (OSError, ValueError) as persistence_error:
+            detail = (
+                f"{detail}; connection-attempt persistence failed: "
+                f"{_failure_detail(persistence_error)}"
+            )
         return _failed_cycle(
             lifecycle_repository,
             source_id,
@@ -300,6 +324,7 @@ async def run_registered_opcua_source_cycle(
             cycle_time,
             error,
             failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
+            detail_override=detail,
         )
     except (OpcUaRuntimeUnavailableError, ValueError) as error:
         return _failed_cycle(
@@ -328,6 +353,27 @@ async def run_registered_opcua_source_cycle(
     ):
         raise ValueError(
             "received_at override matching persisted time must reproduce persisted evidence"
+        )
+
+    snapshot = received.observation.snapshot
+    attempt = SourceConnectionAttemptEvidence(
+        source_id=source_id,
+        outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
+        attempted_at=min(attempt_started_at, snapshot.connected_at),
+        connected_at=snapshot.connected_at,
+        completed_at=snapshot.completed_at,
+    )
+    try:
+        runtime_repository.record_connection_attempt(attempt)
+    except (OSError, ValueError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+            received=received,
         )
 
     try:
@@ -362,8 +408,9 @@ def _failed_cycle(
     *,
     failure_scope: SourceRuntimeCycleFailureScope,
     received: ReceivedRegisteredFileObservation | ReceivedRegisteredOpcUaObservation | None = None,
+    detail_override: str | None = None,
 ) -> SourceRuntimeCycleResult:
-    detail = _failure_detail(error)
+    detail = _failure_detail(error) if detail_override is None else detail_override
     lifecycle_after = lifecycle_before
     if failure_scope == SourceRuntimeCycleFailureScope.SOURCE:
         lifecycle_after = transition_source_lifecycle(

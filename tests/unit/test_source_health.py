@@ -3,6 +3,8 @@ from datetime import datetime
 import pytest
 
 from industrial_phm.application import (
+    SourceConnectionAttemptEvidence,
+    SourceConnectionAttemptOutcome,
     SourceConnectionState,
     SourceDataFlowState,
     SourceFreshnessPolicy,
@@ -39,6 +41,27 @@ def _receipt(
     )
 
 
+def _attempt(
+    *,
+    source_id: str = "source-a",
+    outcome: SourceConnectionAttemptOutcome = SourceConnectionAttemptOutcome.SUCCEEDED,
+) -> SourceConnectionAttemptEvidence:
+    return SourceConnectionAttemptEvidence(
+        source_id=source_id,
+        outcome=outcome,
+        attempted_at=datetime.fromisoformat("2026-09-23T10:03:58+09:00"),
+        connected_at=(
+            datetime.fromisoformat("2026-09-23T10:03:59+09:00")
+            if outcome == SourceConnectionAttemptOutcome.SUCCEEDED
+            else None
+        ),
+        completed_at=datetime.fromisoformat("2026-09-23T10:04:00+09:00"),
+        detail=(
+            None if outcome == SourceConnectionAttemptOutcome.SUCCEEDED else "connection refused"
+        ),
+    )
+
+
 def _policy(max_age: float = 120.0) -> SourceFreshnessPolicy:
     return SourceFreshnessPolicy(
         source_id="source-a",
@@ -49,6 +72,21 @@ def _policy(max_age: float = 120.0) -> SourceFreshnessPolicy:
 
 def _as_of(value: str = "2026-09-23T10:05:00+09:00") -> datetime:
     return datetime.fromisoformat(value)
+
+
+def test_source_health_preserves_latest_attempt_without_claiming_current_connection() -> None:
+    attempt = _attempt()
+    assessment = assess_source_health(
+        _lifecycle(SourceLifecycleState.ACTIVE),
+        _receipt(),
+        _policy(),
+        connection_attempt=attempt,
+        as_of=_as_of(),
+    )
+
+    assert assessment.connection_attempt == attempt
+    assert assessment.connection_state == SourceConnectionState.NOT_INSTRUMENTED
+    assert not hasattr(assessment, "connected")
 
 
 def test_source_health_has_no_boolean_healthy_claim() -> None:
@@ -101,14 +139,17 @@ def test_source_error_comes_from_lifecycle_failure_evidence() -> None:
 
 
 def test_active_source_without_receipt_is_explicitly_no_receipt() -> None:
+    attempt = _attempt(outcome=SourceConnectionAttemptOutcome.FAILED)
     assessment = assess_source_health(
         _lifecycle(SourceLifecycleState.ACTIVE),
         None,
         _policy(),
+        connection_attempt=attempt,
         as_of=_as_of(),
     )
 
     assert assessment.data_flow_state == SourceDataFlowState.NO_RECEIPT
+    assert assessment.connection_attempt == attempt
     assert assessment.latest_received_at is None
     assert assessment.reason == "active source has no accepted receipt evidence"
 
@@ -206,6 +247,17 @@ def test_source_health_rejects_cross_source_evidence() -> None:
             _lifecycle(SourceLifecycleState.ACTIVE),
             receipt,
             _policy(),
+            as_of=_as_of(),
+        )
+
+
+def test_source_health_rejects_cross_source_connection_attempt() -> None:
+    with pytest.raises(ValueError, match="connection attempt"):
+        assess_source_health(
+            _lifecycle(SourceLifecycleState.ACTIVE),
+            _receipt(),
+            _policy(),
+            connection_attempt=_attempt(source_id="source-b"),
             as_of=_as_of(),
         )
 
