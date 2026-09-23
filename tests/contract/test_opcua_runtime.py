@@ -8,9 +8,11 @@ asyncua = pytest.importorskip("asyncua")
 ua = asyncua.ua
 
 from industrial_phm.connectors import (  # noqa: E402
+    OpcUaBrowseConfig,
     OpcUaEndpointProbeConfig,
     OpcUaNodeMapping,
     OpcUaReadConfig,
+    browse_opcua_variables,
     probe_opcua_endpoint,
     read_opcua_snapshot,
 )
@@ -33,6 +35,8 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         machine = await server.nodes.objects.add_object(namespace, "Machine")
         vibration = await machine.add_variable(namespace, "VibrationX", 0.0)
         temperature = await machine.add_variable(namespace, "Temperature", 0.0)
+        bearing = await machine.add_object(namespace, "Bearing")
+        bearing_temperature = await bearing.add_variable(namespace, "BearingTemperature", 0.0)
 
         source_at = datetime(2026, 9, 23, 1, 0, 0, tzinfo=UTC)
         server_at = datetime(2026, 9, 23, 1, 0, 1, tzinfo=UTC)
@@ -55,6 +59,13 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
 
         async with server:
             probe = await probe_opcua_endpoint(OpcUaEndpointProbeConfig(endpoint_url=endpoint))
+            browse = await browse_opcua_variables(
+                OpcUaBrowseConfig(
+                    endpoint_url=endpoint,
+                    max_depth=3,
+                    max_nodes=64,
+                )
+            )
             snapshot = await read_opcua_snapshot(
                 OpcUaReadConfig(
                     endpoint_url=endpoint,
@@ -68,6 +79,20 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         assert probe.endpoint_url == endpoint
         assert probe.connected_at.utcoffset() is not None
         assert probe.disconnected_at >= probe.connected_at
+
+        assert browse.endpoint_url == endpoint
+        assert browse.truncated is False
+        assert browse.connected_at.utcoffset() is not None
+        assert browse.completed_at >= browse.connected_at
+        variables_by_id = {item.node_id: item for item in browse.variables}
+        assert vibration.nodeid.to_string() in variables_by_id
+        assert temperature.nodeid.to_string() in variables_by_id
+        assert bearing_temperature.nodeid.to_string() in variables_by_id
+        assert variables_by_id[bearing_temperature.nodeid.to_string()].browse_path == (
+            "Machine",
+            "Bearing",
+            "BearingTemperature",
+        )
 
         assert len(snapshot.observations) == 2
         good, bad = snapshot.observations
