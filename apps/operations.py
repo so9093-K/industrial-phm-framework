@@ -283,7 +283,9 @@ def _(
                     kind="danger",
                     title="Source registry unavailable",
                 ),
-                mo.md(f"Configured registry: `{source_registry_default}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"
+                ),
             ],
             gap=1.2,
         )
@@ -301,7 +303,9 @@ def _(
                     kind="neutral",
                     title="Registered sources · Empty",
                 ),
-                mo.md(f"Configured registry: `{source_registry_default}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"
+                ),
             ],
             gap=1.2,
         )
@@ -413,7 +417,9 @@ def _(
                     kind="info",
                     title="Registration boundary",
                 ),
-                mo.md(f"Configured registry: `{source_registry_default}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"
+                ),
             ],
             gap=1.2,
         )
