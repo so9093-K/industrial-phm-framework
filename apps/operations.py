@@ -2215,9 +2215,7 @@ def _(
                         set_observation(_loaded.latest)
                         set_timeline(_loaded.timeline)
                     else:
-                        set_observation(
-                            project_registered_opcua_observation_summary(_loaded)
-                        )
+                        set_observation(project_registered_opcua_observation_summary(_loaded))
                         set_timeline(None)
                     set_source_receipt(_received.receipt)
                     set_load_error("")
