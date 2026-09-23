@@ -2110,6 +2110,7 @@ def _(
                     _source.source_id,
                 )
             elif isinstance(_source.config, OpcUaSourceConfig):
+
                 def _run_opcua_cycle():
                     return asyncio.run(
                         run_registered_opcua_source_cycle(
