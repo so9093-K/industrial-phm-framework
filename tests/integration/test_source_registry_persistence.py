@@ -138,6 +138,9 @@ def test_json_source_repository_does_not_persist_runtime_health_claims(
     assert "connected" not in stored_lifecycle
     assert "healthy" not in stored_lifecycle
     assert "last_received_at" not in stored_lifecycle
+    assert payload["freshness_policies"] == []
+    assert "received_at" not in payload
+    assert "last_received_at" not in payload
 
 
 def test_json_source_repository_persists_valid_lifecycle_transition(
@@ -220,6 +223,37 @@ def test_json_source_repository_reads_v2_without_freshness_policy_and_upgrades_o
     assert upgraded["schema"] == "industrial-phm-source-registry-v3"
     assert upgraded["freshness_policies"][0]["source_id"] == source.source_id
     assert upgraded["freshness_policies"][0]["max_observation_age_seconds"] == 300.0
+
+
+def test_json_source_repository_writes_freshness_policies_in_source_id_order(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_source(source_id="source-b", source_path="data/b.csv"))
+    repository.register(_source(source_id="source-a", source_path="data/a.csv"))
+
+    repository.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id="source-b",
+            max_observation_age_seconds=120.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+        )
+    )
+    repository.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id="source-a",
+            max_observation_age_seconds=60.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:06:00+09:00"),
+        )
+    )
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+
+    assert [item["source_id"] for item in payload["freshness_policies"]] == [
+        "source-a",
+        "source-b",
+    ]
 
 
 def test_json_source_repository_persists_and_clears_freshness_policy(
