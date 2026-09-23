@@ -51,6 +51,16 @@ _FILE_CONFIG_KEYS = frozenset(
         "delimiter",
     }
 )
+_OPCUA_CONFIG_KEYS = frozenset(
+    {
+        "endpoint_url",
+        "asset_id",
+        "measurement_point_id",
+        "node_mappings",
+        "timeout_seconds",
+    }
+)
+_OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
 
 
 class SourceRegistryFormatError(ValueError):
