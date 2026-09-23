@@ -157,7 +157,7 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> first OPC UA one-shot read proof
   -> OPC UA registration contract / registry v4 persistence / Sources read + explicit registration UX
   -> OPC UA one-shot endpoint probe / bounded browse / mapping UX
-  -> registered OPC UA one-shot read + receipt persistence
+  -> registered OPC UA one-shot read + receipt persistence + Operations manual run
   -> Operations runtime action / connection telemetry / subscription-reconnect runtime
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
@@ -186,7 +186,7 @@ edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol rea
 `OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
 read surface까지 검증했습니다. Registry에 보존되는 endpoint는 anonymous/NoSecurity `opc.tcp`만 허용하고
 endpoint userinfo credential은 거부합니다. Operations Add source에서는 endpoint, asset/measurement point,
-browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application에는 registered OPC UA one-shot runtime/receipt persistence가 추가됐지만 Operations runtime 버튼과 CLI polling에는 아직 연결하지 않았습니다. Subscription/reconnect와 continuous ingestion도 아직 지원하지 않습니다.
+browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application의 registered OPC UA one-shot runtime/receipt persistence는 Operations **Run active source once**에도 연결됩니다. OPC UA 성공은 latest receipt/freshness evidence를 갱신하지만 아직 `AssetObservationSummary`로 투영하지 않으므로 기존 FILE observation/timeline을 현재 OPC UA 결과처럼 유지하지 않습니다. CLI polling은 아직 FILE 전용입니다. Subscription/reconnect와 continuous ingestion도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
