@@ -6,7 +6,9 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
+    import asyncio
     import os
+    from concurrent.futures import ThreadPoolExecutor
     from datetime import datetime
     from pathlib import Path
 
@@ -37,7 +39,11 @@ def _():
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
-    from industrial_phm.connectors import OpcUaNodeMapping
+    from industrial_phm.connectors import (
+        OpcUaBrowseConfig,
+        OpcUaNodeMapping,
+        browse_opcua_variables,
+    )
     from industrial_phm.contracts import DataQualityState
 
     return (
@@ -50,6 +56,7 @@ def _():
         FileSourceMode,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
+        OpcUaBrowseConfig,
         OpcUaNodeMapping,
         OpcUaSourceConfig,
         Path,
@@ -60,6 +67,8 @@ def _():
         SourceType,
         assess_source_freshness,
         assess_source_health,
+        asyncio,
+        browse_opcua_variables,
         datetime,
         discover_file_source,
         load_field_csv_observation_summary,
@@ -70,6 +79,7 @@ def _():
         run_registered_file_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
+        ThreadPoolExecutor,
         os,
     )
 
@@ -78,8 +88,12 @@ def _():
 def _(
     CsvSensorLayout,
     CsvSensorSourceError,
+    OpcUaBrowseConfig,
     OpcUaNodeMapping,
     Path,
+    ThreadPoolExecutor,
+    asyncio,
+    browse_opcua_variables,
     load_field_csv_observation_summary,
     load_field_csv_observation_timeline_directory,
 ):
@@ -107,6 +121,18 @@ def _(
                 )
             )
         return tuple(mappings)
+
+    def run_opcua_browse(*, endpoint_url: str, timeout_seconds: float):
+        config = OpcUaBrowseConfig(
+            endpoint_url=endpoint_url,
+            timeout_seconds=timeout_seconds,
+        )
+
+        def _run():
+            return asyncio.run(browse_opcua_variables(config))
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            return executor.submit(_run).result()
 
     def load_observation(
         *,
@@ -151,7 +177,13 @@ def _(
 
         return summary, None, ""
 
-    return load_observation, parse_channels, parse_opcua_node_mappings, parse_sampling_rate
+    return (
+        load_observation,
+        parse_channels,
+        parse_opcua_node_mappings,
+        parse_sampling_rate,
+        run_opcua_browse,
+    )
 
 
 @app.cell
@@ -494,11 +526,13 @@ def _(FileSourceMode, SourceType, mo, os):
         value="4",
         label="Request timeout seconds",
     )
+    browse_opcua_source_button = mo.ui.run_button(label="Browse variables")
     register_opcua_source_button = mo.ui.run_button(
         label="Register OPC UA source",
         kind="success",
     )
     return (
+        browse_opcua_source_button,
         discover_source_button,
         register_opcua_source_button,
         register_source_button,
@@ -525,16 +559,25 @@ def _(FileSourceMode, SourceType, mo, os):
 def _(mo):
     get_source_discovery, set_source_discovery = mo.state(None)
     get_discovery_signature, set_discovery_signature = mo.state(None)
+    get_opcua_browse_result, set_opcua_browse_result = mo.state(None)
+    get_opcua_browse_signature, set_opcua_browse_signature = mo.state(None)
+    get_opcua_browse_error, set_opcua_browse_error = mo.state("")
     get_registration_validation, set_registration_validation = mo.state(None)
     get_registration_error, set_registration_error = mo.state("")
     get_registration_success, set_registration_success = mo.state("")
     return (
         get_discovery_signature,
+        get_opcua_browse_error,
+        get_opcua_browse_result,
+        get_opcua_browse_signature,
         get_registration_error,
         get_registration_success,
         get_registration_validation,
         get_source_discovery,
         set_discovery_signature,
+        set_opcua_browse_error,
+        set_opcua_browse_result,
+        set_opcua_browse_signature,
         set_registration_error,
         set_registration_success,
         set_registration_validation,
@@ -587,23 +630,69 @@ def _(
 @app.cell
 def _(
     get_discovery_signature,
+    get_opcua_browse_error,
+    get_opcua_browse_result,
+    get_opcua_browse_signature,
     get_registration_error,
     get_registration_success,
     get_registration_validation,
     get_source_discovery,
 ):
     discovery_signature = get_discovery_signature()
+    opcua_browse_error = get_opcua_browse_error()
+    opcua_browse_result = get_opcua_browse_result()
+    opcua_browse_signature = get_opcua_browse_signature()
     registration_error = get_registration_error()
     registration_success = get_registration_success()
     registration_validation = get_registration_validation()
     source_discovery = get_source_discovery()
     return (
         discovery_signature,
+        opcua_browse_error,
+        opcua_browse_result,
+        opcua_browse_signature,
         registration_error,
         registration_success,
         registration_validation,
         source_discovery,
     )
+
+
+@app.cell
+def _(
+    SourceType,
+    browse_opcua_source_button,
+    registration_opcua_endpoint_input,
+    registration_opcua_timeout_input,
+    registration_type_input,
+    run_opcua_browse,
+    set_opcua_browse_error,
+    set_opcua_browse_result,
+    set_opcua_browse_signature,
+    set_registration_error,
+    set_registration_success,
+    set_registration_validation,
+):
+    if browse_opcua_source_button.value and registration_type_input.value == SourceType.OPCUA.value:
+        _endpoint = registration_opcua_endpoint_input.value.strip()
+        _timeout_text = registration_opcua_timeout_input.value.strip()
+        try:
+            _result = run_opcua_browse(
+                endpoint_url=_endpoint,
+                timeout_seconds=float(_timeout_text),
+            )
+        except Exception as error:
+            set_opcua_browse_result(None)
+            set_opcua_browse_signature(None)
+            set_opcua_browse_error(str(error))
+        else:
+            set_opcua_browse_result(_result)
+            set_opcua_browse_signature((_endpoint, _timeout_text))
+            set_opcua_browse_error("")
+        set_registration_validation(None)
+        set_registration_error("")
+        set_registration_success("")
+    return
 
 
 @app.cell
@@ -723,12 +812,51 @@ def _(
 
 @app.cell
 def _(
+    mo,
+    opcua_browse_result,
+    opcua_browse_signature,
+    registration_opcua_endpoint_input,
+    registration_opcua_timeout_input,
+):
+    _current_signature = (
+        registration_opcua_endpoint_input.value.strip(),
+        registration_opcua_timeout_input.value.strip(),
+    )
+    opcua_browse_is_current = (
+        opcua_browse_result is not None and opcua_browse_signature == _current_signature
+    )
+    if opcua_browse_is_current:
+        opcua_browse_variables_by_label = {
+            " / ".join(variable.browse_path) + f" · {variable.node_id}": variable
+            for variable in opcua_browse_result.variables
+        }
+        opcua_browse_selection = mo.ui.multiselect(
+            options=list(opcua_browse_variables_by_label),
+            value=[],
+            label="Variable candidates",
+        )
+    else:
+        opcua_browse_variables_by_label = {}
+        opcua_browse_selection = None
+    return (
+        opcua_browse_is_current,
+        opcua_browse_selection,
+        opcua_browse_variables_by_label,
+    )
+
+
+@app.cell
+def _(
     JsonSourceRepository,
+    OpcUaNodeMapping,
     OpcUaSourceConfig,
     Path,
     RegisteredSource,
     SourceType,
     datetime,
+    opcua_browse_is_current,
+    opcua_browse_selection,
+    opcua_browse_variables_by_label,
     parse_opcua_node_mappings,
     register_opcua_source_button,
     registration_asset_id_input,
@@ -753,6 +881,20 @@ def _(
         and registration_type_input.value == SourceType.OPCUA.value
     ):
         try:
+            _selected_browse_mappings = tuple(
+                OpcUaNodeMapping(
+                    channel_id=opcua_browse_variables_by_label[label].browse_name,
+                    node_id=opcua_browse_variables_by_label[label].node_id,
+                )
+                for label in (
+                    () if opcua_browse_selection is None else opcua_browse_selection.value
+                )
+            )
+            _node_mappings = (
+                _selected_browse_mappings
+                if opcua_browse_is_current and _selected_browse_mappings
+                else parse_opcua_node_mappings(registration_opcua_node_mappings_input.value)
+            )
             _candidate = RegisteredSource(
                 source_id=registration_source_id_input.value.strip(),
                 name=registration_name_input.value.strip(),
@@ -762,9 +904,7 @@ def _(
                     measurement_point_id=(
                         registration_measurement_point_input.value.strip() or None
                     ),
-                    node_mappings=parse_opcua_node_mappings(
-                        registration_opcua_node_mappings_input.value
-                    ),
+                    node_mappings=_node_mappings,
                     timeout_seconds=float(registration_opcua_timeout_input.value.strip()),
                 ),
                 registered_at=datetime.now().astimezone(),
@@ -799,7 +939,12 @@ def _(
 def _(
     SourceType,
     mo,
+    browse_opcua_source_button,
     discovery_signature,
+    opcua_browse_error,
+    opcua_browse_is_current,
+    opcua_browse_result,
+    opcua_browse_selection,
     registration_asset_id_input,
     registration_channels_input,
     registration_delimiter_input,
@@ -906,6 +1051,67 @@ def _(
             gap=0.8,
         )
 
+    if opcua_browse_error:
+        _opcua_browse_view = mo.callout(
+            opcua_browse_error,
+            kind="danger",
+            title="Browse variables · Failed",
+        )
+    elif opcua_browse_result is None:
+        _opcua_browse_view = mo.callout(
+            "Enter an endpoint and browse to discover bounded Variable candidates. "
+            "No values are read.",
+            kind="neutral",
+            title="Browse variables · Not run",
+        )
+    elif not opcua_browse_is_current:
+        _opcua_browse_view = mo.callout(
+            "Endpoint or timeout changed after browse. Browse again before using "
+            "discovered candidates.",
+            kind="warn",
+            title="Browse variables · Stale",
+        )
+    else:
+        _browse_status = "TRUNCATED" if opcua_browse_result.truncated else "COMPLETE"
+        _opcua_browse_view = mo.vstack(
+            [
+                mo.hstack(
+                    [
+                        mo.stat(
+                            str(opcua_browse_result.visited_node_count),
+                            label="Visited nodes",
+                        ),
+                        mo.stat(
+                            str(len(opcua_browse_result.variables)),
+                            label="Variable candidates",
+                        ),
+                        mo.stat(_browse_status, label="Browse status"),
+                    ],
+                    widths="equal",
+                ),
+                (
+                    mo.callout(
+                        "Node budget was reached. Results are partial; narrow the start node "
+                        "in a future browse slice or use explicit NodeId mapping.",
+                        kind="warn",
+                        title="Browse result truncated",
+                    )
+                    if opcua_browse_result.truncated
+                    else mo.md("Select candidate Variables to use their BrowseName as channel ID.")
+                ),
+                (
+                    opcua_browse_selection
+                    if opcua_browse_selection is not None and opcua_browse_result.variables
+                    else mo.callout(
+                        "No Variable candidates were discovered within the current browse bounds.",
+                        kind="neutral",
+                        title="Browse result · Empty",
+                    )
+                ),
+            ],
+            gap=0.6,
+        )
+
     _is_file_registration = registration_type_input.value == SourceType.FILE.value
 
     if registration_error:
@@ -953,8 +1159,8 @@ def _(
         )
     else:
         _registration_status = mo.callout(
-            "OPC UA registration validates configuration shape only. It does not connect to "
-            "the endpoint, browse the address space, read a node, or claim connection health.",
+            "OPC UA registration persists configuration only. Browse is a separate bounded "
+            "discovery action and does not read values or claim connection health.",
             kind="info",
             title="Register · Control-plane only",
         )
@@ -1012,10 +1218,11 @@ def _(
                 ),
                 registration_type_input,
                 mo.callout(
-                    "This step does not connect to the endpoint. Credentials/certificates, "
-                    "browse/discovery, subscription and reconnect remain unsupported.",
+                    "Registration and browse are separate actions. Browse performs one bounded "
+                    "anonymous session and discovers Variable identity only; subscription and "
+                    "reconnect remain unsupported.",
                     kind="neutral",
-                    title="OPC UA registration boundary",
+                    title="OPC UA control-plane boundary",
                 ),
                 mo.md("**2. Identity & endpoint**"),
                 mo.hstack(
@@ -1027,12 +1234,16 @@ def _(
                     widths="equal",
                 ),
                 registration_opcua_endpoint_input,
+                registration_opcua_timeout_input,
+                browse_opcua_source_button,
+                mo.md("**3. Browse & select or provide explicit mapping**"),
+                _opcua_browse_view,
                 mo.md(
-                    "**3. Explicit node mapping** — 한 줄에 `channel_id,node_id` 형식으로 "
-                    "입력합니다. 첫 번째 쉼표만 separator로 사용합니다."
+                    "Selected browse candidates use BrowseName as channel ID. If nothing is "
+                    "selected, the explicit textarea below is used instead. 한 줄에 "
+                    "`channel_id,node_id` 형식으로 입력합니다."
                 ),
                 registration_opcua_node_mappings_input,
-                registration_opcua_timeout_input,
                 mo.md("**4. Register**"),
                 register_opcua_source_button,
                 _registration_status,
