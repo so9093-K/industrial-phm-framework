@@ -166,8 +166,9 @@ ID/lifecycle alignment/freshness-policy source alignment를 fail-fast 검증합�
 registry에 저장하지 않고 별도 `JsonSourceRuntimeRepository`가 source별 latest
 `SourceReceiptEvidence`만 `industrial-phm-source-runtime-v1`으로 보존합니다. Runtime writer도
 same-directory temp + flush/fsync + `os.replace`를 사용하고 received_at regression과 same-time conflicting
-evidence를 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며 cross-process write
-coordination은 아직 지원하지 않습니다.
+evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를
+막기 위해 fail-closed로 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며
+cross-process write coordination은 아직 지원하지 않습니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
 REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, registry read surface와 selected registered source의
