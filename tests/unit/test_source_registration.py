@@ -6,12 +6,14 @@ from industrial_phm.application import (
     FileSourceConfig,
     FileSourceMode,
     InMemorySourceRepository,
+    OpcUaSourceConfig,
     RegisteredSource,
     SourceAlreadyRegisteredError,
     SourceRepository,
     SourceType,
     UnknownRegisteredSourceError,
 )
+from industrial_phm.connectors import OpcUaNodeMapping
 
 
 def _registered_source(
@@ -157,3 +159,97 @@ def test_in_memory_source_repository_rejects_unknown_source_id() -> None:
 
     with pytest.raises(UnknownRegisteredSourceError, match="does not exist"):
         repository.get("missing-source")
+
+
+
+def test_opcua_source_config_reuses_connector_mapping_contract() -> None:
+    first_mapping = OpcUaNodeMapping(
+        channel_id="vibration_x",
+        node_id="ns=2;s=Machine/VibrationX",
+    )
+    mappings = [first_mapping]
+
+    config = OpcUaSourceConfig(
+        endpoint_url="opc.tcp://plc.example.test:4840",
+        asset_id="pump-01",
+        measurement_point_id="drive-end-bearing",
+        node_mappings=mappings,
+        timeout_seconds=2.5,
+    )
+    mappings.append(
+        OpcUaNodeMapping(
+            channel_id="temperature",
+            node_id="ns=2;s=Machine/Temperature",
+        )
+    )
+
+    read_config = config.to_opcua_read_config()
+
+    assert config.node_mappings == (first_mapping,)
+    assert read_config.endpoint_url == "opc.tcp://plc.example.test:4840"
+    assert read_config.node_mappings == (first_mapping,)
+    assert read_config.timeout_seconds == 2.5
+
+
+def test_opcua_source_config_reuses_connector_endpoint_validation() -> None:
+    with pytest.raises(ValueError, match="opc.tcp"):
+        OpcUaSourceConfig(
+            endpoint_url="https://plc.example.test:4840",
+            asset_id="pump-01",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+        )
+
+
+def test_registered_source_supports_opcua_identity_without_health_claim() -> None:
+    source = RegisteredSource(
+        source_id="opcua:pump-01",
+        name="Pump 01 OPC UA",
+        config=OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            measurement_point_id="drive-end-bearing",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+        ),
+        registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
+    )
+
+    assert source.source_type == SourceType.OPCUA
+    assert source.asset_id == "pump-01"
+    assert source.measurement_point_id == "drive-end-bearing"
+    assert not hasattr(source, "connected")
+    assert not hasattr(source, "healthy")
+
+
+def test_in_memory_source_repository_accepts_file_and_opcua_sources() -> None:
+    repository = InMemorySourceRepository()
+    file_source = _registered_source(source_id="source-file")
+    opcua_source = RegisteredSource(
+        source_id="source-opcua",
+        name="Pump OPC UA",
+        config=OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+        ),
+        registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
+    )
+
+    repository.register(opcua_source)
+    repository.register(file_source)
+
+    assert repository.list_sources() == (file_source, opcua_source)
