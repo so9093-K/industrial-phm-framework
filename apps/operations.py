@@ -25,6 +25,7 @@ def _():
         SourceLifecycleState,
         SourceRuntimeCycleState,
         assess_source_freshness,
+        assess_source_health,
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
@@ -52,6 +53,7 @@ def _():
         SourceLifecycleState,
         SourceRuntimeCycleState,
         assess_source_freshness,
+        assess_source_health,
         datetime,
         discover_file_source,
         load_field_csv_observation_summary,
@@ -1079,6 +1081,7 @@ def _(get_registered_source_load_error, get_registered_source_load_success):
 def _(
     activate_source_button,
     assess_source_freshness,
+    assess_source_health,
     clear_freshness_policy_button,
     datetime,
     freshness_age_input,
@@ -1224,6 +1227,67 @@ def _(
             if _selected_freshness_policy is None
             else f"{_selected_freshness_policy.max_observation_age_seconds:g} s"
         )
+        _assessed_at = datetime.now().astimezone()
+        _health = (
+            None
+            if _selected_lifecycle is None
+            else assess_source_health(
+                _selected_lifecycle,
+                _selected_receipt,
+                _selected_freshness_policy,
+                as_of=_assessed_at,
+            )
+        )
+        if _health is None:
+            _health_evidence = mo.callout(
+                "Lifecycle evidence is unavailable, so source-health dimensions cannot be "
+                "assembled without inventing state.",
+                kind="neutral",
+                title="Source health · Unavailable",
+            )
+        else:
+            _health_freshness = (
+                "Not assessed"
+                if _health.freshness is None
+                else _health.freshness.state.value
+            )
+            _health_received = (
+                "Unavailable"
+                if _health.latest_received_at is None
+                else _health.latest_received_at.isoformat()
+            )
+            _health_observed = (
+                "Unavailable"
+                if _health.latest_observed_at is None
+                else _health.latest_observed_at.isoformat()
+            )
+            _health_reason = _health.reason or "None"
+            _health_evidence = mo.vstack(
+                [
+                    mo.md(
+                        "### Source health dimensions\n\n"
+                        "| Dimension | Evidence state |\n"
+                        "| --- | --- |\n"
+                        f"| Lifecycle | {_health.lifecycle.state.value} |\n"
+                        f"| Connection | {_health.connection_state.value} |\n"
+                        f"| Data flow | {_health.data_flow_state.value} |\n"
+                        f"| Freshness | {_health_freshness} |\n"
+                        f"| Latest observed_at | {_health_observed} |\n"
+                        f"| Latest received_at | {_health_received} |\n"
+                        f"| Reason | {escape_markdown_cell(_health_reason)} |\n"
+                        f"| Assessed at | {_health.assessed_at.isoformat()} |"
+                    ),
+                    mo.callout(
+                        "This is a multidimensional read model, not a single healthy/unhealthy "
+                        "verdict. Prepared-file sources still have no connector telemetry, so "
+                        "connection remains NOT_INSTRUMENTED even when data is fresh.",
+                        kind="info",
+                        title="Health semantics",
+                    ),
+                ],
+                gap=0.6,
+            )
+
         if _selected_receipt is None:
             _receipt_evidence = mo.callout(
                 "No platform receipt-time evidence has been recorded for this selected source "
@@ -1250,7 +1314,6 @@ def _(
                 if _selected_receipt.observed_at is None
                 else _selected_receipt.observed_at.isoformat()
             )
-            _assessed_at = datetime.now().astimezone()
             _freshness = assess_source_freshness(
                 _selected_receipt,
                 _selected_freshness_policy,
@@ -1497,6 +1560,7 @@ def _(
                         title="Runtime receipt persistence",
                     )
                 ),
+                _health_evidence,
                 _receipt_evidence,
                 _freshness_evidence,
                 mo.callout(
