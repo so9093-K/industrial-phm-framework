@@ -8,8 +8,10 @@ asyncua = pytest.importorskip("asyncua")
 ua = asyncua.ua
 
 from industrial_phm.connectors import (  # noqa: E402
+    OpcUaEndpointProbeConfig,
     OpcUaNodeMapping,
     OpcUaReadConfig,
+    probe_opcua_endpoint,
     read_opcua_snapshot,
 )
 
@@ -52,6 +54,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         )
 
         async with server:
+            probe = await probe_opcua_endpoint(OpcUaEndpointProbeConfig(endpoint_url=endpoint))
             snapshot = await read_opcua_snapshot(
                 OpcUaReadConfig(
                     endpoint_url=endpoint,
@@ -61,6 +64,10 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
                     ),
                 )
             )
+
+        assert probe.endpoint_url == endpoint
+        assert probe.connected_at.utcoffset() is not None
+        assert probe.disconnected_at >= probe.connected_at
 
         assert len(snapshot.observations) == 2
         good, bad = snapshot.observations

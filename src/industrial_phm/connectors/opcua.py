@@ -1,8 +1,10 @@
-"""Minimal one-shot OPC UA read boundary.
+"""Minimal one-shot OPC UA endpoint probe and read boundaries.
 
 The first live connector intentionally supports only anonymous / SecurityPolicy None
-reads of explicitly configured variable NodeIds. It preserves OPC UA quality and
-source/server timestamps separately from the platform acceptance timestamp.
+connections and reads of explicitly configured variable NodeIds. The endpoint probe
+records one successful connect/disconnect interval without inferring ongoing health.
+The read boundary preserves OPC UA quality and source/server timestamps separately from
+the platform acceptance timestamp.
 
 Subscription, reconnect, credentials, certificates, discovery/browse workflows and
 continuous ingestion are later boundaries.
@@ -26,6 +28,39 @@ class OpcUaRuntimeUnavailableError(RuntimeError):
 
 class OpcUaSourceError(ValueError):
     """Raised when declared OPC UA source data violates the numeric read contract."""
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaEndpointProbeConfig:
+    """Configuration for one anonymous OPC UA endpoint connect/disconnect probe."""
+
+    endpoint_url: str
+    timeout_seconds: float = 4.0
+
+    def __post_init__(self) -> None:
+        _validate_endpoint_url(self.endpoint_url)
+        _validate_timeout_seconds(self.timeout_seconds)
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaEndpointProbeResult:
+    """Evidence that one endpoint session connected and then disconnected successfully."""
+
+    endpoint_url: str
+    connected_at: datetime
+    disconnected_at: datetime
+
+    def __post_init__(self) -> None:
+        _validate_endpoint_url(self.endpoint_url)
+        if not isinstance(self.connected_at, datetime) or self.connected_at.utcoffset() is None:
+            raise ValueError("connected_at must be a timezone-aware datetime")
+        if (
+            not isinstance(self.disconnected_at, datetime)
+            or self.disconnected_at.utcoffset() is None
+        ):
+            raise ValueError("disconnected_at must be a timezone-aware datetime")
+        if self.disconnected_at < self.connected_at:
+            raise ValueError("disconnected_at must not be before connected_at")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,13 +96,7 @@ class OpcUaReadConfig:
             raise ValueError("node_mappings must use unique channel_id values")
         if len(set(node_ids)) != len(node_ids):
             raise ValueError("node_mappings must use unique node_id values")
-        if (
-            isinstance(self.timeout_seconds, bool)
-            or not isinstance(self.timeout_seconds, Real)
-            or not isfinite(self.timeout_seconds)
-            or self.timeout_seconds <= 0
-        ):
-            raise ValueError("timeout_seconds must be a positive finite number")
+        _validate_timeout_seconds(self.timeout_seconds)
         object.__setattr__(self, "node_mappings", mappings)
 
 
@@ -137,6 +166,31 @@ class OpcUaReadSnapshot:
             raise ValueError("observations must not be empty")
         if not all(isinstance(item, OpcUaNodeObservation) for item in self.observations):
             raise ValueError("observations must contain OpcUaNodeObservation values")
+
+
+async def probe_opcua_endpoint(
+    config: OpcUaEndpointProbeConfig,
+) -> OpcUaEndpointProbeResult:
+    """Connect once and disconnect without reading nodes or inferring endpoint health."""
+    if not isinstance(config, OpcUaEndpointProbeConfig):
+        raise ValueError("config must be an OpcUaEndpointProbeConfig")
+
+    client_type = _load_asyncua_client()
+    client = client_type(
+        url=config.endpoint_url,
+        timeout=float(config.timeout_seconds),
+        auto_reconnect=False,
+    )
+
+    async with client:
+        connected_at = datetime.now(UTC)
+    disconnected_at = datetime.now(UTC)
+
+    return OpcUaEndpointProbeResult(
+        endpoint_url=config.endpoint_url,
+        connected_at=connected_at,
+        disconnected_at=disconnected_at,
+    )
 
 
 async def read_opcua_snapshot(config: OpcUaReadConfig) -> OpcUaReadSnapshot:
@@ -255,6 +309,11 @@ def _load_asyncua_client() -> Any:
     if client_type is None:
         raise OpcUaRuntimeUnavailableError("asyncua runtime does not expose Client")
     return client_type
+
+
+def _validate_timeout_seconds(value: float) -> None:
+    if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value) or value <= 0:
+        raise ValueError("timeout_seconds must be a positive finite number")
 
 
 def _validate_endpoint_url(value: str) -> None:
