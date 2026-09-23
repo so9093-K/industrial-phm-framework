@@ -19,6 +19,7 @@ def _():
         FileSourceConfig,
         FileSourceMode,
         JsonSourceRepository,
+        JsonSourceRuntimeRepository,
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
@@ -41,6 +42,7 @@ def _():
         FileSourceConfig,
         FileSourceMode,
         JsonSourceRepository,
+        JsonSourceRuntimeRepository,
         Path,
         RegisteredSource,
         SourceFreshnessPolicy,
@@ -119,10 +121,14 @@ def _(
 
 
 @app.cell
-def _(JsonSourceRepository, Path, load_observation, os):
+def _(JsonSourceRepository, JsonSourceRuntimeRepository, Path, load_observation, os):
     source_registry_default = os.environ.get(
         "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
         "artifacts/operations/source-registry.json",
+    )
+    source_runtime_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
+        "artifacts/operations/source-runtime.json",
     )
     try:
         _source_repository = JsonSourceRepository(Path(source_registry_default))
@@ -142,6 +148,19 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_source_lifecycle_records = ()
         initial_source_freshness_policies = ()
         initial_source_registry_error = str(error)
+
+    try:
+        _runtime_repository = JsonSourceRuntimeRepository(Path(source_runtime_default))
+        _registered_source_ids = {source.source_id for source in initial_registered_sources}
+        initial_source_runtime_receipts = tuple(
+            receipt
+            for receipt in _runtime_repository.list_latest_receipts()
+            if receipt.source_id in _registered_source_ids
+        )
+        initial_source_runtime_error = ""
+    except (OSError, ValueError) as error:
+        initial_source_runtime_receipts = ()
+        initial_source_runtime_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
     history_directory_default = os.environ.get(
@@ -193,9 +212,12 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_source_freshness_policies,
         initial_source_lifecycle_records,
         initial_source_registry_error,
+        initial_source_runtime_error,
+        initial_source_runtime_receipts,
         source_default,
         source_id_default,
         source_registry_default,
+        source_runtime_default,
         timestamp_default,
     )
 
