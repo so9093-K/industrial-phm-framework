@@ -80,16 +80,19 @@ validation을 그대로 통과해야 하며, 등록된 file/history source는 So
 source load는 application acceptance 시각을 timezone-aware `received_at`으로 기록하고 latest
 `observed_at`과 비교 가능한 경우 signed lag를 표시합니다. Timestamp/timezone이 없으면 lag를 만들지
 않습니다. Source lifecycle은 `REGISTERED / ACTIVE / PAUSED / ERROR` control-plane state로 별도 보존하며
-Operations에서 Activate/Pause를 수행할 수 있습니다. 여기서 ACTIVE는 runtime이 소비하도록 허용된
-administrative intent일 뿐 실제 connection/health/freshness/continuous-ingestion의 증거가 아닙니다.
+Operations에서 Activate/Pause를 수행할 수 있습니다. ACTIVE source는 **Run active source once**로 한 번의
+runtime cycle을 실행할 수 있고, 성공하면 current observation/latest receipt를 갱신하며 ACTIVE를 유지합니다.
+Source validation 또는 runtime persistence가 실패하면 lifecycle은 ERROR로 전이합니다. 이 one-shot cycle은
+connection/health/continuous-ingestion의 증거가 아니며 background scheduler도 아닙니다.
 Sources에서 source별 max observation age policy를 설정하면 현재 receipt evidence와 평가 시각을 사용해
 `FRESH / STALE / UNAVAILABLE / NOT_CONFIGURED` freshness state를 계산합니다. Freshness age는
 `assessment time - observed_at`이며 observed→received delivery lag와 분리합니다. Timestamp/timezone이 없거나
 source clock이 평가 시각보다 미래면 임의 상태를 만들지 않고 `UNAVAILABLE`로 남깁니다. Registered-source
 load가 성공하면 latest receipt는 control-plane registry와 분리된 local runtime state에도 기록되어 앱 재시작
 후 Last received/lag/freshness를 다시 계산할 수 있습니다. 이 runtime state는 latest receipt만 보존하며
-connection health, retry/buffer 상태, receipt history는 아직 저장하지 않습니다. Live connection/ingestion은
-여전히 `Not instrumented`/`Not connected`로 표시합니다.
+connection health, retry/buffer 상태, receipt history는 아직 저장하지 않습니다. One-shot file runtime은
+구현됐지만 live connector와 continuous polling/ingestion은 아직 `Not instrumented`/`Not connected`
+경계로 남아 있습니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
@@ -124,7 +127,7 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> timestamped observation timeline + 첫 private/field source conformance
   -> RegisteredSource control plane / persistence / Sources UX
   -> Operations UI에서 관측 / data quality / PHM evidence 연결
-  -> source lifecycle / freshness / live connector
+  -> source lifecycle / freshness / one-shot runtime cycle / live connector
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
@@ -138,13 +141,14 @@ file/history source를 discover, preview, map, validate한 뒤 등록하고, 선
 Observation/Timeline으로 다시 로드할 수 있습니다. Load 시 source bytes를 재검증하므로 registration 시점의
 검증 결과를 현재 관측으로 캐시하지 않습니다. Registry v3는 registration, lifecycle과 optional source-specific
 freshness policy를 함께 보존하고 기존 v1/v2를 읽어 다음 write에서 v3로 승격합니다. Operations에서
-Activate/Pause와 max observation age policy 설정/해제가 가능하지만 ACTIVE나 FRESH를
-online/healthy/ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
+Activate/Pause와 max observation age policy 설정/해제가 가능하고 ACTIVE source는 one-shot runtime cycle을
+실행할 수 있지만 ACTIVE나 FRESH를 online/healthy/continuously-ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
 observed→received delivery lag evidence가 추가되었고, policy가 있으면 latest observation age를 별도로
 평가해 FRESH/STALE을 표시합니다. Latest accepted receipt는 별도
 `industrial-phm-source-runtime-v1` state에 영속되어 restart 후에도 monitoring read model이 복원되지만,
-receipt **history**와 continuous polling/connection telemetry는 아직 없습니다. Browser upload/file-picker,
-source edit/delete와 live connection/ingestion도 아직 지원하지 않습니다.
+receipt **history**와 continuous polling/connection telemetry는 아직 없습니다. Runtime cycle은 explicit
+single iteration이며 scheduler가 아닙니다. Browser upload/file-picker, source edit/delete와 live
+connection/ingestion도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
