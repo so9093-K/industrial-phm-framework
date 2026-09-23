@@ -9,6 +9,7 @@ from industrial_phm.application import (
     SourceReceiptEvidence,
     SourceRuntimeFormatError,
     SourceRuntimeRepository,
+    validate_distinct_source_state_paths,
 )
 
 
@@ -23,6 +24,18 @@ def _receipt(
         observed_at=None if observed_at is None else datetime.fromisoformat(observed_at),
         received_at=datetime.fromisoformat(received_at),
     )
+
+
+def test_source_runtime_path_must_differ_from_control_plane_registry(
+    tmp_path: Path,
+) -> None:
+    registry_path = tmp_path / "state.json"
+
+    with pytest.raises(ValueError, match="must differ"):
+        validate_distinct_source_state_paths(
+            registry_path,
+            tmp_path / "." / "state.json",
+        )
 
 
 def test_json_source_runtime_repository_implements_contract(tmp_path: Path) -> None:
