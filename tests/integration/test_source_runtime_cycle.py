@@ -7,6 +7,7 @@ from industrial_phm.application import (
     FileSourceConfig,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
     RegisteredSource,
     SourceLifecycleState,
     SourceRuntimeCycleFailureScope,
@@ -14,6 +15,7 @@ from industrial_phm.application import (
     run_registered_file_source_cycle,
     transition_source_lifecycle,
 )
+from industrial_phm.connectors import OpcUaNodeMapping
 
 
 def _write_valid_source(path: Path) -> None:
@@ -298,3 +300,46 @@ def test_registered_source_cycle_rejects_naive_or_regressing_execution_time(
             source.source_id,
             executed_at=datetime.fromisoformat("2026-09-23T09:29:59+09:00"),
         )
+
+
+
+def test_registered_file_source_cycle_skips_active_opcua_without_lifecycle_error(
+    tmp_path: Path,
+) -> None:
+    source_repository = JsonSourceRepository(tmp_path / "source-registry.json")
+    runtime_repository = JsonSourceRuntimeRepository(tmp_path / "source-runtime.json")
+    source = RegisteredSource(
+        source_id="opcua-source",
+        name="Pump OPC UA",
+        config=OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            measurement_point_id="drive-end",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+        ),
+        registered_at=datetime.fromisoformat("2026-09-23T09:00:00+09:00"),
+    )
+    source_repository.register(source)
+    _activate(source_repository, source.source_id)
+
+    result = run_registered_file_source_cycle(
+        source_repository,
+        source_repository,
+        runtime_repository,
+        source.source_id,
+        executed_at=datetime.fromisoformat("2026-09-23T10:00:00+09:00"),
+    )
+
+    assert result.state == SourceRuntimeCycleState.SKIPPED
+    assert result.failure_scope is None
+    assert result.received is None
+    assert result.lifecycle_before.state == SourceLifecycleState.ACTIVE
+    assert result.lifecycle_after == result.lifecycle_before
+    assert "requires file" in (result.message or "")
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+    assert runtime_repository.list_latest_receipts() == ()
