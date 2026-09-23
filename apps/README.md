@@ -22,7 +22,9 @@ directory가 지정되면 single source보다 우선합니다.
 
 **Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity, file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
-등록 record만으로 connection/health/freshness/active ingestion을 주장하지 않습니다. 기본 registry 경로는
+등록 record와 별도로 `REGISTERED / ACTIVE / PAUSED / ERROR` lifecycle state를 보존하고 Sources에서
+Activate/Pause할 수 있습니다. ACTIVE는 future/source runtime의 administrative enablement일 뿐
+connection/health/freshness/active ingestion을 주장하지 않습니다. 기본 registry 경로는
 `artifacts/operations/source-registry.json`이며 필요하면 환경변수로 바꿀 수 있습니다.
 
 ```bash
@@ -54,6 +56,11 @@ Observation surface에 연결할 수 있습니다. 이 동작은 registration �
 내용이 invalid하게 바뀌면 현재 load가 fail-closed되고 이전 관측값을 새 source 결과처럼 유지하지 않습니다.
 이는 on-demand observation load이며 continuous ingestion이나 source health monitoring이 아닙니다.
 
+Lifecycle persistence는 `industrial-phm-source-registry-v2`에 registration과 분리된 record로 저장됩니다.
+기존 v1 registry는 source마다 registration time 기준의 implicit `REGISTERED` state로 읽히며, lifecycle
+transition 또는 다음 write 시 v2로 승격됩니다. 사용자 UI는 Activate/Pause만 제공하고 ERROR는 향후 runtime이
+실패 evidence와 함께 기록할 상태입니다.
+
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
 `AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
 `AssetObservationTimeline` application read model로 묶습니다. Timeline은 filename이나 directory iteration
@@ -63,7 +70,7 @@ Observation surface에 연결할 수 있습니다. 이 동작은 registration �
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, selected registered source → current Observation load, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, selected registered source → current Observation load, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
