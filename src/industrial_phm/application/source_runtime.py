@@ -77,11 +77,7 @@ class SourceConnectionAttemptEvidence:
             if self.detail is not None:
                 raise ValueError("succeeded connection attempt must not carry detail")
         else:
-            if (
-                self.detail is None
-                or not isinstance(self.detail, str)
-                or not self.detail.strip()
-            ):
+            if self.detail is None or not isinstance(self.detail, str) or not self.detail.strip():
                 raise ValueError("failed connection attempt requires detail")
             if self.detail != self.detail.strip():
                 raise ValueError(
@@ -166,9 +162,9 @@ class JsonSourceRuntimeRepository:
 
     def get_latest_receipt(self, source_id: str) -> SourceReceiptEvidence | None:
         _validate_source_id(source_id)
-        return {
-            receipt.source_id: receipt for receipt in self._read_state().receipts
-        }.get(source_id)
+        return {receipt.source_id: receipt for receipt in self._read_state().receipts}.get(
+            source_id
+        )
 
     def list_latest_receipts(self) -> tuple[SourceReceiptEvidence, ...]:
         return self._read_state().receipts
@@ -287,17 +283,13 @@ class JsonSourceRuntimeRepository:
         connection_attempts: Sequence[SourceConnectionAttemptEvidence],
     ) -> None:
         ordered_receipts = tuple(sorted(receipts, key=lambda receipt: receipt.source_id))
-        ordered_attempts = tuple(
-            sorted(connection_attempts, key=lambda attempt: attempt.source_id)
-        )
+        ordered_attempts = tuple(sorted(connection_attempts, key=lambda attempt: attempt.source_id))
         payload = {
             "schema": _RUNTIME_SCHEMA_V2,
             "latest_connection_attempts": [
                 _serialize_connection_attempt(attempt) for attempt in ordered_attempts
             ],
-            "latest_receipts": [
-                _serialize_receipt(receipt) for receipt in ordered_receipts
-            ],
+            "latest_receipts": [_serialize_receipt(receipt) for receipt in ordered_receipts],
         }
         rendered = (
             json.dumps(
@@ -398,9 +390,7 @@ def _parse_connection_attempt(
             attempted_at=datetime.fromisoformat(
                 _require_string(attempt["attempted_at"], f"{label}.attempted_at")
             ),
-            connected_at=(
-                None if connected_raw is None else datetime.fromisoformat(connected_raw)
-            ),
+            connected_at=(None if connected_raw is None else datetime.fromisoformat(connected_raw)),
             completed_at=datetime.fromisoformat(
                 _require_string(attempt["completed_at"], f"{label}.completed_at")
             ),
