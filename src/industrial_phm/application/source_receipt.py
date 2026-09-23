@@ -9,11 +9,17 @@ from industrial_phm.application.file_source_registration import (
     RegisteredFileObservation,
     load_registered_file_source_observation,
 )
+from industrial_phm.application.observation import AssetObservationSummary
 from industrial_phm.application.source_registration import (
     OpcUaSourceConfig,
     RegisteredSource,
 )
 from industrial_phm.connectors import OpcUaReadSnapshot, read_opcua_snapshot
+from industrial_phm.contracts import (
+    DataQualityAssessment,
+    DataQualityIssue,
+    DataQualitySeverity,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +99,55 @@ class RegisteredOpcUaObservation:
         if any(value is None for value in timestamps):
             return None
         return min(value for value in timestamps if value is not None)
+
+
+
+
+
+def project_registered_opcua_observation_summary(
+    observation: RegisteredOpcUaObservation,
+) -> AssetObservationSummary:
+    """Project one registered OPC UA snapshot into the canonical observation summary.
+
+    The projection keeps the protocol snapshot itself separate and does not invent a
+    sampling rate, file snapshot identity, or validation policy. One read iteration is
+    represented as one sample across the configured channel set. Source observation time
+    is exposed only through the conservative complete-channel watermark already defined
+    by RegisteredOpcUaObservation.
+    """
+    if not isinstance(observation, RegisteredOpcUaObservation):
+        raise ValueError("observation must be a RegisteredOpcUaObservation")
+
+    non_good = tuple(
+        item for item in observation.snapshot.observations if not item.status_good
+    )
+    issues = ()
+    if non_good:
+        detail = ", ".join(
+            f"{item.channel_id}={item.status_text}" for item in non_good
+        )
+        issues = (
+            DataQualityIssue(
+                code="opcua-non-good-status",
+                severity=DataQualitySeverity.ERROR,
+                message=f"non-good OPC UA status observed: {detail}",
+            ),
+        )
+
+    observed_at = observation.observed_at
+    return AssetObservationSummary(
+        asset_id=observation.asset_id,
+        source_id=observation.source_id,
+        measurement_point_id=observation.measurement_point_id,
+        channels=observation.channels,
+        sample_count=1,
+        observed_start_at=observed_at,
+        observed_end_at=observed_at,
+        sampling_rate_hz=None,
+        source_snapshot=None,
+        validation_policy=None,
+        data_quality=DataQualityAssessment(issues),
+    )
 
 
 @dataclass(frozen=True, slots=True)
