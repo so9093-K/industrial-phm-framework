@@ -6,8 +6,8 @@ records one successful connect/disconnect interval without inferring ongoing hea
 The read boundary preserves OPC UA quality and source/server timestamps separately from
 the platform acceptance timestamp.
 
-Subscription, reconnect, credentials, certificates, discovery/browse workflows and
-continuous ingestion are later boundaries.
+Subscription, reconnect, credentials, certificates and continuous ingestion are later
+boundaries. Browse is intentionally bounded and returns candidate variable identity only.
 """
 
 from __future__ import annotations
@@ -28,6 +28,80 @@ class OpcUaRuntimeUnavailableError(RuntimeError):
 
 class OpcUaSourceError(ValueError):
     """Raised when declared OPC UA source data violates the numeric read contract."""
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaBrowseConfig:
+    """Configuration for one bounded anonymous OPC UA address-space browse."""
+
+    endpoint_url: str
+    start_node_id: str = "i=85"
+    max_depth: int = 4
+    max_nodes: int = 256
+    timeout_seconds: float = 4.0
+
+    def __post_init__(self) -> None:
+        _validate_endpoint_url(self.endpoint_url)
+        _validate_identifier(self.start_node_id, "start_node_id")
+        if isinstance(self.max_depth, bool) or not isinstance(self.max_depth, int):
+            raise ValueError("max_depth must be an integer")
+        if self.max_depth < 1:
+            raise ValueError("max_depth must be at least 1")
+        if isinstance(self.max_nodes, bool) or not isinstance(self.max_nodes, int):
+            raise ValueError("max_nodes must be an integer")
+        if self.max_nodes < 1:
+            raise ValueError("max_nodes must be at least 1")
+        _validate_timeout_seconds(self.timeout_seconds)
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaBrowseVariable:
+    """One discovered OPC UA Variable identity without reading its value."""
+
+    node_id: str
+    browse_name: str
+    display_name: str
+    browse_path: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.node_id, "node_id")
+        _validate_identifier(self.browse_name, "browse_name")
+        _validate_identifier(self.display_name, "display_name")
+        if not self.browse_path:
+            raise ValueError("browse_path must not be empty")
+        if not all(isinstance(item, str) and item.strip() == item and item for item in self.browse_path):
+            raise ValueError("browse_path must contain non-empty trimmed strings")
+
+
+@dataclass(frozen=True, slots=True)
+class OpcUaBrowseResult:
+    """Result of one bounded browse session."""
+
+    endpoint_url: str
+    connected_at: datetime
+    completed_at: datetime
+    start_node_id: str
+    visited_node_count: int
+    truncated: bool
+    variables: tuple[OpcUaBrowseVariable, ...]
+
+    def __post_init__(self) -> None:
+        _validate_endpoint_url(self.endpoint_url)
+        _validate_identifier(self.start_node_id, "start_node_id")
+        if not isinstance(self.connected_at, datetime) or self.connected_at.utcoffset() is None:
+            raise ValueError("connected_at must be a timezone-aware datetime")
+        if not isinstance(self.completed_at, datetime) or self.completed_at.utcoffset() is None:
+            raise ValueError("completed_at must be a timezone-aware datetime")
+        if self.completed_at < self.connected_at:
+            raise ValueError("completed_at must not be before connected_at")
+        if isinstance(self.visited_node_count, bool) or not isinstance(self.visited_node_count, int):
+            raise ValueError("visited_node_count must be an integer")
+        if self.visited_node_count < 0:
+            raise ValueError("visited_node_count must not be negative")
+        if not isinstance(self.truncated, bool):
+            raise ValueError("truncated must be boolean")
+        if not all(isinstance(item, OpcUaBrowseVariable) for item in self.variables):
+            raise ValueError("variables must contain OpcUaBrowseVariable values")
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,6 +242,77 @@ class OpcUaReadSnapshot:
             raise ValueError("observations must contain OpcUaNodeObservation values")
 
 
+async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult:
+    """Browse bounded hierarchical Object/Variable candidates without reading values."""
+    if not isinstance(config, OpcUaBrowseConfig):
+        raise ValueError("config must be an OpcUaBrowseConfig")
+
+    module = _load_asyncua_module()
+    client_type = _require_asyncua_client(module)
+    ua = getattr(module, "ua", None)
+    if ua is None or getattr(ua, "NodeClass", None) is None:
+        raise OpcUaRuntimeUnavailableError("asyncua runtime does not expose ua.NodeClass")
+
+    client = client_type(
+        url=config.endpoint_url,
+        timeout=float(config.timeout_seconds),
+        auto_reconnect=False,
+    )
+
+    variables: list[OpcUaBrowseVariable] = []
+    visited_node_ids: set[str] = set()
+    visited_node_count = 0
+    truncated = False
+
+    async with client:
+        connected_at = datetime.now(UTC)
+        start_node = client.get_node(config.start_node_id)
+        stack: list[tuple[Any, tuple[str, ...], int]] = [(start_node, (), 0)]
+
+        while stack and not truncated:
+            parent, parent_path, parent_depth = stack.pop()
+            children = await parent.get_children()
+            for child in children:
+                node_id = _opcua_node_id_string(child)
+                if node_id in visited_node_ids:
+                    continue
+                if visited_node_count >= config.max_nodes:
+                    truncated = True
+                    break
+                visited_node_ids.add(node_id)
+                visited_node_count += 1
+
+                node_class = await child.read_node_class()
+                browse_name = _opcua_browse_name(await child.read_browse_name())
+                child_path = (*parent_path, browse_name)
+                child_depth = parent_depth + 1
+
+                if node_class == ua.NodeClass.Variable:
+                    display_name = _opcua_display_name(await child.read_display_name())
+                    variables.append(
+                        OpcUaBrowseVariable(
+                            node_id=node_id,
+                            browse_name=browse_name,
+                            display_name=display_name,
+                            browse_path=child_path,
+                        )
+                    )
+                elif node_class == ua.NodeClass.Object and child_depth < config.max_depth:
+                    stack.append((child, child_path, child_depth))
+
+        completed_at = datetime.now(UTC)
+
+    return OpcUaBrowseResult(
+        endpoint_url=config.endpoint_url,
+        connected_at=connected_at,
+        completed_at=completed_at,
+        start_node_id=config.start_node_id,
+        visited_node_count=visited_node_count,
+        truncated=truncated,
+        variables=tuple(sorted(variables, key=lambda item: (item.browse_path, item.node_id))),
+    )
+
+
 async def probe_opcua_endpoint(
     config: OpcUaEndpointProbeConfig,
 ) -> OpcUaEndpointProbeResult:
@@ -296,19 +441,52 @@ def _coerce_numeric_value(value: object, mapping: OpcUaNodeMapping) -> float:
     return numeric
 
 
-def _load_asyncua_client() -> Any:
+def _load_asyncua_module() -> Any:
     try:
-        module = import_module("asyncua")
+        return import_module("asyncua")
     except ModuleNotFoundError as error:
         if error.name != "asyncua":
             raise
         raise OpcUaRuntimeUnavailableError(
             "OPC UA runtime is not installed; install the 'opcua' extra"
         ) from error
+
+
+def _require_asyncua_client(module: Any) -> Any:
     client_type = getattr(module, "Client", None)
     if client_type is None:
         raise OpcUaRuntimeUnavailableError("asyncua runtime does not expose Client")
     return client_type
+
+
+def _load_asyncua_client() -> Any:
+    return _require_asyncua_client(_load_asyncua_module())
+
+
+def _opcua_node_id_string(node: Any) -> str:
+    node_id = getattr(node, "nodeid", None)
+    to_string = None if node_id is None else getattr(node_id, "to_string", None)
+    if not callable(to_string):
+        raise OpcUaSourceError("browsed OPC UA node does not expose a NodeId")
+    value = to_string()
+    _validate_identifier(value, "node_id")
+    return value
+
+
+def _opcua_browse_name(value: Any) -> str:
+    name = getattr(value, "Name", None)
+    if not isinstance(name, str):
+        raise OpcUaSourceError("OPC UA BrowseName is unavailable")
+    _validate_identifier(name, "browse_name")
+    return name
+
+
+def _opcua_display_name(value: Any) -> str:
+    text = getattr(value, "Text", None)
+    if not isinstance(text, str):
+        raise OpcUaSourceError("OPC UA DisplayName is unavailable")
+    _validate_identifier(text, "display_name")
+    return text
 
 
 def _validate_timeout_seconds(value: float) -> None:
