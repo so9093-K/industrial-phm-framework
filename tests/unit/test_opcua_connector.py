@@ -41,9 +41,6 @@ class _FakeNode:
         return self._data_value
 
 
-
-
-
 class _FakeBrowseNodeId:
     def __init__(self, value: str) -> None:
         self._value = value
@@ -136,9 +133,6 @@ def _data_value(
         SourceTimestamp=source_timestamp,
         ServerTimestamp=server_timestamp,
     )
-
-
-
 
 
 def test_opcua_browse_config_bounds_depth_node_budget_and_timeout() -> None:
