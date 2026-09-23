@@ -226,7 +226,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE/OPC UA ACTIVE one-shot runtime cycle, source-specific freshness policy, latest received_at/delivery-lag/freshness evidence, FILE manual current Observation load, OPC UA canonical observation projection과 persistent connection telemetry의 명시적 unavailable 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE/OPC UA ACTIVE one-shot runtime cycle, source-specific freshness policy, latest received_at/delivery-lag/freshness evidence, FILE manual current Observation load, OPC UA canonical observation projection, current connection telemetry와 latest attempt UI detail의 명시적 unavailable 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
