@@ -62,8 +62,9 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
             browse = await browse_opcua_variables(
                 OpcUaBrowseConfig(
                     endpoint_url=endpoint,
-                    max_depth=3,
-                    max_nodes=64,
+                    start_node_id=machine.nodeid.to_string(),
+                    max_depth=2,
+                    max_nodes=16,
                 )
             )
             snapshot = await read_opcua_snapshot(
@@ -88,8 +89,8 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         assert vibration.nodeid.to_string() in variables_by_id
         assert temperature.nodeid.to_string() in variables_by_id
         assert bearing_temperature.nodeid.to_string() in variables_by_id
+        assert variables_by_id[vibration.nodeid.to_string()].browse_path == ("VibrationX",)
         assert variables_by_id[bearing_temperature.nodeid.to_string()].browse_path == (
-            "Machine",
             "Bearing",
             "BearingTemperature",
         )
