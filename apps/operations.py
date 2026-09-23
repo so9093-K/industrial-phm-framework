@@ -889,6 +889,89 @@ def _(
 
 @app.cell
 def _(mo):
+    get_freshness_policy_error, set_freshness_policy_error = mo.state("")
+    get_freshness_policy_success, set_freshness_policy_success = mo.state("")
+    return (
+        get_freshness_policy_error,
+        get_freshness_policy_success,
+        set_freshness_policy_error,
+        set_freshness_policy_success,
+    )
+
+
+@app.cell
+def _(get_freshness_policy_error, get_freshness_policy_success):
+    freshness_policy_error = get_freshness_policy_error()
+    freshness_policy_success = get_freshness_policy_success()
+    return freshness_policy_error, freshness_policy_success
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    Path,
+    SourceFreshnessPolicy,
+    clear_freshness_policy_button,
+    datetime,
+    freshness_age_input,
+    registered_sources,
+    save_freshness_policy_button,
+    set_freshness_policy_error,
+    set_freshness_policy_success,
+    set_source_freshness_policies,
+    source_registry_default,
+    source_selector,
+):
+    _action = None
+    if save_freshness_policy_button is not None and save_freshness_policy_button.value:
+        _action = "save"
+    elif clear_freshness_policy_button is not None and clear_freshness_policy_button.value:
+        _action = "clear"
+
+    if _action is not None:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before changing freshness policy")
+            _repository = JsonSourceRepository(Path(source_registry_default))
+            _source_id = source_selector.value
+            if _action == "save":
+                if freshness_age_input is None:
+                    raise ValueError("freshness policy input is unavailable")
+                _raw_age = freshness_age_input.value.strip()
+                if not _raw_age:
+                    raise ValueError("max observation age is required")
+                _policy = SourceFreshnessPolicy(
+                    source_id=_source_id,
+                    max_observation_age_seconds=float(_raw_age),
+                    changed_at=datetime.now().astimezone(),
+                )
+                _repository.set_freshness_policy(_policy)
+                _message = (
+                    f"Freshness policy saved: {_source_id} · "
+                    f"max age {_policy.max_observation_age_seconds:g} s"
+                )
+            else:
+                _repository.clear_freshness_policy(_source_id)
+                _message = f"Freshness policy cleared: {_source_id}"
+
+            _sources = _repository.list_sources()
+            _policies = tuple(
+                policy
+                for source in _sources
+                if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_freshness_policy_success("")
+            set_freshness_policy_error(str(error))
+        else:
+            set_source_freshness_policies(_policies)
+            set_freshness_policy_error("")
+            set_freshness_policy_success(_message)
+    return
+
+
+@app.cell
+def _(mo):
     get_registered_source_load_error, set_registered_source_load_error = mo.state("")
     get_registered_source_load_success, set_registered_source_load_success = mo.state("")
     return (
@@ -909,6 +992,12 @@ def _(get_registered_source_load_error, get_registered_source_load_success):
 @app.cell
 def _(
     activate_source_button,
+    assess_source_freshness,
+    clear_freshness_policy_button,
+    datetime,
+    freshness_age_input,
+    freshness_policy_error,
+    freshness_policy_success,
     lifecycle_error,
     lifecycle_success,
     load_registered_source_button,
@@ -918,6 +1007,8 @@ def _(
     registered_source_load_error,
     registered_source_load_success,
     registration_view,
+    save_freshness_policy_button,
+    source_freshness_policies,
     source_lifecycle_records,
     source_registry_default,
     source_receipt,
@@ -961,6 +1052,9 @@ def _(
         )
     else:
         _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
+        _freshness_policy_by_id = {
+            policy.source_id: policy for policy in source_freshness_policies
+        }
         _rows = []
         for _source in registered_sources:
             _config = _source.config
@@ -990,6 +1084,7 @@ def _(
         )
         _selected_config = _selected.config
         _selected_lifecycle = _lifecycle_by_id.get(_selected.source_id)
+        _selected_freshness_policy = _freshness_policy_by_id.get(_selected.source_id)
         _lifecycle_state = (
             "Unavailable" if _selected_lifecycle is None else _selected_lifecycle.state.value
         )
@@ -1020,12 +1115,24 @@ def _(
             if source_receipt is not None and source_receipt.source_id == _selected.source_id
             else None
         )
+        _freshness_policy_label = (
+            "Not configured"
+            if _selected_freshness_policy is None
+            else f"{_selected_freshness_policy.max_observation_age_seconds:g} s"
+        )
         if _selected_receipt is None:
             _receipt_evidence = mo.callout(
                 "No platform receipt-time evidence has been recorded for this selected source "
-                "in the current Operations session.",
+                "in the current Operations session. Freshness cannot be assessed until a "
+                "validated registered-source load produces receipt timing evidence.",
                 kind="neutral",
                 title="Receipt timing · Unavailable",
+            )
+            _freshness_evidence = mo.callout(
+                f"Configured max observation age: {_freshness_policy_label}. "
+                "No current receipt evidence is available for assessment.",
+                kind="neutral",
+                title="Freshness · Unavailable",
             )
         else:
             _lag = _selected_receipt.lag_seconds
@@ -1039,6 +1146,22 @@ def _(
                 if _selected_receipt.observed_at is None
                 else _selected_receipt.observed_at.isoformat()
             )
+            _assessed_at = datetime.now().astimezone()
+            _freshness = assess_source_freshness(
+                _selected_receipt,
+                _selected_freshness_policy,
+                as_of=_assessed_at,
+            )
+            _age_label = (
+                "Unavailable"
+                if _freshness.observation_age_seconds is None
+                else f"{_freshness.observation_age_seconds:+.3f} s"
+            )
+            _freshness_reason = (
+                ""
+                if _freshness.reason is None
+                else f" · {_freshness.reason}"
+            )
             _receipt_evidence = mo.vstack(
                 [
                     mo.md(
@@ -1047,18 +1170,31 @@ def _(
                         "| --- | --- |\n"
                         f"| Latest observed_at | {_observed_label} |\n"
                         f"| received_at | {_selected_receipt.received_at.isoformat()} |\n"
-                        f"| observed→received lag | {_lag_label} |"
+                        f"| observed→received delivery lag | {_lag_label} |"
                     ),
                     mo.callout(
                         "received_at is the time this prepared source load was accepted after "
-                        "validation. It is not reconstructed sensor transport arrival time. "
-                        "Fresh/stale is not classified because no source-specific freshness "
-                        "policy is registered yet.",
+                        "validation. It is not reconstructed sensor transport arrival time.",
                         kind="info",
                         title="Timing semantics",
                     ),
                 ],
                 gap=0.6,
+            )
+            _freshness_evidence = mo.callout(
+                f"State: {_freshness.state.value.upper()} · "
+                f"observation age: {_age_label} · "
+                f"max age: {_freshness_policy_label} · "
+                f"assessed at: {_freshness.assessed_at.isoformat()}"
+                f"{_freshness_reason}",
+                kind=(
+                    "success"
+                    if _freshness.state.value == "fresh"
+                    else "warn"
+                    if _freshness.state.value == "stale"
+                    else "neutral"
+                ),
+                title=f"Freshness · {_freshness.state.value}",
             )
 
         sources_view = mo.vstack(
@@ -1153,6 +1289,38 @@ def _(
                         )
                     )
                 ),
+                mo.md("### Freshness policy"),
+                mo.md(
+                    f"Current max observation age: **{_freshness_policy_label}**"
+                ),
+                freshness_age_input,
+                mo.hstack(
+                    [save_freshness_policy_button, clear_freshness_policy_button],
+                    widths="equal",
+                ),
+                (
+                    mo.callout(
+                        freshness_policy_error,
+                        kind="danger",
+                        title="Freshness policy update failed",
+                    )
+                    if freshness_policy_error
+                    else (
+                        mo.callout(
+                            freshness_policy_success,
+                            kind="success",
+                            title="Freshness policy updated",
+                        )
+                        if freshness_policy_success
+                        else mo.callout(
+                            "Freshness policy is source-specific and defines the maximum allowed "
+                            "age of the latest observation at assessment time. It does not use "
+                            "delivery lag as the freshness age.",
+                            kind="info",
+                            title="Freshness semantics",
+                        )
+                    )
+                ),
                 mo.md("### Load current observation"),
                 load_registered_source_button,
                 (
@@ -1179,10 +1347,12 @@ def _(
                     )
                 ),
                 _receipt_evidence,
+                _freshness_evidence,
                 mo.callout(
-                    "Registration, lifecycle intent and on-demand loading do not label a source "
-                    "online, healthy, fresh or actively ingested. Connection/ingestion health "
-                    "requires separate runtime and telemetry evidence.",
+                    "Freshness is a timing-policy assessment only. Registration, lifecycle "
+                    "intent and on-demand loading still do not label a source online, healthy "
+                    "or actively ingested. Connection/ingestion health requires separate "
+                    "runtime and telemetry evidence.",
                     kind="info",
                     title="Runtime boundary",
                 ),
