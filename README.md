@@ -94,11 +94,10 @@ load가 성공하면 latest receipt는 control-plane registry와 분리된 local
 후 Last received/lag/freshness를 다시 계산할 수 있습니다. 이 runtime state는 latest receipt만 보존하며
 connection health, retry/buffer 상태, receipt history는 아직 저장하지 않습니다. Sources는 lifecycle,
 latest receipt, source-specific freshness를 조합한 `SourceHealthAssessment`를 표시하지만 단일
-healthy/unhealthy 판정은 만들지 않습니다. Prepared-file runtime에는 connector telemetry가 없으므로
-Connection은 항상 `NOT_INSTRUMENTED`로 남고, Data flow는 INACTIVE/SOURCE_ERROR/NO_RECEIPT/FRESH/
-STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. Operations UI는
-one-shot 실행을 유지하고, CLI의 `operations poll-source`는 같은 runtime cycle을 caller-owned synchronous
-loop로 반복할 수 있습니다. 이 polling runtime은 background service나 live connector가 아니며,
+healthy/unhealthy 판정은 만들지 않습니다. 현재 FILE/OPC UA one-shot runtime은 persistent connection telemetry를 기록하지 않으므로
+Connection은 `NOT_INSTRUMENTED`로 남고, Data flow는 INACTIVE/SOURCE_ERROR/NO_RECEIPT/FRESH/
+STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. Operations UI는 FILE/OPC UA one-shot 실행을 지원하고, CLI의 `operations poll-source`는 아직 FILE runtime cycle만 caller-owned synchronous
+loop로 반복합니다. 이 polling runtime은 background service나 live connector가 아니며,
 retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다. 별도
 `industrial_phm.connectors.opcua` module의 OPC UA one-shot read proof와 같은 endpoint/NodeId mapping은
 `industrial-phm-source-registry-v4`에 영속할 수 있고 Operations Sources에서 type-specific detail로 확인할 수
@@ -179,7 +178,7 @@ observed→received delivery lag evidence가 추가되었고, policy가 있으�
 receipt **history**와 connection telemetry는 아직 없습니다. Current lifecycle, persisted latest receipt와
 freshness policy를 묶은 source-health read model은 제공하지만 boolean healthy/unhealthy나 connection
 success를 추론하지 않습니다. Operations UI의 runtime cycle은 explicit single iteration이고, CLI의
-`operations poll-source`는 이 cycle을 일정 interval로 동기 반복합니다. Polling은 failure/non-ACTIVE에서
+`operations poll-source`는 FILE cycle을 일정 interval로 동기 반복합니다. OPC UA polling은 아직 지원하지 않습니다. Polling은 failure/non-ACTIVE에서
 즉시 멈추며 retry/backoff나 background daemon을 만들지 않습니다. Browser upload/file-picker, source
 edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol read, application-level
 `OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
