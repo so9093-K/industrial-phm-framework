@@ -20,6 +20,7 @@ def _():
         FileSourceMode,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
+        OpcUaSourceConfig,
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
@@ -47,6 +48,7 @@ def _():
         FileSourceMode,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
+        OpcUaSourceConfig,
         Path,
         RegisteredSource,
         SourceFreshnessPolicy,
@@ -1079,6 +1081,8 @@ def _(get_registered_source_load_error, get_registered_source_load_success):
 
 @app.cell
 def _(
+    FileSourceConfig,
+    OpcUaSourceConfig,
     activate_source_button,
     assess_source_freshness,
     assess_source_health,
@@ -1156,6 +1160,11 @@ def _(
         _rows = []
         for _source in registered_sources:
             _config = _source.config
+            _mode = (
+                _config.mode.value
+                if isinstance(_config, FileSourceConfig)
+                else "explicit-node-mapping"
+            )
             _lifecycle = _lifecycle_by_id.get(_source.source_id)
             _lifecycle_state = "Unavailable" if _lifecycle is None else _lifecycle.state.value
             _rows.append(
@@ -1165,7 +1174,7 @@ def _(
                         f"`{escape_markdown_cell(_source.source_id)}`",
                         escape_markdown_cell(_source.name),
                         _source.source_type.value,
-                        _config.mode.value,
+                        _mode,
                         _lifecycle_state,
                         f"`{escape_markdown_cell(_config.asset_id)}`",
                         _source.registered_at.isoformat(),
@@ -1197,17 +1206,41 @@ def _(
             else _selected_lifecycle.detail
         )
         _measurement_point = _selected_config.measurement_point_id or "Not recorded"
-        _timestamp_column = _selected_config.timestamp_column or "Not declared"
-        _sampling_rate = (
-            "Not declared"
-            if _selected_config.sampling_rate_hz is None
-            else f"{_selected_config.sampling_rate_hz:g} Hz"
-        )
-        _tolerance = (
-            "Not declared"
-            if _selected_config.sampling_rate_tolerance_ratio is None
-            else f"{_selected_config.sampling_rate_tolerance_ratio:g}"
-        )
+        _selected_is_file = isinstance(_selected_config, FileSourceConfig)
+        if _selected_is_file:
+            _selected_mode = _selected_config.mode.value
+            _timestamp_column = _selected_config.timestamp_column or "Not declared"
+            _sampling_rate = (
+                "Not declared"
+                if _selected_config.sampling_rate_hz is None
+                else f"{_selected_config.sampling_rate_hz:g} Hz"
+            )
+            _tolerance = (
+                "Not declared"
+                if _selected_config.sampling_rate_tolerance_ratio is None
+                else f"{_selected_config.sampling_rate_tolerance_ratio:g}"
+            )
+            _source_specific_detail = (
+                f"| Source path | `{escape_markdown_cell(_selected_config.source_path)}` |\n"
+                f"| Channels | {', '.join(_selected_config.channel_columns)} |\n"
+                f"| Timestamp column | `{escape_markdown_cell(_timestamp_column)}` |\n"
+                f"| Sampling rate | {_sampling_rate} |\n"
+                f"| Sampling-rate tolerance | {_tolerance} |\n"
+                f"| Minimum samples | {_selected_config.minimum_sample_count:,} |\n"
+            )
+        else:
+            if not isinstance(_selected_config, OpcUaSourceConfig):
+                raise ValueError("unsupported registered source config")
+            _selected_mode = "explicit-node-mapping"
+            _node_mapping_label = ", ".join(
+                f"{mapping.channel_id} → {mapping.node_id}"
+                for mapping in _selected_config.node_mappings
+            )
+            _source_specific_detail = (
+                f"| Endpoint | `{escape_markdown_cell(_selected_config.endpoint_url)}` |\n"
+                f"| Node mappings | {escape_markdown_cell(_node_mapping_label)} |\n"
+                f"| Request timeout | {_selected_config.timeout_seconds:g} s |\n"
+            )
         _session_receipt = (
             source_receipt
             if source_receipt is not None and source_receipt.source_id == _selected.source_id
@@ -1277,8 +1310,9 @@ def _(
                     ),
                     mo.callout(
                         "This is a multidimensional read model, not a single healthy/unhealthy "
-                        "verdict. Prepared-file sources still have no connector telemetry, so "
-                        "connection remains NOT_INSTRUMENTED even when data is fresh.",
+                        "verdict. Registration and persistence alone do not provide live "
+                        "connector telemetry, so connection remains NOT_INSTRUMENTED until a "
+                        "source runtime records that evidence.",
                         kind="info",
                         title="Health semantics",
                     ),
@@ -1288,9 +1322,9 @@ def _(
 
         if _selected_receipt is None:
             _receipt_evidence = mo.callout(
-                "No platform receipt-time evidence has been recorded for this selected source "
-                "in the current Operations session. Freshness cannot be assessed until a "
-                "validated registered-source load produces receipt timing evidence.",
+                "No platform receipt-time evidence has been recorded for this selected source. "
+                "Freshness cannot be assessed until a supported runtime produces accepted "
+                "observation receipt timing evidence.",
                 kind="neutral",
                 title="Receipt timing · Unavailable",
             )
@@ -1390,9 +1424,9 @@ def _(
                             caption="Registration does not imply connectivity",
                         ),
                         mo.stat(
-                            "One-shot only",
+                            "Type-specific",
                             label="Ingestion",
-                            caption="Explicit runtime cycle; no continuous scheduler",
+                            caption="FILE one-shot; OPC UA runtime not connected yet",
                         ),
                     ],
                     widths="equal",
@@ -1409,18 +1443,13 @@ def _(
                     f"| Source ID | `{escape_markdown_cell(_selected.source_id)}` |\n"
                     f"| Name | {escape_markdown_cell(_selected.name)} |\n"
                     f"| Type | {_selected.source_type.value} |\n"
-                    f"| Mode | {_selected_config.mode.value} |\n"
+                    f"| Mode | {_selected_mode} |\n"
                     f"| Lifecycle | {_lifecycle_state} |\n"
                     f"| Lifecycle changed at | {_lifecycle_changed_at} |\n"
                     f"| Lifecycle detail | {escape_markdown_cell(_lifecycle_detail)} |\n"
                     f"| Asset | `{escape_markdown_cell(_selected_config.asset_id)}` |\n"
                     f"| Measurement point | `{escape_markdown_cell(_measurement_point)}` |\n"
-                    f"| Source path | `{escape_markdown_cell(_selected_config.source_path)}` |\n"
-                    f"| Channels | {', '.join(_selected_config.channel_columns)} |\n"
-                    f"| Timestamp column | `{escape_markdown_cell(_timestamp_column)}` |\n"
-                    f"| Sampling rate | {_sampling_rate} |\n"
-                    f"| Sampling-rate tolerance | {_tolerance} |\n"
-                    f"| Minimum samples | {_selected_config.minimum_sample_count:,} |\n"
+                    f"{_source_specific_detail}"
                     f"| Registered at | {_selected.registered_at.isoformat()} |"
                 ),
                 mo.md("### Lifecycle control"),
@@ -1452,7 +1481,17 @@ def _(
                     )
                 ),
                 mo.md("### Runtime execution"),
-                run_active_source_button,
+                (
+                    run_active_source_button
+                    if _selected_is_file
+                    else mo.callout(
+                        "OPC UA registration is persisted, but an operational connector runtime "
+                        "is not connected yet. One-shot connector proof, subscription and "
+                        "connection telemetry remain separate boundaries.",
+                        kind="neutral",
+                        title="OPC UA runtime · Unavailable",
+                    )
+                ),
                 (
                     mo.callout(
                         runtime_cycle_error,
@@ -1487,6 +1526,12 @@ def _(
                             )
                         )
                     )
+                    if _selected_is_file
+                    else mo.callout(
+                        "No runtime-cycle result is produced for OPC UA registration yet.",
+                        kind="neutral",
+                        title="Runtime evidence · Unavailable",
+                    )
                 ),
                 mo.md("### Freshness policy"),
                 mo.md(f"Current max observation age: **{_freshness_policy_label}**"),
@@ -1519,7 +1564,16 @@ def _(
                     )
                 ),
                 mo.md("### Load current observation"),
-                load_registered_source_button,
+                (
+                    load_registered_source_button
+                    if _selected_is_file
+                    else mo.callout(
+                        "Registered OPC UA source has no observation loader yet. Live connector "
+                        "receipt/observation projection is a later runtime slice.",
+                        kind="neutral",
+                        title="OPC UA observation load · Unavailable",
+                    )
+                ),
                 (
                     mo.callout(
                         registered_source_load_error,
@@ -1541,6 +1595,12 @@ def _(
                             kind="info",
                             title="On-demand observation load",
                         )
+                    )
+                    if _selected_is_file
+                    else mo.callout(
+                        "No on-demand observation result is produced for OPC UA registration.",
+                        kind="neutral",
+                        title="Observation evidence · Unavailable",
                     )
                 ),
                 (
@@ -1694,6 +1754,7 @@ def _(
 
 @app.cell
 def _(
+    FileSourceConfig,
     JsonSourceRuntimeRepository,
     Path,
     load_registered_source_button,
@@ -1719,6 +1780,10 @@ def _(
             _selected = next(
                 source for source in registered_sources if source.source_id == source_selector.value
             )
+            if not isinstance(_selected.config, FileSourceConfig):
+                raise ValueError(
+                    "on-demand observation load currently supports registered file sources only"
+                )
             _received = receive_registered_file_source_observation(_selected)
             _loaded = _received.observation
         except (OSError, ValueError) as error:

@@ -16,7 +16,7 @@ from industrial_phm.application.source_receipt import (
     ReceivedRegisteredFileObservation,
     receive_registered_file_source_observation,
 )
-from industrial_phm.application.source_registration import SourceRepository
+from industrial_phm.application.source_registration import FileSourceConfig, SourceRepository
 from industrial_phm.application.source_runtime import SourceRuntimeRepository
 
 
@@ -108,9 +108,9 @@ def run_registered_file_source_cycle(
 ) -> SourceRuntimeCycleResult:
     """Run one ACTIVE registered-file source cycle.
 
-    REGISTERED, PAUSED, or ERROR sources are skipped without source I/O. ACTIVE sources
-    re-validate the current source bytes, create receipt evidence, and persist the latest
-    receipt. Source validation/I/O failures transition lifecycle ACTIVE -> ERROR with the
+    REGISTERED, PAUSED, ERROR, or non-file sources are skipped without source I/O. ACTIVE
+    file sources re-validate the current source bytes, create receipt evidence, and persist
+    the latest receipt. Source validation/I/O failures transition lifecycle ACTIVE -> ERROR with the
     concrete failure detail. Platform runtime-state failures fail the cycle without changing
     source lifecycle. This is one explicit iteration, not a scheduler or background poller.
     """
@@ -128,6 +128,19 @@ def run_registered_file_source_cycle(
             lifecycle_after=lifecycle_before,
             message=(
                 f"source lifecycle is {lifecycle_before.state.value}; runtime cycle requires active"
+            ),
+        )
+
+    if not isinstance(source.config, FileSourceConfig):
+        return SourceRuntimeCycleResult(
+            source_id=source_id,
+            state=SourceRuntimeCycleState.SKIPPED,
+            executed_at=cycle_time,
+            lifecycle_before=lifecycle_before,
+            lifecycle_after=lifecycle_before,
+            message=(
+                f"registered source type is {source.source_type.value}; "
+                "file runtime cycle requires file"
             ),
         )
 

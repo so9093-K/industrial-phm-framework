@@ -124,8 +124,10 @@ jobs:
               FileSourceConfig,
               FileSourceMode,
               JsonSourceRepository,
+              OpcUaSourceConfig,
               RegisteredSource,
           )
+          from industrial_phm.connectors import OpcUaNodeMapping
 
           repository = JsonSourceRepository(Path("/tmp/operations-source-registry.json"))
           repository.register(
@@ -142,6 +144,25 @@ jobs:
                       sampling_rate_hz=1.0,
                   ),
                   registered_at=datetime.fromisoformat("2026-09-23T09:00:00+09:00"),
+              )
+          )
+          repository.register(
+              RegisteredSource(
+                  source_id="ci-opcua",
+                  name="CI OPC UA source",
+                  config=OpcUaSourceConfig(
+                      endpoint_url="opc.tcp://127.0.0.1:4840",
+                      asset_id="ci-pump-02",
+                      measurement_point_id="drive-end-bearing",
+                      node_mappings=(
+                          OpcUaNodeMapping(
+                              channel_id="vibration_x",
+                              node_id="ns=2;s=Machine/VibrationX",
+                          ),
+                      ),
+                      timeout_seconds=2.0,
+                  ),
+                  registered_at=datetime.fromisoformat("2026-09-23T09:05:00+09:00"),
               )
           )
           PY
