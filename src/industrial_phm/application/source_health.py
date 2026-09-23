@@ -66,10 +66,16 @@ class SourceHealthAssessment:
             raise ValueError("connection_state must be a SourceConnectionState")
         if not isinstance(self.data_flow_state, SourceDataFlowState):
             raise ValueError("data_flow_state must be a SourceDataFlowState")
-        if self.receipt is not None and self.receipt.source_id != self.source_id:
-            raise ValueError("receipt must match source_id")
-        if self.freshness is not None and self.freshness.source_id != self.source_id:
-            raise ValueError("freshness must match source_id")
+        if self.receipt is not None:
+            if not isinstance(self.receipt, SourceReceiptEvidence):
+                raise ValueError("receipt must be SourceReceiptEvidence when provided")
+            if self.receipt.source_id != self.source_id:
+                raise ValueError("receipt must match source_id")
+        if self.freshness is not None:
+            if not isinstance(self.freshness, SourceFreshnessAssessment):
+                raise ValueError("freshness must be SourceFreshnessAssessment when provided")
+            if self.freshness.source_id != self.source_id:
+                raise ValueError("freshness must match source_id")
 
         if self.data_flow_state in {
             SourceDataFlowState.FRESHNESS_NOT_CONFIGURED,
@@ -125,8 +131,11 @@ def assess_source_health(
             raise ValueError("receipt must be SourceReceiptEvidence when provided")
         if receipt.source_id != lifecycle.source_id:
             raise ValueError("lifecycle and receipt must share one source_id")
-    if freshness_policy is not None and freshness_policy.source_id != lifecycle.source_id:
-        raise ValueError("lifecycle and freshness policy must share one source_id")
+    if freshness_policy is not None:
+        if not isinstance(freshness_policy, SourceFreshnessPolicy):
+            raise ValueError("freshness_policy must be SourceFreshnessPolicy when provided")
+        if freshness_policy.source_id != lifecycle.source_id:
+            raise ValueError("lifecycle and freshness policy must share one source_id")
 
     connection_state = SourceConnectionState.NOT_INSTRUMENTED
 
@@ -160,6 +169,20 @@ def assess_source_health(
             connection_state=connection_state,
             data_flow_state=SourceDataFlowState.NO_RECEIPT,
             reason="active source has no accepted receipt evidence",
+        )
+
+    if receipt.received_at < lifecycle.changed_at:
+        return SourceHealthAssessment(
+            source_id=lifecycle.source_id,
+            assessed_at=as_of,
+            lifecycle=lifecycle,
+            connection_state=connection_state,
+            data_flow_state=SourceDataFlowState.NO_RECEIPT,
+            receipt=receipt,
+            reason=(
+                "latest receipt predates the current active lifecycle transition; "
+                "current activation has no accepted receipt evidence"
+            ),
         )
 
     freshness = assess_source_freshness(
