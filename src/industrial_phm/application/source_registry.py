@@ -338,6 +338,8 @@ def _require_registered_source_id(
 
 def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
     config = source.config
+    if not isinstance(config, FileSourceConfig):
+        raise ValueError("JsonSourceRepository currently persists prepared file sources only")
     return {
         "source_id": source.source_id,
         "name": source.name,
