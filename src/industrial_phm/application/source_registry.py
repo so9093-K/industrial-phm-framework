@@ -32,9 +32,7 @@ _ROOT_KEYS_V2 = frozenset({"schema", "sources", "lifecycle"})
 _ROOT_KEYS_V3 = frozenset({"schema", "sources", "lifecycle", "freshness_policies"})
 _SOURCE_KEYS = frozenset({"source_id", "name", "source_type", "registered_at", "config"})
 _LIFECYCLE_KEYS = frozenset({"source_id", "state", "changed_at", "detail"})
-_FRESHNESS_POLICY_KEYS = frozenset(
-    {"source_id", "max_observation_age_seconds", "changed_at"}
-)
+_FRESHNESS_POLICY_KEYS = frozenset({"source_id", "max_observation_age_seconds", "changed_at"})
 _FILE_CONFIG_KEYS = frozenset(
     {
         "source_path",
@@ -227,8 +225,7 @@ class JsonSourceRepository:
                 _serialize_lifecycle(lifecycle[source.source_id]) for source in ordered_sources
             ],
             "freshness_policies": [
-                _serialize_freshness_policy(freshness[source_id])
-                for source_id in sorted(freshness)
+                _serialize_freshness_policy(freshness[source_id]) for source_id in sorted(freshness)
             ],
         }
         rendered = (
@@ -287,12 +284,8 @@ def _parse_lifecycle(value: object) -> dict[str, SourceLifecycleRecord]:
 
 def _parse_freshness_policies(value: object) -> dict[str, SourceFreshnessPolicy]:
     if not isinstance(value, list):
-        raise SourceRegistryFormatError(
-            "source registry freshness_policies must be a JSON array"
-        )
-    policies = tuple(
-        _parse_freshness_policy(item, index=index) for index, item in enumerate(value)
-    )
+        raise SourceRegistryFormatError("source registry freshness_policies must be a JSON array")
+    policies = tuple(_parse_freshness_policy(item, index=index) for index, item in enumerate(value))
     source_ids = tuple(policy.source_id for policy in policies)
     if len(set(source_ids)) != len(source_ids):
         raise SourceRegistryFormatError(
