@@ -1772,6 +1772,8 @@ def _(
                 else _selected_connection_attempt.connected_at.isoformat()
             )
             _attempt_detail = _selected_connection_attempt.detail or "None"
+            _attempted_at_label = _selected_connection_attempt.attempted_at.isoformat()
+            _completed_at_label = _selected_connection_attempt.completed_at.isoformat()
             _connection_attempt_evidence = mo.vstack(
                 [
                     mo.md(
@@ -1779,9 +1781,9 @@ def _(
                         "| Attempt fact | Value |\n"
                         "| --- | --- |\n"
                         f"| Outcome | {_selected_connection_attempt.outcome.value.upper()} |\n"
-                        f"| Attempted at | {_selected_connection_attempt.attempted_at.isoformat()} |\n"
+                        f"| Attempted at | {_attempted_at_label} |\n"
                         f"| Connected at | {_attempt_connected} |\n"
-                        f"| Completed at | {_selected_connection_attempt.completed_at.isoformat()} |\n"
+                        f"| Completed at | {_completed_at_label} |\n"
                         f"| Detail | {escape_markdown_cell(_attempt_detail)} |"
                     ),
                     mo.callout(
