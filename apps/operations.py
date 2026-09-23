@@ -20,7 +20,9 @@ def _():
         FileSourceMode,
         JsonSourceRepository,
         RegisteredSource,
+        SourceFreshnessPolicy,
         SourceLifecycleState,
+        assess_source_freshness,
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
@@ -41,7 +43,9 @@ def _():
         JsonSourceRepository,
         Path,
         RegisteredSource,
+        SourceFreshnessPolicy,
         SourceLifecycleState,
+        assess_source_freshness,
         datetime,
         discover_file_source,
         load_field_csv_observation_summary,
@@ -127,10 +131,16 @@ def _(JsonSourceRepository, Path, load_observation, os):
             _source_repository.get_lifecycle(source.source_id)
             for source in initial_registered_sources
         )
+        initial_source_freshness_policies = tuple(
+            policy
+            for source in initial_registered_sources
+            if (policy := _source_repository.get_freshness_policy(source.source_id)) is not None
+        )
         initial_source_registry_error = ""
     except (OSError, ValueError) as error:
         initial_registered_sources = ()
         initial_source_lifecycle_records = ()
+        initial_source_freshness_policies = ()
         initial_source_registry_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
@@ -180,6 +190,7 @@ def _(JsonSourceRepository, Path, load_observation, os):
         measurement_point_default,
         sampling_rate_default,
         initial_registered_sources,
+        initial_source_freshness_policies,
         initial_source_lifecycle_records,
         initial_source_registry_error,
         source_default,
@@ -192,31 +203,48 @@ def _(JsonSourceRepository, Path, load_observation, os):
 @app.cell
 def _(
     initial_registered_sources,
+    initial_source_freshness_policies,
     initial_source_lifecycle_records,
     initial_source_registry_error,
     mo,
 ):
     get_registered_sources, set_registered_sources = mo.state(initial_registered_sources)
+    get_source_freshness_policies, set_source_freshness_policies = mo.state(
+        initial_source_freshness_policies
+    )
     get_source_lifecycle_records, set_source_lifecycle_records = mo.state(
         initial_source_lifecycle_records
     )
     get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
     return (
         get_registered_sources,
+        get_source_freshness_policies,
         get_source_lifecycle_records,
         get_source_registry_error,
         set_registered_sources,
+        set_source_freshness_policies,
         set_source_lifecycle_records,
         set_source_registry_error,
     )
 
 
 @app.cell
-def _(get_registered_sources, get_source_lifecycle_records, get_source_registry_error):
+def _(
+    get_registered_sources,
+    get_source_freshness_policies,
+    get_source_lifecycle_records,
+    get_source_registry_error,
+):
     registered_sources = get_registered_sources()
+    source_freshness_policies = get_source_freshness_policies()
     source_lifecycle_records = get_source_lifecycle_records()
     source_registry_error = get_source_registry_error()
-    return registered_sources, source_lifecycle_records, source_registry_error
+    return (
+        registered_sources,
+        source_freshness_policies,
+        source_lifecycle_records,
+        source_registry_error,
+    )
 
 
 @app.cell
@@ -476,6 +504,7 @@ def _(
     registration_timestamp_input,
     registration_tolerance_input,
     set_registered_sources,
+    set_source_freshness_policies,
     set_source_lifecycle_records,
     set_registration_error,
     set_registration_success,
@@ -548,6 +577,13 @@ def _(
             set_registered_sources(_sources)
             set_source_lifecycle_records(
                 tuple(_repository.get_lifecycle(source.source_id) for source in _sources)
+            )
+            set_source_freshness_policies(
+                tuple(
+                    policy
+                    for source in _sources
+                    if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+                )
             )
             set_source_registry_error("")
             set_registration_validation(_validation)
@@ -754,6 +790,13 @@ def _(mo, registered_sources):
         )
         activate_source_button = mo.ui.run_button(label="Activate source")
         pause_source_button = mo.ui.run_button(label="Pause source")
+        freshness_age_input = mo.ui.text(
+            value="",
+            label="Max observation age (seconds)",
+            placeholder="e.g. 300",
+        )
+        save_freshness_policy_button = mo.ui.run_button(label="Save freshness policy")
+        clear_freshness_policy_button = mo.ui.run_button(label="Clear freshness policy")
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
             kind="success",
@@ -762,11 +805,17 @@ def _(mo, registered_sources):
         source_selector = None
         activate_source_button = None
         pause_source_button = None
+        freshness_age_input = None
+        save_freshness_policy_button = None
+        clear_freshness_policy_button = None
         load_registered_source_button = None
     return (
         activate_source_button,
+        clear_freshness_policy_button,
+        freshness_age_input,
         load_registered_source_button,
         pause_source_button,
+        save_freshness_policy_button,
         source_selector,
     )
 
