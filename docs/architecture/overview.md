@@ -232,9 +232,10 @@ OPC UA connector proof와 registration identity는 registry v4를 통해 persist
 surface까지 연결되었습니다. 현재 connector는 explicit variable NodeId를 한 번 읽어 protocol
 quality/timestamp를 보존하고, application/registry는 같은 endpoint/NodeId mapping을 `RegisteredSource`로
 round-trip합니다. Operations는 FILE과 OPC UA detail을 type별로 표시하며 OPC UA source에서는 FILE 전용
-Load/Run action을 노출하지 않습니다. 다만 OPC UA source를 UI에서 등록하는 workflow, `AssetObservationSummary`
-projection, connector lifecycle execution, runtime receipt/connection telemetry, subscription/reconnect는 아직
-연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+Load/Run action을 노출하지 않습니다. Operations Add source는 OPC UA endpoint와 explicit `channel_id,node_id`
+mapping을 입력받아 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. 이 registration workflow는
+network connect/test, browse 또는 read를 수행하지 않으며 `AssetObservationSummary` projection, connector lifecycle
+execution, runtime receipt/connection telemetry, subscription/reconnect는 아직 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
 Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
 browse/discovery UX, subscription, reconnect/backoff/buffering은 후속 requirement에서 확장합니다.
 
