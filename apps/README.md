@@ -101,12 +101,14 @@ ACTIVE
   -> SourceReceiptEvidence 생성
   -> latest runtime receipt persistence
   -> success: ACTIVE 유지
-  -> source/runtime failure: ERROR + failure detail
+  -> source validation/I/O failure: ERROR + failure detail
+  -> platform runtime-state failure: FAILED + ACTIVE 유지
 ```
 
 Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
-ACTIVE lifecycle을 반드시 요구하고, 실패를 lifecycle evidence로 기록합니다. Runtime persistence failure가
-발생한 경우에도 이미 validation된 observation을 runtime success로 승격하지 않으며 cycle 자체는 FAILED입니다.
+ACTIVE lifecycle을 반드시 요구합니다. Source validation/I/O failure만 source lifecycle ERROR로 기록하고,
+runtime-state persistence failure는 platform-owned failure로 분류해 cycle 자체는 FAILED지만 source lifecycle은
+ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
 현재는 사용자가 버튼으로 한 iteration을 실행하는 구조이고 background polling, retry/backoff, buffering,
 connector session은 아직 구현하지 않습니다.
 
