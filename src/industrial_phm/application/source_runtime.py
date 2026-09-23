@@ -38,6 +38,19 @@ class SourceRuntimeRepository(Protocol):
         ...
 
 
+def validate_distinct_source_state_paths(
+    registry_path: Path,
+    runtime_path: Path,
+) -> None:
+    """Reject configuration that could let runtime writes overwrite control-plane state."""
+    if not isinstance(registry_path, Path) or not isinstance(runtime_path, Path):
+        raise ValueError("registry_path and runtime_path must be pathlib.Path values")
+    if registry_path.expanduser().resolve(strict=False) == runtime_path.expanduser().resolve(
+        strict=False
+    ):
+        raise ValueError("source runtime state path must differ from source registry path")
+
+
 class JsonSourceRuntimeRepository:
     """Single-writer local JSON repository for latest source receipt evidence.
 
