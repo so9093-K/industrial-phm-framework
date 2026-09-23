@@ -486,14 +486,11 @@ def _(
             _timestamp_column = registration_timestamp_input.value.strip() or None
             if _timestamp_column is not None and _timestamp_column not in _common_columns:
                 raise ValueError(
-                    "timestamp column was not discovered in every CSV file: "
-                    + _timestamp_column
+                    "timestamp column was not discovered in every CSV file: " + _timestamp_column
                 )
 
             _sampling_rate_text = registration_sampling_rate_input.value.strip()
-            _sampling_rate_hz = (
-                None if not _sampling_rate_text else float(_sampling_rate_text)
-            )
+            _sampling_rate_hz = None if not _sampling_rate_text else float(_sampling_rate_text)
             _tolerance_text = registration_tolerance_input.value.strip()
             _tolerance = None if not _tolerance_text else float(_tolerance_text)
             _minimum_samples = int(registration_minimum_samples_input.value.strip())
@@ -557,10 +554,7 @@ def _(
 ):
     def _escape(value: str) -> str:
         return (
-            value.replace("\\", "\\\\")
-            .replace("|", "\\|")
-            .replace("`", "\\`")
-            .replace("\n", " ")
+            value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`").replace("\n", " ")
         )
 
     _current_signature = (
@@ -590,12 +584,14 @@ def _(
             f"`{_escape(column)}`" for column in source_discovery.common_columns
         )
         if source_discovery.preview_rows:
-            _preview_header = "| " + " | ".join(
-                _escape(column) for column in source_discovery.representative_columns
-            ) + " |"
-            _preview_rule = "| " + " | ".join(
-                "---" for _ in source_discovery.representative_columns
-            ) + " |"
+            _preview_header = (
+                "| "
+                + " | ".join(_escape(column) for column in source_discovery.representative_columns)
+                + " |"
+            )
+            _preview_rule = (
+                "| " + " | ".join("---" for _ in source_discovery.representative_columns) + " |"
+            )
             _preview_rows = tuple(
                 "| " + " | ".join(_escape(value) for value in row) + " |"
                 for row in source_discovery.preview_rows
