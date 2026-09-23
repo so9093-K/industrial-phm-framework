@@ -302,7 +302,6 @@ def test_registered_source_cycle_rejects_naive_or_regressing_execution_time(
         )
 
 
-
 def test_registered_file_source_cycle_skips_active_opcua_without_lifecycle_error(
     tmp_path: Path,
 ) -> None:
