@@ -77,7 +77,11 @@ class SourceConnectionAttemptEvidence:
             if self.detail is not None:
                 raise ValueError("succeeded connection attempt must not carry detail")
         else:
-            if self.detail is None or not isinstance(self.detail, str) or not self.detail.strip():
+            if (
+                self.detail is None
+                or not isinstance(self.detail, str)
+                or not self.detail.strip()
+            ):
                 raise ValueError("failed connection attempt requires detail")
             if self.detail != self.detail.strip():
                 raise ValueError("connection attempt detail must not contain surrounding whitespace")
