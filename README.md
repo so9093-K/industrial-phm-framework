@@ -26,7 +26,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 ## 주요 기능
 
 - **센서 데이터 준비** — XJTU-SY, IMS Bearings, MIMII DUE와 명시적으로 mapping한 일반 CSV export의 구조·기본 품질을 확인하고 canonical 분석 입력으로 변환합니다.
-- **첫 OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint의 명시된 variable NodeId를 한 번 읽고 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform `received_at`을 분리해 보존합니다. 같은 endpoint/NodeId mapping을 `OpcUaSourceConfig`로 `RegisteredSource` identity에 표현할 수 있지만, persistent Source Registry/Operations/continuous ingestion에는 아직 연결하지 않습니다.
+- **첫 OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint의 명시된 variable NodeId를 한 번 읽고 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform `received_at`을 분리해 보존합니다. 같은 endpoint/NodeId mapping을 `OpcUaSourceConfig`로 `RegisteredSource` identity에 표현하고 local JSON registry에 영속할 수 있으며 Operations Sources에서 설정을 읽어 표시합니다. OPC UA 등록 UX, live runtime, continuous ingestion은 아직 연결하지 않습니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
@@ -100,9 +100,10 @@ STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 
 one-shot 실행을 유지하고, CLI의 `operations poll-source`는 같은 runtime cycle을 caller-owned synchronous
 loop로 반복할 수 있습니다. 이 polling runtime은 background service나 live connector가 아니며,
 retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다. 별도
-`industrial_phm.connectors.opcua` module에는 첫 OPC UA one-shot read proof가 추가됐지만, 현재는
-anonymous/NoSecurity + explicit NodeId read에 한정되고 Source Registry/Operations lifecycle이나 polling
-runtime과 아직 연결되지 않습니다.
+`industrial_phm.connectors.opcua` module의 OPC UA one-shot read proof와 같은 endpoint/NodeId mapping은
+`industrial-phm-source-registry-v4`에 영속할 수 있고 Operations Sources에서 type-specific detail로 확인할 수
+있습니다. 다만 현재 Add source UX는 prepared file/history 전용이며 OPC UA lifecycle을 ACTIVE로 바꿔도 live
+connector runtime이나 polling/subscription이 시작되지는 않습니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
@@ -153,8 +154,8 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> Operations UI에서 관측 / data quality / PHM evidence 연결
   -> source lifecycle / freshness / prepared-file polling runtime
   -> first OPC UA one-shot read proof
-  -> OPC UA registration contract
-  -> OPC UA persistence / Sources UX / browse / connection telemetry / subscription-reconnect runtime
+  -> OPC UA registration contract / registry v4 persistence / Sources read surface
+  -> OPC UA registration UX / browse / connection telemetry / subscription-reconnect runtime
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
@@ -178,9 +179,10 @@ freshness policy를 묶은 source-health read model은 제공하지만 boolean h
 success를 추론하지 않습니다. Operations UI의 runtime cycle은 explicit single iteration이고, CLI의
 `operations poll-source`는 이 cycle을 일정 interval로 동기 반복합니다. Polling은 failure/non-ACTIVE에서
 즉시 멈추며 retry/backoff나 background daemon을 만들지 않습니다. Browser upload/file-picker, source
-edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol read와 application-level
-`OpcUaSourceConfig` / `SourceType.OPCUA` registration identity까지 검증했습니다. 다만 현재 JSON registry와
-Operations Sources는 file-only이므로 OPC UA persistence/registration UX, browse/discovery,
+edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol read, application-level
+`OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
+read surface까지 검증했습니다. Registry에 보존되는 endpoint는 anonymous/NoSecurity `opc.tcp`만 허용하고
+endpoint userinfo credential은 거부합니다. 다만 OPC UA Add source UX, browse/discovery,
 subscription/reconnect와 live ingestion 통합은 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
