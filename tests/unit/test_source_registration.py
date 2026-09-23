@@ -161,7 +161,6 @@ def test_in_memory_source_repository_rejects_unknown_source_id() -> None:
         repository.get("missing-source")
 
 
-
 def test_opcua_source_config_reuses_connector_mapping_contract() -> None:
     first_mapping = OpcUaNodeMapping(
         channel_id="vibration_x",
