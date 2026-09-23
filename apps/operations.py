@@ -1610,11 +1610,7 @@ def _(
             else:
                 set_runtime_cycle_success("")
                 set_runtime_cycle_skipped("")
-                _scope = (
-                    "unknown"
-                    if _result.failure_scope is None
-                    else _result.failure_scope.value
-                )
+                _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
                 set_runtime_cycle_error(
                     f"{_scope} failure · {_result.message or 'runtime cycle failed'}"
                 )
