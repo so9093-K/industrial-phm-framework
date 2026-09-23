@@ -1659,7 +1659,6 @@ def _(initial_error, initial_summary, initial_timeline, mo):
 
 @app.cell
 def _(
-    FileSourceConfig,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     Path,
@@ -1690,11 +1689,6 @@ def _(
             validate_distinct_source_state_paths(_registry_path, _runtime_path)
             _source_repository = JsonSourceRepository(_registry_path)
             _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
-            _selected = _source_repository.get(source_selector.value)
-            if not isinstance(_selected.config, FileSourceConfig):
-                raise ValueError(
-                    "runtime cycle currently supports registered file sources only"
-                )
             _result = run_registered_file_source_cycle(
                 _source_repository,
                 _source_repository,
