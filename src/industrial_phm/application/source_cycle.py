@@ -109,8 +109,8 @@ def run_registered_file_source_cycle(
     """Run one ACTIVE registered-file source cycle.
 
     REGISTERED, PAUSED, ERROR, or non-file sources are skipped without source I/O. ACTIVE
-    file sources re-validate the current source bytes, create receipt evidence, and persist the latest
-    receipt. Source validation/I/O failures transition lifecycle ACTIVE -> ERROR with the
+    file sources re-validate the current source bytes, create receipt evidence, and persist
+    the latest receipt. Source validation/I/O failures transition lifecycle ACTIVE -> ERROR with the
     concrete failure detail. Platform runtime-state failures fail the cycle without changing
     source lifecycle. This is one explicit iteration, not a scheduler or background poller.
     """
