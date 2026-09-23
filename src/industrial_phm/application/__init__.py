@@ -45,11 +45,6 @@ from industrial_phm.application.source_receipt import (
     SourceReceiptEvidence,
     receive_registered_file_source_observation,
 )
-from industrial_phm.application.source_runtime import (
-    JsonSourceRuntimeRepository,
-    SourceRuntimeFormatError,
-    SourceRuntimeRepository,
-)
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
@@ -59,6 +54,11 @@ from industrial_phm.application.source_registration import (
     SourceRepository,
     SourceType,
     UnknownRegisteredSourceError,
+)
+from industrial_phm.application.source_runtime import (
+    JsonSourceRuntimeRepository,
+    SourceRuntimeFormatError,
+    SourceRuntimeRepository,
 )
 from industrial_phm.application.source_registry import (
     JsonSourceRepository,
