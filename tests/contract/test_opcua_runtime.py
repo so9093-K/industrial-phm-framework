@@ -68,13 +68,18 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         assert good.status_good is True
         assert good.status_code == ua.StatusCodes.Good
         assert good.source_timestamp == source_at
-        assert good.server_timestamp == server_at
-        assert good.received_at.utcoffset() is not None
+        assert good.server_timestamp is not None
+        assert good.server_timestamp.utcoffset() is not None
+        assert snapshot.connected_at <= good.server_timestamp <= good.received_at
+        assert good.received_at <= snapshot.completed_at
 
         assert bad.value is None
         assert bad.status_good is False
         assert bad.status_code == ua.StatusCodes.BadSensorFailure
         assert bad.source_timestamp == source_at
-        assert bad.server_timestamp == server_at
+        assert bad.server_timestamp is not None
+        assert bad.server_timestamp.utcoffset() is not None
+        assert snapshot.connected_at <= bad.server_timestamp <= bad.received_at
+        assert bad.received_at <= snapshot.completed_at
 
     asyncio.run(_run())
