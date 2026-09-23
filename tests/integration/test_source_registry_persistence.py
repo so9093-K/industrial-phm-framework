@@ -587,7 +587,6 @@ def test_v3_registry_rejects_opcua_source_type_as_schema_incompatible(tmp_path: 
         JsonSourceRepository(registry).list_sources()
 
 
-
 def test_json_source_repository_rejects_invalid_opcua_node_mapping_shape(
     tmp_path: Path,
 ) -> None:
