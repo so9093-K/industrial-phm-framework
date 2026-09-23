@@ -189,6 +189,25 @@ def test_registered_source_cycle_error_state_requires_explicit_reactivation(
     assert skipped.lifecycle_before.state == SourceLifecycleState.ERROR
 
 
+def test_registered_source_cycle_rejects_naive_received_at_without_marking_source_error(
+    tmp_path: Path,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+    _activate(source_repository, source.source_id)
+
+    with pytest.raises(ValueError, match="received_at override"):
+        run_registered_file_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+            received_at=datetime.fromisoformat("2026-09-23T10:00:05"),
+        )
+
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+
+
 def test_registered_source_cycle_rejects_naive_or_regressing_execution_time(
     tmp_path: Path,
 ) -> None:
