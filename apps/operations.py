@@ -30,6 +30,7 @@ def _():
         receive_registered_file_source_observation,
         register_file_source,
         transition_source_lifecycle,
+        validate_distinct_source_state_paths,
     )
     from industrial_phm.contracts import DataQualityState
 
@@ -56,6 +57,7 @@ def _():
         mo,
         register_file_source,
         transition_source_lifecycle,
+        validate_distinct_source_state_paths,
         os,
     )
 
@@ -121,7 +123,14 @@ def _(
 
 
 @app.cell
-def _(JsonSourceRepository, JsonSourceRuntimeRepository, Path, load_observation, os):
+def _(
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    Path,
+    load_observation,
+    os,
+    validate_distinct_source_state_paths,
+):
     source_registry_default = os.environ.get(
         "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
         "artifacts/operations/source-registry.json",
@@ -150,7 +159,10 @@ def _(JsonSourceRepository, JsonSourceRuntimeRepository, Path, load_observation,
         initial_source_registry_error = str(error)
 
     try:
-        _runtime_repository = JsonSourceRuntimeRepository(Path(source_runtime_default))
+        _registry_path = Path(source_registry_default)
+        _runtime_path = Path(source_runtime_default)
+        validate_distinct_source_state_paths(_registry_path, _runtime_path)
+        _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
         _registered_source_ids = {source.source_id for source in initial_registered_sources}
         initial_source_runtime_receipts = tuple(
             receipt
@@ -1461,8 +1473,10 @@ def _(
     set_source_runtime_error,
     set_source_runtime_receipts,
     set_timeline,
+    source_registry_default,
     source_runtime_default,
     source_selector,
+    validate_distinct_source_state_paths,
 ):
     if load_registered_source_button is not None and load_registered_source_button.value:
         try:
@@ -1490,7 +1504,10 @@ def _(
                 f"Loaded current observation from registered source: {_selected.source_id}"
             )
             try:
-                _runtime_repository = JsonSourceRuntimeRepository(Path(source_runtime_default))
+                _registry_path = Path(source_registry_default)
+                _runtime_path = Path(source_runtime_default)
+                validate_distinct_source_state_paths(_registry_path, _runtime_path)
+                _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
                 _runtime_repository.record_receipt(_received.receipt)
                 _registered_ids = {source.source_id for source in registered_sources}
                 _runtime_receipts = tuple(
