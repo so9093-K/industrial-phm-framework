@@ -137,7 +137,9 @@ SourceHealthAssessment
 Prepared-file runtime은 connector session telemetry가 없으므로 file을 성공적으로 읽었거나 receipt가 fresh해도
 connection을 connected/healthy로 승격하지 않습니다. ACTIVE인데 아직 receipt가 없으면 NO_RECEIPT,
 source lifecycle ERROR면 SOURCE_ERROR, policy와 timing evidence가 있으면 freshness-derived data-flow state를
-표시합니다. 이는 source monitoring read model이며 asset health나 PHM finding과도 별개입니다.
+표시합니다. PAUSED/ERROR에서 다시 ACTIVE로 전환한 경우 current lifecycle change보다 오래된 persisted
+receipt는 새 activation의 성공 evidence로 재사용하지 않고 NO_RECEIPT로 남깁니다. 이는 source monitoring
+read model이며 asset health나 PHM finding과도 별개입니다.
 
 ### Receipt timing
 
