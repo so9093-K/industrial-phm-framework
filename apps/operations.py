@@ -1051,6 +1051,9 @@ def _(
     source_registry_default,
     source_receipt,
     source_registry_error,
+    source_runtime_default,
+    source_runtime_error,
+    source_runtime_receipts,
     source_selector,
 ):
     def escape_markdown_cell(value: str) -> str:
@@ -1068,7 +1071,10 @@ def _(
                     kind="danger",
                     title="Source registry unavailable",
                 ),
-                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`  \n"
+                    f"Configured runtime state: `{escape_markdown_cell(source_runtime_default)}`"
+                ),
             ],
             gap=1.2,
         )
@@ -1091,6 +1097,9 @@ def _(
     else:
         _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
         _freshness_policy_by_id = {policy.source_id: policy for policy in source_freshness_policies}
+        _runtime_receipt_by_id = {
+            receipt.source_id: receipt for receipt in source_runtime_receipts
+        }
         _rows = []
         for _source in registered_sources:
             _config = _source.config
@@ -1146,10 +1155,21 @@ def _(
             if _selected_config.sampling_rate_tolerance_ratio is None
             else f"{_selected_config.sampling_rate_tolerance_ratio:g}"
         )
-        _selected_receipt = (
+        _session_receipt = (
             source_receipt
             if source_receipt is not None and source_receipt.source_id == _selected.source_id
             else None
+        )
+        _persisted_receipt = _runtime_receipt_by_id.get(_selected.source_id)
+        _selected_receipt = (
+            _session_receipt if _session_receipt is not None else _persisted_receipt
+        )
+        _receipt_origin = (
+            "current session"
+            if _session_receipt is not None
+            else "persisted latest"
+            if _persisted_receipt is not None
+            else "unavailable"
         )
         _freshness_policy_label = (
             "Not configured"
@@ -1202,7 +1222,8 @@ def _(
                         "| --- | --- |\n"
                         f"| Latest observed_at | {_observed_label} |\n"
                         f"| received_at | {_selected_receipt.received_at.isoformat()} |\n"
-                        f"| observed→received delivery lag | {_lag_label} |"
+                        f"| observed→received delivery lag | {_lag_label} |\n"
+                        f"| Receipt state | {_receipt_origin} |"
                     ),
                     mo.callout(
                         "received_at is the time this prepared source load was accepted after "
@@ -1374,6 +1395,21 @@ def _(
                             kind="info",
                             title="On-demand observation load",
                         )
+                    )
+                ),
+                (
+                    mo.callout(
+                        source_runtime_error,
+                        kind="danger",
+                        title="Source runtime state unavailable",
+                    )
+                    if source_runtime_error
+                    else mo.callout(
+                        "Latest accepted registered-source receipt is persisted separately "
+                        "from the source registry. Only latest receipt timing is stored; "
+                        "connection status, retry/buffer state and receipt history are not.",
+                        kind="info",
+                        title="Runtime receipt persistence",
                     )
                 ),
                 _receipt_evidence,
