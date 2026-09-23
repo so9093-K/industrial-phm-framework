@@ -228,6 +228,8 @@ def _(
     initial_source_freshness_policies,
     initial_source_lifecycle_records,
     initial_source_registry_error,
+    initial_source_runtime_error,
+    initial_source_runtime_receipts,
     mo,
 ):
     get_registered_sources, set_registered_sources = mo.state(initial_registered_sources)
@@ -238,15 +240,23 @@ def _(
         initial_source_lifecycle_records
     )
     get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
+    get_source_runtime_error, set_source_runtime_error = mo.state(initial_source_runtime_error)
+    get_source_runtime_receipts, set_source_runtime_receipts = mo.state(
+        initial_source_runtime_receipts
+    )
     return (
         get_registered_sources,
         get_source_freshness_policies,
         get_source_lifecycle_records,
         get_source_registry_error,
+        get_source_runtime_error,
+        get_source_runtime_receipts,
         set_registered_sources,
         set_source_freshness_policies,
         set_source_lifecycle_records,
         set_source_registry_error,
+        set_source_runtime_error,
+        set_source_runtime_receipts,
     )
 
 
@@ -256,16 +266,22 @@ def _(
     get_source_freshness_policies,
     get_source_lifecycle_records,
     get_source_registry_error,
+    get_source_runtime_error,
+    get_source_runtime_receipts,
 ):
     registered_sources = get_registered_sources()
     source_freshness_policies = get_source_freshness_policies()
     source_lifecycle_records = get_source_lifecycle_records()
     source_registry_error = get_source_registry_error()
+    source_runtime_error = get_source_runtime_error()
+    source_runtime_receipts = get_source_runtime_receipts()
     return (
         registered_sources,
         source_freshness_policies,
         source_lifecycle_records,
         source_registry_error,
+        source_runtime_error,
+        source_runtime_receipts,
     )
 
 
