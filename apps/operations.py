@@ -1582,19 +1582,25 @@ def _(
         else:
             set_source_lifecycle_records(_lifecycle_records)
             if _result.state == SourceRuntimeCycleState.SUCCEEDED:
-                if _result.received is None:
-                    raise RuntimeError("succeeded runtime cycle returned no received observation")
-                _loaded = _result.received.observation
-                set_observation(_loaded.latest)
-                set_timeline(_loaded.timeline)
-                set_source_receipt(_result.received.receipt)
-                set_load_error("")
-                set_runtime_cycle_error("")
-                set_runtime_cycle_skipped("")
-                set_runtime_cycle_success(
-                    f"Runtime cycle succeeded: {_result.source_id} · "
-                    f"received {_result.received.receipt.received_at.isoformat()}"
-                )
+                _received = _result.received
+                if _received is None:
+                    set_runtime_cycle_success("")
+                    set_runtime_cycle_skipped("")
+                    set_runtime_cycle_error(
+                        "runtime cycle invariant violation: succeeded result has no observation"
+                    )
+                else:
+                    _loaded = _received.observation
+                    set_observation(_loaded.latest)
+                    set_timeline(_loaded.timeline)
+                    set_source_receipt(_received.receipt)
+                    set_load_error("")
+                    set_runtime_cycle_error("")
+                    set_runtime_cycle_skipped("")
+                    set_runtime_cycle_success(
+                        f"Runtime cycle succeeded: {_result.source_id} · "
+                        f"received {_received.receipt.received_at.isoformat()}"
+                    )
             elif _result.state == SourceRuntimeCycleState.SKIPPED:
                 set_runtime_cycle_error("")
                 set_runtime_cycle_success("")
