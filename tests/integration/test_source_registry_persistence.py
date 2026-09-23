@@ -48,6 +48,30 @@ def _source(
     )
 
 
+def _opcua_source(*, source_id: str = "opcua-source") -> RegisteredSource:
+    return RegisteredSource(
+        source_id=source_id,
+        name=f"Registered ${source_id}",
+        config=OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            measurement_point_id="drive-end-bearing",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+                OpcUaNodeMapping(
+                    channel_id="temperature",
+                    node_id="ns=2;s=Machine/Temperature",
+                ),
+            ),
+            timeout_seconds=2.5,
+        ),
+        registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
+    )
+
+
 def test_json_source_repository_implements_registration_and_lifecycle_contracts(
     tmp_path: Path,
 ) -> None:
@@ -108,7 +132,7 @@ def test_json_source_repository_writes_sources_and_lifecycle_in_deterministic_id
     source_ids = [item["source_id"] for item in payload["sources"]]
     lifecycle_ids = [item["source_id"] for item in payload["lifecycle"]]
 
-    assert payload["schema"] == "industrial-phm-source-registry-v3"
+    assert payload["schema"] == "industrial-phm-source-registry-v4"
     assert source_ids == ["source-a", "source-b"]
     assert lifecycle_ids == ["source-a", "source-b"]
 
@@ -191,8 +215,36 @@ def test_json_source_repository_reads_v1_as_implicit_registered_and_upgrades_on_
     )
 
     upgraded = json.loads(registry.read_text(encoding="utf-8"))
-    assert upgraded["schema"] == "industrial-phm-source-registry-v3"
+    assert upgraded["schema"] == "industrial-phm-source-registry-v4"
     assert upgraded["lifecycle"][0]["state"] == "paused"
+
+
+def test_json_source_repository_reads_v3_file_registry_and_upgrades_on_write(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    legacy_v3 = dict(payload)
+    legacy_v3["schema"] = "industrial-phm-source-registry-v3"
+    registry.write_text(json.dumps(legacy_v3), encoding="utf-8")
+
+    reopened = JsonSourceRepository(registry)
+    assert reopened.get(source.source_id) == source
+
+    reopened.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id=source.source_id,
+            max_observation_age_seconds=60.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:06:00+09:00"),
+        )
+    )
+
+    upgraded = json.loads(registry.read_text(encoding="utf-8"))
+    assert upgraded["schema"] == "industrial-phm-source-registry-v4"
 
 
 def test_json_source_repository_reads_v2_without_freshness_policy_and_upgrades_on_policy_write(
@@ -222,7 +274,7 @@ def test_json_source_repository_reads_v2_without_freshness_policy_and_upgrades_o
     reopened.set_freshness_policy(policy)
 
     upgraded = json.loads(registry.read_text(encoding="utf-8"))
-    assert upgraded["schema"] == "industrial-phm-source-registry-v3"
+    assert upgraded["schema"] == "industrial-phm-source-registry-v4"
     assert upgraded["freshness_policies"][0]["source_id"] == source.source_id
     assert upgraded["freshness_policies"][0]["max_observation_age_seconds"] == 300.0
 
@@ -375,7 +427,7 @@ def test_json_source_repository_rejects_unknown_source_type(tmp_path: Path) -> N
     repository.register(_source())
 
     payload = json.loads(registry.read_text(encoding="utf-8"))
-    payload["sources"][0]["source_type"] = "opcua"
+    payload["sources"][0]["source_type"] = "mqtt"
     registry.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(SourceRegistryFormatError, match="source_type is unsupported"):
@@ -490,29 +542,47 @@ def test_json_source_repository_rejects_freshness_policy_for_unregistered_source
         JsonSourceRepository(registry).list_sources()
 
 
-def test_json_source_repository_rejects_opcua_until_persistence_schema_supports_it(
-    tmp_path: Path,
-) -> None:
+def test_json_source_repository_round_trips_opcua_source_config(tmp_path: Path) -> None:
     registry = tmp_path / "sources.json"
     repository = JsonSourceRepository(registry)
-    source = RegisteredSource(
-        source_id="opcua-source",
-        name="Pump OPC UA",
-        config=OpcUaSourceConfig(
-            endpoint_url="opc.tcp://plc.example.test:4840",
-            asset_id="pump-01",
-            measurement_point_id="drive-end-bearing",
-            node_mappings=(
-                OpcUaNodeMapping(
-                    channel_id="vibration_x",
-                    node_id="ns=2;s=Machine/VibrationX",
-                ),
-            ),
-        ),
-        registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
-    )
+    source = _opcua_source()
 
-    with pytest.raises(ValueError, match="prepared file sources only"):
-        repository.register(source)
+    repository.register(source)
 
-    assert not registry.exists()
+    reopened = JsonSourceRepository(registry)
+    loaded = reopened.get(source.source_id)
+
+    assert loaded == source
+    assert loaded.source_type.value == "opcua"
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    assert payload["schema"] == "industrial-phm-source-registry-v4"
+    assert payload["sources"][0]["config"] == {
+        "asset_id": "pump-01",
+        "endpoint_url": "opc.tcp://plc.example.test:4840",
+        "measurement_point_id": "drive-end-bearing",
+        "node_mappings": [
+            {
+                "channel_id": "vibration_x",
+                "node_id": "ns=2;s=Machine/VibrationX",
+            },
+            {
+                "channel_id": "temperature",
+                "node_id": "ns=2;s=Machine/Temperature",
+            },
+        ],
+        "timeout_seconds": 2.5,
+    }
+
+
+def test_v3_registry_rejects_opcua_source_type_as_schema_incompatible(tmp_path: Path) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_opcua_source())
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["schema"] = "industrial-phm-source-registry-v3"
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRegistryFormatError, match="unsupported by this registry schema"):
+        JsonSourceRepository(registry).list_sources()
+
