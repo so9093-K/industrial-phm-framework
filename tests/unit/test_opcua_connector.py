@@ -401,11 +401,11 @@ def test_opcua_subscription_config_bounds_session_and_queue() -> None:
             publishing_interval_ms=0.0,
         )
 
-    with pytest.raises(ValueError, match="session_timeout_seconds"):
+    with pytest.raises(ValueError, match="collection_timeout_seconds"):
         OpcUaSubscriptionConfig(
             endpoint_url="opc.tcp://localhost:4840",
             node_mappings=mapping,
-            session_timeout_seconds=0.0,
+            collection_timeout_seconds=0.0,
         )
 
     with pytest.raises(ValueError, match="max_events"):
@@ -474,7 +474,7 @@ def test_opcua_subscription_collects_bounded_datachange_notifications(
                     OpcUaNodeMapping("temperature", "ns=2;s=Temperature"),
                 ),
                 publishing_interval_ms=250.0,
-                session_timeout_seconds=3.0,
+                collection_timeout_seconds=3.0,
                 max_events=2,
                 queue_maxsize=7,
                 timeout_seconds=2.5,
@@ -537,7 +537,7 @@ def test_opcua_subscription_timeout_returns_partial_result(
                 node_mappings=(
                     OpcUaNodeMapping("vibration_x", "ns=2;s=VibrationX"),
                 ),
-                session_timeout_seconds=1.0,
+                collection_timeout_seconds=1.0,
                 max_events=2,
             )
         )
