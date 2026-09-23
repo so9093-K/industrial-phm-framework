@@ -99,13 +99,6 @@ SourceLifecycleRepository
   └ set_lifecycle
 
 SourceLifecycleRecord
-  └ REGISTERED / ACTIVE / PAUSED / ERROR
-
-SourceLifecycleRepository
-  ├ get_lifecycle
-  └ set_lifecycle
-
-SourceLifecycleRecord
   ├ REGISTERED
   ├ ACTIVE
   ├ PAUSED
@@ -125,6 +118,14 @@ Registered file observation use case
     -> RegisteredFileObservation
          ├ latest AssetObservationSummary
          └ AssetObservationTimeline?
+
+On-demand receipt timing
+  RegisteredFileObservation
+    -> successful application acceptance
+    -> SourceReceiptEvidence
+         ├ latest observed_at?
+         ├ received_at
+         └ signed lag?  # only when timestamps are timezone-comparable
 ```
 
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
@@ -143,8 +144,12 @@ on-demand Observation load까지 연결합니다. ACTIVE는 runtime consumption�
 state이며 connection/health/ingestion 성공을 뜻하지 않습니다.
 `load_registered_file_source_observation`은 registration-time 검증을 현재 상태로 재사용하지 않고 매 load마다
 현재 source bytes를 기존 field CSV/timeline 경계로 재검증합니다. 따라서 registration은 observation cache나
-source-health evidence가 아닙니다. Browser upload/file-picker, source edit/delete, lifecycle을 실제로
-소비하는 ingestion runtime, `received_at`/freshness, OPC UA/MQTT connector는 후속 경계입니다.
+source-health evidence가 아닙니다. `receive_registered_file_source_observation`은 이 검증이 성공한 뒤
+application acceptance 시각을 timezone-aware `received_at`으로 기록합니다. Latest `observed_at`이
+timezone-aware일 때만 signed lag를 계산하고, timestamp/timezone이 없으면 lag를 unavailable로 남깁니다.
+Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 않으며 source-specific freshness
+threshold가 아직 없으므로 fresh/stale 상태도 만들지 않습니다. Browser upload/file-picker, source edit/delete,
+lifecycle을 실제로 소비하는 ingestion runtime, freshness policy, OPC UA/MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 

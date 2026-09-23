@@ -76,11 +76,14 @@ data quality, exact source snapshot provenance(SHA-256/byte size), declared vali
 `Source → Discover & Preview → Mapping → Validate & Register` 순서로 등록하고, versioned local registry의
 registered source 목록과 mapping/configuration을 확인할 수 있습니다. 등록 전에 기존 field CSV/timeline
 validation을 그대로 통과해야 하며, 등록된 file/history source는 Sources에서 **Load registered source**로
-현재 bytes를 다시 검증해 existing Observation/Timeline surface에 직접 연결할 수 있습니다. Source lifecycle은
-`REGISTERED / ACTIVE / PAUSED / ERROR` control-plane state로 별도 보존하며 Operations에서 Activate/Pause를
-수행할 수 있습니다. 여기서 ACTIVE는 runtime이 소비하도록 허용된 administrative intent일 뿐 실제
-connection/health/freshness/continuous-ingestion의 증거가 아닙니다. Live connection/ingestion은 아직
-`Not instrumented`/`Not connected`로 표시합니다.
+현재 bytes를 다시 검증해 existing Observation/Timeline surface에 직접 연결할 수 있습니다. 성공한 registered
+source load는 application acceptance 시각을 timezone-aware `received_at`으로 기록하고 latest
+`observed_at`과 비교 가능한 경우 signed lag를 표시합니다. Timestamp/timezone이 없으면 lag를 만들지
+않습니다. Source lifecycle은 `REGISTERED / ACTIVE / PAUSED / ERROR` control-plane state로 별도 보존하며
+Operations에서 Activate/Pause를 수행할 수 있습니다. 여기서 ACTIVE는 runtime이 소비하도록 허용된
+administrative intent일 뿐 실제 connection/health/freshness/continuous-ingestion의 증거가 아닙니다.
+Source-specific freshness threshold는 아직 없으므로 fresh/stale 상태도 만들지 않습니다. Live
+connection/ingestion은 아직 `Not instrumented`/`Not connected`로 표시합니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
@@ -129,8 +132,10 @@ file/history source를 discover, preview, map, validate한 뒤 등록하고, 선
 Observation/Timeline으로 다시 로드할 수 있습니다. Load 시 source bytes를 재검증하므로 registration 시점의
 검증 결과를 현재 관측으로 캐시하지 않습니다. Source lifecycle state는 registry v2에 영속되고 기존 v1
 registry는 읽을 때 implicit REGISTERED로 호환됩니다. Operations에서 Activate/Pause는 가능하지만 ACTIVE를
-online/healthy/ingesting으로 해석하지 않습니다. Browser upload/file-picker, source edit/delete,
-freshness/received-at와 live connection/ingestion은 아직 후속 범위입니다.
+online/healthy/ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
+비교 가능한 observed→received lag evidence가 추가되었지만 source-specific freshness policy와 persistent
+runtime receipt history는 아직 없습니다. Browser upload/file-picker, source edit/delete, freshness policy와
+live connection/ingestion은 후속 범위입니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
