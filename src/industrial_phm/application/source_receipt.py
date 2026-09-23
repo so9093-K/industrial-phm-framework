@@ -114,14 +114,10 @@ def project_registered_opcua_observation_summary(
     if not isinstance(observation, RegisteredOpcUaObservation):
         raise ValueError("observation must be a RegisteredOpcUaObservation")
 
-    non_good = tuple(
-        item for item in observation.snapshot.observations if not item.status_good
-    )
+    non_good = tuple(item for item in observation.snapshot.observations if not item.status_good)
     issues: tuple[DataQualityIssue, ...] = ()
     if non_good:
-        detail = ", ".join(
-            f"{item.channel_id}={item.status_text}" for item in non_good
-        )
+        detail = ", ".join(f"{item.channel_id}={item.status_text}" for item in non_good)
         issues = (
             DataQualityIssue(
                 code="opcua-non-good-status",
