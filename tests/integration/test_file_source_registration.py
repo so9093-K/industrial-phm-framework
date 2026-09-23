@@ -59,22 +59,18 @@ def test_discover_snapshot_reports_columns_size_and_preview(tmp_path: Path) -> N
     assert discovery.representative_columns == discovery.common_columns
     assert discovery.header_variant_count == 1
     assert discovery.representative_file == "pump.csv"
-    assert discovery.preview_rows == (
-        ("2026-09-23T10:00:00+09:00", "-1.0", "42.0"),
-    )
+    assert discovery.preview_rows == (("2026-09-23T10:00:00+09:00", "-1.0", "42.0"),)
 
 
 def test_discover_history_reports_only_columns_common_to_every_file(tmp_path: Path) -> None:
     history = tmp_path / "history"
     history.mkdir()
     (history / "a.csv").write_text(
-        "timestamp,vibration_x,temperature,optional_a\n"
-        "2026-09-23T10:00:00+09:00,-1.0,42.0,a\n",
+        "timestamp,vibration_x,temperature,optional_a\n2026-09-23T10:00:00+09:00,-1.0,42.0,a\n",
         encoding="utf-8",
     )
     (history / "b.csv").write_text(
-        "temperature,timestamp,vibration_x,optional_b\n"
-        "42.2,2026-09-23T11:00:00+09:00,1.0,b\n",
+        "temperature,timestamp,vibration_x,optional_b\n42.2,2026-09-23T11:00:00+09:00,1.0,b\n",
         encoding="utf-8",
     )
 
@@ -146,12 +142,8 @@ def test_validate_history_reuses_timeline_order_and_non_overlap_rules(tmp_path: 
     assert validation.segment_count == 2
     assert validation.total_sample_count == 4
     assert validation.quality_state == DataQualityState.PASS
-    assert validation.observed_start_at == datetime.fromisoformat(
-        "2026-09-23T10:00:00+09:00"
-    )
-    assert validation.observed_end_at == datetime.fromisoformat(
-        "2026-09-23T11:00:01+09:00"
-    )
+    assert validation.observed_start_at == datetime.fromisoformat("2026-09-23T10:00:00+09:00")
+    assert validation.observed_end_at == datetime.fromisoformat("2026-09-23T11:00:01+09:00")
 
 
 def test_register_file_source_validates_before_persistence(tmp_path: Path) -> None:
