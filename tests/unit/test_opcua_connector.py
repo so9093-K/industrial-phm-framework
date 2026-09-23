@@ -7,10 +7,13 @@ import pytest
 
 import industrial_phm.connectors.opcua as opcua_module
 from industrial_phm.connectors import (
+    OpcUaEndpointProbeConfig,
+    OpcUaEndpointProbeResult,
     OpcUaNodeMapping,
     OpcUaReadConfig,
     OpcUaRuntimeUnavailableError,
     OpcUaSourceError,
+    probe_opcua_endpoint,
     read_opcua_snapshot,
 )
 
@@ -39,14 +42,18 @@ class _FakeNode:
 class _FakeClient:
     values: ClassVar[dict[str, object]] = {}
     init_kwargs: ClassVar[dict[str, object]] = {}
+    enter_count: ClassVar[int] = 0
+    exit_count: ClassVar[int] = 0
 
     def __init__(self, **kwargs: object) -> None:
         type(self).init_kwargs = dict(kwargs)
 
     async def __aenter__(self) -> _FakeClient:
+        type(self).enter_count += 1
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        type(self).exit_count += 1
         return None
 
     def get_node(self, node_id: str) -> _FakeNode:
@@ -66,6 +73,60 @@ def _data_value(
         SourceTimestamp=source_timestamp,
         ServerTimestamp=server_timestamp,
     )
+
+
+def test_opcua_endpoint_probe_config_reuses_anonymous_endpoint_and_timeout_contract() -> None:
+    with pytest.raises(ValueError, match="anonymous only"):
+        OpcUaEndpointProbeConfig(
+            endpoint_url="opc.tcp://user:secret@localhost:4840",
+        )
+
+    with pytest.raises(ValueError, match="positive finite"):
+        OpcUaEndpointProbeConfig(
+            endpoint_url="opc.tcp://localhost:4840",
+            timeout_seconds=0.0,
+        )
+
+
+def test_opcua_endpoint_probe_records_connect_disconnect_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeClient.enter_count = 0
+    _FakeClient.exit_count = 0
+    monkeypatch.setattr(
+        opcua_module,
+        "import_module",
+        lambda name: SimpleNamespace(Client=_FakeClient),
+    )
+
+    result = asyncio.run(
+        probe_opcua_endpoint(
+            OpcUaEndpointProbeConfig(
+                endpoint_url="opc.tcp://localhost:4840/test/",
+                timeout_seconds=1.5,
+            )
+        )
+    )
+
+    assert _FakeClient.init_kwargs == {
+        "url": "opc.tcp://localhost:4840/test/",
+        "timeout": 1.5,
+        "auto_reconnect": False,
+    }
+    assert _FakeClient.enter_count == 1
+    assert _FakeClient.exit_count == 1
+    assert result.endpoint_url == "opc.tcp://localhost:4840/test/"
+    assert result.connected_at.utcoffset() is not None
+    assert result.disconnected_at >= result.connected_at
+
+
+def test_opcua_endpoint_probe_result_rejects_time_regression() -> None:
+    with pytest.raises(ValueError, match="must not be before"):
+        OpcUaEndpointProbeResult(
+            endpoint_url="opc.tcp://localhost:4840",
+            connected_at=datetime.fromisoformat("2026-09-23T10:00:01+00:00"),
+            disconnected_at=datetime.fromisoformat("2026-09-23T10:00:00+00:00"),
+        )
 
 
 def test_opcua_read_config_requires_anonymous_explicit_endpoint_and_unique_mapping() -> None:
