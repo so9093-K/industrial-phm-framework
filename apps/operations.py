@@ -1561,8 +1561,8 @@ def _(
                 registration_view,
                 mo.callout(
                     "No registered source exists in the configured local registry. "
-                    "Use Add source above to discover, map, validate and register a prepared "
-                    "CSV file or timestamped history directory.",
+                    "Use Add source above to register a prepared FILE source or an OPC UA "
+                    "endpoint with explicit/browsed NodeId mapping.",
                     kind="neutral",
                     title="Registered sources · Empty",
                 ),
@@ -1974,8 +1974,9 @@ def _(
                     load_registered_source_button
                     if _selected_is_file
                     else mo.callout(
-                        "Registered OPC UA source has no observation loader yet. Live connector "
-                        "receipt/observation projection is a later runtime slice.",
+                        "Registered OPC UA source has no manual canonical observation loader yet. "
+                        "Run active source once records protocol snapshot receipt evidence, but "
+                        "AssetObservationSummary projection remains a later slice.",
                         kind="neutral",
                         title="OPC UA observation load · Unavailable",
                     )
