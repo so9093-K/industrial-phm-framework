@@ -32,6 +32,7 @@ from industrial_phm.application.source_cycle import (
     SourceRuntimeCycleResult,
     SourceRuntimeCycleState,
     run_registered_file_source_cycle,
+    run_registered_opcua_source_cycle,
 )
 from industrial_phm.application.source_freshness import (
     SourceFreshnessAssessment,
@@ -58,8 +59,11 @@ from industrial_phm.application.source_polling import (
 )
 from industrial_phm.application.source_receipt import (
     ReceivedRegisteredFileObservation,
+    ReceivedRegisteredOpcUaObservation,
+    RegisteredOpcUaObservation,
     SourceReceiptEvidence,
     receive_registered_file_source_observation,
+    receive_registered_opcua_source_observation,
 )
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
@@ -99,7 +103,9 @@ __all__ = [
     "OpcUaSourceConfig",
     "OperationalFinding",
     "ReceivedRegisteredFileObservation",
+    "ReceivedRegisteredOpcUaObservation",
     "RegisteredFileObservation",
+    "RegisteredOpcUaObservation",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
     "SourceConnectionState",
@@ -134,8 +140,10 @@ __all__ = [
     "load_registered_file_source_observation",
     "poll_registered_file_source",
     "receive_registered_file_source_observation",
+    "receive_registered_opcua_source_observation",
     "register_file_source",
     "run_registered_file_source_cycle",
+    "run_registered_opcua_source_cycle",
     "transition_source_lifecycle",
     "validate_distinct_source_state_paths",
     "validate_operational_finding_against_run",

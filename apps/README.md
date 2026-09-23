@@ -36,7 +36,7 @@ uv run --locked --group research marimo run apps/operations.py
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
 inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**는 prepared CSV file/history-directory와
-OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Live connector runtime은 아직 연결하지 않습니다.
+OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있습니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. Operations의 Run 버튼은 아직 FILE source에만 연결됩니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
 ```text
@@ -59,9 +59,8 @@ Observation surface에 연결할 수 있습니다. 이 동작은 registration �
 내용이 invalid하게 바뀌면 현재 load가 fail-closed되고 이전 관측값을 새 source 결과처럼 유지하지 않습니다.
 이는 on-demand observation load이며 continuous ingestion이나 source health monitoring이 아닙니다.
 
-Registry v3는 registration, lifecycle과 optional source-specific freshness policy를 함께 저장합니다.
-기존 v1 registry는 source마다 registration time 기준의 implicit `REGISTERED` state로 읽히고, v2 registry는
-explicit lifecycle을 그대로 읽으며 두 legacy schema 모두 다음 write에서 v3로 승격됩니다. 사용자 UI는
+Registry v4는 FILE/OPC UA registration, lifecycle과 optional source-specific freshness policy를 함께 저장합니다.
+기존 v1/v2/v3 prepared-file registry는 backward-compatible하게 읽고 다음 write에서 v4로 승격됩니다. 사용자 UI는
 Activate/Pause와 freshness policy save/clear를 제공하고 ERROR는 향후 runtime이 실패 evidence와 함께 기록할
 상태입니다.
 
@@ -92,7 +91,7 @@ freshness policy write가 발생하면 `industrial-phm-source-registry-v4`로 �
 
 ### Runtime execution cycle
 
-**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다.
+**Run active source once**는 scheduler가 아니라 한 번의 명시적 runtime iteration입니다. 현재 UI action은 FILE source에 연결되고, OPC UA one-shot runtime은 application API 단계까지 구현되어 있습니다.
 
 ```text
 REGISTERED / PAUSED / ERROR

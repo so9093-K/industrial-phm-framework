@@ -1,4 +1,4 @@
-"""Single-iteration runtime execution for active registered file sources."""
+"""Single-iteration runtime execution for active registered operational sources."""
 
 from __future__ import annotations
 
@@ -14,10 +14,17 @@ from industrial_phm.application.source_lifecycle import (
 )
 from industrial_phm.application.source_receipt import (
     ReceivedRegisteredFileObservation,
+    ReceivedRegisteredOpcUaObservation,
     receive_registered_file_source_observation,
+    receive_registered_opcua_source_observation,
 )
-from industrial_phm.application.source_registration import FileSourceConfig, SourceRepository
+from industrial_phm.application.source_registration import (
+    FileSourceConfig,
+    OpcUaSourceConfig,
+    SourceRepository,
+)
 from industrial_phm.application.source_runtime import SourceRuntimeRepository
+from industrial_phm.connectors import OpcUaRuntimeUnavailableError, OpcUaSourceError
 
 
 class SourceRuntimeCycleState(StrEnum):
@@ -37,14 +44,14 @@ class SourceRuntimeCycleFailureScope(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class SourceRuntimeCycleResult:
-    """Result of one runtime attempt against a registered file source."""
+    """Result of one runtime attempt against a registered operational source."""
 
     source_id: str
     state: SourceRuntimeCycleState
     executed_at: datetime
     lifecycle_before: SourceLifecycleRecord
     lifecycle_after: SourceLifecycleRecord
-    received: ReceivedRegisteredFileObservation | None = None
+    received: ReceivedRegisteredFileObservation | ReceivedRegisteredOpcUaObservation | None = None
     failure_scope: SourceRuntimeCycleFailureScope | None = None
     message: str | None = None
 
@@ -213,6 +220,139 @@ def run_registered_file_source_cycle(
     )
 
 
+async def run_registered_opcua_source_cycle(
+    source_repository: SourceRepository,
+    lifecycle_repository: SourceLifecycleRepository,
+    runtime_repository: SourceRuntimeRepository,
+    source_id: str,
+    *,
+    executed_at: datetime | None = None,
+    received_at: datetime | None = None,
+) -> SourceRuntimeCycleResult:
+    """Run one ACTIVE registered OPC UA one-shot read cycle.
+
+    Non-ACTIVE or non-OPC-UA sources are skipped without source I/O. Explicit OPC UA
+    data-contract errors and transport OSError failures are source failures and transition
+    ACTIVE -> ERROR. Missing runtime, caller-contract, unexpected internal, and receipt
+    persistence failures remain platform failures and do not change source lifecycle.
+    """
+    source = source_repository.get(source_id)
+    lifecycle_before = lifecycle_repository.get_lifecycle(source_id)
+    cycle_time = datetime.now(UTC) if executed_at is None else executed_at
+    _validate_cycle_time(cycle_time, lifecycle_before)
+
+    if lifecycle_before.state != SourceLifecycleState.ACTIVE:
+        return SourceRuntimeCycleResult(
+            source_id=source_id,
+            state=SourceRuntimeCycleState.SKIPPED,
+            executed_at=cycle_time,
+            lifecycle_before=lifecycle_before,
+            lifecycle_after=lifecycle_before,
+            message=(
+                f"source lifecycle is {lifecycle_before.state.value}; runtime cycle requires active"
+            ),
+        )
+
+    if not isinstance(source.config, OpcUaSourceConfig):
+        return SourceRuntimeCycleResult(
+            source_id=source_id,
+            state=SourceRuntimeCycleState.SKIPPED,
+            executed_at=cycle_time,
+            lifecycle_before=lifecycle_before,
+            lifecycle_after=lifecycle_before,
+            message=(
+                f"registered source type is {source.source_type.value}; "
+                "opcua runtime cycle requires opcua"
+            ),
+        )
+
+    if received_at is not None and (
+        not isinstance(received_at, datetime) or received_at.utcoffset() is None
+    ):
+        raise ValueError("received_at override must be a timezone-aware datetime")
+
+    persisted_receipt = None
+    if received_at is not None:
+        try:
+            persisted_receipt = runtime_repository.get_latest_receipt(source_id)
+        except (OSError, ValueError) as error:
+            return _failed_cycle(
+                lifecycle_repository,
+                source_id,
+                lifecycle_before,
+                cycle_time,
+                error,
+                failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+            )
+        if persisted_receipt is not None and received_at < persisted_receipt.received_at:
+            raise ValueError("received_at override must not move backwards")
+
+    try:
+        received = await receive_registered_opcua_source_observation(
+            source,
+            received_at=received_at,
+        )
+    except (OpcUaSourceError, OSError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
+        )
+    except (OpcUaRuntimeUnavailableError, ValueError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+        )
+    except Exception as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+        )
+
+    if (
+        received_at is not None
+        and persisted_receipt is not None
+        and received_at == persisted_receipt.received_at
+        and received.receipt != persisted_receipt
+    ):
+        raise ValueError(
+            "received_at override matching persisted time must reproduce persisted evidence"
+        )
+
+    try:
+        runtime_repository.record_receipt(received.receipt)
+    except (OSError, ValueError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+            received=received,
+        )
+
+    return SourceRuntimeCycleResult(
+        source_id=source_id,
+        state=SourceRuntimeCycleState.SUCCEEDED,
+        executed_at=cycle_time,
+        lifecycle_before=lifecycle_before,
+        lifecycle_after=lifecycle_before,
+        received=received,
+    )
+
+
 def _failed_cycle(
     lifecycle_repository: SourceLifecycleRepository,
     source_id: str,
@@ -221,7 +361,7 @@ def _failed_cycle(
     error: Exception,
     *,
     failure_scope: SourceRuntimeCycleFailureScope,
-    received: ReceivedRegisteredFileObservation | None = None,
+    received: ReceivedRegisteredFileObservation | ReceivedRegisteredOpcUaObservation | None = None,
 ) -> SourceRuntimeCycleResult:
     detail = _failure_detail(error)
     lifecycle_after = lifecycle_before
