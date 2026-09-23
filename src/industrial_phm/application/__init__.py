@@ -55,14 +55,14 @@ from industrial_phm.application.source_registration import (
     SourceType,
     UnknownRegisteredSourceError,
 )
+from industrial_phm.application.source_registry import (
+    JsonSourceRepository,
+    SourceRegistryFormatError,
+)
 from industrial_phm.application.source_runtime import (
     JsonSourceRuntimeRepository,
     SourceRuntimeFormatError,
     SourceRuntimeRepository,
-)
-from industrial_phm.application.source_registry import (
-    JsonSourceRepository,
-    SourceRegistryFormatError,
 )
 
 __all__ = [
