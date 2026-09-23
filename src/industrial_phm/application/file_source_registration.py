@@ -188,16 +188,12 @@ def validate_registered_file_source(
     )
     issue_codes = tuple(dict.fromkeys(quality.issue_codes))
     snapshots = tuple(
-        snapshot
-        for segment in segments
-        if (snapshot := segment.source_snapshot) is not None
+        snapshot for segment in segments if (snapshot := segment.source_snapshot) is not None
     )
     starts = tuple(
         value for segment in segments if (value := segment.observed_start_at) is not None
     )
-    ends = tuple(
-        value for segment in segments if (value := segment.observed_end_at) is not None
-    )
+    ends = tuple(value for segment in segments if (value := segment.observed_end_at) is not None)
 
     return FileSourceRegistrationValidation(
         source_id=source.source_id,
