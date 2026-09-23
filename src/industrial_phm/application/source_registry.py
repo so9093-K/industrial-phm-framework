@@ -227,7 +227,9 @@ def _parse_lifecycle(value: object) -> dict[str, SourceLifecycleRecord]:
     records = tuple(_parse_lifecycle_record(item, index=index) for index, item in enumerate(value))
     source_ids = tuple(record.source_id for record in records)
     if len(set(source_ids)) != len(source_ids):
-        raise SourceRegistryFormatError("source registry contains duplicate lifecycle source_id values")
+        raise SourceRegistryFormatError(
+            "source registry contains duplicate lifecycle source_id values"
+        )
     return {record.source_id: record for record in records}
 
 
