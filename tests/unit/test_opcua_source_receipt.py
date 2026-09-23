@@ -87,9 +87,7 @@ def test_project_registered_opcua_observation_summary_preserves_identity_and_goo
         asset_id="pump-01",
         measurement_point_id="drive-end",
         snapshot=_snapshot(
-            second_source_timestamp=datetime.fromisoformat(
-                "2026-09-23T01:00:01+00:00"
-            ),
+            second_source_timestamp=datetime.fromisoformat("2026-09-23T01:00:01+00:00"),
             second_status_good=True,
         ),
     )
@@ -101,9 +99,7 @@ def test_project_registered_opcua_observation_summary_preserves_identity_and_goo
     assert summary.measurement_point_id == "drive-end"
     assert summary.channels == ("vibration_x", "temperature")
     assert summary.sample_count == 1
-    assert summary.observed_start_at == datetime.fromisoformat(
-        "2026-09-23T01:00:00+00:00"
-    )
+    assert summary.observed_start_at == datetime.fromisoformat("2026-09-23T01:00:00+00:00")
     assert summary.observed_end_at == summary.observed_start_at
     assert summary.sampling_rate_hz is None
     assert summary.source_snapshot is None
@@ -117,9 +113,7 @@ def test_project_registered_opcua_observation_summary_records_non_good_status() 
         asset_id="pump-01",
         measurement_point_id="drive-end",
         snapshot=_snapshot(
-            second_source_timestamp=datetime.fromisoformat(
-                "2026-09-23T01:00:01+00:00"
-            )
+            second_source_timestamp=datetime.fromisoformat("2026-09-23T01:00:01+00:00")
         ),
     )
 
