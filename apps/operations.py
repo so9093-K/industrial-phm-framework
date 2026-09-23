@@ -235,9 +235,15 @@ def _(
             for receipt in _runtime_repository.list_latest_receipts()
             if receipt.source_id in _registered_source_ids
         )
+        initial_source_runtime_connection_attempts = tuple(
+            attempt
+            for attempt in _runtime_repository.list_latest_connection_attempts()
+            if attempt.source_id in _registered_source_ids
+        )
         initial_source_runtime_error = ""
     except (OSError, ValueError) as error:
         initial_source_runtime_receipts = ()
+        initial_source_runtime_connection_attempts = ()
         initial_source_runtime_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
@@ -290,6 +296,7 @@ def _(
         initial_source_freshness_policies,
         initial_source_lifecycle_records,
         initial_source_registry_error,
+        initial_source_runtime_connection_attempts,
         initial_source_runtime_error,
         initial_source_runtime_receipts,
         source_default,
@@ -306,6 +313,7 @@ def _(
     initial_source_freshness_policies,
     initial_source_lifecycle_records,
     initial_source_registry_error,
+    initial_source_runtime_connection_attempts,
     initial_source_runtime_error,
     initial_source_runtime_receipts,
     mo,
@@ -319,6 +327,9 @@ def _(
     )
     get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
     get_source_runtime_error, set_source_runtime_error = mo.state(initial_source_runtime_error)
+    get_source_runtime_connection_attempts, set_source_runtime_connection_attempts = mo.state(
+        initial_source_runtime_connection_attempts
+    )
     get_source_runtime_receipts, set_source_runtime_receipts = mo.state(
         initial_source_runtime_receipts
     )
@@ -327,12 +338,14 @@ def _(
         get_source_freshness_policies,
         get_source_lifecycle_records,
         get_source_registry_error,
+        get_source_runtime_connection_attempts,
         get_source_runtime_error,
         get_source_runtime_receipts,
         set_registered_sources,
         set_source_freshness_policies,
         set_source_lifecycle_records,
         set_source_registry_error,
+        set_source_runtime_connection_attempts,
         set_source_runtime_error,
         set_source_runtime_receipts,
     )
@@ -344,6 +357,7 @@ def _(
     get_source_freshness_policies,
     get_source_lifecycle_records,
     get_source_registry_error,
+    get_source_runtime_connection_attempts,
     get_source_runtime_error,
     get_source_runtime_receipts,
 ):
@@ -351,6 +365,7 @@ def _(
     source_freshness_policies = get_source_freshness_policies()
     source_lifecycle_records = get_source_lifecycle_records()
     source_registry_error = get_source_registry_error()
+    source_runtime_connection_attempts = get_source_runtime_connection_attempts()
     source_runtime_error = get_source_runtime_error()
     source_runtime_receipts = get_source_runtime_receipts()
     return (
@@ -358,6 +373,7 @@ def _(
         source_freshness_policies,
         source_lifecycle_records,
         source_registry_error,
+        source_runtime_connection_attempts,
         source_runtime_error,
         source_runtime_receipts,
     )
@@ -1527,6 +1543,7 @@ def _(
     source_registry_default,
     source_receipt,
     source_registry_error,
+    source_runtime_connection_attempts,
     source_runtime_default,
     source_runtime_error,
     source_runtime_receipts,
@@ -1574,6 +1591,9 @@ def _(
         _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
         _freshness_policy_by_id = {policy.source_id: policy for policy in source_freshness_policies}
         _runtime_receipt_by_id = {receipt.source_id: receipt for receipt in source_runtime_receipts}
+        _runtime_attempt_by_id = {
+            attempt.source_id: attempt for attempt in source_runtime_connection_attempts
+        }
         _rows = []
         for _source in registered_sources:
             _config = _source.config
@@ -1665,6 +1685,7 @@ def _(
         )
         _persisted_receipt = _runtime_receipt_by_id.get(_selected.source_id)
         _selected_receipt = _session_receipt if _session_receipt is not None else _persisted_receipt
+        _selected_connection_attempt = _runtime_attempt_by_id.get(_selected.source_id)
         _receipt_origin = (
             "current session"
             if _session_receipt is not None
@@ -1685,6 +1706,7 @@ def _(
                 _selected_lifecycle,
                 _selected_receipt,
                 _selected_freshness_policy,
+                connection_attempt=_selected_connection_attempt,
                 as_of=_assessed_at,
             )
         )
@@ -1732,6 +1754,42 @@ def _(
                         "until an explicit connection-evidence runtime records that fact.",
                         kind="info",
                         title="Health semantics",
+                    ),
+                ],
+                gap=0.6,
+            )
+
+        if _selected_connection_attempt is None:
+            _connection_attempt_evidence = mo.callout(
+                "No bounded connector/session attempt evidence is recorded for this source.",
+                kind="neutral",
+                title="Latest connection attempt · Unavailable",
+            )
+        else:
+            _attempt_connected = (
+                "Unavailable"
+                if _selected_connection_attempt.connected_at is None
+                else _selected_connection_attempt.connected_at.isoformat()
+            )
+            _attempt_detail = _selected_connection_attempt.detail or "None"
+            _connection_attempt_evidence = mo.vstack(
+                [
+                    mo.md(
+                        "### Latest connection attempt\n\n"
+                        "| Attempt fact | Value |\n"
+                        "| --- | --- |\n"
+                        f"| Outcome | {_selected_connection_attempt.outcome.value.upper()} |\n"
+                        f"| Attempted at | {_selected_connection_attempt.attempted_at.isoformat()} |\n"
+                        f"| Connected at | {_attempt_connected} |\n"
+                        f"| Completed at | {_selected_connection_attempt.completed_at.isoformat()} |\n"
+                        f"| Detail | {escape_markdown_cell(_attempt_detail)} |"
+                    ),
+                    mo.callout(
+                        "This is the latest bounded historical attempt, not current connection "
+                        "state. A successful one-shot attempt does not mean the source remains "
+                        "connected after the cycle.",
+                        kind="info",
+                        title="Connection-attempt semantics",
                     ),
                 ],
                 gap=0.6,
@@ -2025,6 +2083,7 @@ def _(
                         title="Runtime receipt persistence",
                     )
                 ),
+                _connection_attempt_evidence,
                 _health_evidence,
                 _receipt_evidence,
                 _freshness_evidence,
@@ -2084,6 +2143,7 @@ def _(
     set_runtime_cycle_success,
     set_source_lifecycle_records,
     set_source_receipt,
+    set_source_runtime_connection_attempts,
     set_source_runtime_error,
     set_source_runtime_receipts,
     set_timeline,
@@ -2184,9 +2244,15 @@ def _(
                     for receipt in _runtime_repository.list_latest_receipts()
                     if receipt.source_id in _registered_ids
                 )
+                _runtime_connection_attempts = tuple(
+                    attempt
+                    for attempt in _runtime_repository.list_latest_connection_attempts()
+                    if attempt.source_id in _registered_ids
+                )
             except (OSError, ValueError) as error:
                 set_source_runtime_error(str(error))
             else:
+                set_source_runtime_connection_attempts(_runtime_connection_attempts)
                 set_source_runtime_receipts(_runtime_receipts)
                 set_source_runtime_error("")
     return
