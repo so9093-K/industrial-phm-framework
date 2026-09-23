@@ -830,22 +830,24 @@ def _(
         and opcua_browse_signature == _current_signature
     )
     if opcua_browse_is_current:
-        opcua_browse_selections = tuple(
-            (
-                variable,
-                mo.ui.checkbox(
-                    value=False,
-                    label=(
-                        " / ".join(variable.browse_path)
-                        + f" · {variable.node_id}"
-                    ),
-                ),
-            )
+        opcua_browse_variables_by_label = {
+            " / ".join(variable.browse_path) + f" · {variable.node_id}": variable
             for variable in opcua_browse_result.variables
+        }
+        opcua_browse_selection = mo.ui.multiselect(
+            options=list(opcua_browse_variables_by_label),
+            value=[],
+            label="Variable candidates",
+            full_width=True,
         )
     else:
-        opcua_browse_selections = ()
-    return opcua_browse_is_current, opcua_browse_selections
+        opcua_browse_variables_by_label = {}
+        opcua_browse_selection = None
+    return (
+        opcua_browse_is_current,
+        opcua_browse_selection,
+        opcua_browse_variables_by_label,
+    )
 
 
 @app.cell
@@ -858,7 +860,8 @@ def _(
     SourceType,
     datetime,
     opcua_browse_is_current,
-    opcua_browse_selections,
+    opcua_browse_selection,
+    opcua_browse_variables_by_label,
     parse_opcua_node_mappings,
     register_opcua_source_button,
     registration_asset_id_input,
@@ -885,11 +888,14 @@ def _(
         try:
             _selected_browse_mappings = tuple(
                 OpcUaNodeMapping(
-                    channel_id=variable.browse_name,
-                    node_id=variable.node_id,
+                    channel_id=opcua_browse_variables_by_label[label].browse_name,
+                    node_id=opcua_browse_variables_by_label[label].node_id,
                 )
-                for variable, checkbox in opcua_browse_selections
-                if checkbox.value
+                for label in (
+                    ()
+                    if opcua_browse_selection is None
+                    else opcua_browse_selection.value
+                )
             )
             _node_mappings = (
                 _selected_browse_mappings
@@ -947,7 +953,7 @@ def _(
     opcua_browse_error,
     opcua_browse_is_current,
     opcua_browse_result,
-    opcua_browse_selections,
+    opcua_browse_selection,
     registration_asset_id_input,
     registration_channels_input,
     registration_delimiter_input,
@@ -1079,7 +1085,6 @@ def _(
             if opcua_browse_result.truncated
             else "COMPLETE"
         )
-        _selection_controls = [checkbox for _, checkbox in opcua_browse_selections]
         _opcua_browse_view = mo.vstack(
             [
                 mo.hstack(
@@ -1107,8 +1112,9 @@ def _(
                     else mo.md("Select candidate Variables to use their BrowseName as channel ID.")
                 ),
                 (
-                    mo.vstack(_selection_controls, gap=0.35)
-                    if _selection_controls
+                    opcua_browse_selection
+                    if opcua_browse_selection is not None
+                    and opcua_browse_result.variables
                     else mo.callout(
                         "No Variable candidates were discovered within the current browse bounds.",
                         kind="neutral",
