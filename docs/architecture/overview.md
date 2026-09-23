@@ -226,7 +226,7 @@ Bounded OPC UA subscription connector
   OpcUaSubscriptionConfig
     -> explicit NodeId mappings
     -> publishing interval + queue bound
-    -> max DataChange events + overall session timeout
+    -> max DataChange events + notification collection timeout
     -> auto_reconnect = false
     -> OpcUaSubscriptionResult
          ├ protocol quality/source/server timestamps preserved
