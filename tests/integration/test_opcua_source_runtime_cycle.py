@@ -17,6 +17,7 @@ from industrial_phm.application import (
     SourceReceiptEvidence,
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleState,
+    project_registered_opcua_observation_summary,
     run_registered_opcua_source_cycle,
     transition_source_lifecycle,
 )
@@ -143,6 +144,12 @@ def test_registered_opcua_source_cycle_records_receipt_and_keeps_active(
     assert attempt.connected_at == received.observation.snapshot.connected_at
     assert attempt.completed_at == received.observation.snapshot.completed_at
     assert attempt.detail is None
+    summary = project_registered_opcua_observation_summary(result.received.observation)
+    assert summary.asset_id == source.config.asset_id
+    assert summary.source_id == source.source_id
+    assert summary.channels == ("vibration_x",)
+    assert summary.sample_count == 1
+    assert summary.observed_end_at == received.receipt.observed_at
 
 
 def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(

@@ -26,7 +26,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 ## 주요 기능
 
 - **센서 데이터 준비** — XJTU-SY, IMS Bearings, MIMII DUE와 명시적으로 mapping한 일반 CSV export의 구조·기본 품질을 확인하고 canonical 분석 입력으로 변환합니다.
-- **OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint one-shot probe, bounded Variable browse, explicit NodeId one-shot read를 제공합니다. Read는 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform receipt timing을 분리해 보존합니다. `RegisteredSource(OPCUA)`를 registry v4에 영속하고 Operations Add source에서 browse 후보 또는 explicit `channel_id,node_id` mapping으로 등록할 수 있으며, application에는 ACTIVE registered OPC UA source를 한 번 읽어 latest `SourceReceiptEvidence`를 기록하는 async runtime cycle까지 연결했습니다. 이는 지속 connection/health/continuous ingestion을 의미하지 않습니다.
+- **OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint one-shot probe, bounded Variable browse, explicit NodeId one-shot read를 제공합니다. Read는 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform receipt timing을 분리해 보존합니다. `RegisteredSource(OPCUA)`를 registry v4에 영속하고 Operations Add source에서 browse 후보 또는 explicit `channel_id,node_id` mapping으로 등록할 수 있으며, application에는 ACTIVE registered OPC UA source를 한 번 읽어 latest `SourceReceiptEvidence`를 기록하고 protocol snapshot을 conservative one-shot `AssetObservationSummary`로 projection하는 async runtime cycle까지 연결했습니다. 이는 지속 connection/health/continuous ingestion을 의미하지 않습니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
@@ -154,7 +154,7 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> first OPC UA one-shot read proof
   -> OPC UA registration contract / registry v4 persistence / Sources read + explicit registration UX
   -> OPC UA one-shot endpoint probe / bounded browse / mapping UX
-  -> registered OPC UA one-shot read + receipt persistence + Operations manual run
+  -> registered OPC UA one-shot read + receipt persistence + canonical observation projection + Operations manual run
   -> OPC UA runtime → latest connection-attempt evidence 기록
   -> Operations latest attempt evidence 표시 / source-health inspection projection 완료
   -> persistent session telemetry / subscription-reconnect runtime
@@ -184,7 +184,7 @@ edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol rea
 `OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
 read surface까지 검증했습니다. Registry에 보존되는 endpoint는 anonymous/NoSecurity `opc.tcp`만 허용하고
 endpoint userinfo credential은 거부합니다. Operations Add source에서는 endpoint, asset/measurement point,
-browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application의 registered OPC UA one-shot runtime/receipt persistence는 Operations **Run active source once**에도 연결됩니다. OPC UA 성공은 latest receipt/freshness evidence를 갱신하지만 아직 `AssetObservationSummary`로 투영하지 않으므로 기존 FILE observation/timeline을 현재 OPC UA 결과처럼 유지하지 않습니다. CLI polling은 아직 FILE 전용입니다. Subscription/reconnect와 continuous ingestion도 아직 지원하지 않습니다.
+browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application의 registered OPC UA one-shot runtime/receipt persistence는 Operations **Run active source once**에도 연결됩니다. OPC UA 성공은 latest receipt/freshness evidence를 갱신하고 one-shot snapshot을 `AssetObservationSummary`로 projection합니다. Projection은 `sample_count=1`, mapped channels와 asset/source identity를 보존하고 complete-channel SourceTimestamp watermark만 observation time으로 사용하며, sampling rate/file snapshot provenance는 만들지 않습니다. CLI polling은 아직 FILE 전용입니다. Subscription/reconnect와 continuous ingestion도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
