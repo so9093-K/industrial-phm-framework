@@ -27,6 +27,12 @@ from industrial_phm.application.operational import (
     OperationalFinding,
     validate_operational_finding_against_run,
 )
+from industrial_phm.application.source_cycle import (
+    SourceRuntimeCycleFailureScope,
+    SourceRuntimeCycleResult,
+    SourceRuntimeCycleState,
+    run_registered_file_source_cycle,
+)
 from industrial_phm.application.source_freshness import (
     SourceFreshnessAssessment,
     SourceFreshnessPolicy,
@@ -94,6 +100,9 @@ __all__ = [
     "SourceReceiptEvidence",
     "SourceRegistryFormatError",
     "SourceRepository",
+    "SourceRuntimeCycleFailureScope",
+    "SourceRuntimeCycleResult",
+    "SourceRuntimeCycleState",
     "SourceRuntimeFormatError",
     "SourceRuntimeRepository",
     "SourceSnapshotEvidence",
@@ -108,6 +117,7 @@ __all__ = [
     "load_registered_file_source_observation",
     "receive_registered_file_source_observation",
     "register_file_source",
+    "run_registered_file_source_cycle",
     "transition_source_lifecycle",
     "validate_distinct_source_state_paths",
     "validate_operational_finding_against_run",

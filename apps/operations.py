@@ -23,12 +23,14 @@ def _():
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
+        SourceRuntimeCycleState,
         assess_source_freshness,
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         receive_registered_file_source_observation,
         register_file_source,
+        run_registered_file_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
@@ -48,6 +50,7 @@ def _():
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
+        SourceRuntimeCycleState,
         assess_source_freshness,
         datetime,
         discover_file_source,
@@ -56,6 +59,7 @@ def _():
         receive_registered_file_source_observation,
         mo,
         register_file_source,
+        run_registered_file_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         os,
@@ -847,9 +851,12 @@ def _(mo, registered_sources):
         )
         save_freshness_policy_button = mo.ui.run_button(label="Save freshness policy")
         clear_freshness_policy_button = mo.ui.run_button(label="Clear freshness policy")
+        run_active_source_button = mo.ui.run_button(
+            label="Run active source once",
+            kind="success",
+        )
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
-            kind="success",
         )
     else:
         source_selector = None
@@ -858,6 +865,7 @@ def _(mo, registered_sources):
         freshness_age_input = None
         save_freshness_policy_button = None
         clear_freshness_policy_button = None
+        run_active_source_button = None
         load_registered_source_button = None
     return (
         activate_source_button,
@@ -865,6 +873,7 @@ def _(mo, registered_sources):
         freshness_age_input,
         load_registered_source_button,
         pause_source_button,
+        run_active_source_button,
         save_freshness_policy_button,
         source_selector,
     )
@@ -935,6 +944,33 @@ def _(
                 f"Source lifecycle changed: {_record.source_id} → {_record.state.value}"
             )
     return
+
+
+@app.cell
+def _(mo):
+    get_runtime_cycle_error, set_runtime_cycle_error = mo.state("")
+    get_runtime_cycle_skipped, set_runtime_cycle_skipped = mo.state("")
+    get_runtime_cycle_success, set_runtime_cycle_success = mo.state("")
+    return (
+        get_runtime_cycle_error,
+        get_runtime_cycle_skipped,
+        get_runtime_cycle_success,
+        set_runtime_cycle_error,
+        set_runtime_cycle_skipped,
+        set_runtime_cycle_success,
+    )
+
+
+@app.cell
+def _(
+    get_runtime_cycle_error,
+    get_runtime_cycle_skipped,
+    get_runtime_cycle_success,
+):
+    runtime_cycle_error = get_runtime_cycle_error()
+    runtime_cycle_skipped = get_runtime_cycle_skipped()
+    runtime_cycle_success = get_runtime_cycle_success()
+    return runtime_cycle_error, runtime_cycle_skipped, runtime_cycle_success
 
 
 @app.cell
@@ -1053,10 +1089,14 @@ def _(
     load_registered_source_button,
     mo,
     pause_source_button,
+    run_active_source_button,
     registered_sources,
     registered_source_load_error,
     registered_source_load_success,
     registration_view,
+    runtime_cycle_error,
+    runtime_cycle_skipped,
+    runtime_cycle_success,
     save_freshness_policy_button,
     source_freshness_policies,
     source_lifecycle_records,
@@ -1289,9 +1329,9 @@ def _(
                             caption="Registration does not imply connectivity",
                         ),
                         mo.stat(
-                            "Not connected",
+                            "One-shot only",
                             label="Ingestion",
-                            caption="No continuous source runtime yet",
+                            caption="Explicit runtime cycle; no continuous scheduler",
                         ),
                     ],
                     widths="equal",
@@ -1347,6 +1387,43 @@ def _(
                             "prove that a connection exists or that ingestion is running.",
                             kind="info",
                             title="Lifecycle semantics",
+                        )
+                    )
+                ),
+                mo.md("### Runtime execution"),
+                run_active_source_button,
+                (
+                    mo.callout(
+                        runtime_cycle_error,
+                        kind="danger",
+                        title="Runtime cycle failed",
+                    )
+                    if runtime_cycle_error
+                    else (
+                        mo.callout(
+                            runtime_cycle_skipped,
+                            kind="neutral",
+                            title="Runtime cycle skipped",
+                        )
+                        if runtime_cycle_skipped
+                        else (
+                            mo.callout(
+                                runtime_cycle_success,
+                                kind="success",
+                                title="Runtime cycle succeeded",
+                            )
+                            if runtime_cycle_success
+                            else mo.callout(
+                                "Run active source once consumes only ACTIVE lifecycle state. "
+                                "It re-validates the registered file/history source, records the "
+                                "latest receipt and leaves lifecycle ACTIVE on success. Source "
+                                "validation/I/O failure transitions ACTIVE → ERROR, while platform "
+                                "runtime-state failure fails the cycle without changing source "
+                                "lifecycle. This is one explicit iteration, not background "
+                                "polling.",
+                                kind="info",
+                                title="Runtime cycle semantics",
+                            )
                         )
                     )
                 ),
@@ -1456,6 +1533,101 @@ def _(initial_error, initial_summary, initial_timeline, mo):
         set_source_receipt,
         set_timeline,
     )
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    Path,
+    SourceRuntimeCycleState,
+    run_active_source_button,
+    run_registered_file_source_cycle,
+    set_load_error,
+    set_observation,
+    set_runtime_cycle_error,
+    set_runtime_cycle_skipped,
+    set_runtime_cycle_success,
+    set_source_lifecycle_records,
+    set_source_receipt,
+    set_source_runtime_error,
+    set_source_runtime_receipts,
+    set_timeline,
+    source_registry_default,
+    source_runtime_default,
+    source_selector,
+    validate_distinct_source_state_paths,
+):
+    if run_active_source_button is not None and run_active_source_button.value:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before running a runtime cycle")
+            _registry_path = Path(source_registry_default)
+            _runtime_path = Path(source_runtime_default)
+            validate_distinct_source_state_paths(_registry_path, _runtime_path)
+            _source_repository = JsonSourceRepository(_registry_path)
+            _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+            _result = run_registered_file_source_cycle(
+                _source_repository,
+                _source_repository,
+                _runtime_repository,
+                source_selector.value,
+            )
+            _sources = _source_repository.list_sources()
+            _lifecycle_records = tuple(
+                _source_repository.get_lifecycle(source.source_id) for source in _sources
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_runtime_cycle_success("")
+            set_runtime_cycle_skipped("")
+            set_runtime_cycle_error(str(error))
+        else:
+            set_source_lifecycle_records(_lifecycle_records)
+            if _result.state == SourceRuntimeCycleState.SUCCEEDED:
+                _received = _result.received
+                if _received is None:
+                    set_runtime_cycle_success("")
+                    set_runtime_cycle_skipped("")
+                    set_runtime_cycle_error(
+                        "runtime cycle invariant violation: succeeded result has no observation"
+                    )
+                else:
+                    _loaded = _received.observation
+                    set_observation(_loaded.latest)
+                    set_timeline(_loaded.timeline)
+                    set_source_receipt(_received.receipt)
+                    set_load_error("")
+                    set_runtime_cycle_error("")
+                    set_runtime_cycle_skipped("")
+                    set_runtime_cycle_success(
+                        f"Runtime cycle succeeded: {_result.source_id} · "
+                        f"received {_received.receipt.received_at.isoformat()}"
+                    )
+            elif _result.state == SourceRuntimeCycleState.SKIPPED:
+                set_runtime_cycle_error("")
+                set_runtime_cycle_success("")
+                set_runtime_cycle_skipped(_result.message or "runtime cycle skipped")
+            else:
+                set_runtime_cycle_success("")
+                set_runtime_cycle_skipped("")
+                _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
+                set_runtime_cycle_error(
+                    f"{_scope} failure · {_result.message or 'runtime cycle failed'}"
+                )
+
+            try:
+                _registered_ids = {source.source_id for source in _sources}
+                _runtime_receipts = tuple(
+                    receipt
+                    for receipt in _runtime_repository.list_latest_receipts()
+                    if receipt.source_id in _registered_ids
+                )
+            except (OSError, ValueError) as error:
+                set_source_runtime_error(str(error))
+            else:
+                set_source_runtime_receipts(_runtime_receipts)
+                set_source_runtime_error("")
+    return
 
 
 @app.cell
