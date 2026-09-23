@@ -57,9 +57,7 @@ def _attempt(
         ),
         completed_at=datetime.fromisoformat("2026-09-23T10:04:00+09:00"),
         detail=(
-            None
-            if outcome == SourceConnectionAttemptOutcome.SUCCEEDED
-            else "connection refused"
+            None if outcome == SourceConnectionAttemptOutcome.SUCCEEDED else "connection refused"
         ),
     )
 
