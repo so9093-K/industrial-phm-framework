@@ -7,6 +7,11 @@ import pytest
 asyncua = pytest.importorskip("asyncua")
 ua = asyncua.ua
 
+from industrial_phm.application import (  # noqa: E402
+    OpcUaSourceConfig,
+    RegisteredSource,
+    receive_registered_opcua_source_observation,
+)
 from industrial_phm.connectors import (  # noqa: E402
     OpcUaBrowseConfig,
     OpcUaEndpointProbeConfig,
@@ -57,6 +62,21 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
             )
         )
 
+        registered_source = RegisteredSource(
+            source_id="ci-opcua",
+            name="CI OPC UA",
+            config=OpcUaSourceConfig(
+                endpoint_url=endpoint,
+                asset_id="ci-pump-01",
+                measurement_point_id="drive-end",
+                node_mappings=(
+                    OpcUaNodeMapping("vibration_x", vibration.nodeid.to_string()),
+                    OpcUaNodeMapping("temperature", temperature.nodeid.to_string()),
+                ),
+            ),
+            registered_at=datetime(2026, 9, 23, 0, 59, 0, tzinfo=UTC),
+        )
+
         async with server:
             probe = await probe_opcua_endpoint(OpcUaEndpointProbeConfig(endpoint_url=endpoint))
             browse = await browse_opcua_variables(
@@ -76,6 +96,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
                     ),
                 )
             )
+            received = await receive_registered_opcua_source_observation(registered_source)
 
         assert probe.endpoint_url == endpoint
         assert probe.connected_at.utcoffset() is not None
@@ -112,5 +133,12 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         assert bad.server_timestamp is not None
         assert bad.server_timestamp.utcoffset() is not None
         assert snapshot.connected_at <= bad.received_at <= snapshot.completed_at
+
+        assert received.observation.source_id == "ci-opcua"
+        assert received.observation.asset_id == "ci-pump-01"
+        assert received.observation.channels == ("vibration_x", "temperature")
+        assert received.observation.observed_at == source_at
+        assert received.receipt.observed_at == source_at
+        assert received.receipt.received_at >= received.observation.snapshot.completed_at
 
     asyncio.run(_run())
