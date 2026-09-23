@@ -10,9 +10,13 @@ from industrial_phm.application import (
     JsonSourceRepository,
     RegisteredSource,
     SourceAlreadyRegisteredError,
+    SourceLifecycleRecord,
+    SourceLifecycleRepository,
+    SourceLifecycleState,
     SourceRegistryFormatError,
     SourceRepository,
     UnknownRegisteredSourceError,
+    transition_source_lifecycle,
 )
 
 
@@ -40,10 +44,13 @@ def _source(
     )
 
 
-def test_json_source_repository_implements_source_repository_contract(tmp_path: Path) -> None:
+def test_json_source_repository_implements_registration_and_lifecycle_contracts(
+    tmp_path: Path,
+) -> None:
     repository = JsonSourceRepository(tmp_path / "sources.json")
 
     assert isinstance(repository, SourceRepository)
+    assert isinstance(repository, SourceLifecycleRepository)
 
 
 def test_json_source_repository_round_trip_survives_new_repository_instance(
@@ -58,6 +65,11 @@ def test_json_source_repository_round_trip_survives_new_repository_instance(
     reopened = JsonSourceRepository(registry)
     assert reopened.get(source.source_id) == source
     assert reopened.list_sources() == (source,)
+    assert reopened.get_lifecycle(source.source_id) == SourceLifecycleRecord(
+        source_id=source.source_id,
+        state=SourceLifecycleState.REGISTERED,
+        changed_at=source.registered_at,
+    )
 
 
 def test_json_source_repository_preserves_history_directory_configuration(
@@ -78,7 +90,7 @@ def test_json_source_repository_preserves_history_directory_configuration(
     assert loaded.config.timestamp_column == "timestamp"
 
 
-def test_json_source_repository_writes_sources_in_deterministic_id_order(
+def test_json_source_repository_writes_sources_and_lifecycle_in_deterministic_id_order(
     tmp_path: Path,
 ) -> None:
     registry = tmp_path / "sources.json"
@@ -89,9 +101,11 @@ def test_json_source_repository_writes_sources_in_deterministic_id_order(
 
     payload = json.loads(registry.read_text(encoding="utf-8"))
     source_ids = [item["source_id"] for item in payload["sources"]]
+    lifecycle_ids = [item["source_id"] for item in payload["lifecycle"]]
 
-    assert payload["schema"] == "industrial-phm-source-registry-v1"
+    assert payload["schema"] == "industrial-phm-source-registry-v2"
     assert source_ids == ["source-a", "source-b"]
+    assert lifecycle_ids == ["source-a", "source-b"]
 
 
 def test_json_source_repository_does_not_persist_runtime_health_claims(
@@ -102,18 +116,75 @@ def test_json_source_repository_does_not_persist_runtime_health_claims(
     JsonSourceRepository(registry).register(_source())
 
     payload = json.loads(registry.read_text(encoding="utf-8"))
-    stored = payload["sources"][0]
+    stored_source = payload["sources"][0]
+    stored_lifecycle = payload["lifecycle"][0]
 
-    assert set(stored) == {
+    assert set(stored_source) == {
         "source_id",
         "name",
         "source_type",
         "registered_at",
         "config",
     }
-    assert "connected" not in stored
-    assert "healthy" not in stored
-    assert "last_received_at" not in stored
+    assert set(stored_lifecycle) == {
+        "source_id",
+        "state",
+        "changed_at",
+        "detail",
+    }
+    assert "connected" not in stored_lifecycle
+    assert "healthy" not in stored_lifecycle
+    assert "last_received_at" not in stored_lifecycle
+
+
+def test_json_source_repository_persists_valid_lifecycle_transition(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+
+    transitioned = transition_source_lifecycle(
+        repository,
+        source.source_id,
+        SourceLifecycleState.ACTIVE,
+        changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+    )
+
+    reopened = JsonSourceRepository(registry)
+    assert reopened.get_lifecycle(source.source_id) == transitioned
+    assert reopened.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+
+
+def test_json_source_repository_reads_v1_as_implicit_registered_and_upgrades_on_write(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    legacy_payload = {
+        "schema": "industrial-phm-source-registry-v1",
+        "sources": payload["sources"],
+    }
+    registry.write_text(json.dumps(legacy_payload), encoding="utf-8")
+
+    reopened = JsonSourceRepository(registry)
+    assert reopened.get_lifecycle(source.source_id).state == SourceLifecycleState.REGISTERED
+
+    transition_source_lifecycle(
+        reopened,
+        source.source_id,
+        SourceLifecycleState.PAUSED,
+        changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+    )
+
+    upgraded = json.loads(registry.read_text(encoding="utf-8"))
+    assert upgraded["schema"] == "industrial-phm-source-registry-v2"
+    assert upgraded["lifecycle"][0]["state"] == "paused"
 
 
 def test_json_source_repository_rejects_duplicate_without_replacing_existing_source(
@@ -136,6 +207,9 @@ def test_json_source_repository_rejects_unknown_source_id(tmp_path: Path) -> Non
 
     with pytest.raises(UnknownRegisteredSourceError, match="does not exist"):
         repository.get("missing-source")
+
+    with pytest.raises(UnknownRegisteredSourceError, match="does not exist"):
+        repository.get_lifecycle("missing-source")
 
 
 def test_json_source_repository_rejects_malformed_json(tmp_path: Path) -> None:
@@ -183,3 +257,52 @@ def test_json_source_repository_rejects_duplicate_ids_in_persisted_registry(
 
     with pytest.raises(SourceRegistryFormatError, match="duplicate source_id"):
         JsonSourceRepository(registry).list_sources()
+
+
+def test_json_source_repository_rejects_duplicate_lifecycle_ids(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_source())
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["lifecycle"].append(dict(payload["lifecycle"][0]))
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRegistryFormatError, match="duplicate lifecycle source_id"):
+        JsonSourceRepository(registry).list_sources()
+
+
+def test_json_source_repository_rejects_lifecycle_source_alignment_drift(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_source())
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["lifecycle"] = []
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRegistryFormatError, match="lifecycle IDs do not match"):
+        JsonSourceRepository(registry).list_sources()
+
+
+def test_json_source_repository_rejects_unvalidated_direct_lifecycle_jump(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+
+    with pytest.raises(ValueError, match="invalid source lifecycle transition"):
+        repository.set_lifecycle(
+            SourceLifecycleRecord(
+                source_id=source.source_id,
+                state=SourceLifecycleState.ERROR,
+                changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+                detail="cannot jump directly from registered to error",
+            )
+        )

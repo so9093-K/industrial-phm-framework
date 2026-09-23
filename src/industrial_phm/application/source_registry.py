@@ -10,6 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from industrial_phm.application.source_lifecycle import (
+    SourceLifecycleRecord,
+    SourceLifecycleState,
+)
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
@@ -19,9 +23,12 @@ from industrial_phm.application.source_registration import (
     UnknownRegisteredSourceError,
 )
 
-_REGISTRY_SCHEMA = "industrial-phm-source-registry-v1"
-_ROOT_KEYS = frozenset({"schema", "sources"})
+_REGISTRY_SCHEMA_V1 = "industrial-phm-source-registry-v1"
+_REGISTRY_SCHEMA_V2 = "industrial-phm-source-registry-v2"
+_ROOT_KEYS_V1 = frozenset({"schema", "sources"})
+_ROOT_KEYS_V2 = frozenset({"schema", "sources", "lifecycle"})
 _SOURCE_KEYS = frozenset({"source_id", "name", "source_type", "registered_at", "config"})
+_LIFECYCLE_KEYS = frozenset({"source_id", "state", "changed_at", "detail"})
 _FILE_CONFIG_KEYS = frozenset(
     {
         "source_path",
@@ -43,11 +50,15 @@ class SourceRegistryFormatError(ValueError):
 
 
 class JsonSourceRepository:
-    """Single-writer local JSON implementation of the SourceRepository boundary.
+    """Single-writer local JSON source-registration and lifecycle repository.
 
-    Writes use a same-directory temporary file plus ``os.replace`` so readers never
-    observe a partially written registry. Cross-process write coordination is not yet
-    provided; the current pre-alpha Operations runtime is expected to have one writer.
+    Version 1 registries remain readable and are interpreted with an implicit
+    REGISTERED lifecycle state. Any subsequent write persists version 2 with explicit
+    lifecycle records. Writes use a same-directory temporary file plus os.replace so
+    readers never observe a partially written registry.
+
+    Cross-process write coordination is not yet provided; the current pre-alpha
+    Operations runtime is expected to have one writer.
     """
 
     def __init__(self, path: Path) -> None:
@@ -62,26 +73,66 @@ class JsonSourceRepository:
         if not isinstance(source, RegisteredSource):
             raise ValueError("source must be RegisteredSource")
 
-        sources = list(self._read_sources())
+        sources, lifecycle = self._read_registry()
         if any(existing.source_id == source.source_id for existing in sources):
             raise SourceAlreadyRegisteredError(f"source is already registered: {source.source_id}")
 
-        sources.append(source)
-        self._write_sources(sources)
+        next_sources = (*sources, source)
+        next_lifecycle = dict(lifecycle)
+        next_lifecycle[source.source_id] = SourceLifecycleRecord(
+            source_id=source.source_id,
+            state=SourceLifecycleState.REGISTERED,
+            changed_at=source.registered_at,
+        )
+        self._write_registry(next_sources, next_lifecycle)
 
     def get(self, source_id: str) -> RegisteredSource:
         _validate_lookup_source_id(source_id)
-        for source in self._read_sources():
+        sources, _ = self._read_registry()
+        for source in sources:
             if source.source_id == source_id:
                 return source
         raise UnknownRegisteredSourceError(f"registered source does not exist: {source_id}")
 
     def list_sources(self) -> tuple[RegisteredSource, ...]:
-        return self._read_sources()
+        sources, _ = self._read_registry()
+        return sources
 
-    def _read_sources(self) -> tuple[RegisteredSource, ...]:
+    def get_lifecycle(self, source_id: str) -> SourceLifecycleRecord:
+        _validate_lookup_source_id(source_id)
+        sources, lifecycle = self._read_registry()
+        if not any(source.source_id == source_id for source in sources):
+            raise UnknownRegisteredSourceError(f"registered source does not exist: {source_id}")
+        return lifecycle[source_id]
+
+    def set_lifecycle(self, record: SourceLifecycleRecord) -> None:
+        if not isinstance(record, SourceLifecycleRecord):
+            raise ValueError("record must be SourceLifecycleRecord")
+
+        sources, lifecycle = self._read_registry()
+        if not any(source.source_id == record.source_id for source in sources):
+            raise UnknownRegisteredSourceError(
+                f"registered source does not exist: {record.source_id}"
+            )
+
+        current = lifecycle[record.source_id]
+        expected = current.transition_to(
+            record.state,
+            changed_at=record.changed_at,
+            detail=record.detail,
+        )
+        if expected != record:
+            raise ValueError("lifecycle record does not match the validated transition")
+
+        next_lifecycle = dict(lifecycle)
+        next_lifecycle[record.source_id] = record
+        self._write_registry(sources, next_lifecycle)
+
+    def _read_registry(
+        self,
+    ) -> tuple[tuple[RegisteredSource, ...], dict[str, SourceLifecycleRecord]]:
         if not self._path.exists():
-            return ()
+            return (), {}
         if not self._path.is_file():
             raise OSError(f"source registry path is not a file: {self._path}")
 
@@ -91,29 +142,42 @@ class JsonSourceRepository:
             raise SourceRegistryFormatError("source registry must contain valid JSON") from error
 
         root = _require_mapping(raw, "source registry root")
-        _require_exact_keys(root, _ROOT_KEYS, "source registry root")
-        if _require_string(root["schema"], "source registry schema") != _REGISTRY_SCHEMA:
-            raise SourceRegistryFormatError(
-                f"unsupported source registry schema: {root['schema']!r}"
-            )
+        schema = _require_string(root.get("schema"), "source registry schema")
+        if schema == _REGISTRY_SCHEMA_V1:
+            _require_exact_keys(root, _ROOT_KEYS_V1, "source registry root")
+            sources = _parse_sources(root["sources"])
+            lifecycle = {
+                source.source_id: SourceLifecycleRecord(
+                    source_id=source.source_id,
+                    state=SourceLifecycleState.REGISTERED,
+                    changed_at=source.registered_at,
+                )
+                for source in sources
+            }
+            return sources, lifecycle
 
-        sources_raw = root["sources"]
-        if not isinstance(sources_raw, list):
-            raise SourceRegistryFormatError("source registry sources must be a JSON array")
+        if schema != _REGISTRY_SCHEMA_V2:
+            raise SourceRegistryFormatError(f"unsupported source registry schema: {schema!r}")
 
-        sources = tuple(
-            _parse_registered_source(item, index=index) for index, item in enumerate(sources_raw)
-        )
-        source_ids = tuple(source.source_id for source in sources)
-        if len(set(source_ids)) != len(source_ids):
-            raise SourceRegistryFormatError("source registry contains duplicate source_id values")
-        return tuple(sorted(sources, key=lambda source: source.source_id))
+        _require_exact_keys(root, _ROOT_KEYS_V2, "source registry root")
+        sources = _parse_sources(root["sources"])
+        lifecycle = _parse_lifecycle(root["lifecycle"])
+        _validate_lifecycle_alignment(sources, lifecycle)
+        return sources, lifecycle
 
-    def _write_sources(self, sources: Sequence[RegisteredSource]) -> None:
-        ordered = tuple(sorted(sources, key=lambda source: source.source_id))
+    def _write_registry(
+        self,
+        sources: Sequence[RegisteredSource],
+        lifecycle: Mapping[str, SourceLifecycleRecord],
+    ) -> None:
+        ordered_sources = tuple(sorted(sources, key=lambda source: source.source_id))
+        _validate_lifecycle_alignment(ordered_sources, lifecycle)
         payload = {
-            "schema": _REGISTRY_SCHEMA,
-            "sources": [_serialize_registered_source(source) for source in ordered],
+            "schema": _REGISTRY_SCHEMA_V2,
+            "sources": [_serialize_registered_source(source) for source in ordered_sources],
+            "lifecycle": [
+                _serialize_lifecycle(lifecycle[source.source_id]) for source in ordered_sources
+            ],
         }
         rendered = (
             json.dumps(
@@ -147,6 +211,43 @@ class JsonSourceRepository:
                 temporary_path.unlink(missing_ok=True)
 
 
+def _parse_sources(value: object) -> tuple[RegisteredSource, ...]:
+    if not isinstance(value, list):
+        raise SourceRegistryFormatError("source registry sources must be a JSON array")
+    sources = tuple(_parse_registered_source(item, index=index) for index, item in enumerate(value))
+    source_ids = tuple(source.source_id for source in sources)
+    if len(set(source_ids)) != len(source_ids):
+        raise SourceRegistryFormatError("source registry contains duplicate source_id values")
+    return tuple(sorted(sources, key=lambda source: source.source_id))
+
+
+def _parse_lifecycle(value: object) -> dict[str, SourceLifecycleRecord]:
+    if not isinstance(value, list):
+        raise SourceRegistryFormatError("source registry lifecycle must be a JSON array")
+    records = tuple(_parse_lifecycle_record(item, index=index) for index, item in enumerate(value))
+    source_ids = tuple(record.source_id for record in records)
+    if len(set(source_ids)) != len(source_ids):
+        raise SourceRegistryFormatError(
+            "source registry contains duplicate lifecycle source_id values"
+        )
+    return {record.source_id: record for record in records}
+
+
+def _validate_lifecycle_alignment(
+    sources: Sequence[RegisteredSource],
+    lifecycle: Mapping[str, SourceLifecycleRecord],
+) -> None:
+    source_ids = {source.source_id for source in sources}
+    lifecycle_ids = set(lifecycle)
+    if source_ids != lifecycle_ids:
+        missing = sorted(source_ids - lifecycle_ids)
+        unexpected = sorted(lifecycle_ids - source_ids)
+        raise SourceRegistryFormatError(
+            "source registry lifecycle IDs do not match registered sources; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
+
 def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
     config = source.config
     return {
@@ -166,6 +267,15 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
             "minimum_sample_count": config.minimum_sample_count,
             "delimiter": config.delimiter,
         },
+    }
+
+
+def _serialize_lifecycle(record: SourceLifecycleRecord) -> dict[str, object]:
+    return {
+        "source_id": record.source_id,
+        "state": record.state.value,
+        "changed_at": record.changed_at.isoformat(),
+        "detail": record.detail,
     }
 
 
@@ -228,6 +338,25 @@ def _parse_registered_source(value: object, *, index: int) -> RegisteredSource:
             raise
         raise SourceRegistryFormatError(f"{label} is invalid: {error}") from error
     return parsed
+
+
+def _parse_lifecycle_record(value: object, *, index: int) -> SourceLifecycleRecord:
+    label = f"source registry lifecycle[{index}]"
+    record = _require_mapping(value, label)
+    _require_exact_keys(record, _LIFECYCLE_KEYS, label)
+    try:
+        return SourceLifecycleRecord(
+            source_id=_require_string(record["source_id"], f"{label}.source_id"),
+            state=SourceLifecycleState(_require_string(record["state"], f"{label}.state")),
+            changed_at=datetime.fromisoformat(
+                _require_string(record["changed_at"], f"{label}.changed_at")
+            ),
+            detail=_optional_string(record["detail"], f"{label}.detail"),
+        )
+    except ValueError as error:
+        if isinstance(error, SourceRegistryFormatError):
+            raise
+        raise SourceRegistryFormatError(f"{label} is invalid: {error}") from error
 
 
 def _require_mapping(value: object, label: str) -> Mapping[str, object]:

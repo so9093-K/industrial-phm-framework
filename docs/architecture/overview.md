@@ -94,6 +94,23 @@ SourceRepository
   ├ get
   └ list_sources
 
+SourceLifecycleRepository
+  ├ get_lifecycle
+  └ set_lifecycle
+
+SourceLifecycleRecord
+  └ REGISTERED / ACTIVE / PAUSED / ERROR
+
+SourceLifecycleRepository
+  ├ get_lifecycle
+  └ set_lifecycle
+
+SourceLifecycleRecord
+  ├ REGISTERED
+  ├ ACTIVE
+  ├ PAUSED
+  └ ERROR
+
 File registration use case
   source path / mode
     -> header discovery + representative preview
@@ -113,17 +130,21 @@ Registered file observation use case
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
 connection/health/active-ingestion 상태로 해석하지 않습니다. `InMemorySourceRepository`는 application
 workflow와 contract test를 위한 비영속 reference implementation이고, `JsonSourceRepository`는
-`industrial-phm-source-registry-v1` schema로 local registry를 재시작 이후에도 복원합니다. JSON writer는
-same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 partial write를 노출하지 않으며,
-reader는 schema/key/source type/duplicate ID를 fail-fast 검증합니다. 현재 구현은 single-writer local
-persistence 경계이며 cross-process write coordination은 아직 지원하지 않습니다.
+`industrial-phm-source-registry-v2` schema로 registration과 lifecycle을 재시작 이후에도 복원합니다.
+기존 v1 registry는 읽을 때 각 source를 implicit REGISTERED state로 해석하고 다음 write에서 v2로
+승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 partial
+write를 노출하지 않으며 reader는 schema/key/source type/duplicate ID/lifecycle alignment를 fail-fast
+검증합니다. 현재 구현은 single-writer local persistence 경계이며 cross-process write coordination은 아직
+지원하지 않습니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
-registry read surface와 selected registered source의 on-demand Observation load까지 연결합니다.
+REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, registry read surface와 selected registered source의
+on-demand Observation load까지 연결합니다. ACTIVE는 runtime consumption을 허용하는 administrative
+state이며 connection/health/ingestion 성공을 뜻하지 않습니다.
 `load_registered_file_source_observation`은 registration-time 검증을 현재 상태로 재사용하지 않고 매 load마다
 현재 source bytes를 기존 field CSV/timeline 경계로 재검증합니다. 따라서 registration은 observation cache나
-source-health evidence가 아닙니다. Browser upload/file-picker, edit/pause/resume/delete, activation lifecycle,
-`received_at`/freshness, OPC UA/MQTT connector는 후속 경계입니다.
+source-health evidence가 아닙니다. Browser upload/file-picker, source edit/delete, lifecycle을 실제로
+소비하는 ingestion runtime, `received_at`/freshness, OPC UA/MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 
