@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleState,
@@ -25,10 +26,15 @@ from industrial_phm.application.source_registration import (
 
 _REGISTRY_SCHEMA_V1 = "industrial-phm-source-registry-v1"
 _REGISTRY_SCHEMA_V2 = "industrial-phm-source-registry-v2"
+_REGISTRY_SCHEMA_V3 = "industrial-phm-source-registry-v3"
 _ROOT_KEYS_V1 = frozenset({"schema", "sources"})
 _ROOT_KEYS_V2 = frozenset({"schema", "sources", "lifecycle"})
+_ROOT_KEYS_V3 = frozenset({"schema", "sources", "lifecycle", "freshness_policies"})
 _SOURCE_KEYS = frozenset({"source_id", "name", "source_type", "registered_at", "config"})
 _LIFECYCLE_KEYS = frozenset({"source_id", "state", "changed_at", "detail"})
+_FRESHNESS_POLICY_KEYS = frozenset(
+    {"source_id", "max_observation_age_seconds", "changed_at"}
+)
 _FILE_CONFIG_KEYS = frozenset(
     {
         "source_path",
@@ -50,15 +56,14 @@ class SourceRegistryFormatError(ValueError):
 
 
 class JsonSourceRepository:
-    """Single-writer local JSON source-registration and lifecycle repository.
+    """Single-writer local JSON registration/lifecycle/freshness repository.
 
-    Version 1 registries remain readable and are interpreted with an implicit
-    REGISTERED lifecycle state. Any subsequent write persists version 2 with explicit
-    lifecycle records. Writes use a same-directory temporary file plus os.replace so
-    readers never observe a partially written registry.
+    Version 1 and 2 registries remain readable. Version 1 sources receive an implicit
+    REGISTERED lifecycle state; both legacy versions have no freshness policy unless a
+    later write configures one. Any write persists version 3.
 
-    Cross-process write coordination is not yet provided; the current pre-alpha
-    Operations runtime is expected to have one writer.
+    Writes use a same-directory temporary file plus os.replace so readers never observe
+    a partially written registry. Cross-process write coordination is not yet provided.
     """
 
     def __init__(self, path: Path) -> None:
@@ -73,7 +78,7 @@ class JsonSourceRepository:
         if not isinstance(source, RegisteredSource):
             raise ValueError("source must be RegisteredSource")
 
-        sources, lifecycle = self._read_registry()
+        sources, lifecycle, freshness = self._read_registry()
         if any(existing.source_id == source.source_id for existing in sources):
             raise SourceAlreadyRegisteredError(f"source is already registered: {source.source_id}")
 
@@ -84,36 +89,32 @@ class JsonSourceRepository:
             state=SourceLifecycleState.REGISTERED,
             changed_at=source.registered_at,
         )
-        self._write_registry(next_sources, next_lifecycle)
+        self._write_registry(next_sources, next_lifecycle, freshness)
 
     def get(self, source_id: str) -> RegisteredSource:
         _validate_lookup_source_id(source_id)
-        sources, _ = self._read_registry()
+        sources, _, _ = self._read_registry()
         for source in sources:
             if source.source_id == source_id:
                 return source
         raise UnknownRegisteredSourceError(f"registered source does not exist: {source_id}")
 
     def list_sources(self) -> tuple[RegisteredSource, ...]:
-        sources, _ = self._read_registry()
+        sources, _, _ = self._read_registry()
         return sources
 
     def get_lifecycle(self, source_id: str) -> SourceLifecycleRecord:
         _validate_lookup_source_id(source_id)
-        sources, lifecycle = self._read_registry()
-        if not any(source.source_id == source_id for source in sources):
-            raise UnknownRegisteredSourceError(f"registered source does not exist: {source_id}")
+        sources, lifecycle, _ = self._read_registry()
+        _require_registered_source_id(sources, source_id)
         return lifecycle[source_id]
 
     def set_lifecycle(self, record: SourceLifecycleRecord) -> None:
         if not isinstance(record, SourceLifecycleRecord):
             raise ValueError("record must be SourceLifecycleRecord")
 
-        sources, lifecycle = self._read_registry()
-        if not any(source.source_id == record.source_id for source in sources):
-            raise UnknownRegisteredSourceError(
-                f"registered source does not exist: {record.source_id}"
-            )
+        sources, lifecycle, freshness = self._read_registry()
+        _require_registered_source_id(sources, record.source_id)
 
         current = lifecycle[record.source_id]
         expected = current.transition_to(
@@ -126,13 +127,48 @@ class JsonSourceRepository:
 
         next_lifecycle = dict(lifecycle)
         next_lifecycle[record.source_id] = record
-        self._write_registry(sources, next_lifecycle)
+        self._write_registry(sources, next_lifecycle, freshness)
+
+    def get_freshness_policy(self, source_id: str) -> SourceFreshnessPolicy | None:
+        _validate_lookup_source_id(source_id)
+        sources, _, freshness = self._read_registry()
+        _require_registered_source_id(sources, source_id)
+        return freshness.get(source_id)
+
+    def set_freshness_policy(self, policy: SourceFreshnessPolicy) -> None:
+        if not isinstance(policy, SourceFreshnessPolicy):
+            raise ValueError("policy must be SourceFreshnessPolicy")
+
+        sources, lifecycle, freshness = self._read_registry()
+        _require_registered_source_id(sources, policy.source_id)
+        current = freshness.get(policy.source_id)
+        if current is not None and policy.changed_at < current.changed_at:
+            raise ValueError("freshness policy changed_at must not move backwards")
+
+        next_freshness = dict(freshness)
+        next_freshness[policy.source_id] = policy
+        self._write_registry(sources, lifecycle, next_freshness)
+
+    def clear_freshness_policy(self, source_id: str) -> None:
+        _validate_lookup_source_id(source_id)
+        sources, lifecycle, freshness = self._read_registry()
+        _require_registered_source_id(sources, source_id)
+        if source_id not in freshness:
+            return
+
+        next_freshness = dict(freshness)
+        del next_freshness[source_id]
+        self._write_registry(sources, lifecycle, next_freshness)
 
     def _read_registry(
         self,
-    ) -> tuple[tuple[RegisteredSource, ...], dict[str, SourceLifecycleRecord]]:
+    ) -> tuple[
+        tuple[RegisteredSource, ...],
+        dict[str, SourceLifecycleRecord],
+        dict[str, SourceFreshnessPolicy],
+    ]:
         if not self._path.exists():
-            return (), {}
+            return (), {}, {}
         if not self._path.is_file():
             raise OSError(f"source registry path is not a file: {self._path}")
 
@@ -143,6 +179,7 @@ class JsonSourceRepository:
 
         root = _require_mapping(raw, "source registry root")
         schema = _require_string(root.get("schema"), "source registry schema")
+
         if schema == _REGISTRY_SCHEMA_V1:
             _require_exact_keys(root, _ROOT_KEYS_V1, "source registry root")
             sources = _parse_sources(root["sources"])
@@ -154,29 +191,44 @@ class JsonSourceRepository:
                 )
                 for source in sources
             }
-            return sources, lifecycle
+            return sources, lifecycle, {}
 
-        if schema != _REGISTRY_SCHEMA_V2:
+        if schema == _REGISTRY_SCHEMA_V2:
+            _require_exact_keys(root, _ROOT_KEYS_V2, "source registry root")
+            sources = _parse_sources(root["sources"])
+            lifecycle = _parse_lifecycle(root["lifecycle"])
+            _validate_lifecycle_alignment(sources, lifecycle)
+            return sources, lifecycle, {}
+
+        if schema != _REGISTRY_SCHEMA_V3:
             raise SourceRegistryFormatError(f"unsupported source registry schema: {schema!r}")
 
-        _require_exact_keys(root, _ROOT_KEYS_V2, "source registry root")
+        _require_exact_keys(root, _ROOT_KEYS_V3, "source registry root")
         sources = _parse_sources(root["sources"])
         lifecycle = _parse_lifecycle(root["lifecycle"])
+        freshness = _parse_freshness_policies(root["freshness_policies"])
         _validate_lifecycle_alignment(sources, lifecycle)
-        return sources, lifecycle
+        _validate_freshness_alignment(sources, freshness)
+        return sources, lifecycle, freshness
 
     def _write_registry(
         self,
         sources: Sequence[RegisteredSource],
         lifecycle: Mapping[str, SourceLifecycleRecord],
+        freshness: Mapping[str, SourceFreshnessPolicy],
     ) -> None:
         ordered_sources = tuple(sorted(sources, key=lambda source: source.source_id))
         _validate_lifecycle_alignment(ordered_sources, lifecycle)
+        _validate_freshness_alignment(ordered_sources, freshness)
         payload = {
-            "schema": _REGISTRY_SCHEMA_V2,
+            "schema": _REGISTRY_SCHEMA_V3,
             "sources": [_serialize_registered_source(source) for source in ordered_sources],
             "lifecycle": [
                 _serialize_lifecycle(lifecycle[source.source_id]) for source in ordered_sources
+            ],
+            "freshness_policies": [
+                _serialize_freshness_policy(freshness[source_id])
+                for source_id in sorted(freshness)
             ],
         }
         rendered = (
@@ -233,6 +285,22 @@ def _parse_lifecycle(value: object) -> dict[str, SourceLifecycleRecord]:
     return {record.source_id: record for record in records}
 
 
+def _parse_freshness_policies(value: object) -> dict[str, SourceFreshnessPolicy]:
+    if not isinstance(value, list):
+        raise SourceRegistryFormatError(
+            "source registry freshness_policies must be a JSON array"
+        )
+    policies = tuple(
+        _parse_freshness_policy(item, index=index) for index, item in enumerate(value)
+    )
+    source_ids = tuple(policy.source_id for policy in policies)
+    if len(set(source_ids)) != len(source_ids):
+        raise SourceRegistryFormatError(
+            "source registry contains duplicate freshness-policy source_id values"
+        )
+    return {policy.source_id: policy for policy in policies}
+
+
 def _validate_lifecycle_alignment(
     sources: Sequence[RegisteredSource],
     lifecycle: Mapping[str, SourceLifecycleRecord],
@@ -246,6 +314,27 @@ def _validate_lifecycle_alignment(
             "source registry lifecycle IDs do not match registered sources; "
             f"missing={missing}, unexpected={unexpected}"
         )
+
+
+def _validate_freshness_alignment(
+    sources: Sequence[RegisteredSource],
+    freshness: Mapping[str, SourceFreshnessPolicy],
+) -> None:
+    source_ids = {source.source_id for source in sources}
+    unexpected = sorted(set(freshness) - source_ids)
+    if unexpected:
+        raise SourceRegistryFormatError(
+            "source registry freshness-policy IDs include unregistered sources; "
+            f"unexpected={unexpected}"
+        )
+
+
+def _require_registered_source_id(
+    sources: Sequence[RegisteredSource],
+    source_id: str,
+) -> None:
+    if not any(source.source_id == source_id for source in sources):
+        raise UnknownRegisteredSourceError(f"registered source does not exist: {source_id}")
 
 
 def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
@@ -276,6 +365,14 @@ def _serialize_lifecycle(record: SourceLifecycleRecord) -> dict[str, object]:
         "state": record.state.value,
         "changed_at": record.changed_at.isoformat(),
         "detail": record.detail,
+    }
+
+
+def _serialize_freshness_policy(policy: SourceFreshnessPolicy) -> dict[str, object]:
+    return {
+        "source_id": policy.source_id,
+        "max_observation_age_seconds": policy.max_observation_age_seconds,
+        "changed_at": policy.changed_at.isoformat(),
     }
 
 
@@ -359,6 +456,27 @@ def _parse_lifecycle_record(value: object, *, index: int) -> SourceLifecycleReco
         raise SourceRegistryFormatError(f"{label} is invalid: {error}") from error
 
 
+def _parse_freshness_policy(value: object, *, index: int) -> SourceFreshnessPolicy:
+    label = f"source registry freshness_policies[{index}]"
+    policy = _require_mapping(value, label)
+    _require_exact_keys(policy, _FRESHNESS_POLICY_KEYS, label)
+    try:
+        return SourceFreshnessPolicy(
+            source_id=_require_string(policy["source_id"], f"{label}.source_id"),
+            max_observation_age_seconds=_require_number(
+                policy["max_observation_age_seconds"],
+                f"{label}.max_observation_age_seconds",
+            ),
+            changed_at=datetime.fromisoformat(
+                _require_string(policy["changed_at"], f"{label}.changed_at")
+            ),
+        )
+    except ValueError as error:
+        if isinstance(error, SourceRegistryFormatError):
+            raise
+        raise SourceRegistryFormatError(f"{label} is invalid: {error}") from error
+
+
 def _require_mapping(value: object, label: str) -> Mapping[str, object]:
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise SourceRegistryFormatError(f"{label} must be a JSON object")
@@ -394,8 +512,12 @@ def _optional_string(value: object, label: str) -> str | None:
 def _optional_number(value: object, label: str) -> float | None:
     if value is None:
         return None
+    return _require_number(value, label)
+
+
+def _require_number(value: object, label: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise SourceRegistryFormatError(f"{label} must be a number or null")
+        raise SourceRegistryFormatError(f"{label} must be a number")
     return float(value)
 
 
