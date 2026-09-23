@@ -176,10 +176,6 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
     assert runtime_repository.get_latest_receipt(source.source_id) is None
 
 
-
-
-
-
 def test_registered_opcua_source_cycle_marks_transport_oserror_as_source_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
