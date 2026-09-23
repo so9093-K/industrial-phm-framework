@@ -100,6 +100,14 @@ File registration use case
     -> asset / measurement-point / channel / time mapping
     -> existing CsvSensorLayout + observation/timeline validation
     -> SourceRepository.register
+
+Registered file observation use case
+  RegisteredSource
+    -> current source bytes
+    -> existing CsvSensorLayout + observation/timeline validation
+    -> RegisteredFileObservation
+         ├ latest AssetObservationSummary
+         └ AssetObservationTimeline?
 ```
 
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
@@ -110,8 +118,11 @@ same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 pa
 reader는 schema/key/source type/duplicate ID를 fail-fast 검증합니다. 현재 구현은 single-writer local
 persistence 경계이며 cross-process write coordination은 아직 지원하지 않습니다.
 
-Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register와
-registry read surface까지 연결합니다. Browser upload/file-picker, edit/pause/resume/delete, activation lifecycle,
+Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
+registry read surface와 selected registered source의 on-demand Observation load까지 연결합니다.
+`load_registered_file_source_observation`은 registration-time 검증을 현재 상태로 재사용하지 않고 매 load마다
+현재 source bytes를 기존 field CSV/timeline 경계로 재검증합니다. 따라서 registration은 observation cache나
+source-health evidence가 아닙니다. Browser upload/file-picker, edit/pause/resume/delete, activation lifecycle,
 `received_at`/freshness, OPC UA/MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
