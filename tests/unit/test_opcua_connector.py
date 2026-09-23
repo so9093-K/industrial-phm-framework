@@ -60,7 +60,7 @@ class _FakeBrowseNode:
         node_class: str,
         browse_name: str,
         display_name: str,
-        children: tuple["_FakeBrowseNode", ...] = (),
+        children: tuple[_FakeBrowseNode, ...] = (),
     ) -> None:
         self.nodeid = _FakeBrowseNodeId(node_id)
         self._node_class = node_class
@@ -68,7 +68,7 @@ class _FakeBrowseNode:
         self._display_name = display_name
         self._children = children
 
-    async def get_children(self) -> list["_FakeBrowseNode"]:
+    async def get_children(self) -> list[_FakeBrowseNode]:
         return list(self._children)
 
     async def read_node_class(self) -> str:
@@ -91,7 +91,7 @@ class _FakeBrowseClient:
     def __init__(self, **kwargs: object) -> None:
         type(self).init_kwargs = dict(kwargs)
 
-    async def __aenter__(self) -> "_FakeBrowseClient":
+    async def __aenter__(self) -> _FakeBrowseClient:
         return self
 
     async def __aexit__(self, *args: object) -> None:
