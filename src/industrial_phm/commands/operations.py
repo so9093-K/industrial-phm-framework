@@ -10,7 +10,7 @@ from industrial_phm.application import (
     JsonSourceRuntimeRepository,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
-    poll_registered_file_source,
+    poll_registered_source,
     validate_distinct_source_state_paths,
 )
 
@@ -27,7 +27,7 @@ def _run_operations_poll_source(args: argparse.Namespace) -> int:
             interval_seconds=args.interval_seconds,
             max_cycles=args.max_cycles,
         )
-        results = poll_registered_file_source(
+        results = poll_registered_source(
             source_repository,
             source_repository,
             runtime_repository,
