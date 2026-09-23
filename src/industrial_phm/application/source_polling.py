@@ -66,21 +66,27 @@ def poll_registered_source(
     """
     source = source_repository.get(source_id)
     if isinstance(source.config, FileSourceConfig):
-        cycle_fn = lambda: run_registered_file_source_cycle(
-            source_repository,
-            lifecycle_repository,
-            runtime_repository,
-            source_id,
-        )
-    elif isinstance(source.config, OpcUaSourceConfig):
-        cycle_fn = lambda: asyncio.run(
-            run_registered_opcua_source_cycle(
+        def _file_cycle() -> SourceRuntimeCycleResult:
+            return run_registered_file_source_cycle(
                 source_repository,
                 lifecycle_repository,
                 runtime_repository,
                 source_id,
             )
-        )
+
+        cycle_fn = _file_cycle
+    elif isinstance(source.config, OpcUaSourceConfig):
+        def _opcua_cycle() -> SourceRuntimeCycleResult:
+            return asyncio.run(
+                run_registered_opcua_source_cycle(
+                    source_repository,
+                    lifecycle_repository,
+                    runtime_repository,
+                    source_id,
+                )
+            )
+
+        cycle_fn = _opcua_cycle
     else:
         raise ValueError("unsupported registered source config")
 
@@ -97,13 +103,15 @@ def poll_registered_file_source(
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> Iterator[SourceRuntimeCycleResult]:
     """Yield prepared-file runtime cycles using the original FILE-only boundary."""
-    cycle_fn = lambda: run_registered_file_source_cycle(
-        source_repository,
-        lifecycle_repository,
-        runtime_repository,
-        source_id,
-    )
-    yield from _poll_cycles(cycle_fn, policy, sleep_fn=sleep_fn)
+    def _file_cycle() -> SourceRuntimeCycleResult:
+        return run_registered_file_source_cycle(
+            source_repository,
+            lifecycle_repository,
+            runtime_repository,
+            source_id,
+        )
+
+    yield from _poll_cycles(_file_cycle, policy, sleep_fn=sleep_fn)
 
 
 def _poll_cycles(
