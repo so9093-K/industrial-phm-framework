@@ -264,7 +264,7 @@ class OpcUaSubscriptionConfig:
     endpoint_url: str
     node_mappings: Sequence[OpcUaNodeMapping]
     publishing_interval_ms: float = 500.0
-    session_timeout_seconds: float = 5.0
+    collection_timeout_seconds: float = 5.0
     max_events: int = 1
     queue_maxsize: int = 128
     timeout_seconds: float = 4.0
@@ -277,7 +277,7 @@ class OpcUaSubscriptionConfig:
         )
         object.__setattr__(self, "node_mappings", tuple(read_config.node_mappings))
         _validate_positive_finite(self.publishing_interval_ms, "publishing_interval_ms")
-        _validate_positive_finite(self.session_timeout_seconds, "session_timeout_seconds")
+        _validate_positive_finite(self.collection_timeout_seconds, "collection_timeout_seconds")
         if isinstance(self.max_events, bool) or not isinstance(self.max_events, int):
             raise ValueError("max_events must be an integer")
         if self.max_events < 1:
@@ -374,7 +374,7 @@ async def collect_opcua_subscription_notifications(
         async with subscription:
             await subscription.subscribe_data_change(nodes)
             loop = asyncio.get_running_loop()
-            deadline = loop.time() + float(config.session_timeout_seconds)
+            deadline = loop.time() + float(config.collection_timeout_seconds)
 
             while len(notifications) < config.max_events:
                 remaining = deadline - loop.time()
