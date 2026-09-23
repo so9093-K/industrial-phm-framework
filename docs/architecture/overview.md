@@ -104,6 +104,14 @@ SourceLifecycleRecord
   ├ PAUSED
   └ ERROR
 
+SourceFreshnessPolicyRepository
+  ├ get_freshness_policy
+  ├ set_freshness_policy
+  └ clear_freshness_policy
+
+SourceFreshnessPolicy
+  └ max_observation_age_seconds
+
 File registration use case
   source path / mode
     -> header discovery + representative preview
@@ -125,18 +133,29 @@ On-demand receipt timing
     -> SourceReceiptEvidence
          ├ latest observed_at?
          ├ received_at
-         └ signed lag?  # only when timestamps are timezone-comparable
+         └ delivery lag? = received_at - observed_at
+
+Freshness assessment
+  SourceReceiptEvidence + SourceFreshnessPolicy? + assessed_at
+    -> SourceFreshnessAssessment
+         ├ NOT_CONFIGURED
+         ├ FRESH
+         ├ STALE
+         └ UNAVAILABLE
+
+  observation age = assessed_at - observed_at
 ```
 
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
 connection/health/active-ingestion 상태로 해석하지 않습니다. `InMemorySourceRepository`는 application
 workflow와 contract test를 위한 비영속 reference implementation이고, `JsonSourceRepository`는
-`industrial-phm-source-registry-v2` schema로 registration과 lifecycle을 재시작 이후에도 복원합니다.
-기존 v1 registry는 읽을 때 각 source를 implicit REGISTERED state로 해석하고 다음 write에서 v2로
-승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 partial
-write를 노출하지 않으며 reader는 schema/key/source type/duplicate ID/lifecycle alignment를 fail-fast
-검증합니다. 현재 구현은 single-writer local persistence 경계이며 cross-process write coordination은 아직
-지원하지 않습니다.
+`industrial-phm-source-registry-v3` schema로 registration, lifecycle과 optional source-specific freshness
+policy를 재시작 이후에도 복원합니다. 기존 v1은 implicit REGISTERED/no-policy, v2는 explicit lifecycle/no-policy
+상태로 읽고 다음 write에서 v3로 승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤
+`os.replace`로 교체해 partial write를 노출하지 않으며 reader는 schema/key/source type/duplicate
+ID/lifecycle alignment/freshness-policy source alignment를 fail-fast 검증합니다. Runtime receipt evidence는
+registry에 저장하지 않습니다. 현재 구현은 single-writer local persistence 경계이며 cross-process write
+coordination은 아직 지원하지 않습니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
 REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, registry read surface와 selected registered source의
@@ -147,9 +166,13 @@ state이며 connection/health/ingestion 성공을 뜻하지 않습니다.
 source-health evidence가 아닙니다. `receive_registered_file_source_observation`은 이 검증이 성공한 뒤
 application acceptance 시각을 timezone-aware `received_at`으로 기록합니다. Latest `observed_at`이
 timezone-aware일 때만 signed lag를 계산하고, timestamp/timezone이 없으면 lag를 unavailable로 남깁니다.
-Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 않으며 source-specific freshness
-threshold가 아직 없으므로 fresh/stale 상태도 만들지 않습니다. Browser upload/file-picker, source edit/delete,
-lifecycle을 실제로 소비하는 ingestion runtime, freshness policy, OPC UA/MQTT connector는 후속 경계입니다.
+Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 않습니다. Source-specific
+`SourceFreshnessPolicy`가 설정되면 freshness는 delivery lag가 아니라
+`assessed_at - observed_at` observation age를 policy max age와 비교해 계산합니다. Timestamp/timezone이
+없거나 observed_at이 assessment time보다 미래면 fail-closed로 UNAVAILABLE을 반환하고, policy가 없으면
+NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 connection/health/ingestion 성공을
+뜻하지 않습니다. Browser upload/file-picker, source edit/delete, lifecycle을 실제로 소비하는 ingestion
+runtime, persistent receipt/freshness history, OPC UA/MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 

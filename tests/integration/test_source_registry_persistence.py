@@ -10,6 +10,8 @@ from industrial_phm.application import (
     JsonSourceRepository,
     RegisteredSource,
     SourceAlreadyRegisteredError,
+    SourceFreshnessPolicy,
+    SourceFreshnessPolicyRepository,
     SourceLifecycleRecord,
     SourceLifecycleRepository,
     SourceLifecycleState,
@@ -51,6 +53,7 @@ def test_json_source_repository_implements_registration_and_lifecycle_contracts(
 
     assert isinstance(repository, SourceRepository)
     assert isinstance(repository, SourceLifecycleRepository)
+    assert isinstance(repository, SourceFreshnessPolicyRepository)
 
 
 def test_json_source_repository_round_trip_survives_new_repository_instance(
@@ -103,7 +106,7 @@ def test_json_source_repository_writes_sources_and_lifecycle_in_deterministic_id
     source_ids = [item["source_id"] for item in payload["sources"]]
     lifecycle_ids = [item["source_id"] for item in payload["lifecycle"]]
 
-    assert payload["schema"] == "industrial-phm-source-registry-v2"
+    assert payload["schema"] == "industrial-phm-source-registry-v3"
     assert source_ids == ["source-a", "source-b"]
     assert lifecycle_ids == ["source-a", "source-b"]
 
@@ -135,6 +138,9 @@ def test_json_source_repository_does_not_persist_runtime_health_claims(
     assert "connected" not in stored_lifecycle
     assert "healthy" not in stored_lifecycle
     assert "last_received_at" not in stored_lifecycle
+    assert payload["freshness_policies"] == []
+    assert "received_at" not in payload
+    assert "last_received_at" not in payload
 
 
 def test_json_source_repository_persists_valid_lifecycle_transition(
@@ -183,8 +189,138 @@ def test_json_source_repository_reads_v1_as_implicit_registered_and_upgrades_on_
     )
 
     upgraded = json.loads(registry.read_text(encoding="utf-8"))
-    assert upgraded["schema"] == "industrial-phm-source-registry-v2"
+    assert upgraded["schema"] == "industrial-phm-source-registry-v3"
     assert upgraded["lifecycle"][0]["state"] == "paused"
+
+
+def test_json_source_repository_reads_v2_without_freshness_policy_and_upgrades_on_policy_write(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    legacy_v2 = {
+        "schema": "industrial-phm-source-registry-v2",
+        "sources": payload["sources"],
+        "lifecycle": payload["lifecycle"],
+    }
+    registry.write_text(json.dumps(legacy_v2), encoding="utf-8")
+
+    reopened = JsonSourceRepository(registry)
+    assert reopened.get_freshness_policy(source.source_id) is None
+
+    policy = SourceFreshnessPolicy(
+        source_id=source.source_id,
+        max_observation_age_seconds=300.0,
+        changed_at=datetime.fromisoformat("2026-09-23T10:06:00+09:00"),
+    )
+    reopened.set_freshness_policy(policy)
+
+    upgraded = json.loads(registry.read_text(encoding="utf-8"))
+    assert upgraded["schema"] == "industrial-phm-source-registry-v3"
+    assert upgraded["freshness_policies"][0]["source_id"] == source.source_id
+    assert upgraded["freshness_policies"][0]["max_observation_age_seconds"] == 300.0
+
+
+def test_json_source_repository_writes_freshness_policies_in_source_id_order(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_source(source_id="source-b", source_path="data/b.csv"))
+    repository.register(_source(source_id="source-a", source_path="data/a.csv"))
+
+    repository.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id="source-b",
+            max_observation_age_seconds=120.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+        )
+    )
+    repository.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id="source-a",
+            max_observation_age_seconds=60.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:06:00+09:00"),
+        )
+    )
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+
+    assert [item["source_id"] for item in payload["freshness_policies"]] == [
+        "source-a",
+        "source-b",
+    ]
+
+
+def test_json_source_repository_persists_and_clears_freshness_policy(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+    policy = SourceFreshnessPolicy(
+        source_id=source.source_id,
+        max_observation_age_seconds=120.0,
+        changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+    )
+
+    repository.set_freshness_policy(policy)
+
+    reopened = JsonSourceRepository(registry)
+    assert reopened.get_freshness_policy(source.source_id) == policy
+
+    reopened.clear_freshness_policy(source.source_id)
+    assert JsonSourceRepository(registry).get_freshness_policy(source.source_id) is None
+
+
+def test_json_source_repository_rejects_freshness_policy_for_unknown_source(
+    tmp_path: Path,
+) -> None:
+    repository = JsonSourceRepository(tmp_path / "sources.json")
+    policy = SourceFreshnessPolicy(
+        source_id="missing-source",
+        max_observation_age_seconds=60.0,
+        changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+    )
+
+    with pytest.raises(UnknownRegisteredSourceError, match="does not exist"):
+        repository.get_freshness_policy("missing-source")
+
+    with pytest.raises(UnknownRegisteredSourceError, match="does not exist"):
+        repository.set_freshness_policy(policy)
+
+    with pytest.raises(UnknownRegisteredSourceError, match="does not exist"):
+        repository.clear_freshness_policy("missing-source")
+
+
+def test_json_source_repository_rejects_freshness_policy_time_regression(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+    repository.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id=source.source_id,
+            max_observation_age_seconds=120.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+        )
+    )
+
+    with pytest.raises(ValueError, match="must not move backwards"):
+        repository.set_freshness_policy(
+            SourceFreshnessPolicy(
+                source_id=source.source_id,
+                max_observation_age_seconds=60.0,
+                changed_at=datetime.fromisoformat("2026-09-23T10:04:59+09:00"),
+            )
+        )
 
 
 def test_json_source_repository_rejects_duplicate_without_replacing_existing_source(
@@ -306,3 +442,47 @@ def test_json_source_repository_rejects_unvalidated_direct_lifecycle_jump(
                 detail="cannot jump directly from registered to error",
             )
         )
+
+
+def test_json_source_repository_rejects_duplicate_freshness_policy_ids(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    source = _source()
+    repository.register(source)
+    repository.set_freshness_policy(
+        SourceFreshnessPolicy(
+            source_id=source.source_id,
+            max_observation_age_seconds=120.0,
+            changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
+        )
+    )
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["freshness_policies"].append(dict(payload["freshness_policies"][0]))
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRegistryFormatError, match="duplicate freshness-policy source_id"):
+        JsonSourceRepository(registry).list_sources()
+
+
+def test_json_source_repository_rejects_freshness_policy_for_unregistered_source(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_source())
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["freshness_policies"] = [
+        {
+            "source_id": "missing-source",
+            "max_observation_age_seconds": 60.0,
+            "changed_at": "2026-09-23T10:05:00+09:00",
+        }
+    ]
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRegistryFormatError, match="unregistered sources"):
+        JsonSourceRepository(registry).list_sources()

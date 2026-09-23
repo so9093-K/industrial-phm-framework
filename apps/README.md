@@ -56,10 +56,11 @@ Observation surface에 연결할 수 있습니다. 이 동작은 registration �
 내용이 invalid하게 바뀌면 현재 load가 fail-closed되고 이전 관측값을 새 source 결과처럼 유지하지 않습니다.
 이는 on-demand observation load이며 continuous ingestion이나 source health monitoring이 아닙니다.
 
-Lifecycle persistence는 `industrial-phm-source-registry-v2`에 registration과 분리된 record로 저장됩니다.
-기존 v1 registry는 source마다 registration time 기준의 implicit `REGISTERED` state로 읽히며, lifecycle
-transition 또는 다음 write 시 v2로 승격됩니다. 사용자 UI는 Activate/Pause만 제공하고 ERROR는 향후 runtime이
-실패 evidence와 함께 기록할 상태입니다.
+Registry v3는 registration, lifecycle과 optional source-specific freshness policy를 함께 저장합니다.
+기존 v1 registry는 source마다 registration time 기준의 implicit `REGISTERED` state로 읽히고, v2 registry는
+explicit lifecycle을 그대로 읽으며 두 legacy schema 모두 다음 write에서 v3로 승격됩니다. 사용자 UI는
+Activate/Pause와 freshness policy save/clear를 제공하고 ERROR는 향후 runtime이 실패 evidence와 함께 기록할
+상태입니다.
 
 ### Source lifecycle
 
@@ -80,9 +81,9 @@ administrative intent이고, `PAUSED`는 runtime consumption을 중지하려는 
 runtime이 실제 실패를 관측할 때 기록하도록 남겨 둡니다. Connection, freshness, `received_at`, retry/buffer
 telemetry는 아직 lifecycle state에서 추론하지 않습니다.
 
-Registry는 기존 `industrial-phm-source-registry-v1`을 읽을 수 있고, v1 source는 implicit
-`REGISTERED`로 해석합니다. 신규 등록 또는 lifecycle write가 발생하면
-`industrial-phm-source-registry-v2`로 저장되어 explicit lifecycle record가 함께 보존됩니다.
+Registry는 기존 `industrial-phm-source-registry-v1`과 v2를 읽을 수 있습니다. v1 source는 implicit
+`REGISTERED`로 해석하고 v2의 explicit lifecycle은 그대로 유지합니다. 신규 등록, lifecycle 변경 또는
+freshness policy write가 발생하면 `industrial-phm-source-registry-v3`로 저장됩니다.
 
 ### Receipt timing
 
@@ -92,8 +93,27 @@ Registered source의 **Load registered source**가 성공하면 `SourceReceiptEv
 signed observed→received lag를 계산합니다.
 
 Prepared file은 원래 sensor transport arrival을 보존하지 않으므로 이 `received_at`을 과거의 실제 네트워크
-도착 시각으로 해석하지 않습니다. Source timestamp가 naive이거나 없으면 lag를 `Unavailable`로 남기고,
-source-specific max-age/freshness policy가 아직 없으므로 fresh/stale도 판정하지 않습니다.
+도착 시각으로 해석하지 않습니다. Source timestamp가 naive이거나 없으면 delivery lag를 `Unavailable`로
+남깁니다.
+
+### Freshness policy
+
+Sources에서 source별 **Max observation age (seconds)** 정책을 설정할 수 있습니다. Freshness는 delivery lag가
+아니라 평가 시점 기준 latest observation age로 계산합니다.
+
+```text
+delivery lag     = received_at - observed_at
+observation age  = assessed_at - observed_at
+
+observation age <= configured max age  -> FRESH
+observation age >  configured max age  -> STALE
+missing/naive/future observed_at        -> UNAVAILABLE
+no source policy                        -> NOT_CONFIGURED
+```
+
+Freshness는 timing-policy assessment일 뿐 connection/asset health 의미가 아닙니다. 현재 receipt는
+on-demand registered-source load의 session-local evidence라서 background monitoring이나 persistent
+freshness history를 의미하지 않습니다.
 
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
 `AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
@@ -104,7 +124,7 @@ source-specific max-age/freshness policy가 아직 없으므로 fresh/stale도 �
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, selected registered source → current Observation load + received_at/lag evidence, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, source-specific freshness policy, selected registered source → current Observation load + received_at/delivery-lag/freshness evidence, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조

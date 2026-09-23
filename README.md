@@ -82,7 +82,10 @@ source load는 application acceptance 시각을 timezone-aware `received_at`으�
 않습니다. Source lifecycle은 `REGISTERED / ACTIVE / PAUSED / ERROR` control-plane state로 별도 보존하며
 Operations에서 Activate/Pause를 수행할 수 있습니다. 여기서 ACTIVE는 runtime이 소비하도록 허용된
 administrative intent일 뿐 실제 connection/health/freshness/continuous-ingestion의 증거가 아닙니다.
-Source-specific freshness threshold는 아직 없으므로 fresh/stale 상태도 만들지 않습니다. Live
+Sources에서 source별 max observation age policy를 설정하면 현재 receipt evidence와 평가 시각을 사용해
+`FRESH / STALE / UNAVAILABLE / NOT_CONFIGURED` freshness state를 계산합니다. Freshness age는
+`assessment time - observed_at`이며 observed→received delivery lag와 분리합니다. Timestamp/timezone이 없거나
+source clock이 평가 시각보다 미래면 임의 상태를 만들지 않고 `UNAVAILABLE`로 남깁니다. Live
 connection/ingestion은 아직 `Not instrumented`/`Not connected`로 표시합니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
@@ -130,12 +133,14 @@ prepared 단일-asset CSV export 검증 / canonical mapping
 현재 persistence는 single-writer local registry 범위이고 Operations의 Sources 화면에서 prepared
 file/history source를 discover, preview, map, validate한 뒤 등록하고, 선택한 registered source를 현재
 Observation/Timeline으로 다시 로드할 수 있습니다. Load 시 source bytes를 재검증하므로 registration 시점의
-검증 결과를 현재 관측으로 캐시하지 않습니다. Source lifecycle state는 registry v2에 영속되고 기존 v1
-registry는 읽을 때 implicit REGISTERED로 호환됩니다. Operations에서 Activate/Pause는 가능하지만 ACTIVE를
+검증 결과를 현재 관측으로 캐시하지 않습니다. Registry v3는 registration, lifecycle과 optional source-specific
+freshness policy를 함께 보존하고 기존 v1/v2를 읽어 다음 write에서 v3로 승격합니다. Operations에서
+Activate/Pause와 max observation age policy 설정/해제가 가능하지만 ACTIVE나 FRESH를
 online/healthy/ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
-비교 가능한 observed→received lag evidence가 추가되었지만 source-specific freshness policy와 persistent
-runtime receipt history는 아직 없습니다. Browser upload/file-picker, source edit/delete, freshness policy와
-live connection/ingestion은 후속 범위입니다.
+observed→received delivery lag evidence가 추가되었고, policy가 있으면 latest observation age를 별도로
+평가해 FRESH/STALE을 표시합니다. Receipt history 자체는 아직 session-local이며 persistent runtime receipt
+history와 live connection/ingestion은 후속 범위입니다. Browser upload/file-picker와 source edit/delete도
+아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
