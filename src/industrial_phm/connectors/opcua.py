@@ -1,4 +1,4 @@
-"""Minimal one-shot OPC UA endpoint probe and read boundaries.
+"""Minimal OPC UA probe, read, browse, and bounded subscription boundaries.
 
 The first live connector intentionally supports only anonymous / SecurityPolicy None
 connections and reads of explicitly configured variable NodeIds. The endpoint probe
