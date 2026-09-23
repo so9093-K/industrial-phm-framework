@@ -28,6 +28,8 @@ industrial-phm
 │   ├── verify
 │   ├── inspect
 │   └── validate
+├── operations
+│   └── poll-source
 ├── feature
 │   └── characterize
 └── experiment

@@ -36,6 +36,7 @@ from industrial_phm.commands.experiment import (
     _run_experiment_validate,
 )
 from industrial_phm.commands.feature import _run_feature_characterize
+from industrial_phm.commands.operations import _run_operations_poll_source
 from industrial_phm.data.registry import list_datasets
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
@@ -202,6 +203,49 @@ def build_parser() -> argparse.ArgumentParser:
         help="single-character CSV delimiter",
     )
     data_validate_csv.set_defaults(handler=_run_data_validate_csv)
+
+    operations = subcommands.add_parser(
+        "operations",
+        help="run explicit operational source-runtime workflows",
+    )
+    operations_commands = operations.add_subparsers(
+        dest="operations_command",
+        required=True,
+    )
+    operations_poll_source = operations_commands.add_parser(
+        "poll-source",
+        help="poll one ACTIVE registered file/history source until stopped",
+    )
+    operations_poll_source.add_argument(
+        "--registry",
+        type=Path,
+        required=True,
+        help="persistent registered-source control-plane JSON path",
+    )
+    operations_poll_source.add_argument(
+        "--runtime-state",
+        type=Path,
+        required=True,
+        help="separate persistent latest-receipt runtime-state JSON path",
+    )
+    operations_poll_source.add_argument(
+        "--source-id",
+        required=True,
+        help="registered source ID to poll",
+    )
+    operations_poll_source.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=5.0,
+        help="positive polling interval in seconds (default: 5)",
+    )
+    operations_poll_source.add_argument(
+        "--max-cycles",
+        type=int,
+        default=None,
+        help="optional positive cycle limit; omit to run until stop/failure/Ctrl+C",
+    )
+    operations_poll_source.set_defaults(handler=_run_operations_poll_source)
 
     feature = subcommands.add_parser(
         "feature",

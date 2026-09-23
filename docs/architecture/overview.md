@@ -181,6 +181,14 @@ Active file source runtime cycle
          -> success : SUCCEEDED, lifecycle remains ACTIVE
          -> source validation/I/O failure : FAILED/SOURCE, ACTIVE -> ERROR
          -> platform runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
+
+Prepared-file polling runtime
+  SourcePollingPolicy + run_registered_file_source_cycle
+    -> SUCCEEDED : sleep interval -> next cycle
+    -> SKIPPED : stop
+    -> FAILED/SOURCE : stop, lifecycle ERROR
+    -> FAILED/PLATFORM : stop, lifecycle unchanged
+    -> optional max_cycles : bounded deterministic run
 ```
 
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
@@ -219,9 +227,10 @@ NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 con
 모으지만 boolean healthy/unhealthy를 만들지 않고 prepared-file runtime의 connection state는
 NOT_INSTRUMENTED로 유지합니다. Manual load 또는 successful ACTIVE runtime cycle의 latest receipt는 runtime repository에
 기록되고 앱 재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
-assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Browser upload/file-picker, source
-edit/delete, continuous scheduler/polling, retry/backoff/buffering, receipt history, OPC UA/MQTT connector는
-후속 경계입니다.
+assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Prepared-file polling은
+`SourcePollingPolicy`가 one-shot cycle을 caller-owned synchronous loop로 반복하는 수준까지 구현됐고,
+non-success에서 즉시 중지합니다. Browser upload/file-picker, source edit/delete, background service,
+retry/backoff/buffering, receipt history, OPC UA/MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 

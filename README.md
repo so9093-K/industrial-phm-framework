@@ -95,13 +95,28 @@ connection health, retry/buffer 상태, receipt history는 아직 저장하지 �
 latest receipt, source-specific freshness를 조합한 `SourceHealthAssessment`를 표시하지만 단일
 healthy/unhealthy 판정은 만들지 않습니다. Prepared-file runtime에는 connector telemetry가 없으므로
 Connection은 항상 `NOT_INSTRUMENTED`로 남고, Data flow는 INACTIVE/SOURCE_ERROR/NO_RECEIPT/FRESH/
-STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. One-shot
-file runtime은 구현됐지만 live connector와 continuous polling/ingestion은 아직
-`Not instrumented`/`Not connected` 경계로 남아 있습니다.
+STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. Operations UI는
+one-shot 실행을 유지하고, CLI의 `operations poll-source`는 같은 runtime cycle을 caller-owned synchronous
+loop로 반복할 수 있습니다. 이 polling runtime은 background service나 live connector가 아니며,
+retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
 표시합니다.
+
+ACTIVE registered file/history source를 CLI에서 동기 polling하려면 registry/runtime-state 경로를
+명시합니다. `--max-cycles`를 생략하면 failure/non-ACTIVE/Ctrl+C까지 계속 실행합니다.
+
+```bash
+uv run --locked industrial-phm operations poll-source \
+  --registry artifacts/operations/source-registry.json \
+  --runtime-state artifacts/operations/source-runtime.json \
+  --source-id pump-source \
+  --interval-seconds 5
+```
+
+이 명령은 background daemon이 아니며 실행 중인 process가 polling loop를 소유합니다. Source failure나
+platform failure에서는 자동 retry하지 않고 종료합니다.
 
 CLI에서 저장된 결과의 기술 정보를 확인하려면 다음 명령을 사용할 수 있습니다.
 
@@ -132,7 +147,7 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> timestamped observation timeline + 첫 private/field source conformance
   -> RegisteredSource control plane / persistence / Sources UX
   -> Operations UI에서 관측 / data quality / PHM evidence 연결
-  -> source lifecycle / freshness / one-shot runtime cycle / live connector
+  -> source lifecycle / freshness / polling runtime / live connector
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
@@ -151,11 +166,12 @@ Activate/Pause와 max observation age policy 설정/해제가 가능하고 ACTIV
 observed→received delivery lag evidence가 추가되었고, policy가 있으면 latest observation age를 별도로
 평가해 FRESH/STALE을 표시합니다. Latest accepted receipt는 별도
 `industrial-phm-source-runtime-v1` state에 영속되어 restart 후에도 monitoring read model이 복원되지만,
-receipt **history**와 continuous polling/connection telemetry는 아직 없습니다. Current lifecycle,
-persisted latest receipt와 freshness policy를 묶은 source-health read model은 제공하지만 boolean
-healthy/unhealthy나 connection success를 추론하지 않습니다. Runtime cycle은 explicit single iteration이며
-scheduler가 아닙니다. Browser upload/file-picker, source edit/delete와 live connection/ingestion도 아직
-지원하지 않습니다.
+receipt **history**와 connection telemetry는 아직 없습니다. Current lifecycle, persisted latest receipt와
+freshness policy를 묶은 source-health read model은 제공하지만 boolean healthy/unhealthy나 connection
+success를 추론하지 않습니다. Operations UI의 runtime cycle은 explicit single iteration이고, CLI의
+`operations poll-source`는 이 cycle을 일정 interval로 동기 반복합니다. Polling은 failure/non-ACTIVE에서
+즉시 멈추며 retry/backoff나 background daemon을 만들지 않습니다. Browser upload/file-picker, source
+edit/delete와 live connector ingestion도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
