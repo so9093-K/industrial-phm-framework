@@ -28,6 +28,7 @@ from industrial_phm.application.operational import (
     validate_operational_finding_against_run,
 )
 from industrial_phm.application.source_cycle import (
+    SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleResult,
     SourceRuntimeCycleState,
     run_registered_file_source_cycle,
@@ -99,6 +100,7 @@ __all__ = [
     "SourceReceiptEvidence",
     "SourceRegistryFormatError",
     "SourceRepository",
+    "SourceRuntimeCycleFailureScope",
     "SourceRuntimeCycleResult",
     "SourceRuntimeCycleState",
     "SourceRuntimeFormatError",
