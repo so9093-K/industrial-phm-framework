@@ -82,6 +82,8 @@ from industrial_phm.application.source_registry import (
 )
 from industrial_phm.application.source_runtime import (
     JsonSourceRuntimeRepository,
+    SourceConnectionAttemptEvidence,
+    SourceConnectionAttemptOutcome,
     SourceRuntimeFormatError,
     SourceRuntimeRepository,
     validate_distinct_source_state_paths,
@@ -108,6 +110,8 @@ __all__ = [
     "RegisteredOpcUaObservation",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
+    "SourceConnectionAttemptEvidence",
+    "SourceConnectionAttemptOutcome",
     "SourceConnectionState",
     "SourceDataFlowState",
     "SourceFreshnessAssessment",
