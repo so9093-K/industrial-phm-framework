@@ -52,6 +52,10 @@ from industrial_phm.application.source_lifecycle import (
     SourceLifecycleState,
     transition_source_lifecycle,
 )
+from industrial_phm.application.source_polling import (
+    SourcePollingPolicy,
+    poll_registered_file_source,
+)
 from industrial_phm.application.source_receipt import (
     ReceivedRegisteredFileObservation,
     SourceReceiptEvidence,
@@ -106,6 +110,7 @@ __all__ = [
     "SourceLifecycleRecord",
     "SourceLifecycleRepository",
     "SourceLifecycleState",
+    "SourcePollingPolicy",
     "SourceReceiptEvidence",
     "SourceRegistryFormatError",
     "SourceRepository",
@@ -125,6 +130,7 @@ __all__ = [
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
+    "poll_registered_file_source",
     "receive_registered_file_source_observation",
     "register_file_source",
     "run_registered_file_source_cycle",
