@@ -1422,7 +1422,10 @@ def _(
                     kind="info",
                     title="Runtime boundary",
                 ),
-                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`  \n"
+                    f"Configured runtime state: `{escape_markdown_cell(source_runtime_default)}`"
+                ),
             ],
             gap=1.2,
         )
@@ -1449,6 +1452,8 @@ def _(initial_error, initial_summary, initial_timeline, mo):
 
 @app.cell
 def _(
+    JsonSourceRuntimeRepository,
+    Path,
     load_registered_source_button,
     receive_registered_file_source_observation,
     registered_sources,
@@ -1457,7 +1462,10 @@ def _(
     set_registered_source_load_error,
     set_registered_source_load_success,
     set_source_receipt,
+    set_source_runtime_error,
+    set_source_runtime_receipts,
     set_timeline,
+    source_runtime_default,
     source_selector,
 ):
     if load_registered_source_button is not None and load_registered_source_button.value:
@@ -1485,6 +1493,20 @@ def _(
             set_registered_source_load_success(
                 f"Loaded current observation from registered source: {_selected.source_id}"
             )
+            try:
+                _runtime_repository = JsonSourceRuntimeRepository(Path(source_runtime_default))
+                _runtime_repository.record_receipt(_received.receipt)
+                _registered_ids = {source.source_id for source in registered_sources}
+                _runtime_receipts = tuple(
+                    receipt
+                    for receipt in _runtime_repository.list_latest_receipts()
+                    if receipt.source_id in _registered_ids
+                )
+            except (OSError, ValueError) as error:
+                set_source_runtime_error(str(error))
+            else:
+                set_source_runtime_receipts(_runtime_receipts)
+                set_source_runtime_error("")
     return
 
 
