@@ -23,8 +23,8 @@ directory가 지정되면 single source보다 우선합니다.
 **Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity, file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
 등록 record와 별도로 `REGISTERED / ACTIVE / PAUSED / ERROR` lifecycle state를 보존하고 Sources에서
-Activate/Pause할 수 있습니다. ACTIVE는 future/source runtime의 administrative enablement일 뿐
-connection/health/freshness/active ingestion을 주장하지 않습니다. 기본 registry 경로는
+Activate/Pause할 수 있습니다. ACTIVE는 one-shot source runtime이 소비할 수 있는 administrative
+enablement이며, 그 자체로 connection/health/freshness/continuous ingestion을 주장하지 않습니다. 기본 registry 경로는
 `artifacts/operations/source-registry.json`입니다. Latest accepted receipt는 별도 runtime-state 파일
 `artifacts/operations/source-runtime.json`에 저장합니다. 두 경로 모두 환경변수로 바꿀 수 있습니다.
 
