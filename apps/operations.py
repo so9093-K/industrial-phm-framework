@@ -25,6 +25,7 @@ def _():
         SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceRuntimeCycleState,
+        SourceType,
         assess_source_freshness,
         assess_source_health,
         discover_file_source,
@@ -36,6 +37,7 @@ def _():
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
+    from industrial_phm.connectors import OpcUaNodeMapping
     from industrial_phm.contracts import DataQualityState
 
     return (
@@ -48,12 +50,14 @@ def _():
         FileSourceMode,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
+        OpcUaNodeMapping,
         OpcUaSourceConfig,
         Path,
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceRuntimeCycleState,
+        SourceType,
         assess_source_freshness,
         assess_source_health,
         datetime,
@@ -74,6 +78,7 @@ def _():
 def _(
     CsvSensorLayout,
     CsvSensorSourceError,
+    OpcUaNodeMapping,
     Path,
     load_field_csv_observation_summary,
     load_field_csv_observation_timeline_directory,
@@ -83,6 +88,25 @@ def _(
 
     def parse_sampling_rate(value: str) -> float | None:
         return None if not value.strip() else float(value)
+
+    def parse_opcua_node_mappings(value: str):
+        mappings = []
+        for line_number, raw_line in enumerate(value.splitlines(), start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            if "," not in line:
+                raise ValueError(
+                    f"OPC UA node mapping line {line_number} must use channel_id,node_id"
+                )
+            channel_id, node_id = line.split(",", 1)
+            mappings.append(
+                OpcUaNodeMapping(
+                    channel_id=channel_id.strip(),
+                    node_id=node_id.strip(),
+                )
+            )
+        return tuple(mappings)
 
     def load_observation(
         *,
@@ -127,7 +151,7 @@ def _(
 
         return summary, None, ""
 
-    return load_observation, parse_channels, parse_sampling_rate
+    return load_observation, parse_channels, parse_opcua_node_mappings, parse_sampling_rate
 
 
 @app.cell
@@ -384,7 +408,23 @@ def _(
 
 
 @app.cell
-def _(FileSourceMode, mo):
+def _(FileSourceMode, SourceType, mo, os):
+    _registration_type_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_REGISTRATION_TYPE",
+        SourceType.FILE.value,
+    )
+    if _registration_type_default not in {
+        SourceType.FILE.value,
+        SourceType.OPCUA.value,
+    }:
+        _registration_type_default = SourceType.FILE.value
+
+    registration_type_input = mo.ui.radio(
+        options=[SourceType.FILE.value, SourceType.OPCUA.value],
+        value=_registration_type_default,
+        inline=True,
+        label="Source type",
+    )
     registration_mode_input = mo.ui.radio(
         options=[
             FileSourceMode.SNAPSHOT.value,
@@ -436,8 +476,32 @@ def _(FileSourceMode, mo):
         full_width=True,
     )
     register_source_button = mo.ui.run_button(label="Validate & Register", kind="success")
+
+    registration_opcua_endpoint_input = mo.ui.text(
+        value="",
+        label="OPC UA endpoint",
+        placeholder="opc.tcp://host:4840",
+        full_width=True,
+    )
+    registration_opcua_node_mappings_input = mo.ui.text_area(
+        value="",
+        label="Node mappings (one per line: channel_id,node_id)",
+        placeholder=(
+            "vibration_x,ns=2;s=Machine/VibrationX\n"
+            "temperature,ns=2;s=Machine/Temperature"
+        ),
+    )
+    registration_opcua_timeout_input = mo.ui.text(
+        value="4",
+        label="Request timeout seconds",
+    )
+    register_opcua_source_button = mo.ui.run_button(
+        label="Register OPC UA source",
+        kind="success",
+    )
     return (
         discover_source_button,
+        register_opcua_source_button,
         register_source_button,
         registration_asset_id_input,
         registration_channels_input,
@@ -446,11 +510,15 @@ def _(FileSourceMode, mo):
         registration_minimum_samples_input,
         registration_mode_input,
         registration_name_input,
+        registration_opcua_endpoint_input,
+        registration_opcua_node_mappings_input,
+        registration_opcua_timeout_input,
         registration_path_input,
         registration_sampling_rate_input,
         registration_source_id_input,
         registration_timestamp_input,
         registration_tolerance_input,
+        registration_type_input,
     )
 
 
@@ -479,18 +547,23 @@ def _(mo):
 def _(
     FileSourceMode,
     Path,
+    SourceType,
     discover_file_source,
     discover_source_button,
     registration_delimiter_input,
     registration_mode_input,
     registration_path_input,
+    registration_type_input,
     set_discovery_signature,
     set_registration_error,
     set_registration_success,
     set_registration_validation,
     set_source_discovery,
 ):
-    if discover_source_button.value:
+    if (
+        discover_source_button.value
+        and registration_type_input.value == SourceType.FILE.value
+    ):
         _path_value = registration_path_input.value.strip()
         _delimiter = registration_delimiter_input.value
         _mode_value = registration_mode_input.value
@@ -544,6 +617,7 @@ def _(
     JsonSourceRepository,
     Path,
     RegisteredSource,
+    SourceType,
     datetime,
     discovery_signature,
     parse_channels,
@@ -556,11 +630,15 @@ def _(
     registration_minimum_samples_input,
     registration_mode_input,
     registration_name_input,
+    registration_opcua_endpoint_input,
+    registration_opcua_node_mappings_input,
+    registration_opcua_timeout_input,
     registration_path_input,
     registration_sampling_rate_input,
     registration_source_id_input,
     registration_timestamp_input,
     registration_tolerance_input,
+    registration_type_input,
     set_registered_sources,
     set_source_freshness_policies,
     set_source_lifecycle_records,
@@ -571,7 +649,10 @@ def _(
     source_discovery,
     source_registry_default,
 ):
-    if register_source_button.value:
+    if (
+        register_source_button.value
+        and registration_type_input.value == SourceType.FILE.value
+    ):
         _path_value = registration_path_input.value.strip()
         _mode_value = registration_mode_input.value
         _delimiter = registration_delimiter_input.value
@@ -652,6 +733,83 @@ def _(
 
 @app.cell
 def _(
+    JsonSourceRepository,
+    OpcUaSourceConfig,
+    Path,
+    RegisteredSource,
+    SourceType,
+    datetime,
+    parse_opcua_node_mappings,
+    register_opcua_source_button,
+    registration_asset_id_input,
+    registration_measurement_point_input,
+    registration_name_input,
+    registration_opcua_endpoint_input,
+    registration_opcua_node_mappings_input,
+    registration_opcua_timeout_input,
+    registration_source_id_input,
+    registration_type_input,
+    set_registered_sources,
+    set_registration_error,
+    set_registration_success,
+    set_registration_validation,
+    set_source_freshness_policies,
+    set_source_lifecycle_records,
+    set_source_registry_error,
+    source_registry_default,
+):
+    if (
+        register_opcua_source_button.value
+        and registration_type_input.value == SourceType.OPCUA.value
+    ):
+        try:
+            _candidate = RegisteredSource(
+                source_id=registration_source_id_input.value.strip(),
+                name=registration_name_input.value.strip(),
+                config=OpcUaSourceConfig(
+                    endpoint_url=registration_opcua_endpoint_input.value.strip(),
+                    asset_id=registration_asset_id_input.value.strip(),
+                    measurement_point_id=(
+                        registration_measurement_point_input.value.strip() or None
+                    ),
+                    node_mappings=parse_opcua_node_mappings(
+                        registration_opcua_node_mappings_input.value
+                    ),
+                    timeout_seconds=float(
+                        registration_opcua_timeout_input.value.strip()
+                    ),
+                ),
+                registered_at=datetime.now().astimezone(),
+            )
+            _repository = JsonSourceRepository(Path(source_registry_default))
+            _repository.register(_candidate)
+        except (OSError, ValueError) as error:
+            set_registration_validation(None)
+            set_registration_success("")
+            set_registration_error(str(error))
+        else:
+            _sources = _repository.list_sources()
+            set_registered_sources(_sources)
+            set_source_lifecycle_records(
+                tuple(_repository.get_lifecycle(source.source_id) for source in _sources)
+            )
+            set_source_freshness_policies(
+                tuple(
+                    _policy
+                    for source in _sources
+                    if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
+                )
+            )
+            set_source_registry_error("")
+            set_registration_validation(None)
+            set_registration_error("")
+            set_registration_success(f"Registered OPC UA source: {_candidate.source_id}")
+    return
+
+
+@app.cell
+def _(
+    SourceType,
     mo,
     discovery_signature,
     registration_asset_id_input,
@@ -668,7 +826,9 @@ def _(
     registration_success,
     registration_timestamp_input,
     registration_tolerance_input,
+    registration_type_input,
     registration_validation,
+    register_opcua_source_button,
     register_source_button,
     discover_source_button,
     source_discovery,
@@ -755,13 +915,15 @@ def _(
             gap=0.8,
         )
 
+    _is_file_registration = registration_type_input.value == SourceType.FILE.value
+
     if registration_error:
         _registration_status = mo.callout(
             registration_error,
             kind="danger",
-            title="Validate & Register · Failed",
+            title="Registration · Failed",
         )
-    elif registration_validation is not None and registration_success:
+    elif _is_file_registration and registration_validation is not None and registration_success:
         _issue_label = (
             "none"
             if not registration_validation.quality_issue_codes
@@ -786,55 +948,106 @@ def _(
             ],
             gap=0.6,
         )
-    else:
+    elif not _is_file_registration and registration_success:
+        _registration_status = mo.callout(
+            registration_success,
+            kind="success",
+            title="Register OPC UA source · Complete",
+        )
+    elif _is_file_registration:
         _registration_status = mo.callout(
             "Registration validates the entire declared snapshot/history before persisting it.",
             kind="info",
             title="Validate & Register",
         )
+    else:
+        _registration_status = mo.callout(
+            "OPC UA registration validates configuration shape only. It does not connect to "
+            "the endpoint, browse the address space, read a node, or claim connection health.",
+            kind="info",
+            title="Register · Control-plane only",
+        )
 
-    registration_view = mo.vstack(
-        [
-            mo.md(
-                "### Add source\n\n"
-                "**1. Source** — 현재는 prepared CSV file/history directory만 등록합니다. "
-                "OPC UA/MQTT는 아직 선택 가능한 capability가 아닙니다."
-            ),
-            mo.hstack(
-                [registration_mode_input, registration_delimiter_input],
-                widths="equal",
-            ),
-            registration_path_input,
-            discover_source_button,
-            mo.md("**2. Discover & Preview**"),
-            _discovery_view,
-            mo.md(
-                "**3. Mapping** — Discover에서 모든 CSV에 공통으로 확인된 column을 "
-                "asset/measurement point/time/channel 의미에 명시적으로 매핑합니다."
-            ),
-            mo.hstack(
-                [registration_source_id_input, registration_name_input],
-                widths="equal",
-            ),
-            mo.hstack(
-                [registration_asset_id_input, registration_measurement_point_input],
-                widths="equal",
-            ),
-            registration_channels_input,
-            mo.hstack(
-                [registration_timestamp_input, registration_sampling_rate_input],
-                widths="equal",
-            ),
-            mo.hstack(
-                [registration_tolerance_input, registration_minimum_samples_input],
-                widths="equal",
-            ),
-            mo.md("**4. Validate & Register**"),
-            register_source_button,
-            _registration_status,
-        ],
-        gap=0.8,
-    )
+    if _is_file_registration:
+        registration_view = mo.vstack(
+            [
+                mo.md(
+                    "### Add source\n\n"
+                    "**1. Source** — prepared CSV file/history directory registration."
+                ),
+                registration_type_input,
+                mo.hstack(
+                    [registration_mode_input, registration_delimiter_input],
+                    widths="equal",
+                ),
+                registration_path_input,
+                discover_source_button,
+                mo.md("**2. Discover & Preview**"),
+                _discovery_view,
+                mo.md(
+                    "**3. Mapping** — Discover에서 모든 CSV에 공통으로 확인된 column을 "
+                    "asset/measurement point/time/channel 의미에 명시적으로 매핑합니다."
+                ),
+                mo.hstack(
+                    [registration_source_id_input, registration_name_input],
+                    widths="equal",
+                ),
+                mo.hstack(
+                    [registration_asset_id_input, registration_measurement_point_input],
+                    widths="equal",
+                ),
+                registration_channels_input,
+                mo.hstack(
+                    [registration_timestamp_input, registration_sampling_rate_input],
+                    widths="equal",
+                ),
+                mo.hstack(
+                    [registration_tolerance_input, registration_minimum_samples_input],
+                    widths="equal",
+                ),
+                mo.md("**4. Validate & Register**"),
+                register_source_button,
+                _registration_status,
+            ],
+            gap=0.8,
+        )
+    else:
+        registration_view = mo.vstack(
+            [
+                mo.md(
+                    "### Add source\n\n"
+                    "**1. Source** — OPC UA endpoint와 explicit NodeId mapping을 control-plane "
+                    "identity로 등록합니다."
+                ),
+                registration_type_input,
+                mo.callout(
+                    "This step does not connect to the endpoint. Credentials/certificates, "
+                    "browse/discovery, subscription and reconnect remain unsupported.",
+                    kind="neutral",
+                    title="OPC UA registration boundary",
+                ),
+                mo.md("**2. Identity & endpoint**"),
+                mo.hstack(
+                    [registration_source_id_input, registration_name_input],
+                    widths="equal",
+                ),
+                mo.hstack(
+                    [registration_asset_id_input, registration_measurement_point_input],
+                    widths="equal",
+                ),
+                registration_opcua_endpoint_input,
+                mo.md(
+                    "**3. Explicit node mapping** — 한 줄에 `channel_id,node_id` 형식으로 "
+                    "입력합니다. 첫 번째 쉼표만 separator로 사용합니다."
+                ),
+                registration_opcua_node_mappings_input,
+                registration_opcua_timeout_input,
+                mo.md("**4. Register**"),
+                register_opcua_source_button,
+                _registration_status,
+            ],
+            gap=0.8,
+        )
     return registration_view
 
 
