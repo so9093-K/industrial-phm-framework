@@ -23,7 +23,7 @@ class SourceFreshnessState(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class SourceFreshnessPolicy:
-    """Persisted max observation-age policy for one registered source."""
+    """Persisted maximum latest-observation age for one registered source."""
 
     source_id: str
     max_observation_age_seconds: float
@@ -46,13 +46,15 @@ class SourceFreshnessPolicy:
 
 @dataclass(frozen=True, slots=True)
 class SourceFreshnessAssessment:
-    """Freshness result derived from explicit receipt evidence and optional policy."""
+    """Freshness result derived from explicit timing evidence and optional policy."""
 
     source_id: str
     state: SourceFreshnessState
     observed_at: datetime | None
     received_at: datetime
-    lag_seconds: float | None
+    assessed_at: datetime
+    delivery_lag_seconds: float | None
+    observation_age_seconds: float | None
     max_observation_age_seconds: float | None
     reason: str | None = None
 
@@ -62,14 +64,12 @@ class SourceFreshnessAssessment:
             raise ValueError("state must be a SourceFreshnessState")
         if not isinstance(self.received_at, datetime) or self.received_at.utcoffset() is None:
             raise ValueError("received_at must be a timezone-aware datetime")
+        if not isinstance(self.assessed_at, datetime) or self.assessed_at.utcoffset() is None:
+            raise ValueError("assessed_at must be a timezone-aware datetime")
         if self.observed_at is not None and not isinstance(self.observed_at, datetime):
             raise ValueError("observed_at must be a datetime when provided")
-        if self.lag_seconds is not None and (
-            isinstance(self.lag_seconds, bool)
-            or not isinstance(self.lag_seconds, Real)
-            or not isfinite(self.lag_seconds)
-        ):
-            raise ValueError("lag_seconds must be a finite number when provided")
+        _validate_optional_finite_number(self.delivery_lag_seconds, "delivery_lag_seconds")
+        _validate_optional_finite_number(self.observation_age_seconds, "observation_age_seconds")
         if self.max_observation_age_seconds is not None and (
             isinstance(self.max_observation_age_seconds, bool)
             or not isinstance(self.max_observation_age_seconds, Real)
@@ -81,15 +81,16 @@ class SourceFreshnessAssessment:
             )
 
         if self.state in {SourceFreshnessState.FRESH, SourceFreshnessState.STALE}:
-            if self.lag_seconds is None or self.max_observation_age_seconds is None:
-                raise ValueError("fresh/stale assessment requires lag and configured policy")
-            if self.lag_seconds < 0:
-                raise ValueError("fresh/stale assessment requires non-negative lag")
+            if self.observation_age_seconds is None or self.max_observation_age_seconds is None:
+                raise ValueError(
+                    "fresh/stale assessment requires observation age and configured policy"
+                )
+            if self.observation_age_seconds < 0:
+                raise ValueError("fresh/stale assessment requires non-negative observation age")
             if self.reason is not None:
                 raise ValueError("fresh/stale assessment must not carry an unavailable reason")
-        else:
-            if self.reason is None:
-                raise ValueError("non-decision freshness state requires a reason")
+        elif self.reason is None:
+            raise ValueError("non-decision freshness state requires a reason")
 
 
 @runtime_checkable
@@ -112,10 +113,25 @@ class SourceFreshnessPolicyRepository(Protocol):
 def assess_source_freshness(
     receipt: SourceReceiptEvidence,
     policy: SourceFreshnessPolicy | None,
+    *,
+    as_of: datetime,
 ) -> SourceFreshnessAssessment:
-    """Derive freshness without inventing missing timestamp or policy semantics."""
+    """Assess latest-observation freshness at an explicit evaluation time.
+
+    Delivery lag and freshness age are different facts:
+    - delivery lag = received_at - observed_at
+    - observation age = as_of - observed_at
+
+    Fresh/stale classification uses observation age only. No decision is produced
+    when the source observation timestamp is missing, timezone-naive, in the future,
+    or when no source-specific policy is configured.
+    """
     if not isinstance(receipt, SourceReceiptEvidence):
         raise ValueError("receipt must be SourceReceiptEvidence")
+    if not isinstance(as_of, datetime) or as_of.utcoffset() is None:
+        raise ValueError("as_of must be a timezone-aware datetime")
+
+    delivery_lag = receipt.lag_seconds
 
     if policy is None:
         return SourceFreshnessAssessment(
@@ -123,7 +139,9 @@ def assess_source_freshness(
             state=SourceFreshnessState.NOT_CONFIGURED,
             observed_at=receipt.observed_at,
             received_at=receipt.received_at,
-            lag_seconds=receipt.lag_seconds,
+            assessed_at=as_of,
+            delivery_lag_seconds=delivery_lag,
+            observation_age_seconds=_observation_age_seconds(receipt, as_of),
             max_observation_age_seconds=None,
             reason="source-specific freshness policy is not configured",
         )
@@ -133,35 +151,42 @@ def assess_source_freshness(
     if policy.source_id != receipt.source_id:
         raise ValueError("receipt and freshness policy must share one source_id")
 
-    lag = receipt.lag_seconds
-    if lag is None:
-        return SourceFreshnessAssessment(
-            source_id=receipt.source_id,
-            state=SourceFreshnessState.UNAVAILABLE,
-            observed_at=receipt.observed_at,
-            received_at=receipt.received_at,
-            lag_seconds=None,
-            max_observation_age_seconds=policy.max_observation_age_seconds,
-            reason=receipt.lag_unavailable_reason or "receipt lag is unavailable",
+    if receipt.observed_at is None:
+        return _unavailable_assessment(
+            receipt,
+            policy,
+            as_of=as_of,
+            delivery_lag=delivery_lag,
+            observation_age=None,
+            reason="source observation time is unavailable",
+        )
+    if receipt.observed_at.utcoffset() is None:
+        return _unavailable_assessment(
+            receipt,
+            policy,
+            as_of=as_of,
+            delivery_lag=None,
+            observation_age=None,
+            reason="source observation timezone is unavailable",
         )
 
-    if lag < 0:
-        return SourceFreshnessAssessment(
-            source_id=receipt.source_id,
-            state=SourceFreshnessState.UNAVAILABLE,
-            observed_at=receipt.observed_at,
-            received_at=receipt.received_at,
-            lag_seconds=lag,
-            max_observation_age_seconds=policy.max_observation_age_seconds,
+    age = (as_of - receipt.observed_at).total_seconds()
+    if age < 0:
+        return _unavailable_assessment(
+            receipt,
+            policy,
+            as_of=as_of,
+            delivery_lag=delivery_lag,
+            observation_age=age,
             reason=(
-                "observed_at is after received_at; timestamp alignment must be resolved "
-                "before freshness can be classified"
+                "observed_at is after freshness assessment time; timestamp alignment "
+                "must be resolved before freshness can be classified"
             ),
         )
 
     state = (
         SourceFreshnessState.FRESH
-        if lag <= policy.max_observation_age_seconds
+        if age <= policy.max_observation_age_seconds
         else SourceFreshnessState.STALE
     )
     return SourceFreshnessAssessment(
@@ -169,9 +194,49 @@ def assess_source_freshness(
         state=state,
         observed_at=receipt.observed_at,
         received_at=receipt.received_at,
-        lag_seconds=lag,
+        assessed_at=as_of,
+        delivery_lag_seconds=delivery_lag,
+        observation_age_seconds=age,
         max_observation_age_seconds=policy.max_observation_age_seconds,
     )
+
+
+def _unavailable_assessment(
+    receipt: SourceReceiptEvidence,
+    policy: SourceFreshnessPolicy,
+    *,
+    as_of: datetime,
+    delivery_lag: float | None,
+    observation_age: float | None,
+    reason: str,
+) -> SourceFreshnessAssessment:
+    return SourceFreshnessAssessment(
+        source_id=receipt.source_id,
+        state=SourceFreshnessState.UNAVAILABLE,
+        observed_at=receipt.observed_at,
+        received_at=receipt.received_at,
+        assessed_at=as_of,
+        delivery_lag_seconds=delivery_lag,
+        observation_age_seconds=observation_age,
+        max_observation_age_seconds=policy.max_observation_age_seconds,
+        reason=reason,
+    )
+
+
+def _observation_age_seconds(
+    receipt: SourceReceiptEvidence,
+    as_of: datetime,
+) -> float | None:
+    if receipt.observed_at is None or receipt.observed_at.utcoffset() is None:
+        return None
+    return (as_of - receipt.observed_at).total_seconds()
+
+
+def _validate_optional_finite_number(value: float | None, field_name: str) -> None:
+    if value is not None and (
+        isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value)
+    ):
+        raise ValueError(f"{field_name} must be a finite number when provided")
 
 
 def _validate_identifier(value: str, field_name: str) -> None:
