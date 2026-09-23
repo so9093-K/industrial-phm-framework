@@ -1419,7 +1419,8 @@ def _(
                                 "latest receipt and leaves lifecycle ACTIVE on success. Source "
                                 "validation/I/O failure transitions ACTIVE → ERROR, while platform "
                                 "runtime-state failure fails the cycle without changing source "
-                                "lifecycle. This is one explicit iteration, not background polling.",
+                                "lifecycle. This is one explicit iteration, not background "
+                                "polling.",
                                 kind="info",
                                 title="Runtime cycle semantics",
                             )
