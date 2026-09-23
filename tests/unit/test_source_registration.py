@@ -192,7 +192,7 @@ def test_opcua_source_config_reuses_connector_mapping_contract() -> None:
 
 
 def test_opcua_source_config_reuses_connector_endpoint_validation() -> None:
-    with pytest.raises(ValueError, match="opc.tcp"):
+    with pytest.raises(ValueError, match=r"opc\.tcp"):
         OpcUaSourceConfig(
             endpoint_url="https://plc.example.test:4840",
             asset_id="pump-01",
