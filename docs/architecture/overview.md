@@ -153,6 +153,15 @@ Freshness assessment
          └ UNAVAILABLE
 
   observation age = assessed_at - observed_at
+
+Active file source runtime cycle
+  SourceRepository + SourceLifecycleRepository + SourceRuntimeRepository
+    -> lifecycle != ACTIVE : SKIPPED, no source I/O
+    -> lifecycle == ACTIVE
+         -> receive_registered_file_source_observation
+         -> record latest SourceReceiptEvidence
+         -> success : SUCCEEDED, lifecycle remains ACTIVE
+         -> source/runtime failure : FAILED, ACTIVE -> ERROR
 ```
 
 현재 `RegisteredSource`는 file/file-directory source만 표현하며, 등록 record가 존재한다는 사실을
@@ -171,9 +180,10 @@ evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 
 cross-process write coordination은 아직 지원하지 않습니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
-REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, registry read surface와 selected registered source의
-on-demand Observation load까지 연결합니다. ACTIVE는 runtime consumption을 허용하는 administrative
-state이며 connection/health/ingestion 성공을 뜻하지 않습니다.
+REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, ACTIVE one-shot runtime cycle, registry read surface와
+selected registered source의 on-demand Observation load까지 연결합니다. ACTIVE는 runtime execution을
+허용하는 administrative state이며 one-shot cycle이 실제로 이를 소비하지만 connection/health/continuous
+ingestion 성공을 뜻하지 않습니다.
 `load_registered_file_source_observation`은 registration-time 검증을 현재 상태로 재사용하지 않고 매 load마다
 현재 source bytes를 기존 field CSV/timeline 경계로 재검증합니다. 따라서 registration은 observation cache나
 source-health evidence가 아닙니다. `receive_registered_file_source_observation`은 이 검증이 성공한 뒤
@@ -184,8 +194,8 @@ Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 
 `assessed_at - observed_at` observation age를 policy max age와 비교해 계산합니다. Timestamp/timezone이
 없거나 observed_at이 assessment time보다 미래면 fail-closed로 UNAVAILABLE을 반환하고, policy가 없으면
 NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 connection/health/ingestion 성공을
-뜻하지 않습니다. Successful registered-source load의 latest receipt는 runtime repository에 기록되고 앱
-재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
+뜻하지 않습니다. Manual load 또는 successful ACTIVE runtime cycle의 latest receipt는 runtime repository에
+기록되고 앱 재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
 assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Browser upload/file-picker, source
 edit/delete, lifecycle을 실제로 소비하는 continuous ingestion runtime, receipt history, OPC UA/MQTT
 connector는 후속 경계입니다.
