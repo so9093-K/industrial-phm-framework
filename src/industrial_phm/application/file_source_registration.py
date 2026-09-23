@@ -12,7 +12,7 @@ from industrial_phm.application.field_csv import (
     load_field_csv_observation_summary,
     load_field_csv_observation_timeline_directory,
 )
-from industrial_phm.application.observation import SourceSnapshotEvidence
+from industrial_phm.application.observation import AssetObservationSummary, SourceSnapshotEvidence
 from industrial_phm.application.source_registration import (
     FileSourceMode,
     RegisteredSource,
@@ -165,6 +165,7 @@ def validate_registered_file_source(
     layout = config.to_csv_sensor_layout()
     path = Path(config.source_path)
 
+    segments: tuple[AssetObservationSummary, ...]
     if config.mode == FileSourceMode.SNAPSHOT:
         segments = (
             load_field_csv_observation_summary(
