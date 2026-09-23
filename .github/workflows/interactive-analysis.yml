@@ -186,6 +186,13 @@ jobs:
             --no-include-code \
             --output /tmp/phm-operations-single.html
 
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
+          INDUSTRIAL_PHM_OPERATIONS_REGISTRATION_TYPE=opcua \
+            uv run --locked --group research marimo export html \
+            apps/operations.py \
+            --no-include-code \
+            --output /tmp/phm-operations-opcua-registration.html
+
           mkdir -p /tmp/operations-history
           cat > /tmp/operations-history/segment-late.csv <<'EOF'
           timestamp,vibration_x,temperature
