@@ -51,7 +51,7 @@ def _source(
 def _opcua_source(*, source_id: str = "opcua-source") -> RegisteredSource:
     return RegisteredSource(
         source_id=source_id,
-        name=f"Registered ${source_id}",
+        name=f"Registered {source_id}",
         config=OpcUaSourceConfig(
             endpoint_url="opc.tcp://plc.example.test:4840",
             asset_id="pump-01",
@@ -586,3 +586,18 @@ def test_v3_registry_rejects_opcua_source_type_as_schema_incompatible(tmp_path: 
     with pytest.raises(SourceRegistryFormatError, match="unsupported by this registry schema"):
         JsonSourceRepository(registry).list_sources()
 
+
+
+def test_json_source_repository_rejects_invalid_opcua_node_mapping_shape(
+    tmp_path: Path,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_opcua_source())
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["sources"][0]["config"]["node_mappings"][0]["unexpected"] = True
+    registry.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRegistryFormatError, match="keys do not match schema"):
+        JsonSourceRepository(registry).list_sources()
