@@ -14,7 +14,10 @@ from industrial_phm.connectors import (
     OpcUaReadConfig,
     OpcUaRuntimeUnavailableError,
     OpcUaSourceError,
+    OpcUaSubscriptionCompletionReason,
+    OpcUaSubscriptionConfig,
     browse_opcua_variables,
+    collect_opcua_subscription_notifications,
     probe_opcua_endpoint,
     read_opcua_snapshot,
 )
@@ -97,6 +100,89 @@ class _FakeBrowseClient:
     def get_node(self, node_id: str) -> _FakeBrowseNode:
         assert node_id == "i=85"
         return type(self).root
+
+
+class _FakeSubscriptionNode:
+    def __init__(self, node_id: str) -> None:
+        self.nodeid = _FakeBrowseNodeId(node_id)
+
+
+class _FakeDataChangeEvent:
+    def __init__(
+        self,
+        node_id: str,
+        data_value: object,
+        *,
+        replayed: bool = False,
+    ) -> None:
+        self.node = _FakeSubscriptionNode(node_id)
+        self.value = None
+        self.data = SimpleNamespace(
+            monitored_item=SimpleNamespace(Value=data_value)
+        )
+        self.replayed = replayed
+
+
+class _FakeSubscription:
+    events: ClassVar[list[object]] = []
+    publishing_interval_ms: ClassVar[float | None] = None
+    queue_maxsize: ClassVar[int | None] = None
+    subscribed_node_ids: ClassVar[tuple[str, ...]] = ()
+    next_timeouts: ClassVar[list[float | None]] = []
+    enter_count: ClassVar[int] = 0
+    exit_count: ClassVar[int] = 0
+
+    async def __aenter__(self) -> _FakeSubscription:
+        type(self).enter_count += 1
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        type(self).exit_count += 1
+        return None
+
+    async def subscribe_data_change(
+        self,
+        nodes: list[_FakeSubscriptionNode],
+    ) -> None:
+        type(self).subscribed_node_ids = tuple(
+            node.nodeid.to_string() for node in nodes
+        )
+
+    async def next_event(self, timeout: float | None = None) -> object | None:
+        type(self).next_timeouts.append(timeout)
+        if not type(self).events:
+            return None
+        return type(self).events.pop(0)
+
+
+class _FakeSubscriptionClient:
+    init_kwargs: ClassVar[dict[str, object]] = {}
+    enter_count: ClassVar[int] = 0
+    exit_count: ClassVar[int] = 0
+
+    def __init__(self, **kwargs: object) -> None:
+        type(self).init_kwargs = dict(kwargs)
+
+    async def __aenter__(self) -> _FakeSubscriptionClient:
+        type(self).enter_count += 1
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        type(self).exit_count += 1
+        return None
+
+    def get_node(self, node_id: str) -> _FakeSubscriptionNode:
+        return _FakeSubscriptionNode(node_id)
+
+    async def create_subscription(
+        self,
+        publishing_interval_ms: float,
+        *,
+        queue_maxsize: int,
+    ) -> _FakeSubscription:
+        _FakeSubscription.publishing_interval_ms = publishing_interval_ms
+        _FakeSubscription.queue_maxsize = queue_maxsize
+        return _FakeSubscription()
 
 
 class _FakeClient:
@@ -303,6 +389,165 @@ def test_opcua_browse_respects_depth_and_node_budget(
     assert budget_limited.variables == ()
     assert budget_limited.truncated is True
     assert budget_limited.visited_node_count == 1
+
+
+def test_opcua_subscription_config_bounds_session_and_queue() -> None:
+    mapping = (OpcUaNodeMapping("vibration_x", "ns=2;s=VibrationX"),)
+
+    with pytest.raises(ValueError, match="publishing_interval_ms"):
+        OpcUaSubscriptionConfig(
+            endpoint_url="opc.tcp://localhost:4840",
+            node_mappings=mapping,
+            publishing_interval_ms=0.0,
+        )
+
+    with pytest.raises(ValueError, match="session_timeout_seconds"):
+        OpcUaSubscriptionConfig(
+            endpoint_url="opc.tcp://localhost:4840",
+            node_mappings=mapping,
+            session_timeout_seconds=0.0,
+        )
+
+    with pytest.raises(ValueError, match="max_events"):
+        OpcUaSubscriptionConfig(
+            endpoint_url="opc.tcp://localhost:4840",
+            node_mappings=mapping,
+            max_events=0,
+        )
+
+    with pytest.raises(ValueError, match="queue_maxsize"):
+        OpcUaSubscriptionConfig(
+            endpoint_url="opc.tcp://localhost:4840",
+            node_mappings=mapping,
+            queue_maxsize=0,
+        )
+
+
+def test_opcua_subscription_collects_bounded_datachange_notifications(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_at = datetime.fromisoformat("2026-09-23T10:00:00+00:00")
+    server_at = datetime.fromisoformat("2026-09-23T10:00:01+00:00")
+    _FakeSubscription.events = [
+        SimpleNamespace(kind="status-change"),
+        _FakeDataChangeEvent(
+            "ns=2;s=VibrationX",
+            _data_value(
+                12.5,
+                status=_FakeStatus(0, good=True),
+                source_timestamp=source_at,
+                server_timestamp=server_at,
+            ),
+        ),
+        _FakeDataChangeEvent(
+            "ns=2;s=Temperature",
+            _data_value(
+                999.0,
+                status=_FakeStatus(0x80030000, good=False),
+                source_timestamp=source_at,
+                server_timestamp=server_at,
+            ),
+            replayed=True,
+        ),
+    ]
+    _FakeSubscription.next_timeouts = []
+    _FakeSubscription.enter_count = 0
+    _FakeSubscription.exit_count = 0
+    _FakeSubscriptionClient.enter_count = 0
+    _FakeSubscriptionClient.exit_count = 0
+
+    def _import(name: str) -> object:
+        if name == "asyncua":
+            return SimpleNamespace(Client=_FakeSubscriptionClient)
+        if name == "asyncua.common.subscription":
+            return SimpleNamespace(DataChangeEvent=_FakeDataChangeEvent)
+        raise AssertionError(f"unexpected import: {name}")
+
+    monkeypatch.setattr(opcua_module, "import_module", _import)
+
+    result = asyncio.run(
+        collect_opcua_subscription_notifications(
+            OpcUaSubscriptionConfig(
+                endpoint_url="opc.tcp://localhost:4840/test/",
+                node_mappings=(
+                    OpcUaNodeMapping("vibration_x", "ns=2;s=VibrationX"),
+                    OpcUaNodeMapping("temperature", "ns=2;s=Temperature"),
+                ),
+                publishing_interval_ms=250.0,
+                session_timeout_seconds=3.0,
+                max_events=2,
+                queue_maxsize=7,
+                timeout_seconds=2.5,
+            )
+        )
+    )
+
+    assert _FakeSubscriptionClient.init_kwargs == {
+        "url": "opc.tcp://localhost:4840/test/",
+        "timeout": 2.5,
+        "auto_reconnect": False,
+    }
+    assert _FakeSubscription.publishing_interval_ms == 250.0
+    assert _FakeSubscription.queue_maxsize == 7
+    assert _FakeSubscription.subscribed_node_ids == (
+        "ns=2;s=VibrationX",
+        "ns=2;s=Temperature",
+    )
+    assert _FakeSubscriptionClient.enter_count == 1
+    assert _FakeSubscriptionClient.exit_count == 1
+    assert _FakeSubscription.enter_count == 1
+    assert _FakeSubscription.exit_count == 1
+    assert result.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
+    assert len(result.notifications) == 2
+
+    good, bad = result.notifications
+    assert good.observation.channel_id == "vibration_x"
+    assert good.observation.value == 12.5
+    assert good.observation.status_good is True
+    assert good.observation.source_timestamp == source_at
+    assert good.observation.server_timestamp == server_at
+    assert good.replayed is False
+
+    assert bad.observation.channel_id == "temperature"
+    assert bad.observation.value is None
+    assert bad.observation.status_good is False
+    assert bad.observation.status_code == 0x80030000
+    assert bad.replayed is True
+
+
+def test_opcua_subscription_timeout_returns_partial_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _FakeSubscription.events = []
+    _FakeSubscription.next_timeouts = []
+
+    def _import(name: str) -> object:
+        if name == "asyncua":
+            return SimpleNamespace(Client=_FakeSubscriptionClient)
+        if name == "asyncua.common.subscription":
+            return SimpleNamespace(DataChangeEvent=_FakeDataChangeEvent)
+        raise AssertionError(f"unexpected import: {name}")
+
+    monkeypatch.setattr(opcua_module, "import_module", _import)
+
+    result = asyncio.run(
+        collect_opcua_subscription_notifications(
+            OpcUaSubscriptionConfig(
+                endpoint_url="opc.tcp://localhost:4840",
+                node_mappings=(
+                    OpcUaNodeMapping("vibration_x", "ns=2;s=VibrationX"),
+                ),
+                session_timeout_seconds=1.0,
+                max_events=2,
+            )
+        )
+    )
+
+    assert result.completion_reason == OpcUaSubscriptionCompletionReason.TIMEOUT
+    assert result.notifications == ()
+    assert _FakeSubscription.next_timeouts
+    assert _FakeSubscription.next_timeouts[0] is not None
+    assert _FakeSubscription.next_timeouts[0] <= 1.0
 
 
 def test_opcua_endpoint_probe_config_reuses_anonymous_endpoint_and_timeout_contract() -> None:
