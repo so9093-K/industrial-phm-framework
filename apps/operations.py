@@ -1074,7 +1074,8 @@ def _(
         )
     elif not opcua_browse_is_current:
         _opcua_browse_view = mo.callout(
-            "Endpoint or timeout changed after browse. Browse again before using discovered candidates.",
+            "Endpoint or timeout changed after browse. Browse again before using "
+            "discovered candidates.",
             kind="warn",
             title="Browse variables · Stale",
         )
