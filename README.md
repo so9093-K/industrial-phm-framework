@@ -72,9 +72,11 @@ uv run --locked --group research marimo run apps/operations.py
 CSV history directory를 bootstrap으로 사용할 수 있습니다. History directory의 각 파일은 독립 segment로
 검증되고 filename이 아니라 recorded timestamp로 정렬됩니다. 화면은 latest observation, segment timeline,
 data quality, exact source snapshot provenance(SHA-256/byte size), declared validation policy를 표시합니다.
-또한 **Sources** 화면은 versioned local registry의 registered source 목록과 mapping/configuration을 보여줍니다.
-등록 source의 존재를 online/healthy/fresh 상태로 해석하지 않으며, live connection/ingestion은 아직
-`Not instrumented`/`Not connected`로 표시합니다.
+또한 **Sources** 화면에서 prepared CSV file/history directory를
+`Source → Discover & Preview → Mapping → Validate & Register` 순서로 등록하고, versioned local registry의
+registered source 목록과 mapping/configuration을 확인할 수 있습니다. 등록 전에 기존 field CSV/timeline
+validation을 그대로 통과해야 하며, 등록 source의 존재를 online/healthy/fresh 상태로 해석하지 않습니다.
+live connection/ingestion은 아직 `Not instrumented`/`Not connected`로 표시합니다.
 
 Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
 처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
@@ -118,8 +120,9 @@ prepared 단일-asset CSV export 검증 / canonical mapping
 현장 데이터에서 분석 결과가 어떻게 달라지는지 확인하는 것입니다. File/file-directory source의
 등록 identity와 CSV mapping을 보존하는 최소 `RegisteredSource` / `FileSourceConfig` /
 `SourceRepository` control-plane contract와 versioned local JSON persistence가 추가되었습니다.
-현재 persistence는 single-writer local registry 범위이고 Operations의 Sources 목록/상세 화면에서
-읽을 수 있습니다. Add Source registration workflow와 live connection health/ingestion은 아직 후속 범위입니다.
+현재 persistence는 single-writer local registry 범위이고 Operations의 Sources 화면에서 prepared
+file/history source를 discover, preview, map, validate한 뒤 등록할 수 있습니다. Browser upload/file-picker,
+edit/pause/resume/delete와 live connection health/ingestion은 아직 후속 범위입니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 
