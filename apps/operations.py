@@ -824,7 +824,7 @@ def _(
                 changed_at=datetime.now().astimezone(),
             )
             _sources = _repository.list_sources()
-        except (OSError, ValueError) as error:
+        except (LookupError, OSError, ValueError) as error:
             set_lifecycle_success("")
             set_lifecycle_error(str(error))
         else:
