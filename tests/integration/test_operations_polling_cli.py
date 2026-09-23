@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ import industrial_phm.commands.operations as operations_module
 from industrial_phm.application import (
     FileSourceConfig,
     JsonSourceRepository,
+    JsonSourceRuntimeRepository,
     OpcUaSourceConfig,
     RegisteredSource,
     SourceRuntimeCycleState,
@@ -120,12 +122,12 @@ def test_operations_poll_source_dispatches_registered_opcua_source(
     dispatched: list[str] = []
 
     def _poll(
-        source_repository,
-        _lifecycle_repository,
-        _runtime_repository,
-        source_id,
-        policy,
-    ):
+        source_repository: JsonSourceRepository,
+        _lifecycle_repository: JsonSourceRepository,
+        _runtime_repository: JsonSourceRuntimeRepository,
+        source_id: str,
+        policy: SourcePollingPolicy,
+    ) -> Iterator[SimpleNamespace]:
         registered = source_repository.get(source_id)
         assert isinstance(registered.config, OpcUaSourceConfig)
         assert policy.max_cycles == 1
