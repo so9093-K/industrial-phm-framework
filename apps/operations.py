@@ -132,7 +132,7 @@ def _(JsonSourceRepository, Path, load_observation, os):
             for source in initial_registered_sources
         )
         initial_source_freshness_policies = tuple(
-            policy
+            _policy
             for source in initial_registered_sources
             if (_policy := _source_repository.get_freshness_policy(source.source_id)) is not None
         )
@@ -580,7 +580,7 @@ def _(
             )
             set_source_freshness_policies(
                 tuple(
-                    policy
+                    _policy
                     for source in _sources
                     if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
                 )
