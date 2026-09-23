@@ -124,8 +124,11 @@ jobs:
               FileSourceConfig,
               FileSourceMode,
               JsonSourceRepository,
+              JsonSourceRuntimeRepository,
               OpcUaSourceConfig,
               RegisteredSource,
+              SourceConnectionAttemptEvidence,
+              SourceConnectionAttemptOutcome,
           )
           from industrial_phm.connectors import OpcUaNodeMapping
 
@@ -165,6 +168,41 @@ jobs:
                   registered_at=datetime.fromisoformat("2026-09-23T09:05:00+09:00"),
               )
           )
+
+          opcua_repository = JsonSourceRepository(
+              Path("/tmp/operations-opcua-source-registry.json")
+          )
+          opcua_repository.register(
+              RegisteredSource(
+                  source_id="ci-opcua",
+                  name="CI OPC UA source",
+                  config=OpcUaSourceConfig(
+                      endpoint_url="opc.tcp://127.0.0.1:4840",
+                      asset_id="ci-pump-02",
+                      measurement_point_id="drive-end-bearing",
+                      node_mappings=(
+                          OpcUaNodeMapping(
+                              channel_id="vibration_x",
+                              node_id="ns=2;s=Machine/VibrationX",
+                          ),
+                      ),
+                      timeout_seconds=2.0,
+                  ),
+                  registered_at=datetime.fromisoformat("2026-09-23T09:05:00+09:00"),
+              )
+          )
+          runtime_repository = JsonSourceRuntimeRepository(
+              Path("/tmp/operations-opcua-source-runtime.json")
+          )
+          runtime_repository.record_connection_attempt(
+              SourceConnectionAttemptEvidence(
+                  source_id="ci-opcua",
+                  outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
+                  attempted_at=datetime.fromisoformat("2026-09-23T09:10:00+09:00"),
+                  connected_at=datetime.fromisoformat("2026-09-23T09:10:01+09:00"),
+                  completed_at=datetime.fromisoformat("2026-09-23T09:10:02+09:00"),
+              )
+          )
           PY
 
           cat > /tmp/operations-observation.csv <<'EOF'
@@ -192,6 +230,13 @@ jobs:
             apps/operations.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-registration.html
+
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-opcua-source-registry.json \
+          INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME=/tmp/operations-opcua-source-runtime.json \
+            uv run --locked --group research marimo export html \
+            apps/operations.py \
+            --no-include-code \
+            --output /tmp/phm-operations-opcua-attempt-evidence.html
 
           mkdir -p /tmp/operations-history
           cat > /tmp/operations-history/segment-late.csv <<'EOF'
