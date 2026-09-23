@@ -758,6 +758,7 @@ def _(
         sources_view = mo.vstack(
             [
                 mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
+                registration_view,
                 mo.callout(
                     "No registered source exists in the configured local registry. "
                     "Use Add source above to discover, map, validate and register a prepared "
