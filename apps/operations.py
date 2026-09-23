@@ -23,12 +23,14 @@ def _():
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
+        SourceRuntimeCycleState,
         assess_source_freshness,
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         receive_registered_file_source_observation,
         register_file_source,
+        run_registered_file_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
@@ -48,6 +50,7 @@ def _():
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
+        SourceRuntimeCycleState,
         assess_source_freshness,
         datetime,
         discover_file_source,
@@ -56,6 +59,7 @@ def _():
         receive_registered_file_source_observation,
         mo,
         register_file_source,
+        run_registered_file_source_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         os,
@@ -847,9 +851,12 @@ def _(mo, registered_sources):
         )
         save_freshness_policy_button = mo.ui.run_button(label="Save freshness policy")
         clear_freshness_policy_button = mo.ui.run_button(label="Clear freshness policy")
+        run_active_source_button = mo.ui.run_button(
+            label="Run active source once",
+            kind="success",
+        )
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
-            kind="success",
         )
     else:
         source_selector = None
@@ -858,6 +865,7 @@ def _(mo, registered_sources):
         freshness_age_input = None
         save_freshness_policy_button = None
         clear_freshness_policy_button = None
+        run_active_source_button = None
         load_registered_source_button = None
     return (
         activate_source_button,
@@ -865,6 +873,7 @@ def _(mo, registered_sources):
         freshness_age_input,
         load_registered_source_button,
         pause_source_button,
+        run_active_source_button,
         save_freshness_policy_button,
         source_selector,
     )
