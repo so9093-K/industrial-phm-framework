@@ -79,9 +79,7 @@ REGISTERED -> ACTIVE <-> PAUSED
 
 등록 직후 상태는 `REGISTERED`입니다. `ACTIVE`는 source runtime이 소비하도록 enable된 administrative
 intent이고, `PAUSED`는 runtime consumption을 중지하려는 intent입니다. Sources의 **Run active source once**는
-ACTIVE 상태만 실제로 소비합니다. One-shot cycle의 source validation/I/O failure만 ACTIVE → ERROR로
-전이하고 concrete failure detail을 보존합니다. Runtime-state persistence 같은 platform failure는 cycle을
-FAILED로 표시하되 source lifecycle은 ACTIVE로 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한
+ACTIVE 상태만 실제로 소비합니다. FILE validation/I/O failure와 OPC UA의 explicit data-contract/transport `OSError`처럼 source-owned로 분류된 failure만 ACTIVE → ERROR로 전이하고 concrete detail을 보존합니다. OPC UA optional runtime 부재, caller-contract/internal error, runtime-state persistence 같은 platform-owned failure는 cycle을 FAILED로 표시하되 source lifecycle은 ACTIVE로 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한
 뒤 다시 실행할 수 있습니다. Connection, freshness, retry/buffer telemetry를 lifecycle state 자체에서
 추론하지는 않습니다.
 
@@ -112,9 +110,7 @@ Both
 ```
 
 Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
-ACTIVE lifecycle을 반드시 요구합니다. Source validation/I/O failure만 source lifecycle ERROR로 기록하고,
-runtime-state persistence failure는 platform-owned failure로 분류해 cycle 자체는 FAILED지만 source lifecycle은
-ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
+ACTIVE lifecycle을 반드시 요구합니다. FILE validation/I/O 또는 OPC UA data-contract/transport처럼 source-owned인 failure만 source lifecycle ERROR로 기록하고, runtime unavailable/caller-contract/internal/runtime-state persistence 같은 platform-owned failure는 cycle 자체는 FAILED지만 source lifecycle은 ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
 Operations UI는 사용자가 버튼으로 한 iteration을 실행하는 구조를 유지합니다. 별도 CLI
 `industrial-phm operations poll-source`는 같은 runtime cycle을 synchronous polling loop로 반복하지만,
 background daemon, retry/backoff, buffering, connector session은 아직 구현하지 않습니다.
