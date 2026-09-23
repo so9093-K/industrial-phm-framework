@@ -4,6 +4,9 @@ Connector modules keep protocol SDK dependencies optional and outside the core P
 """
 
 from industrial_phm.connectors.opcua import (
+    OpcUaBrowseConfig,
+    OpcUaBrowseResult,
+    OpcUaBrowseVariable,
     OpcUaEndpointProbeConfig,
     OpcUaEndpointProbeResult,
     OpcUaNodeMapping,
@@ -12,11 +15,15 @@ from industrial_phm.connectors.opcua import (
     OpcUaReadSnapshot,
     OpcUaRuntimeUnavailableError,
     OpcUaSourceError,
+    browse_opcua_variables,
     probe_opcua_endpoint,
     read_opcua_snapshot,
 )
 
 __all__ = [
+    "OpcUaBrowseConfig",
+    "OpcUaBrowseResult",
+    "OpcUaBrowseVariable",
     "OpcUaEndpointProbeConfig",
     "OpcUaEndpointProbeResult",
     "OpcUaNodeMapping",
@@ -25,6 +32,7 @@ __all__ = [
     "OpcUaReadSnapshot",
     "OpcUaRuntimeUnavailableError",
     "OpcUaSourceError",
+    "browse_opcua_variables",
     "probe_opcua_endpoint",
     "read_opcua_snapshot",
 ]
