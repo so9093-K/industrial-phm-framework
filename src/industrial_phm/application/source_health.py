@@ -21,7 +21,7 @@ from industrial_phm.application.source_runtime import SourceConnectionAttemptEvi
 
 
 class SourceConnectionState(StrEnum):
-    """Connection evidence state currently supported by the prepared-file runtime."""
+    """Current/session connection state supported by the source-health read model."""
 
     NOT_INSTRUMENTED = "not-instrumented"
 
@@ -136,9 +136,9 @@ def assess_source_health(
 ) -> SourceHealthAssessment:
     """Combine explicit lifecycle and timing facts into a source-health read model.
 
-    No connection success is inferred from file readability, receipt existence, or
-    freshness. Current FILE/OPC UA one-shot runtimes do not persist connection telemetry,
-    so connection state remains NOT_INSTRUMENTED.
+    No current connection success is inferred from file readability, receipt existence,
+    freshness, or latest bounded attempt evidence. Historical attempt evidence may be
+    attached for inspection while current/session connection state remains NOT_INSTRUMENTED.
     """
     if not isinstance(lifecycle, SourceLifecycleRecord):
         raise ValueError("lifecycle must be a SourceLifecycleRecord")
@@ -195,6 +195,7 @@ def assess_source_health(
             lifecycle=lifecycle,
             connection_state=connection_state,
             data_flow_state=SourceDataFlowState.NO_RECEIPT,
+            connection_attempt=connection_attempt,
             reason="active source has no accepted receipt evidence",
         )
 
