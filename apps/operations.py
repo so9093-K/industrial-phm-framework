@@ -1659,6 +1659,7 @@ def _(initial_error, initial_summary, initial_timeline, mo):
 
 @app.cell
 def _(
+    FileSourceConfig,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     Path,
@@ -1689,6 +1690,11 @@ def _(
             validate_distinct_source_state_paths(_registry_path, _runtime_path)
             _source_repository = JsonSourceRepository(_registry_path)
             _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+            _selected = _source_repository.get(source_selector.value)
+            if not isinstance(_selected.config, FileSourceConfig):
+                raise ValueError(
+                    "runtime cycle currently supports registered file sources only"
+                )
             _result = run_registered_file_source_cycle(
                 _source_repository,
                 _source_repository,
@@ -1754,6 +1760,7 @@ def _(
 
 @app.cell
 def _(
+    FileSourceConfig,
     JsonSourceRuntimeRepository,
     Path,
     load_registered_source_button,
@@ -1779,6 +1786,10 @@ def _(
             _selected = next(
                 source for source in registered_sources if source.source_id == source_selector.value
             )
+            if not isinstance(_selected.config, FileSourceConfig):
+                raise ValueError(
+                    "on-demand observation load currently supports registered file sources only"
+                )
             _received = receive_registered_file_source_observation(_selected)
             _loaded = _received.observation
         except (OSError, ValueError) as error:
