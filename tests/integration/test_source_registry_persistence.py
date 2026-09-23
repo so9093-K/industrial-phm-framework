@@ -490,7 +490,6 @@ def test_json_source_repository_rejects_freshness_policy_for_unregistered_source
         JsonSourceRepository(registry).list_sources()
 
 
-
 def test_json_source_repository_rejects_opcua_until_persistence_schema_supports_it(
     tmp_path: Path,
 ) -> None:
