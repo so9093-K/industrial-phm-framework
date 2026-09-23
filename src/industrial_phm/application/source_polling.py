@@ -1,7 +1,8 @@
-"""Synchronous polling runtime for registered prepared-file sources."""
+"""Synchronous caller-owned polling runtime for registered operational sources."""
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -12,15 +13,20 @@ from industrial_phm.application.source_cycle import (
     SourceRuntimeCycleResult,
     SourceRuntimeCycleState,
     run_registered_file_source_cycle,
+    run_registered_opcua_source_cycle,
 )
 from industrial_phm.application.source_lifecycle import SourceLifecycleRepository
-from industrial_phm.application.source_registration import SourceRepository
+from industrial_phm.application.source_registration import (
+    FileSourceConfig,
+    OpcUaSourceConfig,
+    SourceRepository,
+)
 from industrial_phm.application.source_runtime import SourceRuntimeRepository
 
 
 @dataclass(frozen=True, slots=True)
 class SourcePollingPolicy:
-    """Explicit polling cadence for one synchronous prepared-file runtime."""
+    """Explicit polling cadence for one synchronous caller-owned runtime."""
 
     interval_seconds: float
     max_cycles: int | None = None
@@ -41,6 +47,46 @@ class SourcePollingPolicy:
             raise ValueError("max_cycles must be a positive integer when provided")
 
 
+def poll_registered_source(
+    source_repository: SourceRepository,
+    lifecycle_repository: SourceLifecycleRepository,
+    runtime_repository: SourceRuntimeRepository,
+    source_id: str,
+    policy: SourcePollingPolicy,
+    *,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> Iterator[SourceRuntimeCycleResult]:
+    """Poll one registered FILE or OPC UA source with type-specific one-shot cycles.
+
+    The loop is synchronous and caller-owned. OPC UA uses one fresh asyncio.run per
+    bounded connect/read/disconnect iteration; no event loop, connection, or subscription
+    is kept alive between cycles. Polling stops immediately when a cycle is skipped or
+    failed. Platform failures are not retried because retry/backoff policy is not
+    implemented yet.
+    """
+    source = source_repository.get(source_id)
+    if isinstance(source.config, FileSourceConfig):
+        cycle_fn = lambda: run_registered_file_source_cycle(
+            source_repository,
+            lifecycle_repository,
+            runtime_repository,
+            source_id,
+        )
+    elif isinstance(source.config, OpcUaSourceConfig):
+        cycle_fn = lambda: asyncio.run(
+            run_registered_opcua_source_cycle(
+                source_repository,
+                lifecycle_repository,
+                runtime_repository,
+                source_id,
+            )
+        )
+    else:
+        raise ValueError("unsupported registered source config")
+
+    yield from _poll_cycles(cycle_fn, policy, sleep_fn=sleep_fn)
+
+
 def poll_registered_file_source(
     source_repository: SourceRepository,
     lifecycle_repository: SourceLifecycleRepository,
@@ -50,12 +96,22 @@ def poll_registered_file_source(
     *,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> Iterator[SourceRuntimeCycleResult]:
-    """Yield explicit runtime cycles until policy or runtime state stops polling.
+    """Yield prepared-file runtime cycles using the original FILE-only boundary."""
+    cycle_fn = lambda: run_registered_file_source_cycle(
+        source_repository,
+        lifecycle_repository,
+        runtime_repository,
+        source_id,
+    )
+    yield from _poll_cycles(cycle_fn, policy, sleep_fn=sleep_fn)
 
-    This is a synchronous caller-owned loop, not a background scheduler. Polling stops
-    immediately when a cycle is skipped or failed. Platform failures are not retried
-    because retry/backoff policy is not implemented yet.
-    """
+
+def _poll_cycles(
+    cycle_fn: Callable[[], SourceRuntimeCycleResult],
+    policy: SourcePollingPolicy,
+    *,
+    sleep_fn: Callable[[float], None],
+) -> Iterator[SourceRuntimeCycleResult]:
     if not isinstance(policy, SourcePollingPolicy):
         raise ValueError("policy must be SourcePollingPolicy")
     if not callable(sleep_fn):
@@ -63,12 +119,7 @@ def poll_registered_file_source(
 
     cycle_count = 0
     while True:
-        result = run_registered_file_source_cycle(
-            source_repository,
-            lifecycle_repository,
-            runtime_repository,
-            source_id,
-        )
+        result = cycle_fn()
         yield result
         cycle_count += 1
 
