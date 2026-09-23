@@ -1,0 +1,31 @@
+name: PR Governance
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate-title:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Validate Conventional PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|refactor|perf|test|docs|build|ci|chore|revert|research)\([A-Za-z0-9._/-]+\): .+'
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            echo "::error::PR title must match <type>(<scope>): <summary>."
+            echo "::error::Allowed types: feat, fix, refactor, perf, test, docs, build, ci, chore, revert, research."
+            echo "Received: $PR_TITLE"
+            exit 1
+          fi
