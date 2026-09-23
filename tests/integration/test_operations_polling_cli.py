@@ -16,9 +16,7 @@ from industrial_phm.cli import main
 def _register_source(tmp_path: Path) -> tuple[Path, Path, RegisteredSource]:
     source_path = tmp_path / "pump.csv"
     source_path.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-23T10:00:00+09:00,-1.0\n"
-        "2026-09-23T10:00:01+09:00,1.0\n",
+        "timestamp,vibration_x\n2026-09-23T10:00:00+09:00,-1.0\n2026-09-23T10:00:01+09:00,1.0\n",
         encoding="utf-8",
     )
     source = RegisteredSource(
