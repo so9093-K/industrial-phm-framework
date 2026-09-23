@@ -10,6 +10,7 @@ from industrial_phm.application import (
     InMemorySourceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
     RegisteredSource,
     discover_file_source,
     load_registered_file_source_observation,
@@ -17,6 +18,7 @@ from industrial_phm.application import (
     register_file_source,
     validate_registered_file_source,
 )
+from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.contracts import DataQualityState
 
 
@@ -338,3 +340,24 @@ def test_register_file_source_persists_to_json_repository(tmp_path: Path) -> Non
 
     assert validation.total_sample_count == 2
     assert JsonSourceRepository(registry_path).get(source.source_id) == source
+
+
+def test_file_source_loader_rejects_opcua_registered_source() -> None:
+    source = RegisteredSource(
+        source_id="opcua:pump-01",
+        name="Pump OPC UA",
+        config=OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+        ),
+        registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
+    )
+
+    with pytest.raises(ValueError, match="must use FileSourceConfig"):
+        load_registered_file_source_observation(source)
