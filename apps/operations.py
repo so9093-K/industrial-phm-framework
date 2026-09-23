@@ -1247,9 +1247,7 @@ def _(
             )
         else:
             _health_freshness = (
-                "Not assessed"
-                if _health.freshness is None
-                else _health.freshness.state.value
+                "Not assessed" if _health.freshness is None else _health.freshness.state.value
             )
             _health_received = (
                 "Unavailable"
