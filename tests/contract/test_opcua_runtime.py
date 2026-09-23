@@ -54,9 +54,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         )
 
         async with server:
-            probe = await probe_opcua_endpoint(
-                OpcUaEndpointProbeConfig(endpoint_url=endpoint)
-            )
+            probe = await probe_opcua_endpoint(OpcUaEndpointProbeConfig(endpoint_url=endpoint))
             snapshot = await read_opcua_snapshot(
                 OpcUaReadConfig(
                     endpoint_url=endpoint,
