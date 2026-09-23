@@ -67,7 +67,8 @@ Conventional Commits의 구조를 따르되 제목과 본문은 기본적으로 
 ### Preferred scopes
 
 `repo`, `core`, `contract`, `adapter`, `data`, `feature`, `model`, `evaluation`, `pipeline`,
-`artifact`, `api`, `dashboard`, `genai`, `docs`, `ci`, `release`
+`artifact`, `analysis`, `application`, `operations`, `connector`, `prognostics`, `api`, `dashboard`,
+`genai`, `cli`, `apps`, `docs`, `ci`, `release`
 
 새 scope를 만들기 전 기존 scope로 충분히 표현 가능한지 먼저 확인합니다.
 
