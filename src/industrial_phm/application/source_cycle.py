@@ -24,6 +24,7 @@ from industrial_phm.application.source_registration import (
     SourceRepository,
 )
 from industrial_phm.application.source_runtime import SourceRuntimeRepository
+from industrial_phm.connectors import OpcUaRuntimeUnavailableError, OpcUaSourceError
 
 
 class SourceRuntimeCycleState(StrEnum):
@@ -230,9 +231,10 @@ async def run_registered_opcua_source_cycle(
 ) -> SourceRuntimeCycleResult:
     """Run one ACTIVE registered OPC UA one-shot read cycle.
 
-    Non-ACTIVE or non-OPC-UA sources are skipped without source I/O. Connector/read
-    failures are source failures and transition ACTIVE -> ERROR. Receipt persistence
-    failures remain platform failures and do not change source lifecycle.
+    Non-ACTIVE or non-OPC-UA sources are skipped without source I/O. Explicit OPC UA
+    data-contract errors and transport OSError failures are source failures and transition
+    ACTIVE -> ERROR. Missing runtime, caller-contract, unexpected internal, and receipt
+    persistence failures remain platform failures and do not change source lifecycle.
     """
     source = source_repository.get(source_id)
     lifecycle_before = lifecycle_repository.get_lifecycle(source_id)
@@ -290,7 +292,7 @@ async def run_registered_opcua_source_cycle(
             source,
             received_at=received_at,
         )
-    except Exception as error:
+    except (OpcUaSourceError, OSError) as error:
         return _failed_cycle(
             lifecycle_repository,
             source_id,
@@ -298,6 +300,24 @@ async def run_registered_opcua_source_cycle(
             cycle_time,
             error,
             failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
+        )
+    except (OpcUaRuntimeUnavailableError, ValueError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+        )
+    except Exception as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
         )
 
     if (
