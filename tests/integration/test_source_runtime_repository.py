@@ -43,9 +43,7 @@ def _connection_attempt(
         source_id=source_id,
         outcome=outcome,
         attempted_at=datetime.fromisoformat(attempted_at),
-        connected_at=(
-            None if connected_at is None else datetime.fromisoformat(connected_at)
-        ),
+        connected_at=(None if connected_at is None else datetime.fromisoformat(connected_at)),
         completed_at=datetime.fromisoformat(completed_at),
         detail=detail,
     )
@@ -220,7 +218,6 @@ def test_json_source_runtime_repository_rejects_schema_key_drift(tmp_path: Path)
         JsonSourceRuntimeRepository(path).list_latest_receipts()
 
 
-
 def test_connection_attempt_evidence_requires_success_timing_and_failure_detail() -> None:
     with pytest.raises(ValueError, match="requires connected_at"):
         _connection_attempt(connected_at=None)
@@ -316,9 +313,7 @@ def test_runtime_v1_receipts_remain_readable_and_upgrade_on_next_write(
     )
     repository = JsonSourceRuntimeRepository(path)
 
-    assert repository.get_latest_receipt("legacy-source") == _receipt(
-        source_id="legacy-source"
-    )
+    assert repository.get_latest_receipt("legacy-source") == _receipt(source_id="legacy-source")
     assert repository.list_latest_connection_attempts() == ()
 
     repository.record_connection_attempt(_connection_attempt(source_id="legacy-source"))
