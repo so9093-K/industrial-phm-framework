@@ -1,6 +1,7 @@
 import asyncio
 import socket
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -37,7 +38,7 @@ def _free_tcp_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path) -> None:
+def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
     async def _run() -> None:
         port = _free_tcp_port()
         endpoint = f"opc.tcp://127.0.0.1:{port}/industrial-phm/"
