@@ -185,7 +185,7 @@ def test_opcua_runtime_missing_extra_fails_with_install_guidance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _missing(_: str) -> object:
-        raise ModuleNotFoundError("asyncua")
+        raise ModuleNotFoundError("No module named 'asyncua'", name="asyncua")
 
     monkeypatch.setattr(opcua_module, "import_module", _missing)
 
@@ -222,9 +222,10 @@ def test_opcua_runtime_does_not_mask_nested_dependency_import_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _broken(_: str) -> object:
-        error = ModuleNotFoundError("nested dependency missing")
-        error.name = "some_nested_dependency"
-        raise error
+        raise ModuleNotFoundError(
+            "No module named 'some_nested_dependency'",
+            name="some_nested_dependency",
+        )
 
     monkeypatch.setattr(opcua_module, "import_module", _broken)
 
