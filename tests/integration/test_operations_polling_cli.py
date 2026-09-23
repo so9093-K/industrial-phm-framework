@@ -17,8 +17,8 @@ from industrial_phm.application import (
     SourceRuntimeCycleState,
     transition_source_lifecycle,
 )
-from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.cli import main
+from industrial_phm.connectors import OpcUaNodeMapping
 
 
 def _register_source(tmp_path: Path) -> tuple[Path, Path, RegisteredSource]:
