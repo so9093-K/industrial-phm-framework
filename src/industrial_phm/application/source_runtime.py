@@ -84,7 +84,9 @@ class SourceConnectionAttemptEvidence:
             ):
                 raise ValueError("failed connection attempt requires detail")
             if self.detail != self.detail.strip():
-                raise ValueError("connection attempt detail must not contain surrounding whitespace")
+                raise ValueError(
+                    "connection attempt detail must not contain surrounding whitespace"
+                )
 
 
 class SourceRuntimeFormatError(ValueError):
