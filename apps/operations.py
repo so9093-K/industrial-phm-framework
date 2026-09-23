@@ -264,7 +264,12 @@ def _(
     source_selector,
 ):
     def escape_markdown_cell(value: str) -> str:
-        return value.replace("|", "\\|").replace("\n", " ")
+        return (
+            value.replace("\\", "\\\\")
+            .replace("|", "\\|")
+            .replace("`", "\\`")
+            .replace("\n", " ")
+        )
 
     if source_registry_error:
         sources_view = mo.vstack(
@@ -437,7 +442,8 @@ def _(
     history_directory_input,
     load_button,
     load_observation,
-    measurement_point_input,    sampling_rate_input,
+    measurement_point_input,
+    sampling_rate_input,
     set_load_error,
     set_observation,
     set_timeline,
@@ -686,7 +692,8 @@ def _(connection_status, mo, observation_detail, overview_stats, quality_view):
 @app.cell
 def _(mo, observation, observation_detail, observation_timeline_view, quality_view):
     if observation is None:
-        _identity = mo.callout(            "Connect a prepared field source to inspect the asset and measurement point.",
+        _identity = mo.callout(
+            "Connect a prepared field source to inspect the asset and measurement point.",
             kind="neutral",
             title="Asset identity unavailable",
         )
@@ -935,7 +942,8 @@ def _(mo, observation, quality_view):
             _snapshot_evidence = mo.md(
                 "### Source snapshot\n\n"
                 "| Field | Recorded value |\n"
-                "| --- | --- |\n"                f"| File | `{observation.source_snapshot.name}` |\n"
+                "| --- | --- |\n"
+                f"| File | `{observation.source_snapshot.name}` |\n"
                 f"| SHA-256 | `{observation.source_snapshot.sha256}` |\n"
                 f"| Size | {observation.source_snapshot.size_bytes:,} bytes |"
             )
@@ -1161,17 +1169,16 @@ def _(
         "Maintenance": maintenance_view,
         "System Health": system_health_view,
     }
-    header = mo.vstack(
-        [
-            mo.md(
-                "# PHM Operations\n\n"
-                "설비 관측, 데이터 품질, PHM finding과 시스템 상태를 운영 관점에서 확인합니다."
-            ),
-            page_selector,
-            source_setup,
-        ],
-        gap=1.0,
-    )
+    _header_items = [
+        mo.md(
+            "# PHM Operations\n\n"
+            "설비 관측, 데이터 품질, PHM finding과 시스템 상태를 운영 관점에서 확인합니다."
+        ),
+        page_selector,
+    ]
+    if page_selector.value != "Sources":
+        _header_items.append(source_setup)
+    header = mo.vstack(_header_items, gap=1.0)
     mo.vstack([header, views[page_selector.value]], gap=1.5)
     return
 
