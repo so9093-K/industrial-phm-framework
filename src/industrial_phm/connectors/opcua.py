@@ -1,8 +1,10 @@
-"""Minimal one-shot OPC UA read boundary.
+"""Minimal one-shot OPC UA endpoint probe and read boundaries.
 
 The first live connector intentionally supports only anonymous / SecurityPolicy None
-reads of explicitly configured variable NodeIds. It preserves OPC UA quality and
-source/server timestamps separately from the platform acceptance timestamp.
+connections and reads of explicitly configured variable NodeIds. The endpoint probe
+records one successful connect/disconnect interval without inferring ongoing health.
+The read boundary preserves OPC UA quality and source/server timestamps separately from
+the platform acceptance timestamp.
 
 Subscription, reconnect, credentials, certificates, discovery/browse workflows and
 continuous ingestion are later boundaries.
