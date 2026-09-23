@@ -265,37 +265,26 @@ def _(
 ):
     def escape_markdown_cell(value: str) -> str:
         return (
-            value.replace("\\", "\\\\")
-            .replace("|", "\\|")
-            .replace("`", "\\`")
-            .replace("\n", " ")
+            value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`").replace("\n", " ")
         )
 
     if source_registry_error:
         sources_view = mo.vstack(
             [
-                mo.md(
-                    "## Sources\n\n"
-                    "등록된 operational source control-plane record를 확인합니다."
-                ),
+                mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
                 mo.callout(
                     source_registry_error,
                     kind="danger",
                     title="Source registry unavailable",
                 ),
-                mo.md(
-                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"
-                ),
+                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
             ],
             gap=1.2,
         )
     elif not registered_sources:
         sources_view = mo.vstack(
             [
-                mo.md(
-                    "## Sources\n\n"
-                    "등록된 operational source control-plane record를 확인합니다."
-                ),
+                mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
                 mo.callout(
                     "No registered source exists in the configured local registry. "
                     "The Add Source workflow is the next product boundary; the existing "
@@ -303,9 +292,7 @@ def _(
                     kind="neutral",
                     title="Registered sources · Empty",
                 ),
-                mo.md(
-                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"
-                ),
+                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
             ],
             gap=1.2,
         )
@@ -329,9 +316,7 @@ def _(
             )
 
         _selected_id = (
-            registered_sources[0].source_id
-            if source_selector is None
-            else source_selector.value
+            registered_sources[0].source_id if source_selector is None else source_selector.value
         )
         _selected = next(
             source for source in registered_sources if source.source_id == _selected_id
@@ -417,9 +402,7 @@ def _(
                     kind="info",
                     title="Registration boundary",
                 ),
-                mo.md(
-                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"
-                ),
+                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
             ],
             gap=1.2,
         )
