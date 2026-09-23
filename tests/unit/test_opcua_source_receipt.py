@@ -98,9 +98,7 @@ def test_receive_registered_opcua_source_preserves_snapshot_and_latest_source_ti
     assert received.observation.measurement_point_id == "drive-end"
     assert received.observation.channels == ("vibration_x", "temperature")
     assert received.observation.snapshot == snapshot
-    assert received.observation.observed_at == datetime.fromisoformat(
-        "2026-09-23T01:00:01+00:00"
-    )
+    assert received.observation.observed_at == datetime.fromisoformat("2026-09-23T01:00:01+00:00")
     assert received.receipt.observed_at == received.observation.observed_at
     assert received.receipt.lag_seconds == 2.0
 
