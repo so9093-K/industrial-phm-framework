@@ -117,6 +117,13 @@ SourceRuntimeRepository
   ├ list_latest_receipts
   └ record_receipt
 
+SourceHealthAssessment
+  ├ lifecycle
+  ├ connection = NOT_INSTRUMENTED
+  ├ data_flow
+  ├ latest receipt?
+  └ freshness?
+
 JsonSourceRuntimeRepository
   └ industrial-phm-source-runtime-v1
        └ latest SourceReceiptEvidence per source
@@ -153,6 +160,17 @@ Freshness assessment
          └ UNAVAILABLE
 
   observation age = assessed_at - observed_at
+
+Source health read model
+  SourceLifecycleRecord + latest SourceReceiptEvidence? + SourceFreshnessPolicy? + assessed_at
+    -> SourceHealthAssessment
+         ├ connection = NOT_INSTRUMENTED
+         ├ lifecycle
+         ├ data flow = INACTIVE / SOURCE_ERROR / NO_RECEIPT /
+         │             FRESHNESS_NOT_CONFIGURED / FRESH / STALE /
+         │             TIMING_UNAVAILABLE
+         ├ receipt before current ACTIVE transition -> NO_RECEIPT for current epoch
+         └ no boolean healthy flag
 
 Active file source runtime cycle
   SourceRepository + SourceLifecycleRepository + SourceRuntimeRepository
@@ -197,7 +215,9 @@ Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 
 `assessed_at - observed_at` observation age를 policy max age와 비교해 계산합니다. Timestamp/timezone이
 없거나 observed_at이 assessment time보다 미래면 fail-closed로 UNAVAILABLE을 반환하고, policy가 없으면
 NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 connection/health/ingestion 성공을
-뜻하지 않습니다. Manual load 또는 successful ACTIVE runtime cycle의 latest receipt는 runtime repository에
+뜻하지 않습니다. `SourceHealthAssessment`는 lifecycle, latest receipt와 freshness를 한 read model에
+모으지만 boolean healthy/unhealthy를 만들지 않고 prepared-file runtime의 connection state는
+NOT_INSTRUMENTED로 유지합니다. Manual load 또는 successful ACTIVE runtime cycle의 latest receipt는 runtime repository에
 기록되고 앱 재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
 assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Browser upload/file-picker, source
 edit/delete, continuous scheduler/polling, retry/backoff/buffering, receipt history, OPC UA/MQTT connector는

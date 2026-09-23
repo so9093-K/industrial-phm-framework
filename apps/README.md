@@ -79,10 +79,11 @@ REGISTERED -> ACTIVE <-> PAUSED
 
 등록 직후 상태는 `REGISTERED`입니다. `ACTIVE`는 source runtime이 소비하도록 enable된 administrative
 intent이고, `PAUSED`는 runtime consumption을 중지하려는 intent입니다. Sources의 **Run active source once**는
-ACTIVE 상태만 실제로 소비합니다. One-shot cycle이 source validation 또는 runtime persistence 실패를
-관측하면 ACTIVE → ERROR로 전이하고 concrete failure detail을 보존합니다. ERROR는 사용자가 Activate로
-명시적으로 복구한 뒤 다시 실행할 수 있습니다. Connection, freshness, retry/buffer telemetry를 lifecycle
-state 자체에서 추론하지는 않습니다.
+ACTIVE 상태만 실제로 소비합니다. One-shot cycle의 source validation/I/O failure만 ACTIVE → ERROR로
+전이하고 concrete failure detail을 보존합니다. Runtime-state persistence 같은 platform failure는 cycle을
+FAILED로 표시하되 source lifecycle은 ACTIVE로 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한
+뒤 다시 실행할 수 있습니다. Connection, freshness, retry/buffer telemetry를 lifecycle state 자체에서
+추론하지는 않습니다.
 
 Registry는 기존 `industrial-phm-source-registry-v1`과 v2를 읽을 수 있습니다. v1 source는 implicit
 `REGISTERED`로 해석하고 v2의 explicit lifecycle은 그대로 유지합니다. 신규 등록, lifecycle 변경 또는
@@ -111,6 +112,34 @@ runtime-state persistence failure는 platform-owned failure로 분류해 cycle �
 ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
 현재는 사용자가 버튼으로 한 iteration을 실행하는 구조이고 background polling, retry/backoff, buffering,
 connector session은 아직 구현하지 않습니다.
+
+### Source health assessment
+
+Sources의 health 표시는 단일 **healthy/unhealthy** verdict가 아니라 현재 확보한 evidence를 분리한 read
+model입니다.
+
+```text
+SourceHealthAssessment
+  ├ lifecycle
+  ├ connection = NOT_INSTRUMENTED
+  ├ data flow
+  │    ├ INACTIVE
+  │    ├ SOURCE_ERROR
+  │    ├ NO_RECEIPT
+  │    ├ FRESHNESS_NOT_CONFIGURED
+  │    ├ FRESH
+  │    ├ STALE
+  │    └ TIMING_UNAVAILABLE
+  ├ latest observed_at / received_at
+  └ freshness assessment?
+```
+
+Prepared-file runtime은 connector session telemetry가 없으므로 file을 성공적으로 읽었거나 receipt가 fresh해도
+connection을 connected/healthy로 승격하지 않습니다. ACTIVE인데 아직 receipt가 없으면 NO_RECEIPT,
+source lifecycle ERROR면 SOURCE_ERROR, policy와 timing evidence가 있으면 freshness-derived data-flow state를
+표시합니다. PAUSED/ERROR에서 다시 ACTIVE로 전환한 경우 current lifecycle change보다 오래된 persisted
+receipt는 새 activation의 성공 evidence로 재사용하지 않고 NO_RECEIPT로 남깁니다. 이는 source monitoring
+read model이며 asset health나 PHM finding과도 별개입니다.
 
 ### Receipt timing
 
