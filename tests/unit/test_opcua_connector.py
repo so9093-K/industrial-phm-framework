@@ -117,9 +117,7 @@ class _FakeDataChangeEvent:
     ) -> None:
         self.node = _FakeSubscriptionNode(node_id)
         self.value = None
-        self.data = SimpleNamespace(
-            monitored_item=SimpleNamespace(Value=data_value)
-        )
+        self.data = SimpleNamespace(monitored_item=SimpleNamespace(Value=data_value))
         self.replayed = replayed
 
 
@@ -144,9 +142,7 @@ class _FakeSubscription:
         self,
         nodes: list[_FakeSubscriptionNode],
     ) -> None:
-        type(self).subscribed_node_ids = tuple(
-            node.nodeid.to_string() for node in nodes
-        )
+        type(self).subscribed_node_ids = tuple(node.nodeid.to_string() for node in nodes)
 
     async def next_event(self, timeout: float | None = None) -> object | None:
         type(self).next_timeouts.append(timeout)
@@ -534,9 +530,7 @@ def test_opcua_subscription_timeout_returns_partial_result(
         collect_opcua_subscription_notifications(
             OpcUaSubscriptionConfig(
                 endpoint_url="opc.tcp://localhost:4840",
-                node_mappings=(
-                    OpcUaNodeMapping("vibration_x", "ns=2;s=VibrationX"),
-                ),
+                node_mappings=(OpcUaNodeMapping("vibration_x", "ns=2;s=VibrationX"),),
                 collection_timeout_seconds=1.0,
                 max_events=2,
             )
