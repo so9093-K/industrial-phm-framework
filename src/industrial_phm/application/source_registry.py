@@ -18,18 +18,22 @@ from industrial_phm.application.source_lifecycle import (
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
+    OpcUaSourceConfig,
     RegisteredSource,
     SourceAlreadyRegisteredError,
     SourceType,
     UnknownRegisteredSourceError,
 )
+from industrial_phm.connectors import OpcUaNodeMapping
 
 _REGISTRY_SCHEMA_V1 = "industrial-phm-source-registry-v1"
 _REGISTRY_SCHEMA_V2 = "industrial-phm-source-registry-v2"
 _REGISTRY_SCHEMA_V3 = "industrial-phm-source-registry-v3"
+_REGISTRY_SCHEMA_V4 = "industrial-phm-source-registry-v4"
 _ROOT_KEYS_V1 = frozenset({"schema", "sources"})
 _ROOT_KEYS_V2 = frozenset({"schema", "sources", "lifecycle"})
 _ROOT_KEYS_V3 = frozenset({"schema", "sources", "lifecycle", "freshness_policies"})
+_ROOT_KEYS_V4 = _ROOT_KEYS_V3
 _SOURCE_KEYS = frozenset({"source_id", "name", "source_type", "registered_at", "config"})
 _LIFECYCLE_KEYS = frozenset({"source_id", "state", "changed_at", "detail"})
 _FRESHNESS_POLICY_KEYS = frozenset({"source_id", "max_observation_age_seconds", "changed_at"})
@@ -56,13 +60,11 @@ class SourceRegistryFormatError(ValueError):
 class JsonSourceRepository:
     """Single-writer local JSON registration/lifecycle/freshness repository.
 
-    The current persisted schema supports prepared file sources only. OPC UA registration
-    can be represented by the application contract but is rejected here until the JSON
-    schema and Operations read surface are extended together.
-
-    Version 1 and 2 registries remain readable. Version 1 sources receive an implicit
-    REGISTERED lifecycle state; both legacy versions have no freshness policy unless a
-    later write configures one. Any write persists version 3.
+    Version 1 through 3 registries remain readable as prepared-file-only schemas.
+    Version 1 sources receive an implicit REGISTERED lifecycle state; versions 1 and 2
+    have no freshness policy unless a later write configures one. Version 4 adds OPC UA
+    source config persistence while preserving the same lifecycle/freshness root shape.
+    Any write persists version 4.
 
     Writes use a same-directory temporary file plus os.replace so readers never observe
     a partially written registry. Cross-process write coordination is not yet provided.
@@ -79,8 +81,6 @@ class JsonSourceRepository:
     def register(self, source: RegisteredSource) -> None:
         if not isinstance(source, RegisteredSource):
             raise ValueError("source must be RegisteredSource")
-        if source.source_type != SourceType.FILE:
-            raise ValueError("JsonSourceRepository currently persists prepared file sources only")
 
         sources, lifecycle, freshness = self._read_registry()
         if any(existing.source_id == source.source_id for existing in sources):
@@ -186,7 +186,7 @@ class JsonSourceRepository:
 
         if schema == _REGISTRY_SCHEMA_V1:
             _require_exact_keys(root, _ROOT_KEYS_V1, "source registry root")
-            sources = _parse_sources(root["sources"])
+            sources = _parse_sources(root["sources"], allow_opcua=False)
             lifecycle = {
                 source.source_id: SourceLifecycleRecord(
                     source_id=source.source_id,
@@ -199,16 +199,25 @@ class JsonSourceRepository:
 
         if schema == _REGISTRY_SCHEMA_V2:
             _require_exact_keys(root, _ROOT_KEYS_V2, "source registry root")
-            sources = _parse_sources(root["sources"])
+            sources = _parse_sources(root["sources"], allow_opcua=False)
             lifecycle = _parse_lifecycle(root["lifecycle"])
             _validate_lifecycle_alignment(sources, lifecycle)
             return sources, lifecycle, {}
 
-        if schema != _REGISTRY_SCHEMA_V3:
+        if schema == _REGISTRY_SCHEMA_V3:
+            _require_exact_keys(root, _ROOT_KEYS_V3, "source registry root")
+            sources = _parse_sources(root["sources"], allow_opcua=False)
+            lifecycle = _parse_lifecycle(root["lifecycle"])
+            freshness = _parse_freshness_policies(root["freshness_policies"])
+            _validate_lifecycle_alignment(sources, lifecycle)
+            _validate_freshness_alignment(sources, freshness)
+            return sources, lifecycle, freshness
+
+        if schema != _REGISTRY_SCHEMA_V4:
             raise SourceRegistryFormatError(f"unsupported source registry schema: {schema!r}")
 
-        _require_exact_keys(root, _ROOT_KEYS_V3, "source registry root")
-        sources = _parse_sources(root["sources"])
+        _require_exact_keys(root, _ROOT_KEYS_V4, "source registry root")
+        sources = _parse_sources(root["sources"], allow_opcua=True)
         lifecycle = _parse_lifecycle(root["lifecycle"])
         freshness = _parse_freshness_policies(root["freshness_policies"])
         _validate_lifecycle_alignment(sources, lifecycle)
@@ -225,7 +234,7 @@ class JsonSourceRepository:
         _validate_lifecycle_alignment(ordered_sources, lifecycle)
         _validate_freshness_alignment(ordered_sources, freshness)
         payload = {
-            "schema": _REGISTRY_SCHEMA_V3,
+            "schema": _REGISTRY_SCHEMA_V4,
             "sources": [_serialize_registered_source(source) for source in ordered_sources],
             "lifecycle": [
                 _serialize_lifecycle(lifecycle[source.source_id]) for source in ordered_sources
@@ -266,10 +275,17 @@ class JsonSourceRepository:
                 temporary_path.unlink(missing_ok=True)
 
 
-def _parse_sources(value: object) -> tuple[RegisteredSource, ...]:
+def _parse_sources(
+    value: object,
+    *,
+    allow_opcua: bool,
+) -> tuple[RegisteredSource, ...]:
     if not isinstance(value, list):
         raise SourceRegistryFormatError("source registry sources must be a JSON array")
-    sources = tuple(_parse_registered_source(item, index=index) for index, item in enumerate(value))
+    sources = tuple(
+        _parse_registered_source(item, index=index, allow_opcua=allow_opcua)
+        for index, item in enumerate(value)
+    )
     source_ids = tuple(source.source_id for source in sources)
     if len(set(source_ids)) != len(source_ids):
         raise SourceRegistryFormatError("source registry contains duplicate source_id values")
@@ -338,14 +354,8 @@ def _require_registered_source_id(
 
 def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
     config = source.config
-    if not isinstance(config, FileSourceConfig):
-        raise ValueError("JsonSourceRepository currently persists prepared file sources only")
-    return {
-        "source_id": source.source_id,
-        "name": source.name,
-        "source_type": source.source_type.value,
-        "registered_at": source.registered_at.isoformat(),
-        "config": {
+    if isinstance(config, FileSourceConfig):
+        config_payload: dict[str, object] = {
             "source_path": config.source_path,
             "asset_id": config.asset_id,
             "channel_columns": list(config.channel_columns),
@@ -356,7 +366,27 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
             "sampling_rate_tolerance_ratio": config.sampling_rate_tolerance_ratio,
             "minimum_sample_count": config.minimum_sample_count,
             "delimiter": config.delimiter,
-        },
+        }
+    elif isinstance(config, OpcUaSourceConfig):
+        config_payload = {
+            "endpoint_url": config.endpoint_url,
+            "asset_id": config.asset_id,
+            "measurement_point_id": config.measurement_point_id,
+            "node_mappings": [
+                {"channel_id": mapping.channel_id, "node_id": mapping.node_id}
+                for mapping in config.node_mappings
+            ],
+            "timeout_seconds": config.timeout_seconds,
+        }
+    else:
+        raise ValueError("unsupported registered source config")
+
+    return {
+        "source_id": source.source_id,
+        "name": source.name,
+        "source_type": source.source_type.value,
+        "registered_at": source.registered_at.isoformat(),
+        "config": config_payload,
     }
 
 
@@ -377,65 +407,121 @@ def _serialize_freshness_policy(policy: SourceFreshnessPolicy) -> dict[str, obje
     }
 
 
-def _parse_registered_source(value: object, *, index: int) -> RegisteredSource:
+def _parse_registered_source(
+    value: object,
+    *,
+    index: int,
+    allow_opcua: bool,
+) -> RegisteredSource:
     label = f"source registry sources[{index}]"
     source = _require_mapping(value, label)
     _require_exact_keys(source, _SOURCE_KEYS, label)
 
-    source_type = _require_string(source["source_type"], f"{label}.source_type")
-    if source_type != SourceType.FILE.value:
-        raise SourceRegistryFormatError(f"{label}.source_type is unsupported: {source_type!r}")
+    source_type_raw = _require_string(source["source_type"], f"{label}.source_type")
+    try:
+        source_type = SourceType(source_type_raw)
+    except ValueError as error:
+        raise SourceRegistryFormatError(
+            f"{label}.source_type is unsupported: {source_type_raw!r}"
+        ) from error
+    if source_type == SourceType.OPCUA and not allow_opcua:
+        raise SourceRegistryFormatError(
+            f"{label}.source_type is unsupported by this registry schema: {source_type_raw!r}"
+        )
 
     config_label = f"{label}.config"
-    config = _require_mapping(source["config"], config_label)
-    _require_exact_keys(config, _FILE_CONFIG_KEYS, config_label)
-
-    channels_raw = config["channel_columns"]
-    if not isinstance(channels_raw, list) or not all(
-        isinstance(channel, str) for channel in channels_raw
-    ):
-        raise SourceRegistryFormatError(f"{config_label}.channel_columns must be a string array")
-
+    config_raw = _require_mapping(source["config"], config_label)
     registered_at_raw = _require_string(source["registered_at"], f"{label}.registered_at")
+
     try:
-        registered_at = datetime.fromisoformat(registered_at_raw)
-        parsed = RegisteredSource(
+        if source_type == SourceType.FILE:
+            config = _parse_file_source_config(config_raw, config_label)
+        else:
+            config = _parse_opcua_source_config(config_raw, config_label)
+
+        return RegisteredSource(
             source_id=_require_string(source["source_id"], f"{label}.source_id"),
             name=_require_string(source["name"], f"{label}.name"),
-            config=FileSourceConfig(
-                source_path=_require_string(config["source_path"], f"{config_label}.source_path"),
-                asset_id=_require_string(config["asset_id"], f"{config_label}.asset_id"),
-                channel_columns=tuple(cast(list[str], channels_raw)),
-                mode=FileSourceMode(_require_string(config["mode"], f"{config_label}.mode")),
-                measurement_point_id=_optional_string(
-                    config["measurement_point_id"],
-                    f"{config_label}.measurement_point_id",
-                ),
-                timestamp_column=_optional_string(
-                    config["timestamp_column"],
-                    f"{config_label}.timestamp_column",
-                ),
-                sampling_rate_hz=_optional_number(
-                    config["sampling_rate_hz"],
-                    f"{config_label}.sampling_rate_hz",
-                ),
-                sampling_rate_tolerance_ratio=_optional_number(
-                    config["sampling_rate_tolerance_ratio"],
-                    f"{config_label}.sampling_rate_tolerance_ratio",
-                ),
-                minimum_sample_count=_require_integer(
-                    config["minimum_sample_count"],
-                    f"{config_label}.minimum_sample_count",
-                ),
-                delimiter=_require_string(config["delimiter"], f"{config_label}.delimiter"),
-            ),
-            registered_at=registered_at,
+            config=config,
+            registered_at=datetime.fromisoformat(registered_at_raw),
         )
     except ValueError as error:
         if isinstance(error, SourceRegistryFormatError):
             raise
         raise SourceRegistryFormatError(f"{label} is invalid: {error}") from error
-    return parsed
+
+
+def _parse_file_source_config(
+    config: Mapping[str, object],
+    label: str,
+) -> FileSourceConfig:
+    _require_exact_keys(config, _FILE_CONFIG_KEYS, label)
+    channels_raw = config["channel_columns"]
+    if not isinstance(channels_raw, list) or not all(
+        isinstance(channel, str) for channel in channels_raw
+    ):
+        raise SourceRegistryFormatError(f"{label}.channel_columns must be a string array")
+
+    return FileSourceConfig(
+        source_path=_require_string(config["source_path"], f"{label}.source_path"),
+        asset_id=_require_string(config["asset_id"], f"{label}.asset_id"),
+        channel_columns=tuple(cast(list[str], channels_raw)),
+        mode=FileSourceMode(_require_string(config["mode"], f"{label}.mode")),
+        measurement_point_id=_optional_string(
+            config["measurement_point_id"],
+            f"{label}.measurement_point_id",
+        ),
+        timestamp_column=_optional_string(
+            config["timestamp_column"],
+            f"{label}.timestamp_column",
+        ),
+        sampling_rate_hz=_optional_number(
+            config["sampling_rate_hz"],
+            f"{label}.sampling_rate_hz",
+        ),
+        sampling_rate_tolerance_ratio=_optional_number(
+            config["sampling_rate_tolerance_ratio"],
+            f"{label}.sampling_rate_tolerance_ratio",
+        ),
+        minimum_sample_count=_require_integer(
+            config["minimum_sample_count"],
+            f"{label}.minimum_sample_count",
+        ),
+        delimiter=_require_string(config["delimiter"], f"{label}.delimiter"),
+    )
+
+
+def _parse_opcua_source_config(
+    config: Mapping[str, object],
+    label: str,
+) -> OpcUaSourceConfig:
+    _require_exact_keys(config, _OPCUA_CONFIG_KEYS, label)
+    mappings_raw = config["node_mappings"]
+    if not isinstance(mappings_raw, list):
+        raise SourceRegistryFormatError(f"{label}.node_mappings must be a JSON array")
+
+    node_mappings: list[OpcUaNodeMapping] = []
+    for index, value in enumerate(mappings_raw):
+        mapping_label = f"{label}.node_mappings[{index}]"
+        mapping = _require_mapping(value, mapping_label)
+        _require_exact_keys(mapping, _OPCUA_NODE_MAPPING_KEYS, mapping_label)
+        node_mappings.append(
+            OpcUaNodeMapping(
+                channel_id=_require_string(mapping["channel_id"], f"{mapping_label}.channel_id"),
+                node_id=_require_string(mapping["node_id"], f"{mapping_label}.node_id"),
+            )
+        )
+
+    return OpcUaSourceConfig(
+        endpoint_url=_require_string(config["endpoint_url"], f"{label}.endpoint_url"),
+        asset_id=_require_string(config["asset_id"], f"{label}.asset_id"),
+        measurement_point_id=_optional_string(
+            config["measurement_point_id"],
+            f"{label}.measurement_point_id",
+        ),
+        node_mappings=tuple(node_mappings),
+        timeout_seconds=_require_number(config["timeout_seconds"], f"{label}.timeout_seconds"),
+    )
 
 
 def _parse_lifecycle_record(value: object, *, index: int) -> SourceLifecycleRecord:
