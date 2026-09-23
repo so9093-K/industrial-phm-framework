@@ -130,10 +130,13 @@ source-registry.json
 
 source-runtime.json
   latest SourceReceiptEvidence per source
+
+# 반드시 source-registry.json과 다른 파일 경로여야 함
 ```
 
-Runtime state schema는 `industrial-phm-source-runtime-v1`입니다. Source ID별 latest receipt만 deterministic하게
-저장하고 `received_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
+Runtime state schema는 `industrial-phm-source-runtime-v1`입니다. Registry와 runtime-state 경로가 같은
+파일로 resolve되면 runtime write가 control-plane state를 덮어쓸 수 있으므로 startup과 write 모두
+fail-closed로 차단합니다. Source ID별 latest receipt만 deterministic하게 저장하고 `received_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
 idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와
 같이 same-directory temporary file + flush/fsync + `os.replace`를 사용합니다.
 
