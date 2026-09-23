@@ -1496,6 +1496,92 @@ def _(initial_error, initial_summary, initial_timeline, mo):
 
 @app.cell
 def _(
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    Path,
+    SourceRuntimeCycleState,
+    run_active_source_button,
+    run_registered_file_source_cycle,
+    set_load_error,
+    set_observation,
+    set_runtime_cycle_error,
+    set_runtime_cycle_skipped,
+    set_runtime_cycle_success,
+    set_source_lifecycle_records,
+    set_source_receipt,
+    set_source_runtime_error,
+    set_source_runtime_receipts,
+    set_timeline,
+    source_registry_default,
+    source_runtime_default,
+    source_selector,
+    validate_distinct_source_state_paths,
+):
+    if run_active_source_button is not None and run_active_source_button.value:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before running a runtime cycle")
+            _registry_path = Path(source_registry_default)
+            _runtime_path = Path(source_runtime_default)
+            validate_distinct_source_state_paths(_registry_path, _runtime_path)
+            _source_repository = JsonSourceRepository(_registry_path)
+            _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+            _result = run_registered_file_source_cycle(
+                _source_repository,
+                _source_repository,
+                _runtime_repository,
+                source_selector.value,
+            )
+            _sources = _source_repository.list_sources()
+            _lifecycle_records = tuple(
+                _source_repository.get_lifecycle(source.source_id) for source in _sources
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_runtime_cycle_success("")
+            set_runtime_cycle_skipped("")
+            set_runtime_cycle_error(str(error))
+        else:
+            set_source_lifecycle_records(_lifecycle_records)
+            if _result.state == SourceRuntimeCycleState.SUCCEEDED:
+                if _result.received is None:
+                    raise RuntimeError("succeeded runtime cycle returned no received observation")
+                _loaded = _result.received.observation
+                set_observation(_loaded.latest)
+                set_timeline(_loaded.timeline)
+                set_source_receipt(_result.received.receipt)
+                set_load_error("")
+                set_runtime_cycle_error("")
+                set_runtime_cycle_skipped("")
+                set_runtime_cycle_success(
+                    f"Runtime cycle succeeded: {_result.source_id} · "
+                    f"received {_result.received.receipt.received_at.isoformat()}"
+                )
+            elif _result.state == SourceRuntimeCycleState.SKIPPED:
+                set_runtime_cycle_error("")
+                set_runtime_cycle_success("")
+                set_runtime_cycle_skipped(_result.message or "runtime cycle skipped")
+            else:
+                set_runtime_cycle_success("")
+                set_runtime_cycle_skipped("")
+                set_runtime_cycle_error(_result.message or "runtime cycle failed")
+
+            try:
+                _registered_ids = {source.source_id for source in _sources}
+                _runtime_receipts = tuple(
+                    receipt
+                    for receipt in _runtime_repository.list_latest_receipts()
+                    if receipt.source_id in _registered_ids
+                )
+            except (OSError, ValueError) as error:
+                set_source_runtime_error(str(error))
+            else:
+                set_source_runtime_receipts(_runtime_receipts)
+                set_source_runtime_error("")
+    return
+
+
+@app.cell
+def _(
     JsonSourceRuntimeRepository,
     Path,
     load_registered_source_button,
