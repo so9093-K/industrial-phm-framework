@@ -214,7 +214,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     operations_poll_source = operations_commands.add_parser(
         "poll-source",
-        help="poll one ACTIVE registered file/history source until stopped",
+        help="poll one ACTIVE registered FILE or OPC UA source until stopped",
     )
     operations_poll_source.add_argument(
         "--registry",
@@ -226,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--runtime-state",
         type=Path,
         required=True,
-        help="separate persistent latest-receipt runtime-state JSON path",
+        help="separate persistent latest runtime-evidence JSON path",
     )
     operations_poll_source.add_argument(
         "--source-id",

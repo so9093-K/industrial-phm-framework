@@ -1,6 +1,7 @@
 import asyncio
 import socket
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -8,9 +9,17 @@ asyncua = pytest.importorskip("asyncua")
 ua = asyncua.ua
 
 from industrial_phm.application import (  # noqa: E402
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
     OpcUaSourceConfig,
     RegisteredSource,
+    SourceConnectionAttemptOutcome,
+    SourceLifecycleState,
+    SourcePollingPolicy,
+    SourceRuntimeCycleState,
+    poll_registered_source,
     receive_registered_opcua_source_observation,
+    transition_source_lifecycle,
 )
 from industrial_phm.connectors import (  # noqa: E402
     OpcUaBrowseConfig,
@@ -29,7 +38,7 @@ def _free_tcp_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
+def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
     async def _run() -> None:
         port = _free_tcp_port()
         endpoint = f"opc.tcp://127.0.0.1:{port}/industrial-phm/"
@@ -77,6 +86,16 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
             registered_at=datetime(2026, 9, 23, 0, 59, 0, tzinfo=UTC),
         )
 
+        source_repository = JsonSourceRepository(tmp_path / "source-registry.json")
+        runtime_repository = JsonSourceRuntimeRepository(tmp_path / "source-runtime.json")
+        source_repository.register(registered_source)
+        transition_source_lifecycle(
+            source_repository,
+            registered_source.source_id,
+            SourceLifecycleState.ACTIVE,
+            changed_at=datetime(2026, 9, 23, 0, 59, 30, tzinfo=UTC),
+        )
+
         async with server:
             probe = await probe_opcua_endpoint(OpcUaEndpointProbeConfig(endpoint_url=endpoint))
             browse = await browse_opcua_variables(
@@ -97,6 +116,19 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
                 )
             )
             received = await receive_registered_opcua_source_observation(registered_source)
+
+            poll_results = await asyncio.to_thread(
+                lambda: tuple(
+                    poll_registered_source(
+                        source_repository,
+                        source_repository,
+                        runtime_repository,
+                        registered_source.source_id,
+                        SourcePollingPolicy(interval_seconds=0.001, max_cycles=2),
+                        sleep_fn=lambda _seconds: None,
+                    )
+                )
+            )
 
         assert probe.endpoint_url == endpoint
         assert probe.connected_at.utcoffset() is not None
@@ -140,5 +172,19 @@ def test_opcua_extra_reads_real_asyncua_datavalues() -> None:
         assert received.observation.observed_at == source_at
         assert received.receipt.observed_at == source_at
         assert received.receipt.received_at >= received.observation.snapshot.completed_at
+
+        assert [result.state for result in poll_results] == [
+            SourceRuntimeCycleState.SUCCEEDED,
+            SourceRuntimeCycleState.SUCCEEDED,
+        ]
+        persisted_receipt = runtime_repository.get_latest_receipt(registered_source.source_id)
+        assert persisted_receipt is not None
+        persisted_attempt = runtime_repository.get_latest_connection_attempt(
+            registered_source.source_id
+        )
+        assert persisted_attempt is not None
+        assert persisted_attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
+        assert persisted_attempt.connected_at is not None
+        assert persisted_attempt.completed_at >= persisted_attempt.connected_at
 
     asyncio.run(_run())
