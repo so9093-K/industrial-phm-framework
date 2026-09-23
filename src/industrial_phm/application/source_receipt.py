@@ -100,10 +100,6 @@ class RegisteredOpcUaObservation:
             return None
         return min(value for value in timestamps if value is not None)
 
-
-
-
-
 def project_registered_opcua_observation_summary(
     observation: RegisteredOpcUaObservation,
 ) -> AssetObservationSummary:
@@ -121,7 +117,7 @@ def project_registered_opcua_observation_summary(
     non_good = tuple(
         item for item in observation.snapshot.observations if not item.status_good
     )
-    issues = ()
+    issues: tuple[DataQualityIssue, ...] = ()
     if non_good:
         detail = ", ".join(
             f"{item.channel_id}={item.status_text}" for item in non_good
