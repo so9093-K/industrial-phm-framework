@@ -19,9 +19,7 @@ from industrial_phm.application import (
 
 def _write_source(path: Path) -> None:
     path.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-23T10:00:00+09:00,-1.0\n"
-        "2026-09-23T10:00:01+09:00,1.0\n",
+        "timestamp,vibration_x\n2026-09-23T10:00:00+09:00,-1.0\n2026-09-23T10:00:01+09:00,1.0\n",
         encoding="utf-8",
     )
 
