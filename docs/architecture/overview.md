@@ -169,6 +169,7 @@ Source health read model
          ├ data flow = INACTIVE / SOURCE_ERROR / NO_RECEIPT /
          │             FRESHNESS_NOT_CONFIGURED / FRESH / STALE /
          │             TIMING_UNAVAILABLE
+         ├ receipt before current ACTIVE transition -> NO_RECEIPT for current epoch
          └ no boolean healthy flag
 
 Active file source runtime cycle
