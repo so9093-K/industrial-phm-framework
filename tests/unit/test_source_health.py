@@ -157,12 +157,8 @@ def test_active_source_with_fresh_observation_maps_to_fresh_data_flow() -> None:
     )
 
     assert assessment.data_flow_state == SourceDataFlowState.FRESH
-    assert assessment.latest_observed_at == datetime.fromisoformat(
-        "2026-09-23T10:04:00+09:00"
-    )
-    assert assessment.latest_received_at == datetime.fromisoformat(
-        "2026-09-23T10:04:05+09:00"
-    )
+    assert assessment.latest_observed_at == datetime.fromisoformat("2026-09-23T10:04:00+09:00")
+    assert assessment.latest_received_at == datetime.fromisoformat("2026-09-23T10:04:05+09:00")
     assert assessment.delivery_lag_seconds == 5.0
 
 
