@@ -12,6 +12,7 @@ from industrial_phm.application import (
     ReceivedRegisteredOpcUaObservation,
     RegisteredOpcUaObservation,
     RegisteredSource,
+    SourceConnectionAttemptOutcome,
     SourceLifecycleState,
     SourceReceiptEvidence,
     SourceRuntimeCycleFailureScope,
@@ -135,6 +136,13 @@ def test_registered_opcua_source_cycle_records_receipt_and_keeps_active(
     assert result.failure_scope is None
     assert result.lifecycle_after.state == SourceLifecycleState.ACTIVE
     assert runtime_repository.get_latest_receipt(source.source_id) == received.receipt
+    attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
+    assert attempt is not None
+    assert attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
+    assert attempt.attempted_at <= attempt.connected_at
+    assert attempt.connected_at == received.observation.snapshot.connected_at
+    assert attempt.completed_at == received.observation.snapshot.completed_at
+    assert attempt.detail is None
 
 
 def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
@@ -174,6 +182,12 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
     assert lifecycle.state == SourceLifecycleState.ERROR
     assert lifecycle.detail == result.message
     assert runtime_repository.get_latest_receipt(source.source_id) is None
+    attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
+    assert attempt is not None
+    assert attempt.outcome == SourceConnectionAttemptOutcome.FAILED
+    assert attempt.connected_at is None
+    assert attempt.attempted_at <= attempt.completed_at
+    assert "configured OPC UA node read failed" in (attempt.detail or "")
 
 
 def test_registered_opcua_source_cycle_marks_transport_oserror_as_source_error(
@@ -210,6 +224,11 @@ def test_registered_opcua_source_cycle_marks_transport_oserror_as_source_error(
     assert result.received is None
     assert "connection refused" in (result.message or "")
     assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ERROR
+    attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
+    assert attempt is not None
+    assert attempt.outcome == SourceConnectionAttemptOutcome.FAILED
+    assert attempt.connected_at is None
+    assert "connection refused" in (attempt.detail or "")
 
 
 def test_registered_opcua_source_cycle_keeps_active_when_runtime_is_unavailable(
@@ -246,6 +265,7 @@ def test_registered_opcua_source_cycle_keeps_active_when_runtime_is_unavailable(
     assert result.received is None
     assert "runtime is not installed" in (result.message or "")
     assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+    assert runtime_repository.get_latest_connection_attempt(source.source_id) is None
 
 
 def test_registered_opcua_source_cycle_keeps_active_on_caller_contract_error(
@@ -281,6 +301,7 @@ def test_registered_opcua_source_cycle_keeps_active_on_caller_contract_error(
     assert result.failure_scope == SourceRuntimeCycleFailureScope.PLATFORM
     assert result.received is None
     assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+    assert runtime_repository.get_latest_connection_attempt(source.source_id) is None
 
 
 def test_registered_opcua_source_cycle_keeps_active_on_unexpected_internal_error(
@@ -316,6 +337,7 @@ def test_registered_opcua_source_cycle_keeps_active_on_unexpected_internal_error
     assert result.failure_scope == SourceRuntimeCycleFailureScope.PLATFORM
     assert result.received is None
     assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+    assert runtime_repository.get_latest_connection_attempt(source.source_id) is None
 
 
 def test_registered_opcua_source_cycle_keeps_active_on_runtime_persistence_failure(
