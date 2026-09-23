@@ -12,7 +12,11 @@ from industrial_phm.application.field_csv import (
     load_field_csv_observation_summary,
     load_field_csv_observation_timeline_directory,
 )
-from industrial_phm.application.observation import AssetObservationSummary, SourceSnapshotEvidence
+from industrial_phm.application.observation import (
+    AssetObservationSummary,
+    AssetObservationTimeline,
+    SourceSnapshotEvidence,
+)
 from industrial_phm.application.source_registration import (
     FileSourceMode,
     RegisteredSource,
@@ -103,6 +107,28 @@ class FileSourceRegistrationValidation:
         object.__setattr__(self, "source_snapshots", snapshots)
 
 
+@dataclass(frozen=True, slots=True)
+class RegisteredFileObservation:
+    """Current validated observation loaded from one registered prepared-file source."""
+
+    latest: AssetObservationSummary
+    timeline: AssetObservationTimeline | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.latest, AssetObservationSummary):
+            raise ValueError("latest must be an AssetObservationSummary")
+        if self.timeline is not None:
+            if not isinstance(self.timeline, AssetObservationTimeline):
+                raise ValueError("timeline must be an AssetObservationTimeline when provided")
+            if self.timeline.latest != self.latest:
+                raise ValueError("timeline latest segment must match latest observation")
+
+    @property
+    def segment_count(self) -> int:
+        """Return the validated segment population represented by this load."""
+        return 1 if self.timeline is None else self.timeline.segment_count
+
+
 def discover_file_source(
     source_path: Path,
     mode: FileSourceMode,
@@ -154,10 +180,14 @@ def discover_file_source(
     )
 
 
-def validate_registered_file_source(
+def load_registered_file_source_observation(
     source: RegisteredSource,
-) -> FileSourceRegistrationValidation:
-    """Run the existing field CSV/timeline validation for one registration candidate."""
+) -> RegisteredFileObservation:
+    """Load the current prepared-file bytes declared by a registered source.
+
+    Registration is not treated as a cached observation. Every load runs the existing
+    CSV/timeline validation again so changed or unavailable source bytes fail closed.
+    """
     if not isinstance(source, RegisteredSource):
         raise ValueError("source must be RegisteredSource")
 
@@ -165,24 +195,33 @@ def validate_registered_file_source(
     layout = config.to_csv_sensor_layout()
     path = Path(config.source_path)
 
-    segments: tuple[AssetObservationSummary, ...]
     if config.mode == FileSourceMode.SNAPSHOT:
-        segments = (
-            load_field_csv_observation_summary(
-                path,
-                layout,
-                source_id=source.source_id,
-                measurement_point_id=config.measurement_point_id,
-            ),
-        )
-    else:
-        timeline = load_field_csv_observation_timeline_directory(
+        latest = load_field_csv_observation_summary(
             path,
             layout,
             source_id=source.source_id,
             measurement_point_id=config.measurement_point_id,
         )
-        segments = tuple(timeline.segments)
+        return RegisteredFileObservation(latest=latest)
+
+    timeline = load_field_csv_observation_timeline_directory(
+        path,
+        layout,
+        source_id=source.source_id,
+        measurement_point_id=config.measurement_point_id,
+    )
+    return RegisteredFileObservation(latest=timeline.latest, timeline=timeline)
+
+
+def validate_registered_file_source(
+    source: RegisteredSource,
+) -> FileSourceRegistrationValidation:
+    """Run the registered-source observation loader for one registration candidate."""
+    loaded = load_registered_file_source_observation(source)
+    config = source.config
+    segments: tuple[AssetObservationSummary, ...] = (
+        (loaded.latest,) if loaded.timeline is None else tuple(loaded.timeline.segments)
+    )
 
     quality = DataQualityAssessment(
         tuple(issue for segment in segments for issue in segment.data_quality.issues)
