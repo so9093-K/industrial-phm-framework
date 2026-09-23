@@ -112,6 +112,15 @@ SourceFreshnessPolicyRepository
 SourceFreshnessPolicy
   └ max_observation_age_seconds
 
+SourceRuntimeRepository
+  ├ get_latest_receipt
+  ├ list_latest_receipts
+  └ record_receipt
+
+JsonSourceRuntimeRepository
+  └ industrial-phm-source-runtime-v1
+       └ latest SourceReceiptEvidence per source
+
 File registration use case
   source path / mode
     -> header discovery + representative preview
@@ -154,8 +163,12 @@ policy를 재시작 이후에도 복원합니다. 기존 v1은 implicit REGISTER
 상태로 읽고 다음 write에서 v3로 승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤
 `os.replace`로 교체해 partial write를 노출하지 않으며 reader는 schema/key/source type/duplicate
 ID/lifecycle alignment/freshness-policy source alignment를 fail-fast 검증합니다. Runtime receipt evidence는
-registry에 저장하지 않습니다. 현재 구현은 single-writer local persistence 경계이며 cross-process write
-coordination은 아직 지원하지 않습니다.
+registry에 저장하지 않고 별도 `JsonSourceRuntimeRepository`가 source별 latest
+`SourceReceiptEvidence`만 `industrial-phm-source-runtime-v1`으로 보존합니다. Runtime writer도
+same-directory temp + flush/fsync + `os.replace`를 사용하고 received_at regression과 same-time conflicting
+evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를
+막기 위해 fail-closed로 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며
+cross-process write coordination은 아직 지원하지 않습니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
 REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, registry read surface와 selected registered source의
@@ -171,8 +184,11 @@ Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 
 `assessed_at - observed_at` observation age를 policy max age와 비교해 계산합니다. Timestamp/timezone이
 없거나 observed_at이 assessment time보다 미래면 fail-closed로 UNAVAILABLE을 반환하고, policy가 없으면
 NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 connection/health/ingestion 성공을
-뜻하지 않습니다. Browser upload/file-picker, source edit/delete, lifecycle을 실제로 소비하는 ingestion
-runtime, persistent receipt/freshness history, OPC UA/MQTT connector는 후속 경계입니다.
+뜻하지 않습니다. Successful registered-source load의 latest receipt는 runtime repository에 기록되고 앱
+재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
+assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Browser upload/file-picker, source
+edit/delete, lifecycle을 실제로 소비하는 continuous ingestion runtime, receipt history, OPC UA/MQTT
+connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 

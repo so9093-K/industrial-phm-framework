@@ -9,6 +9,7 @@ from industrial_phm.application import (
     FileSourceMode,
     InMemorySourceRepository,
     JsonSourceRepository,
+    JsonSourceRuntimeRepository,
     RegisteredSource,
     discover_file_source,
     load_registered_file_source_observation,
@@ -163,6 +164,28 @@ def test_receive_registered_snapshot_records_platform_receipt_and_lag(
     )
     assert received.receipt.received_at == datetime.fromisoformat("2026-09-23T10:00:06+09:00")
     assert received.receipt.lag_seconds == 5.0
+
+
+def test_received_registered_snapshot_can_restore_latest_receipt_after_reopen(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "pump.csv"
+    source_path.write_text(
+        "timestamp,vibration_x,temperature\n"
+        "2026-09-23T10:00:00+09:00,-1.0,42.0\n"
+        "2026-09-23T10:00:01+09:00,1.0,42.2\n",
+        encoding="utf-8",
+    )
+    runtime_path = tmp_path / "runtime" / "source-runtime.json"
+    received = receive_registered_file_source_observation(
+        _registered_source(source_path),
+        received_at=datetime.fromisoformat("2026-09-23T10:00:06+09:00"),
+    )
+
+    JsonSourceRuntimeRepository(runtime_path).record_receipt(received.receipt)
+
+    reopened = JsonSourceRuntimeRepository(runtime_path)
+    assert reopened.get_latest_receipt(received.receipt.source_id) == received.receipt
 
 
 def test_receive_registered_snapshot_keeps_lag_unavailable_for_naive_source_time(

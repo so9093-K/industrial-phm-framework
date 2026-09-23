@@ -59,6 +59,12 @@ from industrial_phm.application.source_registry import (
     JsonSourceRepository,
     SourceRegistryFormatError,
 )
+from industrial_phm.application.source_runtime import (
+    JsonSourceRuntimeRepository,
+    SourceRuntimeFormatError,
+    SourceRuntimeRepository,
+    validate_distinct_source_state_paths,
+)
 
 __all__ = [
     "AnalysisRun",
@@ -71,6 +77,7 @@ __all__ = [
     "FileSourceRegistrationValidation",
     "InMemorySourceRepository",
     "JsonSourceRepository",
+    "JsonSourceRuntimeRepository",
     "ObservationValidationPolicy",
     "OperationalFinding",
     "ReceivedRegisteredFileObservation",
@@ -87,6 +94,8 @@ __all__ = [
     "SourceReceiptEvidence",
     "SourceRegistryFormatError",
     "SourceRepository",
+    "SourceRuntimeFormatError",
+    "SourceRuntimeRepository",
     "SourceSnapshotEvidence",
     "SourceType",
     "UnknownRegisteredSourceError",
@@ -100,6 +109,7 @@ __all__ = [
     "receive_registered_file_source_observation",
     "register_file_source",
     "transition_source_lifecycle",
+    "validate_distinct_source_state_paths",
     "validate_operational_finding_against_run",
     "validate_registered_file_source",
 ]

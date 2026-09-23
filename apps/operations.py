@@ -19,6 +19,7 @@ def _():
         FileSourceConfig,
         FileSourceMode,
         JsonSourceRepository,
+        JsonSourceRuntimeRepository,
         RegisteredSource,
         SourceFreshnessPolicy,
         SourceLifecycleState,
@@ -29,6 +30,7 @@ def _():
         receive_registered_file_source_observation,
         register_file_source,
         transition_source_lifecycle,
+        validate_distinct_source_state_paths,
     )
     from industrial_phm.contracts import DataQualityState
 
@@ -41,6 +43,7 @@ def _():
         FileSourceConfig,
         FileSourceMode,
         JsonSourceRepository,
+        JsonSourceRuntimeRepository,
         Path,
         RegisteredSource,
         SourceFreshnessPolicy,
@@ -54,6 +57,7 @@ def _():
         mo,
         register_file_source,
         transition_source_lifecycle,
+        validate_distinct_source_state_paths,
         os,
     )
 
@@ -119,10 +123,21 @@ def _(
 
 
 @app.cell
-def _(JsonSourceRepository, Path, load_observation, os):
+def _(
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    Path,
+    load_observation,
+    os,
+    validate_distinct_source_state_paths,
+):
     source_registry_default = os.environ.get(
         "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
         "artifacts/operations/source-registry.json",
+    )
+    source_runtime_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
+        "artifacts/operations/source-runtime.json",
     )
     try:
         _source_repository = JsonSourceRepository(Path(source_registry_default))
@@ -142,6 +157,22 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_source_lifecycle_records = ()
         initial_source_freshness_policies = ()
         initial_source_registry_error = str(error)
+
+    try:
+        _registry_path = Path(source_registry_default)
+        _runtime_path = Path(source_runtime_default)
+        validate_distinct_source_state_paths(_registry_path, _runtime_path)
+        _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+        _registered_source_ids = {source.source_id for source in initial_registered_sources}
+        initial_source_runtime_receipts = tuple(
+            receipt
+            for receipt in _runtime_repository.list_latest_receipts()
+            if receipt.source_id in _registered_source_ids
+        )
+        initial_source_runtime_error = ""
+    except (OSError, ValueError) as error:
+        initial_source_runtime_receipts = ()
+        initial_source_runtime_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
     history_directory_default = os.environ.get(
@@ -193,9 +224,12 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_source_freshness_policies,
         initial_source_lifecycle_records,
         initial_source_registry_error,
+        initial_source_runtime_error,
+        initial_source_runtime_receipts,
         source_default,
         source_id_default,
         source_registry_default,
+        source_runtime_default,
         timestamp_default,
     )
 
@@ -206,6 +240,8 @@ def _(
     initial_source_freshness_policies,
     initial_source_lifecycle_records,
     initial_source_registry_error,
+    initial_source_runtime_error,
+    initial_source_runtime_receipts,
     mo,
 ):
     get_registered_sources, set_registered_sources = mo.state(initial_registered_sources)
@@ -216,15 +252,23 @@ def _(
         initial_source_lifecycle_records
     )
     get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
+    get_source_runtime_error, set_source_runtime_error = mo.state(initial_source_runtime_error)
+    get_source_runtime_receipts, set_source_runtime_receipts = mo.state(
+        initial_source_runtime_receipts
+    )
     return (
         get_registered_sources,
         get_source_freshness_policies,
         get_source_lifecycle_records,
         get_source_registry_error,
+        get_source_runtime_error,
+        get_source_runtime_receipts,
         set_registered_sources,
         set_source_freshness_policies,
         set_source_lifecycle_records,
         set_source_registry_error,
+        set_source_runtime_error,
+        set_source_runtime_receipts,
     )
 
 
@@ -234,16 +278,22 @@ def _(
     get_source_freshness_policies,
     get_source_lifecycle_records,
     get_source_registry_error,
+    get_source_runtime_error,
+    get_source_runtime_receipts,
 ):
     registered_sources = get_registered_sources()
     source_freshness_policies = get_source_freshness_policies()
     source_lifecycle_records = get_source_lifecycle_records()
     source_registry_error = get_source_registry_error()
+    source_runtime_error = get_source_runtime_error()
+    source_runtime_receipts = get_source_runtime_receipts()
     return (
         registered_sources,
         source_freshness_policies,
         source_lifecycle_records,
         source_registry_error,
+        source_runtime_error,
+        source_runtime_receipts,
     )
 
 
@@ -1013,6 +1063,9 @@ def _(
     source_registry_default,
     source_receipt,
     source_registry_error,
+    source_runtime_default,
+    source_runtime_error,
+    source_runtime_receipts,
     source_selector,
 ):
     def escape_markdown_cell(value: str) -> str:
@@ -1030,7 +1083,10 @@ def _(
                     kind="danger",
                     title="Source registry unavailable",
                 ),
-                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`  \n"
+                    f"Configured runtime state: `{escape_markdown_cell(source_runtime_default)}`"
+                ),
             ],
             gap=1.2,
         )
@@ -1053,6 +1109,7 @@ def _(
     else:
         _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
         _freshness_policy_by_id = {policy.source_id: policy for policy in source_freshness_policies}
+        _runtime_receipt_by_id = {receipt.source_id: receipt for receipt in source_runtime_receipts}
         _rows = []
         for _source in registered_sources:
             _config = _source.config
@@ -1108,10 +1165,19 @@ def _(
             if _selected_config.sampling_rate_tolerance_ratio is None
             else f"{_selected_config.sampling_rate_tolerance_ratio:g}"
         )
-        _selected_receipt = (
+        _session_receipt = (
             source_receipt
             if source_receipt is not None and source_receipt.source_id == _selected.source_id
             else None
+        )
+        _persisted_receipt = _runtime_receipt_by_id.get(_selected.source_id)
+        _selected_receipt = _session_receipt if _session_receipt is not None else _persisted_receipt
+        _receipt_origin = (
+            "current session"
+            if _session_receipt is not None
+            else "persisted latest"
+            if _persisted_receipt is not None
+            else "unavailable"
         )
         _freshness_policy_label = (
             "Not configured"
@@ -1164,7 +1230,8 @@ def _(
                         "| --- | --- |\n"
                         f"| Latest observed_at | {_observed_label} |\n"
                         f"| received_at | {_selected_receipt.received_at.isoformat()} |\n"
-                        f"| observed→received delivery lag | {_lag_label} |"
+                        f"| observed→received delivery lag | {_lag_label} |\n"
+                        f"| Receipt state | {_receipt_origin} |"
                     ),
                     mo.callout(
                         "received_at is the time this prepared source load was accepted after "
@@ -1338,6 +1405,21 @@ def _(
                         )
                     )
                 ),
+                (
+                    mo.callout(
+                        source_runtime_error,
+                        kind="danger",
+                        title="Source runtime state unavailable",
+                    )
+                    if source_runtime_error
+                    else mo.callout(
+                        "Latest accepted registered-source receipt is persisted separately "
+                        "from the source registry. Only latest receipt timing is stored; "
+                        "connection status, retry/buffer state and receipt history are not.",
+                        kind="info",
+                        title="Runtime receipt persistence",
+                    )
+                ),
                 _receipt_evidence,
                 _freshness_evidence,
                 mo.callout(
@@ -1348,7 +1430,10 @@ def _(
                     kind="info",
                     title="Runtime boundary",
                 ),
-                mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
+                mo.md(
+                    f"Configured registry: `{escape_markdown_cell(source_registry_default)}`  \n"
+                    f"Configured runtime state: `{escape_markdown_cell(source_runtime_default)}`"
+                ),
             ],
             gap=1.2,
         )
@@ -1375,6 +1460,8 @@ def _(initial_error, initial_summary, initial_timeline, mo):
 
 @app.cell
 def _(
+    JsonSourceRuntimeRepository,
+    Path,
     load_registered_source_button,
     receive_registered_file_source_observation,
     registered_sources,
@@ -1383,8 +1470,13 @@ def _(
     set_registered_source_load_error,
     set_registered_source_load_success,
     set_source_receipt,
+    set_source_runtime_error,
+    set_source_runtime_receipts,
     set_timeline,
+    source_registry_default,
+    source_runtime_default,
     source_selector,
+    validate_distinct_source_state_paths,
 ):
     if load_registered_source_button is not None and load_registered_source_button.value:
         try:
@@ -1411,6 +1503,23 @@ def _(
             set_registered_source_load_success(
                 f"Loaded current observation from registered source: {_selected.source_id}"
             )
+            try:
+                _registry_path = Path(source_registry_default)
+                _runtime_path = Path(source_runtime_default)
+                validate_distinct_source_state_paths(_registry_path, _runtime_path)
+                _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+                _runtime_repository.record_receipt(_received.receipt)
+                _registered_ids = {source.source_id for source in registered_sources}
+                _runtime_receipts = tuple(
+                    receipt
+                    for receipt in _runtime_repository.list_latest_receipts()
+                    if receipt.source_id in _registered_ids
+                )
+            except (OSError, ValueError) as error:
+                set_source_runtime_error(str(error))
+            else:
+                set_source_runtime_receipts(_runtime_receipts)
+                set_source_runtime_error("")
     return
 
 
