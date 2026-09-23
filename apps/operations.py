@@ -948,6 +948,33 @@ def _(
 
 @app.cell
 def _(mo):
+    get_runtime_cycle_error, set_runtime_cycle_error = mo.state("")
+    get_runtime_cycle_skipped, set_runtime_cycle_skipped = mo.state("")
+    get_runtime_cycle_success, set_runtime_cycle_success = mo.state("")
+    return (
+        get_runtime_cycle_error,
+        get_runtime_cycle_skipped,
+        get_runtime_cycle_success,
+        set_runtime_cycle_error,
+        set_runtime_cycle_skipped,
+        set_runtime_cycle_success,
+    )
+
+
+@app.cell
+def _(
+    get_runtime_cycle_error,
+    get_runtime_cycle_skipped,
+    get_runtime_cycle_success,
+):
+    runtime_cycle_error = get_runtime_cycle_error()
+    runtime_cycle_skipped = get_runtime_cycle_skipped()
+    runtime_cycle_success = get_runtime_cycle_success()
+    return runtime_cycle_error, runtime_cycle_skipped, runtime_cycle_success
+
+
+@app.cell
+def _(mo):
     get_freshness_policy_error, set_freshness_policy_error = mo.state("")
     get_freshness_policy_success, set_freshness_policy_success = mo.state("")
     return (
