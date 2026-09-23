@@ -752,14 +752,90 @@ def _(mo, registered_sources):
             value=registered_sources[0].source_id,
             label="Registered source",
         )
+        activate_source_button = mo.ui.run_button(label="Activate source")
+        pause_source_button = mo.ui.run_button(label="Pause source")
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
             kind="success",
         )
     else:
         source_selector = None
+        activate_source_button = None
+        pause_source_button = None
         load_registered_source_button = None
-    return load_registered_source_button, source_selector
+    return (
+        activate_source_button,
+        load_registered_source_button,
+        pause_source_button,
+        source_selector,
+    )
+
+
+@app.cell
+def _(mo):
+    get_lifecycle_error, set_lifecycle_error = mo.state("")
+    get_lifecycle_success, set_lifecycle_success = mo.state("")
+    return (
+        get_lifecycle_error,
+        get_lifecycle_success,
+        set_lifecycle_error,
+        set_lifecycle_success,
+    )
+
+
+@app.cell
+def _(get_lifecycle_error, get_lifecycle_success):
+    lifecycle_error = get_lifecycle_error()
+    lifecycle_success = get_lifecycle_success()
+    return lifecycle_error, lifecycle_success
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    Path,
+    SourceLifecycleState,
+    activate_source_button,
+    datetime,
+    pause_source_button,
+    registered_sources,
+    set_lifecycle_error,
+    set_lifecycle_success,
+    set_source_lifecycle_records,
+    source_registry_default,
+    source_selector,
+    transition_source_lifecycle,
+):
+    _target_state = None
+    if activate_source_button is not None and activate_source_button.value:
+        _target_state = SourceLifecycleState.ACTIVE
+    elif pause_source_button is not None and pause_source_button.value:
+        _target_state = SourceLifecycleState.PAUSED
+
+    if _target_state is not None:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before changing lifecycle")
+            _repository = JsonSourceRepository(Path(source_registry_default))
+            _record = transition_source_lifecycle(
+                _repository,
+                source_selector.value,
+                _target_state,
+                changed_at=datetime.now().astimezone(),
+            )
+            _sources = _repository.list_sources()
+        except (OSError, ValueError) as error:
+            set_lifecycle_success("")
+            set_lifecycle_error(str(error))
+        else:
+            set_source_lifecycle_records(
+                tuple(_repository.get_lifecycle(source.source_id) for source in _sources)
+            )
+            set_lifecycle_error("")
+            set_lifecycle_success(
+                f"Source lifecycle changed: {_record.source_id} → {_record.state.value}"
+            )
+    return
 
 
 @app.cell
