@@ -130,7 +130,7 @@ def test_project_registered_opcua_observation_summary_records_non_good_status() 
     assert "temperature=BadSensorFailure" in summary.data_quality.issues[0].message
 
 
-def test_project_registered_opcua_observation_summary_keeps_time_unavailable_when_incomplete() -> None:
+def test_opcua_summary_keeps_time_unavailable_when_source_timestamp_is_incomplete() -> None:
     observation = source_receipt_module.RegisteredOpcUaObservation(
         source_id="opcua-source",
         asset_id="pump-01",
