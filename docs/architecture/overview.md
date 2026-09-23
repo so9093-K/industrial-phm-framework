@@ -212,13 +212,28 @@ Active file source runtime cycle
          -> source validation/I/O failure : FAILED/SOURCE, ACTIVE -> ERROR
          -> runtime unavailable / caller-contract / unexpected internal / runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
 
-Prepared-file polling runtime
-  SourcePollingPolicy + run_registered_file_source_cycle
+Registered-source polling runtime
+  SourcePollingPolicy + poll_registered_source
+    -> FILE : run_registered_file_source_cycle
+    -> OPC UA : fresh async one-shot cycle per iteration
     -> SUCCEEDED : sleep interval -> next cycle
     -> SKIPPED : stop
     -> FAILED/SOURCE : stop, lifecycle ERROR
     -> FAILED/PLATFORM : stop, lifecycle unchanged
     -> optional max_cycles : bounded deterministic run
+
+Bounded OPC UA subscription connector
+  OpcUaSubscriptionConfig
+    -> explicit NodeId mappings
+    -> publishing interval + queue bound
+    -> max DataChange events + notification collection timeout
+    -> auto_reconnect = false
+    -> OpcUaSubscriptionResult
+         ├ protocol quality/source/server timestamps preserved
+         ├ completion = MAX_EVENTS / TIMEOUT
+         └ replayed flag preserved
+  This connector boundary is not yet wired to RegisteredSource lifecycle,
+  runtime persistence, Operations, reconnect, or continuous ingestion.
 
 Registered OPC UA one-shot runtime
   RegisteredSource(OPCUA) + ACTIVE lifecycle

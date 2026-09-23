@@ -26,7 +26,10 @@ from industrial_phm.connectors import (  # noqa: E402
     OpcUaEndpointProbeConfig,
     OpcUaNodeMapping,
     OpcUaReadConfig,
+    OpcUaSubscriptionCompletionReason,
+    OpcUaSubscriptionConfig,
     browse_opcua_variables,
+    collect_opcua_subscription_notifications,
     probe_opcua_endpoint,
     read_opcua_snapshot,
 )
@@ -116,6 +119,19 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
                 )
             )
             received = await receive_registered_opcua_source_observation(registered_source)
+            subscription_result = await collect_opcua_subscription_notifications(
+                OpcUaSubscriptionConfig(
+                    endpoint_url=endpoint,
+                    node_mappings=(
+                        OpcUaNodeMapping("vibration_x", vibration.nodeid.to_string()),
+                        OpcUaNodeMapping("temperature", temperature.nodeid.to_string()),
+                    ),
+                    publishing_interval_ms=50.0,
+                    collection_timeout_seconds=2.0,
+                    max_events=2,
+                    queue_maxsize=16,
+                )
+            )
 
             poll_results = await asyncio.to_thread(
                 lambda: tuple(
@@ -172,6 +188,18 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         assert received.observation.observed_at == source_at
         assert received.receipt.observed_at == source_at
         assert received.receipt.received_at >= received.observation.snapshot.completed_at
+
+        assert subscription_result.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
+        assert len(subscription_result.notifications) == 2
+        notifications_by_channel = {
+            item.observation.channel_id: item for item in subscription_result.notifications
+        }
+        assert set(notifications_by_channel) == {"vibration_x", "temperature"}
+        assert notifications_by_channel["vibration_x"].observation.value == 12.5
+        assert notifications_by_channel["vibration_x"].observation.status_good is True
+        assert notifications_by_channel["temperature"].observation.value is None
+        assert notifications_by_channel["temperature"].observation.status_good is False
+        assert all(item.replayed is False for item in subscription_result.notifications)
 
         assert [result.state for result in poll_results] == [
             SourceRuntimeCycleState.SUCCEEDED,
