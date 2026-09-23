@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from industrial_phm.application.file_source_registration import (
     RegisteredFileObservation,
@@ -81,7 +81,7 @@ def receive_registered_file_source_observation(
     Tests and other deterministic callers may inject an explicit timezone-aware value.
     """
     observation = load_registered_file_source_observation(source)
-    acceptance_time = datetime.now(timezone.utc) if received_at is None else received_at
+    acceptance_time = datetime.now(UTC) if received_at is None else received_at
     receipt = SourceReceiptEvidence(
         source_id=source.source_id,
         received_at=acceptance_time,
