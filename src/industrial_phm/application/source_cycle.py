@@ -55,6 +55,11 @@ class SourceRuntimeCycleResult:
             raise ValueError("source_id must not contain surrounding whitespace")
         if not isinstance(self.state, SourceRuntimeCycleState):
             raise ValueError("state must be a SourceRuntimeCycleState")
+        if self.failure_scope is not None and not isinstance(
+            self.failure_scope,
+            SourceRuntimeCycleFailureScope,
+        ):
+            raise ValueError("failure_scope must be a SourceRuntimeCycleFailureScope when provided")
         if not isinstance(self.executed_at, datetime) or self.executed_at.utcoffset() is None:
             raise ValueError("executed_at must be a timezone-aware datetime")
         if self.lifecycle_before.source_id != self.source_id:
