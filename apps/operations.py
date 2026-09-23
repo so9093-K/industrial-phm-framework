@@ -115,7 +115,9 @@ def _(JsonSourceRepository, Path, load_observation, os):
         "artifacts/operations/source-registry.json",
     )
     try:
-        initial_registered_sources = JsonSourceRepository(Path(source_registry_default)).list_sources()
+        initial_registered_sources = JsonSourceRepository(
+            Path(source_registry_default)
+        ).list_sources()
         initial_source_registry_error = ""
     except (OSError, ValueError) as error:
         initial_registered_sources = ()
@@ -554,7 +556,12 @@ def _(
     source_discovery,
 ):
     def _escape(value: str) -> str:
-        return value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`").replace("\n", " ")
+        return (
+            value.replace("\\", "\\\\")
+            .replace("|", "\\|")
+            .replace("`", "\\`")
+            .replace("\n", " ")
+        )
 
     _current_signature = (
         registration_mode_input.value,
@@ -573,7 +580,8 @@ def _(
         )
     elif not _discovery_is_current:
         _discovery_view = mo.callout(
-            "Source path, mode or delimiter changed after discovery. Discover again before registration.",
+            "Source path, mode or delimiter changed after discovery. "
+            "Discover again before registration.",
             kind="warn",
             title="Discover · Stale",
         )
