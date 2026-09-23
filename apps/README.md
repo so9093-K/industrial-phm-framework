@@ -48,6 +48,12 @@ header variant 수와 representative preview를 보여줍니다. Mapping 뒤 Val
 `JsonSourceRepository`에 저장합니다. Path/mode/delimiter를 discovery 이후 바꾸면 stale discovery로 처리해
 재-discover를 요구합니다.
 
+등록 이후에는 Sources의 **Load registered source**로 선택된 source를 별도 path/mapping 재입력 없이
+Observation surface에 연결할 수 있습니다. 이 동작은 registration 결과를 캐시하지 않고 등록된 config로
+현재 file/history bytes를 다시 읽고 기존 CSV/timeline validation을 재실행합니다. Source가 삭제되거나
+내용이 invalid하게 바뀌면 현재 load가 fail-closed되고 이전 관측값을 새 source 결과처럼 유지하지 않습니다.
+이는 on-demand observation load이며 continuous ingestion이나 source health monitoring이 아닙니다.
+
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
 `AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
 `AssetObservationTimeline` application read model로 묶습니다. Timeline은 filename이나 directory iteration
@@ -57,7 +63,7 @@ header variant 수와 representative preview를 보여줍니다. Mapping 뒤 Val
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register와 persistent registry 목록/상세, 명시적인 connection/ingestion capability 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, selected registered source → current Observation load, persistent registry 목록/상세와 명시적인 connection/ingestion capability 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조

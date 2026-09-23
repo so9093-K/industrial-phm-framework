@@ -23,6 +23,7 @@ def _():
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        load_registered_file_source_observation,
         register_file_source,
     )
     from industrial_phm.contracts import DataQualityState
@@ -42,6 +43,7 @@ def _():
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        load_registered_file_source_observation,
         mo,
         register_file_source,
         os,
@@ -725,15 +727,42 @@ def _(mo, registered_sources):
             value=registered_sources[0].source_id,
             label="Registered source",
         )
+        load_registered_source_button = mo.ui.run_button(
+            label="Load registered source",
+            kind="success",
+        )
     else:
         source_selector = None
-    return (source_selector,)
+        load_registered_source_button = None
+    return load_registered_source_button, source_selector
+
+
+@app.cell
+def _(mo):
+    get_registered_source_load_error, set_registered_source_load_error = mo.state("")
+    get_registered_source_load_success, set_registered_source_load_success = mo.state("")
+    return (
+        get_registered_source_load_error,
+        get_registered_source_load_success,
+        set_registered_source_load_error,
+        set_registered_source_load_success,
+    )
+
+
+@app.cell
+def _(get_registered_source_load_error, get_registered_source_load_success):
+    registered_source_load_error = get_registered_source_load_error()
+    registered_source_load_success = get_registered_source_load_success()
+    return registered_source_load_error, registered_source_load_success
 
 
 @app.cell
 def _(
     mo,
     registered_sources,
+    load_registered_source_button,
+    registered_source_load_error,
+    registered_source_load_success,
     registration_view,
     source_registry_default,
     source_registry_error,
@@ -874,10 +903,35 @@ def _(
                     f"| Minimum samples | {_selected_config.minimum_sample_count:,} |\n"
                     f"| Registered at | {_selected.registered_at.isoformat()} |"
                 ),
+                mo.md("### Load current observation"),
+                load_registered_source_button,
+                (
+                    mo.callout(
+                        registered_source_load_error,
+                        kind="danger",
+                        title="Registered source load failed",
+                    )
+                    if registered_source_load_error
+                    else (
+                        mo.callout(
+                            registered_source_load_success,
+                            kind="success",
+                            title="Registered source observation loaded",
+                        )
+                        if registered_source_load_success
+                        else mo.callout(
+                            "Load re-validates the source bytes currently available at the "
+                            "registered path and projects them through the existing observation "
+                            "boundary. It does not start continuous ingestion.",
+                            kind="info",
+                            title="On-demand observation load",
+                        )
+                    )
+                ),
                 mo.callout(
-                    "This page shows registration configuration only. A registered source "
-                    "is not labeled online, healthy, fresh or actively ingested until those "
-                    "runtime capabilities are implemented and measured.",
+                    "Registration and on-demand loading do not label a source online, healthy, "
+                    "fresh or actively ingested. Those runtime capabilities require separate "
+                    "measured lifecycle and telemetry evidence.",
                     kind="info",
                     title="Registration boundary",
                 ),
@@ -901,6 +955,43 @@ def _(initial_error, initial_summary, initial_timeline, mo):
         set_observation,
         set_timeline,
     )
+
+
+@app.cell
+def _(
+    load_registered_file_source_observation,
+    load_registered_source_button,
+    registered_sources,
+    set_load_error,
+    set_observation,
+    set_registered_source_load_error,
+    set_registered_source_load_success,
+    set_timeline,
+    source_selector,
+):
+    if load_registered_source_button is not None and load_registered_source_button.value:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before loading")
+            _selected = next(
+                source for source in registered_sources if source.source_id == source_selector.value
+            )
+            _loaded = load_registered_file_source_observation(_selected)
+        except (OSError, ValueError) as error:
+            set_observation(None)
+            set_timeline(None)
+            set_load_error(str(error))
+            set_registered_source_load_success("")
+            set_registered_source_load_error(str(error))
+        else:
+            set_observation(_loaded.latest)
+            set_timeline(_loaded.timeline)
+            set_load_error("")
+            set_registered_source_load_error("")
+            set_registered_source_load_success(
+                f"Loaded current observation from registered source: {_selected.source_id}"
+            )
+    return
 
 
 @app.cell
