@@ -17,6 +17,7 @@ from industrial_phm.application.source_lifecycle import (
     SourceLifecycleState,
 )
 from industrial_phm.application.source_receipt import SourceReceiptEvidence
+from industrial_phm.application.source_runtime import SourceConnectionAttemptEvidence
 
 
 class SourceConnectionState(StrEnum):
@@ -51,6 +52,7 @@ class SourceHealthAssessment:
     connection_state: SourceConnectionState
     data_flow_state: SourceDataFlowState
     receipt: SourceReceiptEvidence | None = None
+    connection_attempt: SourceConnectionAttemptEvidence | None = None
     freshness: SourceFreshnessAssessment | None = None
     reason: str | None = None
 
@@ -71,6 +73,13 @@ class SourceHealthAssessment:
                 raise ValueError("receipt must be SourceReceiptEvidence when provided")
             if self.receipt.source_id != self.source_id:
                 raise ValueError("receipt must match source_id")
+        if self.connection_attempt is not None:
+            if not isinstance(self.connection_attempt, SourceConnectionAttemptEvidence):
+                raise ValueError(
+                    "connection_attempt must be SourceConnectionAttemptEvidence when provided"
+                )
+            if self.connection_attempt.source_id != self.source_id:
+                raise ValueError("connection_attempt must match source_id")
         if self.freshness is not None:
             if not isinstance(self.freshness, SourceFreshnessAssessment):
                 raise ValueError("freshness must be SourceFreshnessAssessment when provided")
@@ -122,6 +131,7 @@ def assess_source_health(
     receipt: SourceReceiptEvidence | None,
     freshness_policy: SourceFreshnessPolicy | None,
     *,
+    connection_attempt: SourceConnectionAttemptEvidence | None = None,
     as_of: datetime,
 ) -> SourceHealthAssessment:
     """Combine explicit lifecycle and timing facts into a source-health read model.
@@ -144,6 +154,13 @@ def assess_source_health(
             raise ValueError("freshness_policy must be SourceFreshnessPolicy when provided")
         if freshness_policy.source_id != lifecycle.source_id:
             raise ValueError("lifecycle and freshness policy must share one source_id")
+    if connection_attempt is not None:
+        if not isinstance(connection_attempt, SourceConnectionAttemptEvidence):
+            raise ValueError(
+                "connection_attempt must be SourceConnectionAttemptEvidence when provided"
+            )
+        if connection_attempt.source_id != lifecycle.source_id:
+            raise ValueError("lifecycle and connection attempt must share one source_id")
 
     connection_state = SourceConnectionState.NOT_INSTRUMENTED
 
@@ -155,6 +172,7 @@ def assess_source_health(
             connection_state=connection_state,
             data_flow_state=SourceDataFlowState.SOURCE_ERROR,
             receipt=receipt,
+            connection_attempt=connection_attempt,
             reason=lifecycle.detail,
         )
 
@@ -166,6 +184,7 @@ def assess_source_health(
             connection_state=connection_state,
             data_flow_state=SourceDataFlowState.INACTIVE,
             receipt=receipt,
+            connection_attempt=connection_attempt,
             reason=f"source lifecycle is {lifecycle.state.value}",
         )
 
@@ -187,6 +206,7 @@ def assess_source_health(
             connection_state=connection_state,
             data_flow_state=SourceDataFlowState.NO_RECEIPT,
             receipt=receipt,
+            connection_attempt=connection_attempt,
             reason=(
                 "latest receipt predates the current active lifecycle transition; "
                 "current activation has no accepted receipt evidence"
@@ -206,6 +226,7 @@ def assess_source_health(
         connection_state=connection_state,
         data_flow_state=data_flow_state,
         receipt=receipt,
+        connection_attempt=connection_attempt,
         freshness=freshness,
         reason=freshness.reason,
     )
