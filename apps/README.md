@@ -112,10 +112,10 @@ Both
 Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로 계속 남습니다. 반면 runtime cycle은
 ACTIVE lifecycle을 반드시 요구합니다. FILE validation/I/O 또는 OPC UA data-contract/transport처럼 source-owned인 failure만 source lifecycle ERROR로 기록하고, runtime unavailable/caller-contract/internal/runtime-state persistence 같은 platform-owned failure는 cycle 자체는 FAILED지만 source lifecycle은 ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
 Operations UI는 사용자가 버튼으로 한 iteration을 실행하는 구조를 유지합니다. 별도 CLI
-`industrial-phm operations poll-source`는 아직 FILE runtime cycle만 synchronous polling loop로 반복하며,
+`industrial-phm operations poll-source`는 registered source type에 따라 FILE 또는 OPC UA one-shot runtime cycle을 synchronous caller-owned loop로 반복하며,
 background daemon, retry/backoff, buffering, connector session은 아직 구현하지 않습니다.
 
-### Prepared-file polling runtime
+### Registered-source polling runtime
 
 CLI에서는 ACTIVE registered file/history source를 명시적 interval로 반복 실행할 수 있습니다.
 
