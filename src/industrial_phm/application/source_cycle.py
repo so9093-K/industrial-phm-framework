@@ -109,6 +109,11 @@ def run_registered_file_source_cycle(
             ),
         )
 
+    if received_at is not None and (
+        not isinstance(received_at, datetime) or received_at.utcoffset() is None
+    ):
+        raise ValueError("received_at override must be a timezone-aware datetime")
+
     received: ReceivedRegisteredFileObservation | None = None
     try:
         received = receive_registered_file_source_observation(
