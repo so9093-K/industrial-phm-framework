@@ -21,6 +21,8 @@ from industrial_phm.application import (
 )
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
+    OpcUaRuntimeUnavailableError,
+    OpcUaSourceError,
     OpcUaNodeObservation,
     OpcUaReadSnapshot,
 )
@@ -146,7 +148,7 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
         *,
         received_at: datetime | None = None,
     ) -> ReceivedRegisteredOpcUaObservation:
-        raise ValueError("configured OPC UA node read failed")
+        raise OpcUaSourceError("configured OPC UA node read failed")
 
     monkeypatch.setattr(
         source_cycle_module,
@@ -172,6 +174,114 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
     assert lifecycle.state == SourceLifecycleState.ERROR
     assert lifecycle.detail == result.message
     assert runtime_repository.get_latest_receipt(source.source_id) is None
+
+
+
+
+def test_registered_opcua_source_cycle_keeps_active_when_runtime_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+
+    async def _fail(
+        _source: RegisteredSource,
+        *,
+        received_at: datetime | None = None,
+    ) -> ReceivedRegisteredOpcUaObservation:
+        raise OpcUaRuntimeUnavailableError("OPC UA runtime is not installed")
+
+    monkeypatch.setattr(
+        source_cycle_module,
+        "receive_registered_opcua_source_observation",
+        _fail,
+    )
+
+    result = asyncio.run(
+        run_registered_opcua_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        )
+    )
+
+    assert result.state == SourceRuntimeCycleState.FAILED
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.PLATFORM
+    assert result.received is None
+    assert "runtime is not installed" in (result.message or "")
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+
+
+def test_registered_opcua_source_cycle_keeps_active_on_caller_contract_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+
+    async def _fail(
+        _source: RegisteredSource,
+        *,
+        received_at: datetime | None = None,
+    ) -> ReceivedRegisteredOpcUaObservation:
+        raise ValueError("received_at must not be before OPC UA snapshot completion")
+
+    monkeypatch.setattr(
+        source_cycle_module,
+        "receive_registered_opcua_source_observation",
+        _fail,
+    )
+
+    result = asyncio.run(
+        run_registered_opcua_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        )
+    )
+
+    assert result.state == SourceRuntimeCycleState.FAILED
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.PLATFORM
+    assert result.received is None
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+
+
+def test_registered_opcua_source_cycle_keeps_active_on_unexpected_internal_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+
+    async def _fail(
+        _source: RegisteredSource,
+        *,
+        received_at: datetime | None = None,
+    ) -> ReceivedRegisteredOpcUaObservation:
+        raise RuntimeError("unexpected connector integration failure")
+
+    monkeypatch.setattr(
+        source_cycle_module,
+        "receive_registered_opcua_source_observation",
+        _fail,
+    )
+
+    result = asyncio.run(
+        run_registered_opcua_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        )
+    )
+
+    assert result.state == SourceRuntimeCycleState.FAILED
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.PLATFORM
+    assert result.received is None
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
 
 
 def test_registered_opcua_source_cycle_keeps_active_on_runtime_persistence_failure(
