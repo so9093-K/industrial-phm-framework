@@ -956,7 +956,7 @@ def _(
 
             _sources = _repository.list_sources()
             _policies = tuple(
-                policy
+                _policy
                 for source in _sources
                 if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
             )
