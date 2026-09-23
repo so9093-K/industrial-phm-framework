@@ -9,7 +9,11 @@ from industrial_phm.application.file_source_registration import (
     RegisteredFileObservation,
     load_registered_file_source_observation,
 )
-from industrial_phm.application.source_registration import RegisteredSource
+from industrial_phm.application.source_registration import (
+    OpcUaSourceConfig,
+    RegisteredSource,
+)
+from industrial_phm.connectors import OpcUaReadSnapshot, read_opcua_snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +59,53 @@ class SourceReceiptEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class RegisteredOpcUaObservation:
+    """One registered OPC UA snapshot projected with asset/source identity."""
+
+    source_id: str
+    asset_id: str
+    snapshot: OpcUaReadSnapshot
+    measurement_point_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.source_id, "source_id")
+        _validate_identifier(self.asset_id, "asset_id")
+        if self.measurement_point_id is not None:
+            _validate_identifier(self.measurement_point_id, "measurement_point_id")
+        if not isinstance(self.snapshot, OpcUaReadSnapshot):
+            raise ValueError("snapshot must be an OpcUaReadSnapshot")
+
+    @property
+    def channels(self) -> tuple[str, ...]:
+        """Return mapped OPC UA channel identifiers in snapshot order."""
+        return tuple(item.channel_id for item in self.snapshot.observations)
+
+    @property
+    def observed_at(self) -> datetime | None:
+        """Return the latest SourceTimestamp only when every mapped node provides one."""
+        timestamps = tuple(item.source_timestamp for item in self.snapshot.observations)
+        if any(value is None for value in timestamps):
+            return None
+        return max(value for value in timestamps if value is not None)
+
+
+@dataclass(frozen=True, slots=True)
+class ReceivedRegisteredOpcUaObservation:
+    """Registered OPC UA snapshot plus platform acceptance-time evidence."""
+
+    observation: RegisteredOpcUaObservation
+    receipt: SourceReceiptEvidence
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.observation, RegisteredOpcUaObservation):
+            raise ValueError("observation must be a RegisteredOpcUaObservation")
+        if not isinstance(self.receipt, SourceReceiptEvidence):
+            raise ValueError("receipt must be SourceReceiptEvidence")
+        if self.observation.source_id != self.receipt.source_id:
+            raise ValueError("observation and receipt must share one source_id")
+
+
+@dataclass(frozen=True, slots=True)
 class ReceivedRegisteredFileObservation:
     """Validated registered-file observation plus platform receipt-time evidence."""
 
@@ -68,6 +119,45 @@ class ReceivedRegisteredFileObservation:
             raise ValueError("receipt must be SourceReceiptEvidence")
         if self.observation.latest.source_id != self.receipt.source_id:
             raise ValueError("observation and receipt must share one source_id")
+
+
+async def receive_registered_opcua_source_observation(
+    source: RegisteredSource,
+    *,
+    received_at: datetime | None = None,
+) -> ReceivedRegisteredOpcUaObservation:
+    """Read one registered OPC UA snapshot and record platform acceptance evidence.
+
+    A source-level observation time is exposed only when every mapped DataValue carries
+    a SourceTimestamp. Missing protocol timestamps remain unavailable instead of being
+    replaced with platform receipt/completion time.
+    """
+    config = source.config
+    if not isinstance(config, OpcUaSourceConfig):
+        raise ValueError("registered OPC UA source must use OpcUaSourceConfig")
+
+    snapshot = await read_opcua_snapshot(config.to_opcua_read_config())
+    observation = RegisteredOpcUaObservation(
+        source_id=source.source_id,
+        asset_id=config.asset_id,
+        measurement_point_id=config.measurement_point_id,
+        snapshot=snapshot,
+    )
+    acceptance_time = datetime.now(UTC) if received_at is None else received_at
+    if not isinstance(acceptance_time, datetime) or acceptance_time.utcoffset() is None:
+        raise ValueError("received_at must be a timezone-aware datetime")
+    if acceptance_time < snapshot.completed_at:
+        raise ValueError("received_at must not be before OPC UA snapshot completion")
+
+    receipt = SourceReceiptEvidence(
+        source_id=source.source_id,
+        received_at=acceptance_time,
+        observed_at=observation.observed_at,
+    )
+    return ReceivedRegisteredOpcUaObservation(
+        observation=observation,
+        receipt=receipt,
+    )
 
 
 def receive_registered_file_source_observation(
@@ -91,3 +181,10 @@ def receive_registered_file_source_observation(
         observation=observation,
         receipt=receipt,
     )
+
+
+def _validate_identifier(value: str, field_name: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must not be empty")
+    if value != value.strip():
+        raise ValueError(f"{field_name} must not contain surrounding whitespace")
