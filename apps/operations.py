@@ -859,12 +859,17 @@ def _(get_registered_source_load_error, get_registered_source_load_success):
 
 @app.cell
 def _(
-    mo,
-    registered_sources,
+    activate_source_button,
+    lifecycle_error,
+    lifecycle_success,
     load_registered_source_button,
+    mo,
+    pause_source_button,
+    registered_sources,
     registered_source_load_error,
     registered_source_load_success,
     registration_view,
+    source_lifecycle_records,
     source_registry_default,
     source_registry_error,
     source_selector,
@@ -905,9 +910,16 @@ def _(
             gap=1.2,
         )
     else:
+        _lifecycle_by_id = {
+            record.source_id: record for record in source_lifecycle_records
+        }
         _rows = []
         for _source in registered_sources:
             _config = _source.config
+            _lifecycle = _lifecycle_by_id.get(_source.source_id)
+            _lifecycle_state = (
+                "Unavailable" if _lifecycle is None else _lifecycle.state.value
+            )
             _rows.append(
                 "| "
                 + " | ".join(
@@ -916,6 +928,7 @@ def _(
                         escape_markdown_cell(_source.name),
                         _source.source_type.value,
                         _config.mode.value,
+                        _lifecycle_state,
                         f"`{escape_markdown_cell(_config.asset_id)}`",
                         _source.registered_at.isoformat(),
                     ]
@@ -930,6 +943,22 @@ def _(
             source for source in registered_sources if source.source_id == _selected_id
         )
         _selected_config = _selected.config
+        _selected_lifecycle = _lifecycle_by_id.get(_selected.source_id)
+        _lifecycle_state = (
+            "Unavailable"
+            if _selected_lifecycle is None
+            else _selected_lifecycle.state.value
+        )
+        _lifecycle_changed_at = (
+            "Unavailable"
+            if _selected_lifecycle is None
+            else _selected_lifecycle.changed_at.isoformat()
+        )
+        _lifecycle_detail = (
+            "None recorded"
+            if _selected_lifecycle is None or _selected_lifecycle.detail is None
+            else _selected_lifecycle.detail
+        )
         _measurement_point = _selected_config.measurement_point_id or "Not recorded"
         _timestamp_column = _selected_config.timestamp_column or "Not declared"
         _sampling_rate = (
@@ -961,12 +990,12 @@ def _(
                         mo.stat(
                             str(
                                 sum(
-                                    source.source_type.value == "file"
-                                    for source in registered_sources
+                                    record.state.value == "active"
+                                    for record in source_lifecycle_records
                                 )
                             ),
-                            label="File sources",
-                            caption="Current implemented source family",
+                            label="Active intent",
+                            caption="Administrative state, not connection proof",
                         ),
                         mo.stat(
                             "Not instrumented",
@@ -982,8 +1011,8 @@ def _(
                     widths="equal",
                 ),
                 mo.md(
-                    "| Source ID | Name | Type | Mode | Asset | Registered at |\n"
-                    "| --- | --- | --- | --- | --- | --- |\n" + "\n".join(_rows)
+                    "| Source ID | Name | Type | Mode | Lifecycle | Asset | Registered at |\n"
+                    "| --- | --- | --- | --- | --- | --- | --- |\n" + "\n".join(_rows)
                 ),
                 source_selector,
                 mo.md(
@@ -994,6 +1023,9 @@ def _(
                     f"| Name | {escape_markdown_cell(_selected.name)} |\n"
                     f"| Type | {_selected.source_type.value} |\n"
                     f"| Mode | {_selected_config.mode.value} |\n"
+                    f"| Lifecycle | {_lifecycle_state} |\n"
+                    f"| Lifecycle changed at | {_lifecycle_changed_at} |\n"
+                    f"| Lifecycle detail | {escape_markdown_cell(_lifecycle_detail)} |\n"
                     f"| Asset | `{escape_markdown_cell(_selected_config.asset_id)}` |\n"
                     f"| Measurement point | `{escape_markdown_cell(_measurement_point)}` |\n"
                     f"| Source path | `{escape_markdown_cell(_selected_config.source_path)}` |\n"
@@ -1003,6 +1035,34 @@ def _(
                     f"| Sampling-rate tolerance | {_tolerance} |\n"
                     f"| Minimum samples | {_selected_config.minimum_sample_count:,} |\n"
                     f"| Registered at | {_selected.registered_at.isoformat()} |"
+                ),
+                mo.md("### Lifecycle control"),
+                mo.hstack(
+                    [activate_source_button, pause_source_button],
+                    widths="equal",
+                ),
+                (
+                    mo.callout(
+                        lifecycle_error,
+                        kind="danger",
+                        title="Lifecycle transition failed",
+                    )
+                    if lifecycle_error
+                    else (
+                        mo.callout(
+                            lifecycle_success,
+                            kind="success",
+                            title="Lifecycle updated",
+                        )
+                        if lifecycle_success
+                        else mo.callout(
+                            "REGISTERED/ACTIVE/PAUSED/ERROR is administrative control-plane "
+                            "state. ACTIVE means enabled for a runtime to consume; it does not "
+                            "prove that a connection exists or that ingestion is running.",
+                            kind="info",
+                            title="Lifecycle semantics",
+                        )
+                    )
                 ),
                 mo.md("### Load current observation"),
                 load_registered_source_button,
@@ -1030,11 +1090,11 @@ def _(
                     )
                 ),
                 mo.callout(
-                    "Registration and on-demand loading do not label a source online, healthy, "
-                    "fresh or actively ingested. Those runtime capabilities require separate "
-                    "measured lifecycle and telemetry evidence.",
+                    "Registration, lifecycle intent and on-demand loading do not label a source "
+                    "online, healthy, fresh or actively ingested. Connection/ingestion health "
+                    "requires separate runtime and telemetry evidence.",
                     kind="info",
-                    title="Registration boundary",
+                    title="Runtime boundary",
                 ),
                 mo.md(f"Configured registry: `{escape_markdown_cell(source_registry_default)}`"),
             ],
