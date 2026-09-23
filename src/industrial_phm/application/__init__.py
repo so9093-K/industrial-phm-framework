@@ -40,6 +40,12 @@ from industrial_phm.application.source_freshness import (
     SourceFreshnessState,
     assess_source_freshness,
 )
+from industrial_phm.application.source_health import (
+    SourceConnectionState,
+    SourceDataFlowState,
+    SourceHealthAssessment,
+    assess_source_health,
+)
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleRepository,
@@ -93,7 +99,10 @@ __all__ = [
     "SourceFreshnessAssessment",
     "SourceFreshnessPolicy",
     "SourceFreshnessPolicyRepository",
+    "SourceConnectionState",
+    "SourceDataFlowState",
     "SourceFreshnessState",
+    "SourceHealthAssessment",
     "SourceLifecycleRecord",
     "SourceLifecycleRepository",
     "SourceLifecycleState",
@@ -109,6 +118,7 @@ __all__ = [
     "SourceType",
     "UnknownRegisteredSourceError",
     "assess_source_freshness",
+    "assess_source_health",
     "build_field_csv_observation_summary",
     "discover_file_source",
     "load_field_csv_observation_summary",
