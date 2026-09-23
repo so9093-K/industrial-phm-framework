@@ -33,6 +33,7 @@ def _():
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         register_file_source,
         run_registered_file_source_cycle,
@@ -74,6 +75,7 @@ def _():
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         mo,
         register_file_source,
@@ -2034,9 +2036,9 @@ def _(
                     load_registered_source_button
                     if _selected_is_file
                     else mo.callout(
-                        "Registered OPC UA source has no manual canonical observation loader yet. "
-                        "Run active source once records protocol snapshot receipt evidence, but "
-                        "AssetObservationSummary projection remains a later slice.",
+                        "Registered OPC UA source has no separate manual loader. Use Run active "
+                        "source once to read the configured nodes and project one canonical "
+                        "AssetObservationSummary from that bounded snapshot.",
                         kind="neutral",
                         title="OPC UA observation load · Unavailable",
                     )
@@ -2065,7 +2067,8 @@ def _(
                     )
                     if _selected_is_file
                     else mo.callout(
-                        "No on-demand observation result is produced for OPC UA registration.",
+                        "OPC UA observation summary is produced by the one-shot runtime action, "
+                        "not by this FILE-only manual load action.",
                         kind="neutral",
                         title="Observation evidence · Unavailable",
                     )
@@ -2135,6 +2138,7 @@ def _(
     SourceRuntimeCycleState,
     ThreadPoolExecutor,
     asyncio,
+    project_registered_opcua_observation_summary,
     run_active_source_button,
     run_registered_file_source_cycle,
     run_registered_opcua_source_cycle,
@@ -2211,7 +2215,9 @@ def _(
                         set_observation(_loaded.latest)
                         set_timeline(_loaded.timeline)
                     else:
-                        set_observation(None)
+                        set_observation(
+                            project_registered_opcua_observation_summary(_loaded)
+                        )
                         set_timeline(None)
                     set_source_receipt(_received.receipt)
                     set_load_error("")
@@ -2220,7 +2226,7 @@ def _(
                     _projection_note = (
                         ""
                         if isinstance(_source.config, FileSourceConfig)
-                        else " · canonical observation projection unavailable"
+                        else " · canonical one-shot observation projected"
                     )
                     set_runtime_cycle_success(
                         f"Runtime cycle succeeded: {_result.source_id} · "
@@ -2380,7 +2386,7 @@ def _(DataQualityState, mo, observation):
         asset_label = "Not connected"
         last_observed_label = "Unavailable"
         quality_label = "Unavailable"
-        quality_caption = "Load a prepared field source"
+        quality_caption = "Load or run a supported source"
     else:
         asset_label = observation.asset_id
         last_observed_label = (
@@ -2429,10 +2435,10 @@ def _(load_error, mo, observation, timeline):
         )
     elif observation is None:
         connection_status = mo.callout(
-            "No field source is connected. The Operations structure remains visible so "
+            "No operational observation is loaded. The Operations structure remains visible so "
             "missing capabilities are explicit rather than hidden.",
             kind="neutral",
-            title="Observation source not connected",
+            title="Observation unavailable",
         )
     elif timeline is not None:
         connection_status = mo.callout(
@@ -2444,8 +2450,8 @@ def _(load_error, mo, observation, timeline):
         )
     else:
         connection_status = mo.callout(
-            "Prepared field observation loaded through the application boundary. "
-            "This confirms source structure and recorded quality only; it does not "
+            "Operational observation loaded through the application boundary. "
+            "This confirms source identity and recorded quality only; it does not "
             "declare the asset healthy or unhealthy.",
             kind="success",
             title="Observation source loaded",
@@ -2458,7 +2464,7 @@ def _(mo, observation):
     if observation is None:
         observation_detail = mo.callout(
             "Observation identity, time range, channels and sample population will appear "
-            "here after a prepared source is loaded.",
+            "here after a supported source is loaded or run.",
             kind="neutral",
             title="Observation unavailable",
         )
@@ -2504,8 +2510,8 @@ def _(mo, observation):
         )
     elif not observation.data_quality.issues:
         quality_view = mo.callout(
-            "The prepared source passed the currently declared structural and sampling "
-            "checks with no recorded warnings.",
+            "The current observation has no recorded data-quality issue under its source "
+            "boundary checks.",
             kind="success",
             title="Data Quality · PASS",
         )
