@@ -838,7 +838,6 @@ def _(
             options=list(opcua_browse_variables_by_label),
             value=[],
             label="Variable candidates",
-            full_width=True,
         )
     else:
         opcua_browse_variables_by_label = {}
