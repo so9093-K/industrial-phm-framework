@@ -152,7 +152,6 @@ def test_registered_source_cycle_marks_error_when_runtime_persistence_fails(
         runtime_repository,
         source.source_id,
         executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
-        received_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
     )
 
     assert result.state == SourceRuntimeCycleState.FAILED
@@ -206,6 +205,73 @@ def test_registered_source_cycle_rejects_naive_received_at_without_marking_sourc
         )
 
     assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+
+
+def test_registered_source_cycle_rejects_received_at_regression_without_marking_source_error(
+    tmp_path: Path,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+    _activate(source_repository, source.source_id)
+
+    first = run_registered_file_source_cycle(
+        source_repository,
+        source_repository,
+        runtime_repository,
+        source.source_id,
+        executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        received_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+    )
+    assert first.received is not None
+
+    with pytest.raises(ValueError, match="must not move backwards"):
+        run_registered_file_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:06+09:00"),
+            received_at=datetime.fromisoformat("2026-09-23T10:00:04+09:00"),
+        )
+
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+    assert runtime_repository.get_latest_receipt(source.source_id) == first.received.receipt
+
+
+def test_registered_source_cycle_rejects_same_time_conflict_without_marking_source_error(
+    tmp_path: Path,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+    _activate(source_repository, source.source_id)
+
+    first = run_registered_file_source_cycle(
+        source_repository,
+        source_repository,
+        runtime_repository,
+        source.source_id,
+        executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        received_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+    )
+    assert first.received is not None
+
+    Path(source.config.source_path).write_text(
+        "timestamp,vibration_x\n"
+        "2026-09-23T10:00:02+09:00,-2.0\n"
+        "2026-09-23T10:00:03+09:00,2.0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="must reproduce persisted evidence"):
+        run_registered_file_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:06+09:00"),
+            received_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        )
+
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+    assert runtime_repository.get_latest_receipt(source.source_id) == first.received.receipt
 
 
 def test_registered_source_cycle_rejects_naive_or_regressing_execution_time(
