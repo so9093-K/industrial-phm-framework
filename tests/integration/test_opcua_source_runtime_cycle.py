@@ -340,6 +340,47 @@ def test_registered_opcua_source_cycle_keeps_active_on_unexpected_internal_error
     assert runtime_repository.get_latest_connection_attempt(source.source_id) is None
 
 
+def test_registered_opcua_source_failure_keeps_error_when_attempt_persistence_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_repository, _, source = _repositories(tmp_path)
+
+    async def _fail(
+        _source: RegisteredSource,
+        *,
+        received_at: datetime | None = None,
+    ) -> ReceivedRegisteredOpcUaObservation:
+        raise OpcUaSourceError("configured OPC UA node read failed")
+
+    monkeypatch.setattr(
+        source_cycle_module,
+        "receive_registered_opcua_source_observation",
+        _fail,
+    )
+    runtime_path = tmp_path / "runtime-as-directory"
+    runtime_path.mkdir()
+    runtime_repository = JsonSourceRuntimeRepository(runtime_path)
+
+    result = asyncio.run(
+        run_registered_opcua_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        )
+    )
+
+    assert result.state == SourceRuntimeCycleState.FAILED
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.SOURCE
+    assert "configured OPC UA node read failed" in (result.message or "")
+    assert "connection-attempt persistence failed" in (result.message or "")
+    lifecycle = source_repository.get_lifecycle(source.source_id)
+    assert lifecycle.state == SourceLifecycleState.ERROR
+    assert lifecycle.detail == result.message
+
+
 def test_registered_opcua_source_cycle_keeps_active_on_runtime_persistence_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -413,3 +454,4 @@ def test_registered_opcua_source_cycle_skips_non_active_source_without_connector
     assert result.failure_scope is None
     assert result.lifecycle_after.state == SourceLifecycleState.REGISTERED
     assert runtime_repository.list_latest_receipts() == ()
+    assert runtime_repository.list_latest_connection_attempts() == ()
