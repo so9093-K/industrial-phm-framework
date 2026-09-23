@@ -100,6 +100,7 @@ class RegisteredOpcUaObservation:
             return None
         return min(value for value in timestamps if value is not None)
 
+
 def project_registered_opcua_observation_summary(
     observation: RegisteredOpcUaObservation,
 ) -> AssetObservationSummary:
