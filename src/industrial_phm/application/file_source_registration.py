@@ -340,7 +340,6 @@ def _read_preview_rows(
     return tuple(rows)
 
 
-
 def _require_file_source_config(source: RegisteredSource) -> FileSourceConfig:
     config = source.config
     if not isinstance(config, FileSourceConfig):
