@@ -24,7 +24,7 @@ def _():
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
-        load_registered_file_source_observation,
+        receive_registered_file_source_observation,
         register_file_source,
         transition_source_lifecycle,
     )
@@ -46,7 +46,7 @@ def _():
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
-        load_registered_file_source_observation,
+        receive_registered_file_source_observation,
         mo,
         register_file_source,
         transition_source_lifecycle,
@@ -871,6 +871,7 @@ def _(
     registration_view,
     source_lifecycle_records,
     source_registry_default,
+    source_receipt,
     source_registry_error,
     source_selector,
 ):
@@ -965,6 +966,51 @@ def _(
             if _selected_config.sampling_rate_tolerance_ratio is None
             else f"{_selected_config.sampling_rate_tolerance_ratio:g}"
         )
+        _selected_receipt = (
+            source_receipt
+            if source_receipt is not None and source_receipt.source_id == _selected.source_id
+            else None
+        )
+        if _selected_receipt is None:
+            _receipt_evidence = mo.callout(
+                "No platform receipt-time evidence has been recorded for this selected source "
+                "in the current Operations session.",
+                kind="neutral",
+                title="Receipt timing · Unavailable",
+            )
+        else:
+            _lag = _selected_receipt.lag_seconds
+            _lag_label = (
+                f"{_lag:+.3f} s"
+                if _lag is not None
+                else f"Unavailable · {_selected_receipt.lag_unavailable_reason}"
+            )
+            _observed_label = (
+                "Unavailable"
+                if _selected_receipt.observed_at is None
+                else _selected_receipt.observed_at.isoformat()
+            )
+            _receipt_evidence = mo.vstack(
+                [
+                    mo.md(
+                        "### Receipt timing\n\n"
+                        "| Timing fact | Value |\n"
+                        "| --- | --- |\n"
+                        f"| Latest observed_at | {_observed_label} |\n"
+                        f"| received_at | {_selected_receipt.received_at.isoformat()} |\n"
+                        f"| observed→received lag | {_lag_label} |"
+                    ),
+                    mo.callout(
+                        "received_at is the time this prepared source load was accepted after "
+                        "validation. It is not reconstructed sensor transport arrival time. "
+                        "Fresh/stale is not classified because no source-specific freshness "
+                        "policy is registered yet.",
+                        kind="info",
+                        title="Timing semantics",
+                    ),
+                ],
+                gap=0.6,
+            )
 
         sources_view = mo.vstack(
             [
@@ -1083,6 +1129,7 @@ def _(
                         )
                     )
                 ),
+                _receipt_evidence,
                 mo.callout(
                     "Registration, lifecycle intent and on-demand loading do not label a source "
                     "online, healthy, fresh or actively ingested. Connection/ingestion health "
@@ -1102,25 +1149,29 @@ def _(initial_error, initial_summary, initial_timeline, mo):
     get_observation, set_observation = mo.state(initial_summary)
     get_timeline, set_timeline = mo.state(initial_timeline)
     get_load_error, set_load_error = mo.state(initial_error)
+    get_source_receipt, set_source_receipt = mo.state(None)
     return (
         get_load_error,
         get_observation,
+        get_source_receipt,
         get_timeline,
         set_load_error,
         set_observation,
+        set_source_receipt,
         set_timeline,
     )
 
 
 @app.cell
 def _(
-    load_registered_file_source_observation,
     load_registered_source_button,
+    receive_registered_file_source_observation,
     registered_sources,
     set_load_error,
     set_observation,
     set_registered_source_load_error,
     set_registered_source_load_success,
+    set_source_receipt,
     set_timeline,
     source_selector,
 ):
@@ -1131,16 +1182,19 @@ def _(
             _selected = next(
                 source for source in registered_sources if source.source_id == source_selector.value
             )
-            _loaded = load_registered_file_source_observation(_selected)
+            _received = receive_registered_file_source_observation(_selected)
+            _loaded = _received.observation
         except (OSError, ValueError) as error:
             set_observation(None)
             set_timeline(None)
+            set_source_receipt(None)
             set_load_error(str(error))
             set_registered_source_load_success("")
             set_registered_source_load_error(str(error))
         else:
             set_observation(_loaded.latest)
             set_timeline(_loaded.timeline)
+            set_source_receipt(_received.receipt)
             set_load_error("")
             set_registered_source_load_error("")
             set_registered_source_load_success(
@@ -1160,6 +1214,7 @@ def _(
     sampling_rate_input,
     set_load_error,
     set_observation,
+    set_source_receipt,
     set_timeline,
     source_id_input,
     source_input,
@@ -1178,16 +1233,18 @@ def _(
         )
         set_observation(_summary)
         set_timeline(_timeline)
+        set_source_receipt(None)
         set_load_error(_error)
     return
 
 
 @app.cell
-def _(get_load_error, get_observation, get_timeline):
+def _(get_load_error, get_observation, get_source_receipt, get_timeline):
     observation = get_observation()
+    source_receipt = get_source_receipt()
     timeline = get_timeline()
     load_error = get_load_error()
-    return load_error, observation, timeline
+    return load_error, observation, source_receipt, timeline
 
 
 @app.cell
