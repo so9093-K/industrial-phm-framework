@@ -347,9 +347,7 @@ def _parse_lifecycle_record(value: object, *, index: int) -> SourceLifecycleReco
     try:
         return SourceLifecycleRecord(
             source_id=_require_string(record["source_id"], f"{label}.source_id"),
-            state=SourceLifecycleState(
-                _require_string(record["state"], f"{label}.state")
-            ),
+            state=SourceLifecycleState(_require_string(record["state"], f"{label}.state")),
             changed_at=datetime.fromisoformat(
                 _require_string(record["changed_at"], f"{label}.changed_at")
             ),
