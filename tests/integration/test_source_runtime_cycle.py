@@ -18,9 +18,7 @@ from industrial_phm.application import (
 
 def _write_valid_source(path: Path) -> None:
     path.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-23T10:00:00+09:00,-1.0\n"
-        "2026-09-23T10:00:01+09:00,1.0\n",
+        "timestamp,vibration_x\n2026-09-23T10:00:00+09:00,-1.0\n2026-09-23T10:00:01+09:00,1.0\n",
         encoding="utf-8",
     )
 
@@ -117,8 +115,7 @@ def test_registered_source_cycle_transitions_active_source_to_error_on_source_fa
     source_repository, runtime_repository, source = _repositories(tmp_path)
     _activate(source_repository, source.source_id)
     Path(source.config.source_path).write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-23T10:00:00+09:00,not-numeric\n",
+        "timestamp,vibration_x\n2026-09-23T10:00:00+09:00,not-numeric\n",
         encoding="utf-8",
     )
 
@@ -260,9 +257,7 @@ def test_registered_source_cycle_rejects_same_time_conflict_without_marking_sour
     assert first.received is not None
 
     Path(source.config.source_path).write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-23T10:00:02+09:00,-2.0\n"
-        "2026-09-23T10:00:03+09:00,2.0\n",
+        "timestamp,vibration_x\n2026-09-23T10:00:02+09:00,-2.0\n2026-09-23T10:00:03+09:00,2.0\n",
         encoding="utf-8",
     )
 
