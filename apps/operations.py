@@ -20,11 +20,13 @@ def _():
         FileSourceMode,
         JsonSourceRepository,
         RegisteredSource,
+        SourceLifecycleState,
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         load_registered_file_source_observation,
         register_file_source,
+        transition_source_lifecycle,
     )
     from industrial_phm.contracts import DataQualityState
 
@@ -39,6 +41,7 @@ def _():
         JsonSourceRepository,
         Path,
         RegisteredSource,
+        SourceLifecycleState,
         datetime,
         discover_file_source,
         load_field_csv_observation_summary,
@@ -46,6 +49,7 @@ def _():
         load_registered_file_source_observation,
         mo,
         register_file_source,
+        transition_source_lifecycle,
         os,
     )
 
@@ -117,12 +121,16 @@ def _(JsonSourceRepository, Path, load_observation, os):
         "artifacts/operations/source-registry.json",
     )
     try:
-        initial_registered_sources = JsonSourceRepository(
-            Path(source_registry_default)
-        ).list_sources()
+        _source_repository = JsonSourceRepository(Path(source_registry_default))
+        initial_registered_sources = _source_repository.list_sources()
+        initial_source_lifecycle_records = tuple(
+            _source_repository.get_lifecycle(source.source_id)
+            for source in initial_registered_sources
+        )
         initial_source_registry_error = ""
     except (OSError, ValueError) as error:
         initial_registered_sources = ()
+        initial_source_lifecycle_records = ()
         initial_source_registry_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
@@ -172,6 +180,7 @@ def _(JsonSourceRepository, Path, load_observation, os):
         measurement_point_default,
         sampling_rate_default,
         initial_registered_sources,
+        initial_source_lifecycle_records,
         initial_source_registry_error,
         source_default,
         source_id_default,
@@ -181,22 +190,33 @@ def _(JsonSourceRepository, Path, load_observation, os):
 
 
 @app.cell
-def _(initial_registered_sources, initial_source_registry_error, mo):
+def _(
+    initial_registered_sources,
+    initial_source_lifecycle_records,
+    initial_source_registry_error,
+    mo,
+):
     get_registered_sources, set_registered_sources = mo.state(initial_registered_sources)
+    get_source_lifecycle_records, set_source_lifecycle_records = mo.state(
+        initial_source_lifecycle_records
+    )
     get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
     return (
         get_registered_sources,
+        get_source_lifecycle_records,
         get_source_registry_error,
         set_registered_sources,
+        set_source_lifecycle_records,
         set_source_registry_error,
     )
 
 
 @app.cell
-def _(get_registered_sources, get_source_registry_error):
+def _(get_registered_sources, get_source_lifecycle_records, get_source_registry_error):
     registered_sources = get_registered_sources()
+    source_lifecycle_records = get_source_lifecycle_records()
     source_registry_error = get_source_registry_error()
-    return registered_sources, source_registry_error
+    return registered_sources, source_lifecycle_records, source_registry_error
 
 
 @app.cell
@@ -456,6 +476,7 @@ def _(
     registration_timestamp_input,
     registration_tolerance_input,
     set_registered_sources,
+    set_source_lifecycle_records,
     set_registration_error,
     set_registration_success,
     set_registration_validation,
@@ -523,7 +544,11 @@ def _(
             set_registration_success("")
             set_registration_error(str(error))
         else:
-            set_registered_sources(_repository.list_sources())
+            _sources = _repository.list_sources()
+            set_registered_sources(_sources)
+            set_source_lifecycle_records(
+                tuple(_repository.get_lifecycle(source.source_id) for source in _sources)
+            )
             set_source_registry_error("")
             set_registration_validation(_validation)
             set_registration_error("")
