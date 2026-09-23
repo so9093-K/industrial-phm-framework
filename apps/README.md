@@ -217,3 +217,27 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 
 모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
 앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.
+
+
+### Source lifecycle
+
+Source lifecycle은 connection-health model과 분리합니다.
+
+```text
+REGISTERED -> ACTIVE <-> PAUSED
+                 |
+                 v
+               ERROR
+                 |
+                 +----> ACTIVE / PAUSED
+```
+
+등록 직후 상태는 `REGISTERED`입니다. `ACTIVE`는 향후 source runtime이 소비하도록 enable된
+administrative intent이고, `PAUSED`는 runtime consumption을 중지하려는 intent입니다. `ERROR`는 runtime
+실패를 기록하기 위한 상태이며 detail을 요구합니다. 현재 UI에서는 Activate/Pause만 노출하고 ERROR는 이후
+runtime이 실제 실패를 관측할 때 기록하도록 남겨 둡니다. Connection, freshness, `received_at`, retry/buffer
+telemetry는 아직 lifecycle state에서 추론하지 않습니다.
+
+Registry는 기존 `industrial-phm-source-registry-v1`을 읽을 수 있고, v1 source는 implicit
+`REGISTERED`로 해석합니다. 신규 등록 또는 lifecycle write가 발생하면
+`industrial-phm-source-registry-v2`로 저장되어 explicit lifecycle record가 함께 보존됩니다.
