@@ -7,6 +7,7 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import os
+    from datetime import datetime
     from pathlib import Path
 
     import marimo as mo
@@ -15,9 +16,14 @@ def _():
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
+        FileSourceConfig,
+        FileSourceMode,
         JsonSourceRepository,
+        RegisteredSource,
+        discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        register_file_source,
     )
     from industrial_phm.contracts import DataQualityState
 
@@ -27,11 +33,17 @@ def _():
         CsvSensorLayout,
         CsvSensorSourceError,
         DataQualityState,
+        FileSourceConfig,
+        FileSourceMode,
         JsonSourceRepository,
         Path,
+        RegisteredSource,
+        datetime,
+        discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         mo,
+        register_file_source,
         os,
     )
 
@@ -103,11 +115,11 @@ def _(JsonSourceRepository, Path, load_observation, os):
         "artifacts/operations/source-registry.json",
     )
     try:
-        registered_sources = JsonSourceRepository(Path(source_registry_default)).list_sources()
-        source_registry_error = ""
+        initial_registered_sources = JsonSourceRepository(Path(source_registry_default)).list_sources()
+        initial_source_registry_error = ""
     except (OSError, ValueError) as error:
-        registered_sources = ()
-        source_registry_error = str(error)
+        initial_registered_sources = ()
+        initial_source_registry_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
     history_directory_default = os.environ.get(
@@ -155,13 +167,32 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_timeline,
         measurement_point_default,
         sampling_rate_default,
-        registered_sources,
+        initial_registered_sources,
+        initial_source_registry_error,
         source_default,
         source_id_default,
         source_registry_default,
-        source_registry_error,
         timestamp_default,
     )
+
+
+@app.cell
+def _(initial_registered_sources, initial_source_registry_error, mo):
+    get_registered_sources, set_registered_sources = mo.state(initial_registered_sources)
+    get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
+    return (
+        get_registered_sources,
+        get_source_registry_error,
+        set_registered_sources,
+        set_source_registry_error,
+    )
+
+
+@app.cell
+def _(get_registered_sources, get_source_registry_error):
+    registered_sources = get_registered_sources()
+    source_registry_error = get_source_registry_error()
+    return registered_sources, source_registry_error
 
 
 @app.cell
