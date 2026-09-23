@@ -35,6 +35,9 @@ dependencies = [
 deep-learning = [
   "torch>=2.14.0,<2.15",
 ]
+opcua = [
+  "asyncua>=2.0.1,<2.1",
+]
 
 [project.scripts]
 industrial-phm = "industrial_phm.cli:main"
