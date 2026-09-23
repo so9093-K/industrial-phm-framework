@@ -114,30 +114,58 @@ def run_registered_file_source_cycle(
     ):
         raise ValueError("received_at override must be a timezone-aware datetime")
 
-    received: ReceivedRegisteredFileObservation | None = None
+    try:
+        persisted_receipt = runtime_repository.get_latest_receipt(source_id)
+    except (OSError, ValueError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+        )
+
+    if (
+        received_at is not None
+        and persisted_receipt is not None
+        and received_at < persisted_receipt.received_at
+    ):
+        raise ValueError("received_at override must not move backwards")
+
     try:
         received = receive_registered_file_source_observation(
             source,
             received_at=received_at,
         )
-        runtime_repository.record_receipt(received.receipt)
     except (OSError, ValueError) as error:
-        detail = _failure_detail(error)
-        lifecycle_after = transition_source_lifecycle(
+        return _failed_cycle(
             lifecycle_repository,
             source_id,
-            SourceLifecycleState.ERROR,
-            changed_at=cycle_time,
-            detail=detail,
+            lifecycle_before,
+            cycle_time,
+            error,
         )
-        return SourceRuntimeCycleResult(
-            source_id=source_id,
-            state=SourceRuntimeCycleState.FAILED,
-            executed_at=cycle_time,
-            lifecycle_before=lifecycle_before,
-            lifecycle_after=lifecycle_after,
+
+    if (
+        received_at is not None
+        and persisted_receipt is not None
+        and received_at == persisted_receipt.received_at
+        and received.receipt != persisted_receipt
+    ):
+        raise ValueError(
+            "received_at override matching persisted time must reproduce persisted evidence"
+        )
+
+    try:
+        runtime_repository.record_receipt(received.receipt)
+    except (OSError, ValueError) as error:
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
             received=received,
-            message=detail,
         )
 
     return SourceRuntimeCycleResult(
@@ -147,6 +175,34 @@ def run_registered_file_source_cycle(
         lifecycle_before=lifecycle_before,
         lifecycle_after=lifecycle_before,
         received=received,
+    )
+
+
+def _failed_cycle(
+    lifecycle_repository: SourceLifecycleRepository,
+    source_id: str,
+    lifecycle_before: SourceLifecycleRecord,
+    cycle_time: datetime,
+    error: Exception,
+    *,
+    received: ReceivedRegisteredFileObservation | None = None,
+) -> SourceRuntimeCycleResult:
+    detail = _failure_detail(error)
+    lifecycle_after = transition_source_lifecycle(
+        lifecycle_repository,
+        source_id,
+        SourceLifecycleState.ERROR,
+        changed_at=cycle_time,
+        detail=detail,
+    )
+    return SourceRuntimeCycleResult(
+        source_id=source_id,
+        state=SourceRuntimeCycleState.FAILED,
+        executed_at=cycle_time,
+        lifecycle_before=lifecycle_before,
+        lifecycle_after=lifecycle_after,
+        received=received,
+        message=detail,
     )
 
 
