@@ -207,7 +207,7 @@ Active file source runtime cycle
          -> record latest SourceReceiptEvidence
          -> success : SUCCEEDED, lifecycle remains ACTIVE
          -> source validation/I/O failure : FAILED/SOURCE, ACTIVE -> ERROR
-         -> platform runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
+         -> runtime unavailable / caller-contract / unexpected internal / runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
 
 Prepared-file polling runtime
   SourcePollingPolicy + run_registered_file_source_cycle
@@ -222,11 +222,11 @@ Registered OPC UA one-shot runtime
     -> read_opcua_snapshot
     -> RegisteredOpcUaObservation
          ├ protocol value/quality/timestamps preserved
-         └ observed_at = latest SourceTimestamp only when every mapped node provides one
+         └ observed_at = earliest mapped SourceTimestamp only when every mapped node provides one
     -> SourceReceiptEvidence
     -> latest runtime receipt persistence
     -> success : SUCCEEDED, lifecycle remains ACTIVE
-    -> connector/read failure : FAILED/SOURCE, ACTIVE -> ERROR
+    -> explicit OPC UA data-contract / transport OSError : FAILED/SOURCE, ACTIVE -> ERROR
     -> platform runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
 ```
 
@@ -256,7 +256,7 @@ Load/Run action을 노출하지 않습니다. Operations Add source는 OPC UA en
 mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Connector 계층에는 같은
 anonymous endpoint/timeout invariant를 재사용하는 `probe_opcua_endpoint` one-shot connect/disconnect boundary가
 있지만 registration workflow에는 아직 연결하지 않았습니다. Probe 성공은 한 시점의 reachability evidence일 뿐
-지속 connection/health state가 아닙니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록합니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 latest SourceTimestamp를 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. Operations Run 버튼/CLI polling, `AssetObservationSummary` projection, persistent connection telemetry, subscription/reconnect는 아직 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+지속 connection/health state가 아닙니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록합니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. Operations Run 버튼/CLI polling, `AssetObservationSummary` projection, persistent connection telemetry, subscription/reconnect는 아직 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
 Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
 browse/discovery UX, subscription, reconnect/backoff/buffering은 후속 requirement에서 확장합니다.
 
