@@ -26,7 +26,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 ## 주요 기능
 
 - **센서 데이터 준비** — XJTU-SY, IMS Bearings, MIMII DUE와 명시적으로 mapping한 일반 CSV export의 구조·기본 품질을 확인하고 canonical 분석 입력으로 변환합니다.
-- **첫 OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint의 명시된 variable NodeId를 한 번 읽고 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform `received_at`을 분리해 보존합니다. 같은 endpoint/NodeId mapping을 `OpcUaSourceConfig`로 `RegisteredSource` identity에 표현하고 local JSON registry에 영속할 수 있으며 Operations Sources의 **Add source**에서 endpoint와 explicit `channel_id,node_id` mapping을 입력해 등록할 수 있습니다. 이 단계는 configuration validation만 수행하며 live connection/runtime/continuous ingestion은 아직 연결하지 않습니다.
+- **첫 OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint를 한 번 connect/disconnect하는 probe와 명시된 variable NodeId를 한 번 읽는 boundary를 제공합니다. Probe는 `connected_at`/`disconnected_at`만 기록해 지속 connection/health를 주장하지 않고, read는 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform `received_at`을 분리해 보존합니다. 같은 endpoint/NodeId mapping을 `OpcUaSourceConfig`로 `RegisteredSource` identity에 표현하고 local JSON registry에 영속할 수 있으며 Operations Sources의 **Add source**에서 endpoint와 explicit `channel_id,node_id` mapping을 입력해 등록할 수 있습니다. 이 단계는 configuration validation만 수행하며 live connection/runtime/continuous ingestion은 아직 연결하지 않습니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
@@ -156,7 +156,8 @@ prepared 단일-asset CSV export 검증 / canonical mapping
   -> source lifecycle / freshness / prepared-file polling runtime
   -> first OPC UA one-shot read proof
   -> OPC UA registration contract / registry v4 persistence / Sources read + explicit registration UX
-  -> OPC UA endpoint test / browse / connection telemetry / subscription-reconnect runtime
+  -> OPC UA one-shot endpoint probe boundary
+  -> Operations endpoint Test UX / browse / connection telemetry / subscription-reconnect runtime
   -> source에 맞는 diagnostics / prognostics 검증
   -> 실시간 분석과 유지보수 시스템 연계
 ```
@@ -184,7 +185,7 @@ edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol rea
 `OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
 read surface까지 검증했습니다. Registry에 보존되는 endpoint는 anonymous/NoSecurity `opc.tcp`만 허용하고
 endpoint userinfo credential은 거부합니다. Operations Add source에서는 endpoint, asset/measurement point,
-explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있지만 network connect/test나 browse/discovery는 하지 않습니다.
+explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API에는 별도의 one-shot endpoint probe가 있어 anonymous endpoint connect/disconnect를 검증할 수 있지만, Operations Add source의 Test 버튼에는 아직 연결하지 않았고 browse/discovery도 하지 않습니다.
 Subscription/reconnect와 live ingestion 통합도 아직 지원하지 않습니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
