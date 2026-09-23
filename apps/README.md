@@ -31,7 +31,22 @@ uv run --locked --group research marimo run apps/operations.py
 ```
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
-inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. Add Source workflow는 아직 후속 범위입니다.
+inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**에서 현재 지원하는 등록 흐름은
+다음 네 단계입니다.
+
+```text
+Source
+  -> Discover & Preview
+  -> Mapping
+  -> Validate & Register
+```
+
+현재 Source 단계는 browser upload가 아니라 실행 중인 Operations가 접근 가능한 **CSV file 또는 history-directory
+path**를 받습니다. Discover는 각 CSV header를 읽어 모든 파일에 공통인 column, file count, total bytes,
+header variant 수와 representative preview를 보여줍니다. Mapping 뒤 Validate & Register는 별도의 UI 검증기를
+만들지 않고 기존 `CsvSensorLayout` / field observation / timeline validation을 그대로 실행한 뒤에만
+`JsonSourceRepository`에 저장합니다. Path/mode/delimiter를 discovery 이후 바꾸면 stale discovery로 처리해
+재-discover를 요구합니다.
 
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
 `AssetObservationSummary`로 검증한 뒤, explicit recorded timestamp가 있는 segment만
@@ -42,7 +57,7 @@ inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. Add 
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — persistent registry의 registered source 목록/상세와 명시적인 connection/ingestion capability 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register와 persistent registry 목록/상세, 명시적인 connection/ingestion capability 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조

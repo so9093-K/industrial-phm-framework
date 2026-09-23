@@ -7,6 +7,7 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import os
+    from datetime import datetime
     from pathlib import Path
 
     import marimo as mo
@@ -15,9 +16,14 @@ def _():
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
+        FileSourceConfig,
+        FileSourceMode,
         JsonSourceRepository,
+        RegisteredSource,
+        discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        register_file_source,
     )
     from industrial_phm.contracts import DataQualityState
 
@@ -27,11 +33,17 @@ def _():
         CsvSensorLayout,
         CsvSensorSourceError,
         DataQualityState,
+        FileSourceConfig,
+        FileSourceMode,
         JsonSourceRepository,
         Path,
+        RegisteredSource,
+        datetime,
+        discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         mo,
+        register_file_source,
         os,
     )
 
@@ -103,11 +115,13 @@ def _(JsonSourceRepository, Path, load_observation, os):
         "artifacts/operations/source-registry.json",
     )
     try:
-        registered_sources = JsonSourceRepository(Path(source_registry_default)).list_sources()
-        source_registry_error = ""
+        initial_registered_sources = JsonSourceRepository(
+            Path(source_registry_default)
+        ).list_sources()
+        initial_source_registry_error = ""
     except (OSError, ValueError) as error:
-        registered_sources = ()
-        source_registry_error = str(error)
+        initial_registered_sources = ()
+        initial_source_registry_error = str(error)
 
     source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
     history_directory_default = os.environ.get(
@@ -155,13 +169,32 @@ def _(JsonSourceRepository, Path, load_observation, os):
         initial_timeline,
         measurement_point_default,
         sampling_rate_default,
-        registered_sources,
+        initial_registered_sources,
+        initial_source_registry_error,
         source_default,
         source_id_default,
         source_registry_default,
-        source_registry_error,
         timestamp_default,
     )
+
+
+@app.cell
+def _(initial_registered_sources, initial_source_registry_error, mo):
+    get_registered_sources, set_registered_sources = mo.state(initial_registered_sources)
+    get_source_registry_error, set_source_registry_error = mo.state(initial_source_registry_error)
+    return (
+        get_registered_sources,
+        get_source_registry_error,
+        set_registered_sources,
+        set_source_registry_error,
+    )
+
+
+@app.cell
+def _(get_registered_sources, get_source_registry_error):
+    registered_sources = get_registered_sources()
+    source_registry_error = get_source_registry_error()
+    return registered_sources, source_registry_error
 
 
 @app.cell
@@ -243,6 +276,448 @@ def _(
 
 
 @app.cell
+def _(FileSourceMode, mo):
+    registration_mode_input = mo.ui.radio(
+        options=[
+            FileSourceMode.SNAPSHOT.value,
+            FileSourceMode.HISTORY_DIRECTORY.value,
+        ],
+        value=FileSourceMode.SNAPSHOT.value,
+        inline=True,
+        label="File source mode",
+    )
+    registration_path_input = mo.ui.text(
+        value="",
+        label="CSV file or history directory path",
+        full_width=True,
+    )
+    registration_delimiter_input = mo.ui.text(value=",", label="Delimiter")
+    discover_source_button = mo.ui.run_button(label="Discover source")
+
+    registration_source_id_input = mo.ui.text(value="", label="Source ID", full_width=True)
+    registration_name_input = mo.ui.text(value="", label="Source name", full_width=True)
+    registration_asset_id_input = mo.ui.text(value="asset-01", label="Asset ID", full_width=True)
+    registration_measurement_point_input = mo.ui.text(
+        value="",
+        label="Measurement point (optional)",
+        full_width=True,
+    )
+    registration_channels_input = mo.ui.text(
+        value="",
+        label="Channels (comma-separated)",
+        full_width=True,
+    )
+    registration_timestamp_input = mo.ui.text(
+        value="timestamp",
+        label="Timestamp column (optional for snapshot)",
+        full_width=True,
+    )
+    registration_sampling_rate_input = mo.ui.text(
+        value="",
+        label="Declared sampling rate Hz (optional)",
+        full_width=True,
+    )
+    registration_tolerance_input = mo.ui.text(
+        value="",
+        label="Sampling-rate tolerance ratio (optional)",
+        full_width=True,
+    )
+    registration_minimum_samples_input = mo.ui.text(
+        value="1",
+        label="Minimum samples per CSV",
+        full_width=True,
+    )
+    register_source_button = mo.ui.run_button(label="Validate & Register", kind="success")
+    return (
+        discover_source_button,
+        register_source_button,
+        registration_asset_id_input,
+        registration_channels_input,
+        registration_delimiter_input,
+        registration_measurement_point_input,
+        registration_minimum_samples_input,
+        registration_mode_input,
+        registration_name_input,
+        registration_path_input,
+        registration_sampling_rate_input,
+        registration_source_id_input,
+        registration_timestamp_input,
+        registration_tolerance_input,
+    )
+
+
+@app.cell
+def _(mo):
+    get_source_discovery, set_source_discovery = mo.state(None)
+    get_discovery_signature, set_discovery_signature = mo.state(None)
+    get_registration_validation, set_registration_validation = mo.state(None)
+    get_registration_error, set_registration_error = mo.state("")
+    get_registration_success, set_registration_success = mo.state("")
+    return (
+        get_discovery_signature,
+        get_registration_error,
+        get_registration_success,
+        get_registration_validation,
+        get_source_discovery,
+        set_discovery_signature,
+        set_registration_error,
+        set_registration_success,
+        set_registration_validation,
+        set_source_discovery,
+    )
+
+
+@app.cell
+def _(
+    FileSourceMode,
+    Path,
+    discover_file_source,
+    discover_source_button,
+    registration_delimiter_input,
+    registration_mode_input,
+    registration_path_input,
+    set_discovery_signature,
+    set_registration_error,
+    set_registration_success,
+    set_registration_validation,
+    set_source_discovery,
+):
+    if discover_source_button.value:
+        _path_value = registration_path_input.value.strip()
+        _delimiter = registration_delimiter_input.value
+        _mode_value = registration_mode_input.value
+        try:
+            if not _path_value:
+                raise ValueError("source path must not be empty")
+            _discovery = discover_file_source(
+                Path(_path_value),
+                FileSourceMode(_mode_value),
+                delimiter=_delimiter,
+            )
+        except (OSError, ValueError) as error:
+            set_source_discovery(None)
+            set_discovery_signature(None)
+            set_registration_error(str(error))
+        else:
+            set_source_discovery(_discovery)
+            set_discovery_signature((_mode_value, _path_value, _delimiter))
+            set_registration_error("")
+        set_registration_validation(None)
+        set_registration_success("")
+    return
+
+
+@app.cell
+def _(
+    get_discovery_signature,
+    get_registration_error,
+    get_registration_success,
+    get_registration_validation,
+    get_source_discovery,
+):
+    discovery_signature = get_discovery_signature()
+    registration_error = get_registration_error()
+    registration_success = get_registration_success()
+    registration_validation = get_registration_validation()
+    source_discovery = get_source_discovery()
+    return (
+        discovery_signature,
+        registration_error,
+        registration_success,
+        registration_validation,
+        source_discovery,
+    )
+
+
+@app.cell
+def _(
+    FileSourceConfig,
+    FileSourceMode,
+    JsonSourceRepository,
+    Path,
+    RegisteredSource,
+    datetime,
+    discovery_signature,
+    parse_channels,
+    register_file_source,
+    register_source_button,
+    registration_asset_id_input,
+    registration_channels_input,
+    registration_delimiter_input,
+    registration_measurement_point_input,
+    registration_minimum_samples_input,
+    registration_mode_input,
+    registration_name_input,
+    registration_path_input,
+    registration_sampling_rate_input,
+    registration_source_id_input,
+    registration_timestamp_input,
+    registration_tolerance_input,
+    set_registered_sources,
+    set_registration_error,
+    set_registration_success,
+    set_registration_validation,
+    set_source_registry_error,
+    source_discovery,
+    source_registry_default,
+):
+    if register_source_button.value:
+        _path_value = registration_path_input.value.strip()
+        _mode_value = registration_mode_input.value
+        _delimiter = registration_delimiter_input.value
+        _current_signature = (_mode_value, _path_value, _delimiter)
+        try:
+            if source_discovery is None:
+                raise ValueError("discover the source before registration")
+            if discovery_signature != _current_signature:
+                raise ValueError("source path, mode or delimiter changed after discovery")
+
+            _channels = parse_channels(registration_channels_input.value)
+            _common_columns = set(source_discovery.common_columns)
+            _unknown_channels = tuple(
+                channel for channel in _channels if channel not in _common_columns
+            )
+            if _unknown_channels:
+                raise ValueError(
+                    "mapped channels were not discovered in every CSV file: "
+                    + ", ".join(_unknown_channels)
+                )
+
+            _timestamp_column = registration_timestamp_input.value.strip() or None
+            if _timestamp_column is not None and _timestamp_column not in _common_columns:
+                raise ValueError(
+                    "timestamp column was not discovered in every CSV file: " + _timestamp_column
+                )
+
+            _sampling_rate_text = registration_sampling_rate_input.value.strip()
+            _sampling_rate_hz = None if not _sampling_rate_text else float(_sampling_rate_text)
+            _tolerance_text = registration_tolerance_input.value.strip()
+            _tolerance = None if not _tolerance_text else float(_tolerance_text)
+            _minimum_samples = int(registration_minimum_samples_input.value.strip())
+
+            _candidate = RegisteredSource(
+                source_id=registration_source_id_input.value.strip(),
+                name=registration_name_input.value.strip(),
+                config=FileSourceConfig(
+                    source_path=_path_value,
+                    asset_id=registration_asset_id_input.value.strip(),
+                    measurement_point_id=(
+                        registration_measurement_point_input.value.strip() or None
+                    ),
+                    channel_columns=_channels,
+                    mode=FileSourceMode(_mode_value),
+                    timestamp_column=_timestamp_column,
+                    sampling_rate_hz=_sampling_rate_hz,
+                    sampling_rate_tolerance_ratio=_tolerance,
+                    minimum_sample_count=_minimum_samples,
+                    delimiter=_delimiter,
+                ),
+                registered_at=datetime.now().astimezone(),
+            )
+            _repository = JsonSourceRepository(Path(source_registry_default))
+            _validation = register_file_source(_candidate, _repository)
+        except (OSError, ValueError) as error:
+            set_registration_validation(None)
+            set_registration_success("")
+            set_registration_error(str(error))
+        else:
+            set_registered_sources(_repository.list_sources())
+            set_source_registry_error("")
+            set_registration_validation(_validation)
+            set_registration_error("")
+            set_registration_success(f"Registered source: {_candidate.source_id}")
+    return
+
+
+@app.cell
+def _(
+    mo,
+    discovery_signature,
+    registration_asset_id_input,
+    registration_channels_input,
+    registration_delimiter_input,
+    registration_error,
+    registration_measurement_point_input,
+    registration_minimum_samples_input,
+    registration_mode_input,
+    registration_name_input,
+    registration_path_input,
+    registration_sampling_rate_input,
+    registration_source_id_input,
+    registration_success,
+    registration_timestamp_input,
+    registration_tolerance_input,
+    registration_validation,
+    register_source_button,
+    discover_source_button,
+    source_discovery,
+):
+    def _escape(value: str) -> str:
+        return (
+            value.replace("\\", "\\\\").replace("|", "\\|").replace("`", "\\`").replace("\n", " ")
+        )
+
+    _current_signature = (
+        registration_mode_input.value,
+        registration_path_input.value.strip(),
+        registration_delimiter_input.value,
+    )
+    _discovery_is_current = (
+        source_discovery is not None and discovery_signature == _current_signature
+    )
+
+    if source_discovery is None:
+        _discovery_view = mo.callout(
+            "Enter a file or history-directory path and run discovery before mapping.",
+            kind="neutral",
+            title="Discover · Not run",
+        )
+    elif not _discovery_is_current:
+        _discovery_view = mo.callout(
+            "Source path, mode or delimiter changed after discovery. "
+            "Discover again before registration.",
+            kind="warn",
+            title="Discover · Stale",
+        )
+    else:
+        _column_labels = ", ".join(
+            f"`{_escape(column)}`" for column in source_discovery.common_columns
+        )
+        if source_discovery.preview_rows:
+            _preview_header = (
+                "| "
+                + " | ".join(_escape(column) for column in source_discovery.representative_columns)
+                + " |"
+            )
+            _preview_rule = (
+                "| " + " | ".join("---" for _ in source_discovery.representative_columns) + " |"
+            )
+            _preview_rows = tuple(
+                "| " + " | ".join(_escape(value) for value in row) + " |"
+                for row in source_discovery.preview_rows
+            )
+            _preview = mo.md(
+                "#### Preview · "
+                + _escape(source_discovery.representative_file)
+                + "\n\n"
+                + "\n".join((_preview_header, _preview_rule, *_preview_rows))
+            )
+        else:
+            _preview = mo.callout(
+                "The representative CSV contains no preview data rows.",
+                kind="neutral",
+                title="Preview · Empty",
+            )
+
+        _discovery_view = mo.vstack(
+            [
+                mo.hstack(
+                    [
+                        mo.stat(
+                            str(source_discovery.file_count),
+                            label="Discovered files",
+                        ),
+                        mo.stat(
+                            f"{source_discovery.total_size_bytes:,} bytes",
+                            label="Source bytes",
+                        ),
+                        mo.stat(
+                            str(source_discovery.header_variant_count),
+                            label="Header variants",
+                        ),
+                    ],
+                    widths="equal",
+                ),
+                mo.md(f"Common columns: {_column_labels}"),
+                _preview,
+            ],
+            gap=0.8,
+        )
+
+    if registration_error:
+        _registration_status = mo.callout(
+            registration_error,
+            kind="danger",
+            title="Validate & Register · Failed",
+        )
+    elif registration_validation is not None and registration_success:
+        _issue_label = (
+            "none"
+            if not registration_validation.quality_issue_codes
+            else ", ".join(registration_validation.quality_issue_codes)
+        )
+        _registration_status = mo.vstack(
+            [
+                mo.callout(
+                    registration_success,
+                    kind="success",
+                    title="Validate & Register · Complete",
+                ),
+                mo.md(
+                    "| Validation fact | Value |\n"
+                    "| --- | --- |\n"
+                    f"| Segments | {registration_validation.segment_count:,} |\n"
+                    f"| Samples | {registration_validation.total_sample_count:,} |\n"
+                    f"| Data quality | {registration_validation.quality_state.value.upper()} |\n"
+                    f"| Quality issues | {_issue_label} |\n"
+                    f"| Source snapshots | {len(registration_validation.source_snapshots):,} |"
+                ),
+            ],
+            gap=0.6,
+        )
+    else:
+        _registration_status = mo.callout(
+            "Registration validates the entire declared snapshot/history before persisting it.",
+            kind="info",
+            title="Validate & Register",
+        )
+
+    registration_view = mo.vstack(
+        [
+            mo.md(
+                "### Add source\n\n"
+                "**1. Source** — 현재는 prepared CSV file/history directory만 등록합니다. "
+                "OPC UA/MQTT는 아직 선택 가능한 capability가 아닙니다."
+            ),
+            mo.hstack(
+                [registration_mode_input, registration_delimiter_input],
+                widths="equal",
+            ),
+            registration_path_input,
+            discover_source_button,
+            mo.md("**2. Discover & Preview**"),
+            _discovery_view,
+            mo.md(
+                "**3. Mapping** — Discover에서 모든 CSV에 공통으로 확인된 column을 "
+                "asset/measurement point/time/channel 의미에 명시적으로 매핑합니다."
+            ),
+            mo.hstack(
+                [registration_source_id_input, registration_name_input],
+                widths="equal",
+            ),
+            mo.hstack(
+                [registration_asset_id_input, registration_measurement_point_input],
+                widths="equal",
+            ),
+            registration_channels_input,
+            mo.hstack(
+                [registration_timestamp_input, registration_sampling_rate_input],
+                widths="equal",
+            ),
+            mo.hstack(
+                [registration_tolerance_input, registration_minimum_samples_input],
+                widths="equal",
+            ),
+            mo.md("**4. Validate & Register**"),
+            register_source_button,
+            _registration_status,
+        ],
+        gap=0.8,
+    )
+    return registration_view
+
+
+@app.cell
 def _(mo, registered_sources):
     if registered_sources:
         source_selector = mo.ui.radio(
@@ -259,6 +734,7 @@ def _(mo, registered_sources):
 def _(
     mo,
     registered_sources,
+    registration_view,
     source_registry_default,
     source_registry_error,
     source_selector,
@@ -272,6 +748,7 @@ def _(
         sources_view = mo.vstack(
             [
                 mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
+                registration_view,
                 mo.callout(
                     source_registry_error,
                     kind="danger",
@@ -285,10 +762,11 @@ def _(
         sources_view = mo.vstack(
             [
                 mo.md("## Sources\n\n등록된 operational source control-plane record를 확인합니다."),
+                registration_view,
                 mo.callout(
                     "No registered source exists in the configured local registry. "
-                    "The Add Source workflow is the next product boundary; the existing "
-                    "Field source bootstrap remains available for prepared-source inspection.",
+                    "Use Add source above to discover, map, validate and register a prepared "
+                    "CSV file or timestamped history directory.",
                     kind="neutral",
                     title="Registered sources · Empty",
                 ),
@@ -342,6 +820,7 @@ def _(
                     "재시작 후에도 보존되는 source registration control-plane record를 "
                     "목록과 상세 설정으로 확인합니다."
                 ),
+                registration_view,
                 mo.hstack(
                     [
                         mo.stat(
