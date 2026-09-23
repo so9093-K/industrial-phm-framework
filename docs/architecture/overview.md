@@ -197,8 +197,8 @@ NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 con
 뜻하지 않습니다. Manual load 또는 successful ACTIVE runtime cycle의 latest receipt는 runtime repository에
 기록되고 앱 재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
 assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Browser upload/file-picker, source
-edit/delete, lifecycle을 실제로 소비하는 continuous ingestion runtime, receipt history, OPC UA/MQTT
-connector는 후속 경계입니다.
+edit/delete, continuous scheduler/polling, retry/backoff/buffering, receipt history, OPC UA/MQTT connector는
+후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 
