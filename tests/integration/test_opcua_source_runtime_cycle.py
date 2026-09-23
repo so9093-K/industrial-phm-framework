@@ -178,6 +178,44 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
 
 
 
+
+
+def test_registered_opcua_source_cycle_marks_transport_oserror_as_source_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_repository, runtime_repository, source = _repositories(tmp_path)
+
+    async def _fail(
+        _source: RegisteredSource,
+        *,
+        received_at: datetime | None = None,
+    ) -> ReceivedRegisteredOpcUaObservation:
+        raise ConnectionRefusedError("OPC UA endpoint connection refused")
+
+    monkeypatch.setattr(
+        source_cycle_module,
+        "receive_registered_opcua_source_observation",
+        _fail,
+    )
+
+    result = asyncio.run(
+        run_registered_opcua_source_cycle(
+            source_repository,
+            source_repository,
+            runtime_repository,
+            source.source_id,
+            executed_at=datetime.fromisoformat("2026-09-23T10:00:05+09:00"),
+        )
+    )
+
+    assert result.state == SourceRuntimeCycleState.FAILED
+    assert result.failure_scope == SourceRuntimeCycleFailureScope.SOURCE
+    assert result.received is None
+    assert "connection refused" in (result.message or "")
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ERROR
+
+
 def test_registered_opcua_source_cycle_keeps_active_when_runtime_is_unavailable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
