@@ -127,8 +127,7 @@ def run_registered_file_source_cycle(
             lifecycle_before=lifecycle_before,
             lifecycle_after=lifecycle_before,
             message=(
-                f"source lifecycle is {lifecycle_before.state.value}; "
-                "runtime cycle requires active"
+                f"source lifecycle is {lifecycle_before.state.value}; runtime cycle requires active"
             ),
         )
 
