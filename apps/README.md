@@ -193,7 +193,7 @@ runtime state에 영속되지만 전체 receipt history나 background polling을
 복원된 latest receipt와 현재 assessment time에서 다시 계산하므로 derived assessment 자체는 저장하지 않습니다.
 
 
-### Runtime receipt state
+### Runtime evidence state
 
 Source registration/lifecycle/freshness policy는 control-plane registry가 소유하고, latest accepted receipt는
 별도의 runtime repository가 소유합니다.
@@ -208,13 +208,13 @@ source-runtime.json
 # 반드시 source-registry.json과 다른 파일 경로여야 함
 ```
 
-Runtime state schema는 `industrial-phm-source-runtime-v1`입니다. Registry와 runtime-state 경로가 같은
+Runtime state writer는 `industrial-phm-source-runtime-v2`를 사용합니다. 기존 v1 receipt-only state는 읽을 수 있고 다음 write에서 v2로 승격됩니다. Registry와 runtime-state 경로가 같은
 파일로 resolve되면 runtime write가 control-plane state를 덮어쓸 수 있으므로 startup과 write 모두
-fail-closed로 차단합니다. Source ID별 latest receipt만 deterministic하게 저장하고 `received_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
+fail-closed로 차단합니다. Source ID별 latest receipt와 latest bounded connection-attempt evidence를 각각 deterministic하게 저장합니다. Receipt는 `received_at`, attempt는 `completed_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
 idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와
 같이 same-directory temporary file + flush/fsync + `os.replace`를 사용합니다.
 
-현재 runtime state는 connection status, retries, buffering, sequence counters, ingestion throughput, receipt
+Latest connection-attempt evidence는 historical bounded-attempt fact일 뿐 current connection status가 아닙니다. 현재 runtime state는 retries, buffering, sequence counters, ingestion throughput, receipt/attempt
 history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 continuous ingestion runtime 자체는 아닙니다.
 
 한 CSV는 계속 한 canonical segment입니다. 여러 파일을 하나의 waveform으로 합치지 않고 각각
