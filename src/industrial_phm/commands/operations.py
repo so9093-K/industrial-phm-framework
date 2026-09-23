@@ -9,7 +9,6 @@ from industrial_phm.application import (
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     SourcePollingPolicy,
-    SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleState,
     poll_registered_file_source,
     validate_distinct_source_state_paths,
@@ -82,14 +81,4 @@ def _run_operations_poll_source(args: argparse.Namespace) -> int:
         return 0
     if last_state == SourceRuntimeCycleState.SKIPPED:
         return 2
-    if last_state == SourceRuntimeCycleState.FAILED:
-        return (
-            1
-            if result.failure_scope
-            in {
-                SourceRuntimeCycleFailureScope.SOURCE,
-                SourceRuntimeCycleFailureScope.PLATFORM,
-            }
-            else 1
-        )
     return 1
