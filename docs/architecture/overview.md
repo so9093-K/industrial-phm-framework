@@ -140,9 +140,10 @@ SourceFreshnessPolicy
   └ max_observation_age_seconds
 
 SourceRuntimeRepository
-  ├ get_latest_receipt
-  ├ list_latest_receipts
-  └ record_receipt
+  ├ get_latest_receipt / list_latest_receipts / record_receipt
+  └ get_latest_connection_attempt /
+    list_latest_connection_attempts /
+    record_connection_attempt
 
 SourceHealthAssessment
   ├ lifecycle
@@ -152,8 +153,10 @@ SourceHealthAssessment
   └ freshness?
 
 JsonSourceRuntimeRepository
-  └ industrial-phm-source-runtime-v1
-       └ latest SourceReceiptEvidence per source
+  └ industrial-phm-source-runtime-v2
+       ├ latest SourceReceiptEvidence per source
+       └ latest SourceConnectionAttemptEvidence per source
+          (historical bounded attempt, not current connection state)
 
 File registration use case
   source path / mode
@@ -241,8 +244,7 @@ v4로 승격합니다. Registration, lifecycle과 optional source-specific fresh
 상태로 읽고 다음 write에서 v3로 승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤
 `os.replace`로 교체해 partial write를 노출하지 않으며 reader는 schema/key/source type/duplicate
 ID/lifecycle alignment/freshness-policy source alignment를 fail-fast 검증합니다. Runtime receipt evidence는
-registry에 저장하지 않고 별도 `JsonSourceRuntimeRepository`가 source별 latest
-`SourceReceiptEvidence`만 `industrial-phm-source-runtime-v1`으로 보존합니다. Runtime writer도
+registry에 저장하지 않고 별도 `JsonSourceRuntimeRepository`가 source별 latest `SourceReceiptEvidence`와 latest bounded `SourceConnectionAttemptEvidence`를 `industrial-phm-source-runtime-v2`로 보존합니다. 기존 v1 receipt-only state는 backward-compatible하게 읽고 다음 write에서 v2로 승격합니다. Runtime writer도
 same-directory temp + flush/fsync + `os.replace`를 사용하고 received_at regression과 same-time conflicting
 evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를
 막기 위해 fail-closed로 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며
@@ -256,7 +258,7 @@ Load/Run action을 노출하지 않습니다. Operations Add source는 OPC UA en
 mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Connector 계층에는 같은
 anonymous endpoint/timeout invariant를 재사용하는 `probe_opcua_endpoint` one-shot connect/disconnect boundary가
 있지만 registration workflow에는 아직 연결하지 않았습니다. Probe 성공은 한 시점의 reachability evidence일 뿐
-지속 connection/health state가 아닙니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록합니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. Operations Run 버튼/CLI polling, `AssetObservationSummary` projection, persistent connection telemetry, subscription/reconnect는 아직 연결하지 않습니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+지속 connection/health state가 아닙니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록하며 Operations Run action에서도 실행됩니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. CLI polling은 아직 FILE 전용이고 `AssetObservationSummary` projection도 없습니다. Runtime v2에는 latest bounded connection-attempt evidence 저장 contract가 있지만 OPC UA cycle producer와 source-health projection은 아직 연결하지 않았으며, persistent session telemetry와 subscription/reconnect도 후속 경계입니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
 Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
 browse/discovery UX, subscription, reconnect/backoff/buffering은 후속 requirement에서 확장합니다.
 
