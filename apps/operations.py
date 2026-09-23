@@ -1097,9 +1097,7 @@ def _(
     else:
         _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
         _freshness_policy_by_id = {policy.source_id: policy for policy in source_freshness_policies}
-        _runtime_receipt_by_id = {
-            receipt.source_id: receipt for receipt in source_runtime_receipts
-        }
+        _runtime_receipt_by_id = {receipt.source_id: receipt for receipt in source_runtime_receipts}
         _rows = []
         for _source in registered_sources:
             _config = _source.config
@@ -1161,9 +1159,7 @@ def _(
             else None
         )
         _persisted_receipt = _runtime_receipt_by_id.get(_selected.source_id)
-        _selected_receipt = (
-            _session_receipt if _session_receipt is not None else _persisted_receipt
-        )
+        _selected_receipt = _session_receipt if _session_receipt is not None else _persisted_receipt
         _receipt_origin = (
             "current session"
             if _session_receipt is not None
