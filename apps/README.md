@@ -20,7 +20,7 @@ uv run --locked --group research marimo run apps/operations.py
 history directory, asset/source ID, optional measurement point, channel과 time mapping을 입력합니다. History
 directory가 지정되면 single source보다 우선합니다.
 
-**Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity와 type-specific configuration을 표시합니다. FILE은 file/history mode,
+**Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity와 type-specific configuration을 표시합니다. **Add source**의 type selector에서 FILE 또는 OPC UA를 선택할 수 있습니다. FILE은 file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
 등록 record와 별도로 `REGISTERED / ACTIVE / PAUSED / ERROR` lifecycle state를 보존하고 Sources에서
 Activate/Pause할 수 있습니다. ACTIVE는 one-shot source runtime이 소비할 수 있는 administrative
@@ -35,9 +35,10 @@ uv run --locked --group research marimo run apps/operations.py
 ```
 
 Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
-inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**에서 현재 지원하는 등록 type은
-여전히 prepared CSV file/history-directory입니다. 별도 `industrial_phm.connectors.opcua` module의
-anonymous/NoSecurity one-shot read proof의 endpoint/explicit NodeId mapping은 registry v4에서 OPC UA source identity로 보존되고 Operations Sources에서 읽어 표시합니다. 다만 OPC UA source를 만드는 Add source UX와 live connector runtime은 아직 연결하지 않습니다.
+inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**는 prepared CSV file/history-directory와
+OPC UA explicit-NodeId registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity,
+한 줄당 `channel_id,node_id` mapping과 timeout을 입력해 registry v4에 저장합니다. 이 단계는 endpoint에 연결하거나
+browse/read하지 않으며 anonymous/NoSecurity config validation만 재사용합니다. Live connector runtime은 아직 연결하지 않습니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
 ```text
@@ -227,7 +228,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 화면:
 
 - **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE ACTIVE one-shot runtime cycle, source-specific freshness policy, selected FILE source → current Observation load + received_at/delivery-lag/freshness evidence, OPC UA runtime/connection capability의 명시적 unavailable 상태
+- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA endpoint + explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE ACTIVE one-shot runtime cycle, source-specific freshness policy, selected FILE source → current Observation load + received_at/delivery-lag/freshness evidence, OPC UA runtime/connection capability의 명시적 unavailable 상태
 - **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
 - **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
 - **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
