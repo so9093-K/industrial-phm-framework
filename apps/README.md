@@ -110,8 +110,27 @@ Manual **Load registered source**는 lifecycle과 무관한 inspection 경로로
 ACTIVE lifecycle을 반드시 요구합니다. Source validation/I/O failure만 source lifecycle ERROR로 기록하고,
 runtime-state persistence failure는 platform-owned failure로 분류해 cycle 자체는 FAILED지만 source lifecycle은
 ACTIVE를 유지합니다. 이미 validation된 observation을 runtime success로 승격하지 않는 경계는 그대로 유지합니다.
-현재는 사용자가 버튼으로 한 iteration을 실행하는 구조이고 background polling, retry/backoff, buffering,
-connector session은 아직 구현하지 않습니다.
+Operations UI는 사용자가 버튼으로 한 iteration을 실행하는 구조를 유지합니다. 별도 CLI
+`industrial-phm operations poll-source`는 같은 runtime cycle을 synchronous polling loop로 반복하지만,
+background daemon, retry/backoff, buffering, connector session은 아직 구현하지 않습니다.
+
+### Prepared-file polling runtime
+
+CLI에서는 ACTIVE registered file/history source를 명시적 interval로 반복 실행할 수 있습니다.
+
+```bash
+uv run --locked industrial-phm operations poll-source \
+  --registry artifacts/operations/source-registry.json \
+  --runtime-state artifacts/operations/source-runtime.json \
+  --source-id pump-source \
+  --interval-seconds 5
+```
+
+`SourcePollingPolicy`는 positive finite interval과 optional positive `max_cycles`를 소유합니다. Polling은
+`run_registered_file_source_cycle`을 그대로 재사용하고 success 사이에서만 sleep합니다. REGISTERED/PAUSED/
+ERROR로 SKIPPED되거나 SOURCE/PLATFORM failure가 발생하면 즉시 종료합니다. Platform failure를 자동
+재시도하지 않는 이유는 retry/backoff policy가 아직 구현되지 않았기 때문입니다. `--max-cycles`를 생략한
+CLI는 현재 process가 Ctrl+C를 받을 때까지 반복할 수 있지만 별도 service/background task를 만들지는 않습니다.
 
 ### Source health assessment
 
