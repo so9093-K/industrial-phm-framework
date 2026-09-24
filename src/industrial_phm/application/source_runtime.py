@@ -408,9 +408,7 @@ def _parse_connection_attempt(
     label = f"source runtime latest_connection_attempts[{index}]"
     attempt = _require_mapping(value, label)
     expected_keys = (
-        _CONNECTION_ATTEMPT_KEYS_V3
-        if schema == _RUNTIME_SCHEMA_V3
-        else _CONNECTION_ATTEMPT_KEYS_V2
+        _CONNECTION_ATTEMPT_KEYS_V3 if schema == _RUNTIME_SCHEMA_V3 else _CONNECTION_ATTEMPT_KEYS_V2
     )
     _require_exact_keys(attempt, expected_keys, label)
     connected_raw = attempt["connected_at"]
