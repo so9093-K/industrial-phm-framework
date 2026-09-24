@@ -260,7 +260,8 @@ Registered OPC UA bounded subscription application
     -> transport OSError: FAILED/SOURCE, lifecycle remains ACTIVE
     -> platform/runtime-state failure: FAILED/PLATFORM, lifecycle unchanged
     -> no SourceReceiptEvidence or freshness update
-  Notification persistence, Operations action, reconnect, or continuous ingestion is not added.
+  Operations Sources exposes this bounded cycle as an explicit on-demand action.
+  Notification persistence, reconnect, or continuous ingestion is not added.
 
 Registered OPC UA one-shot runtime
   RegisteredSource(OPCUA) + ACTIVE lifecycle
