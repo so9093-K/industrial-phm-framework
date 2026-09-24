@@ -153,7 +153,7 @@ def test_registered_opcua_subscription_requires_active_lifecycle(
 ) -> None:
     repository, source = _repositories(tmp_path, activate=False)
 
-    async def _unexpected(config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
+    async def _unexpected(_config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
         raise AssertionError("non-active source must not perform subscription I/O")
 
     monkeypatch.setattr(
@@ -209,7 +209,7 @@ def test_registered_opcua_subscription_transport_failure_keeps_active(
 ) -> None:
     repository, source = _repositories(tmp_path)
 
-    async def _fail(config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
+    async def _fail(_config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
         raise ConnectionRefusedError("OPC UA endpoint connection refused")
 
     monkeypatch.setattr(
@@ -258,6 +258,7 @@ def test_registered_opcua_subscription_rejects_notification_outside_registered_m
         RegisteredOpcUaSubscription(
             source_id="opcua-source",
             asset_id="pump-01",
+            endpoint_url="opc.tcp://plc.example.test:4840",
             measurement_point_id="drive-end",
             node_mappings=(
                 OpcUaNodeMapping(
