@@ -13,6 +13,7 @@ from industrial_phm.application import (  # noqa: E402
     JsonSourceRuntimeRepository,
     OpcUaSourceConfig,
     RegisteredSource,
+    SourceConnectionAttemptOperation,
     SourceConnectionAttemptOutcome,
     SourceLifecycleState,
     SourcePollingPolicy,
@@ -262,6 +263,10 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         assert subscription_cycle.subscription is not None
         assert subscription_cycle.subscription.coverage.has_full_channel_coverage is True
         assert subscription_attempt is not None
+        assert (
+            subscription_attempt.operation
+            == SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION
+        )
         assert subscription_attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
         assert subscription_attempt.connected_at is not None
         assert subscription_attempt.completed_at >= subscription_attempt.connected_at
@@ -277,6 +282,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
             registered_source.source_id
         )
         assert persisted_attempt is not None
+        assert persisted_attempt.operation == SourceConnectionAttemptOperation.OPCUA_READ
         assert persisted_attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
         assert persisted_attempt.connected_at is not None
         assert persisted_attempt.completed_at >= persisted_attempt.connected_at
