@@ -32,7 +32,6 @@ def _opcua_source() -> RegisteredSource:
         config=OpcUaSourceConfig(
             endpoint_url="opc.tcp://plc.example.test:4840",
             asset_id="pump-01",
-            endpoint_url="opc.tcp://plc.example.test:4840",
             measurement_point_id="drive-end",
             node_mappings=(
                 OpcUaNodeMapping(
