@@ -21,6 +21,7 @@ from industrial_phm.application.source_registration import (
 )
 from industrial_phm.application.source_runtime import (
     SourceConnectionAttemptEvidence,
+    SourceConnectionAttemptOperation,
     SourceConnectionAttemptOutcome,
     SourceRuntimeRepository,
 )
@@ -427,6 +428,7 @@ async def run_registered_opcua_subscription_cycle(
     connector_result = subscription.subscription
     attempt = SourceConnectionAttemptEvidence(
         source_id=source_id,
+        operation=SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION,
         outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
         attempted_at=min(attempt_started_at, connector_result.connected_at),
         connected_at=connector_result.connected_at,
@@ -465,6 +467,7 @@ def _record_failed_subscription_attempt(
     detail = _failure_detail(error)
     attempt = SourceConnectionAttemptEvidence(
         source_id=source_id,
+        operation=SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION,
         outcome=SourceConnectionAttemptOutcome.FAILED,
         attempted_at=attempted_at,
         completed_at=completed_at,
