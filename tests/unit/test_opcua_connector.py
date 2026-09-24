@@ -287,6 +287,7 @@ def test_opcua_browse_discovers_variables_without_reading_values(
         display_name="Objects",
         children=(machine,),
     )
+    _FakeBrowseClient.exit_completed_at = None
     monkeypatch.setattr(
         opcua_module,
         "import_module",
@@ -317,6 +318,8 @@ def test_opcua_browse_discovers_variables_without_reading_values(
         "timeout": 1.5,
         "auto_reconnect": False,
     }
+    assert _FakeBrowseClient.exit_completed_at is not None
+    assert result.completed_at >= _FakeBrowseClient.exit_completed_at
     assert result.truncated is False
     assert result.visited_node_count == 4
     assert tuple(item.node_id for item in result.variables) == (
@@ -461,8 +464,10 @@ def test_opcua_subscription_collects_bounded_datachange_notifications(
     _FakeSubscription.next_timeouts = []
     _FakeSubscription.enter_count = 0
     _FakeSubscription.exit_count = 0
+    _FakeSubscription.exit_completed_at = None
     _FakeSubscriptionClient.enter_count = 0
     _FakeSubscriptionClient.exit_count = 0
+    _FakeSubscriptionClient.exit_completed_at = None
 
     def _import(name: str) -> object:
         if name == "asyncua":
@@ -505,6 +510,10 @@ def test_opcua_subscription_collects_bounded_datachange_notifications(
     assert _FakeSubscriptionClient.exit_count == 1
     assert _FakeSubscription.enter_count == 1
     assert _FakeSubscription.exit_count == 1
+    assert _FakeSubscription.exit_completed_at is not None
+    assert _FakeSubscriptionClient.exit_completed_at is not None
+    assert result.completed_at >= _FakeSubscription.exit_completed_at
+    assert result.completed_at >= _FakeSubscriptionClient.exit_completed_at
     assert result.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
     assert len(result.notifications) == 2
 
@@ -644,6 +653,7 @@ def test_opcua_snapshot_preserves_quality_and_protocol_timestamps(
 ) -> None:
     source_at = datetime.fromisoformat("2026-09-23T10:00:00+00:00")
     server_at = datetime.fromisoformat("2026-09-23T10:00:01+00:00")
+    _FakeClient.exit_completed_at = None
     _FakeClient.values = {
         "ns=2;s=VibrationX": _data_value(
             12.5,
@@ -684,6 +694,8 @@ def test_opcua_snapshot_preserves_quality_and_protocol_timestamps(
     }
     assert snapshot.connected_at.utcoffset() is not None
     assert snapshot.completed_at >= snapshot.connected_at
+    assert _FakeClient.exit_completed_at is not None
+    assert snapshot.completed_at >= _FakeClient.exit_completed_at
 
     good, bad = snapshot.observations
     assert good.value == 12.5
