@@ -1782,6 +1782,7 @@ def _(
                         "### Latest connection attempt\n\n"
                         "| Attempt fact | Value |\n"
                         "| --- | --- |\n"
+                        f"| Operation | {_selected_connection_attempt.operation.value} |\n"
                         f"| Outcome | {_selected_connection_attempt.outcome.value.upper()} |\n"
                         f"| Attempted at | {_attempted_at_label} |\n"
                         f"| Connected at | {_attempt_connected} |\n"
@@ -1790,8 +1791,9 @@ def _(
                     ),
                     mo.callout(
                         "This is the latest bounded historical attempt, not current connection "
-                        "state. A successful one-shot attempt does not mean the source remains "
-                        "connected after the cycle.",
+                        "state. Operation identifies which runtime produced the evidence; a "
+                        "successful attempt does not mean the source remains connected after "
+                        "the bounded cycle.",
                         kind="info",
                         title="Connection-attempt semantics",
                     ),

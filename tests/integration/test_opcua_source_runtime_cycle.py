@@ -12,6 +12,7 @@ from industrial_phm.application import (
     ReceivedRegisteredOpcUaObservation,
     RegisteredOpcUaObservation,
     RegisteredSource,
+    SourceConnectionAttemptOperation,
     SourceConnectionAttemptOutcome,
     SourceLifecycleState,
     SourceReceiptEvidence,
@@ -139,6 +140,7 @@ def test_registered_opcua_source_cycle_records_receipt_and_keeps_active(
     assert runtime_repository.get_latest_receipt(source.source_id) == received.receipt
     attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
     assert attempt is not None
+    assert attempt.operation == SourceConnectionAttemptOperation.OPCUA_READ
     assert attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
     assert attempt.attempted_at <= attempt.connected_at
     assert attempt.connected_at == received.observation.snapshot.connected_at
@@ -191,6 +193,8 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
     assert runtime_repository.get_latest_receipt(source.source_id) is None
     attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
     assert attempt is not None
+    assert attempt.operation == SourceConnectionAttemptOperation.OPCUA_READ
+    assert attempt.operation == SourceConnectionAttemptOperation.OPCUA_READ
     assert attempt.outcome == SourceConnectionAttemptOutcome.FAILED
     assert attempt.connected_at is None
     assert attempt.attempted_at <= attempt.completed_at
