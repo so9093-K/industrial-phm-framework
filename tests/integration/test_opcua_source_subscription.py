@@ -11,6 +11,7 @@ from industrial_phm.application import (
     OpcUaSourceConfig,
     RegisteredOpcUaDataChangeEvent,
     RegisteredOpcUaSubscription,
+    RegisteredOpcUaSubscriptionCoverage,
     RegisteredSource,
     SourceLifecycleState,
     collect_registered_opcua_source_subscription,
@@ -156,6 +157,13 @@ def test_registered_opcua_subscription_reuses_registered_mapping_and_runtime_bou
     assert event.node_id == "ns=2;s=Machine/VibrationX"
     assert event.notification == connector_result.notifications[0]
 
+    coverage = result.coverage
+    assert coverage.configured_channel_ids == ("vibration_x", "temperature")
+    assert coverage.observed_channel_ids == ("vibration_x",)
+    assert coverage.missing_channel_ids == ("temperature",)
+    assert coverage.notification_count == 1
+    assert coverage.has_full_channel_coverage is False
+
 
 def test_registered_opcua_subscription_requires_active_lifecycle(
     tmp_path: Path,
@@ -291,4 +299,49 @@ def test_registered_opcua_data_change_event_rejects_invalid_collection_index() -
             measurement_point_id="drive-end",
             collection_index=-1,
             notification=notification,
+        )
+
+
+def test_registered_opcua_subscription_max_events_does_not_imply_full_channel_coverage() -> None:
+    base = _subscription_result().notifications[0]
+    repeated = OpcUaSubscriptionResult(
+        endpoint_url="opc.tcp://plc.example.test:4840",
+        connected_at=datetime.fromisoformat("2026-09-23T01:00:00+00:00"),
+        completed_at=datetime.fromisoformat("2026-09-23T01:00:02+00:00"),
+        completion_reason=OpcUaSubscriptionCompletionReason.MAX_EVENTS,
+        notifications=(base, base),
+    )
+    result = RegisteredOpcUaSubscription(
+        source_id="opcua-source",
+        asset_id="pump-01",
+        endpoint_url="opc.tcp://plc.example.test:4840",
+        measurement_point_id="drive-end",
+        node_mappings=(
+            OpcUaNodeMapping(
+                channel_id="vibration_x",
+                node_id="ns=2;s=Machine/VibrationX",
+            ),
+            OpcUaNodeMapping(
+                channel_id="temperature",
+                node_id="ns=2;s=Machine/Temperature",
+            ),
+        ),
+        subscription=repeated,
+    )
+
+    assert result.subscription.completion_reason == OpcUaSubscriptionCompletionReason.MAX_EVENTS
+    assert result.coverage.notification_count == 2
+    assert result.coverage.observed_channel_ids == ("vibration_x",)
+    assert result.coverage.missing_channel_ids == ("temperature",)
+    assert result.coverage.has_full_channel_coverage is False
+
+
+def test_registered_opcua_subscription_coverage_rejects_inconsistent_missing_channels() -> None:
+    with pytest.raises(ValueError, match="missing_channel_ids"):
+        RegisteredOpcUaSubscriptionCoverage(
+            configured_channel_ids=("vibration_x", "temperature"),
+            observed_channel_ids=("vibration_x",),
+            missing_channel_ids=(),
+            notification_count=1,
+            has_full_channel_coverage=False,
         )
