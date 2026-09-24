@@ -3021,8 +3021,9 @@ def _(
                 [
                     mo.md(
                         "로컬 prepared CSV snapshot/history를 일회성으로 확인하는 입력입니다. "
-                        "지속적으로 관리할 source는 Sources에서 등록·실행합니다. History directory가 "
-                        "입력되면 single CSV보다 우선하며, 이 inspection 입력은 "
+                        "지속적으로 관리할 source는 Sources에서 등록·실행합니다. "
+                        "History directory가 입력되면 single CSV보다 우선하며, "
+                        "이 inspection 입력은 "
                         "historian/API나 continuous ingestion을 의미하지 않습니다."
                     ),
                     source_input,
