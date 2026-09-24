@@ -9,6 +9,7 @@ from industrial_phm.application import (
     FileSourceConfig,
     JsonSourceRepository,
     OpcUaSourceConfig,
+    RegisteredOpcUaSubscription,
     RegisteredSource,
     SourceLifecycleState,
     collect_registered_opcua_source_subscription,
@@ -18,6 +19,7 @@ from industrial_phm.connectors import (
     OpcUaNodeMapping,
     OpcUaNodeObservation,
     OpcUaSubscriptionCompletionReason,
+    OpcUaSubscriptionConfig,
     OpcUaSubscriptionNotification,
     OpcUaSubscriptionResult,
 )
@@ -99,9 +101,9 @@ def test_registered_opcua_subscription_reuses_registered_mapping_and_runtime_bou
 ) -> None:
     repository, source = _repositories(tmp_path)
     connector_result = _subscription_result()
-    captured = None
+    captured: OpcUaSubscriptionConfig | None = None
 
-    async def _collect(config: object) -> OpcUaSubscriptionResult:
+    async def _collect(config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
         nonlocal captured
         captured = config
         return connector_result
@@ -148,7 +150,7 @@ def test_registered_opcua_subscription_requires_active_lifecycle(
 ) -> None:
     repository, source = _repositories(tmp_path, activate=False)
 
-    async def _unexpected(config: object) -> OpcUaSubscriptionResult:
+    async def _unexpected(config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
         raise AssertionError("non-active source must not perform subscription I/O")
 
     monkeypatch.setattr(
@@ -204,7 +206,7 @@ def test_registered_opcua_subscription_transport_failure_keeps_active(
 ) -> None:
     repository, source = _repositories(tmp_path)
 
-    async def _fail(config: object) -> OpcUaSubscriptionResult:
+    async def _fail(config: OpcUaSubscriptionConfig) -> OpcUaSubscriptionResult:
         raise ConnectionRefusedError("OPC UA endpoint connection refused")
 
     monkeypatch.setattr(
@@ -223,3 +225,42 @@ def test_registered_opcua_subscription_transport_failure_keeps_active(
         )
 
     assert repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
+
+
+def test_registered_opcua_subscription_rejects_notification_outside_registered_mapping() -> None:
+    connector_result = OpcUaSubscriptionResult(
+        endpoint_url="opc.tcp://plc.example.test:4840",
+        connected_at=datetime.fromisoformat("2026-09-23T01:00:00+00:00"),
+        completed_at=datetime.fromisoformat("2026-09-23T01:00:02+00:00"),
+        completion_reason=OpcUaSubscriptionCompletionReason.MAX_EVENTS,
+        notifications=(
+            OpcUaSubscriptionNotification(
+                observation=OpcUaNodeObservation(
+                    channel_id="temperature",
+                    node_id="ns=2;s=Machine/Temperature",
+                    value=80.0,
+                    status_code=0,
+                    status_good=True,
+                    status_text="Good",
+                    variant_type="Double",
+                    source_timestamp=None,
+                    server_timestamp=None,
+                    received_at=datetime.fromisoformat("2026-09-23T01:00:01+00:00"),
+                )
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="registered OPC UA mapping"):
+        RegisteredOpcUaSubscription(
+            source_id="opcua-source",
+            asset_id="pump-01",
+            measurement_point_id="drive-end",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+            subscription=connector_result,
+        )
