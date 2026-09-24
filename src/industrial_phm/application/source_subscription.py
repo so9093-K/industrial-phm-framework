@@ -90,9 +90,7 @@ class RegisteredOpcUaSubscriptionCoverage:
         if self.notification_count < 0:
             raise ValueError("notification_count must not be negative")
         if self.notification_count < len(self.observed_channel_ids):
-            raise ValueError(
-                "notification_count must cover every observed channel at least once"
-            )
+            raise ValueError("notification_count must cover every observed channel at least once")
 
         configured = set(self.configured_channel_ids)
         observed = set(self.observed_channel_ids)
