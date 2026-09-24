@@ -2466,6 +2466,127 @@ def _(
 
 @app.cell
 def _(
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
+    Path,
+    SourceRuntimeCycleState,
+    ThreadPoolExecutor,
+    asyncio,
+    collect_opcua_subscription_button,
+    run_registered_opcua_subscription_cycle,
+    set_source_lifecycle_records,
+    set_source_runtime_connection_attempts,
+    set_source_runtime_error,
+    set_subscription_cycle_error,
+    set_subscription_cycle_result,
+    set_subscription_cycle_skipped,
+    source_registry_default,
+    source_runtime_default,
+    source_selector,
+    validate_distinct_source_state_paths,
+):
+    if (
+        collect_opcua_subscription_button is not None
+        and collect_opcua_subscription_button.value
+    ):
+        _selected_source_id = None
+        try:
+            if source_selector is None:
+                raise ValueError(
+                    "select a registered OPC UA source before collecting a subscription"
+                )
+            _selected_source_id = source_selector.value
+            _registry_path = Path(source_registry_default)
+            _runtime_path = Path(source_runtime_default)
+            validate_distinct_source_state_paths(_registry_path, _runtime_path)
+            _source_repository = JsonSourceRepository(_registry_path)
+            _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+            _source = _source_repository.get(_selected_source_id)
+            if not isinstance(_source.config, OpcUaSourceConfig):
+                raise ValueError(
+                    "bounded subscription collection is available only for OPC UA sources"
+                )
+            _max_events = max(1, len(_source.config.node_mappings))
+
+            def _run_subscription_cycle():
+                return asyncio.run(
+                    run_registered_opcua_subscription_cycle(
+                        _source_repository,
+                        _source_repository,
+                        _runtime_repository,
+                        _source.source_id,
+                        publishing_interval_ms=500.0,
+                        collection_timeout_seconds=5.0,
+                        max_events=_max_events,
+                        queue_maxsize=128,
+                    )
+                )
+
+            with ThreadPoolExecutor(max_workers=1) as _executor:
+                _result = _executor.submit(_run_subscription_cycle).result()
+
+            _sources = _source_repository.list_sources()
+            _lifecycle_records = tuple(
+                _source_repository.get_lifecycle(source.source_id) for source in _sources
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_subscription_cycle_result(None)
+            set_subscription_cycle_skipped(None)
+            set_subscription_cycle_error(
+                (
+                    "" if _selected_source_id is None else _selected_source_id,
+                    str(error),
+                )
+            )
+        else:
+            set_source_lifecycle_records(_lifecycle_records)
+            if _result.state == SourceRuntimeCycleState.SUCCEEDED:
+                set_subscription_cycle_result(_result)
+                set_subscription_cycle_error(None)
+                set_subscription_cycle_skipped(None)
+            elif _result.state == SourceRuntimeCycleState.SKIPPED:
+                set_subscription_cycle_result(None)
+                set_subscription_cycle_error(None)
+                set_subscription_cycle_skipped(
+                    (
+                        _result.source_id,
+                        _result.message or "bounded subscription cycle skipped",
+                    )
+                )
+            else:
+                _scope = (
+                    "unknown"
+                    if _result.failure_scope is None
+                    else _result.failure_scope.value
+                )
+                set_subscription_cycle_result(_result)
+                set_subscription_cycle_skipped(None)
+                set_subscription_cycle_error(
+                    (
+                        _result.source_id,
+                        f"{_scope} failure · "
+                        f"{_result.message or 'bounded subscription cycle failed'}",
+                    )
+                )
+
+            try:
+                _registered_ids = {source.source_id for source in _sources}
+                _runtime_connection_attempts = tuple(
+                    attempt
+                    for attempt in _runtime_repository.list_latest_connection_attempts()
+                    if attempt.source_id in _registered_ids
+                )
+            except (OSError, ValueError) as error:
+                set_source_runtime_error(str(error))
+            else:
+                set_source_runtime_connection_attempts(_runtime_connection_attempts)
+                set_source_runtime_error("")
+    return
+
+
+@app.cell
+def _(
     FileSourceConfig,
     JsonSourceRuntimeRepository,
     Path,
