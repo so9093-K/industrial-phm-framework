@@ -221,6 +221,19 @@ def test_json_source_runtime_repository_rejects_schema_key_drift(tmp_path: Path)
         JsonSourceRuntimeRepository(path).list_latest_receipts()
 
 
+
+def test_connection_attempt_evidence_preserves_legacy_unspecified_default() -> None:
+    attempt = SourceConnectionAttemptEvidence(
+        source_id="source-a",
+        outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
+        attempted_at=datetime.fromisoformat("2026-09-23T10:00:00+09:00"),
+        connected_at=datetime.fromisoformat("2026-09-23T10:00:01+09:00"),
+        completed_at=datetime.fromisoformat("2026-09-23T10:00:02+09:00"),
+    )
+
+    assert attempt.operation == SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
+
+
 def test_connection_attempt_evidence_requires_success_timing_and_failure_detail() -> None:
     with pytest.raises(ValueError, match="requires connected_at"):
         _connection_attempt(connected_at=None)
@@ -272,7 +285,6 @@ def test_json_source_runtime_repository_round_trips_success_and_failed_connectio
         "opcua-read",
         "opcua-subscription",
     ]
-
 
 
 def test_runtime_v3_connection_attempt_requires_operation_key(tmp_path: Path) -> None:
@@ -345,7 +357,6 @@ def test_runtime_v1_receipts_remain_readable_and_upgrade_on_next_write(
     assert payload["schema"] == "industrial-phm-source-runtime-v3"
     assert payload["latest_receipts"][0]["source_id"] == "legacy-source"
     assert payload["latest_connection_attempts"][0]["source_id"] == "legacy-source"
-
 
 
 def test_runtime_v2_attempts_remain_readable_without_inventing_operation_and_upgrade_on_write(
