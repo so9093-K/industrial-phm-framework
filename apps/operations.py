@@ -1241,8 +1241,9 @@ def _(
                 registration_type_input,
                 mo.callout(
                     "Registration and browse are separate actions. Browse performs one bounded "
-                    "anonymous session and discovers Variable identity only; subscription and "
-                    "reconnect remain unsupported.",
+                    "anonymous session and discovers Variable identity only. Registration does "
+                    "not start ingestion; bounded subscription collection is a separate runtime "
+                    "action after activation, while reconnect remains unsupported.",
                     kind="neutral",
                     title="OPC UA control-plane boundary",
                 ),
@@ -1475,7 +1476,6 @@ def _(
     Path,
     SourceFreshnessPolicy,
     clear_freshness_policy_button,
-    collect_opcua_subscription_button,
     datetime,
     freshness_age_input,
     registered_sources,
@@ -1561,6 +1561,7 @@ def _(
     assess_source_freshness,
     assess_source_health,
     clear_freshness_policy_button,
+    collect_opcua_subscription_button,
     datetime,
     freshness_age_input,
     freshness_policy_error,
