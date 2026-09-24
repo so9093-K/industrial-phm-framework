@@ -240,8 +240,11 @@ Registered OPC UA bounded subscription application
     -> collect_opcua_subscription_notifications
     -> RegisteredOpcUaSubscription
          ├ source / asset / measurement-point identity
-         ├ registered mapping identity
-         └ event-level notifications only
+         ├ registered endpoint / mapping identity
+         └ RegisteredOpcUaDataChangeEvent*
+              ├ connector notification quality/timestamps/replayed preserved
+              └ collection_index = local bounded collection order only
+  collection_index is not an OPC UA server sequence and does not prove gap-free delivery.
   Notification count is not treated as complete-channel observation/window evidence.
   No runtime persistence, Operations action, reconnect, or continuous ingestion is added.
 

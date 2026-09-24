@@ -9,6 +9,7 @@ from industrial_phm.application import (
     FileSourceConfig,
     JsonSourceRepository,
     OpcUaSourceConfig,
+    RegisteredOpcUaDataChangeEvent,
     RegisteredOpcUaSubscription,
     RegisteredSource,
     SourceLifecycleState,
@@ -143,6 +144,18 @@ def test_registered_opcua_subscription_reuses_registered_mapping_and_runtime_bou
     assert len(result.node_mappings) == 2
     assert len(result.subscription.notifications) == 1
 
+    events = result.events
+    assert len(events) == 1
+    event = events[0]
+    assert event.source_id == source.source_id
+    assert event.asset_id == source.asset_id
+    assert event.endpoint_url == source.config.endpoint_url
+    assert event.measurement_point_id == source.measurement_point_id
+    assert event.collection_index == 0
+    assert event.channel_id == "vibration_x"
+    assert event.node_id == "ns=2;s=Machine/VibrationX"
+    assert event.notification == connector_result.notifications[0]
+
 
 def test_registered_opcua_subscription_requires_active_lifecycle(
     tmp_path: Path,
@@ -264,4 +277,18 @@ def test_registered_opcua_subscription_rejects_notification_outside_registered_m
                 ),
             ),
             subscription=connector_result,
+        )
+
+
+def test_registered_opcua_data_change_event_rejects_invalid_collection_index() -> None:
+    notification = _subscription_result().notifications[0]
+
+    with pytest.raises(ValueError, match="collection_index"):
+        RegisteredOpcUaDataChangeEvent(
+            source_id="opcua-source",
+            asset_id="pump-01",
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            measurement_point_id="drive-end",
+            collection_index=-1,
+            notification=notification,
         )

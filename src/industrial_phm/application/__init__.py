@@ -91,6 +91,7 @@ from industrial_phm.application.source_runtime import (
     validate_distinct_source_state_paths,
 )
 from industrial_phm.application.source_subscription import (
+    RegisteredOpcUaDataChangeEvent,
     RegisteredOpcUaSubscription,
     collect_registered_opcua_source_subscription,
 )
@@ -113,6 +114,7 @@ __all__ = [
     "ReceivedRegisteredFileObservation",
     "ReceivedRegisteredOpcUaObservation",
     "RegisteredFileObservation",
+    "RegisteredOpcUaDataChangeEvent",
     "RegisteredOpcUaObservation",
     "RegisteredOpcUaSubscription",
     "RegisteredSource",
