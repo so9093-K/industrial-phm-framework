@@ -59,7 +59,6 @@ def test_analysis_run_rejects_reversed_observation_window() -> None:
         )
 
 
-
 def test_analysis_run_requires_timezone_aware_operational_times() -> None:
     with pytest.raises(ValueError, match="observed start time must be a timezone-aware datetime"):
         AnalysisRun(
@@ -139,7 +138,6 @@ def test_operational_finding_requires_evidence_reference() -> None:
         )
 
 
-
 def test_operational_finding_requires_timezone_aware_observed_at() -> None:
     with pytest.raises(ValueError, match="observed_at must be a timezone-aware datetime"):
         OperationalFinding(
@@ -187,7 +185,6 @@ def test_operational_finding_rejects_mismatched_asset() -> None:
 
     with pytest.raises(ValueError, match="asset_id"):
         validate_operational_finding_against_run(finding, run)
-
 
 
 def test_operational_finding_rejects_capability_not_declared_by_run() -> None:
