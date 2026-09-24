@@ -9,6 +9,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Operational `AnalysisRun`의 observation/execution window와 `OperationalFinding.observed_at`을 timezone-aware absolute time으로 강제하고, finding/run validator가 `finding.capability_id`가 해당 run의 declared `capability_ids`에 포함되는지 확인하도록 강화했습니다. Ambiguous naive operational time과 run이 생산하지 않은 capability finding의 provenance 승격을 fail-fast로 차단합니다.
+
 ### Added
 
 - OPC UA connector에 bounded DataChange subscription boundary를 추가했습니다. `OpcUaSubscriptionConfig`는 anonymous endpoint/explicit NodeId mapping을 기존 read contract와 동일하게 검증하면서 publishing interval, notification collection timeout, max events와 iterator queue bound를 명시합니다. `collect_opcua_subscription_notifications`는 `auto_reconnect=False`인 한 세션에서 DataChange만 bounded하게 수집하고 각 DataValue의 quality, SourceTimestamp, ServerTimestamp와 asyncua `replayed` flag를 보존하며 `MAX_EVENTS` 또는 `TIMEOUT` 종료 이유를 반환합니다. Unit fake-runtime과 real asyncua contract로 good/bad status와 bounded 종료를 검증합니다. Registered-source lifecycle/runtime persistence/Operations와 reconnect/continuous ingestion 연결은 후속 범위입니다.

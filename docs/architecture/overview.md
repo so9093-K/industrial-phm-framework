@@ -319,6 +319,10 @@ prepared field observation / timeline
   -> Operations
 ```
 
+`AnalysisRun`의 observation/execution window와 `OperationalFinding.observed_at`은 operational absolute time으로
+사용하므로 timezone-aware datetime만 허용합니다. Finding은 run과 동일한 identity/measurement-point와 observation
+window에 연결되어야 하고, `finding.capability_id`도 해당 run의 `capability_ids`에 실제로 선언되어 있어야 합니다.
+
 `OperationalFinding`은 numerical payload container가 아닙니다. Score, threshold, residual, diagnosis evidence는
 각 capability가 소유하고 finding은 versioned semantics와 evidence linkage만 보존합니다. Prognostics도 같은
 finding에 억지로 넣지 않고 별도 capability contract가 실제 field requirement에서 필요할 때 추가합니다.

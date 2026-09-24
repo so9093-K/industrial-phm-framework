@@ -439,7 +439,7 @@ measurement_point_id, observation time range, channel/sample population과 aggre
 `AnalysisRun`은 다음 실행/provenance 사실만 보존합니다.
 
 - analysis run ID, asset/source/optional measurement-point identity
-- observation start/end와 execution start/end
+- timezone-aware observation start/end와 execution start/end
 - aggregate `DataQualityAssessment`
 - optional model deployment identity
 - exact prepared source snapshot evidence
@@ -448,7 +448,9 @@ measurement_point_id, observation time range, channel/sample population과 aggre
 `OperationalFinding`은 state-like finding의 공통 envelope이며 finding/run/asset/measurement-point identity,
 observation time, capability ID, versioned finding-semantics ID, opaque state와 evidence reference만 보존합니다.
 Generic finding에 score, threshold, severity, diagnosis payload, RUL 또는 maintenance priority를 넣지 않습니다.
-Finding과 run의 identity/measurement-point/observation-window linkage는 별도 validator로 fail-fast 검증합니다.
+Finding과 run의 identity/measurement-point/observation-window linkage와 capability declaration 일치는 별도 validator로
+fail-fast 검증합니다. `OperationalFinding.observed_at`도 operational absolute time이므로 timezone-aware datetime만
+허용합니다.
 
 현재 field analysis producer는 아직 없습니다. 따라서 contract가 존재한다는 이유만으로 Operations가 finding을
 표시하지 않으며, 실제 source-appropriate analysis protocol이 이 contract를 생성할 때까지

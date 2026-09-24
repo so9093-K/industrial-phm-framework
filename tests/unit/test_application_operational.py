@@ -59,6 +59,32 @@ def test_analysis_run_rejects_reversed_observation_window() -> None:
         )
 
 
+def test_analysis_run_requires_timezone_aware_operational_times() -> None:
+    with pytest.raises(ValueError, match="observed start time must be a timezone-aware datetime"):
+        AnalysisRun(
+            analysis_run_id="run-001",
+            asset_id="pump-01",
+            source_id="field-export:pump-01",
+            observed_start_at=datetime.fromisoformat("2026-09-22T10:00:00"),
+            observed_end_at=datetime.fromisoformat("2026-09-22T11:00:00+09:00"),
+            started_at=datetime.fromisoformat("2026-09-22T11:05:00+09:00"),
+            completed_at=datetime.fromisoformat("2026-09-22T11:05:10+09:00"),
+            data_quality=DataQualityAssessment(),
+        )
+
+    with pytest.raises(ValueError, match="execution end time must be a timezone-aware datetime"):
+        AnalysisRun(
+            analysis_run_id="run-001",
+            asset_id="pump-01",
+            source_id="field-export:pump-01",
+            observed_start_at=datetime.fromisoformat("2026-09-22T10:00:00+09:00"),
+            observed_end_at=datetime.fromisoformat("2026-09-22T11:00:00+09:00"),
+            started_at=datetime.fromisoformat("2026-09-22T11:05:00+09:00"),
+            completed_at=datetime.fromisoformat("2026-09-22T11:05:10"),
+            data_quality=DataQualityAssessment(),
+        )
+
+
 def test_analysis_run_rejects_duplicate_source_snapshot_digest() -> None:
     snapshot = SourceSnapshotEvidence(
         name="segment-001.csv",
@@ -112,6 +138,20 @@ def test_operational_finding_requires_evidence_reference() -> None:
         )
 
 
+def test_operational_finding_requires_timezone_aware_observed_at() -> None:
+    with pytest.raises(ValueError, match="observed_at must be a timezone-aware datetime"):
+        OperationalFinding(
+            finding_id="finding-001",
+            analysis_run_id="run-001",
+            asset_id="pump-01",
+            observed_at=datetime.fromisoformat("2026-09-22T10:30:00"),
+            capability_id="condition-state",
+            finding_semantics_id="pump-condition-state-v1",
+            state="attention",
+            evidence_refs=("condition-evidence:segment-001",),
+        )
+
+
 def test_operational_finding_validates_against_analysis_run() -> None:
     run = _analysis_run()
     finding = OperationalFinding(
@@ -144,6 +184,24 @@ def test_operational_finding_rejects_mismatched_asset() -> None:
     )
 
     with pytest.raises(ValueError, match="asset_id"):
+        validate_operational_finding_against_run(finding, run)
+
+
+def test_operational_finding_rejects_capability_not_declared_by_run() -> None:
+    run = _analysis_run()
+    finding = OperationalFinding(
+        finding_id="finding-001",
+        analysis_run_id=run.analysis_run_id,
+        asset_id=run.asset_id,
+        measurement_point_id=run.measurement_point_id,
+        observed_at=datetime.fromisoformat("2026-09-22T10:30:00+09:00"),
+        capability_id="bearing-rul",
+        finding_semantics_id="bearing-rul-state-v1",
+        state="attention",
+        evidence_refs=("prognostics-evidence:segment-001",),
+    )
+
+    with pytest.raises(ValueError, match="capability_id"):
         validate_operational_finding_against_run(finding, run)
 
 
