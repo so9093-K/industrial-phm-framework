@@ -226,9 +226,10 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         )
         assert len(registered_subscription.subscription.notifications) == 2
         assert tuple(event.collection_index for event in registered_subscription.events) == (0, 1)
-        assert {
-            event.channel_id for event in registered_subscription.events
-        } == {"vibration_x", "temperature"}
+        assert {event.channel_id for event in registered_subscription.events} == {
+            "vibration_x",
+            "temperature",
+        }
         assert all(
             event.source_id == registered_source.source_id
             for event in registered_subscription.events
