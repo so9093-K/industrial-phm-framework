@@ -345,3 +345,25 @@ def test_registered_opcua_subscription_coverage_rejects_inconsistent_missing_cha
             notification_count=1,
             has_full_channel_coverage=False,
         )
+
+
+def test_registered_opcua_subscription_coverage_rejects_impossible_notification_count() -> None:
+    with pytest.raises(ValueError, match="notification_count"):
+        RegisteredOpcUaSubscriptionCoverage(
+            configured_channel_ids=("vibration_x", "temperature"),
+            observed_channel_ids=("vibration_x", "temperature"),
+            missing_channel_ids=(),
+            notification_count=1,
+            has_full_channel_coverage=True,
+        )
+
+
+def test_registered_opcua_subscription_coverage_requires_configured_channels() -> None:
+    with pytest.raises(ValueError, match="configured_channel_ids"):
+        RegisteredOpcUaSubscriptionCoverage(
+            configured_channel_ids=(),
+            observed_channel_ids=(),
+            missing_channel_ids=(),
+            notification_count=0,
+            has_full_channel_coverage=True,
+        )
