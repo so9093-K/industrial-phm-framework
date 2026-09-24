@@ -245,7 +245,12 @@ Registered OPC UA bounded subscription application
               ├ connector notification quality/timestamps/replayed preserved
               └ collection_index = local bounded collection order only
   collection_index is not an OPC UA server sequence and does not prove gap-free delivery.
-  Notification count is not treated as complete-channel observation/window evidence.
+  RegisteredOpcUaSubscriptionCoverage
+    -> configured / observed / missing channel IDs
+    -> notification count
+    -> full coverage only when every registered channel appeared at least once
+  Full channel coverage still does not imply timestamp alignment, synchronized snapshot,
+  gap-free delivery, or an analysis-ready observation/window.
   No runtime persistence, Operations action, reconnect, or continuous ingestion is added.
 
 Registered OPC UA one-shot runtime

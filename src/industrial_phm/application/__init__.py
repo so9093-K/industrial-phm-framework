@@ -93,6 +93,7 @@ from industrial_phm.application.source_runtime import (
 from industrial_phm.application.source_subscription import (
     RegisteredOpcUaDataChangeEvent,
     RegisteredOpcUaSubscription,
+    RegisteredOpcUaSubscriptionCoverage,
     collect_registered_opcua_source_subscription,
 )
 
@@ -117,6 +118,7 @@ __all__ = [
     "RegisteredOpcUaDataChangeEvent",
     "RegisteredOpcUaObservation",
     "RegisteredOpcUaSubscription",
+    "RegisteredOpcUaSubscriptionCoverage",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
     "SourceConnectionAttemptEvidence",
