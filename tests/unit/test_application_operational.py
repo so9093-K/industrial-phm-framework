@@ -10,7 +10,6 @@ from industrial_phm.application import (
 )
 from industrial_phm.contracts import DataQualityAssessment
 
-
 def _analysis_run() -> AnalysisRun:
     return AnalysisRun(
         analysis_run_id="run-001",
@@ -33,7 +32,6 @@ def _analysis_run() -> AnalysisRun:
         data_quality=DataQualityAssessment(),
     )
 
-
 def test_analysis_run_preserves_operational_identity_and_provenance() -> None:
     run = _analysis_run()
 
@@ -43,7 +41,6 @@ def test_analysis_run_preserves_operational_identity_and_provenance() -> None:
     assert run.model_deployment_id == "pump-condition-v1"
     assert run.capability_ids == ("condition-state",)
     assert run.source_snapshots[0].sha256 == "a" * 64
-
 
 def test_analysis_run_rejects_reversed_observation_window() -> None:
     with pytest.raises(ValueError, match="observed start time"):
@@ -57,7 +54,6 @@ def test_analysis_run_rejects_reversed_observation_window() -> None:
             completed_at=datetime.fromisoformat("2026-09-22T11:05:10+09:00"),
             data_quality=DataQualityAssessment(),
         )
-
 
 
 def test_analysis_run_requires_timezone_aware_operational_times() -> None:
@@ -85,7 +81,6 @@ def test_analysis_run_requires_timezone_aware_operational_times() -> None:
             data_quality=DataQualityAssessment(),
         )
 
-
 def test_analysis_run_rejects_duplicate_source_snapshot_digest() -> None:
     snapshot = SourceSnapshotEvidence(
         name="segment-001.csv",
@@ -106,7 +101,6 @@ def test_analysis_run_rejects_duplicate_source_snapshot_digest() -> None:
             data_quality=DataQualityAssessment(),
         )
 
-
 def test_operational_finding_preserves_semantics_and_evidence_refs() -> None:
     finding = OperationalFinding(
         finding_id="finding-001",
@@ -124,7 +118,6 @@ def test_operational_finding_preserves_semantics_and_evidence_refs() -> None:
     assert finding.capability_id == "condition-state"
     assert finding.evidence_refs == ("condition-evidence:segment-001",)
 
-
 def test_operational_finding_requires_evidence_reference() -> None:
     with pytest.raises(ValueError, match="at least one"):
         OperationalFinding(
@@ -139,7 +132,6 @@ def test_operational_finding_requires_evidence_reference() -> None:
         )
 
 
-
 def test_operational_finding_requires_timezone_aware_observed_at() -> None:
     with pytest.raises(ValueError, match="observed_at must be a timezone-aware datetime"):
         OperationalFinding(
@@ -152,7 +144,6 @@ def test_operational_finding_requires_timezone_aware_observed_at() -> None:
             state="attention",
             evidence_refs=("condition-evidence:segment-001",),
         )
-
 
 def test_operational_finding_validates_against_analysis_run() -> None:
     run = _analysis_run()
@@ -169,7 +160,6 @@ def test_operational_finding_validates_against_analysis_run() -> None:
     )
 
     validate_operational_finding_against_run(finding, run)
-
 
 def test_operational_finding_rejects_mismatched_asset() -> None:
     run = _analysis_run()
@@ -189,7 +179,6 @@ def test_operational_finding_rejects_mismatched_asset() -> None:
         validate_operational_finding_against_run(finding, run)
 
 
-
 def test_operational_finding_rejects_capability_not_declared_by_run() -> None:
     run = _analysis_run()
     finding = OperationalFinding(
@@ -206,7 +195,6 @@ def test_operational_finding_rejects_capability_not_declared_by_run() -> None:
 
     with pytest.raises(ValueError, match="capability_id"):
         validate_operational_finding_against_run(finding, run)
-
 
 def test_operational_finding_rejects_time_outside_analysis_window() -> None:
     run = _analysis_run()
