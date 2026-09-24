@@ -217,8 +217,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         assert registered_subscription.asset_id == registered_source.asset_id
         assert registered_subscription.endpoint_url == registered_source.config.endpoint_url
         assert (
-            registered_subscription.measurement_point_id
-            == registered_source.measurement_point_id
+            registered_subscription.measurement_point_id == registered_source.measurement_point_id
         )
         assert registered_subscription.node_mappings == registered_source.config.node_mappings
         assert (
