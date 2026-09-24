@@ -76,9 +76,7 @@ def _subscription() -> RegisteredOpcUaSubscription:
                         status_good=True,
                         status_text="Good",
                         variant_type="Double",
-                        source_timestamp=datetime.fromisoformat(
-                            "2026-09-23T00:59:59+00:00"
-                        ),
+                        source_timestamp=datetime.fromisoformat("2026-09-23T00:59:59+00:00"),
                         server_timestamp=None,
                         received_at=datetime.fromisoformat("2026-09-23T01:00:01+00:00"),
                     )
