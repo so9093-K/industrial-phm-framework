@@ -21,7 +21,6 @@ from industrial_phm.connectors import (
 )
 
 
-
 @dataclass(frozen=True, slots=True)
 class RegisteredOpcUaDataChangeEvent:
     """One registered-source DataChange event with application identity.
