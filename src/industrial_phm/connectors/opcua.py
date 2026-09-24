@@ -81,7 +81,10 @@ class OpcUaBrowseVariable:
 
 @dataclass(frozen=True, slots=True)
 class OpcUaBrowseResult:
-    """Result of one bounded browse session."""
+    """Result of one bounded browse session.
+
+    completed_at is recorded only after the client context has exited successfully.
+    """
 
     endpoint_url: str
     connected_at: datetime
@@ -304,7 +307,10 @@ class OpcUaSubscriptionNotification:
 
 @dataclass(frozen=True, slots=True)
 class OpcUaSubscriptionResult:
-    """Result of one bounded subscription session."""
+    """Result of one bounded subscription session.
+
+    completed_at is recorded only after subscription and client contexts exit successfully.
+    """
 
     endpoint_url: str
     connected_at: datetime
