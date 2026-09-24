@@ -197,7 +197,7 @@ def test_registered_opcua_source_cycle_marks_connector_failure_as_source_error(
     assert "configured OPC UA node read failed" in (attempt.detail or "")
 
 
-def test_registered_opcua_source_cycle_marks_transport_oserror_as_source_error(
+def test_registered_opcua_source_cycle_preserves_active_on_transport_oserror(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -230,7 +230,9 @@ def test_registered_opcua_source_cycle_marks_transport_oserror_as_source_error(
     assert result.failure_scope == SourceRuntimeCycleFailureScope.SOURCE
     assert result.received is None
     assert "connection refused" in (result.message or "")
-    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ERROR
+    assert result.lifecycle_before.state == SourceLifecycleState.ACTIVE
+    assert result.lifecycle_after == result.lifecycle_before
+    assert source_repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
     attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
     assert attempt is not None
     assert attempt.outcome == SourceConnectionAttemptOutcome.FAILED
