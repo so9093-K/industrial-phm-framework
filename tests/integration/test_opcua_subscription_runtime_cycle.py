@@ -12,6 +12,7 @@ from industrial_phm.application import (
     OpcUaSourceConfig,
     RegisteredOpcUaSubscription,
     RegisteredSource,
+    SourceConnectionAttemptOperation,
     SourceConnectionAttemptOutcome,
     SourceLifecycleState,
     SourceRuntimeCycleFailureScope,
@@ -140,6 +141,7 @@ def test_registered_opcua_subscription_cycle_records_attempt_without_receipt(
 
     attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
     assert attempt is not None
+    assert attempt.operation == SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION
     assert attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
     assert attempt.connected_at == subscription.subscription.connected_at
     assert attempt.completed_at == subscription.subscription.completed_at
@@ -262,6 +264,8 @@ def test_registered_opcua_subscription_cycle_marks_data_contract_failure_as_sour
 
     attempt = runtime_repository.get_latest_connection_attempt(source.source_id)
     assert attempt is not None
+    assert attempt.operation == SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION
+    assert attempt.operation == SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION
     assert attempt.outcome == SourceConnectionAttemptOutcome.FAILED
     assert attempt.connected_at is None
     assert "subscription DataValue is invalid" in (attempt.detail or "")
