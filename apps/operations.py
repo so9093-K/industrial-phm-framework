@@ -2088,9 +2088,9 @@ def _(
                             caption="Registration does not imply connectivity",
                         ),
                         mo.stat(
-                            "One-shot",
-                            label="Ingestion",
-                            caption="FILE validation or OPC UA connect/read/disconnect",
+                            "On-demand",
+                            label="Runtime actions",
+                            caption="FILE/OPC UA bounded execution",
                         ),
                     ],
                     widths="equal",
@@ -2145,6 +2145,7 @@ def _(
                     )
                 ),
                 mo.md("### Runtime execution"),
+                mo.md("#### One-shot observation"),
                 run_active_source_button,
                 (
                     mo.callout(
@@ -2178,6 +2179,26 @@ def _(
                                 title="Runtime cycle semantics",
                             )
                         )
+                    )
+                ),
+                mo.md("#### Bounded OPC UA subscription"),
+                (
+                    _subscription_runtime_evidence
+                    if _selected_is_file
+                    else mo.vstack(
+                        [
+                            collect_opcua_subscription_button,
+                            mo.callout(
+                                "Collects one bounded DataChange session with a 5 s collection "
+                                "timeout, 500 ms publishing interval and max events equal to the "
+                                "registered channel count. It records latest connection-attempt "
+                                "evidence only; receipt/freshness is not updated.",
+                                kind="info",
+                                title="Bounded collection semantics",
+                            ),
+                            _subscription_runtime_evidence,
+                        ],
+                        gap=0.6,
                     )
                 ),
                 mo.md("### Freshness policy"),
