@@ -101,6 +101,7 @@ class OperationalFinding:
         _validate_identifier(self.state, "state")
         if self.measurement_point_id is not None:
             _validate_identifier(self.measurement_point_id, "measurement_point_id")
+        _validate_aware_datetime(self.observed_at, "observed_at")
 
         if not evidence_refs:
             raise ValueError("evidence_refs must contain at least one evidence reference")
@@ -123,14 +124,9 @@ def validate_operational_finding_against_run(
         raise ValueError("finding asset_id does not match the analysis run")
     if finding.measurement_point_id != run.measurement_point_id:
         raise ValueError("finding measurement_point_id does not match the analysis run")
-
-    try:
-        outside_window = not (run.observed_start_at <= finding.observed_at <= run.observed_end_at)
-    except TypeError as error:
-        raise ValueError(
-            "finding observed_at must use timezone awareness compatible with the run"
-        ) from error
-    if outside_window:
+    if finding.capability_id not in run.capability_ids:
+        raise ValueError("finding capability_id is not declared by the analysis run")
+    if not (run.observed_start_at <= finding.observed_at <= run.observed_end_at):
         raise ValueError("finding observed_at is outside the analysis observation window")
 
 
@@ -142,11 +138,12 @@ def _validate_identifier(value: str, field_name: str) -> None:
 
 
 def _validate_time_window(start: datetime, end: datetime, label: str) -> None:
-    if _is_timezone_aware(start) != _is_timezone_aware(end):
-        raise ValueError(f"{label} time window must use the same timezone awareness")
+    _validate_aware_datetime(start, f"{label} start time")
+    _validate_aware_datetime(end, f"{label} end time")
     if start > end:
         raise ValueError(f"{label} start time must not be after end time")
 
 
-def _is_timezone_aware(value: datetime) -> bool:
-    return value.utcoffset() is not None
+def _validate_aware_datetime(value: datetime, field_name: str) -> None:
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise ValueError(f"{field_name} must be a timezone-aware datetime")
