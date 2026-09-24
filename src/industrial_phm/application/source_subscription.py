@@ -31,6 +31,7 @@ class RegisteredOpcUaSubscription:
 
     source_id: str
     asset_id: str
+    endpoint_url: str
     node_mappings: tuple[OpcUaNodeMapping, ...]
     subscription: OpcUaSubscriptionResult
     measurement_point_id: str | None = None
@@ -38,6 +39,7 @@ class RegisteredOpcUaSubscription:
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
         _validate_identifier(self.asset_id, "asset_id")
+        _validate_identifier(self.endpoint_url, "endpoint_url")
         if self.measurement_point_id is not None:
             _validate_identifier(self.measurement_point_id, "measurement_point_id")
         if not self.node_mappings:
@@ -46,6 +48,8 @@ class RegisteredOpcUaSubscription:
             raise ValueError("node_mappings must contain OpcUaNodeMapping values")
         if not isinstance(self.subscription, OpcUaSubscriptionResult):
             raise ValueError("subscription must be an OpcUaSubscriptionResult")
+        if self.subscription.endpoint_url != self.endpoint_url:
+            raise ValueError("subscription endpoint_url must match the registered OPC UA endpoint")
 
         mapping_pairs = {
             (mapping.channel_id, mapping.node_id) for mapping in self.node_mappings
@@ -99,6 +103,7 @@ async def collect_registered_opcua_source_subscription(
     return RegisteredOpcUaSubscription(
         source_id=source.source_id,
         asset_id=config.asset_id,
+        endpoint_url=config.endpoint_url,
         measurement_point_id=config.measurement_point_id,
         node_mappings=tuple(config.node_mappings),
         subscription=result,
