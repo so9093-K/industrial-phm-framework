@@ -234,6 +234,12 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
             event.source_id == registered_source.source_id
             for event in registered_subscription.events
         )
+        assert registered_subscription.coverage.configured_channel_ids == (
+            "vibration_x",
+            "temperature",
+        )
+        assert registered_subscription.coverage.missing_channel_ids == ()
+        assert registered_subscription.coverage.has_full_channel_coverage is True
 
         assert [result.state for result in poll_results] == [
             SourceRuntimeCycleState.SUCCEEDED,
