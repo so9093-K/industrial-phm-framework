@@ -246,6 +246,7 @@ def test_json_source_runtime_repository_round_trips_success_and_failed_connectio
     success = _connection_attempt(source_id="source-a")
     failed = _connection_attempt(
         source_id="source-b",
+        operation=SourceConnectionAttemptOperation.OPCUA_SUBSCRIPTION,
         outcome=SourceConnectionAttemptOutcome.FAILED,
         connected_at=None,
         attempted_at="2026-09-23T10:01:00+09:00",
@@ -267,6 +268,24 @@ def test_json_source_runtime_repository_round_trips_success_and_failed_connectio
         "source-a",
         "source-b",
     ]
+    assert [item["operation"] for item in payload["latest_connection_attempts"]] == [
+        "opcua-read",
+        "opcua-subscription",
+    ]
+
+
+
+def test_runtime_v3_connection_attempt_requires_operation_key(tmp_path: Path) -> None:
+    path = tmp_path / "runtime.json"
+    repository = JsonSourceRuntimeRepository(path)
+    repository.record_connection_attempt(_connection_attempt())
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["latest_connection_attempts"][0]["operation"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRuntimeFormatError, match="keys do not match schema"):
+        repository.list_latest_connection_attempts()
 
 
 def test_runtime_v3_writes_preserve_receipts_and_connection_attempts(
@@ -326,7 +345,6 @@ def test_runtime_v1_receipts_remain_readable_and_upgrade_on_next_write(
     assert payload["schema"] == "industrial-phm-source-runtime-v3"
     assert payload["latest_receipts"][0]["source_id"] == "legacy-source"
     assert payload["latest_connection_attempts"][0]["source_id"] == "legacy-source"
-
 
 
 
