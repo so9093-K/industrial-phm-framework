@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import ClassVar
 
@@ -87,6 +87,7 @@ class _FakeBrowseNode:
 class _FakeBrowseClient:
     root: ClassVar[_FakeBrowseNode]
     init_kwargs: ClassVar[dict[str, object]] = {}
+    exit_completed_at: ClassVar[datetime | None] = None
 
     def __init__(self, **kwargs: object) -> None:
         type(self).init_kwargs = dict(kwargs)
@@ -95,6 +96,8 @@ class _FakeBrowseClient:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        await asyncio.sleep(0.001)
+        type(self).exit_completed_at = datetime.now(UTC)
         return None
 
     def get_node(self, node_id: str) -> _FakeBrowseNode:
@@ -129,13 +132,16 @@ class _FakeSubscription:
     next_timeouts: ClassVar[list[float | None]] = []
     enter_count: ClassVar[int] = 0
     exit_count: ClassVar[int] = 0
+    exit_completed_at: ClassVar[datetime | None] = None
 
     async def __aenter__(self) -> _FakeSubscription:
         type(self).enter_count += 1
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        await asyncio.sleep(0.001)
         type(self).exit_count += 1
+        type(self).exit_completed_at = datetime.now(UTC)
         return None
 
     async def subscribe_data_change(
@@ -155,6 +161,7 @@ class _FakeSubscriptionClient:
     init_kwargs: ClassVar[dict[str, object]] = {}
     enter_count: ClassVar[int] = 0
     exit_count: ClassVar[int] = 0
+    exit_completed_at: ClassVar[datetime | None] = None
 
     def __init__(self, **kwargs: object) -> None:
         type(self).init_kwargs = dict(kwargs)
@@ -164,7 +171,9 @@ class _FakeSubscriptionClient:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        await asyncio.sleep(0.001)
         type(self).exit_count += 1
+        type(self).exit_completed_at = datetime.now(UTC)
         return None
 
     def get_node(self, node_id: str) -> _FakeSubscriptionNode:
@@ -186,6 +195,7 @@ class _FakeClient:
     init_kwargs: ClassVar[dict[str, object]] = {}
     enter_count: ClassVar[int] = 0
     exit_count: ClassVar[int] = 0
+    exit_completed_at: ClassVar[datetime | None] = None
 
     def __init__(self, **kwargs: object) -> None:
         type(self).init_kwargs = dict(kwargs)
@@ -195,7 +205,9 @@ class _FakeClient:
         return self
 
     async def __aexit__(self, *args: object) -> None:
+        await asyncio.sleep(0.001)
         type(self).exit_count += 1
+        type(self).exit_completed_at = datetime.now(UTC)
         return None
 
     def get_node(self, node_id: str) -> _FakeNode:
