@@ -410,8 +410,8 @@ async def collect_opcua_subscription_notifications(
 
             if len(notifications) >= config.max_events:
                 completion_reason = OpcUaSubscriptionCompletionReason.MAX_EVENTS
-            completed_at = datetime.now(UTC)
 
+    completed_at = datetime.now(UTC)
     return OpcUaSubscriptionResult(
         endpoint_url=config.endpoint_url,
         connected_at=connected_at,
@@ -479,8 +479,7 @@ async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult
                 elif node_class == ua.NodeClass.Object and child_depth < config.max_depth:
                     stack.append((child, child_path, child_depth))
 
-        completed_at = datetime.now(UTC)
-
+    completed_at = datetime.now(UTC)
     return OpcUaBrowseResult(
         endpoint_url=config.endpoint_url,
         connected_at=connected_at,
@@ -548,8 +547,8 @@ async def read_opcua_snapshot(config: OpcUaReadConfig) -> OpcUaReadSnapshot:
                     received_at=received_at,
                 )
             )
-        completed_at = datetime.now(UTC)
 
+    completed_at = datetime.now(UTC)
     return OpcUaReadSnapshot(
         endpoint_url=config.endpoint_url,
         connected_at=connected_at,
