@@ -60,7 +60,6 @@ class RegisteredOpcUaDataChangeEvent:
         return self.notification.observation.node_id
 
 
-
 @dataclass(frozen=True, slots=True)
 class RegisteredOpcUaSubscriptionCoverage:
     """Configured-channel coverage within one bounded subscription result.
@@ -80,12 +79,20 @@ class RegisteredOpcUaSubscriptionCoverage:
         _validate_channel_id_tuple(self.configured_channel_ids, "configured_channel_ids")
         _validate_channel_id_tuple(self.observed_channel_ids, "observed_channel_ids")
         _validate_channel_id_tuple(self.missing_channel_ids, "missing_channel_ids")
+        if not self.configured_channel_ids:
+            raise ValueError("configured_channel_ids must not be empty")
+        if not isinstance(self.has_full_channel_coverage, bool):
+            raise ValueError("has_full_channel_coverage must be boolean")
         if isinstance(self.notification_count, bool) or not isinstance(
             self.notification_count, int
         ):
             raise ValueError("notification_count must be an integer")
         if self.notification_count < 0:
             raise ValueError("notification_count must not be negative")
+        if self.notification_count < len(self.observed_channel_ids):
+            raise ValueError(
+                "notification_count must cover every observed channel at least once"
+            )
 
         configured = set(self.configured_channel_ids)
         observed = set(self.observed_channel_ids)
@@ -94,6 +101,16 @@ class RegisteredOpcUaSubscriptionCoverage:
             raise ValueError("observed_channel_ids must be configured channels")
         if missing != configured - observed:
             raise ValueError("missing_channel_ids must match configured minus observed channels")
+        expected_observed = tuple(
+            channel_id for channel_id in self.configured_channel_ids if channel_id in observed
+        )
+        expected_missing = tuple(
+            channel_id for channel_id in self.configured_channel_ids if channel_id in missing
+        )
+        if self.observed_channel_ids != expected_observed:
+            raise ValueError("observed_channel_ids must preserve configured channel order")
+        if self.missing_channel_ids != expected_missing:
+            raise ValueError("missing_channel_ids must preserve configured channel order")
         if self.has_full_channel_coverage != (not missing):
             raise ValueError(
                 "has_full_channel_coverage must match whether missing_channel_ids is empty"
@@ -221,7 +238,10 @@ async def collect_registered_opcua_source_subscription(
 def _validate_channel_id_tuple(values: tuple[str, ...], field_name: str) -> None:
     if not isinstance(values, tuple):
         raise ValueError(f"{field_name} must be a tuple")
-    if any(not isinstance(value, str) or not value.strip() or value != value.strip() for value in values):
+    if any(
+        not isinstance(value, str) or not value.strip() or value != value.strip()
+        for value in values
+    ):
         raise ValueError(f"{field_name} must contain non-empty trimmed strings")
     if len(set(values)) != len(values):
         raise ValueError(f"{field_name} must not contain duplicates")
