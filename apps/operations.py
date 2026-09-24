@@ -1421,9 +1421,9 @@ def _(
 
 @app.cell
 def _(mo):
-    get_subscription_cycle_error, set_subscription_cycle_error = mo.state("")
+    get_subscription_cycle_error, set_subscription_cycle_error = mo.state(None)
     get_subscription_cycle_result, set_subscription_cycle_result = mo.state(None)
-    get_subscription_cycle_skipped, set_subscription_cycle_skipped = mo.state("")
+    get_subscription_cycle_skipped, set_subscription_cycle_skipped = mo.state(None)
     return (
         get_subscription_cycle_error,
         get_subscription_cycle_result,
@@ -1475,6 +1475,7 @@ def _(
     Path,
     SourceFreshnessPolicy,
     clear_freshness_policy_button,
+    collect_opcua_subscription_button,
     datetime,
     freshness_age_input,
     registered_sources,
@@ -1578,6 +1579,9 @@ def _(
     runtime_cycle_skipped,
     runtime_cycle_success,
     save_freshness_policy_button,
+    subscription_cycle_error,
+    subscription_cycle_result,
+    subscription_cycle_skipped,
     source_freshness_policies,
     source_lifecycle_records,
     source_registry_default,
@@ -1838,6 +1842,141 @@ def _(
                 ],
                 gap=0.6,
             )
+
+        _selected_subscription_result = (
+            subscription_cycle_result
+            if subscription_cycle_result is not None
+            and subscription_cycle_result.source_id == _selected.source_id
+            else None
+        )
+        _selected_subscription_error = (
+            subscription_cycle_error[1]
+            if subscription_cycle_error is not None
+            and subscription_cycle_error[0] == _selected.source_id
+            else ""
+        )
+        _selected_subscription_skipped = (
+            subscription_cycle_skipped[1]
+            if subscription_cycle_skipped is not None
+            and subscription_cycle_skipped[0] == _selected.source_id
+            else ""
+        )
+        if _selected_is_file:
+            _subscription_runtime_evidence = mo.callout(
+                "Bounded DataChange collection is available only for registered OPC UA sources.",
+                kind="neutral",
+                title="Bounded subscription · Not applicable",
+            )
+        elif _selected_subscription_result is None:
+            if _selected_subscription_error:
+                _subscription_runtime_evidence = mo.callout(
+                    _selected_subscription_error,
+                    kind="danger",
+                    title="Bounded subscription failed",
+                )
+            elif _selected_subscription_skipped:
+                _subscription_runtime_evidence = mo.callout(
+                    _selected_subscription_skipped,
+                    kind="neutral",
+                    title="Bounded subscription skipped",
+                )
+            else:
+                _subscription_runtime_evidence = mo.callout(
+                    "No bounded subscription has been collected for this source in the current "
+                    "Operations session. The action runs only while lifecycle is ACTIVE.",
+                    kind="neutral",
+                    title="Bounded subscription · Not run",
+                )
+        else:
+            _subscription = _selected_subscription_result.subscription
+            if _subscription is None:
+                _subscription_runtime_evidence = mo.callout(
+                    _selected_subscription_error or "No subscription result was produced.",
+                    kind="danger",
+                    title="Bounded subscription failed",
+                )
+            else:
+                _connector_result = _subscription.subscription
+                _coverage = _subscription.coverage
+                _observed_channels = (
+                    ", ".join(_coverage.observed_channel_ids)
+                    if _coverage.observed_channel_ids
+                    else "None"
+                )
+                _missing_channels = (
+                    ", ".join(_coverage.missing_channel_ids)
+                    if _coverage.missing_channel_ids
+                    else "None"
+                )
+                _event_rows = []
+                for _event in _subscription.events:
+                    _observation = _event.notification.observation
+                    _event_value = (
+                        "Unavailable"
+                        if _observation.value is None
+                        else f"{_observation.value:g}"
+                    )
+                    _source_timestamp = (
+                        "Unavailable"
+                        if _observation.source_timestamp is None
+                        else _observation.source_timestamp.isoformat()
+                    )
+                    _event_rows.append(
+                        "| "
+                        + " | ".join(
+                            [
+                                str(_event.collection_index),
+                                escape_markdown_cell(_event.channel_id),
+                                _event_value,
+                                escape_markdown_cell(_observation.status_text),
+                                _source_timestamp,
+                                _observation.received_at.isoformat(),
+                                "yes" if _event.notification.replayed else "no",
+                            ]
+                        )
+                        + " |"
+                    )
+                _coverage_kind = "success" if _coverage.has_full_channel_coverage else "warn"
+                _subscription_runtime_evidence = mo.vstack(
+                    [
+                        (
+                            mo.callout(
+                                _selected_subscription_error,
+                                kind="danger",
+                                title="Bounded subscription runtime evidence persistence failed",
+                            )
+                            if _selected_subscription_error
+                            else mo.callout(
+                                "The bounded subscription cycle completed. Coverage means only "
+                                "that each registered channel appeared at least once; it is not "
+                                "a synchronized snapshot or analysis-ready window.",
+                                kind=_coverage_kind,
+                                title="Bounded subscription collected",
+                            )
+                        ),
+                        mo.md(
+                            "| Collection fact | Value |\n"
+                            "| --- | --- |\n"
+                            f"| Completion reason | {_connector_result.completion_reason.value} |\n"
+                            f"| Notifications | {_coverage.notification_count} |\n"
+                            f"| Configured channels | {', '.join(_coverage.configured_channel_ids)} |\n"
+                            f"| Observed channels | {_observed_channels} |\n"
+                            f"| Missing channels | {_missing_channels} |\n"
+                            f"| Full registered-channel coverage | "
+                            f"{'yes' if _coverage.has_full_channel_coverage else 'no'} |\n"
+                            f"| Connected at | {_connector_result.connected_at.isoformat()} |\n"
+                            f"| Completed at | {_connector_result.completed_at.isoformat()} |"
+                        ),
+                        mo.md(
+                            "#### Collected events\n\n"
+                            "| # | Channel | Value | OPC UA status | Source timestamp | "
+                            "Received at | Replayed |\n"
+                            "| ---: | --- | ---: | --- | --- | --- | --- |\n"
+                            + "\n".join(_event_rows)
+                        ),
+                    ],
+                    gap=0.6,
+                )
 
         if _selected_receipt is None:
             _receipt_evidence = mo.callout(
