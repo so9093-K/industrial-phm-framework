@@ -1913,9 +1913,7 @@ def _(
                 for _event in _subscription.events:
                     _observation = _event.notification.observation
                     _event_value = (
-                        "Unavailable"
-                        if _observation.value is None
-                        else f"{_observation.value:g}"
+                        "Unavailable" if _observation.value is None else f"{_observation.value:g}"
                     )
                     _source_timestamp = (
                         "Unavailable"
@@ -2488,10 +2486,7 @@ def _(
     source_selector,
     validate_distinct_source_state_paths,
 ):
-    if (
-        collect_opcua_subscription_button is not None
-        and collect_opcua_subscription_button.value
-    ):
+    if collect_opcua_subscription_button is not None and collect_opcua_subscription_button.value:
         _selected_source_id = None
         try:
             if source_selector is None:
@@ -2557,11 +2552,7 @@ def _(
                     )
                 )
             else:
-                _scope = (
-                    "unknown"
-                    if _result.failure_scope is None
-                    else _result.failure_scope.value
-                )
+                _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
                 set_subscription_cycle_result(_result)
                 set_subscription_cycle_skipped(None)
                 set_subscription_cycle_error(
