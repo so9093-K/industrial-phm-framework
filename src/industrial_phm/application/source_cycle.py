@@ -102,8 +102,15 @@ class SourceRuntimeCycleResult:
             if self.failure_scope is None:
                 raise ValueError("failed runtime cycle requires failure_scope")
             if self.failure_scope == SourceRuntimeCycleFailureScope.SOURCE:
-                if self.lifecycle_after.state != SourceLifecycleState.ERROR:
-                    raise ValueError("source failure must transition lifecycle to error")
+                if self.lifecycle_before.state != SourceLifecycleState.ACTIVE:
+                    raise ValueError("source failure requires an active lifecycle_before")
+                if (
+                    self.lifecycle_after != self.lifecycle_before
+                    and self.lifecycle_after.state != SourceLifecycleState.ERROR
+                ):
+                    raise ValueError(
+                        "source failure may only preserve active lifecycle or transition to error"
+                    )
             elif self.lifecycle_after != self.lifecycle_before:
                 raise ValueError("platform failure must not change source lifecycle")
 
@@ -236,9 +243,11 @@ async def run_registered_opcua_source_cycle(
     """Run one ACTIVE registered OPC UA one-shot read cycle.
 
     Non-ACTIVE or non-OPC-UA sources are skipped without source I/O. Explicit OPC UA
-    data-contract errors and transport OSError failures are source failures and transition
-    ACTIVE -> ERROR. Missing runtime, caller-contract, unexpected internal, and receipt
-    persistence failures remain platform failures and do not change source lifecycle.
+    data-contract errors are source failures that transition ACTIVE -> ERROR. Transport
+    OSError failures remain source-owned evidence but preserve the administrative ACTIVE
+    intent so a later runtime may retry. Missing runtime, caller-contract, unexpected
+    internal, and receipt persistence failures remain platform failures and do not change
+    source lifecycle.
     Successful reads persist bounded connection-attempt evidence before receipt evidence.
     Source-owned connector/read failures persist FAILED attempt evidence when runtime-state
     persistence is available; this evidence never implies a current connected state.
@@ -300,23 +309,13 @@ async def run_registered_opcua_source_cycle(
             source,
             received_at=received_at,
         )
-    except (OpcUaSourceError, OSError) as error:
-        attempt_completed_at = datetime.now(UTC)
-        detail = _failure_detail(error)
-        attempt = SourceConnectionAttemptEvidence(
-            source_id=source_id,
-            outcome=SourceConnectionAttemptOutcome.FAILED,
-            attempted_at=attempt_started_at,
-            completed_at=attempt_completed_at,
-            detail=detail,
+    except OpcUaSourceError as error:
+        detail = _record_failed_opcua_attempt(
+            runtime_repository,
+            source_id,
+            attempt_started_at,
+            error,
         )
-        try:
-            runtime_repository.record_connection_attempt(attempt)
-        except (OSError, ValueError) as persistence_error:
-            detail = (
-                f"{detail}; connection-attempt persistence failed: "
-                f"{_failure_detail(persistence_error)}"
-            )
         return _failed_cycle(
             lifecycle_repository,
             source_id,
@@ -325,6 +324,23 @@ async def run_registered_opcua_source_cycle(
             error,
             failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
             detail_override=detail,
+        )
+    except OSError as error:
+        detail = _record_failed_opcua_attempt(
+            runtime_repository,
+            source_id,
+            attempt_started_at,
+            error,
+        )
+        return _failed_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
+            detail_override=detail,
+            transition_source_to_error=False,
         )
     except (OpcUaRuntimeUnavailableError, ValueError) as error:
         return _failed_cycle(
@@ -399,6 +415,30 @@ async def run_registered_opcua_source_cycle(
     )
 
 
+def _record_failed_opcua_attempt(
+    runtime_repository: SourceRuntimeRepository,
+    source_id: str,
+    attempted_at: datetime,
+    error: Exception,
+) -> str:
+    completed_at = datetime.now(UTC)
+    detail = _failure_detail(error)
+    attempt = SourceConnectionAttemptEvidence(
+        source_id=source_id,
+        outcome=SourceConnectionAttemptOutcome.FAILED,
+        attempted_at=attempted_at,
+        completed_at=completed_at,
+        detail=detail,
+    )
+    try:
+        runtime_repository.record_connection_attempt(attempt)
+    except (OSError, ValueError) as persistence_error:
+        detail = (
+            f"{detail}; connection-attempt persistence failed: {_failure_detail(persistence_error)}"
+        )
+    return detail
+
+
 def _failed_cycle(
     lifecycle_repository: SourceLifecycleRepository,
     source_id: str,
@@ -409,10 +449,11 @@ def _failed_cycle(
     failure_scope: SourceRuntimeCycleFailureScope,
     received: ReceivedRegisteredFileObservation | ReceivedRegisteredOpcUaObservation | None = None,
     detail_override: str | None = None,
+    transition_source_to_error: bool = True,
 ) -> SourceRuntimeCycleResult:
     detail = _failure_detail(error) if detail_override is None else detail_override
     lifecycle_after = lifecycle_before
-    if failure_scope == SourceRuntimeCycleFailureScope.SOURCE:
+    if failure_scope == SourceRuntimeCycleFailureScope.SOURCE and transition_source_to_error:
         lifecycle_after = transition_source_lifecycle(
             lifecycle_repository,
             source_id,

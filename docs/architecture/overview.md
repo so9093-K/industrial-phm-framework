@@ -218,7 +218,8 @@ Registered-source polling runtime
     -> OPC UA : fresh async one-shot cycle per iteration
     -> SUCCEEDED : sleep interval -> next cycle
     -> SKIPPED : stop
-    -> FAILED/SOURCE : stop, lifecycle ERROR
+    -> FAILED/SOURCE : stop; lifecycle may remain ACTIVE for transient transport failure
+                        or transition to ERROR for source config/data-contract failure
     -> FAILED/PLATFORM : stop, lifecycle unchanged
     -> optional max_cycles : bounded deterministic run
 
@@ -244,7 +245,8 @@ Registered OPC UA one-shot runtime
     -> SourceReceiptEvidence
     -> latest runtime receipt persistence
     -> success : SUCCEEDED, lifecycle remains ACTIVE
-    -> explicit OPC UA data-contract / transport OSError : FAILED/SOURCE, ACTIVE -> ERROR
+    -> explicit OPC UA data-contract failure : FAILED/SOURCE, ACTIVE -> ERROR
+    -> transport OSError : FAILED/SOURCE, lifecycle remains ACTIVE
     -> platform runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
 ```
 
@@ -280,9 +282,10 @@ Operations Sources UI는 현재 file/history registration의 Discover → Mappin
 REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, ACTIVE one-shot runtime cycle, registry read surface와
 selected registered source의 on-demand Observation load까지 연결합니다. ACTIVE는 runtime execution을
 허용하는 administrative state이며 one-shot cycle이 실제로 이를 소비하지만 connection/health/continuous
-ingestion 성공을 뜻하지 않습니다. One-shot failure는 SOURCE와 PLATFORM scope를 분리합니다. Current
-source bytes의 validation/I/O failure는 lifecycle을 ERROR로 전이하지만 runtime-state persistence 같은
-platform failure는 cycle만 FAILED로 만들고 source lifecycle은 ACTIVE로 유지합니다.
+ingestion 성공을 뜻하지 않습니다. One-shot failure의 SOURCE/PLATFORM scope는 failure ownership을 나타내며
+lifecycle 전이와 동일한 개념이 아닙니다. Current file bytes의 validation/I/O 또는 OPC UA data-contract
+failure는 lifecycle을 ERROR로 전이하지만 transient OPC UA transport `OSError`와 runtime-state persistence
+같은 platform failure는 cycle만 FAILED로 만들고 source lifecycle은 ACTIVE로 유지합니다.
 `load_registered_file_source_observation`은 registration-time 검증을 현재 상태로 재사용하지 않고 매 load마다
 현재 source bytes를 기존 field CSV/timeline 경계로 재검증합니다. 따라서 registration은 observation cache나
 source-health evidence가 아닙니다. `receive_registered_file_source_observation`은 이 검증이 성공한 뒤
