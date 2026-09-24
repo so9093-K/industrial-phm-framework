@@ -38,6 +38,7 @@ def _():
         register_file_source,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
+        run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
@@ -81,6 +82,7 @@ def _():
         register_file_source,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
+        run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         ThreadPoolExecutor,
@@ -1239,8 +1241,9 @@ def _(
                 registration_type_input,
                 mo.callout(
                     "Registration and browse are separate actions. Browse performs one bounded "
-                    "anonymous session and discovers Variable identity only; subscription and "
-                    "reconnect remain unsupported.",
+                    "anonymous session and discovers Variable identity only. Registration does "
+                    "not start ingestion; bounded subscription collection is a separate runtime "
+                    "action after activation, while reconnect remains unsupported.",
                     kind="neutral",
                     title="OPC UA control-plane boundary",
                 ),
@@ -1294,6 +1297,9 @@ def _(mo, registered_sources):
             label="Run active source once",
             kind="success",
         )
+        collect_opcua_subscription_button = mo.ui.run_button(
+            label="Collect bounded subscription",
+        )
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
         )
@@ -1305,10 +1311,12 @@ def _(mo, registered_sources):
         save_freshness_policy_button = None
         clear_freshness_policy_button = None
         run_active_source_button = None
+        collect_opcua_subscription_button = None
         load_registered_source_button = None
     return (
         activate_source_button,
         clear_freshness_policy_button,
+        collect_opcua_subscription_button,
         freshness_age_input,
         load_registered_source_button,
         pause_source_button,
@@ -1410,6 +1418,37 @@ def _(
     runtime_cycle_skipped = get_runtime_cycle_skipped()
     runtime_cycle_success = get_runtime_cycle_success()
     return runtime_cycle_error, runtime_cycle_skipped, runtime_cycle_success
+
+
+@app.cell
+def _(mo):
+    get_subscription_cycle_error, set_subscription_cycle_error = mo.state(None)
+    get_subscription_cycle_result, set_subscription_cycle_result = mo.state(None)
+    get_subscription_cycle_skipped, set_subscription_cycle_skipped = mo.state(None)
+    return (
+        get_subscription_cycle_error,
+        get_subscription_cycle_result,
+        get_subscription_cycle_skipped,
+        set_subscription_cycle_error,
+        set_subscription_cycle_result,
+        set_subscription_cycle_skipped,
+    )
+
+
+@app.cell
+def _(
+    get_subscription_cycle_error,
+    get_subscription_cycle_result,
+    get_subscription_cycle_skipped,
+):
+    subscription_cycle_error = get_subscription_cycle_error()
+    subscription_cycle_result = get_subscription_cycle_result()
+    subscription_cycle_skipped = get_subscription_cycle_skipped()
+    return (
+        subscription_cycle_error,
+        subscription_cycle_result,
+        subscription_cycle_skipped,
+    )
 
 
 @app.cell
@@ -1522,6 +1561,7 @@ def _(
     assess_source_freshness,
     assess_source_health,
     clear_freshness_policy_button,
+    collect_opcua_subscription_button,
     datetime,
     freshness_age_input,
     freshness_policy_error,
@@ -1540,6 +1580,9 @@ def _(
     runtime_cycle_skipped,
     runtime_cycle_success,
     save_freshness_policy_button,
+    subscription_cycle_error,
+    subscription_cycle_result,
+    subscription_cycle_skipped,
     source_freshness_policies,
     source_lifecycle_records,
     source_registry_default,
@@ -1801,6 +1844,140 @@ def _(
                 gap=0.6,
             )
 
+        _selected_subscription_result = (
+            subscription_cycle_result
+            if subscription_cycle_result is not None
+            and subscription_cycle_result.source_id == _selected.source_id
+            else None
+        )
+        _selected_subscription_error = (
+            subscription_cycle_error[1]
+            if subscription_cycle_error is not None
+            and subscription_cycle_error[0] == _selected.source_id
+            else ""
+        )
+        _selected_subscription_skipped = (
+            subscription_cycle_skipped[1]
+            if subscription_cycle_skipped is not None
+            and subscription_cycle_skipped[0] == _selected.source_id
+            else ""
+        )
+        if _selected_is_file:
+            _subscription_runtime_evidence = mo.callout(
+                "Bounded DataChange collection is available only for registered OPC UA sources.",
+                kind="neutral",
+                title="Bounded subscription · Not applicable",
+            )
+        elif _selected_subscription_result is None:
+            if _selected_subscription_error:
+                _subscription_runtime_evidence = mo.callout(
+                    _selected_subscription_error,
+                    kind="danger",
+                    title="Bounded subscription failed",
+                )
+            elif _selected_subscription_skipped:
+                _subscription_runtime_evidence = mo.callout(
+                    _selected_subscription_skipped,
+                    kind="neutral",
+                    title="Bounded subscription skipped",
+                )
+            else:
+                _subscription_runtime_evidence = mo.callout(
+                    "No bounded subscription has been collected for this source in the current "
+                    "Operations session. The action runs only while lifecycle is ACTIVE.",
+                    kind="neutral",
+                    title="Bounded subscription · Not run",
+                )
+        else:
+            _subscription = _selected_subscription_result.subscription
+            if _subscription is None:
+                _subscription_runtime_evidence = mo.callout(
+                    _selected_subscription_error or "No subscription result was produced.",
+                    kind="danger",
+                    title="Bounded subscription failed",
+                )
+            else:
+                _connector_result = _subscription.subscription
+                _coverage = _subscription.coverage
+                _observed_channels = (
+                    ", ".join(_coverage.observed_channel_ids)
+                    if _coverage.observed_channel_ids
+                    else "None"
+                )
+                _missing_channels = (
+                    ", ".join(_coverage.missing_channel_ids)
+                    if _coverage.missing_channel_ids
+                    else "None"
+                )
+                _event_rows = []
+                for _event in _subscription.events:
+                    _observation = _event.notification.observation
+                    _event_value = (
+                        "Unavailable" if _observation.value is None else f"{_observation.value:g}"
+                    )
+                    _source_timestamp = (
+                        "Unavailable"
+                        if _observation.source_timestamp is None
+                        else _observation.source_timestamp.isoformat()
+                    )
+                    _event_rows.append(
+                        "| "
+                        + " | ".join(
+                            [
+                                str(_event.collection_index),
+                                escape_markdown_cell(_event.channel_id),
+                                _event_value,
+                                escape_markdown_cell(_observation.status_text),
+                                _source_timestamp,
+                                _observation.received_at.isoformat(),
+                                "yes" if _event.notification.replayed else "no",
+                            ]
+                        )
+                        + " |"
+                    )
+                _coverage_kind = "success" if _coverage.has_full_channel_coverage else "warn"
+                _subscription_runtime_evidence = mo.vstack(
+                    [
+                        (
+                            mo.callout(
+                                _selected_subscription_error,
+                                kind="danger",
+                                title="Bounded subscription runtime evidence persistence failed",
+                            )
+                            if _selected_subscription_error
+                            else mo.callout(
+                                "The bounded subscription cycle completed. Coverage means only "
+                                "that each registered channel appeared at least once; it is not "
+                                "a synchronized snapshot or analysis-ready window.",
+                                kind=_coverage_kind,
+                                title="Bounded subscription collected",
+                            )
+                        ),
+                        mo.md(
+                            "| Collection fact | Value |\n"
+                            "| --- | --- |\n"
+                            f"| Completion reason | {_connector_result.completion_reason.value} |\n"
+                            f"| Notifications | {_coverage.notification_count} |\n"
+                            "| Configured channels | "
+                            f"{', '.join(_coverage.configured_channel_ids)} |\n"
+                            f"| Observed channels | {_observed_channels} |\n"
+                            f"| Missing channels | {_missing_channels} |\n"
+                            f"| Full registered-channel coverage | "
+                            f"{'yes' if _coverage.has_full_channel_coverage else 'no'} |\n"
+                            f"| Connected at | {_connector_result.connected_at.isoformat()} |\n"
+                            f"| Completed at | {_connector_result.completed_at.isoformat()} |"
+                        ),
+                        mo.md(
+                            "#### Collected events\n\n"
+                            "| # | Channel | Value | OPC UA status | Source timestamp | "
+                            "Received at | Replayed |\n"
+                            "| ---: | --- | ---: | --- | --- | --- | --- |\n"
+                            + "\n".join(_event_rows)
+                        ),
+                    ],
+                    gap=0.6,
+                )
+
         if _selected_receipt is None:
             _receipt_evidence = mo.callout(
                 "No platform receipt-time evidence has been recorded for this selected source. "
@@ -1911,9 +2088,9 @@ def _(
                             caption="Registration does not imply connectivity",
                         ),
                         mo.stat(
-                            "One-shot",
-                            label="Ingestion",
-                            caption="FILE validation or OPC UA connect/read/disconnect",
+                            "On-demand",
+                            label="Runtime actions",
+                            caption="FILE/OPC UA bounded execution",
                         ),
                     ],
                     widths="equal",
@@ -1968,6 +2145,7 @@ def _(
                     )
                 ),
                 mo.md("### Runtime execution"),
+                mo.md("#### One-shot observation"),
                 run_active_source_button,
                 (
                     mo.callout(
@@ -2001,6 +2179,26 @@ def _(
                                 title="Runtime cycle semantics",
                             )
                         )
+                    )
+                ),
+                mo.md("#### Bounded OPC UA subscription"),
+                (
+                    _subscription_runtime_evidence
+                    if _selected_is_file
+                    else mo.vstack(
+                        [
+                            collect_opcua_subscription_button,
+                            mo.callout(
+                                "Collects one bounded DataChange session with a 5 s collection "
+                                "timeout, 500 ms publishing interval and max events equal to the "
+                                "registered channel count. It records latest connection-attempt "
+                                "evidence only; receipt/freshness is not updated.",
+                                kind="info",
+                                title="Bounded collection semantics",
+                            ),
+                            _subscription_runtime_evidence,
+                        ],
+                        gap=0.6,
                     )
                 ),
                 mo.md("### Freshness policy"),
@@ -2262,6 +2460,120 @@ def _(
             else:
                 set_source_runtime_connection_attempts(_runtime_connection_attempts)
                 set_source_runtime_receipts(_runtime_receipts)
+                set_source_runtime_error("")
+    return
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
+    Path,
+    SourceRuntimeCycleState,
+    ThreadPoolExecutor,
+    asyncio,
+    collect_opcua_subscription_button,
+    run_registered_opcua_subscription_cycle,
+    set_source_lifecycle_records,
+    set_source_runtime_connection_attempts,
+    set_source_runtime_error,
+    set_subscription_cycle_error,
+    set_subscription_cycle_result,
+    set_subscription_cycle_skipped,
+    source_registry_default,
+    source_runtime_default,
+    source_selector,
+    validate_distinct_source_state_paths,
+):
+    if collect_opcua_subscription_button is not None and collect_opcua_subscription_button.value:
+        _selected_source_id = None
+        try:
+            if source_selector is None:
+                raise ValueError(
+                    "select a registered OPC UA source before collecting a subscription"
+                )
+            _selected_source_id = source_selector.value
+            _registry_path = Path(source_registry_default)
+            _runtime_path = Path(source_runtime_default)
+            validate_distinct_source_state_paths(_registry_path, _runtime_path)
+            _source_repository = JsonSourceRepository(_registry_path)
+            _runtime_repository = JsonSourceRuntimeRepository(_runtime_path)
+            _source = _source_repository.get(_selected_source_id)
+            if not isinstance(_source.config, OpcUaSourceConfig):
+                raise ValueError(
+                    "bounded subscription collection is available only for OPC UA sources"
+                )
+            _max_events = max(1, len(_source.config.node_mappings))
+
+            def _run_subscription_cycle():
+                return asyncio.run(
+                    run_registered_opcua_subscription_cycle(
+                        _source_repository,
+                        _source_repository,
+                        _runtime_repository,
+                        _source.source_id,
+                        publishing_interval_ms=500.0,
+                        collection_timeout_seconds=5.0,
+                        max_events=_max_events,
+                        queue_maxsize=128,
+                    )
+                )
+
+            with ThreadPoolExecutor(max_workers=1) as _executor:
+                _result = _executor.submit(_run_subscription_cycle).result()
+
+            _sources = _source_repository.list_sources()
+            _lifecycle_records = tuple(
+                _source_repository.get_lifecycle(source.source_id) for source in _sources
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_subscription_cycle_result(None)
+            set_subscription_cycle_skipped(None)
+            set_subscription_cycle_error(
+                (
+                    "" if _selected_source_id is None else _selected_source_id,
+                    str(error),
+                )
+            )
+        else:
+            set_source_lifecycle_records(_lifecycle_records)
+            if _result.state == SourceRuntimeCycleState.SUCCEEDED:
+                set_subscription_cycle_result(_result)
+                set_subscription_cycle_error(None)
+                set_subscription_cycle_skipped(None)
+            elif _result.state == SourceRuntimeCycleState.SKIPPED:
+                set_subscription_cycle_result(None)
+                set_subscription_cycle_error(None)
+                set_subscription_cycle_skipped(
+                    (
+                        _result.source_id,
+                        _result.message or "bounded subscription cycle skipped",
+                    )
+                )
+            else:
+                _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
+                set_subscription_cycle_result(_result)
+                set_subscription_cycle_skipped(None)
+                set_subscription_cycle_error(
+                    (
+                        _result.source_id,
+                        f"{_scope} failure · "
+                        f"{_result.message or 'bounded subscription cycle failed'}",
+                    )
+                )
+
+            try:
+                _registered_ids = {source.source_id for source in _sources}
+                _runtime_connection_attempts = tuple(
+                    attempt
+                    for attempt in _runtime_repository.list_latest_connection_attempts()
+                    if attempt.source_id in _registered_ids
+                )
+            except (OSError, ValueError) as error:
+                set_source_runtime_error(str(error))
+            else:
+                set_source_runtime_connection_attempts(_runtime_connection_attempts)
                 set_source_runtime_error("")
     return
 
