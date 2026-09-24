@@ -60,6 +60,46 @@ class RegisteredOpcUaDataChangeEvent:
         return self.notification.observation.node_id
 
 
+
+@dataclass(frozen=True, slots=True)
+class RegisteredOpcUaSubscriptionCoverage:
+    """Configured-channel coverage within one bounded subscription result.
+
+    Full channel coverage means every registered channel appeared at least once in this
+    bounded collection. It does not imply timestamp alignment, a synchronized snapshot,
+    gap-free delivery, or an analysis-ready observation window.
+    """
+
+    configured_channel_ids: tuple[str, ...]
+    observed_channel_ids: tuple[str, ...]
+    missing_channel_ids: tuple[str, ...]
+    notification_count: int
+    has_full_channel_coverage: bool
+
+    def __post_init__(self) -> None:
+        _validate_channel_id_tuple(self.configured_channel_ids, "configured_channel_ids")
+        _validate_channel_id_tuple(self.observed_channel_ids, "observed_channel_ids")
+        _validate_channel_id_tuple(self.missing_channel_ids, "missing_channel_ids")
+        if isinstance(self.notification_count, bool) or not isinstance(
+            self.notification_count, int
+        ):
+            raise ValueError("notification_count must be an integer")
+        if self.notification_count < 0:
+            raise ValueError("notification_count must not be negative")
+
+        configured = set(self.configured_channel_ids)
+        observed = set(self.observed_channel_ids)
+        missing = set(self.missing_channel_ids)
+        if not observed <= configured:
+            raise ValueError("observed_channel_ids must be configured channels")
+        if missing != configured - observed:
+            raise ValueError("missing_channel_ids must match configured minus observed channels")
+        if self.has_full_channel_coverage != (not missing):
+            raise ValueError(
+                "has_full_channel_coverage must match whether missing_channel_ids is empty"
+            )
+
+
 @dataclass(frozen=True, slots=True)
 class RegisteredOpcUaSubscription:
     """One bounded subscription result tied to registered source identity and mapping.
@@ -114,6 +154,21 @@ class RegisteredOpcUaSubscription:
             for index, notification in enumerate(self.subscription.notifications)
         )
 
+    @property
+    def coverage(self) -> RegisteredOpcUaSubscriptionCoverage:
+        """Summarize registered-channel coverage for this bounded collection."""
+        configured = tuple(mapping.channel_id for mapping in self.node_mappings)
+        observed_set = {event.channel_id for event in self.events}
+        observed = tuple(channel_id for channel_id in configured if channel_id in observed_set)
+        missing = tuple(channel_id for channel_id in configured if channel_id not in observed_set)
+        return RegisteredOpcUaSubscriptionCoverage(
+            configured_channel_ids=configured,
+            observed_channel_ids=observed,
+            missing_channel_ids=missing,
+            notification_count=len(self.subscription.notifications),
+            has_full_channel_coverage=not missing,
+        )
+
 
 async def collect_registered_opcua_source_subscription(
     source_repository: SourceRepository,
@@ -161,6 +216,15 @@ async def collect_registered_opcua_source_subscription(
         node_mappings=tuple(config.node_mappings),
         subscription=result,
     )
+
+
+def _validate_channel_id_tuple(values: tuple[str, ...], field_name: str) -> None:
+    if not isinstance(values, tuple):
+        raise ValueError(f"{field_name} must be a tuple")
+    if any(not isinstance(value, str) or not value.strip() or value != value.strip() for value in values):
+        raise ValueError(f"{field_name} must contain non-empty trimmed strings")
+    if len(set(values)) != len(values):
+        raise ValueError(f"{field_name} must not contain duplicates")
 
 
 def _validate_identifier(value: str, field_name: str) -> None:
