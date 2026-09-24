@@ -11,6 +11,7 @@
 
 ### Changed
 
+- OPC UA read, bounded browse, bounded subscription의 `completed_at`을 client/subscription context teardown이 성공적으로 끝난 뒤 기록하도록 정리했습니다. 따라서 successful bounded result의 completion time은 connector 작업뿐 아니라 해당 context의 정상 종료까지 포함합니다.
 - OPC UA one-shot runtime에서 failure ownership과 administrative lifecycle을 분리했습니다. Explicit OPC UA data-contract failure는 기존처럼 `FAILED/SOURCE`와 함께 `ACTIVE → ERROR`로 전이하지만, connection refused 같은 transport `OSError`는 failed connection-attempt evidence와 `SOURCE` scope를 보존하면서 lifecycle은 `ACTIVE`로 유지합니다. 현재 polling은 여전히 failed cycle에서 중지하며 자동 retry/backoff는 추가하지 않았습니다.
 - Operations의 local prepared-source inspection 입력을 Overview에만 노출하고 Assets/Asset/Investigation/Data Quality/Maintenance/System Health에서는 반복 표시하지 않도록 정리했습니다. Persistent source registration/configuration/lifecycle/runtime action은 Sources에 집중시키며, README와 Applications 문서의 FILE/OPC UA polling 설명도 현재 type-aware CLI 동작과 일치시켰습니다.
 - Operational `AnalysisRun`의 observation/execution window와 `OperationalFinding.observed_at`을 timezone-aware absolute time으로 강제하고, finding/run validator가 `finding.capability_id`가 해당 run의 declared `capability_ids`에 포함되는지 확인하도록 강화했습니다. Ambiguous naive operational time과 run이 생산하지 않은 capability finding의 provenance 승격을 fail-fast로 차단합니다.
