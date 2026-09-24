@@ -51,9 +51,7 @@ class RegisteredOpcUaSubscription:
         if self.subscription.endpoint_url != self.endpoint_url:
             raise ValueError("subscription endpoint_url must match the registered OPC UA endpoint")
 
-        mapping_pairs = {
-            (mapping.channel_id, mapping.node_id) for mapping in self.node_mappings
-        }
+        mapping_pairs = {(mapping.channel_id, mapping.node_id) for mapping in self.node_mappings}
         for notification in self.subscription.notifications:
             observation = notification.observation
             if (observation.channel_id, observation.node_id) not in mapping_pairs:
