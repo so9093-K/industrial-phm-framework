@@ -221,7 +221,6 @@ def test_json_source_runtime_repository_rejects_schema_key_drift(tmp_path: Path)
         JsonSourceRuntimeRepository(path).list_latest_receipts()
 
 
-
 def test_connection_attempt_evidence_preserves_legacy_unspecified_default() -> None:
     attempt = SourceConnectionAttemptEvidence(
         source_id="source-a",
