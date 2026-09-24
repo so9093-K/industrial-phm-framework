@@ -26,9 +26,9 @@ from industrial_phm.application.source_runtime import (
 )
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
-    OpcUaSubscriptionConfig,
     OpcUaRuntimeUnavailableError,
     OpcUaSourceError,
+    OpcUaSubscriptionConfig,
     OpcUaSubscriptionNotification,
     OpcUaSubscriptionResult,
     collect_opcua_subscription_notifications,
@@ -199,7 +199,6 @@ class RegisteredOpcUaSubscription:
         )
 
 
-
 @dataclass(frozen=True, slots=True)
 class RegisteredOpcUaSubscriptionCycleResult:
     """Result of one lifecycle-aware bounded registered OPC UA subscription cycle."""
@@ -311,7 +310,6 @@ async def collect_registered_opcua_source_subscription(
         node_mappings=tuple(config.node_mappings),
         subscription=result,
     )
-
 
 
 async def run_registered_opcua_subscription_cycle(
