@@ -20,6 +20,7 @@ from industrial_phm.application import (  # noqa: E402
     collect_registered_opcua_source_subscription,
     poll_registered_source,
     receive_registered_opcua_source_observation,
+    run_registered_opcua_subscription_cycle,
     transition_source_lifecycle,
 )
 from industrial_phm.connectors import (  # noqa: E402
@@ -144,6 +145,22 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
                 max_events=2,
                 queue_maxsize=16,
             )
+            subscription_cycle = await run_registered_opcua_subscription_cycle(
+                source_repository,
+                source_repository,
+                runtime_repository,
+                registered_source.source_id,
+                publishing_interval_ms=50.0,
+                collection_timeout_seconds=2.0,
+                max_events=2,
+                queue_maxsize=16,
+            )
+            subscription_attempt = runtime_repository.get_latest_connection_attempt(
+                registered_source.source_id
+            )
+            subscription_receipt = runtime_repository.get_latest_receipt(
+                registered_source.source_id
+            )
 
             poll_results = await asyncio.to_thread(
                 lambda: tuple(
@@ -240,6 +257,15 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         )
         assert registered_subscription.coverage.missing_channel_ids == ()
         assert registered_subscription.coverage.has_full_channel_coverage is True
+
+        assert subscription_cycle.state == SourceRuntimeCycleState.SUCCEEDED
+        assert subscription_cycle.subscription is not None
+        assert subscription_cycle.subscription.coverage.has_full_channel_coverage is True
+        assert subscription_attempt is not None
+        assert subscription_attempt.outcome == SourceConnectionAttemptOutcome.SUCCEEDED
+        assert subscription_attempt.connected_at is not None
+        assert subscription_attempt.completed_at >= subscription_attempt.connected_at
+        assert subscription_receipt is None
 
         assert [result.state for result in poll_results] == [
             SourceRuntimeCycleState.SUCCEEDED,

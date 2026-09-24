@@ -94,7 +94,9 @@ from industrial_phm.application.source_subscription import (
     RegisteredOpcUaDataChangeEvent,
     RegisteredOpcUaSubscription,
     RegisteredOpcUaSubscriptionCoverage,
+    RegisteredOpcUaSubscriptionCycleResult,
     collect_registered_opcua_source_subscription,
+    run_registered_opcua_subscription_cycle,
 )
 
 __all__ = [
@@ -119,6 +121,7 @@ __all__ = [
     "RegisteredOpcUaObservation",
     "RegisteredOpcUaSubscription",
     "RegisteredOpcUaSubscriptionCoverage",
+    "RegisteredOpcUaSubscriptionCycleResult",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
     "SourceConnectionAttemptEvidence",
@@ -162,6 +165,7 @@ __all__ = [
     "register_file_source",
     "run_registered_file_source_cycle",
     "run_registered_opcua_source_cycle",
+    "run_registered_opcua_subscription_cycle",
     "transition_source_lifecycle",
     "validate_distinct_source_state_paths",
     "validate_operational_finding_against_run",

@@ -3,17 +3,31 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
+from industrial_phm.application.source_cycle import (
+    SourceRuntimeCycleFailureScope,
+    SourceRuntimeCycleState,
+)
 from industrial_phm.application.source_lifecycle import (
+    SourceLifecycleRecord,
     SourceLifecycleRepository,
     SourceLifecycleState,
+    transition_source_lifecycle,
 )
 from industrial_phm.application.source_registration import (
     OpcUaSourceConfig,
     SourceRepository,
 )
+from industrial_phm.application.source_runtime import (
+    SourceConnectionAttemptEvidence,
+    SourceConnectionAttemptOutcome,
+    SourceRuntimeRepository,
+)
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
+    OpcUaRuntimeUnavailableError,
+    OpcUaSourceError,
     OpcUaSubscriptionConfig,
     OpcUaSubscriptionNotification,
     OpcUaSubscriptionResult,
@@ -185,6 +199,71 @@ class RegisteredOpcUaSubscription:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class RegisteredOpcUaSubscriptionCycleResult:
+    """Result of one lifecycle-aware bounded registered OPC UA subscription cycle."""
+
+    source_id: str
+    state: SourceRuntimeCycleState
+    executed_at: datetime
+    lifecycle_before: SourceLifecycleRecord
+    lifecycle_after: SourceLifecycleRecord
+    subscription: RegisteredOpcUaSubscription | None = None
+    failure_scope: SourceRuntimeCycleFailureScope | None = None
+    message: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.source_id, "source_id")
+        if not isinstance(self.state, SourceRuntimeCycleState):
+            raise ValueError("state must be a SourceRuntimeCycleState")
+        if self.failure_scope is not None and not isinstance(
+            self.failure_scope,
+            SourceRuntimeCycleFailureScope,
+        ):
+            raise ValueError("failure_scope must be a SourceRuntimeCycleFailureScope when provided")
+        _validate_aware_datetime(self.executed_at, "executed_at")
+        if self.lifecycle_before.source_id != self.source_id:
+            raise ValueError("lifecycle_before must match source_id")
+        if self.lifecycle_after.source_id != self.source_id:
+            raise ValueError("lifecycle_after must match source_id")
+
+        if self.state == SourceRuntimeCycleState.SUCCEEDED:
+            if self.subscription is None:
+                raise ValueError("succeeded subscription cycle requires subscription result")
+            if self.failure_scope is not None:
+                raise ValueError("succeeded subscription cycle must not carry failure_scope")
+            if self.message is not None:
+                raise ValueError("succeeded subscription cycle must not carry a message")
+            if self.lifecycle_after.state != SourceLifecycleState.ACTIVE:
+                raise ValueError("succeeded subscription cycle must remain active")
+        else:
+            if self.message is None or not self.message.strip():
+                raise ValueError("non-success subscription cycle requires a message")
+
+        if self.state == SourceRuntimeCycleState.SKIPPED:
+            if self.subscription is not None:
+                raise ValueError("skipped subscription cycle must not carry subscription result")
+            if self.failure_scope is not None:
+                raise ValueError("skipped subscription cycle must not carry failure_scope")
+            if self.lifecycle_after != self.lifecycle_before:
+                raise ValueError("skipped subscription cycle must not change lifecycle")
+        elif self.state == SourceRuntimeCycleState.FAILED:
+            if self.failure_scope is None:
+                raise ValueError("failed subscription cycle requires failure_scope")
+            if self.failure_scope == SourceRuntimeCycleFailureScope.SOURCE:
+                if self.lifecycle_before.state != SourceLifecycleState.ACTIVE:
+                    raise ValueError("source failure requires an active lifecycle_before")
+                if (
+                    self.lifecycle_after != self.lifecycle_before
+                    and self.lifecycle_after.state != SourceLifecycleState.ERROR
+                ):
+                    raise ValueError(
+                        "source failure may only preserve active lifecycle or transition to error"
+                    )
+            elif self.lifecycle_after != self.lifecycle_before:
+                raise ValueError("platform failure must not change source lifecycle")
+
+
 async def collect_registered_opcua_source_subscription(
     source_repository: SourceRepository,
     lifecycle_repository: SourceLifecycleRepository,
@@ -231,6 +310,228 @@ async def collect_registered_opcua_source_subscription(
         node_mappings=tuple(config.node_mappings),
         subscription=result,
     )
+
+
+async def run_registered_opcua_subscription_cycle(
+    source_repository: SourceRepository,
+    lifecycle_repository: SourceLifecycleRepository,
+    runtime_repository: SourceRuntimeRepository,
+    source_id: str,
+    *,
+    executed_at: datetime | None = None,
+    publishing_interval_ms: float = 500.0,
+    collection_timeout_seconds: float = 5.0,
+    max_events: int = 1,
+    queue_maxsize: int = 128,
+) -> RegisteredOpcUaSubscriptionCycleResult:
+    """Run one lifecycle-aware bounded subscription cycle for an ACTIVE OPC UA source.
+
+    The cycle persists latest connection-attempt evidence only. It does not create receipt
+    evidence or freshness because bounded DataChange channel coverage is not a complete
+    operational observation/window.
+    """
+    source = source_repository.get(source_id)
+    lifecycle_before = lifecycle_repository.get_lifecycle(source_id)
+    cycle_time = datetime.now(UTC) if executed_at is None else executed_at
+    _validate_cycle_time(cycle_time, lifecycle_before)
+
+    if lifecycle_before.state != SourceLifecycleState.ACTIVE:
+        return RegisteredOpcUaSubscriptionCycleResult(
+            source_id=source_id,
+            state=SourceRuntimeCycleState.SKIPPED,
+            executed_at=cycle_time,
+            lifecycle_before=lifecycle_before,
+            lifecycle_after=lifecycle_before,
+            message=(
+                f"source lifecycle is {lifecycle_before.state.value}; "
+                "subscription cycle requires active"
+            ),
+        )
+
+    if not isinstance(source.config, OpcUaSourceConfig):
+        return RegisteredOpcUaSubscriptionCycleResult(
+            source_id=source_id,
+            state=SourceRuntimeCycleState.SKIPPED,
+            executed_at=cycle_time,
+            lifecycle_before=lifecycle_before,
+            lifecycle_after=lifecycle_before,
+            message=(
+                f"registered source type is {source.source_type.value}; "
+                "opcua subscription cycle requires opcua"
+            ),
+        )
+
+    attempt_started_at = datetime.now(UTC)
+    try:
+        subscription = await collect_registered_opcua_source_subscription(
+            source_repository,
+            lifecycle_repository,
+            source_id,
+            publishing_interval_ms=publishing_interval_ms,
+            collection_timeout_seconds=collection_timeout_seconds,
+            max_events=max_events,
+            queue_maxsize=queue_maxsize,
+        )
+    except OpcUaSourceError as error:
+        detail = _record_failed_subscription_attempt(
+            runtime_repository,
+            source_id,
+            attempt_started_at,
+            error,
+        )
+        return _failed_subscription_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
+            detail_override=detail,
+        )
+    except OSError as error:
+        detail = _record_failed_subscription_attempt(
+            runtime_repository,
+            source_id,
+            attempt_started_at,
+            error,
+        )
+        return _failed_subscription_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.SOURCE,
+            detail_override=detail,
+            transition_source_to_error=False,
+        )
+    except (OpcUaRuntimeUnavailableError, ValueError) as error:
+        return _failed_subscription_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+        )
+    except Exception as error:
+        return _failed_subscription_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+        )
+
+    connector_result = subscription.subscription
+    attempt = SourceConnectionAttemptEvidence(
+        source_id=source_id,
+        outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
+        attempted_at=min(attempt_started_at, connector_result.connected_at),
+        connected_at=connector_result.connected_at,
+        completed_at=connector_result.completed_at,
+    )
+    try:
+        runtime_repository.record_connection_attempt(attempt)
+    except (OSError, ValueError) as error:
+        return _failed_subscription_cycle(
+            lifecycle_repository,
+            source_id,
+            lifecycle_before,
+            cycle_time,
+            error,
+            failure_scope=SourceRuntimeCycleFailureScope.PLATFORM,
+            subscription=subscription,
+        )
+
+    return RegisteredOpcUaSubscriptionCycleResult(
+        source_id=source_id,
+        state=SourceRuntimeCycleState.SUCCEEDED,
+        executed_at=cycle_time,
+        lifecycle_before=lifecycle_before,
+        lifecycle_after=lifecycle_before,
+        subscription=subscription,
+    )
+
+
+def _record_failed_subscription_attempt(
+    runtime_repository: SourceRuntimeRepository,
+    source_id: str,
+    attempted_at: datetime,
+    error: Exception,
+) -> str:
+    completed_at = datetime.now(UTC)
+    detail = _failure_detail(error)
+    attempt = SourceConnectionAttemptEvidence(
+        source_id=source_id,
+        outcome=SourceConnectionAttemptOutcome.FAILED,
+        attempted_at=attempted_at,
+        completed_at=completed_at,
+        detail=detail,
+    )
+    try:
+        runtime_repository.record_connection_attempt(attempt)
+    except (OSError, ValueError) as persistence_error:
+        detail = (
+            f"{detail}; connection-attempt persistence failed: {_failure_detail(persistence_error)}"
+        )
+    return detail
+
+
+def _failed_subscription_cycle(
+    lifecycle_repository: SourceLifecycleRepository,
+    source_id: str,
+    lifecycle_before: SourceLifecycleRecord,
+    cycle_time: datetime,
+    error: Exception,
+    *,
+    failure_scope: SourceRuntimeCycleFailureScope,
+    subscription: RegisteredOpcUaSubscription | None = None,
+    detail_override: str | None = None,
+    transition_source_to_error: bool = True,
+) -> RegisteredOpcUaSubscriptionCycleResult:
+    detail = _failure_detail(error) if detail_override is None else detail_override
+    lifecycle_after = lifecycle_before
+    if failure_scope == SourceRuntimeCycleFailureScope.SOURCE and transition_source_to_error:
+        lifecycle_after = transition_source_lifecycle(
+            lifecycle_repository,
+            source_id,
+            SourceLifecycleState.ERROR,
+            changed_at=cycle_time,
+            detail=detail,
+        )
+    return RegisteredOpcUaSubscriptionCycleResult(
+        source_id=source_id,
+        state=SourceRuntimeCycleState.FAILED,
+        executed_at=cycle_time,
+        lifecycle_before=lifecycle_before,
+        lifecycle_after=lifecycle_after,
+        subscription=subscription,
+        failure_scope=failure_scope,
+        message=detail,
+    )
+
+
+def _validate_cycle_time(
+    executed_at: datetime,
+    lifecycle: SourceLifecycleRecord,
+) -> None:
+    _validate_aware_datetime(executed_at, "executed_at")
+    if executed_at < lifecycle.changed_at:
+        raise ValueError("executed_at must not be before the current lifecycle change")
+
+
+def _failure_detail(error: Exception) -> str:
+    message = str(error).strip()
+    if message:
+        return f"{type(error).__name__}: {message}"
+    return type(error).__name__
+
+
+def _validate_aware_datetime(value: datetime, field_name: str) -> None:
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise ValueError(f"{field_name} must be a timezone-aware datetime")
 
 
 def _validate_channel_id_tuple(values: tuple[str, ...], field_name: str) -> None:
