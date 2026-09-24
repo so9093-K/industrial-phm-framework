@@ -32,6 +32,7 @@ def _opcua_source() -> RegisteredSource:
         config=OpcUaSourceConfig(
             endpoint_url="opc.tcp://plc.example.test:4840",
             asset_id="pump-01",
+            endpoint_url="opc.tcp://plc.example.test:4840",
             measurement_point_id="drive-end",
             node_mappings=(
                 OpcUaNodeMapping(
@@ -100,6 +101,7 @@ def test_registered_opcua_subscription_reuses_registered_mapping_and_runtime_bou
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository, source = _repositories(tmp_path)
+    assert isinstance(source.config, OpcUaSourceConfig)
     connector_result = _subscription_result()
     captured: OpcUaSubscriptionConfig | None = None
 
@@ -137,6 +139,7 @@ def test_registered_opcua_subscription_reuses_registered_mapping_and_runtime_bou
 
     assert result.source_id == source.source_id
     assert result.asset_id == source.asset_id
+    assert result.endpoint_url == source.config.endpoint_url
     assert result.measurement_point_id == source.measurement_point_id
     assert result.node_mappings == source.config.node_mappings
     assert result.subscription == connector_result
