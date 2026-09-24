@@ -251,7 +251,16 @@ Registered OPC UA bounded subscription application
     -> full coverage only when every registered channel appeared at least once
   Full channel coverage still does not imply timestamp alignment, synchronized snapshot,
   gap-free delivery, or an analysis-ready observation/window.
-  No runtime persistence, Operations action, reconnect, or continuous ingestion is added.
+  Lifecycle-aware bounded subscription runtime cycle
+    -> ACTIVE registered OPC UA source only
+    -> same bounded subscription application boundary
+    -> latest SourceConnectionAttemptEvidence persistence
+    -> success keeps ACTIVE
+    -> OPC UA data-contract failure: FAILED/SOURCE, ACTIVE -> ERROR
+    -> transport OSError: FAILED/SOURCE, lifecycle remains ACTIVE
+    -> platform/runtime-state failure: FAILED/PLATFORM, lifecycle unchanged
+    -> no SourceReceiptEvidence or freshness update
+  Notification persistence, Operations action, reconnect, or continuous ingestion is not added.
 
 Registered OPC UA one-shot runtime
   RegisteredSource(OPCUA) + ACTIVE lifecycle
