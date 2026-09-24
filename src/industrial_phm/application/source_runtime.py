@@ -64,18 +64,19 @@ class SourceConnectionAttemptEvidence:
     """Latest bounded connector/session attempt evidence for one source.
 
     This is historical attempt evidence, not a claim that the source is connected now.
-    A successful attempt requires a measured connected_at inside the attempted/completed
-    interval. A failed attempt requires concrete detail and may not know whether a
-    connection was ever established.
+    Operation identifies the producer when known; legacy or caller-created evidence may
+    remain LEGACY_UNSPECIFIED rather than being guessed. A successful attempt requires a
+    measured connected_at inside the attempted/completed interval. A failed attempt
+    requires concrete detail and may not know whether a connection was ever established.
     """
 
     source_id: str
-    operation: SourceConnectionAttemptOperation
     outcome: SourceConnectionAttemptOutcome
     attempted_at: datetime
     completed_at: datetime
     connected_at: datetime | None = None
     detail: str | None = None
+    operation: SourceConnectionAttemptOperation = SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
 
     def __post_init__(self) -> None:
         _validate_source_id(self.source_id)
