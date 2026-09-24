@@ -15,9 +15,50 @@ from industrial_phm.application.source_registration import (
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
     OpcUaSubscriptionConfig,
+    OpcUaSubscriptionNotification,
     OpcUaSubscriptionResult,
     collect_opcua_subscription_notifications,
 )
+
+
+
+@dataclass(frozen=True, slots=True)
+class RegisteredOpcUaDataChangeEvent:
+    """One registered-source DataChange event with application identity.
+
+    collection_index is the zero-based order in this bounded collection result. It is
+    not an OPC UA server sequence number and does not prove gap-free delivery.
+    """
+
+    source_id: str
+    asset_id: str
+    endpoint_url: str
+    collection_index: int
+    notification: OpcUaSubscriptionNotification
+    measurement_point_id: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.source_id, "source_id")
+        _validate_identifier(self.asset_id, "asset_id")
+        _validate_identifier(self.endpoint_url, "endpoint_url")
+        if self.measurement_point_id is not None:
+            _validate_identifier(self.measurement_point_id, "measurement_point_id")
+        if isinstance(self.collection_index, bool) or not isinstance(self.collection_index, int):
+            raise ValueError("collection_index must be an integer")
+        if self.collection_index < 0:
+            raise ValueError("collection_index must not be negative")
+        if not isinstance(self.notification, OpcUaSubscriptionNotification):
+            raise ValueError("notification must be an OpcUaSubscriptionNotification")
+
+    @property
+    def channel_id(self) -> str:
+        """Return the registered channel carried by this event."""
+        return self.notification.observation.channel_id
+
+    @property
+    def node_id(self) -> str:
+        """Return the OPC UA NodeId carried by this event."""
+        return self.notification.observation.node_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +99,21 @@ class RegisteredOpcUaSubscription:
                 raise ValueError(
                     "subscription notification must match the registered OPC UA mapping"
                 )
+
+    @property
+    def events(self) -> tuple[RegisteredOpcUaDataChangeEvent, ...]:
+        """Return event-level application identity without inventing stream completeness."""
+        return tuple(
+            RegisteredOpcUaDataChangeEvent(
+                source_id=self.source_id,
+                asset_id=self.asset_id,
+                endpoint_url=self.endpoint_url,
+                measurement_point_id=self.measurement_point_id,
+                collection_index=index,
+                notification=notification,
+            )
+            for index, notification in enumerate(self.subscription.notifications)
+        )
 
 
 async def collect_registered_opcua_source_subscription(
