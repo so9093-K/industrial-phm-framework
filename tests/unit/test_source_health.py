@@ -4,6 +4,7 @@ import pytest
 
 from industrial_phm.application import (
     SourceConnectionAttemptEvidence,
+    SourceConnectionAttemptOperation,
     SourceConnectionAttemptOutcome,
     SourceConnectionState,
     SourceDataFlowState,
@@ -48,6 +49,7 @@ def _attempt(
 ) -> SourceConnectionAttemptEvidence:
     return SourceConnectionAttemptEvidence(
         source_id=source_id,
+        operation=SourceConnectionAttemptOperation.OPCUA_READ,
         outcome=outcome,
         attempted_at=datetime.fromisoformat("2026-09-23T10:03:58+09:00"),
         connected_at=(
