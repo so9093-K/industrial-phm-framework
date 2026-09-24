@@ -474,8 +474,7 @@ def _record_failed_subscription_attempt(
         runtime_repository.record_connection_attempt(attempt)
     except (OSError, ValueError) as persistence_error:
         detail = (
-            f"{detail}; connection-attempt persistence failed: "
-            f"{_failure_detail(persistence_error)}"
+            f"{detail}; connection-attempt persistence failed: {_failure_detail(persistence_error)}"
         )
     return detail
 
