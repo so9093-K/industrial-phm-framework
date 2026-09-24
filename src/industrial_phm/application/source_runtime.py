@@ -76,7 +76,9 @@ class SourceConnectionAttemptEvidence:
     completed_at: datetime
     connected_at: datetime | None = None
     detail: str | None = None
-    operation: SourceConnectionAttemptOperation = SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
+    operation: SourceConnectionAttemptOperation = (
+        SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
+    )
 
     def __post_init__(self) -> None:
         _validate_source_id(self.source_id)
