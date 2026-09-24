@@ -677,7 +677,9 @@ RUL·diagnosis·새 모델·새 source를 같은 시스템 안에서 확장합�
 
 Operations UI의 첫 vertical slice는 `apps/operations.py`로 구현합니다. 이 surface의 목적은 현재 구현된
 capability만 모아 작은 화면을 만드는 것이 아니라, 운영 사용자가 실제로 필요로 하는 정보 구조를 먼저
-고정하고 각 값의 evidence 상태를 명확히 구분하는 것입니다.
+고정하고 각 값의 evidence 상태를 명확히 구분하는 것입니다. Local prepared-source inspection 입력은 Overview에만
+두고, persistent source registration/configuration/lifecycle/runtime action은 Sources가 소유해 운영 화면 전반에
+configuration 입력이 반복 노출되지 않게 합니다.
 
 ```text
 Operations

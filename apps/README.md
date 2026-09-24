@@ -15,10 +15,11 @@
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-현재 bootstrap은 **prepared single-asset CSV snapshot** 또는 같은 asset/measurement point의
-**timestamped CSV history directory**입니다. 화면의 **Field source bootstrap**에서 single source path 또는
+현재 local inspection 입력은 **prepared single-asset CSV snapshot** 또는 같은 asset/measurement point의
+**timestamped CSV history directory**입니다. **Overview → Prepared source inspection**에서 single source path 또는
 history directory, asset/source ID, optional measurement point, channel과 time mapping을 입력합니다. History
-directory가 지정되면 single source보다 우선합니다.
+directory가 지정되면 single source보다 우선합니다. 이 입력은 Overview에서만 노출하고, 지속적으로 관리할
+registered source의 설정·lifecycle·runtime action은 **Sources**가 소유합니다.
 
 **Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity와 type-specific configuration을 표시합니다. **Add source**의 type selector에서 FILE 또는 OPC UA를 선택할 수 있습니다. FILE은 file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
@@ -34,8 +35,8 @@ export INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME="/path/to/source-runtime.json"
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-Sources 화면에서는 기존 **Field source bootstrap**을 숨겨 registration control plane과 일회성 prepared-source
-inspection 입력이 같은 제품 흐름처럼 보이지 않게 합니다. **Add source**는 prepared CSV file/history-directory와
+Sources 화면은 persistent registration/control-plane 흐름만 보여주고 Overview의 일회성 prepared-source
+inspection 입력을 반복 노출하지 않습니다. **Add source**는 prepared CSV file/history-directory와
 OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있으며 Operations의 **Run active source once**가 FILE/OPC UA를 type-specific dispatch합니다. Connector에는 별도 bounded DataChange subscription API가 있지만 아직 registered-source application runtime이나 Operations action에는 연결하지 않습니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. OPC UA 성공은 receipt/freshness state를 갱신하고 protocol snapshot을 canonical `AssetObservationSummary`로 projection합니다. One-shot iteration은 `sample_count=1`로 표현하고 mapped channel identity를 보존하며, 모든 mapped node에 SourceTimestamp가 있을 때만 conservative complete-channel watermark를 observed start/end로 사용합니다. Non-good OPC UA status는 `opcua-non-good-status` data-quality ERROR로 aggregate하고 sampling rate/file provenance는 추정하지 않습니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
@@ -117,7 +118,7 @@ background daemon, retry/backoff, buffering, connector session은 아직 구현�
 
 ### Registered-source polling runtime
 
-CLI에서는 ACTIVE registered file/history source를 명시적 interval로 반복 실행할 수 있습니다.
+CLI에서는 ACTIVE registered FILE 또는 OPC UA source를 명시적 interval로 반복 실행할 수 있습니다.
 
 ```bash
 uv run --locked industrial-phm operations poll-source \
@@ -128,10 +129,11 @@ uv run --locked industrial-phm operations poll-source \
 ```
 
 `SourcePollingPolicy`는 positive finite interval과 optional positive `max_cycles`를 소유합니다. Polling은
-`run_registered_file_source_cycle`을 그대로 재사용하고 success 사이에서만 sleep합니다. REGISTERED/PAUSED/
-ERROR로 SKIPPED되거나 SOURCE/PLATFORM failure가 발생하면 즉시 종료합니다. Platform failure를 자동
-재시도하지 않는 이유는 retry/backoff policy가 아직 구현되지 않았기 때문입니다. `--max-cycles`를 생략한
-CLI는 현재 process가 Ctrl+C를 받을 때까지 반복할 수 있지만 별도 service/background task를 만들지는 않습니다.
+registered source type에 따라 FILE one-shot validation cycle 또는 OPC UA fresh connect/read/disconnect cycle을
+반복하고 success 사이에서만 sleep합니다. REGISTERED/PAUSED/ERROR로 SKIPPED되거나 SOURCE/PLATFORM failure가
+발생하면 즉시 종료합니다. Platform failure를 자동 재시도하지 않는 이유는 retry/backoff policy가 아직 구현되지
+않았기 때문입니다. `--max-cycles`를 생략한 CLI는 현재 process가 Ctrl+C를 받을 때까지 반복할 수 있지만 별도
+service/background task를 만들지는 않습니다.
 
 ### Source health assessment
 

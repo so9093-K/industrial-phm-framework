@@ -3017,15 +3017,14 @@ def _(
 ):
     source_setup = mo.accordion(
         {
-            "Field source bootstrap": mo.vstack(
+            "Prepared source inspection": mo.vstack(
                 [
                     mo.md(
-                        "현재 Operations prototype은 prepared single-asset CSV "
-                        "snapshot 또는 동일 asset의 timestamped CSV history directory를 "
-                        "application boundary를 통해 읽습니다. History directory가 "
-                        "입력되면 single CSV보다 우선합니다. 등록 source는 Sources에서 "
-                        "별도 persistent control-plane record로 확인할 수 있으며, 이 bootstrap은 "
-                        "historian/API나 continuous ingestion을 대신하는 영구 제품 계약이 아닙니다."
+                        "로컬 prepared CSV snapshot/history를 일회성으로 확인하는 입력입니다. "
+                        "지속적으로 관리할 source는 Sources에서 등록·실행합니다. "
+                        "History directory가 입력되면 single CSV보다 우선하며, "
+                        "이 inspection 입력은 "
+                        "historian/API나 continuous ingestion을 의미하지 않습니다."
                     ),
                     source_input,
                     history_directory_input,
@@ -3078,7 +3077,7 @@ def _(
         ),
         page_selector,
     ]
-    if page_selector.value != "Sources":
+    if page_selector.value == "Overview":
         _header_items.append(source_setup)
     header = mo.vstack(_header_items, gap=1.0)
     mo.vstack([header, views[page_selector.value]], gap=1.5)
