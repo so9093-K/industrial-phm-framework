@@ -82,10 +82,6 @@ from industrial_phm.application.source_registry import (
     JsonSourceRepository,
     SourceRegistryFormatError,
 )
-from industrial_phm.application.source_subscription import (
-    RegisteredOpcUaSubscription,
-    collect_registered_opcua_source_subscription,
-)
 from industrial_phm.application.source_runtime import (
     JsonSourceRuntimeRepository,
     SourceConnectionAttemptEvidence,
@@ -93,6 +89,10 @@ from industrial_phm.application.source_runtime import (
     SourceRuntimeFormatError,
     SourceRuntimeRepository,
     validate_distinct_source_state_paths,
+)
+from industrial_phm.application.source_subscription import (
+    RegisteredOpcUaSubscription,
+    collect_registered_opcua_source_subscription,
 )
 
 __all__ = [
