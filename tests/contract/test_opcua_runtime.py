@@ -90,6 +90,8 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
             registered_at=datetime(2026, 9, 23, 0, 59, 0, tzinfo=UTC),
         )
 
+        assert isinstance(registered_source.config, OpcUaSourceConfig)
+
         source_repository = JsonSourceRepository(tmp_path / "source-registry.json")
         runtime_repository = JsonSourceRuntimeRepository(tmp_path / "source-runtime.json")
         source_repository.register(registered_source)
@@ -213,6 +215,7 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
 
         assert registered_subscription.source_id == registered_source.source_id
         assert registered_subscription.asset_id == registered_source.asset_id
+        assert registered_subscription.endpoint_url == registered_source.config.endpoint_url
         assert (
             registered_subscription.measurement_point_id
             == registered_source.measurement_point_id
