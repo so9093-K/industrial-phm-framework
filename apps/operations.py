@@ -38,6 +38,7 @@ def _():
         register_file_source,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
+        run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
@@ -81,6 +82,7 @@ def _():
         register_file_source,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
+        run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         ThreadPoolExecutor,
@@ -1294,6 +1296,9 @@ def _(mo, registered_sources):
             label="Run active source once",
             kind="success",
         )
+        collect_opcua_subscription_button = mo.ui.run_button(
+            label="Collect bounded subscription",
+        )
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
         )
@@ -1305,10 +1310,12 @@ def _(mo, registered_sources):
         save_freshness_policy_button = None
         clear_freshness_policy_button = None
         run_active_source_button = None
+        collect_opcua_subscription_button = None
         load_registered_source_button = None
     return (
         activate_source_button,
         clear_freshness_policy_button,
+        collect_opcua_subscription_button,
         freshness_age_input,
         load_registered_source_button,
         pause_source_button,
@@ -1410,6 +1417,37 @@ def _(
     runtime_cycle_skipped = get_runtime_cycle_skipped()
     runtime_cycle_success = get_runtime_cycle_success()
     return runtime_cycle_error, runtime_cycle_skipped, runtime_cycle_success
+
+
+@app.cell
+def _(mo):
+    get_subscription_cycle_error, set_subscription_cycle_error = mo.state("")
+    get_subscription_cycle_result, set_subscription_cycle_result = mo.state(None)
+    get_subscription_cycle_skipped, set_subscription_cycle_skipped = mo.state("")
+    return (
+        get_subscription_cycle_error,
+        get_subscription_cycle_result,
+        get_subscription_cycle_skipped,
+        set_subscription_cycle_error,
+        set_subscription_cycle_result,
+        set_subscription_cycle_skipped,
+    )
+
+
+@app.cell
+def _(
+    get_subscription_cycle_error,
+    get_subscription_cycle_result,
+    get_subscription_cycle_skipped,
+):
+    subscription_cycle_error = get_subscription_cycle_error()
+    subscription_cycle_result = get_subscription_cycle_result()
+    subscription_cycle_skipped = get_subscription_cycle_skipped()
+    return (
+        subscription_cycle_error,
+        subscription_cycle_result,
+        subscription_cycle_skipped,
+    )
 
 
 @app.cell
