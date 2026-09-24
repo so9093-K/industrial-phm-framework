@@ -17,6 +17,7 @@ from industrial_phm.application import (  # noqa: E402
     SourceLifecycleState,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
+    collect_registered_opcua_source_subscription,
     poll_registered_source,
     receive_registered_opcua_source_observation,
     transition_source_lifecycle,
@@ -89,6 +90,8 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
             registered_at=datetime(2026, 9, 23, 0, 59, 0, tzinfo=UTC),
         )
 
+        assert isinstance(registered_source.config, OpcUaSourceConfig)
+
         source_repository = JsonSourceRepository(tmp_path / "source-registry.json")
         runtime_repository = JsonSourceRuntimeRepository(tmp_path / "source-runtime.json")
         source_repository.register(registered_source)
@@ -131,6 +134,15 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
                     max_events=2,
                     queue_maxsize=16,
                 )
+            )
+            registered_subscription = await collect_registered_opcua_source_subscription(
+                source_repository,
+                source_repository,
+                registered_source.source_id,
+                publishing_interval_ms=50.0,
+                collection_timeout_seconds=2.0,
+                max_events=2,
+                queue_maxsize=16,
             )
 
             poll_results = await asyncio.to_thread(
@@ -200,6 +212,19 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         assert notifications_by_channel["temperature"].observation.value is None
         assert notifications_by_channel["temperature"].observation.status_good is False
         assert all(item.replayed is False for item in subscription_result.notifications)
+
+        assert registered_subscription.source_id == registered_source.source_id
+        assert registered_subscription.asset_id == registered_source.asset_id
+        assert registered_subscription.endpoint_url == registered_source.config.endpoint_url
+        assert (
+            registered_subscription.measurement_point_id == registered_source.measurement_point_id
+        )
+        assert registered_subscription.node_mappings == registered_source.config.node_mappings
+        assert (
+            registered_subscription.subscription.completion_reason
+            == OpcUaSubscriptionCompletionReason.MAX_EVENTS
+        )
+        assert len(registered_subscription.subscription.notifications) == 2
 
         assert [result.state for result in poll_results] == [
             SourceRuntimeCycleState.SUCCEEDED,

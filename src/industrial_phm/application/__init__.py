@@ -90,6 +90,10 @@ from industrial_phm.application.source_runtime import (
     SourceRuntimeRepository,
     validate_distinct_source_state_paths,
 )
+from industrial_phm.application.source_subscription import (
+    RegisteredOpcUaSubscription,
+    collect_registered_opcua_source_subscription,
+)
 
 __all__ = [
     "AnalysisRun",
@@ -110,6 +114,7 @@ __all__ = [
     "ReceivedRegisteredOpcUaObservation",
     "RegisteredFileObservation",
     "RegisteredOpcUaObservation",
+    "RegisteredOpcUaSubscription",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
     "SourceConnectionAttemptEvidence",
@@ -139,6 +144,7 @@ __all__ = [
     "assess_source_freshness",
     "assess_source_health",
     "build_field_csv_observation_summary",
+    "collect_registered_opcua_source_subscription",
     "discover_file_source",
     "load_field_csv_observation_summary",
     "load_field_csv_observation_timeline",
