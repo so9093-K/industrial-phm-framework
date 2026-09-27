@@ -246,15 +246,8 @@ def _(
     review_key,
     review_note_input,
 ):
-    _acknowledged = (
-        review_acknowledgement is not None
-        and review_acknowledgement[0] == review_key
-    )
-    _saved_note = (
-        ""
-        if not _acknowledged
-        else review_acknowledgement[1]
-    )
+    _acknowledged = review_acknowledgement is not None and review_acknowledgement[0] == review_key
+    _saved_note = "" if not _acknowledged else review_acknowledgement[1]
     _strongest = anomaly_summary.strongest_review_interval
 
     if anomaly_summary.review_interval_count == 0:
@@ -272,10 +265,7 @@ def _(
             title="검토 완료",
         )
         _action_items = [
-            mo.md(
-                "### 기록된 메모\n\n"
-                + (_saved_note if _saved_note else "_메모 없음_")
-            )
+            mo.md("### 기록된 메모\n\n" + (_saved_note if _saved_note else "_메모 없음_"))
         ]
     else:
         _status = mo.callout(
@@ -291,9 +281,7 @@ def _(
         ]
 
     if _strongest is None:
-        _strongest_view = mo.md(
-            "### 우선 확인 구간\n\n현재 기록된 review interval이 없습니다."
-        )
+        _strongest_view = mo.md("### 우선 확인 구간\n\n현재 기록된 review interval이 없습니다.")
     else:
         _strongest_view = mo.md(
             "### 우선 확인 구간\n\n"
