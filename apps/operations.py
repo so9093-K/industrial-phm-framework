@@ -47,13 +47,12 @@ def _():
         receive_registered_file_source_observation,
         register_file_source,
         run_registered_file_feature_analysis,
-        validate_registered_file_source,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
         run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
-        validate_registered_file_source,
         validate_distinct_source_state_paths,
+        validate_registered_file_source,
     )
     from industrial_phm.connectors import (
         OpcUaBrowseConfig,
@@ -109,6 +108,7 @@ def _():
         run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
+        validate_registered_file_source,
         ThreadPoolExecutor,
         os,
     )
@@ -3204,7 +3204,7 @@ def _(get_load_error, get_observation, get_source_receipt, get_timeline):
 
 
 @app.cell
-def _(DataQualityState, mo, observation):
+def _(DataQualityState, mo, observation, operational_findings):
     if observation is None:
         asset_label = "Not connected"
         last_observed_label = "Unavailable"
@@ -3238,9 +3238,13 @@ def _(DataQualityState, mo, observation):
                 caption=quality_caption,
             ),
             mo.stat(
-                "Unavailable",
-                label="PHM finding",
-                caption="No validated field finding contract yet",
+                str(len(operational_findings)),
+                label="Review findings",
+                caption=(
+                    "No explicit human review request recorded"
+                    if not operational_findings
+                    else "Explicit REVIEW_REQUIRED workflow requests"
+                ),
             ),
         ],
         widths="equal",
@@ -3405,7 +3409,15 @@ def _(
 
 
 @app.cell
-def _(bundled_demo_view, connection_status, mo, observation_detail, overview_stats, quality_view):
+def _(
+    bundled_demo_view,
+    connection_status,
+    mo,
+    observation_detail,
+    operational_findings,
+    overview_stats,
+    quality_view,
+):
     overview_view = mo.vstack(
         [
             mo.md(
@@ -3424,11 +3436,22 @@ def _(bundled_demo_view, connection_status, mo, observation_detail, overview_sta
                         kind="neutral",
                         title="Condition · Not validated",
                     ),
-                    mo.callout(
-                        "No operational finding has been issued. This does not mean "
-                        "the asset is normal; the field finding pipeline is not connected yet.",
-                        kind="neutral",
-                        title="Findings · Unavailable",
+                    (
+                        mo.callout(
+                            f"{len(operational_findings)} explicit REVIEW_REQUIRED finding(s) "
+                            "are stored. These are human review requests, not automated fault "
+                            "or health verdicts.",
+                            kind="warn",
+                            title="Findings · Review workflow",
+                        )
+                        if operational_findings
+                        else mo.callout(
+                            "No explicit REVIEW_REQUIRED finding is stored yet. "
+                            "Investigation can create one from a persisted AnalysisRun. "
+                            "Absence of a review request is not a normal/healthy verdict.",
+                            kind="neutral",
+                            title="Findings · None recorded",
+                        )
                     ),
                     mo.callout(
                         "No validated alert policy exists for the current field source. "
