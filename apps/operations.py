@@ -14,7 +14,6 @@ def _():
 
     import marimo as mo
 
-    from industrial_phm.adapters import CsvSensorLayout, CsvSensorSourceError
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
@@ -39,8 +38,6 @@ def _():
         create_human_review_finding,
         discover_file_source,
         finding_review_status,
-        load_field_csv_observation_summary,
-        load_field_csv_observation_timeline_directory,
         load_registered_file_source_observation,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
@@ -63,8 +60,6 @@ def _():
     return (
         AssetObservationSummary,
         AssetObservationTimeline,
-        CsvSensorLayout,
-        CsvSensorSourceError,
         DataQualityState,
         FileSourceConfig,
         FileSourceMode,
@@ -93,8 +88,6 @@ def _():
         datetime,
         discover_file_source,
         finding_review_status,
-        load_field_csv_observation_summary,
-        load_field_csv_observation_timeline_directory,
         load_registered_file_source_observation,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
@@ -179,22 +172,14 @@ def _(JsonFindingReviewRepository, Path, os):
 
 @app.cell
 def _(
-    CsvSensorLayout,
-    CsvSensorSourceError,
     OpcUaBrowseConfig,
     OpcUaNodeMapping,
-    Path,
     ThreadPoolExecutor,
     asyncio,
     browse_opcua_variables,
-    load_field_csv_observation_summary,
-    load_field_csv_observation_timeline_directory,
 ):
     def parse_channels(value: str) -> tuple[str, ...]:
         return tuple(item.strip() for item in value.split(",") if item.strip())
-
-    def parse_sampling_rate(value: str) -> float | None:
-        return None if not value.strip() else float(value)
 
     def parse_opcua_node_mappings(value: str):
         mappings = []
@@ -227,54 +212,9 @@ def _(
         with ThreadPoolExecutor(max_workers=1) as executor:
             return executor.submit(_run).result()
 
-    def load_observation(
-        *,
-        source_path: str,
-        history_directory: str,
-        asset_id: str,
-        source_id: str,
-        measurement_point_id: str,
-        channels: str,
-        timestamp_column: str,
-        sampling_rate_hz: str,
-    ):
-        path_value = source_path.strip()
-        history_value = history_directory.strip()
-        if not path_value and not history_value:
-            return None, None, ""
-
-        layout = CsvSensorLayout(
-            asset_id=asset_id.strip(),
-            timestamp_column=timestamp_column.strip() or None,
-            channel_columns=parse_channels(channels),
-            sampling_rate_hz=parse_sampling_rate(sampling_rate_hz),
-        )
-        try:
-            if history_value:
-                timeline = load_field_csv_observation_timeline_directory(
-                    Path(history_value),
-                    layout,
-                    source_id=source_id.strip(),
-                    measurement_point_id=measurement_point_id.strip() or None,
-                )
-                return timeline.latest, timeline, ""
-
-            summary = load_field_csv_observation_summary(
-                Path(path_value),
-                layout,
-                source_id=source_id.strip(),
-                measurement_point_id=measurement_point_id.strip() or None,
-            )
-        except (CsvSensorSourceError, OSError, ValueError) as error:
-            return None, None, str(error)
-
-        return summary, None, ""
-
     return (
-        load_observation,
         parse_channels,
         parse_opcua_node_mappings,
-        parse_sampling_rate,
         run_opcua_browse,
     )
 
@@ -284,7 +224,6 @@ def _(
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     Path,
-    load_observation,
     os,
     validate_distinct_source_state_paths,
 ):
@@ -337,52 +276,14 @@ def _(
         initial_source_runtime_connection_attempts = ()
         initial_source_runtime_error = str(error)
 
-    source_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_SOURCE", "")
-    history_directory_default = os.environ.get(
-        "INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY",
-        "",
-    )
-    asset_default = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_ASSET_ID", "asset-01")
-    source_id_default = os.environ.get(
-        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID",
-        "prepared-field-csv",
-    )
-    measurement_point_default = os.environ.get(
-        "INDUSTRIAL_PHM_OPERATIONS_MEASUREMENT_POINT_ID",
-        "",
-    )
-    channels_default = os.environ.get(
-        "INDUSTRIAL_PHM_OPERATIONS_CHANNELS",
-        "vibration_x",
-    )
-    timestamp_default = os.environ.get(
-        "INDUSTRIAL_PHM_OPERATIONS_TIMESTAMP_COLUMN",
-        "timestamp",
-    )
-    sampling_rate_default = os.environ.get(
-        "INDUSTRIAL_PHM_OPERATIONS_SAMPLING_RATE_HZ",
-        "",
-    )
+    initial_summary = None
+    initial_timeline = None
+    initial_error = ""
 
-    initial_summary, initial_timeline, initial_error = load_observation(
-        source_path=source_default,
-        history_directory=history_directory_default,
-        asset_id=asset_default,
-        source_id=source_id_default,
-        measurement_point_id=measurement_point_default,
-        channels=channels_default,
-        timestamp_column=timestamp_default,
-        sampling_rate_hz=sampling_rate_default,
-    )
     return (
-        asset_default,
-        channels_default,
-        history_directory_default,
         initial_error,
         initial_summary,
         initial_timeline,
-        measurement_point_default,
-        sampling_rate_default,
         initial_registered_sources,
         initial_source_freshness_policies,
         initial_source_lifecycle_records,
@@ -390,11 +291,8 @@ def _(
         initial_source_runtime_connection_attempts,
         initial_source_runtime_error,
         initial_source_runtime_receipts,
-        source_default,
-        source_id_default,
         source_registry_default,
         source_runtime_default,
-        timestamp_default,
     )
 
 
@@ -586,17 +484,7 @@ def _(
 
 
 @app.cell
-def _(
-    asset_default,
-    channels_default,
-    history_directory_default,
-    measurement_point_default,
-    mo,
-    sampling_rate_default,
-    source_default,
-    source_id_default,
-    timestamp_default,
-):
+def _(mo):
     page_selector = mo.ui.radio(
         options=[
             "Overview",
@@ -610,60 +498,11 @@ def _(
         inline=True,
         label="Operations",
     )
-    source_input = mo.ui.text(
-        value=source_default,
-        label="Prepared field CSV path",
-        full_width=True,
-    )
-    history_directory_input = mo.ui.text(
-        value=history_directory_default,
-        label="Prepared history directory (optional; takes precedence)",
-        full_width=True,
-    )
-    asset_input = mo.ui.text(value=asset_default, label="Asset ID", full_width=True)
-    source_id_input = mo.ui.text(
-        value=source_id_default,
-        label="Source ID",
-        full_width=True,
-    )
-    measurement_point_input = mo.ui.text(
-        value=measurement_point_default,
-        label="Measurement point",
-        full_width=True,
-    )
-    channels_input = mo.ui.text(
-        value=channels_default,
-        label="Channels (comma-separated)",
-        full_width=True,
-    )
-    timestamp_input = mo.ui.text(
-        value=timestamp_default,
-        label="Timestamp column",
-        full_width=True,
-    )
-    sampling_rate_input = mo.ui.text(
-        value=sampling_rate_default,
-        label="Declared sampling rate Hz (optional)",
-        full_width=True,
-    )
-    load_button = mo.ui.run_button(label="Load observation", kind="success")
     prepare_demo_source_button = mo.ui.run_button(
         label="Prepare bundled demo source",
         kind="success",
     )
-    return (
-        asset_input,
-        prepare_demo_source_button,
-        channels_input,
-        history_directory_input,
-        load_button,
-        measurement_point_input,
-        page_selector,
-        sampling_rate_input,
-        source_id_input,
-        source_input,
-        timestamp_input,
-    )
+    return page_selector, prepare_demo_source_button
 
 
 @app.cell
@@ -3137,41 +2976,6 @@ def _(
 
 
 @app.cell
-def _(
-    asset_input,
-    channels_input,
-    history_directory_input,
-    load_button,
-    load_observation,
-    measurement_point_input,
-    sampling_rate_input,
-    set_load_error,
-    set_observation,
-    set_source_receipt,
-    set_timeline,
-    source_id_input,
-    source_input,
-    timestamp_input,
-):
-    if load_button.value:
-        _summary, _timeline, _error = load_observation(
-            source_path=source_input.value,
-            history_directory=history_directory_input.value,
-            asset_id=asset_input.value,
-            source_id=source_id_input.value,
-            measurement_point_id=measurement_point_input.value,
-            channels=channels_input.value,
-            timestamp_column=timestamp_input.value,
-            sampling_rate_hz=sampling_rate_input.value,
-        )
-        set_observation(_summary)
-        set_timeline(_timeline)
-        set_source_receipt(None)
-        set_load_error(_error)
-    return
-
-
-@app.cell
 def _(get_load_error, get_observation, get_source_receipt, get_timeline):
     observation = get_observation()
     source_receipt = get_source_receipt()
@@ -4175,57 +3979,12 @@ def _(
 
 @app.cell
 def _(
-    asset_input,
-    channels_input,
-    history_directory_input,
-    load_button,
-    measurement_point_input,
-    mo,
-    sampling_rate_input,
-    source_id_input,
-    source_input,
-    timestamp_input,
-):
-    source_setup = mo.accordion(
-        {
-            "Prepared source inspection": mo.vstack(
-                [
-                    mo.md(
-                        "로컬 prepared CSV snapshot/history를 일회성으로 확인하는 입력입니다. "
-                        "지속적으로 관리할 source는 Sources에서 등록·실행합니다. "
-                        "History directory가 입력되면 single CSV보다 우선하며, "
-                        "이 inspection 입력은 "
-                        "historian/API나 continuous ingestion을 의미하지 않습니다."
-                    ),
-                    source_input,
-                    history_directory_input,
-                    mo.hstack([asset_input, source_id_input], widths="equal"),
-                    mo.hstack(
-                        [measurement_point_input, channels_input],
-                        widths="equal",
-                    ),
-                    mo.hstack(
-                        [timestamp_input, sampling_rate_input],
-                        widths="equal",
-                    ),
-                    load_button,
-                ],
-                gap=0.8,
-            )
-        }
-    )
-    return source_setup
-
-
-@app.cell
-def _(
     data_quality_view,
     investigation_view,
     maintenance_view,
     mo,
     overview_view,
     page_selector,
-    source_setup,
     sources_view,
     operational_state_view,
 ):
@@ -4252,8 +4011,6 @@ def _(
         ),
         page_selector,
     ]
-    if page_selector.value == "Overview":
-        _header_items.append(source_setup)
     header = mo.vstack(_header_items, gap=1.0)
     mo.vstack([header, views[page_selector.value]], gap=1.5)
     return
