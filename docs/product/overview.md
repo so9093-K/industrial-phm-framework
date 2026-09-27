@@ -452,10 +452,13 @@ Finding과 run의 identity/measurement-point/observation-window linkage와 capab
 fail-fast 검증합니다. `OperationalFinding.observed_at`도 operational absolute time이므로 timezone-aware datetime만
 허용합니다.
 
-현재 field analysis producer는 아직 없습니다. 따라서 contract가 존재한다는 이유만으로 Operations가 finding을
-표시하지 않으며, 실제 source-appropriate analysis protocol이 이 contract를 생성할 때까지
-`Not connected`/`Unavailable` 상태를 유지합니다. Prognostics는 별도 capability type으로 다룰 예정이며
-field RUL semantics가 검증되기 전에 `OperationalPrognosticEstimate`를 선제 구현하지 않습니다.
+현재 field analysis producer는 timezone-aware registered FILE snapshot 범위에서 연결되어 있습니다.
+기존 CSV adapter와 `vibration-statistical-v1` feature extractor를 재사용해 실제 `AnalysisRun`과
+capability-specific feature evidence를 만들고 durable local history에 보존합니다. 사용자가 이 evidence를
+명시적으로 review 대상으로 올리면 `human-review-request-v1 / REVIEW_REQUIRED` `OperationalFinding`을
+생성할 수 있지만, feature 값을 자동 anomaly/fault/health 판정으로 해석하지 않습니다. Prognostics는 별도
+capability type으로 유지하며 field RUL semantics가 검증되기 전에 `OperationalPrognosticEstimate`를
+선제 구현하지 않습니다.
 
 `ExperimentInspection`을 operational result로 확장하거나 범용 `PHMResult`를 만들지 않는 원칙은 그대로
 유지합니다.
@@ -697,6 +700,7 @@ Source -> Analyze -> Results -> Finding -> Maintenance review
 - persisted operational feature evidence에서 사용자가 명시적으로 `human-review-request-v1 / REVIEW_REQUIRED` finding을 생성하고 history로 조회
 - finding별 human review disposition을 `OPEN → ACKNOWLEDGED → CLOSED`로 관리하며 append-only note/event history를 durable local state로 보존
 - System Health에서 source registry/runtime, operational analysis/finding/review store의 readable/error 상태와 현재 recorded population을 확인
+- bundled synthetic FILE snapshot으로 외부 데이터 없이 registration → AnalysisRun → explicit review finding → Maintenance review까지 같은 UI workflow를 재현
 
 ### 현재 끊긴 지점
 

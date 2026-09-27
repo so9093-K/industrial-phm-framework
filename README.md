@@ -69,6 +69,12 @@ uv run --locked --group research marimo run apps/analysis_explorer.py
 uv run --locked --group research marimo run apps/operations.py
 ```
 
+외부 센서 데이터가 없어도 Overview의 **Prepare bundled demo source**를 누르면
+`examples/operations/demo-bearing-snapshot.csv` synthetic snapshot을 정상 FILE registration/validation
+경로로 준비합니다. 이후 **Sources → Analyze FILE snapshot → Investigation → Create review finding →
+Maintenance** 순서로 AnalysisRun, durable evidence/history, explicit review finding과 note/acknowledge/close
+workflow를 직접 확인할 수 있습니다. 이 demo signal은 실제 fault/degradation/RUL 성능을 나타내지 않습니다.
+
 현재 Operations 앱은 prepared single-asset CSV snapshot 또는 같은 asset/measurement point의 timestamped
 CSV history directory를 bootstrap으로 사용할 수 있습니다. History directory의 각 파일은 독립 segment로
 검증되고 filename이 아니라 recorded timestamp로 정렬됩니다. 화면은 latest observation, segment timeline,
