@@ -3335,15 +3335,11 @@ def _(
         )
     else:
         _history_rows = "\n".join(
-            "| {completed} | `{run_id}` | `{source}` | `{asset}` | "
-            "{quality} | `{feature_set}` |".format(
-                completed=result.run.completed_at.isoformat(),
-                run_id=result.run.analysis_run_id,
-                source=result.run.source_id,
-                asset=result.run.asset_id,
-                quality=result.run.data_quality.state.value.upper(),
-                feature_set=result.evidence.feature_set_id,
-            )
+            f"| {result.run.completed_at.isoformat()} | "
+            f"`{result.run.analysis_run_id}` | `{result.run.source_id}` | "
+            f"`{result.run.asset_id}` | "
+            f"{result.run.data_quality.state.value.upper()} | "
+            f"`{result.evidence.feature_set_id}` |"
             for result in reversed(field_analysis_results[-20:])
         )
         _field_analysis_history_view = mo.vstack(
