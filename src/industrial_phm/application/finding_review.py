@@ -106,8 +106,7 @@ class JsonOperationalFindingRepository:
                 "operational finding history findings must be a JSON array"
             )
         findings = tuple(
-            _parse_finding(value, index=index)
-            for index, value in enumerate(findings_raw)
+            _parse_finding(value, index=index) for index, value in enumerate(findings_raw)
         )
         finding_ids = tuple(finding.finding_id for finding in findings)
         if len(set(finding_ids)) != len(finding_ids):
@@ -130,9 +129,7 @@ class JsonOperationalFindingRepository:
         current = findings.get(finding.finding_id)
         if current is not None:
             if current != finding:
-                raise ValueError(
-                    "finding_id already exists with different persisted evidence"
-                )
+                raise ValueError("finding_id already exists with different persisted evidence")
             return
 
         findings[finding.finding_id] = finding
@@ -194,33 +191,25 @@ def _parse_finding(value: object, *, index: int) -> OperationalFinding:
     try:
         return OperationalFinding(
             finding_id=_require_string(raw["finding_id"], f"{label}.finding_id"),
-            analysis_run_id=_require_string(
-                raw["analysis_run_id"], f"{label}.analysis_run_id"
-            ),
+            analysis_run_id=_require_string(raw["analysis_run_id"], f"{label}.analysis_run_id"),
             asset_id=_require_string(raw["asset_id"], f"{label}.asset_id"),
             measurement_point_id=_require_optional_string(
                 raw["measurement_point_id"],
                 f"{label}.measurement_point_id",
             ),
             observed_at=_require_datetime(raw["observed_at"], f"{label}.observed_at"),
-            capability_id=_require_string(
-                raw["capability_id"], f"{label}.capability_id"
-            ),
+            capability_id=_require_string(raw["capability_id"], f"{label}.capability_id"),
             finding_semantics_id=_require_string(
                 raw["finding_semantics_id"],
                 f"{label}.finding_semantics_id",
             ),
             state=_require_string(raw["state"], f"{label}.state"),
-            evidence_refs=_require_string_list(
-                raw["evidence_refs"], f"{label}.evidence_refs"
-            ),
+            evidence_refs=_require_string_list(raw["evidence_refs"], f"{label}.evidence_refs"),
         )
     except ValueError as error:
         if isinstance(error, OperationalFindingHistoryFormatError):
             raise
-        raise OperationalFindingHistoryFormatError(
-            f"{label} is invalid: {error}"
-        ) from error
+        raise OperationalFindingHistoryFormatError(f"{label} is invalid: {error}") from error
 
 
 def _require_mapping(value: object, label: str) -> Mapping[str, object]:
@@ -270,7 +259,5 @@ def _require_datetime(value: object, label: str) -> datetime:
 
 def _require_string_list(value: object, label: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise OperationalFindingHistoryFormatError(
-            f"{label} must be a JSON string array"
-        )
+        raise OperationalFindingHistoryFormatError(f"{label} must be a JSON string array")
     return tuple(value)
