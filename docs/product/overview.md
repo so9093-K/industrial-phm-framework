@@ -724,6 +724,366 @@ Research anomaly/RUL evidence는 Analysis Explorer가 소유합니다. Operation
 research estimate를 operational capability처럼 노출하지 않습니다. Automatic condition/fault/alert semantics,
 operational RUL, inspection/work-order/CMMS execution은 현재 Operations capability가 아닙니다.
 
+## 9. Operations v2 — Evidence & Operational Data Foundation
+
+Operations v2의 목적은 새로운 PHM 의미를 먼저 추가하는 것이 아니라, 현재 존재하는 source·observation·analysis·finding·review evidence를
+사용자가 일관된 asset/workflow 문맥에서 소비할 수 있도록 제품 구조와 operational data foundation을 정리하는 것입니다.
+
+제품 포지셔닝은 다음 문장으로 정렬합니다.
+
+> **Evidence-first Industrial PHM & Maintenance Decision Support Framework**
+>
+> 산업 설비 데이터를 검증 가능한 evidence로 변환하고, 사람이 상태를 이해하고 정비 결정을 내릴 수 있도록 연결합니다.
+
+이 문장은 automatic diagnosis, alarm, RUL, maintenance recommendation이 이미 구현됐다는 뜻이 아닙니다. 현재 capability보다 강한 의미를
+제품 copy나 UI가 선행해 만들지 않는다는 기존 원칙을 그대로 유지합니다.
+
+### Operations v2 information architecture
+
+Primary navigation의 목표 구조는 다음과 같습니다.
+
+```text
+Operations
+├─ Overview
+│  └─ Attention Queue
+├─ Assets
+│  └─ Asset Detail
+│     └─ Evidence Timeline
+├─ Sources
+│  ├─ Source Registry
+│  ├─ Data Flow
+│  └─ Source Detail
+├─ Investigations
+│  └─ Investigation Workspace
+├─ Maintenance
+│  └─ Review Queue
+└─ System
+   └─ Runtime / local state / telemetry
+
+AI Copilot
+└─ 현재 선택한 asset / investigation / maintenance context 안의 optional side surface
+```
+
+현재 `Overview / Sources / Investigation / Data Quality / Maintenance Review / Operational State` navigation은 v2 migration 동안
+동작을 유지할 수 있지만, 최종 information architecture에서는 다음 원칙을 적용합니다.
+
+- `Assets`를 source와 분리된 first-class 사용자 진입점으로 둡니다.
+- `Data Quality`는 독립 destination보다 Source Detail, Asset Detail, Investigation 안의 contextual evidence를 우선합니다.
+- `Maintenance Review`는 `Maintenance` 아래의 review queue로 정리합니다.
+- `Operational State`는 일반 운영자의 PHM 기능이 아니라 `System` 영역의 runtime/storage 관측 surface로 분리합니다.
+- AI 설명은 독립적인 numerical source of truth가 아니라 현재 사용자가 보고 있는 evidence context를 설명하는 optional surface로 둡니다.
+
+### Source와 Asset의 제품 의미
+
+Operations v2에서는 다음 identity 경계를 명시적으로 유지합니다.
+
+```text
+Source != Asset
+Sensor != Asset
+Analysis != Asset
+Finding != Asset
+```
+
+향후 asset identity는 최소한 다음 계층을 표현할 수 있어야 합니다.
+
+```text
+Site?
+  └ Area / Line?
+      └ System?
+          └ Asset
+              └ Component?
+                  └ Measurement Point
+                      └ Channel
+```
+
+초기 implementation이 모든 optional hierarchy level을 영속할 필요는 없습니다. 먼저 `Asset`, optional `Component`,
+`MeasurementPoint`, `Channel` identity와 source mapping을 분리하고, 실제 field/private source에서 hierarchy requirement가
+확인될 때 상위 site/area/system 구조를 확장합니다.
+
+Operational record는 source identity만으로 asset identity를 대신하지 않습니다. 새 read model과 evidence는 가능한 범위에서 다음 lineage를
+추적할 수 있어야 합니다.
+
+```text
+asset
+  -> measurement point
+  -> source
+  -> observation identity / time
+  -> analysis
+  -> capability evidence
+  -> finding
+  -> review
+```
+
+### Overview와 Attention Queue
+
+Overview의 첫 질문은 "fleet이 몇 점인가?"가 아니라 **"지금 사람이 확인하거나 처리해야 할 사실이 무엇인가?"** 입니다.
+
+현재 또는 가까운 v2 foundation에서 허용하는 factual attention category는 다음 범위로 제한합니다.
+
+- `SOURCE_ERROR`
+- `NO_RECEIPT`
+- `STALE`
+- `DATA_QUALITY_ISSUE`
+- `REVIEW_REQUIRED`
+- `SYSTEM_STATE_ERROR`
+
+Attention item은 기존 evidence를 projection한 application read model이며 새로운 PHM verdict가 아닙니다. 첫 ordering은 risk score를 만들지 않고
+unhandled/active 상태와 occurrence time 같은 deterministic workflow fact로 정의합니다.
+
+현재 evidence에서 Overview가 표시할 수 있는 예는 다음과 같습니다.
+
+| 표시 가능 | 현재 표시하지 않음 |
+| --- | --- |
+| review required 수 | fleet health score |
+| OPEN / ACKNOWLEDGED review 수 | asset risk percentage |
+| source ERROR | failure probability |
+| STALE / NO_RECEIPT | critical/high/medium PHM severity |
+| recent AnalysisRun 수 | operational RUL |
+| data-quality issue 수 | predicted failure date |
+| local state read error | rationalized alarm count |
+
+`FRESH`, successful read, analysis completion 같은 사실을 asset health 또는 normal-state verdict로 승격하지 않습니다.
+
+### Asset Detail
+
+Asset Detail은 source, observation, analysis, finding과 review를 같은 physical asset context에서 탐색하기 위한 surface입니다.
+
+초기 v2에서 허용하는 범주는 다음과 같습니다.
+
+```text
+Identity
+- asset
+- component? / measurement point
+- linked source
+
+Data availability
+- latest observation time
+- lifecycle / data-flow / freshness facts
+- data quality
+
+Analysis
+- AnalysisRun identity
+- produced capability
+- capability-specific evidence
+
+Workflow
+- OperationalFinding
+- finding review status / notes
+
+Provenance
+- source snapshot or protocol evidence
+- analysis execution identity
+```
+
+validated condition semantics가 없는 동안 `CRITICAL`, `fault confirmed`, `health 82%`, `failure in N days` 같은 표현을
+Asset Detail이 만들지 않습니다.
+
+### Investigation Workspace
+
+Operations Investigation은 **"왜 이 operational evidence를 사람이 확인해야 하는가?"** 에 답합니다.
+Analysis Explorer는 **"이 research/analysis evidence가 어떤 pipeline과 provenance에서 만들어졌는가?"** 에 답합니다.
+두 application의 책임을 합치지 않습니다.
+
+Operations Investigation의 우선 정보 순서는 다음과 같습니다.
+
+```text
+Context
+  -> evidence
+  -> data quality
+  -> limitation / unavailable capability
+  -> human action
+  -> optional technical drill-down
+```
+
+고급 pipeline/model detail이 필요하면 Analysis Explorer 또는 동일한 provenance/evidence read model을 사용하는 technical detail surface로
+drill-down합니다. Research RUL/anomaly evidence를 operational asset state로 복사하지 않습니다.
+
+### Evidence Timeline
+
+Operations v2는 다음 event를 하나의 asset-scoped evidence timeline에서 추적할 수 있는 것을 목표로 합니다.
+
+```text
+source observed
+  -> platform received / ingested
+  -> observation/window accepted
+  -> AnalysisRun executed
+  -> capability evidence produced
+  -> OperationalFinding created
+  -> review note / acknowledge / close
+```
+
+서로 다른 clock fact를 하나의 timestamp로 합치지 않습니다. Protocol/source가 제공하는 경우 다음 시각은 의미를 분리합니다.
+
+- source timestamp
+- server timestamp
+- platform received time
+- ingestion/acceptance time
+- analysis execution time
+- finding observed time
+- review action time
+
+UI의 정렬용 timestamp와 evidence의 authoritative timestamp가 다르면 그 차이를 숨기지 않습니다.
+
+### Data Quality는 contextual evidence
+
+Data Quality는 v2에서 독립된 제품 목적보다 source/asset/investigation 판단에 필요한 context로 취급합니다.
+
+- Source Detail은 mapping, protocol/file provenance, freshness와 source-level quality를 함께 표시합니다.
+- Asset Detail은 선택한 measurement point의 data availability/quality를 함께 표시합니다.
+- Investigation은 분석에 실제 사용된 observation scope와 quality evidence를 함께 표시합니다.
+- schema, checksum, validation policy 같은 상세 provenance는 drill-down할 수 있지만 primary action을 가리지 않습니다.
+
+Migration 동안 기존 Data Quality page를 유지할 수 있으며, equivalent contextual surface가 준비된 뒤 primary navigation에서 제거합니다.
+
+### Presentation vocabulary
+
+Operations UI는 없는 의미를 `N/A` 하나로 합치지 않습니다. 최소한 다음 상태를 구분합니다.
+
+- `unavailable`: 필요한 현재 값/evidence를 얻을 수 없음
+- `unsupported`: 해당 capability를 현재 contract가 제공하지 않음
+- `not configured`: 정책/설정이 명시적으로 없음
+- `not recorded`: producer/artifact가 상세 evidence를 저장하지 않음
+- `not validated`: 값 또는 방법은 존재하지만 운영 의미/적용 범위가 검증되지 않음
+
+색상은 의미의 유일한 전달 수단으로 사용하지 않습니다. 일반적인 운영 사실은 중립적으로, 실제 error와 사용자의 attention이 필요한 상태는
+text/icon과 함께 구분합니다. Rationalized alarm semantics가 생기기 전에는 generic attention을 alarm color convention으로 표현하지 않습니다.
+
+### Diagnostics와 Alert 경계
+
+향후 diagnostics와 alerting은 별도 capability로 도입합니다.
+
+```text
+sensor / model evidence
+  -> diagnostic evidence
+  -> validated interpretation
+  -> alert policy
+  -> operator notification
+  -> acknowledgement / response
+```
+
+Anomaly score나 threshold를 alert로 직접 승격하지 않습니다. Alert를 추가할 때는 activation/return-to-normal semantics, persistence/hysteresis,
+operator response, acknowledgement와 suppression/shelving requirement를 별도 계약으로 검토합니다.
+
+### Operational RUL 표시 원칙
+
+Operational prognostics가 실제 field evidence로 도입될 때 RUL point estimate만 단독 표시하지 않습니다.
+
+최소한 다음 information group을 함께 제공해야 합니다.
+
+- estimate와 unit
+- endpoint semantics
+- as-of observation
+- uncertainty / prediction interval evidence 또는 명시적 unsupported 상태
+- calibration/evaluation population
+- applicability / out-of-scope 상태
+- model/config/deployment provenance
+
+Research `recorded-end` target을 physical failure deadline이나 maintenance deadline으로 번역하지 않습니다.
+
+### Operations v2 implementation order
+
+Operations v2 foundation의 변경 순서는 dependency와 rework를 줄이기 위해 다음과 같이 고정합니다.
+
+1. `docs(product): define Operations v2 information architecture`
+2. `feat(asset): introduce first-class asset identity`
+3. `feat(application): operations overview read model`
+4. `feat(application): evidence-based attention queue`
+5. `refactor(operations): extract shared presentation components`
+6. `feat(operations): add asset detail and evidence timeline`
+7. `refactor(operations): contextualize data-quality evidence`
+8. `feat(opcua): define persistent session and event-time contracts`
+9. `feat(runtime): durable observation/window boundary`
+
+UI component extraction을 read model보다 먼저 하지 않습니다. 기존 marimo cell의 우연한 state shape를 reusable component contract로 굳히지 않기
+위해서입니다. Asset identity를 Overview/Attention보다 먼저 도입해 source-centric read model을 다시 만드는 것도 피합니다.
+
+### Persistent source와 event-time contract
+
+Persistent OPC UA implementation 전에 다음 timing/data semantics를 먼저 contract로 고정합니다.
+
+```text
+source_timestamp
+server_timestamp
+received_at
+ingested_at
+watermark
+window_start
+window_end
+```
+
+그리고 적어도 다음 상태를 서로 구분합니다.
+
+- duplicate event
+- late event
+- out-of-order event
+- missing channel
+- future timestamp / clock skew
+- partial window
+- complete window
+
+Full channel coverage만으로 synchronized snapshot, gap-free delivery 또는 analysis-ready window를 주장하지 않는 현재 bounded subscription 원칙을
+persistent runtime에서도 유지합니다.
+
+### Durable observation/window foundation
+
+Persistent source의 다음 runtime 목표는 connector event 자체를 저장하는 것에 그치지 않습니다.
+
+```text
+connector session
+  -> protocol event + quality/timing
+  -> bounded buffer
+  -> event-time/window assembly
+  -> completeness / late / missing evidence
+  -> durable observation/window
+  -> analysis-ready input
+```
+
+Buffering, retry, reconnect 또는 persistence가 source event의 timestamp/quality/provenance를 덮어쓰지 않아야 합니다.
+Durable observation/window contract가 완성되기 전에는 continuous ingestion이 곧 continuous PHM inference라고 표현하지 않습니다.
+
+### Foundation completion gates
+
+Operations v2 foundation은 코드 목록이 아니라 다음 질문에 evidence로 답할 수 있을 때 완료된 것으로 봅니다.
+
+```text
+어떤 asset인가?
+어떤 measurement point/source에서 데이터가 왔는가?
+현재 데이터가 사용 가능한가?
+어떤 observation/window가 분석에 들어갔는가?
+어떤 AnalysisRun과 capability evidence가 생성됐는가?
+왜 사람이 확인해야 하는가?
+어떤 finding/review action이 기록됐는가?
+각 사건의 time/provenance를 어디까지 추적할 수 있는가?
+```
+
+Data plane은 다음 질문에 답할 수 있어야 합니다.
+
+```text
+protocol event가 어떤 identity/quality/timing으로 들어왔는가?
+late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
+어떤 rule로 partial/complete observation 또는 window가 만들어졌는가?
+그 입력이 durable하게 복원되고 analysis provenance로 연결되는가?
+```
+
+### Foundation 범위에서 의도적으로 제외하는 것
+
+아래 capability는 Operations v2 foundation 1–9의 완료 조건이 아닙니다.
+
+- automatic fault diagnosis
+- PHM severity / fleet risk score
+- rationalized alarm
+- failure probability
+- operational RUL
+- maintenance recommendation
+- inspection/work-order execution
+- CMMS/EAM write integration
+- agentic action execution
+- 추가 connector를 위한 generic connector framework
+- 새로운 deep-learning/foundation model
+
+이 capability는 field/private source에서 실제 evidence gap과 운영 requirement가 확인된 뒤
+`Diagnostics -> Alert rationalization -> Operational prognostics -> Maintenance integration -> AI Copilot` 순서로 별도 검토합니다.
+
 ## References
 
 - ISO 9241-210 human-centred design overview: https://www.iso.org/standard/77520.html
