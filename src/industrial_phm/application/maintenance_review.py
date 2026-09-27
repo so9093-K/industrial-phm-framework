@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -70,7 +70,7 @@ def create_finding_review_event(
     *,
     action: FindingReviewAction,
     note: str = "",
-    clock: callable | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> FindingReviewEvent:
     """Create one explicit human review event for an existing finding."""
     if not isinstance(finding, OperationalFinding):
