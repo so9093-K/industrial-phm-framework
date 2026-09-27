@@ -25,7 +25,6 @@ def _():
         run_xjtu_lstm_analysis_from_source,
         summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
-        timezone,
         write_analysis_report_markdown,
     )
     from industrial_phm.analysis.loader import load_analysis_surface, load_analysis_view
@@ -61,6 +60,7 @@ def _():
         run_xjtu_lstm_analysis_from_source,
         summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
+        timezone,
         write_analysis_report_markdown,
     )
 
