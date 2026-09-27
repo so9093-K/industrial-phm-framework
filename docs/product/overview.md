@@ -692,12 +692,14 @@ Source -> Analyze -> Results -> Finding -> Maintenance review
 - bounded OPC UA DataChange collection과 event/channel evidence 확인
 - prepared observation/timeline과 data-quality/provenance 확인
 - 별도 Analysis Explorer에서 XJTU anomaly/RUL 분석 실행과 result/evidence 검토
+- Analysis Explorer의 durable human-review acknowledgement/note를 Operations Investigation에서 asset 기준으로 조회
 
 ### 현재 끊긴 지점
 
 ```text
 Registered source / observation
-  -> source-appropriate operational analysis producer   # not connected
+  -> [separate research Analysis Explorer + durable human review is visible in Investigation]
+  -> source-appropriate operational analysis producer   # still not connected
   -> AnalysisRun
   -> capability-specific evidence
   -> OperationalFinding
