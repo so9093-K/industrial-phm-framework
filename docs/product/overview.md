@@ -694,6 +694,7 @@ Source -> Analyze -> Results -> Finding -> Maintenance review
 - timezone-aware registered FILE snapshot에서 on-demand operational `AnalysisRun` + vibration statistical feature evidence 생성, durable local history 저장/재조회
 - 별도 Analysis Explorer에서 XJTU anomaly/RUL 분석 실행과 result/evidence 검토
 - Analysis Explorer의 durable human-review acknowledgement/note를 Operations Investigation에서 asset 기준으로 조회
+- persisted operational feature evidence에서 사용자가 명시적으로 `human-review-request-v1 / REVIEW_REQUIRED` finding을 생성하고 history로 조회
 
 ### 현재 끊긴 지점
 
@@ -702,8 +703,9 @@ Registered FILE snapshot / observation
   -> vibration-statistical-v1 operational producer      # connected for supported snapshot
   -> AnalysisRun
   -> feature evidence
-  -> validated state/finding policy                      # not connected
-  -> OperationalFinding
+  -> human explicit review request                      # connected
+  -> OperationalFinding(REVIEW_REQUIRED)
+  -> validated automatic state/fault policy              # not connected
   -> maintenance review action
 ```
 
@@ -718,7 +720,7 @@ Operations primary navigation은 현재 행동 가능한 **Overview / Sources / 
 1. registered source 또는 준비된 observation을 analysis 대상으로 선택할 수 있다. *(FILE snapshot v1 연결됨)*
 2. 사용자가 analysis를 실행하면 실제 `AnalysisRun`이 생성된다. *(FILE snapshot v1 연결됨)*
 3. capability-specific result/evidence가 Results/Investigation에서 확인된다. *(FILE feature analysis v1은 durable local history까지 연결됨)*
-4. 검증된 최소 semantics로 operational finding을 생성하거나, 생성할 수 없으면 그 이유를 명확히 표시한다.
+4. 검증된 최소 semantics로 operational finding을 생성하거나, 생성할 수 없으면 그 이유를 명확히 표시한다. *(human-review-request-v1 수동 finding 연결됨; 자동 fault/health finding은 미연결)*
 5. 생성된 finding에 사용자가 최소 review action(acknowledge/note)을 수행할 수 있다.
 6. 같은 결과에서 지원되는 경우 RUL evidence를 확인할 수 있다.
 

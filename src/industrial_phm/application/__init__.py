@@ -26,6 +26,13 @@ from industrial_phm.application.file_source_registration import (
     register_file_source,
     validate_registered_file_source,
 )
+from industrial_phm.application.finding_review import (
+    HUMAN_REVIEW_FINDING_SEMANTICS_ID,
+    HUMAN_REVIEW_FINDING_STATE,
+    JsonOperationalFindingRepository,
+    OperationalFindingHistoryFormatError,
+    create_human_review_finding,
+)
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     AssetObservationTimeline,
@@ -112,6 +119,8 @@ from industrial_phm.application.source_subscription import (
 
 __all__ = [
     "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
+    "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
+    "HUMAN_REVIEW_FINDING_STATE",
     "AnalysisRun",
     "AssetObservationSummary",
     "AssetObservationTimeline",
@@ -123,11 +132,13 @@ __all__ = [
     "FileSourceRegistrationValidation",
     "InMemorySourceRepository",
     "JsonFieldFeatureAnalysisRepository",
+    "JsonOperationalFindingRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
     "ObservationValidationPolicy",
     "OpcUaSourceConfig",
     "OperationalFinding",
+    "OperationalFindingHistoryFormatError",
     "OperationalVibrationFeatureEvidence",
     "ReceivedRegisteredFileObservation",
     "ReceivedRegisteredOpcUaObservation",
@@ -169,6 +180,7 @@ __all__ = [
     "assess_source_health",
     "build_field_csv_observation_summary",
     "collect_registered_opcua_source_subscription",
+    "create_human_review_finding",
     "discover_file_source",
     "load_field_csv_observation_summary",
     "load_field_csv_observation_timeline",
