@@ -1,5 +1,11 @@
 """Application-layer read models and use-case projections."""
 
+from industrial_phm.application.asset_identity import (
+    AssetIdentity,
+    ChannelIdentity,
+    ComponentIdentity,
+    MeasurementPointIdentity,
+)
 from industrial_phm.application.field_analysis import (
     FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
     OperationalVibrationFeatureEvidence,
@@ -130,8 +136,11 @@ __all__ = [
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
     "AnalysisRun",
+    "AssetIdentity",
     "AssetObservationSummary",
     "AssetObservationTimeline",
+    "ChannelIdentity",
+    "ComponentIdentity",
     "FieldAnalysisHistoryFormatError",
     "FileSourceConfig",
     "FileSourceDiscovery",
@@ -148,6 +157,7 @@ __all__ = [
     "JsonOperationalFindingRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
+    "MeasurementPointIdentity",
     "ObservationValidationPolicy",
     "OpcUaSourceConfig",
     "OperationalFinding",
