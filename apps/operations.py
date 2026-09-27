@@ -3498,52 +3498,6 @@ def _(
 
 
 @app.cell
-def _(mo, observation, observation_detail, observation_timeline_view, quality_view):
-    if observation is None:
-        _identity = mo.callout(
-            "Connect a prepared field source to inspect the asset and measurement point.",
-            kind="neutral",
-            title="Asset identity unavailable",
-        )
-    else:
-        _identity = mo.callout(
-            f"Viewing `{observation.asset_id}`"
-            + (
-                ""
-                if observation.measurement_point_id is None
-                else f" / `{observation.measurement_point_id}`"
-            ),
-            kind="info",
-            title="Asset context",
-        )
-
-    asset_view = mo.vstack(
-        [
-            mo.md("## Asset"),
-            _identity,
-            observation_detail,
-            observation_timeline_view,
-            quality_view,
-            mo.callout(
-                "Freshness policy is not configured. The UI shows the recorded source "
-                "timestamp but does not label data fresh/stale until a product policy exists.",
-                kind="neutral",
-                title="Freshness · Not configured",
-            ),
-            mo.callout(
-                "Sensor identity, unit, observed property and calibration history are not "
-                "yet first-class operational contracts. Their slots are reserved here and "
-                "will be populated from the first private source that requires them.",
-                kind="neutral",
-                title="Sensor context · Not recorded",
-            ),
-        ],
-        gap=1.2,
-    )
-    return asset_view
-
-
-@app.cell
 def _(mo, timeline):
     if timeline is None:
         observation_timeline_view = mo.callout(
@@ -3903,62 +3857,6 @@ def _(
         gap=1.2,
     )
     return investigation_view
-
-
-@app.cell
-def _(mo, observation):
-    if observation is None:
-        assets_view = mo.vstack(
-            [
-                mo.md(
-                    "## Assets\n\n"
-                    "Fleet/asset inventory의 운영 자리입니다. 현재 bootstrap은 "
-                    "single-asset source이지만 목록 surface는 처음부터 유지합니다."
-                ),
-                mo.callout(
-                    "No observed asset is connected yet.",
-                    kind="neutral",
-                    title="Asset inventory · Empty",
-                ),
-            ],
-            gap=1.2,
-        )
-    else:
-        _last_observed = (
-            "Unavailable"
-            if observation.observed_end_at is None
-            else observation.observed_end_at.isoformat()
-        )
-        _row = (
-            f"| `{observation.asset_id}` | "
-            f"`{observation.measurement_point_id or 'Not recorded'}` | "
-            f"{_last_observed} | "
-            f"{observation.data_quality.state.value.upper()} | "
-            "Unavailable |"
-        )
-        assets_view = mo.vstack(
-            [
-                mo.md(
-                    "## Assets\n\n"
-                    "현재 연결된 observation population을 asset inventory 형태로 표시합니다. "
-                    "향후 multi-asset repository/API가 연결되면 같은 surface가 "
-                    "fleet list를 소비합니다."
-                ),
-                mo.md(
-                    "| Asset | Measurement point | Last observed | Data quality | Finding |\n"
-                    "| --- | --- | --- | --- | --- |\n" + _row
-                ),
-                mo.callout(
-                    "The current field bootstrap exposes one asset identity at a time, "
-                    "optionally across multiple timestamped segments. A one-row inventory "
-                    "is a source limitation, not the final fleet model.",
-                    kind="info",
-                    title="Current inventory scope",
-                ),
-            ],
-            gap=1.2,
-        )
-    return assets_view
 
 
 @app.cell
@@ -4636,8 +4534,6 @@ def _(
 
 @app.cell
 def _(
-    asset_view,
-    assets_view,
     data_quality_view,
     development_rul_view,
     investigation_view,
@@ -4652,8 +4548,6 @@ def _(
     views = {
         "Overview": overview_view,
         "Sources": sources_view,
-        "Assets": assets_view,
-        "Asset": asset_view,
         "Investigation": investigation_view,
         "Development RUL": development_rul_view,
         "Data Quality": data_quality_view,

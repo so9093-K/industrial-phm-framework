@@ -26,14 +26,12 @@ from industrial_phm.application import (  # noqa: E402
 )
 from industrial_phm.connectors import (  # noqa: E402
     OpcUaBrowseConfig,
-    OpcUaEndpointProbeConfig,
     OpcUaNodeMapping,
     OpcUaReadConfig,
     OpcUaSubscriptionCompletionReason,
     OpcUaSubscriptionConfig,
     browse_opcua_variables,
     collect_opcua_subscription_notifications,
-    probe_opcua_endpoint,
     read_opcua_snapshot,
 )
 
@@ -105,7 +103,6 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
         )
 
         async with server:
-            probe = await probe_opcua_endpoint(OpcUaEndpointProbeConfig(endpoint_url=endpoint))
             browse = await browse_opcua_variables(
                 OpcUaBrowseConfig(
                     endpoint_url=endpoint,
@@ -175,10 +172,6 @@ def test_opcua_extra_reads_real_asyncua_datavalues(tmp_path: Path) -> None:
                     )
                 )
             )
-
-        assert probe.endpoint_url == endpoint
-        assert probe.connected_at.utcoffset() is not None
-        assert probe.disconnected_at >= probe.connected_at
 
         assert browse.endpoint_url == endpoint
         assert browse.truncated is False

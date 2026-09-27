@@ -116,39 +116,6 @@ class OpcUaBrowseResult:
 
 
 @dataclass(frozen=True, slots=True)
-class OpcUaEndpointProbeConfig:
-    """Configuration for one anonymous OPC UA endpoint connect/disconnect probe."""
-
-    endpoint_url: str
-    timeout_seconds: float = 4.0
-
-    def __post_init__(self) -> None:
-        _validate_endpoint_url(self.endpoint_url)
-        _validate_timeout_seconds(self.timeout_seconds)
-
-
-@dataclass(frozen=True, slots=True)
-class OpcUaEndpointProbeResult:
-    """Evidence that one endpoint session connected and then disconnected successfully."""
-
-    endpoint_url: str
-    connected_at: datetime
-    disconnected_at: datetime
-
-    def __post_init__(self) -> None:
-        _validate_endpoint_url(self.endpoint_url)
-        if not isinstance(self.connected_at, datetime) or self.connected_at.utcoffset() is None:
-            raise ValueError("connected_at must be a timezone-aware datetime")
-        if (
-            not isinstance(self.disconnected_at, datetime)
-            or self.disconnected_at.utcoffset() is None
-        ):
-            raise ValueError("disconnected_at must be a timezone-aware datetime")
-        if self.disconnected_at < self.connected_at:
-            raise ValueError("disconnected_at must not be before connected_at")
-
-
-@dataclass(frozen=True, slots=True)
 class OpcUaNodeMapping:
     """Map one OPC UA variable NodeId to one framework channel identifier."""
 
@@ -494,31 +461,6 @@ async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult
         visited_node_count=visited_node_count,
         truncated=truncated,
         variables=tuple(sorted(variables, key=lambda item: (item.browse_path, item.node_id))),
-    )
-
-
-async def probe_opcua_endpoint(
-    config: OpcUaEndpointProbeConfig,
-) -> OpcUaEndpointProbeResult:
-    """Connect once and disconnect without reading nodes or inferring endpoint health."""
-    if not isinstance(config, OpcUaEndpointProbeConfig):
-        raise ValueError("config must be an OpcUaEndpointProbeConfig")
-
-    client_type = _load_asyncua_client()
-    client = client_type(
-        url=config.endpoint_url,
-        timeout=float(config.timeout_seconds),
-        auto_reconnect=False,
-    )
-
-    async with client:
-        connected_at = datetime.now(UTC)
-    disconnected_at = datetime.now(UTC)
-
-    return OpcUaEndpointProbeResult(
-        endpoint_url=config.endpoint_url,
-        connected_at=connected_at,
-        disconnected_at=disconnected_at,
     )
 
 

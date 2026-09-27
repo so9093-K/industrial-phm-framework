@@ -7,8 +7,6 @@ from industrial_phm.connectors.opcua import (
     OpcUaBrowseConfig,
     OpcUaBrowseResult,
     OpcUaBrowseVariable,
-    OpcUaEndpointProbeConfig,
-    OpcUaEndpointProbeResult,
     OpcUaNodeMapping,
     OpcUaNodeObservation,
     OpcUaReadConfig,
@@ -21,7 +19,6 @@ from industrial_phm.connectors.opcua import (
     OpcUaSubscriptionResult,
     browse_opcua_variables,
     collect_opcua_subscription_notifications,
-    probe_opcua_endpoint,
     read_opcua_snapshot,
 )
 
@@ -29,8 +26,6 @@ __all__ = [
     "OpcUaBrowseConfig",
     "OpcUaBrowseResult",
     "OpcUaBrowseVariable",
-    "OpcUaEndpointProbeConfig",
-    "OpcUaEndpointProbeResult",
     "OpcUaNodeMapping",
     "OpcUaNodeObservation",
     "OpcUaReadConfig",
@@ -43,6 +38,5 @@ __all__ = [
     "OpcUaSubscriptionResult",
     "browse_opcua_variables",
     "collect_opcua_subscription_notifications",
-    "probe_opcua_endpoint",
     "read_opcua_snapshot",
 ]

@@ -84,15 +84,7 @@ live protocol requirement는 generic connector framework를 먼저 만들지 않
 검증합니다. 첫 concrete live-protocol slice는 OPC UA입니다.
 
 ```text
-OPC UA one-shot connector proof
-  OpcUaEndpointProbeConfig
-    └ anonymous / SecurityPolicy None endpoint
-  -> optional asyncua runtime
-  -> connect/session/disconnect
-  -> OpcUaEndpointProbeResult
-       ├ connected_at
-       └ disconnected_at
-
+OPC UA one-shot connector
   OpcUaReadConfig
     ├ anonymous / SecurityPolicy None endpoint
     └ explicit channel_id -> variable NodeId mapping
@@ -298,10 +290,7 @@ OPC UA connector proof와 registration identity는 registry v4를 통해 persist
 surface까지 연결되었습니다. 현재 connector는 explicit variable NodeId를 한 번 읽어 protocol
 quality/timestamp를 보존하고, application/registry는 같은 endpoint/NodeId mapping을 `RegisteredSource`로
 round-trip합니다. Operations는 FILE과 OPC UA detail을 type별로 표시합니다. FILE 전용 manual Load action은 OPC UA에서 노출하지 않지만 type-specific Run action은 OPC UA one-shot runtime을 실행합니다. Operations Add source는 OPC UA endpoint와 browse candidate 또는 explicit `channel_id,node_id`
-mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Connector 계층에는 같은
-anonymous endpoint/timeout invariant를 재사용하는 `probe_opcua_endpoint` one-shot connect/disconnect boundary가
-있지만 registration workflow에는 아직 연결하지 않았습니다. Probe 성공은 한 시점의 reachability evidence일 뿐
-지속 connection/health state가 아닙니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록하며 Operations Run action에서도 실행됩니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. CLI `operations poll-source`는 FILE/OPC UA registered source를 type-specific one-shot cycle로 동기 반복합니다. OPC UA polling은 iteration마다 fresh connect/read/disconnect를 수행하며 connection/session을 유지하지 않습니다. OPC UA one-shot snapshot은 `project_registered_opcua_observation_summary`로 canonical `AssetObservationSummary`에 projection하며 one iteration을 `sample_count=1`로 표현하고 complete-channel watermark만 observed start/end로 사용합니다. Non-good status는 data-quality ERROR로 보존하고 sampling rate/file provenance는 추정하지 않습니다. OPC UA read/browse/subscription connector의 `completed_at`은 successful context teardown 이후에 기록합니다. OPC UA read/subscription cycle은 successful bounded attempt와 source-owned connector/transport failure를 operation-tagged latest `SourceConnectionAttemptEvidence`로 runtime v3에 기록합니다. `SourceHealthAssessment`는 이 historical attempt evidence를 optional inspection fact로 보존하지만 current/session connection state는 계속 `NOT_INSTRUMENTED`입니다. Operations Sources는 latest attempt operation/outcome/timing/detail을 persisted runtime evidence에서 읽어 표시하지만 이를 current connection state로 승격하지 않습니다. Bounded registered-source subscription collection은 Operations Sources의 explicit **Collect bounded subscription** action까지 연결됐습니다. UI는 completion reason, notification count, channel coverage와 event-level value/status/timing을 현재 app session에서 보여주지만 notification persistence나 current session connection telemetry로 승격하지 않습니다. Persistent session telemetry, observation/window assembly와 reconnect는 후속 경계입니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록하며 Operations Run action에서도 실행됩니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. CLI `operations poll-source`는 FILE/OPC UA registered source를 type-specific one-shot cycle로 동기 반복합니다. OPC UA polling은 iteration마다 fresh connect/read/disconnect를 수행하며 connection/session을 유지하지 않습니다. OPC UA one-shot snapshot은 `project_registered_opcua_observation_summary`로 canonical `AssetObservationSummary`에 projection하며 one iteration을 `sample_count=1`로 표현하고 complete-channel watermark만 observed start/end로 사용합니다. Non-good status는 data-quality ERROR로 보존하고 sampling rate/file provenance는 추정하지 않습니다. OPC UA read/browse/subscription connector의 `completed_at`은 successful context teardown 이후에 기록합니다. OPC UA read/subscription cycle은 successful bounded attempt와 source-owned connector/transport failure를 operation-tagged latest `SourceConnectionAttemptEvidence`로 runtime v3에 기록합니다. `SourceHealthAssessment`는 이 historical attempt evidence를 optional inspection fact로 보존하지만 current/session connection state는 계속 `NOT_INSTRUMENTED`입니다. Operations Sources는 latest attempt operation/outcome/timing/detail을 persisted runtime evidence에서 읽어 표시하지만 이를 current connection state로 승격하지 않습니다. Bounded registered-source subscription collection은 Operations Sources의 explicit **Collect bounded subscription** action까지 연결됐습니다. UI는 completion reason, notification count, channel coverage와 event-level value/status/timing을 현재 app session에서 보여주지만 notification persistence나 current session connection telemetry로 승격하지 않습니다. Persistent session telemetry, observation/window assembly와 reconnect는 후속 경계입니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
 Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
 reconnect/backoff/buffering과 persistent session telemetry는 후속 requirement에서 확장합니다.
 
@@ -337,15 +326,16 @@ retry/backoff/buffering, receipt history, persistent OPC UA subscription/continu
 Prepared field source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
 
 ```text
-prepared field observation / timeline
-  -> source-appropriate analysis producer (아직 미구현)
+registered FILE snapshot
+  -> on-demand vibration feature analysis
   -> AnalysisRun
        ├ execution / observation identity
        ├ data quality / source provenance
-       ├ model deployment?
-       └ produced capability IDs
-  -> OperationalFinding?  # validated state-like capability만
-       └ evidence refs -> capability-specific evidence
+       └ produced capability ID
+  -> explicit human-review OperationalFinding?
+       └ evidence ref -> vibration feature evidence
+  -> finding review workflow
+       └ note / acknowledge / close
   -> Operations
 ```
 
@@ -364,4 +354,4 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-세 그림은 framework의 전체 책임과 흐름을 설명하는 reference diagram입니다. 구현 진행 상태는 README Roadmap에서 관리합니다.
+세 그림은 framework의 전체 책임과 흐름을 설명하는 reference diagram입니다. 현재 구현 범위는 root README의 제품 milestone과 이 문서의 구체적인 runtime 경계에서 확인합니다.
