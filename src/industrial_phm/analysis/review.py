@@ -124,9 +124,7 @@ class JsonAnalysisReviewRepository:
         _require_exact_keys(root, _ROOT_KEYS, "analysis review root")
         schema = _require_string(root["schema"], "analysis review schema")
         if schema != _REVIEW_SCHEMA_V1:
-            raise AnalysisReviewFormatError(
-                f"unsupported analysis review schema: {schema!r}"
-            )
+            raise AnalysisReviewFormatError(f"unsupported analysis review schema: {schema!r}")
 
         records_raw = root["records"]
         if not isinstance(records_raw, list):
@@ -152,9 +150,7 @@ class JsonAnalysisReviewRepository:
             if record.reviewed_at < current.reviewed_at:
                 raise ValueError("reviewed_at must not move backwards")
             if record.reviewed_at == current.reviewed_at and record != current:
-                raise ValueError(
-                    "review with the same reviewed_at must match persisted evidence"
-                )
+                raise ValueError("review with the same reviewed_at must match persisted evidence")
         records[record.key] = record
         self._write(tuple(records.values()))
 
@@ -300,8 +296,6 @@ def _validate_sha256(value: str) -> None:
         raise ValueError("artifact_sha256 must be a string")
     has_invalid_character = any(character not in hexdigits for character in value)
     if len(value) != 64 or has_invalid_character:
-        raise ValueError(
-            "artifact_sha256 must contain exactly 64 hexadecimal characters"
-        )
+        raise ValueError("artifact_sha256 must contain exactly 64 hexadecimal characters")
     if value != value.lower():
         raise ValueError("artifact_sha256 must use lowercase hexadecimal characters")
