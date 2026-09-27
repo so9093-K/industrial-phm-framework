@@ -49,8 +49,9 @@ class SourceConnectionAttemptEvidence:
     """Latest bounded connector/session attempt evidence for one source.
 
     This is historical attempt evidence, not a claim that the source is connected now.
-    Operation identifies the producer that created the bounded attempt. A successful attempt requires a
-    measured connected_at inside the attempted/completed interval. A failed attempt
+    Operation identifies the producer that created the bounded attempt. A successful
+    attempt requires a measured connected_at inside the attempted/completed interval.
+    A failed attempt
     requires concrete detail and may not know whether a connection was ever established.
     """
 
