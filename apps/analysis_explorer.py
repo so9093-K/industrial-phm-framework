@@ -256,10 +256,7 @@ def _(
     review_record_error = review_artifact_error
     if review_artifact_sha256 is not None:
         try:
-            if (
-                review_acknowledge_button.value
-                and anomaly_summary.review_interval_count > 0
-            ):
+            if review_acknowledge_button.value and anomaly_summary.review_interval_count > 0:
                 review_repository.record(
                     AnalysisReviewRecord(
                         artifact_path=analysis.artifact_path,
