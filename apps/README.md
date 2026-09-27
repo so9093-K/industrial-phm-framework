@@ -236,8 +236,8 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 현재 primary navigation:
 
 - **Overview** — 현재 observation과 data quality, 아직 연결되지 않은 operational PHM 상태를 한눈에 확인
-- **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence
-- **Investigation** — observation timeline과 Analysis Explorer에서 영속된 human review records를 함께 확인하고, 아직 미연결인 AnalysisRun/Finding/Prognostics와 구분하는 조사 surface
+- **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence와 registered FILE snapshot의 on-demand operational feature analysis
+- **Investigation** — observation timeline, registered FILE snapshot에서 생성한 operational `AnalysisRun` + vibration feature evidence, Analysis Explorer의 durable human review records를 함께 확인하고 Finding/Prognostics와 구분하는 조사 surface
 - **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
 
 기존 **Assets / Asset / Maintenance / System Health** view 코드는 삭제하지 않았지만, 실제 data/action이 연결되기 전에는 완성된 제품 기능처럼 primary navigation에 노출하지 않습니다. 현재 제품 milestone은 `Source → Analyze → Results → Finding → Maintenance review`이며, 다음 작업은 registered source/observation에서 실제 `AnalysisRun`과 capability-specific result를 만드는 operational producer를 연결하는 것입니다.
@@ -245,6 +245,12 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
 condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
 복사하지 않습니다.
+
+### Operational FILE snapshot analysis
+
+등록된 **FILE snapshot** 중 explicit timezone-aware timestamp를 가진 source는 Sources의 **Analyze FILE snapshot**으로 on-demand operational analysis를 실행할 수 있습니다. 실행은 현재 source bytes를 다시 검증하고 기존 `CsvSensorAdapter → canonical series → vibration-statistical-v1` 경계를 사용합니다. 성공하면 실제 `AnalysisRun`과 `field-vibration-statistical-features-v1` capability evidence를 현재 Operations session에 생성하고 Investigation에서 feature values와 provenance를 확인할 수 있습니다.
+
+이 첫 producer는 history-directory, OPC UA snapshot/subscription, naive timestamp source를 지원하지 않습니다. 또한 feature statistics를 anomaly/fault/health/finding으로 해석하지 않습니다. 현재 결과는 session-local이며 durable operational analysis history는 다음 별도 연결 영역입니다.
 
 운영 분석 결과를 받을 application contract는 `AnalysisRun`과 `OperationalFinding`으로 분리되어 있습니다.
 `AnalysisRun`은 execution/provenance envelope만 소유하고, `OperationalFinding`은 capability,
