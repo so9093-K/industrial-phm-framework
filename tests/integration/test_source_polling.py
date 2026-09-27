@@ -18,7 +18,6 @@ from industrial_phm.application import (
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleResult,
     SourceRuntimeCycleState,
-    poll_registered_file_source,
     poll_registered_source,
     transition_source_lifecycle,
 )
@@ -150,7 +149,7 @@ def test_source_polling_runs_bounded_successful_cycles_and_sleeps_between(
     sleeps: list[float] = []
 
     results = tuple(
-        poll_registered_file_source(
+        poll_registered_source(
             source_repository,
             source_repository,
             runtime_repository,
@@ -229,7 +228,7 @@ def test_source_polling_stops_without_sleep_for_non_active_source(tmp_path: Path
     sleeps: list[float] = []
 
     results = tuple(
-        poll_registered_file_source(
+        poll_registered_source(
             source_repository,
             source_repository,
             runtime_repository,
@@ -256,7 +255,7 @@ def test_source_polling_stops_after_source_failure_and_preserves_error_lifecycle
     sleeps: list[float] = []
 
     results = tuple(
-        poll_registered_file_source(
+        poll_registered_source(
             source_repository,
             source_repository,
             runtime_repository,
@@ -284,7 +283,7 @@ def test_source_polling_stops_after_platform_failure_without_retry(
     sleeps: list[float] = []
 
     results = tuple(
-        poll_registered_file_source(
+        poll_registered_source(
             source_repository,
             source_repository,
             runtime_repository,
@@ -318,7 +317,7 @@ def test_source_polling_observes_pause_between_cycles(tmp_path: Path) -> None:
         )
 
     results = tuple(
-        poll_registered_file_source(
+        poll_registered_source(
             source_repository,
             source_repository,
             runtime_repository,
