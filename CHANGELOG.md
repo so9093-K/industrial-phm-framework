@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Operations 제품 우선순위를 `Source → Analyze → Results → Finding → Maintenance review` vertical slice로 재정렬했습니다. 아직 producer/data/action이 연결되지 않은 Assets/Asset/Maintenance/System Health view는 코드를 보존하되 primary navigation에서 제외하고, Overview/Sources/Investigation/Data Quality를 현재 사용자 행동 중심의 navigation으로 유지합니다. Persistent OPC UA/continuous ingestion, 새 connector/model/dataset과 generic workflow 확장은 이 operational slice가 끝날 때까지 우선순위에서 동결합니다.
 - Source runtime state를 `industrial-phm-source-runtime-v3`로 확장해 latest bounded connection-attempt evidence에 producer operation을 추가했습니다. 새 OPC UA one-shot read는 `opcua-read`, bounded subscription runtime은 `opcua-subscription`을 기록합니다. 기존 v1 receipt-only와 v2 operation-less state는 계속 읽고 다음 write에서 v3로 승격하며, v2 attempt의 작업 종류는 추정하지 않고 `legacy-unspecified`로 보존합니다. Operations Sources의 latest attempt 표도 operation/outcome/timing/detail을 함께 표시합니다.
 - OPC UA read, bounded browse, bounded subscription의 `completed_at`을 client/subscription context teardown이 성공적으로 끝난 뒤 기록하도록 정리했습니다. 따라서 successful bounded result의 completion time은 connector 작업뿐 아니라 해당 context의 정상 종료까지 포함합니다.
 - OPC UA one-shot runtime에서 failure ownership과 administrative lifecycle을 분리했습니다. Explicit OPC UA data-contract failure는 기존처럼 `FAILED/SOURCE`와 함께 `ACTIVE → ERROR`로 전이하지만, connection refused 같은 transport `OSError`는 failed connection-attempt evidence와 `SOURCE` scope를 보존하면서 lifecycle은 `ACTIVE`로 유지합니다. 현재 polling은 여전히 failed cycle에서 중지하며 자동 retry/backoff는 추가하지 않았습니다.
