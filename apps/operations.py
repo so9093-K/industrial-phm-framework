@@ -3099,8 +3099,10 @@ def _(
                     ),
                     mo.callout(
                         f"Review state: `{analysis_review_state_path}`. "
-                        "이 기록은 Analysis Explorer에서 사람이 evidence를 검토했다는 사실이며 "
-                        "OperationalFinding이나 maintenance work order가 아닙니다.",
+                        "현재 observation이 있을 때 연결 기준은 asset_id 일치뿐이며 "
+                        "source/measurement-point lineage까지 검증한 operational join은 아닙니다. "
+                        "이 기록은 사람이 analysis evidence를 검토했다는 사실이며 OperationalFinding이나 "
+                        "maintenance work order가 아닙니다.",
                         kind="info",
                         title=f"Human review evidence · {len(_ordered_records)} record(s)",
                     ),
