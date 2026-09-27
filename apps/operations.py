@@ -3151,7 +3151,8 @@ def _(analysis_review_history_view, mo, observation_timeline_view):
             ),
             mo.callout(
                 "Human analysis-review acknowledgement/note는 위 review record로 확인할 수 있지만 "
-                "maintenance case, inspection execution 또는 work-order history는 아직 연결되지 않았습니다.",
+                "maintenance case, inspection execution 또는 work-order history는 "
+                "아직 연결되지 않았습니다.",
                 kind="neutral",
                 title="Maintenance context · Review only",
             ),
