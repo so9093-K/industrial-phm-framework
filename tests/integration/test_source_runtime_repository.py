@@ -193,6 +193,30 @@ def test_json_source_runtime_repository_rejects_unsupported_schema(tmp_path: Pat
         JsonSourceRuntimeRepository(path).list_latest_receipts()
 
 
+
+@pytest.mark.parametrize(
+    "schema",
+    (
+        "industrial-phm-source-runtime-v1",
+        "industrial-phm-source-runtime-v2",
+    ),
+)
+def test_json_source_runtime_repository_rejects_pre_alpha_legacy_schemas(
+    tmp_path: Path,
+    schema: str,
+) -> None:
+    path = tmp_path / "runtime.json"
+    repository = JsonSourceRuntimeRepository(path)
+    repository.record_receipt(_receipt())
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["schema"] = schema
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SourceRuntimeFormatError, match="unsupported source runtime schema"):
+        JsonSourceRuntimeRepository(path).list_latest_receipts()
+
+
 def test_json_source_runtime_repository_rejects_duplicate_source_ids(
     tmp_path: Path,
 ) -> None:
@@ -219,18 +243,6 @@ def test_json_source_runtime_repository_rejects_schema_key_drift(tmp_path: Path)
 
     with pytest.raises(SourceRuntimeFormatError, match="keys do not match schema"):
         JsonSourceRuntimeRepository(path).list_latest_receipts()
-
-
-def test_connection_attempt_evidence_preserves_legacy_unspecified_default() -> None:
-    attempt = SourceConnectionAttemptEvidence(
-        source_id="source-a",
-        outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
-        attempted_at=datetime.fromisoformat("2026-09-23T10:00:00+09:00"),
-        connected_at=datetime.fromisoformat("2026-09-23T10:00:01+09:00"),
-        completed_at=datetime.fromisoformat("2026-09-23T10:00:02+09:00"),
-    )
-
-    assert attempt.operation == SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
 
 
 def test_connection_attempt_evidence_requires_success_timing_and_failure_detail() -> None:
@@ -324,74 +336,6 @@ def test_runtime_v3_writes_preserve_receipts_and_connection_attempts(
         "source-a",
         "source-c",
     )
-
-
-def test_runtime_v1_receipts_remain_readable_and_upgrade_on_next_write(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "runtime.json"
-    path.write_text(
-        json.dumps(
-            {
-                "schema": "industrial-phm-source-runtime-v1",
-                "latest_receipts": [
-                    {
-                        "source_id": "legacy-source",
-                        "observed_at": "2026-09-23T10:00:00+09:00",
-                        "received_at": "2026-09-23T10:00:05+09:00",
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    repository = JsonSourceRuntimeRepository(path)
-
-    assert repository.get_latest_receipt("legacy-source") == _receipt(source_id="legacy-source")
-    assert repository.list_latest_connection_attempts() == ()
-
-    repository.record_connection_attempt(_connection_attempt(source_id="legacy-source"))
-
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema"] == "industrial-phm-source-runtime-v3"
-    assert payload["latest_receipts"][0]["source_id"] == "legacy-source"
-    assert payload["latest_connection_attempts"][0]["source_id"] == "legacy-source"
-
-
-def test_runtime_v2_attempts_remain_readable_without_inventing_operation_and_upgrade_on_write(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "runtime.json"
-    path.write_text(
-        json.dumps(
-            {
-                "schema": "industrial-phm-source-runtime-v2",
-                "latest_receipts": [],
-                "latest_connection_attempts": [
-                    {
-                        "source_id": "legacy-source",
-                        "outcome": "succeeded",
-                        "attempted_at": "2026-09-23T10:00:00+09:00",
-                        "connected_at": "2026-09-23T10:00:01+09:00",
-                        "completed_at": "2026-09-23T10:00:02+09:00",
-                        "detail": None,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    repository = JsonSourceRuntimeRepository(path)
-
-    attempt = repository.get_latest_connection_attempt("legacy-source")
-    assert attempt is not None
-    assert attempt.operation == SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
-
-    repository.record_receipt(_receipt(source_id="legacy-source"))
-
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["schema"] == "industrial-phm-source-runtime-v3"
-    assert payload["latest_connection_attempts"][0]["operation"] == "legacy-unspecified"
 
 
 def test_json_source_runtime_repository_rejects_connection_attempt_time_regression(
