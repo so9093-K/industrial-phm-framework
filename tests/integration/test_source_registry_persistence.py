@@ -331,7 +331,6 @@ def test_json_source_repository_rejects_unsupported_schema(tmp_path: Path) -> No
         JsonSourceRepository(registry).list_sources()
 
 
-
 @pytest.mark.parametrize(
     "schema",
     (
