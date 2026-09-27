@@ -665,8 +665,10 @@ Report에는 timestamp를 넣지 않아 동일 입력에서 byte-stable text를 
 artifact에 기록되지 않은 현재 한계도 그대로 표시합니다.
 
 Prepared single-asset CSV export에 대해서는 local validation, source byte identity, data-quality provenance,
-canonical mapping과 vibration feature projection까지 baseline이 구현되어 있습니다. 이 경계는 아직 generic field
-analysis runtime이 아니며, MIMII WAV adapter도 generic field WAV contract로 승격하지 않습니다.
+canonical mapping과 vibration feature projection을 재사용하는 operational FILE-snapshot producer가 구현되어
+있습니다. 이 producer는 on-demand snapshot AnalysisRun/evidence와 durable local history까지 연결하지만
+history-directory aggregation, OPC UA analysis, automatic condition/fault semantics 또는 operational RUL을
+의미하지 않습니다. MIMII WAV adapter도 generic field WAV contract로 승격하지 않습니다.
 
 다음 확장은 실제 private/field source conformance와 Operations UI를 함께 진행하면서 asset/sensor identity,
 vendor quality flag, maintenance/configuration event와 source-specific diagnostics 요구를 확인합니다.
