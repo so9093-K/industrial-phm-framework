@@ -9,6 +9,11 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from industrial_phm.adapters import CsvSensorLayout
+from industrial_phm.application.asset_identity import (
+    AssetIdentity,
+    ChannelIdentity,
+    MeasurementPointIdentity,
+)
 from industrial_phm.connectors import OpcUaNodeMapping, OpcUaReadConfig
 
 
@@ -145,6 +150,37 @@ class RegisteredSource:
     def measurement_point_id(self) -> str | None:
         """Return the optional measurement-point identity declared by the mapping."""
         return self.config.measurement_point_id
+
+    @property
+    def asset_identity(self) -> AssetIdentity:
+        """Project the declared source mapping to first-class asset identity."""
+        return AssetIdentity(self.asset_id)
+
+    @property
+    def measurement_point_identity(self) -> MeasurementPointIdentity | None:
+        """Project the optional declared measurement-point identity."""
+        if self.measurement_point_id is None:
+            return None
+        return MeasurementPointIdentity(
+            asset_id=self.asset_id,
+            measurement_point_id=self.measurement_point_id,
+        )
+
+    @property
+    def channel_identities(self) -> tuple[ChannelIdentity, ...]:
+        """Project explicit source channels without inventing component hierarchy."""
+        if isinstance(self.config, FileSourceConfig):
+            channel_ids = tuple(self.config.channel_columns)
+        else:
+            channel_ids = tuple(mapping.channel_id for mapping in self.config.node_mappings)
+        return tuple(
+            ChannelIdentity(
+                asset_id=self.asset_id,
+                measurement_point_id=self.measurement_point_id,
+                channel_id=channel_id,
+            )
+            for channel_id in channel_ids
+        )
 
 
 class SourceAlreadyRegisteredError(ValueError):

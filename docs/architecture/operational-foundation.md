@@ -163,6 +163,12 @@ artifact schema를 직접 해석하거나 numerical PHM 의미를 새로 만드�
 observation time range, channel/sample population과 data-quality state를 application read model로 전달하고,
 anomaly/diagnosis/prognostics/maintenance 의미는 검증된 capability가 실제로 생길 때 별도 evidence로 붙입니다.
 
+Operations v2의 asset-centric read model을 준비하기 위해 `AssetIdentity`, `ComponentIdentity`,
+`MeasurementPointIdentity`, `ChannelIdentity`를 application contract로 분리합니다. 기존 source registry v4와
+operational JSON schema는 이 변경에서 수정하지 않습니다. 현재 source/observation/analysis/finding이 실제로
+보존하는 `asset_id`, optional `measurement_point_id`, channel ID를 typed identity로 projection하며,
+현재 source mapping에 없는 component identity는 channel 이름이나 measurement-point 이름에서 추론하지 않습니다.
+
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview
