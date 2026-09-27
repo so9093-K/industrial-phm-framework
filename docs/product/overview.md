@@ -675,75 +675,49 @@ RUL·diagnosis·새 모델·새 source를 같은 시스템 안에서 확장합�
 
 ## 8. PHM Operations 현재 상태
 
-Operations UI의 첫 vertical slice는 `apps/operations.py`로 구현합니다. 이 surface의 목적은 현재 구현된
-capability만 모아 작은 화면을 만드는 것이 아니라, 운영 사용자가 실제로 필요로 하는 정보 구조를 먼저
-고정하고 각 값의 evidence 상태를 명확히 구분하는 것입니다. Local prepared-source inspection 입력은 Overview에만
-두고, persistent source registration/configuration/lifecycle/runtime action은 Sources가 소유해 운영 화면 전반에
-configuration 입력이 반복 노출되지 않게 합니다.
+Operations의 제품 기준을 "미래 정보구조를 먼저 모두 노출"하는 방식에서 **현재 수행 가능한 사용자 행동과 다음 연결 작업을 우선**하는 방식으로 조정합니다.
+
+현재 제품 milestone은 다음 한 줄입니다.
 
 ```text
-Operations
-├ Overview
-│  ├ Asset / Last observed / Data quality
-│  ├ Condition / Alerts / Findings
-│  ├ RUL
-│  └ Maintenance
-├ Assets
-│  └ Fleet / asset inventory
-├ Asset
-│  ├ Observation identity / time / channels / population
-│  ├ Timestamped segment timeline
-│  ├ Data quality
-│  ├ Freshness
-│  └ Sensor context
-├ Investigation
-│  ├ Observation timeline
-│  ├ Finding
-│  ├ PHM Trend & Evidence
-│  ├ Prognostics
-│  └ Maintenance context
-├ Data Quality
-│  ├ Source mapping / exact snapshot identity
-│  ├ Declared validation policy
-│  ├ Recorded quality evidence
-│  └ Missing vendor/sensor quality semantics
-├ Maintenance
-│  ├ Case
-│  ├ Work order
-│  ├ Maintenance history
-│  └ Post-maintenance validation
-└ System Health
-   ├ Source
-   ├ Ingestion
-   ├ Analysis runtime
-   └ Logs / metrics / traces
+Source -> Analyze -> Results -> Finding -> Maintenance review
 ```
 
-**UI 구조의 존재와 numerical/operational 사실의 존재를 분리합니다.** 사용자가 필요로 하는 영역은 값이
-아직 없더라도 숨기지 않습니다. 반면 값은 validated evidence가 있을 때만 표시합니다.
+### 현재 실제 가능한 것
 
-- `Not validated`: 필요한 데이터는 있을 수 있으나 field-specific state/threshold 의미가 검증되지 않음
-- `Unavailable`: 해당 operational result/evidence가 현재 생성되지 않음
-- `Not connected`: maintenance/history/service 같은 외부 capability가 연결되지 않음
-- `Not configured`: freshness처럼 제품 정책이 아직 선언되지 않음
-- `Not instrumented`: ingestion/runtime telemetry처럼 platform observability가 아직 계측되지 않음
+- prepared FILE source와 OPC UA source 등록
+- source lifecycle 제어와 one-shot runtime 실행
+- bounded OPC UA DataChange collection과 event/channel evidence 확인
+- prepared observation/timeline과 data-quality/provenance 확인
+- 별도 Analysis Explorer에서 XJTU anomaly/RUL 분석 실행과 result/evidence 검토
 
-현재 concrete path는 prepared field CSV → adapter validation → `AssetObservationSummary`이며, explicit
-timestamp가 있는 동일 asset/measurement point segment 여러 개는 `AssetObservationTimeline`으로 구성할 수
-있습니다. Timeline loader는 input/filename 순서가 아니라 recorded observation time으로 정렬하고, timestamp가
-없는 segment나 overlap/reverse segment를 timeline으로 승격하지 않습니다.
+### 현재 끊긴 지점
 
-따라서 asset/source/measurement point, observation range, channel/sample population, aggregate data quality,
-prepared snapshot filename/SHA-256/byte size와 timestamp field/minimum sample count/sampling-rate tolerance
-같은 declared validation policy를 실제 값으로 표시할 수 있습니다. Absolute local path는 operational read
-model에 올리지 않습니다. **Observation timeline은 PHM trend가 아닙니다.** Condition/operational
-Finding/RUL/Maintenance는 research artifact 또는 시간 순서만으로 추론하지 않으며 각각의 production boundary가
-생길 때 현재 자리의 explicit state를 실제 evidence로 대체합니다.
+```text
+Registered source / observation
+  -> source-appropriate operational analysis producer   # not connected
+  -> AnalysisRun
+  -> capability-specific evidence
+  -> OperationalFinding
+  -> maintenance review action
+```
 
-이 구조는 빈 placeholder를 유지하기 위한 것이 아니라 **다음 구현 순서를 UI에서 드러내는 executable product
-contract**입니다. 다음 작업은 timestamped observation population 위에 source-appropriate field analysis
-run/operational finding을 연결하고, 별도 source/analysis runtime telemetry를 correlation ID와 함께 계측하는
-것입니다.
+`AnalysisRun`과 `OperationalFinding` 계약이 존재한다는 사실만으로 기능이 완성된 것으로 취급하지 않습니다. producer와 사용자 action이 연결되지 않은 capability는 primary navigation에서 완성 기능처럼 노출하지 않습니다.
+
+Operations primary navigation은 현재 행동 가능한 **Overview / Sources / Investigation / Data Quality**에 집중합니다. 기존 Asset/Maintenance/System Health read-model 코드는 삭제하지 않고 후속 vertical slice에서 실제 data/action이 연결될 때 다시 navigation에 올립니다.
+
+### 다음 vertical slice의 Definition of Done
+
+다음 milestone은 새로운 infrastructure가 아니라 아래 흐름을 실제 UI에서 끝까지 수행하는 것입니다.
+
+1. registered source 또는 준비된 observation을 analysis 대상으로 선택할 수 있다.
+2. 사용자가 analysis를 실행하면 실제 `AnalysisRun`이 생성된다.
+3. capability-specific result/evidence가 저장되고 Results/Investigation에서 확인된다.
+4. 검증된 최소 semantics로 operational finding을 생성하거나, 생성할 수 없으면 그 이유를 명확히 표시한다.
+5. 생성된 finding에 사용자가 최소 review action(acknowledge/note)을 수행할 수 있다.
+6. 같은 결과에서 지원되는 경우 RUL evidence를 확인할 수 있다.
+
+이 milestone 전에는 persistent OPC UA session, reconnect/backoff, continuous ingestion, 새 connector/model/dataset, generic workflow framework를 우선 작업으로 올리지 않습니다.
 
 ## References
 
