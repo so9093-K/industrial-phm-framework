@@ -7,7 +7,7 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import os
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
     from pathlib import Path
 
     import marimo as mo
@@ -60,7 +60,7 @@ def _():
         run_xjtu_lstm_analysis_from_source,
         summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
-        timezone,
+        UTC,
         write_analysis_report_markdown,
     )
 
@@ -250,7 +250,7 @@ def _(
     review_artifact_sha256,
     review_note_input,
     review_repository,
-    timezone,
+    UTC,
 ):
     review_record = None
     review_record_error = review_artifact_error
@@ -268,7 +268,7 @@ def _(
                         review_policy_id=anomaly_summary.review_threshold.policy_id,
                         review_threshold_value=anomaly_summary.review_threshold.value,
                         review_interval_count=anomaly_summary.review_interval_count,
-                        reviewed_at=datetime.now(timezone.utc),
+                        reviewed_at=datetime.now(UTC),
                         note=review_note_input.value.strip(),
                     )
                 )
