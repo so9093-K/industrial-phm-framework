@@ -250,10 +250,7 @@ class JsonSourceRepository:
 def _parse_sources(value: object) -> tuple[RegisteredSource, ...]:
     if not isinstance(value, list):
         raise SourceRegistryFormatError("source registry sources must be a JSON array")
-    sources = tuple(
-        _parse_registered_source(item, index=index)
-        for index, item in enumerate(value)
-    )
+    sources = tuple(_parse_registered_source(item, index=index) for index, item in enumerate(value))
     source_ids = tuple(source.source_id for source in sources)
     if len(set(source_ids)) != len(source_ids):
         raise SourceRegistryFormatError("source registry contains duplicate source_id values")
