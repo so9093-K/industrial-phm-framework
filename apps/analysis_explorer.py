@@ -160,6 +160,7 @@ def _(analysis, mo):
     view_selector = mo.ui.radio(
         options=[
             "결과 요약",
+            "검토 및 조치",
             "근거 확인",
             "RUL 분석",
             "새 분석 실행",
@@ -188,6 +189,127 @@ def _(analysis, asset_selector, summarize_anomaly_for_asset):
     review_threshold = anomaly_summary.review_threshold
     review_intervals = anomaly_summary.review_intervals
     return anomaly_summary, review_intervals, review_threshold, selected_asset
+
+
+@app.cell
+def _(mo):
+    review_note_input = mo.ui.text_area(
+        value="",
+        label="검토 메모 (선택)",
+        rows=3,
+        full_width=True,
+    )
+    review_acknowledge_button = mo.ui.run_button(
+        label="검토 완료로 표시",
+        kind="success",
+    )
+    return review_acknowledge_button, review_note_input
+
+
+@app.cell
+def _(mo):
+    get_review_acknowledgement, set_review_acknowledgement = mo.state(None)
+    return get_review_acknowledgement, set_review_acknowledgement
+
+
+@app.cell
+def _(get_review_acknowledgement):
+    review_acknowledgement = get_review_acknowledgement()
+    return (review_acknowledgement,)
+
+
+@app.cell
+def _(analysis, asset_selector):
+    review_key = (analysis.artifact_path, asset_selector.value)
+    return (review_key,)
+
+
+@app.cell
+def _(
+    review_acknowledge_button,
+    review_key,
+    review_note_input,
+    set_review_acknowledgement,
+):
+    if review_acknowledge_button.value:
+        set_review_acknowledgement((review_key, review_note_input.value.strip()))
+    return
+
+
+@app.cell
+def _(
+    anomaly_summary,
+    asset_selector,
+    mo,
+    review_acknowledge_button,
+    review_acknowledgement,
+    review_key,
+    review_note_input,
+):
+    _acknowledged = review_acknowledgement is not None and review_acknowledgement[0] == review_key
+    _saved_note = "" if not _acknowledged else review_acknowledgement[1]
+    _strongest = anomaly_summary.strongest_review_interval
+
+    if anomaly_summary.review_interval_count == 0:
+        _status = mo.callout(
+            "현재 descriptive review policy를 넘은 연속 구간이 없습니다. "
+            "이 상태는 설비가 정상이라는 판정이 아닙니다.",
+            kind="neutral",
+            title="검토 항목 없음",
+        )
+        _action_items = []
+    elif _acknowledged:
+        _status = mo.callout(
+            "이 분석 결과의 검토 필요 항목을 현재 세션에서 확인 완료로 표시했습니다.",
+            kind="success",
+            title="검토 완료",
+        )
+        _action_items = [
+            mo.md("### 기록된 메모\n\n" + (_saved_note if _saved_note else "_메모 없음_"))
+        ]
+    else:
+        _status = mo.callout(
+            f"검토 기준을 넘은 연속 구간이 "
+            f"{anomaly_summary.review_interval_count}개 있습니다. "
+            "결과 근거를 확인한 뒤 검토 완료 여부를 기록할 수 있습니다.",
+            kind="warn",
+            title="검토 필요",
+        )
+        _action_items = [
+            review_note_input,
+            review_acknowledge_button,
+        ]
+
+    if _strongest is None:
+        _strongest_view = mo.md("### 우선 확인 구간\n\n현재 기록된 review interval이 없습니다.")
+    else:
+        _strongest_view = mo.md(
+            "### 우선 확인 구간\n\n"
+            f"- Acquisition: **{_strongest.start_acquisition_index}-"
+            f"{_strongest.end_acquisition_index}**\n"
+            f"- Observation 수: **{_strongest.observation_count:,}**\n"
+            f"- Peak score: **{_strongest.peak_score:.6f}**\n"
+            f"- Review threshold: **{anomaly_summary.review_threshold.value:.6f}**"
+        )
+
+    review_view = mo.vstack(
+        [
+            mo.md("## 검토 및 조치"),
+            asset_selector,
+            _status,
+            _strongest_view,
+            *_action_items,
+            mo.callout(
+                "이 화면의 '검토 완료'는 사람의 review disposition을 기록하는 첫 UX slice입니다. "
+                "현재 브라우저 세션에서만 유지되며 OperationalFinding, fault diagnosis, "
+                "maintenance work order 또는 CMMS 기록을 생성하지 않습니다.",
+                kind="info",
+                title="현재 조치 범위",
+            ),
+        ],
+        gap=1.2,
+    )
+    return (review_view,)
 
 
 @app.cell
@@ -1061,12 +1183,14 @@ def _(
     mo,
     prognostics_view,
     report_view,
+    review_view,
     run_analysis_view,
     summary_view,
     view_selector,
 ):
     views = {
         "결과 요약": summary_view,
+        "검토 및 조치": review_view,
         "근거 확인": mo.vstack([evidence_view, ai_explanation_view], gap=2.0),
         "RUL 분석": mo.vstack([prognostics_view, ai_explanation_view], gap=2.0),
         "새 분석 실행": run_analysis_view,
