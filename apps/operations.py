@@ -3971,14 +3971,10 @@ def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
     )
     if not development_rul_artifact_path.is_file():
         development_rul_analysis = None
-        development_rul_error = (
-            f"No development RUL artifact at `{development_rul_artifact_path}`."
-        )
+        development_rul_error = f"No development RUL artifact at `{development_rul_artifact_path}`."
     else:
         try:
-            development_rul_analysis = load_xjtu_rul_analysis_view(
-                development_rul_artifact_path
-            )
+            development_rul_analysis = load_xjtu_rul_analysis_view(development_rul_artifact_path)
             development_rul_error = ""
         except (AnalysisViewError, OSError, ValueError) as error:
             development_rul_analysis = None
