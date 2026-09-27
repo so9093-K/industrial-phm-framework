@@ -32,6 +32,12 @@ from industrial_phm.analysis.report import (
     render_analysis_report_markdown,
     write_analysis_report_markdown,
 )
+from industrial_phm.analysis.review import (
+    AnalysisReviewFormatError,
+    AnalysisReviewRecord,
+    JsonAnalysisReviewRepository,
+    analysis_artifact_sha256,
+)
 from industrial_phm.analysis.run import (
     AnalysisRunError,
     XjtuLstmAnalysisRun,
@@ -57,12 +63,15 @@ __all__ = [
     "AnalysisEvidenceIdentity",
     "AnalysisObservation",
     "AnalysisReportError",
+    "AnalysisReviewFormatError",
+    "AnalysisReviewRecord",
     "AnalysisRunError",
     "AnalysisView",
     "AnalysisViewError",
     "AnomalyAssetSummary",
     "AnomalyEvidence",
     "EvidenceRelationship",
+    "JsonAnalysisReviewRepository",
     "PrognosticsAssetEvidence",
     "PrognosticsAssetSummary",
     "PrognosticsEvidence",
@@ -74,6 +83,7 @@ __all__ = [
     "ScoreIntervalError",
     "XjtuLstmAnalysisRun",
     "XjtuLstmAnalysisRunPlan",
+    "analysis_artifact_sha256",
     "compare_analysis_evidence",
     "derive_early_scored_window_review_threshold",
     "load_xjtu_lstm_analysis_view",

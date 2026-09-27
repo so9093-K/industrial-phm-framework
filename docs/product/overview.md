@@ -556,7 +556,7 @@ prepared XJTU source
   -> XJTU detailed projector / AnalysisView
   -> anomaly-evidence trajectory
   -> descriptive score-exceedance interval
-  -> human review acknowledgement / note (session-only)
+  -> human review acknowledgement / note (artifact/asset/policy-scoped durable local state)
   -> supporting residual evidence
   -> Generative AI explanation / Q&A
   -> pipeline / provenance drill-down
@@ -570,7 +570,7 @@ prepared XJTU source
 - earliest-third scored-window q95를 사용한 retrospective **descriptive review threshold**
 - threshold 초과 acquisition-contiguous observation을 score-exceedance interval로 표시
 - review threshold/interval을 validated normal/fault State Detection, alarm, diagnosis와 명시적으로 분리
-- review interval이 있으면 사용자가 note와 acknowledgement를 남기는 session-only human-review action. 이 상태를 `OperationalFinding`, maintenance case/work order 또는 persistent operational history로 승격하지 않음
+- review interval이 있으면 사용자가 note와 acknowledgement를 남기는 durable local human-review action. exact artifact SHA-256 + asset + review-policy identity로 재시작 이후 복원하되 이 상태를 `OperationalFinding`이나 maintenance case/work order로 승격하지 않음
 - bounded structured evidence만 소비하는 Generative AI 설명과 analysis-scoped Q&A
 - `ExperimentInspection`의 pipeline/provenance를 Analysis Details drill-down으로 재사용
 - unavailable capability를 임의 값으로 채우지 않는 명시적 capability boundary

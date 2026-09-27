@@ -7,6 +7,7 @@ app = marimo.App(width="full")
 @app.cell
 def _():
     import os
+    from datetime import UTC, datetime
     from pathlib import Path
 
     import marimo as mo
@@ -14,8 +15,11 @@ def _():
 
     from industrial_phm.analysis import (
         AnalysisReportError,
+        AnalysisReviewRecord,
         AnalysisRunError,
         AnalysisViewError,
+        JsonAnalysisReviewRepository,
+        analysis_artifact_sha256,
         compare_analysis_evidence,
         plan_xjtu_lstm_analysis,
         run_xjtu_lstm_analysis_from_source,
@@ -37,10 +41,14 @@ def _():
         AnalysisReportError,
         AnalysisRunError,
         AnalysisViewError,
+        AnalysisReviewRecord,
+        JsonAnalysisReviewRepository,
         Path,
+        analysis_artifact_sha256,
         build_analysis_explanation_context,
         build_prognostics_explanation_context,
         compare_analysis_evidence,
+        datetime,
         generate_openai_analysis_explanation,
         generate_openai_prognostics_explanation,
         load_analysis_surface,
@@ -52,6 +60,7 @@ def _():
         run_xjtu_lstm_analysis_from_source,
         summarize_anomaly_for_asset,
         summarize_prognostics_for_asset,
+        UTC,
         write_analysis_report_markdown,
     )
 
@@ -151,6 +160,29 @@ def _(get_analysis):
 
 
 @app.cell
+def _(JsonAnalysisReviewRepository, Path, os):
+    review_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_ANALYSIS_REVIEW_STATE",
+            "artifacts/analysis/review-state.json",
+        )
+    )
+    review_repository = JsonAnalysisReviewRepository(review_state_path)
+    return review_repository, review_state_path
+
+
+@app.cell
+def _(Path, analysis, analysis_artifact_sha256):
+    try:
+        review_artifact_sha256 = analysis_artifact_sha256(Path(analysis.artifact_path))
+        review_artifact_error = ""
+    except (OSError, ValueError) as error:
+        review_artifact_sha256 = None
+        review_artifact_error = str(error)
+    return review_artifact_error, review_artifact_sha256
+
+
+@app.cell
 def _(analysis, mo):
     asset_selector = mo.ui.dropdown(
         options=[asset.asset_id for asset in analysis.require_anomaly_evidence().assets],
@@ -207,33 +239,44 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
-    get_review_acknowledgement, set_review_acknowledgement = mo.state(None)
-    return get_review_acknowledgement, set_review_acknowledgement
-
-
-@app.cell
-def _(get_review_acknowledgement):
-    review_acknowledgement = get_review_acknowledgement()
-    return (review_acknowledgement,)
-
-
-@app.cell
-def _(analysis, asset_selector):
-    review_key = (analysis.artifact_path, asset_selector.value)
-    return (review_key,)
-
-
-@app.cell
 def _(
+    AnalysisReviewRecord,
+    analysis,
+    anomaly_summary,
+    asset_selector,
+    datetime,
     review_acknowledge_button,
-    review_key,
+    review_artifact_error,
+    review_artifact_sha256,
     review_note_input,
-    set_review_acknowledgement,
+    review_repository,
+    UTC,
 ):
-    if review_acknowledge_button.value:
-        set_review_acknowledgement((review_key, review_note_input.value.strip()))
-    return
+    review_record = None
+    review_record_error = review_artifact_error
+    if review_artifact_sha256 is not None:
+        try:
+            if review_acknowledge_button.value and anomaly_summary.review_interval_count > 0:
+                review_repository.record(
+                    AnalysisReviewRecord(
+                        artifact_path=analysis.artifact_path,
+                        artifact_sha256=review_artifact_sha256,
+                        asset_id=asset_selector.value,
+                        review_policy_id=anomaly_summary.review_threshold.policy_id,
+                        review_threshold_value=anomaly_summary.review_threshold.value,
+                        review_interval_count=anomaly_summary.review_interval_count,
+                        reviewed_at=datetime.now(UTC),
+                        note=review_note_input.value.strip(),
+                    )
+                )
+            review_record = review_repository.get(
+                artifact_sha256=review_artifact_sha256,
+                asset_id=asset_selector.value,
+                review_policy_id=anomaly_summary.review_threshold.policy_id,
+            )
+        except (OSError, ValueError) as error:
+            review_record_error = str(error)
+    return review_record, review_record_error
 
 
 @app.cell
@@ -242,12 +285,11 @@ def _(
     asset_selector,
     mo,
     review_acknowledge_button,
-    review_acknowledgement,
-    review_key,
     review_note_input,
+    review_record,
+    review_record_error,
+    review_state_path,
 ):
-    _acknowledged = review_acknowledgement is not None and review_acknowledgement[0] == review_key
-    _saved_note = "" if not _acknowledged else review_acknowledgement[1]
     _strongest = anomaly_summary.strongest_review_interval
 
     if anomaly_summary.review_interval_count == 0:
@@ -258,14 +300,25 @@ def _(
             title="검토 항목 없음",
         )
         _action_items = []
-    elif _acknowledged:
+    elif review_record_error:
         _status = mo.callout(
-            "이 분석 결과의 검토 필요 항목을 현재 세션에서 확인 완료로 표시했습니다.",
+            review_record_error,
+            kind="danger",
+            title="검토 기록을 사용할 수 없습니다",
+        )
+        _action_items = []
+    elif review_record is not None:
+        _status = mo.callout(
+            f"이 분석 결과의 검토 필요 항목은 "
+            f"{review_record.reviewed_at.isoformat()}에 확인 완료로 기록됐습니다.",
             kind="success",
             title="검토 완료",
         )
         _action_items = [
-            mo.md("### 기록된 메모\n\n" + (_saved_note if _saved_note else "_메모 없음_"))
+            mo.md(
+                "### 기록된 메모\n\n"
+                + (review_record.note if review_record.note else "_메모 없음_")
+            )
         ]
     else:
         _status = mo.callout(
@@ -300,9 +353,9 @@ def _(
             _strongest_view,
             *_action_items,
             mo.callout(
-                "이 화면의 '검토 완료'는 사람의 review disposition을 기록하는 첫 UX slice입니다. "
-                "현재 브라우저 세션에서만 유지되며 OperationalFinding, fault diagnosis, "
-                "maintenance work order 또는 CMMS 기록을 생성하지 않습니다.",
+                "이 화면의 '검토 완료'는 사람의 review disposition을 로컬 상태에 기록합니다. "
+                f"기본 저장 위치는 `{review_state_path}`입니다. 이 기록은 OperationalFinding, "
+                "fault diagnosis, maintenance work order 또는 CMMS 기록이 아닙니다.",
                 kind="info",
                 title="현재 조치 범위",
             ),
