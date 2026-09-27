@@ -148,18 +148,12 @@ class JsonFindingReviewRepository:
         _require_exact_keys(root, _ROOT_KEYS, "finding review root")
         schema = _require_string(root["schema"], "finding review schema")
         if schema != _FINDING_REVIEW_SCHEMA_V1:
-            raise FindingReviewHistoryFormatError(
-                f"unsupported finding review schema: {schema!r}"
-            )
+            raise FindingReviewHistoryFormatError(f"unsupported finding review schema: {schema!r}")
 
         events_raw = root["events"]
         if not isinstance(events_raw, list):
-            raise FindingReviewHistoryFormatError(
-                "finding review events must be a JSON array"
-            )
-        events = tuple(
-            _parse_event(value, index=index) for index, value in enumerate(events_raw)
-        )
+            raise FindingReviewHistoryFormatError("finding review events must be a JSON array")
+        events = tuple(_parse_event(value, index=index) for index, value in enumerate(events_raw))
         event_ids = tuple(event.event_id for event in events)
         if len(set(event_ids)) != len(event_ids):
             raise FindingReviewHistoryFormatError(
@@ -250,12 +244,8 @@ def _parse_event(value: object, *, index: int) -> FindingReviewEvent:
         return FindingReviewEvent(
             event_id=_require_string(raw["event_id"], f"{label}.event_id"),
             finding_id=_require_string(raw["finding_id"], f"{label}.finding_id"),
-            action=FindingReviewAction(
-                _require_string(raw["action"], f"{label}.action")
-            ),
-            recorded_at=_require_datetime(
-                raw["recorded_at"], f"{label}.recorded_at"
-            ),
+            action=FindingReviewAction(_require_string(raw["action"], f"{label}.action")),
+            recorded_at=_require_datetime(raw["recorded_at"], f"{label}.recorded_at"),
             note=_require_string(raw["note"], f"{label}.note"),
         )
     except ValueError as error:
@@ -295,9 +285,7 @@ def _require_datetime(value: object, label: str) -> datetime:
     try:
         result = datetime.fromisoformat(raw)
     except ValueError as error:
-        raise FindingReviewHistoryFormatError(
-            f"{label} must be an ISO 8601 datetime"
-        ) from error
+        raise FindingReviewHistoryFormatError(f"{label} must be an ISO 8601 datetime") from error
     if result.utcoffset() is None:
         raise FindingReviewHistoryFormatError(f"{label} must be timezone-aware")
     return result
