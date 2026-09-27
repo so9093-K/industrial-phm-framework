@@ -602,10 +602,9 @@ def _(
             "Overview",
             "Sources",
             "Investigation",
-            "Development RUL",
             "Data Quality",
-            "Maintenance",
-            "System Health",
+            "Maintenance Review",
+            "Operational State",
         ],
         value="Overview",
         inline=True,
@@ -3376,7 +3375,7 @@ def _(
                 "1. Prepare the bundled demo source.\n"
                 "2. **Sources** → Analyze FILE snapshot.\n"
                 "3. **Investigation** → inspect AnalysisRun/evidence and create REVIEW_REQUIRED.\n"
-                "4. **Maintenance** → note / acknowledge / close."
+                "4. **Maintenance Review** → note / acknowledge / close."
             ),
             prepare_demo_source_button,
             _status,
@@ -3396,67 +3395,48 @@ def _(
     overview_stats,
     quality_view,
 ):
+    _finding_status = (
+        mo.callout(
+            f"{len(operational_findings)} explicit REVIEW_REQUIRED finding(s) are stored. "
+            "These are human review requests, not automated fault or health verdicts.",
+            kind="warn",
+            title="Findings · Review required",
+        )
+        if operational_findings
+        else mo.callout(
+            "No explicit REVIEW_REQUIRED finding is stored. "
+            "Investigation can create one from a persisted AnalysisRun.",
+            kind="neutral",
+            title="Findings · None",
+        )
+    )
     overview_view = mo.vstack(
         [
             mo.md(
                 "## Operations Overview\n\n"
-                "관측·품질·PHM·정비 capability를 같은 운영 구조에서 확인합니다."
+                "현재 연결된 source, observation, analysis와 review workflow만 표시합니다."
             ),
             bundled_demo_view,
             overview_stats,
             connection_status,
             mo.hstack(
                 [
+                    _finding_status,
                     mo.callout(
-                        "No validated field condition/health state is available yet. "
-                        "A score will not be promoted to a health state without a "
-                        "field-specific validation policy.",
-                        kind="neutral",
-                        title="Condition · Not validated",
-                    ),
-                    (
-                        mo.callout(
-                            f"{len(operational_findings)} explicit REVIEW_REQUIRED finding(s) "
-                            "are stored. These are human review requests, not automated fault "
-                            "or health verdicts.",
-                            kind="warn",
-                            title="Findings · Review workflow",
-                        )
-                        if operational_findings
-                        else mo.callout(
-                            "No explicit REVIEW_REQUIRED finding is stored yet. "
-                            "Investigation can create one from a persisted AnalysisRun. "
-                            "Absence of a review request is not a normal/healthy verdict.",
-                            kind="neutral",
-                            title="Findings · None recorded",
-                        )
-                    ),
-                    mo.callout(
-                        "No validated alert policy exists for the current field source. "
-                        "Anomaly scores are not promoted to alerts without that policy.",
-                        kind="neutral",
-                        title="Alerts · Not validated",
+                        "Finding review supports note, acknowledge and close. "
+                        "It does not execute inspection, repair or a work order.",
+                        kind="info",
+                        title="Maintenance Review · Available",
                     ),
                 ],
                 widths="equal",
             ),
-            mo.hstack(
-                [
-                    mo.callout(
-                        "No field prognostics estimate is connected. Open Development RUL "
-                        "to inspect separate retrospective XJTU evidence; it is not reused "
-                        "as the current asset's operational RUL.",
-                        kind="neutral",
-                        title="Operational RUL · Unavailable",
-                    ),
-                    mo.callout(
-                        "Finding review disposition is connected. Work-order, inspection "
-                        "execution and repair history are not connected.",
-                        kind="info",
-                        title="Maintenance Review · Connected",
-                    ),
-                ],
-                widths="equal",
+            mo.callout(
+                "Automatic condition/fault/alert semantics and operational RUL are not "
+                "implemented for field sources. Research anomaly/RUL evidence remains in "
+                "Analysis Explorer and is not presented as an Operations capability.",
+                kind="neutral",
+                title="Unsupported operational semantics",
             ),
             observation_detail,
             quality_view,
@@ -3464,7 +3444,6 @@ def _(
         gap=1.2,
     )
     return overview_view
-
 
 @app.cell
 def _(mo, timeline):
@@ -3532,7 +3511,6 @@ def _(mo, timeline):
 
 @app.cell
 def _(
-    analysis_review_history_view,
     create_review_finding_button,
     field_analysis_error,
     field_analysis_result,
@@ -3718,29 +3696,15 @@ def _(
             ),
             _field_analysis_view,
             _field_analysis_history_view,
-            analysis_review_history_view,
             _finding_view,
             _finding_history_view,
             observation_timeline_view,
             mo.callout(
-                "Anomaly/condition trend will appear only after a field analysis run "
-                "produces capability-specific evidence with validated operational semantics.",
-                kind="neutral",
-                title="PHM Trend & Evidence · Unavailable",
-            ),
-            mo.callout(
-                "No operational RUL estimate is linked to this AnalysisRun. "
-                "Development RUL exposes separate retrospective XJTU evidence without "
-                "joining it to this source, finding, or Maintenance workflow.",
-                kind="neutral",
-                title="Operational prognostics · Unavailable",
-            ),
-            mo.callout(
-                "OperationalFinding review disposition은 Maintenance에서 note / acknowledge / "
-                "close로 연결되어 있습니다. Inspection execution, repair completion, "
-                "work-order/CMMS history는 아직 연결되지 않았습니다.",
+                "The current FILE analysis produces vibration feature evidence and can create "
+                "an explicit human review request. It does not produce validated condition, "
+                "fault, alert or operational RUL semantics, and it does not execute maintenance.",
                 kind="info",
-                title="Maintenance context · Review workflow connected",
+                title="Current analysis boundary",
             ),
         ],
         gap=1.2,
@@ -4149,12 +4113,12 @@ def _(
             title="Current operational errors · None",
         )
 
-    system_health_view = mo.vstack(
+    operational_state_view = mo.vstack(
         [
             mo.md(
-                "## System Health\n\n"
-                "현재 Operations process가 실제로 보유한 control/runtime/application "
-                "evidence를 한 화면에서 확인합니다."
+                "## Operational State\n\n"
+                "현재 Operations process가 실제로 읽을 수 있는 local control/runtime/application "
+                "state와 recorded population을 확인합니다."
             ),
             mo.hstack(
                 [
@@ -4200,19 +4164,12 @@ def _(
                 "instrumented, and there is no queue/backlog/latency/process metric pipeline. "
                 "This screen does not infer asset health from platform state.",
                 kind="info",
-                title="System-health semantics",
-            ),
-            mo.callout(
-                "Persistent OPC UA session telemetry, ingestion throughput/backlog, background "
-                "worker health, logs/metrics/traces correlation and external service checks "
-                "remain NOT_INSTRUMENTED.",
-                kind="neutral",
-                title="Telemetry · Not instrumented",
+                title="Operational-state semantics",
             ),
         ],
         gap=1.2,
     )
-    return system_health_view
+    return operational_state_view
 
 
 @app.cell
@@ -4262,7 +4219,6 @@ def _(
 @app.cell
 def _(
     data_quality_view,
-    development_rul_view,
     investigation_view,
     maintenance_view,
     mo,
@@ -4270,29 +4226,26 @@ def _(
     page_selector,
     source_setup,
     sources_view,
-    system_health_view,
+    operational_state_view,
 ):
     views = {
         "Overview": overview_view,
         "Sources": sources_view,
         "Investigation": investigation_view,
-        "Development RUL": development_rul_view,
         "Data Quality": data_quality_view,
-        "Maintenance": maintenance_view,
-        "System Health": system_health_view,
+        "Maintenance Review": maintenance_view,
+        "Operational State": operational_state_view,
     }
     _header_items = [
         mo.md(
             "# PHM Operations\n\n"
-            "현재 **Source → Analyze → Results → Finding → Maintenance review**의 "
-            "FILE snapshot vertical slice가 연결되어 있습니다. 자동 condition/fault 판정, "
-            "operational RUL, work-order/CMMS execution은 아직 연결되지 않았습니다."
+            "현재 **Source → Analyze → Results → Finding → Maintenance Review**의 "
+            "FILE snapshot workflow가 연결되어 있습니다."
         ),
         mo.callout(
-            "미구현 capability를 primary navigation의 완성된 기능처럼 노출하지 않습니다. "
-            "Maintenance는 finding review action이 연결되어 있고, System Health는 "
-            "현재 local operational state/read failures를 실제 evidence로 표시합니다. "
-            "Asset 상세 view는 실제 사용자 행동이 연결될 때 올립니다.",
+            "Primary navigation에는 현재 실행하거나 검토할 수 있는 Operations 기능만 둡니다. "
+            "Automatic condition/fault/alert semantics, operational RUL, work-order/CMMS "
+            "execution은 현재 Operations capability가 아닙니다.",
             kind="info",
             title="Current product milestone",
         ),
