@@ -3071,8 +3071,7 @@ def _(
                 else f"`{observation.asset_id}`에 연결된 analysis review record가 없습니다."
             )
             analysis_review_history_view = mo.callout(
-                _scope
-                + " Analysis Explorer의 검토 및 조치에서 evidence를 확인 완료로 기록하면 "
+                _scope + " Analysis Explorer의 검토 및 조치에서 evidence를 확인 완료로 기록하면 "
                 "여기에 표시됩니다.",
                 kind="neutral",
                 title="Analysis review records · None",
@@ -3096,8 +3095,7 @@ def _(
                         "### Analysis review records\n\n"
                         "| Reviewed at | Asset | Review policy | Intervals | "
                         "Artifact SHA | Note |\n"
-                        "| --- | --- | --- | ---: | --- | --- |\n"
-                        + _rows
+                        "| --- | --- | --- | ---: | --- | --- |\n" + _rows
                     ),
                     mo.callout(
                         f"Review state: `{analysis_review_state_path}`. "
