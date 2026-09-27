@@ -189,96 +189,6 @@ def test_json_source_repository_persists_valid_lifecycle_transition(
     assert reopened.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
 
 
-def test_json_source_repository_reads_v1_as_implicit_registered_and_upgrades_on_write(
-    tmp_path: Path,
-) -> None:
-    registry = tmp_path / "sources.json"
-    repository = JsonSourceRepository(registry)
-    source = _source()
-    repository.register(source)
-
-    payload = json.loads(registry.read_text(encoding="utf-8"))
-    legacy_payload = {
-        "schema": "industrial-phm-source-registry-v1",
-        "sources": payload["sources"],
-    }
-    registry.write_text(json.dumps(legacy_payload), encoding="utf-8")
-
-    reopened = JsonSourceRepository(registry)
-    assert reopened.get_lifecycle(source.source_id).state == SourceLifecycleState.REGISTERED
-
-    transition_source_lifecycle(
-        reopened,
-        source.source_id,
-        SourceLifecycleState.PAUSED,
-        changed_at=datetime.fromisoformat("2026-09-23T10:05:00+09:00"),
-    )
-
-    upgraded = json.loads(registry.read_text(encoding="utf-8"))
-    assert upgraded["schema"] == "industrial-phm-source-registry-v4"
-    assert upgraded["lifecycle"][0]["state"] == "paused"
-
-
-def test_json_source_repository_reads_v3_file_registry_and_upgrades_on_write(
-    tmp_path: Path,
-) -> None:
-    registry = tmp_path / "sources.json"
-    repository = JsonSourceRepository(registry)
-    source = _source()
-    repository.register(source)
-
-    payload = json.loads(registry.read_text(encoding="utf-8"))
-    legacy_v3 = dict(payload)
-    legacy_v3["schema"] = "industrial-phm-source-registry-v3"
-    registry.write_text(json.dumps(legacy_v3), encoding="utf-8")
-
-    reopened = JsonSourceRepository(registry)
-    assert reopened.get(source.source_id) == source
-
-    reopened.set_freshness_policy(
-        SourceFreshnessPolicy(
-            source_id=source.source_id,
-            max_observation_age_seconds=60.0,
-            changed_at=datetime.fromisoformat("2026-09-23T10:06:00+09:00"),
-        )
-    )
-
-    upgraded = json.loads(registry.read_text(encoding="utf-8"))
-    assert upgraded["schema"] == "industrial-phm-source-registry-v4"
-
-
-def test_json_source_repository_reads_v2_without_freshness_policy_and_upgrades_on_policy_write(
-    tmp_path: Path,
-) -> None:
-    registry = tmp_path / "sources.json"
-    repository = JsonSourceRepository(registry)
-    source = _source()
-    repository.register(source)
-
-    payload = json.loads(registry.read_text(encoding="utf-8"))
-    legacy_v2 = {
-        "schema": "industrial-phm-source-registry-v2",
-        "sources": payload["sources"],
-        "lifecycle": payload["lifecycle"],
-    }
-    registry.write_text(json.dumps(legacy_v2), encoding="utf-8")
-
-    reopened = JsonSourceRepository(registry)
-    assert reopened.get_freshness_policy(source.source_id) is None
-
-    policy = SourceFreshnessPolicy(
-        source_id=source.source_id,
-        max_observation_age_seconds=300.0,
-        changed_at=datetime.fromisoformat("2026-09-23T10:06:00+09:00"),
-    )
-    reopened.set_freshness_policy(policy)
-
-    upgraded = json.loads(registry.read_text(encoding="utf-8"))
-    assert upgraded["schema"] == "industrial-phm-source-registry-v4"
-    assert upgraded["freshness_policies"][0]["source_id"] == source.source_id
-    assert upgraded["freshness_policies"][0]["max_observation_age_seconds"] == 300.0
-
-
 def test_json_source_repository_writes_freshness_policies_in_source_id_order(
     tmp_path: Path,
 ) -> None:
@@ -416,6 +326,31 @@ def test_json_source_repository_rejects_unsupported_schema(tmp_path: Path) -> No
         json.dumps({"schema": "future-schema", "sources": []}),
         encoding="utf-8",
     )
+
+    with pytest.raises(SourceRegistryFormatError, match="unsupported source registry schema"):
+        JsonSourceRepository(registry).list_sources()
+
+
+
+@pytest.mark.parametrize(
+    "schema",
+    (
+        "industrial-phm-source-registry-v1",
+        "industrial-phm-source-registry-v2",
+        "industrial-phm-source-registry-v3",
+    ),
+)
+def test_json_source_repository_rejects_pre_alpha_legacy_schemas(
+    tmp_path: Path,
+    schema: str,
+) -> None:
+    registry = tmp_path / "sources.json"
+    repository = JsonSourceRepository(registry)
+    repository.register(_source())
+
+    payload = json.loads(registry.read_text(encoding="utf-8"))
+    payload["schema"] = schema
+    registry.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(SourceRegistryFormatError, match="unsupported source registry schema"):
         JsonSourceRepository(registry).list_sources()
@@ -572,19 +507,6 @@ def test_json_source_repository_round_trips_opcua_source_config(tmp_path: Path) 
         ],
         "timeout_seconds": 2.5,
     }
-
-
-def test_v3_registry_rejects_opcua_source_type_as_schema_incompatible(tmp_path: Path) -> None:
-    registry = tmp_path / "sources.json"
-    repository = JsonSourceRepository(registry)
-    repository.register(_opcua_source())
-
-    payload = json.loads(registry.read_text(encoding="utf-8"))
-    payload["schema"] = "industrial-phm-source-registry-v3"
-    registry.write_text(json.dumps(payload), encoding="utf-8")
-
-    with pytest.raises(SourceRegistryFormatError, match="unsupported by this registry schema"):
-        JsonSourceRepository(registry).list_sources()
 
 
 def test_json_source_repository_rejects_invalid_opcua_node_mapping_shape(
