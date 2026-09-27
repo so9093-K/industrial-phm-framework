@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
-    AnalysisRun,
     FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    AnalysisRun,
     OperationalVibrationFeatureEvidence,
     RegisteredFieldFeatureAnalysis,
     SourceSnapshotEvidence,
