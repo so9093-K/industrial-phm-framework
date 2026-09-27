@@ -7,6 +7,37 @@
 
 ## PHM Operations
 
+### 외부 데이터 없이 workflow 확인
+
+`apps/operations.py`의 Overview에서 **Prepare bundled demo source**를 누르면 저장소에 포함된
+`examples/operations/demo-bearing-snapshot.csv`를 일반 FILE source registration/validation 경로로
+등록(또는 동일 identity를 재검증)하고 current observation을 로드합니다.
+
+그다음 다음 순서로 실제 product workflow를 확인할 수 있습니다.
+
+```text
+Overview
+  Prepare bundled demo source
+      ↓
+Sources
+  demo-bearing-snapshot
+  Analyze FILE snapshot
+      ↓
+Investigation
+  AnalysisRun + vibration feature evidence
+  Create review finding
+      ↓
+Maintenance
+  note → acknowledge → close
+      ↓
+System Health
+  local operational state / recorded population
+```
+
+이 demo는 synthetic waveform으로 UI/action/persistence 연결만 검증합니다. 실제 bearing fault, anomaly,
+degradation trajectory, RUL 또는 maintenance 필요성을 의미하지 않습니다.
+
+
 `apps/operations.py`는 현재 실제로 연결된 사용자 행동을 primary navigation에 우선합니다. Maintenance는 finding review workflow가 연결되어 있고 System Health는 실제 local operational state/read failure를 표시합니다. 아직 사용자 action이 없는 Assets/Asset view는 primary navigation에 노출하지 않습니다.
 
 ```bash
