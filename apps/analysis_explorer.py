@@ -297,7 +297,7 @@ def _(
     else:
         _strongest_view = mo.md(
             "### 우선 확인 구간\n\n"
-            f"- Acquisition: **{_strongest.start_acquisition_index}–"
+            f"- Acquisition: **{_strongest.start_acquisition_index}-"
             f"{_strongest.end_acquisition_index}**\n"
             f"- Observation 수: **{_strongest.observation_count:,}**\n"
             f"- Peak score: **{_strongest.peak_score:.6f}**\n"
