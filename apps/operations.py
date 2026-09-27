@@ -33,8 +33,10 @@ def _():
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
+        SystemStateErrorEvidence,
         assess_source_freshness,
         assess_source_health,
+        build_operations_attention_queue,
         build_operations_overview,
         create_finding_review_event,
         create_human_review_finding,
@@ -82,9 +84,11 @@ def _():
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
+        SystemStateErrorEvidence,
         assess_source_freshness,
         assess_source_health,
         asyncio,
+        build_operations_attention_queue,
         build_operations_overview,
         browse_opcua_variables,
         create_finding_review_event,
@@ -3016,7 +3020,84 @@ def _(
 
 
 @app.cell
-def _(SourceDataFlowState, mo, operations_overview):
+def _(
+    SystemStateErrorEvidence,
+    build_operations_attention_queue,
+    field_analysis_state_error,
+    finding_review_state_error,
+    finding_state_error,
+    observation,
+    operations_overview,
+    source_registry_error,
+    source_runtime_error,
+):
+    _system_error_values = (
+        ("source-registry", source_registry_error),
+        ("source-runtime", source_runtime_error),
+        ("field-analysis-state", field_analysis_state_error),
+        ("operational-finding-state", finding_state_error),
+        ("finding-review-state", finding_review_state_error),
+    )
+    _system_errors = tuple(
+        SystemStateErrorEvidence(
+            scope=_scope,
+            detail=_detail,
+            detected_at=operations_overview.assessed_at,
+        )
+        for _scope, _detail in _system_error_values
+        if _detail
+    )
+    _latest_observations = () if observation is None else (observation,)
+    attention_queue = build_operations_attention_queue(
+        overview=operations_overview,
+        latest_observations=_latest_observations,
+        system_errors=_system_errors,
+    )
+    return (attention_queue,)
+
+
+@app.cell
+def _(mo, attention_queue):
+    if attention_queue.items:
+        _rows = []
+        for _item in attention_queue.items:
+            _when = "Not recorded" if _item.occurred_at is None else _item.occurred_at.isoformat()
+            _asset = "—" if _item.asset_identity is None else f"`{_item.asset_identity.asset_id}`"
+            _scope = _item.source_id or _item.finding_id or _item.system_scope or "—"
+            if _item.data_quality_issue_codes:
+                _evidence = ", ".join(f"`{code}`" for code in _item.data_quality_issue_codes)
+            elif _item.review_status is not None:
+                _evidence = f"review status `{_item.review_status.value}`"
+            elif _item.detail is not None:
+                _evidence = _item.detail
+            else:
+                _evidence = "Recorded operational evidence"
+            _safe_evidence = _evidence.replace("|", "\\|").replace("\n", " ")
+            _rows.append(
+                f"| {_item.handling_state.value} | "
+                f"{_item.kind.value} | "
+                f"{_when} | {_asset} | `{_scope}` | {_safe_evidence} |"
+            )
+        attention_queue_view = mo.md(
+            "### Attention Queue\n\n"
+            "Risk/severity 점수 없이 현재 evidence와 human workflow 상태만 정렬합니다. "
+            "OPEN review는 UNHANDLED, 그 외 unresolved fact는 ACTIVE입니다.\n\n"
+            "| Handling | Category | Evidence time | Asset | Scope | Evidence |\n"
+            "| --- | --- | --- | --- | --- | --- |\n" + "\n".join(_rows)
+        )
+    else:
+        attention_queue_view = mo.callout(
+            "No factual attention item is currently projected from the available "
+            "source, review, loaded data-quality or system-state evidence. "
+            "This is not an asset-health verdict.",
+            kind="neutral",
+            title="Attention Queue · Empty",
+        )
+    return (attention_queue_view,)
+
+
+@app.cell
+def _(SourceDataFlowState, attention_queue, mo, operations_overview):
     _latest_analysis_caption = (
         "No operational AnalysisRun recorded"
         if operations_overview.latest_analysis_run is None
@@ -3038,9 +3119,9 @@ def _(SourceDataFlowState, mo, operations_overview):
                 caption="Administrative runtime enablement only",
             ),
             mo.stat(
-                str(operations_overview.pending_review_count),
-                label="Review pending",
-                caption="OPEN + ACKNOWLEDGED explicit review requests",
+                str(len(attention_queue.items)),
+                label="Attention items",
+                caption=f"{attention_queue.unhandled_count} unhandled · factual queue",
             ),
             mo.stat(
                 str(operations_overview.analysis_run_count),
@@ -3247,6 +3328,7 @@ def _(
     overview_stats,
     quality_view,
     source_flow_view,
+    attention_queue_view,
 ):
     _finding_status = (
         mo.callout(
@@ -3273,6 +3355,7 @@ def _(
             ),
             bundled_demo_view,
             overview_stats,
+            attention_queue_view,
             source_flow_view,
             connection_status,
             mo.hstack(

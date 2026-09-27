@@ -177,6 +177,16 @@ population의 누락/중복 linkage는 fail-fast합니다. Analysis/finding hist
 registry에 source가 남아 있어야 한다고 역으로 강제하지 않습니다. Overview는 source 상태를 asset health나
 fleet risk로 승격하지 않습니다.
 
+Attention Queue는 Overview가 이미 보존한 source data-flow와 human review evidence에, 현재 로드된
+observation의 data-quality issue 및 명시적인 system-state read error를 결합하는 별도 application
+projection으로 둡니다. 현재 category는 `SOURCE_ERROR`, `NO_RECEIPT`, `STALE`,
+`DATA_QUALITY_ISSUE`, `REVIEW_REQUIRED`, `SYSTEM_STATE_ERROR`로 제한합니다. `OPEN` review는
+`UNHANDLED`, acknowledgement 이후에도 종료되지 않은 review와 나머지 factual issue는 `ACTIVE`로
+표현하며 risk/severity score를 만들지 않습니다. 동일 handling state 안에서는 evidence time 최신순으로
+정렬하고, stale 발생 시각은 assessment time이 아니라 recorded observation time과 configured freshness
+threshold가 만나는 시각을 사용합니다. Data Quality는 아직 fleet-wide durable latest state가 없으므로
+현재 로드된 observation evidence만 queue에 포함하며 그 coverage를 UI에서 숨기지 않습니다.
+
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview
