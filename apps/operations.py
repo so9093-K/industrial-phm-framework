@@ -1592,12 +1592,8 @@ def _(mo, operational_findings):
 
 @app.cell
 def _(finding_review_state_error, initial_finding_review_events, mo):
-    get_finding_review_error, set_finding_review_error = mo.state(
-        finding_review_state_error
-    )
-    get_finding_review_events, set_finding_review_events = mo.state(
-        initial_finding_review_events
-    )
+    get_finding_review_error, set_finding_review_error = mo.state(finding_review_state_error)
+    get_finding_review_events, set_finding_review_events = mo.state(initial_finding_review_events)
     return (
         get_finding_review_error,
         get_finding_review_events,
