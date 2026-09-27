@@ -330,7 +330,7 @@ NOT_INSTRUMENTED로 유지합니다. Manual load 또는 successful ACTIVE runtim
 assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Prepared-file polling은
 `SourcePollingPolicy`가 one-shot cycle을 caller-owned synchronous loop로 반복하는 수준까지 구현됐고,
 non-success에서 즉시 중지합니다. Browser upload/file-picker, source edit/delete, background service,
-retry/backoff/buffering, receipt history, OPC UA subscription/continuous runtime과 MQTT connector는 후속 경계입니다.
+retry/backoff/buffering, receipt history, persistent OPC UA subscription/continuous ingestion과 MQTT connector는 후속 경계입니다.
 또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
 지원하지 않는 field semantics를 새로 만들어내지 않습니다.
 
