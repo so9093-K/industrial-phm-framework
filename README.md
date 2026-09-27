@@ -30,7 +30,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
-- **운영 관측 화면** — PHM Operations에서 asset/source 관측, data quality, PHM finding, RUL, maintenance, system health 자리를 같은 운영 구조에서 확인합니다. 아직 검증되지 않은 capability는 숨기지 않고 명시적 상태로 표시합니다.
+- **운영 관측 화면** — PHM Operations에서 source 등록/실행, asset observation과 data quality를 확인합니다. operational analysis/finding/RUL/maintenance는 계약 또는 연구 evidence가 존재하더라도 실제 producer가 연결되기 전에는 제품 기능으로 표시하지 않습니다.
 - **보고서 생성** — 분석 결과를 같은 수치와 내용으로 재현 가능한 Markdown 보고서로 저장합니다.
 - **생성형 AI 설명** — 계산이 끝난 분석 결과를 바탕으로 요약과 질의응답을 제공합니다.
 
@@ -145,52 +145,41 @@ uv run --locked industrial-phm experiment inspect \
 데이터 준비 방법과 출처는 [데이터 안내](data/README.md),
 데이터셋을 선택한 배경은 [연구 문서](docs/research/dataset-selection.md)를 참조합니다.
 
-## 현재 개발 방향
+## 현재 제품 milestone
+
+현재 개발 우선순위는 새로운 connector/model/infrastructure 확장이 아니라 이미 구현된 기능을 하나의 사용자 흐름으로 연결하는 것입니다.
 
 ```text
-prepared 단일-asset CSV export 검증 / canonical mapping
-  -> timestamped observation timeline + 첫 private/field source conformance
-  -> RegisteredSource control plane / persistence / Sources UX
-  -> Operations UI에서 관측 / data quality / PHM evidence 연결
-  -> source lifecycle / freshness / prepared-file polling runtime
-  -> first OPC UA one-shot read proof
-  -> OPC UA registration contract / registry v4 persistence / Sources read + explicit registration UX
-  -> OPC UA one-shot endpoint probe / bounded browse / mapping UX
-  -> registered OPC UA one-shot read + receipt persistence + canonical observation projection + Operations manual run
-  -> OPC UA runtime → latest connection-attempt evidence 기록
-  -> Operations latest attempt evidence 표시 / source-health inspection projection 완료
-  -> FILE/OPC UA caller-owned CLI polling
-  -> bounded OPC UA DataChange subscription connector
-  -> registered-source subscription event / channel-coverage / lifecycle-aware runtime cycle
-  -> Operations bounded subscription collection + evidence surface
-  -> persistent session telemetry / reconnect runtime
-  -> source에 맞는 diagnostics / prognostics 검증
-  -> 실시간 분석과 유지보수 시스템 연계
+Source
+  -> Analyze
+  -> Results
+  -> Finding
+  -> Maintenance review
 ```
 
-현재 우선순위는 다양한 모델을 추가하는 것보다 실제 센서 데이터를 더 쉽게 연결하고,
-현장 데이터에서 분석 결과가 어떻게 달라지는지 확인하는 것입니다. File/file-directory source의
-등록 identity와 CSV mapping을 보존하는 최소 `RegisteredSource` / `FileSourceConfig` /
-`SourceRepository` control-plane contract와 versioned local JSON persistence가 추가되었습니다.
-현재 persistence는 single-writer local registry 범위이고 Operations의 Sources 화면에서 prepared
-file/history source를 discover, preview, map, validate한 뒤 등록하고, 선택한 registered source를 현재
-Observation/Timeline으로 다시 로드할 수 있습니다. Load 시 source bytes를 재검증하므로 registration 시점의
-검증 결과를 현재 관측으로 캐시하지 않습니다. Registry v4는 FILE/OPC UA registration, lifecycle과 optional source-specific freshness policy를 함께 보존하고
-기존 v1/v2/v3 prepared-file registry를 읽어 다음 write에서 v4로 승격합니다. Operations에서
-Activate/Pause와 max observation age policy 설정/해제가 가능하고 ACTIVE source는 one-shot runtime cycle을
-실행할 수 있지만 ACTIVE나 FRESH를 online/healthy/continuously-ingesting으로 해석하지 않습니다. Registered source의 on-demand load에는 `received_at`과
-observed→received delivery lag evidence가 추가되었고, policy가 있으면 latest observation age를 별도로
-평가해 FRESH/STALE을 표시합니다. Latest accepted receipt는 별도
-`industrial-phm-source-runtime-v3` state에 영속되어 restart 후에도 monitoring read model이 복원됩니다. v1 receipt-only와 v2 operation-less state도 읽을 수 있고 다음 write에서 v3로 승격됩니다. v2의 과거 attempt operation은 추정하지 않고 `legacy-unspecified`로 보존합니다. OPC UA read/subscription runtime은 latest bounded connection-attempt evidence를 기록하고 Operations Sources에서 operation/outcome/timing/detail을 확인할 수 있지만 current connection state로 해석하지 않습니다. Receipt/attempt **history**도 아직 없습니다. Current lifecycle, persisted latest receipt와
-freshness policy를 묶은 source-health read model은 제공하지만 boolean healthy/unhealthy나 connection
-success를 추론하지 않습니다. Operations UI의 runtime cycle은 explicit single iteration이고, CLI의
-`operations poll-source`는 source type별 one-shot cycle을 일정 interval로 동기 반복합니다. OPC UA는 각 iteration마다 새 connect/read/disconnect를 수행하고 connection/session을 cycle 사이에 유지하지 않습니다. Polling은 failure/non-ACTIVE에서
-즉시 멈추며 retry/backoff나 background daemon을 만들지 않습니다. Browser upload/file-picker, source
-edit/delete도 아직 지원하지 않습니다. OPC UA는 one-shot protocol read, application-level
-`OpcUaSourceConfig` / `SourceType.OPCUA` registration identity, local registry v4 round-trip과 Operations Sources
-read surface까지 검증했습니다. Registry에 보존되는 endpoint는 anonymous/NoSecurity `opc.tcp`만 허용하고
-endpoint userinfo credential은 거부합니다. Operations Add source에서는 endpoint, asset/measurement point,
-browse 후보 또는 explicit `channel_id,node_id` mapping과 timeout을 등록할 수 있습니다. Connector API의 one-shot endpoint probe와 bounded browse는 지속 connection state를 만들지 않습니다. Application의 registered OPC UA one-shot runtime/receipt persistence는 Operations **Run active source once**에도 연결됩니다. OPC UA 성공은 latest receipt/freshness evidence를 갱신하고 one-shot snapshot을 `AssetObservationSummary`로 projection합니다. Projection은 `sample_count=1`, mapped channels와 asset/source identity를 보존하고 complete-channel SourceTimestamp watermark만 observation time으로 사용하며, sampling rate/file snapshot provenance는 만들지 않습니다. CLI polling도 OPC UA one-shot cycle을 반복할 수 있습니다. Connector에는 explicit NodeId를 대상으로 max-events/session-timeout/queue bound를 둔 bounded DataChange subscription 수집이 있고, registered-source application lifecycle/runtime cycle과 Operations **Collect bounded subscription** action까지 연결되었습니다. 결과는 event-level value/status/timing과 registered channel coverage를 보여주고 latest `opcua-subscription` attempt만 persistence하지만, notification 자체를 저장하거나 receipt/freshness/complete observation으로 승격하지 않습니다. Auto-reconnect, persistent session telemetry와 continuous ingestion은 아직 지원하지 않습니다.
+현재 상태는 다음과 같습니다.
+
+- **Source**: FILE/OPC UA 등록, one-shot 실행과 bounded OPC UA collection까지 구현
+- **Analyze/Results**: Analysis Explorer의 XJTU anomaly/RUL 분석·evidence·AI 설명은 구현
+- **Operational bridge**: `AnalysisRun` / `OperationalFinding` 계약은 있으나 registered field source에서 이를 만드는 producer는 아직 연결되지 않음
+- **Maintenance/System**: UI/read-model 자리는 있으나 실제 workflow/telemetry가 연결되기 전에는 primary product 기능으로 취급하지 않음
+
+다음 완료 조건은 **registered source → analysis 실행 → result → operational finding → 사용자 review action**을 UI에서 끝까지 수행하는 첫 operational PHM vertical slice입니다.
+
+이 milestone이 끝날 때까지 다음 범위는 동결합니다.
+
+```text
+persistent OPC UA session / continuous ingestion
+reconnect/backoff/gap recovery
+새 connector (MQTT/historian 등)
+새 anomaly/RUL model family
+새 dataset 확장
+generic workflow/result framework
+agent/foundation-model 확장
+CMMS/EAM/cloud deployment
+```
+
+기존 bounded OPC UA와 research capability는 삭제하지 않고 현재 검증된 범위에서 유지합니다. 새 작업은 "사용자가 이전보다 무엇을 새로 할 수 있는가"가 명확한 vertical slice를 우선합니다.
 
 준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
 

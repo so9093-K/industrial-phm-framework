@@ -235,16 +235,14 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 순서가 아니라 recorded observation time으로 정렬하며 overlap/reverse segment를 차단합니다. UI는
 `CsvSensorValidationReport`를 직접 해석하지 않습니다.
 
-현재 화면:
+현재 primary navigation:
 
-- **Overview** — Asset, last observed, data quality, PHM finding 상태와 Condition/Alert/RUL/Maintenance capability
-- **Sources** — File/history source의 Discover → Mapping → Validate & Register, OPC UA bounded browse → candidate selection 또는 explicit NodeId mapping registration, FILE/OPC UA registry v4 목록/상세, REGISTERED/ACTIVE/PAUSED/ERROR lifecycle, FILE/OPC UA ACTIVE one-shot runtime cycle, OPC UA on-demand bounded subscription collection과 completion/channel-coverage/event evidence, source-specific freshness policy, latest received_at/delivery-lag/freshness evidence, FILE manual current Observation load, OPC UA one-shot canonical Observation projection, current connection telemetry의 명시적 unavailable 상태, latest bounded connection-attempt operation/outcome/timing/detail evidence
-- **Assets** — 현재 observation population을 asset inventory 형태로 표시하며 향후 fleet list를 소비할 자리
-- **Asset** — observation identity/time/channel/sample, timestamped segment timeline, data-quality evidence, freshness/sensor context 상태
-- **Investigation** — observation timeline과 PHM Finding/Trend & Evidence/Prognostics/Maintenance context를 구분하는 운영 조사 구조
-- **Data Quality** — source mapping, exact snapshot SHA-256/byte size, declared validation policy, quality evidence와 아직 기록되지 않은 quality semantics
-- **Maintenance** — Case, work order, maintenance history, post-maintenance validation 자리
-- **System Health** — source, ingestion, analysis runtime, logs/metrics/traces observability 자리
+- **Overview** — 현재 observation과 data quality, 아직 연결되지 않은 operational PHM 상태를 한눈에 확인
+- **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence
+- **Investigation** — observation timeline과 향후 AnalysisRun/Finding/Prognostics 결과가 연결될 조사 surface
+- **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
+
+기존 **Assets / Asset / Maintenance / System Health** view 코드는 삭제하지 않았지만, 실제 data/action이 연결되기 전에는 완성된 제품 기능처럼 primary navigation에 노출하지 않습니다. 현재 제품 milestone은 `Source → Analyze → Results → Finding → Maintenance review`이며, 다음 작업은 registered source/observation에서 실제 `AnalysisRun`과 capability-specific result를 만드는 operational producer를 연결하는 것입니다.
 
 Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
 condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
