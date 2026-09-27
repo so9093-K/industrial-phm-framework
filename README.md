@@ -30,7 +30,7 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
-- **운영 관측 화면** — PHM Operations에서 source 등록/실행, asset observation과 data quality를 확인합니다. operational analysis/finding/RUL/maintenance는 계약 또는 연구 evidence가 존재하더라도 실제 producer가 연결되기 전에는 제품 기능으로 표시하지 않습니다.
+- **운영 관측 화면** — PHM Operations에서 source 등록/실행, observation/data quality, durable operational AnalysisRun, explicit review finding, Maintenance review와 local System Health 상태를 확인합니다. operational RUL과 자동 fault/health semantics는 아직 연결하지 않습니다.
 - **보고서 생성** — 분석 결과를 같은 수치와 내용으로 재현 가능한 Markdown 보고서로 저장합니다.
 - **생성형 AI 설명** — 계산이 끝난 분석 결과를 바탕으로 요약과 질의응답을 제공합니다.
 
@@ -105,7 +105,7 @@ retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다.
 있습니다. Add source는 prepared file/history와 OPC UA browse/explicit-NodeId registration을 지원합니다. Application에는
 ACTIVE OPC UA source의 one-shot read → receipt persistence cycle을 Operations의 **Run active source once**에서 실행할 수 있습니다. UI action은 selected source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 dispatch합니다. CLI polling도 FILE/OPC UA one-shot cycle을 source type에 맞게 반복합니다. Application에는 ACTIVE registered OPC UA source의 persisted endpoint/NodeId mapping을 재사용해 bounded DataChange session을 한 번 수집하는 경계도 있습니다. 각 notification은 source/asset/measurement-point identity와 bounded collection order를 가진 event-level application view로 조회할 수 있지만, 이 local collection index는 OPC UA server sequence가 아니며 gap-free delivery를 주장하지 않습니다. 같은 bounded result에서 registered channel이 각각 최소 한 번 관측됐는지 channel coverage를 계산할 수 있지만, full coverage도 timestamp-aligned snapshot이나 analysis-ready window를 뜻하지 않습니다. Lifecycle-aware bounded subscription cycle은 이 세션의 latest connection-attempt evidence만 runtime state에 기록하고 receipt/freshness는 갱신하지 않습니다. Operations Sources에서는 ACTIVE OPC UA source에 대해 **Collect bounded subscription**을 실행하고 completion reason, event count, configured/observed/missing channel coverage와 event-level value/status/timing evidence를 확인할 수 있습니다. Notification을 persist하거나 complete observation으로 승격하지 않으며 reconnect나 continuous ingestion을 시작하지 않습니다.
 
-Observation timeline 자체는 PHM trend가 아닙니다. 현재 FILE snapshot path는 on-demand operational `AnalysisRun`과 vibration feature evidence를 만들고 durable history로 저장할 수 있으며, 사용자가 명시적으로 `REVIEW_REQUIRED` finding을 생성한 뒤 Maintenance에서 note / acknowledge / close review를 수행할 수 있습니다. 이 workflow는 automatic fault/health 판정이나 work order/CMMS 실행을 의미하지 않습니다. RUL/System Health 등 미연결 capability는 계속 `Unavailable`/`Not instrumented`로 표시합니다.
+Observation timeline 자체는 PHM trend가 아닙니다. 현재 FILE snapshot path는 on-demand operational `AnalysisRun`과 vibration feature evidence를 만들고 durable history로 저장할 수 있으며, 사용자가 명시적으로 `REVIEW_REQUIRED` finding을 생성한 뒤 Maintenance에서 note / acknowledge / close review를 수행할 수 있습니다. 이 workflow는 automatic fault/health 판정이나 work order/CMMS 실행을 의미하지 않습니다. System Health는 local operational state/read failures를 실제 evidence로 표시하지만 persistent session/queue/latency/logs/metrics/traces telemetry는 여전히 `Not instrumented`입니다. Operational RUL도 아직 연결되지 않았습니다.
 
 ACTIVE registered FILE 또는 OPC UA source를 CLI에서 동기 polling하려면 registry/runtime-state 경로를
 명시합니다. `--max-cycles`를 생략하면 failure/non-ACTIVE/Ctrl+C까지 계속 실행합니다.
@@ -162,7 +162,8 @@ Source
 - **Operational bridge**: timezone-aware registered FILE snapshot에서 실제 `AnalysisRun` + vibration feature evidence를 생성하고 durable history로 저장
 - **Finding**: 사용자가 feature evidence를 확인한 뒤 `human-review-request-v1 / REVIEW_REQUIRED` finding을 명시적으로 생성 가능
 - **Maintenance review**: finding별 note / acknowledge / close를 durable event history로 수행 가능
-- **아직 미연결**: automatic condition/fault semantics, operational RUL, inspection/work-order/CMMS execution, background continuous ingestion, detailed System Health telemetry
+- **System Health**: source/runtime/analysis/finding/review local state의 availability/error/population을 표시; persistent session·queue·latency·logs/metrics/traces telemetry는 미계측
+- **아직 미연결**: automatic condition/fault semantics, operational RUL, inspection/work-order/CMMS execution, background continuous ingestion
 
 현재 **registered FILE snapshot → analysis → result → review finding → Maintenance review** vertical slice는 UI에서 끝까지 연결되어 있습니다. 다음 작업은 이 흐름을 실제 source/time/identity에 더 넓게 적용할지, 또는 validated automatic PHM semantics를 추가할지 제품 요구에 따라 선택합니다.
 

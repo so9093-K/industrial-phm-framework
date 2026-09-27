@@ -506,6 +506,7 @@ def _(
             "Investigation",
             "Data Quality",
             "Maintenance",
+            "System Health",
         ],
         value="Overview",
         inline=True,
@@ -4028,53 +4029,191 @@ def _(
 
 
 @app.cell
-def _(mo, observation, timeline):
-    if observation is None:
-        source_health = "Not connected"
-    elif timeline is None:
-        source_health = f"Prepared snapshot validated · {observation.sample_count:,} samples"
-    else:
-        source_health = (
-            f"Prepared history validated · {timeline.segment_count} segments · "
-            f"latest {observation.sample_count:,} samples"
+def _(
+    FindingReviewStatus,
+    SourceLifecycleState,
+    field_analysis_error,
+    field_analysis_results,
+    field_analysis_state_error,
+    field_analysis_state_path,
+    finding_action_error,
+    finding_review_error,
+    finding_review_events,
+    finding_review_state_error,
+    finding_review_state_path,
+    finding_review_status,
+    finding_state_error,
+    finding_state_path,
+    mo,
+    operational_findings,
+    registered_sources,
+    source_lifecycle_records,
+    source_registry_default,
+    source_registry_error,
+    source_runtime_connection_attempts,
+    source_runtime_default,
+    source_runtime_error,
+    source_runtime_receipts,
+):
+    _lifecycle_by_id = {record.source_id: record for record in source_lifecycle_records}
+    _active_source_count = sum(
+        1
+        for source in registered_sources
+        if (
+            (record := _lifecycle_by_id.get(source.source_id)) is not None
+            and record.state == SourceLifecycleState.ACTIVE
         )
+    )
+    _latest_analysis_at = (
+        None
+        if not field_analysis_results
+        else max(result.run.completed_at for result in field_analysis_results)
+    )
+
+    _review_statuses = []
+    _review_status_error = ""
+    try:
+        _review_statuses = [
+            finding_review_status(finding_review_events, finding.finding_id)
+            for finding in operational_findings
+        ]
+    except ValueError as error:
+        _review_status_error = str(error)
+
+    _open_review_count = sum(status == FindingReviewStatus.OPEN for status in _review_statuses)
+    _acknowledged_review_count = sum(
+        status == FindingReviewStatus.ACKNOWLEDGED for status in _review_statuses
+    )
+    _closed_review_count = sum(status == FindingReviewStatus.CLOSED for status in _review_statuses)
+
+    _store_rows = [
+        (
+            "Source registry",
+            source_registry_default,
+            source_registry_error,
+            f"{len(registered_sources)} source(s)",
+        ),
+        (
+            "Source runtime",
+            source_runtime_default,
+            source_runtime_error,
+            (
+                f"{len(source_runtime_receipts)} receipt(s), "
+                f"{len(source_runtime_connection_attempts)} attempt(s)"
+            ),
+        ),
+        (
+            "Operational analysis",
+            str(field_analysis_state_path),
+            field_analysis_state_error,
+            f"{len(field_analysis_results)} run(s)",
+        ),
+        (
+            "Operational findings",
+            str(finding_state_path),
+            finding_state_error,
+            f"{len(operational_findings)} finding(s)",
+        ),
+        (
+            "Maintenance review",
+            str(finding_review_state_path),
+            finding_review_state_error,
+            f"{len(finding_review_events)} event(s)",
+        ),
+    ]
+    _store_table = "\n".join(
+        "| {name} | {status} | `{path}` | {detail} |".format(
+            name=name,
+            status="ERROR" if error else "AVAILABLE",
+            path=path.replace("|", "&#124;"),
+            detail=detail,
+        )
+        for name, path, error, detail in _store_rows
+    )
+
+    _current_errors = tuple(
+        (label, error)
+        for label, error in (
+            ("Source registry/runtime", source_registry_error or source_runtime_error),
+            ("Analysis", field_analysis_error),
+            ("Finding", finding_action_error),
+            ("Maintenance review", finding_review_error or _review_status_error),
+        )
+        if error
+    )
+    if _current_errors:
+        _error_rows = "\n".join(f"- **{label}**: {error}" for label, error in _current_errors)
+        _current_error_view = mo.callout(
+            _error_rows,
+            kind="danger",
+            title=f"Current operational errors · {len(_current_errors)}",
+        )
+    else:
+        _current_error_view = mo.callout(
+            "No current application/store error is recorded by this Operations process.",
+            kind="success",
+            title="Current operational errors · None",
+        )
+
     system_health_view = mo.vstack(
         [
             mo.md(
                 "## System Health\n\n"
-                "설비 상태와 플랫폼 상태를 혼동하지 않도록 별도 운영 관측 영역으로 둡니다."
+                "현재 Operations process가 실제로 보유한 control/runtime/application "
+                "evidence를 한 화면에서 확인합니다."
             ),
             mo.hstack(
                 [
                     mo.stat(
-                        source_health,
-                        label="Source",
-                        caption="Prepared CSV snapshot/history, not live ingestion",
+                        f"{len(registered_sources)} / {_active_source_count}",
+                        label="Sources / active",
+                        caption="Registered control-plane state",
                     ),
                     mo.stat(
-                        "Not instrumented",
-                        label="Ingestion",
-                        caption="No connector latency/backlog telemetry yet",
+                        str(len(field_analysis_results)),
+                        label="Analysis runs",
+                        caption=(
+                            "No saved run"
+                            if _latest_analysis_at is None
+                            else f"Latest {_latest_analysis_at.isoformat()}"
+                        ),
                     ),
                     mo.stat(
-                        "On-demand connected",
-                        label="Analysis runtime",
-                        caption="FILE snapshot producer only; no background service",
+                        str(len(operational_findings)),
+                        label="Findings",
+                        caption="Explicit human-review-request findings",
                     ),
                     mo.stat(
-                        "Not instrumented",
-                        label="Telemetry",
-                        caption="Logs / metrics / traces correlation is pending",
+                        (
+                            f"{_open_review_count} / "
+                            f"{_acknowledged_review_count} / {_closed_review_count}"
+                        ),
+                        label="Review O / A / C",
+                        caption="Open / acknowledged / closed",
                     ),
                 ],
                 widths="equal",
             ),
+            mo.md(
+                "### Local operational state\n\n"
+                "| Store | Status | Path | Recorded population |\n"
+                "| --- | --- | --- | --- |\n" + _store_table
+            ),
+            _current_error_view,
             mo.callout(
-                "Future telemetry will correlate source_id, asset_id, analysis_run_id and "
-                "deployment_id. Until then this screen does not infer service health from "
-                "the absence of PHM results.",
+                "AVAILABLE means the local state repository was readable by this app; it is "
+                "not a service-availability SLA. Source connection is still not continuously "
+                "instrumented, and there is no queue/backlog/latency/process metric pipeline. "
+                "This screen does not infer asset health from platform state.",
                 kind="info",
-                title="Observability boundary",
+                title="System-health semantics",
+            ),
+            mo.callout(
+                "Persistent OPC UA session telemetry, ingestion throughput/backlog, background "
+                "worker health, logs/metrics/traces correlation and external service checks "
+                "remain NOT_INSTRUMENTED.",
+                kind="neutral",
+                title="Telemetry · Not instrumented",
             ),
         ],
         gap=1.2,
@@ -4159,8 +4298,9 @@ def _(
         ),
         mo.callout(
             "미구현 capability를 primary navigation의 완성된 기능처럼 노출하지 않습니다. "
-            "Maintenance는 finding review action이 연결되어 다시 노출되었고, "
-            "Asset/System Health 상세 view는 실제 사용자 행동이 연결될 때 올립니다.",
+            "Maintenance는 finding review action이 연결되어 있고, System Health는 "
+            "현재 local operational state/read failures를 실제 evidence로 표시합니다. "
+            "Asset 상세 view는 실제 사용자 행동이 연결될 때 올립니다.",
             kind="info",
             title="Current product milestone",
         ),

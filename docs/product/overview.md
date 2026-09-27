@@ -696,6 +696,7 @@ Source -> Analyze -> Results -> Finding -> Maintenance review
 - Analysis Explorer의 durable human-review acknowledgement/note를 Operations Investigation에서 asset 기준으로 조회
 - persisted operational feature evidence에서 사용자가 명시적으로 `human-review-request-v1 / REVIEW_REQUIRED` finding을 생성하고 history로 조회
 - finding별 human review disposition을 `OPEN → ACKNOWLEDGED → CLOSED`로 관리하며 append-only note/event history를 durable local state로 보존
+- System Health에서 source registry/runtime, operational analysis/finding/review store의 readable/error 상태와 현재 recorded population을 확인
 
 ### 현재 끊긴 지점
 
@@ -712,7 +713,7 @@ Registered FILE snapshot / observation
 
 `AnalysisRun`과 `OperationalFinding` 계약이 존재한다는 사실만으로 기능이 완성된 것으로 취급하지 않습니다. producer와 사용자 action이 연결되지 않은 capability는 primary navigation에서 완성 기능처럼 노출하지 않습니다.
 
-Operations primary navigation은 현재 행동 가능한 **Overview / Sources / Investigation / Data Quality**에 집중합니다. 기존 Asset/Maintenance/System Health read-model 코드는 삭제하지 않고 후속 vertical slice에서 실제 data/action이 연결될 때 다시 navigation에 올립니다.
+Operations primary navigation은 현재 행동 가능한 **Overview / Sources / Investigation / Data Quality / Maintenance / System Health**에 집중합니다. Maintenance는 durable finding-review action을, System Health는 현재 local operational state와 read/action error evidence를 실제로 소비합니다. 기존 Assets/Asset view는 사용자 action이 연결될 때까지 primary navigation에서 제외합니다.
 
 ### 다음 vertical slice의 Definition of Done
 
