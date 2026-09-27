@@ -89,8 +89,7 @@ Observation surface에 연결할 수 있습니다. 이 동작은 registration �
 내용이 invalid하게 바뀌면 현재 load가 fail-closed되고 이전 관측값을 새 source 결과처럼 유지하지 않습니다.
 이는 on-demand observation load이며 continuous ingestion이나 source health monitoring이 아닙니다.
 
-Registry v4는 FILE/OPC UA registration, lifecycle과 optional source-specific freshness policy를 함께 저장합니다.
-기존 v1/v2/v3 prepared-file registry는 backward-compatible하게 읽고 다음 write에서 v4로 승격됩니다. 사용자 UI는
+Registry v4는 FILE/OPC UA registration, lifecycle과 optional source-specific freshness policy를 함께 저장합니다. pre-alpha 구버전 registry는 더 이상 자동 migration하지 않으며 current v4 state만 읽습니다. 사용자 UI는
 Activate/Pause와 freshness policy save/clear를 제공하고 ERROR는 향후 runtime이 실패 evidence와 함께 기록할
 상태입니다.
 
@@ -117,9 +116,8 @@ runtime-state persistence 같은 platform-owned failure도 cycle을 FAILED로 �
 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한 뒤 다시 실행할 수 있습니다. Connection,
 freshness, retry/buffer telemetry를 lifecycle state 자체에서 추론하지는 않습니다.
 
-Registry는 기존 `industrial-phm-source-registry-v1`과 v2를 읽을 수 있습니다. v1 source는 implicit
-`REGISTERED`로 해석하고 v2의 explicit lifecycle은 그대로 유지합니다. 신규 등록, lifecycle 변경 또는
-freshness policy write가 발생하면 `industrial-phm-source-registry-v4`로 저장됩니다. 기존 v1/v2/v3 file registry는 읽을 수 있고 다음 write에서 v4로 승격됩니다.
+Registry reader/writer는 `industrial-phm-source-registry-v4`만 허용합니다. pre-alpha 구버전
+registry state는 자동 migration하지 않으며, 필요한 source는 current schema로 다시 등록합니다.
 
 ### Runtime execution cycle
 
@@ -249,7 +247,7 @@ source-runtime.json
 # 반드시 source-registry.json과 다른 파일 경로여야 함
 ```
 
-Runtime state writer는 `industrial-phm-source-runtime-v3`를 사용합니다. 기존 v1 receipt-only와 v2 operation-less state는 읽을 수 있고 다음 write에서 v3로 승격됩니다. v2 attempt는 작업 종류를 추정하지 않고 `legacy-unspecified`로 보존합니다. Registry와 runtime-state 경로가 같은
+Runtime state reader/writer는 `industrial-phm-source-runtime-v3`만 사용합니다. operation이 없는 pre-alpha runtime state는 더 이상 자동 migration하지 않습니다. Registry와 runtime-state 경로가 같은
 파일로 resolve되면 runtime write가 control-plane state를 덮어쓸 수 있으므로 startup과 write 모두
 fail-closed로 차단합니다. Source ID별 latest receipt와 latest bounded connection-attempt evidence를 각각 deterministic하게 저장합니다. Receipt는 `received_at`, attempt는 `completed_at`이 과거로 되돌아가는 write를 거부합니다. Same received_at의 동일 evidence는
 idempotent하게 허용하지만 같은 시각에 다른 evidence가 들어오면 충돌로 거부합니다. JSON write는 registry와

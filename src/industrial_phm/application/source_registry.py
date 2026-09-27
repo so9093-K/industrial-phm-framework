@@ -26,14 +26,8 @@ from industrial_phm.application.source_registration import (
 )
 from industrial_phm.connectors import OpcUaNodeMapping
 
-_REGISTRY_SCHEMA_V1 = "industrial-phm-source-registry-v1"
-_REGISTRY_SCHEMA_V2 = "industrial-phm-source-registry-v2"
-_REGISTRY_SCHEMA_V3 = "industrial-phm-source-registry-v3"
-_REGISTRY_SCHEMA_V4 = "industrial-phm-source-registry-v4"
-_ROOT_KEYS_V1 = frozenset({"schema", "sources"})
-_ROOT_KEYS_V2 = frozenset({"schema", "sources", "lifecycle"})
-_ROOT_KEYS_V3 = frozenset({"schema", "sources", "lifecycle", "freshness_policies"})
-_ROOT_KEYS_V4 = _ROOT_KEYS_V3
+_REGISTRY_SCHEMA = "industrial-phm-source-registry-v4"
+_ROOT_KEYS = frozenset({"schema", "sources", "lifecycle", "freshness_policies"})
 _SOURCE_KEYS = frozenset({"source_id", "name", "source_type", "registered_at", "config"})
 _LIFECYCLE_KEYS = frozenset({"source_id", "state", "changed_at", "detail"})
 _FRESHNESS_POLICY_KEYS = frozenset({"source_id", "max_observation_age_seconds", "changed_at"})
@@ -70,11 +64,9 @@ class SourceRegistryFormatError(ValueError):
 class JsonSourceRepository:
     """Single-writer local JSON registration/lifecycle/freshness repository.
 
-    Version 1 through 3 registries remain readable as prepared-file-only schemas.
-    Version 1 sources receive an implicit REGISTERED lifecycle state; versions 1 and 2
-    have no freshness policy unless a later write configures one. Version 4 adds OPC UA
-    source config persistence while preserving the same lifecycle/freshness root shape.
-    Any write persists version 4.
+    The repository accepts only the current v4 schema. Older pre-alpha local registry
+    formats are intentionally unsupported; sources must be registered again rather than
+    carrying migration branches indefinitely.
 
     Writes use a same-directory temporary file plus os.replace so readers never observe
     a partially written registry. Cross-process write coordination is not yet provided.
@@ -193,41 +185,11 @@ class JsonSourceRepository:
 
         root = _require_mapping(raw, "source registry root")
         schema = _require_string(root.get("schema"), "source registry schema")
-
-        if schema == _REGISTRY_SCHEMA_V1:
-            _require_exact_keys(root, _ROOT_KEYS_V1, "source registry root")
-            sources = _parse_sources(root["sources"], allow_opcua=False)
-            lifecycle = {
-                source.source_id: SourceLifecycleRecord(
-                    source_id=source.source_id,
-                    state=SourceLifecycleState.REGISTERED,
-                    changed_at=source.registered_at,
-                )
-                for source in sources
-            }
-            return sources, lifecycle, {}
-
-        if schema == _REGISTRY_SCHEMA_V2:
-            _require_exact_keys(root, _ROOT_KEYS_V2, "source registry root")
-            sources = _parse_sources(root["sources"], allow_opcua=False)
-            lifecycle = _parse_lifecycle(root["lifecycle"])
-            _validate_lifecycle_alignment(sources, lifecycle)
-            return sources, lifecycle, {}
-
-        if schema == _REGISTRY_SCHEMA_V3:
-            _require_exact_keys(root, _ROOT_KEYS_V3, "source registry root")
-            sources = _parse_sources(root["sources"], allow_opcua=False)
-            lifecycle = _parse_lifecycle(root["lifecycle"])
-            freshness = _parse_freshness_policies(root["freshness_policies"])
-            _validate_lifecycle_alignment(sources, lifecycle)
-            _validate_freshness_alignment(sources, freshness)
-            return sources, lifecycle, freshness
-
-        if schema != _REGISTRY_SCHEMA_V4:
+        if schema != _REGISTRY_SCHEMA:
             raise SourceRegistryFormatError(f"unsupported source registry schema: {schema!r}")
 
-        _require_exact_keys(root, _ROOT_KEYS_V4, "source registry root")
-        sources = _parse_sources(root["sources"], allow_opcua=True)
+        _require_exact_keys(root, _ROOT_KEYS, "source registry root")
+        sources = _parse_sources(root["sources"])
         lifecycle = _parse_lifecycle(root["lifecycle"])
         freshness = _parse_freshness_policies(root["freshness_policies"])
         _validate_lifecycle_alignment(sources, lifecycle)
@@ -244,7 +206,7 @@ class JsonSourceRepository:
         _validate_lifecycle_alignment(ordered_sources, lifecycle)
         _validate_freshness_alignment(ordered_sources, freshness)
         payload = {
-            "schema": _REGISTRY_SCHEMA_V4,
+            "schema": _REGISTRY_SCHEMA,
             "sources": [_serialize_registered_source(source) for source in ordered_sources],
             "lifecycle": [
                 _serialize_lifecycle(lifecycle[source.source_id]) for source in ordered_sources
@@ -285,17 +247,10 @@ class JsonSourceRepository:
                 temporary_path.unlink(missing_ok=True)
 
 
-def _parse_sources(
-    value: object,
-    *,
-    allow_opcua: bool,
-) -> tuple[RegisteredSource, ...]:
+def _parse_sources(value: object) -> tuple[RegisteredSource, ...]:
     if not isinstance(value, list):
         raise SourceRegistryFormatError("source registry sources must be a JSON array")
-    sources = tuple(
-        _parse_registered_source(item, index=index, allow_opcua=allow_opcua)
-        for index, item in enumerate(value)
-    )
+    sources = tuple(_parse_registered_source(item, index=index) for index, item in enumerate(value))
     source_ids = tuple(source.source_id for source in sources)
     if len(set(source_ids)) != len(source_ids):
         raise SourceRegistryFormatError("source registry contains duplicate source_id values")
@@ -421,7 +376,6 @@ def _parse_registered_source(
     value: object,
     *,
     index: int,
-    allow_opcua: bool,
 ) -> RegisteredSource:
     label = f"source registry sources[{index}]"
     source = _require_mapping(value, label)
@@ -434,11 +388,6 @@ def _parse_registered_source(
         raise SourceRegistryFormatError(
             f"{label}.source_type is unsupported: {source_type_raw!r}"
         ) from error
-    if source_type == SourceType.OPCUA and not allow_opcua:
-        raise SourceRegistryFormatError(
-            f"{label}.source_type is unsupported by this registry schema: {source_type_raw!r}"
-        )
-
     config_label = f"{label}.config"
     config_raw = _require_mapping(source["config"], config_label)
     registered_at_raw = _require_string(source["registered_at"], f"{label}.registered_at")
