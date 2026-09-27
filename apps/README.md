@@ -44,11 +44,10 @@ Research anomaly/RUL evidence는 Analysis Explorer가 소유하며 Operations ca
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-현재 local inspection 입력은 **prepared single-asset CSV snapshot** 또는 같은 asset/measurement point의
-**timestamped CSV history directory**입니다. **Overview → Prepared source inspection**에서 single source path 또는
-history directory, asset/source ID, optional measurement point, channel과 time mapping을 입력합니다. History
-directory가 지정되면 single source보다 우선합니다. 이 입력은 Overview에서만 노출하고, 지속적으로 관리할
-registered source의 설정·lifecycle·runtime action은 **Sources**가 소유합니다.
+Operations의 source entry point는 **Sources** 하나로 통일합니다. FILE snapshot/history-directory와 OPC UA
+source는 Sources에서 discover/mapping/validation/registration 후 load 또는 runtime action으로 사용합니다.
+Overview는 bundled demo onboarding과 현재 observation/workflow 상태만 보여주며 별도의 raw path/mapping 입력을
+소유하지 않습니다.
 
 **Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity와 type-specific configuration을 표시합니다. **Add source**의 type selector에서 FILE 또는 OPC UA를 선택할 수 있습니다. FILE은 file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
@@ -64,8 +63,7 @@ export INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME="/path/to/source-runtime.json"
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-Sources 화면은 persistent registration/control-plane 흐름만 보여주고 Overview의 일회성 prepared-source
-inspection 입력을 반복 노출하지 않습니다. **Add source**는 prepared CSV file/history-directory와
+Sources 화면은 registration/control-plane과 on-demand observation entry를 함께 소유합니다. **Add source**는 prepared CSV file/history-directory와
 OPC UA registration을 지원합니다. OPC UA는 endpoint, source/asset/measurement-point identity와 timeout을 입력한 뒤 bounded Variable browse를 실행해 후보를 선택하거나, 한 줄당 `channel_id,node_id` mapping을 직접 입력해 registry v4에 저장합니다. Browse는 NodeId/browse/display path만 발견하고 value를 읽지 않으며, 선택한 후보는 BrowseName을 channel ID로 사용합니다. Application에는 ACTIVE registered OPC UA source를 한 번 읽고 latest receipt를 저장하는 async runtime cycle이 있으며 Operations의 **Run active source once**가 FILE/OPC UA를 type-specific dispatch합니다. Application에는 ACTIVE registered OPC UA source의 persisted endpoint/NodeId mapping으로 bounded DataChange session을 한 번 수집하는 API도 있습니다. 각 notification은 source/asset/measurement-point identity와 zero-based local collection order를 가진 registered DataChange event로 조회할 수 있습니다. 이 collection index는 OPC UA server sequence가 아니며 gap-free delivery evidence도 아닙니다. Bounded result는 configured/observed/missing channel coverage도 계산하지만, full channel coverage는 timestamp-aligned snapshot이나 analysis-ready observation/window를 의미하지 않습니다. Lifecycle-aware bounded subscription cycle은 latest connection-attempt evidence만 runtime-state v3에 `opcua-subscription` operation으로 기록하고 receipt/freshness는 만들지 않습니다. Operations Sources의 **Collect bounded subscription**은 ACTIVE OPC UA source에 이 bounded cycle을 실행하고 completion reason, notification count, channel coverage와 event-level value/status/timing을 현재 app session에서 보여줍니다. Notification persistence, complete observation/window projection, reconnect/continuous ingestion에는 아직 연결하지 않습니다. Multi-node `observed_at`은 모든 mapped node에 SourceTimestamp가 있을 때 earliest timestamp를 complete-channel watermark로 사용합니다. Explicit OPC UA data-contract/transport failure만 source-owned로 분류하고 runtime 부재나 unexpected internal failure는 platform-owned로 남깁니다. OPC UA 성공은 receipt/freshness state를 갱신하고 protocol snapshot을 canonical `AssetObservationSummary`로 projection합니다. One-shot iteration은 `sample_count=1`로 표현하고 mapped channel identity를 보존하며, 모든 mapped node에 SourceTimestamp가 있을 때만 conservative complete-channel watermark를 observed start/end로 사용합니다. Non-good OPC UA status는 `opcua-non-good-status` data-quality ERROR로 aggregate하고 sampling rate/file provenance는 추정하지 않습니다.
 현재 **Add source** 등록 흐름은 다음 네 단계입니다.
 
