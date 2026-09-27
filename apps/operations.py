@@ -2329,7 +2329,8 @@ def _(
                                     and field_analysis_result.run.source_id == _selected.source_id
                                     else mo.callout(
                                         "Runs the registered FILE snapshot through the existing "
-                                        "CSV adapter and vibration-statistical-v1 feature extractor. "
+                                        "CSV adapter and vibration-statistical-v1 "
+                                        "feature extractor. "
                                         "The result is an AnalysisRun plus feature evidence only; "
                                         "it does not create a finding or health state.",
                                         kind="info",
