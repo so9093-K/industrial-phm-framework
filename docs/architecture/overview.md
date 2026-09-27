@@ -354,4 +354,4 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-세 그림은 framework의 전체 책임과 흐름을 설명하는 reference diagram입니다. 현재 구현 범위는 root README의 제품 milestone과 이 문서의 concrete runtime 경계에서 구분합니다.
+세 그림은 framework의 전체 책임과 흐름을 설명하는 reference diagram입니다. 현재 구현 범위는 root README의 제품 milestone과 이 문서의 구체적인 runtime 경계에서 확인합니다.
