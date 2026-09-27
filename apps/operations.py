@@ -3462,6 +3462,7 @@ def _(
         )
         if _current_findings:
             _finding = _current_findings[-1]
+            _evidence_refs = ", ".join("`" + ref + "`" for ref in _finding.evidence_refs)
             _finding_view = mo.vstack(
                 [
                     mo.md(
@@ -3472,7 +3473,7 @@ def _(
                         f"| State | **{_finding.state}** |\n"
                         f"| Semantics | `{_finding.finding_semantics_id}` |\n"
                         f"| Analysis run | `{_finding.analysis_run_id}` |\n"
-                        f"| Evidence | {', '.join('`' + ref + '`' for ref in _finding.evidence_refs)} |"
+                        f"| Evidence | {_evidence_refs} |"
                     ),
                     mo.callout(
                         f"Persisted at `{finding_state_path}`. This finding exists because "
