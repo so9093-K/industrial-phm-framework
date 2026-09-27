@@ -116,9 +116,8 @@ runtime-state persistence 같은 platform-owned failure도 cycle을 FAILED로 �
 유지합니다. ERROR는 사용자가 Activate로 명시적으로 복구한 뒤 다시 실행할 수 있습니다. Connection,
 freshness, retry/buffer telemetry를 lifecycle state 자체에서 추론하지는 않습니다.
 
-Registry는 기존 `industrial-phm-source-registry-v1`과 v2를 읽을 수 있습니다. v1 source는 implicit
-`REGISTERED`로 해석하고 v2의 explicit lifecycle은 그대로 유지합니다. 신규 등록, lifecycle 변경 또는
-freshness policy write를 포함한 모든 registry write는 `industrial-phm-source-registry-v4`로 저장됩니다. 구버전 pre-alpha registry state는 current product contract가 아닙니다.
+Registry reader/writer는 `industrial-phm-source-registry-v4`만 허용합니다. pre-alpha 구버전
+registry state는 자동 migration하지 않으며, 필요한 source는 current schema로 다시 등록합니다.
 
 ### Runtime execution cycle
 
