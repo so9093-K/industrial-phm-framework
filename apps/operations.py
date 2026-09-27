@@ -1475,9 +1475,7 @@ def _(mo):
 @app.cell
 def _(finding_state_error, initial_operational_findings, mo):
     get_finding_action_error, set_finding_action_error = mo.state(finding_state_error)
-    get_operational_findings, set_operational_findings = mo.state(
-        initial_operational_findings
-    )
+    get_operational_findings, set_operational_findings = mo.state(initial_operational_findings)
     return (
         get_finding_action_error,
         get_operational_findings,
