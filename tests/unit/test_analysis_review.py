@@ -42,11 +42,14 @@ def test_analysis_review_repository_round_trips_and_updates_latest_record(
     records = repository.list_records()
     assert len(records) == 1
     assert records[0].note == "inspected strongest interval"
-    assert repository.get(
-        artifact_sha256="a" * 64,
-        asset_id="bearing-01",
-        review_policy_id="early-scored-windows-nearest-rank-quantile-v1",
-    ) == records[0]
+    assert (
+        repository.get(
+            artifact_sha256="a" * 64,
+            asset_id="bearing-01",
+            review_policy_id="early-scored-windows-nearest-rank-quantile-v1",
+        )
+        == records[0]
+    )
 
 
 def test_analysis_review_repository_rejects_review_time_regression(tmp_path: Path) -> None:
