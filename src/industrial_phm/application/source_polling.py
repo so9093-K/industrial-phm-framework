@@ -96,28 +96,6 @@ def poll_registered_source(
     yield from _poll_cycles(cycle_fn, policy, sleep_fn=sleep_fn)
 
 
-def poll_registered_file_source(
-    source_repository: SourceRepository,
-    lifecycle_repository: SourceLifecycleRepository,
-    runtime_repository: SourceRuntimeRepository,
-    source_id: str,
-    policy: SourcePollingPolicy,
-    *,
-    sleep_fn: Callable[[float], None] = time.sleep,
-) -> Iterator[SourceRuntimeCycleResult]:
-    """Yield prepared-file runtime cycles using the original FILE-only boundary."""
-
-    def _file_cycle() -> SourceRuntimeCycleResult:
-        return run_registered_file_source_cycle(
-            source_repository,
-            lifecycle_repository,
-            runtime_repository,
-            source_id,
-        )
-
-    yield from _poll_cycles(_file_cycle, policy, sleep_fn=sleep_fn)
-
-
 def _poll_cycles(
     cycle_fn: Callable[[], SourceRuntimeCycleResult],
     policy: SourcePollingPolicy,

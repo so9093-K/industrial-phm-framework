@@ -81,7 +81,6 @@ from industrial_phm.application.source_lifecycle import (
 )
 from industrial_phm.application.source_polling import (
     SourcePollingPolicy,
-    poll_registered_file_source,
     poll_registered_source,
 )
 from industrial_phm.application.source_receipt import (
@@ -202,7 +201,6 @@ __all__ = [
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
-    "poll_registered_file_source",
     "poll_registered_source",
     "project_registered_opcua_observation_summary",
     "receive_registered_file_source_observation",
