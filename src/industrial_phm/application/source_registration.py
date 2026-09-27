@@ -9,6 +9,11 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from industrial_phm.adapters import CsvSensorLayout
+from industrial_phm.application.asset_identity import (
+    AssetIdentity,
+    ChannelIdentity,
+    MeasurementPointIdentity,
+)
 from industrial_phm.connectors import OpcUaNodeMapping, OpcUaReadConfig
 
 
