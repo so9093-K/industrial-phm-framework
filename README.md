@@ -18,7 +18,6 @@
 
 자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
-
 ## 실행
 
 Git, [uv](https://docs.astral.sh/uv/), 저장소 접근 권한이 필요합니다.
