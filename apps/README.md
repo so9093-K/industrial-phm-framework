@@ -250,7 +250,7 @@ condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmar
 
 등록된 **FILE snapshot** 중 explicit timezone-aware timestamp를 가진 source는 Sources의 **Analyze FILE snapshot**으로 on-demand operational analysis를 실행할 수 있습니다. 실행은 현재 source bytes를 다시 검증하고 기존 `CsvSensorAdapter → canonical series → vibration-statistical-v1` 경계를 사용합니다. 성공하면 실제 `AnalysisRun`과 `field-vibration-statistical-features-v1` capability evidence를 현재 Operations session에 생성하고 Investigation에서 feature values와 provenance를 확인할 수 있습니다.
 
-이 첫 producer는 history-directory, OPC UA snapshot/subscription, naive timestamp source를 지원하지 않습니다. 또한 feature statistics를 anomaly/fault/health/finding으로 해석하지 않습니다. 현재 결과는 session-local이며 durable operational analysis history는 다음 별도 연결 영역입니다.
+이 첫 producer는 history-directory, OPC UA snapshot/subscription, naive timestamp source를 지원하지 않습니다. 또한 feature statistics를 anomaly/fault/health/finding으로 해석하지 않습니다. 성공한 결과는 기본 `artifacts/operations/field-analysis.json`에 `industrial-phm-field-feature-analysis-v1`로 저장되며 `INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE`로 경로를 바꿀 수 있습니다. Operations 재시작 후에도 Investigation에서 최근 run과 최대 20개의 recent history를 확인할 수 있습니다.
 
 운영 분석 결과를 받을 application contract는 `AnalysisRun`과 `OperationalFinding`으로 분리되어 있습니다.
 `AnalysisRun`은 execution/provenance envelope만 소유하고, `OperationalFinding`은 capability,

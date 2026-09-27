@@ -21,6 +21,7 @@ def _():
         AssetObservationTimeline,
         FileSourceConfig,
         FileSourceMode,
+        JsonFieldFeatureAnalysisRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         OpcUaSourceConfig,
@@ -60,6 +61,7 @@ def _():
         FileSourceConfig,
         FileSourceMode,
         JsonAnalysisReviewRepository,
+        JsonFieldFeatureAnalysisRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         OpcUaBrowseConfig,
@@ -111,6 +113,29 @@ def _(JsonAnalysisReviewRepository, Path, os):
         analysis_review_records = ()
         analysis_review_error = str(error)
     return analysis_review_error, analysis_review_records, analysis_review_state_path
+
+
+@app.cell
+def _(JsonFieldFeatureAnalysisRepository, Path, os):
+    field_analysis_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE",
+            "artifacts/operations/field-analysis.json",
+        )
+    )
+    try:
+        initial_field_analysis_results = JsonFieldFeatureAnalysisRepository(
+            field_analysis_state_path
+        ).list_results()
+        field_analysis_state_error = ""
+    except (OSError, ValueError) as error:
+        initial_field_analysis_results = ()
+        field_analysis_state_error = str(error)
+    return (
+        field_analysis_state_error,
+        field_analysis_state_path,
+        initial_field_analysis_results,
+    )
 
 
 @app.cell
@@ -1352,31 +1377,47 @@ def _(mo, registered_sources):
 
 
 @app.cell
-def _(mo):
-    get_field_analysis_error, set_field_analysis_error = mo.state("")
-    get_field_analysis_result, set_field_analysis_result = mo.state(None)
+def _(field_analysis_state_error, initial_field_analysis_results, mo):
+    _initial_latest = (
+        None if not initial_field_analysis_results else initial_field_analysis_results[-1]
+    )
+    get_field_analysis_error, set_field_analysis_error = mo.state(field_analysis_state_error)
+    get_field_analysis_result, set_field_analysis_result = mo.state(_initial_latest)
+    get_field_analysis_results, set_field_analysis_results = mo.state(
+        initial_field_analysis_results
+    )
     return (
         get_field_analysis_error,
         get_field_analysis_result,
+        get_field_analysis_results,
         set_field_analysis_error,
         set_field_analysis_result,
+        set_field_analysis_results,
     )
 
 
 @app.cell
-def _(get_field_analysis_error, get_field_analysis_result):
+def _(
+    get_field_analysis_error,
+    get_field_analysis_result,
+    get_field_analysis_results,
+):
     field_analysis_error = get_field_analysis_error()
     field_analysis_result = get_field_analysis_result()
-    return field_analysis_error, field_analysis_result
+    field_analysis_results = get_field_analysis_results()
+    return field_analysis_error, field_analysis_result, field_analysis_results
 
 
 @app.cell
 def _(
+    JsonFieldFeatureAnalysisRepository,
     analyze_registered_source_button,
+    field_analysis_state_path,
     registered_sources,
     run_registered_file_feature_analysis,
     set_field_analysis_error,
     set_field_analysis_result,
+    set_field_analysis_results,
     source_selector,
 ):
     if analyze_registered_source_button is not None and analyze_registered_source_button.value:
@@ -1387,11 +1428,14 @@ def _(
                 source for source in registered_sources if source.source_id == source_selector.value
             )
             _result = run_registered_file_feature_analysis(_source)
+            _repository = JsonFieldFeatureAnalysisRepository(field_analysis_state_path)
+            _repository.record(_result)
+            _results = _repository.list_results()
         except (LookupError, OSError, ValueError) as error:
-            set_field_analysis_result(None)
             set_field_analysis_error(str(error))
         else:
             set_field_analysis_result(_result)
+            set_field_analysis_results(_results)
             set_field_analysis_error("")
     return
 
@@ -1637,6 +1681,7 @@ def _(
     freshness_age_input,
     field_analysis_error,
     field_analysis_result,
+    field_analysis_state_path,
     freshness_policy_error,
     freshness_policy_success,
     lifecycle_error,
@@ -2321,7 +2366,8 @@ def _(
                                         f"AnalysisRun created: "
                                         f"`{field_analysis_result.run.analysis_run_id}` · "
                                         f"{len(field_analysis_result.evidence.values)} "
-                                        "vibration feature values",
+                                        f"vibration feature values · saved to "
+                                        f"`{field_analysis_state_path}`",
                                         kind="success",
                                         title="Operational feature analysis completed",
                                     )
@@ -2331,7 +2377,8 @@ def _(
                                         "Runs the registered FILE snapshot through the existing "
                                         "CSV adapter and vibration-statistical-v1 "
                                         "feature extractor. "
-                                        "The result is an AnalysisRun plus feature evidence only; "
+                                        "The result is persisted as operational analysis history. "
+                                        "It is still AnalysisRun plus feature evidence only; "
                                         "it does not create a finding or health state.",
                                         kind="info",
                                         title="Operational analysis semantics",
@@ -3219,6 +3266,8 @@ def _(
     analysis_review_history_view,
     field_analysis_error,
     field_analysis_result,
+    field_analysis_results,
+    field_analysis_state_path,
     mo,
     observation_timeline_view,
 ):
@@ -3230,7 +3279,7 @@ def _(
         )
     elif field_analysis_result is None:
         _field_analysis_view = mo.callout(
-            "No operational field feature analysis has been run in this session. "
+            "No persisted operational field feature analysis is available. "
             "Select a supported registered FILE snapshot in Sources and run Analyze FILE snapshot.",
             kind="neutral",
             title="Analysis Run · Not run",
@@ -3278,6 +3327,38 @@ def _(
             gap=0.8,
         )
 
+    if not field_analysis_results:
+        _field_analysis_history_view = mo.callout(
+            f"No saved operational AnalysisRun exists at `{field_analysis_state_path}`.",
+            kind="neutral",
+            title="Operational analysis history · Empty",
+        )
+    else:
+        _history_rows = "\n".join(
+            f"| {result.run.completed_at.isoformat()} | "
+            f"`{result.run.analysis_run_id}` | `{result.run.source_id}` | "
+            f"`{result.run.asset_id}` | "
+            f"{result.run.data_quality.state.value.upper()} | "
+            f"`{result.evidence.feature_set_id}` |"
+            for result in reversed(field_analysis_results[-20:])
+        )
+        _field_analysis_history_view = mo.vstack(
+            [
+                mo.md(
+                    "### Operational analysis history\n\n"
+                    "| Completed | Run | Source | Asset | Quality | Feature set |\n"
+                    "| --- | --- | --- | --- | --- | --- |\n" + _history_rows
+                ),
+                mo.callout(
+                    f"Persisted history: `{field_analysis_state_path}`. "
+                    "Each row is an AnalysisRun plus feature evidence, not a finding.",
+                    kind="info",
+                    title=f"Saved AnalysisRun · {len(field_analysis_results)} total",
+                ),
+            ],
+            gap=0.8,
+        )
+
     investigation_view = mo.vstack(
         [
             mo.md(
@@ -3285,6 +3366,7 @@ def _(
                 "관측 사실과 PHM evidence를 같은 흐름에서 검토하기 위한 운영 surface입니다."
             ),
             _field_analysis_view,
+            _field_analysis_history_view,
             analysis_review_history_view,
             mo.callout(
                 "OperationalFinding is available as an evidence-linked contract, but no "

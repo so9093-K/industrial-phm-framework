@@ -6,6 +6,10 @@ from industrial_phm.application.field_analysis import (
     RegisteredFieldFeatureAnalysis,
     run_registered_file_feature_analysis,
 )
+from industrial_phm.application.field_analysis_state import (
+    FieldAnalysisHistoryFormatError,
+    JsonFieldFeatureAnalysisRepository,
+)
 from industrial_phm.application.field_csv import (
     build_field_csv_observation_summary,
     load_field_csv_observation_summary,
@@ -111,12 +115,14 @@ __all__ = [
     "AnalysisRun",
     "AssetObservationSummary",
     "AssetObservationTimeline",
+    "FieldAnalysisHistoryFormatError",
     "FileSourceConfig",
     "FileSourceDiscovery",
     "FileSourceDiscoveryError",
     "FileSourceMode",
     "FileSourceRegistrationValidation",
     "InMemorySourceRepository",
+    "JsonFieldFeatureAnalysisRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
     "ObservationValidationPolicy",
