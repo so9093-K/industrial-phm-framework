@@ -276,6 +276,7 @@ uv run --locked --group research marimo run apps/analysis_explorer.py
 기본 화면에서는 XJTU-SY LSTM 분석 결과가 열립니다.
 
 - **결과 요약** — 집중 확인 구간과 가장 높은 구간을 먼저 보고 시간에 따른 점수 변화를 확인
+- **검토 및 조치** — descriptive review interval이 있으면 사용자가 메모를 남기고 현재 세션에서 검토 완료로 표시. 이는 finding/work order가 아니라 첫 human-review disposition UX
 - **근거 확인** — 점수가 높았던 관측값, 특징 잔차와 해당 결과에 대한 선택적 AI 설명
 - **RUL 분석** — 저장된 RUL 모델 비교 결과와 해당 결과에 대한 선택적 AI 설명
 - **새 분석 실행** — 준비된 XJTU-SY 데이터로 분석 실행
@@ -328,6 +329,10 @@ uv run --locked --group research --extra deep-learning \
 
 분석이 성공하면 새 결과가 현재 Explorer에 바로 반영됩니다.
 실패하면 기존에 열려 있던 결과는 그대로 유지됩니다.
+
+### 검토 및 조치
+
+결과에 descriptive review threshold를 넘는 연속 구간이 있으면 **검토 및 조치** 화면에서 우선 확인 구간을 보고 메모를 남긴 뒤 **검토 완료로 표시**할 수 있습니다. 이 acknowledgement는 현재 브라우저 세션에만 유지됩니다. OperationalFinding, fault diagnosis, maintenance work order 또는 CMMS 기록을 생성하지 않으며, review interval이 없다는 사실도 설비 정상 판정으로 해석하지 않습니다.
 
 ## 보고서 저장
 
