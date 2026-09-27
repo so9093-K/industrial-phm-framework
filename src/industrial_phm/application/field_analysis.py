@@ -111,9 +111,7 @@ def run_registered_file_feature_analysis(
             "operational field feature analysis currently supports FILE snapshot mode only"
         )
     if config.timestamp_column is None:
-        raise ValueError(
-            "operational field feature analysis requires an explicit timestamp column"
-        )
+        raise ValueError("operational field feature analysis requires an explicit timestamp column")
 
     now = clock or (lambda: datetime.now(UTC))
     started_at = _require_aware_time(now(), "analysis started_at")
@@ -140,9 +138,7 @@ def run_registered_file_feature_analysis(
 
     analysis_run_id = f"analysis-run-{uuid4()}"
     evidence_id = f"evidence-{uuid4()}"
-    source_snapshots = (
-        () if observation.source_snapshot is None else (observation.source_snapshot,)
-    )
+    source_snapshots = () if observation.source_snapshot is None else (observation.source_snapshot,)
     run = AnalysisRun(
         analysis_run_id=analysis_run_id,
         asset_id=observation.asset_id,
