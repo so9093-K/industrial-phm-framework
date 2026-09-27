@@ -4080,15 +4080,11 @@ def _(
     except ValueError as error:
         _review_status_error = str(error)
 
-    _open_review_count = sum(
-        status == FindingReviewStatus.OPEN for status in _review_statuses
-    )
+    _open_review_count = sum(status == FindingReviewStatus.OPEN for status in _review_statuses)
     _acknowledged_review_count = sum(
         status == FindingReviewStatus.ACKNOWLEDGED for status in _review_statuses
     )
-    _closed_review_count = sum(
-        status == FindingReviewStatus.CLOSED for status in _review_statuses
-    )
+    _closed_review_count = sum(status == FindingReviewStatus.CLOSED for status in _review_statuses)
 
     _store_rows = [
         (
@@ -4146,9 +4142,7 @@ def _(
         if error
     )
     if _current_errors:
-        _error_rows = "\n".join(
-            f"- **{label}**: {error}" for label, error in _current_errors
-        )
+        _error_rows = "\n".join(f"- **{label}**: {error}" for label, error in _current_errors)
         _current_error_view = mo.callout(
             _error_rows,
             kind="danger",
