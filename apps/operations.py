@@ -21,7 +21,10 @@ def _():
         AssetObservationTimeline,
         FileSourceConfig,
         FileSourceMode,
+        FindingReviewAction,
+        FindingReviewStatus,
         JsonFieldFeatureAnalysisRepository,
+        JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
@@ -33,8 +36,10 @@ def _():
         SourceType,
         assess_source_freshness,
         assess_source_health,
+        create_finding_review_event,
         create_human_review_finding,
         discover_file_source,
+        finding_review_status,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         project_registered_opcua_observation_summary,
@@ -62,8 +67,11 @@ def _():
         DataQualityState,
         FileSourceConfig,
         FileSourceMode,
+        FindingReviewAction,
+        FindingReviewStatus,
         JsonAnalysisReviewRepository,
         JsonFieldFeatureAnalysisRepository,
+        JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
@@ -80,9 +88,11 @@ def _():
         assess_source_health,
         asyncio,
         browse_opcua_variables,
+        create_finding_review_event,
         create_human_review_finding,
         datetime,
         discover_file_source,
+        finding_review_status,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         project_registered_opcua_observation_summary,
@@ -159,6 +169,29 @@ def _(JsonOperationalFindingRepository, Path, os):
         initial_operational_findings = ()
         finding_state_error = str(error)
     return finding_state_error, finding_state_path, initial_operational_findings
+
+
+@app.cell
+def _(JsonFindingReviewRepository, Path, os):
+    finding_review_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
+            "artifacts/operations/finding-review.json",
+        )
+    )
+    try:
+        initial_finding_review_events = JsonFindingReviewRepository(
+            finding_review_state_path
+        ).list_events()
+        finding_review_state_error = ""
+    except (OSError, ValueError) as error:
+        initial_finding_review_events = ()
+        finding_review_state_error = str(error)
+    return (
+        finding_review_state_error,
+        finding_review_state_path,
+        initial_finding_review_events,
+    )
 
 
 @app.cell
@@ -472,6 +505,7 @@ def _(
             "Sources",
             "Investigation",
             "Data Quality",
+            "Maintenance",
         ],
         value="Overview",
         inline=True,
@@ -1514,6 +1548,117 @@ def _(
         else:
             set_operational_findings(_findings)
             set_finding_action_error("")
+    return
+
+
+@app.cell
+def _(mo, operational_findings):
+    if operational_findings:
+        maintenance_finding_selector = mo.ui.dropdown(
+            options=[finding.finding_id for finding in reversed(operational_findings)],
+            value=operational_findings[-1].finding_id,
+            label="Review finding",
+            full_width=True,
+        )
+        maintenance_note_input = mo.ui.text_area(
+            value="",
+            label="Review note",
+            rows=3,
+            full_width=True,
+        )
+        maintenance_add_note_button = mo.ui.run_button(label="Add note")
+        maintenance_acknowledge_button = mo.ui.run_button(
+            label="Acknowledge",
+            kind="success",
+        )
+        maintenance_close_button = mo.ui.run_button(
+            label="Close review",
+            kind="warn",
+        )
+    else:
+        maintenance_finding_selector = None
+        maintenance_note_input = None
+        maintenance_add_note_button = None
+        maintenance_acknowledge_button = None
+        maintenance_close_button = None
+    return (
+        maintenance_acknowledge_button,
+        maintenance_add_note_button,
+        maintenance_close_button,
+        maintenance_finding_selector,
+        maintenance_note_input,
+    )
+
+
+@app.cell
+def _(finding_review_state_error, initial_finding_review_events, mo):
+    get_finding_review_error, set_finding_review_error = mo.state(
+        finding_review_state_error
+    )
+    get_finding_review_events, set_finding_review_events = mo.state(
+        initial_finding_review_events
+    )
+    return (
+        get_finding_review_error,
+        get_finding_review_events,
+        set_finding_review_error,
+        set_finding_review_events,
+    )
+
+
+@app.cell
+def _(get_finding_review_error, get_finding_review_events):
+    finding_review_error = get_finding_review_error()
+    finding_review_events = get_finding_review_events()
+    return finding_review_error, finding_review_events
+
+
+@app.cell
+def _(
+    FindingReviewAction,
+    JsonFindingReviewRepository,
+    create_finding_review_event,
+    finding_review_state_path,
+    maintenance_acknowledge_button,
+    maintenance_add_note_button,
+    maintenance_close_button,
+    maintenance_finding_selector,
+    maintenance_note_input,
+    operational_findings,
+    set_finding_review_error,
+    set_finding_review_events,
+):
+    _action = None
+    if maintenance_add_note_button is not None and maintenance_add_note_button.value:
+        _action = FindingReviewAction.NOTE
+    elif maintenance_acknowledge_button is not None and maintenance_acknowledge_button.value:
+        _action = FindingReviewAction.ACKNOWLEDGE
+    elif maintenance_close_button is not None and maintenance_close_button.value:
+        _action = FindingReviewAction.CLOSE
+
+    if _action is not None:
+        try:
+            if maintenance_finding_selector is None:
+                raise ValueError("select an operational finding before review action")
+            _finding = next(
+                finding
+                for finding in operational_findings
+                if finding.finding_id == maintenance_finding_selector.value
+            )
+            _note = "" if maintenance_note_input is None else maintenance_note_input.value
+            _event = create_finding_review_event(
+                _finding,
+                action=_action,
+                note=_note,
+            )
+            _repository = JsonFindingReviewRepository(finding_review_state_path)
+            _repository.record(_event)
+            _events = _repository.list_events()
+        except (LookupError, OSError, ValueError) as error:
+            set_finding_review_error(str(error))
+        else:
+            set_finding_review_events(_events)
+            set_finding_review_error("")
     return
 
 
@@ -3133,9 +3278,10 @@ def _(connection_status, mo, observation_detail, overview_stats, quality_view):
                         title="RUL · Unavailable",
                     ),
                     mo.callout(
-                        "Maintenance history and work-order context are not connected yet.",
-                        kind="neutral",
-                        title="Maintenance · Not connected",
+                        "Finding review disposition is connected. Work-order, inspection "
+                        "execution and repair history are not connected.",
+                        kind="info",
+                        title="Maintenance Review · Connected",
                     ),
                 ],
                 widths="equal",
@@ -3543,11 +3689,11 @@ def _(
                 title="Prognostics · Unavailable",
             ),
             mo.callout(
-                "Human analysis-review acknowledgement/note는 위 review record로 확인할 수 있지만 "
-                "maintenance case, inspection execution 또는 work-order history는 "
-                "아직 연결되지 않았습니다.",
-                kind="neutral",
-                title="Maintenance context · Review only",
+                "OperationalFinding review disposition은 Maintenance에서 note / acknowledge / "
+                "close로 연결되어 있습니다. Inspection execution, repair completion, "
+                "work-order/CMMS history는 아직 연결되지 않았습니다.",
+                kind="info",
+                title="Maintenance context · Review workflow connected",
             ),
         ],
         gap=1.2,
@@ -3710,48 +3856,179 @@ def _(mo, observation, quality_view):
 
 
 @app.cell
-def _(mo):
-    maintenance_view = mo.vstack(
-        [
+def _(
+    FindingReviewStatus,
+    finding_review_error,
+    finding_review_events,
+    finding_review_state_path,
+    finding_review_status,
+    maintenance_acknowledge_button,
+    maintenance_add_note_button,
+    maintenance_close_button,
+    maintenance_finding_selector,
+    maintenance_note_input,
+    mo,
+    operational_findings,
+):
+    if finding_review_error:
+        maintenance_view = mo.vstack(
+            [
+                mo.md("## Maintenance Review"),
+                mo.callout(
+                    finding_review_error,
+                    kind="danger",
+                    title="Finding review state · Unavailable",
+                ),
+            ],
+            gap=1.0,
+        )
+    elif not operational_findings:
+        maintenance_view = mo.vstack(
+            [
+                mo.md("## Maintenance Review"),
+                mo.callout(
+                    "Create a REVIEW_REQUIRED finding in Investigation first. "
+                    "Maintenance review starts from an existing OperationalFinding.",
+                    kind="neutral",
+                    title="No finding to review",
+                ),
+                mo.callout(
+                    "This workflow does not create a work order or claim that maintenance "
+                    "is required.",
+                    kind="info",
+                    title="Current scope",
+                ),
+            ],
+            gap=1.0,
+        )
+    else:
+        assert maintenance_finding_selector is not None
+        _finding = next(
+            finding
+            for finding in operational_findings
+            if finding.finding_id == maintenance_finding_selector.value
+        )
+        _events = tuple(
+            event for event in finding_review_events if event.finding_id == _finding.finding_id
+        )
+        try:
+            _status = finding_review_status(_events, _finding.finding_id)
+            _status_error = ""
+        except ValueError as error:
+            _status = FindingReviewStatus.OPEN
+            _status_error = str(error)
+
+        _event_rows = "\n".join(
+            f"| {event.recorded_at.isoformat()} | {event.action.value} | "
+            f"{event.note.replace('|', '&#124;') or '-'} |"
+            for event in _events
+        )
+        _history = (
             mo.md(
-                "## Maintenance\n\n"
-                "PHM finding 이후의 review/case/maintenance/post-validation 흐름을 위한 자리입니다."
-            ),
-            mo.hstack(
+                "### Review history\n\n"
+                "| Recorded at | Action | Note |\n"
+                "| --- | --- | --- |\n" + _event_rows
+            )
+            if _events
+            else mo.callout(
+                "No review action has been recorded for this finding.",
+                kind="neutral",
+                title="Review history · Empty",
+            )
+        )
+
+        _controls = []
+        if _status_error:
+            _controls.append(
+                mo.callout(
+                    _status_error,
+                    kind="danger",
+                    title="Review transition state invalid",
+                )
+            )
+        elif _status == FindingReviewStatus.OPEN:
+            assert maintenance_note_input is not None
+            assert maintenance_add_note_button is not None
+            assert maintenance_acknowledge_button is not None
+            _controls.extend(
                 [
-                    mo.stat(
-                        "Not connected",
-                        label="Open cases",
-                        caption="No maintenance case repository yet",
+                    maintenance_note_input,
+                    mo.hstack(
+                        [maintenance_add_note_button, maintenance_acknowledge_button],
+                        widths="equal",
                     ),
-                    mo.stat(
-                        "Not connected",
-                        label="Work orders",
-                        caption="No CMMS/EAM integration yet",
+                ]
+            )
+        elif _status == FindingReviewStatus.ACKNOWLEDGED:
+            assert maintenance_note_input is not None
+            assert maintenance_add_note_button is not None
+            assert maintenance_close_button is not None
+            _controls.extend(
+                [
+                    maintenance_note_input,
+                    mo.hstack(
+                        [maintenance_add_note_button, maintenance_close_button],
+                        widths="equal",
                     ),
-                    mo.stat(
-                        "Not connected",
-                        label="Maintenance history",
-                        caption="No asset maintenance history source yet",
-                    ),
-                    mo.stat(
-                        "Unavailable",
-                        label="Post-maintenance validation",
-                        caption="No completed maintenance event to validate",
-                    ),
-                ],
-                widths="equal",
-            ),
-            mo.callout(
-                "Future actions must preserve a human approval boundary. "
-                "The current UI does not create or dispatch maintenance work.",
-                kind="info",
-                title="Action boundary",
-            ),
-        ],
-        gap=1.2,
-    )
-    return maintenance_view
+                ]
+            )
+        else:
+            _controls.append(
+                mo.callout(
+                    "This review workflow is closed. Closed means the human review is "
+                    "finished; it does not mean the asset is repaired, healthy, or returned "
+                    "to service.",
+                    kind="success",
+                    title="Review workflow closed",
+                )
+            )
+
+        maintenance_view = mo.vstack(
+            [
+                mo.md(
+                    "## Maintenance Review\n\n"
+                    "Operational finding에 대한 사람의 검토 책임과 종료를 기록합니다."
+                ),
+                maintenance_finding_selector,
+                mo.hstack(
+                    [
+                        mo.stat(
+                            _status.value.upper(),
+                            label="Review status",
+                            caption="Human workflow state",
+                        ),
+                        mo.stat(
+                            str(len(_events)),
+                            label="Review events",
+                            caption="Append-only actions",
+                        ),
+                    ],
+                    widths="equal",
+                ),
+                mo.md(
+                    "### Finding\n\n"
+                    "| Field | Value |\n"
+                    "| --- | --- |\n"
+                    f"| Finding | `{_finding.finding_id}` |\n"
+                    f"| Finding state | **{_finding.state}** |\n"
+                    f"| Semantics | `{_finding.finding_semantics_id}` |\n"
+                    f"| Asset | `{_finding.asset_id}` |\n"
+                    f"| Observed at | {_finding.observed_at.isoformat()} |"
+                ),
+                *_controls,
+                _history,
+                mo.callout(
+                    f"Review state: `{finding_review_state_path}`. "
+                    "Acknowledge means a person accepted review responsibility. Close means "
+                    "the review workflow ended. Neither action confirms a fault, repair, "
+                    "maintenance execution, or asset health. No work order/CMMS action is sent.",
+                    kind="info",
+                    title="Maintenance review semantics",
+                ),
+            ],
+            gap=1.0,
+        )
+    return (maintenance_view,)
 
 
 @app.cell
@@ -3784,9 +4061,9 @@ def _(mo, observation, timeline):
                         caption="No connector latency/backlog telemetry yet",
                     ),
                     mo.stat(
-                        "Not connected",
+                        "On-demand connected",
                         label="Analysis runtime",
-                        caption="No AnalysisRun producer/service connected yet",
+                        caption="FILE snapshot producer only; no background service",
                     ),
                     mo.stat(
                         "Not instrumented",
@@ -3880,15 +4157,14 @@ def _(
     _header_items = [
         mo.md(
             "# PHM Operations\n\n"
-            "현재 제품 흐름은 **Source → Analyze → Results → Finding → Maintenance review**를 "
-            "완성하는 데 집중합니다. 이 화면에서 지금 직접 실행 가능한 것은 source 등록/관측과 "
-            "data-quality 확인이며, operational analysis/finding/maintenance producer는 "
-            "다음 연결 작업입니다."
+            "현재 **Source → Analyze → Results → Finding → Maintenance review**의 "
+            "FILE snapshot vertical slice가 연결되어 있습니다. 자동 condition/fault 판정, "
+            "operational RUL, work-order/CMMS execution은 아직 연결되지 않았습니다."
         ),
         mo.callout(
             "미구현 capability를 primary navigation의 완성된 기능처럼 노출하지 않습니다. "
-            "기존 Asset/Maintenance/System Health read model 코드는 보존하지만 실제 사용자 행동이 "
-            "연결될 때 다시 navigation에 올립니다.",
+            "Maintenance는 finding review action이 연결되어 다시 노출되었고, "
+            "Asset/System Health 상세 view는 실제 사용자 행동이 연결될 때 올립니다.",
             kind="info",
             title="Current product milestone",
         ),
