@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -29,7 +29,7 @@ def test_analysis_review_repository_round_trips_and_updates_latest_record(
 ) -> None:
     path = tmp_path / "reviews.json"
     repository = JsonAnalysisReviewRepository(path)
-    first_time = datetime(2026, 9, 27, 4, 30, tzinfo=timezone.utc)
+    first_time = datetime(2026, 9, 27, 4, 30, tzinfo=UTC)
 
     repository.record(_record(reviewed_at=first_time))
     repository.record(
@@ -51,7 +51,7 @@ def test_analysis_review_repository_round_trips_and_updates_latest_record(
 
 def test_analysis_review_repository_rejects_review_time_regression(tmp_path: Path) -> None:
     repository = JsonAnalysisReviewRepository(tmp_path / "reviews.json")
-    current = datetime(2026, 9, 27, 4, 30, tzinfo=timezone.utc)
+    current = datetime(2026, 9, 27, 4, 30, tzinfo=UTC)
     repository.record(_record(reviewed_at=current))
 
     with pytest.raises(ValueError, match="must not move backwards"):
