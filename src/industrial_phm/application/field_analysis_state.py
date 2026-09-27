@@ -133,14 +133,11 @@ class JsonFieldFeatureAnalysisRepository:
         current = results.get(result.run.analysis_run_id)
         if current is not None:
             if current != result:
-                raise ValueError(
-                    "analysis_run_id already exists with different persisted evidence"
-                )
+                raise ValueError("analysis_run_id already exists with different persisted evidence")
             return
 
         if any(
-            item.evidence.evidence_id == result.evidence.evidence_id
-            for item in results.values()
+            item.evidence.evidence_id == result.evidence.evidence_id for item in results.values()
         ):
             raise ValueError("evidence_id already exists for a different analysis run")
 
@@ -255,9 +252,7 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
 
     snapshots_raw = run_raw["source_snapshots"]
     if not isinstance(snapshots_raw, list):
-        raise FieldAnalysisHistoryFormatError(
-            f"{label}.run.source_snapshots must be a JSON array"
-        )
+        raise FieldAnalysisHistoryFormatError(f"{label}.run.source_snapshots must be a JSON array")
     snapshots = tuple(
         _parse_snapshot(
             snapshot,
@@ -267,9 +262,7 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
     )
 
     run = AnalysisRun(
-        analysis_run_id=_require_string(
-            run_raw["analysis_run_id"], f"{label}.run.analysis_run_id"
-        ),
+        analysis_run_id=_require_string(run_raw["analysis_run_id"], f"{label}.run.analysis_run_id"),
         asset_id=_require_string(run_raw["asset_id"], f"{label}.run.asset_id"),
         source_id=_require_string(run_raw["source_id"], f"{label}.run.source_id"),
         measurement_point_id=_require_optional_string(
@@ -283,9 +276,7 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
             run_raw["observed_end_at"], f"{label}.run.observed_end_at"
         ),
         started_at=_require_datetime(run_raw["started_at"], f"{label}.run.started_at"),
-        completed_at=_require_datetime(
-            run_raw["completed_at"], f"{label}.run.completed_at"
-        ),
+        completed_at=_require_datetime(run_raw["completed_at"], f"{label}.run.completed_at"),
         data_quality=DataQualityAssessment(issues),
         model_deployment_id=_require_optional_string(
             run_raw["model_deployment_id"],
@@ -297,9 +288,7 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
         ),
     )
     evidence = OperationalVibrationFeatureEvidence(
-        evidence_id=_require_string(
-            evidence_raw["evidence_id"], f"{label}.evidence.evidence_id"
-        ),
+        evidence_id=_require_string(evidence_raw["evidence_id"], f"{label}.evidence.evidence_id"),
         analysis_run_id=_require_string(
             evidence_raw["analysis_run_id"], f"{label}.evidence.analysis_run_id"
         ),
@@ -312,9 +301,7 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
         feature_names=_require_string_list(
             evidence_raw["feature_names"], f"{label}.evidence.feature_names"
         ),
-        values=_require_number_list(
-            evidence_raw["values"], f"{label}.evidence.values"
-        ),
+        values=_require_number_list(evidence_raw["values"], f"{label}.evidence.values"),
         source_snapshot_sha256=_require_string(
             evidence_raw["source_snapshot_sha256"],
             f"{label}.evidence.source_snapshot_sha256",
@@ -390,9 +377,7 @@ def _require_datetime(value: object, label: str) -> datetime:
     try:
         result = datetime.fromisoformat(raw)
     except ValueError as error:
-        raise FieldAnalysisHistoryFormatError(
-            f"{label} must be an ISO 8601 datetime"
-        ) from error
+        raise FieldAnalysisHistoryFormatError(f"{label} must be an ISO 8601 datetime") from error
     if result.utcoffset() is None:
         raise FieldAnalysisHistoryFormatError(f"{label} must be timezone-aware")
     return result
@@ -410,9 +395,7 @@ def _require_number_list(value: object, label: str) -> tuple[float, ...]:
     numbers: list[float] = []
     for item in value:
         if isinstance(item, bool) or not isinstance(item, (int, float)):
-            raise FieldAnalysisHistoryFormatError(
-                f"{label} must contain only JSON numbers"
-            )
+            raise FieldAnalysisHistoryFormatError(f"{label} must contain only JSON numbers")
         numbers.append(float(item))
     return tuple(numbers)
 
