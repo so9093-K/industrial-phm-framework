@@ -3474,10 +3474,11 @@ def _(
             mo.hstack(
                 [
                     mo.callout(
-                        "No field prognostics estimate is connected. Development RUL "
-                        "evidence from research artifacts is not reused as an operational RUL.",
+                        "No field prognostics estimate is connected. Open Development RUL "
+                        "to inspect separate retrospective XJTU evidence; it is not reused "
+                        "as the current asset's operational RUL.",
                         kind="neutral",
-                        title="RUL · Unavailable",
+                        title="Operational RUL · Unavailable",
                     ),
                     mo.callout(
                         "Finding review disposition is connected. Work-order, inspection "
@@ -3885,10 +3886,11 @@ def _(
                 title="PHM Trend & Evidence · Unavailable",
             ),
             mo.callout(
-                "No operational RUL estimate is available. Research benchmark RUL is "
-                "kept in the PHM Workbench and is not copied into this surface.",
+                "No operational RUL estimate is linked to this AnalysisRun. "
+                "Development RUL exposes separate retrospective XJTU evidence without "
+                "joining it to this source, finding, or Maintenance workflow.",
                 kind="neutral",
-                title="Prognostics · Unavailable",
+                title="Operational prognostics · Unavailable",
             ),
             mo.callout(
                 "OperationalFinding review disposition은 Maintenance에서 note / acknowledge / "
@@ -4076,7 +4078,11 @@ def _(
                         mo.stat(
                             _primary_label,
                             label="Primary method",
-                            caption="No operational method selection" if _summary.primary_method_id is None else "Recorded selection",
+                            caption=(
+                                "No operational method selection"
+                                if _summary.primary_method_id is None
+                                else "Recorded selection"
+                            ),
                         ),
                         mo.stat(
                             _uncertainty_label,
