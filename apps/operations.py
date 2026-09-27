@@ -15,6 +15,7 @@ def _():
     import marimo as mo
 
     from industrial_phm.adapters import CsvSensorLayout, CsvSensorSourceError
+    from industrial_phm.analysis import JsonAnalysisReviewRepository
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
@@ -57,6 +58,7 @@ def _():
         DataQualityState,
         FileSourceConfig,
         FileSourceMode,
+        JsonAnalysisReviewRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         OpcUaBrowseConfig,
@@ -88,6 +90,25 @@ def _():
         ThreadPoolExecutor,
         os,
     )
+
+
+@app.cell
+def _(JsonAnalysisReviewRepository, Path, os):
+    analysis_review_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_ANALYSIS_REVIEW_STATE",
+            "artifacts/analysis/review-state.json",
+        )
+    )
+    try:
+        analysis_review_records = JsonAnalysisReviewRepository(
+            analysis_review_state_path
+        ).list_records()
+        analysis_review_error = ""
+    except (OSError, ValueError) as error:
+        analysis_review_records = ()
+        analysis_review_error = str(error)
+    return analysis_review_error, analysis_review_records, analysis_review_state_path
 
 
 @app.cell
@@ -3012,7 +3033,87 @@ def _(mo, timeline):
 
 
 @app.cell
-def _(mo, observation_timeline_view):
+def _(
+    analysis_review_error,
+    analysis_review_records,
+    analysis_review_state_path,
+    mo,
+    observation,
+):
+    if analysis_review_error:
+        analysis_review_history_view = mo.callout(
+            analysis_review_error,
+            kind="danger",
+            title="Analysis review records · Unavailable",
+        )
+    else:
+        _matching_records = (
+            analysis_review_records
+            if observation is None
+            else tuple(
+                record
+                for record in analysis_review_records
+                if record.asset_id == observation.asset_id
+            )
+        )
+        _ordered_records = tuple(
+            sorted(
+                _matching_records,
+                key=lambda record: record.reviewed_at,
+                reverse=True,
+            )
+        )
+
+        if not _ordered_records:
+            _scope = (
+                "저장된 analysis review record가 없습니다."
+                if observation is None
+                else f"`{observation.asset_id}`에 연결된 analysis review record가 없습니다."
+            )
+            analysis_review_history_view = mo.callout(
+                _scope + " Analysis Explorer의 검토 및 조치에서 evidence를 확인 완료로 기록하면 "
+                "여기에 표시됩니다.",
+                kind="neutral",
+                title="Analysis review records · None",
+            )
+        else:
+            _rows = "\n".join(
+                "| {reviewed_at} | `{asset_id}` | `{policy}` | {intervals} | "
+                "`{artifact}` | {note} |".format(
+                    reviewed_at=record.reviewed_at.isoformat(),
+                    asset_id=record.asset_id,
+                    policy=record.review_policy_id,
+                    intervals=record.review_interval_count,
+                    artifact=record.artifact_sha256[:12],
+                    note=(record.note.replace("|", "&#124;") or "-"),
+                )
+                for record in _ordered_records[:20]
+            )
+            analysis_review_history_view = mo.vstack(
+                [
+                    mo.md(
+                        "### Analysis review records\n\n"
+                        "| Reviewed at | Asset | Review policy | Intervals | "
+                        "Artifact SHA | Note |\n"
+                        "| --- | --- | --- | ---: | --- | --- |\n" + _rows
+                    ),
+                    mo.callout(
+                        f"Review state: `{analysis_review_state_path}`. "
+                        "현재 observation이 있을 때 연결 기준은 asset_id 일치뿐이며 "
+                        "source/measurement-point lineage까지 검증한 operational join은 아닙니다. "
+                        "이 기록은 사람이 analysis evidence를 검토했다는 사실이며 "
+                        "OperationalFinding이나 maintenance work order가 아닙니다.",
+                        kind="info",
+                        title=f"Human review evidence · {len(_ordered_records)} record(s)",
+                    ),
+                ],
+                gap=0.8,
+            )
+    return (analysis_review_history_view,)
+
+
+@app.cell
+def _(analysis_review_history_view, mo, observation_timeline_view):
     investigation_view = mo.vstack(
         [
             mo.md(
@@ -3027,6 +3128,7 @@ def _(mo, observation_timeline_view):
                 kind="neutral",
                 title="Analysis Run · Not connected",
             ),
+            analysis_review_history_view,
             mo.callout(
                 "OperationalFinding is available as an evidence-linked contract, but no "
                 "validated field finding pipeline has produced one yet. A finding must "
@@ -3048,9 +3150,11 @@ def _(mo, observation_timeline_view):
                 title="Prognostics · Unavailable",
             ),
             mo.callout(
-                "No maintenance case, inspection note or work-order history is connected.",
+                "Human analysis-review acknowledgement/note는 위 review record로 확인할 수 있지만 "
+                "maintenance case, inspection execution 또는 work-order history는 "
+                "아직 연결되지 않았습니다.",
                 kind="neutral",
-                title="Maintenance context · Not connected",
+                title="Maintenance context · Review only",
             ),
         ],
         gap=1.2,
