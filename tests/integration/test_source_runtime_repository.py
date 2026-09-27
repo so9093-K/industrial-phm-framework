@@ -193,7 +193,6 @@ def test_json_source_runtime_repository_rejects_unsupported_schema(tmp_path: Pat
         JsonSourceRuntimeRepository(path).list_latest_receipts()
 
 
-
 @pytest.mark.parametrize(
     "schema",
     (
