@@ -75,8 +75,7 @@ def test_finding_review_status_supports_note_acknowledge_note_close() -> None:
     assert finding_review_status((), _finding().finding_id) == FindingReviewStatus.OPEN
     assert finding_review_status(events[:1], _finding().finding_id) == FindingReviewStatus.OPEN
     assert (
-        finding_review_status(events[:2], _finding().finding_id)
-        == FindingReviewStatus.ACKNOWLEDGED
+        finding_review_status(events[:2], _finding().finding_id) == FindingReviewStatus.ACKNOWLEDGED
     )
     assert finding_review_status(events, _finding().finding_id) == FindingReviewStatus.CLOSED
 
