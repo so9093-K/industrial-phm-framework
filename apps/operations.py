@@ -22,6 +22,7 @@ def _():
         FileSourceConfig,
         FileSourceMode,
         JsonFieldFeatureAnalysisRepository,
+        JsonOperationalFindingRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         OpcUaSourceConfig,
@@ -32,6 +33,7 @@ def _():
         SourceType,
         assess_source_freshness,
         assess_source_health,
+        create_human_review_finding,
         discover_file_source,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
@@ -62,6 +64,7 @@ def _():
         FileSourceMode,
         JsonAnalysisReviewRepository,
         JsonFieldFeatureAnalysisRepository,
+        JsonOperationalFindingRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         OpcUaBrowseConfig,
@@ -77,6 +80,7 @@ def _():
         assess_source_health,
         asyncio,
         browse_opcua_variables,
+        create_human_review_finding,
         datetime,
         discover_file_source,
         load_field_csv_observation_summary,
@@ -136,6 +140,25 @@ def _(JsonFieldFeatureAnalysisRepository, Path, os):
         field_analysis_state_path,
         initial_field_analysis_results,
     )
+
+
+@app.cell
+def _(JsonOperationalFindingRepository, Path, os):
+    finding_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE",
+            "artifacts/operations/findings.json",
+        )
+    )
+    try:
+        initial_operational_findings = JsonOperationalFindingRepository(
+            finding_state_path
+        ).list_findings()
+        finding_state_error = ""
+    except (OSError, ValueError) as error:
+        initial_operational_findings = ()
+        finding_state_error = str(error)
+    return finding_state_error, finding_state_path, initial_operational_findings
 
 
 @app.cell
@@ -1437,6 +1460,62 @@ def _(
             set_field_analysis_result(_result)
             set_field_analysis_results(_results)
             set_field_analysis_error("")
+    return
+
+
+@app.cell
+def _(mo):
+    create_review_finding_button = mo.ui.run_button(
+        label="Create review finding",
+        kind="warn",
+    )
+    return (create_review_finding_button,)
+
+
+@app.cell
+def _(finding_state_error, initial_operational_findings, mo):
+    get_finding_action_error, set_finding_action_error = mo.state(finding_state_error)
+    get_operational_findings, set_operational_findings = mo.state(
+        initial_operational_findings
+    )
+    return (
+        get_finding_action_error,
+        get_operational_findings,
+        set_finding_action_error,
+        set_operational_findings,
+    )
+
+
+@app.cell
+def _(get_finding_action_error, get_operational_findings):
+    finding_action_error = get_finding_action_error()
+    operational_findings = get_operational_findings()
+    return finding_action_error, operational_findings
+
+
+@app.cell
+def _(
+    JsonOperationalFindingRepository,
+    create_human_review_finding,
+    create_review_finding_button,
+    field_analysis_result,
+    finding_state_path,
+    set_finding_action_error,
+    set_operational_findings,
+):
+    if create_review_finding_button.value:
+        try:
+            if field_analysis_result is None:
+                raise ValueError("run operational FILE analysis before creating a review finding")
+            _finding = create_human_review_finding(field_analysis_result)
+            _repository = JsonOperationalFindingRepository(finding_state_path)
+            _repository.record(_finding)
+            _findings = _repository.list_findings()
+        except (OSError, ValueError) as error:
+            set_finding_action_error(str(error))
+        else:
+            set_operational_findings(_findings)
+            set_finding_action_error("")
     return
 
 
@@ -3264,12 +3343,16 @@ def _(
 @app.cell
 def _(
     analysis_review_history_view,
+    create_review_finding_button,
     field_analysis_error,
     field_analysis_result,
     field_analysis_results,
     field_analysis_state_path,
+    finding_action_error,
+    finding_state_path,
     mo,
     observation_timeline_view,
+    operational_findings,
 ):
     if field_analysis_error:
         _field_analysis_view = mo.callout(
@@ -3359,6 +3442,83 @@ def _(
             gap=0.8,
         )
 
+    if finding_action_error:
+        _finding_view = mo.callout(
+            finding_action_error,
+            kind="danger",
+            title="Review finding · Failed",
+        )
+    elif field_analysis_result is None:
+        _finding_view = mo.callout(
+            "Run a supported operational FILE analysis before creating a review finding.",
+            kind="neutral",
+            title="Finding · No AnalysisRun",
+        )
+    else:
+        _current_findings = tuple(
+            finding
+            for finding in operational_findings
+            if finding.analysis_run_id == field_analysis_result.run.analysis_run_id
+        )
+        if _current_findings:
+            _finding = _current_findings[-1]
+            _finding_view = mo.vstack(
+                [
+                    mo.md(
+                        "### Review finding\n\n"
+                        "| Field | Value |\n"
+                        "| --- | --- |\n"
+                        f"| Finding | `{_finding.finding_id}` |\n"
+                        f"| State | **{_finding.state}** |\n"
+                        f"| Semantics | `{_finding.finding_semantics_id}` |\n"
+                        f"| Analysis run | `{_finding.analysis_run_id}` |\n"
+                        f"| Evidence | {', '.join(f'`{ref}`' for ref in _finding.evidence_refs)} |"
+                    ),
+                    mo.callout(
+                        f"Persisted at `{finding_state_path}`. This finding exists because "
+                        "a user explicitly requested review of the feature evidence. "
+                        "It is not an automated anomaly, fault, health or alarm verdict.",
+                        kind="warn",
+                        title="Human review request",
+                    ),
+                ],
+                gap=0.8,
+            )
+        else:
+            _finding_view = mo.vstack(
+                [
+                    create_review_finding_button,
+                    mo.callout(
+                        "Creates a durable OperationalFinding with state REVIEW_REQUIRED and "
+                        "human-review-request-v1 semantics, linked to the current feature "
+                        "evidence. Pressing this button records a workflow request; it does not "
+                        "interpret the feature values as abnormal.",
+                        kind="info",
+                        title="Manual finding creation",
+                    ),
+                ],
+                gap=0.6,
+            )
+
+    if operational_findings:
+        _finding_rows = "\n".join(
+            f"| {_finding.observed_at.isoformat()} | `{_finding.finding_id}` | "
+            f"`{_finding.asset_id}` | {_finding.state} | "
+            f"`{_finding.finding_semantics_id}` |"
+            for _finding in reversed(operational_findings[-20:])
+        )
+        _finding_history_view = mo.md(
+            "### Finding history\n\n"
+            "| Observed at | Finding | Asset | State | Semantics |\n"
+            "| --- | --- | --- | --- | --- |\n" + _finding_rows
+        )
+    else:
+        _finding_history_view = mo.callout(
+            f"No finding is stored at `{finding_state_path}`.",
+            kind="neutral",
+            title="Finding history · Empty",
+        )
+
     investigation_view = mo.vstack(
         [
             mo.md(
@@ -3368,13 +3528,8 @@ def _(
             _field_analysis_view,
             _field_analysis_history_view,
             analysis_review_history_view,
-            mo.callout(
-                "OperationalFinding is available as an evidence-linked contract, but no "
-                "validated field finding pipeline has produced one yet. A finding must "
-                "reference a versioned finding semantics ID and supporting evidence.",
-                kind="neutral",
-                title="Finding · Unavailable",
-            ),
+            _finding_view,
+            _finding_history_view,
             observation_timeline_view,
             mo.callout(
                 "Anomaly/condition trend will appear only after a field analysis run "
