@@ -6,6 +6,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
+from industrial_phm.application.asset_identity import (
+    AssetIdentity,
+    MeasurementPointIdentity,
+)
 from industrial_phm.application.observation import SourceSnapshotEvidence
 from industrial_phm.contracts import DataQualityAssessment
 
@@ -70,6 +74,21 @@ class AnalysisRun:
         object.__setattr__(self, "source_snapshots", source_snapshots)
         object.__setattr__(self, "capability_ids", capability_ids)
 
+    @property
+    def asset_identity(self) -> AssetIdentity:
+        """Return the physical asset identity for this analysis scope."""
+        return AssetIdentity(self.asset_id)
+
+    @property
+    def measurement_point_identity(self) -> MeasurementPointIdentity | None:
+        """Return the optional measurement-point identity for this analysis scope."""
+        if self.measurement_point_id is None:
+            return None
+        return MeasurementPointIdentity(
+            asset_id=self.asset_id,
+            measurement_point_id=self.measurement_point_id,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class OperationalFinding:
@@ -111,6 +130,21 @@ class OperationalFinding:
             raise ValueError("evidence_refs must contain unique values")
 
         object.__setattr__(self, "evidence_refs", evidence_refs)
+
+    @property
+    def asset_identity(self) -> AssetIdentity:
+        """Return the physical asset identity for this finding."""
+        return AssetIdentity(self.asset_id)
+
+    @property
+    def measurement_point_identity(self) -> MeasurementPointIdentity | None:
+        """Return the optional measurement-point identity for this finding."""
+        if self.measurement_point_id is None:
+            return None
+        return MeasurementPointIdentity(
+            asset_id=self.asset_id,
+            measurement_point_id=self.measurement_point_id,
+        )
 
 
 def validate_operational_finding_against_run(
