@@ -10,6 +10,11 @@ from math import isfinite
 from numbers import Real
 from string import hexdigits
 
+from industrial_phm.application.asset_identity import (
+    AssetIdentity,
+    ChannelIdentity,
+    MeasurementPointIdentity,
+)
 from industrial_phm.contracts import DataQualityAssessment
 
 
@@ -137,6 +142,33 @@ class AssetObservationSummary:
 
         object.__setattr__(self, "channels", channels)
 
+    @property
+    def asset_identity(self) -> AssetIdentity:
+        """Return the observed physical asset identity."""
+        return AssetIdentity(self.asset_id)
+
+    @property
+    def measurement_point_identity(self) -> MeasurementPointIdentity | None:
+        """Return the optional observed measurement-point identity."""
+        if self.measurement_point_id is None:
+            return None
+        return MeasurementPointIdentity(
+            asset_id=self.asset_id,
+            measurement_point_id=self.measurement_point_id,
+        )
+
+    @property
+    def channel_identities(self) -> tuple[ChannelIdentity, ...]:
+        """Return channels scoped by the recorded asset and measurement point."""
+        return tuple(
+            ChannelIdentity(
+                asset_id=self.asset_id,
+                measurement_point_id=self.measurement_point_id,
+                channel_id=channel_id,
+            )
+            for channel_id in self.channels
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class AssetObservationTimeline:
@@ -203,6 +235,16 @@ class AssetObservationTimeline:
     def measurement_point_id(self) -> str | None:
         """Return the common measurement-point identity."""
         return self.segments[0].measurement_point_id
+
+    @property
+    def asset_identity(self) -> AssetIdentity:
+        """Return the common physical asset identity."""
+        return self.segments[0].asset_identity
+
+    @property
+    def measurement_point_identity(self) -> MeasurementPointIdentity | None:
+        """Return the common optional measurement-point identity."""
+        return self.segments[0].measurement_point_identity
 
     @property
     def segment_count(self) -> int:
