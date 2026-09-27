@@ -15,13 +15,6 @@ def _():
     import marimo as mo
 
     from industrial_phm.adapters import CsvSensorLayout, CsvSensorSourceError
-    from industrial_phm.analysis import (
-        AnalysisViewError,
-        JsonAnalysisReviewRepository,
-        load_xjtu_rul_analysis_view,
-        prognostics_asset_ids,
-        summarize_prognostics_for_asset,
-    )
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
@@ -69,7 +62,6 @@ def _():
 
     return (
         AssetObservationSummary,
-        AnalysisViewError,
         AssetObservationTimeline,
         CsvSensorLayout,
         CsvSensorSourceError,
@@ -78,7 +70,6 @@ def _():
         FileSourceMode,
         FindingReviewAction,
         FindingReviewStatus,
-        JsonAnalysisReviewRepository,
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
@@ -105,8 +96,6 @@ def _():
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         load_registered_file_source_observation,
-        load_xjtu_rul_analysis_view,
-        prognostics_asset_ids,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         mo,
@@ -115,32 +104,12 @@ def _():
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
         run_registered_opcua_subscription_cycle,
-        summarize_prognostics_for_asset,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         validate_registered_file_source,
         ThreadPoolExecutor,
         os,
     )
-
-
-@app.cell
-def _(JsonAnalysisReviewRepository, Path, os):
-    analysis_review_state_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_ANALYSIS_REVIEW_STATE",
-            "artifacts/analysis/review-state.json",
-        )
-    )
-    try:
-        analysis_review_records = JsonAnalysisReviewRepository(
-            analysis_review_state_path
-        ).list_records()
-        analysis_review_error = ""
-    except (OSError, ValueError) as error:
-        analysis_review_records = ()
-        analysis_review_error = str(error)
-    return analysis_review_error, analysis_review_records, analysis_review_state_path
 
 
 @app.cell
@@ -3563,86 +3532,6 @@ def _(mo, timeline):
 
 @app.cell
 def _(
-    analysis_review_error,
-    analysis_review_records,
-    analysis_review_state_path,
-    mo,
-    observation,
-):
-    if analysis_review_error:
-        analysis_review_history_view = mo.callout(
-            analysis_review_error,
-            kind="danger",
-            title="Analysis review records · Unavailable",
-        )
-    else:
-        _matching_records = (
-            analysis_review_records
-            if observation is None
-            else tuple(
-                record
-                for record in analysis_review_records
-                if record.asset_id == observation.asset_id
-            )
-        )
-        _ordered_records = tuple(
-            sorted(
-                _matching_records,
-                key=lambda record: record.reviewed_at,
-                reverse=True,
-            )
-        )
-
-        if not _ordered_records:
-            _scope = (
-                "저장된 analysis review record가 없습니다."
-                if observation is None
-                else f"`{observation.asset_id}`에 연결된 analysis review record가 없습니다."
-            )
-            analysis_review_history_view = mo.callout(
-                _scope + " Analysis Explorer의 검토 및 조치에서 evidence를 확인 완료로 기록하면 "
-                "여기에 표시됩니다.",
-                kind="neutral",
-                title="Analysis review records · None",
-            )
-        else:
-            _rows = "\n".join(
-                "| {reviewed_at} | `{asset_id}` | `{policy}` | {intervals} | "
-                "`{artifact}` | {note} |".format(
-                    reviewed_at=record.reviewed_at.isoformat(),
-                    asset_id=record.asset_id,
-                    policy=record.review_policy_id,
-                    intervals=record.review_interval_count,
-                    artifact=record.artifact_sha256[:12],
-                    note=(record.note.replace("|", "&#124;") or "-"),
-                )
-                for record in _ordered_records[:20]
-            )
-            analysis_review_history_view = mo.vstack(
-                [
-                    mo.md(
-                        "### Analysis review records\n\n"
-                        "| Reviewed at | Asset | Review policy | Intervals | "
-                        "Artifact SHA | Note |\n"
-                        "| --- | --- | --- | ---: | --- | --- |\n" + _rows
-                    ),
-                    mo.callout(
-                        f"Review state: `{analysis_review_state_path}`. "
-                        "현재 observation이 있을 때 연결 기준은 asset_id 일치뿐이며 "
-                        "source/measurement-point lineage까지 검증한 operational join은 아닙니다. "
-                        "이 기록은 사람이 analysis evidence를 검토했다는 사실이며 "
-                        "OperationalFinding이나 maintenance work order가 아닙니다.",
-                        kind="info",
-                        title=f"Human review evidence · {len(_ordered_records)} record(s)",
-                    ),
-                ],
-                gap=0.8,
-            )
-    return (analysis_review_history_view,)
-
-
-@app.cell
-def _(
     analysis_review_history_view,
     create_review_finding_button,
     field_analysis_error,
@@ -3857,168 +3746,6 @@ def _(
         gap=1.2,
     )
     return investigation_view
-
-
-@app.cell
-def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
-    development_rul_artifact_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_DEVELOPMENT_RUL_ARTIFACT",
-            "docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json",
-        )
-    )
-    if not development_rul_artifact_path.is_file():
-        development_rul_analysis = None
-        development_rul_error = f"No development RUL artifact at `{development_rul_artifact_path}`."
-    else:
-        try:
-            development_rul_analysis = load_xjtu_rul_analysis_view(development_rul_artifact_path)
-            development_rul_error = ""
-        except (AnalysisViewError, OSError, ValueError) as error:
-            development_rul_analysis = None
-            development_rul_error = str(error)
-    return (
-        development_rul_analysis,
-        development_rul_artifact_path,
-        development_rul_error,
-    )
-
-
-@app.cell
-def _(development_rul_analysis, mo, prognostics_asset_ids):
-    if development_rul_analysis is None:
-        development_rul_asset_selector = None
-    else:
-        _asset_ids = prognostics_asset_ids(development_rul_analysis)
-        development_rul_asset_selector = mo.ui.dropdown(
-            options=list(_asset_ids),
-            value=_asset_ids[0],
-            label="Development RUL asset",
-        )
-    return (development_rul_asset_selector,)
-
-
-@app.cell
-def _(
-    development_rul_analysis,
-    development_rul_artifact_path,
-    development_rul_asset_selector,
-    development_rul_error,
-    mo,
-    summarize_prognostics_for_asset,
-):
-    if development_rul_analysis is None or development_rul_asset_selector is None:
-        development_rul_view = mo.vstack(
-            [
-                mo.md("## Development RUL Evidence"),
-                mo.callout(
-                    development_rul_error or "No readable development RUL evidence is available.",
-                    kind="neutral",
-                    title="Development RUL · Unavailable",
-                ),
-            ],
-            gap=1.0,
-        )
-    else:
-        _summary = summarize_prognostics_for_asset(
-            development_rul_analysis,
-            development_rul_asset_selector.value,
-        )
-        _method_rows = "\n".join(
-            f"| `{row.method_id}` | {row.last_recorded_remaining_useful_life:,.1f} | "
-            f"{row.last_recorded_acquisition_index:,} | {row.mean_absolute_error:,.1f} | "
-            f"{row.mean_signed_error:,.1f} | {row.prediction_count:,} |"
-            for row in _summary.methods
-        )
-        _primary_label = _summary.primary_method_id or "None selected"
-        _uncertainty_label = (
-            "Available" if _summary.uncertainty_interval_available else "Unavailable"
-        )
-        _failure_threshold_label = (
-            "Validated" if _summary.physical_failure_threshold_validated else "Not validated"
-        )
-        _negative_warning = (
-            [
-                mo.callout(
-                    "At least one compared method records a negative RUL value. "
-                    "The development target is not clipped, so the stored value is shown "
-                    "without flooring it to zero.",
-                    kind="warn",
-                    title="Negative recorded estimate",
-                )
-            ]
-            if _summary.has_negative_estimate
-            else []
-        )
-        development_rul_view = mo.vstack(
-            [
-                mo.md("## Development RUL Evidence"),
-                mo.callout(
-                    "This page reads a retrospective XJTU-SY validation artifact. "
-                    "It is not joined to the currently selected field source, AnalysisRun, "
-                    "finding, or Maintenance review. Do not use these numbers as the current "
-                    "asset's operational remaining life.",
-                    kind="warn",
-                    title="Not operational RUL",
-                ),
-                development_rul_asset_selector,
-                mo.hstack(
-                    [
-                        mo.stat(
-                            str(len(_summary.methods)),
-                            label="Compared methods",
-                            caption="Development comparison",
-                        ),
-                        mo.stat(
-                            _primary_label,
-                            label="Primary method",
-                            caption=(
-                                "No operational method selection"
-                                if _summary.primary_method_id is None
-                                else "Recorded selection"
-                            ),
-                        ),
-                        mo.stat(
-                            _uncertainty_label,
-                            label="Uncertainty interval",
-                            caption="Calibrated interval capability",
-                        ),
-                        mo.stat(
-                            _failure_threshold_label,
-                            label="Physical failure threshold",
-                            caption="Recorded endpoint semantics only",
-                        ),
-                    ],
-                    widths="equal",
-                ),
-                mo.md(
-                    "### Target meaning\n\n"
-                    f"- Definition: `{_summary.target_definition_id}`\n"
-                    f"- Unit: **{_summary.target_description}**\n"
-                    f"- Formula: `{_summary.target_formula}`\n"
-                    f"- Support: {_summary.support_definition}, from acquisition "
-                    f"{_summary.support_first_acquisition:,}, "
-                    f"{_summary.support_prediction_count:,} predictions"
-                ),
-                mo.md(
-                    "### Recorded development comparison\n\n"
-                    "| Method | Last recorded RUL | As-of acquisition | MAE | Signed error | "
-                    "Predictions |\n"
-                    "| --- | ---: | ---: | ---: | ---: | ---: |\n" + _method_rows
-                ),
-                *_negative_warning,
-                mo.callout(
-                    f"Artifact: `{development_rul_artifact_path}`. "
-                    f"Evidence class: {_summary.evidence_class}. "
-                    "Operations exposes this existing development evidence so RUL work is "
-                    "visible in the product, while keeping operational RUL explicitly unavailable.",
-                    kind="info",
-                    title="Evidence source",
-                ),
-            ],
-            gap=1.0,
-        )
-    return (development_rul_view,)
 
 
 @app.cell
