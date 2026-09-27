@@ -15,13 +15,6 @@ def _():
     import marimo as mo
 
     from industrial_phm.adapters import CsvSensorLayout, CsvSensorSourceError
-    from industrial_phm.analysis import (
-        AnalysisViewError,
-        JsonAnalysisReviewRepository,
-        load_xjtu_rul_analysis_view,
-        prognostics_asset_ids,
-        summarize_prognostics_for_asset,
-    )
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
@@ -69,7 +62,6 @@ def _():
 
     return (
         AssetObservationSummary,
-        AnalysisViewError,
         AssetObservationTimeline,
         CsvSensorLayout,
         CsvSensorSourceError,
@@ -78,7 +70,6 @@ def _():
         FileSourceMode,
         FindingReviewAction,
         FindingReviewStatus,
-        JsonAnalysisReviewRepository,
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
@@ -105,8 +96,6 @@ def _():
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
         load_registered_file_source_observation,
-        load_xjtu_rul_analysis_view,
-        prognostics_asset_ids,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         mo,
@@ -115,32 +104,12 @@ def _():
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
         run_registered_opcua_subscription_cycle,
-        summarize_prognostics_for_asset,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
         validate_registered_file_source,
         ThreadPoolExecutor,
         os,
     )
-
-
-@app.cell
-def _(JsonAnalysisReviewRepository, Path, os):
-    analysis_review_state_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_ANALYSIS_REVIEW_STATE",
-            "artifacts/analysis/review-state.json",
-        )
-    )
-    try:
-        analysis_review_records = JsonAnalysisReviewRepository(
-            analysis_review_state_path
-        ).list_records()
-        analysis_review_error = ""
-    except (OSError, ValueError) as error:
-        analysis_review_records = ()
-        analysis_review_error = str(error)
-    return analysis_review_error, analysis_review_records, analysis_review_state_path
 
 
 @app.cell
@@ -633,10 +602,9 @@ def _(
             "Overview",
             "Sources",
             "Investigation",
-            "Development RUL",
             "Data Quality",
-            "Maintenance",
-            "System Health",
+            "Maintenance Review",
+            "Operational State",
         ],
         value="Overview",
         inline=True,
@@ -3407,7 +3375,7 @@ def _(
                 "1. Prepare the bundled demo source.\n"
                 "2. **Sources** → Analyze FILE snapshot.\n"
                 "3. **Investigation** → inspect AnalysisRun/evidence and create REVIEW_REQUIRED.\n"
-                "4. **Maintenance** → note / acknowledge / close."
+                "4. **Maintenance Review** → note / acknowledge / close."
             ),
             prepare_demo_source_button,
             _status,
@@ -3427,67 +3395,48 @@ def _(
     overview_stats,
     quality_view,
 ):
+    _finding_status = (
+        mo.callout(
+            f"{len(operational_findings)} explicit REVIEW_REQUIRED finding(s) are stored. "
+            "These are human review requests, not automated fault or health verdicts.",
+            kind="warn",
+            title="Findings · Review required",
+        )
+        if operational_findings
+        else mo.callout(
+            "No explicit REVIEW_REQUIRED finding is stored. "
+            "Investigation can create one from a persisted AnalysisRun.",
+            kind="neutral",
+            title="Findings · None",
+        )
+    )
     overview_view = mo.vstack(
         [
             mo.md(
                 "## Operations Overview\n\n"
-                "관측·품질·PHM·정비 capability를 같은 운영 구조에서 확인합니다."
+                "현재 연결된 source, observation, analysis와 review workflow만 표시합니다."
             ),
             bundled_demo_view,
             overview_stats,
             connection_status,
             mo.hstack(
                 [
+                    _finding_status,
                     mo.callout(
-                        "No validated field condition/health state is available yet. "
-                        "A score will not be promoted to a health state without a "
-                        "field-specific validation policy.",
-                        kind="neutral",
-                        title="Condition · Not validated",
-                    ),
-                    (
-                        mo.callout(
-                            f"{len(operational_findings)} explicit REVIEW_REQUIRED finding(s) "
-                            "are stored. These are human review requests, not automated fault "
-                            "or health verdicts.",
-                            kind="warn",
-                            title="Findings · Review workflow",
-                        )
-                        if operational_findings
-                        else mo.callout(
-                            "No explicit REVIEW_REQUIRED finding is stored yet. "
-                            "Investigation can create one from a persisted AnalysisRun. "
-                            "Absence of a review request is not a normal/healthy verdict.",
-                            kind="neutral",
-                            title="Findings · None recorded",
-                        )
-                    ),
-                    mo.callout(
-                        "No validated alert policy exists for the current field source. "
-                        "Anomaly scores are not promoted to alerts without that policy.",
-                        kind="neutral",
-                        title="Alerts · Not validated",
+                        "Finding review supports note, acknowledge and close. "
+                        "It does not execute inspection, repair or a work order.",
+                        kind="info",
+                        title="Maintenance Review · Available",
                     ),
                 ],
                 widths="equal",
             ),
-            mo.hstack(
-                [
-                    mo.callout(
-                        "No field prognostics estimate is connected. Open Development RUL "
-                        "to inspect separate retrospective XJTU evidence; it is not reused "
-                        "as the current asset's operational RUL.",
-                        kind="neutral",
-                        title="Operational RUL · Unavailable",
-                    ),
-                    mo.callout(
-                        "Finding review disposition is connected. Work-order, inspection "
-                        "execution and repair history are not connected.",
-                        kind="info",
-                        title="Maintenance Review · Connected",
-                    ),
-                ],
-                widths="equal",
+            mo.callout(
+                "Automatic condition/fault/alert semantics and operational RUL are not "
+                "implemented for field sources. Research anomaly/RUL evidence remains in "
+                "Analysis Explorer and is not presented as an Operations capability.",
+                kind="neutral",
+                title="Unsupported operational semantics",
             ),
             observation_detail,
             quality_view,
@@ -3563,87 +3512,6 @@ def _(mo, timeline):
 
 @app.cell
 def _(
-    analysis_review_error,
-    analysis_review_records,
-    analysis_review_state_path,
-    mo,
-    observation,
-):
-    if analysis_review_error:
-        analysis_review_history_view = mo.callout(
-            analysis_review_error,
-            kind="danger",
-            title="Analysis review records · Unavailable",
-        )
-    else:
-        _matching_records = (
-            analysis_review_records
-            if observation is None
-            else tuple(
-                record
-                for record in analysis_review_records
-                if record.asset_id == observation.asset_id
-            )
-        )
-        _ordered_records = tuple(
-            sorted(
-                _matching_records,
-                key=lambda record: record.reviewed_at,
-                reverse=True,
-            )
-        )
-
-        if not _ordered_records:
-            _scope = (
-                "저장된 analysis review record가 없습니다."
-                if observation is None
-                else f"`{observation.asset_id}`에 연결된 analysis review record가 없습니다."
-            )
-            analysis_review_history_view = mo.callout(
-                _scope + " Analysis Explorer의 검토 및 조치에서 evidence를 확인 완료로 기록하면 "
-                "여기에 표시됩니다.",
-                kind="neutral",
-                title="Analysis review records · None",
-            )
-        else:
-            _rows = "\n".join(
-                "| {reviewed_at} | `{asset_id}` | `{policy}` | {intervals} | "
-                "`{artifact}` | {note} |".format(
-                    reviewed_at=record.reviewed_at.isoformat(),
-                    asset_id=record.asset_id,
-                    policy=record.review_policy_id,
-                    intervals=record.review_interval_count,
-                    artifact=record.artifact_sha256[:12],
-                    note=(record.note.replace("|", "&#124;") or "-"),
-                )
-                for record in _ordered_records[:20]
-            )
-            analysis_review_history_view = mo.vstack(
-                [
-                    mo.md(
-                        "### Analysis review records\n\n"
-                        "| Reviewed at | Asset | Review policy | Intervals | "
-                        "Artifact SHA | Note |\n"
-                        "| --- | --- | --- | ---: | --- | --- |\n" + _rows
-                    ),
-                    mo.callout(
-                        f"Review state: `{analysis_review_state_path}`. "
-                        "현재 observation이 있을 때 연결 기준은 asset_id 일치뿐이며 "
-                        "source/measurement-point lineage까지 검증한 operational join은 아닙니다. "
-                        "이 기록은 사람이 analysis evidence를 검토했다는 사실이며 "
-                        "OperationalFinding이나 maintenance work order가 아닙니다.",
-                        kind="info",
-                        title=f"Human review evidence · {len(_ordered_records)} record(s)",
-                    ),
-                ],
-                gap=0.8,
-            )
-    return (analysis_review_history_view,)
-
-
-@app.cell
-def _(
-    analysis_review_history_view,
     create_review_finding_button,
     field_analysis_error,
     field_analysis_result,
@@ -3829,196 +3697,20 @@ def _(
             ),
             _field_analysis_view,
             _field_analysis_history_view,
-            analysis_review_history_view,
             _finding_view,
             _finding_history_view,
             observation_timeline_view,
             mo.callout(
-                "Anomaly/condition trend will appear only after a field analysis run "
-                "produces capability-specific evidence with validated operational semantics.",
-                kind="neutral",
-                title="PHM Trend & Evidence · Unavailable",
-            ),
-            mo.callout(
-                "No operational RUL estimate is linked to this AnalysisRun. "
-                "Development RUL exposes separate retrospective XJTU evidence without "
-                "joining it to this source, finding, or Maintenance workflow.",
-                kind="neutral",
-                title="Operational prognostics · Unavailable",
-            ),
-            mo.callout(
-                "OperationalFinding review disposition은 Maintenance에서 note / acknowledge / "
-                "close로 연결되어 있습니다. Inspection execution, repair completion, "
-                "work-order/CMMS history는 아직 연결되지 않았습니다.",
+                "The current FILE analysis produces vibration feature evidence and can create "
+                "an explicit human review request. It does not produce validated condition, "
+                "fault, alert or operational RUL semantics, and it does not execute maintenance.",
                 kind="info",
-                title="Maintenance context · Review workflow connected",
+                title="Current analysis boundary",
             ),
         ],
         gap=1.2,
     )
     return investigation_view
-
-
-@app.cell
-def _(AnalysisViewError, Path, load_xjtu_rul_analysis_view, os):
-    development_rul_artifact_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_DEVELOPMENT_RUL_ARTIFACT",
-            "docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json",
-        )
-    )
-    if not development_rul_artifact_path.is_file():
-        development_rul_analysis = None
-        development_rul_error = f"No development RUL artifact at `{development_rul_artifact_path}`."
-    else:
-        try:
-            development_rul_analysis = load_xjtu_rul_analysis_view(development_rul_artifact_path)
-            development_rul_error = ""
-        except (AnalysisViewError, OSError, ValueError) as error:
-            development_rul_analysis = None
-            development_rul_error = str(error)
-    return (
-        development_rul_analysis,
-        development_rul_artifact_path,
-        development_rul_error,
-    )
-
-
-@app.cell
-def _(development_rul_analysis, mo, prognostics_asset_ids):
-    if development_rul_analysis is None:
-        development_rul_asset_selector = None
-    else:
-        _asset_ids = prognostics_asset_ids(development_rul_analysis)
-        development_rul_asset_selector = mo.ui.dropdown(
-            options=list(_asset_ids),
-            value=_asset_ids[0],
-            label="Development RUL asset",
-        )
-    return (development_rul_asset_selector,)
-
-
-@app.cell
-def _(
-    development_rul_analysis,
-    development_rul_artifact_path,
-    development_rul_asset_selector,
-    development_rul_error,
-    mo,
-    summarize_prognostics_for_asset,
-):
-    if development_rul_analysis is None or development_rul_asset_selector is None:
-        development_rul_view = mo.vstack(
-            [
-                mo.md("## Development RUL Evidence"),
-                mo.callout(
-                    development_rul_error or "No readable development RUL evidence is available.",
-                    kind="neutral",
-                    title="Development RUL · Unavailable",
-                ),
-            ],
-            gap=1.0,
-        )
-    else:
-        _summary = summarize_prognostics_for_asset(
-            development_rul_analysis,
-            development_rul_asset_selector.value,
-        )
-        _method_rows = "\n".join(
-            f"| `{row.method_id}` | {row.last_recorded_remaining_useful_life:,.1f} | "
-            f"{row.last_recorded_acquisition_index:,} | {row.mean_absolute_error:,.1f} | "
-            f"{row.mean_signed_error:,.1f} | {row.prediction_count:,} |"
-            for row in _summary.methods
-        )
-        _primary_label = _summary.primary_method_id or "None selected"
-        _uncertainty_label = (
-            "Available" if _summary.uncertainty_interval_available else "Unavailable"
-        )
-        _failure_threshold_label = (
-            "Validated" if _summary.physical_failure_threshold_validated else "Not validated"
-        )
-        _negative_warning = (
-            [
-                mo.callout(
-                    "At least one compared method records a negative RUL value. "
-                    "The development target is not clipped, so the stored value is shown "
-                    "without flooring it to zero.",
-                    kind="warn",
-                    title="Negative recorded estimate",
-                )
-            ]
-            if _summary.has_negative_estimate
-            else []
-        )
-        development_rul_view = mo.vstack(
-            [
-                mo.md("## Development RUL Evidence"),
-                mo.callout(
-                    "This page reads a retrospective XJTU-SY validation artifact. "
-                    "It is not joined to the currently selected field source, AnalysisRun, "
-                    "finding, or Maintenance review. Do not use these numbers as the current "
-                    "asset's operational remaining life.",
-                    kind="warn",
-                    title="Not operational RUL",
-                ),
-                development_rul_asset_selector,
-                mo.hstack(
-                    [
-                        mo.stat(
-                            str(len(_summary.methods)),
-                            label="Compared methods",
-                            caption="Development comparison",
-                        ),
-                        mo.stat(
-                            _primary_label,
-                            label="Primary method",
-                            caption=(
-                                "No operational method selection"
-                                if _summary.primary_method_id is None
-                                else "Recorded selection"
-                            ),
-                        ),
-                        mo.stat(
-                            _uncertainty_label,
-                            label="Uncertainty interval",
-                            caption="Calibrated interval capability",
-                        ),
-                        mo.stat(
-                            _failure_threshold_label,
-                            label="Physical failure threshold",
-                            caption="Recorded endpoint semantics only",
-                        ),
-                    ],
-                    widths="equal",
-                ),
-                mo.md(
-                    "### Target meaning\n\n"
-                    f"- Definition: `{_summary.target_definition_id}`\n"
-                    f"- Unit: **{_summary.target_description}**\n"
-                    f"- Formula: `{_summary.target_formula}`\n"
-                    f"- Support: {_summary.support_definition}, from acquisition "
-                    f"{_summary.support_first_acquisition:,}, "
-                    f"{_summary.support_prediction_count:,} predictions"
-                ),
-                mo.md(
-                    "### Recorded development comparison\n\n"
-                    "| Method | Last recorded RUL | As-of acquisition | MAE | Signed error | "
-                    "Predictions |\n"
-                    "| --- | ---: | ---: | ---: | ---: | ---: |\n" + _method_rows
-                ),
-                *_negative_warning,
-                mo.callout(
-                    f"Artifact: `{development_rul_artifact_path}`. "
-                    f"Evidence class: {_summary.evidence_class}. "
-                    "Operations exposes this existing development evidence so RUL work is "
-                    "visible in the product, while keeping operational RUL explicitly unavailable.",
-                    kind="info",
-                    title="Evidence source",
-                ),
-            ],
-            gap=1.0,
-        )
-    return (development_rul_view,)
 
 
 @app.cell
@@ -4422,12 +4114,12 @@ def _(
             title="Current operational errors · None",
         )
 
-    system_health_view = mo.vstack(
+    operational_state_view = mo.vstack(
         [
             mo.md(
-                "## System Health\n\n"
-                "현재 Operations process가 실제로 보유한 control/runtime/application "
-                "evidence를 한 화면에서 확인합니다."
+                "## Operational State\n\n"
+                "현재 Operations process가 실제로 읽을 수 있는 local control/runtime/application "
+                "state와 recorded population을 확인합니다."
             ),
             mo.hstack(
                 [
@@ -4473,19 +4165,12 @@ def _(
                 "instrumented, and there is no queue/backlog/latency/process metric pipeline. "
                 "This screen does not infer asset health from platform state.",
                 kind="info",
-                title="System-health semantics",
-            ),
-            mo.callout(
-                "Persistent OPC UA session telemetry, ingestion throughput/backlog, background "
-                "worker health, logs/metrics/traces correlation and external service checks "
-                "remain NOT_INSTRUMENTED.",
-                kind="neutral",
-                title="Telemetry · Not instrumented",
+                title="Operational-state semantics",
             ),
         ],
         gap=1.2,
     )
-    return system_health_view
+    return operational_state_view
 
 
 @app.cell
@@ -4535,7 +4220,6 @@ def _(
 @app.cell
 def _(
     data_quality_view,
-    development_rul_view,
     investigation_view,
     maintenance_view,
     mo,
@@ -4543,29 +4227,26 @@ def _(
     page_selector,
     source_setup,
     sources_view,
-    system_health_view,
+    operational_state_view,
 ):
     views = {
         "Overview": overview_view,
         "Sources": sources_view,
         "Investigation": investigation_view,
-        "Development RUL": development_rul_view,
         "Data Quality": data_quality_view,
-        "Maintenance": maintenance_view,
-        "System Health": system_health_view,
+        "Maintenance Review": maintenance_view,
+        "Operational State": operational_state_view,
     }
     _header_items = [
         mo.md(
             "# PHM Operations\n\n"
-            "현재 **Source → Analyze → Results → Finding → Maintenance review**의 "
-            "FILE snapshot vertical slice가 연결되어 있습니다. 자동 condition/fault 판정, "
-            "operational RUL, work-order/CMMS execution은 아직 연결되지 않았습니다."
+            "현재 **Source → Analyze → Results → Finding → Maintenance Review**의 "
+            "FILE snapshot workflow가 연결되어 있습니다."
         ),
         mo.callout(
-            "미구현 capability를 primary navigation의 완성된 기능처럼 노출하지 않습니다. "
-            "Maintenance는 finding review action이 연결되어 있고, System Health는 "
-            "현재 local operational state/read failures를 실제 evidence로 표시합니다. "
-            "Asset 상세 view는 실제 사용자 행동이 연결될 때 올립니다.",
+            "Primary navigation에는 현재 실행하거나 검토할 수 있는 Operations 기능만 둡니다. "
+            "Automatic condition/fault/alert semantics, operational RUL, work-order/CMMS "
+            "execution은 현재 Operations capability가 아닙니다.",
             kind="info",
             title="Current product milestone",
         ),

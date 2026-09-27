@@ -698,11 +698,9 @@ Source -> Analyze -> Results -> Finding -> Maintenance review
 - prepared observation/timeline과 data-quality/provenance 확인
 - timezone-aware registered FILE snapshot에서 on-demand operational `AnalysisRun` + vibration statistical feature evidence 생성, durable local history 저장/재조회
 - 별도 Analysis Explorer에서 XJTU anomaly/RUL 분석 실행과 result/evidence 검토
-- Analysis Explorer의 durable human-review acknowledgement/note를 Operations Investigation에서 asset 기준으로 조회
 - persisted operational feature evidence에서 사용자가 명시적으로 `human-review-request-v1 / REVIEW_REQUIRED` finding을 생성하고 history로 조회
 - finding별 human review disposition을 `OPEN → ACKNOWLEDGED → CLOSED`로 관리하며 append-only note/event history를 durable local state로 보존
-- System Health에서 source registry/runtime, operational analysis/finding/review store의 readable/error 상태와 현재 recorded population을 확인
-- Operations Development RUL에서 XJTU-SY retrospective validation artifact의 모델별 recorded estimate/error/target semantics를 조회. current field source와 operational identity join은 수행하지 않음
+- Operational State에서 source registry/runtime, operational analysis/finding/review store의 readable/error 상태와 현재 recorded population을 확인
 - bundled synthetic FILE snapshot으로 외부 데이터 없이 registration → AnalysisRun → explicit review finding → Maintenance review까지 같은 UI workflow를 재현
 
 ### 현재 끊긴 지점
@@ -720,20 +718,11 @@ Registered FILE snapshot / observation
 
 `AnalysisRun`과 `OperationalFinding` 계약이 존재한다는 사실만으로 기능이 완성된 것으로 취급하지 않습니다. producer와 사용자 action이 연결되지 않은 capability는 primary navigation에서 완성 기능처럼 노출하지 않습니다.
 
-Operations primary navigation은 현재 행동 가능한 **Overview / Sources / Investigation / Development RUL / Data Quality / Maintenance / System Health**에 집중합니다. Maintenance는 durable finding-review action을, System Health는 현재 local operational state와 read/action error evidence를 실제로 소비합니다. 기존 Assets/Asset view는 사용자 action이 연결될 때까지 primary navigation에서 제외합니다.
+Operations primary navigation은 현재 행동 가능한 **Overview / Sources / Investigation / Data Quality / Maintenance Review / Operational State**에 집중합니다. Maintenance Review는 durable finding-review action을, Operational State는 현재 local state와 read/action error evidence를 실제로 소비합니다.
 
-### 다음 vertical slice의 Definition of Done
-
-다음 milestone은 새로운 infrastructure가 아니라 아래 흐름을 실제 UI에서 끝까지 수행하는 것입니다.
-
-1. registered source 또는 준비된 observation을 analysis 대상으로 선택할 수 있다. *(FILE snapshot v1 연결됨)*
-2. 사용자가 analysis를 실행하면 실제 `AnalysisRun`이 생성된다. *(FILE snapshot v1 연결됨)*
-3. capability-specific result/evidence가 Results/Investigation에서 확인된다. *(FILE feature analysis v1은 durable local history까지 연결됨)*
-4. 검증된 최소 semantics로 operational finding을 생성하거나, 생성할 수 없으면 그 이유를 명확히 표시한다. *(human-review-request-v1 수동 finding 연결됨; 자동 fault/health finding은 미연결)*
-5. 생성된 finding에 사용자가 최소 review action(acknowledge/note/close)을 수행할 수 있다. *(연결됨; work order/repair execution과는 분리)*
-6. RUL evidence의 존재와 운영 적용 범위를 명확히 구분한다. *(development XJTU evidence 조회는 연결됨; current field AnalysisRun의 operational RUL은 미연결)*
-
-이 milestone 전에는 persistent OPC UA session, reconnect/backoff, continuous ingestion, 새 connector/model/dataset, generic workflow framework를 우선 작업으로 올리지 않습니다.
+Research anomaly/RUL evidence는 Analysis Explorer가 소유합니다. Operations는 current field identity와 연결되지 않은
+research estimate를 operational capability처럼 노출하지 않습니다. Automatic condition/fault/alert semantics,
+operational RUL, inspection/work-order/CMMS execution은 현재 Operations capability가 아닙니다.
 
 ## References
 
