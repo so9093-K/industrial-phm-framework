@@ -105,9 +105,7 @@ retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다.
 있습니다. Add source는 prepared file/history와 OPC UA browse/explicit-NodeId registration을 지원합니다. Application에는
 ACTIVE OPC UA source의 one-shot read → receipt persistence cycle을 Operations의 **Run active source once**에서 실행할 수 있습니다. UI action은 selected source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 dispatch합니다. CLI polling도 FILE/OPC UA one-shot cycle을 source type에 맞게 반복합니다. Application에는 ACTIVE registered OPC UA source의 persisted endpoint/NodeId mapping을 재사용해 bounded DataChange session을 한 번 수집하는 경계도 있습니다. 각 notification은 source/asset/measurement-point identity와 bounded collection order를 가진 event-level application view로 조회할 수 있지만, 이 local collection index는 OPC UA server sequence가 아니며 gap-free delivery를 주장하지 않습니다. 같은 bounded result에서 registered channel이 각각 최소 한 번 관측됐는지 channel coverage를 계산할 수 있지만, full coverage도 timestamp-aligned snapshot이나 analysis-ready window를 뜻하지 않습니다. Lifecycle-aware bounded subscription cycle은 이 세션의 latest connection-attempt evidence만 runtime state에 기록하고 receipt/freshness는 갱신하지 않습니다. Operations Sources에서는 ACTIVE OPC UA source에 대해 **Collect bounded subscription**을 실행하고 completion reason, event count, configured/observed/missing channel coverage와 event-level value/status/timing evidence를 확인할 수 있습니다. Notification을 persist하거나 complete observation으로 승격하지 않으며 reconnect나 continuous ingestion을 시작하지 않습니다.
 
-Observation timeline 자체는 PHM trend가 아닙니다. Condition, Finding, RUL, Maintenance와 System Health 영역은
-처음부터 존재하며 검증 또는 연결이 없는 capability는 `Not validated`, `Unavailable`, `Not connected`로
-표시합니다.
+Observation timeline 자체는 PHM trend가 아닙니다. 현재 FILE snapshot path는 on-demand operational `AnalysisRun`과 vibration feature evidence를 만들고 durable history로 저장할 수 있으며, 사용자가 명시적으로 `REVIEW_REQUIRED` finding을 생성한 뒤 Maintenance에서 note / acknowledge / close review를 수행할 수 있습니다. 이 workflow는 automatic fault/health 판정이나 work order/CMMS 실행을 의미하지 않습니다. RUL/System Health 등 미연결 capability는 계속 `Unavailable`/`Not instrumented`로 표시합니다.
 
 ACTIVE registered FILE 또는 OPC UA source를 CLI에서 동기 polling하려면 registry/runtime-state 경로를
 명시합니다. `--max-cycles`를 생략하면 failure/non-ACTIVE/Ctrl+C까지 계속 실행합니다.
@@ -161,10 +159,12 @@ Source
 
 - **Source**: FILE/OPC UA 등록, one-shot 실행과 bounded OPC UA collection까지 구현
 - **Analyze/Results**: Analysis Explorer의 XJTU anomaly/RUL 분석·evidence·AI 설명은 구현
-- **Operational bridge**: `AnalysisRun` / `OperationalFinding` 계약은 있으나 registered field source에서 이를 만드는 producer는 아직 연결되지 않음
-- **Maintenance/System**: UI/read-model 자리는 있으나 실제 workflow/telemetry가 연결되기 전에는 primary product 기능으로 취급하지 않음
+- **Operational bridge**: timezone-aware registered FILE snapshot에서 실제 `AnalysisRun` + vibration feature evidence를 생성하고 durable history로 저장
+- **Finding**: 사용자가 feature evidence를 확인한 뒤 `human-review-request-v1 / REVIEW_REQUIRED` finding을 명시적으로 생성 가능
+- **Maintenance review**: finding별 note / acknowledge / close를 durable event history로 수행 가능
+- **아직 미연결**: automatic condition/fault semantics, operational RUL, inspection/work-order/CMMS execution, background continuous ingestion, detailed System Health telemetry
 
-다음 완료 조건은 **registered source → analysis 실행 → result → operational finding → 사용자 review action**을 UI에서 끝까지 수행하는 첫 operational PHM vertical slice입니다.
+현재 **registered FILE snapshot → analysis → result → review finding → Maintenance review** vertical slice는 UI에서 끝까지 연결되어 있습니다. 다음 작업은 이 흐름을 실제 source/time/identity에 더 넓게 적용할지, 또는 validated automatic PHM semantics를 추가할지 제품 요구에 따라 선택합니다.
 
 이 milestone이 끝날 때까지 다음 범위는 동결합니다.
 
