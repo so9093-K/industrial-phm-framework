@@ -14,24 +14,10 @@ from typing import Protocol, cast, runtime_checkable
 
 from industrial_phm.application.source_receipt import SourceReceiptEvidence
 
-_RUNTIME_SCHEMA_V1 = "industrial-phm-source-runtime-v1"
-_RUNTIME_SCHEMA_V2 = "industrial-phm-source-runtime-v2"
-_RUNTIME_SCHEMA_V3 = "industrial-phm-source-runtime-v3"
-_ROOT_KEYS_V1 = frozenset({"schema", "latest_receipts"})
-_ROOT_KEYS_V2 = frozenset({"schema", "latest_receipts", "latest_connection_attempts"})
-_ROOT_KEYS_V3 = _ROOT_KEYS_V2
+_RUNTIME_SCHEMA = "industrial-phm-source-runtime-v3"
+_ROOT_KEYS = frozenset({"schema", "latest_receipts", "latest_connection_attempts"})
 _RECEIPT_KEYS = frozenset({"source_id", "observed_at", "received_at"})
-_CONNECTION_ATTEMPT_KEYS_V2 = frozenset(
-    {
-        "source_id",
-        "outcome",
-        "attempted_at",
-        "connected_at",
-        "completed_at",
-        "detail",
-    }
-)
-_CONNECTION_ATTEMPT_KEYS_V3 = frozenset(
+_CONNECTION_ATTEMPT_KEYS = frozenset(
     {
         "source_id",
         "operation",
@@ -47,7 +33,6 @@ _CONNECTION_ATTEMPT_KEYS_V3 = frozenset(
 class SourceConnectionAttemptOperation(StrEnum):
     """Operation represented by one bounded connection/session attempt."""
 
-    LEGACY_UNSPECIFIED = "legacy-unspecified"
     OPCUA_READ = "opcua-read"
     OPCUA_SUBSCRIPTION = "opcua-subscription"
 
@@ -64,21 +49,18 @@ class SourceConnectionAttemptEvidence:
     """Latest bounded connector/session attempt evidence for one source.
 
     This is historical attempt evidence, not a claim that the source is connected now.
-    Operation identifies the producer when known; legacy or caller-created evidence may
-    remain LEGACY_UNSPECIFIED rather than being guessed. A successful attempt requires a
+    Operation identifies the producer that created the bounded attempt. A successful attempt requires a
     measured connected_at inside the attempted/completed interval. A failed attempt
     requires concrete detail and may not know whether a connection was ever established.
     """
 
     source_id: str
+    operation: SourceConnectionAttemptOperation
     outcome: SourceConnectionAttemptOutcome
     attempted_at: datetime
     completed_at: datetime
     connected_at: datetime | None = None
     detail: str | None = None
-    operation: SourceConnectionAttemptOperation = (
-        SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
-    )
 
     def __post_init__(self) -> None:
         _validate_source_id(self.source_id)
@@ -175,9 +157,9 @@ class JsonSourceRuntimeRepository:
     it does not store receipt/attempt history, current connection state, retries, buffers,
     throughput, or derived freshness/health assessments.
 
-    Version 1 receipt-only and version 2 operation-less attempt files remain readable.
-    V2 attempts are preserved as LEGACY_UNSPECIFIED rather than guessed. Any subsequent
-    write persists the version 3 schema while preserving existing evidence.
+    The repository accepts only the current v3 schema. Older pre-alpha runtime-state
+    formats are intentionally unsupported instead of carrying forward operation-less
+    attempt evidence.
     """
 
     def __init__(self, path: Path) -> None:
@@ -264,18 +246,11 @@ class JsonSourceRuntimeRepository:
 
         root = _require_mapping(raw, "source runtime root")
         schema = _require_string(root.get("schema"), "source runtime schema")
-        if schema == _RUNTIME_SCHEMA_V1:
-            _require_exact_keys(root, _ROOT_KEYS_V1, "source runtime root")
-            connection_attempts_raw: object = []
-        elif schema == _RUNTIME_SCHEMA_V2:
-            _require_exact_keys(root, _ROOT_KEYS_V2, "source runtime root")
-            connection_attempts_raw = root["latest_connection_attempts"]
-        elif schema == _RUNTIME_SCHEMA_V3:
-            _require_exact_keys(root, _ROOT_KEYS_V3, "source runtime root")
-            connection_attempts_raw = root["latest_connection_attempts"]
-        else:
+        if schema != _RUNTIME_SCHEMA:
             raise SourceRuntimeFormatError(f"unsupported source runtime schema: {schema!r}")
 
+        _require_exact_keys(root, _ROOT_KEYS, "source runtime root")
+        connection_attempts_raw = root["latest_connection_attempts"]
         receipts_raw = root["latest_receipts"]
         if not isinstance(receipts_raw, list):
             raise SourceRuntimeFormatError("source runtime latest_receipts must be a JSON array")
@@ -292,7 +267,7 @@ class JsonSourceRuntimeRepository:
                 "source runtime latest_connection_attempts must be a JSON array"
             )
         connection_attempts = tuple(
-            _parse_connection_attempt(item, index=index, schema=schema)
+            _parse_connection_attempt(item, index=index)
             for index, item in enumerate(connection_attempts_raw)
         )
         _reject_duplicate_source_ids(
@@ -316,7 +291,7 @@ class JsonSourceRuntimeRepository:
         ordered_receipts = tuple(sorted(receipts, key=lambda receipt: receipt.source_id))
         ordered_attempts = tuple(sorted(connection_attempts, key=lambda attempt: attempt.source_id))
         payload = {
-            "schema": _RUNTIME_SCHEMA_V3,
+            "schema": _RUNTIME_SCHEMA,
             "latest_connection_attempts": [
                 _serialize_connection_attempt(attempt) for attempt in ordered_attempts
             ],
@@ -403,14 +378,10 @@ def _parse_connection_attempt(
     value: object,
     *,
     index: int,
-    schema: str,
 ) -> SourceConnectionAttemptEvidence:
     label = f"source runtime latest_connection_attempts[{index}]"
     attempt = _require_mapping(value, label)
-    expected_keys = (
-        _CONNECTION_ATTEMPT_KEYS_V3 if schema == _RUNTIME_SCHEMA_V3 else _CONNECTION_ATTEMPT_KEYS_V2
-    )
-    _require_exact_keys(attempt, expected_keys, label)
+    _require_exact_keys(attempt, _CONNECTION_ATTEMPT_KEYS, label)
     connected_raw = attempt["connected_at"]
     detail_raw = attempt["detail"]
     if connected_raw is not None and not isinstance(connected_raw, str):
@@ -420,12 +391,8 @@ def _parse_connection_attempt(
     try:
         return SourceConnectionAttemptEvidence(
             source_id=_require_string(attempt["source_id"], f"{label}.source_id"),
-            operation=(
-                SourceConnectionAttemptOperation.LEGACY_UNSPECIFIED
-                if schema == _RUNTIME_SCHEMA_V2
-                else SourceConnectionAttemptOperation(
-                    _require_string(attempt["operation"], f"{label}.operation")
-                )
+            operation=SourceConnectionAttemptOperation(
+                _require_string(attempt["operation"], f"{label}.operation")
             ),
             outcome=SourceConnectionAttemptOutcome(
                 _require_string(attempt["outcome"], f"{label}.outcome")
