@@ -1,18 +1,13 @@
 # industrial-phm-framework
 
-산업 설비의 센서 데이터를 분석해 **이상 변화와 RUL(잔여수명)**을 살펴보고,
-분석 결과를 화면·보고서·생성형 AI 설명으로 확인할 수 있는 Python 기반 PHM(고장예지·건전성 관리) 프레임워크입니다.
+산업 설비 데이터를 **PHM 분석 결과와 유지보수 판단으로 연결하는 Python 기반 PHM 프레임워크**입니다.
 
-현재는 공개 데이터셋을 중심으로 분석 흐름과 결과 검증 방식을 개발하고 있으며,
-주 사용자는 PHM/ML 개발자와 연구자입니다.
+센서 데이터를 받아 품질과 출처를 확인하고, 이상·열화·RUL 등 PHM 분석 결과와 근거를 만들며,
+사용자가 그 결과를 검토해 운영·정비 판단으로 이어갈 수 있는 흐름을 만드는 것이 목표입니다.
+
+공개 데이터셋과 연구 모델은 이 흐름을 개발하고 검증하기 위한 수단으로 사용합니다.
 
 > 현재 버전: pre-alpha `0.0.1`
-
-<!--
-Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
-권장 파일: assets/analysis-explorer.png
-자산 관리 규칙은 assets/README.md를 참조합니다.
--->
 
 ## 전체 구조
 
@@ -23,204 +18,93 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 
 자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
-## 주요 기능
+## 현재 할 수 있는 것
 
-- **센서 데이터 준비** — XJTU-SY, IMS Bearings, MIMII DUE와 명시적으로 mapping한 일반 CSV export의 구조·기본 품질을 확인하고 canonical 분석 입력으로 변환합니다.
-- **OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 bounded Variable browse와 explicit NodeId one-shot read를 제공합니다. Read는 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform receipt timing을 분리해 보존합니다. `RegisteredSource(OPCUA)`를 registry v4에 영속하고 Operations Add source에서 browse 후보 또는 explicit `channel_id,node_id` mapping으로 등록할 수 있으며, application에는 ACTIVE registered OPC UA source를 한 번 읽어 latest `SourceReceiptEvidence`를 기록하고 protocol snapshot을 conservative one-shot `AssetObservationSummary`로 projection하는 async runtime cycle까지 연결했습니다. 이는 지속 connection/health/continuous ingestion을 의미하지 않습니다.
-- **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
-- **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
-- **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
-- **운영 관측 화면** — PHM Operations에서 source 등록/실행, observation/data quality, durable operational AnalysisRun, explicit review finding, Maintenance Review와 local Operational State를 확인합니다. Research anomaly/RUL evidence는 Analysis Explorer에서 검토하며 Operations capability로 노출하지 않습니다.
-- **보고서 생성** — 분석 결과를 같은 수치와 내용으로 재현 가능한 Markdown 보고서로 저장합니다.
-- **생성형 AI 설명** — 계산이 끝난 분석 결과를 바탕으로 요약과 질의응답을 제공합니다.
+- **Analysis Explorer** — anomaly/RUL 연구 결과, 주요 관측값, feature/model evidence와 실행 정보를 검토합니다.
+- **Operations** — FILE/OPC UA source를 등록하고 관측·데이터 품질을 확인합니다. 등록된 FILE snapshot은 on-demand 분석을 실행해 결과 evidence를 만들고, review finding과 Maintenance Review로 이어갈 수 있습니다.
+- **OPC UA** — source 등록, bounded browse, one-shot read와 bounded subscription collection을 지원합니다.
+- **보고서와 설명** — 저장된 분석 결과를 Markdown 보고서와 생성형 AI 설명에 재사용할 수 있습니다.
 
-현재 구현된 분석 화면과 실행 방법은 [Analysis Explorer 안내](apps/README.md)에 정리되어 있습니다.
+연구 결과와 운영 결과는 구분합니다. Research anomaly/RUL evidence를 Operations의 operational 상태나 RUL로 자동 승격하지 않습니다.
 
-## 가장 빠르게 실행하기
+## 실행
 
-GitHub 저장소 접근 권한, Git, [uv](https://docs.astral.sh/uv/)가 필요합니다.
-원본 센서 데이터를 내려받지 않아도 저장소에 포함된 예제 분석 결과를 바로 볼 수 있습니다.
-
-### 1. 저장소 가져오기
+Git, [uv](https://docs.astral.sh/uv/), 저장소 접근 권한이 필요합니다.
 
 ```bash
 git clone https://github.com/so9093-K/industrial-phm-framework.git
 cd industrial-phm-framework
-```
-
-### 2. Python 준비
-
-```bash
 uv python install 3.14
 ```
 
-### 3. Analysis Explorer 실행
+### Analysis Explorer
 
 ```bash
 uv run --locked --group research marimo run apps/analysis_explorer.py
 ```
 
-브라우저에서 기본 제공 XJTU-SY 분석 결과를 바로 확인할 수 있습니다.
-`uv run`이 lockfile 기준 프로젝트 환경을 확인하고 필요한 의존성을 준비합니다.
+저장소에 포함된 분석 결과를 바로 열어 anomaly/RUL evidence와 분석 과정을 확인할 수 있습니다.
 
-운영 관측 surface는 별도 앱으로 실행합니다.
+### Operations
 
 ```bash
 uv run --locked --group research marimo run apps/operations.py
 ```
 
-외부 센서 데이터가 없어도 Overview의 **Prepare bundled demo source**를 누르면
-`examples/operations/demo-bearing-snapshot.csv` synthetic snapshot을 정상 FILE registration/validation
-경로로 준비합니다. 이후 **Sources → Analyze FILE snapshot → Investigation → Create review finding →
-Maintenance Review** 순서로 AnalysisRun, durable evidence/history, explicit review finding과
-note/acknowledge/close workflow를 직접 확인할 수 있습니다. Demo signal 자체는 실제 fault/degradation/RUL
-성능을 나타내지 않습니다.
+외부 데이터가 없어도 Overview에서 **Prepare bundled demo source**를 실행한 뒤 다음 흐름을 확인할 수 있습니다.
 
-현재 Operations 앱은 prepared single-asset CSV snapshot 또는 같은 asset/measurement point의 timestamped
-CSV history directory를 bootstrap으로 사용할 수 있습니다. History directory의 각 파일은 독립 segment로
-검증되고 filename이 아니라 recorded timestamp로 정렬됩니다. 화면은 latest observation, segment timeline,
-data quality, exact source snapshot provenance(SHA-256/byte size), declared validation policy를 표시합니다.
-또한 **Sources** 화면에서 prepared CSV file/history directory를
-`Source → Discover & Preview → Mapping → Validate & Register` 순서로 등록하고, versioned local registry의
-registered source 목록과 mapping/configuration을 확인할 수 있습니다. 등록 전에 기존 field CSV/timeline
-validation을 그대로 통과해야 하며, 등록된 file/history source는 Sources에서 **Load registered source**로
-현재 bytes를 다시 검증해 existing Observation/Timeline surface에 직접 연결할 수 있습니다. 성공한 registered
-source load는 application acceptance 시각을 timezone-aware `received_at`으로 기록하고 latest
-`observed_at`과 비교 가능한 경우 signed lag를 표시합니다. Timestamp/timezone이 없으면 lag를 만들지
-않습니다. Source lifecycle은 `REGISTERED / ACTIVE / PAUSED / ERROR` control-plane state로 별도 보존하며
-Operations에서 Activate/Pause를 수행할 수 있습니다. ACTIVE source는 **Run active source once**로 한 번의
-runtime cycle을 실행할 수 있고, 성공하면 current observation/latest receipt를 갱신하며 ACTIVE를 유지합니다.
-FILE validation/I/O 또는 OPC UA data-contract failure처럼 현재 source 입력/config를 그대로 다시 실행해도
-성공할 수 없는 source failure는 concrete detail과 함께 lifecycle을 ERROR로 전이합니다. OPC UA transport
-`OSError`는 failed connection-attempt evidence를 기록하되 administrative ACTIVE intent를 유지합니다. 반면
-runtime-state persistence 같은 platform failure도 cycle을 FAILED로 만들되 source lifecycle은 ACTIVE로
-유지합니다. 이 one-shot cycle은 connection/health/continuous-ingestion의 증거가 아니며 background
-scheduler도 아닙니다.
-Sources에서 source별 max observation age policy를 설정하면 현재 receipt evidence와 평가 시각을 사용해
-`FRESH / STALE / UNAVAILABLE / NOT_CONFIGURED` freshness state를 계산합니다. Freshness age는
-`assessment time - observed_at`이며 observed→received delivery lag와 분리합니다. Timestamp/timezone이 없거나
-source clock이 평가 시각보다 미래면 임의 상태를 만들지 않고 `UNAVAILABLE`로 남깁니다. Registered-source
-load가 성공하면 latest receipt는 control-plane registry와 분리된 local runtime state에도 기록되어 앱 재시작
-후 Last received/lag/freshness를 다시 계산할 수 있습니다. Runtime state v3는 source별 latest receipt와 latest bounded connection-attempt evidence를 별도 보존하고, 각 attempt가 `opcua-read`, `opcua-subscription`, 또는 legacy evidence인지 operation으로 구분합니다. OPC UA one-shot cycle은 successful connect/read/disconnect와 source-owned connector/transport failure에 대해 latest attempt evidence를 자동 기록합니다. 이 evidence는 historical attempt fact이며 current connection status가 아닙니다. Retry/buffer 상태와 receipt/attempt history도 저장하지 않습니다. Sources는 lifecycle,
-latest receipt, source-specific freshness를 조합한 `SourceHealthAssessment`를 표시하지만 단일
-healthy/unhealthy 판정은 만들지 않습니다. 현재 FILE/OPC UA one-shot runtime은 persistent connection telemetry를 기록하지 않으므로
-Connection은 `NOT_INSTRUMENTED`로 남고, Data flow는 INACTIVE/SOURCE_ERROR/NO_RECEIPT/FRESH/
-STALE/TIMING_UNAVAILABLE/FRESHNESS_NOT_CONFIGURED 중 실제 evidence에 맞는 상태만 표시합니다. Operations UI는 FILE/OPC UA one-shot 실행을 지원하고, CLI의 `operations poll-source`도 registered source type에 따라 FILE 또는 OPC UA one-shot runtime cycle을 caller-owned synchronous loop로 반복합니다. 이 polling runtime은 background service나 live connector가 아니며,
-retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다. 별도
-`industrial_phm.connectors.opcua` module의 OPC UA one-shot read proof와 같은 endpoint/NodeId mapping은
-`industrial-phm-source-registry-v4`에 영속할 수 있고 Operations Sources에서 type-specific detail로 확인할 수
-있습니다. Add source는 prepared file/history와 OPC UA browse/explicit-NodeId registration을 지원합니다. Application에는
-ACTIVE OPC UA source의 one-shot read → receipt persistence cycle을 Operations의 **Run active source once**에서 실행할 수 있습니다. UI action은 selected source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 dispatch합니다. CLI polling도 FILE/OPC UA one-shot cycle을 source type에 맞게 반복합니다. Application에는 ACTIVE registered OPC UA source의 persisted endpoint/NodeId mapping을 재사용해 bounded DataChange session을 한 번 수집하는 경계도 있습니다. 각 notification은 source/asset/measurement-point identity와 bounded collection order를 가진 event-level application view로 조회할 수 있지만, 이 local collection index는 OPC UA server sequence가 아니며 gap-free delivery를 주장하지 않습니다. 같은 bounded result에서 registered channel이 각각 최소 한 번 관측됐는지 channel coverage를 계산할 수 있지만, full coverage도 timestamp-aligned snapshot이나 analysis-ready window를 뜻하지 않습니다. Lifecycle-aware bounded subscription cycle은 이 세션의 latest connection-attempt evidence만 runtime state에 기록하고 receipt/freshness는 갱신하지 않습니다. Operations Sources에서는 ACTIVE OPC UA source에 대해 **Collect bounded subscription**을 실행하고 completion reason, event count, configured/observed/missing channel coverage와 event-level value/status/timing evidence를 확인할 수 있습니다. Notification을 persist하거나 complete observation으로 승격하지 않으며 reconnect나 continuous ingestion을 시작하지 않습니다.
-
-Observation timeline 자체는 PHM trend가 아닙니다. 현재 FILE snapshot path는 on-demand operational `AnalysisRun`과 vibration feature evidence를 만들고 durable history로 저장할 수 있으며, 사용자가 명시적으로 `REVIEW_REQUIRED` finding을 생성한 뒤 Maintenance Review에서 note / acknowledge / close review를 수행할 수 있습니다. 이 workflow는 automatic fault/health 판정이나 work order/CMMS 실행을 의미하지 않습니다. Operational State는 local registry/runtime/analysis/finding/review state와 read/action error evidence만 표시하며 service/session telemetry나 asset health를 의미하지 않습니다. Operational RUL도 아직 연결되지 않았습니다.
-
-ACTIVE registered FILE 또는 OPC UA source를 CLI에서 동기 polling하려면 registry/runtime-state 경로를
-명시합니다. `--max-cycles`를 생략하면 failure/non-ACTIVE/Ctrl+C까지 계속 실행합니다.
-
-```bash
-uv run --locked industrial-phm operations poll-source \
-  --registry artifacts/operations/source-registry.json \
-  --runtime-state artifacts/operations/source-runtime.json \
-  --source-id pump-source \
-  --interval-seconds 5
+```text
+Sources
+  → Analyze FILE snapshot
+  → Investigation
+  → Create review finding
+  → Maintenance Review
 ```
 
-이 명령은 background daemon이 아니며 실행 중인 process가 polling loop를 소유합니다. Source failure나
-platform failure에서는 자동 retry하지 않고 종료합니다.
+실제 source를 사용할 때는 **Sources**에서 FILE snapshot/history-directory 또는 OPC UA source를 등록합니다.
 
-CLI에서 저장된 결과의 기술 정보를 확인하려면 다음 명령을 사용할 수 있습니다.
+자세한 source 등록, OPC UA, polling, data-quality 의미론과 환경변수는
+[Applications 문서](apps/README.md)에 정리되어 있습니다.
 
-```bash
-uv run --locked industrial-phm experiment inspect \
-  docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json
-```
+## 현재 범위
 
-직접 준비한 XJTU-SY 데이터로 새 분석을 실행하려면
-[Analysis Explorer 안내](apps/README.md)의 **내 데이터로 분석하기**를 따릅니다.
-
-## 사용한 데이터
-
-| 데이터 | 이 프로젝트에서의 활용 |
-| --- | --- |
-| **XJTU-SY** | 베어링 진동 데이터의 이상 변화 분석과 RUL 연구 |
-| **IMS Bearings** | 서로 다른 베어링 실행 데이터에서 분석 흐름과 결과 변화를 확인 |
-| **MIMII DUE** | 기계 음향 데이터의 이상 분석과 환경 차이에 따른 변화 확인 |
-| **AI4I 2020** | 데이터 등록·다운로드·무결성 확인 흐름의 간단한 예제 |
-
-데이터 준비 방법과 출처는 [데이터 안내](data/README.md),
-데이터셋을 선택한 배경은 [연구 문서](docs/research/dataset-selection.md)를 참조합니다.
-
-## 현재 제품 milestone
-
-현재 개발 우선순위는 새로운 connector/model/infrastructure 확장이 아니라 이미 구현된 기능을 하나의 사용자 흐름으로 연결하는 것입니다.
+현재 Operations에서 연결된 흐름:
 
 ```text
 Source
-  -> Analyze
-  -> Results
-  -> Finding
-  -> Maintenance review
+  → Observation / Data Quality
+  → Analysis
+  → Result Evidence
+  → Review Finding
+  → Maintenance Review
 ```
 
-현재 상태는 다음과 같습니다.
+현재 지원하지 않는 범위:
 
-- **Source**: FILE/OPC UA 등록, one-shot 실행과 bounded OPC UA collection까지 구현
-- **Analyze/Results**: Analysis Explorer의 XJTU anomaly/RUL 분석·evidence·AI 설명은 구현
-- **Operational bridge**: timezone-aware registered FILE snapshot에서 실제 `AnalysisRun` + vibration feature evidence를 생성하고 durable history로 저장
-- **Finding**: 사용자가 feature evidence를 확인한 뒤 `human-review-request-v1 / REVIEW_REQUIRED` finding을 명시적으로 생성 가능
-- **Maintenance review**: finding별 note / acknowledge / close를 durable event history로 수행 가능
-- **Operational State**: source/runtime/analysis/finding/review local state의 availability/error/population을 표시
-- **아직 미연결**: automatic condition/fault semantics, operational RUL, inspection/work-order/CMMS execution, background continuous ingestion
+- automatic condition/fault/alert 판정
+- operational RUL
+- inspection/work-order/CMMS 실행
+- persistent OPC UA session과 continuous ingestion
+- reconnect/backoff/buffering 기반의 장기 실행 runtime
 
-현재 **registered FILE snapshot → analysis → result → review finding → Maintenance review** vertical slice는 UI에서 끝까지 연결되어 있습니다. 다음 작업은 이 흐름을 실제 source/time/identity에 더 넓게 적용할지, 또는 validated automatic PHM semantics를 추가할지 제품 요구에 따라 선택합니다.
+지원하지 않는 기능을 추정하거나 빈 상태로 꾸며서 표시하지 않는 것을 원칙으로 합니다.
 
-이 milestone이 끝날 때까지 다음 범위는 동결합니다.
+## 연구·검증 데이터
 
-```text
-persistent OPC UA session / continuous ingestion
-reconnect/backoff/gap recovery
-새 connector (MQTT/historian 등)
-새 anomaly/RUL model family
-새 dataset 확장
-generic workflow/result framework
-agent/foundation-model 확장
-CMMS/EAM/cloud deployment
-```
+XJTU-SY, IMS Bearings, MIMII DUE 등의 공개 데이터는 분석 방법과 evidence를 개발·검증하는 데 사용합니다.
+데이터 준비 방법과 출처는 [데이터 안내](data/README.md),
+선정 배경과 연구 프로토콜은 [연구 문서](docs/research/README.md)를 참조합니다.
 
-기존 bounded OPC UA와 research capability는 삭제하지 않고 현재 검증된 범위에서 유지합니다. 새 작업은 "사용자가 이전보다 무엇을 새로 할 수 있는가"가 명확한 vertical slice를 우선합니다.
+## 문서
 
-준비된 단일-asset CSV export는 Python 코드를 작성하지 않고도 CLI에서 먼저 검증할 수 있습니다.
-
-```bash
-uv run --locked industrial-phm data validate-csv \
-  --source /path/to/pump.csv \
-  --asset-id pump-01 \
-  --channel vibration_x \
-  --channel vibration_y \
-  --sampling-rate-hz 12800
-```
-
-Timestamp column을 함께 사용하는 경우 `--timestamp-column`을 지정할 수 있고, declared sampling rate와
-timestamp interval의 consistency를 확인하려면 `--sampling-rate-tolerance-ratio`를 명시합니다. 이 명령은
-source structure/quality/provenance만 검증하며 모델 fitting이나 thresholding은 실행하지 않습니다.
-
-현재 일반 field-input contract는 CSV export/snapshot에 한정됩니다. MIMII의 WAV 입력은 dataset-specific
-audio adapter이며 generic field WAV adapter를 의미하지 않습니다. 실제 private source conformance, historian/API
-연결과 field model execution은 실제 source requirement를 확인한 뒤 확장합니다.
-
-최근 PHM 연구와 산업 적용 방향은
-[PHM 연구·산업 동향](docs/research/phm-industry-direction.md)에 별도로 정리합니다.
-
-## 더 자세히 보기
-
-- [Analysis Explorer](apps/README.md) — 분석 화면과 실행 방법
-- [아키텍처](docs/architecture/overview.md) — 전체 구성과 책임 분리
-- [제품·UX 기준](docs/product/overview.md) — 분석 결과를 사용자에게 보여주는 방식
-- [데이터 준비](data/README.md) — 데이터셋 준비와 검증
-- [연구 문서](docs/research/README.md) — 실험 프로토콜, RUL 연구, 실행 기록
-- [기여 방법](CONTRIBUTING.md) — 개발 환경, 코드 변경, 테스트 방법
-
-자세한 변경 내용은 [변경 이력](CHANGELOG.md), 테스트 기준은 [테스트 정책](docs/testing-policy.md)을 참조합니다.
+- [Applications](apps/README.md) — Analysis Explorer와 Operations 사용 방법
+- [아키텍처](docs/architecture/overview.md) — 구성 요소와 책임 경계
+- [제품·UX 기준](docs/product/overview.md) — 사용자 흐름과 제품 의미
+- [데이터 준비](data/README.md) — 데이터셋과 입력 검증
+- [연구 문서](docs/research/README.md) — 실험 프로토콜과 연구 evidence
+- [테스트 정책](docs/testing-policy.md) — 검증 기준
+- [기여 방법](CONTRIBUTING.md) — 개발 환경과 변경 절차
+- [변경 이력](CHANGELOG.md) — 변경 내용
 
 ## 라이선스
 
