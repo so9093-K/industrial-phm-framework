@@ -581,9 +581,7 @@ def _(
 
             _loaded = load_registered_file_source_observation(_source)
             _sources = _repository.list_sources()
-            _lifecycle = tuple(
-                _repository.get_lifecycle(source.source_id) for source in _sources
-            )
+            _lifecycle = tuple(_repository.get_lifecycle(source.source_id) for source in _sources)
             _freshness = tuple(
                 policy
                 for source in _sources
