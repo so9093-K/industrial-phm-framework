@@ -399,12 +399,8 @@ def _(
         options=[
             "Overview",
             "Sources",
-            "Assets",
-            "Asset",
             "Investigation",
             "Data Quality",
-            "Maintenance",
-            "System Health",
         ],
         value="Overview",
         inline=True,
@@ -3387,7 +3383,16 @@ def _(
     _header_items = [
         mo.md(
             "# PHM Operations\n\n"
-            "설비 관측, 데이터 품질, PHM finding과 시스템 상태를 운영 관점에서 확인합니다."
+            "현재 제품 흐름은 **Source → Analyze → Results → Finding → Maintenance review**를 "
+            "완성하는 데 집중합니다. 이 화면에서 지금 직접 실행 가능한 것은 source 등록/관측과 "
+            "data-quality 확인이며, operational analysis/finding/maintenance producer는 다음 연결 작업입니다."
+        ),
+        mo.callout(
+            "미구현 capability를 primary navigation의 완성된 기능처럼 노출하지 않습니다. "
+            "기존 Asset/Maintenance/System Health read model 코드는 보존하지만 실제 사용자 행동이 "
+            "연결될 때 다시 navigation에 올립니다.",
+            kind="info",
+            title="Current product milestone",
         ),
         page_selector,
     ]
