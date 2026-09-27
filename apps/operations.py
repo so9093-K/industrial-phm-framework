@@ -60,6 +60,12 @@ def _():
         browse_opcua_variables,
     )
     from industrial_phm.contracts import DataQualityState
+    from industrial_phm.presentation import (
+        render_attention_queue_markdown,
+        render_data_quality_issues_markdown,
+        render_observation_markdown,
+        render_source_data_flow_markdown,
+    )
 
     return (
         AssetObservationSummary,
@@ -99,6 +105,10 @@ def _():
         load_registered_file_source_observation,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
+        render_attention_queue_markdown,
+        render_data_quality_issues_markdown,
+        render_observation_markdown,
+        render_source_data_flow_markdown,
         mo,
         register_file_source,
         run_registered_file_feature_analysis,
@@ -3057,35 +3067,9 @@ def _(
 
 
 @app.cell
-def _(mo, attention_queue):
-    if attention_queue.items:
-        _rows = []
-        for _item in attention_queue.items:
-            _when = "Not recorded" if _item.occurred_at is None else _item.occurred_at.isoformat()
-            _asset = "—" if _item.asset_identity is None else f"`{_item.asset_identity.asset_id}`"
-            _scope = _item.source_id or _item.finding_id or _item.system_scope or "—"
-            if _item.data_quality_issue_codes:
-                _evidence = ", ".join(f"`{code}`" for code in _item.data_quality_issue_codes)
-            elif _item.review_status is not None:
-                _evidence = f"review status `{_item.review_status.value}`"
-            elif _item.detail is not None:
-                _evidence = _item.detail
-            else:
-                _evidence = "Recorded operational evidence"
-            _safe_evidence = _evidence.replace("|", "\\|").replace("\n", " ")
-            _rows.append(
-                f"| {_item.handling_state.value} | "
-                f"{_item.kind.value} | "
-                f"{_when} | {_asset} | `{_scope}` | {_safe_evidence} |"
-            )
-        attention_queue_view = mo.md(
-            "### Attention Queue\n\n"
-            "Risk/severity 점수 없이 현재 evidence와 human workflow 상태만 정렬합니다. "
-            "OPEN review는 UNHANDLED, 그 외 unresolved fact는 ACTIVE입니다.\n\n"
-            "| Handling | Category | Evidence time | Asset | Scope | Evidence |\n"
-            "| --- | --- | --- | --- | --- | --- |\n" + "\n".join(_rows)
-        )
-    else:
+def _(attention_queue, mo, render_attention_queue_markdown):
+    _attention_markdown = render_attention_queue_markdown(attention_queue)
+    if _attention_markdown is None:
         attention_queue_view = mo.callout(
             "No factual attention item is currently projected from the available "
             "source, review, loaded data-quality or system-state evidence. "
@@ -3093,11 +3077,18 @@ def _(mo, attention_queue):
             kind="neutral",
             title="Attention Queue · Empty",
         )
+    else:
+        attention_queue_view = mo.md(_attention_markdown)
     return (attention_queue_view,)
 
 
 @app.cell
-def _(SourceDataFlowState, attention_queue, mo, operations_overview):
+def _(
+    attention_queue,
+    mo,
+    operations_overview,
+    render_source_data_flow_markdown,
+):
     _latest_analysis_caption = (
         "No operational AnalysisRun recorded"
         if operations_overview.latest_analysis_run is None
@@ -3132,33 +3123,7 @@ def _(SourceDataFlowState, attention_queue, mo, operations_overview):
         widths="equal",
     )
 
-    _timing_unavailable_count = operations_overview.source_data_flow_count(
-        SourceDataFlowState.TIMING_UNAVAILABLE
-    )
-    _freshness_not_configured_count = operations_overview.source_data_flow_count(
-        SourceDataFlowState.FRESHNESS_NOT_CONFIGURED
-    )
-    _source_flow_rows = "\n".join(
-        (
-            f"| SOURCE_ERROR | "
-            f"{operations_overview.source_data_flow_count(SourceDataFlowState.SOURCE_ERROR)} |",
-            f"| NO_RECEIPT | "
-            f"{operations_overview.source_data_flow_count(SourceDataFlowState.NO_RECEIPT)} |",
-            f"| STALE | {operations_overview.source_data_flow_count(SourceDataFlowState.STALE)} |",
-            f"| FRESH | {operations_overview.source_data_flow_count(SourceDataFlowState.FRESH)} |",
-            f"| TIMING_UNAVAILABLE | {_timing_unavailable_count} |",
-            f"| FRESHNESS_NOT_CONFIGURED | {_freshness_not_configured_count} |",
-            f"| INACTIVE | "
-            f"{operations_overview.source_data_flow_count(SourceDataFlowState.INACTIVE)} |",
-        )
-    )
-    source_flow_view = mo.md(
-        "### Source data flow\n\n"
-        "Source lifecycle/receipt/freshness evidence를 같은 read model에서 집계합니다. "
-        "이 상태는 asset health가 아닙니다.\n\n"
-        "| State | Sources |\n"
-        "| --- | ---: |\n" + _source_flow_rows
-    )
+    source_flow_view = mo.md(render_source_data_flow_markdown(operations_overview))
     return overview_stats, source_flow_view
 
 
@@ -3197,7 +3162,7 @@ def _(load_error, mo, observation, timeline):
 
 
 @app.cell
-def _(mo, observation):
+def _(mo, observation, render_observation_markdown):
     if observation is None:
         observation_detail = mo.callout(
             "Observation identity, time range, channels and sample population will appear "
@@ -3206,69 +3171,40 @@ def _(mo, observation):
             title="Observation unavailable",
         )
     else:
-        _start = (
-            "Unavailable"
-            if observation.observed_start_at is None
-            else observation.observed_start_at.isoformat()
-        )
-        _end = (
-            "Unavailable"
-            if observation.observed_end_at is None
-            else observation.observed_end_at.isoformat()
-        )
-        _sampling_rate = (
-            "Not declared"
-            if observation.sampling_rate_hz is None
-            else f"{observation.sampling_rate_hz:g} Hz"
-        )
-        observation_detail = mo.md(
-            "### Observation\n\n"
-            "| Field | Value |\n"
-            "| --- | --- |\n"
-            f"| Asset | `{observation.asset_id}` |\n"
-            f"| Measurement point | `{observation.measurement_point_id or 'Not recorded'}` |\n"
-            f"| Source | `{observation.source_id}` |\n"
-            f"| Observed start | {_start} |\n"
-            f"| Observed end | {_end} |\n"
-            f"| Samples | {observation.sample_count:,} |\n"
-            f"| Channels | {', '.join(observation.channels)} |\n"
-            f"| Sampling rate | {_sampling_rate} |"
-        )
+        observation_detail = mo.md(render_observation_markdown(observation))
     return observation_detail
 
 
 @app.cell
-def _(mo, observation):
+def _(mo, observation, render_data_quality_issues_markdown):
     if observation is None:
         quality_view = mo.callout(
             "No data-quality assessment is available until a source is validated.",
             kind="neutral",
             title="Data Quality · Unavailable",
         )
-    elif not observation.data_quality.issues:
-        quality_view = mo.callout(
-            "The current observation has no recorded data-quality issue under its source "
-            "boundary checks.",
-            kind="success",
-            title="Data Quality · PASS",
-        )
     else:
-        _rows = "\n".join(
-            f"| {issue.severity.value} | `{issue.code}` | {issue.message} |"
-            for issue in observation.data_quality.issues
-        )
-        quality_view = mo.vstack(
-            [
-                mo.callout(
-                    "Recorded quality issues are shown without automatic repair, "
-                    "resampling or imputation.",
-                    kind="warn",
-                    title=f"Data Quality · {observation.data_quality.state.value.upper()}",
-                ),
-                mo.md("| Severity | Code | Evidence |\n| --- | --- | --- |\n" + _rows),
-            ],
-            gap=0.8,
-        )
+        _quality_markdown = render_data_quality_issues_markdown(observation)
+        if _quality_markdown is None:
+            quality_view = mo.callout(
+                "The current observation has no recorded data-quality issue under its "
+                "source boundary checks.",
+                kind="success",
+                title="Data Quality · PASS",
+            )
+        else:
+            quality_view = mo.vstack(
+                [
+                    mo.callout(
+                        "Recorded quality issues are shown without automatic repair, "
+                        "resampling or imputation.",
+                        kind="warn",
+                        title=(f"Data Quality · {observation.data_quality.state.value.upper()}"),
+                    ),
+                    mo.md(_quality_markdown),
+                ],
+                gap=0.8,
+            )
     return quality_view
 
 
