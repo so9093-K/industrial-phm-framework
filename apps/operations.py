@@ -28,12 +28,14 @@ def _():
         JsonSourceRuntimeRepository,
         OpcUaSourceConfig,
         RegisteredSource,
+        SourceDataFlowState,
         SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
         assess_source_freshness,
         assess_source_health,
+        build_operations_overview,
         create_finding_review_event,
         create_human_review_finding,
         discover_file_source,
@@ -75,6 +77,7 @@ def _():
         OpcUaSourceConfig,
         Path,
         RegisteredSource,
+        SourceDataFlowState,
         SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceRuntimeCycleState,
@@ -82,6 +85,7 @@ def _():
         assess_source_freshness,
         assess_source_health,
         asyncio,
+        build_operations_overview,
         browse_opcua_variables,
         create_finding_review_event,
         create_human_review_finding,
@@ -2985,52 +2989,96 @@ def _(get_load_error, get_observation, get_source_receipt, get_timeline):
 
 
 @app.cell
-def _(DataQualityState, mo, observation, operational_findings):
-    if observation is None:
-        asset_label = "Not connected"
-        last_observed_label = "Unavailable"
-        quality_label = "Unavailable"
-        quality_caption = "Load or run a supported source"
-    else:
-        asset_label = observation.asset_id
-        last_observed_label = (
-            "Unavailable"
-            if observation.observed_end_at is None
-            else observation.observed_end_at.isoformat()
-        )
-        quality_label = observation.data_quality.state.value.upper()
-        quality_caption = (
-            "No recorded source-quality issue"
-            if observation.data_quality.state == DataQualityState.PASS
-            else ", ".join(observation.data_quality.issue_codes)
-        )
+def _(
+    build_operations_overview,
+    datetime,
+    field_analysis_results,
+    finding_review_events,
+    operational_findings,
+    registered_sources,
+    source_freshness_policies,
+    source_lifecycle_records,
+    source_runtime_connection_attempts,
+    source_runtime_receipts,
+):
+    operations_overview = build_operations_overview(
+        sources=registered_sources,
+        lifecycle_records=source_lifecycle_records,
+        receipts=source_runtime_receipts,
+        freshness_policies=source_freshness_policies,
+        connection_attempts=source_runtime_connection_attempts,
+        analysis_runs=tuple(result.run for result in field_analysis_results),
+        findings=operational_findings,
+        review_events=finding_review_events,
+        as_of=datetime.now().astimezone(),
+    )
+    return (operations_overview,)
 
+
+@app.cell
+def _(SourceDataFlowState, mo, operations_overview):
+    _latest_analysis_caption = (
+        "No operational AnalysisRun recorded"
+        if operations_overview.latest_analysis_run is None
+        else (
+            f"Latest {operations_overview.latest_analysis_run.completed_at.isoformat()} · "
+            f"{operations_overview.latest_analysis_run.asset_id}"
+        )
+    )
     overview_stats = mo.hstack(
         [
-            mo.stat(asset_label, label="Asset", caption="Operational identity"),
             mo.stat(
-                last_observed_label,
-                label="Last observed",
-                caption="Recorded source time, not platform receipt time",
+                str(operations_overview.registered_source_count),
+                label="Registered sources",
+                caption="Control-plane registrations",
             ),
             mo.stat(
-                quality_label,
-                label="Data quality",
-                caption=quality_caption,
+                str(operations_overview.active_source_count),
+                label="Active sources",
+                caption="Administrative runtime enablement only",
             ),
             mo.stat(
-                str(len(operational_findings)),
-                label="Review findings",
-                caption=(
-                    "No explicit human review request recorded"
-                    if not operational_findings
-                    else "Explicit REVIEW_REQUIRED workflow requests"
-                ),
+                str(operations_overview.pending_review_count),
+                label="Review pending",
+                caption="OPEN + ACKNOWLEDGED explicit review requests",
+            ),
+            mo.stat(
+                str(operations_overview.analysis_run_count),
+                label="Recorded analyses",
+                caption=_latest_analysis_caption,
             ),
         ],
         widths="equal",
     )
-    return overview_stats
+
+    _timing_unavailable_count = operations_overview.source_data_flow_count(
+        SourceDataFlowState.TIMING_UNAVAILABLE
+    )
+    _freshness_not_configured_count = operations_overview.source_data_flow_count(
+        SourceDataFlowState.FRESHNESS_NOT_CONFIGURED
+    )
+    _source_flow_rows = "\n".join(
+        (
+            f"| SOURCE_ERROR | "
+            f"{operations_overview.source_data_flow_count(SourceDataFlowState.SOURCE_ERROR)} |",
+            f"| NO_RECEIPT | "
+            f"{operations_overview.source_data_flow_count(SourceDataFlowState.NO_RECEIPT)} |",
+            f"| STALE | {operations_overview.source_data_flow_count(SourceDataFlowState.STALE)} |",
+            f"| FRESH | {operations_overview.source_data_flow_count(SourceDataFlowState.FRESH)} |",
+            f"| TIMING_UNAVAILABLE | {_timing_unavailable_count} |",
+            f"| FRESHNESS_NOT_CONFIGURED | {_freshness_not_configured_count} |",
+            f"| INACTIVE | "
+            f"{operations_overview.source_data_flow_count(SourceDataFlowState.INACTIVE)} |",
+        )
+    )
+    source_flow_view = mo.md(
+        "### Source data flow\n\n"
+        "Source lifecycle/receipt/freshness evidence를 같은 read model에서 집계합니다. "
+        "이 상태는 asset health가 아닙니다.\n\n"
+        "| State | Sources |\n"
+        "| --- | ---: |\n" + _source_flow_rows
+    )
+    return overview_stats, source_flow_view
 
 
 @app.cell
@@ -3195,33 +3243,37 @@ def _(
     connection_status,
     mo,
     observation_detail,
-    operational_findings,
+    operations_overview,
     overview_stats,
     quality_view,
+    source_flow_view,
 ):
     _finding_status = (
         mo.callout(
-            f"{len(operational_findings)} explicit REVIEW_REQUIRED finding(s) are stored. "
-            "These are human review requests, not automated fault or health verdicts.",
+            f"{operations_overview.pending_review_count} explicit review request(s) remain "
+            "OPEN or ACKNOWLEDGED. These are human workflow facts, not automated fault "
+            "or health verdicts.",
             kind="warn",
-            title="Findings · Review required",
+            title="Review queue · Pending",
         )
-        if operational_findings
+        if operations_overview.pending_review_count
         else mo.callout(
-            "No explicit REVIEW_REQUIRED finding is stored. "
-            "Investigation can create one from a persisted AnalysisRun.",
+            "No explicit human review request is currently pending. Closed review workflows "
+            "are not counted as pending attention.",
             kind="neutral",
-            title="Findings · None",
+            title="Review queue · Clear",
         )
     )
     overview_view = mo.vstack(
         [
             mo.md(
                 "## Operations Overview\n\n"
-                "현재 연결된 source, observation, analysis와 review workflow만 표시합니다."
+                "현재 저장된 source/data-flow, analysis와 human review 사실을 application "
+                "read model로 집계합니다."
             ),
             bundled_demo_view,
             overview_stats,
+            source_flow_view,
             connection_status,
             mo.hstack(
                 [

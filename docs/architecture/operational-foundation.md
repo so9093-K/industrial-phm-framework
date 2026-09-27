@@ -169,6 +169,14 @@ operational JSON schema는 이 변경에서 수정하지 않습니다. 현재 so
 보존하는 `asset_id`, optional `measurement_point_id`, channel ID를 typed identity로 projection하며,
 현재 source mapping에 없는 component identity는 channel 이름이나 measurement-point 이름에서 추론하지 않습니다.
 
+Operations Overview는 repository별 상태를 presentation cell에서 직접 재집계하지 않고
+`build_operations_overview` application read model을 사용합니다. 이 projection은 이미 로드된 registered source,
+lifecycle, latest receipt/freshness/connection-attempt evidence, AnalysisRun, OperationalFinding과 review event를
+소비합니다. Source마다 기존 `assess_source_health`를 재사용해 data-flow dimension을 계산하고, current source
+population의 누락/중복 linkage는 fail-fast합니다. Analysis/finding history는 durable historical fact이므로 현재
+registry에 source가 남아 있어야 한다고 역으로 강제하지 않습니다. Overview는 source 상태를 asset health나
+fleet risk로 승격하지 않습니다.
+
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview
