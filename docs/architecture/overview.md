@@ -274,17 +274,22 @@ connection/health/active-ingestion 상태로 해석하지 않습니다. `OpcUaSo
 anonymous `opc.tcp` endpoint/NodeId/timeout invariant를 재사용하며 endpoint reachability나 subscription을
 검증하지 않습니다. Endpoint userinfo credential은 connector contract에서 거부하므로 registry config에
 credential을 포함하지 않습니다. `InMemorySourceRepository`는 두 source type을 모두 보존하는 비영속 reference
-implementation이고 `JsonSourceRepository`는 `industrial-phm-source-registry-v4`에서 FILE과 OPC UA config를
-strict type-specific schema로 보존합니다. pre-alpha 구버전 registry는 더 이상 자동 migration하지 않고 현재 v4만 읽으며 write도 v4만 사용합니다. 
-v4로 승격합니다. Registration, lifecycle과 optional source-specific freshness policy는 재시작 이후에도 복원합니다. 기존 v1은 implicit REGISTERED/no-policy, v2는 explicit lifecycle/no-policy
-상태로 읽고 다음 write에서 v3로 승격합니다. JSON writer는 same-directory temporary file을 flush/fsync한 뒤
-`os.replace`로 교체해 partial write를 노출하지 않으며 reader는 schema/key/source type/duplicate
-ID/lifecycle alignment/freshness-policy source alignment를 fail-fast 검증합니다. Runtime receipt evidence는
-registry에 저장하지 않고 별도 `JsonSourceRuntimeRepository`가 source별 latest `SourceReceiptEvidence`와 latest bounded `SourceConnectionAttemptEvidence`를 `industrial-phm-source-runtime-v3`로 보존합니다. Attempt evidence는 producer operation을 `opcua-read` / `opcua-subscription`으로 명시하며, pre-alpha 구버전 runtime state는 자동 migration하지 않고 current v3만 읽고 씁니다. Runtime writer도
-same-directory temp + flush/fsync + `os.replace`를 사용하고 received_at regression과 same-time conflicting
-evidence를 거부합니다. Registry와 runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를
-막기 위해 fail-closed로 거부합니다. 두 repository 모두 현재 single-writer local persistence 경계이며
-cross-process write coordination은 아직 지원하지 않습니다.
+implementation이고 `JsonSourceRepository`는 `industrial-phm-source-registry-v4`에서 FILE과 OPC UA config,
+lifecycle, optional source-specific freshness policy를 strict type-specific schema로 보존합니다. Registry
+reader/writer는 current v4만 허용하며 pre-alpha 구버전 state를 자동 migration하지 않습니다. JSON writer는
+same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 partial write를 노출하지 않으며,
+reader는 schema/key/source type/duplicate ID/lifecycle alignment/freshness-policy source alignment를
+fail-fast 검증합니다.
+
+Runtime receipt evidence는 registry에 저장하지 않습니다. 별도 `JsonSourceRuntimeRepository`가 source별
+latest `SourceReceiptEvidence`와 latest bounded `SourceConnectionAttemptEvidence`를
+`industrial-phm-source-runtime-v3`로 보존합니다. Attempt evidence는 producer operation을
+`opcua-read` / `opcua-subscription`으로 반드시 명시하며, runtime reader/writer도 current v3만 허용하고
+pre-alpha 구버전 state를 자동 migration하지 않습니다. Runtime writer는 same-directory temp + flush/fsync +
+`os.replace`를 사용하고 received_at regression과 same-time conflicting evidence를 거부합니다. Registry와
+runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를 막기 위해 fail-closed로 거부합니다.
+두 repository 모두 현재 single-writer local persistence 경계이며 cross-process write coordination은 아직
+지원하지 않습니다.
 
 OPC UA connector proof와 registration identity는 registry v4를 통해 persistence와 Operations Sources read
 surface까지 연결되었습니다. 현재 connector는 explicit variable NodeId를 한 번 읽어 protocol
