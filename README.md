@@ -18,42 +18,30 @@
 
 자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
-## 실행
-
-Git, [uv](https://docs.astral.sh/uv/), 저장소 접근 권한이 필요합니다.
-
-```bash
-git clone https://github.com/so9093-K/industrial-phm-framework.git
-cd industrial-phm-framework
-uv python install 3.14
-```
-
-### Analysis Explorer
-
-```bash
-uv run --locked --group research marimo run apps/analysis_explorer.py
-```
-
-저장된 분석 결과와 anomaly/RUL evidence, feature/model 결과를 검토합니다.
+## 애플리케이션
 
 ### Operations
 
-```bash
-uv run --locked --group research marimo run apps/operations.py
-```
+현장 데이터와 PHM 결과를 다루는 운영 UI입니다.
 
-외부 데이터가 없으면 Overview에서 **Prepare bundled demo source**를 실행해 제품 흐름을 확인할 수 있습니다.
+- **Sources** — FILE/OPC UA 데이터 연결과 관측
+- **Investigation** — 분석 결과와 evidence 검토
+- **Maintenance Review** — review finding의 확인·메모·acknowledge·close
+- **Operational State** — 기록된 운영 상태와 evidence 확인
 
-```text
-Sources
-  → Analyze FILE snapshot
-  → Investigation
-  → Create review finding
-  → Maintenance Review
-```
+외부 데이터가 없어도 bundled demo source로 같은 흐름을 확인할 수 있습니다.
 
-실제 source는 **Sources**에서 FILE snapshot/history-directory 또는 OPC UA로 등록합니다.
-등록·OPC UA·polling·data-quality 세부 내용은 [Applications 문서](apps/README.md)를 참조합니다.
+### Analysis Explorer
+
+PHM 분석 결과를 상세하게 검토하는 UI입니다.
+
+- anomaly/RUL evidence
+- feature/model 결과
+- 주요 관측 구간
+- 분석 provenance와 review
+
+애플리케이션의 로컬 개발·실행 방법은 [Applications 문서](apps/README.md),
+개발 환경 구성은 [기여 방법](CONTRIBUTING.md)에 정리되어 있습니다.
 
 ## 데이터
 
