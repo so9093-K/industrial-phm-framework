@@ -1,5 +1,11 @@
 """Application-layer read models and use-case projections."""
 
+from industrial_phm.application.field_analysis import (
+    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    OperationalVibrationFeatureEvidence,
+    RegisteredFieldFeatureAnalysis,
+    run_registered_file_feature_analysis,
+)
 from industrial_phm.application.field_csv import (
     build_field_csv_observation_summary,
     load_field_csv_observation_summary,
@@ -101,6 +107,7 @@ from industrial_phm.application.source_subscription import (
 )
 
 __all__ = [
+    "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
     "AnalysisRun",
     "AssetObservationSummary",
     "AssetObservationTimeline",
@@ -115,8 +122,10 @@ __all__ = [
     "ObservationValidationPolicy",
     "OpcUaSourceConfig",
     "OperationalFinding",
+    "OperationalVibrationFeatureEvidence",
     "ReceivedRegisteredFileObservation",
     "ReceivedRegisteredOpcUaObservation",
+    "RegisteredFieldFeatureAnalysis",
     "RegisteredFileObservation",
     "RegisteredOpcUaDataChangeEvent",
     "RegisteredOpcUaObservation",
@@ -165,6 +174,7 @@ __all__ = [
     "receive_registered_file_source_observation",
     "receive_registered_opcua_source_observation",
     "register_file_source",
+    "run_registered_file_feature_analysis",
     "run_registered_file_source_cycle",
     "run_registered_opcua_source_cycle",
     "run_registered_opcua_subscription_cycle",

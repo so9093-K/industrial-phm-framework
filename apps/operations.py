@@ -37,6 +37,7 @@ def _():
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         register_file_source,
+        run_registered_file_feature_analysis,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
         run_registered_opcua_subscription_cycle,
@@ -82,6 +83,7 @@ def _():
         receive_registered_file_source_observation,
         mo,
         register_file_source,
+        run_registered_file_feature_analysis,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
         run_registered_opcua_subscription_cycle,
@@ -1320,6 +1322,10 @@ def _(mo, registered_sources):
         load_registered_source_button = mo.ui.run_button(
             label="Load registered source",
         )
+        analyze_registered_source_button = mo.ui.run_button(
+            label="Analyze FILE snapshot",
+            kind="success",
+        )
     else:
         source_selector = None
         activate_source_button = None
@@ -1330,8 +1336,10 @@ def _(mo, registered_sources):
         run_active_source_button = None
         collect_opcua_subscription_button = None
         load_registered_source_button = None
+        analyze_registered_source_button = None
     return (
         activate_source_button,
+        analyze_registered_source_button,
         clear_freshness_policy_button,
         collect_opcua_subscription_button,
         freshness_age_input,
@@ -1341,6 +1349,51 @@ def _(mo, registered_sources):
         save_freshness_policy_button,
         source_selector,
     )
+
+
+@app.cell
+def _(mo):
+    get_field_analysis_error, set_field_analysis_error = mo.state("")
+    get_field_analysis_result, set_field_analysis_result = mo.state(None)
+    return (
+        get_field_analysis_error,
+        get_field_analysis_result,
+        set_field_analysis_error,
+        set_field_analysis_result,
+    )
+
+
+@app.cell
+def _(get_field_analysis_error, get_field_analysis_result):
+    field_analysis_error = get_field_analysis_error()
+    field_analysis_result = get_field_analysis_result()
+    return field_analysis_error, field_analysis_result
+
+
+@app.cell
+def _(
+    analyze_registered_source_button,
+    registered_sources,
+    run_registered_file_feature_analysis,
+    set_field_analysis_error,
+    set_field_analysis_result,
+    source_selector,
+):
+    if analyze_registered_source_button is not None and analyze_registered_source_button.value:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before analysis")
+            _source = next(
+                source for source in registered_sources if source.source_id == source_selector.value
+            )
+            _result = run_registered_file_feature_analysis(_source)
+        except (LookupError, OSError, ValueError) as error:
+            set_field_analysis_result(None)
+            set_field_analysis_error(str(error))
+        else:
+            set_field_analysis_result(_result)
+            set_field_analysis_error("")
+    return
 
 
 @app.cell
@@ -1575,12 +1628,15 @@ def _(
     FileSourceConfig,
     OpcUaSourceConfig,
     activate_source_button,
+    analyze_registered_source_button,
     assess_source_freshness,
     assess_source_health,
     clear_freshness_policy_button,
     collect_opcua_subscription_button,
     datetime,
     freshness_age_input,
+    field_analysis_error,
+    field_analysis_result,
     freshness_policy_error,
     freshness_policy_success,
     lifecycle_error,
@@ -2246,6 +2302,52 @@ def _(
                             kind="info",
                             title="Freshness semantics",
                         )
+                    )
+                ),
+                mo.md("### Analyze current FILE snapshot"),
+                (
+                    mo.vstack(
+                        [
+                            analyze_registered_source_button,
+                            (
+                                mo.callout(
+                                    field_analysis_error,
+                                    kind="danger",
+                                    title="Operational analysis failed",
+                                )
+                                if field_analysis_error
+                                else (
+                                    mo.callout(
+                                        f"AnalysisRun created: "
+                                        f"`{field_analysis_result.run.analysis_run_id}` · "
+                                        f"{len(field_analysis_result.evidence.values)} "
+                                        "vibration feature values",
+                                        kind="success",
+                                        title="Operational feature analysis completed",
+                                    )
+                                    if field_analysis_result is not None
+                                    and field_analysis_result.run.source_id == _selected.source_id
+                                    else mo.callout(
+                                        "Runs the registered FILE snapshot through the existing "
+                                        "CSV adapter and vibration-statistical-v1 "
+                                        "feature extractor. "
+                                        "The result is an AnalysisRun plus feature evidence only; "
+                                        "it does not create a finding or health state.",
+                                        kind="info",
+                                        title="Operational analysis semantics",
+                                    )
+                                )
+                            ),
+                        ],
+                        gap=0.6,
+                    )
+                    if _selected_is_file and _selected_config.mode.value == "snapshot"
+                    else mo.callout(
+                        "The first operational producer supports registered FILE snapshot mode "
+                        "with explicit timezone-aware source timestamps. History-directory and "
+                        "OPC UA analysis remain unavailable.",
+                        kind="neutral",
+                        title="Operational analysis · Unsupported for selected source",
                     )
                 ),
                 mo.md("### Load current observation"),
@@ -3113,21 +3215,76 @@ def _(
 
 
 @app.cell
-def _(analysis_review_history_view, mo, observation_timeline_view):
+def _(
+    analysis_review_history_view,
+    field_analysis_error,
+    field_analysis_result,
+    mo,
+    observation_timeline_view,
+):
+    if field_analysis_error:
+        _field_analysis_view = mo.callout(
+            field_analysis_error,
+            kind="danger",
+            title="Operational AnalysisRun · Failed",
+        )
+    elif field_analysis_result is None:
+        _field_analysis_view = mo.callout(
+            "No operational field feature analysis has been run in this session. "
+            "Select a supported registered FILE snapshot in Sources and run Analyze FILE snapshot.",
+            kind="neutral",
+            title="Analysis Run · Not run",
+        )
+    else:
+        _run = field_analysis_result.run
+        _evidence = field_analysis_result.evidence
+        _feature_rows = "\n".join(
+            f"| `{name}` | {value:.6g} |"
+            for name, value in zip(_evidence.feature_names, _evidence.values, strict=True)
+        )
+        _field_analysis_view = mo.vstack(
+            [
+                mo.md(
+                    "### Operational AnalysisRun\n\n"
+                    "| Field | Value |\n"
+                    "| --- | --- |\n"
+                    f"| Run | `{_run.analysis_run_id}` |\n"
+                    f"| Source | `{_run.source_id}` |\n"
+                    f"| Asset | `{_run.asset_id}` |\n"
+                    f"| Measurement point | "
+                    f"`{_run.measurement_point_id or 'Not recorded'}` |\n"
+                    f"| Observed | {_run.observed_start_at.isoformat()} → "
+                    f"{_run.observed_end_at.isoformat()} |\n"
+                    f"| Executed | {_run.started_at.isoformat()} → "
+                    f"{_run.completed_at.isoformat()} |\n"
+                    f"| Data quality | {_run.data_quality.state.value.upper()} |\n"
+                    f"| Capability | `{_evidence.capability_id}` |\n"
+                    f"| Feature set | `{_evidence.feature_set_id}` |\n"
+                    f"| Evidence | `{_evidence.evidence_id}` |"
+                ),
+                mo.md(
+                    "### Vibration feature evidence\n\n"
+                    "| Feature | Value |\n"
+                    "| --- | ---: |\n" + _feature_rows
+                ),
+                mo.callout(
+                    "These are waveform statistics from one exact FILE snapshot. "
+                    "They are operational analysis evidence, but no threshold/state policy "
+                    "has interpreted them as anomaly, fault, health, alert or maintenance need.",
+                    kind="info",
+                    title="Feature evidence semantics",
+                ),
+            ],
+            gap=0.8,
+        )
+
     investigation_view = mo.vstack(
         [
             mo.md(
                 "## Investigation\n\n"
                 "관측 사실과 PHM evidence를 같은 흐름에서 검토하기 위한 운영 surface입니다."
             ),
-            mo.callout(
-                "The AnalysisRun contract now defines run ID, asset/measurement point, "
-                "observation window, execution time, data quality, source snapshot "
-                "provenance, model deployment and produced capability IDs. No field "
-                "analysis producer is connected yet, so no run instance is shown.",
-                kind="neutral",
-                title="Analysis Run · Not connected",
-            ),
+            _field_analysis_view,
             analysis_review_history_view,
             mo.callout(
                 "OperationalFinding is available as an evidence-linked contract, but no "

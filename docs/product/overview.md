@@ -691,17 +691,18 @@ Source -> Analyze -> Results -> Finding -> Maintenance review
 - source lifecycle 제어와 one-shot runtime 실행
 - bounded OPC UA DataChange collection과 event/channel evidence 확인
 - prepared observation/timeline과 data-quality/provenance 확인
+- timezone-aware registered FILE snapshot에서 on-demand operational `AnalysisRun` + vibration statistical feature evidence 생성/확인
 - 별도 Analysis Explorer에서 XJTU anomaly/RUL 분석 실행과 result/evidence 검토
 - Analysis Explorer의 durable human-review acknowledgement/note를 Operations Investigation에서 asset 기준으로 조회
 
 ### 현재 끊긴 지점
 
 ```text
-Registered source / observation
-  -> [separate research Analysis Explorer + durable human review is visible in Investigation]
-  -> source-appropriate operational analysis producer   # still not connected
+Registered FILE snapshot / observation
+  -> vibration-statistical-v1 operational producer      # connected for supported snapshot
   -> AnalysisRun
-  -> capability-specific evidence
+  -> feature evidence
+  -> validated state/finding policy                      # not connected
   -> OperationalFinding
   -> maintenance review action
 ```
@@ -714,9 +715,9 @@ Operations primary navigation은 현재 행동 가능한 **Overview / Sources / 
 
 다음 milestone은 새로운 infrastructure가 아니라 아래 흐름을 실제 UI에서 끝까지 수행하는 것입니다.
 
-1. registered source 또는 준비된 observation을 analysis 대상으로 선택할 수 있다.
-2. 사용자가 analysis를 실행하면 실제 `AnalysisRun`이 생성된다.
-3. capability-specific result/evidence가 저장되고 Results/Investigation에서 확인된다.
+1. registered source 또는 준비된 observation을 analysis 대상으로 선택할 수 있다. *(FILE snapshot v1 연결됨)*
+2. 사용자가 analysis를 실행하면 실제 `AnalysisRun`이 생성된다. *(FILE snapshot v1 연결됨)*
+3. capability-specific result/evidence가 Results/Investigation에서 확인된다. *(v1은 session-local; durable history는 미연결)*
 4. 검증된 최소 semantics로 operational finding을 생성하거나, 생성할 수 없으면 그 이유를 명확히 표시한다.
 5. 생성된 finding에 사용자가 최소 review action(acknowledge/note)을 수행할 수 있다.
 6. 같은 결과에서 지원되는 경우 RUL evidence를 확인할 수 있다.
