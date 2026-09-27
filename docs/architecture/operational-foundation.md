@@ -187,6 +187,12 @@ projection으로 둡니다. 현재 category는 `SOURCE_ERROR`, `NO_RECEIPT`, `ST
 threshold가 만나는 시각을 사용합니다. Data Quality는 아직 fleet-wide durable latest state가 없으므로
 현재 로드된 observation evidence만 queue에 포함하며 그 coverage를 UI에서 숨기지 않습니다.
 
+Operations presentation은 application read model과 marimo widget 조립 사이에 pure presenter를 둡니다.
+`industrial_phm.presentation`은 Attention Queue, source data-flow, observation, data-quality evidence를
+Markdown representation으로만 변환하며 새로운 operational 의미를 계산하지 않습니다. 이 layer는
+`marimo`를 import하지 않아 core package가 research UI dependency를 요구하지 않게 유지합니다.
+Availability callout, button/state wiring과 interactive layout은 계속 `apps/operations.py`가 소유합니다.
+
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview
