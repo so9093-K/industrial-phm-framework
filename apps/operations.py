@@ -42,14 +42,17 @@ def _():
         finding_review_status,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        load_registered_file_source_observation,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         register_file_source,
         run_registered_file_feature_analysis,
+        validate_registered_file_source,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
         run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
+        validate_registered_file_source,
         validate_distinct_source_state_paths,
     )
     from industrial_phm.connectors import (
@@ -95,6 +98,7 @@ def _():
         finding_review_status,
         load_field_csv_observation_summary,
         load_field_csv_observation_timeline_directory,
+        load_registered_file_source_observation,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         mo,
@@ -488,6 +492,123 @@ def _(
 
 
 @app.cell
+def _(mo):
+    get_demo_prepare_error, set_demo_prepare_error = mo.state("")
+    get_demo_prepare_success, set_demo_prepare_success = mo.state("")
+    return (
+        get_demo_prepare_error,
+        get_demo_prepare_success,
+        set_demo_prepare_error,
+        set_demo_prepare_success,
+    )
+
+
+@app.cell
+def _(get_demo_prepare_error, get_demo_prepare_success):
+    demo_prepare_error = get_demo_prepare_error()
+    demo_prepare_success = get_demo_prepare_success()
+    return demo_prepare_error, demo_prepare_success
+
+
+@app.cell
+def _(
+    FileSourceConfig,
+    FileSourceMode,
+    JsonSourceRepository,
+    Path,
+    RegisteredSource,
+    datetime,
+    load_registered_file_source_observation,
+    prepare_demo_source_button,
+    register_file_source,
+    set_demo_prepare_error,
+    set_demo_prepare_success,
+    set_load_error,
+    set_observation,
+    set_registered_sources,
+    set_source_freshness_policies,
+    set_source_lifecycle_records,
+    set_source_registry_error,
+    set_timeline,
+    source_registry_default,
+    validate_registered_file_source,
+):
+    if prepare_demo_source_button.value:
+        try:
+            _demo_path = (
+                Path(__file__).resolve().parents[1]
+                / "examples"
+                / "operations"
+                / "demo-bearing-snapshot.csv"
+            )
+            _config = FileSourceConfig(
+                source_path=str(_demo_path),
+                asset_id="demo-bearing-01",
+                measurement_point_id="drive-end",
+                channel_columns=("vibration_x",),
+                mode=FileSourceMode.SNAPSHOT,
+                timestamp_column="timestamp",
+                sampling_rate_hz=1.0,
+                sampling_rate_tolerance_ratio=0.01,
+                minimum_sample_count=16,
+            )
+            _repository = JsonSourceRepository(Path(source_registry_default))
+            _existing = next(
+                (
+                    source
+                    for source in _repository.list_sources()
+                    if source.source_id == "demo-bearing-snapshot"
+                ),
+                None,
+            )
+            if _existing is None:
+                _source = RegisteredSource(
+                    source_id="demo-bearing-snapshot",
+                    name="Bundled demo bearing snapshot",
+                    config=_config,
+                    registered_at=datetime.now().astimezone(),
+                )
+                _validation = register_file_source(_source, _repository)
+                _action = "registered"
+            else:
+                if _existing.config != _config:
+                    raise ValueError(
+                        "demo-bearing-snapshot is already registered with a different config"
+                    )
+                _source = _existing
+                _validation = validate_registered_file_source(_source)
+                _action = "revalidated"
+
+            _loaded = load_registered_file_source_observation(_source)
+            _sources = _repository.list_sources()
+            _lifecycle = tuple(
+                _repository.get_lifecycle(source.source_id) for source in _sources
+            )
+            _freshness = tuple(
+                policy
+                for source in _sources
+                if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+            )
+        except (OSError, ValueError) as error:
+            set_demo_prepare_success("")
+            set_demo_prepare_error(str(error))
+        else:
+            set_registered_sources(_sources)
+            set_source_lifecycle_records(_lifecycle)
+            set_source_freshness_policies(_freshness)
+            set_source_registry_error("")
+            set_observation(_loaded.latest)
+            set_timeline(_loaded.timeline)
+            set_load_error("")
+            set_demo_prepare_error("")
+            set_demo_prepare_success(
+                f"Bundled demo source {_action}: {_source.source_id} · "
+                f"{_validation.total_sample_count} samples"
+            )
+    return
+
+
+@app.cell
 def _(
     asset_default,
     channels_default,
@@ -549,8 +670,13 @@ def _(
         full_width=True,
     )
     load_button = mo.ui.run_button(label="Load observation", kind="success")
+    prepare_demo_source_button = mo.ui.run_button(
+        label="Prepare bundled demo source",
+        kind="success",
+    )
     return (
         asset_input,
+        prepare_demo_source_button,
         channels_input,
         history_directory_input,
         load_button,
@@ -3233,13 +3359,60 @@ def _(mo, observation):
 
 
 @app.cell
-def _(connection_status, mo, observation_detail, overview_stats, quality_view):
+def _(
+    demo_prepare_error,
+    demo_prepare_success,
+    mo,
+    prepare_demo_source_button,
+):
+    if demo_prepare_error:
+        _status = mo.callout(
+            demo_prepare_error,
+            kind="danger",
+            title="Bundled demo · Failed",
+        )
+    elif demo_prepare_success:
+        _status = mo.callout(
+            demo_prepare_success
+            + ". Next: open Sources → select demo-bearing-snapshot → Analyze FILE snapshot.",
+            kind="success",
+            title="Bundled demo · Ready",
+        )
+    else:
+        _status = mo.callout(
+            "Registers and validates a small synthetic FILE snapshot shipped with the repository. "
+            "It is only a workflow demo: the signal does not represent a real fault, degradation "
+            "trajectory or RUL.",
+            kind="info",
+            title="No external dataset required",
+        )
+
+    bundled_demo_view = mo.vstack(
+        [
+            mo.md(
+                "### Try the complete workflow\n\n"
+                "1. Prepare the bundled demo source.\n"
+                "2. **Sources** → Analyze FILE snapshot.\n"
+                "3. **Investigation** → inspect AnalysisRun/evidence and create REVIEW_REQUIRED.\n"
+                "4. **Maintenance** → note / acknowledge / close."
+            ),
+            prepare_demo_source_button,
+            _status,
+        ],
+        gap=0.7,
+    )
+    return (bundled_demo_view,)
+
+
+@app.cell
+def _(bundled_demo_view, connection_status, mo, observation_detail, overview_stats, quality_view):
     overview_view = mo.vstack(
         [
             mo.md(
                 "## Operations Overview\n\n"
                 "관측·품질·PHM·정비 capability를 같은 운영 구조에서 확인합니다."
             ),
+            bundled_demo_view,
             overview_stats,
             connection_status,
             mo.hstack(
