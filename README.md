@@ -18,16 +18,16 @@
 
 자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
-## Applications
+## 애플리케이션
 
 ### Operations
 
-현장 source와 PHM 결과를 다루는 운영 UI입니다.
+현장 데이터와 PHM 결과를 다루는 운영 UI입니다.
 
-- **Sources** — FILE/OPC UA source 등록과 관측
+- **Sources** — FILE/OPC UA 데이터 연결과 관측
 - **Investigation** — 분석 결과와 evidence 검토
 - **Maintenance Review** — review finding의 확인·메모·acknowledge·close
-- **Operational State** — local operational state와 recorded evidence 확인
+- **Operational State** — 기록된 운영 상태와 evidence 확인
 
 외부 데이터가 없어도 bundled demo source로 같은 흐름을 확인할 수 있습니다.
 
@@ -42,6 +42,7 @@ PHM 분석 결과를 상세하게 검토하는 UI입니다.
 
 애플리케이션의 로컬 개발·실행 방법은 [Applications 문서](apps/README.md),
 개발 환경 구성은 [기여 방법](CONTRIBUTING.md)에 정리되어 있습니다.
+
 ## 데이터
 
 XJTU-SY, IMS Bearings, MIMII DUE 등의 공개 데이터는 분석 방법과 evidence를 개발·검증하는 데 사용합니다.
