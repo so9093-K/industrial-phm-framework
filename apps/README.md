@@ -32,10 +32,14 @@ Maintenance
       ↓
 System Health
   local operational state / recorded population
+
+Development RUL
+  separate XJTU-SY retrospective validation evidence
 ```
 
-이 demo는 synthetic waveform으로 UI/action/persistence 연결만 검증합니다. 실제 bearing fault, anomaly,
-degradation trajectory, RUL 또는 maintenance 필요성을 의미하지 않습니다.
+이 demo는 synthetic waveform으로 UI/action/persistence 연결만 검증합니다. **Development RUL**은 demo/field
+source와 연결되지 않은 별도 retrospective evidence입니다. 둘 다 실제 bearing fault, anomaly, degradation
+trajectory, operational RUL 또는 maintenance 필요성을 의미하지 않습니다.
 
 
 `apps/operations.py`는 현재 실제로 연결된 사용자 행동을 primary navigation에 우선합니다. Maintenance는 finding review workflow가 연결되어 있고 System Health는 실제 local operational state/read failure를 표시합니다. 아직 사용자 action이 없는 Assets/Asset view는 primary navigation에 노출하지 않습니다.
@@ -269,6 +273,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 - **Overview** — 현재 observation과 data quality, 아직 연결되지 않은 operational PHM 상태를 한눈에 확인
 - **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence와 registered FILE snapshot의 on-demand operational feature analysis
 - **Investigation** — observation timeline, durable operational `AnalysisRun` + vibration feature evidence, Analysis Explorer review records와 사용자가 명시적으로 생성한 `REVIEW_REQUIRED` review finding을 함께 확인. 자동 fault/health 판정과는 구분
+- **Development RUL** — 저장된 XJTU-SY retrospective validation artifact의 모델별 recorded RUL/error/target semantics를 조회. 현재 operational source/AnalysisRun/Finding/Maintenance와 identity join하지 않음
 - **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
 - **Maintenance** — `REVIEW_REQUIRED` finding을 선택해 note 추가, acknowledge, close review를 수행하고 durable event history를 확인
 - **System Health** — source registry/runtime, operational analysis/finding/review local state의 readable/error 상태와 recorded population, active source 수, latest analysis, review status 집계를 확인
@@ -278,6 +283,20 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
 condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
 복사하지 않습니다.
+
+### Development RUL evidence
+
+Operations의 **Development RUL**은 기본적으로
+`docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json`을 기존 analysis projector로 읽습니다.
+`INDUSTRIAL_PHM_OPERATIONS_DEVELOPMENT_RUL_ARTIFACT`로 다른 compatible artifact 경로를 지정할 수 있습니다.
+
+화면은 asset별 모델별 last recorded RUL, as-of acquisition, MAE, signed error, prediction count와 target
+definition/unit/formula/support를 함께 보여줍니다. 현재 evidence의 `primary_method_id=None`, calibrated
+uncertainty interval unavailable, physical failure threshold not validated 상태도 같은 화면에서 확인합니다.
+
+이 화면은 **현재 registered field source와 identity/provenance join을 수행하지 않습니다.** 따라서 표시된
+숫자를 current asset의 remaining life, maintenance deadline 또는 operational prognostics result로 사용하지
+않습니다. 실제 operational RUL은 field-specific prognostics semantics/producer가 생길 때 별도로 연결합니다.
 
 ### Operational FILE snapshot analysis
 
