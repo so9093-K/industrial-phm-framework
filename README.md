@@ -26,11 +26,11 @@ Analysis Explorer 화면 캡처가 준비되면 이 위치에 추가합니다.
 ## 주요 기능
 
 - **센서 데이터 준비** — XJTU-SY, IMS Bearings, MIMII DUE와 명시적으로 mapping한 일반 CSV export의 구조·기본 품질을 확인하고 canonical 분석 입력으로 변환합니다.
-- **OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 anonymous/NoSecurity endpoint one-shot probe, bounded Variable browse, explicit NodeId one-shot read를 제공합니다. Read는 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform receipt timing을 분리해 보존합니다. `RegisteredSource(OPCUA)`를 registry v4에 영속하고 Operations Add source에서 browse 후보 또는 explicit `channel_id,node_id` mapping으로 등록할 수 있으며, application에는 ACTIVE registered OPC UA source를 한 번 읽어 latest `SourceReceiptEvidence`를 기록하고 protocol snapshot을 conservative one-shot `AssetObservationSummary`로 projection하는 async runtime cycle까지 연결했습니다. 이는 지속 connection/health/continuous ingestion을 의미하지 않습니다.
+- **OPC UA protocol/control-plane boundary** — optional `opcua` extra에서 bounded Variable browse와 explicit NodeId one-shot read를 제공합니다. Read는 value, StatusCode, SourceTimestamp, ServerTimestamp와 platform receipt timing을 분리해 보존합니다. `RegisteredSource(OPCUA)`를 registry v4에 영속하고 Operations Add source에서 browse 후보 또는 explicit `channel_id,node_id` mapping으로 등록할 수 있으며, application에는 ACTIVE registered OPC UA source를 한 번 읽어 latest `SourceReceiptEvidence`를 기록하고 protocol snapshot을 conservative one-shot `AssetObservationSummary`로 projection하는 async runtime cycle까지 연결했습니다. 이는 지속 connection/health/continuous ingestion을 의미하지 않습니다.
 - **이상 변화 분석** — 진동·음향 센서 데이터에서 시간에 따른 이상 점수와 특징 변화를 분석합니다.
 - **RUL 분석** — 베어링 수명 데이터를 이용해 잔여수명 모델을 비교하고 평가 결과를 기록합니다.
 - **분석 결과 탐색** — Analysis Explorer에서 요약, 주요 관측값, 모델 결과, 실행 정보를 단계별로 확인합니다.
-- **운영 관측 화면** — PHM Operations에서 source 등록/실행, observation/data quality, durable operational AnalysisRun, explicit review finding, Maintenance review와 local System Health 상태를 확인합니다. 기존 XJTU development RUL evidence도 별도 화면에서 볼 수 있지만 현재 field source의 operational RUL로 연결하지 않으며 자동 fault/health semantics도 아직 없습니다.
+- **운영 관측 화면** — PHM Operations에서 source 등록/실행, observation/data quality, durable operational AnalysisRun, explicit review finding, Maintenance Review와 local Operational State를 확인합니다. Research anomaly/RUL evidence는 Analysis Explorer에서 검토하며 Operations capability로 노출하지 않습니다.
 - **보고서 생성** — 분석 결과를 같은 수치와 내용으로 재현 가능한 Markdown 보고서로 저장합니다.
 - **생성형 AI 설명** — 계산이 끝난 분석 결과를 바탕으로 요약과 질의응답을 제공합니다.
 
@@ -72,10 +72,9 @@ uv run --locked --group research marimo run apps/operations.py
 외부 센서 데이터가 없어도 Overview의 **Prepare bundled demo source**를 누르면
 `examples/operations/demo-bearing-snapshot.csv` synthetic snapshot을 정상 FILE registration/validation
 경로로 준비합니다. 이후 **Sources → Analyze FILE snapshot → Investigation → Create review finding →
-Maintenance** 순서로 AnalysisRun, durable evidence/history, explicit review finding과 note/acknowledge/close
-workflow를 직접 확인할 수 있습니다. **Development RUL** 화면에서는 저장된 XJTU-SY retrospective
-RUL validation evidence를 별도로 확인할 수 있지만 이 값은 demo/field source에 연결된 operational RUL이
-아닙니다. Demo signal 자체도 실제 fault/degradation/RUL 성능을 나타내지 않습니다.
+Maintenance Review** 순서로 AnalysisRun, durable evidence/history, explicit review finding과
+note/acknowledge/close workflow를 직접 확인할 수 있습니다. Demo signal 자체는 실제 fault/degradation/RUL
+성능을 나타내지 않습니다.
 
 현재 Operations 앱은 prepared single-asset CSV snapshot 또는 같은 asset/measurement point의 timestamped
 CSV history directory를 bootstrap으로 사용할 수 있습니다. History directory의 각 파일은 독립 segment로
@@ -113,7 +112,7 @@ retry/backoff/buffering/connector telemetry는 아직 구현하지 않습니다.
 있습니다. Add source는 prepared file/history와 OPC UA browse/explicit-NodeId registration을 지원합니다. Application에는
 ACTIVE OPC UA source의 one-shot read → receipt persistence cycle을 Operations의 **Run active source once**에서 실행할 수 있습니다. UI action은 selected source type에 따라 FILE current-byte validation 또는 OPC UA one-shot connect/read/disconnect를 dispatch합니다. CLI polling도 FILE/OPC UA one-shot cycle을 source type에 맞게 반복합니다. Application에는 ACTIVE registered OPC UA source의 persisted endpoint/NodeId mapping을 재사용해 bounded DataChange session을 한 번 수집하는 경계도 있습니다. 각 notification은 source/asset/measurement-point identity와 bounded collection order를 가진 event-level application view로 조회할 수 있지만, 이 local collection index는 OPC UA server sequence가 아니며 gap-free delivery를 주장하지 않습니다. 같은 bounded result에서 registered channel이 각각 최소 한 번 관측됐는지 channel coverage를 계산할 수 있지만, full coverage도 timestamp-aligned snapshot이나 analysis-ready window를 뜻하지 않습니다. Lifecycle-aware bounded subscription cycle은 이 세션의 latest connection-attempt evidence만 runtime state에 기록하고 receipt/freshness는 갱신하지 않습니다. Operations Sources에서는 ACTIVE OPC UA source에 대해 **Collect bounded subscription**을 실행하고 completion reason, event count, configured/observed/missing channel coverage와 event-level value/status/timing evidence를 확인할 수 있습니다. Notification을 persist하거나 complete observation으로 승격하지 않으며 reconnect나 continuous ingestion을 시작하지 않습니다.
 
-Observation timeline 자체는 PHM trend가 아닙니다. 현재 FILE snapshot path는 on-demand operational `AnalysisRun`과 vibration feature evidence를 만들고 durable history로 저장할 수 있으며, 사용자가 명시적으로 `REVIEW_REQUIRED` finding을 생성한 뒤 Maintenance에서 note / acknowledge / close review를 수행할 수 있습니다. 이 workflow는 automatic fault/health 판정이나 work order/CMMS 실행을 의미하지 않습니다. System Health는 local operational state/read failures를 실제 evidence로 표시하지만 persistent session/queue/latency/logs/metrics/traces telemetry는 여전히 `Not instrumented`입니다. Operational RUL도 아직 연결되지 않았습니다.
+Observation timeline 자체는 PHM trend가 아닙니다. 현재 FILE snapshot path는 on-demand operational `AnalysisRun`과 vibration feature evidence를 만들고 durable history로 저장할 수 있으며, 사용자가 명시적으로 `REVIEW_REQUIRED` finding을 생성한 뒤 Maintenance Review에서 note / acknowledge / close review를 수행할 수 있습니다. 이 workflow는 automatic fault/health 판정이나 work order/CMMS 실행을 의미하지 않습니다. Operational State는 local registry/runtime/analysis/finding/review state와 read/action error evidence만 표시하며 service/session telemetry나 asset health를 의미하지 않습니다. Operational RUL도 아직 연결되지 않았습니다.
 
 ACTIVE registered FILE 또는 OPC UA source를 CLI에서 동기 polling하려면 registry/runtime-state 경로를
 명시합니다. `--max-cycles`를 생략하면 failure/non-ACTIVE/Ctrl+C까지 계속 실행합니다.
@@ -170,8 +169,7 @@ Source
 - **Operational bridge**: timezone-aware registered FILE snapshot에서 실제 `AnalysisRun` + vibration feature evidence를 생성하고 durable history로 저장
 - **Finding**: 사용자가 feature evidence를 확인한 뒤 `human-review-request-v1 / REVIEW_REQUIRED` finding을 명시적으로 생성 가능
 - **Maintenance review**: finding별 note / acknowledge / close를 durable event history로 수행 가능
-- **System Health**: source/runtime/analysis/finding/review local state의 availability/error/population을 표시; persistent session·queue·latency·logs/metrics/traces telemetry는 미계측
-- **Development RUL**: XJTU-SY retrospective validation artifact의 모델별 recorded RUL/error/target semantics를 Operations에서 별도 조회 가능; current field source와 identity join하지 않음
+- **Operational State**: source/runtime/analysis/finding/review local state의 availability/error/population을 표시
 - **아직 미연결**: automatic condition/fault semantics, operational RUL, inspection/work-order/CMMS execution, background continuous ingestion
 
 현재 **registered FILE snapshot → analysis → result → review finding → Maintenance review** vertical slice는 UI에서 끝까지 연결되어 있습니다. 다음 작업은 이 흐름을 실제 source/time/identity에 더 넓게 적용할지, 또는 validated automatic PHM semantics를 추가할지 제품 요구에 따라 선택합니다.
