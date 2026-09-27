@@ -239,8 +239,9 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 - **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence와 registered FILE snapshot의 on-demand operational feature analysis
 - **Investigation** — observation timeline, durable operational `AnalysisRun` + vibration feature evidence, Analysis Explorer review records와 사용자가 명시적으로 생성한 `REVIEW_REQUIRED` review finding을 함께 확인. 자동 fault/health 판정과는 구분
 - **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
+- **Maintenance** — `REVIEW_REQUIRED` finding을 선택해 note 추가, acknowledge, close review를 수행하고 durable event history를 확인
 
-기존 **Assets / Asset / Maintenance / System Health** view 코드는 삭제하지 않았지만, 실제 data/action이 연결되기 전에는 완성된 제품 기능처럼 primary navigation에 노출하지 않습니다. 현재 제품 milestone은 `Source → Analyze → Results → Finding → Maintenance review`이며, 다음 작업은 registered source/observation에서 실제 `AnalysisRun`과 capability-specific result를 만드는 operational producer를 연결하는 것입니다.
+기존 **Assets / Asset / System Health** view 코드는 삭제하지 않았지만, 실제 사용자 action이 연결되기 전에는 primary navigation에 노출하지 않습니다. FILE snapshot 기준 `Source → Analyze → Results → Finding → Maintenance review` vertical slice는 연결됐고, automatic condition/fault semantics, operational RUL, inspection/work-order execution은 별도 후속 영역입니다.
 
 Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
 condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
@@ -254,11 +255,28 @@ condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmar
 
 Investigation에서는 저장된 feature evidence를 사람이 확인한 뒤 **Create review finding**을 눌러 `human-review-request-v1 / REVIEW_REQUIRED` `OperationalFinding`을 만들 수 있습니다. 이 finding은 사람의 검토 요청을 기록하는 workflow fact이며 feature 값이 abnormal/fault라는 자동 판정이 아닙니다. 기본 저장 위치는 `artifacts/operations/findings.json`이고 `INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE`로 변경할 수 있습니다. 성공한 결과는 기본 `artifacts/operations/field-analysis.json`에 `industrial-phm-field-feature-analysis-v1`로 저장되며 `INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE`로 경로를 바꿀 수 있습니다. Operations 재시작 후에도 Investigation에서 최근 run과 최대 20개의 recent history를 확인할 수 있습니다.
 
+### Maintenance review
+
+생성된 `REVIEW_REQUIRED` finding은 **Maintenance**에서 사람의 review workflow로 이어집니다.
+
+```text
+OPEN
+  -> note*
+  -> ACKNOWLEDGED
+  -> note*
+  -> CLOSED
+```
+
+- **Add note** — 현재 finding review에 append-only note를 추가합니다.
+- **Acknowledge** — 사람이 review 책임을 수락했음을 기록합니다. Fault 확인이 아닙니다.
+- **Close review** — review workflow 종료를 기록합니다. 설비 수리/정상/return-to-service를 뜻하지 않습니다.
+
+기본 저장 위치는 `artifacts/operations/finding-review.json`이고 `INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE`로 변경할 수 있습니다. 이 workflow는 work order, inspection execution 또는 CMMS/EAM action을 생성하지 않습니다.
+
 운영 분석 결과를 받을 application contract는 `AnalysisRun`과 `OperationalFinding`으로 분리되어 있습니다.
 `AnalysisRun`은 execution/provenance envelope만 소유하고, `OperationalFinding`은 capability,
 finding-semantics, opaque state와 evidence reference만 소유합니다. Generic finding에 score, threshold,
-severity, RUL 또는 maintenance priority를 넣지 않습니다. 현재 Operations에는 이 contract의 producer가 아직
-연결되지 않았으므로 Investigation과 System Health에서 `Not connected`/`Unavailable`로 표시합니다.
+severity, RUL 또는 maintenance priority를 넣지 않습니다. 현재 Operations의 FILE snapshot path는 실제 `AnalysisRun`과 feature evidence를 만들고 durable history로 복원합니다. 사용자가 명시적으로 review finding을 만든 경우 `OperationalFinding`도 저장됩니다. 다만 feature evidence를 자동 fault/health state로 해석하는 validated policy는 없고, operational RUL도 아직 연결되지 않았습니다.
 
 ## Analysis Explorer
 
