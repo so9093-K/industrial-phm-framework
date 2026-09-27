@@ -332,7 +332,7 @@ uv run --locked --group research --extra deep-learning \
 
 ### 검토 및 조치
 
-결과에 descriptive review threshold를 넘는 연속 구간이 있으면 **검토 및 조치** 화면에서 우선 확인 구간을 보고 메모를 남긴 뒤 **검토 완료로 표시**할 수 있습니다. 이 acknowledgement는 현재 브라우저 세션에만 유지됩니다. OperationalFinding, fault diagnosis, maintenance work order 또는 CMMS 기록을 생성하지 않으며, review interval이 없다는 사실도 설비 정상 판정으로 해석하지 않습니다.
+결과에 descriptive review threshold를 넘는 연속 구간이 있으면 **검토 및 조치** 화면에서 우선 확인 구간을 보고 메모를 남긴 뒤 **검토 완료로 표시**할 수 있습니다. acknowledgement는 analysis artifact의 exact SHA-256, asset, review policy와 함께 local JSON state에 저장되어 앱 재시작 후에도 복원됩니다. 기본 경로는 `artifacts/analysis/review-state.json`이며 `INDUSTRIAL_PHM_ANALYSIS_REVIEW_STATE`로 변경할 수 있습니다. 이 기록은 OperationalFinding, fault diagnosis, maintenance work order 또는 CMMS 기록을 생성하지 않으며, review interval이 없다는 사실도 설비 정상 판정으로 해석하지 않습니다.
 
 ## 보고서 저장
 
