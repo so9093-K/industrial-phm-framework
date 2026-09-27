@@ -7,7 +7,7 @@
 
 ## PHM Operations
 
-`apps/operations.py`는 현재 실제로 연결된 사용자 행동을 primary navigation에 우선합니다. 아직 producer/data/action이 없는 Asset/Maintenance/System Health view 코드는 보존하지만 완성 기능처럼 전면에 노출하지 않고, 연결된 evidence와 명시적 unavailable 상태를 구분합니다.
+`apps/operations.py`는 현재 실제로 연결된 사용자 행동을 primary navigation에 우선합니다. Maintenance는 finding review workflow가 연결되어 있고 System Health는 실제 local operational state/read failure를 표시합니다. 아직 사용자 action이 없는 Assets/Asset view는 primary navigation에 노출하지 않습니다.
 
 ```bash
 uv run --locked --group research marimo run apps/operations.py
@@ -240,8 +240,9 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 - **Investigation** — observation timeline, durable operational `AnalysisRun` + vibration feature evidence, Analysis Explorer review records와 사용자가 명시적으로 생성한 `REVIEW_REQUIRED` review finding을 함께 확인. 자동 fault/health 판정과는 구분
 - **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
 - **Maintenance** — `REVIEW_REQUIRED` finding을 선택해 note 추가, acknowledge, close review를 수행하고 durable event history를 확인
+- **System Health** — source registry/runtime, operational analysis/finding/review local state의 readable/error 상태와 recorded population, active source 수, latest analysis, review status 집계를 확인
 
-기존 **Assets / Asset / System Health** view 코드는 삭제하지 않았지만, 실제 사용자 action이 연결되기 전에는 primary navigation에 노출하지 않습니다. FILE snapshot 기준 `Source → Analyze → Results → Finding → Maintenance review` vertical slice는 연결됐고, automatic condition/fault semantics, operational RUL, inspection/work-order execution은 별도 후속 영역입니다.
+기존 **Assets / Asset** view 코드는 삭제하지 않았지만, 실제 사용자 action이 연결되기 전에는 primary navigation에 노출하지 않습니다. FILE snapshot 기준 `Source → Analyze → Results → Finding → Maintenance review` vertical slice는 연결됐고, automatic condition/fault semantics, operational RUL, inspection/work-order execution은 별도 후속 영역입니다.
 
 Observation timeline도 PHM trend가 아닙니다. 시간순 source segment 목록은 실제 관측 이력일 뿐 anomaly,
 condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmark의 anomaly/RUL도 operational state로
