@@ -2,14 +2,12 @@
 
 현재 repository는 목적이 다른 두 interactive application을 분리합니다.
 
-- `apps/operations.py` — asset 관측, data quality, PHM/maintenance capability 상태와 system health를 보는 Operations surface
+- `apps/operations.py` — source/observation/data quality와 실제로 연결된 운영 review evidence를 보는 Operations surface
 - `apps/analysis_explorer.py` — experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
 
 ## PHM Operations
 
-`apps/operations.py`는 운영 사용자가 **있어야 할 정보 구조를 처음부터 확인**할 수 있게 합니다. 현재 값이
-없다는 이유로 Condition, Finding, RUL, Maintenance 또는 System Health 영역을 숨기지 않습니다. 대신
-검증·연결 상태를 명시하고 값을 꾸며내지 않습니다.
+`apps/operations.py`는 현재 실제로 연결된 사용자 행동을 primary navigation에 우선합니다. 아직 producer/data/action이 없는 Asset/Maintenance/System Health view 코드는 보존하지만 완성 기능처럼 전면에 노출하지 않고, 연결된 evidence와 명시적 unavailable 상태를 구분합니다.
 
 ```bash
 uv run --locked --group research marimo run apps/operations.py
@@ -239,7 +237,7 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 
 - **Overview** — 현재 observation과 data quality, 아직 연결되지 않은 operational PHM 상태를 한눈에 확인
 - **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence
-- **Investigation** — observation timeline과 향후 AnalysisRun/Finding/Prognostics 결과가 연결될 조사 surface
+- **Investigation** — observation timeline과 Analysis Explorer에서 영속된 human review records를 함께 확인하고, 아직 미연결인 AnalysisRun/Finding/Prognostics와 구분하는 조사 surface
 - **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
 
 기존 **Assets / Asset / Maintenance / System Health** view 코드는 삭제하지 않았지만, 실제 data/action이 연결되기 전에는 완성된 제품 기능처럼 primary navigation에 노출하지 않습니다. 현재 제품 milestone은 `Source → Analyze → Results → Finding → Maintenance review`이며, 다음 작업은 registered source/observation에서 실제 `AnalysisRun`과 capability-specific result를 만드는 operational producer를 연결하는 것입니다.
@@ -276,7 +274,7 @@ uv run --locked --group research marimo run apps/analysis_explorer.py
 기본 화면에서는 XJTU-SY LSTM 분석 결과가 열립니다.
 
 - **결과 요약** — 집중 확인 구간과 가장 높은 구간을 먼저 보고 시간에 따른 점수 변화를 확인
-- **검토 및 조치** — descriptive review interval이 있으면 사용자가 메모를 남기고 현재 세션에서 검토 완료로 표시. 이는 finding/work order가 아니라 첫 human-review disposition UX
+- **검토 및 조치** — descriptive review interval이 있으면 사용자가 메모와 검토 완료 상태를 durable local review state에 저장. Operations Investigation에서도 같은 human-review evidence를 읽음
 - **근거 확인** — 점수가 높았던 관측값, 특징 잔차와 해당 결과에 대한 선택적 AI 설명
 - **RUL 분석** — 저장된 RUL 모델 비교 결과와 해당 결과에 대한 선택적 AI 설명
 - **새 분석 실행** — 준비된 XJTU-SY 데이터로 분석 실행
