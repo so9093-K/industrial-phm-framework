@@ -94,10 +94,11 @@ def _notification(
     replayed: bool = False,
 ) -> OpcUaSubscriptionNotification:
     received_at = datetime.now(UTC) - timedelta(milliseconds=5)
+    node_name = "VibrationX" if channel_id == "vibration_x" else "Temperature"
     return OpcUaSubscriptionNotification(
         observation=OpcUaNodeObservation(
             channel_id=channel_id,
-            node_id=f"ns=2;s=Machine/{'VibrationX' if channel_id == 'vibration_x' else 'Temperature'}",
+            node_id=f"ns=2;s=Machine/{node_name}",
             value=value,
             status_code=0,
             status_good=True,
