@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from math import isfinite
@@ -97,7 +98,7 @@ class OpcUaHistoricalBatchStore(Protocol):
 
     def get_opcua_batch_commit(
         self,
-        events: tuple[OpcUaPersistentDataChangeEvent, ...],
+        events: Sequence[OpcUaPersistentDataChangeEvent],
         *,
         batch_id: str,
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
@@ -107,7 +108,7 @@ class OpcUaHistoricalBatchStore(Protocol):
 
     def append_opcua_batch(
         self,
-        events: tuple[OpcUaPersistentDataChangeEvent, ...],
+        events: Sequence[OpcUaPersistentDataChangeEvent],
         *,
         batch_id: str,
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
