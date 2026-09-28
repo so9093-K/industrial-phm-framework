@@ -250,6 +250,12 @@ late/out-of-order/replayed counts를 다룰 수 있습니다.
 이미 spool transaction이 commit된 event는 restart 후 pending delivery로 복원합니다. Memory callback queue에만
 존재하고 spool에 들어가지 못한 event는 durable하다고 주장하지 않습니다.
 
+OPC UA의 platform-local delivery identity에 사용하는 connection epoch도 source별로 durable spool metadata에서
+보존합니다. Worker 시작 시 last epoch를 baseline으로 읽고 successful connection마다 next epoch를 atomic reserve한
+뒤 event index를 0부터 시작합니다. 따라서 process restart가 과거 `(source_id, connection_epoch, event_index)`
+identity를 재사용하지 않습니다. Reservation 직후 crash로 epoch gap이 생길 수 있지만 gap은 server sequence loss를
+뜻하지 않으며 identity reuse보다 안전한 local-generation semantics입니다.
+
 ### DuckLake writer failure
 
 DuckLake transaction이 실패하면 batch의 spool delivery를 acknowledge하지 않습니다. Retry는 stable batch/local
