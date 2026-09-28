@@ -12,6 +12,8 @@ from industrial_phm.application import (
     validate_asset_history_query,
 )
 
+NOW = datetime(2026, 9, 28, 1, 0, tzinfo=UTC)
+
 
 def test_historical_measurement_preserves_event_time_and_provenance() -> None:
     event_at = datetime(2026, 9, 28, 1, 0, tzinfo=UTC)
