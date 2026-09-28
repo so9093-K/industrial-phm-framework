@@ -28,9 +28,7 @@ def test_collection_request_cli_updates_desired_state_without_running_collector(
             config=OpcUaSourceConfig(
                 endpoint_url="opc.tcp://127.0.0.1:4840",
                 asset_id="pump-01",
-                node_mappings=(
-                    OpcUaNodeMapping("vibration_x", "ns=2;s=vibration_x"),
-                ),
+                node_mappings=(OpcUaNodeMapping("vibration_x", "ns=2;s=vibration_x"),),
             ),
             registered_at=BASE,
         )
