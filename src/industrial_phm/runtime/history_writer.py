@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -156,13 +157,11 @@ async def run_spool_to_history_writer(
                 recovered_batch_count += 1
             continue
 
-        try:
+        with suppress(TimeoutError):
             await asyncio.wait_for(
                 stop_event.wait(),
                 timeout=effective_policy.poll_interval_seconds,
             )
-        except TimeoutError:
-            pass
 
     return SpoolHistoryWriterResult(
         started_at=started_at,
