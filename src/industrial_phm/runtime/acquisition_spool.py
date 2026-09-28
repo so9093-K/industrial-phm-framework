@@ -275,15 +275,9 @@ class SqliteAcquisitionSpool:
             pending_event_count=pending_event_count,
             payload_bytes=payload_bytes,
             oldest_accepted_at=oldest_accepted_at,
-            active_batch_id=(
-                None if active_batch is None else active_batch.batch_id
-            ),
-            active_batch_event_count=(
-                0 if active_batch is None else active_batch.event_count
-            ),
-            active_batch_payload_bytes=(
-                0 if active_batch is None else active_batch.payload_bytes
-            ),
+            active_batch_id=(None if active_batch is None else active_batch.batch_id),
+            active_batch_event_count=(0 if active_batch is None else active_batch.event_count),
+            active_batch_payload_bytes=(0 if active_batch is None else active_batch.payload_bytes),
         )
 
     def pending_unassigned_stats(self) -> AcquisitionSpoolPendingStats:
