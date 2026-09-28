@@ -65,6 +65,76 @@ class SqliteAcquisitionSpool:
             self._ensure_schema(connection)
             self._validate_state(connection)
 
+    def get_last_connection_epoch(self, source_id: str) -> int:
+        """Return the durable source epoch baseline across worker process restarts."""
+        _validate_identifier(source_id, "source_id")
+        connection = self._connect()
+        try:
+            self._ensure_schema(connection)
+            row = connection.execute(
+                "SELECT value FROM spool_metadata WHERE key = ?",
+                (_connection_epoch_metadata_key(source_id),),
+            ).fetchone()
+            if row is None:
+                return 0
+            return _parse_non_negative_metadata_int(
+                _require_str(row[0], "connection epoch metadata"),
+                "connection epoch metadata",
+            )
+        finally:
+            connection.close()
+
+    def reserve_next_connection_epoch(
+        self,
+        source_id: str,
+        *,
+        expected_previous_epoch: int,
+    ) -> int:
+        """Atomically reserve the next durable source connection epoch."""
+        _validate_identifier(source_id, "source_id")
+        _validate_non_negative_int(expected_previous_epoch, "expected_previous_epoch")
+        key = _connection_epoch_metadata_key(source_id)
+
+        connection = self._connect()
+        try:
+            self._ensure_schema(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT value FROM spool_metadata WHERE key = ?",
+                (key,),
+            ).fetchone()
+            current = (
+                0
+                if row is None
+                else _parse_non_negative_metadata_int(
+                    _require_str(row[0], "connection epoch metadata"),
+                    "connection epoch metadata",
+                )
+            )
+            if current != expected_previous_epoch:
+                raise AcquisitionSpoolStateError(
+                    "durable source connection epoch changed concurrently: "
+                    f"expected {expected_previous_epoch}, found {current}"
+                )
+
+            reserved = current + 1
+            connection.execute(
+                """
+                INSERT INTO spool_metadata (key, value)
+                VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, str(reserved)),
+            )
+            connection.execute("COMMIT")
+            return reserved
+        except Exception:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
+
     def accept_opcua_event(
         self,
         event: RegisteredOpcUaDataChangeEvent,
@@ -614,6 +684,20 @@ def _decode_event(payload_json: str) -> OpcUaPersistentDataChangeEvent:
     )
 
 
+def _connection_epoch_metadata_key(source_id: str) -> str:
+    return f"opcua-connection-epoch:{source_id}"
+
+
+def _parse_non_negative_metadata_int(value: str, field_name: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise AcquisitionSpoolFormatError(f"{field_name} must be an integer") from error
+    if parsed < 0:
+        raise AcquisitionSpoolFormatError(f"{field_name} must not be negative")
+    return parsed
+
+
 def _require_mapping(value: object, field_name: str) -> Mapping[str, object]:
     if not isinstance(value, dict):
         raise AcquisitionSpoolFormatError(f"{field_name} must be an object")
@@ -689,8 +773,14 @@ def _validate_aware_datetime(value: datetime, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a timezone-aware datetime")
 
 
-def _validate_positive_int(value: int, field_name: str) -> None:
+def _validate_non_negative_int(value: int, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field_name} must be an integer")
+    if value < 0:
+        raise ValueError(f"{field_name} must not be negative")
+
+
+def _validate_positive_int(value: int, field_name: str) -> None:
+    _validate_non_negative_int(value, field_name)
     if value < 1:
         raise ValueError(f"{field_name} must be at least 1")
