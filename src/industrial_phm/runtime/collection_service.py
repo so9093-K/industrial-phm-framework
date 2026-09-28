@@ -193,14 +193,8 @@ async def run_collection_service(
             for source_id in completed_ids:
                 await _stop_source(source_id)
 
-            records = {
-                record.source_id: record
-                for record in control_repository.list_records()
-            }
-            sources = {
-                source.source_id: source
-                for source in source_repository.list_sources()
-            }
+            records = {record.source_id: record for record in control_repository.list_records()}
+            sources = {source.source_id: source for source in source_repository.list_sources()}
 
             should_run: set[str] = set()
             for source_id, record in records.items():
