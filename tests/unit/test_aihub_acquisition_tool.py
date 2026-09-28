@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import pytest
+
 from tools.aihub.cli import AIHubToolError, load_local_env, main, parse_inventory
 
 
