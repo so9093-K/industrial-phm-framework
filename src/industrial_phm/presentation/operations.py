@@ -29,7 +29,6 @@ from industrial_phm.application.source_health import SourceDataFlowState
 from industrial_phm.application.source_lifecycle import SourceLifecycleRecord
 
 
-
 def render_collection_monitor_markdown(
     source_id: str,
     lifecycle: SourceLifecycleRecord,
