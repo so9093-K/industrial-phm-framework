@@ -278,6 +278,12 @@ Persistent OPC UA acquisition worker
          ├ DuckLake snapshot commit + batch fingerprint provenance
          └ successful commit/recovery 이후에만 spool ACK
     -> DuckLake raw OPC UA evidence + normalized Asset History
+    -> continuous observation-window coordinator
+         ├ durable ingestion order replay
+         ├ fixed aligned event-time windows
+         ├ watermark = max valid event_at - allowed lateness
+         ├ #257 late/out-of-order/future/quality-neutral dispositions
+         └ finalized DurableObservationWindow history
   transport/session/subscription recovery는 asyncua가 소유하고 application은 connection epoch,
   reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다.
   Worker failure/stop은 administrative SourceLifecycle ACTIVE를 asset-health verdict로 바꾸지 않습니다.
