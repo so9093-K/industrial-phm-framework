@@ -98,7 +98,7 @@ class SqliteAcquisitionSpool:
             ).fetchone()
             if existing is not None:
                 restored = _decode_event(_require_str(existing[0], "payload_json"))
-                if restored != persistent:
+                if not _same_delivery_content(restored, persistent):
                     raise AcquisitionSpoolStateError(
                         "same local delivery identity has conflicting durable payload"
                     )
@@ -410,6 +410,22 @@ class SqliteAcquisitionSpool:
             events=events,
         )
 
+
+
+def _same_delivery_content(
+    stored: OpcUaPersistentDataChangeEvent,
+    candidate: OpcUaPersistentDataChangeEvent,
+) -> bool:
+    """Compare one local delivery while preserving the first durable acceptance time."""
+    return (
+        stored.local_delivery_identity == candidate.local_delivery_identity
+        and stored.event == candidate.event
+        and stored.event_time.basis == candidate.event_time.basis
+        and stored.event_time.source_timestamp == candidate.event_time.source_timestamp
+        and stored.event_time.server_timestamp == candidate.event_time.server_timestamp
+        and stored.event_time.received_at == candidate.event_time.received_at
+        and stored.event_time.event_at == candidate.event_time.event_at
+    )
 
 def _encode_event(event: OpcUaPersistentDataChangeEvent) -> str:
     registered = event.event
