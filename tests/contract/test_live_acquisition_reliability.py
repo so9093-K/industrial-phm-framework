@@ -389,7 +389,6 @@ def test_bounded_live_acquisition_soak_survives_restart_and_writer_failure(
     assert source_health.data_flow_state == SourceDataFlowState.NO_RECEIPT
 
 
-
 def test_continuous_writer_retries_temporary_history_failure_in_place(
     tmp_path: Path,
 ) -> None:
