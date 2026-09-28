@@ -8,6 +8,7 @@ from collections import Counter
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
+from functools import partial
 from uuid import uuid4
 
 from industrial_phm.application.acquisition_spool import (
@@ -122,13 +123,14 @@ def write_next_spool_batch(
             failure_detail = _failure_detail(error)
             for source_id in sorted({event.source_id for event in batch.events}):
                 _record_telemetry_best_effort(
-                    lambda source_id=source_id, failure_at=failure_at, failure_detail=failure_detail: telemetry_recorder.record_failure(
+                    partial(
+                        telemetry_recorder.record_failure,
                         AcquisitionFailureTelemetry(
                             source_id=source_id,
                             component=AcquisitionFailureComponent.HISTORY_WRITER,
                             occurred_at=failure_at,
                             detail=failure_detail,
-                        )
+                        ),
                     ),
                     label="history writer failure",
                 )
@@ -145,7 +147,8 @@ def write_next_spool_batch(
         source_counts = Counter(event.source_id for event in batch.events)
         source_event_counts = dict(source_counts)
         _record_telemetry_best_effort(
-            lambda result=result, source_event_counts=source_event_counts: telemetry_recorder.record_history_batch(
+            partial(
+                telemetry_recorder.record_history_batch,
                 result,
                 source_event_counts=source_event_counts,
             ),
