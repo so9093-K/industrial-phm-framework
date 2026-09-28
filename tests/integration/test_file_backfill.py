@@ -117,11 +117,7 @@ def test_registered_file_backfill_uses_stable_segment_checkpoints(tmp_path: Path
     assert first.input_reference.start_at == BASE + timedelta(seconds=1)
     assert first.input_reference.end_at == BASE + timedelta(seconds=4, microseconds=1)
 
-    raw_events = tuple(
-        event
-        for batch in history.events_by_batch.values()
-        for event in batch
-    )
+    raw_events = tuple(event for batch in history.events_by_batch.values() for event in batch)
     assert len({event.raw_evidence_id for event in raw_events}) == 8
     assert all(event.event_at.utcoffset() is not None for event in raw_events)
 
@@ -157,9 +153,7 @@ def test_file_backfill_rejects_missing_or_naive_absolute_time(tmp_path: Path) ->
 
     naive = tmp_path / "naive.csv"
     naive.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-28T08:00:01,1.0\n"
-        "2026-09-28T08:00:02,2.0\n",
+        "timestamp,vibration_x\n2026-09-28T08:00:01,1.0\n2026-09-28T08:00:02,2.0\n",
         encoding="utf-8",
     )
     repository = InMemorySourceRepository()
