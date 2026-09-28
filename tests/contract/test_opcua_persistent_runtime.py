@@ -79,9 +79,7 @@ def test_persistent_worker_collects_real_asyncua_datachange_to_durable_spool(
             SourceLifecycleState.ACTIVE,
             changed_at=datetime(2026, 9, 28, 0, 0, 1, tzinfo=UTC),
         )
-        spool = SqliteAcquisitionSpool(
-            SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
-        )
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         stop_event = asyncio.Event()
 
@@ -135,9 +133,7 @@ def test_persistent_worker_collects_real_asyncua_datachange_to_durable_spool(
         )
         assert batch is not None
         matching = [
-            event
-            for event in batch.events
-            if event.event.notification.observation.value == 42.5
+            event for event in batch.events if event.event.notification.observation.value == 42.5
         ]
         assert len(matching) == 1
         event = matching[0]
