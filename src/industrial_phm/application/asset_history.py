@@ -100,6 +100,34 @@ class HistoricalBatchCommit:
         _validate_aware_datetime(self.committed_at, "committed_at")
 
 
+@dataclass(frozen=True, slots=True)
+class HistoricalInputReference:
+    """Reproducible Asset History input selection for analysis/baseline provenance."""
+
+    snapshot_id: int
+    asset_id: str
+    start_at: datetime
+    end_at: datetime
+    measurement_point_id: str | None = None
+    channel_ids: Sequence[str] = ()
+
+    def __post_init__(self) -> None:
+        channel_ids = tuple(self.channel_ids)
+        _validate_non_negative_int(self.snapshot_id, "snapshot_id")
+        validate_asset_history_query(
+            self.asset_id,
+            start_at=self.start_at,
+            end_at=self.end_at,
+        )
+        if self.measurement_point_id is not None:
+            _validate_identifier(self.measurement_point_id, "measurement_point_id")
+        for channel_id in channel_ids:
+            _validate_identifier(channel_id, "channel_id")
+        if len(set(channel_ids)) != len(channel_ids):
+            raise ValueError("channel_ids must contain unique values")
+        object.__setattr__(self, "channel_ids", channel_ids)
+
+
 @runtime_checkable
 class AssetHistoryReader(Protocol):
     """Read boundary for normalized Asset History measurements."""
