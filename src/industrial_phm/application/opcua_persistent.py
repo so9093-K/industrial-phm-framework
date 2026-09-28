@@ -111,9 +111,7 @@ class OpcUaPersistentSessionEvidence:
             self.state == OpcUaPersistentSessionState.DISCONNECTED
             and self.reconnect_attempt_index != 0
         ):
-            raise ValueError(
-                "initial DISCONNECTED evidence requires zero reconnect attempt"
-            )
+            raise ValueError("initial DISCONNECTED evidence requires zero reconnect attempt")
         if self.state == OpcUaPersistentSessionState.CONNECTED and self.connection_epoch < 1:
             raise ValueError("CONNECTED session evidence requires connection_epoch >= 1")
         if self.state == OpcUaPersistentSessionState.RECONNECT_WAIT and self.detail is None:
