@@ -78,6 +78,11 @@ jobs:
             tests/contract/test_spool_ducklake_writer.py \
             tests/contract/test_window_coordinator_ducklake.py
 
+      - name: Validate live acquisition reliability profile
+        run: |
+          uv run --locked --extra history pytest \
+            tests/contract/test_live_acquisition_reliability.py
+
       - name: Build package
         run: uv build
 
