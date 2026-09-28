@@ -26,9 +26,7 @@ class ObservationWindowCoordinatorPolicy:
     max_buffered_events: int = 10_000
     max_future_skew_seconds: float = 30.0
     poll_interval_seconds: float = 0.5
-    alignment_origin: datetime = field(
-        default_factory=lambda: datetime(1970, 1, 1, tzinfo=UTC)
-    )
+    alignment_origin: datetime = field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=UTC))
 
     def __post_init__(self) -> None:
         _validate_positive_finite(self.window_duration_seconds, "window_duration_seconds")
@@ -60,9 +58,7 @@ class ObservationWindowCoordinatorCycleResult:
         finalized = tuple(self.finalized_windows)
         if any(not isinstance(item, DurableObservationWindow) for item in finalized):
             raise ValueError("finalized_windows must contain DurableObservationWindow values")
-        ordered = tuple(
-            sorted(finalized, key=lambda item: (item.window_start, item.window_id))
-        )
+        ordered = tuple(sorted(finalized, key=lambda item: (item.window_start, item.window_id)))
         if ordered != finalized:
             raise ValueError("finalized_windows must use deterministic window order")
 
