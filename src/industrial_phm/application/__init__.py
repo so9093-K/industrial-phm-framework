@@ -79,11 +79,6 @@ from industrial_phm.application.observation import (
     ObservationValidationPolicy,
     SourceSnapshotEvidence,
 )
-from industrial_phm.application.opcua_acquisition import (
-    InMemoryOpcUaPersistentSessionEvidenceSink,
-    OpcUaAcquisitionWorkerResult,
-    OpcUaPersistentSessionEvidenceSink,
-)
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     JsonObservationWindowRepository,
@@ -93,6 +88,11 @@ from industrial_phm.application.observation_window import (
     ObservationWindowFormatError,
     ObservationWindowIngestResult,
     ObservationWindowRepository,
+)
+from industrial_phm.application.opcua_acquisition import (
+    InMemoryOpcUaPersistentSessionEvidenceSink,
+    OpcUaAcquisitionWorkerResult,
+    OpcUaPersistentSessionEvidenceSink,
 )
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
