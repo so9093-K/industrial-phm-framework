@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -9,7 +10,15 @@ from math import isfinite
 from numbers import Real
 from typing import Protocol, runtime_checkable
 
-from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
+from industrial_phm.application.history_writer import SpoolHistoryBatchWriteResult
+from industrial_phm.application.opcua_persistent import (
+    OpcUaPersistentDataChangeEvent,
+    OpcUaPersistentSessionEvidence,
+    OpcUaPersistentSessionState,
+)
+from industrial_phm.application.window_coordinator import (
+    ObservationWindowCoordinatorCycleResult,
+)
 
 
 class AcquisitionFailureComponent(StrEnum):
@@ -359,6 +368,54 @@ class AcquisitionTelemetrySurface:
 
     source: AcquisitionTelemetrySnapshot
     spool: AcquisitionSpoolTelemetrySnapshot
+
+
+@runtime_checkable
+class AcquisitionTelemetryRecorder(Protocol):
+    def record_session_configuration(
+        self,
+        source_id: str,
+        *,
+        callback_queue_maxsize: int,
+        recorded_at: datetime,
+    ) -> None:
+        ...
+
+    def record_session_evidence(
+        self,
+        evidence: OpcUaPersistentSessionEvidence,
+    ) -> None:
+        ...
+
+    def record_callback_queue_overflow(
+        self,
+        source_id: str,
+        *,
+        occurred_at: datetime,
+    ) -> None:
+        ...
+
+    def record_opcua_event(self, event: OpcUaPersistentDataChangeEvent) -> None:
+        ...
+
+    def record_history_batch(
+        self,
+        result: SpoolHistoryBatchWriteResult,
+        *,
+        source_event_counts: Mapping[str, int],
+    ) -> None:
+        ...
+
+    def record_window_cycle(
+        self,
+        cycle: ObservationWindowCoordinatorCycleResult,
+        *,
+        recorded_at: datetime,
+    ) -> None:
+        ...
+
+    def record_failure(self, failure: AcquisitionFailureTelemetry) -> None:
+        ...
 
 
 @runtime_checkable
