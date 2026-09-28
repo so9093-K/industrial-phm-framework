@@ -79,6 +79,19 @@ class AcquisitionSpoolPendingStats:
 class AcquisitionSpool(Protocol):
     """Crash-safe OPC UA delivery boundary for the first continuous-runtime slice."""
 
+    def get_last_connection_epoch(self, source_id: str) -> int:
+        """Return the last durable connection epoch reserved for one source."""
+        ...
+
+    def reserve_next_connection_epoch(
+        self,
+        source_id: str,
+        *,
+        expected_previous_epoch: int,
+    ) -> int:
+        """Atomically reserve and return the next source connection epoch."""
+        ...
+
     def accept_opcua_event(
         self,
         event: RegisteredOpcUaDataChangeEvent,
