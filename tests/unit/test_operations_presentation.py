@@ -1,6 +1,11 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application import (
+    AcquisitionFlowTelemetry,
+    AcquisitionSessionTelemetry,
+    AcquisitionSpoolTelemetrySnapshot,
+    AcquisitionTelemetrySnapshot,
+    AcquisitionTelemetrySurface,
     AnalysisRun,
     AssetDetail,
     AssetEvidenceEvent,
@@ -13,6 +18,8 @@ from industrial_phm.application import (
     AttentionHandlingState,
     AttentionItem,
     AttentionKind,
+    CollectionControlRecord,
+    CollectionDesiredState,
     FileSourceConfig,
     ObservationValidationPolicy,
     OperationalFinding,
@@ -24,6 +31,7 @@ from industrial_phm.application import (
     SourceHealthAssessment,
     SourceLifecycleRecord,
     SourceLifecycleState,
+    OpcUaPersistentSessionState,
     SourceSnapshotEvidence,
 )
 from industrial_phm.contracts import (
@@ -33,6 +41,7 @@ from industrial_phm.contracts import (
 )
 from industrial_phm.presentation import (
     render_analysis_quality_markdown,
+    render_collection_monitor_markdown,
     render_asset_analysis_markdown,
     render_asset_findings_markdown,
     render_asset_sources_markdown,
@@ -334,3 +343,90 @@ def test_quality_presenter_returns_none_without_recorded_issue() -> None:
     )
 
     assert render_data_quality_issues_markdown(observation) is None
+
+
+
+def test_collection_monitor_separates_desired_and_observed_runtime() -> None:
+    lifecycle = SourceLifecycleRecord(
+        source_id="source-a",
+        state=SourceLifecycleState.ACTIVE,
+        changed_at=NOW,
+    )
+    control = CollectionControlRecord(
+        source_id="source-a",
+        desired_state=CollectionDesiredState.RUNNING,
+        generation=3,
+        requested_at=NOW,
+    )
+    session = AcquisitionSessionTelemetry(
+        source_id="source-a",
+        worker_started_at=NOW,
+        state=OpcUaPersistentSessionState.CONNECTED,
+        state_changed_at=NOW,
+        connection_epoch=4,
+        reconnect_attempt_index=1,
+        callback_queue_overflow_count=2,
+        connected_since=NOW,
+        callback_queue_maxsize=128,
+    )
+    flow = AcquisitionFlowTelemetry(
+        source_id="source-a",
+        worker_started_at=NOW,
+        accepted_event_count=20,
+        replayed_event_count=2,
+        bad_status_event_count=1,
+        updated_at=NOW,
+        last_delivery_identity=("source-a", 4, 19),
+        last_source_timestamp=NOW,
+        last_received_at=NOW,
+        last_ingested_at=NOW,
+    )
+    surface = AcquisitionTelemetrySurface(
+        source=AcquisitionTelemetrySnapshot(
+            source_id="source-a",
+            session=session,
+            flow=flow,
+        ),
+        spool=AcquisitionSpoolTelemetrySnapshot(
+            sampled_at=NOW,
+            pending_event_count=2,
+            payload_bytes=512,
+            oldest_accepted_at=NOW,
+            active_batch_id="batch-1",
+            active_batch_event_count=1,
+            active_batch_payload_bytes=256,
+        ),
+    )
+
+    rendered = render_collection_monitor_markdown(
+        "source-a",
+        lifecycle,
+        control,
+        surface,
+    )
+
+    assert "Desired collection | RUNNING" in rendered
+    assert "Observed session | CONNECTED" in rendered
+    assert "Accepted events | 20" in rendered
+    assert "Durable spool pending | 2 events" in rendered
+    assert "not an asset-health verdict" in rendered
+    assert "healthy" not in rendered.lower()
+
+
+def test_collection_monitor_shows_missing_telemetry_without_inference() -> None:
+    lifecycle = SourceLifecycleRecord(
+        source_id="source-a",
+        state=SourceLifecycleState.ACTIVE,
+        changed_at=NOW,
+    )
+
+    rendered = render_collection_monitor_markdown(
+        "source-a",
+        lifecycle,
+        None,
+        None,
+    )
+
+    assert "Desired collection | STOPPED" in rendered
+    assert "Observed session | Unavailable" in rendered
+    assert "does not imply an asset condition" in rendered
