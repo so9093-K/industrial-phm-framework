@@ -84,15 +84,7 @@ def test_force_download_failure_preserves_existing_archive(
     fake_shell.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
     fake_shell.chmod(0o755)
 
-    archive = (
-        tmp_path
-        / "aihub"
-        / "239"
-        / "archives"
-        / "training"
-        / "raw"
-        / "5.보일러.zip"
-    )
+    archive = tmp_path / "aihub" / "239" / "archives" / "training" / "raw" / "5.보일러.zip"
     archive.parent.mkdir(parents=True)
     archive.write_bytes(b"existing-archive")
 
