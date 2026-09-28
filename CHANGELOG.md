@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Operations primary navigation에서 독립 **Data Quality** destination을 제거하고 품질/provenance evidence를 Sources, Assets, Investigation context로 이동했습니다. Sources는 선택 source와 일치하는 current loaded observation의 quality/source snapshot/validation policy를, Investigation은 실제 AnalysisRun input quality와 recorded source snapshot provenance를, Assets는 asset-scoped loaded observation provenance를 표시합니다. Quality evidence는 asset health나 diagnosis로 승격하지 않습니다.
 - Operations의 Attention Queue, source data-flow, observation, data-quality Markdown 조립을 `industrial_phm.presentation`의 pure presenter로 분리했습니다. Presenter는 application read model을 표시 형식으로만 변환하고 PHM 의미를 만들지 않으며, `marimo`를 runtime dependency로 추가하지 않습니다. Interactive callout/layout/state wiring은 계속 `apps/operations.py`가 소유합니다.
 - Operations를 `Source → Analyze → Results → Finding → Maintenance Review` vertical slice 중심으로 정리하고 primary navigation을 **Overview / Sources / Investigation / Data Quality / Maintenance Review / Operational State**로 축소했습니다. 사용자 action이 없던 Assets/Asset placeholder와 research-only Development RUL/review bridge는 Operations에서 제거했습니다. Persistent OPC UA session/continuous ingestion과 validated automatic PHM semantics는 별도 후속 영역입니다.
 - Source runtime state는 current `industrial-phm-source-runtime-v3`만 읽고 쓰며 latest bounded connection-attempt evidence에 producer operation을 필수로 기록합니다. OPC UA one-shot read는 `opcua-read`, bounded subscription runtime은 `opcua-subscription`을 기록하고 Operations Sources는 operation/outcome/timing/detail을 표시합니다. Pre-alpha v1/v2 runtime state는 자동 migration하지 않습니다.

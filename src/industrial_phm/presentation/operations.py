@@ -14,6 +14,7 @@ from industrial_phm.application.observation import (
     AssetObservationSummary,
     SourceSnapshotEvidence,
 )
+from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.operations_attention import (
     AttentionItem,
     OperationsAttentionQueue,
@@ -190,6 +191,73 @@ def render_source_data_flow_markdown(overview: OperationsOverview) -> str:
         "이 상태는 asset health가 아닙니다.\n\n"
         "| State | Sources |\n"
         "| --- | ---: |\n" + rows
+    )
+
+
+def render_analysis_quality_markdown(run: AnalysisRun) -> str:
+    """Render AnalysisRun input quality and recorded source snapshot provenance."""
+    if not isinstance(run, AnalysisRun):
+        raise ValueError("run must be an AnalysisRun")
+
+    if run.data_quality.issues:
+        issue_rows = "\n".join(
+            (
+                f"| {issue.severity.value} | {_format_code(issue.code)} | "
+                f"{_escape_table_cell(issue.message)} |"
+            )
+            for issue in run.data_quality.issues
+        )
+        issues = "| Severity | Code | Evidence |\n| --- | --- | --- |\n" + issue_rows
+    else:
+        issues = "No recorded data-quality issue under this analysis input validation."
+
+    return (
+        "### Analysis input quality & provenance\n\n"
+        f"Recorded data-quality state: **{run.data_quality.state.value.upper()}**. "
+        "This state describes input validation evidence, not asset health.\n\n"
+        f"{issues}\n\n"
+        "| Provenance | Recorded value |\n"
+        "| --- | --- |\n"
+        f"| Source snapshots | {_format_snapshot_list(run.source_snapshots)} |"
+    )
+
+
+def render_observation_provenance_markdown(
+    observation: AssetObservationSummary,
+) -> str:
+    """Render source snapshot and declared validation-policy evidence."""
+    if not isinstance(observation, AssetObservationSummary):
+        raise ValueError("observation must be an AssetObservationSummary")
+
+    snapshot = (
+        "Not recorded"
+        if observation.source_snapshot is None
+        else (
+            f"{_format_code(observation.source_snapshot.name)} · "
+            f"{_format_code(observation.source_snapshot.sha256)} · "
+            f"{observation.source_snapshot.size_bytes:,} bytes"
+        )
+    )
+    if observation.validation_policy is None:
+        timestamp_field = "Not recorded"
+        minimum_samples = "Not recorded"
+        tolerance = "Not recorded"
+    else:
+        timestamp_field = _format_code(
+            observation.validation_policy.source_timestamp_field or "Not declared"
+        )
+        minimum_samples = f"{observation.validation_policy.minimum_sample_count:,}"
+        tolerance_value = observation.validation_policy.sampling_rate_tolerance_ratio
+        tolerance = "Not declared" if tolerance_value is None else f"{tolerance_value:g}"
+
+    return (
+        "### Source provenance & validation\n\n"
+        "| Evidence | Recorded value |\n"
+        "| --- | --- |\n"
+        f"| Source snapshot | {snapshot} |\n"
+        f"| Source timestamp field | {timestamp_field} |\n"
+        f"| Minimum samples | {minimum_samples} |\n"
+        f"| Sampling-rate tolerance ratio | {tolerance} |"
     )
 
 

@@ -718,7 +718,7 @@ Registered FILE snapshot / observation
 
 `AnalysisRun`과 `OperationalFinding` 계약이 존재한다는 사실만으로 기능이 완성된 것으로 취급하지 않습니다. producer와 사용자 action이 연결되지 않은 capability는 primary navigation에서 완성 기능처럼 노출하지 않습니다.
 
-Operations primary navigation은 현재 행동 가능한 **Overview / Sources / Investigation / Data Quality / Maintenance Review / Operational State**에 집중합니다. Maintenance Review는 durable finding-review action을, Operational State는 현재 local state와 read/action error evidence를 실제로 소비합니다.
+Operations primary navigation은 현재 행동 가능한 **Overview / Assets / Sources / Investigation / Maintenance Review / Operational State**에 집중합니다. Data Quality는 별도 destination이 아니라 Source/Asset/Investigation context에서 표시합니다. Maintenance Review는 durable finding-review action을, Operational State는 현재 local state와 read/action error evidence를 실제로 소비합니다.
 
 Research anomaly/RUL evidence는 Analysis Explorer가 소유합니다. Operations는 current field identity와 연결되지 않은
 research estimate를 operational capability처럼 노출하지 않습니다. Automatic condition/fault/alert semantics,
@@ -764,8 +764,8 @@ AI Copilot
 └─ 현재 선택한 asset / investigation / maintenance context 안의 optional side surface
 ```
 
-현재 `Overview / Sources / Investigation / Data Quality / Maintenance Review / Operational State` navigation은 v2 migration 동안
-동작을 유지할 수 있지만, 최종 information architecture에서는 다음 원칙을 적용합니다.
+현재 `Overview / Assets / Sources / Investigation / Maintenance Review / Operational State` navigation은 v2 migration의
+중간 구조이며, 최종 information architecture에서는 다음 원칙을 계속 적용합니다.
 
 - `Assets`를 source와 분리된 first-class 사용자 진입점으로 둡니다.
 - `Data Quality`는 독립 destination보다 Source Detail, Asset Detail, Investigation 안의 contextual evidence를 우선합니다.
@@ -933,7 +933,9 @@ Data Quality는 v2에서 독립된 제품 목적보다 source/asset/investigatio
 - Investigation은 분석에 실제 사용된 observation scope와 quality evidence를 함께 표시합니다.
 - schema, checksum, validation policy 같은 상세 provenance는 drill-down할 수 있지만 primary action을 가리지 않습니다.
 
-Migration 동안 기존 Data Quality page를 유지할 수 있으며, equivalent contextual surface가 준비된 뒤 primary navigation에서 제거합니다.
+Equivalent contextual surface가 준비되어 standalone Data Quality page는 primary navigation에서 제거했습니다.
+Source Detail은 현재 선택 source의 loaded observation quality/provenance를, Asset Detail은 asset-scoped observation
+quality/provenance를, Investigation은 실제 AnalysisRun input quality/source snapshot provenance를 표시합니다.
 
 ### Presentation vocabulary
 
