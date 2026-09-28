@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "dataset_key": 239,
+  "title": "전력 설비 에너지 품질",
+  "observed_inventory": {
+    "aihubshell_version": "25.09.19 v0.6",
+    "observed_file_count": 40,
+    "note": "file sizes are rounded display values from aihubshell inventory"
+  },
+  "files": [
+    {
+      "filekey": 44033,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/5.보일러.zip",
+      "archive_name": "5.보일러.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "보일러",
+      "declared_size": "59 MB",
+      "declared_size_bytes_approx": 61865984
+    },
+    {
+      "filekey": 44035,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/7.압출기.zip",
+      "archive_name": "7.압출기.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "압출기",
+      "declared_size": "97 MB",
+      "declared_size_bytes_approx": 101711872
+    }
+  ],
+  "presets": {
+    "bootstrap": [
+      44033,
+      44035
+    ]
+  }
+}
