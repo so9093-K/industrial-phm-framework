@@ -57,8 +57,11 @@ class SqliteAcquisitionTelemetryRepository:
         return self._path
 
     def initialize(self) -> None:
-        with self._connect() as connection:
+        connection = self._connect()
+        try:
             self._ensure_schema(connection)
+        finally:
+            connection.close()
 
     def get(self, source_id: str) -> AcquisitionTelemetrySnapshot:
         _validate_identifier(source_id, "source_id")
