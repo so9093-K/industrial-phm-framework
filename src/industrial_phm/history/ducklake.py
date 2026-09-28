@@ -102,6 +102,7 @@ class DuckLakeAssetHistory:
         try:
             self._ensure_initialized(connection)
             self._reject_existing_batch(connection, batch_id)
+            self._reject_existing_deliveries(connection, batch)
 
             transaction_open = False
             try:
@@ -358,6 +359,26 @@ class DuckLakeAssetHistory:
             )
             """
         )
+
+    def _reject_existing_deliveries(
+        self,
+        connection: Any,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+    ) -> None:
+        raw_evidence_ids = tuple(_raw_evidence_id(event) for event in events)
+        placeholders = ", ".join("?" for _ in raw_evidence_ids)
+        row = connection.execute(
+            f"""
+            SELECT raw_evidence_id
+            FROM {_CATALOG_NAME}.raw.opcua_data_change
+            WHERE raw_evidence_id IN ({placeholders})
+            LIMIT 1
+            """,
+            list(raw_evidence_ids),
+        ).fetchone()
+        if row is not None:
+            existing_id = _require_str(row[0], "raw_evidence_id")
+            raise ValueError(f"historical delivery already exists: {existing_id}")
 
     def _reject_existing_batch(self, connection: Any, batch_id: str) -> None:
         row = connection.execute(
