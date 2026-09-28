@@ -396,10 +396,7 @@ class SqliteAcquisitionSpool:
             """,
             (batch_id,),
         ).fetchall()
-        events = tuple(
-            _decode_event(_require_str(row[0], "payload_json"))
-            for row in rows
-        )
+        events = tuple(_decode_event(_require_str(row[0], "payload_json")) for row in rows)
         if len(events) != expected_count:
             raise AcquisitionSpoolStateError(
                 "active batch event_count does not match durable event payloads"
@@ -426,6 +423,7 @@ def _same_delivery_content(
         and stored.event_time.received_at == candidate.event_time.received_at
         and stored.event_time.event_at == candidate.event_time.event_at
     )
+
 
 def _encode_event(event: OpcUaPersistentDataChangeEvent) -> str:
     registered = event.event
