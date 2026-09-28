@@ -22,6 +22,8 @@
 
 ### Added
 
+- SQLite WAL 기반 durable acquisition spool을 추가했습니다. OPC UA DataChange는 durable transaction 안에서 #256 persistent/event-time contract로 projection되고 local delivery identity로 idempotent하게 저장됩니다. Spool은 bounded capacity와 `synchronous=FULL`을 사용하며, oldest pending event를 하나의 stable active batch에 assign해 process restart 후에도 같은 batch ID와 event order를 복원합니다. DuckLake/history commit 전까지 event를 유지하고 explicit downstream acknowledgement 이후에만 제거합니다.
+
 - DuckLake 기반 historical Asset History boundary를 추가했습니다. Optional `history` runtime은 SQLite catalog + local Parquet DuckLake를 bootstrap하고 OPC UA persistent DataChange batch의 raw protocol/timing/replay evidence와 normalized asset/measurement/channel history를 하나의 transaction에 기록합니다. Commit은 DuckLake snapshot ID/time을 반환하며 asset event-time range query와 local delivery identity 기반 raw-event round-trip을 제공합니다. DuckLake는 ingress queue/WAL 역할을 하지 않으며 duplicate batch ID를 거부합니다.
 
 - `Live Acquisition & DuckLake Asset History v1` architecture boundary를 추가했습니다. Continuous source worker, bounded callback queue, SQLite WAL durable ingress spool, DuckLake historical Asset History, derived observation window와 PHM evidence의 ownership을 분리하고, Live/Backfill 통합 provenance, at-least-once compatible delivery, restart semantics와 #259~#267 구현 순서를 고정했습니다. DuckLake를 callback queue/WAL로 사용하거나 acquisition health를 asset health로 승격하지 않습니다.
