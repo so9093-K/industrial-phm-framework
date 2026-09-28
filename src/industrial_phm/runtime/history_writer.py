@@ -171,6 +171,9 @@ async def run_spool_to_history_writer(
 
     A stop does not discard or force-flush sub-threshold events. They remain durable in the
     spool for the next writer process, which keeps graceful shutdown separate from data loss.
+
+    Transient downstream exceptions are retried using the same durable active batch after the
+    normal poll delay. Value/identity conflicts and spool invariant failures remain fail-fast.
     """
     if not isinstance(stop_event, asyncio.Event):
         raise ValueError("stop_event must be an asyncio.Event")
@@ -184,15 +187,32 @@ async def run_spool_to_history_writer(
     recovered_batch_count = 0
 
     while not stop_event.is_set():
-        result = await asyncio.to_thread(
-            write_next_spool_batch,
-            spool,
-            history,
-            policy=effective_policy,
-            batch_id_factory=batch_id_factory,
-            now_fn=now_fn,
-            telemetry_recorder=telemetry_recorder,
-        )
+        try:
+            result = await asyncio.to_thread(
+                write_next_spool_batch,
+                spool,
+                history,
+                policy=effective_policy,
+                batch_id_factory=batch_id_factory,
+                now_fn=now_fn,
+                telemetry_recorder=telemetry_recorder,
+            )
+        except AcquisitionSpoolStateError, ValueError:
+            # Stable-identity conflicts and spool invariants are contract failures,
+            # not transient downstream outages. Fail fast instead of retrying forever.
+            raise
+        except Exception:
+            # The active batch remains durable and unacknowledged. Retry the exact
+            # same batch after the normal writer poll delay; telemetry was already
+            # recorded by write_next_spool_batch.
+            _LOGGER.exception("Transient history writer failure; retrying stable active batch")
+            with suppress(TimeoutError):
+                await asyncio.wait_for(
+                    stop_event.wait(),
+                    timeout=effective_policy.poll_interval_seconds,
+                )
+            continue
+
         if result is not None:
             batch_count += 1
             event_count += result.event_count

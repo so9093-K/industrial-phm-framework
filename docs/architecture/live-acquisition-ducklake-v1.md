@@ -371,3 +371,14 @@ adapter를 교체합니다.
 - DuckLake catalog choice: https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database
 - DuckLake maintenance: https://ducklake.select/docs/stable/duckdb/maintenance/recommended_maintenance
 - DuckLake checkpoint: https://ducklake.select/docs/stable/duckdb/maintenance/checkpoint
+
+## 9. Reliability verification
+
+Failure/restart semantics와 bounded CI soak의 executable evidence는
+[`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 고정합니다.
+
+Continuous history writer는 transient downstream exception에서 active spool batch를 ACK하지 않고 동일 batch를
+poll delay 후 재시도합니다. Stable identity conflict와 spool invariant violation은 retry 대상으로 숨기지 않고
+fail-fast합니다. 따라서 temporary DuckLake failure는 collection service 전체를 즉시 종료시키는 정상 경로가
+아니며, spool capacity가 남아 있는 동안 durable ingress와 downstream recovery 경계를 유지합니다.
+
