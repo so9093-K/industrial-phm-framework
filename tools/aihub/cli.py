@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zipfile import BadZipFile, ZipFile
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
 API_KEY_ENV = "AIHUB_APIKEY"
@@ -195,7 +196,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Run the acquisition tool and convert expected failures to a stable exit code."""
 
-    load_local_env()
+    try:
+        load_local_env()
+    except AIHubToolError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
     args = build_parser().parse_args(argv)
 
     try:
@@ -307,8 +313,8 @@ def _run_download(
             print(f"skip verified local archive: {destination}")
             continue
 
-        if force and destination.exists():
-            destination.unlink()
+        if destination.exists() and not destination.is_file():
+            raise AIHubToolError(f"archive destination is not a regular file: {destination}")
 
         staging = dataset_root / "staging" / str(item.filekey)
         if staging.exists():
@@ -342,11 +348,12 @@ def _run_download(
                 f"expected one {item.archive_name!r} after download, found {len(matches)}"
             )
 
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(matches[0]), destination)
-        shutil.rmtree(staging, ignore_errors=True)
+        candidate = matches[0]
+        integrity = _inspect_archive(candidate)
 
-        integrity = _inspect_file(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        candidate.replace(destination)
+        shutil.rmtree(staging, ignore_errors=True)
         record = _local_record(
             dataset_key=dataset_key,
             item=item,
@@ -373,7 +380,7 @@ def _run_verify(dataset_key: int, preset_name: str, root: Path) -> int:
         if not path.is_file():
             raise AIHubToolError(f"selected archive is missing: {path}")
 
-        integrity = _inspect_file(path)
+        integrity = _inspect_archive(path)
         existing = by_filekey.get(item.filekey)
         if existing is not None and existing.get("sha256") != integrity["sha256"]:
             raise AIHubToolError(f"checksum mismatch against local manifest: {path}")
@@ -545,6 +552,17 @@ def _replace_record(
 ) -> list[dict[str, Any]]:
     filekey = int(new_record["filekey"])
     return [record for record in records if int(record["filekey"]) != filekey] + [new_record]
+
+
+def _inspect_archive(path: Path) -> dict[str, int | str]:
+    if path.suffix.lower() == ".zip":
+        try:
+            with ZipFile(path) as archive:
+                archive.infolist()
+        except BadZipFile as error:
+            raise AIHubToolError(f"downloaded ZIP archive is not readable: {path}") from error
+
+    return _inspect_file(path)
 
 
 def _inspect_file(path: Path) -> dict[str, int | str]:
