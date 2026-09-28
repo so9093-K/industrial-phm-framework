@@ -85,7 +85,6 @@ class ObservationWindowCoordinatorCycleResult:
         return sum(item.disposition == disposition for item in self.event_results)
 
 
-
 @dataclass(frozen=True, slots=True)
 class ContinuousObservationWindowCoordinatorResult:
     """Finite summary returned after an explicitly stopped continuous coordinator."""
