@@ -21,6 +21,13 @@ from industrial_phm.connectors.opcua import (
     collect_opcua_subscription_notifications,
     read_opcua_snapshot,
 )
+from industrial_phm.connectors.opcua_persistent import (
+    OpcUaConnectorConnectionState,
+    OpcUaConnectorQueueOverflow,
+    OpcUaConnectorStateEvent,
+    OpcUaPersistentConnectorConfig,
+    OpcUaPersistentSubscription,
+)
 
 __all__ = [
     "OpcUaConnectorConnectionState",
@@ -45,11 +52,3 @@ __all__ = [
     "collect_opcua_subscription_notifications",
     "read_opcua_snapshot",
 ]
-
-from industrial_phm.connectors.opcua_persistent import (
-    OpcUaConnectorConnectionState,
-    OpcUaConnectorQueueOverflow,
-    OpcUaConnectorStateEvent,
-    OpcUaPersistentConnectorConfig,
-    OpcUaPersistentSubscription,
-)
