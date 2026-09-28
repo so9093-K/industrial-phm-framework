@@ -273,6 +273,11 @@ Persistent OPC UA acquisition worker
     -> RegisteredOpcUaDataChangeEvent
     -> SQLite WAL durable acquisition spool
          └ successful durable acceptance -> OpcUaPersistentDataChangeEvent
+    -> bounded micro-batch writer
+         ├ max events / max bytes / max interval
+         ├ DuckLake snapshot commit + batch fingerprint provenance
+         └ successful commit/recovery 이후에만 spool ACK
+    -> DuckLake raw OPC UA evidence + normalized Asset History
   transport/session/subscription recovery는 asyncua가 소유하고 application은 connection epoch,
   reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다.
   Worker failure/stop은 administrative SourceLifecycle ACTIVE를 asset-health verdict로 바꾸지 않습니다.
