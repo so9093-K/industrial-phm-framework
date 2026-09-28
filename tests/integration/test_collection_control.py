@@ -33,9 +33,7 @@ def _repository(path: Path) -> JsonSourceRepository:
                 endpoint_url="opc.tcp://127.0.0.1:4840",
                 asset_id="pump-01",
                 measurement_point_id="drive-end",
-                node_mappings=(
-                    OpcUaNodeMapping("vibration_x", "ns=2;s=vibration_x"),
-                ),
+                node_mappings=(OpcUaNodeMapping("vibration_x", "ns=2;s=vibration_x"),),
             ),
             registered_at=BASE,
         )
@@ -111,9 +109,7 @@ def test_collection_service_owns_runtime_tasks_outside_control_request(
             SourceLifecycleState.ACTIVE,
             changed_at=BASE + timedelta(seconds=1),
         )
-        control = SqliteCollectionControlRepository(
-            tmp_path / "collection-control.sqlite"
-        )
+        control = SqliteCollectionControlRepository(tmp_path / "collection-control.sqlite")
         request_collection_state(
             source_repository,
             control,
