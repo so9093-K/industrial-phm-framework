@@ -1399,6 +1399,14 @@ def _(mo, registered_sources):
         )
         activate_source_button = mo.ui.run_button(label="Activate source")
         pause_source_button = mo.ui.run_button(label="Pause source")
+        start_collection_button = mo.ui.run_button(
+            label="Start Collection",
+            kind="success",
+        )
+        stop_collection_button = mo.ui.run_button(label="Stop Collection")
+        refresh_collection_monitor_button = mo.ui.run_button(
+            label="Refresh live monitor",
+        )
         freshness_age_input = mo.ui.text(
             value="",
             label="Max observation age (seconds)",
@@ -1424,6 +1432,9 @@ def _(mo, registered_sources):
         source_selector = None
         activate_source_button = None
         pause_source_button = None
+        start_collection_button = None
+        stop_collection_button = None
+        refresh_collection_monitor_button = None
         freshness_age_input = None
         save_freshness_policy_button = None
         clear_freshness_policy_button = None
@@ -1439,9 +1450,12 @@ def _(mo, registered_sources):
         freshness_age_input,
         load_registered_source_button,
         pause_source_button,
+        refresh_collection_monitor_button,
         run_active_source_button,
         save_freshness_policy_button,
         source_selector,
+        start_collection_button,
+        stop_collection_button,
     )
 
 
