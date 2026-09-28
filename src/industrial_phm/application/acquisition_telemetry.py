@@ -362,6 +362,16 @@ class AcquisitionTelemetrySurface:
 
 
 @runtime_checkable
+class AcquisitionSpoolTelemetryReader(Protocol):
+    def telemetry_snapshot(
+        self,
+        *,
+        sampled_at: datetime,
+    ) -> AcquisitionSpoolTelemetrySnapshot:
+        ...
+
+
+@runtime_checkable
 class AcquisitionTelemetryRepository(Protocol):
     def get(self, source_id: str) -> AcquisitionTelemetrySnapshot:
         ...
@@ -409,3 +419,19 @@ def _validate_local_delivery_identity(value: tuple[str, int, int]) -> None:
     _validate_identifier(source_id, "local_delivery_identity source_id")
     _validate_positive_int(connection_epoch, "local_delivery_identity connection_epoch")
     _validate_non_negative_int(event_index, "local_delivery_identity event_index")
+
+
+def build_acquisition_telemetry_surface(
+    repository: AcquisitionTelemetryRepository,
+    spool: AcquisitionSpoolTelemetryReader,
+    source_id: str,
+    *,
+    sampled_at: datetime,
+) -> AcquisitionTelemetrySurface:
+    """Build one deterministic operational surface without asset-health inference."""
+    _validate_identifier(source_id, "source_id")
+    _validate_aware_datetime(sampled_at, "sampled_at")
+    return AcquisitionTelemetrySurface(
+        source=repository.get(source_id),
+        spool=spool.telemetry_snapshot(sampled_at=sampled_at),
+    )
