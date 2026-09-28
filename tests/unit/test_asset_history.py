@@ -100,7 +100,6 @@ def test_historical_batch_commit_requires_positive_event_count() -> None:
         )
 
 
-
 def test_historical_input_reference_records_snapshot_and_half_open_range() -> None:
     reference = HistoricalInputReference(
         snapshot_id=12,
