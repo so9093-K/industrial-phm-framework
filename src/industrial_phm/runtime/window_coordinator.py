@@ -232,7 +232,7 @@ async def run_continuous_registered_opcua_observation_windows(
             if telemetry_recorder is not None:
                 recorded_at = _now(now_fn)
                 _record_telemetry_best_effort(
-                    lambda: telemetry_recorder.record_window_cycle(
+                    lambda cycle=cycle, recorded_at=recorded_at: telemetry_recorder.record_window_cycle(
                         cycle,
                         recorded_at=recorded_at,
                     ),
@@ -241,13 +241,14 @@ async def run_continuous_registered_opcua_observation_windows(
         except Exception as error:
             if telemetry_recorder is not None:
                 occurred_at = _now(now_fn)
+                failure_detail = _failure_detail(error)
                 _record_telemetry_best_effort(
-                    lambda: telemetry_recorder.record_failure(
+                    lambda occurred_at=occurred_at, failure_detail=failure_detail: telemetry_recorder.record_failure(
                         AcquisitionFailureTelemetry(
                             source_id=source_id,
                             component=AcquisitionFailureComponent.WINDOW_COORDINATOR,
                             occurred_at=occurred_at,
-                            detail=_failure_detail(error),
+                            detail=failure_detail,
                         )
                     ),
                     label="window coordinator failure",
