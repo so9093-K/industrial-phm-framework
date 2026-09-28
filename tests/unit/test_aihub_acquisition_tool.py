@@ -1,9 +1,17 @@
+import importlib.util
 import os
+import sys
 from pathlib import Path
 
 import pytest
 
-from tools.aihub.cli import AIHubToolError, load_local_env, main, parse_inventory
+_TOOL_PATH = Path(__file__).resolve().parents[2] / "tools" / "aihub" / "cli.py"
+_TOOL_SPEC = importlib.util.spec_from_file_location("aihub_acquisition_cli", _TOOL_PATH)
+assert _TOOL_SPEC is not None
+assert _TOOL_SPEC.loader is not None
+aihub_cli = importlib.util.module_from_spec(_TOOL_SPEC)
+sys.modules[_TOOL_SPEC.name] = aihub_cli
+_TOOL_SPEC.loader.exec_module(aihub_cli)
 
 SAMPLE_TREE = """
 ==========================================
@@ -24,7 +32,7 @@ aihubshell version 25.09.19 v0.6
 
 
 def test_inventory_parser_preserves_filekey_split_role_and_rounded_size() -> None:
-    files = parse_inventory(SAMPLE_TREE, dataset_key=239)
+    files = aihub_cli.parse_inventory(SAMPLE_TREE, dataset_key=239)
 
     assert [(item.filekey, item.split, item.role) for item in files] == [
         (44023, "training", "label"),
@@ -44,15 +52,15 @@ def test_inventory_parser_rejects_duplicate_filekeys() -> None:
         "7.압출기.zip | 97 MB | 44033",
     )
 
-    with pytest.raises(AIHubToolError, match="duplicate filekeys"):
-        parse_inventory(duplicate, dataset_key=239)
+    with pytest.raises(aihub_cli.AIHubToolError, match="duplicate filekeys"):
+        aihub_cli.parse_inventory(duplicate, dataset_key=239)
 
 
 def test_bootstrap_plan_is_offline_and_selects_two_training_raw_archives(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert main(["plan", "239", "--preset", "bootstrap", "--root", str(tmp_path)]) == 0
+    assert aihub_cli.main(["plan", "239", "--preset", "bootstrap", "--root", str(tmp_path)]) == 0
 
     output = capsys.readouterr().out
     assert "44033" in output
@@ -67,7 +75,7 @@ def test_single_archive_preset_can_plan_existing_boiler_only(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert main(["plan", "239", "--preset", "boiler", "--root", str(tmp_path)]) == 0
+    assert aihub_cli.main(["plan", "239", "--preset", "boiler", "--root", str(tmp_path)]) == 0
 
     output = capsys.readouterr().out
     assert "44033" in output
@@ -91,7 +99,7 @@ def test_force_download_failure_preserves_existing_archive(
     monkeypatch.setenv("AIHUB_APIKEY", "test-key")
 
     assert (
-        main(
+        aihub_cli.main(
             [
                 "download",
                 "239",
@@ -119,7 +127,7 @@ def test_local_env_does_not_override_explicit_process_environment(
     monkeypatch.setenv("AIHUB_APIKEY", "from-process")
     monkeypatch.delenv("AIHUBSHELL_PATH", raising=False)
 
-    load_local_env(env_path)
+    aihub_cli.load_local_env(env_path)
 
     assert os.environ["AIHUB_APIKEY"] == "from-process"
     assert os.environ["AIHUBSHELL_PATH"] == "/tmp/aihubshell"
@@ -137,5 +145,5 @@ def test_download_without_api_key_fails_before_running_remote_command(
     monkeypatch.setenv("AIHUBSHELL_PATH", str(fake_shell))
     monkeypatch.delenv("AIHUB_APIKEY", raising=False)
 
-    assert main(["download", "239", "--root", str(tmp_path)]) == 1
+    assert aihub_cli.main(["download", "239", "--root", str(tmp_path)]) == 1
     assert "AIHUB_APIKEY is required" in capsys.readouterr().err
