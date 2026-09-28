@@ -1753,6 +1753,76 @@ def _(
 
 @app.cell
 def _(mo):
+    get_collection_control_error, set_collection_control_error = mo.state("")
+    get_collection_control_success, set_collection_control_success = mo.state("")
+    return (
+        get_collection_control_error,
+        get_collection_control_success,
+        set_collection_control_error,
+        set_collection_control_success,
+    )
+
+
+@app.cell
+def _(get_collection_control_error, get_collection_control_success):
+    collection_control_error = get_collection_control_error()
+    collection_control_success = get_collection_control_success()
+    return collection_control_error, collection_control_success
+
+
+@app.cell
+def _(
+    CollectionDesiredState,
+    JsonSourceRepository,
+    Path,
+    SqliteCollectionControlRepository,
+    collection_control_default,
+    datetime,
+    request_collection_state,
+    set_collection_control_error,
+    set_collection_control_success,
+    source_registry_default,
+    source_selector,
+    start_collection_button,
+    stop_collection_button,
+):
+    _desired_state = None
+    if start_collection_button is not None and start_collection_button.value:
+        _desired_state = CollectionDesiredState.RUNNING
+    elif stop_collection_button is not None and stop_collection_button.value:
+        _desired_state = CollectionDesiredState.STOPPED
+
+    if _desired_state is not None:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before changing collection state")
+            _source_repository = JsonSourceRepository(Path(source_registry_default))
+            _control_repository = SqliteCollectionControlRepository(
+                Path(collection_control_default)
+            )
+            _record = request_collection_state(
+                _source_repository,
+                _control_repository,
+                source_selector.value,
+                _desired_state,
+                requested_at=datetime.now().astimezone(),
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_collection_control_success("")
+            set_collection_control_error(str(error))
+        else:
+            set_collection_control_error("")
+            set_collection_control_success(
+                "Desired collection changed: "
+                f"{_record.source_id} → {_record.desired_state.value.upper()} "
+                f"(generation {_record.generation}). "
+                "The Operations UI does not own the collector process."
+            )
+    return
+
+
+@app.cell
+def _(mo):
     get_runtime_cycle_error, set_runtime_cycle_error = mo.state("")
     get_runtime_cycle_skipped, set_runtime_cycle_skipped = mo.state("")
     get_runtime_cycle_success, set_runtime_cycle_success = mo.state("")
