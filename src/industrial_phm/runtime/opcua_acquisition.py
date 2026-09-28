@@ -10,6 +10,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from typing import Protocol
 
 from industrial_phm.application.acquisition_spool import AcquisitionSpool
@@ -269,7 +270,8 @@ async def run_registered_opcua_acquisition_worker(
                 overflow_pending = True
                 if telemetry_recorder is not None:
                     _record_telemetry_best_effort(
-                        lambda overflow=overflow: telemetry_recorder.record_callback_queue_overflow(
+                        partial(
+                            telemetry_recorder.record_callback_queue_overflow,
                             source_id,
                             occurred_at=overflow.occurred_at,
                         ),
@@ -320,8 +322,9 @@ async def run_registered_opcua_acquisition_worker(
                 )
                 if telemetry_recorder is not None:
                     _record_telemetry_best_effort(
-                        lambda persistent_event=persistent_event: telemetry_recorder.record_opcua_event(
-                            persistent_event
+                        partial(
+                            telemetry_recorder.record_opcua_event,
+                            persistent_event,
                         ),
                         label="OPC UA flow event",
                     )
@@ -336,13 +339,14 @@ async def run_registered_opcua_acquisition_worker(
             failure_at = _now(now_fn)
             failure_detail = _failure_detail(error)
             _record_telemetry_best_effort(
-                lambda failure_at=failure_at, failure_detail=failure_detail: telemetry_recorder.record_failure(
+                partial(
+                    telemetry_recorder.record_failure,
                     AcquisitionFailureTelemetry(
                         source_id=source_id,
                         component=AcquisitionFailureComponent.OPCUA_WORKER,
                         occurred_at=failure_at,
                         detail=failure_detail,
-                    )
+                    ),
                 ),
                 label="OPC UA worker failure",
             )
