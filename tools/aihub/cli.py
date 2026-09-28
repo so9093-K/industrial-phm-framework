@@ -428,7 +428,9 @@ def _select_preset(dataset_key: int, preset_name: str) -> tuple[PresetFile, ...]
         raise AIHubToolError(f"unknown preset {preset_name!r} for dataset {dataset_key}")
 
     selected_keys = presets[preset_name]
-    if not isinstance(selected_keys, list) or not all(\n        isinstance(key, int) for key in selected_keys\n    ):
+    if not isinstance(selected_keys, list) or not all(
+        isinstance(key, int) for key in selected_keys
+    ):
         raise AIHubToolError(f"invalid preset {preset_name!r} for dataset {dataset_key}")
 
     raw_files = raw.get("files")
