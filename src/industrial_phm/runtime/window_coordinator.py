@@ -57,6 +57,7 @@ def rebuild_registered_opcua_observation_windows(
         raise ValueError("observation-window coordinator requires OpcUaSourceConfig")
 
     expected_channel_ids = tuple(mapping.channel_id for mapping in config.node_mappings)
+    expected_channel_set = set(expected_channel_ids)
     events = history.query_opcua_events(source_id)
 
     duration = timedelta(seconds=effective_policy.window_duration_seconds)
@@ -126,6 +127,25 @@ def rebuild_registered_opcua_observation_windows(
                     watermark_at_ingest=watermark,
                 )
             )
+            continue
+
+        if event.channel_id not in expected_channel_set:
+            window_start, _ = _aligned_window_bounds(
+                event_at,
+                policy=effective_policy,
+            )
+            buffer = buffers.get(window_start)
+            if buffer is None:
+                event_results.append(
+                    ObservationWindowIngestResult(
+                        disposition=ObservationWindowEventDisposition.UNEXPECTED_CHANNEL,
+                        local_delivery_identity=identity,
+                        event_at=event_at,
+                        watermark_at_ingest=watermark,
+                    )
+                )
+            else:
+                event_results.append(buffer.ingest(event))
             continue
 
         if max_valid_event_at is None or event_at > max_valid_event_at:
