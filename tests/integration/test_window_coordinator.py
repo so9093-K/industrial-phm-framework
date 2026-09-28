@@ -397,4 +397,3 @@ def test_unexpected_channel_does_not_advance_watermark_or_create_future_window(
     assert second.finalized_windows == first.finalized_windows
     assert second.watermark == first.watermark
     assert JsonObservationWindowRepository(tmp_path / "windows.json").list_windows() == windows
-
