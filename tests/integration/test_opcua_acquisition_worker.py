@@ -129,9 +129,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         repository, source = _repositories(tmp_path)
         spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
-        telemetry = SqliteAcquisitionTelemetryRepository(
-            tmp_path / "acquisition-telemetry.sqlite"
-        )
+        telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
         connector = _FakePersistentConnector()
         stop_event = asyncio.Event()
 
