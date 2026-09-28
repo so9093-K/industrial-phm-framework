@@ -216,8 +216,17 @@ epoch/reconnect attempt를 session state와 함께 기록하고, `OpcUaPersisten
 registered DataChange evidence를 connection epoch 안의 local event index로 감쌉니다. 이 index는 server sequence가
 아니며 gap-free/exactly-once evidence가 아닙니다. Event time은 SourceTimestamp를 우선하고 ServerTimestamp fallback은
 explicit policy로만 허용합니다. Connector `received_at`과 future ingestion boundary의 `ingested_at`은 별도
-platform timing fact로 보존하며 event time으로 대체하지 않습니다. 현재 contract는 reconnect daemon, credential/
-certificate handling, event persistence, watermark/window assembly를 구현하지 않습니다.
+platform timing fact로 보존하며 event time으로 대체하지 않습니다. Persistent session contract 자체는 reconnect
+daemon, credential/certificate handling, event persistence, watermark/window assembly를 구현하지 않습니다.
+
+Durable observation/window reference boundary는 explicit window range와 caller-owned monotonic watermark를
+사용합니다. `ObservationWindowBuffer`는 accepted event 수를 bounded하고 event를 in-order/out-of-order,
+late, duplicate(local delivery identity 기준), timing unavailable, unexpected channel, outside-window,
+future clock-skew, buffer-full로 구분합니다. Watermark가 window end에 도달한 뒤에만
+`DurableObservationWindow`로 finalize하며 `JsonObservationWindowRepository`는 finalized window와
+protocol/timing evidence를 current v1 schema로 저장합니다. Partial in-memory buffer는 아직 restart-safe하지
+않습니다. COMPLETE는 expected channel coverage만 뜻하며 synchronization, gap-free/exactly-once delivery,
+analysis readiness 또는 asset condition을 의미하지 않습니다.
 
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 

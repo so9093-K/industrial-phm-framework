@@ -1027,8 +1027,9 @@ watermark                  # durable window boundary에서 추가
 window_start / window_end  # durable window boundary에서 추가
 ```
 
-현재 이 contract는 network reconnect loop, background daemon, notification persistence, credentials/certificates,
-watermark/window assembly를 구현하지 않습니다.
+Persistent OPC UA session contract 자체는 network reconnect loop, background daemon, notification persistence,
+credentials/certificates 또는 watermark/window assembly를 구현하지 않습니다. 아래 durable window boundary는
+이 event contract를 소비하는 별도 application reference boundary입니다.
 
 그리고 다음 runtime/window 단계에서 적어도 다음 상태를 서로 구분합니다.
 
@@ -1057,8 +1058,20 @@ connector session
   -> analysis-ready input
 ```
 
+현재 reference boundary는 caller가 explicit `window_start/window_end`와 monotonic watermark를 소유하고,
+in-memory buffer에 최대 event 수와 허용 future clock-skew를 명시하도록 합니다. Event disposition은
+`IN_ORDER / OUT_OF_ORDER / LATE / DUPLICATE / TIMING_UNAVAILABLE / UNEXPECTED_CHANNEL /
+OUTSIDE_WINDOW / FUTURE_TIMESTAMP / BUFFER_FULL`을 구분합니다. DUPLICATE는 같은 platform-local
+`(source_id, connection_epoch, event_index)`가 다시 제출된 경우만 뜻하며 reconnect 후 replay가 새 local
+identity를 가지면 자동 dedup하지 않습니다.
+
+Watermark가 window end에 도달한 finalized window만 `industrial-phm-observation-window-v1` JSON history에
+restart-safe하게 저장합니다. Partial in-memory buffer 자체는 아직 durable하지 않습니다. COMPLETE는 모든
+expected channel이 한 번 이상 accepted event를 가졌다는 coverage 의미뿐이며 synchronized sampling,
+gap-free/exactly-once delivery 또는 analysis-ready input을 뜻하지 않습니다.
+
 Buffering, retry, reconnect 또는 persistence가 source event의 timestamp/quality/provenance를 덮어쓰지 않아야 합니다.
-Durable observation/window contract가 완성되기 전에는 continuous ingestion이 곧 continuous PHM inference라고 표현하지 않습니다.
+현재 boundary도 continuous ingestion이 곧 continuous PHM inference라고 표현하지 않습니다.
 
 ### Foundation completion gates
 
