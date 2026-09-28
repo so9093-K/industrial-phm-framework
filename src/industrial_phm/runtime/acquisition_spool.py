@@ -150,8 +150,7 @@ class SqliteAcquisitionSpool:
                 """
                 SELECT
                     COUNT(*),
-                    COALESCE(SUM(length(CAST(payload_json AS BLOB))), 0),
-                    MIN(accepted_at)
+                    COALESCE(SUM(length(CAST(payload_json AS BLOB))), 0)
                 FROM spool_event
                 WHERE batch_id IS NULL
                 """
@@ -160,7 +159,16 @@ class SqliteAcquisitionSpool:
                 raise AcquisitionSpoolStateError("pending spool stats are unavailable")
             event_count = _require_int(row[0], "pending event count")
             payload_bytes = _require_int(row[1], "pending payload bytes")
-            oldest_raw = row[2]
+            oldest_row = connection.execute(
+                """
+                SELECT accepted_at
+                FROM spool_event
+                WHERE batch_id IS NULL
+                ORDER BY julianday(accepted_at), sequence
+                LIMIT 1
+                """
+            ).fetchone()
+            oldest_raw = None if oldest_row is None else oldest_row[0]
             oldest_accepted_at = (
                 None
                 if oldest_raw is None
