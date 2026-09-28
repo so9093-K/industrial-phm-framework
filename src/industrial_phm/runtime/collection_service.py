@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from contextlib import suppress
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from math import isfinite
 from numbers import Real
@@ -44,8 +45,12 @@ from industrial_phm.runtime.window_coordinator import (
 @dataclass(frozen=True, slots=True)
 class CollectionServicePolicy:
     reconcile_interval_seconds: float = 0.5
-    history_writer_policy: SpoolToHistoryWriterPolicy = SpoolToHistoryWriterPolicy()
-    window_policy: ObservationWindowCoordinatorPolicy = ObservationWindowCoordinatorPolicy()
+    history_writer_policy: SpoolToHistoryWriterPolicy = field(
+        default_factory=SpoolToHistoryWriterPolicy
+    )
+    window_policy: ObservationWindowCoordinatorPolicy = field(
+        default_factory=ObservationWindowCoordinatorPolicy
+    )
 
     def __post_init__(self) -> None:
         _validate_positive_finite(
@@ -225,13 +230,11 @@ async def run_collection_service(
                     raise writer_error
                 raise RuntimeError("history writer stopped while collection service is running")
 
-            try:
+            with suppress(TimeoutError):
                 await asyncio.wait_for(
                     stop_event.wait(),
                     timeout=effective_policy.reconcile_interval_seconds,
                 )
-            except TimeoutError:
-                pass
     finally:
         for source_id in tuple(owned):
             await _stop_source(source_id)
