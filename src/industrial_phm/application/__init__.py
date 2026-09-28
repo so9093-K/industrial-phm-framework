@@ -64,6 +64,17 @@ from industrial_phm.application.observation import (
     ObservationValidationPolicy,
     SourceSnapshotEvidence,
 )
+from industrial_phm.application.opcua_persistent import (
+    OpcUaEventTimeBasis,
+    OpcUaEventTimeEvidence,
+    OpcUaEventTimePolicy,
+    OpcUaPersistentDataChangeEvent,
+    OpcUaPersistentSessionEvidence,
+    OpcUaPersistentSessionPolicy,
+    OpcUaPersistentSessionState,
+    project_opcua_persistent_data_change_event,
+    validate_opcua_persistent_session_transition,
+)
 from industrial_phm.application.operational import (
     AnalysisRun,
     OperationalFinding,
@@ -191,6 +202,13 @@ __all__ = [
     "JsonSourceRuntimeRepository",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
+    "OpcUaEventTimeBasis",
+    "OpcUaEventTimeEvidence",
+    "OpcUaEventTimePolicy",
+    "OpcUaPersistentDataChangeEvent",
+    "OpcUaPersistentSessionEvidence",
+    "OpcUaPersistentSessionPolicy",
+    "OpcUaPersistentSessionState",
     "OpcUaSourceConfig",
     "OperationalFinding",
     "OperationalFindingHistoryFormatError",
@@ -252,6 +270,7 @@ __all__ = [
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
     "poll_registered_source",
+    "project_opcua_persistent_data_change_event",
     "project_registered_opcua_observation_summary",
     "receive_registered_file_source_observation",
     "receive_registered_opcua_source_observation",
@@ -262,6 +281,7 @@ __all__ = [
     "run_registered_opcua_subscription_cycle",
     "transition_source_lifecycle",
     "validate_distinct_source_state_paths",
+    "validate_opcua_persistent_session_transition",
     "validate_operational_finding_against_run",
     "validate_registered_file_source",
 ]

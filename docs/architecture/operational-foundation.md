@@ -211,6 +211,14 @@ source observation, platform receipt, observation window, analysis execution/cap
 review action을 각각 versioned event kind/time basis로 표현합니다. Timezone-aware event만 chronological ordering에
 참여하고 missing 또는 timezone-naive source/observation time은 `Time not comparable` evidence로 별도 보존합니다.
 
+Persistent OPC UA runtime도 같은 clock ownership을 유지합니다. `OpcUaPersistentSessionEvidence`는 connection
+epoch/reconnect attempt를 session state와 함께 기록하고, `OpcUaPersistentDataChangeEvent`는 bounded subscription의
+registered DataChange evidence를 connection epoch 안의 local event index로 감쌉니다. 이 index는 server sequence가
+아니며 gap-free/exactly-once evidence가 아닙니다. Event time은 SourceTimestamp를 우선하고 ServerTimestamp fallback은
+explicit policy로만 허용합니다. Connector `received_at`과 future ingestion boundary의 `ingested_at`은 별도
+platform timing fact로 보존하며 event time으로 대체하지 않습니다. 현재 contract는 reconnect daemon, credential/
+certificate handling, event persistence, watermark/window assembly를 구현하지 않습니다.
+
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview
