@@ -89,6 +89,11 @@ from industrial_phm.application.observation_window import (
     ObservationWindowIngestResult,
     ObservationWindowRepository,
 )
+from industrial_phm.application.opcua_acquisition import (
+    InMemoryOpcUaPersistentSessionEvidenceSink,
+    OpcUaAcquisitionWorkerResult,
+    OpcUaPersistentSessionEvidenceSink,
+)
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
@@ -230,6 +235,7 @@ __all__ = [
     "HistoricalEventTimeBasis",
     "HistoricalMeasurement",
     "HistoryIngestionMode",
+    "InMemoryOpcUaPersistentSessionEvidenceSink",
     "InMemorySourceRepository",
     "JsonFieldFeatureAnalysisRepository",
     "JsonFindingReviewRepository",
@@ -245,11 +251,13 @@ __all__ = [
     "ObservationWindowFormatError",
     "ObservationWindowIngestResult",
     "ObservationWindowRepository",
+    "OpcUaAcquisitionWorkerResult",
     "OpcUaEventTimeBasis",
     "OpcUaEventTimeEvidence",
     "OpcUaEventTimePolicy",
     "OpcUaPersistentDataChangeEvent",
     "OpcUaPersistentSessionEvidence",
+    "OpcUaPersistentSessionEvidenceSink",
     "OpcUaPersistentSessionPolicy",
     "OpcUaPersistentSessionState",
     "OpcUaSourceConfig",

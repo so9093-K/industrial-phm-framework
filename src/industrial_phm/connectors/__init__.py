@@ -21,13 +21,25 @@ from industrial_phm.connectors.opcua import (
     collect_opcua_subscription_notifications,
     read_opcua_snapshot,
 )
+from industrial_phm.connectors.opcua_persistent import (
+    OpcUaConnectorConnectionState,
+    OpcUaConnectorQueueOverflow,
+    OpcUaConnectorStateEvent,
+    OpcUaPersistentConnectorConfig,
+    OpcUaPersistentSubscription,
+)
 
 __all__ = [
     "OpcUaBrowseConfig",
     "OpcUaBrowseResult",
     "OpcUaBrowseVariable",
+    "OpcUaConnectorConnectionState",
+    "OpcUaConnectorQueueOverflow",
+    "OpcUaConnectorStateEvent",
     "OpcUaNodeMapping",
     "OpcUaNodeObservation",
+    "OpcUaPersistentConnectorConfig",
+    "OpcUaPersistentSubscription",
     "OpcUaReadConfig",
     "OpcUaReadSnapshot",
     "OpcUaRuntimeUnavailableError",
