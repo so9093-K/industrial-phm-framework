@@ -238,3 +238,37 @@ def test_acknowledge_rejects_unknown_batch(tmp_path: Path) -> None:
             "missing",
             acknowledged_at=BASE + timedelta(seconds=1),
         )
+
+
+def test_connection_epoch_reservation_persists_across_spool_restart(tmp_path: Path) -> None:
+    path = tmp_path / "ingress.sqlite"
+    first = _spool(path)
+
+    assert first.get_last_connection_epoch("source-a") == 0
+    assert (
+        first.reserve_next_connection_epoch(
+            "source-a",
+            expected_previous_epoch=0,
+        )
+        == 1
+    )
+    assert first.get_last_connection_epoch("source-a") == 1
+
+    restarted = _spool(path)
+    assert restarted.get_last_connection_epoch("source-a") == 1
+    assert (
+        restarted.reserve_next_connection_epoch(
+            "source-a",
+            expected_previous_epoch=1,
+        )
+        == 2
+    )
+
+    with pytest.raises(AcquisitionSpoolStateError, match="changed concurrently"):
+        first.reserve_next_connection_epoch(
+            "source-a",
+            expected_previous_epoch=1,
+        )
+
+    assert restarted.get_last_connection_epoch("source-a") == 2
+    assert restarted.get_last_connection_epoch("other-source") == 0
