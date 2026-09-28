@@ -79,6 +79,11 @@ from industrial_phm.application.observation import (
     ObservationValidationPolicy,
     SourceSnapshotEvidence,
 )
+from industrial_phm.application.opcua_acquisition import (
+    InMemoryOpcUaPersistentSessionEvidenceSink,
+    OpcUaAcquisitionWorkerResult,
+    OpcUaPersistentSessionEvidenceSink,
+)
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     JsonObservationWindowRepository,
@@ -231,6 +236,9 @@ __all__ = [
     "HistoricalMeasurement",
     "HistoryIngestionMode",
     "InMemorySourceRepository",
+    "InMemoryOpcUaPersistentSessionEvidenceSink",
+    "OpcUaAcquisitionWorkerResult",
+    "OpcUaPersistentSessionEvidenceSink",
     "JsonFieldFeatureAnalysisRepository",
     "JsonFindingReviewRepository",
     "JsonObservationWindowRepository",
