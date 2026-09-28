@@ -16,7 +16,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.asset_history import (
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
@@ -25,6 +24,7 @@ from industrial_phm.application.asset_history import (
     HistoryIngestionMode,
     validate_asset_history_query,
 )
+from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
