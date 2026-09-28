@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -165,7 +166,7 @@ class OpcUaPersistentSubscription:
         while True:
             remaining = None if deadline is None else max(0.0, deadline - loop.time())
             if deadline is not None and remaining <= 0.0:
-                raise asyncio.TimeoutError
+                raise TimeoutError
             raw_state = (
                 await state_subscription.next_change()
                 if remaining is None
@@ -245,27 +246,21 @@ class OpcUaPersistentSubscription:
         subscription = self._subscription
         self._subscription = None
         if subscription is not None:
-            try:
+            with suppress(Exception):
                 await subscription.delete()
-            except Exception:
-                pass
 
         state_context = self._state_context
         self._state_context = None
         self._state_subscription = None
         if state_context is not None:
-            try:
+            with suppress(Exception):
                 await state_context.__aexit__(None, None, None)
-            except Exception:
-                pass
 
         client = self._client
         self._client = None
         if client is not None:
-            try:
+            with suppress(Exception):
                 await client.disconnect()
-            except Exception:
-                pass
         self._data_change_type = None
 
     def _require_subscription(self) -> Any:
