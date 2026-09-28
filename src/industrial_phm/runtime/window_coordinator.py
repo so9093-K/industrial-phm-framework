@@ -39,9 +39,7 @@ def rebuild_registered_opcua_observation_windows(
     policy: ObservationWindowCoordinatorPolicy | None = None,
 ) -> ObservationWindowCoordinatorCycleResult:
     """Replay durable history and idempotently persist every closed event-time window."""
-    effective_policy = (
-        ObservationWindowCoordinatorPolicy() if policy is None else policy
-    )
+    effective_policy = ObservationWindowCoordinatorPolicy() if policy is None else policy
     if not isinstance(effective_policy, ObservationWindowCoordinatorPolicy):
         raise ValueError("policy must be ObservationWindowCoordinatorPolicy")
 
@@ -110,9 +108,7 @@ def rebuild_registered_opcua_observation_windows(
             )
             continue
 
-        future_skew_seconds = (
-            event_at - event.event_time.ingested_at
-        ).total_seconds()
+        future_skew_seconds = (event_at - event.event_time.ingested_at).total_seconds()
         if future_skew_seconds > effective_policy.max_future_skew_seconds:
             event_results.append(
                 ObservationWindowIngestResult(
@@ -198,9 +194,7 @@ async def run_continuous_registered_opcua_observation_windows(
     """Repeatedly rebuild closed windows and verify watermark monotonicity."""
     if not isinstance(stop_event, asyncio.Event):
         raise ValueError("stop_event must be an asyncio.Event")
-    effective_policy = (
-        ObservationWindowCoordinatorPolicy() if policy is None else policy
-    )
+    effective_policy = ObservationWindowCoordinatorPolicy() if policy is None else policy
     if not isinstance(effective_policy, ObservationWindowCoordinatorPolicy):
         raise ValueError("policy must be ObservationWindowCoordinatorPolicy")
 
