@@ -339,6 +339,36 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
 
+    def query_file_events(self, source_id: str) -> tuple[FileBackfillEvent, ...]:
+        """Return raw FILE evidence in deterministic source-time/provenance order."""
+        _validate_identifier(source_id, "source_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT
+                    raw_evidence_id,
+                    source_id,
+                    asset_id,
+                    measurement_point_id,
+                    source_file,
+                    source_sha256,
+                    source_size_bytes,
+                    sample_index,
+                    channel_id,
+                    source_timestamp,
+                    value
+                FROM {_CATALOG_NAME}.raw.file_measurement
+                WHERE source_id = ?
+                ORDER BY source_timestamp, source_file, sample_index, channel_id, raw_evidence_id
+                """,
+                [source_id],
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_file_event_from_row(row) for row in rows)
+
     def current_snapshot_id(self) -> int:
         """Return the current DuckLake snapshot for input-range provenance."""
         connection = self._connect()
@@ -1007,6 +1037,24 @@ def _file_measurement_row(
     )
 
 
+def _file_event_from_row(row: Sequence[object]) -> FileBackfillEvent:
+    if len(row) != 11:
+        raise RuntimeError("DuckLake FILE evidence row has an unexpected column count")
+    return FileBackfillEvent(
+        raw_evidence_id=_require_str(row[0], "raw_evidence_id"),
+        source_id=_require_str(row[1], "source_id"),
+        asset_id=_require_str(row[2], "asset_id"),
+        measurement_point_id=_optional_str(row[3], "measurement_point_id"),
+        source_file=_require_str(row[4], "source_file"),
+        source_sha256=_require_str(row[5], "source_sha256"),
+        source_size_bytes=_require_int(row[6], "source_size_bytes"),
+        sample_index=_require_int(row[7], "sample_index"),
+        channel_id=_require_str(row[8], "channel_id"),
+        event_at=_require_datetime(row[9], "source_timestamp"),
+        value=_require_float(row[10], "value"),
+    )
+
+
 def _historical_measurement_from_row(row: Sequence[object]) -> HistoricalMeasurement:
     if len(row) != 11:
         raise RuntimeError("DuckLake measurement row has an unexpected column count")
@@ -1198,6 +1246,12 @@ def _optional_str(value: object, field_name: str) -> str | None:
     if value is None:
         return None
     return _require_str(value, field_name)
+
+
+def _require_float(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RuntimeError(f"DuckLake {field_name} must be numeric")
+    return float(value)
 
 
 def _optional_float(value: object, field_name: str) -> float | None:
