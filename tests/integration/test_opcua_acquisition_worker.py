@@ -148,7 +148,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         await connector.notifications.put(_notification(channel_id="vibration_x", value=1.0))
         await _wait_until(lambda: spool.pending_event_count() == 1)
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC) - timedelta(seconds=1)
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.RECONNECTING,
