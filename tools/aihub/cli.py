@@ -423,9 +423,7 @@ def resolve_aihub_shell() -> Path:
     if home_candidate.is_file() and os.access(home_candidate, os.X_OK):
         return home_candidate
 
-    raise AIHubToolError(
-        "aihubshell was not found; set AIHUBSHELL_PATH or place it on PATH"
-    )
+    raise AIHubToolError("aihubshell was not found; set AIHUBSHELL_PATH or place it on PATH")
 
 
 def _select_preset(dataset_key: int, preset_name: str) -> tuple[PresetFile, ...]:
@@ -455,9 +453,7 @@ def _select_preset(dataset_key: int, preset_name: str) -> tuple[PresetFile, ...]
 
     missing = [key for key in selected_keys if key not in catalog]
     if missing:
-        raise AIHubToolError(
-            f"preset {preset_name!r} references unknown filekeys: {missing}"
-        )
+        raise AIHubToolError(f"preset {preset_name!r} references unknown filekeys: {missing}")
     return tuple(catalog[key] for key in selected_keys)
 
 
