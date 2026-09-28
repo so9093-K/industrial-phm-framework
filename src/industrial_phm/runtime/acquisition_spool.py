@@ -408,7 +408,6 @@ class SqliteAcquisitionSpool:
         )
 
 
-
 def _same_delivery_content(
     stored: OpcUaPersistentDataChangeEvent,
     candidate: OpcUaPersistentDataChangeEvent,
