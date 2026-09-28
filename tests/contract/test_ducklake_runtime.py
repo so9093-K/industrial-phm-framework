@@ -214,4 +214,3 @@ def test_ducklake_asset_history_backfill_provenance(tmp_path) -> None:
     )
     assert recovered_backfill is not None
     assert recovered_backfill.snapshot_id < later_commit.snapshot_id
-
