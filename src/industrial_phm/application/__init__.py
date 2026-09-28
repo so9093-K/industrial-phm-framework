@@ -202,6 +202,12 @@ from industrial_phm.application.source_subscription import (
     collect_registered_opcua_source_subscription,
     run_registered_opcua_subscription_cycle,
 )
+from industrial_phm.application.window_coordinator import (
+    ContinuousObservationWindowCoordinatorResult,
+    ObservationWindowCoordinatorCycleResult,
+    ObservationWindowCoordinatorPolicy,
+    OpcUaHistoricalEventReader,
+)
 
 __all__ = [
     "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
@@ -229,6 +235,7 @@ __all__ = [
     "AttentionKind",
     "ChannelIdentity",
     "ComponentIdentity",
+    "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
     "FieldAnalysisHistoryFormatError",
     "FileSourceConfig",
@@ -257,6 +264,8 @@ __all__ = [
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",
     "ObservationWindowCompleteness",
+    "ObservationWindowCoordinatorCycleResult",
+    "ObservationWindowCoordinatorPolicy",
     "ObservationWindowEventDisposition",
     "ObservationWindowFormatError",
     "ObservationWindowIngestResult",
@@ -266,6 +275,7 @@ __all__ = [
     "OpcUaEventTimeEvidence",
     "OpcUaEventTimePolicy",
     "OpcUaHistoricalBatchStore",
+    "OpcUaHistoricalEventReader",
     "OpcUaPersistentDataChangeEvent",
     "OpcUaPersistentSessionEvidence",
     "OpcUaPersistentSessionEvidenceSink",

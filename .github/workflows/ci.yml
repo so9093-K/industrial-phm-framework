@@ -75,7 +75,8 @@ jobs:
         run: |
           uv run --locked --extra history pytest \
             tests/contract/test_ducklake_runtime.py \
-            tests/contract/test_spool_ducklake_writer.py
+            tests/contract/test_spool_ducklake_writer.py \
+            tests/contract/test_window_coordinator_ducklake.py
 
       - name: Build package
         run: uv build

@@ -270,9 +270,19 @@ DuckLake commit 성공과 spool ACK 사이에서 process가 종료될 수 있으
 
 ### Window coordinator crash
 
-Finalized durable window는 재사용할 수 있고, 아직 finalize되지 않은 window state는 raw history를 source of
-truth로 사용해 rebuild 가능한 방향을 유지합니다. #257의 in-memory buffer 자체를 historical truth로
-승격하지 않습니다.
+Window coordinator는 DuckLake raw OPC UA history를 `ingested_at → connection_epoch → event_index` 순서로
+deterministic replay하고, fixed alignment window와 bounded-out-of-orderness watermark
+`max(valid event_at seen) - allowed_lateness`를 다시 계산합니다. Future-skew와 timing-unavailable event는
+watermark를 전진시키지 않습니다.
+
+Finalized window의 `finalized_at`은 wall clock이 아니라 해당 watermark를 전진시킨 durable event의
+`ingested_at`을 사용합니다. 따라서 process restart 후 in-memory buffer가 사라져도 같은 raw history에서
+같은 finalized window evidence를 재구성해 repository에 idempotently 기록할 수 있습니다.
+
+이미 close된 window에 뒤늦게 도착한 event는 #257 `LATE` disposition evidence로 남기지만 persisted window를
+사후 변경하지 않습니다. Finalized durable window는 재사용하고, 아직 finalize되지 않은 window state는 raw
+history를 source of truth로 rebuild합니다. #257의 in-memory buffer 자체를 historical truth로 승격하지
+않습니다.
 
 ### Operations UI restart
 
@@ -291,7 +301,9 @@ UI restart나 browser close는 collector stop을 의미하지 않습니다. UI�
 9. #266 — historical backfill → same Asset history
 10. #267 — reconnect/crash/replay/overflow/restart/soak 검증
 
-#262가 끝나기 전에는 Operations의 Start Collection을 durable product capability로 표현하지 않습니다.
+#265의 runtime ownership/control surface가 끝나기 전에는 Operations의 Start Collection을 durable product
+capability로 표현하지 않습니다. #262까지는 live event가 DuckLake history에 도달하고, #263은 그 history에서
+derived window를 재구성하는 data-plane 경계를 완성합니다.
 
 ## 10. 비목표
 
