@@ -20,6 +20,7 @@ from industrial_phm.application.asset_detail import (
 from industrial_phm.application.asset_history import (
     AssetHistoryReader,
     HistoricalBatchCommit,
+    HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
     HistoricalMeasurement,
     HistoryIngestionMode,
@@ -63,6 +64,12 @@ from industrial_phm.application.finding_review import (
     JsonOperationalFindingRepository,
     OperationalFindingHistoryFormatError,
     create_human_review_finding,
+)
+from industrial_phm.application.history_writer import (
+    OpcUaHistoricalBatchStore,
+    SpoolHistoryBatchWriteResult,
+    SpoolHistoryWriterResult,
+    SpoolToHistoryWriterPolicy,
 )
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
@@ -204,6 +211,7 @@ __all__ = [
     "AcquisitionSpoolFormatError",
     "AcquisitionSpoolFullError",
     "AcquisitionSpoolStateError",
+    "AcquisitionSpoolPendingStats",
     "AnalysisRun",
     "AssetDetail",
     "AssetEvidenceEvent",
@@ -232,6 +240,7 @@ __all__ = [
     "FindingReviewHistoryFormatError",
     "FindingReviewStatus",
     "HistoricalBatchCommit",
+    "HistoricalBatchConflictError",
     "HistoricalEventTimeBasis",
     "HistoricalMeasurement",
     "HistoryIngestionMode",
@@ -253,6 +262,7 @@ __all__ = [
     "ObservationWindowRepository",
     "OpcUaAcquisitionWorkerResult",
     "OpcUaEventTimeBasis",
+    "OpcUaHistoricalBatchStore",
     "OpcUaEventTimeEvidence",
     "OpcUaEventTimePolicy",
     "OpcUaPersistentDataChangeEvent",
@@ -278,6 +288,9 @@ __all__ = [
     "RegisteredOpcUaSubscriptionCycleResult",
     "RegisteredSource",
     "SourceAlreadyRegisteredError",
+    "SpoolHistoryBatchWriteResult",
+    "SpoolHistoryWriterResult",
+    "SpoolToHistoryWriterPolicy",
     "SourceConnectionAttemptEvidence",
     "SourceConnectionAttemptOperation",
     "SourceConnectionAttemptOutcome",
