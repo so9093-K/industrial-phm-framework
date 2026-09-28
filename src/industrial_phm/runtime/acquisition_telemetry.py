@@ -83,27 +83,11 @@ class SqliteAcquisitionTelemetryRepository:
         }
         return AcquisitionTelemetrySnapshot(
             source_id=source_id,
-            session=(
-                None
-                if _SESSION not in payloads
-                else _parse_session(payloads[_SESSION])
-            ),
+            session=(None if _SESSION not in payloads else _parse_session(payloads[_SESSION])),
             flow=None if _FLOW not in payloads else _parse_flow(payloads[_FLOW]),
-            history=(
-                None
-                if _HISTORY not in payloads
-                else _parse_history(payloads[_HISTORY])
-            ),
-            window=(
-                None
-                if _WINDOW not in payloads
-                else _parse_window(payloads[_WINDOW])
-            ),
-            failure=(
-                None
-                if _FAILURE not in payloads
-                else _parse_failure(payloads[_FAILURE])
-            ),
+            history=(None if _HISTORY not in payloads else _parse_history(payloads[_HISTORY])),
+            window=(None if _WINDOW not in payloads else _parse_window(payloads[_WINDOW])),
+            failure=(None if _FAILURE not in payloads else _parse_failure(payloads[_FAILURE])),
         )
 
     def list_snapshots(self) -> tuple[AcquisitionTelemetrySnapshot, ...]:
@@ -115,10 +99,7 @@ class SqliteAcquisitionTelemetryRepository:
             ).fetchall()
         finally:
             connection.close()
-        return tuple(
-            self.get(_require_str(row[0], "source_id"))
-            for row in rows
-        )
+        return tuple(self.get(_require_str(row[0], "source_id")) for row in rows)
 
     def record_session_configuration(
         self,
@@ -187,9 +168,7 @@ class SqliteAcquisitionTelemetryRepository:
             return
 
         if current is None:
-            raise ValueError(
-                "session telemetry must begin with DISCONNECTED evidence"
-            )
+            raise ValueError("session telemetry must begin with DISCONNECTED evidence")
         if evidence.changed_at < current.state_changed_at:
             raise ValueError("session evidence changed_at must not move backwards")
 
@@ -219,9 +198,7 @@ class SqliteAcquisitionTelemetryRepository:
             last_disconnect_at=last_disconnect_at,
             detail=evidence.detail,
             callback_queue_maxsize=(
-                queue_maxsize
-                if queue_maxsize is not None
-                else current.callback_queue_maxsize
+                queue_maxsize if queue_maxsize is not None else current.callback_queue_maxsize
             ),
             callback_queue_depth=current.callback_queue_depth,
             callback_queue_high_watermark=current.callback_queue_high_watermark,
@@ -306,12 +283,10 @@ class SqliteAcquisitionTelemetryRepository:
             worker_started_at=current.worker_started_at,
             accepted_event_count=current.accepted_event_count + 1,
             replayed_event_count=(
-                current.replayed_event_count
-                + int(event.event.notification.replayed)
+                current.replayed_event_count + int(event.event.notification.replayed)
             ),
             bad_status_event_count=(
-                current.bad_status_event_count
-                + int(not observation.status_good)
+                current.bad_status_event_count + int(not observation.status_good)
             ),
             updated_at=event.event_time.ingested_at,
             last_delivery_identity=identity,
@@ -386,15 +361,11 @@ class SqliteAcquisitionTelemetryRepository:
             active_window_count=cycle.active_window_count,
             finalized_window_count=cycle.finalized_window_count,
             historical_event_count=cycle.historical_event_count,
-            in_order_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.IN_ORDER
-            ),
+            in_order_count=cycle.disposition_count(ObservationWindowEventDisposition.IN_ORDER),
             out_of_order_count=cycle.disposition_count(
                 ObservationWindowEventDisposition.OUT_OF_ORDER
             ),
-            late_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.LATE
-            ),
+            late_count=cycle.disposition_count(ObservationWindowEventDisposition.LATE),
             timing_unavailable_count=cycle.disposition_count(
                 ObservationWindowEventDisposition.TIMING_UNAVAILABLE
             ),
@@ -407,15 +378,9 @@ class SqliteAcquisitionTelemetryRepository:
             buffer_full_count=cycle.disposition_count(
                 ObservationWindowEventDisposition.BUFFER_FULL
             ),
-            duplicate_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.DUPLICATE
-            ),
-            last_finalized_window_id=(
-                None if last_window is None else last_window.window_id
-            ),
-            last_finalized_window_end=(
-                None if last_window is None else last_window.window_end
-            ),
+            duplicate_count=cycle.disposition_count(ObservationWindowEventDisposition.DUPLICATE),
+            last_finalized_window_id=(None if last_window is None else last_window.window_id),
+            last_finalized_window_end=(None if last_window is None else last_window.window_end),
         )
         self._write_component(
             cycle.source_id,
@@ -503,9 +468,7 @@ class SqliteAcquisitionTelemetryRepository:
                 )
                 current_payload = _require_str(current[1], "payload_json")
                 if updated_at < current_at:
-                    raise ValueError(
-                        f"{component} telemetry updated_at must not move backwards"
-                    )
+                    raise ValueError(f"{component} telemetry updated_at must not move backwards")
                 if updated_at == current_at:
                     if rendered != current_payload:
                         raise ValueError(
@@ -605,9 +568,7 @@ def _parse_session(value: Mapping[str, object]) -> AcquisitionSessionTelemetry:
             value.get("worker_started_at"),
             "worker_started_at",
         ),
-        state=OpcUaPersistentSessionState(
-            _require_str(value.get("state"), "state")
-        ),
+        state=OpcUaPersistentSessionState(_require_str(value.get("state"), "state")),
         state_changed_at=_require_datetime(
             value.get("state_changed_at"),
             "state_changed_at",
@@ -657,13 +618,9 @@ def _serialize_flow(value: AcquisitionFlowTelemetry) -> dict[str, object]:
         "bad_status_event_count": value.bad_status_event_count,
         "updated_at": value.updated_at.isoformat(),
         "last_delivery_identity": (
-            None
-            if value.last_delivery_identity is None
-            else list(value.last_delivery_identity)
+            None if value.last_delivery_identity is None else list(value.last_delivery_identity)
         ),
-        "last_source_timestamp": _format_optional_datetime(
-            value.last_source_timestamp
-        ),
+        "last_source_timestamp": _format_optional_datetime(value.last_source_timestamp),
         "last_received_at": _format_optional_datetime(value.last_received_at),
         "last_ingested_at": _format_optional_datetime(value.last_ingested_at),
     }
@@ -774,9 +731,7 @@ def _serialize_window(value: AcquisitionWindowTelemetry) -> dict[str, object]:
         "buffer_full_count": value.buffer_full_count,
         "duplicate_count": value.duplicate_count,
         "last_finalized_window_id": value.last_finalized_window_id,
-        "last_finalized_window_end": _format_optional_datetime(
-            value.last_finalized_window_end
-        ),
+        "last_finalized_window_end": _format_optional_datetime(value.last_finalized_window_end),
     }
 
 
@@ -846,9 +801,7 @@ def _serialize_failure(value: AcquisitionFailureTelemetry) -> dict[str, object]:
 def _parse_failure(value: Mapping[str, object]) -> AcquisitionFailureTelemetry:
     return AcquisitionFailureTelemetry(
         source_id=_require_str(value.get("source_id"), "source_id"),
-        component=AcquisitionFailureComponent(
-            _require_str(value.get("component"), "component")
-        ),
+        component=AcquisitionFailureComponent(_require_str(value.get("component"), "component")),
         occurred_at=_require_datetime(value.get("occurred_at"), "occurred_at"),
         detail=_require_str(value.get("detail"), "detail"),
     )
@@ -862,9 +815,7 @@ def _require_mapping_json(value: str) -> Mapping[str, object]:
             "telemetry payload_json must contain valid JSON"
         ) from error
     if not isinstance(parsed, dict):
-        raise AcquisitionTelemetryFormatError(
-            "telemetry payload_json must contain a JSON object"
-        )
+        raise AcquisitionTelemetryFormatError("telemetry payload_json must contain a JSON object")
     return cast(Mapping[str, object], parsed)
 
 
@@ -900,9 +851,7 @@ def _require_bool(value: object, field_name: str) -> bool:
 
 def _require_datetime(value: object, field_name: str) -> datetime:
     if not isinstance(value, str):
-        raise AcquisitionTelemetryFormatError(
-            f"{field_name} must be an ISO datetime string"
-        )
+        raise AcquisitionTelemetryFormatError(f"{field_name} must be an ISO datetime string")
     return _parse_datetime(value, field_name)
 
 
@@ -916,9 +865,7 @@ def _parse_datetime(value: str, field_name: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError as error:
-        raise AcquisitionTelemetryFormatError(
-            f"{field_name} must be valid ISO datetime"
-        ) from error
+        raise AcquisitionTelemetryFormatError(f"{field_name} must be valid ISO datetime") from error
     _validate_aware_datetime(parsed, field_name)
     return parsed
 
