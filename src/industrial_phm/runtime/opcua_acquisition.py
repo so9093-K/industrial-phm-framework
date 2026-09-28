@@ -173,9 +173,7 @@ async def run_registered_opcua_acquisition_worker(
                 OpcUaPersistentSessionState.CONNECTING,
             }:
                 detail = (
-                    "subscription-queue-overflow"
-                    if overflow_pending
-                    else "asyncua-reconnecting"
+                    "subscription-queue-overflow" if overflow_pending else "asyncua-reconnecting"
                 )
                 overflow_pending = False
                 _transition(
