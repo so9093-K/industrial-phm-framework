@@ -227,9 +227,7 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
     _require_duckdb()
     source_path = tmp_path / "historical.csv"
     source_path.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-28T01:00:01+00:00,10.0\n"
-        "2026-09-28T01:00:02+00:00,11.0\n",
+        "timestamp,vibration_x\n2026-09-28T01:00:01+00:00,10.0\n2026-09-28T01:00:02+00:00,11.0\n",
         encoding="utf-8",
     )
     sources = InMemorySourceRepository()
@@ -284,11 +282,7 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
         HistoryIngestionMode.LIVE,
     }
     assert {item.source_type.value for item in measurements} == {"file", "opcua"}
-    overlap = [
-        item
-        for item in measurements
-        if item.event_at == BASE + timedelta(seconds=2)
-    ]
+    overlap = [item for item in measurements if item.event_at == BASE + timedelta(seconds=2)]
     assert len(overlap) == 2
     assert {item.source_id for item in overlap} == {"file-source", "source-a"}
 
@@ -304,19 +298,20 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
         "file-source",
     )
     assert repeated.recovered_segment_count == 1
-    assert len(
-        repository.query_measurements(
-            "pump-01",
-            start_at=BASE,
-            end_at=BASE + timedelta(minutes=1),
+    assert (
+        len(
+            repository.query_measurements(
+                "pump-01",
+                start_at=BASE,
+                end_at=BASE + timedelta(minutes=1),
+            )
         )
-    ) == 3
+        == 3
+    )
     assert repeated.history_snapshot_id >= backfill.history_snapshot_id
 
     source_path.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-28T01:00:01+00:00,20.0\n"
-        "2026-09-28T01:00:02+00:00,21.0\n",
+        "timestamp,vibration_x\n2026-09-28T01:00:01+00:00,20.0\n2026-09-28T01:00:02+00:00,21.0\n",
         encoding="utf-8",
     )
     changed_snapshot = backfill_registered_file_source(
@@ -336,22 +331,18 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
     same_file_time = [
         item
         for item in after_change
-        if item.source_id == "file-source"
-        and item.event_at == BASE + timedelta(seconds=2)
+        if item.source_id == "file-source" and item.event_at == BASE + timedelta(seconds=2)
     ]
     assert len(same_file_time) == 2
     assert {item.value for item in same_file_time} == {11.0, 21.0}
     assert len({item.raw_evidence_id for item in same_file_time}) == 2
 
 
-
 def test_backfill_source_cli_reports_snapshot_and_recovers(tmp_path, capsys) -> None:
     _require_duckdb()
     source_path = tmp_path / "historical.csv"
     source_path.write_text(
-        "timestamp,vibration_x\n"
-        "2026-09-28T01:00:01+00:00,1.0\n"
-        "2026-09-28T01:00:02+00:00,2.0\n",
+        "timestamp,vibration_x\n2026-09-28T01:00:01+00:00,1.0\n2026-09-28T01:00:02+00:00,2.0\n",
         encoding="utf-8",
     )
     registry_path = tmp_path / "sources.json"
