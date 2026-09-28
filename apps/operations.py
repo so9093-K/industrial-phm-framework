@@ -289,6 +289,18 @@ def _(
         "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
         "artifacts/operations/source-runtime.json",
     )
+    collection_control_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
+        "artifacts/operations/collection-control.sqlite",
+    )
+    acquisition_telemetry_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
+        "artifacts/operations/acquisition-telemetry.sqlite",
+    )
+    acquisition_spool_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
+        "artifacts/operations/acquisition-spool.sqlite",
+    )
     try:
         _source_repository = JsonSourceRepository(Path(source_registry_default))
         initial_registered_sources = _source_repository.list_sources()
@@ -345,6 +357,9 @@ def _(
         initial_source_runtime_connection_attempts,
         initial_source_runtime_error,
         initial_source_runtime_receipts,
+        acquisition_spool_default,
+        acquisition_telemetry_default,
+        collection_control_default,
         source_registry_default,
         source_runtime_default,
     )
