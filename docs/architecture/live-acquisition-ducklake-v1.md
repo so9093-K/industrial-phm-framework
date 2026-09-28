@@ -253,7 +253,14 @@ late/out-of-order/replayed counts를 다룰 수 있습니다.
 ### DuckLake writer failure
 
 DuckLake transaction이 실패하면 batch의 spool delivery를 acknowledge하지 않습니다. Retry는 stable batch/local
-delivery identity를 사용합니다.
+delivery identity를 사용합니다. Writer는 max events / max bytes / max interval 중 하나가 충족될 때 micro-batch를
+assign하고, DuckLake commit 성공 뒤에만 spool ACK를 수행합니다.
+
+DuckLake commit 성공과 spool ACK 사이에서 process가 종료될 수 있으므로 batch identity 자체도 durable해야 합니다.
+각 historical batch snapshot에는 `batch_id`, ingestion mode, event count, canonical event fingerprint를
+`commit_extra_info` provenance로 기록합니다. Restart 후 같은 active spool batch가 보이면 이 provenance가
+정확히 일치하는 기존 snapshot을 복구하고 새 historical row를 쓰지 않은 채 ACK를 완료합니다. 같은 batch ID에
+다른 event set/provenance가 대응하면 fail-fast conflict입니다.
 
 ### Window coordinator crash
 
