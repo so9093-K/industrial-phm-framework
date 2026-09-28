@@ -161,14 +161,13 @@ class OpcUaPersistentSubscription:
         deadline = None if timeout is None else loop.time() + timeout
 
         while True:
-            remaining = None if deadline is None else max(0.0, deadline - loop.time())
-            if deadline is not None and remaining <= 0.0:
-                raise TimeoutError
-            raw_state = (
-                await state_subscription.next_change()
-                if remaining is None
-                else await state_subscription.next_change(remaining)
-            )
+            if deadline is None:
+                raw_state = await state_subscription.next_change()
+            else:
+                remaining = max(0.0, deadline - loop.time())
+                if remaining <= 0.0:
+                    raise TimeoutError
+                raw_state = await state_subscription.next_change(remaining)
             state_name = getattr(raw_state, "name", None)
             if state_name == "RECONNECTING":
                 state = OpcUaConnectorConnectionState.RECONNECTING
