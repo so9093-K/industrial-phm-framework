@@ -22,6 +22,8 @@
 
 ### Added
 
+- DuckLake raw OPC UA history를 deterministic durable-ingestion order로 replay하는 continuous observation-window coordinator를 추가했습니다. Fixed alignment window와 `max(valid event_at seen) - allowed_lateness` watermark policy를 적용하고 #257의 IN_ORDER / OUT_OF_ORDER / LATE / TIMING_UNAVAILABLE / UNEXPECTED_CHANNEL / FUTURE_TIMESTAMP / BUFFER_FULL 의미를 유지합니다. Finalization 시각은 wall clock이 아니라 watermark를 전진시킨 durable event의 `ingested_at`을 사용해 restart 후 동일 history에서 동일 finalized window를 재구성합니다. Closed-window late event는 factual LATE evidence로 반환하지만 이미 persisted된 window를 사후 수정하지 않습니다.
+
 - spool-to-DuckLake micro-batch writer를 추가했습니다. Durable spool의 unassigned event를 max events / max bytes / max interval policy로 stable batch에 묶고, DuckLake historical transaction이 성공한 뒤에만 spool에서 acknowledge합니다. DuckLake snapshot commit_extra_info에 batch ID, ingestion mode, event count와 canonical event fingerprint를 기록해 commit 성공 직후/ACK 직전 crash가 발생해도 같은 active batch를 기존 snapshot으로 복구하고 중복 historical row 없이 ACK를 완료합니다. 같은 batch ID의 다른 payload는 conflict로 fail-fast합니다.
 
 - ACTIVE registered OPC UA source를 위한 long-lived OPC UA acquisition worker를 추가했습니다. asyncua 2.0.1의 auto-reconnect와 subscription recreation/Republish를 사용하고, 공개 connection state transition을 #256 `RECONNECT_WAIT → CONNECTING → CONNECTED` evidence로 projection합니다. DataChange는 replay flag와 protocol timestamp/quality를 보존해 #260 SQLite WAL spool에 durable acceptance하며 connection epoch별 local event index를 관리합니다. Bounded subscription queue overflow는 명시적 evidence로 기록한 뒤 reconnect를 강제하고, graceful stop/spool failure는 source lifecycle이나 asset health verdict로 승격하지 않습니다.
