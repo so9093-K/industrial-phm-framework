@@ -10,6 +10,14 @@ from industrial_phm.application.asset_detail import (
     build_asset_detail,
     list_operational_asset_identities,
 )
+from industrial_phm.application.asset_history import (
+    AssetHistoryReader,
+    HistoricalBatchCommit,
+    HistoricalEventTimeBasis,
+    HistoricalMeasurement,
+    HistoryIngestionMode,
+    validate_asset_history_query,
+)
 from industrial_phm.application.asset_identity import (
     AssetIdentity,
     ChannelIdentity,
@@ -180,6 +188,11 @@ __all__ = [
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
     "AnalysisRun",
+    "AssetHistoryReader",
+    "HistoricalBatchCommit",
+    "HistoricalEventTimeBasis",
+    "HistoricalMeasurement",
+    "HistoryIngestionMode",
     "AssetDetail",
     "AssetEvidenceEvent",
     "AssetEvidenceEventKind",
@@ -298,6 +311,7 @@ __all__ = [
     "run_registered_opcua_source_cycle",
     "run_registered_opcua_subscription_cycle",
     "transition_source_lifecycle",
+    "validate_asset_history_query",
     "validate_distinct_source_state_paths",
     "validate_opcua_persistent_session_transition",
     "validate_operational_finding_against_run",
