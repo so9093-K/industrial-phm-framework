@@ -163,6 +163,7 @@ def render_collection_monitor_markdown(
         f"| Telemetry sampled at | {spool.sampled_at.isoformat()} |"
     )
 
+
 def render_asset_analysis_markdown(detail: AssetDetail) -> str | None:
     """Render recorded AnalysisRun identity, capability and source provenance."""
     if not isinstance(detail, AssetDetail):
