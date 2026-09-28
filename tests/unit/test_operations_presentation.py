@@ -345,7 +345,6 @@ def test_quality_presenter_returns_none_without_recorded_issue() -> None:
     assert render_data_quality_issues_markdown(observation) is None
 
 
-
 def test_collection_monitor_separates_desired_and_observed_runtime() -> None:
     lifecycle = SourceLifecycleRecord(
         source_id="source-a",
