@@ -290,6 +290,25 @@ def test_worker_stops_and_preserves_active_lifecycle_when_spool_rejects_event(
     tmp_path: Path,
 ) -> None:
     class _FailingSpool:
+        def __init__(self) -> None:
+            self.connection_epoch = 0
+
+        def get_last_connection_epoch(self, source_id: str) -> int:
+            del source_id
+            return self.connection_epoch
+
+        def reserve_next_connection_epoch(
+            self,
+            source_id: str,
+            *,
+            expected_previous_epoch: int,
+        ) -> int:
+            del source_id
+            if self.connection_epoch != expected_previous_epoch:
+                raise AssertionError("unexpected epoch baseline")
+            self.connection_epoch += 1
+            return self.connection_epoch
+
         def accept_opcua_event(self, *args, **kwargs):
             del args, kwargs
             raise AcquisitionSpoolFullError("spool full")
@@ -359,3 +378,80 @@ def test_worker_rejects_reconnect_policy_asyncua_cannot_honor(tmp_path: Path) ->
                 connector_factory=lambda _config: _FakePersistentConnector(),
             )
         )
+
+
+def test_worker_process_restart_reserves_new_connection_epoch(tmp_path: Path) -> None:
+    async def _run() -> None:
+        repository, source = _repositories(tmp_path)
+        spool_path = tmp_path / "spool.sqlite"
+
+        first_spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(spool_path))
+        first_sink = InMemoryOpcUaPersistentSessionEvidenceSink()
+        first_connector = _FakePersistentConnector()
+        first_stop = asyncio.Event()
+        first_worker = asyncio.create_task(
+            run_registered_opcua_acquisition_worker(
+                repository,
+                repository,
+                first_spool,
+                first_sink,
+                source.source_id,
+                stop_event=first_stop,
+                connector_factory=lambda _config: first_connector,
+            )
+        )
+        await first_connector.started.wait()
+        await first_connector.notifications.put(
+            _notification(channel_id="vibration_x", value=1.0)
+        )
+        await _wait_until(lambda: first_spool.pending_event_count() == 1)
+        first_stop.set()
+        await first_worker
+
+        assert first_spool.get_last_connection_epoch(source.source_id) == 1
+
+        restarted_spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(spool_path))
+        second_sink = InMemoryOpcUaPersistentSessionEvidenceSink()
+        second_connector = _FakePersistentConnector()
+        second_stop = asyncio.Event()
+        second_worker = asyncio.create_task(
+            run_registered_opcua_acquisition_worker(
+                repository,
+                repository,
+                restarted_spool,
+                second_sink,
+                source.source_id,
+                stop_event=second_stop,
+                connector_factory=lambda _config: second_connector,
+            )
+        )
+        await second_connector.started.wait()
+        await second_connector.notifications.put(
+            _notification(channel_id="temperature", value=80.0)
+        )
+        await _wait_until(lambda: restarted_spool.pending_event_count() == 2)
+        second_stop.set()
+        await second_worker
+
+        second_evidence = second_sink.list_session_evidence()
+        assert second_evidence[0].state == OpcUaPersistentSessionState.DISCONNECTED
+        assert second_evidence[0].connection_epoch == 1
+        assert next(
+            item
+            for item in second_evidence
+            if item.state == OpcUaPersistentSessionState.CONNECTED
+        ).connection_epoch == 2
+        assert restarted_spool.get_last_connection_epoch(source.source_id) == 2
+
+        batch = restarted_spool.assign_next_batch(
+            batch_id="restart-inspect",
+            max_events=10,
+            created_at=datetime.now(UTC),
+        )
+        assert batch is not None
+        assert [event.local_delivery_identity for event in batch.events] == [
+            ("opcua-source", 1, 0),
+            ("opcua-source", 2, 0),
+        ]
+
+    asyncio.run(_run())
