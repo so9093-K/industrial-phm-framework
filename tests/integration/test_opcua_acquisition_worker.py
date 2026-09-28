@@ -148,7 +148,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         await connector.notifications.put(_notification(channel_id="vibration_x", value=1.0))
         await _wait_until(lambda: spool.pending_event_count() == 1)
 
-        now = datetime.now(UTC) - timedelta(seconds=1)
+        now = sink.list_session_evidence()[-1].changed_at
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.RECONNECTING,
@@ -158,13 +158,13 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.CONNECTING,
-                now + timedelta(milliseconds=1),
+                now,
             )
         )
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.CONNECTED,
-                now + timedelta(milliseconds=2),
+                now,
             )
         )
         await _wait_until(
@@ -246,24 +246,24 @@ def test_worker_records_queue_overflow_before_reconnect(tmp_path: Path) -> None:
         await connector.started.wait()
         await asyncio.sleep(0)
 
-        now = datetime.now(UTC)
+        now = sink.list_session_evidence()[-1].changed_at
         await connector.overflows.put(OpcUaConnectorQueueOverflow(now))
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.RECONNECTING,
-                now + timedelta(milliseconds=1),
+                now,
             )
         )
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.CONNECTING,
-                now + timedelta(milliseconds=2),
+                now,
             )
         )
         await connector.states.put(
             OpcUaConnectorStateEvent(
                 OpcUaConnectorConnectionState.CONNECTED,
-                now + timedelta(milliseconds=3),
+                now,
             )
         )
         await _wait_until(
