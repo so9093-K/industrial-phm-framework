@@ -23,13 +23,6 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionWindowTelemetry,
     build_acquisition_telemetry_surface,
 )
-from industrial_phm.application.backfill import (
-    FileBackfillEvent,
-    FileBackfillResult,
-    FileBackfillSegmentResult,
-    FileHistoricalBatchStore,
-    backfill_registered_file_source,
-)
 from industrial_phm.application.asset_detail import (
     AssetDetail,
     AssetEvidenceEvent,
@@ -49,6 +42,13 @@ from industrial_phm.application.asset_history import (
     HistoricalMeasurement,
     HistoryIngestionMode,
     validate_asset_history_query,
+)
+from industrial_phm.application.backfill import (
+    FileBackfillEvent,
+    FileBackfillResult,
+    FileBackfillSegmentResult,
+    FileHistoricalBatchStore,
+    backfill_registered_file_source,
 )
 from industrial_phm.application.asset_identity import (
     AssetIdentity,
@@ -286,7 +286,6 @@ __all__ = [
     "FileBackfillResult",
     "FileBackfillSegmentResult",
     "FileHistoricalBatchStore",
-    "HistoricalInputReference",
     "FileSourceConfig",
     "FileSourceDiscovery",
     "FileSourceDiscoveryError",
@@ -299,6 +298,7 @@ __all__ = [
     "HistoricalBatchCommit",
     "HistoricalBatchConflictError",
     "HistoricalEventTimeBasis",
+    "HistoricalInputReference",
     "HistoricalMeasurement",
     "HistoryIngestionMode",
     "InMemoryOpcUaPersistentSessionEvidenceSink",
