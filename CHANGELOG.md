@@ -22,6 +22,8 @@
 
 ### Added
 
+- DuckLake 기반 historical Asset History boundary를 추가했습니다. Optional `history` runtime은 SQLite catalog + local Parquet DuckLake를 bootstrap하고 OPC UA persistent DataChange batch의 raw protocol/timing/replay evidence와 normalized asset/measurement/channel history를 하나의 transaction에 기록합니다. Commit은 DuckLake snapshot ID/time을 반환하며 asset event-time range query와 local delivery identity 기반 raw-event round-trip을 제공합니다. DuckLake는 ingress queue/WAL 역할을 하지 않으며 duplicate batch ID를 거부합니다.
+
 - `Live Acquisition & DuckLake Asset History v1` architecture boundary를 추가했습니다. Continuous source worker, bounded callback queue, SQLite WAL durable ingress spool, DuckLake historical Asset History, derived observation window와 PHM evidence의 ownership을 분리하고, Live/Backfill 통합 provenance, at-least-once compatible delivery, restart semantics와 #259~#267 구현 순서를 고정했습니다. DuckLake를 callback queue/WAL로 사용하거나 acquisition health를 asset health로 승격하지 않습니다.
 
 - Explicit event-time range와 caller-owned monotonic watermark를 사용하는 bounded `ObservationWindowBuffer`와 finalized `DurableObservationWindow`, `industrial-phm-observation-window-v1` JSON repository를 추가했습니다. In-order/out-of-order, late, local-delivery duplicate, timing unavailable, unexpected channel, outside-window, future clock-skew, buffer-full을 factual disposition으로 구분하고 finalized window에 rejection count와 accepted event의 원본 protocol/timing evidence를 보존합니다. COMPLETE는 expected-channel coverage일 뿐 synchronized/gap-free/exactly-once/analysis-ready 의미가 아니며 partial in-memory buffer는 아직 durable하지 않습니다.
