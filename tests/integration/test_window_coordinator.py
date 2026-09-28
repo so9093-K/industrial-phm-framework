@@ -274,7 +274,6 @@ def test_coordinator_preserves_buffer_full_disposition(tmp_path: Path) -> None:
     assert window.accepted_event_count == 2
 
 
-
 def test_continuous_window_coordinator_records_latest_telemetry(tmp_path: Path) -> None:
     async def _run() -> None:
         events = (
@@ -297,9 +296,7 @@ def test_continuous_window_coordinator_records_latest_telemetry(tmp_path: Path) 
                 ingested_at=BASE + timedelta(seconds=15.1),
             ),
         )
-        telemetry = SqliteAcquisitionTelemetryRepository(
-            tmp_path / "acquisition-telemetry.sqlite"
-        )
+        telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
         stop_event = asyncio.Event()
         task = asyncio.create_task(
             run_continuous_registered_opcua_observation_windows(
