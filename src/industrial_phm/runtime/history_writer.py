@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections import Counter
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -12,6 +14,11 @@ from industrial_phm.application.acquisition_spool import (
     AcquisitionSpool,
     AcquisitionSpoolPendingStats,
     AcquisitionSpoolStateError,
+)
+from industrial_phm.application.acquisition_telemetry import (
+    AcquisitionFailureComponent,
+    AcquisitionFailureTelemetry,
+    AcquisitionTelemetryRecorder,
 )
 from industrial_phm.application.asset_history import HistoryIngestionMode
 from industrial_phm.application.history_writer import (
@@ -23,6 +30,7 @@ from industrial_phm.application.history_writer import (
 
 BatchIdFactory = Callable[[], str]
 NowFunction = Callable[[], datetime]
+_LOGGER = logging.getLogger(__name__)
 
 
 def write_next_spool_batch(
@@ -32,6 +40,7 @@ def write_next_spool_batch(
     policy: SpoolToHistoryWriterPolicy | None = None,
     batch_id_factory: BatchIdFactory = lambda: f"live-{uuid4()}",
     now_fn: NowFunction = lambda: datetime.now(UTC),
+    telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     force: bool = False,
 ) -> SpoolHistoryBatchWriteResult | None:
     """Commit and acknowledge one due/active spool batch.
@@ -72,48 +81,75 @@ def write_next_spool_batch(
                 "pending spool events disappeared before batch assignment"
             )
 
-    existing = history.get_opcua_batch_commit(
-        batch.events,
-        batch_id=batch.batch_id,
-        ingestion_mode=HistoryIngestionMode.LIVE,
-    )
-    recovered_existing_commit = existing is not None
-    commit = (
-        existing
-        if existing is not None
-        else history.append_opcua_batch(
+    try:
+        existing = history.get_opcua_batch_commit(
             batch.events,
             batch_id=batch.batch_id,
             ingestion_mode=HistoryIngestionMode.LIVE,
         )
-    )
-
-    if commit.batch_id != batch.batch_id:
-        raise AcquisitionSpoolStateError(
-            "historical commit batch_id does not match the active spool batch"
-        )
-    if commit.event_count != batch.event_count:
-        raise AcquisitionSpoolStateError(
-            "historical commit event_count does not match the active spool batch"
-        )
-
-    acknowledged_at = _now(now_fn)
-    acknowledged_count = spool.acknowledge_batch(
-        batch.batch_id,
-        acknowledged_at=acknowledged_at,
-    )
-    if acknowledged_count != batch.event_count:
-        raise AcquisitionSpoolStateError(
-            "spool acknowledgement count does not match the committed batch"
+        recovered_existing_commit = existing is not None
+        commit = (
+            existing
+            if existing is not None
+            else history.append_opcua_batch(
+                batch.events,
+                batch_id=batch.batch_id,
+                ingestion_mode=HistoryIngestionMode.LIVE,
+            )
         )
 
-    return SpoolHistoryBatchWriteResult(
+        if commit.batch_id != batch.batch_id:
+            raise AcquisitionSpoolStateError(
+                "historical commit batch_id does not match the active spool batch"
+            )
+        if commit.event_count != batch.event_count:
+            raise AcquisitionSpoolStateError(
+                "historical commit event_count does not match the active spool batch"
+            )
+
+        acknowledged_at = _now(now_fn)
+        acknowledged_count = spool.acknowledge_batch(
+            batch.batch_id,
+            acknowledged_at=acknowledged_at,
+        )
+        if acknowledged_count != batch.event_count:
+            raise AcquisitionSpoolStateError(
+                "spool acknowledgement count does not match the committed batch"
+            )
+    except Exception as error:
+        if telemetry_recorder is not None:
+            failure_at = _now(now_fn)
+            for source_id in sorted({event.source_id for event in batch.events}):
+                _record_telemetry_best_effort(
+                    lambda source_id=source_id: telemetry_recorder.record_failure(
+                        AcquisitionFailureTelemetry(
+                            source_id=source_id,
+                            component=AcquisitionFailureComponent.HISTORY_WRITER,
+                            occurred_at=failure_at,
+                            detail=_failure_detail(error),
+                        )
+                    ),
+                    label="history writer failure",
+                )
+        raise
+
+    result = SpoolHistoryBatchWriteResult(
         commit=commit,
         payload_bytes=batch.payload_bytes,
         write_started_at=write_started_at,
         acknowledged_at=acknowledged_at,
         recovered_existing_commit=recovered_existing_commit,
     )
+    if telemetry_recorder is not None:
+        source_counts = Counter(event.source_id for event in batch.events)
+        _record_telemetry_best_effort(
+            lambda: telemetry_recorder.record_history_batch(
+                result,
+                source_event_counts=dict(source_counts),
+            ),
+            label="history batch",
+        )
+    return result
 
 
 async def run_spool_to_history_writer(
@@ -123,6 +159,7 @@ async def run_spool_to_history_writer(
     stop_event: asyncio.Event,
     policy: SpoolToHistoryWriterPolicy | None = None,
     batch_id_factory: BatchIdFactory = lambda: f"live-{uuid4()}",
+    telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
 ) -> SpoolHistoryWriterResult:
     """Continuously flush due micro-batches until an explicit stop request.
@@ -149,6 +186,7 @@ async def run_spool_to_history_writer(
             policy=effective_policy,
             batch_id_factory=batch_id_factory,
             now_fn=now_fn,
+            telemetry_recorder=telemetry_recorder,
         )
         if result is not None:
             batch_count += 1
@@ -170,6 +208,22 @@ async def run_spool_to_history_writer(
         event_count=event_count,
         recovered_batch_count=recovered_batch_count,
     )
+
+
+def _record_telemetry_best_effort(
+    callback: Callable[[], None],
+    *,
+    label: str,
+) -> None:
+    try:
+        callback()
+    except Exception:
+        _LOGGER.exception("Failed to record acquisition telemetry: %s", label)
+
+
+def _failure_detail(error: Exception) -> str:
+    detail = str(error).strip()
+    return type(error).__name__ if not detail else f"{type(error).__name__}: {detail}"
 
 
 def _flush_due(
