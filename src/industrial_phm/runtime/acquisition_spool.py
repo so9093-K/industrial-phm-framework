@@ -451,12 +451,8 @@ def _encode_event(event: OpcUaPersistentDataChangeEvent) -> str:
                     "status_good": observation.status_good,
                     "status_text": observation.status_text,
                     "variant_type": observation.variant_type,
-                    "source_timestamp": _format_optional_datetime(
-                        observation.source_timestamp
-                    ),
-                    "server_timestamp": _format_optional_datetime(
-                        observation.server_timestamp
-                    ),
+                    "source_timestamp": _format_optional_datetime(observation.source_timestamp),
+                    "server_timestamp": _format_optional_datetime(observation.server_timestamp),
                     "received_at": observation.received_at.isoformat(),
                 },
             },
