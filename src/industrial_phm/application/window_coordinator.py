@@ -9,7 +9,11 @@ from math import isfinite
 from numbers import Real
 from typing import Protocol, runtime_checkable
 
-from industrial_phm.application.observation_window import DurableObservationWindow
+from industrial_phm.application.observation_window import (
+    DurableObservationWindow,
+    ObservationWindowEventDisposition,
+    ObservationWindowIngestResult,
+)
 from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
 
 
@@ -46,42 +50,41 @@ class ObservationWindowCoordinatorCycleResult:
     """One deterministic rebuild/finalization pass over durable source history."""
 
     source_id: str
-    historical_event_count: int
     finalized_windows: Sequence[DurableObservationWindow]
+    event_results: Sequence[ObservationWindowIngestResult]
     watermark: datetime | None
     active_window_count: int
-    timing_unavailable_event_count: int
-    future_timestamp_rejected_count: int
-    closed_window_late_event_count: int
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
-        _validate_non_negative_int(self.historical_event_count, "historical_event_count")
         finalized = tuple(self.finalized_windows)
         if any(not isinstance(item, DurableObservationWindow) for item in finalized):
             raise ValueError("finalized_windows must contain DurableObservationWindow values")
         if tuple(sorted(finalized, key=lambda item: (item.window_start, item.window_id))) != finalized:
             raise ValueError("finalized_windows must use deterministic window order")
+
+        event_results = tuple(self.event_results)
+        if any(not isinstance(item, ObservationWindowIngestResult) for item in event_results):
+            raise ValueError("event_results must contain ObservationWindowIngestResult values")
         if self.watermark is not None:
             _validate_aware_datetime(self.watermark, "watermark")
         _validate_non_negative_int(self.active_window_count, "active_window_count")
-        _validate_non_negative_int(
-            self.timing_unavailable_event_count,
-            "timing_unavailable_event_count",
-        )
-        _validate_non_negative_int(
-            self.future_timestamp_rejected_count,
-            "future_timestamp_rejected_count",
-        )
-        _validate_non_negative_int(
-            self.closed_window_late_event_count,
-            "closed_window_late_event_count",
-        )
         object.__setattr__(self, "finalized_windows", finalized)
+        object.__setattr__(self, "event_results", event_results)
+
+    @property
+    def historical_event_count(self) -> int:
+        return len(self.event_results)
 
     @property
     def finalized_window_count(self) -> int:
         return len(self.finalized_windows)
+
+    def disposition_count(self, disposition: ObservationWindowEventDisposition) -> int:
+        if not isinstance(disposition, ObservationWindowEventDisposition):
+            raise ValueError("disposition must be ObservationWindowEventDisposition")
+        return sum(item.disposition == disposition for item in self.event_results)
+
 
 
 @dataclass(frozen=True, slots=True)
