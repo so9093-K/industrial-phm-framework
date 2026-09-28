@@ -222,6 +222,50 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
 
+    def query_opcua_events(
+        self,
+        source_id: str,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return one source's raw events in deterministic durable-ingestion order."""
+        _validate_identifier(source_id, "source_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT
+                    source_id,
+                    asset_id,
+                    endpoint_url,
+                    measurement_point_id,
+                    channel_id,
+                    node_id,
+                    value,
+                    status_code,
+                    status_good,
+                    status_text,
+                    variant_type,
+                    source_timestamp,
+                    server_timestamp,
+                    received_at,
+                    ingested_at,
+                    event_at,
+                    event_time_basis,
+                    collection_index,
+                    connection_epoch,
+                    event_index,
+                    replayed
+                FROM {_CATALOG_NAME}.raw.opcua_data_change
+                WHERE source_id = ?
+                ORDER BY ingested_at, connection_epoch, event_index, raw_evidence_id
+                """,
+                [source_id],
+            ).fetchall()
+        finally:
+            connection.close()
+
+        return tuple(_opcua_event_from_row(row) for row in rows)
+
     def get_opcua_event(
         self,
         source_id: str,
