@@ -2637,14 +2637,14 @@ def _(
                             caption="Administrative state, not connection proof",
                         ),
                         mo.stat(
-                            "Not instrumented",
-                            label="Connection health",
-                            caption="Registration does not imply connectivity",
+                            "Per source",
+                            label="Live telemetry",
+                            caption="Desired state and observed runtime stay separate",
                         ),
                         mo.stat(
-                            "On-demand",
+                            "Continuous + bounded",
                             label="Runtime actions",
-                            caption="FILE/OPC UA bounded execution",
+                            caption="OPC UA service plus explicit bounded workflows",
                         ),
                     ],
                     widths="equal",
@@ -2698,6 +2698,8 @@ def _(
                         )
                     )
                 ),
+                mo.md("### Continuous collection"),
+                _collection_monitor_view,
                 mo.md("### Runtime execution"),
                 mo.md("#### One-shot observation"),
                 run_active_source_button,
