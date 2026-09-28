@@ -30,6 +30,12 @@
     }
   ],
   "presets": {
+    "boiler": [
+      44033
+    ],
+    "extruder": [
+      44035
+    ],
     "bootstrap": [
       44033,
       44035
