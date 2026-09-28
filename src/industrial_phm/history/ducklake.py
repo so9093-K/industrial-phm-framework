@@ -451,9 +451,7 @@ class DuckLakeAssetHistory:
                 f"historical batch identity is ambiguous: {batch_id}"
             )
 
-        stored_mode = HistoryIngestionMode(
-            _require_str(batch_rows[0][0], "ingestion_mode")
-        )
+        stored_mode = HistoryIngestionMode(_require_str(batch_rows[0][0], "ingestion_mode"))
         stored_count = _require_int(batch_rows[0][1], "event_count")
         if stored_mode != ingestion_mode or stored_count != event_count:
             raise HistoricalBatchConflictError(
@@ -553,9 +551,7 @@ def _parse_commit_extra_info(value: object) -> dict[str, object] | None:
             "DuckLake commit_extra_info must contain valid JSON"
         ) from error
     if not isinstance(parsed, dict):
-        raise HistoricalBatchConflictError(
-            "DuckLake commit_extra_info must contain a JSON object"
-        )
+        raise HistoricalBatchConflictError("DuckLake commit_extra_info must contain a JSON object")
     return parsed
 
 
@@ -581,12 +577,8 @@ def _opcua_batch_fingerprint(
                 "status_good": observation.status_good,
                 "status_text": observation.status_text,
                 "variant_type": observation.variant_type,
-                "source_timestamp": _format_optional_datetime(
-                    observation.source_timestamp
-                ),
-                "server_timestamp": _format_optional_datetime(
-                    observation.server_timestamp
-                ),
+                "source_timestamp": _format_optional_datetime(observation.source_timestamp),
+                "server_timestamp": _format_optional_datetime(observation.server_timestamp),
                 "received_at": observation.received_at.isoformat(),
                 "ingested_at": timing.ingested_at.isoformat(),
                 "event_at": _format_optional_datetime(timing.event_at),
