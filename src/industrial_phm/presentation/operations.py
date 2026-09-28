@@ -5,10 +5,15 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
+from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetrySurface
 from industrial_phm.application.asset_detail import (
     AssetDetail,
     AssetEvidenceEvent,
     AssetEvidenceTimeline,
+)
+from industrial_phm.application.collection_control import (
+    CollectionControlRecord,
+    CollectionDesiredState,
 )
 from industrial_phm.application.observation import (
     AssetObservationSummary,
@@ -21,7 +26,149 @@ from industrial_phm.application.operations_attention import (
 )
 from industrial_phm.application.operations_overview import OperationsOverview
 from industrial_phm.application.source_health import SourceDataFlowState
+from industrial_phm.application.source_lifecycle import SourceLifecycleRecord
 
+
+
+def render_collection_monitor_markdown(
+    source_id: str,
+    lifecycle: SourceLifecycleRecord,
+    control: CollectionControlRecord | None,
+    surface: AcquisitionTelemetrySurface | None,
+) -> str:
+    """Render desired vs observed acquisition facts without a health verdict."""
+    if not isinstance(source_id, str) or not source_id.strip():
+        raise ValueError("source_id must not be empty")
+    if not isinstance(lifecycle, SourceLifecycleRecord):
+        raise ValueError("lifecycle must be SourceLifecycleRecord")
+    if lifecycle.source_id != source_id:
+        raise ValueError("lifecycle source_id must match source_id")
+    if control is not None:
+        if not isinstance(control, CollectionControlRecord):
+            raise ValueError("control must be CollectionControlRecord or None")
+        if control.source_id != source_id:
+            raise ValueError("control source_id must match source_id")
+    if surface is not None and surface.source.source_id != source_id:
+        raise ValueError("telemetry surface source_id must match source_id")
+
+    desired = (
+        CollectionDesiredState.STOPPED
+        if control is None
+        else control.desired_state
+    )
+    desired_detail = (
+        "implicit default · no command recorded"
+        if control is None
+        else f"generation {control.generation} · {control.requested_at.isoformat()}"
+    )
+
+    if surface is None:
+        return (
+            "### Continuous collection\n\n"
+            "Desired state and observed runtime are separate control/evidence dimensions.\n\n"
+            "| Dimension | Value |\n"
+            "| --- | --- |\n"
+            f"| Lifecycle | {lifecycle.state.value} |\n"
+            f"| Desired collection | {desired.value.upper()} |\n"
+            f"| Desired-state evidence | {desired_detail} |\n"
+            "| Observed session | Unavailable |\n"
+            "| Telemetry | Unavailable |\n\n"
+            "No current acquisition telemetry is available. This does not imply an asset "
+            "condition or a successful/failed connection."
+        )
+
+    snapshot = surface.source
+    session = snapshot.session
+    flow = snapshot.flow
+    history = snapshot.history
+    window = snapshot.window
+    failure = snapshot.failure
+    spool = surface.spool
+
+    observed_session = "Unavailable" if session is None else session.state.value.upper()
+    connected_since = (
+        "Unavailable"
+        if session is None or session.connected_since is None
+        else session.connected_since.isoformat()
+    )
+    reconnects = "Unavailable" if session is None else str(session.reconnect_attempt_index)
+    queue_max = (
+        "Uninstrumented"
+        if session is None or session.callback_queue_maxsize is None
+        else str(session.callback_queue_maxsize)
+    )
+    queue_overflow = (
+        "Unavailable" if session is None else str(session.callback_queue_overflow_count)
+    )
+    accepted = "Unavailable" if flow is None else str(flow.accepted_event_count)
+    replayed = "Unavailable" if flow is None else str(flow.replayed_event_count)
+    bad_status = "Unavailable" if flow is None else str(flow.bad_status_event_count)
+    event_rate = None if flow is None else flow.average_event_rate_hz(as_of=spool.sampled_at)
+    event_rate_label = "Unavailable" if event_rate is None else f"{event_rate:.3f} Hz"
+    last_source_timestamp = (
+        "Unavailable"
+        if flow is None or flow.last_source_timestamp is None
+        else flow.last_source_timestamp.isoformat()
+    )
+    last_received = (
+        "Unavailable"
+        if flow is None or flow.last_received_at is None
+        else flow.last_received_at.isoformat()
+    )
+    oldest_age = spool.oldest_pending_age_seconds
+    oldest_age_label = "None" if oldest_age is None else f"{oldest_age:.3f} s"
+    active_batch = spool.active_batch_id or "None"
+    history_label = (
+        "Unavailable"
+        if history is None
+        else f"{history.batch_id} · snapshot {history.snapshot_id}"
+    )
+    watermark = (
+        "Unavailable"
+        if window is None or window.watermark is None
+        else window.watermark.isoformat()
+    )
+    window_label = (
+        "Unavailable"
+        if window is None
+        else f"active {window.active_window_count} · finalized {window.finalized_window_count}"
+    )
+    failure_label = (
+        "None recorded"
+        if failure is None
+        else f"{failure.component.value} · {failure.occurred_at.isoformat()} · {failure.detail}"
+    )
+
+    return (
+        "### Continuous collection\n\n"
+        "Lifecycle, desired collection state and observed runtime are intentionally separate. "
+        "These are acquisition facts, not an asset-health verdict.\n\n"
+        "| Dimension | Value |\n"
+        "| --- | --- |\n"
+        f"| Lifecycle | {lifecycle.state.value} |\n"
+        f"| Desired collection | {desired.value.upper()} |\n"
+        f"| Desired-state evidence | {desired_detail} |\n"
+        f"| Observed session | {observed_session} |\n"
+        f"| Connected since | {connected_since} |\n"
+        f"| Reconnect attempts | {reconnects} |\n"
+        f"| Accepted events | {accepted} |\n"
+        f"| Replayed events | {replayed} |\n"
+        f"| Bad-status events | {bad_status} |\n"
+        f"| Lifetime-average event rate | {event_rate_label} |\n"
+        f"| Last SourceTimestamp | {last_source_timestamp} |\n"
+        f"| Last received_at | {last_received} |\n"
+        f"| Callback queue configured maxsize | {queue_max} |\n"
+        f"| Callback queue overflow count | {queue_overflow} |\n"
+        f"| Durable spool pending | {spool.pending_event_count} events · "
+        f"{spool.payload_bytes} bytes |\n"
+        f"| Oldest spool age | {oldest_age_label} |\n"
+        f"| Active spool batch | {active_batch} |\n"
+        f"| Latest DuckLake commit | {history_label} |\n"
+        f"| Window state | {window_label} |\n"
+        f"| Watermark | {watermark} |\n"
+        f"| Latest runtime failure | {failure_label} |\n"
+        f"| Telemetry sampled at | {spool.sampled_at.isoformat()} |"
+    )
 
 def render_asset_analysis_markdown(detail: AssetDetail) -> str | None:
     """Render recorded AnalysisRun identity, capability and source provenance."""
