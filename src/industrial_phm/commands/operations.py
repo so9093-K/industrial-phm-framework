@@ -14,6 +14,7 @@ from industrial_phm.application import (
     JsonSourceRuntimeRepository,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
+    backfill_registered_file_source,
     poll_registered_source,
     request_collection_state,
     validate_distinct_source_state_paths,
@@ -92,6 +93,40 @@ def _run_operations_poll_source(args: argparse.Namespace) -> int:
     if last_state == SourceRuntimeCycleState.SKIPPED:
         return 2
     return 1
+
+
+def _run_operations_backfill_source(args: argparse.Namespace) -> int:
+    try:
+        source_repository = JsonSourceRepository(args.registry)
+        history = DuckLakeAssetHistory(
+            DuckLakeAssetHistoryConfig(
+                catalog_path=args.ducklake_catalog,
+                data_path=args.ducklake_data,
+            )
+        )
+        result = backfill_registered_file_source(
+            source_repository,
+            history,
+            args.source_id,
+        )
+    except (LookupError, OSError, RuntimeError, ValueError) as error:
+        print(f"historical backfill failed: {error}", file=sys.stderr)
+        return 1
+
+    for segment in result.segments:
+        disposition = "recovered" if segment.recovered_existing_commit else "committed"
+        print(
+            f"segment={segment.source_file} batch={segment.batch_id} "
+            f"events={segment.event_count} snapshot={segment.commit.snapshot_id} "
+            f"state={disposition}"
+        )
+    print(
+        f"source={result.source_id} asset={result.asset_id} events={result.event_count} "
+        f"history_snapshot={result.history_snapshot_id} "
+        f"input_start={result.input_reference.start_at.isoformat()} "
+        f"input_end={result.input_reference.end_at.isoformat()}"
+    )
+    return 0
 
 
 def _run_operations_request_collection(args: argparse.Namespace) -> int:
