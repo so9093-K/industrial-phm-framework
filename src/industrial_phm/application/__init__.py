@@ -1,5 +1,12 @@
 """Application-layer read models and use-case projections."""
 
+from industrial_phm.application.acquisition_spool import (
+    AcquisitionSpool,
+    AcquisitionSpoolBatch,
+    AcquisitionSpoolFormatError,
+    AcquisitionSpoolFullError,
+    AcquisitionSpoolStateError,
+)
 from industrial_phm.application.asset_detail import (
     AssetDetail,
     AssetEvidenceEvent,
@@ -187,6 +194,11 @@ __all__ = [
     "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
+    "AcquisitionSpool",
+    "AcquisitionSpoolBatch",
+    "AcquisitionSpoolFormatError",
+    "AcquisitionSpoolFullError",
+    "AcquisitionSpoolStateError",
     "AnalysisRun",
     "AssetDetail",
     "AssetEvidenceEvent",
