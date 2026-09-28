@@ -63,7 +63,6 @@ def test_bootstrap_plan_is_offline_and_selects_two_training_raw_archives(
     assert "no network request was made" in output
 
 
-
 def test_single_archive_preset_can_plan_existing_boiler_only(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
