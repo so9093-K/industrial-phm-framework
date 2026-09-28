@@ -8,12 +8,14 @@ from industrial_phm.application import (
     HistoricalBatchConflictError,
     HistoryIngestionMode,
     InMemorySourceRepository,
+    JsonSourceRepository,
     OpcUaEventTimePolicy,
     RegisteredOpcUaDataChangeEvent,
     RegisteredSource,
     backfill_registered_file_source,
     project_opcua_persistent_data_change_event,
 )
+from industrial_phm.cli import main
 from industrial_phm.connectors import (
     OpcUaNodeObservation,
     OpcUaSubscriptionNotification,
@@ -340,3 +342,54 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
     assert len(same_file_time) == 2
     assert {item.value for item in same_file_time} == {11.0, 21.0}
     assert len({item.raw_evidence_id for item in same_file_time}) == 2
+
+
+
+def test_backfill_source_cli_reports_snapshot_and_recovers(tmp_path, capsys) -> None:
+    _require_duckdb()
+    source_path = tmp_path / "historical.csv"
+    source_path.write_text(
+        "timestamp,vibration_x\n"
+        "2026-09-28T01:00:01+00:00,1.0\n"
+        "2026-09-28T01:00:02+00:00,2.0\n",
+        encoding="utf-8",
+    )
+    registry_path = tmp_path / "sources.json"
+    registry = JsonSourceRepository(registry_path)
+    registry.register(
+        RegisteredSource(
+            source_id="file-source",
+            name="Historical vibration",
+            config=FileSourceConfig(
+                source_path=str(source_path),
+                asset_id="pump-01",
+                measurement_point_id="drive-end",
+                channel_columns=("vibration_x",),
+                timestamp_column="timestamp",
+            ),
+            registered_at=BASE,
+        )
+    )
+    args = [
+        "operations",
+        "backfill-source",
+        "--registry",
+        str(registry_path),
+        "--source-id",
+        "file-source",
+        "--ducklake-catalog",
+        str(tmp_path / "catalog.sqlite"),
+        "--ducklake-data",
+        str(tmp_path / "data"),
+    ]
+
+    assert main(args) == 0
+    first = capsys.readouterr().out
+    assert "state=committed" in first
+    assert "history_snapshot=" in first
+    assert "input_start=" in first
+    assert "input_end=" in first
+
+    assert main(args) == 0
+    second = capsys.readouterr().out
+    assert "state=recovered" in second
