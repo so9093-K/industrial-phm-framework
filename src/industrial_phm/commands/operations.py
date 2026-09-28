@@ -101,6 +101,7 @@ def _run_operations_request_collection(args: argparse.Namespace) -> int:
         desired_state = CollectionDesiredState(args.state)
         record = request_collection_state(
             source_repository,
+            source_repository,
             control_repository,
             args.source_id,
             desired_state,
