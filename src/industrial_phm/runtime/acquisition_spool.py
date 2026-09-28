@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from industrial_phm.application.acquisition_telemetry import AcquisitionSpoolTelemetrySnapshot
 from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolBatch,
     AcquisitionSpoolFormatError,
@@ -211,6 +212,79 @@ class SqliteAcquisitionSpool:
             raise
         finally:
             connection.close()
+
+    def telemetry_snapshot(
+        self,
+        *,
+        sampled_at: datetime,
+    ) -> AcquisitionSpoolTelemetrySnapshot:
+        """Sample durable backlog facts without mutating spool delivery state."""
+        _validate_aware_datetime(sampled_at, "sampled_at")
+        connection = self._connect()
+        try:
+            self._ensure_schema(connection)
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COALESCE(SUM(length(CAST(payload_json AS BLOB))), 0)
+                FROM spool_event
+                """
+            ).fetchone()
+            if row is None:
+                raise AcquisitionSpoolStateError("spool telemetry count is unavailable")
+            pending_event_count = _require_int(row[0], "pending event count")
+            payload_bytes = _require_int(row[1], "pending payload bytes")
+
+            oldest_row = connection.execute(
+                """
+                SELECT accepted_at
+                FROM spool_event
+                ORDER BY julianday(accepted_at), sequence
+                LIMIT 1
+                """
+            ).fetchone()
+            oldest_accepted_at = (
+                None
+                if oldest_row is None
+                else _parse_datetime(
+                    _require_str(oldest_row[0], "oldest accepted_at"),
+                    "oldest accepted_at",
+                )
+            )
+
+            batch_row = connection.execute(
+                "SELECT batch_id, created_at, event_count FROM spool_batch LIMIT 1"
+            ).fetchone()
+            active_batch = None
+            if batch_row is not None:
+                active_batch = self._load_batch(
+                    connection,
+                    batch_id=_require_str(batch_row[0], "batch_id"),
+                    created_at=_parse_datetime(
+                        _require_str(batch_row[1], "created_at"),
+                        "created_at",
+                    ),
+                    expected_count=_require_int(batch_row[2], "event_count"),
+                )
+        finally:
+            connection.close()
+
+        return AcquisitionSpoolTelemetrySnapshot(
+            sampled_at=sampled_at,
+            pending_event_count=pending_event_count,
+            payload_bytes=payload_bytes,
+            oldest_accepted_at=oldest_accepted_at,
+            active_batch_id=(
+                None if active_batch is None else active_batch.batch_id
+            ),
+            active_batch_event_count=(
+                0 if active_batch is None else active_batch.event_count
+            ),
+            active_batch_payload_bytes=(
+                0 if active_batch is None else active_batch.payload_bytes
+            ),
+        )
 
     def pending_unassigned_stats(self) -> AcquisitionSpoolPendingStats:
         connection = self._connect()
