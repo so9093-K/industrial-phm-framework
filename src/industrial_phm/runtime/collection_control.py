@@ -116,9 +116,7 @@ class SqliteCollectionControlRepository:
 
             generation = 1
             if current is not None:
-                current_state = CollectionDesiredState(
-                    _require_str(current[0], "desired_state")
-                )
+                current_state = CollectionDesiredState(_require_str(current[0], "desired_state"))
                 current_generation = _require_int(current[1], "generation")
                 current_at = _parse_datetime(_require_str(current[2], "requested_at"))
                 if requested_at < current_at:
