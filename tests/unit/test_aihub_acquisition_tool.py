@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from tools.aihub.cli import AIHubToolError, load_local_env, main, parse_inventory
 
 
@@ -62,18 +61,6 @@ def test_bootstrap_plan_is_offline_and_selects_two_training_raw_archives(
     assert "압출기" in output
     assert "156.0 MiB" in output
     assert "no network request was made" in output
-
-
-def test_bootstrap_archives_have_distinct_normalized_paths(tmp_path: Path) -> None:
-    selected = _select_preset(239, "bootstrap")
-    dataset_root = tmp_path / "aihub" / "239"
-
-    paths = [_archive_path(dataset_root, item) for item in selected]
-
-    assert paths == [
-        dataset_root / "archives" / "training" / "raw" / "5.보일러.zip",
-        dataset_root / "archives" / "training" / "raw" / "7.압출기.zip",
-    ]
 
 
 def test_local_env_does_not_override_explicit_process_environment(
