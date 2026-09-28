@@ -2171,6 +2171,112 @@ def _(
                 f"| Node mappings | {escape_markdown_cell(_node_mapping_label)} |\n"
                 f"| Request timeout | {_selected_config.timeout_seconds:g} s |\n"
             )
+        if refresh_collection_monitor_button is not None:
+            _collection_monitor_refresh = refresh_collection_monitor_button.value
+        else:
+            _collection_monitor_refresh = False
+
+        if _selected_is_file:
+            _collection_monitor_view = mo.callout(
+                "Continuous collection is currently implemented for registered OPC UA sources. "
+                "FILE sources keep their existing explicit load/analysis workflows.",
+                kind="neutral",
+                title="Continuous collection · Not applicable",
+            )
+        elif _selected_lifecycle is None:
+            _collection_monitor_view = mo.callout(
+                "Lifecycle evidence is unavailable, so collection control cannot be rendered.",
+                kind="neutral",
+                title="Continuous collection · Unavailable",
+            )
+        else:
+            del _collection_monitor_refresh
+            try:
+                _control_path = Path(collection_control_default)
+                _telemetry_path = Path(acquisition_telemetry_default)
+                _spool_path = Path(acquisition_spool_default)
+
+                _collection_control = (
+                    None
+                    if not _control_path.exists()
+                    else SqliteCollectionControlRepository(_control_path).get(
+                        _selected.source_id
+                    )
+                )
+                _collection_surface = None
+                if _telemetry_path.exists() and _spool_path.exists():
+                    _telemetry_repository = SqliteAcquisitionTelemetryRepository(
+                        _telemetry_path
+                    )
+                    _spool_repository = SqliteAcquisitionSpool(
+                        SqliteAcquisitionSpoolConfig(path=_spool_path)
+                    )
+                    _collection_surface = build_acquisition_telemetry_surface(
+                        _telemetry_repository,
+                        _spool_repository,
+                        _selected.source_id,
+                        sampled_at=datetime.now().astimezone(),
+                    )
+                _collection_markdown = render_collection_monitor_markdown(
+                    _selected.source_id,
+                    _selected_lifecycle,
+                    _collection_control,
+                    _collection_surface,
+                )
+            except (OSError, ValueError) as error:
+                _collection_monitor_view = mo.callout(
+                    str(error),
+                    kind="danger",
+                    title="Continuous collection monitor unavailable",
+                )
+            else:
+                _collection_action_status = (
+                    mo.callout(
+                        collection_control_error,
+                        kind="danger",
+                        title="Collection request failed",
+                    )
+                    if collection_control_error
+                    else (
+                        mo.callout(
+                            collection_control_success,
+                            kind="success",
+                            title="Collection request recorded",
+                        )
+                        if collection_control_success
+                        else mo.callout(
+                            "Start/Stop writes only desired collection state. "
+                            "The independent collection service owns the long-lived worker, "
+                            "DuckLake writer and window coordinator.",
+                            kind="info",
+                            title="Control-plane semantics",
+                        )
+                    )
+                )
+                _collection_monitor_view = mo.vstack(
+                    [
+                        mo.hstack(
+                            [
+                                start_collection_button,
+                                stop_collection_button,
+                                refresh_collection_monitor_button,
+                            ],
+                            widths="equal",
+                        ),
+                        _collection_action_status,
+                        mo.md(_collection_markdown),
+                        mo.callout(
+                            "The Operations UI does not spawn or own the collector process. "
+                            "Run industrial-phm operations run-collection-service as a separate "
+                            "service process. Closing this UI does not change desired collection "
+                            "state.",
+                            kind="info",
+                            title="Runtime ownership",
+                        ),
+                    ],
+                    gap=0.7,
+                )
+
         _session_receipt = (
             source_receipt
             if source_receipt is not None and source_receipt.source_id == _selected.source_id
