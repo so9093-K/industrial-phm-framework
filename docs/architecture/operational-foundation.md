@@ -193,6 +193,17 @@ Markdown representation으로만 변환하며 새로운 operational 의미를 �
 `marimo`를 import하지 않아 core package가 research UI dependency를 요구하지 않게 유지합니다.
 Availability callout, button/state wiring과 interactive layout은 계속 `apps/operations.py`가 소유합니다.
 
+Asset Detail은 current registry와 historical AnalysisRun/OperationalFinding을 같은 physical asset identity로
+묶되, source가 registry에서 사라졌다는 이유로 historical asset evidence를 숨기지 않습니다. Asset inventory는
+registered source, 현재 로드된 observation, AnalysisRun, OperationalFinding의 asset identity union으로
+projection합니다. Detail은 source mapping/data-flow, loaded observation/data quality, analysis/finding/review를
+asset scope로 모으지만 condition/fault/risk/RUL verdict를 만들지 않습니다.
+
+Evidence Timeline은 서로 다른 clock fact를 하나의 timestamp로 합치지 않습니다. Source registration/lifecycle,
+source observation, platform receipt, observation window, analysis execution/capability production, finding observation,
+review action을 각각 versioned event kind/time basis로 표현합니다. Timezone-aware event만 chronological ordering에
+참여하고 missing 또는 timezone-naive source/observation time은 `Time not comparable` evidence로 별도 보존합니다.
+
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 
 - 설비 관리자: 상태, 위험 설비, alert, fleet overview

@@ -36,12 +36,14 @@ def _():
         SystemStateErrorEvidence,
         assess_source_freshness,
         assess_source_health,
+        build_asset_detail,
         build_operations_attention_queue,
         build_operations_overview,
         create_finding_review_event,
         create_human_review_finding,
         discover_file_source,
         finding_review_status,
+        list_operational_asset_identities,
         load_registered_file_source_observation,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
@@ -61,10 +63,15 @@ def _():
     )
     from industrial_phm.contracts import DataQualityState
     from industrial_phm.presentation import (
+        render_asset_analysis_markdown,
+        render_asset_findings_markdown,
+        render_asset_sources_markdown,
+        render_asset_timeline_markdown,
         render_attention_queue_markdown,
         render_data_quality_issues_markdown,
         render_observation_markdown,
         render_source_data_flow_markdown,
+        render_unplaced_asset_evidence_markdown,
     )
 
     return (
@@ -94,6 +101,7 @@ def _():
         assess_source_freshness,
         assess_source_health,
         asyncio,
+        build_asset_detail,
         build_operations_attention_queue,
         build_operations_overview,
         browse_opcua_variables,
@@ -103,12 +111,18 @@ def _():
         discover_file_source,
         finding_review_status,
         load_registered_file_source_observation,
+        list_operational_asset_identities,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
+        render_asset_analysis_markdown,
+        render_asset_findings_markdown,
+        render_asset_sources_markdown,
+        render_asset_timeline_markdown,
         render_attention_queue_markdown,
         render_data_quality_issues_markdown,
         render_observation_markdown,
         render_source_data_flow_markdown,
+        render_unplaced_asset_evidence_markdown,
         mo,
         register_file_source,
         run_registered_file_feature_analysis,
@@ -506,6 +520,7 @@ def _(mo):
     page_selector = mo.ui.radio(
         options=[
             "Overview",
+            "Assets",
             "Sources",
             "Investigation",
             "Data Quality",
@@ -4050,6 +4065,211 @@ def _(
 
 @app.cell
 def _(
+    field_analysis_results,
+    list_operational_asset_identities,
+    mo,
+    observation,
+    operational_findings,
+    registered_sources,
+):
+    _latest_observations = () if observation is None else (observation,)
+    asset_identities = list_operational_asset_identities(
+        sources=registered_sources,
+        latest_observations=_latest_observations,
+        analysis_runs=tuple(result.run for result in field_analysis_results),
+        findings=operational_findings,
+    )
+    if asset_identities:
+        asset_selector = mo.ui.dropdown(
+            options=[item.asset_id for item in asset_identities],
+            value=asset_identities[0].asset_id,
+            label="Asset",
+            full_width=True,
+        )
+    else:
+        asset_selector = None
+    return asset_identities, asset_selector
+
+
+@app.cell
+def _(
+    asset_identities,
+    asset_selector,
+    build_asset_detail,
+    field_analysis_results,
+    finding_review_events,
+    observation,
+    operational_findings,
+    operations_overview,
+    registered_sources,
+):
+    if asset_selector is None:
+        asset_detail = None
+    else:
+        _selected_identity = next(
+            item for item in asset_identities if item.asset_id == asset_selector.value
+        )
+        _latest_observations = () if observation is None else (observation,)
+        asset_detail = build_asset_detail(
+            _selected_identity,
+            sources=registered_sources,
+            overview=operations_overview,
+            latest_observations=_latest_observations,
+            analysis_runs=tuple(result.run for result in field_analysis_results),
+            findings=operational_findings,
+            review_events=finding_review_events,
+        )
+    return (asset_detail,)
+
+
+@app.cell
+def _(
+    asset_detail,
+    asset_selector,
+    mo,
+    render_asset_analysis_markdown,
+    render_asset_findings_markdown,
+    render_asset_sources_markdown,
+    render_asset_timeline_markdown,
+    render_data_quality_issues_markdown,
+    render_observation_markdown,
+    render_unplaced_asset_evidence_markdown,
+):
+    if asset_detail is None:
+        assets_view = mo.vstack(
+            [
+                mo.md("## Assets"),
+                mo.callout(
+                    "No asset identity is available from registered source, loaded "
+                    "observation, AnalysisRun or OperationalFinding evidence.",
+                    kind="neutral",
+                    title="Assets · Empty",
+                ),
+            ],
+            gap=1.0,
+        )
+    else:
+        _source_markdown = render_asset_sources_markdown(asset_detail)
+        _sources_view = (
+            mo.callout(
+                "No current registered source maps to this asset. Historical "
+                "analysis/finding evidence can still keep the asset visible.",
+                kind="neutral",
+                title="Sources · None",
+            )
+            if _source_markdown is None
+            else mo.md(_source_markdown)
+        )
+
+        _observation_blocks = []
+        for _observation in asset_detail.latest_observations:
+            _observation_blocks.append(mo.md(render_observation_markdown(_observation)))
+            _quality_markdown = render_data_quality_issues_markdown(_observation)
+            if _quality_markdown is not None:
+                _observation_blocks.append(mo.md(_quality_markdown))
+        _observations_view = (
+            mo.callout(
+                "No current loaded observation is available for this asset in this "
+                "Operations session.",
+                kind="neutral",
+                title="Observation evidence · Unavailable",
+            )
+            if not _observation_blocks
+            else mo.vstack(_observation_blocks, gap=0.7)
+        )
+
+        _analysis_markdown = render_asset_analysis_markdown(asset_detail)
+        _analysis_view = (
+            mo.callout(
+                "No AnalysisRun is recorded for this asset.",
+                kind="neutral",
+                title="Analysis evidence · Empty",
+            )
+            if _analysis_markdown is None
+            else mo.md(_analysis_markdown)
+        )
+        _findings_markdown = render_asset_findings_markdown(asset_detail)
+        _findings_view = (
+            mo.callout(
+                "No OperationalFinding is recorded for this asset.",
+                kind="neutral",
+                title="Finding evidence · Empty",
+            )
+            if _findings_markdown is None
+            else mo.md(_findings_markdown)
+        )
+
+        _timeline_markdown = render_asset_timeline_markdown(asset_detail.timeline)
+        _timeline_view = (
+            mo.callout(
+                "No timezone-aware evidence event is available for chronological ordering.",
+                kind="neutral",
+                title="Evidence Timeline · Empty",
+            )
+            if _timeline_markdown is None
+            else mo.md(_timeline_markdown)
+        )
+        _unplaced_markdown = render_unplaced_asset_evidence_markdown(asset_detail.timeline)
+        _unplaced_view = (
+            mo.md(_unplaced_markdown)
+            if _unplaced_markdown is not None
+            else mo.callout(
+                "All recorded timeline events currently have comparable timezone-aware timestamps.",
+                kind="neutral",
+                title="Time not comparable · None",
+            )
+        )
+
+        assets_view = mo.vstack(
+            [
+                mo.md(
+                    "## Asset Detail\n\n"
+                    f"선택한 physical asset: `{asset_detail.asset_identity.asset_id}`"
+                ),
+                asset_selector,
+                mo.hstack(
+                    [
+                        mo.stat(
+                            str(len(asset_detail.source_contexts)),
+                            label="Source mappings",
+                        ),
+                        mo.stat(
+                            str(len(asset_detail.latest_observations)),
+                            label="Loaded observations",
+                        ),
+                        mo.stat(
+                            str(len(asset_detail.analysis_runs)),
+                            label="Analysis runs",
+                        ),
+                        mo.stat(
+                            str(len(asset_detail.findings)),
+                            label="Findings",
+                        ),
+                    ],
+                    widths="equal",
+                ),
+                _sources_view,
+                _observations_view,
+                _analysis_view,
+                _findings_view,
+                _timeline_view,
+                _unplaced_view,
+                mo.callout(
+                    "Asset Detail groups recorded identity, availability, analysis, finding "
+                    "and review evidence. It does not create condition, fault, risk, alert "
+                    "or operational RUL semantics.",
+                    kind="info",
+                    title="Asset evidence semantics",
+                ),
+            ],
+            gap=1.1,
+        )
+    return (assets_view,)
+
+
+@app.cell
+def _(
+    assets_view,
     data_quality_view,
     investigation_view,
     maintenance_view,
@@ -4061,6 +4281,7 @@ def _(
 ):
     views = {
         "Overview": overview_view,
+        "Assets": assets_view,
         "Sources": sources_view,
         "Investigation": investigation_view,
         "Data Quality": data_quality_view,
