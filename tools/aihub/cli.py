@@ -27,9 +27,9 @@ SHELL_PATH_ENV = "AIHUBSHELL_PATH"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _PRESET_ROOT = Path(__file__).resolve().parent / "presets"
 _FILE_LINE = re.compile(
-    r"(?P<filename>\\d+\\.(?P<equipment>.+)\\.zip)\\s*\\|\\s*"
-    r"(?P<size>\\d+(?:\\.\\d+)?)\\s*(?P<unit>[KMGT]?B)\\s*\\|\\s*"
-    r"(?P<filekey>\\d+)\\s*$"
+    r"(?P<filename>\d+\.(?P<equipment>.+)\.zip)\s*\|\s*"
+    r"(?P<size>\d+(?:\.\d+)?)\s*(?P<unit>[KMGT]?B)\s*\|\s*"
+    r"(?P<filekey>\d+)\s*$"
 )
 _ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
