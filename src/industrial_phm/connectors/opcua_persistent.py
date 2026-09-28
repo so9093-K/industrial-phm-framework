@@ -134,10 +134,7 @@ class OpcUaPersistentSubscription:
             self._state_context = state_context
             self._state_subscription = state_subscription
 
-            nodes = [
-                client.get_node(mapping.node_id)
-                for mapping in self._config.node_mappings
-            ]
+            nodes = [client.get_node(mapping.node_id) for mapping in self._config.node_mappings]
             subscription = await client.create_subscription(
                 float(self._config.publishing_interval_ms),
                 queue_maxsize=self._config.queue_maxsize,
@@ -213,21 +210,15 @@ class OpcUaPersistentSubscription:
                 f"persistent subscription event references unmapped node: {node_id}"
             )
         event_data = getattr(event, "data", None)
-        monitored_item = (
-            None if event_data is None else getattr(event_data, "monitored_item", None)
-        )
-        data_value = (
-            None if monitored_item is None else getattr(monitored_item, "Value", None)
-        )
+        monitored_item = None if event_data is None else getattr(event_data, "monitored_item", None)
+        data_value = None if monitored_item is None else getattr(monitored_item, "Value", None)
         if data_value is None:
             raise OpcUaSourceError(
                 f"persistent subscription DataChange has no DataValue: {node_id}"
             )
         replayed = getattr(event, "replayed", False)
         if not isinstance(replayed, bool):
-            raise OpcUaSourceError(
-                f"persistent subscription replayed flag is invalid: {node_id}"
-            )
+            raise OpcUaSourceError(f"persistent subscription replayed flag is invalid: {node_id}")
         return OpcUaSubscriptionNotification(
             observation=_project_data_value(
                 mapping,
