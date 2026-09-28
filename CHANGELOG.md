@@ -24,6 +24,8 @@
 
 ### Added
 
+- SQLite WAL 기반 live acquisition telemetry boundary를 추가했습니다. Persistent OPC UA session/flow, reconnect/overflow, replay/bad-status count, latest DuckLake acknowledged batch/snapshot, window/watermark/#257 disposition, runtime failure를 source별 독립 latest component로 restart-safe하게 보존하고 durable spool backlog/oldest age/active batch는 spool DB에서 직접 sample합니다. Event rate는 worker-start 이후 lifetime average로 명시하며 asyncua private queue API에는 의존하지 않아 callback queue depth/high-watermark는 현재 uninstrumented이고 configured maxsize/overflow만 factual evidence로 제공합니다. Telemetry에는 synthetic healthy boolean이 없고 telemetry write failure가 spool/DuckLake/window data-plane truth를 rollback하지 않습니다.
+
 - DuckLake raw OPC UA history를 deterministic durable-ingestion order로 replay하는 continuous observation-window coordinator를 추가했습니다. Fixed alignment window와 `max(valid event_at seen) - allowed_lateness` watermark policy를 적용하고 #257의 IN_ORDER / OUT_OF_ORDER / LATE / TIMING_UNAVAILABLE / UNEXPECTED_CHANNEL / FUTURE_TIMESTAMP / BUFFER_FULL 의미를 유지합니다. Finalization 시각은 wall clock이 아니라 watermark를 전진시킨 durable event의 `ingested_at`을 사용해 restart 후 동일 history에서 동일 finalized window를 재구성합니다. Closed-window late event는 factual LATE evidence로 반환하지만 이미 persisted된 window를 사후 수정하지 않습니다.
 
 - spool-to-DuckLake micro-batch writer를 추가했습니다. Durable spool의 unassigned event를 max events / max bytes / max interval policy로 stable batch에 묶고, DuckLake historical transaction이 성공한 뒤에만 spool에서 acknowledge합니다. DuckLake snapshot commit_extra_info에 batch ID, ingestion mode, event count와 canonical event fingerprint를 기록해 commit 성공 직후/ACK 직전 crash가 발생해도 같은 active batch를 기존 snapshot으로 복구하고 중복 historical row 없이 ACK를 완료합니다. 같은 batch ID의 다른 payload는 conflict로 fail-fast합니다.
