@@ -83,12 +83,16 @@ def test_single_archive_preset_can_plan_existing_boiler_only(
     assert "44035" not in output
 
 
-def test_force_download_failure_preserves_existing_archive(
+def test_download_uses_required_auth_argument_and_preserves_archive_on_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    arguments = tmp_path / "arguments.txt"
     fake_shell = tmp_path / "aihubshell"
-    fake_shell.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
+    fake_shell.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' \"$@\" > {arguments!s}\nexit 7\n",
+        encoding="utf-8",
+    )
     fake_shell.chmod(0o755)
 
     archive = tmp_path / "aihub" / "239" / "archives" / "training" / "raw" / "5.보일러.zip"
@@ -112,6 +116,16 @@ def test_force_download_failure_preserves_existing_archive(
         )
         == 1
     )
+    assert arguments.read_text(encoding="utf-8").splitlines() == [
+        "-mode",
+        "d",
+        "-datasetkey",
+        "239",
+        "-filekey",
+        "44033",
+        "-aihubapikey",
+        "test-key",
+    ]
     assert archive.read_bytes() == b"existing-archive"
 
 
