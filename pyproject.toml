@@ -35,6 +35,9 @@ dependencies = [
 deep-learning = [
   "torch>=2.14.0,<2.15",
 ]
+history = [
+  "duckdb>=1.5.5,<1.6",
+]
 opcua = [
   "asyncua>=2.0.1,<2.1",
 ]
