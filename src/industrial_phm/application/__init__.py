@@ -5,6 +5,7 @@ from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolBatch,
     AcquisitionSpoolFormatError,
     AcquisitionSpoolFullError,
+    AcquisitionSpoolPendingStats,
     AcquisitionSpoolStateError,
 )
 from industrial_phm.application.asset_detail import (
@@ -20,6 +21,7 @@ from industrial_phm.application.asset_detail import (
 from industrial_phm.application.asset_history import (
     AssetHistoryReader,
     HistoricalBatchCommit,
+    HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
     HistoricalMeasurement,
     HistoryIngestionMode,
@@ -63,6 +65,12 @@ from industrial_phm.application.finding_review import (
     JsonOperationalFindingRepository,
     OperationalFindingHistoryFormatError,
     create_human_review_finding,
+)
+from industrial_phm.application.history_writer import (
+    OpcUaHistoricalBatchStore,
+    SpoolHistoryBatchWriteResult,
+    SpoolHistoryWriterResult,
+    SpoolToHistoryWriterPolicy,
 )
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
@@ -203,6 +211,7 @@ __all__ = [
     "AcquisitionSpoolBatch",
     "AcquisitionSpoolFormatError",
     "AcquisitionSpoolFullError",
+    "AcquisitionSpoolPendingStats",
     "AcquisitionSpoolStateError",
     "AnalysisRun",
     "AssetDetail",
@@ -232,6 +241,7 @@ __all__ = [
     "FindingReviewHistoryFormatError",
     "FindingReviewStatus",
     "HistoricalBatchCommit",
+    "HistoricalBatchConflictError",
     "HistoricalEventTimeBasis",
     "HistoricalMeasurement",
     "HistoryIngestionMode",
@@ -255,6 +265,7 @@ __all__ = [
     "OpcUaEventTimeBasis",
     "OpcUaEventTimeEvidence",
     "OpcUaEventTimePolicy",
+    "OpcUaHistoricalBatchStore",
     "OpcUaPersistentDataChangeEvent",
     "OpcUaPersistentSessionEvidence",
     "OpcUaPersistentSessionEvidenceSink",
@@ -302,6 +313,9 @@ __all__ = [
     "SourceRuntimeRepository",
     "SourceSnapshotEvidence",
     "SourceType",
+    "SpoolHistoryBatchWriteResult",
+    "SpoolHistoryWriterResult",
+    "SpoolToHistoryWriterPolicy",
     "SystemStateErrorEvidence",
     "UnknownRegisteredSourceError",
     "assess_source_freshness",

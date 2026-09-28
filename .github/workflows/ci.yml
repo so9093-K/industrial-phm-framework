@@ -72,7 +72,10 @@ jobs:
             tests/contract/test_opcua_persistent_runtime.py
 
       - name: Validate DuckLake history runtime contract
-        run: uv run --locked --extra history pytest tests/contract/test_ducklake_runtime.py
+        run: |
+          uv run --locked --extra history pytest \
+            tests/contract/test_ducklake_runtime.py \
+            tests/contract/test_spool_ducklake_writer.py
 
       - name: Build package
         run: uv build

@@ -4,6 +4,7 @@ from importlib.util import find_spec
 import pytest
 
 from industrial_phm.application import (
+    HistoricalBatchConflictError,
     HistoryIngestionMode,
     OpcUaEventTimePolicy,
     RegisteredOpcUaDataChangeEvent,
@@ -135,9 +136,28 @@ def test_ducklake_asset_history_round_trip(tmp_path) -> None:
         is None
     )
 
-    with pytest.raises(ValueError, match="historical batch already exists"):
+    recovered = repository.get_opcua_batch_commit(
+        (first, second),
+        batch_id="batch-1",
+        ingestion_mode=HistoryIngestionMode.LIVE,
+    )
+    assert recovered == commit
+
+    repeated = repository.append_opcua_batch(
+        (first, second),
+        batch_id="batch-1",
+        ingestion_mode=HistoryIngestionMode.LIVE,
+    )
+    assert repeated == commit
+
+    changed_first = _event(
+        channel_id="vibration_x",
+        event_at=BASE + timedelta(seconds=10),
+        event_index=0,
+    )
+    with pytest.raises(HistoricalBatchConflictError, match="commit provenance"):
         repository.append_opcua_batch(
-            (first, second),
+            (changed_first, second),
             batch_id="batch-1",
             ingestion_mode=HistoryIngestionMode.LIVE,
         )
@@ -176,3 +196,21 @@ def test_ducklake_asset_history_backfill_provenance(tmp_path) -> None:
         end_at=BASE + timedelta(minutes=1),
     )[0]
     assert measurement.ingestion_mode == HistoryIngestionMode.BACKFILL
+
+    live = _event(
+        channel_id="temperature",
+        event_at=BASE + timedelta(seconds=4),
+        event_index=3,
+    )
+    later_commit = repository.append_opcua_batch(
+        (live,),
+        batch_id="live-after-backfill",
+        ingestion_mode=HistoryIngestionMode.LIVE,
+    )
+    recovered_backfill = repository.get_opcua_batch_commit(
+        (event,),
+        batch_id="backfill-1",
+        ingestion_mode=HistoryIngestionMode.BACKFILL,
+    )
+    assert recovered_backfill is not None
+    assert recovered_backfill.snapshot_id < later_commit.snapshot_id

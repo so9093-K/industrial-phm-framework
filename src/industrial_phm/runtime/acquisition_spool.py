@@ -19,6 +19,7 @@ from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolBatch,
     AcquisitionSpoolFormatError,
     AcquisitionSpoolFullError,
+    AcquisitionSpoolPendingStats,
     AcquisitionSpoolStateError,
 )
 from industrial_phm.application.opcua_persistent import (
@@ -141,6 +142,49 @@ class SqliteAcquisitionSpool:
         finally:
             connection.close()
 
+    def pending_unassigned_stats(self) -> AcquisitionSpoolPendingStats:
+        connection = self._connect()
+        try:
+            self._ensure_schema(connection)
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COALESCE(SUM(length(CAST(payload_json AS BLOB))), 0)
+                FROM spool_event
+                WHERE batch_id IS NULL
+                """
+            ).fetchone()
+            if row is None:
+                raise AcquisitionSpoolStateError("pending spool stats are unavailable")
+            event_count = _require_int(row[0], "pending event count")
+            payload_bytes = _require_int(row[1], "pending payload bytes")
+            oldest_row = connection.execute(
+                """
+                SELECT accepted_at
+                FROM spool_event
+                WHERE batch_id IS NULL
+                ORDER BY julianday(accepted_at), sequence
+                LIMIT 1
+                """
+            ).fetchone()
+            oldest_raw = None if oldest_row is None else oldest_row[0]
+            oldest_accepted_at = (
+                None
+                if oldest_raw is None
+                else _parse_datetime(
+                    _require_str(oldest_raw, "oldest accepted_at"),
+                    "oldest accepted_at",
+                )
+            )
+            return AcquisitionSpoolPendingStats(
+                event_count=event_count,
+                payload_bytes=payload_bytes,
+                oldest_accepted_at=oldest_accepted_at,
+            )
+        finally:
+            connection.close()
+
     def pending_event_count(self) -> int:
         connection = self._connect()
         try:
@@ -176,11 +220,14 @@ class SqliteAcquisitionSpool:
         *,
         batch_id: str,
         max_events: int,
+        max_bytes: int | None = None,
         created_at: datetime,
     ) -> AcquisitionSpoolBatch | None:
         """Return the existing active batch or atomically assign oldest pending events."""
         _validate_identifier(batch_id, "batch_id")
         _validate_positive_int(max_events, "max_events")
+        if max_bytes is not None:
+            _validate_positive_int(max_bytes, "max_bytes")
         _validate_aware_datetime(created_at, "created_at")
 
         connection = self._connect()
@@ -216,7 +263,7 @@ class SqliteAcquisitionSpool:
 
             rows = connection.execute(
                 """
-                SELECT sequence
+                SELECT sequence, payload_json
                 FROM spool_event
                 WHERE batch_id IS NULL
                 ORDER BY sequence
@@ -228,7 +275,24 @@ class SqliteAcquisitionSpool:
                 connection.execute("COMMIT")
                 return None
 
-            sequences = tuple(_require_int(row[0], "sequence") for row in rows)
+            sequences_list: list[int] = []
+            selected_bytes = 0
+            for sequence_raw, payload_raw in rows:
+                sequence = _require_int(sequence_raw, "sequence")
+                payload_json = _require_str(payload_raw, "payload_json")
+                payload_bytes = len(payload_json.encode("utf-8"))
+                if (
+                    max_bytes is not None
+                    and sequences_list
+                    and selected_bytes + payload_bytes > max_bytes
+                ):
+                    break
+                sequences_list.append(sequence)
+                selected_bytes += payload_bytes
+                if max_bytes is not None and selected_bytes >= max_bytes:
+                    break
+
+            sequences = tuple(sequences_list)
             placeholders = ", ".join("?" for _ in sequences)
             connection.execute(
                 """
@@ -396,7 +460,8 @@ class SqliteAcquisitionSpool:
             """,
             (batch_id,),
         ).fetchall()
-        events = tuple(_decode_event(_require_str(row[0], "payload_json")) for row in rows)
+        payloads = tuple(_require_str(row[0], "payload_json") for row in rows)
+        events = tuple(_decode_event(payload_json) for payload_json in payloads)
         if len(events) != expected_count:
             raise AcquisitionSpoolStateError(
                 "active batch event_count does not match durable event payloads"
@@ -405,6 +470,7 @@ class SqliteAcquisitionSpool:
             batch_id=batch_id,
             created_at=created_at,
             events=events,
+            payload_bytes=sum(len(payload_json.encode("utf-8")) for payload_json in payloads),
         )
 
 
