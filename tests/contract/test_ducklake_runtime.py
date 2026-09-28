@@ -109,8 +109,7 @@ def test_ducklake_asset_history_round_trip(tmp_path) -> None:
         "temperature",
     ]
     assert all(
-        measurement.ingestion_mode == HistoryIngestionMode.LIVE
-        for measurement in measurements
+        measurement.ingestion_mode == HistoryIngestionMode.LIVE for measurement in measurements
     )
 
     restored_first = repository.get_opcua_event(
