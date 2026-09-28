@@ -20,7 +20,13 @@ AIHUBSHELL_PATH=/home/user/aihubshell
 INDUSTRIAL_PHM_DATA_DIR=/home/user/industrial-phm-data
 ```
 
-`AIHUB_APIKEY`는 process environment 또는 `.env`에서 읽습니다. AI-Hub 공식 `aihubshell`의 download mode가\n`-aihubapikey` argument를 요구하므로 다운로드 subprocess에는 해당 argument로 전달합니다. Tool 자체는 key를\n출력하거나 preset, inventory JSON, local manifest에 기록하지 않으며 child environment에는 key를 중복 전달하지\n않습니다. Process environment에 이미 설정된 값이 있으면 `.env`가 덮어쓰지 않습니다.\n\n공식 shell 계약상 다운로드 실행 중에는 운영체제의 process argument 조회에서 key가 보일 수 있으므로 공유\nhost에서는 process visibility 정책을 함께 확인합니다.
+`AIHUB_APIKEY`는 process environment 또는 `.env`에서 읽습니다. AI-Hub 공식 `aihubshell`의 download mode가
+`-aihubapikey` argument를 요구하므로 다운로드 subprocess에는 해당 argument로 전달합니다. Tool 자체는 key를
+출력하거나 preset, inventory JSON, local manifest에 기록하지 않으며 child environment에는 key를 중복 전달하지
+않습니다. Process environment에 이미 설정된 값이 있으면 `.env`가 덮어쓰지 않습니다.
+
+공식 shell 계약상 다운로드 실행 중에는 운영체제의 process argument 조회에서 key가 보일 수 있으므로 공유
+host에서는 process visibility 정책을 함께 확인합니다.
 
 `AIHUBSHELL_PATH`가 비어 있으면 `PATH`, 그다음 `~/aihubshell` 순서로 실행 파일을 찾습니다. Tool이
 실행 파일을 자동 설치하거나 repository에 복사하지는 않습니다.
