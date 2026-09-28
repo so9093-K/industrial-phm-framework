@@ -197,7 +197,7 @@ async def run_spool_to_history_writer(
                 now_fn=now_fn,
                 telemetry_recorder=telemetry_recorder,
             )
-        except (AcquisitionSpoolStateError, ValueError):
+        except AcquisitionSpoolStateError, ValueError:
             # Stable-identity conflicts and spool invariants are contract failures,
             # not transient downstream outages. Fail fast instead of retrying forever.
             raise
@@ -205,9 +205,7 @@ async def run_spool_to_history_writer(
             # The active batch remains durable and unacknowledged. Retry the exact
             # same batch after the normal writer poll delay; telemetry was already
             # recorded by write_next_spool_batch.
-            _LOGGER.exception(
-                "Transient history writer failure; retrying stable active batch"
-            )
+            _LOGGER.exception("Transient history writer failure; retrying stable active batch")
             with suppress(TimeoutError):
                 await asyncio.wait_for(
                     stop_event.wait(),
