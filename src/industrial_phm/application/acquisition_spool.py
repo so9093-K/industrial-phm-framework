@@ -32,6 +32,7 @@ class AcquisitionSpoolBatch:
     batch_id: str
     created_at: datetime
     events: tuple[OpcUaPersistentDataChangeEvent, ...]
+    payload_bytes: int
 
     def __post_init__(self) -> None:
         _validate_identifier(self.batch_id, "batch_id")
@@ -45,10 +46,35 @@ class AcquisitionSpoolBatch:
         identities = tuple(event.local_delivery_identity for event in self.events)
         if len(set(identities)) != len(identities):
             raise ValueError("events must have distinct local delivery identities")
+        _validate_positive_int(self.payload_bytes, "payload_bytes")
 
     @property
     def event_count(self) -> int:
         return len(self.events)
+
+
+
+
+@dataclass(frozen=True, slots=True)
+class AcquisitionSpoolPendingStats:
+    """Unassigned durable deliveries available for the next micro-batch."""
+
+    event_count: int
+    payload_bytes: int
+    oldest_accepted_at: datetime | None
+
+    def __post_init__(self) -> None:
+        _validate_non_negative_int(self.event_count, "event_count")
+        _validate_non_negative_int(self.payload_bytes, "payload_bytes")
+        if self.event_count == 0:
+            if self.payload_bytes != 0 or self.oldest_accepted_at is not None:
+                raise ValueError("empty pending stats require zero bytes and no oldest_accepted_at")
+            return
+        if self.payload_bytes < 1:
+            raise ValueError("non-empty pending stats require payload_bytes >= 1")
+        if self.oldest_accepted_at is None:
+            raise ValueError("non-empty pending stats require oldest_accepted_at")
+        _validate_aware_datetime(self.oldest_accepted_at, "oldest_accepted_at")
 
 
 @runtime_checkable
@@ -72,9 +98,18 @@ class AcquisitionSpool(Protocol):
         *,
         batch_id: str,
         max_events: int,
+        max_bytes: int | None = None,
         created_at: datetime,
     ) -> AcquisitionSpoolBatch | None:
-        """Reuse the active batch or assign oldest pending events to a stable batch."""
+        """Reuse the active batch or assign oldest pending events to a stable batch.
+
+        max_bytes is a soft bound for a batch: a single oversized first event is still
+        assigned so the spool cannot deadlock on one durable delivery.
+        """
+        ...
+
+    def pending_unassigned_stats(self) -> AcquisitionSpoolPendingStats:
+        """Return count/bytes/oldest acceptance for events not in the active batch."""
         ...
 
     def pending_event_count(self) -> int:
@@ -100,3 +135,16 @@ def _validate_identifier(value: str, field_name: str) -> None:
 def _validate_aware_datetime(value: datetime, field_name: str) -> None:
     if not isinstance(value, datetime) or value.utcoffset() is None:
         raise ValueError(f"{field_name} must be a timezone-aware datetime")
+
+
+def _validate_non_negative_int(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field_name} must be an integer")
+    if value < 0:
+        raise ValueError(f"{field_name} must not be negative")
+
+
+def _validate_positive_int(value: int, field_name: str) -> None:
+    _validate_non_negative_int(value, field_name)
+    if value < 1:
+        raise ValueError(f"{field_name} must be at least 1")
