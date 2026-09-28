@@ -12,6 +12,10 @@ from typing import Protocol, runtime_checkable
 from industrial_phm.application.source_registration import SourceType
 
 
+class HistoricalBatchConflictError(ValueError):
+    """Raised when a stable history batch identity is reused with different content."""
+
+
 class HistoryIngestionMode(StrEnum):
     """How a historical measurement entered the Asset History."""
 
