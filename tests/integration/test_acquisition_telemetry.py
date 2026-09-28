@@ -144,9 +144,7 @@ def test_acquisition_telemetry_is_restart_safe_and_keeps_runtime_dimensions_sepa
     assert snapshot.flow.last_source_timestamp == event.event_time.source_timestamp
     assert snapshot.flow.last_received_at == event.event_time.received_at
     assert snapshot.flow.last_ingested_at == event.event_time.ingested_at
-    assert snapshot.flow.average_event_rate_hz(
-        as_of=BASE + timedelta(seconds=10)
-    ) == 0.1
+    assert snapshot.flow.average_event_rate_hz(as_of=BASE + timedelta(seconds=10)) == 0.1
     assert not hasattr(snapshot, "healthy")
 
     restarted = SqliteAcquisitionTelemetryRepository(path)
@@ -169,9 +167,7 @@ def test_acquisition_telemetry_is_restart_safe_and_keeps_runtime_dimensions_sepa
 def test_acquisition_telemetry_records_history_window_failure_and_spool_surface(
     tmp_path: Path,
 ) -> None:
-    telemetry = SqliteAcquisitionTelemetryRepository(
-        tmp_path / "acquisition-telemetry.sqlite"
-    )
+    telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
     telemetry.record_session_configuration(
         "source-a",
         callback_queue_maxsize=8,
@@ -231,9 +227,7 @@ def test_acquisition_telemetry_records_history_window_failure_and_spool_surface(
         )
     )
 
-    spool = SqliteAcquisitionSpool(
-        SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
-    )
+    spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
     first = spool.accept_opcua_event(
         _registered_event(event_index=0),
         connection_epoch=1,
