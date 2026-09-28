@@ -126,9 +126,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
 ) -> None:
     async def _run() -> None:
         repository, source = _repositories(tmp_path)
-        spool = SqliteAcquisitionSpool(
-            SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
-        )
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         connector = _FakePersistentConnector()
         stop_event = asyncio.Event()
@@ -147,9 +145,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         await connector.started.wait()
         await asyncio.sleep(0)
 
-        await connector.notifications.put(
-            _notification(channel_id="vibration_x", value=1.0)
-        )
+        await connector.notifications.put(_notification(channel_id="vibration_x", value=1.0))
         await _wait_until(lambda: spool.pending_event_count() == 1)
 
         now = datetime.now(UTC)
@@ -172,9 +168,10 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
             )
         )
         await _wait_until(
-            lambda: sink.list_session_evidence()[-1].state
-            == OpcUaPersistentSessionState.CONNECTED
-            and sink.list_session_evidence()[-1].connection_epoch == 2
+            lambda: (
+                sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
+                and sink.list_session_evidence()[-1].connection_epoch == 2
+            )
         )
 
         await connector.notifications.put(
@@ -230,9 +227,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
 def test_worker_records_queue_overflow_before_reconnect(tmp_path: Path) -> None:
     async def _run() -> None:
         repository, source = _repositories(tmp_path)
-        spool = SqliteAcquisitionSpool(
-            SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
-        )
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         connector = _FakePersistentConnector()
         stop_event = asyncio.Event()
@@ -273,8 +268,7 @@ def test_worker_records_queue_overflow_before_reconnect(tmp_path: Path) -> None:
         )
         await _wait_until(
             lambda: any(
-                item.state == OpcUaPersistentSessionState.CONNECTED
-                and item.connection_epoch == 2
+                item.state == OpcUaPersistentSessionState.CONNECTED and item.connection_epoch == 2
                 for item in sink.list_session_evidence()
             )
         )
@@ -332,9 +326,7 @@ def test_worker_stops_and_preserves_active_lifecycle_when_spool_rejects_event(
             )
         )
         await connector.started.wait()
-        await connector.notifications.put(
-            _notification(channel_id="vibration_x", value=1.0)
-        )
+        await connector.notifications.put(_notification(channel_id="vibration_x", value=1.0))
 
         with pytest.raises(AcquisitionSpoolFullError, match="spool full"):
             await worker
