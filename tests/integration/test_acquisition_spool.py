@@ -158,10 +158,11 @@ def test_duplicate_local_delivery_is_idempotent_but_conflict_is_rejected(tmp_pat
         registered,
         connection_epoch=1,
         event_index=0,
-        accepted_at=accepted_at,
+        accepted_at=accepted_at + timedelta(seconds=10),
     )
 
     assert repeated == first
+    assert repeated.event_time.ingested_at == accepted_at
     assert spool.pending_event_count() == 1
 
     with pytest.raises(
