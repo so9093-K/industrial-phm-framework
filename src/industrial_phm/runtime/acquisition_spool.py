@@ -18,8 +18,8 @@ from typing import cast
 from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolBatch,
     AcquisitionSpoolFormatError,
-    AcquisitionSpoolPendingStats,
     AcquisitionSpoolFullError,
+    AcquisitionSpoolPendingStats,
     AcquisitionSpoolStateError,
 )
 from industrial_phm.application.opcua_persistent import (
@@ -172,7 +172,10 @@ class SqliteAcquisitionSpool:
             oldest_accepted_at = (
                 None
                 if oldest_raw is None
-                else _parse_datetime(_require_str(oldest_raw, "oldest accepted_at"), "oldest accepted_at")
+                else _parse_datetime(
+                    _require_str(oldest_raw, "oldest accepted_at"),
+                    "oldest accepted_at",
+                )
             )
             return AcquisitionSpoolPendingStats(
                 event_count=event_count,
