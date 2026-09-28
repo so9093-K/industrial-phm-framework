@@ -17,6 +17,11 @@ quality·provenance·security boundary는
 데이터를 미리 포괄하는 universal schema가 아니라 실제 source가 추가될 때 공통 의미만 유지하는 adapter/core
 boundary입니다.
 
+Continuous source runtime과 Live/Backfill history의 다음 단계는
+[`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)에서 control plane, durable ingress,
+DuckLake Asset History, window/PHM의 ownership과 restart semantics를 정의합니다. 현재 #256/#257 contract를
+유지한 채 이 경계 위에서 구현합니다.
+
 ## 1. 시스템 아키텍처
 
 ![산업 설비 데이터부터 사용자까지 이어지는 시스템 아키텍처](../../assets/system-architecture.png)
