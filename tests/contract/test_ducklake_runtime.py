@@ -4,10 +4,14 @@ from importlib.util import find_spec
 import pytest
 
 from industrial_phm.application import (
+    FileSourceConfig,
     HistoricalBatchConflictError,
     HistoryIngestionMode,
+    InMemorySourceRepository,
     OpcUaEventTimePolicy,
     RegisteredOpcUaDataChangeEvent,
+    RegisteredSource,
+    backfill_registered_file_source,
     project_opcua_persistent_data_change_event,
 )
 from industrial_phm.connectors import (
@@ -214,3 +218,95 @@ def test_ducklake_asset_history_backfill_provenance(tmp_path) -> None:
     )
     assert recovered_backfill is not None
     assert recovered_backfill.snapshot_id < later_commit.snapshot_id
+
+
+
+def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
+    _require_duckdb()
+    source_path = tmp_path / "historical.csv"
+    source_path.write_text(
+        "timestamp,vibration_x\n"
+        "2026-09-28T01:00:01+00:00,10.0\n"
+        "2026-09-28T01:00:02+00:00,11.0\n",
+        encoding="utf-8",
+    )
+    sources = InMemorySourceRepository()
+    sources.register(
+        RegisteredSource(
+            source_id="file-source",
+            name="Historical vibration",
+            config=FileSourceConfig(
+                source_path=str(source_path),
+                asset_id="pump-01",
+                measurement_point_id="drive-end",
+                channel_columns=("vibration_x",),
+                timestamp_column="timestamp",
+            ),
+            registered_at=BASE,
+        )
+    )
+    repository = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(
+            catalog_path=tmp_path / "catalog.sqlite",
+            data_path=tmp_path / "data",
+        )
+    )
+
+    backfill = backfill_registered_file_source(
+        sources,
+        repository,
+        "file-source",
+    )
+    assert backfill.event_count == 2
+    assert backfill.recovered_segment_count == 0
+
+    live = _event(
+        channel_id="vibration_x",
+        event_at=BASE + timedelta(seconds=2),
+        event_index=9,
+    )
+    repository.append_opcua_batch(
+        (live,),
+        batch_id="live-overlap",
+        ingestion_mode=HistoryIngestionMode.LIVE,
+    )
+
+    measurements = repository.query_measurements(
+        "pump-01",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+    )
+    assert len(measurements) == 3
+    assert {item.ingestion_mode for item in measurements} == {
+        HistoryIngestionMode.BACKFILL,
+        HistoryIngestionMode.LIVE,
+    }
+    assert {item.source_type.value for item in measurements} == {"file", "opcua"}
+    overlap = [
+        item
+        for item in measurements
+        if item.event_at == BASE + timedelta(seconds=2)
+    ]
+    assert len(overlap) == 2
+    assert {item.source_id for item in overlap} == {"file-source", "source-a"}
+
+    raw_file_events = repository.query_file_events("file-source")
+    assert len(raw_file_events) == 2
+    assert raw_file_events[0].source_file == "historical.csv"
+    assert raw_file_events[0].value == 10.0
+    assert raw_file_events[1].value == 11.0
+
+    repeated = backfill_registered_file_source(
+        sources,
+        repository,
+        "file-source",
+    )
+    assert repeated.recovered_segment_count == 1
+    assert len(
+        repository.query_measurements(
+            "pump-01",
+            start_at=BASE,
+            end_at=BASE + timedelta(minutes=1),
+        )
+    ) == 3
+    assert repeated.history_snapshot_id >= backfill.history_snapshot_id
