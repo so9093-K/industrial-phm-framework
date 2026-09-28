@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, runtime_checkable
 
-from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
+from industrial_phm.application.opcua_persistent import (
+    OpcUaEventTimePolicy,
+    OpcUaPersistentDataChangeEvent,
+)
+from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
 
 
 class AcquisitionSpoolFullError(RuntimeError):
@@ -49,7 +53,29 @@ class AcquisitionSpoolBatch:
 
 @runtime_checkable
 class AcquisitionSpool(Protocol):
-    """Crash-safe delivery boundary between source workers and historical storage."""
+    """Crash-safe OPC UA delivery boundary for the first continuous-runtime slice."""
+
+    def accept_opcua_event(
+        self,
+        event: RegisteredOpcUaDataChangeEvent,
+        *,
+        connection_epoch: int,
+        event_index: int,
+        accepted_at: datetime,
+        event_time_policy: OpcUaEventTimePolicy | None = None,
+    ) -> OpcUaPersistentDataChangeEvent:
+        """Durably accept one local delivery and return the stored persistent event."""
+        ...
+
+    def assign_next_batch(
+        self,
+        *,
+        batch_id: str,
+        max_events: int,
+        created_at: datetime,
+    ) -> AcquisitionSpoolBatch | None:
+        """Reuse the active batch or assign oldest pending events to a stable batch."""
+        ...
 
     def pending_event_count(self) -> int:
         """Return all durable events not yet acknowledged downstream."""
