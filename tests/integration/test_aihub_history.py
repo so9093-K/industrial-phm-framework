@@ -115,6 +115,9 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert rows[0]["identity_evidence"] == _binding().identity_evidence
     assert history.list_history_assets()[0].measurement_count == 3
     assert history.list_history_channels(_binding().asset_id) == ("R상전류",)
+    latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
+    assert len(latest) == 1
+    assert latest[0].conflicting_duplicate
     with pytest.raises(ValueError, match="already exists"):
         import_history(archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=2), history)
 

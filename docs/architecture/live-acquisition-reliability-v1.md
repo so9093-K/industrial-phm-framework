@@ -1,5 +1,21 @@
 # Live Acquisition Reliability v1
 
+## Local collector and concurrent history reads
+
+실제 loopback OPC UA server, 별도 collector process, history query client를 함께 실행하는 검증은
+`tests/contract/test_live_measurement_stack.py`가 소유합니다. Source restart/reconnect와 collector restart,
+durable epoch 증가, FILE/live provenance, Stop Collection과 동시 조회를 작은 synthetic input으로 검증합니다.
+
+DuckLake SQLite metadata의 attach/transaction이 겹치면 `database is locked`가 발생할 수 있어,
+adapter는 resolved catalog 경로의 `.phm.lock`을 connection 생성 전 획득하고 close 이후 해제합니다.
+대기 한도는 config의 `catalog_lock_timeout_seconds`(기본 10초)입니다. Timeout은 실패로 노출하고
+spool writer의 기존 retry 정책을 따릅니다. Connection 생성/attach 실패도 잠금을 해제합니다.
+이 보장은 협력하는 local adapter와 local filesystem에 한정되며, 외부 SQL client·분산 filesystem이나
+복수 collector leader election을 포함하지 않습니다. 대용량 query가 writer를 지연시킬 수 있으므로
+장기 운영의 처리량/retention/downsampling 검증은 별도 요구사항입니다.
+
+참고: [DuckLake catalog 선택](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database).
+
 이 문서는 `#267`의 failure/restart/soak 검증 범위와 현재 v1 runtime이 주장하는 신뢰성 경계를 고정합니다.
 목표는 synthetic "exactly once"나 gap-free 보장을 만드는 것이 아니라, **어디까지 durable하고 어디서 loss가
 가능한지, restart 후 어떤 identity/evidence를 복구하는지**를 executable test와 연결하는 것입니다.

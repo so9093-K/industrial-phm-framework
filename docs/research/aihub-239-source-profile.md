@@ -73,6 +73,12 @@ measurement method는 미확정입니다. UI는 raw name과 `unit: unknown`을 �
 
 ## Documented / configured / unresolved
 
+[공식 dataset 239 설명](https://www.aihub.or.kr/aihubdata/data/view.do?dataSetSn=239)의 데이터 구조를
+추가 확인했습니다. `DEVICE_ID`와 `DEVICE_BD_ID`는 센서 식별자로 설명되며, 설비명·종류·정격정보는
+별도 metadata 항목입니다. 따라서 센서 ID를 바로 물리 asset ID로 승격하지 않습니다.
+계약전력과 설비 정격전력의 kW 표기는 metadata의 단위이며 `ITEM_VALUE` 전체의 단위 근거가 아닙니다.
+공개 구조 설명에는 TIMESTAMP 형식이 있지만 UTC offset/timezone 규정은 확인하지 못했습니다.
+
 - **Documented selection:** `tools/aihub/presets/dataset-239.json`이 filekey/설비군/split을 소유합니다.
 - **Observed:** 위 archive 범위에 대한 schema/count/null/duplicate/cadence 조사 결과입니다.
 - **Configured:** 소구간 실행의 asset ID는 개발용 grouping이며 `Asia/Seoul`은 명시적인 normalization
