@@ -66,7 +66,10 @@ jobs:
             tests/contract/test_xjtu_rul_lstm.py
 
       - name: Validate OPC UA runtime contract
-        run: uv run --locked --extra opcua pytest tests/contract/test_opcua_runtime.py
+        run: |
+          uv run --locked --extra opcua pytest \
+            tests/contract/test_opcua_runtime.py \
+            tests/contract/test_opcua_persistent_runtime.py
 
       - name: Validate DuckLake history runtime contract
         run: uv run --locked --extra history pytest tests/contract/test_ducklake_runtime.py
