@@ -1,8 +1,8 @@
-"""Contracts for future persistent OPC UA ingestion without implementing a daemon.
+"""Persistent OPC UA session and event-time contracts.
 
-These types freeze reconnect/session and event-time semantics before a long-lived runtime
-is added. They do not open network connections, persist notifications, assemble windows,
-or claim gap-free delivery.
+The long-lived acquisition worker now executes these semantics, while this module remains
+network/runtime independent. It does not itself open connections, persist notifications,
+assemble windows, or claim gap-free delivery.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from industrial_phm.application.source_subscription import (
 
 
 class OpcUaPersistentSessionState(StrEnum):
-    """Observable state of one future long-lived OPC UA source session."""
+    """Observable application state of one long-lived OPC UA source session."""
 
     DISCONNECTED = "DISCONNECTED"
     CONNECTING = "CONNECTING"
@@ -203,8 +203,8 @@ class OpcUaEventTimePolicy:
 class OpcUaEventTimeEvidence:
     """Preserved protocol/platform timing facts for one DataChange event.
 
-    received_at is connector callback receipt time and ingested_at is acceptance by the
-    future persistent-ingestion boundary. Neither value is silently promoted to event time.
+    received_at is connector callback receipt time and ingested_at is durable acceptance by
+    the persistent-ingestion boundary. Neither value is silently promoted to event time.
     """
 
     basis: OpcUaEventTimeBasis
