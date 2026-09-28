@@ -11,6 +11,8 @@
 
 ### Changed
 
+- Persistent OPC UA worker의 connection epoch를 source별 durable spool metadata에서 atomic reserve하도록 변경했습니다. Worker process restart가 epoch를 1부터 다시 사용해 과거 DuckLake raw delivery identity와 충돌할 수 있던 문제를 막고, stale expected epoch를 가진 concurrent worker는 fail-fast합니다. Epoch reservation 직후 crash로 생기는 gap은 허용하지만 `(source_id, connection_epoch, event_index)` identity 재사용은 허용하지 않습니다.
+
 - Operations primary navigation에서 독립 **Data Quality** destination을 제거하고 품질/provenance evidence를 Sources, Assets, Investigation context로 이동했습니다. Sources는 선택 source와 일치하는 current loaded observation의 quality/source snapshot/validation policy를, Investigation은 실제 AnalysisRun input quality와 recorded source snapshot provenance를, Assets는 asset-scoped loaded observation provenance를 표시합니다. Quality evidence는 asset health나 diagnosis로 승격하지 않습니다.
 - Operations의 Attention Queue, source data-flow, observation, data-quality Markdown 조립을 `industrial_phm.presentation`의 pure presenter로 분리했습니다. Presenter는 application read model을 표시 형식으로만 변환하고 PHM 의미를 만들지 않으며, `marimo`를 runtime dependency로 추가하지 않습니다. Interactive callout/layout/state wiring은 계속 `apps/operations.py`가 소유합니다.
 - Operations를 `Source → Analyze → Results → Finding → Maintenance Review` vertical slice 중심으로 정리하고 primary navigation을 **Overview / Sources / Investigation / Data Quality / Maintenance Review / Operational State**로 축소했습니다. 사용자 action이 없던 Assets/Asset placeholder와 research-only Development RUL/review bridge는 Operations에서 제거했습니다. Persistent OPC UA session/continuous ingestion과 validated automatic PHM semantics는 별도 후속 영역입니다.

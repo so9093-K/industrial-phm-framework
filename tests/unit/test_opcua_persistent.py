@@ -135,13 +135,38 @@ def test_persistent_session_transition_rejects_implicit_epoch_increment() -> Non
         validate_opcua_persistent_session_transition(before, after)
 
 
-def test_initial_disconnected_session_rejects_nonzero_epoch() -> None:
-    with pytest.raises(ValueError, match="zero epoch"):
+def test_initial_disconnected_session_accepts_durable_epoch_baseline() -> None:
+    disconnected = OpcUaPersistentSessionEvidence(
+        source_id="opcua-source-1",
+        state=OpcUaPersistentSessionState.DISCONNECTED,
+        changed_at=NOW,
+        connection_epoch=7,
+    )
+    connecting = OpcUaPersistentSessionEvidence(
+        source_id="opcua-source-1",
+        state=OpcUaPersistentSessionState.CONNECTING,
+        changed_at=NOW + timedelta(seconds=1),
+        connection_epoch=7,
+    )
+    connected = OpcUaPersistentSessionEvidence(
+        source_id="opcua-source-1",
+        state=OpcUaPersistentSessionState.CONNECTED,
+        changed_at=NOW + timedelta(seconds=2),
+        connection_epoch=8,
+    )
+
+    validate_opcua_persistent_session_transition(disconnected, connecting)
+    validate_opcua_persistent_session_transition(connecting, connected)
+
+
+def test_initial_disconnected_session_resets_reconnect_attempt() -> None:
+    with pytest.raises(ValueError, match="zero reconnect attempt"):
         OpcUaPersistentSessionEvidence(
             source_id="opcua-source-1",
             state=OpcUaPersistentSessionState.DISCONNECTED,
             changed_at=NOW,
-            connection_epoch=1,
+            connection_epoch=7,
+            reconnect_attempt_index=1,
         )
 
 

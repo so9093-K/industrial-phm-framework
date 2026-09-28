@@ -279,7 +279,10 @@ Persistent OPC UA acquisition worker
          └ successful commit/recovery 이후에만 spool ACK
     -> DuckLake raw OPC UA evidence + normalized Asset History
   transport/session/subscription recovery는 asyncua가 소유하고 application은 connection epoch,
-  reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다.
+  reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다. Source별 connection epoch는
+  durable spool metadata에서 atomically reserve하므로 worker process restart 뒤에도 이전 epoch를 재사용하지
+  않습니다. Epoch reservation 뒤 process가 종료되어 gap이 생기는 것은 허용하지만 identity reuse는 허용하지
+  않습니다.
   Worker failure/stop은 administrative SourceLifecycle ACTIVE를 asset-health verdict로 바꾸지 않습니다.
   Current session evidence의 durable telemetry/UI projection은 후속 #264/#265 경계입니다.
 
