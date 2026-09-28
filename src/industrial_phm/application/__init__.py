@@ -229,6 +229,7 @@ __all__ = [
     "AttentionKind",
     "ChannelIdentity",
     "ComponentIdentity",
+    "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
     "FieldAnalysisHistoryFormatError",
     "FileSourceConfig",
@@ -257,6 +258,8 @@ __all__ = [
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",
     "ObservationWindowCompleteness",
+    "ObservationWindowCoordinatorCycleResult",
+    "ObservationWindowCoordinatorPolicy",
     "ObservationWindowEventDisposition",
     "ObservationWindowFormatError",
     "ObservationWindowIngestResult",
@@ -266,6 +269,7 @@ __all__ = [
     "OpcUaEventTimeEvidence",
     "OpcUaEventTimePolicy",
     "OpcUaHistoricalBatchStore",
+    "OpcUaHistoricalEventReader",
     "OpcUaPersistentDataChangeEvent",
     "OpcUaPersistentSessionEvidence",
     "OpcUaPersistentSessionEvidenceSink",
@@ -351,3 +355,10 @@ __all__ = [
     "validate_operational_finding_against_run",
     "validate_registered_file_source",
 ]
+
+from industrial_phm.application.window_coordinator import (
+    ContinuousObservationWindowCoordinatorResult,
+    ObservationWindowCoordinatorCycleResult,
+    ObservationWindowCoordinatorPolicy,
+    OpcUaHistoricalEventReader,
+)
