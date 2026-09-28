@@ -11,6 +11,8 @@
 
 ### Changed
 
+- Continuous observation-window coordinator에서 current registered source mapping에 없는 unexpected OPC UA channel이 observation watermark를 전진시키지 않도록 수정했습니다. Unexpected event는 #257 `UNEXPECTED_CHANNEL` evidence로 유지하며, 기존 window buffer가 없을 때는 rejected event만으로 먼 미래 빈 window를 만들지 않습니다.
+
 - Persistent OPC UA worker의 connection epoch를 source별 durable spool metadata에서 atomic reserve하도록 변경했습니다. Worker process restart가 epoch를 1부터 다시 사용해 과거 DuckLake raw delivery identity와 충돌할 수 있던 문제를 막고, stale expected epoch를 가진 concurrent worker는 fail-fast합니다. Epoch reservation 직후 crash로 생기는 gap은 허용하지만 `(source_id, connection_epoch, event_index)` identity 재사용은 허용하지 않습니다.
 
 - Operations primary navigation에서 독립 **Data Quality** destination을 제거하고 품질/provenance evidence를 Sources, Assets, Investigation context로 이동했습니다. Sources는 선택 source와 일치하는 current loaded observation의 quality/source snapshot/validation policy를, Investigation은 실제 AnalysisRun input quality와 recorded source snapshot provenance를, Assets는 asset-scoped loaded observation provenance를 표시합니다. Quality evidence는 asset health나 diagnosis로 승격하지 않습니다.
