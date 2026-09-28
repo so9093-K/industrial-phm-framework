@@ -68,6 +68,9 @@ jobs:
       - name: Validate OPC UA runtime contract
         run: uv run --locked --extra opcua pytest tests/contract/test_opcua_runtime.py
 
+      - name: Validate DuckLake history runtime contract
+        run: uv run --locked --extra history pytest tests/contract/test_ducklake_runtime.py
+
       - name: Build package
         run: uv build
 
@@ -83,6 +86,8 @@ jobs:
           unzip -p dist/*.whl '*dist-info/entry_points.txt' | grep -q 'industrial-phm = industrial_phm.cli:main'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: deep-learning'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: torch.*extra == .deep-learning.'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: history'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: duckdb.*extra == .history.'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: opcua'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: asyncua.*extra == .opcua.'
 
