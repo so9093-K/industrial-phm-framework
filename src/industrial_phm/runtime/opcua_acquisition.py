@@ -191,12 +191,14 @@ async def run_registered_opcua_acquisition_worker(
                     changed_at=event.occurred_at,
                 )
             return
-        if event.state == OpcUaConnectorConnectionState.CONNECTED:
-            if current.state == OpcUaPersistentSessionState.CONNECTING:
-                _transition(
-                    OpcUaPersistentSessionState.CONNECTED,
-                    changed_at=event.occurred_at,
-                )
+        if (
+            event.state == OpcUaConnectorConnectionState.CONNECTED
+            and current.state == OpcUaPersistentSessionState.CONNECTING
+        ):
+            _transition(
+                OpcUaPersistentSessionState.CONNECTED,
+                changed_at=event.occurred_at,
+            )
 
     try:
         _transition(
