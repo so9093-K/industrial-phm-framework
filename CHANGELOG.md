@@ -11,6 +11,10 @@
 
 ### Changed
 
+- FILE raw history는 null 값과 source-specific JSON provenance를 보존합니다. 기존 DuckLake 카탈로그의
+  FILE 테이블을 확장하고 기존 batch fingerprint를 유지합니다. 새 연결에서 현재 history snapshot을
+  조회할 때 connection-local last commit 대신 catalog의 최신 snapshot을 사용합니다.
+
 - Continuous observation-window coordinator에서 current registered source mapping에 없는 unexpected OPC UA channel이 observation watermark를 전진시키지 않도록 수정했습니다. Unexpected event는 #257 `UNEXPECTED_CHANNEL` evidence로 유지하며, 기존 window buffer가 없을 때는 rejected event만으로 먼 미래 빈 window를 만들지 않습니다.
 
 - Persistent OPC UA worker의 connection epoch를 source별 durable spool metadata에서 atomic reserve하도록 변경했습니다. Worker process restart가 epoch를 1부터 다시 사용해 과거 DuckLake raw delivery identity와 충돌할 수 있던 문제를 막고, stale expected epoch를 가진 concurrent worker는 fail-fast합니다. Epoch reservation 직후 crash로 생기는 gap은 허용하지만 `(source_id, connection_epoch, event_index)` identity 재사용은 허용하지 않습니다.
@@ -25,6 +29,11 @@
 - Operational `AnalysisRun`의 observation/execution window와 `OperationalFinding.observed_at`을 timezone-aware absolute time으로 강제하고, finding/run validator가 `finding.capability_id`가 해당 run의 declared `capability_ids`에 포함되는지 확인하도록 강화했습니다. Ambiguous naive operational time과 run이 생산하지 않은 capability finding의 provenance 승격을 fail-fast로 차단합니다.
 
 ### Added
+
+- AI-Hub 239 ZIP의 streaming reader, 전체 archive profiler와 명시적인 설비·timezone binding을 사용하는
+  소구간 history importer를 추가했습니다. 원본 null·중복을 보존하며 단위는 추정하지 않습니다.
+- Operations Asset Detail에 FILE/OPC UA 공통 측정 이력 조회를 추가했습니다. 시간·채널 선택,
+  2,000개 관측 한도, null·충돌 표시와 매핑 provenance를 제공하며 보간하거나 건강 판정을 만들지 않습니다.
 
 - Live Acquisition & Asset History v1의 bounded live-acquisition reliability profile을 추가했습니다. 192 durable deliveries, collector epoch restart, identical retry, replay, out-of-order event time, temporary DuckLake failure, stable active-batch writer restart, full history drain, deterministic window rebuild, telemetry consistency를 CI에서 검증합니다. Continuous history writer는 transient downstream exception을 동일 active batch로 재시도하며 identity/spool invariant 오류는 fail-fast합니다. 상세 data-loss/duplicate claims와 기존 reconnect/overflow/backfill tests의 scenario matrix는 `docs/architecture/live-acquisition-reliability-v1.md`에 정리했습니다.
 

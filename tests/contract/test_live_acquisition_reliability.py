@@ -297,13 +297,14 @@ def test_bounded_live_acquisition_soak_survives_restart_and_writer_failure(
 
     write_count = 0
     while spool.pending_event_count():
-        write_at = BASE + timedelta(seconds=501 + write_count)
+        # DuckLake commits use wall-clock time. A fixed historical ACK clock
+        # becomes invalid once the test date has passed.
         result = write_next_spool_batch(
             spool,
             history,
             policy=policy,
             batch_id_factory=_next_batch_id,
-            now_fn=lambda write_at=write_at: write_at,
+            now_fn=lambda: datetime.now(UTC),
             telemetry_recorder=telemetry,
             force=True,
         )

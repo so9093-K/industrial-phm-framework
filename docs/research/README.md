@@ -6,6 +6,8 @@ parameter는 각각 PR과 version-controlled ExperimentConfig가 소유합니다
 
 ## Index
 
+- [AI-Hub 239 Power Equipment Source Profile](aihub-239-source-profile.md)
+
 - [Dataset Selection and Acquisition Research](dataset-selection.md)
 - [PHM Industry Direction and Research Context (2025–2026)](phm-industry-direction.md)
 - [XJTU-SY Local Source Profile](xjtu-source-profile.md)

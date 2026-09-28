@@ -98,3 +98,71 @@ Publisher checksum이 preset에 없으므로 `verify`는 upstream authenticity�
 - preset은 acquisition selection metadata이며 아직 framework dataset registry의 canonical manifest가
   아닙니다.
 - dataset-specific parsing, measurement semantics, Asset History integration은 별도 변경으로 다룹니다.
+
+## Local power-data profiling and history
+
+Acquisition은 위 CLI가 담당하고, 아래 명령은 이미 받은 ZIP만 읽습니다. 실행 환경은 다음으로 준비합니다.
+
+```bash
+uv sync --locked --extra aihub --extra history --group research
+uv run --no-sync python -m tools.aihub.profile \
+  data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --output artifacts/aihub-239/boiler-profile.json
+uv run --no-sync python -m tools.aihub.profile \
+  data/raw/aihub/239/archives/training/raw/7.압출기.zip \
+  --output artifacts/aihub-239/extruder-profile.json
+```
+
+Profiler는 ZIP/member를 stream하고 임시 SQLite에서 중복·cadence를 계산하므로 전체 JSON을 메모리에
+올리지 않습니다. 상세 결과는 `artifacts/`에 두고 검증된 사실과 조사 범위만
+[source profile](../../docs/research/aihub-239-source-profile.md)에 남깁니다.
+
+이력 적재에는 명시적 binding JSON이 필요합니다. 다음은 **개발용 예시**이며 물리 설비 identity와
+source timezone을 확인했다는 주장이 아닙니다. 실제 적용에는 확인된 근거 또는 사용자가 선택한 가정을
+기록합니다. `.env`나 API key는 이 파일에 넣지 않습니다.
+
+```json
+{
+  "source_id": "aihub239-boiler",
+  "asset_id": "research-boiler-2297",
+  "device_id": "2297",
+  "device_board_id": "1",
+  "timezone": "Asia/Seoul",
+  "identity_evidence": "Explicit development grouping; physical asset identity unverified",
+  "timezone_evidence": "Explicit normalization assumption; source timezone unverified",
+  "version": "research-v1"
+}
+```
+
+이를 `artifacts/aihub-239/boiler-binding.json`에 저장한 뒤 작은 구간을 적재합니다. 선택 시각은
+offset 없는 **원본 local time**이고 종료 시각은 미포함입니다.
+
+```bash
+uv run --no-sync python -m tools.aihub.history \
+  data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --member '5.보일러/SourceData_211.json' \
+  --binding artifacts/aihub-239/boiler-binding.json \
+  --start 2020-11-13T00:00:00 --end 2020-11-13T01:00:00 \
+  --ducklake-catalog artifacts/operations/history/catalog.sqlite \
+  --ducklake-data artifacts/operations/history/data
+uv run --no-sync marimo run apps/operations.py
+```
+
+Operations의 **Assets → Asset → Measurement History → 이력 조회**에서 추세와 provenance를 확인합니다.
+압출기는 별도 source/asset binding(device 2223/board 1), member `7.압출기/SourceData_127.json`,
+local range `2020-11-01T00:00:00`–`2020-11-01T01:00:00`으로 같은 경로를 사용할 수 있습니다.
+
+Importer는 2,000개 단위 commit을 사용합니다. 동일 입력/설정의 재실행은 기존 commit을 복구하지만,
+다른 범위나 변경된 binding이 기존 raw identity와 겹치면 명시적으로 실패합니다. 오류 이전 batch는
+보존되므로 같은 명령으로 재실행합니다. 이 명령은 CSV Source 등록이나 collector start를 수행하지 않습니다.
+
+## Observed macOS vendor-shell issue
+
+공식 `aihubshell` v0.6의 `escaped_prefix=$(printf '%q' "$prefix")`가 macOS 기본 Bash에서 한글
+filename을 shell-quoted 문자열로 바꿔 `find -name`이 part 파일을 찾지 못하는 문제를 재현했습니다.
+빈 ZIP이 만들어지면 tooling의 ZIP 검증에서 실패하며 manifest에 성공으로 기록하지 않습니다.
+
+이번 local execution은 외부 vendor script 원본을 보관하고 해당 assignment를
+`escaped_prefix="$prefix"`로 바꾼 local copy를 사용했습니다. Repo tooling은 vendor script를 자동으로
+patch하지 않습니다. 선택한 두 archive에서 검증한 우회이며 임의 filename/다른 OS의 지원 보장이 아닙니다.
+공식 원본과 설치 안내: [AI-Hub Shell](https://www.aihub.or.kr/devsport/apishell/list.do).

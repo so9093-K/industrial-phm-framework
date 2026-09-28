@@ -17,6 +17,13 @@ quality·provenance·security boundary는
 데이터를 미리 포괄하는 universal schema가 아니라 실제 source가 추가될 때 공통 의미만 유지하는 adapter/core
 boundary입니다.
 
+AI-Hub 239 raw power data는 별도의 streaming reader로 null·중복·원본 local time을 보존합니다.
+명시적 source/asset/timezone binding을 거쳐 FILE raw evidence와 공통 Asset History에 적재하며,
+Operations Asset Detail은 같은 history에서 FILE/OPC UA 관측을 bounded range query로 조회합니다.
+Raw ingestion과 analysis projection, identity와 measurement semantics의 경계는
+[ADR-0007](../adr/0007-preserve-raw-measurements-before-analysis-projection.md)에 정리합니다.
+CanonicalTimeSeries의 finite rectangular 계약은 유지합니다.
+
 Continuous source runtime과 Live/Backfill history의 다음 단계는
 [`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)에서 control plane, durable ingress,
 DuckLake Asset History, window/PHM의 ownership과 restart semantics를 정의합니다. 현재 #256/#257 contract를

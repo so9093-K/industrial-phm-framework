@@ -4272,9 +4272,46 @@ def _(
 
 
 @app.cell
+def _(Path, os):
+    from industrial_phm.application.asset_identity import AssetIdentity
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+    from industrial_phm.presentation.measurement_history import (
+        measurement_history_rows,
+        render_measurement_history_svg,
+    )
+
+    _catalog = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_HISTORY_CATALOG", "artifacts/operations/history/catalog.sqlite"
+        )
+    )
+    _data = Path(os.environ.get("INDUSTRIAL_PHM_HISTORY_DATA", "artifacts/operations/history/data"))
+    history_reader = None
+    history_assets = ()
+    history_error = None
+    if _catalog.is_file():
+        try:
+            history_reader = DuckLakeAssetHistory(DuckLakeAssetHistoryConfig(_catalog, _data))
+            history_assets = history_reader.list_history_assets()
+        except Exception as _error:
+            history_error = str(_error)
+            history_reader = None
+    return (
+        AssetIdentity,
+        history_reader,
+        history_assets,
+        history_error,
+        measurement_history_rows,
+        render_measurement_history_svg,
+    )
+
+
+@app.cell
 def _(
     field_analysis_results,
     list_operational_asset_identities,
+    AssetIdentity,
+    history_assets,
     mo,
     observation,
     operational_findings,
@@ -4287,6 +4324,9 @@ def _(
         analysis_runs=tuple(result.run for result in field_analysis_results),
         findings=operational_findings,
     )
+    _identities = {item.asset_id: item for item in asset_identities}
+    _identities.update({item.asset_id: AssetIdentity(item.asset_id) for item in history_assets})
+    asset_identities = tuple(_identities[key] for key in sorted(_identities))
     if asset_identities:
         asset_selector = mo.ui.dropdown(
             options=[item.asset_id for item in asset_identities],
@@ -4331,9 +4371,125 @@ def _(
 
 
 @app.cell
+def _(asset_selector, history_assets, history_reader, mo):
+    from datetime import timedelta
+
+    history_query_form = None
+    history_controls_error = None
+    if asset_selector is not None and history_reader is not None:
+        _summary = next((a for a in history_assets if a.asset_id == asset_selector.value), None)
+        if _summary is not None:
+            try:
+                _channels = history_reader.list_history_channels(asset_selector.value)
+                history_query_form = mo.ui.batch(
+                    mo.md("{channel}\n\n{start}\n\n{end}"),
+                    {
+                        "channel": mo.ui.dropdown(
+                            options=list(_channels), value=_channels[0], label="측정 항목"
+                        ),
+                        "start": mo.ui.text(
+                            value=_summary.start_at.isoformat(),
+                            label="시작 시각 (UTC offset 포함)",
+                            full_width=True,
+                        ),
+                        "end": mo.ui.text(
+                            value=min(
+                                _summary.start_at + timedelta(hours=1),
+                                _summary.end_at + timedelta(seconds=1),
+                            ).isoformat(),
+                            label="종료 시각 (미포함)",
+                            full_width=True,
+                        ),
+                    },
+                ).form(submit_button_label="이력 조회 / 새로고침")
+            except Exception as _error:
+                history_controls_error = str(_error)
+    return history_query_form, history_controls_error
+
+
+@app.cell
+def _(
+    asset_selector,
+    datetime,
+    history_controls_error,
+    history_error,
+    history_query_form,
+    history_reader,
+    measurement_history_rows,
+    mo,
+    render_measurement_history_svg,
+):
+    _blocks = [mo.md("### Measurement History")]
+    if history_error or history_controls_error:
+        _blocks.append(mo.callout(history_error or history_controls_error, kind="danger"))
+    elif history_query_form is None:
+        _blocks.append(mo.callout("이 설비에서 조회 가능한 측정 이력이 없습니다.", kind="neutral"))
+    else:
+        _blocks.append(history_query_form)
+        if history_query_form.value is not None:
+            try:
+                _query = history_query_form.value
+                _page = history_reader.query_measurement_page(
+                    asset_selector.value,
+                    start_at=datetime.fromisoformat(_query["start"]),
+                    end_at=datetime.fromisoformat(_query["end"]),
+                    channel_id=_query["channel"],
+                    point_budget=2000,
+                )
+                if _page.truncated:
+                    _blocks.append(
+                        mo.callout(
+                            "조회 한도를 넘어 시간순 첫 2,000개 관측만 표시합니다. "
+                            "시간 범위를 줄여주세요.",
+                            kind="warn",
+                        )
+                    )
+                if _page.points:
+                    _blocks.append(mo.Html(render_measurement_history_svg(_page)))
+                    _rows = measurement_history_rows(_page)
+                    _columns = (
+                        "time",
+                        "value",
+                        "channel",
+                        "unit",
+                        "quality",
+                        "source",
+                        "ingestion",
+                    )
+                    _blocks.append(
+                        mo.ui.table(
+                            [{key: row[key] for key in _columns} for row in _rows],
+                            page_size=10,
+                        )
+                    )
+                    _blocks.append(
+                        mo.accordion(
+                            {
+                                "출처·매핑 근거": mo.ui.table(_rows, page_size=10),
+                            }
+                        )
+                    )
+                else:
+                    _blocks.append(mo.callout("선택한 범위에 관측값이 없습니다.", kind="neutral"))
+                _blocks.append(
+                    mo.md(
+                        "관측점을 그대로 표시하며 보간하지 않습니다. "
+                        "빨간 표시는 품질 문제 또는 값 충돌이며, "
+                        "null 시각 표시는 0값이 아닙니다. 단위 unknown은 미확정 상태입니다. "
+                        "표에서 출처와 설비·시간 매핑 근거를 확인할 수 있습니다."
+                    )
+                )
+            except Exception as _error:
+                _blocks.append(mo.callout(f"이력 조회 실패: {_error}", kind="danger"))
+    measurement_history_view = mo.vstack(_blocks, gap=0.8)
+    return (measurement_history_view,)
+
+
+@app.cell
 def _(
     asset_detail,
     asset_selector,
+    measurement_history_view,
     mo,
     render_asset_analysis_markdown,
     render_asset_findings_markdown,
@@ -4432,10 +4588,7 @@ def _(
 
         assets_view = mo.vstack(
             [
-                mo.md(
-                    "## Asset Detail\n\n"
-                    f"선택한 physical asset: `{asset_detail.asset_identity.asset_id}`"
-                ),
+                mo.md(f"## Asset Detail\n\n선택한 asset: `{asset_detail.asset_identity.asset_id}`"),
                 asset_selector,
                 mo.hstack(
                     [
@@ -4459,6 +4612,7 @@ def _(
                     widths="equal",
                 ),
                 _sources_view,
+                measurement_history_view,
                 _observations_view,
                 _analysis_view,
                 _findings_view,
@@ -4499,8 +4653,7 @@ def _(
     _header_items = [
         mo.md(
             "# PHM Operations\n\n"
-            "현재 **Source → Analyze → Results → Finding → Maintenance Review**의 "
-            "FILE snapshot workflow가 연결되어 있습니다."
+            "설비별 관측 이력과 변화를 확인하고 분석 근거를 검토해 운영·정비 판단을 지원합니다."
         ),
         mo.callout(
             "Primary navigation에는 현재 실행하거나 검토할 수 있는 Operations 기능만 둡니다. "
