@@ -305,7 +305,19 @@ history를 source of truth로 rebuild합니다. #257의 in-memory buffer 자체�
 
 ### Operations UI restart
 
-UI restart나 browser close는 collector stop을 의미하지 않습니다. UI는 independent runtime state를 다시 읽습니다.
+UI restart나 browser close는 collector stop을 의미하지 않습니다. Operations는 SQLite WAL
+collection-control store에 desired state만 기록하고, 별도 `run-collection-service` process가
+source별 persistent worker/window coordinator와 shared spool→DuckLake writer를 소유합니다.
+
+`SourceLifecycle.ACTIVE`, `CollectionDesiredState.RUNNING`, observed session `CONNECTED`는 서로 다른
+dimension입니다. Start Collection은 lifecycle을 바꾸지 않고 ACTIVE source에 RUNNING intent만 기록하며,
+Stop Collection도 lifecycle을 유지한 채 STOPPED intent를 기록합니다. Runtime service가 없거나 중단되면
+desired RUNNING과 observed STOPPED/Unavailable이 동시에 보일 수 있으며 UI는 이를 숨기지 않습니다.
+
+Service는 STOP request로 source worker/window coordinator를 종료해도 shared history writer를 계속 유지해
+이미 durable spool에 수용된 backlog를 DuckLake로 drain할 수 있습니다. Service process 자체가 종료될 때는
+remaining sub-threshold spool data를 버리지 않고 durable state로 남깁니다. UI는 #264 telemetry와 spool
+snapshot을 다시 읽어 monitor를 구성하며 DuckLake를 직접 mutate하지 않습니다.
 
 ## 9. 이번 milestone 작업 순서
 
@@ -320,9 +332,9 @@ UI restart나 browser close는 collector stop을 의미하지 않습니다. UI�
 9. #266 — historical backfill → same Asset history
 10. #267 — reconnect/crash/replay/overflow/restart/soak 검증
 
-#265의 runtime ownership/control surface가 끝나기 전에는 Operations의 Start Collection을 durable product
-capability로 표현하지 않습니다. #262까지는 live event가 DuckLake history에 도달하고, #263은 그 history에서
-derived window를 재구성하는 data-plane 경계를 완성합니다.
+#265에서 Operations의 Start/Stop은 durable desired-state command가 되었고 collector ownership은 독립
+collection service로 분리됩니다. #262까지 live event가 DuckLake history에 도달하고 #263이 derived window를
+재구성하며, #264 telemetry와 #265 control/monitor surface가 이 data-plane을 운영 UI와 연결합니다.
 
 ## 10. 비목표
 

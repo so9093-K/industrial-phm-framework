@@ -36,7 +36,11 @@ from industrial_phm.commands.experiment import (
     _run_experiment_validate,
 )
 from industrial_phm.commands.feature import _run_feature_characterize
-from industrial_phm.commands.operations import _run_operations_poll_source
+from industrial_phm.commands.operations import (
+    _run_operations_collection_service,
+    _run_operations_poll_source,
+    _run_operations_request_collection,
+)
 from industrial_phm.data.registry import list_datasets
 
 DATA_ROOT_ENV = "INDUSTRIAL_PHM_DATA_DIR"
@@ -246,6 +250,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional positive cycle limit; omit to run until stop/failure/Ctrl+C",
     )
     operations_poll_source.set_defaults(handler=_run_operations_poll_source)
+
+    operations_request_collection = operations_commands.add_parser(
+        "request-collection",
+        help="request desired continuous collection state without owning the runtime loop",
+    )
+    operations_request_collection.add_argument(
+        "--registry",
+        type=Path,
+        required=True,
+        help="persistent registered-source control-plane JSON path",
+    )
+    operations_request_collection.add_argument(
+        "--control-state",
+        type=Path,
+        required=True,
+        help="SQLite desired collection-state path",
+    )
+    operations_request_collection.add_argument(
+        "--source-id",
+        required=True,
+        help="registered OPC UA source ID",
+    )
+    operations_request_collection.add_argument(
+        "--state",
+        choices=("running", "stopped"),
+        required=True,
+        help="desired continuous collection state",
+    )
+    operations_request_collection.set_defaults(handler=_run_operations_request_collection)
+
+    operations_collection_service = operations_commands.add_parser(
+        "run-collection-service",
+        help="run the independent continuous OPC UA collection service",
+    )
+    operations_collection_service.add_argument("--registry", type=Path, required=True)
+    operations_collection_service.add_argument("--control-state", type=Path, required=True)
+    operations_collection_service.add_argument("--spool-state", type=Path, required=True)
+    operations_collection_service.add_argument("--telemetry-state", type=Path, required=True)
+    operations_collection_service.add_argument("--window-state", type=Path, required=True)
+    operations_collection_service.add_argument("--ducklake-catalog", type=Path, required=True)
+    operations_collection_service.add_argument("--ducklake-data", type=Path, required=True)
+    operations_collection_service.add_argument(
+        "--reconcile-interval-seconds",
+        type=float,
+        default=0.5,
+        help="positive desired-state reconciliation interval in seconds (default: 0.5)",
+    )
+    operations_collection_service.set_defaults(handler=_run_operations_collection_service)
 
     feature = subcommands.add_parser(
         "feature",

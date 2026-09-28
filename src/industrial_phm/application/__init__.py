@@ -48,6 +48,12 @@ from industrial_phm.application.asset_identity import (
     ComponentIdentity,
     MeasurementPointIdentity,
 )
+from industrial_phm.application.collection_control import (
+    CollectionControlRecord,
+    CollectionControlRepository,
+    CollectionDesiredState,
+    request_collection_state,
+)
 from industrial_phm.application.field_analysis import (
     FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
     OperationalVibrationFeatureEvidence,
@@ -261,6 +267,9 @@ __all__ = [
     "AttentionItem",
     "AttentionKind",
     "ChannelIdentity",
+    "CollectionControlRecord",
+    "CollectionControlRepository",
+    "CollectionDesiredState",
     "ComponentIdentity",
     "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
@@ -378,6 +387,7 @@ __all__ = [
     "receive_registered_file_source_observation",
     "receive_registered_opcua_source_observation",
     "register_file_source",
+    "request_collection_state",
     "run_registered_file_feature_analysis",
     "run_registered_file_source_cycle",
     "run_registered_opcua_source_cycle",

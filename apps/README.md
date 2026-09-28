@@ -59,8 +59,27 @@ chronological ordering에 사용하고 missing/naive 시각은 **Time not compar
 **Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity와 type-specific configuration을 표시합니다. **Add source**의 type selector에서 FILE 또는 OPC UA를 선택할 수 있습니다. FILE은 file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
 등록 record와 별도로 `REGISTERED / ACTIVE / PAUSED / ERROR` lifecycle state를 보존하고 Sources에서
-Activate/Pause할 수 있습니다. ACTIVE는 one-shot source runtime이 소비할 수 있는 administrative
-enablement이며, 그 자체로 connection/health/freshness/continuous ingestion을 주장하지 않습니다. 기본 registry 경로는
+Activate/Pause할 수 있습니다. ACTIVE는 runtime이 소비할 수 있는 administrative enablement이며, 그 자체로
+connection/health/freshness/continuous ingestion을 주장하지 않습니다.
+
+등록된 **OPC UA + ACTIVE** source에는 Sources에서 **Start Collection / Stop Collection / Refresh live monitor**를
+제공합니다. 버튼은 collector loop를 직접 실행하지 않고 SQLite collection-control state의 desired
+`RUNNING / STOPPED`만 갱신합니다. 실제 continuous runtime은 별도 process로 실행합니다.
+
+```bash
+uv run --locked --extra opcua --extra history industrial-phm operations run-collection-service \
+  --registry artifacts/operations/source-registry.json \
+  --control-state artifacts/operations/collection-control.sqlite \
+  --spool-state artifacts/operations/acquisition-spool.sqlite \
+  --telemetry-state artifacts/operations/acquisition-telemetry.sqlite \
+  --window-state artifacts/operations/observation-windows.json \
+  --ducklake-catalog artifacts/operations/ducklake-catalog.sqlite \
+  --ducklake-data artifacts/operations/ducklake-data
+```
+
+이 service가 long-lived OPC UA worker, shared spool→DuckLake writer와 source별 window coordinator를 소유하므로
+browser/UI 종료는 collection stop을 의미하지 않습니다. UI는 desired state와 #264 observed telemetry를 분리해
+표시하며 DuckLake를 직접 mutate하지 않습니다. 기본 registry 경로는
 `artifacts/operations/source-registry.json`입니다. Latest accepted receipt는 별도 runtime-state 파일
 `artifacts/operations/source-runtime.json`에 저장합니다. 두 경로 모두 환경변수로 바꿀 수 있습니다.
 

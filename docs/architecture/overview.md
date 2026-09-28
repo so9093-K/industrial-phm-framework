@@ -295,7 +295,10 @@ Persistent OPC UA acquisition worker
   telemetry DB에 복제하지 않고 spool DB에서 직접 sample합니다. asyncua private queue depth에는 의존하지 않아
   callback queue depth/high-watermark는 현재 uninstrumented이고 configured maxsize/overflow만 기록합니다.
   이 telemetry는 existing bounded SourceHealth의 current-connection 의미나 asset health verdict를 자동 변경하지
-  않으며 #265 Operations control/monitor surface가 이를 소비합니다.
+  않습니다. Operations Start/Stop은 별도 SQLite WAL collection-control store에 desired RUNNING/STOPPED state만
+  기록하고, UI와 독립된 collection-service process가 이를 reconcile해 source worker/window coordinator를
+  시작/중지합니다. Shared spool→DuckLake writer는 service가 살아 있는 동안 source STOP과 독립적으로 backlog를
+  drain합니다. 따라서 lifecycle ACTIVE / desired RUNNING / observed CONNECTED를 하나의 state로 합치지 않습니다.
 
 Registered OPC UA one-shot runtime
   RegisteredSource(OPCUA) + ACTIVE lifecycle

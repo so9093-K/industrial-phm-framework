@@ -17,6 +17,7 @@ def _():
     from industrial_phm.application import (
         AssetObservationSummary,
         AssetObservationTimeline,
+        CollectionDesiredState,
         FileSourceConfig,
         FileSourceMode,
         FindingReviewAction,
@@ -36,6 +37,7 @@ def _():
         SystemStateErrorEvidence,
         assess_source_freshness,
         assess_source_health,
+        build_acquisition_telemetry_surface,
         build_asset_detail,
         build_operations_attention_queue,
         build_operations_overview,
@@ -48,6 +50,7 @@ def _():
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         register_file_source,
+        request_collection_state,
         run_registered_file_feature_analysis,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
@@ -69,16 +72,24 @@ def _():
         render_asset_sources_markdown,
         render_asset_timeline_markdown,
         render_attention_queue_markdown,
+        render_collection_monitor_markdown,
         render_data_quality_issues_markdown,
         render_observation_markdown,
         render_observation_provenance_markdown,
         render_source_data_flow_markdown,
         render_unplaced_asset_evidence_markdown,
     )
+    from industrial_phm.runtime import (
+        SqliteAcquisitionSpool,
+        SqliteAcquisitionSpoolConfig,
+        SqliteAcquisitionTelemetryRepository,
+        SqliteCollectionControlRepository,
+    )
 
     return (
         AssetObservationSummary,
         AssetObservationTimeline,
+        CollectionDesiredState,
         DataQualityState,
         FileSourceConfig,
         FileSourceMode,
@@ -99,10 +110,15 @@ def _():
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
+        SqliteAcquisitionSpool,
+        SqliteAcquisitionSpoolConfig,
+        SqliteAcquisitionTelemetryRepository,
+        SqliteCollectionControlRepository,
         SystemStateErrorEvidence,
         assess_source_freshness,
         assess_source_health,
         asyncio,
+        build_acquisition_telemetry_surface,
         build_asset_detail,
         build_operations_attention_queue,
         build_operations_overview,
@@ -122,6 +138,7 @@ def _():
         render_asset_sources_markdown,
         render_asset_timeline_markdown,
         render_attention_queue_markdown,
+        render_collection_monitor_markdown,
         render_data_quality_issues_markdown,
         render_observation_markdown,
         render_observation_provenance_markdown,
@@ -129,6 +146,7 @@ def _():
         render_unplaced_asset_evidence_markdown,
         mo,
         register_file_source,
+        request_collection_state,
         run_registered_file_feature_analysis,
         run_registered_file_source_cycle,
         run_registered_opcua_source_cycle,
@@ -271,6 +289,18 @@ def _(
         "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
         "artifacts/operations/source-runtime.json",
     )
+    collection_control_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
+        "artifacts/operations/collection-control.sqlite",
+    )
+    acquisition_telemetry_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
+        "artifacts/operations/acquisition-telemetry.sqlite",
+    )
+    acquisition_spool_default = os.environ.get(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
+        "artifacts/operations/acquisition-spool.sqlite",
+    )
     try:
         _source_repository = JsonSourceRepository(Path(source_registry_default))
         initial_registered_sources = _source_repository.list_sources()
@@ -327,6 +357,9 @@ def _(
         initial_source_runtime_connection_attempts,
         initial_source_runtime_error,
         initial_source_runtime_receipts,
+        acquisition_spool_default,
+        acquisition_telemetry_default,
+        collection_control_default,
         source_registry_default,
         source_runtime_default,
     )
@@ -1366,6 +1399,14 @@ def _(mo, registered_sources):
         )
         activate_source_button = mo.ui.run_button(label="Activate source")
         pause_source_button = mo.ui.run_button(label="Pause source")
+        start_collection_button = mo.ui.run_button(
+            label="Start Collection",
+            kind="success",
+        )
+        stop_collection_button = mo.ui.run_button(label="Stop Collection")
+        refresh_collection_monitor_button = mo.ui.run_button(
+            label="Refresh live monitor",
+        )
         freshness_age_input = mo.ui.text(
             value="",
             label="Max observation age (seconds)",
@@ -1391,6 +1432,9 @@ def _(mo, registered_sources):
         source_selector = None
         activate_source_button = None
         pause_source_button = None
+        start_collection_button = None
+        stop_collection_button = None
+        refresh_collection_monitor_button = None
         freshness_age_input = None
         save_freshness_policy_button = None
         clear_freshness_policy_button = None
@@ -1406,9 +1450,12 @@ def _(mo, registered_sources):
         freshness_age_input,
         load_registered_source_button,
         pause_source_button,
+        refresh_collection_monitor_button,
         run_active_source_button,
         save_freshness_policy_button,
         source_selector,
+        start_collection_button,
+        stop_collection_button,
     )
 
 
@@ -1706,6 +1753,77 @@ def _(
 
 @app.cell
 def _(mo):
+    get_collection_control_error, set_collection_control_error = mo.state("")
+    get_collection_control_success, set_collection_control_success = mo.state("")
+    return (
+        get_collection_control_error,
+        get_collection_control_success,
+        set_collection_control_error,
+        set_collection_control_success,
+    )
+
+
+@app.cell
+def _(get_collection_control_error, get_collection_control_success):
+    collection_control_error = get_collection_control_error()
+    collection_control_success = get_collection_control_success()
+    return collection_control_error, collection_control_success
+
+
+@app.cell
+def _(
+    CollectionDesiredState,
+    JsonSourceRepository,
+    Path,
+    SqliteCollectionControlRepository,
+    collection_control_default,
+    datetime,
+    request_collection_state,
+    set_collection_control_error,
+    set_collection_control_success,
+    source_registry_default,
+    source_selector,
+    start_collection_button,
+    stop_collection_button,
+):
+    _desired_state = None
+    if start_collection_button is not None and start_collection_button.value:
+        _desired_state = CollectionDesiredState.RUNNING
+    elif stop_collection_button is not None and stop_collection_button.value:
+        _desired_state = CollectionDesiredState.STOPPED
+
+    if _desired_state is not None:
+        try:
+            if source_selector is None:
+                raise ValueError("select a registered source before changing collection state")
+            _source_repository = JsonSourceRepository(Path(source_registry_default))
+            _control_repository = SqliteCollectionControlRepository(
+                Path(collection_control_default)
+            )
+            _record = request_collection_state(
+                _source_repository,
+                _source_repository,
+                _control_repository,
+                source_selector.value,
+                _desired_state,
+                requested_at=datetime.now().astimezone(),
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_collection_control_success("")
+            set_collection_control_error(str(error))
+        else:
+            set_collection_control_error("")
+            set_collection_control_success(
+                "Desired collection changed: "
+                f"{_record.source_id} → {_record.desired_state.value.upper()} "
+                f"(generation {_record.generation}). "
+                "The Operations UI does not own the collector process."
+            )
+    return
+
+
+@app.cell
+def _(mo):
     get_runtime_cycle_error, set_runtime_cycle_error = mo.state("")
     get_runtime_cycle_skipped, set_runtime_cycle_skipped = mo.state("")
     get_runtime_cycle_success, set_runtime_cycle_success = mo.state("")
@@ -1868,12 +1986,23 @@ def _(get_registered_source_load_error, get_registered_source_load_success):
 def _(
     FileSourceConfig,
     OpcUaSourceConfig,
+    Path,
+    SqliteAcquisitionSpool,
+    SqliteAcquisitionSpoolConfig,
+    SqliteAcquisitionTelemetryRepository,
+    SqliteCollectionControlRepository,
+    acquisition_spool_default,
+    acquisition_telemetry_default,
     activate_source_button,
     analyze_registered_source_button,
     assess_source_freshness,
     assess_source_health,
+    build_acquisition_telemetry_surface,
     clear_freshness_policy_button,
     collect_opcua_subscription_button,
+    collection_control_default,
+    collection_control_error,
+    collection_control_success,
     datetime,
     freshness_age_input,
     field_analysis_error,
@@ -1886,6 +2015,8 @@ def _(
     load_registered_source_button,
     mo,
     pause_source_button,
+    refresh_collection_monitor_button,
+    render_collection_monitor_markdown,
     run_active_source_button,
     registered_sources,
     registered_source_load_error,
@@ -1909,6 +2040,8 @@ def _(
     source_runtime_receipts,
     source_selector,
     source_quality_context_view,
+    start_collection_button,
+    stop_collection_button,
 ):
     def escape_markdown_cell(value: str) -> str:
         return (
@@ -2039,6 +2172,108 @@ def _(
                 f"| Node mappings | {escape_markdown_cell(_node_mapping_label)} |\n"
                 f"| Request timeout | {_selected_config.timeout_seconds:g} s |\n"
             )
+        if refresh_collection_monitor_button is not None:
+            _collection_monitor_refresh = refresh_collection_monitor_button.value
+        else:
+            _collection_monitor_refresh = False
+
+        if _selected_is_file:
+            _collection_monitor_view = mo.callout(
+                "Continuous collection is currently implemented for registered OPC UA sources. "
+                "FILE sources keep their existing explicit load/analysis workflows.",
+                kind="neutral",
+                title="Continuous collection · Not applicable",
+            )
+        elif _selected_lifecycle is None:
+            _collection_monitor_view = mo.callout(
+                "Lifecycle evidence is unavailable, so collection control cannot be rendered.",
+                kind="neutral",
+                title="Continuous collection · Unavailable",
+            )
+        else:
+            del _collection_monitor_refresh
+            try:
+                _control_path = Path(collection_control_default)
+                _telemetry_path = Path(acquisition_telemetry_default)
+                _spool_path = Path(acquisition_spool_default)
+
+                _collection_control = (
+                    None
+                    if not _control_path.exists()
+                    else SqliteCollectionControlRepository(_control_path).get(_selected.source_id)
+                )
+                _collection_surface = None
+                if _telemetry_path.exists() and _spool_path.exists():
+                    _telemetry_repository = SqliteAcquisitionTelemetryRepository(_telemetry_path)
+                    _spool_repository = SqliteAcquisitionSpool(
+                        SqliteAcquisitionSpoolConfig(path=_spool_path)
+                    )
+                    _collection_surface = build_acquisition_telemetry_surface(
+                        _telemetry_repository,
+                        _spool_repository,
+                        _selected.source_id,
+                        sampled_at=datetime.now().astimezone(),
+                    )
+                _collection_markdown = render_collection_monitor_markdown(
+                    _selected.source_id,
+                    _selected_lifecycle,
+                    _collection_control,
+                    _collection_surface,
+                )
+            except (OSError, ValueError) as error:
+                _collection_monitor_view = mo.callout(
+                    str(error),
+                    kind="danger",
+                    title="Continuous collection monitor unavailable",
+                )
+            else:
+                _collection_action_status = (
+                    mo.callout(
+                        collection_control_error,
+                        kind="danger",
+                        title="Collection request failed",
+                    )
+                    if collection_control_error
+                    else (
+                        mo.callout(
+                            collection_control_success,
+                            kind="success",
+                            title="Collection request recorded",
+                        )
+                        if collection_control_success
+                        else mo.callout(
+                            "Start/Stop writes only desired collection state. "
+                            "The independent collection service owns the long-lived worker, "
+                            "DuckLake writer and window coordinator.",
+                            kind="info",
+                            title="Control-plane semantics",
+                        )
+                    )
+                )
+                _collection_monitor_view = mo.vstack(
+                    [
+                        mo.hstack(
+                            [
+                                start_collection_button,
+                                stop_collection_button,
+                                refresh_collection_monitor_button,
+                            ],
+                            widths="equal",
+                        ),
+                        _collection_action_status,
+                        mo.md(_collection_markdown),
+                        mo.callout(
+                            "The Operations UI does not spawn or own the collector process. "
+                            "Run industrial-phm operations run-collection-service as a separate "
+                            "service process. Closing this UI does not change desired collection "
+                            "state.",
+                            kind="info",
+                            title="Runtime ownership",
+                        ),
+                    ],
+                    gap=0.7,
+                )
+
         _session_receipt = (
             source_receipt
             if source_receipt is not None and source_receipt.source_id == _selected.source_id
@@ -2399,14 +2634,14 @@ def _(
                             caption="Administrative state, not connection proof",
                         ),
                         mo.stat(
-                            "Not instrumented",
-                            label="Connection health",
-                            caption="Registration does not imply connectivity",
+                            "Per source",
+                            label="Live telemetry",
+                            caption="Desired state and observed runtime stay separate",
                         ),
                         mo.stat(
-                            "On-demand",
+                            "Continuous + bounded",
                             label="Runtime actions",
-                            caption="FILE/OPC UA bounded execution",
+                            caption="OPC UA service plus explicit bounded workflows",
                         ),
                     ],
                     widths="equal",
@@ -2460,6 +2695,8 @@ def _(
                         )
                     )
                 ),
+                mo.md("### Continuous collection"),
+                _collection_monitor_view,
                 mo.md("### Runtime execution"),
                 mo.md("#### One-shot observation"),
                 run_active_source_button,
