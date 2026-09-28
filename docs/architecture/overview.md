@@ -258,7 +258,25 @@ Registered OPC UA bounded subscription application
     -> platform/runtime-state failure: FAILED/PLATFORM, lifecycle unchanged
     -> no SourceReceiptEvidence or freshness update
   Operations Sources exposes this bounded cycle as an explicit on-demand action.
-  Notification persistence, reconnect, or continuous ingestion is not added.
+  이 bounded connector 자체에는 notification persistence, reconnect, continuous ingestion을 추가하지 않습니다.
+
+Persistent OPC UA acquisition worker
+  RegisteredSource(OPCUA) + ACTIVE lifecycle
+    -> asyncua Client(auto_reconnect=true)
+    -> long-lived DataChange subscription
+         ├ bounded iterator queue
+         ├ overflow -> explicit evidence + reconnect
+         └ Republish replay flag preserved
+    -> #256 persistent session evidence
+         DISCONNECTED -> CONNECTING -> CONNECTED
+         CONNECTED -> RECONNECT_WAIT -> CONNECTING -> CONNECTED
+    -> RegisteredOpcUaDataChangeEvent
+    -> SQLite WAL durable acquisition spool
+         └ successful durable acceptance -> OpcUaPersistentDataChangeEvent
+  transport/session/subscription recovery는 asyncua가 소유하고 application은 connection epoch,
+  reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다.
+  Worker failure/stop은 administrative SourceLifecycle ACTIVE를 asset-health verdict로 바꾸지 않습니다.
+  Current session evidence의 durable telemetry/UI projection은 후속 #264/#265 경계입니다.
 
 Registered OPC UA one-shot runtime
   RegisteredSource(OPCUA) + ACTIVE lifecycle
@@ -300,9 +318,11 @@ OPC UA connector proof와 registration identity는 registry v4를 통해 persist
 surface까지 연결되었습니다. 현재 connector는 explicit variable NodeId를 한 번 읽어 protocol
 quality/timestamp를 보존하고, application/registry는 같은 endpoint/NodeId mapping을 `RegisteredSource`로
 round-trip합니다. Operations는 FILE과 OPC UA detail을 type별로 표시합니다. FILE 전용 manual Load action은 OPC UA에서 노출하지 않지만 type-specific Run action은 OPC UA one-shot runtime을 실행합니다. Operations Add source는 OPC UA endpoint와 browse candidate 또는 explicit `channel_id,node_id`
-mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록하며 Operations Run action에서도 실행됩니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. CLI `operations poll-source`는 FILE/OPC UA registered source를 type-specific one-shot cycle로 동기 반복합니다. OPC UA polling은 iteration마다 fresh connect/read/disconnect를 수행하며 connection/session을 유지하지 않습니다. OPC UA one-shot snapshot은 `project_registered_opcua_observation_summary`로 canonical `AssetObservationSummary`에 projection하며 one iteration을 `sample_count=1`로 표현하고 complete-channel watermark만 observed start/end로 사용합니다. Non-good status는 data-quality ERROR로 보존하고 sampling rate/file provenance는 추정하지 않습니다. OPC UA read/browse/subscription connector의 `completed_at`은 successful context teardown 이후에 기록합니다. OPC UA read/subscription cycle은 successful bounded attempt와 source-owned connector/transport failure를 operation-tagged latest `SourceConnectionAttemptEvidence`로 runtime v3에 기록합니다. `SourceHealthAssessment`는 이 historical attempt evidence를 optional inspection fact로 보존하지만 current/session connection state는 계속 `NOT_INSTRUMENTED`입니다. Operations Sources는 latest attempt operation/outcome/timing/detail을 persisted runtime evidence에서 읽어 표시하지만 이를 current connection state로 승격하지 않습니다. Bounded registered-source subscription collection은 Operations Sources의 explicit **Collect bounded subscription** action까지 연결됐습니다. UI는 completion reason, notification count, channel coverage와 event-level value/status/timing을 현재 app session에서 보여주지만 notification persistence나 current session connection telemetry로 승격하지 않습니다. Persistent session telemetry, observation/window assembly와 reconnect는 후속 경계입니다. `asyncua`는 `opcua` optional extra에만 있고 core dependency가 아닙니다.
-Connector는 `auto_reconnect=False`로 실행되며 username/password, certificate/security policy configuration,
-reconnect/backoff/buffering과 persistent session telemetry는 후속 requirement에서 확장합니다.
+mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록하며 Operations Run action에서도 실행됩니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. CLI `operations poll-source`는 FILE/OPC UA registered source를 type-specific one-shot cycle로 동기 반복합니다. OPC UA polling은 iteration마다 fresh connect/read/disconnect를 수행하며 connection/session을 유지하지 않습니다. OPC UA one-shot snapshot은 `project_registered_opcua_observation_summary`로 canonical `AssetObservationSummary`에 projection하며 one iteration을 `sample_count=1`로 표현하고 complete-channel watermark만 observed start/end로 사용합니다. Non-good status는 data-quality ERROR로 보존하고 sampling rate/file provenance는 추정하지 않습니다. OPC UA read/browse/subscription connector의 `completed_at`은 successful context teardown 이후에 기록합니다. OPC UA read/subscription cycle은 successful bounded attempt와 source-owned connector/transport failure를 operation-tagged latest `SourceConnectionAttemptEvidence`로 runtime v3에 기록합니다. `SourceHealthAssessment`는 이 historical attempt evidence를 optional inspection fact로 보존하지만 current/session connection state는 계속 `NOT_INSTRUMENTED`입니다. Operations Sources는 latest attempt operation/outcome/timing/detail을 persisted runtime evidence에서 읽어 표시하지만 이를 current connection state로 승격하지 않습니다. Bounded registered-source subscription collection은 Operations Sources의 explicit **Collect bounded subscription** action까지 연결됐습니다. UI는 completion reason, notification count, channel coverage와 event-level value/status/timing을 현재 app session에서 보여주지만 notification persistence나 current session connection telemetry로 승격하지 않습니다. 별도 persistent acquisition worker는 asyncua auto-reconnect와 #260 durable spool까지 연결하지만,
+current session evidence의 durable telemetry, continuous window assembly와 Operations control/monitor surface는
+아직 후속 #263~#265 경계입니다. `asyncua`는 계속 `opcua` optional extra에만 있고 core dependency가 아닙니다.
+One-shot/bounded connector는 계속 `auto_reconnect=False`이고 persistent worker만 `auto_reconnect=True`를 사용합니다.
+username/password, certificate/security policy configuration은 아직 지원하지 않습니다.
 
 Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
 REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, ACTIVE one-shot runtime cycle, registry read surface와
