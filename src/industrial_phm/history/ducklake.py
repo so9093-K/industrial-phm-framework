@@ -7,6 +7,7 @@ belong to the acquisition spool.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 from collections.abc import Sequence
@@ -17,6 +18,7 @@ from typing import Any
 
 from industrial_phm.application.asset_history import (
     HistoricalBatchCommit,
+    HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
     HistoricalMeasurement,
     HistoryIngestionMode,
@@ -32,6 +34,8 @@ from industrial_phm.application.source_subscription import RegisteredOpcUaDataCh
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 
 _CATALOG_NAME = "phm_history"
+_COMMIT_AUTHOR = "industrial-phm"
+_COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
 
 
 class DuckLakeRuntimeUnavailableError(RuntimeError):
@@ -76,6 +80,33 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
 
+    def get_opcua_batch_commit(
+        self,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchCommit | None:
+        """Return an existing identical batch commit, or fail on identity conflict."""
+        batch = _validate_opcua_batch_input(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+        fingerprint = _opcua_batch_fingerprint(batch)
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._lookup_existing_batch_commit(
+                connection,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+                event_count=len(batch),
+                fingerprint=fingerprint,
+            )
+        finally:
+            connection.close()
+
     def append_opcua_batch(
         self,
         events: Sequence[OpcUaPersistentDataChangeEvent],
@@ -83,25 +114,26 @@ class DuckLakeAssetHistory:
         batch_id: str,
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit:
-        """Atomically persist raw OPC UA evidence and normalized measurement history."""
-        _validate_identifier(batch_id, "batch_id")
-        if not isinstance(ingestion_mode, HistoryIngestionMode):
-            raise ValueError("ingestion_mode must be a HistoryIngestionMode")
-
-        batch = tuple(events)
-        if not batch:
-            raise ValueError("events must not be empty")
-        if not all(isinstance(event, OpcUaPersistentDataChangeEvent) for event in batch):
-            raise ValueError("events must contain OpcUaPersistentDataChangeEvent values")
-
-        identities = tuple(event.local_delivery_identity for event in batch)
-        if len(set(identities)) != len(identities):
-            raise ValueError("events must have distinct local delivery identities")
+        """Atomically persist a batch or recover its already committed identical write."""
+        batch = _validate_opcua_batch_input(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+        fingerprint = _opcua_batch_fingerprint(batch)
 
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            self._reject_existing_batch(connection, batch_id)
+            existing = self._lookup_existing_batch_commit(
+                connection,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+                event_count=len(batch),
+                fingerprint=fingerprint,
+            )
+            if existing is not None:
+                return existing
             self._reject_existing_deliveries(connection, batch)
 
             transaction_open = False
@@ -137,6 +169,21 @@ class DuckLakeAssetHistory:
                         )
                         for event in batch
                     ],
+                )
+                commit_extra_info = _batch_commit_extra_info(
+                    batch_id=batch_id,
+                    ingestion_mode=ingestion_mode,
+                    event_count=len(batch),
+                    fingerprint=fingerprint,
+                )
+                connection.execute(
+                    f"CALL {_CATALOG_NAME}.set_commit_message("
+                    + _quote_sql_literal(_COMMIT_AUTHOR)
+                    + ", "
+                    + _quote_sql_literal(f"ingestion batch {batch_id}")
+                    + ", extra_info => "
+                    + _quote_sql_literal(commit_extra_info)
+                    + ")"
                 )
                 connection.execute("COMMIT")
                 transaction_open = False
@@ -380,19 +427,181 @@ class DuckLakeAssetHistory:
             existing_id = _require_str(row[0], "raw_evidence_id")
             raise ValueError(f"historical delivery already exists: {existing_id}")
 
-    def _reject_existing_batch(self, connection: Any, batch_id: str) -> None:
-        row = connection.execute(
+    def _lookup_existing_batch_commit(
+        self,
+        connection: Any,
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode,
+        event_count: int,
+        fingerprint: str,
+    ) -> HistoricalBatchCommit | None:
+        batch_rows = connection.execute(
             f"""
-            SELECT COUNT(*)
+            SELECT ingestion_mode, event_count
             FROM {_CATALOG_NAME}.history.ingestion_batch
             WHERE batch_id = ?
             """,
             [batch_id],
-        ).fetchone()
-        if row is None:
-            raise RuntimeError("DuckLake batch lookup did not return a count")
-        if _require_int(row[0], "batch count") != 0:
-            raise ValueError(f"historical batch already exists: {batch_id}")
+        ).fetchall()
+        if not batch_rows:
+            return None
+        if len(batch_rows) != 1:
+            raise HistoricalBatchConflictError(
+                f"historical batch identity is ambiguous: {batch_id}"
+            )
+
+        stored_mode = HistoryIngestionMode(
+            _require_str(batch_rows[0][0], "ingestion_mode")
+        )
+        stored_count = _require_int(batch_rows[0][1], "event_count")
+        if stored_mode != ingestion_mode or stored_count != event_count:
+            raise HistoricalBatchConflictError(
+                f"historical batch identity conflicts with stored metadata: {batch_id}"
+            )
+
+        matching_snapshots: list[tuple[int, datetime]] = []
+        snapshot_rows = connection.execute(
+            f"""
+            SELECT snapshot_id, snapshot_time, commit_extra_info
+            FROM {_CATALOG_NAME}.snapshots()
+            WHERE commit_extra_info IS NOT NULL
+            ORDER BY snapshot_id
+            """
+        ).fetchall()
+        for snapshot_id_raw, snapshot_time_raw, extra_raw in snapshot_rows:
+            extra = _parse_commit_extra_info(extra_raw)
+            if extra is None or extra.get("batch_id") != batch_id:
+                continue
+            if (
+                extra.get("schema") != _COMMIT_EXTRA_SCHEMA
+                or extra.get("ingestion_mode") != ingestion_mode.value
+                or extra.get("event_count") != event_count
+                or extra.get("fingerprint") != fingerprint
+            ):
+                raise HistoricalBatchConflictError(
+                    f"historical batch identity conflicts with commit provenance: {batch_id}"
+                )
+            snapshot_id = _require_int(snapshot_id_raw, "snapshot_id")
+            snapshot_time = _require_datetime(snapshot_time_raw, "snapshot_time")
+            matching_snapshots.append((snapshot_id, snapshot_time))
+
+        if len(matching_snapshots) != 1:
+            raise HistoricalBatchConflictError(
+                f"historical batch commit provenance is unavailable or ambiguous: {batch_id}"
+            )
+        snapshot_id, committed_at = matching_snapshots[0]
+        return HistoricalBatchCommit(
+            batch_id=batch_id,
+            snapshot_id=snapshot_id,
+            event_count=event_count,
+            committed_at=committed_at,
+        )
+
+
+def _validate_opcua_batch_input(
+    events: Sequence[OpcUaPersistentDataChangeEvent],
+    *,
+    batch_id: str,
+    ingestion_mode: HistoryIngestionMode,
+) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+    _validate_identifier(batch_id, "batch_id")
+    if not isinstance(ingestion_mode, HistoryIngestionMode):
+        raise ValueError("ingestion_mode must be a HistoryIngestionMode")
+
+    batch = tuple(events)
+    if not batch:
+        raise ValueError("events must not be empty")
+    if not all(isinstance(event, OpcUaPersistentDataChangeEvent) for event in batch):
+        raise ValueError("events must contain OpcUaPersistentDataChangeEvent values")
+    identities = tuple(event.local_delivery_identity for event in batch)
+    if len(set(identities)) != len(identities):
+        raise ValueError("events must have distinct local delivery identities")
+    return batch
+
+
+def _batch_commit_extra_info(
+    *,
+    batch_id: str,
+    ingestion_mode: HistoryIngestionMode,
+    event_count: int,
+    fingerprint: str,
+) -> str:
+    return json.dumps(
+        {
+            "schema": _COMMIT_EXTRA_SCHEMA,
+            "batch_id": batch_id,
+            "ingestion_mode": ingestion_mode.value,
+            "event_count": event_count,
+            "fingerprint": fingerprint,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _parse_commit_extra_info(value: object) -> dict[str, object] | None:
+    if value is None:
+        return None
+    raw = _require_str(value, "commit_extra_info")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise HistoricalBatchConflictError(
+            "DuckLake commit_extra_info must contain valid JSON"
+        ) from error
+    if not isinstance(parsed, dict):
+        raise HistoricalBatchConflictError(
+            "DuckLake commit_extra_info must contain a JSON object"
+        )
+    return parsed
+
+
+def _opcua_batch_fingerprint(
+    events: Sequence[OpcUaPersistentDataChangeEvent],
+) -> str:
+    payload: list[dict[str, object]] = []
+    for event in events:
+        registered = event.event
+        observation = registered.notification.observation
+        timing = event.event_time
+        payload.append(
+            {
+                "source_id": registered.source_id,
+                "asset_id": registered.asset_id,
+                "endpoint_url": registered.endpoint_url,
+                "measurement_point_id": registered.measurement_point_id,
+                "collection_index": registered.collection_index,
+                "channel_id": observation.channel_id,
+                "node_id": observation.node_id,
+                "value": observation.value,
+                "status_code": observation.status_code,
+                "status_good": observation.status_good,
+                "status_text": observation.status_text,
+                "variant_type": observation.variant_type,
+                "source_timestamp": _format_optional_datetime(
+                    observation.source_timestamp
+                ),
+                "server_timestamp": _format_optional_datetime(
+                    observation.server_timestamp
+                ),
+                "received_at": observation.received_at.isoformat(),
+                "ingested_at": timing.ingested_at.isoformat(),
+                "event_at": _format_optional_datetime(timing.event_at),
+                "event_time_basis": timing.basis.value,
+                "connection_epoch": event.connection_epoch,
+                "event_index": event.event_index,
+                "replayed": registered.notification.replayed,
+            }
+        )
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _load_duckdb_module() -> Any:
@@ -642,6 +851,10 @@ def _optional_float(value: object, field_name: str) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise RuntimeError(f"DuckLake {field_name} must be numeric or null")
     return float(value)
+
+
+def _format_optional_datetime(value: datetime | None) -> str | None:
+    return None if value is None else value.isoformat()
 
 
 def _require_datetime(value: object, field_name: str) -> datetime:
