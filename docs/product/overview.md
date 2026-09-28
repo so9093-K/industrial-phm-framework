@@ -1001,19 +1001,36 @@ UI component extraction을 read model보다 먼저 하지 않습니다. 기존 m
 
 ### Persistent source와 event-time contract
 
-Persistent OPC UA implementation 전에 다음 timing/data semantics를 먼저 contract로 고정합니다.
+Persistent OPC UA implementation 전에 timing/data semantics와 reconnect state를 먼저 contract로 고정합니다.
+
+현재 contract는 다음 원칙을 executable invariant로 둡니다.
+
+- session state는 `DISCONNECTED → CONNECTING → CONNECTED`와
+  `CONNECTED → RECONNECT_WAIT → CONNECTING`을 구분하고 `STOPPED`를 terminal state로 둡니다.
+- successful connect 때만 `connection_epoch`를 증가시키고 reconnect retry 시작 때만
+  `reconnect_attempt_index`를 증가시킵니다.
+- reconnect delay는 explicit initial/max/multiplier policy에서 capped backoff로 계산합니다.
+- callback queue bound는 connector-level memory bound일 뿐 durable observation buffer가 아닙니다.
+- DataChange delivery는 `(source_id, connection_epoch, event_index)` local identity를 가지지만 OPC UA server
+  sequence나 exactly-once/gap-free delivery를 주장하지 않습니다.
+- event time은 SourceTimestamp를 우선하며, ServerTimestamp fallback은 명시적으로 opt-in한 경우만 허용합니다.
+- `received_at`과 `ingested_at`은 별도 platform timing fact이며 event time으로 자동 승격하지 않습니다.
 
 ```text
 source_timestamp
 server_timestamp
 received_at
 ingested_at
-watermark
-window_start
-window_end
+event_at + event_time_basis
+connection_epoch + event_index
+watermark                  # durable window boundary에서 추가
+window_start / window_end  # durable window boundary에서 추가
 ```
 
-그리고 적어도 다음 상태를 서로 구분합니다.
+현재 이 contract는 network reconnect loop, background daemon, notification persistence, credentials/certificates,
+watermark/window assembly를 구현하지 않습니다.
+
+그리고 다음 runtime/window 단계에서 적어도 다음 상태를 서로 구분합니다.
 
 - duplicate event
 - late event
