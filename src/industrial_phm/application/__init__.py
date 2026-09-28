@@ -5,6 +5,7 @@ from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolBatch,
     AcquisitionSpoolFormatError,
     AcquisitionSpoolFullError,
+    AcquisitionSpoolPendingStats,
     AcquisitionSpoolStateError,
 )
 from industrial_phm.application.asset_detail import (
