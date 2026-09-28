@@ -5,7 +5,7 @@ on:
     branches: [feat/ducklake-asset-history]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   generate:
@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
 
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -25,14 +23,15 @@ jobs:
       - name: Install Python 3.14
         run: uv python install 3.14
 
-      - name: Generate lock
-        run: uv lock
-
-      - name: Emit lock
+      - name: Generate and commit lock
         run: |
-          echo 'LOCK_BASE64_BEGIN'
-          base64 -w0 uv.lock
-          echo
-          echo 'LOCK_BASE64_END'
-
-# branch-only temporary workflow
+          uv lock
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "build(history): lock DuckDB history runtime"
+          git push origin HEAD:feat/ducklake-asset-history
