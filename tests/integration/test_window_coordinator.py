@@ -333,3 +333,67 @@ def test_continuous_window_coordinator_records_latest_telemetry(tmp_path: Path) 
         assert window.last_finalized_window_end == BASE + timedelta(seconds=10)
 
     asyncio.run(_run())
+
+
+def test_unexpected_channel_does_not_advance_watermark_or_create_future_window(
+    tmp_path: Path,
+) -> None:
+    events = (
+        _event(
+            event_index=0,
+            channel_id="vibration_x",
+            source_timestamp=BASE + timedelta(seconds=2),
+            ingested_at=BASE + timedelta(seconds=2.1),
+        ),
+        _event(
+            event_index=1,
+            channel_id="unexpected",
+            source_timestamp=BASE + timedelta(seconds=100),
+            ingested_at=BASE + timedelta(seconds=100.1),
+        ),
+        _event(
+            event_index=2,
+            channel_id="temperature",
+            source_timestamp=BASE + timedelta(seconds=15),
+            ingested_at=BASE + timedelta(seconds=15.1),
+        ),
+    )
+    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    source_repository = _source_repository()
+
+    first = rebuild_registered_opcua_observation_windows(
+        source_repository,
+        _History(events),
+        repository,
+        "source-a",
+        policy=_policy(),
+    )
+
+    assert [result.disposition for result in first.event_results] == [
+        ObservationWindowEventDisposition.IN_ORDER,
+        ObservationWindowEventDisposition.UNEXPECTED_CHANNEL,
+        ObservationWindowEventDisposition.IN_ORDER,
+    ]
+    assert first.event_results[1].watermark_at_ingest == BASE - timedelta(seconds=1)
+    assert first.watermark == BASE + timedelta(seconds=12)
+    assert first.finalized_window_count == 1
+    assert first.active_window_count == 1
+
+    windows = repository.list_windows()
+    assert len(windows) == 1
+    assert windows[0].window_start == BASE
+    assert windows[0].window_end == BASE + timedelta(seconds=10)
+    assert windows[0].finalized_at == BASE + timedelta(seconds=15.1)
+    assert windows[0].watermark_at_close == BASE + timedelta(seconds=12)
+
+    second = rebuild_registered_opcua_observation_windows(
+        source_repository,
+        _History(events),
+        JsonObservationWindowRepository(tmp_path / "windows.json"),
+        "source-a",
+        policy=_policy(),
+    )
+    assert second.event_results == first.event_results
+    assert second.finalized_windows == first.finalized_windows
+    assert second.watermark == first.watermark
+    assert JsonObservationWindowRepository(tmp_path / "windows.json").list_windows() == windows

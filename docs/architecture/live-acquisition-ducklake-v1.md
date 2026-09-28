@@ -303,7 +303,8 @@ DuckLake commit 성공과 spool ACK 사이에서 process가 종료될 수 있으
 
 Window coordinator는 DuckLake raw OPC UA history를 `ingested_at → connection_epoch → event_index` 순서로
 deterministic replay하고, fixed alignment window와 bounded-out-of-orderness watermark
-`max(valid event_at seen) - allowed_lateness`를 다시 계산합니다. Future-skew와 timing-unavailable event는
+`max(valid expected-channel event_at seen) - allowed_lateness`를 다시 계산합니다. Timing-unavailable,
+future-skew, current source mapping에 없는 unexpected-channel event는 disposition evidence는 남기지만
 watermark를 전진시키지 않습니다.
 
 Finalized window의 `finalized_at`은 wall clock이 아니라 해당 watermark를 전진시킨 durable event의
