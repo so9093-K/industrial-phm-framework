@@ -43,18 +43,18 @@ from industrial_phm.application.asset_history import (
     HistoryIngestionMode,
     validate_asset_history_query,
 )
+from industrial_phm.application.asset_identity import (
+    AssetIdentity,
+    ChannelIdentity,
+    ComponentIdentity,
+    MeasurementPointIdentity,
+)
 from industrial_phm.application.backfill import (
     FileBackfillEvent,
     FileBackfillResult,
     FileBackfillSegmentResult,
     FileHistoricalBatchStore,
     backfill_registered_file_source,
-)
-from industrial_phm.application.asset_identity import (
-    AssetIdentity,
-    ChannelIdentity,
-    ComponentIdentity,
-    MeasurementPointIdentity,
 )
 from industrial_phm.application.collection_control import (
     CollectionControlRecord,
