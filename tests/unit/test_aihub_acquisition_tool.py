@@ -5,7 +5,6 @@ import pytest
 
 from tools.aihub.cli import AIHubToolError, load_local_env, main, parse_inventory
 
-
 SAMPLE_TREE = """
 ==========================================
 aihubshell version 25.09.19 v0.6
@@ -62,6 +61,59 @@ def test_bootstrap_plan_is_offline_and_selects_two_training_raw_archives(
     assert "압출기" in output
     assert "156.0 MiB" in output
     assert "no network request was made" in output
+
+
+
+def test_single_archive_preset_can_plan_existing_boiler_only(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["plan", "239", "--preset", "boiler", "--root", str(tmp_path)]) == 0
+
+    output = capsys.readouterr().out
+    assert "44033" in output
+    assert "보일러" in output
+    assert "44035" not in output
+
+
+def test_force_download_failure_preserves_existing_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_shell = tmp_path / "aihubshell"
+    fake_shell.write_text("#!/bin/sh\nexit 7\n", encoding="utf-8")
+    fake_shell.chmod(0o755)
+
+    archive = (
+        tmp_path
+        / "aihub"
+        / "239"
+        / "archives"
+        / "training"
+        / "raw"
+        / "5.보일러.zip"
+    )
+    archive.parent.mkdir(parents=True)
+    archive.write_bytes(b"existing-archive")
+
+    monkeypatch.setenv("AIHUBSHELL_PATH", str(fake_shell))
+    monkeypatch.setenv("AIHUB_APIKEY", "test-key")
+
+    assert (
+        main(
+            [
+                "download",
+                "239",
+                "--preset",
+                "boiler",
+                "--root",
+                str(tmp_path),
+                "--force",
+            ]
+        )
+        == 1
+    )
+    assert archive.read_bytes() == b"existing-archive"
 
 
 def test_local_env_does_not_override_explicit_process_environment(
