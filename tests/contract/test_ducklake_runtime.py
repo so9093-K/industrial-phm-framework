@@ -222,7 +222,6 @@ def test_ducklake_asset_history_backfill_provenance(tmp_path) -> None:
     assert recovered_backfill.snapshot_id < later_commit.snapshot_id
 
 
-
 def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
     _require_duckdb()
     source_path = tmp_path / "historical.csv"
