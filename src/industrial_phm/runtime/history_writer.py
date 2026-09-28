@@ -119,14 +119,15 @@ def write_next_spool_batch(
     except Exception as error:
         if telemetry_recorder is not None:
             failure_at = _now(now_fn)
+            failure_detail = _failure_detail(error)
             for source_id in sorted({event.source_id for event in batch.events}):
                 _record_telemetry_best_effort(
-                    lambda source_id=source_id: telemetry_recorder.record_failure(
+                    lambda source_id=source_id, failure_at=failure_at, failure_detail=failure_detail: telemetry_recorder.record_failure(
                         AcquisitionFailureTelemetry(
                             source_id=source_id,
                             component=AcquisitionFailureComponent.HISTORY_WRITER,
                             occurred_at=failure_at,
-                            detail=_failure_detail(error),
+                            detail=failure_detail,
                         )
                     ),
                     label="history writer failure",
@@ -142,10 +143,11 @@ def write_next_spool_batch(
     )
     if telemetry_recorder is not None:
         source_counts = Counter(event.source_id for event in batch.events)
+        source_event_counts = dict(source_counts)
         _record_telemetry_best_effort(
-            lambda: telemetry_recorder.record_history_batch(
+            lambda result=result, source_event_counts=source_event_counts: telemetry_recorder.record_history_batch(
                 result,
-                source_event_counts=dict(source_counts),
+                source_event_counts=source_event_counts,
             ),
             label="history batch",
         )
