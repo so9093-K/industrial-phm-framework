@@ -51,6 +51,7 @@ def test_collection_control_is_restart_safe_and_separate_from_lifecycle(
     with pytest.raises(ValueError, match="requires source lifecycle ACTIVE"):
         request_collection_state(
             source_repository,
+            source_repository,
             control,
             "source-a",
             CollectionDesiredState.RUNNING,
@@ -111,6 +112,7 @@ def test_collection_service_owns_runtime_tasks_outside_control_request(
         )
         control = SqliteCollectionControlRepository(tmp_path / "collection-control.sqlite")
         request_collection_state(
+            source_repository,
             source_repository,
             control,
             "source-a",
@@ -194,6 +196,7 @@ def test_collection_service_owns_runtime_tasks_outside_control_request(
 
         request_collection_state(
             source_repository,
+            source_repository,
             control,
             "source-a",
             CollectionDesiredState.STOPPED,
@@ -203,6 +206,7 @@ def test_collection_service_owns_runtime_tasks_outside_control_request(
         assert not service.done()
 
         request_collection_state(
+            source_repository,
             source_repository,
             control,
             "source-a",
