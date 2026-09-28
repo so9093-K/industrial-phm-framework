@@ -88,9 +88,7 @@ def test_writer_recovers_ducklake_commit_after_ack_crash_without_duplicate(
     tmp_path: Path,
 ) -> None:
     _require_duckdb()
-    spool = SqliteAcquisitionSpool(
-        SqliteAcquisitionSpoolConfig(path=tmp_path / "spool.sqlite")
-    )
+    spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(path=tmp_path / "spool.sqlite"))
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(
             catalog_path=tmp_path / "catalog.sqlite",
