@@ -468,15 +468,11 @@ def _historical_measurement_from_row(row: Sequence[object]) -> HistoricalMeasure
         asset_id=_require_str(row[3], "asset_id"),
         measurement_point_id=_optional_str(row[4], "measurement_point_id"),
         channel_id=_require_str(row[5], "channel_id"),
-        event_time_basis=HistoricalEventTimeBasis(
-            _require_str(row[6], "event_time_basis")
-        ),
+        event_time_basis=HistoricalEventTimeBasis(_require_str(row[6], "event_time_basis")),
         event_at=event_at,
         value=numeric_value,
         status_good=_require_bool(row[9], "status_good"),
-        ingestion_mode=HistoryIngestionMode(
-            _require_str(row[10], "ingestion_mode")
-        ),
+        ingestion_mode=HistoryIngestionMode(_require_str(row[10], "ingestion_mode")),
     )
 
 
