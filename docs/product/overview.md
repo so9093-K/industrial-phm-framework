@@ -1121,3 +1121,43 @@ late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
 - ISO 9241-210 human-centred design overview: https://www.iso.org/standard/77520.html
 - Human-in-the-Loop XAI for Predictive Maintenance (2025): https://doi.org/10.3390/electronics14173384
 - Data-driven prognostics review: uncertainty, robustness, interpretability and feasibility (2025): https://doi.org/10.1016/j.ymssp.2025.113015
+
+
+## Live Acquisition & Asset History v1
+
+Operations의 장기 제품 흐름은 “데이터셋을 먼저 연결해 한 번 분석”하는 방식보다 **source를 등록하고 collection을
+시작한 뒤 지속적으로 상태와 evidence를 확인하는 방식**을 기준으로 합니다.
+
+```text
+Add Source
+  → Test / Browse / Map
+  → Save
+  → Start Collection
+  → Monitor acquisition
+  → Asset History
+  → PHM Analysis
+  → Finding / Review / Maintenance
+```
+
+UI는 collection loop를 소유하지 않습니다. 별도 runtime worker가 source connection과 durable ingestion을
+계속 수행하고 Operations는 desired state를 제어하고 observed runtime/history evidence를 읽습니다. Browser나
+Marimo session 종료가 collection 종료를 의미하지 않습니다.
+
+Historical source도 별도의 제품 세계로 두지 않습니다.
+
+```text
+Historical CSV / Historian → Backfill ─┐
+                                      ├→ one Asset History
+OPC UA / future MQTT → Live ──────────┘
+```
+
+Live와 Backfill은 동일한 Asset history에서 조회할 수 있지만 source/ingestion provenance를 잃지 않습니다.
+DuckLake는 이 historical data plane을 담당하고, 아직 DuckLake에 commit되지 않은 live event의 crash-safe
+delivery는 별도 local durable spool이 담당합니다.
+
+Source lifecycle, runtime connection state, acquisition/data-flow health, data quality, asset condition과 PHM finding
+severity는 서로 다른 factual/evaluative layer입니다. Operations는 acquisition 문제를 asset fault로 자동
+해석하지 않습니다.
+
+상세한 ownership, durability, restart와 delivery semantics는
+[Live Acquisition & DuckLake Asset History v1](../architecture/live-acquisition-ducklake-v1.md)을 따릅니다.
