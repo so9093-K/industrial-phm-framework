@@ -23,8 +23,12 @@ from industrial_phm.application.asset_history import (
     validate_asset_history_query,
 )
 from industrial_phm.application.opcua_persistent import (
+    OpcUaEventTimeBasis,
+    OpcUaEventTimeEvidence,
     OpcUaPersistentDataChangeEvent,
 )
+from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
+from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 from industrial_phm.application.source_registration import SourceType
 
 _CATALOG_NAME = "phm_history"
@@ -169,6 +173,62 @@ class DuckLakeAssetHistory:
             )
         finally:
             connection.close()
+
+    def get_opcua_event(
+        self,
+        source_id: str,
+        *,
+        connection_epoch: int,
+        event_index: int,
+    ) -> OpcUaPersistentDataChangeEvent | None:
+        """Restore one raw OPC UA delivery by its application-local identity."""
+        _validate_identifier(source_id, "source_id")
+        _validate_positive_int(connection_epoch, "connection_epoch")
+        _validate_non_negative_int(event_index, "event_index")
+        raw_evidence_id = _raw_evidence_id_from_identity(
+            source_id,
+            connection_epoch,
+            event_index,
+        )
+
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            row = connection.execute(
+                f"""
+                SELECT
+                    source_id,
+                    asset_id,
+                    endpoint_url,
+                    measurement_point_id,
+                    channel_id,
+                    node_id,
+                    value,
+                    status_code,
+                    status_good,
+                    status_text,
+                    variant_type,
+                    source_timestamp,
+                    server_timestamp,
+                    received_at,
+                    ingested_at,
+                    event_at,
+                    event_time_basis,
+                    collection_index,
+                    connection_epoch,
+                    event_index,
+                    replayed
+                FROM {_CATALOG_NAME}.raw.opcua_data_change
+                WHERE raw_evidence_id = ?
+                """,
+                [raw_evidence_id],
+            ).fetchone()
+        finally:
+            connection.close()
+
+        if row is None:
+            return None
+        return _opcua_event_from_row(row)
 
     def query_measurements(
         self,
@@ -421,11 +481,68 @@ def _historical_measurement_from_row(row: Sequence[object]) -> HistoricalMeasure
 
 
 def _raw_evidence_id(event: OpcUaPersistentDataChangeEvent) -> str:
-    source_id, connection_epoch, event_index = event.local_delivery_identity
+    return _raw_evidence_id_from_identity(*event.local_delivery_identity)
+
+
+def _raw_evidence_id_from_identity(
+    source_id: str,
+    connection_epoch: int,
+    event_index: int,
+) -> str:
     return "opcua:" + json.dumps(
         [source_id, connection_epoch, event_index],
         ensure_ascii=False,
         separators=(",", ":"),
+    )
+
+
+def _opcua_event_from_row(row: Sequence[object]) -> OpcUaPersistentDataChangeEvent:
+    if len(row) != 21:
+        raise RuntimeError("DuckLake OPC UA evidence row has an unexpected column count")
+
+    source_timestamp = _optional_datetime(row[11], "source_timestamp")
+    server_timestamp = _optional_datetime(row[12], "server_timestamp")
+    received_at = _require_datetime(row[13], "received_at")
+    ingested_at = _require_datetime(row[14], "ingested_at")
+    event_at = _optional_datetime(row[15], "event_at")
+    basis = OpcUaEventTimeBasis(_require_str(row[16], "event_time_basis"))
+
+    observation = OpcUaNodeObservation(
+        channel_id=_require_str(row[4], "channel_id"),
+        node_id=_require_str(row[5], "node_id"),
+        value=_optional_float(row[6], "value"),
+        status_code=_require_int(row[7], "status_code"),
+        status_good=_require_bool(row[8], "status_good"),
+        status_text=_require_str(row[9], "status_text"),
+        variant_type=_optional_str(row[10], "variant_type"),
+        source_timestamp=source_timestamp,
+        server_timestamp=server_timestamp,
+        received_at=received_at,
+    )
+    registered = RegisteredOpcUaDataChangeEvent(
+        source_id=_require_str(row[0], "source_id"),
+        asset_id=_require_str(row[1], "asset_id"),
+        endpoint_url=_require_str(row[2], "endpoint_url"),
+        measurement_point_id=_optional_str(row[3], "measurement_point_id"),
+        collection_index=_require_int(row[17], "collection_index"),
+        notification=OpcUaSubscriptionNotification(
+            observation=observation,
+            replayed=_require_bool(row[20], "replayed"),
+        ),
+    )
+    event_time = OpcUaEventTimeEvidence(
+        basis=basis,
+        source_timestamp=source_timestamp,
+        server_timestamp=server_timestamp,
+        received_at=received_at,
+        ingested_at=ingested_at,
+        event_at=event_at,
+    )
+    return OpcUaPersistentDataChangeEvent(
+        event=registered,
+        connection_epoch=_require_int(row[18], "connection_epoch"),
+        event_index=_require_int(row[19], "event_index"),
+        event_time=event_time,
     )
 
 
@@ -502,6 +619,26 @@ def _optional_str(value: object, field_name: str) -> str | None:
     return _require_str(value, field_name)
 
 
+def _optional_float(value: object, field_name: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RuntimeError(f"DuckLake {field_name} must be numeric or null")
+    return float(value)
+
+
+def _require_datetime(value: object, field_name: str) -> datetime:
+    if not isinstance(value, datetime) or value.utcoffset() is None:
+        raise RuntimeError(f"DuckLake {field_name} must be a timezone-aware datetime")
+    return value
+
+
+def _optional_datetime(value: object, field_name: str) -> datetime | None:
+    if value is None:
+        return None
+    return _require_datetime(value, field_name)
+
+
 def _require_bool(value: object, field_name: str) -> bool:
     if not isinstance(value, bool):
         raise RuntimeError(f"DuckLake {field_name} must be boolean")
@@ -512,3 +649,16 @@ def _require_int(value: object, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise RuntimeError(f"DuckLake {field_name} must be an integer")
     return value
+
+
+def _validate_non_negative_int(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field_name} must be an integer")
+    if value < 0:
+        raise ValueError(f"{field_name} must not be negative")
+
+
+def _validate_positive_int(value: int, field_name: str) -> None:
+    _validate_non_negative_int(value, field_name)
+    if value < 1:
+        raise ValueError(f"{field_name} must be at least 1")
