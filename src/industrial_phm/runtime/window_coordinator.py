@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import Callable
 
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
