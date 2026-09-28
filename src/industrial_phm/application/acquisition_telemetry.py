@@ -97,17 +97,13 @@ class AcquisitionSessionTelemetry:
             and self.callback_queue_maxsize is not None
             and self.callback_queue_high_watermark > self.callback_queue_maxsize
         ):
-            raise ValueError(
-                "callback_queue_high_watermark must not exceed callback_queue_maxsize"
-            )
+            raise ValueError("callback_queue_high_watermark must not exceed callback_queue_maxsize")
         if (
             self.callback_queue_depth is not None
             and self.callback_queue_high_watermark is not None
             and self.callback_queue_high_watermark < self.callback_queue_depth
         ):
-            raise ValueError(
-                "callback_queue_high_watermark must not be below callback_queue_depth"
-            )
+            raise ValueError("callback_queue_high_watermark must not be below callback_queue_depth")
         if self.detail is not None:
             _validate_detail(self.detail, "detail")
 
@@ -165,9 +161,7 @@ class AcquisitionFlowTelemetry:
             if self.last_delivery_identity[0] != self.source_id:
                 raise ValueError("last_delivery_identity source_id must match source_id")
             if self.last_received_at is None or self.last_ingested_at is None:
-                raise ValueError(
-                    "non-empty flow telemetry requires received/ingested timing"
-                )
+                raise ValueError("non-empty flow telemetry requires received/ingested timing")
 
     def average_event_rate_hz(self, *, as_of: datetime) -> float | None:
         _validate_aware_datetime(as_of, "as_of")
@@ -247,18 +241,14 @@ class AcquisitionWindowTelemetry:
 
         if self.last_finalized_window_id is None:
             if self.last_finalized_window_end is not None:
-                raise ValueError(
-                    "last_finalized_window_end requires last_finalized_window_id"
-                )
+                raise ValueError("last_finalized_window_end requires last_finalized_window_id")
         else:
             _validate_identifier(
                 self.last_finalized_window_id,
                 "last_finalized_window_id",
             )
             if self.last_finalized_window_end is None:
-                raise ValueError(
-                    "last_finalized_window_id requires last_finalized_window_end"
-                )
+                raise ValueError("last_finalized_window_id requires last_finalized_window_end")
             _validate_aware_datetime(
                 self.last_finalized_window_end,
                 "last_finalized_window_end",
@@ -345,13 +335,9 @@ class AcquisitionSpoolTelemetrySnapshot:
                 "active_batch_payload_bytes",
             )
             if self.active_batch_event_count > self.pending_event_count:
-                raise ValueError(
-                    "active_batch_event_count must not exceed pending_event_count"
-                )
+                raise ValueError("active_batch_event_count must not exceed pending_event_count")
             if self.active_batch_payload_bytes > self.payload_bytes:
-                raise ValueError(
-                    "active_batch_payload_bytes must not exceed payload_bytes"
-                )
+                raise ValueError("active_batch_payload_bytes must not exceed payload_bytes")
 
     @property
     def oldest_pending_age_seconds(self) -> float | None:
@@ -376,44 +362,37 @@ class AcquisitionTelemetryRecorder(Protocol):
         *,
         callback_queue_maxsize: int,
         recorded_at: datetime,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def record_session_evidence(
         self,
         evidence: OpcUaPersistentSessionEvidence,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def record_callback_queue_overflow(
         self,
         source_id: str,
         *,
         occurred_at: datetime,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def record_opcua_event(self, event: OpcUaPersistentDataChangeEvent) -> None:
-        ...
+    def record_opcua_event(self, event: OpcUaPersistentDataChangeEvent) -> None: ...
 
     def record_history_batch(
         self,
         result: SpoolHistoryBatchWriteResult,
         *,
         source_event_counts: Mapping[str, int],
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def record_window_cycle(
         self,
         cycle: ObservationWindowCoordinatorCycleResult,
         *,
         recorded_at: datetime,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def record_failure(self, failure: AcquisitionFailureTelemetry) -> None:
-        ...
+    def record_failure(self, failure: AcquisitionFailureTelemetry) -> None: ...
 
 
 @runtime_checkable
@@ -422,17 +401,14 @@ class AcquisitionSpoolTelemetryReader(Protocol):
         self,
         *,
         sampled_at: datetime,
-    ) -> AcquisitionSpoolTelemetrySnapshot:
-        ...
+    ) -> AcquisitionSpoolTelemetrySnapshot: ...
 
 
 @runtime_checkable
 class AcquisitionTelemetryRepository(Protocol):
-    def get(self, source_id: str) -> AcquisitionTelemetrySnapshot:
-        ...
+    def get(self, source_id: str) -> AcquisitionTelemetrySnapshot: ...
 
-    def list_snapshots(self) -> tuple[AcquisitionTelemetrySnapshot, ...]:
-        ...
+    def list_snapshots(self) -> tuple[AcquisitionTelemetrySnapshot, ...]: ...
 
 
 def _validate_identifier(value: str, field_name: str) -> None:
