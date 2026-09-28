@@ -54,7 +54,6 @@ class AcquisitionSpoolBatch:
 
 
 
-
 @dataclass(frozen=True, slots=True)
 class AcquisitionSpoolPendingStats:
     """Unassigned durable deliveries available for the next micro-batch."""
