@@ -2199,15 +2199,11 @@ def _(
                 _collection_control = (
                     None
                     if not _control_path.exists()
-                    else SqliteCollectionControlRepository(_control_path).get(
-                        _selected.source_id
-                    )
+                    else SqliteCollectionControlRepository(_control_path).get(_selected.source_id)
                 )
                 _collection_surface = None
                 if _telemetry_path.exists() and _spool_path.exists():
-                    _telemetry_repository = SqliteAcquisitionTelemetryRepository(
-                        _telemetry_path
-                    )
+                    _telemetry_repository = SqliteAcquisitionTelemetryRepository(_telemetry_path)
                     _spool_repository = SqliteAcquisitionSpool(
                         SqliteAcquisitionSpoolConfig(path=_spool_path)
                     )
