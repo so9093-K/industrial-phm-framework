@@ -45,8 +45,7 @@ uv run python -m tools.aihub.cli inventory 239
 uv run python -m tools.aihub.cli plan 239 --preset bootstrap
 ```
 
-현재 bootstrap은 Training/raw의 보일러(`44033`, 59 MB 표시)와 압출기(`44035`, 97 MB 표시)를
-선택합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의 합계는 근사치입니다.
+현재 preset은 `boiler`(Training/raw 보일러 `44033`), `extruder`(Training/raw 압출기 `44035`),\n`bootstrap`(두 archive 모두)을 제공합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의\n합계는 근사치입니다.
 
 명시적으로 다운로드합니다.
 
@@ -81,9 +80,7 @@ Tool은 vendor ZIP을 자동으로 풀지 않습니다. `aihubshell`이 내부 t
 uv run python -m tools.aihub.cli verify 239 --preset bootstrap
 ```
 
-Publisher checksum이 preset에 없으므로 `verify`는 upstream authenticity를 주장하지 않습니다. 최초 실행은
-현재 local bytes의 SHA-256을 `local-manifest.json`에 기록하고, 이후 실행은 그 local provenance와의
-일치 여부를 검사합니다.
+Publisher checksum이 preset에 없으므로 `verify`는 upstream authenticity를 주장하지 않습니다. 최초 실행은 현재 local bytes의 SHA-256을\n`local-manifest.json`에 기록하고, 이후 실행은 그 local provenance와의 일치 여부를 검사합니다. 이미\n보일러만 받아 둔 경우에는 `--preset boiler`처럼 개별 preset으로 먼저 등록할 수 있습니다.
 
 ## Boundaries
 
