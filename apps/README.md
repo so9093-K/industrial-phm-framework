@@ -196,6 +196,24 @@ registered source type에 따라 FILE one-shot validation cycle 또는 OPC UA fr
 않았기 때문입니다. `--max-cycles`를 생략한 CLI는 현재 process가 Ctrl+C를 받을 때까지 반복할 수 있지만 별도
 service/background task를 만들지는 않습니다.
 
+### Historical FILE backfill
+
+Timestamped registered FILE source는 live OPC UA와 동일한 DuckLake Asset History로 explicit backfill할 수 있습니다.
+
+```bash
+uv run --locked --extra history industrial-phm operations backfill-source \
+  --registry artifacts/operations/source-registry.json \
+  --source-id pump-history \
+  --ducklake-catalog artifacts/operations/ducklake-catalog.sqlite \
+  --ducklake-data artifacts/operations/ducklake-data
+```
+
+Backfill은 registration의 asset/measurement-point/channel mapping을 재사용하며 explicit timezone-aware timestamp가
+필수입니다. 각 source-file SHA-256 snapshot이 stable DuckLake batch checkpoint이므로 동일 snapshot 재실행은
+`recovered`로 표시되고 중복 row를 만들지 않습니다. 다른 snapshot이나 live delivery가 같은 event time과
+겹치는 경우에는 provenance가 다르므로 둘 다 보존됩니다. 결과에는 현재 history snapshot과 analysis 입력에
+기록할 수 있는 half-open input range가 출력됩니다.
+
 ### Source health assessment
 
 Sources의 health 표시는 단일 **healthy/unhealthy** verdict가 아니라 현재 확보한 evidence를 분리한 read

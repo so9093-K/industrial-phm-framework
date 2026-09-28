@@ -38,6 +38,7 @@ from industrial_phm.application.asset_history import (
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
+    HistoricalInputReference,
     HistoricalMeasurement,
     HistoryIngestionMode,
     validate_asset_history_query,
@@ -47,6 +48,13 @@ from industrial_phm.application.asset_identity import (
     ChannelIdentity,
     ComponentIdentity,
     MeasurementPointIdentity,
+)
+from industrial_phm.application.backfill import (
+    FileBackfillEvent,
+    FileBackfillResult,
+    FileBackfillSegmentResult,
+    FileHistoricalBatchStore,
+    backfill_registered_file_source,
 )
 from industrial_phm.application.collection_control import (
     CollectionControlRecord,
@@ -274,6 +282,10 @@ __all__ = [
     "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
     "FieldAnalysisHistoryFormatError",
+    "FileBackfillEvent",
+    "FileBackfillResult",
+    "FileBackfillSegmentResult",
+    "FileHistoricalBatchStore",
     "FileSourceConfig",
     "FileSourceDiscovery",
     "FileSourceDiscoveryError",
@@ -286,6 +298,7 @@ __all__ = [
     "HistoricalBatchCommit",
     "HistoricalBatchConflictError",
     "HistoricalEventTimeBasis",
+    "HistoricalInputReference",
     "HistoricalMeasurement",
     "HistoryIngestionMode",
     "InMemoryOpcUaPersistentSessionEvidenceSink",
@@ -366,6 +379,7 @@ __all__ = [
     "UnknownRegisteredSourceError",
     "assess_source_freshness",
     "assess_source_health",
+    "backfill_registered_file_source",
     "build_acquisition_telemetry_surface",
     "build_asset_detail",
     "build_field_csv_observation_summary",

@@ -5,11 +5,14 @@ import pytest
 from industrial_phm.application import (
     HistoricalBatchCommit,
     HistoricalEventTimeBasis,
+    HistoricalInputReference,
     HistoricalMeasurement,
     HistoryIngestionMode,
     SourceType,
     validate_asset_history_query,
 )
+
+NOW = datetime(2026, 9, 28, 1, 0, tzinfo=UTC)
 
 
 def test_historical_measurement_preserves_event_time_and_provenance() -> None:
@@ -94,4 +97,27 @@ def test_historical_batch_commit_requires_positive_event_count() -> None:
             snapshot_id=1,
             event_count=0,
             committed_at=datetime(2026, 9, 28, 1, 0, tzinfo=UTC),
+        )
+
+
+def test_historical_input_reference_records_snapshot_and_half_open_range() -> None:
+    reference = HistoricalInputReference(
+        snapshot_id=12,
+        asset_id="pump-01",
+        measurement_point_id="drive-end",
+        channel_ids=("vibration_x", "temperature"),
+        start_at=NOW,
+        end_at=NOW + timedelta(seconds=10),
+    )
+
+    assert reference.snapshot_id == 12
+    assert reference.channel_ids == ("vibration_x", "temperature")
+
+    with pytest.raises(ValueError, match="unique"):
+        HistoricalInputReference(
+            snapshot_id=12,
+            asset_id="pump-01",
+            channel_ids=("vibration_x", "vibration_x"),
+            start_at=NOW,
+            end_at=NOW + timedelta(seconds=10),
         )

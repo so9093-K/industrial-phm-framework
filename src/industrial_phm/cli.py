@@ -37,6 +37,7 @@ from industrial_phm.commands.experiment import (
 )
 from industrial_phm.commands.feature import _run_feature_characterize
 from industrial_phm.commands.operations import (
+    _run_operations_backfill_source,
     _run_operations_collection_service,
     _run_operations_poll_source,
     _run_operations_request_collection,
@@ -250,6 +251,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="optional positive cycle limit; omit to run until stop/failure/Ctrl+C",
     )
     operations_poll_source.set_defaults(handler=_run_operations_poll_source)
+
+    operations_backfill_source = operations_commands.add_parser(
+        "backfill-source",
+        help="backfill one registered timestamped FILE source into DuckLake Asset History",
+    )
+    operations_backfill_source.add_argument(
+        "--registry",
+        type=Path,
+        required=True,
+        help="persistent registered-source control-plane JSON path",
+    )
+    operations_backfill_source.add_argument(
+        "--source-id",
+        required=True,
+        help="registered FILE source ID",
+    )
+    operations_backfill_source.add_argument(
+        "--ducklake-catalog",
+        type=Path,
+        required=True,
+        help="DuckLake SQLite catalog path",
+    )
+    operations_backfill_source.add_argument(
+        "--ducklake-data",
+        type=Path,
+        required=True,
+        help="DuckLake managed Parquet data directory",
+    )
+    operations_backfill_source.set_defaults(handler=_run_operations_backfill_source)
 
     operations_request_collection = operations_commands.add_parser(
         "request-collection",
