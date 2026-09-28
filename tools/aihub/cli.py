@@ -227,7 +227,7 @@ def _run_inventory(dataset_key: int, root: Path) -> int:
         check=False,
         capture_output=True,
         text=True,
-        env=os.environ.copy(),
+        env=_aihubshell_environment(),
     )
     if completed.returncode != 0:
         detail = completed.stderr.strip() or "aihubshell returned a non-zero exit status"
@@ -329,12 +329,14 @@ def _run_download(
             str(dataset_key),
             "-filekey",
             str(item.filekey),
+            "-aihubapikey",
+            api_key,
         ]
         completed = subprocess.run(
             command,
             cwd=staging,
             check=False,
-            env=os.environ.copy(),
+            env=_aihubshell_environment(),
         )
         if completed.returncode != 0:
             raise AIHubToolError(
@@ -567,6 +569,12 @@ def _inspect_file(path: Path) -> dict[str, int | str]:
         for chunk in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(chunk)
     return {"bytes": path.stat().st_size, "sha256": digest.hexdigest()}
+
+
+def _aihubshell_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment.pop(API_KEY_ENV, None)
+    return environment
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

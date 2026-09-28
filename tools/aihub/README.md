@@ -20,9 +20,13 @@ AIHUBSHELL_PATH=/home/user/aihubshell
 INDUSTRIAL_PHM_DATA_DIR=/home/user/industrial-phm-data
 ```
 
-`AIHUB_APIKEY`는 다운로드 subprocess의 environment로만 전달합니다. command argument, preset,
-inventory JSON 또는 local manifest에는 기록하지 않습니다. Process environment에 이미 설정된 값이 있으면
-`.env`가 덮어쓰지 않습니다.
+`AIHUB_APIKEY`는 process environment 또는 `.env`에서 읽습니다. AI-Hub 공식 `aihubshell`의 download mode가
+`-aihubapikey` argument를 요구하므로 다운로드 subprocess에는 해당 argument로 전달합니다. Tool 자체는 key를
+출력하거나 preset, inventory JSON, local manifest에 기록하지 않으며 child environment에는 key를 중복 전달하지
+않습니다. Process environment에 이미 설정된 값이 있으면 `.env`가 덮어쓰지 않습니다.
+
+공식 shell 계약상 다운로드 실행 중에는 운영체제의 process argument 조회에서 key가 보일 수 있으므로 공유
+host에서는 process visibility 정책을 함께 확인합니다.
 
 `AIHUBSHELL_PATH`가 비어 있으면 `PATH`, 그다음 `~/aihubshell` 순서로 실행 파일을 찾습니다. Tool이
 실행 파일을 자동 설치하거나 repository에 복사하지는 않습니다.
@@ -45,7 +49,9 @@ uv run python -m tools.aihub.cli inventory 239
 uv run python -m tools.aihub.cli plan 239 --preset bootstrap
 ```
 
-현재 preset은 `boiler`(Training/raw 보일러 `44033`), `extruder`(Training/raw 압출기 `44035`),\n`bootstrap`(두 archive 모두)을 제공합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의\n합계는 근사치입니다.
+현재 preset은 `boiler`(Training/raw 보일러 `44033`), `extruder`(Training/raw 압출기 `44035`),
+`bootstrap`(두 archive 모두)을 제공합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의
+합계는 근사치입니다.
 
 명시적으로 다운로드합니다.
 
@@ -80,7 +86,10 @@ Tool은 vendor ZIP을 자동으로 풀지 않습니다. `aihubshell`이 내부 t
 uv run python -m tools.aihub.cli verify 239 --preset bootstrap
 ```
 
-Publisher checksum이 preset에 없으므로 `verify`는 upstream authenticity를 주장하지 않습니다. 최초 실행은 현재 local bytes의 SHA-256을\n`local-manifest.json`에 기록하고, 이후 실행은 그 local provenance와의 일치 여부를 검사합니다. 이미\n보일러만 받아 둔 경우에는 `--preset boiler`처럼 개별 preset으로 먼저 등록할 수 있습니다.
+Publisher checksum이 preset에 없으므로 `verify`는 upstream authenticity를 주장하지 않습니다. 최초 실행은
+현재 local bytes의 SHA-256을 `local-manifest.json`에 기록하고, 이후 실행은 그 local provenance와의 일치
+여부를 검사합니다. 이미 보일러만 받아 둔 경우에는 `--preset boiler`처럼 개별 preset으로 먼저 등록할 수
+있습니다.
 
 ## Boundaries
 
