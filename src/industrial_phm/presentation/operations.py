@@ -50,11 +50,7 @@ def render_collection_monitor_markdown(
     if surface is not None and surface.source.source_id != source_id:
         raise ValueError("telemetry surface source_id must match source_id")
 
-    desired = (
-        CollectionDesiredState.STOPPED
-        if control is None
-        else control.desired_state
-    )
+    desired = CollectionDesiredState.STOPPED if control is None else control.desired_state
     desired_detail = (
         "implicit default · no command recorded"
         if control is None
@@ -118,9 +114,7 @@ def render_collection_monitor_markdown(
     oldest_age_label = "None" if oldest_age is None else f"{oldest_age:.3f} s"
     active_batch = spool.active_batch_id or "None"
     history_label = (
-        "Unavailable"
-        if history is None
-        else f"{history.batch_id} · snapshot {history.snapshot_id}"
+        "Unavailable" if history is None else f"{history.batch_id} · snapshot {history.snapshot_id}"
     )
     watermark = (
         "Unavailable"
