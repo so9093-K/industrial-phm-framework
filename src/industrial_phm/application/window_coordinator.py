@@ -60,7 +60,10 @@ class ObservationWindowCoordinatorCycleResult:
         finalized = tuple(self.finalized_windows)
         if any(not isinstance(item, DurableObservationWindow) for item in finalized):
             raise ValueError("finalized_windows must contain DurableObservationWindow values")
-        if tuple(sorted(finalized, key=lambda item: (item.window_start, item.window_id))) != finalized:
+        ordered = tuple(
+            sorted(finalized, key=lambda item: (item.window_start, item.window_id))
+        )
+        if ordered != finalized:
             raise ValueError("finalized_windows must use deterministic window order")
 
         event_results = tuple(self.event_results)
