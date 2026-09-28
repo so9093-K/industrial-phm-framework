@@ -17,6 +17,7 @@ from industrial_phm.connectors import (
 from industrial_phm.runtime import (
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
+    SqliteAcquisitionTelemetryRepository,
     write_next_spool_batch,
 )
 
@@ -58,7 +59,7 @@ class _FakeHistory:
             batch_id=batch_id,
             snapshot_id=len(self.commits) + 1,
             event_count=len(tuple(events)),
-            committed_at=BASE + timedelta(seconds=20),
+            committed_at=BASE + timedelta(seconds=2),
         )
         self.commits[batch_id] = (tuple(events), commit)
         return commit
@@ -117,6 +118,7 @@ def _accept(
 def test_writer_waits_for_interval_then_commits_and_acknowledges(tmp_path: Path) -> None:
     spool = _spool(tmp_path / "spool.sqlite")
     history = _FakeHistory()
+    telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "telemetry.sqlite")
     _accept(spool)
 
     policy = SpoolToHistoryWriterPolicy(
@@ -145,6 +147,7 @@ def test_writer_waits_for_interval_then_commits_and_acknowledges(tmp_path: Path)
         policy=policy,
         batch_id_factory=lambda: "batch-001",
         now_fn=lambda: BASE + timedelta(seconds=7),
+        telemetry_recorder=telemetry,
     )
     assert result is not None
     assert result.batch_id == "batch-001"
@@ -152,6 +155,11 @@ def test_writer_waits_for_interval_then_commits_and_acknowledges(tmp_path: Path)
     assert result.payload_bytes > 0
     assert result.recovered_existing_commit is False
     assert spool.pending_event_count() == 0
+    history_telemetry = telemetry.get("source-a").history
+    assert history_telemetry is not None
+    assert history_telemetry.batch_id == "batch-001"
+    assert history_telemetry.snapshot_id == 1
+    assert history_telemetry.source_event_count == 1
 
 
 def test_writer_flushes_when_byte_threshold_is_reached(tmp_path: Path) -> None:
@@ -180,6 +188,7 @@ def test_writer_flushes_when_byte_threshold_is_reached(tmp_path: Path) -> None:
 def test_writer_keeps_stable_active_batch_when_history_fails(tmp_path: Path) -> None:
     spool = _spool(tmp_path / "spool.sqlite")
     history = _FakeHistory()
+    telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "telemetry.sqlite")
     history.fail_append = True
     _accept(spool)
 
@@ -190,12 +199,17 @@ def test_writer_keeps_stable_active_batch_when_history_fails(tmp_path: Path) -> 
             policy=SpoolToHistoryWriterPolicy(max_events=1),
             batch_id_factory=lambda: "batch-stable",
             now_fn=lambda: BASE + timedelta(seconds=3),
+            telemetry_recorder=telemetry,
         )
 
     active = spool.get_active_batch()
     assert active is not None
     assert active.batch_id == "batch-stable"
     assert spool.pending_event_count() == 1
+    failure = telemetry.get("source-a").failure
+    assert failure is not None
+    assert failure.component.value == "history-writer"
+    assert failure.detail == "RuntimeError: history unavailable"
 
     history.fail_append = False
     result = write_next_spool_batch(
@@ -204,6 +218,7 @@ def test_writer_keeps_stable_active_batch_when_history_fails(tmp_path: Path) -> 
         policy=SpoolToHistoryWriterPolicy(max_events=1),
         batch_id_factory=lambda: "must-not-replace-active",
         now_fn=lambda: BASE + timedelta(seconds=4),
+        telemetry_recorder=telemetry,
     )
     assert result is not None
     assert result.batch_id == "batch-stable"
