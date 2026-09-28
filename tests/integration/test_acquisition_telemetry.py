@@ -52,7 +52,7 @@ def _registered_event(
     status_good: bool = True,
     replayed: bool = False,
 ) -> RegisteredOpcUaDataChangeEvent:
-    received_at = BASE + timedelta(seconds=3 + event_index)
+    received_at = BASE + timedelta(seconds=1 + event_index)
     return RegisteredOpcUaDataChangeEvent(
         source_id="source-a",
         asset_id="pump-01",
@@ -63,7 +63,7 @@ def _registered_event(
             observation=OpcUaNodeObservation(
                 channel_id="vibration_x",
                 node_id="ns=2;s=vibration_x",
-                value=float(event_index + 1),
+                value=float(event_index + 1) if status_good else None,
                 status_code=0 if status_good else 0x8000_0000,
                 status_good=status_good,
                 status_text="Good" if status_good else "Bad",
