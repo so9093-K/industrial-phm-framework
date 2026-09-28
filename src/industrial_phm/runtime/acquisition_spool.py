@@ -15,7 +15,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from industrial_phm.application.acquisition_telemetry import AcquisitionSpoolTelemetrySnapshot
 from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolBatch,
     AcquisitionSpoolFormatError,
@@ -23,6 +22,7 @@ from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolPendingStats,
     AcquisitionSpoolStateError,
 )
+from industrial_phm.application.acquisition_telemetry import AcquisitionSpoolTelemetrySnapshot
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
