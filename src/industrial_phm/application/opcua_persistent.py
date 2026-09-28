@@ -84,8 +84,10 @@ class OpcUaPersistentSessionPolicy:
 class OpcUaPersistentSessionEvidence:
     """One recorded persistent-session state transition snapshot.
 
-    connection_epoch increments only after a successful connection. reconnect_attempt_index
-    counts retry attempts after the initial connection attempt and is never a server sequence.
+    connection_epoch is a durable per-source local connection generation. It increments
+    only after a successful connection and does not reset when the worker process restarts.
+    reconnect_attempt_index counts retry attempts within one worker run and is never a
+    server sequence.
     """
 
     source_id: str
@@ -105,11 +107,12 @@ class OpcUaPersistentSessionEvidence:
             self.reconnect_attempt_index,
             "reconnect_attempt_index",
         )
-        if self.state == OpcUaPersistentSessionState.DISCONNECTED and (
-            self.connection_epoch != 0 or self.reconnect_attempt_index != 0
+        if (
+            self.state == OpcUaPersistentSessionState.DISCONNECTED
+            and self.reconnect_attempt_index != 0
         ):
             raise ValueError(
-                "initial DISCONNECTED evidence requires zero epoch and reconnect attempt"
+                "initial DISCONNECTED evidence requires zero reconnect attempt"
             )
         if self.state == OpcUaPersistentSessionState.CONNECTED and self.connection_epoch < 1:
             raise ValueError("CONNECTED session evidence requires connection_epoch >= 1")
