@@ -237,11 +237,30 @@ source lifecycle
     ≠ PHM finding severity
 ```
 
-Runtime telemetry는 connected/reconnecting/stopped, reconnect evidence, last source/received time, event rate,
-callback queue depth/overflow, spool pending depth, last DuckLake batch/snapshot, window/watermark와
-late/out-of-order/replayed counts를 다룰 수 있습니다.
+Continuous runtime telemetry는 control-plane registry와 기존 bounded `source-runtime-v3`에서 분리된
+SQLite WAL latest-evidence store를 사용합니다. Collector, history writer, window coordinator가 source별
+component row를 독립적으로 갱신해 서로의 최신 evidence를 덮어쓰지 않습니다.
 
-이 정보는 설비가 고장났다는 판단으로 자동 승격하지 않습니다.
+현재 presenter-ready acquisition surface는 다음 factual evidence를 제공합니다.
+
+- session: CONNECTING / CONNECTED / RECONNECT_WAIT / STOPPED, connected_since,
+  last_disconnect_at, connection epoch, reconnect attempt index
+- flow: worker-start 이후 accepted/replayed/bad-status event count, latest SourceTimestamp / received_at /
+  ingested_at, lifetime-average event rate
+- callback queue: configured maxsize와 overflow count
+- spool: durable pending event/bytes, oldest pending age, active batch depth/bytes를 spool DB에서 직접 sample
+- history writer: latest acknowledged batch/snapshot과 source event count
+- window: latest watermark, active/finalized count와 #257 disposition counts
+- failure: latest runtime component failure evidence
+
+asyncua 2.0.1 iterator의 queue depth는 public/stable API로 노출되지 않으므로 private `_event_queue`에
+의존하지 않습니다. 따라서 callback queue depth/high-watermark는 현재 명시적으로 uninstrumented(`None`)이고,
+configured maxsize와 실제 overflow signal만 factual evidence로 기록합니다.
+
+Telemetry 저장 실패는 spool/DuckLake/window data-plane truth를 rollback하지 않습니다. Runtime producer는
+telemetry failure를 로그로 남기되 이미 durable하게 수용/commit된 데이터의 진행을 막지 않습니다. 또한 이
+surface에는 synthetic `healthy: bool`을 두지 않으며 기존 `SourceHealthAssessment.connection_state`를
+자동으로 덮어쓰지 않습니다. 이 정보는 설비가 고장났다는 판단으로 자동 승격하지 않습니다.
 
 ## 8. Restart semantics
 

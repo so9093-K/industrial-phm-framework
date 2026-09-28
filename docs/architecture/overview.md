@@ -290,7 +290,12 @@ Persistent OPC UA acquisition worker
   않습니다. Epoch reservation 뒤 process가 종료되어 gap이 생기는 것은 허용하지만 identity reuse는 허용하지
   않습니다.
   Worker failure/stop은 administrative SourceLifecycle ACTIVE를 asset-health verdict로 바꾸지 않습니다.
-  Current session evidence의 durable telemetry/UI projection은 후속 #264/#265 경계입니다.
+  별도 SQLite WAL acquisition-telemetry store가 current session/flow, callback overflow, latest DuckLake batch,
+  window/watermark/disposition과 runtime failure를 source별 latest evidence로 보존합니다. Durable spool backlog는
+  telemetry DB에 복제하지 않고 spool DB에서 직접 sample합니다. asyncua private queue depth에는 의존하지 않아
+  callback queue depth/high-watermark는 현재 uninstrumented이고 configured maxsize/overflow만 기록합니다.
+  이 telemetry는 existing bounded SourceHealth의 current-connection 의미나 asset health verdict를 자동 변경하지
+  않으며 #265 Operations control/monitor surface가 이를 소비합니다.
 
 Registered OPC UA one-shot runtime
   RegisteredSource(OPCUA) + ACTIVE lifecycle

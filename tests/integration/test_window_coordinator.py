@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -18,7 +19,11 @@ from industrial_phm.connectors import (
     OpcUaNodeObservation,
     OpcUaSubscriptionNotification,
 )
-from industrial_phm.runtime import rebuild_registered_opcua_observation_windows
+from industrial_phm.runtime import (
+    SqliteAcquisitionTelemetryRepository,
+    rebuild_registered_opcua_observation_windows,
+    run_continuous_registered_opcua_observation_windows,
+)
 
 BASE = datetime(2026, 9, 28, 0, 0, tzinfo=UTC)
 
@@ -267,3 +272,64 @@ def test_coordinator_preserves_buffer_full_disposition(tmp_path: Path) -> None:
     window = repository.list_windows()[0]
     assert window.buffer_full_rejected_count == 1
     assert window.accepted_event_count == 2
+
+
+def test_continuous_window_coordinator_records_latest_telemetry(tmp_path: Path) -> None:
+    async def _run() -> None:
+        events = (
+            _event(
+                event_index=0,
+                channel_id="vibration_x",
+                source_timestamp=BASE + timedelta(seconds=2),
+                ingested_at=BASE + timedelta(seconds=2.1),
+            ),
+            _event(
+                event_index=1,
+                channel_id="temperature",
+                source_timestamp=BASE + timedelta(seconds=8),
+                ingested_at=BASE + timedelta(seconds=8.1),
+            ),
+            _event(
+                event_index=2,
+                channel_id="vibration_x",
+                source_timestamp=BASE + timedelta(seconds=15),
+                ingested_at=BASE + timedelta(seconds=15.1),
+            ),
+        )
+        telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
+        stop_event = asyncio.Event()
+        task = asyncio.create_task(
+            run_continuous_registered_opcua_observation_windows(
+                _source_repository(),
+                _History(events),
+                JsonObservationWindowRepository(tmp_path / "windows.json"),
+                "source-a",
+                stop_event=stop_event,
+                policy=_policy(),
+                telemetry_recorder=telemetry,
+                now_fn=lambda: BASE + timedelta(seconds=30),
+            )
+        )
+
+        for _ in range(500):
+            if telemetry.get("source-a").window is not None:
+                break
+            await asyncio.sleep(0.001)
+        else:
+            raise AssertionError("window telemetry was not recorded")
+
+        stop_event.set()
+        result = await task
+        assert result.cycle_count >= 1
+
+        window = telemetry.get("source-a").window
+        assert window is not None
+        assert window.watermark == BASE + timedelta(seconds=12)
+        assert window.finalized_window_count == 1
+        assert window.active_window_count == 1
+        assert window.historical_event_count == 3
+        assert window.in_order_count == 3
+        assert window.last_finalized_window_id is not None
+        assert window.last_finalized_window_end == BASE + timedelta(seconds=10)
+
+    asyncio.run(_run())

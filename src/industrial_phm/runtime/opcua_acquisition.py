@@ -7,11 +7,18 @@ transport/session/subscription recovery through the concrete connector.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from typing import Protocol
 
 from industrial_phm.application.acquisition_spool import AcquisitionSpool
+from industrial_phm.application.acquisition_telemetry import (
+    AcquisitionFailureComponent,
+    AcquisitionFailureTelemetry,
+    AcquisitionTelemetryRecorder,
+)
 from industrial_phm.application.opcua_acquisition import (
     OpcUaAcquisitionWorkerResult,
     OpcUaPersistentSessionEvidenceSink,
@@ -59,6 +66,7 @@ class _PersistentConnector(Protocol):
 
 ConnectorFactory = Callable[[OpcUaPersistentConnectorConfig], _PersistentConnector]
 NowFunction = Callable[[], datetime]
+_LOGGER = logging.getLogger(__name__)
 
 
 async def run_registered_opcua_acquisition_worker(
@@ -72,6 +80,7 @@ async def run_registered_opcua_acquisition_worker(
     session_policy: OpcUaPersistentSessionPolicy | None = None,
     event_time_policy: OpcUaEventTimePolicy | None = None,
     connector_factory: ConnectorFactory = OpcUaPersistentSubscription,
+    telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
 ) -> OpcUaAcquisitionWorkerResult:
     """Run one ACTIVE registered OPC UA source until explicit stop or failure.
@@ -114,7 +123,20 @@ async def run_registered_opcua_acquisition_worker(
         changed_at=started_at,
         connection_epoch=baseline_epoch,
     )
-    session_evidence_sink.record_session_evidence(current)
+    if telemetry_recorder is not None:
+        _record_telemetry_best_effort(
+            lambda: telemetry_recorder.record_session_configuration(
+                source_id,
+                callback_queue_maxsize=effective_session_policy.queue_maxsize,
+                recorded_at=started_at,
+            ),
+            label="session configuration",
+        )
+    _record_session_evidence(
+        session_evidence_sink,
+        telemetry_recorder,
+        current,
+    )
 
     connector = connector_factory(
         OpcUaPersistentConnectorConfig(
@@ -171,7 +193,11 @@ async def run_registered_opcua_acquisition_worker(
             detail=detail,
         )
         validate_opcua_persistent_session_transition(current, candidate)
-        session_evidence_sink.record_session_evidence(candidate)
+        _record_session_evidence(
+            session_evidence_sink,
+            telemetry_recorder,
+            candidate,
+        )
         current = candidate
 
     async def _process_state(event: OpcUaConnectorStateEvent) -> None:
@@ -239,9 +265,18 @@ async def run_registered_opcua_acquisition_worker(
                 break
 
             if overflow_task in done:
-                overflow_task.result()
+                overflow = overflow_task.result()
                 queue_overflow_count += 1
                 overflow_pending = True
+                if telemetry_recorder is not None:
+                    _record_telemetry_best_effort(
+                        partial(
+                            telemetry_recorder.record_callback_queue_overflow,
+                            source_id,
+                            occurred_at=overflow.occurred_at,
+                        ),
+                        label="callback queue overflow",
+                    )
                 overflow_task = asyncio.create_task(connector.next_queue_overflow())
 
             if state_task in done:
@@ -277,7 +312,7 @@ async def run_registered_opcua_acquisition_worker(
                     collection_index=next_event_index,
                     notification=notification,
                 )
-                await asyncio.to_thread(
+                persistent_event = await asyncio.to_thread(
                     spool.accept_opcua_event,
                     registered,
                     connection_epoch=current.connection_epoch,
@@ -285,6 +320,14 @@ async def run_registered_opcua_acquisition_worker(
                     accepted_at=_now(now_fn),
                     event_time_policy=effective_event_time_policy,
                 )
+                if telemetry_recorder is not None:
+                    _record_telemetry_best_effort(
+                        partial(
+                            telemetry_recorder.record_opcua_event,
+                            persistent_event,
+                        ),
+                        label="OPC UA flow event",
+                    )
                 accepted_event_count += 1
                 if notification.replayed:
                     replayed_event_count += 1
@@ -292,6 +335,21 @@ async def run_registered_opcua_acquisition_worker(
 
     except BaseException as error:
         stop_detail = f"worker-error:{type(error).__name__}"
+        if telemetry_recorder is not None and isinstance(error, Exception):
+            failure_at = _now(now_fn)
+            failure_detail = _failure_detail(error)
+            _record_telemetry_best_effort(
+                partial(
+                    telemetry_recorder.record_failure,
+                    AcquisitionFailureTelemetry(
+                        source_id=source_id,
+                        component=AcquisitionFailureComponent.OPCUA_WORKER,
+                        occurred_at=failure_at,
+                        detail=failure_detail,
+                    ),
+                ),
+                label="OPC UA worker failure",
+            )
         raise
     finally:
         for task in (
@@ -332,6 +390,35 @@ async def run_registered_opcua_acquisition_worker(
         replayed_event_count=replayed_event_count,
         queue_overflow_count=queue_overflow_count,
     )
+
+
+def _record_session_evidence(
+    session_evidence_sink: OpcUaPersistentSessionEvidenceSink,
+    telemetry_recorder: AcquisitionTelemetryRecorder | None,
+    evidence: OpcUaPersistentSessionEvidence,
+) -> None:
+    session_evidence_sink.record_session_evidence(evidence)
+    if telemetry_recorder is not None and telemetry_recorder is not session_evidence_sink:
+        _record_telemetry_best_effort(
+            lambda: telemetry_recorder.record_session_evidence(evidence),
+            label="session evidence",
+        )
+
+
+def _record_telemetry_best_effort(
+    callback: Callable[[], None],
+    *,
+    label: str,
+) -> None:
+    try:
+        callback()
+    except Exception:
+        _LOGGER.exception("Failed to record acquisition telemetry: %s", label)
+
+
+def _failure_detail(error: Exception) -> str:
+    detail = str(error).strip()
+    return type(error).__name__ if not detail else f"{type(error).__name__}: {detail}"
 
 
 def _validate_asyncua_reconnect_policy(policy: OpcUaPersistentSessionPolicy) -> None:

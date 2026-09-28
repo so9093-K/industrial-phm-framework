@@ -26,6 +26,7 @@ from industrial_phm.connectors import (
 from industrial_phm.runtime import (
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
+    SqliteAcquisitionTelemetryRepository,
     run_registered_opcua_acquisition_worker,
 )
 
@@ -128,6 +129,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         repository, source = _repositories(tmp_path)
         spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
+        telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
         connector = _FakePersistentConnector()
         stop_event = asyncio.Event()
 
@@ -140,6 +142,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
                 source.source_id,
                 stop_event=stop_event,
                 connector_factory=lambda _config: connector,
+                telemetry_recorder=telemetry,
             )
         )
         await connector.started.wait()
@@ -220,6 +223,15 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
             ("opcua-source", 2, 0),
         ]
         assert batch.events[1].event.notification.replayed is True
+
+        runtime = telemetry.get(source.source_id)
+        assert runtime.session is not None
+        assert runtime.session.state == OpcUaPersistentSessionState.STOPPED
+        assert runtime.session.callback_queue_maxsize == 128
+        assert runtime.flow is not None
+        assert runtime.flow.accepted_event_count == 2
+        assert runtime.flow.replayed_event_count == 1
+        assert runtime.flow.last_delivery_identity == ("opcua-source", 2, 0)
 
     asyncio.run(_run())
 

@@ -5,10 +5,17 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
+from industrial_phm.application.acquisition_telemetry import (
+    AcquisitionFailureComponent,
+    AcquisitionFailureTelemetry,
+    AcquisitionTelemetryRecorder,
+)
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     ObservationWindowBuffer,
@@ -28,6 +35,7 @@ from industrial_phm.application.window_coordinator import (
 )
 
 NowFunction = Callable[[], datetime]
+_LOGGER = logging.getLogger(__name__)
 
 
 def rebuild_registered_opcua_observation_windows(
@@ -189,6 +197,7 @@ async def run_continuous_registered_opcua_observation_windows(
     *,
     stop_event: asyncio.Event,
     policy: ObservationWindowCoordinatorPolicy | None = None,
+    telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
 ) -> ContinuousObservationWindowCoordinatorResult:
     """Repeatedly rebuild closed windows and verify watermark monotonicity."""
@@ -203,23 +212,51 @@ async def run_continuous_registered_opcua_observation_windows(
     last_watermark: datetime | None = None
 
     while not stop_event.is_set():
-        cycle = await asyncio.to_thread(
-            rebuild_registered_opcua_observation_windows,
-            source_repository,
-            history,
-            window_repository,
-            source_id,
-            policy=effective_policy,
-        )
-        cycle_count += 1
-        if (
-            last_watermark is not None
-            and cycle.watermark is not None
-            and cycle.watermark < last_watermark
-        ):
-            raise RuntimeError("continuous observation watermark moved backwards")
-        if cycle.watermark is not None:
-            last_watermark = cycle.watermark
+        try:
+            cycle = await asyncio.to_thread(
+                rebuild_registered_opcua_observation_windows,
+                source_repository,
+                history,
+                window_repository,
+                source_id,
+                policy=effective_policy,
+            )
+            cycle_count += 1
+            if (
+                last_watermark is not None
+                and cycle.watermark is not None
+                and cycle.watermark < last_watermark
+            ):
+                raise RuntimeError("continuous observation watermark moved backwards")
+            if cycle.watermark is not None:
+                last_watermark = cycle.watermark
+            if telemetry_recorder is not None:
+                recorded_at = _now(now_fn)
+                _record_telemetry_best_effort(
+                    partial(
+                        telemetry_recorder.record_window_cycle,
+                        cycle,
+                        recorded_at=recorded_at,
+                    ),
+                    label="window cycle",
+                )
+        except Exception as error:
+            if telemetry_recorder is not None:
+                occurred_at = _now(now_fn)
+                failure_detail = _failure_detail(error)
+                _record_telemetry_best_effort(
+                    partial(
+                        telemetry_recorder.record_failure,
+                        AcquisitionFailureTelemetry(
+                            source_id=source_id,
+                            component=AcquisitionFailureComponent.WINDOW_COORDINATOR,
+                            occurred_at=occurred_at,
+                            detail=failure_detail,
+                        ),
+                    ),
+                    label="window coordinator failure",
+                )
+            raise
 
         with suppress(TimeoutError):
             await asyncio.wait_for(
@@ -234,6 +271,22 @@ async def run_continuous_registered_opcua_observation_windows(
         cycle_count=cycle_count,
         last_watermark=last_watermark,
     )
+
+
+def _record_telemetry_best_effort(
+    callback: Callable[[], None],
+    *,
+    label: str,
+) -> None:
+    try:
+        callback()
+    except Exception:
+        _LOGGER.exception("Failed to record acquisition telemetry: %s", label)
+
+
+def _failure_detail(error: Exception) -> str:
+    detail = str(error).strip()
+    return type(error).__name__ if not detail else f"{type(error).__name__}: {detail}"
 
 
 def _aligned_window_bounds(
