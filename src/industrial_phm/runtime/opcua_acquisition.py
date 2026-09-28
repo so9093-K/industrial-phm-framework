@@ -104,10 +104,15 @@ async def run_registered_opcua_acquisition_worker(
     _validate_asyncua_reconnect_policy(effective_session_policy)
 
     started_at = _now(now_fn)
+    baseline_epoch = await asyncio.to_thread(
+        spool.get_last_connection_epoch,
+        source_id,
+    )
     current = OpcUaPersistentSessionEvidence(
         source_id=source_id,
         state=OpcUaPersistentSessionState.DISCONNECTED,
         changed_at=started_at,
+        connection_epoch=baseline_epoch,
     )
     session_evidence_sink.record_session_evidence(current)
 
@@ -133,7 +138,7 @@ async def run_registered_opcua_acquisition_worker(
     stop_task: asyncio.Task[bool] | None = None
     stop_detail = "stop-requested"
 
-    def _transition(
+    async def _transition(
         state: OpcUaPersistentSessionState,
         *,
         changed_at: datetime,
@@ -146,7 +151,11 @@ async def run_registered_opcua_acquisition_worker(
             current.state == OpcUaPersistentSessionState.CONNECTING
             and state == OpcUaPersistentSessionState.CONNECTED
         ):
-            epoch += 1
+            epoch = await asyncio.to_thread(
+                spool.reserve_next_connection_epoch,
+                source_id,
+                expected_previous_epoch=current.connection_epoch,
+            )
             next_event_index = 0
         if (
             current.state == OpcUaPersistentSessionState.RECONNECT_WAIT
@@ -176,7 +185,7 @@ async def run_registered_opcua_acquisition_worker(
                     "subscription-queue-overflow" if overflow_pending else "asyncua-reconnecting"
                 )
                 overflow_pending = False
-                _transition(
+                await _transition(
                     OpcUaPersistentSessionState.RECONNECT_WAIT,
                     changed_at=event.occurred_at,
                     detail=detail,
@@ -184,7 +193,7 @@ async def run_registered_opcua_acquisition_worker(
             return
         if event.state == OpcUaConnectorConnectionState.CONNECTING:
             if current.state == OpcUaPersistentSessionState.RECONNECT_WAIT:
-                _transition(
+                await _transition(
                     OpcUaPersistentSessionState.CONNECTING,
                     changed_at=event.occurred_at,
                 )
@@ -193,18 +202,18 @@ async def run_registered_opcua_acquisition_worker(
             event.state == OpcUaConnectorConnectionState.CONNECTED
             and current.state == OpcUaPersistentSessionState.CONNECTING
         ):
-            _transition(
+            await _transition(
                 OpcUaPersistentSessionState.CONNECTED,
                 changed_at=event.occurred_at,
             )
 
     try:
-        _transition(
+        await _transition(
             OpcUaPersistentSessionState.CONNECTING,
             changed_at=_now(now_fn),
         )
         await connector.start()
-        _transition(
+        await _transition(
             OpcUaPersistentSessionState.CONNECTED,
             changed_at=_now(now_fn),
         )
@@ -308,7 +317,7 @@ async def run_registered_opcua_acquisition_worker(
 
         await connector.close()
         if current.state != OpcUaPersistentSessionState.STOPPED:
-            _transition(
+            await _transition(
                 OpcUaPersistentSessionState.STOPPED,
                 changed_at=_now(now_fn),
                 detail=stop_detail,
