@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from importlib.util import find_spec
 from pathlib import Path
@@ -32,6 +33,7 @@ from industrial_phm.runtime import (
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
     rebuild_registered_opcua_observation_windows,
+    run_spool_to_history_writer,
     write_next_spool_batch,
 )
 
@@ -384,3 +386,72 @@ def test_bounded_live_acquisition_soak_survives_restart_and_writer_failure(
     )
     assert source_health.connection_state == SourceConnectionState.NOT_INSTRUMENTED
     assert source_health.data_flow_state == SourceDataFlowState.NO_RECEIPT
+
+
+
+def test_continuous_writer_retries_temporary_history_failure_in_place(
+    tmp_path: Path,
+) -> None:
+    _require_duckdb()
+
+    async def _run() -> None:
+        spool = SqliteAcquisitionSpool(
+            SqliteAcquisitionSpoolConfig(
+                path=tmp_path / "retry-spool.sqlite",
+                max_events=8,
+            )
+        )
+        event = _registered_event(0)
+        spool.accept_opcua_event(
+            event,
+            connection_epoch=1,
+            event_index=0,
+            accepted_at=event.notification.observation.received_at + timedelta(milliseconds=1),
+        )
+        history_config = DuckLakeAssetHistoryConfig(
+            catalog_path=tmp_path / "retry-catalog.sqlite",
+            data_path=tmp_path / "retry-data",
+        )
+        history = DuckLakeAssetHistory(history_config)
+        failing_history = _FailFirstAppendHistory(history)
+        stop_event = asyncio.Event()
+        writer = asyncio.create_task(
+            run_spool_to_history_writer(
+                spool,
+                failing_history,
+                stop_event=stop_event,
+                policy=SpoolToHistoryWriterPolicy(
+                    max_events=1,
+                    max_bytes=10_000_000,
+                    max_interval_seconds=60.0,
+                    poll_interval_seconds=0.01,
+                ),
+                batch_id_factory=lambda: "retry-stable-batch",
+            )
+        )
+
+        for _ in range(2_000):
+            if spool.pending_event_count() == 0:
+                break
+            if writer.done():
+                await writer
+                raise AssertionError("writer stopped before draining the durable event")
+            await asyncio.sleep(0.001)
+        else:
+            raise AssertionError("writer did not recover before the bounded timeout")
+
+        stop_event.set()
+        result = await writer
+        assert failing_history.failed is True
+        assert result.batch_count == 1
+        assert result.event_count == 1
+        assert spool.pending_event_count() == 0
+
+        measurements = DuckLakeAssetHistory(history_config).query_measurements(
+            "pump-01",
+            start_at=BASE - timedelta(seconds=1),
+            end_at=BASE + timedelta(seconds=1),
+        )
+        assert len(measurements) == 1
+
+    asyncio.run(_run())
