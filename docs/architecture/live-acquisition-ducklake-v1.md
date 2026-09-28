@@ -203,8 +203,20 @@ OPC UA / MQTT ───→ Live ─────┘
 두 경로는 동일한 asset/time query surface로 합쳐지지만 provenance는 유지합니다. Backfill이 live보다 늦게
 실행되었다고 해서 historical event의 event time을 ingestion time으로 바꾸지 않습니다.
 
-Live/backfill overlap과 duplicate 정책은 explicit input identity/provenance를 기준으로 정의하며 값/시각이
-비슷하다는 heuristic만으로 source evidence를 삭제하지 않습니다.
+#266 reference backfill은 registered FILE source의 기존 Asset / Measurement Point / Channel mapping을 재사용하고,
+explicit timezone-aware CSV timestamp만 SOURCE_TIMESTAMP event time으로 승격합니다. Sampling rate만 있는
+상대시간 CSV에는 임의 absolute time을 만들지 않으며 backfill을 거부합니다.
+
+FILE raw evidence는 source ID, file name, exact source SHA-256, sample index, channel ID를 조합한 stable
+`raw_evidence_id`로 저장하고, 파일 snapshot별 stable batch ID를 사용합니다. 동일 snapshot 재실행은 DuckLake
+batch commit provenance를 checkpoint로 복구하여 새 row를 만들지 않습니다. 별도 cursor DB를 truth로 두지 않기
+때문에 crash/restart 시 이미 commit된 segment는 recovered되고 아직 commit되지 않은 segment만 이어집니다.
+
+Live/backfill overlap과 duplicate 정책은 explicit input identity/provenance를 기준으로 정의합니다. 다른 file
+snapshot이나 live delivery가 같은 `event_at`/value를 가지더라도 서로 다른 raw evidence이면 모두 보존합니다.
+값/시각 similarity heuristic으로 source evidence를 삭제하지 않습니다. Backfill 완료 결과는 현재 DuckLake
+snapshot ID와 half-open asset input range를 `HistoricalInputReference`로 제공해 baseline/analysis provenance에
+기록할 수 있습니다.
 
 ## 6. DuckLake v1 deployment profile
 
