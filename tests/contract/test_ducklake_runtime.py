@@ -142,6 +142,13 @@ def test_ducklake_asset_history_round_trip(tmp_path) -> None:
             ingestion_mode=HistoryIngestionMode.LIVE,
         )
 
+    with pytest.raises(ValueError, match="historical delivery already exists"):
+        repository.append_opcua_batch(
+            (first,),
+            batch_id="batch-2",
+            ingestion_mode=HistoryIngestionMode.LIVE,
+        )
+
 
 def test_ducklake_asset_history_backfill_provenance(tmp_path) -> None:
     _require_duckdb()
