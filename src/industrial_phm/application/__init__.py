@@ -203,6 +203,13 @@ from industrial_phm.application.source_subscription import (
     run_registered_opcua_subscription_cycle,
 )
 
+from industrial_phm.application.window_coordinator import (
+    ContinuousObservationWindowCoordinatorResult,
+    ObservationWindowCoordinatorCycleResult,
+    ObservationWindowCoordinatorPolicy,
+    OpcUaHistoricalEventReader,
+)
+
 __all__ = [
     "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
@@ -355,10 +362,3 @@ __all__ = [
     "validate_operational_finding_against_run",
     "validate_registered_file_source",
 ]
-
-from industrial_phm.application.window_coordinator import (
-    ContinuousObservationWindowCoordinatorResult,
-    ObservationWindowCoordinatorCycleResult,
-    ObservationWindowCoordinatorPolicy,
-    OpcUaHistoricalEventReader,
-)
