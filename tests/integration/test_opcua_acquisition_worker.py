@@ -401,9 +401,7 @@ def test_worker_process_restart_reserves_new_connection_epoch(tmp_path: Path) ->
             )
         )
         await first_connector.started.wait()
-        await first_connector.notifications.put(
-            _notification(channel_id="vibration_x", value=1.0)
-        )
+        await first_connector.notifications.put(_notification(channel_id="vibration_x", value=1.0))
         await _wait_until(lambda: first_spool.pending_event_count() == 1)
         first_stop.set()
         await first_worker
@@ -436,11 +434,14 @@ def test_worker_process_restart_reserves_new_connection_epoch(tmp_path: Path) ->
         second_evidence = second_sink.list_session_evidence()
         assert second_evidence[0].state == OpcUaPersistentSessionState.DISCONNECTED
         assert second_evidence[0].connection_epoch == 1
-        assert next(
-            item
-            for item in second_evidence
-            if item.state == OpcUaPersistentSessionState.CONNECTED
-        ).connection_epoch == 2
+        assert (
+            next(
+                item
+                for item in second_evidence
+                if item.state == OpcUaPersistentSessionState.CONNECTED
+            ).connection_epoch
+            == 2
+        )
         assert restarted_spool.get_last_connection_epoch(source.source_id) == 2
 
         batch = restarted_spool.assign_next_batch(
