@@ -244,7 +244,12 @@ def test_worker_records_queue_overflow_before_reconnect(tmp_path: Path) -> None:
             )
         )
         await connector.started.wait()
-        await asyncio.sleep(0)
+        await _wait_until(
+            lambda: (
+                sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
+                and sink.list_session_evidence()[-1].connection_epoch == 1
+            )
+        )
 
         now = sink.list_session_evidence()[-1].changed_at
         await connector.overflows.put(OpcUaConnectorQueueOverflow(now))
