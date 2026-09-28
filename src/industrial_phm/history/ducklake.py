@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.asset_history import (
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
@@ -221,6 +222,136 @@ class DuckLakeAssetHistory:
             )
         finally:
             connection.close()
+
+    def get_file_batch_commit(
+        self,
+        events: Sequence[FileBackfillEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.BACKFILL,
+    ) -> HistoricalBatchCommit | None:
+        """Return an existing identical FILE batch commit, or fail on conflict."""
+        batch = _validate_file_batch_input(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+        fingerprint = _file_batch_fingerprint(batch)
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._lookup_existing_batch_commit(
+                connection,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+                event_count=len(batch),
+                fingerprint=fingerprint,
+            )
+        finally:
+            connection.close()
+
+    def append_file_batch(
+        self,
+        events: Sequence[FileBackfillEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.BACKFILL,
+    ) -> HistoricalBatchCommit:
+        """Persist one FILE backfill segment into raw evidence and common measurement history."""
+        batch = _validate_file_batch_input(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+        fingerprint = _file_batch_fingerprint(batch)
+
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            existing = self._lookup_existing_batch_commit(
+                connection,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+                event_count=len(batch),
+                fingerprint=fingerprint,
+            )
+            if existing is not None:
+                return existing
+            self._reject_existing_file_evidence(connection, batch)
+
+            transaction_open = False
+            try:
+                connection.execute("BEGIN TRANSACTION")
+                transaction_open = True
+                connection.execute(
+                    f"""
+                    INSERT INTO {_CATALOG_NAME}.history.ingestion_batch
+                        (batch_id, ingestion_mode, event_count)
+                    VALUES (?, ?, ?)
+                    """,
+                    [batch_id, ingestion_mode.value, len(batch)],
+                )
+                connection.executemany(
+                    _file_raw_insert_sql(),
+                    [
+                        _file_raw_event_row(
+                            event,
+                            batch_id=batch_id,
+                            ingestion_mode=ingestion_mode,
+                        )
+                        for event in batch
+                    ],
+                )
+                connection.executemany(
+                    _file_measurement_insert_sql(),
+                    [
+                        _file_measurement_row(
+                            event,
+                            batch_id=batch_id,
+                            ingestion_mode=ingestion_mode,
+                        )
+                        for event in batch
+                    ],
+                )
+                commit_extra_info = _batch_commit_extra_info(
+                    batch_id=batch_id,
+                    ingestion_mode=ingestion_mode,
+                    event_count=len(batch),
+                    fingerprint=fingerprint,
+                )
+                connection.execute(
+                    f"CALL {_CATALOG_NAME}.set_commit_message("
+                    + _quote_sql_literal(_COMMIT_AUTHOR)
+                    + ", "
+                    + _quote_sql_literal(f"ingestion batch {batch_id}")
+                    + ", extra_info => "
+                    + _quote_sql_literal(commit_extra_info)
+                    + ")"
+                )
+                connection.execute("COMMIT")
+                transaction_open = False
+            except Exception:
+                if transaction_open:
+                    connection.execute("ROLLBACK")
+                raise
+
+            return self._last_committed_batch(connection, batch_id, len(batch))
+        finally:
+            connection.close()
+
+    def current_snapshot_id(self) -> int:
+        """Return the current DuckLake snapshot for input-range provenance."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            row = connection.execute(
+                f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None or row[0] is None:
+            return 0
+        return _require_int(row[0], "snapshot_id")
 
     def query_opcua_events(
         self,
@@ -434,6 +565,25 @@ class DuckLakeAssetHistory:
         )
         connection.execute(
             f"""
+            CREATE TABLE IF NOT EXISTS {_CATALOG_NAME}.raw.file_measurement (
+                raw_evidence_id VARCHAR NOT NULL,
+                batch_id VARCHAR NOT NULL,
+                ingestion_mode VARCHAR NOT NULL,
+                source_id VARCHAR NOT NULL,
+                asset_id VARCHAR NOT NULL,
+                measurement_point_id VARCHAR,
+                source_file VARCHAR NOT NULL,
+                source_sha256 VARCHAR NOT NULL,
+                source_size_bytes BIGINT NOT NULL,
+                sample_index BIGINT NOT NULL,
+                channel_id VARCHAR NOT NULL,
+                source_timestamp TIMESTAMPTZ NOT NULL,
+                value DOUBLE NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS {_CATALOG_NAME}.history.measurement (
                 raw_evidence_id VARCHAR NOT NULL,
                 batch_id VARCHAR NOT NULL,
@@ -470,6 +620,56 @@ class DuckLakeAssetHistory:
         if row is not None:
             existing_id = _require_str(row[0], "raw_evidence_id")
             raise ValueError(f"historical delivery already exists: {existing_id}")
+
+    def _reject_existing_file_evidence(
+        self,
+        connection: Any,
+        events: Sequence[FileBackfillEvent],
+    ) -> None:
+        raw_evidence_ids = tuple(event.raw_evidence_id for event in events)
+        placeholders = ", ".join("?" for _ in raw_evidence_ids)
+        row = connection.execute(
+            f"""
+            SELECT raw_evidence_id
+            FROM {_CATALOG_NAME}.raw.file_measurement
+            WHERE raw_evidence_id IN ({placeholders})
+            LIMIT 1
+            """,
+            list(raw_evidence_ids),
+        ).fetchone()
+        if row is not None:
+            existing_id = _require_str(row[0], "raw_evidence_id")
+            raise ValueError(f"historical FILE evidence already exists: {existing_id}")
+
+    def _last_committed_batch(
+        self,
+        connection: Any,
+        batch_id: str,
+        event_count: int,
+    ) -> HistoricalBatchCommit:
+        snapshot_row = connection.execute(
+            f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
+        ).fetchone()
+        if snapshot_row is None or snapshot_row[0] is None:
+            raise RuntimeError("DuckLake did not report the committed batch snapshot")
+        snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
+        time_row = connection.execute(
+            f"""
+            SELECT snapshot_time
+            FROM {_CATALOG_NAME}.snapshots()
+            WHERE snapshot_id = ?
+            """,
+            [snapshot_id],
+        ).fetchone()
+        if time_row is None:
+            raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
+        committed_at = _require_datetime(time_row[0], "snapshot_time")
+        return HistoricalBatchCommit(
+            batch_id=batch_id,
+            snapshot_id=snapshot_id,
+            event_count=event_count,
+            committed_at=committed_at,
+        )
 
     def _lookup_existing_batch_commit(
         self,
@@ -561,6 +761,55 @@ def _validate_opcua_batch_input(
     if len(set(identities)) != len(identities):
         raise ValueError("events must have distinct local delivery identities")
     return batch
+
+
+def _validate_file_batch_input(
+    events: Sequence[FileBackfillEvent],
+    *,
+    batch_id: str,
+    ingestion_mode: HistoryIngestionMode,
+) -> tuple[FileBackfillEvent, ...]:
+    _validate_identifier(batch_id, "batch_id")
+    if ingestion_mode not in {
+        HistoryIngestionMode.BACKFILL,
+        HistoryIngestionMode.IMPORT,
+    }:
+        raise ValueError("FILE historical batches require BACKFILL or IMPORT ingestion mode")
+    batch = tuple(events)
+    if not batch:
+        raise ValueError("events must not be empty")
+    if not all(isinstance(event, FileBackfillEvent) for event in batch):
+        raise ValueError("events must contain FileBackfillEvent values")
+    raw_ids = tuple(event.raw_evidence_id for event in batch)
+    if len(set(raw_ids)) != len(raw_ids):
+        raise ValueError("FILE events must have distinct raw_evidence_id values")
+    return batch
+
+
+def _file_batch_fingerprint(events: Sequence[FileBackfillEvent]) -> str:
+    payload = [
+        {
+            "raw_evidence_id": event.raw_evidence_id,
+            "source_id": event.source_id,
+            "asset_id": event.asset_id,
+            "measurement_point_id": event.measurement_point_id,
+            "source_file": event.source_file,
+            "source_sha256": event.source_sha256,
+            "source_size_bytes": event.source_size_bytes,
+            "sample_index": event.sample_index,
+            "channel_id": event.channel_id,
+            "event_at": event.event_at.isoformat(),
+            "value": event.value,
+        }
+        for event in events
+    ]
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _batch_commit_extra_info(
@@ -713,6 +962,51 @@ def _measurement_row(
     )
 
 
+def _file_raw_event_row(
+    event: FileBackfillEvent,
+    *,
+    batch_id: str,
+    ingestion_mode: HistoryIngestionMode,
+) -> tuple[object, ...]:
+    return (
+        event.raw_evidence_id,
+        batch_id,
+        ingestion_mode.value,
+        event.source_id,
+        event.asset_id,
+        event.measurement_point_id,
+        event.source_file,
+        event.source_sha256,
+        event.source_size_bytes,
+        event.sample_index,
+        event.channel_id,
+        event.event_at,
+        event.value,
+    )
+
+
+def _file_measurement_row(
+    event: FileBackfillEvent,
+    *,
+    batch_id: str,
+    ingestion_mode: HistoryIngestionMode,
+) -> tuple[object, ...]:
+    return (
+        event.raw_evidence_id,
+        batch_id,
+        event.source_id,
+        SourceType.FILE.value,
+        event.asset_id,
+        event.measurement_point_id,
+        event.channel_id,
+        event.event_at,
+        HistoricalEventTimeBasis.SOURCE_TIMESTAMP.value,
+        event.value,
+        True,
+        ingestion_mode.value,
+    )
+
+
 def _historical_measurement_from_row(row: Sequence[object]) -> HistoricalMeasurement:
     if len(row) != 11:
         raise RuntimeError("DuckLake measurement row has an unexpected column count")
@@ -838,6 +1132,30 @@ def _raw_insert_sql() -> str:
             replayed
         ) VALUES ({", ".join("?" for _ in range(24))})
     """
+
+
+def _file_raw_insert_sql() -> str:
+    return f"""
+        INSERT INTO {_CATALOG_NAME}.raw.file_measurement (
+            raw_evidence_id,
+            batch_id,
+            ingestion_mode,
+            source_id,
+            asset_id,
+            measurement_point_id,
+            source_file,
+            source_sha256,
+            source_size_bytes,
+            sample_index,
+            channel_id,
+            source_timestamp,
+            value
+        ) VALUES ({", ".join("?" for _ in range(13))})
+    """
+
+
+def _file_measurement_insert_sql() -> str:
+    return _measurement_insert_sql()
 
 
 def _measurement_insert_sql() -> str:
