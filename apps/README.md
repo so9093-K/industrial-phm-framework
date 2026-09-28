@@ -17,8 +17,17 @@ Live collector도 동일한 catalog/data 경로로 실행해야 같은 화면에
 자동으로 missing sample이라 부르지 않습니다.
 
 Catalog에만 있는 설비도 목록에 표시합니다. 설비·채널 목록은 화면 초기화 시 읽고, 선택한 구간은 조회 버튼으로
-다시 읽습니다. 첫 신규 적재 후에는 앱을 새로 열어 목록을 갱신합니다. Importer는 single writer로 실행하고
-collector와 동시에 같은 catalog에 쓰지 않습니다.
+다시 읽습니다. 신규 적재 후 **설비 이력 목록 새로고침**으로 목록을 갱신할 수 있습니다.
+최근 15분/24시간/7일 범위는 조회할 때마다 현재 시각을 기준으로 이동하며, 한도를 넘으면 최근 2,000개를
+시간순으로 표시합니다. 직접 지정한 범위는 기존처럼 첫 2,000개를 표시합니다.
+
+Source별 최신 저장값은 그래프 범위/한도와 별개로 조회합니다. Freshness 기준은 화면에서 초 단위로 지정하고
+최근/recent, 오래됨/stale, 미래 시각/future-timestamp를 구분합니다. 이 값은 저장된 event time의 나이이며
+실시간 연결 상태나 설비 건강 판정이 아닙니다. 동일 최신 시각의 값이 충돌하면 대표값을 정상값처럼 표시하지 않습니다.
+
+독립 collector와 UI를 함께 실행하는 방법은 [로컬 OPC UA 스택](../tools/opcua/README.md)에 있습니다.
+Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 조율하며 대기 한도 초과는 오류로
+표시합니다. 하나의 control/spool 구성에는 하나의 collector를 사용합니다.
 
 현재 repository는 목적이 다른 두 interactive application을 분리합니다.
 

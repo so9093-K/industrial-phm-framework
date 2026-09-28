@@ -91,6 +91,11 @@ jobs:
       - name: Build package
         run: uv build
 
+      - name: Validate independent live collection and history queries
+        run: |
+          uv run --locked --extra history --extra opcua pytest \
+            tests/contract/test_live_measurement_stack.py
+
       - name: Verify packaged runtime contract
         run: |
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/xjtu-sy.toml'

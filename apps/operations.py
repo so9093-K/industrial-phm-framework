@@ -4272,8 +4272,19 @@ def _(
 
 
 @app.cell
-def _(Path, os):
+def _(mo):
+    history_refresh_button = mo.ui.run_button(label="설비 이력 목록 새로고침")
+    return (history_refresh_button,)
+
+
+@app.cell
+def _(Path, os, history_refresh_button):
+    _refresh = history_refresh_button.value
     from industrial_phm.application.asset_identity import AssetIdentity
+    from industrial_phm.application.measurement_history import (
+        assess_latest_measurement,
+        resolve_measurement_range,
+    )
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.presentation.measurement_history import (
         measurement_history_rows,
@@ -4298,6 +4309,8 @@ def _(Path, os):
             history_reader = None
     return (
         AssetIdentity,
+        assess_latest_measurement,
+        resolve_measurement_range,
         history_reader,
         history_assets,
         history_error,
@@ -4382,8 +4395,24 @@ def _(asset_selector, history_assets, history_reader, mo):
             try:
                 _channels = history_reader.list_history_channels(asset_selector.value)
                 history_query_form = mo.ui.batch(
-                    mo.md("{channel}\n\n{start}\n\n{end}"),
+                    mo.md("{channel}\n\n{range}\n\n{start}\n\n{end}\n\n{stale_after}"),
                     {
+                        "range": mo.ui.dropdown(
+                            options={
+                                "직접 지정": "custom",
+                                "최근 15분": "15m",
+                                "최근 24시간": "24h",
+                                "최근 7일": "7d",
+                            },
+                            value="직접 지정",
+                            label="조회 범위",
+                        ),
+                        "stale_after": mo.ui.number(
+                            value=300,
+                            start=1,
+                            stop=86400,
+                            label="저장된 관측의 freshness 기준 (초)",
+                        ),
                         "channel": mo.ui.dropdown(
                             options=list(_channels), value=_channels[0], label="측정 항목"
                         ),
@@ -4416,6 +4445,8 @@ def _(
     history_query_form,
     history_reader,
     measurement_history_rows,
+    assess_latest_measurement,
+    resolve_measurement_range,
     mo,
     render_measurement_history_svg,
 ):
@@ -4429,18 +4460,66 @@ def _(
         if history_query_form.value is not None:
             try:
                 _query = history_query_form.value
-                _page = history_reader.query_measurement_page(
-                    asset_selector.value,
+                _now = datetime.now().astimezone()
+                _start, _end = resolve_measurement_range(
+                    _query["range"],
+                    as_of=_now,
                     start_at=datetime.fromisoformat(_query["start"]),
                     end_at=datetime.fromisoformat(_query["end"]),
+                )
+                _latest_points = history_reader.query_latest_measurements(
+                    asset_selector.value,
+                    channel_id=_query["channel"],
+                )
+                _latest_rows = []
+                for _point in _latest_points:
+                    _status = assess_latest_measurement(
+                        _point,
+                        as_of=_now,
+                        stale_after_seconds=_query["stale_after"],
+                    )
+                    _m = _point.measurement
+                    _latest_rows.append(
+                        {
+                            "source": _m.source_id,
+                            "measurement_point": _m.measurement_point_id,
+                            "latest_stored_event": _m.event_at.isoformat(),
+                            "value": None if _point.conflicting_duplicate else _m.value,
+                            "conflicting_values": _point.conflicting_duplicate,
+                            "status_good": _m.status_good,
+                            "currency": _status.currency.value,
+                            "age_seconds": _status.age_seconds,
+                        }
+                    )
+                if _latest_rows:
+                    _blocks.extend(
+                        [
+                            mo.md(
+                                "#### 최신 저장 관측\n\n"
+                                "선택한 그래프 구간과 별도로 source별 최신값을 조회합니다. "
+                                "Freshness는 저장된 event time 기준이며 "
+                                "수집 연결 상태나 설비 건강 판정이 아닙니다."
+                            ),
+                            mo.ui.table(_latest_rows, selection=None),
+                        ]
+                    )
+                _page = history_reader.query_measurement_page(
+                    asset_selector.value,
+                    start_at=_start,
+                    end_at=_end,
                     channel_id=_query["channel"],
                     point_budget=2000,
+                    latest=_query["range"] != "custom",
                 )
                 if _page.truncated:
                     _blocks.append(
                         mo.callout(
-                            "조회 한도를 넘어 시간순 첫 2,000개 관측만 표시합니다. "
-                            "시간 범위를 줄여주세요.",
+                            (
+                                "조회 한도를 넘어 최근 2,000개 관측만 표시합니다. "
+                                if _query["range"] != "custom"
+                                else "조회 한도를 넘어 시간순 첫 2,000개 관측만 표시합니다. "
+                            )
+                            + "시간 범위를 줄여주세요.",
                             kind="warn",
                         )
                     )
@@ -4489,6 +4568,7 @@ def _(
 def _(
     asset_detail,
     asset_selector,
+    history_refresh_button,
     measurement_history_view,
     mo,
     render_asset_analysis_markdown,
@@ -4504,6 +4584,7 @@ def _(
         assets_view = mo.vstack(
             [
                 mo.md("## Assets"),
+                history_refresh_button,
                 mo.callout(
                     "No asset identity is available from registered source, loaded "
                     "observation, AnalysisRun or OperationalFinding evidence.",
@@ -4590,6 +4671,7 @@ def _(
             [
                 mo.md(f"## Asset Detail\n\n선택한 asset: `{asset_detail.asset_identity.asset_id}`"),
                 asset_selector,
+                history_refresh_button,
                 mo.hstack(
                     [
                         mo.stat(
