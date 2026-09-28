@@ -27,9 +27,9 @@ from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeEvidence,
     OpcUaPersistentDataChangeEvent,
 )
+from industrial_phm.application.source_registration import SourceType
 from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
-from industrial_phm.application.source_registration import SourceType
 
 _CATALOG_NAME = "phm_history"
 
@@ -50,9 +50,9 @@ class DuckLakeAssetHistoryConfig:
             raise ValueError("catalog_path must be pathlib.Path")
         if not isinstance(self.data_path, Path):
             raise ValueError("data_path must be pathlib.Path")
-        if self.catalog_path.expanduser().resolve(strict=False) == self.data_path.expanduser().resolve(
-            strict=False
-        ):
+        catalog_path = self.catalog_path.expanduser().resolve(strict=False)
+        data_path = self.data_path.expanduser().resolve(strict=False)
+        if catalog_path == data_path:
             raise ValueError("DuckLake catalog_path and data_path must be distinct")
 
 
