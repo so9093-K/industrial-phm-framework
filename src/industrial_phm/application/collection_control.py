@@ -7,7 +7,10 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
-from industrial_phm.application.source_lifecycle import SourceLifecycleState
+from industrial_phm.application.source_lifecycle import (
+    SourceLifecycleRepository,
+    SourceLifecycleState,
+)
 from industrial_phm.application.source_registration import (
     OpcUaSourceConfig,
     SourceRepository,
@@ -53,6 +56,7 @@ class CollectionControlRepository(Protocol):
 
 def request_collection_state(
     source_repository: SourceRepository,
+    lifecycle_repository: SourceLifecycleRepository,
     control_repository: CollectionControlRepository,
     source_id: str,
     desired_state: CollectionDesiredState,
@@ -69,7 +73,7 @@ def request_collection_state(
         raise ValueError("continuous collection currently supports OPC UA sources only")
 
     if desired_state == CollectionDesiredState.RUNNING:
-        lifecycle = source_repository.get_lifecycle(source_id)
+        lifecycle = lifecycle_repository.get_lifecycle(source_id)
         if lifecycle.state != SourceLifecycleState.ACTIVE:
             raise ValueError(
                 "Start Collection requires source lifecycle ACTIVE; "
