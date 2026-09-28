@@ -1,5 +1,15 @@
 """Application-layer read models and use-case projections."""
 
+from industrial_phm.application.asset_detail import (
+    AssetDetail,
+    AssetEvidenceEvent,
+    AssetEvidenceEventKind,
+    AssetEvidenceTimeBasis,
+    AssetEvidenceTimeline,
+    AssetSourceContext,
+    build_asset_detail,
+    list_operational_asset_identities,
+)
 from industrial_phm.application.asset_identity import (
     AssetIdentity,
     ChannelIdentity,
@@ -149,9 +159,15 @@ __all__ = [
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
     "AnalysisRun",
+    "AssetDetail",
+    "AssetEvidenceEvent",
+    "AssetEvidenceEventKind",
+    "AssetEvidenceTimeBasis",
+    "AssetEvidenceTimeline",
     "AssetIdentity",
     "AssetObservationSummary",
     "AssetObservationTimeline",
+    "AssetSourceContext",
     "AttentionHandlingState",
     "AttentionItem",
     "AttentionKind",
@@ -221,6 +237,7 @@ __all__ = [
     "UnknownRegisteredSourceError",
     "assess_source_freshness",
     "assess_source_health",
+    "build_asset_detail",
     "build_field_csv_observation_summary",
     "build_operations_attention_queue",
     "build_operations_overview",
@@ -229,6 +246,7 @@ __all__ = [
     "create_human_review_finding",
     "discover_file_source",
     "finding_review_status",
+    "list_operational_asset_identities",
     "load_field_csv_observation_summary",
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",

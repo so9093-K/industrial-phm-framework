@@ -37,8 +37,12 @@ Operational State
 이 demo는 synthetic waveform으로 UI/action/persistence 연결만 검증합니다. 실제 bearing fault, anomaly,
 degradation trajectory, operational RUL 또는 maintenance 필요성을 의미하지 않습니다.
 
-`apps/operations.py`의 primary navigation은 현재 실행하거나 검토할 수 있는 기능만 노출합니다.
-Research anomaly/RUL evidence는 Analysis Explorer가 소유하며 Operations capability로 표시하지 않습니다.
+`apps/operations.py`의 primary navigation은 **Overview / Assets / Sources / Investigation /
+Data Quality / Maintenance Review / Operational State**로 구성합니다. Research anomaly/RUL evidence는
+Analysis Explorer가 소유하며 Operations capability로 표시하지 않습니다. **Assets**는 current registered
+source뿐 아니라 저장된 AnalysisRun/OperationalFinding의 asset identity도 함께 보여주므로 historical evidence를
+registry 상태 때문에 숨기지 않습니다. Asset Detail은 source mapping, 현재 로드 observation/data quality,
+analysis/finding/review evidence와 Evidence Timeline을 한 physical asset context에서 검토합니다.
 
 ```bash
 uv run --locked --group research marimo run apps/operations.py
@@ -46,8 +50,10 @@ uv run --locked --group research marimo run apps/operations.py
 
 Operations의 source entry point는 **Sources** 하나로 통일합니다. FILE snapshot/history-directory와 OPC UA
 source는 Sources에서 discover/mapping/validation/registration 후 load 또는 runtime action으로 사용합니다.
-Overview는 bundled demo onboarding과 현재 observation/workflow 상태만 보여주며 별도의 raw path/mapping 입력을
-소유하지 않습니다.
+Overview는 bundled demo onboarding, factual Attention Queue와 source/workflow 집계를 보여주며 별도의
+raw path/mapping 입력을 소유하지 않습니다. Evidence Timeline은 source time, platform receipt time,
+analysis execution time과 review recorded time을 하나의 clock으로 합치지 않습니다. Timezone-aware 시각만
+chronological ordering에 사용하고 missing/naive 시각은 **Time not comparable**로 별도 표시합니다.
 
 **Sources** 화면은 별도의 persistent source registry를 읽어 등록된 source의 identity와 type-specific configuration을 표시합니다. **Add source**의 type selector에서 FILE 또는 OPC UA를 선택할 수 있습니다. FILE은 file/history mode,
 asset/measurement-point mapping, channels, timestamp/sampling policy와 registration time을 목록/상세로 표시합니다.
