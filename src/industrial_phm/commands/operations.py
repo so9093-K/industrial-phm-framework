@@ -94,7 +94,6 @@ def _run_operations_poll_source(args: argparse.Namespace) -> int:
     return 1
 
 
-
 def _run_operations_request_collection(args: argparse.Namespace) -> int:
     try:
         source_repository = JsonSourceRepository(args.registry)
@@ -123,9 +122,7 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
         _validate_collection_service_paths(args)
         source_repository = JsonSourceRepository(args.registry)
         control_repository = SqliteCollectionControlRepository(args.control_state)
-        spool = SqliteAcquisitionSpool(
-            SqliteAcquisitionSpoolConfig(path=args.spool_state)
-        )
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(path=args.spool_state))
         telemetry = SqliteAcquisitionTelemetryRepository(args.telemetry_state)
         history = DuckLakeAssetHistory(
             DuckLakeAssetHistoryConfig(
@@ -174,8 +171,7 @@ def _validate_collection_service_paths(args: argparse.Namespace) -> None:
         "ducklake-catalog": args.ducklake_catalog,
     }
     resolved = {
-        label: path.expanduser().resolve(strict=False)
-        for label, path in file_paths.items()
+        label: path.expanduser().resolve(strict=False) for label, path in file_paths.items()
     }
     labels = tuple(resolved)
     for index, left in enumerate(labels):
