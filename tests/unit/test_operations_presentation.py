@@ -14,6 +14,7 @@ from industrial_phm.application import (
     AttentionItem,
     AttentionKind,
     FileSourceConfig,
+    ObservationValidationPolicy,
     OperationalFinding,
     OperationsAttentionQueue,
     OperationsOverview,
@@ -31,6 +32,7 @@ from industrial_phm.contracts import (
     DataQualitySeverity,
 )
 from industrial_phm.presentation import (
+    render_analysis_quality_markdown,
     render_asset_analysis_markdown,
     render_asset_findings_markdown,
     render_asset_sources_markdown,
@@ -38,6 +40,7 @@ from industrial_phm.presentation import (
     render_attention_queue_markdown,
     render_data_quality_issues_markdown,
     render_observation_markdown,
+    render_observation_provenance_markdown,
     render_source_data_flow_markdown,
     render_unplaced_asset_evidence_markdown,
 )
@@ -58,6 +61,56 @@ def _registered_source_for_presentation() -> RegisteredSource:
         ),
         registered_at=NOW,
     )
+
+
+def test_contextual_quality_presenters_preserve_recorded_scope() -> None:
+    issue = DataQualityIssue(
+        code="missing-values",
+        severity=DataQualitySeverity.WARNING,
+        message="missing values were recorded",
+    )
+    snapshot = SourceSnapshotEvidence(
+        name="pump.csv",
+        sha256="b" * 64,
+        size_bytes=256,
+    )
+    run = AnalysisRun(
+        analysis_run_id="analysis-quality",
+        asset_id="pump-01",
+        source_id="source-a",
+        observed_start_at=NOW,
+        observed_end_at=NOW,
+        started_at=NOW,
+        completed_at=NOW,
+        data_quality=DataQualityAssessment((issue,)),
+        source_snapshots=(snapshot,),
+    )
+    observation = AssetObservationSummary(
+        asset_id="pump-01",
+        source_id="source-a",
+        channels=("vibration_x",),
+        sample_count=2,
+        observed_start_at=NOW,
+        observed_end_at=NOW,
+        source_snapshot=snapshot,
+        validation_policy=ObservationValidationPolicy(
+            source_timestamp_field="timestamp",
+            minimum_sample_count=2,
+            sampling_rate_tolerance_ratio=0.05,
+        ),
+        data_quality=DataQualityAssessment((issue,)),
+    )
+
+    analysis_quality = render_analysis_quality_markdown(run)
+    provenance = render_observation_provenance_markdown(observation)
+
+    assert "WARNING" in analysis_quality
+    assert "missing-values" in analysis_quality
+    assert "not asset health" in analysis_quality
+    assert "pump.csv" in analysis_quality
+    assert "timestamp" in provenance
+    assert "0.05" in provenance
+    assert "b" * 64 in provenance
 
 
 def test_asset_analysis_and_finding_presenters_preserve_provenance() -> None:

@@ -38,7 +38,8 @@ Operational State
 degradation trajectory, operational RUL 또는 maintenance 필요성을 의미하지 않습니다.
 
 `apps/operations.py`의 primary navigation은 **Overview / Assets / Sources / Investigation /
-Data Quality / Maintenance Review / Operational State**로 구성합니다. Research anomaly/RUL evidence는
+Maintenance Review / Operational State**로 구성합니다. Data Quality는 별도 page가 아니라 현재 source,
+asset, investigation의 evidence context에서 표시합니다. Research anomaly/RUL evidence는
 Analysis Explorer가 소유하며 Operations capability로 표시하지 않습니다. **Assets**는 current registered
 source뿐 아니라 저장된 AnalysisRun/OperationalFinding의 asset identity도 함께 보여주므로 historical evidence를
 registry 상태 때문에 숨기지 않습니다. Asset Detail은 source mapping, 현재 로드 observation/data quality,
@@ -268,10 +269,10 @@ history를 저장하지 않습니다. 즉 restart-safe monitoring seed이지 con
 
 현재 primary navigation:
 
-- **Overview** — 현재 observation, data quality, finding/review 상태와 지원하지 않는 operational semantics의 경계를 확인
-- **Sources** — FILE/OPC UA 등록, lifecycle, one-shot runtime, bounded OPC UA collection, receipt/freshness/attempt evidence와 registered FILE snapshot의 on-demand operational feature analysis
-- **Investigation** — observation timeline, durable operational `AnalysisRun` + vibration feature evidence와 사용자가 명시적으로 생성한 `REVIEW_REQUIRED` review finding을 확인
-- **Data Quality** — source mapping, exact snapshot provenance, validation policy와 quality evidence
+- **Overview** — factual Attention Queue, source/workflow 집계와 현재 loaded observation evidence를 확인
+- **Assets** — physical asset별 source mapping, loaded observation/data quality, analysis/finding/review provenance와 Evidence Timeline을 확인
+- **Sources** — FILE/OPC UA 등록, lifecycle, runtime/receipt/freshness/attempt evidence와 선택 source의 current observation quality/snapshot/validation provenance를 확인
+- **Investigation** — durable operational `AnalysisRun`, analysis-input quality/source snapshot provenance, vibration feature evidence와 사용자가 명시적으로 생성한 `REVIEW_REQUIRED` review finding을 확인
 - **Maintenance Review** — `REVIEW_REQUIRED` finding을 선택해 note 추가, acknowledge, close review를 수행하고 durable event history를 확인
 - **Operational State** — source registry/runtime, operational analysis/finding/review local state의 readable/error 상태와 recorded population, active source 수, latest analysis, review status 집계를 확인
 

@@ -63,6 +63,7 @@ def _():
     )
     from industrial_phm.contracts import DataQualityState
     from industrial_phm.presentation import (
+        render_analysis_quality_markdown,
         render_asset_analysis_markdown,
         render_asset_findings_markdown,
         render_asset_sources_markdown,
@@ -70,6 +71,7 @@ def _():
         render_attention_queue_markdown,
         render_data_quality_issues_markdown,
         render_observation_markdown,
+        render_observation_provenance_markdown,
         render_source_data_flow_markdown,
         render_unplaced_asset_evidence_markdown,
     )
@@ -114,6 +116,7 @@ def _():
         list_operational_asset_identities,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
+        render_analysis_quality_markdown,
         render_asset_analysis_markdown,
         render_asset_findings_markdown,
         render_asset_sources_markdown,
@@ -121,6 +124,7 @@ def _():
         render_attention_queue_markdown,
         render_data_quality_issues_markdown,
         render_observation_markdown,
+        render_observation_provenance_markdown,
         render_source_data_flow_markdown,
         render_unplaced_asset_evidence_markdown,
         mo,
@@ -523,7 +527,6 @@ def _(mo):
             "Assets",
             "Sources",
             "Investigation",
-            "Data Quality",
             "Maintenance Review",
             "Operational State",
         ],
@@ -1905,6 +1908,7 @@ def _(
     source_runtime_error,
     source_runtime_receipts,
     source_selector,
+    source_quality_context_view,
 ):
     def escape_markdown_cell(value: str) -> str:
         return (
@@ -2652,6 +2656,7 @@ def _(
                 _health_evidence,
                 _receipt_evidence,
                 _freshness_evidence,
+                source_quality_context_view,
                 mo.callout(
                     "Freshness is a timing-policy assessment only. Registration, lifecycle "
                     "intent and on-demand loading still do not label a source online, healthy "
@@ -3015,6 +3020,52 @@ def _(get_load_error, get_observation, get_source_receipt, get_timeline):
     timeline = get_timeline()
     load_error = get_load_error()
     return load_error, observation, source_receipt, timeline
+
+
+@app.cell
+def _(
+    mo,
+    observation,
+    render_data_quality_issues_markdown,
+    render_observation_markdown,
+    render_observation_provenance_markdown,
+    source_selector,
+):
+    if source_selector is None:
+        source_quality_context_view = mo.callout(
+            "Register and select a source before contextual data-quality evidence is available.",
+            kind="neutral",
+            title="Source data quality · Unavailable",
+        )
+    elif observation is None or observation.source_id != source_selector.value:
+        source_quality_context_view = mo.callout(
+            "No current loaded observation is available for the selected source. "
+            "Load or run that source to inspect its data-quality and provenance evidence.",
+            kind="neutral",
+            title="Source data quality · Not loaded",
+        )
+    else:
+        _quality_markdown = render_data_quality_issues_markdown(observation)
+        _quality_view = (
+            mo.callout(
+                "No data-quality issue is recorded under the current source validation. "
+                "This does not declare the asset healthy.",
+                kind="success",
+                title="Data Quality · PASS",
+            )
+            if _quality_markdown is None
+            else mo.md(_quality_markdown)
+        )
+        source_quality_context_view = mo.vstack(
+            [
+                mo.md("### Current observation evidence"),
+                mo.md(render_observation_markdown(observation)),
+                _quality_view,
+                mo.md(render_observation_provenance_markdown(observation)),
+            ],
+            gap=0.7,
+        )
+    return (source_quality_context_view,)
 
 
 @app.cell
@@ -3401,6 +3452,22 @@ def _(mo, timeline):
 
 
 @app.cell
+def _(field_analysis_result, mo, render_analysis_quality_markdown):
+    if field_analysis_result is None:
+        investigation_quality_context_view = mo.callout(
+            "Run or load an operational AnalysisRun before analysis-input quality "
+            "and source provenance can be inspected.",
+            kind="neutral",
+            title="Analysis input quality · Unavailable",
+        )
+    else:
+        investigation_quality_context_view = mo.md(
+            render_analysis_quality_markdown(field_analysis_result.run)
+        )
+    return (investigation_quality_context_view,)
+
+
+@app.cell
 def _(
     create_review_finding_button,
     field_analysis_error,
@@ -3409,6 +3476,7 @@ def _(
     field_analysis_state_path,
     finding_action_error,
     finding_state_path,
+    investigation_quality_context_view,
     mo,
     observation_timeline_view,
     operational_findings,
@@ -3586,6 +3654,7 @@ def _(
                 "관측 사실과 PHM evidence를 같은 흐름에서 검토하기 위한 운영 surface입니다."
             ),
             _field_analysis_view,
+            investigation_quality_context_view,
             _field_analysis_history_view,
             _finding_view,
             _finding_history_view,
@@ -3601,104 +3670,6 @@ def _(
         gap=1.2,
     )
     return investigation_view
-
-
-@app.cell
-def _(mo, observation, quality_view):
-    if observation is None:
-        _source_mapping = mo.callout(
-            "Load a prepared source to inspect its operational mapping and provenance.",
-            kind="neutral",
-            title="Source mapping · Unavailable",
-        )
-        _snapshot_evidence = mo.callout(
-            "No exact source snapshot identity is available.",
-            kind="neutral",
-            title="Source snapshot · Unavailable",
-        )
-        _validation_policy = mo.callout(
-            "No source-validation policy is available.",
-            kind="neutral",
-            title="Validation policy · Unavailable",
-        )
-    else:
-        _source_mapping = mo.md(
-            "### Source mapping\n\n"
-            "| Field | Value |\n"
-            "| --- | --- |\n"
-            f"| Asset | `{observation.asset_id}` |\n"
-            f"| Source | `{observation.source_id}` |\n"
-            f"| Measurement point | "
-            f"`{observation.measurement_point_id or 'Not recorded'}` |\n"
-            f"| Channels | {', '.join(observation.channels)} |"
-        )
-
-        if observation.source_snapshot is None:
-            _snapshot_evidence = mo.callout(
-                "This observation does not provide exact byte-level source identity.",
-                kind="neutral",
-                title="Source snapshot · Not recorded",
-            )
-        else:
-            _snapshot_evidence = mo.md(
-                "### Source snapshot\n\n"
-                "| Field | Recorded value |\n"
-                "| --- | --- |\n"
-                f"| File | `{observation.source_snapshot.name}` |\n"
-                f"| SHA-256 | `{observation.source_snapshot.sha256}` |\n"
-                f"| Size | {observation.source_snapshot.size_bytes:,} bytes |"
-            )
-
-        if observation.validation_policy is None:
-            _validation_policy = mo.callout(
-                "This observation does not provide declared validation-policy evidence.",
-                kind="neutral",
-                title="Validation policy · Not recorded",
-            )
-        else:
-            _timestamp_field = (
-                observation.validation_policy.source_timestamp_field or "Not declared"
-            )
-            _tolerance = observation.validation_policy.sampling_rate_tolerance_ratio
-            _tolerance_label = "Not declared" if _tolerance is None else f"{_tolerance:g}"
-            _validation_policy = mo.md(
-                "### Validation policy\n\n"
-                "| Policy | Declared value |\n"
-                "| --- | --- |\n"
-                f"| Source timestamp field | `{_timestamp_field}` |\n"
-                f"| Minimum samples | "
-                f"{observation.validation_policy.minimum_sample_count:,} |\n"
-                f"| Sampling-rate tolerance ratio | {_tolerance_label} |"
-            )
-
-    data_quality_view = mo.vstack(
-        [
-            mo.md(
-                "## Data Quality & Evidence\n\n"
-                "운영 판단 전에 source identity, validation policy와 품질 evidence를 "
-                "독립적으로 확인합니다."
-            ),
-            quality_view,
-            _source_mapping,
-            _snapshot_evidence,
-            _validation_policy,
-            mo.callout(
-                "The current baseline does not auto-repair, resample, interpolate or "
-                "drop blocking source values to manufacture a PASS.",
-                kind="info",
-                title="Validation behavior",
-            ),
-            mo.callout(
-                "Vendor quality flags, sensor calibration/replacement state and operating "
-                "context are not first-class evidence yet. Their absence is visible here "
-                "instead of being folded into a generic quality score.",
-                kind="neutral",
-                title="Additional quality semantics · Not recorded",
-            ),
-        ],
-        gap=1.2,
-    )
-    return data_quality_view
 
 
 @app.cell
@@ -4133,6 +4104,7 @@ def _(
     render_asset_timeline_markdown,
     render_data_quality_issues_markdown,
     render_observation_markdown,
+    render_observation_provenance_markdown,
     render_unplaced_asset_evidence_markdown,
 ):
     if asset_detail is None:
@@ -4164,6 +4136,7 @@ def _(
         _observation_blocks = []
         for _observation in asset_detail.latest_observations:
             _observation_blocks.append(mo.md(render_observation_markdown(_observation)))
+            _observation_blocks.append(mo.md(render_observation_provenance_markdown(_observation)))
             _quality_markdown = render_data_quality_issues_markdown(_observation)
             if _quality_markdown is not None:
                 _observation_blocks.append(mo.md(_quality_markdown))
@@ -4270,7 +4243,6 @@ def _(
 @app.cell
 def _(
     assets_view,
-    data_quality_view,
     investigation_view,
     maintenance_view,
     mo,
@@ -4284,7 +4256,6 @@ def _(
         "Assets": assets_view,
         "Sources": sources_view,
         "Investigation": investigation_view,
-        "Data Quality": data_quality_view,
         "Maintenance Review": maintenance_view,
         "Operational State": operational_state_view,
     }

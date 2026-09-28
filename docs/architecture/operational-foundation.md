@@ -199,6 +199,13 @@ registered source, 현재 로드된 observation, AnalysisRun, OperationalFinding
 projection합니다. Detail은 source mapping/data-flow, loaded observation/data quality, analysis/finding/review를
 asset scope로 모으지만 condition/fault/risk/RUL verdict를 만들지 않습니다.
 
+Data Quality presentation은 standalone workflow를 만들지 않습니다. Source Detail은 현재 선택된 source와 일치하는
+loaded `AssetObservationSummary`가 있을 때만 observation quality, source snapshot, declared validation policy를
+contextual evidence로 표시합니다. Investigation은 실제 `AnalysisRun.data_quality`와 해당 run이 기록한 source
+snapshot provenance를 표시하며 current observation quality를 analysis input quality로 대체하지 않습니다.
+Asset Detail은 asset-scoped loaded observation의 같은 provenance를 함께 표시합니다. 이 세 surface 모두 quality
+state를 asset health, diagnosis 또는 maintenance priority로 승격하지 않습니다.
+
 Evidence Timeline은 서로 다른 clock fact를 하나의 timestamp로 합치지 않습니다. Source registration/lifecycle,
 source observation, platform receipt, observation window, analysis execution/capability production, finding observation,
 review action을 각각 versioned event kind/time basis로 표현합니다. Timezone-aware event만 chronological ordering에
