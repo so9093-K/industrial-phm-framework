@@ -150,13 +150,7 @@ class SqliteAcquisitionTelemetryRepository:
         current = self.get(evidence.source_id).session
         queue_maxsize = self._configured_queue_maxsize(evidence.source_id)
 
-        is_new_worker = (
-            evidence.state == OpcUaPersistentSessionState.DISCONNECTED
-            and (
-                current is None
-                or current.state == OpcUaPersistentSessionState.STOPPED
-            )
-        )
+        is_new_worker = evidence.state == OpcUaPersistentSessionState.DISCONNECTED
         if is_new_worker:
             session = AcquisitionSessionTelemetry(
                 source_id=evidence.source_id,
