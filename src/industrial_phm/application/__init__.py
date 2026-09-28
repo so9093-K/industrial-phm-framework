@@ -23,6 +23,13 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionWindowTelemetry,
     build_acquisition_telemetry_surface,
 )
+from industrial_phm.application.backfill import (
+    FileBackfillEvent,
+    FileBackfillResult,
+    FileBackfillSegmentResult,
+    FileHistoricalBatchStore,
+    backfill_registered_file_source,
+)
 from industrial_phm.application.asset_detail import (
     AssetDetail,
     AssetEvidenceEvent,
@@ -38,6 +45,7 @@ from industrial_phm.application.asset_history import (
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
+    HistoricalInputReference,
     HistoricalMeasurement,
     HistoryIngestionMode,
     validate_asset_history_query,
@@ -274,6 +282,11 @@ __all__ = [
     "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
     "FieldAnalysisHistoryFormatError",
+    "FileBackfillEvent",
+    "FileBackfillResult",
+    "FileBackfillSegmentResult",
+    "FileHistoricalBatchStore",
+    "HistoricalInputReference",
     "FileSourceConfig",
     "FileSourceDiscovery",
     "FileSourceDiscoveryError",
@@ -366,6 +379,7 @@ __all__ = [
     "UnknownRegisteredSourceError",
     "assess_source_freshness",
     "assess_source_health",
+    "backfill_registered_file_source",
     "build_acquisition_telemetry_surface",
     "build_asset_detail",
     "build_field_csv_observation_summary",
