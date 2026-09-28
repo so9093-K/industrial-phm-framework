@@ -217,7 +217,7 @@ def test_bounded_live_acquisition_soak_survives_restart_and_writer_failure(
         telemetry,
         epoch_baseline=1,
         connected_epoch=2,
-        started_at=BASE + timedelta(seconds=300),
+        started_at=BASE + timedelta(seconds=200.955),
     )
 
     for index in range(RESTART_AT, EVENT_COUNT):
