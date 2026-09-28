@@ -465,9 +465,10 @@ class DuckLakeAssetHistory:
             f"""
             SELECT snapshot_id, snapshot_time, commit_extra_info
             FROM {_CATALOG_NAME}.snapshots()
-            WHERE commit_extra_info IS NOT NULL
+            WHERE author = ? AND commit_extra_info IS NOT NULL
             ORDER BY snapshot_id
-            """
+            """,
+            [_COMMIT_AUTHOR],
         ).fetchall()
         for snapshot_id_raw, snapshot_time_raw, extra_raw in snapshot_rows:
             extra = _parse_commit_extra_info(extra_raw)
