@@ -310,3 +310,33 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
         )
     ) == 3
     assert repeated.history_snapshot_id >= backfill.history_snapshot_id
+
+    source_path.write_text(
+        "timestamp,vibration_x\n"
+        "2026-09-28T01:00:01+00:00,20.0\n"
+        "2026-09-28T01:00:02+00:00,21.0\n",
+        encoding="utf-8",
+    )
+    changed_snapshot = backfill_registered_file_source(
+        sources,
+        repository,
+        "file-source",
+    )
+    assert changed_snapshot.recovered_segment_count == 0
+    assert changed_snapshot.segments[0].batch_id != backfill.segments[0].batch_id
+
+    after_change = repository.query_measurements(
+        "pump-01",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+    )
+    assert len(after_change) == 5
+    same_file_time = [
+        item
+        for item in after_change
+        if item.source_id == "file-source"
+        and item.event_at == BASE + timedelta(seconds=2)
+    ]
+    assert len(same_file_time) == 2
+    assert {item.value for item in same_file_time} == {11.0, 21.0}
+    assert len({item.raw_evidence_id for item in same_file_time}) == 2
