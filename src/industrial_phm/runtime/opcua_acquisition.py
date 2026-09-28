@@ -122,11 +122,6 @@ async def run_registered_opcua_acquisition_worker(
         changed_at=started_at,
         connection_epoch=baseline_epoch,
     )
-    _record_session_evidence(
-        session_evidence_sink,
-        telemetry_recorder,
-        current,
-    )
     if telemetry_recorder is not None:
         _record_telemetry_best_effort(
             lambda: telemetry_recorder.record_session_configuration(
@@ -136,6 +131,11 @@ async def run_registered_opcua_acquisition_worker(
             ),
             label="session configuration",
         )
+    _record_session_evidence(
+        session_evidence_sink,
+        telemetry_recorder,
+        current,
+    )
 
     connector = connector_factory(
         OpcUaPersistentConnectorConfig(
