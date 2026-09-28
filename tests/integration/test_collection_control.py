@@ -66,6 +66,7 @@ def test_collection_control_is_restart_safe_and_separate_from_lifecycle(
     )
     running = request_collection_state(
         source_repository,
+        source_repository,
         control,
         "source-a",
         CollectionDesiredState.RUNNING,
@@ -76,6 +77,7 @@ def test_collection_control_is_restart_safe_and_separate_from_lifecycle(
 
     repeated = request_collection_state(
         source_repository,
+        source_repository,
         control,
         "source-a",
         CollectionDesiredState.RUNNING,
@@ -84,6 +86,7 @@ def test_collection_control_is_restart_safe_and_separate_from_lifecycle(
     assert repeated == running
 
     stopped = request_collection_state(
+        source_repository,
         source_repository,
         control,
         "source-a",
