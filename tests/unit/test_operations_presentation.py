@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application import (
+    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    PHASE_UNBALANCE_CAPABILITY_ID,
     AcquisitionFlowTelemetry,
     AcquisitionSessionTelemetry,
     AcquisitionSpoolTelemetrySnapshot,
@@ -40,6 +42,8 @@ from industrial_phm.contracts import (
     DataQualitySeverity,
 )
 from industrial_phm.presentation import (
+    OperationalAnalysisPresentationKind,
+    operational_analysis_presentation_kind,
     render_analysis_quality_markdown,
     render_asset_analysis_markdown,
     render_asset_findings_markdown,
@@ -55,6 +59,18 @@ from industrial_phm.presentation import (
 )
 
 NOW = datetime(2026, 9, 27, 10, 0, tzinfo=UTC)
+
+
+def test_operational_analysis_presentation_dispatch_is_capability_explicit() -> None:
+    assert (
+        operational_analysis_presentation_kind(FIELD_VIBRATION_FEATURE_CAPABILITY_ID)
+        == OperationalAnalysisPresentationKind.VIBRATION_FEATURES
+    )
+    assert (
+        operational_analysis_presentation_kind(PHASE_UNBALANCE_CAPABILITY_ID)
+        == OperationalAnalysisPresentationKind.PHASE_UNBALANCE
+    )
+    assert operational_analysis_presentation_kind("future-capability-v1") is None
 
 
 def _registered_source_for_presentation() -> RegisteredSource:

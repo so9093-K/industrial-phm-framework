@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from enum import StrEnum
 
 from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetrySurface
 from industrial_phm.application.asset_detail import (
@@ -15,6 +16,7 @@ from industrial_phm.application.collection_control import (
     CollectionControlRecord,
     CollectionDesiredState,
 )
+from industrial_phm.application.field_analysis import FIELD_VIBRATION_FEATURE_CAPABILITY_ID
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     SourceSnapshotEvidence,
@@ -25,8 +27,33 @@ from industrial_phm.application.operations_attention import (
     OperationsAttentionQueue,
 )
 from industrial_phm.application.operations_overview import OperationsOverview
+from industrial_phm.application.phase_unbalance import PHASE_UNBALANCE_CAPABILITY_ID
 from industrial_phm.application.source_health import SourceDataFlowState
 from industrial_phm.application.source_lifecycle import SourceLifecycleRecord
+
+
+class OperationalAnalysisPresentationKind(StrEnum):
+    """Known capability-specific evidence surfaces in Operations."""
+
+    VIBRATION_FEATURES = "vibration-features"
+    PHASE_UNBALANCE = "phase-unbalance"
+
+
+_OPERATIONAL_ANALYSIS_PRESENTATION_KIND = {
+    FIELD_VIBRATION_FEATURE_CAPABILITY_ID: OperationalAnalysisPresentationKind.VIBRATION_FEATURES,
+    PHASE_UNBALANCE_CAPABILITY_ID: OperationalAnalysisPresentationKind.PHASE_UNBALANCE,
+}
+
+
+def operational_analysis_presentation_kind(
+    capability_id: str,
+) -> OperationalAnalysisPresentationKind | None:
+    """Resolve only explicitly supported capability renderers; unknown IDs stay unsupported."""
+    if not isinstance(capability_id, str) or not capability_id.strip():
+        raise ValueError("capability_id must not be empty")
+    if capability_id != capability_id.strip():
+        raise ValueError("capability_id must not contain surrounding whitespace")
+    return _OPERATIONAL_ANALYSIS_PRESENTATION_KIND.get(capability_id)
 
 
 def render_collection_monitor_markdown(

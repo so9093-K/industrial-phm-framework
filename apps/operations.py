@@ -66,6 +66,8 @@ def _():
     )
     from industrial_phm.contracts import DataQualityState
     from industrial_phm.presentation import (
+        OperationalAnalysisPresentationKind,
+        operational_analysis_presentation_kind,
         render_analysis_quality_markdown,
         render_asset_analysis_markdown,
         render_asset_findings_markdown,
@@ -103,6 +105,7 @@ def _():
         OpcUaBrowseConfig,
         OpcUaNodeMapping,
         OpcUaSourceConfig,
+        OperationalAnalysisPresentationKind,
         Path,
         RegisteredSource,
         SourceDataFlowState,
@@ -130,6 +133,7 @@ def _():
         finding_review_status,
         load_registered_file_source_observation,
         list_operational_asset_identities,
+        operational_analysis_presentation_kind,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         render_analysis_quality_markdown,
@@ -3742,10 +3746,12 @@ def _(
     field_analysis_error,
     finding_action_error,
     finding_state_path,
+    OperationalAnalysisPresentationKind,
     investigation_analysis_result,
     investigation_analysis_selector,
     investigation_quality_context_view,
     mo,
+    operational_analysis_presentation_kind,
     observation_timeline_view,
     operational_analysis_results,
     operational_findings,
@@ -3766,85 +3772,99 @@ def _(
             kind="neutral",
             title="Analysis Run · Not run",
         )
-    elif not hasattr(investigation_analysis_result.evidence, "feature_names"):
-        _run = investigation_analysis_result.run
-        _evidence = investigation_analysis_result.evidence
-        _field_analysis_view = mo.vstack(
-            [
-                investigation_analysis_selector,
-                mo.md(
-                    "### Operational AnalysisRun\n\n"
-                    "| Field | Value |\n"
-                    "| --- | --- |\n"
-                    f"| Run | `{_run.analysis_run_id}` |\n"
-                    f"| Capability | `{_evidence.capability_id}` |\n"
-                    f"| Asset / Source | `{_run.asset_id}` / `{_run.source_id}` |\n"
-                    f"| Evaluated | {_run.observed_start_at.isoformat()} → "
-                    f"{_run.observed_end_at.isoformat()} |\n"
-                    f"| Data quality | {_run.data_quality.state.value.upper()} |\n"
-                    f"| Evidence | `{_evidence.evidence_id}` |"
-                ),
-                mo.ui.table(
-                    phase_unbalance_summary_rows(investigation_analysis_result),
-                    selection=None,
-                ),
-                mo.Html(render_phase_unbalance_svg(investigation_analysis_result)),
-                mo.accordion(
-                    {
-                        "입력·버전·설정 근거": mo.ui.table(
-                            phase_unbalance_provenance_rows(investigation_analysis_result),
-                            selection=None,
-                            page_size=20,
-                        )
-                    }
-                ),
-                mo.callout(_evidence.interpretation, kind="info", title="Evidence semantics"),
-            ],
-            gap=0.8,
-        )
     else:
         _run = investigation_analysis_result.run
         _evidence = investigation_analysis_result.evidence
-        _feature_rows = "\n".join(
-            f"| `{name}` | {value:.6g} |"
-            for name, value in zip(_evidence.feature_names, _evidence.values, strict=True)
-        )
-        _field_analysis_view = mo.vstack(
-            [
-                investigation_analysis_selector,
-                mo.md(
-                    "### Operational AnalysisRun\n\n"
-                    "| Field | Value |\n"
-                    "| --- | --- |\n"
-                    f"| Run | `{_run.analysis_run_id}` |\n"
-                    f"| Source | `{_run.source_id}` |\n"
-                    f"| Asset | `{_run.asset_id}` |\n"
-                    f"| Measurement point | "
-                    f"`{_run.measurement_point_id or 'Not recorded'}` |\n"
-                    f"| Observed | {_run.observed_start_at.isoformat()} → "
-                    f"{_run.observed_end_at.isoformat()} |\n"
-                    f"| Executed | {_run.started_at.isoformat()} → "
-                    f"{_run.completed_at.isoformat()} |\n"
-                    f"| Data quality | {_run.data_quality.state.value.upper()} |\n"
-                    f"| Capability | `{_evidence.capability_id}` |\n"
-                    f"| Feature set | `{_evidence.feature_set_id}` |\n"
-                    f"| Evidence | `{_evidence.evidence_id}` |"
-                ),
-                mo.md(
-                    "### Vibration feature evidence\n\n"
-                    "| Feature | Value |\n"
-                    "| --- | ---: |\n" + _feature_rows
-                ),
-                mo.callout(
-                    "These are waveform statistics from one exact FILE snapshot. "
-                    "They are operational analysis evidence, but no threshold/state policy "
-                    "has interpreted them as anomaly, fault, health, alert or maintenance need.",
-                    kind="info",
-                    title="Feature evidence semantics",
-                ),
-            ],
-            gap=0.8,
-        )
+        _presentation_kind = operational_analysis_presentation_kind(_evidence.capability_id)
+        if _presentation_kind == OperationalAnalysisPresentationKind.PHASE_UNBALANCE:
+            _field_analysis_view = mo.vstack(
+                [
+                    investigation_analysis_selector,
+                    mo.md(
+                        "### Operational AnalysisRun\n\n"
+                        "| Field | Value |\n"
+                        "| --- | --- |\n"
+                        f"| Run | `{_run.analysis_run_id}` |\n"
+                        f"| Capability | `{_evidence.capability_id}` |\n"
+                        f"| Asset / Source | `{_run.asset_id}` / `{_run.source_id}` |\n"
+                        f"| Evaluated | {_run.observed_start_at.isoformat()} → "
+                        f"{_run.observed_end_at.isoformat()} |\n"
+                        f"| Data quality | {_run.data_quality.state.value.upper()} |\n"
+                        f"| Evidence | `{_evidence.evidence_id}` |"
+                    ),
+                    mo.ui.table(
+                        phase_unbalance_summary_rows(investigation_analysis_result),
+                        selection=None,
+                    ),
+                    mo.Html(render_phase_unbalance_svg(investigation_analysis_result)),
+                    mo.accordion(
+                        {
+                            "입력·버전·설정 근거": mo.ui.table(
+                                phase_unbalance_provenance_rows(investigation_analysis_result),
+                                selection=None,
+                                page_size=20,
+                            )
+                        }
+                    ),
+                    mo.callout(_evidence.interpretation, kind="info", title="Evidence semantics"),
+                ],
+                gap=0.8,
+            )
+        elif _presentation_kind == OperationalAnalysisPresentationKind.VIBRATION_FEATURES:
+            _feature_rows = "\n".join(
+                f"| `{name}` | {value:.6g} |"
+                for name, value in zip(_evidence.feature_names, _evidence.values, strict=True)
+            )
+            _field_analysis_view = mo.vstack(
+                [
+                    investigation_analysis_selector,
+                    mo.md(
+                        "### Operational AnalysisRun\n\n"
+                        "| Field | Value |\n"
+                        "| --- | --- |\n"
+                        f"| Run | `{_run.analysis_run_id}` |\n"
+                        f"| Source | `{_run.source_id}` |\n"
+                        f"| Asset | `{_run.asset_id}` |\n"
+                        f"| Measurement point | "
+                        f"`{_run.measurement_point_id or 'Not recorded'}` |\n"
+                        f"| Observed | {_run.observed_start_at.isoformat()} → "
+                        f"{_run.observed_end_at.isoformat()} |\n"
+                        f"| Executed | {_run.started_at.isoformat()} → "
+                        f"{_run.completed_at.isoformat()} |\n"
+                        f"| Data quality | {_run.data_quality.state.value.upper()} |\n"
+                        f"| Capability | `{_evidence.capability_id}` |\n"
+                        f"| Feature set | `{_evidence.feature_set_id}` |\n"
+                        f"| Evidence | `{_evidence.evidence_id}` |"
+                    ),
+                    mo.md(
+                        "### Vibration feature evidence\n\n"
+                        "| Feature | Value |\n"
+                        "| --- | ---: |\n" + _feature_rows
+                    ),
+                    mo.callout(
+                        "These are waveform statistics from one exact FILE snapshot. "
+                        "They are operational analysis evidence, but no threshold/state policy "
+                        "has interpreted them as anomaly, fault, health, alert or maintenance need.",
+                        kind="info",
+                        title="Feature evidence semantics",
+                    ),
+                ],
+                gap=0.8,
+            )
+        else:
+            _field_analysis_view = mo.vstack(
+                [
+                    investigation_analysis_selector,
+                    mo.callout(
+                        f"Capability `{_evidence.capability_id}` has persisted evidence but "
+                        "no explicit Operations evidence renderer. The result is not "
+                        "reinterpreted as another capability.",
+                        kind="neutral",
+                        title="Analysis evidence · Unsupported capability",
+                    ),
+                ],
+                gap=0.8,
+            )
 
     if not operational_analysis_results:
         _field_analysis_history_view = mo.callout(
