@@ -98,6 +98,19 @@ uv run --no-sync industrial-phm operations run-window-analysis \
 Each finalized window is analyzed once from its accepted events (ADR-0008). Restarting the runner does
 not record a window twice. Windows without all three phases bound are recorded as skipped with a reason.
 
+Alignment is strict by default (all phases at one source timestamp). OPC UA DataChange reports only
+changed values, so a stable phase may be missing at most timestamps. When the device's update period
+justifies it, the runner can carry a phase's latest earlier value within a stated age (ADR-0009):
+
+```bash
+uv run --no-sync industrial-phm operations run-window-analysis ... \
+  --alignment bounded-previous --max-carry-age-seconds 2 \
+  --alignment-basis "simulator writes every phase each second"
+```
+
+The carry age is a measurement-validity fact, not a transport timeout; the evidence records the policy,
+its basis and the carried value count and ages.
+
 ## Regression validation
 
 ```bash

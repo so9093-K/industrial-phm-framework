@@ -20,6 +20,11 @@ from statistics import median, quantiles
 from typing import Protocol, runtime_checkable
 from uuid import uuid4
 
+from industrial_phm.application.alignment import (
+    STRICT_ALIGNMENT,
+    TemporalAlignmentPolicy,
+    align_observations,
+)
 from industrial_phm.application.analysis_input import (
     ChannelObservation,
     WindowInputReference,
@@ -62,6 +67,7 @@ class ExclusionReason(StrEnum):
     CONFLICTING_VALUE = "conflicting-value"
     NON_GOOD_QUALITY = "non-good-source-quality"
     INCOMPLETE_PHASES = "incomplete-phases"
+    NO_RECENT_PHASE_VALUE = "no-recent-phase-value"
     LOW_SIGNAL = "low-signal"
 
 
@@ -122,8 +128,11 @@ class PhaseUnbalanceConfig:
     min_mean_voltage_v: float = 50.0
     min_mean_current_a: float = 1.0
     bucket_count: int = 200
+    alignment: TemporalAlignmentPolicy = STRICT_ALIGNMENT
 
     def __post_init__(self) -> None:
+        if not isinstance(self.alignment, TemporalAlignmentPolicy):
+            raise ValueError("alignment must be a TemporalAlignmentPolicy")
         given = [c for c in (self.voltage_channels, self.current_channels) if c is not None]
         if any(len(group) != 3 for group in given):
             raise ValueError("each quantity requires exactly three phase channels")
@@ -161,6 +170,9 @@ def phase_unbalance_policy_digest(config: PhaseUnbalanceConfig | None = None) ->
         "min_mean_voltage_v": float(policy.min_mean_voltage_v),
         "min_mean_current_a": float(policy.min_mean_current_a),
         "bucket_count": policy.bucket_count,
+        # Strict alignment is the original behavior; omitting it keeps the identity
+        # of results recorded before alignment policies existed.
+        **({} if policy.alignment.is_strict else {"alignment": policy.alignment.identity()}),
     }
     encoded = json.dumps(
         payload,
@@ -194,6 +206,9 @@ class UnbalanceSeriesResult:
     buckets: tuple[UnbalanceBucket, ...] = ()
     channels: tuple[str, ...] = ()
     channel_selection: ChannelSelection = ChannelSelection.EXPLICIT
+    carried_values: int = 0
+    max_carry_age_seconds: float | None = None
+    p95_carry_age_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,19 +301,14 @@ def _series(
 ) -> tuple[UnbalanceSeriesResult, set[str], list[datetime]]:
     phase_of = dict(zip(channels, _PHASES, strict=True))
     prop, unit = _REQUIRED_SEMANTICS[quantity]
-    grouped: dict[tuple[str | None, datetime], dict[str, ChannelObservation]] = defaultdict(dict)
-    for observation in observations:
-        if observation.channel_id in phase_of:
-            key = (observation.measurement_point_id, observation.event_at)
-            grouped[key][observation.channel_id] = observation
-    excluded: Counter[str] = Counter()
+    aligned = align_observations(observations, channels, config.alignment)
+    excluded: Counter[str] = Counter(aligned.excluded)
     samples: list[tuple[datetime, float]] = []
     versions: set[str] = set()
-    for (_, event_at), by_channel in sorted(grouped.items(), key=lambda item: item[0][1]):
-        if len(by_channel) != 3:
-            excluded[ExclusionReason.INCOMPLETE_PHASES.value] += 1
-            continue
-        phases = [by_channel[channel] for channel in channels]
+    carry_ages: list[float] = []
+    for sample in aligned.samples:
+        event_at = sample.aligned_at
+        phases = [value.observation for value in sample.values]
         if any(
             o.observed_property != prop
             or o.unit != unit
@@ -323,6 +333,7 @@ def _series(
             continue
         samples.append((event_at, unbalance_percent(present)))
         versions.update(o.semantic_version for o in phases if o.semantic_version)
+        carry_ages += [value.age.total_seconds() for value in sample.carried]
     if not samples:
         return (
             UnbalanceSeriesResult(
@@ -360,6 +371,13 @@ def _series(
             buckets,
             channels,
             selection,
+            len(carry_ages),
+            max(carry_ages, default=None),
+            (
+                quantiles(carry_ages, n=20, method="inclusive")[18]
+                if len(carry_ages) > 1
+                else next(iter(carry_ages), None)
+            ),
         ),
         versions,
         [event_at for event_at, _ in samples],
@@ -410,6 +428,7 @@ def _choose_channels(
         min_mean_voltage_v=requested.min_mean_voltage_v,
         min_mean_current_a=requested.min_mean_current_a,
         bucket_count=requested.bucket_count,
+        alignment=requested.alignment,
     )
     return chosen, selection, effective
 

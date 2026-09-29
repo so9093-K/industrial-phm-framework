@@ -386,6 +386,21 @@ def build_parser() -> argparse.ArgumentParser:
     operations_window_analysis.add_argument(
         "--once", action="store_true", help="analyze pending windows once and exit"
     )
+    operations_window_analysis.add_argument(
+        "--alignment",
+        choices=("strict", "bounded-previous"),
+        default="strict",
+        help="temporal alignment policy (ADR-0009); default strict",
+    )
+    operations_window_analysis.add_argument(
+        "--max-carry-age-seconds",
+        type=float,
+        help="bounded-previous only: oldest earlier value that may be carried",
+    )
+    operations_window_analysis.add_argument(
+        "--alignment-basis",
+        help="bounded-previous only: device/measurement fact justifying the carry age",
+    )
     operations_window_analysis.set_defaults(handler=_run_operations_window_analysis)
 
     feature = subcommands.add_parser(

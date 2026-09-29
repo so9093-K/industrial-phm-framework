@@ -109,8 +109,15 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
   한 번만 기록, 동시 writer의 결과 저장은 파일 lock으로 직렬화), 분석할 수 없는 window(의미가 묶인 3상 channel 없음 등)는
   policy-scoped ledger에 사유와 함께 남겨 같은 policy로 매 주기 다시 계산하지 않습니다. 재시작해도 같은 identity 결과를 중복 기록하지 않습니다(loopback OPC UA
   E2E: `tests/contract/test_live_window_analysis_stack.py`).
-- 알려진 제한: 3상 sample은 세 상이 **같은 source timestamp**에 보고될 때만 만들어집니다. OPC UA DataChange는
-  값이 바뀐 node만 알리므로, 한 상이 안정적이면 그 window에 해당 상 event가 없어 `incomplete-phases`이거나
-  quantity가 `unresolved`가 됩니다. 마지막 값을 유지(sample-and-hold)하는 정렬은 입력 원칙(ADR-0008)을 바꾸는
-  결정이라 별도 ADR로 다룹니다.
+- 시간 정렬([ADR-0009](../adr/0009-temporal-alignment-policy.md)): 세 상을 한 sample로 묶는 방법은
+  `PhaseUnbalanceConfig.alignment`의 versioned 정책이 정합니다(`application/alignment.py`, protocol 무관).
+  - `strict-v1`(기본): 세 상이 같은 timestamp에 관측된 시각만. 기존 결과·분석 identity와 동일합니다.
+  - `bounded-previous-v1`: 어떤 상이 관측된 시각에 다른 상은 그 이전의 마지막 관측을 `max_age` 이내일 때만
+    사용합니다(미래 값 금지). `max_age`와 근거(`basis`)는 명시적으로 요구합니다. OPC UA DataChange처럼 값이
+    바뀐 node만 알리는 source에서 안정적인 상을 다루는 용도이며, deadband나 긴 무통신 구간에서는 실제 변화를
+    가릴 수 있으므로 source/device 측정 계약이나 검증 결과가 있을 때만 씁니다.
+  - Evidence에는 정책(kind·max age·basis)과 quantity별 carried 값 수, carry age max·p95가 남고, 정책은 분석
+    identity에 포함됩니다. Carried 값은 원래 관측 시각을 그대로 가리키며 raw evidence로 저장하지 않습니다.
+  - 제한: window 시작 이전 값(carry-in)은 아직 쓰지 않습니다. Window 안에 한 번도 보고되지 않은 상은 정책과
+    무관하게 분석되지 않습니다(`unresolved`).
 - AI-Hub label과의 비교는 research path에서만 합니다.

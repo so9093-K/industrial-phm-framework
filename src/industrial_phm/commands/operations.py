@@ -6,9 +6,10 @@ import argparse
 import asyncio
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from industrial_phm.application import (
+    AlignmentPolicyKind,
     CollectionDesiredState,
     JsonObservationWindowRepository,
     JsonPhaseUnbalanceRepository,
@@ -16,8 +17,10 @@ from industrial_phm.application import (
     JsonSourceRuntimeRepository,
     JsonWindowAnalysisLedger,
     ObservationWindowCoordinatorPolicy,
+    PhaseUnbalanceConfig,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
+    TemporalAlignmentPolicy,
     analyze_finalized_windows,
     backfill_registered_file_source,
     poll_registered_source,
@@ -161,8 +164,9 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
         windows = JsonObservationWindowRepository(args.window_state)
         results = JsonPhaseUnbalanceRepository(args.analysis_state)
         ledger = JsonWindowAnalysisLedger(args.ledger_state)
+        config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
         while True:
-            for outcome in analyze_finalized_windows(windows, results, ledger):
+            for outcome in analyze_finalized_windows(windows, results, ledger, config=config):
                 detail = outcome.analysis_run_id or outcome.reason
                 print(
                     f"window={outcome.window_id} capability={outcome.capability_id} "
@@ -178,6 +182,20 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as error:
         print(f"window analysis failed: {error}", file=sys.stderr)
         return 1
+
+
+def _alignment_policy(args: argparse.Namespace) -> TemporalAlignmentPolicy:
+    if args.alignment == "strict":
+        if args.max_carry_age_seconds is not None or args.alignment_basis is not None:
+            raise ValueError("strict alignment takes no carry age or basis")
+        return TemporalAlignmentPolicy()
+    if args.max_carry_age_seconds is None:
+        raise ValueError("bounded-previous alignment requires --max-carry-age-seconds")
+    return TemporalAlignmentPolicy(
+        AlignmentPolicyKind.BOUNDED_PREVIOUS,
+        max_age=timedelta(seconds=args.max_carry_age_seconds),
+        basis=args.alignment_basis,
+    )
 
 
 def _run_operations_request_collection(args: argparse.Namespace) -> int:
