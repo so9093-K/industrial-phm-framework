@@ -13,6 +13,7 @@ from typing import Any
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.phase_unbalance import (
+    ChannelSelection,
     PhaseUnbalanceAnalysis,
     PhaseUnbalanceConfig,
     PhaseUnbalanceEvidence,
@@ -142,8 +143,8 @@ def _serialize(result: PhaseUnbalanceAnalysis) -> dict[str, object]:
                 "channel_ids": list(reference.channel_ids),
             },
             "config": {
-                "voltage_channels": list(config.voltage_channels),
-                "current_channels": list(config.current_channels),
+                "voltage_channels": _optional_list(config.voltage_channels),
+                "current_channels": _optional_list(config.current_channels),
                 "min_mean_voltage_v": config.min_mean_voltage_v,
                 "min_mean_current_a": config.min_mean_current_a,
                 "bucket_count": config.bucket_count,
@@ -167,11 +168,24 @@ def _serialize(result: PhaseUnbalanceAnalysis) -> dict[str, object]:
                         ]
                         for b in r.buckets
                     ],
+                    "channels": list(r.channels),
+                    "channel_selection": r.channel_selection.value,
                 }
                 for r in evidence.results
             ],
         },
     }
+
+
+def _optional_list(value: tuple[str, ...] | None) -> list[str] | None:
+    return None if value is None else list(value)
+
+
+def _optional_triple(value: Any) -> tuple[str, str, str] | None:
+    if value is None:
+        return None
+    first, second, third = value
+    return (first, second, third)
 
 
 def _dt(value: Any) -> datetime:
@@ -220,8 +234,8 @@ def _parse(raw: Mapping[str, Any]) -> PhaseUnbalanceAnalysis:
             channel_ids=tuple(ref["channel_ids"]),
         ),
         config=PhaseUnbalanceConfig(
-            voltage_channels=tuple(cfg["voltage_channels"]),
-            current_channels=tuple(cfg["current_channels"]),
+            voltage_channels=_optional_triple(cfg["voltage_channels"]),
+            current_channels=_optional_triple(cfg["current_channels"]),
             min_mean_voltage_v=cfg["min_mean_voltage_v"],
             min_mean_current_a=cfg["min_mean_current_a"],
             bucket_count=cfg["bucket_count"],
@@ -238,6 +252,15 @@ def _parse(raw: Mapping[str, Any]) -> PhaseUnbalanceAnalysis:
                 buckets=tuple(
                     UnbalanceBucket(_dt(b[0]), _dt(b[1]), b[2], b[3], b[4]) for b in r["buckets"]
                 ),
+                # Records written before role resolution named channels explicitly.
+                channels=tuple(
+                    r["channels"]
+                    if "channels" in r
+                    else cfg[
+                        "voltage_channels" if r["quantity"] == "voltage" else "current_channels"
+                    ]
+                ),
+                channel_selection=ChannelSelection(r.get("channel_selection", "explicit")),
             )
             for r in ev["results"]
         ),

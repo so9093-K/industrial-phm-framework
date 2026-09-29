@@ -11,6 +11,10 @@
 
 ### Changed
 
+- 3상 불평형 입력 channel을 AI-Hub 이름 대신 bound meaning(phase voltage/current, scope phase R/S/T,
+  V/A)으로 고릅니다. 모호한 역할은 명시적 설정을 요구하고, evidence에 quantity별 사용 channel과 선택 방식을
+  남깁니다. 같은 규칙이 현장 OPC UA channel 이름에도 적용됩니다.
+
 - OPC UA DataChange의 semantic binding snapshot을 DuckLake raw evidence에 보존하고 복원합니다. History에서
   다시 만든 window도 같은 의미를 가지며, 분석 입력 조회가 FILE과 OPC UA 의미를 같은 형태로 읽어 OPC UA
   source도 3상 불평형 eligibility를 통과할 수 있습니다. 기존 catalog는 컬럼을 한 번 추가하고 이전 행과

@@ -19,6 +19,7 @@ from typing import Protocol, runtime_checkable
 from uuid import uuid4
 
 from industrial_phm.application.asset_history import HistoricalInputReference
+from industrial_phm.application.measurement_semantics import ChannelSemanticCandidate
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.contracts import (
     DataQualityAssessment,
@@ -53,6 +54,14 @@ class ExclusionReason(StrEnum):
     LOW_SIGNAL = "low-signal"
 
 
+class ChannelSelection(StrEnum):
+    """How a quantity's three input channels were chosen."""
+
+    SEMANTIC_ROLE = "semantic-role"
+    EXPLICIT = "explicit"
+    UNRESOLVED = "unresolved"
+
+
 _SOURCE_QUALITY_EXCLUSIONS = frozenset(
     {
         ExclusionReason.NULL_VALUE.value,
@@ -83,6 +92,16 @@ class ChannelObservation:
 class ChannelObservationReader(Protocol):
     def current_snapshot_id(self) -> int: ...
 
+    def list_channel_semantics(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        start_at: datetime,
+        end_at: datetime,
+        snapshot_id: int,
+    ) -> tuple[ChannelSemanticCandidate, ...]: ...
+
     def query_channel_observations(
         self,
         asset_id: str,
@@ -97,18 +116,24 @@ class ChannelObservationReader(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class PhaseUnbalanceConfig:
-    """Explicit, persisted configuration; defaults follow AI-Hub 239 channel names."""
+    """Explicit, persisted configuration.
 
-    voltage_channels: tuple[str, str, str] = ("R상전압", "S상전압", "T상전압")
-    current_channels: tuple[str, str, str] = ("R상전류", "S상전류", "T상전류")
+    Channels left as None are chosen by semantic role (phase voltage/current, scope
+    phase R/S/T, unit V/A) from the input's bound semantics, so no source-specific
+    channel name is assumed. Given channels are used as an explicit override.
+    """
+
+    voltage_channels: tuple[str, str, str] | None = None
+    current_channels: tuple[str, str, str] | None = None
     min_mean_voltage_v: float = 50.0
     min_mean_current_a: float = 1.0
     bucket_count: int = 200
 
     def __post_init__(self) -> None:
-        channels = (*self.voltage_channels, *self.current_channels)
-        if len(self.voltage_channels) != 3 or len(self.current_channels) != 3:
+        given = [c for c in (self.voltage_channels, self.current_channels) if c is not None]
+        if any(len(group) != 3 for group in given):
             raise ValueError("each quantity requires exactly three phase channels")
+        channels = [channel for group in given for channel in group]
         if len(set(channels)) != len(channels) or not all(c.strip() for c in channels):
             raise ValueError("phase channels must be unique and nonempty")
         for threshold in (self.min_mean_voltage_v, self.min_mean_current_a):
@@ -117,7 +142,7 @@ class PhaseUnbalanceConfig:
         if isinstance(self.bucket_count, bool) or not 1 <= self.bucket_count <= _MAX_BUCKETS:
             raise ValueError(f"bucket_count must be between 1 and {_MAX_BUCKETS}")
 
-    def channels(self, quantity: UnbalanceQuantity) -> tuple[str, str, str]:
+    def channels(self, quantity: UnbalanceQuantity) -> tuple[str, str, str] | None:
         if quantity == UnbalanceQuantity.VOLTAGE:
             return self.voltage_channels
         return self.current_channels
@@ -149,6 +174,8 @@ class UnbalanceSeriesResult:
     max_percent: float | None = None
     max_at: datetime | None = None
     buckets: tuple[UnbalanceBucket, ...] = ()
+    channels: tuple[str, ...] = ()
+    channel_selection: ChannelSelection = ChannelSelection.EXPLICIT
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,13 +217,54 @@ def unbalance_percent(values: Sequence[float]) -> float:
     return max(abs(v - mean) for v in values) / mean * 100
 
 
+def resolve_phase_channels(
+    candidates: Sequence[ChannelSemanticCandidate],
+) -> dict[UnbalanceQuantity, tuple[str, str, str] | None]:
+    """Choose one channel per quantity and phase by bound meaning.
+
+    A quantity is resolved only when each of R, S and T maps to exactly one
+    channel. Two channels claiming one role, or one channel claiming two roles,
+    is ambiguous and must be settled by explicit configuration.
+    """
+    roles: dict[tuple[UnbalanceQuantity, str], set[str]] = defaultdict(set)
+    for candidate in candidates:
+        for quantity, (prop, unit) in _REQUIRED_SEMANTICS.items():
+            for phase in _PHASES:
+                if (
+                    candidate.observed_property == prop
+                    and candidate.unit == unit
+                    and candidate.scope == f"phase {phase}"
+                ):
+                    roles[(quantity, phase)].add(candidate.channel_id)
+    claimed: dict[str, set[tuple[UnbalanceQuantity, str]]] = defaultdict(set)
+    for role, channels in roles.items():
+        for channel in channels:
+            claimed[channel].add(role)
+    ambiguous = {role: sorted(chs) for role, chs in roles.items() if len(chs) > 1}
+    ambiguous.update(
+        {role: [channel] for channel, rs in claimed.items() if len(rs) > 1 for role in rs}
+    )
+    if ambiguous:
+        detail = "; ".join(
+            f"{quantity.value} phase {phase}: {', '.join(channels)}"
+            for (quantity, phase), channels in sorted(ambiguous.items())
+        )
+        raise ValueError(f"ambiguous phase channel roles ({detail}); configure channels explicitly")
+    resolved: dict[UnbalanceQuantity, tuple[str, str, str] | None] = {}
+    for quantity in UnbalanceQuantity:
+        r, s, t = (sorted(roles[(quantity, phase)]) for phase in _PHASES)
+        resolved[quantity] = (r[0], s[0], t[0]) if r and s and t else None
+    return resolved
+
+
 def _series(
     observations: Sequence[ChannelObservation],
     quantity: UnbalanceQuantity,
+    channels: tuple[str, str, str],
+    selection: ChannelSelection,
     config: PhaseUnbalanceConfig,
     reference: HistoricalInputReference,
 ) -> tuple[UnbalanceSeriesResult, set[str], list[datetime]]:
-    channels = config.channels(quantity)
     phase_of = dict(zip(channels, _PHASES, strict=True))
     prop, unit = _REQUIRED_SEMANTICS[quantity]
     grouped: dict[tuple[str | None, datetime], dict[str, ChannelObservation]] = defaultdict(dict)
@@ -237,7 +305,13 @@ def _series(
         samples.append((event_at, unbalance_percent(present)))
         versions.update(o.semantic_version for o in phases if o.semantic_version)
     if not samples:
-        return UnbalanceSeriesResult(quantity, 0, dict(excluded)), versions, []
+        return (
+            UnbalanceSeriesResult(
+                quantity, 0, dict(excluded), channels=channels, channel_selection=selection
+            ),
+            versions,
+            [],
+        )
     percents = [p for _, p in samples]
     max_at, max_percent = max(samples, key=lambda item: (item[1], -item[0].timestamp()))
     width = (reference.end_at - reference.start_at) / config.bucket_count
@@ -265,6 +339,8 @@ def _series(
             max_percent,
             max_at,
             buckets,
+            channels,
+            selection,
         ),
         versions,
         [event_at for event_at, _ in samples],
@@ -288,10 +364,57 @@ def run_phase_unbalance_analysis(
     Passing a recorded snapshot_id recomputes a previous result exactly, even
     after more history has been appended.
     """
-    effective = config or PhaseUnbalanceConfig()
+    requested = config or PhaseUnbalanceConfig()
     started_at = now()
     snapshot = history.current_snapshot_id() if snapshot_id is None else snapshot_id
-    channels = (*effective.voltage_channels, *effective.current_channels)
+    selection: dict[UnbalanceQuantity, ChannelSelection] = {}
+    chosen: dict[UnbalanceQuantity, tuple[str, str, str] | None] = {
+        quantity: requested.channels(quantity) for quantity in UnbalanceQuantity
+    }
+    if any(group is None for group in chosen.values()):
+        candidates = history.list_channel_semantics(
+            asset_id,
+            source_id=source_id,
+            start_at=start_at,
+            end_at=end_at,
+            snapshot_id=snapshot,
+        )
+        if measurement_point_id is not None:
+            candidates = tuple(
+                c for c in candidates if c.measurement_point_id == measurement_point_id
+            )
+        elif len({c.measurement_point_id for c in candidates}) > 1:
+            raise ValueError(
+                "analysis source contains multiple measurement points; "
+                "select measurement_point_id explicitly"
+            )
+        by_role = resolve_phase_channels(candidates)
+        for quantity, given in chosen.items():
+            if given is None:
+                chosen[quantity] = by_role[quantity]
+                selection[quantity] = (
+                    ChannelSelection.UNRESOLVED
+                    if by_role[quantity] is None
+                    else ChannelSelection.SEMANTIC_ROLE
+                )
+    for quantity in UnbalanceQuantity:
+        selection.setdefault(quantity, ChannelSelection.EXPLICIT)
+    used = [channel for group in chosen.values() if group is not None for channel in group]
+    if not used:
+        raise ValueError(
+            "no three-phase voltage or current channels are bound by semantic role; "
+            "check semantic bindings or configure channels explicitly"
+        )
+    # The persisted configuration names the channels actually used, so a recorded
+    # result recomputes from its evidence without resolving roles again.
+    effective = PhaseUnbalanceConfig(
+        voltage_channels=chosen[UnbalanceQuantity.VOLTAGE],
+        current_channels=chosen[UnbalanceQuantity.CURRENT],
+        min_mean_voltage_v=requested.min_mean_voltage_v,
+        min_mean_current_a=requested.min_mean_current_a,
+        bucket_count=requested.bucket_count,
+    )
+    channels = tuple(used)
     observations = history.query_channel_observations(
         asset_id,
         source_id=source_id,
@@ -327,9 +450,19 @@ def run_phase_unbalance_analysis(
     versions: set[str] = set()
     sample_times: list[datetime] = []
     for quantity in UnbalanceQuantity:
-        result, used, times = _series(observations, quantity, effective, reference)
+        quantity_channels = chosen[quantity]
+        if quantity_channels is None:
+            results.append(
+                UnbalanceSeriesResult(
+                    quantity, 0, {}, channel_selection=ChannelSelection.UNRESOLVED
+                )
+            )
+            continue
+        result, used_versions, times = _series(
+            observations, quantity, quantity_channels, selection[quantity], effective, reference
+        )
         results.append(result)
-        versions |= used
+        versions |= used_versions
         sample_times += times
     if not sample_times:
         raise ValueError(

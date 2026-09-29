@@ -1,9 +1,14 @@
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from industrial_phm.application.measurement_semantics import ChannelSemanticCandidate
 from industrial_phm.application.phase_unbalance import (
     ChannelObservation,
+    ChannelSelection,
+    PhaseUnbalanceConfig,
+    resolve_phase_channels,
     run_phase_unbalance_analysis,
     unbalance_percent,
 )
@@ -36,9 +41,21 @@ class _Reader:
     def current_snapshot_id(self):
         return 7
 
+    def list_channel_semantics(self, asset_id, **kwargs):
+        assert kwargs["snapshot_id"] == 7
+        counts = Counter(
+            (o.measurement_point_id, o.channel_id, o.observed_property, o.scope, o.unit)
+            for o in self.observations
+            if o.observed_property is not None
+        )
+        return tuple(
+            ChannelSemanticCandidate(point, channel, prop, scope, unit, "v", count)
+            for (point, channel, prop, scope, unit), count in counts.items()
+        )
+
     def query_channel_observations(self, asset_id, **kwargs):
         assert kwargs["snapshot_id"] == 7
-        return tuple(self.observations)
+        return tuple(o for o in self.observations if o.channel_id in kwargs["channel_ids"])
 
 
 def test_unbalance_uses_only_confirmed_complete_samples_and_counts_exclusions():
@@ -135,3 +152,48 @@ def test_multiple_measurement_points_require_explicit_selection():
     )
     assert selected.run.measurement_point_id == "p1"
     assert selected.evidence.input_reference.measurement_point_id == "p1"
+
+
+def _candidate(channel, prop, phase, unit):
+    return ChannelSemanticCandidate(None, channel, prop, f"phase {phase}", unit, "site-v1", 1)
+
+
+def test_channels_are_chosen_by_bound_meaning_not_source_names():
+    site = [
+        _candidate("Voltage_L1", "phase voltage", "R", "V"),
+        _candidate("Voltage_L2", "phase voltage", "S", "V"),
+        _candidate("Voltage_L3", "phase voltage", "T", "V"),
+        _candidate("Current_L1", "phase current", "R", "A"),
+        # Current L2/L3 carry no binding here, so current stays unresolved.
+        _candidate("Voltage_avg", "phase voltage", "three-phase", "V"),
+    ]
+    resolved = resolve_phase_channels(site)
+    assert resolved == {
+        "voltage": ("Voltage_L1", "Voltage_L2", "Voltage_L3"),
+        "current": None,
+    }
+    with pytest.raises(ValueError, match="ambiguous phase channel roles"):
+        resolve_phase_channels([*site, _candidate("Spare_L1", "phase voltage", "R", "V")])
+
+    observations = [
+        ChannelObservation(
+            "s", None, channel, T0, value, False, True, "phase voltage", f"phase {phase}", "V", "v"
+        )
+        for channel, phase, value in (
+            ("Voltage_L1", "R", 220.0),
+            ("Voltage_L2", "S", 230.0),
+            ("Voltage_L3", "T", 225.0),
+        )
+    ]
+    analysis = run_phase_unbalance_analysis(
+        _Reader(observations), asset_id="a", source_id="s", start_at=T0, end_at=T0 + timedelta(1)
+    )
+    voltage, current = analysis.evidence.results
+    assert voltage.channels == ("Voltage_L1", "Voltage_L2", "Voltage_L3")
+    assert voltage.channel_selection == ChannelSelection.SEMANTIC_ROLE
+    assert voltage.evaluated_samples == 1
+    assert current.channel_selection == ChannelSelection.UNRESOLVED
+    # The recorded configuration names the channels used, for exact recomputation.
+    assert analysis.evidence.config == PhaseUnbalanceConfig(
+        voltage_channels=("Voltage_L1", "Voltage_L2", "Voltage_L3")
+    )

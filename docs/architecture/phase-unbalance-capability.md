@@ -19,7 +19,14 @@ unbalance % = max(|X_R − X̄|, |X_S − X̄|, |X_T − X̄|) / X̄ × 100,   X
 ## 입력과 eligibility
 
 - Asset History의 한 source·측정점에서 요청 구간 `[start_at, end_at)`을 **고정된 DuckLake snapshot**으로 읽습니다. Source에 여러 측정점이 있으면 `measurement_point_id`를 명시하지 않은 분석은 fail-closed합니다.
-- 기본 channel은 R/S/T상전압과 R/S/T상전류입니다(`PhaseUnbalanceConfig`).
+- 입력 channel은 이름이 아니라 **bound meaning(semantic role)**으로 고릅니다. 같은 snapshot·구간·측정점에서
+  `phase voltage`/V와 `phase current`/A의 scope `phase R/S/T`에 각각 정확히 한 channel이 묶인 quantity만
+  분석합니다(`resolve_phase_channels`). 예를 들어 AI-Hub `R상전압`과 현장 OPC UA `Voltage_L1`은 같은 규칙으로
+  선택됩니다. 한 역할에 여러 channel이 있거나 한 channel이 여러 역할이면 모호하다고 실패하며,
+  `PhaseUnbalanceConfig`에 channel을 명시해 override할 수 있습니다. 세 상이 모두 묶이지 않은 quantity는
+  `unresolved`로 표시하고 두 quantity 모두 없으면 실패합니다. Evidence에는 quantity별 사용 channel과 선택
+  방식(`semantic-role`/`explicit`/`unresolved`)이 남고, 기록된 설정은 실제 사용한 channel 이름을 담아 같은
+  snapshot으로 그대로 재계산됩니다.
 - 한 timestamp·측정점의 세 상이 모두 다음을 만족할 때만 sample이 됩니다. 아니면 첫 사유 하나로 제외하고
   사유별로 셉니다.
 
@@ -79,7 +86,6 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 - OPC UA source: 등록 시 channel별 semantic binding을 두면 DataChange의 semantic snapshot이 spool, DuckLake
   raw evidence(`raw.opcua_data_change.semantic_binding_json`)까지 보존되고 FILE과 같은 eligibility로 분석
   입력이 됩니다. Binding이 없는 channel과 semantic column 도입 이전에 적재된 행은 `unconfirmed-semantics`입니다.
-- 남은 연결: 현재 capability는 channel 이름으로 R/S/T를 고릅니다(AI-Hub 기본값 또는 설정). Semantic role 기반
-  channel 선택과 finalized live window를 입력으로 쓰는 runner는 다음 단계입니다. Live 분석은 window 종료 후
+- 남은 연결: finalized live window를 입력으로 쓰는 runner는 다음 단계입니다. Live 분석은 window 종료 후
   같은 시간 범위를 history에서 다시 조회하지 않고 window가 accept한 event 집합을 입력 근거로 사용해야 합니다.
 - AI-Hub label과의 비교는 research path에서만 합니다.
