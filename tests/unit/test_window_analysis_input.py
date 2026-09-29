@@ -12,6 +12,7 @@ from industrial_phm.application import (
     RegisteredOpcUaDataChangeEvent,
     project_opcua_persistent_data_change_event,
 )
+from industrial_phm.application.alignment import AlignmentPolicyKind, TemporalAlignmentPolicy
 from industrial_phm.application.analysis_input import (
     WindowInputReference,
     window_channel_observations,
@@ -281,3 +282,48 @@ def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
         )
         == ()
     )
+
+
+
+def test_runner_result_identity_distinguishes_alignment_and_survives_reload(tmp_path):
+    from industrial_phm.application import (
+        JsonWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows,
+    )
+
+    windows = JsonObservationWindowRepository(tmp_path / "windows-alignment-policy.json")
+    windows.record_window(_window())
+    result_path = tmp_path / "unbalance-alignment-policy.json"
+    ledger_path = tmp_path / "ledger-alignment-policy.json"
+    results = JsonPhaseUnbalanceRepository(result_path)
+    ledger = JsonWindowAnalysisLedger(ledger_path)
+
+    strict = analyze_finalized_windows(windows, results, ledger)
+    assert len(strict) == 1
+    assert strict[0].state == WindowAnalysisState.ANALYZED
+
+    bounded_policy = TemporalAlignmentPolicy(
+        AlignmentPolicyKind.BOUNDED_PREVIOUS,
+        max_age=timedelta(seconds=30),
+        basis="test fixture permits 30 s state reconstruction",
+    )
+    bounded_config = PhaseUnbalanceConfig(alignment=bounded_policy)
+    bounded = analyze_finalized_windows(windows, results, ledger, config=bounded_config)
+    assert len(bounded) == 1
+    assert bounded[0].state == WindowAnalysisState.ANALYZED
+    assert bounded[0].analysis_policy_digest != strict[0].analysis_policy_digest
+    assert len(results.list_results()) == 2
+
+    reloaded_results = JsonPhaseUnbalanceRepository(result_path)
+    reloaded_ledger = JsonWindowAnalysisLedger(ledger_path)
+    assert (
+        analyze_finalized_windows(
+            windows,
+            reloaded_results,
+            reloaded_ledger,
+            config=bounded_config,
+        )
+        == ()
+    )
+    assert len(reloaded_results.list_results()) == 2
