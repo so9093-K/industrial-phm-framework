@@ -17,7 +17,8 @@ Frontend/API 기술을 먼저 고정하지 않는 원칙은 유지하되, UI 구
 ## 1. 사용자 역할
 
 아래 역할의 위험·alert·정비 우선순위 항목은 **목표 사용자 요구**이며 현재 구현 capability를 뜻하지 않습니다.
-현재 운영 경로는 관측/이력/품질/출처 확인, FILE 특징 evidence 및 사람이 생성한 review finding과 검토 기록입니다.
+현재 운영 경로는 관측/이력/품질/출처 확인, FILE 특징 evidence와 과거 Asset History 기반 3상 불평형 evidence,
+그 결과에 대한 Investigation·사람이 생성한 review finding과 검토 기록입니다.
 검증된 진단·합리화된 alarm·fleet risk·operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
 
 ### 설비 관리자
@@ -740,14 +741,10 @@ operational RUL, inspection/work-order/CMMS execution은 현재 Operations capab
 Operations v2의 목적은 새로운 PHM 의미를 먼저 추가하는 것이 아니라, 현재 존재하는 source·observation·analysis·finding·review evidence를
 사용자가 일관된 asset/workflow 문맥에서 소비할 수 있도록 제품 구조와 operational data foundation을 정리하는 것입니다.
 
-제품 포지셔닝은 다음 문장으로 정렬합니다.
-
-> **Evidence-first Industrial PHM & Maintenance Decision Support Framework**
->
-> 산업 설비 데이터를 검증 가능한 evidence로 변환하고, 사람이 상태를 이해하고 정비 결정을 내릴 수 있도록 연결합니다.
-
-이 문장은 automatic diagnosis, alarm, RUL, maintenance recommendation이 이미 구현됐다는 뜻이 아닙니다. 현재 capability보다 강한 의미를
-제품 copy나 UI가 선행해 만들지 않는다는 기존 원칙을 그대로 유지합니다.
+제품의 중심은 문서 첫머리의 목적, 즉 설비의 상태와 변화를 파악해 운영·정비 판단을 지원하는 것입니다.
+Evidence·provenance·재현성·품질은 그 판단을 신뢰할 수 있게 만드는 설계 원칙이며 제품 포지셔닝 자체가
+아닙니다. Automatic diagnosis, alarm, RUL, maintenance recommendation이 이미 구현됐다는 표현을 쓰지 않고,
+현재 capability보다 강한 의미를 제품 copy나 UI가 선행해 만들지 않는다는 원칙을 유지합니다.
 
 ### Operations v2 information architecture
 

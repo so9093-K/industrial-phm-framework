@@ -11,6 +11,17 @@
 
 ### Changed
 
+- OPC UA DataChange의 semantic binding snapshot을 DuckLake raw evidence에 보존하고 복원합니다. History에서
+  다시 만든 window도 같은 의미를 가지며, 분석 입력 조회가 FILE과 OPC UA 의미를 같은 형태로 읽어 OPC UA
+  source도 3상 불평형 eligibility를 통과할 수 있습니다. 기존 catalog는 컬럼을 한 번 추가하고 이전 행과
+  이전 snapshot은 미확정으로 읽습니다. OPC UA batch fingerprint에 version(`opcua-semantic-v2`)을 두어,
+  이전 writer가 semantic 포함 spool batch를 의미 없이 commit한 뒤 ACK 전에 멈춘 경우도 업그레이드 후
+  복구되며 그 행은 의미를 소급하지 않습니다. 분석 입력은 binding의 source/channel이 raw 행과 일치할
+  때만 의미를 인정합니다.
+- 제품 문서의 포지셔닝 문장을 목적 중심으로 바꾸고 evidence·provenance는 설계 원칙으로 내렸습니다.
+  현재 운영 경로, architecture 상세 runtime 그림, registry v5 표기를 main 기준으로 맞췄습니다.
+- README 현재 구현 범위를 main 기준(측정 의미, 3상 불평형, Investigation·사람의 검토)으로 갱신했습니다.
+
 - 3상 불평형의 analysis exclusion과 source data quality를 분리했습니다. 미확정 semantics, 불완전한 3상 정렬, 저신호 구간은 capability eligibility 근거로 유지하되 `AnalysisRun.data_quality` warning으로 승격하지 않고, null·conflicting value·protocol non-good만 source-quality issue로 기록합니다.
 
 - 3상 불평형 분석의 p95를 작은 표본에서도 관측 min/max 범위를 벗어나지 않는 inclusive empirical quantile로 고정하고 algorithm version을 `phase-unbalance-max-deviation-v2`로 올렸습니다. 한 source에 여러 measurement point가 있으면 명시적으로 point를 선택하지 않는 분석은 fail-closed해 서로 다른 측정점의 분포가 한 결과로 합쳐지지 않게 했습니다.

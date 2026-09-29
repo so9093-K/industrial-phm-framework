@@ -36,6 +36,27 @@ A bounded response does not bound the underlying scan time. Long aggregate queri
 catalog lease and can delay a writer; there is no measured full-archive latency/throughput guarantee.
 The lock coordinates cooperating local processes; it is not a distributed read/write service.
 
+## OPC UA semantic snapshots in raw evidence
+
+An OPC UA DataChange carries the source's registered `ChannelSemanticBinding` snapshot. It is stored with
+the raw delivery as canonical JSON (`raw.opcua_data_change.semantic_binding_json`) and restored by
+`query_opcua_events`/`get_opcua_event`, so windows rebuilt from history keep the same semantics as the
+spool path. `query_channel_observations` reads FILE metadata semantics and OPC UA snapshots into one
+shape for analysis eligibility, and accepts a binding only when its `source_id`/`channel_id` name the
+raw row it is stored with; any other snapshot reads as unresolved.
+
+OPC UA batch fingerprints are versioned. New commits record `fingerprint_version = opcua-semantic-v2`
+and fingerprint the semantic snapshot. A commit without a version was written before this change,
+including spool batches that already carried a snapshot but were fingerprinted without it; recovery
+verifies those with the legacy semantics-free fingerprint. So a batch committed by the earlier writer
+and not acknowledged before a crash still recovers after upgrade, and its raw rows stay without a
+semantic snapshot instead of being backfilled with the current binding.
+
+Catalogs created before this column gain it once as a nullable column; earlier rows stay without
+semantics (unresolved), never reinterpreted. Time travel to a snapshot recorded before the column
+existed reads OPC UA semantics as unresolved instead of failing, so earlier analysis results remain
+recomputable at their recorded snapshot.
+
 ## Measured storage baseline (2026-09-29)
 
 One real extruder member (`7.압출기/SourceData_127.json`, device 2223, 48 source-local hours, 35

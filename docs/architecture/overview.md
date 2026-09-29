@@ -78,11 +78,13 @@ flowchart LR
     OPC[OPC UA] --> COLLECTOR[독립 collection service]
     COLLECTOR --> SPOOL[SQLite WAL durable spool]
     SPOOL --> RAW
-    RAW --> HISTORY[DuckLake Asset History]
+    RAW --> HISTORY[DuckLake Asset History<br/>semantic snapshot 포함]
     HISTORY --> WINDOW[Durable observation window]
     HISTORY --> ASSET[Operations Asset Detail<br/>최신 관측·이력·품질·출처]
+    HISTORY --> UNBALANCE[3상 불평형<br/>고정 snapshot 입력]
     FILE --> ANALYSIS[FILE snapshot 특징 분석]
     ANALYSIS --> EVIDENCE[Analysis evidence]
+    UNBALANCE --> EVIDENCE
     EVIDENCE --> INVESTIGATION[Investigation]
     INVESTIGATION --> FINDING[사람의 review finding]
     FINDING --> REVIEW[Maintenance review]
@@ -90,7 +92,8 @@ flowchart LR
     WINDOW -. 후속 연결 .-> EVIDENCE
 ```
 
-Operations UI는 desired RUNNING/STOPPED만 기록하고 독립 collection service가 실제 수집을 소유합니다. Live
+Operations UI는 desired RUNNING/STOPPED만 기록하고 독립 collection service가 실제 수집을 소유합니다. 3상
+불평형은 FILE·OPC UA history를 고정 snapshot으로 읽고 semantic binding이 확인된 channel만 사용합니다. Live
 window에서 analysis evidence로 이어지는 점선은 아직 구현되지 않은 다음 milestone입니다. 로컬 SQLite DuckLake
 접근은 협조하는 프로세스끼리 직렬화하며, 저장·적재 성능 측정은
 [`measurement-history-evolution.md`](measurement-history-evolution.md)에 기록합니다.
