@@ -59,6 +59,31 @@ def test_bounded_previous_carries_only_recent_earlier_values_and_keeps_provenanc
     assert result.samples[2].values[0].origin == ValueOrigin.CARRIED
 
 
+
+def test_bounded_previous_uses_event_transition_clock_for_staggered_updates():
+    observations = [
+        _obs("a", 0, 1.0),
+        _obs("b", 0, 2.0),
+        _obs("c", 0, 3.0),
+        _obs("a", 10, 10.0),
+        _obs("b", 15, 20.0),
+        _obs("c", 20, 30.0),
+    ]
+    result = align_observations(observations, ("a", "b", "c"), BOUNDED)
+
+    assert [sample.aligned_at - T0 for sample in result.samples] == [
+        0 * MS,
+        10 * MS,
+        15 * MS,
+        20 * MS,
+    ]
+    assert [[value.observation.value for value in sample.values] for sample in result.samples] == [
+        [1.0, 2.0, 3.0],
+        [10.0, 2.0, 3.0],
+        [10.0, 20.0, 3.0],
+        [10.0, 20.0, 30.0],
+    ]
+
 def test_bounded_policy_requires_explicit_age_and_basis():
     with pytest.raises(ValueError, match="max_age"):
         TemporalAlignmentPolicy(AlignmentPolicyKind.BOUNDED_PREVIOUS, basis="x")
@@ -73,8 +98,29 @@ def test_alignment_policy_is_part_of_analysis_identity_without_changing_strict()
     assert phase_unbalance_policy_digest() == (
         "054fb3002dd2e0a4883222f80b140d083cc1b80f8ffdb31ee360749007ddf1eb"
     )
-    assert phase_unbalance_policy_digest(PhaseUnbalanceConfig(alignment=BOUNDED)) != (
-        phase_unbalance_policy_digest()
+    bounded_digest = phase_unbalance_policy_digest(PhaseUnbalanceConfig(alignment=BOUNDED))
+    assert bounded_digest != phase_unbalance_policy_digest()
+
+    same_computation = TemporalAlignmentPolicy(
+        AlignmentPolicyKind.BOUNDED_PREVIOUS,
+        max_age=50 * MS,
+        basis="  another documented justification  ",
+    )
+    assert same_computation.basis == "another documented justification"
+    assert same_computation.identity() != BOUNDED.identity()
+    assert (
+        phase_unbalance_policy_digest(PhaseUnbalanceConfig(alignment=same_computation))
+        == bounded_digest
+    )
+
+    different_age = TemporalAlignmentPolicy(
+        AlignmentPolicyKind.BOUNDED_PREVIOUS,
+        max_age=40 * MS,
+        basis="same device, stricter validated age",
+    )
+    assert (
+        phase_unbalance_policy_digest(PhaseUnbalanceConfig(alignment=different_age))
+        != bounded_digest
     )
 
 
