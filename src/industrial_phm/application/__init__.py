@@ -101,10 +101,6 @@ from industrial_phm.application.history_writer import (
     SpoolHistoryWriterResult,
     SpoolToHistoryWriterPolicy,
 )
-from industrial_phm.application.measurement_semantics import (
-    ChannelSemanticBinding,
-    MeasurementDefinition,
-)
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewEvent,
@@ -113,6 +109,10 @@ from industrial_phm.application.maintenance_review import (
     JsonFindingReviewRepository,
     create_finding_review_event,
     finding_review_status,
+)
+from industrial_phm.application.measurement_semantics import (
+    ChannelSemanticBinding,
+    MeasurementDefinition,
 )
 from industrial_phm.application.observation import (
     AssetObservationSummary,
