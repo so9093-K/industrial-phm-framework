@@ -34,6 +34,14 @@ class HistoricalEventTimeBasis(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class MeasurementSourceQuality(StrEnum):
+    """Source/protocol status, separate from numeric value availability."""
+
+    UNKNOWN = "unknown"
+    GOOD = "good"
+    NON_GOOD = "non-good"
+
+
 @dataclass(frozen=True, slots=True)
 class HistoricalMeasurement:
     """Normalized measurement-history record with a source-evidence reference.
@@ -41,6 +49,10 @@ class HistoricalMeasurement:
     The record is an Asset History read model, not a universal raw protocol schema.
     raw_evidence_id points to the source-specific evidence row that preserved the
     original delivery facts.
+
+    status_good is a legacy storage field: OPC UA carries protocol Good status;
+    FILE carries numeric presence only. Use source_quality to interpret source
+    status. Neither status nor numeric presence is an asset-health assessment.
     """
 
     raw_evidence_id: str
@@ -83,6 +95,14 @@ class HistoricalMeasurement:
             raise ValueError("status_good must be boolean")
         if not isinstance(self.ingestion_mode, HistoryIngestionMode):
             raise ValueError("ingestion_mode must be a HistoryIngestionMode")
+
+    @property
+    def source_quality(self) -> MeasurementSourceQuality:
+        if self.source_type == SourceType.FILE:
+            return MeasurementSourceQuality.UNKNOWN
+        return (
+            MeasurementSourceQuality.GOOD if self.status_good else MeasurementSourceQuality.NON_GOOD
+        )
 
 
 @dataclass(frozen=True, slots=True)

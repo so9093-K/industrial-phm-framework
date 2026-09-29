@@ -4287,7 +4287,11 @@ def _(Path, os, history_refresh_button):
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.presentation.measurement_history import (
         latest_measurement_rows,
+        measurement_aggregation_rows,
+        measurement_aggregation_summary,
+        measurement_history_range_summary,
         measurement_history_rows,
+        render_measurement_aggregation_svg,
         render_measurement_history_svg,
     )
 
@@ -4310,11 +4314,15 @@ def _(Path, os, history_refresh_button):
     return (
         AssetIdentity,
         latest_measurement_rows,
+        measurement_aggregation_rows,
+        measurement_aggregation_summary,
+        render_measurement_aggregation_svg,
         resolve_measurement_range,
         history_reader,
         history_assets,
         history_error,
         measurement_history_rows,
+        measurement_history_range_summary,
         render_measurement_history_svg,
     )
 
@@ -4395,7 +4403,7 @@ def _(asset_selector, history_assets, history_reader, mo):
             try:
                 _channels = history_reader.list_history_channels(asset_selector.value)
                 history_query_form = mo.ui.batch(
-                    mo.md("{channel}\n\n{range}\n\n{start}\n\n{end}\n\n{stale_after}"),
+                    mo.md("{channel}\n\n{range}\n\n{start}\n\n{end}"),
                     {
                         "range": mo.ui.dropdown(
                             options={
@@ -4406,12 +4414,6 @@ def _(asset_selector, history_assets, history_reader, mo):
                             },
                             value="직접 지정",
                             label="조회 범위",
-                        ),
-                        "stale_after": mo.ui.number(
-                            value=300,
-                            start=1,
-                            stop=86400,
-                            label="저장된 관측의 freshness 기준 (초)",
                         ),
                         "channel": mo.ui.dropdown(
                             options=list(_channels), value=_channels[0], label="측정 항목"
@@ -4445,7 +4447,11 @@ def _(
     history_query_form,
     history_reader,
     measurement_history_rows,
+    measurement_history_range_summary,
     latest_measurement_rows,
+    measurement_aggregation_rows,
+    measurement_aggregation_summary,
+    render_measurement_aggregation_svg,
     resolve_measurement_range,
     mo,
     render_measurement_history_svg,
@@ -4474,7 +4480,6 @@ def _(
                 _latest_rows = latest_measurement_rows(
                     _latest_points,
                     as_of=_now,
-                    stale_after_seconds=_query["stale_after"],
                 )
                 if _latest_rows:
                     _blocks.extend(
@@ -4482,8 +4487,9 @@ def _(
                             mo.md(
                                 "#### 최신 저장 관측\n\n"
                                 "선택한 그래프 구간과 별도로 source별 최신값을 조회합니다. "
-                                "Freshness는 저장된 event time 기준이며 "
-                                "수집 연결 상태나 설비 건강 판정이 아닙니다. "
+                                "History age는 저장 관측의 나이이며, 과거 적재에 live freshness는 "
+                                "적용하지 않습니다. Live freshness는 Sources의 "
+                                "정책·receipt로 확인합니다. "
                                 "단위 unknown은 미확정이며 시간대 가정은 매핑 근거에서 확인합니다."
                             ),
                             mo.ui.table(
@@ -4497,8 +4503,10 @@ def _(
                                             "value",
                                             "unit",
                                             "quality",
-                                            "currency",
-                                            "age_seconds",
+                                            "source_quality",
+                                            "event_time_state",
+                                            "history_age_seconds",
+                                            "expected_live_freshness",
                                             "event_time_basis",
                                         )
                                     }
@@ -4515,56 +4523,102 @@ def _(
                             ),
                         ]
                     )
-                _page = history_reader.query_measurement_page(
-                    asset_selector.value,
-                    start_at=_start,
-                    end_at=_end,
-                    channel_id=_query["channel"],
-                    point_budget=2000,
-                    latest=_query["range"] != "custom",
-                )
-                if _page.truncated:
-                    _blocks.append(
-                        mo.callout(
-                            (
-                                "조회 한도를 넘어 최근 2,000개 관측만 표시합니다. "
-                                if _query["range"] != "custom"
-                                else "조회 한도를 넘어 시간순 첫 2,000개 관측만 표시합니다. "
-                            )
-                            + "시간 범위를 줄여주세요.",
-                            kind="warn",
-                        )
+                if _query["range"] in {"24h", "7d"}:
+                    _aggregation = history_reader.query_measurement_aggregation(
+                        asset_selector.value,
+                        channel_id=_query["channel"],
+                        start_at=_start,
+                        end_at=_end,
+                        bucket_count=200 if _query["range"] == "24h" else 100,
                     )
-                if _page.points:
-                    _blocks.append(mo.Html(render_measurement_history_svg(_page)))
-                    _rows = measurement_history_rows(_page)
-                    _columns = (
-                        "time",
-                        "value",
-                        "channel",
-                        "unit",
-                        "quality",
-                        "source",
-                        "ingestion",
+                    _blocks.extend(
+                        [
+                            mo.md(
+                                "#### UI 표시용 기간 집계\n\n"
+                                "전체 요청 범위를 조회한 min/max와 관측 개수 가중 mean입니다. "
+                                "원천의 평균 측정값·시간 가중 평균·에너지 계산이 아닙니다. "
+                                "null·충돌·원천 non-good 값은 통계에서 제외하고 개수를 보존합니다. "
+                                "동일값 중복은 관측 개수에 포함합니다. 빈 구간은 보간하지 않습니다."
+                            ),
+                            mo.ui.table(
+                                [measurement_aggregation_summary(_aggregation)],
+                                selection=None,
+                            ),
+                            mo.Html(render_measurement_aggregation_svg(_aggregation)),
+                            mo.ui.table(measurement_aggregation_rows(_aggregation), page_size=10),
+                        ]
+                    )
+                else:
+                    _page = history_reader.query_measurement_page(
+                        asset_selector.value,
+                        start_at=_start,
+                        end_at=_end,
+                        channel_id=_query["channel"],
+                        point_budget=2000,
+                        latest=_query["range"] != "custom",
                     )
                     _blocks.append(
                         mo.ui.table(
-                            [{key: row[key] for key in _columns} for row in _rows],
-                            page_size=10,
+                            [
+                                measurement_history_range_summary(
+                                    _page, start_at=_start, end_at=_end
+                                )
+                            ],
+                            selection=None,
                         )
                     )
-                    _blocks.append(
-                        mo.accordion(
-                            {
-                                "출처·매핑 근거": mo.ui.table(_rows, page_size=10),
-                            }
+                    if _page.truncated:
+                        _blocks.append(
+                            mo.callout(
+                                (
+                                    "조회 한도를 넘어 최근 2,000개 관측만 표시합니다. "
+                                    if _query["range"] != "custom"
+                                    else "조회 한도를 넘어 시간순 첫 2,000개 관측만 표시합니다. "
+                                )
+                                + "전체 요청 범위를 대표하는 요약이 아닙니다. "
+                                "빈 구간은 미반환 데이터일 수 "
+                                "있으며 결측 증거가 아닙니다. 시간 범위를 줄여주세요.",
+                                kind="warn",
+                            )
                         )
-                    )
-                else:
-                    _blocks.append(mo.callout("선택한 범위에 관측값이 없습니다.", kind="neutral"))
+                    if _page.points:
+                        _blocks.append(
+                            mo.Html(
+                                render_measurement_history_svg(_page, start_at=_start, end_at=_end)
+                            )
+                        )
+                        _rows = measurement_history_rows(_page)
+                        _columns = (
+                            "time",
+                            "value",
+                            "channel",
+                            "unit",
+                            "quality",
+                            "source_quality",
+                            "value_availability",
+                            "source",
+                            "ingestion",
+                        )
+                        _blocks.append(
+                            mo.ui.table(
+                                [{key: row[key] for key in _columns} for row in _rows],
+                                page_size=10,
+                            )
+                        )
+                        _blocks.append(
+                            mo.accordion(
+                                {
+                                    "출처·매핑 근거": mo.ui.table(_rows, page_size=10),
+                                }
+                            )
+                        )
+                    else:
+                        _blocks.append(
+                            mo.callout("선택한 범위에 관측값이 없습니다.", kind="neutral")
+                        )
                 _blocks.append(
                     mo.md(
-                        "관측점을 그대로 표시하며 보간하지 않습니다. "
+                        "15분·직접 지정은 원시 관측점, 24시간·7일은 UI 표시용 집계입니다. "
                         "빨간 표시는 품질 문제 또는 값 충돌이며, "
                         "null 시각 표시는 0값이 아닙니다. 단위 unknown은 미확정 상태입니다. "
                         "표에서 출처와 설비·시간 매핑 근거를 확인할 수 있습니다."

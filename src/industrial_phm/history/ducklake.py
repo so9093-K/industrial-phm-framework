@@ -12,7 +12,7 @@ import importlib
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -28,6 +28,8 @@ from industrial_phm.application.asset_history import (
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.measurement_history import (
     HistoryAssetSummary,
+    MeasurementHistoryAggregation,
+    MeasurementHistoryBucket,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
 )
@@ -675,6 +677,100 @@ class DuckLakeAssetHistory:
             point_budget=point_budget,
         )
 
+    def query_measurement_aggregation(
+        self,
+        asset_id: str,
+        *,
+        channel_id: str,
+        start_at: datetime,
+        end_at: datetime,
+        bucket_count: int = 200,
+    ) -> MeasurementHistoryAggregation:
+        """Bounded presentation over the whole interval, with no source/meaning mixing.
+
+        Null, protocol non-good and conflicting groups are counted but excluded
+        from min/max/mean. Duplicate equal values remain observations. The mean
+        is observation-weighted, never time-weighted or an energy estimate.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        _validate_identifier(channel_id, "channel_id")
+        _validate_positive_int(bucket_count, "bucket_count")
+        if bucket_count > 1000:
+            raise ValueError("bucket_count must not exceed 1000")
+        width = (end_at - start_at).total_seconds() / bucket_count
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH selected AS (
+                    SELECT *, count(DISTINCT value) OVER observation
+                        + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END)
+                            OVER observation > 1 AS conflict
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ? AND channel_id = ? AND event_at >= ? AND event_at < ?
+                    WINDOW observation AS (PARTITION BY source_id, measurement_point_id, event_at)
+                ), prepared AS (
+                    SELECT m.*, least(floor(epoch(m.event_at - ?) / ?)::BIGINT, ?) AS bucket_index,
+                        json_object(
+                            'binding', json_extract(f.source_metadata_json, '$.binding'),
+                            'semantics', json_extract(f.source_metadata_json, '$.semantics')
+                        )::VARCHAR AS interpretation,
+                        m.source_type != 'file' AND NOT m.status_good AS non_good,
+                        m.value IS NOT NULL AND NOT m.conflict
+                            AND (m.source_type = 'file' OR m.status_good) AS usable
+                    FROM selected m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                        ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                )
+                SELECT source_id, source_type, measurement_point_id, bucket_index,
+                    min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
+                    count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
+                    count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
+                    max(value) FILTER (WHERE usable), avg(value) FILTER (WHERE usable),
+                    interpretation
+                FROM prepared
+                GROUP BY source_id, source_type, measurement_point_id, bucket_index, interpretation
+                ORDER BY bucket_index, source_id, measurement_point_id, interpretation LIMIT 2001
+                """,
+                [asset_id, channel_id, start_at, end_at, start_at, width, bucket_count - 1],
+            ).fetchall()
+            snapshot = connection.execute(
+                f"SELECT max(snapshot_id) FROM ducklake_snapshots('{_CATALOG_NAME}')"
+            ).fetchone()
+        finally:
+            connection.close()
+        if len(rows) > 2000:
+            raise ValueError(
+                "aggregate exceeds 2000 source/point/interpretation buckets; narrow range"
+            )
+        return MeasurementHistoryAggregation(
+            start_at,
+            end_at,
+            width,
+            int(snapshot[0]),
+            tuple(
+                MeasurementHistoryBucket(
+                    _require_str(r[0], "source_id"),
+                    _require_str(r[1], "source_type"),
+                    _optional_str(r[2], "measurement_point_id"),
+                    start_at + timedelta(seconds=int(r[3]) * width),
+                    min(end_at, start_at + timedelta(seconds=(int(r[3]) + 1) * width)),
+                    _require_datetime(r[4], "first_event_at"),
+                    _require_datetime(r[5], "last_event_at"),
+                    int(r[6]),
+                    int(r[7]),
+                    int(r[8]),
+                    int(r[9]),
+                    int(r[10]),
+                    _optional_float(r[11], "minimum"),
+                    _optional_float(r[12], "maximum"),
+                    _optional_float(r[13], "mean"),
+                    _require_str(r[14], "interpretation"),
+                )
+                for r in rows
+            ),
+        )
+
     def query_latest_measurements(
         self,
         asset_id: str,
@@ -1280,6 +1376,8 @@ def _file_measurement_row(
         event.event_at,
         HistoricalEventTimeBasis.SOURCE_TIMESTAMP.value,
         event.value,
+        # Legacy availability field; FILE has no asserted protocol quality.
+        # HistoricalMeasurement.source_quality exposes UNKNOWN independently.
         event.value is not None,
         ingestion_mode.value,
     )

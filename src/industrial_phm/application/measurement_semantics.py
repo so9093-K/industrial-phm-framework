@@ -5,19 +5,23 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class MeasurementDefinition:
-    property_name: str
+    observed_property: str | None = None
     scope: str | None = None
     statistic: str | None = None
     unit: str | None = None
     unit_evidence: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.property_name.strip():
-            raise ValueError("property_name must not be empty")
         if (self.unit is None) != (self.unit_evidence is None):
             raise ValueError("known units require evidence; unknown units have no evidence")
-        for value in (self.scope, self.statistic, self.unit, self.unit_evidence):
-            if value is not None and not value.strip():
+        for value in (
+            self.observed_property,
+            self.scope,
+            self.statistic,
+            self.unit,
+            self.unit_evidence,
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ValueError("provided semantics must not be empty")
 
 

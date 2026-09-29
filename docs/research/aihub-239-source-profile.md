@@ -98,3 +98,11 @@ measurement method는 미확정입니다. UI는 raw name과 `unit: unknown`을 �
 추가로 보일러 `SourceData_543.json`의 2021-02-01 07:05:14 주변 null 구간과
 `SourceData_359.json`의 2021-02-01 00:00:01 누적전력량 충돌 구간을 원본 그대로 적재해
 품질 표시를 검증했습니다. 각각 별도의 명시적 개발용 설비 grouping을 사용합니다.
+
+## Interpretation and quality boundary
+
+새 metadata v2는 `observed_property=None`으로 canonical 해석 미확정을 표현합니다. 원본 ITEM_NAME은
+channel label입니다. v1의 property_name은 legacy label로 표시하며 기존 JSON을 재작성하지 않습니다.
+FILE의 source quality는 unknown입니다. 숫자 존재/present와 null은 별도 availability이며 protocol Good이 아닙니다.
+기존 history `status_good` 저장 필드는 FILE에서 availability를 담는 호환 필드로 유지하되,
+공통 read model의 `source_quality`와 UI는 이를 source Good 판정에 사용하지 않습니다.

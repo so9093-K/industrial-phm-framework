@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from math import isfinite
 
 from industrial_phm.application.asset_history import HistoricalMeasurement
 
@@ -36,17 +35,16 @@ class MeasurementHistoryPage:
             raise ValueError("history page exceeds the supported point budget")
 
 
-class MeasurementCurrency(StrEnum):
-    RECENT = "recent"
-    STALE = "stale"
+class HistoryEventTimeState(StrEnum):
+    RECORDED = "recorded"
     FUTURE = "future-timestamp"
     UNAVAILABLE = "time-unavailable"
 
 
 @dataclass(frozen=True, slots=True)
-class LatestMeasurementStatus:
+class LatestMeasurementAge:
     point: MeasurementHistoryPoint
-    currency: MeasurementCurrency
+    event_time_state: HistoryEventTimeState
     age_seconds: float | None
 
 
@@ -54,29 +52,16 @@ def assess_latest_measurement(
     point: MeasurementHistoryPoint,
     *,
     as_of: datetime,
-    stale_after_seconds: float,
-) -> LatestMeasurementStatus:
-    """Event-time currency of stored history, independent of source/asset health."""
+) -> LatestMeasurementAge:
+    """Age of stored history. No receipt or expected-live freshness is inferred."""
     if as_of.utcoffset() is None:
         raise ValueError("as_of must be timezone-aware")
-    if (
-        isinstance(stale_after_seconds, bool)
-        or not isfinite(stale_after_seconds)
-        or stale_after_seconds <= 0
-    ):
-        raise ValueError("stale_after_seconds must be positive and finite")
     event_at = point.measurement.event_at
     if event_at is None:
-        return LatestMeasurementStatus(point, MeasurementCurrency.UNAVAILABLE, None)
+        return LatestMeasurementAge(point, HistoryEventTimeState.UNAVAILABLE, None)
     age = (as_of - event_at).total_seconds()
-    currency = (
-        MeasurementCurrency.FUTURE
-        if age < 0
-        else MeasurementCurrency.STALE
-        if age > stale_after_seconds
-        else MeasurementCurrency.RECENT
-    )
-    return LatestMeasurementStatus(point, currency, age)
+    state = HistoryEventTimeState.FUTURE if age < 0 else HistoryEventTimeState.RECORDED
+    return LatestMeasurementAge(point, state, age)
 
 
 def resolve_measurement_range(
@@ -97,3 +82,34 @@ def resolve_measurement_range(
     if start_at.utcoffset() is None or end_at.utcoffset() is None or end_at <= start_at:
         raise ValueError("custom range must be increasing and timezone-aware")
     return start_at, end_at
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementHistoryBucket:
+    source_id: str
+    source_type: str
+    measurement_point_id: str | None
+    bucket_start: datetime
+    bucket_end: datetime
+    first_event_at: datetime
+    last_event_at: datetime
+    observation_count: int
+    usable_count: int
+    null_count: int
+    non_good_count: int
+    conflict_count: int
+    minimum: float | None
+    maximum: float | None
+    mean: float | None
+    interpretation_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementHistoryAggregation:
+    """Presentation-only buckets over the full requested interval, not source statistics."""
+
+    start_at: datetime
+    end_at: datetime
+    bucket_seconds: float
+    snapshot_id: int
+    buckets: tuple[MeasurementHistoryBucket, ...]
