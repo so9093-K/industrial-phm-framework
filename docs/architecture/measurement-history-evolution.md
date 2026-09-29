@@ -85,6 +85,14 @@ previous per-row `executemany` (`EXCEPT ALL` difference 0 in both directions for
 batch tables; identical batch fingerprints). Column inserts write Parquet directly, so imports no
 longer depend on flush; flush remains for small live batches.
 
+The acquisition and history path does not use pandas or any DataFrame library, and neither is a
+project dependency. `_cache_absent_pandas_import()` only avoids DuckDB's per-value pandas probe; the
+path is domain events → typed Python values → typed column lists → DuckDB `UNNEST` → DuckLake. A
+DataFrame library is not added to the collector. Arrow/Polars are considered only for large offline
+transformation, feature engineering or research over Asset History, and only when that is a measured
+bottleneck, hard to express in DuckDB SQL, and faster and simpler in a benchmark (Python list binding
+vs Arrow vs Polars/Arrow). If Arrow binding wins, it replaces the pandas-probe workaround.
+
 The page, aggregate and latest queries outer-joined the whole raw FILE table to attach provenance,
 which built a hash table over every raw row and its JSON. They now filter raw rows by the same
 asset, channel and time range first (FILE raw and history rows come from one event and share them).

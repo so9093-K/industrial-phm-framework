@@ -274,3 +274,38 @@ metric과 구분합니다. 의미가 이 값인 경우 모호한 `final loss` �
 
 표준의 세부 requirement를 구현했다고 주장하려면 별도의 요구사항 분석과 적합성 검증이 필요합니다. 이 문서의
 용어 정렬만으로 ISO conformance를 주장하지 않습니다.
+
+## 7. Observation and reference vocabulary
+
+분석 결과가 **무엇과 비교되었는지** 정확히 답할 수 있도록 아래 개념을 하나의 `label`로 묶지 않습니다.
+
+### Observation
+
+Source가 전달한 측정값과 그 시각·quality·provenance입니다. 해석을 포함하지 않습니다.
+
+### Event
+
+Source 또는 운영 system이 기록한 이산적 사건입니다. 예: 기동/정지 신호, alarm 발생, 수집 연결 끊김.
+Event의 발생 기록은 그 원인이나 설비 상태 판정이 아닙니다.
+
+### Assessment
+
+분석 capability나 사람이 observation/event를 해석해 만든 판단입니다. 누가(어떤 capability/version 또는
+reviewer), 어떤 근거로 만들었는지를 함께 보존합니다. Review finding은 사람의 assessment입니다.
+
+### Provider annotation
+
+데이터 제공자가 붙인 label입니다. 예: AI-Hub 239의 기동패턴(Stop/Loading/Unloading)과 SOH(정상/주의/경고).
+Provider, annotation type, value, interval과 provenance를 보존하고, 산정 방법이 문서로 확인되지 않으면
+method unresolved로 둡니다. Research 평가 비교에만 사용하며 production 입력이나 설비 상태로 승격하지 않습니다.
+
+### Maintenance record
+
+작업 지시, 부품 교체, 점검 결과, 고장 코드처럼 정비 과정에서 생긴 기록입니다. 기록 자체는 사실이지만
+기록된 원인이나 상태가 검증되었다는 뜻은 아닙니다.
+
+### Verified ground truth
+
+독립 근거(예: 분해 점검, 시험실 확인, 확인된 고장 event)로 검증된 설비 상태나 사건입니다. 검증 방법과
+근거를 함께 기록할 때만 이 용어를 사용합니다. Provider annotation, model output, maintenance record를 검증
+없이 ground truth로 부르지 않습니다.

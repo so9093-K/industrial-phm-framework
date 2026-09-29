@@ -3,13 +3,12 @@
 이 문서는 `industrial-phm-framework`의 현재 reference architecture를 설명합니다.
 특정 설비나 특정 데이터셋을 구조 자체에 고정하지 않고 책임과 데이터 흐름을 기준으로 유지합니다.
 
-아키텍처 그림은 다음 질문에 빠르게 답하는 것을 우선합니다.
+대표 구조는 다음 질문에 답하는 것을 우선합니다.
 
-1. 데이터셋별 차이는 어디에서 다루는가?
-2. 어떤 처리가 공통 PHM 기능으로 이어지는가?
-3. 모델 학습과 평가는 어떤 흐름으로 구성되는가?
-4. 분석 결과는 서비스와 생성형 AI에 어떻게 전달되는가?
-5. 최종 사용자는 어떤 결과를 소비하는가?
+1. 설비 데이터는 어떤 근거를 보존하며 설비 이력으로 모이는가?
+2. 분석은 어떤 입력으로 실행되고 어떤 근거를 남기는가?
+3. 사람은 어디에서 근거를 조사·검토하고 판단하는가?
+4. 연구·평가 흐름은 production 흐름과 어떻게 분리되는가?
 
 `CanonicalTimeSeries`의 현재 가정, XJTU-SY에 과적합되지 않기 위한 확장 규칙, 실제 비공개/현장 데이터에서 확인할
 quality·provenance·security boundary는
@@ -31,21 +30,85 @@ DuckLake Asset History, window/PHM의 ownership과 restart semantics를 정의�
 
 ## 1. 시스템 아키텍처
 
-![산업 설비 데이터부터 사용자까지 이어지는 시스템 아키텍처](../../assets/system-architecture.png)
+```mermaid
+flowchart TB
+    SRC["Data Sources<br/>OPC UA · FILE"] --> ACQ["Acquisition & History<br/>raw evidence · Asset History"]
+    ACQ --> ANA["PHM Analysis & Evidence<br/>analysis projection · AnalysisRun · evidence"]
+    ANA --> OPS["Operations & Review<br/>Asset Detail · Investigation · Finding"]
+    OPS --> DEC["Human Decision<br/>운영 · 정비 판단"]
+    subgraph RESEARCH["Research path — production 입력 아님"]
+        PUB["공개 데이터셋 · provider annotation"] --> EVAL["모델·분석 개발과 평가 비교"]
+    end
+    ACQ -. raw measurements .-> EVAL
+```
 
-원천 산업 설비 데이터는 Domain Adapter에서 공통 데이터 구조로 변환됩니다. 이후 공통 PHM 코어는
-전처리·특징 생성, 이상 탐지, 건전성 평가, RUL 예측 등 데이터가 지원하는 PHM 기능을 수행하고,
-평가 및 분석 계층에서 모델 성능과 결과를 검증합니다.
+Identity · Measurement semantics · Quality · Provenance · Reliability는 모든 단계에 걸친 공통 요구사항입니다.
 
-서비스 계층은 분석 결과를 API와 대시보드 등 사용자 접점으로 전달합니다. 생성형 AI는 PHM 모델의 수치
-계산을 대신하지 않고, 계산된 분석 결과와 정비 지식을 바탕으로 설명·질의응답·정비 지원을 제공하는 상위
-계층으로 취급합니다.
+README와 이 문서는 같은 대표 구조를 사용합니다. 대표 구조는 구현 부품이 아니라 책임 단계를 보여주며,
+SQLite·DuckLake·spool·window coordinator 같은 구성 요소는 아래 상세 runtime에서 설명합니다.
 
-Isolation Forest, LSTM Autoencoder, RUL Ridge와 temporal LSTM은 현재 evidence path에서 사용되는
-reference implementations이며 공통 PHM 코어 자체를 정의하지 않습니다. 새로운 모델도 동일한 contract/evaluation
-경계를 지키고 기존 evidence gap을 실제로 해결하는 경우에 추가합니다.
+- **Data Sources**: OPC UA subscription과 FILE(prepared CSV, AI-Hub raw archive 등). 명시적 source/asset/
+  measurement-point binding 없이 설비 identity를 추정하지 않습니다.
+- **Acquisition & History**: 원본 관측을 raw evidence로 보존하고 공통 Asset History(asset, measurement point,
+  channel, event time, value, source, quality, provenance)에 모읍니다. FILE과 OPC UA가 만나는 공통 경계입니다.
+- **PHM Analysis & Evidence**: Asset History에서 alignment·exclusion·deduplication policy를 명시한 analysis
+  projection(`CanonicalTimeSeries` 등)을 만들고, 재현 가능한 `AnalysisRun`과 capability별 evidence를 남깁니다.
+  Raw evidence와 analysis input을 섞지 않습니다([ADR-0007](../adr/0007-preserve-raw-measurements-before-analysis-projection.md)).
+- **Operations & Review**: Asset Detail 중심으로 관측·이력·품질·출처·evidence를 보여주고, Investigation,
+  사람이 만든 review finding, maintenance review 기록을 남깁니다. Source monitoring("데이터가 들어오는가")과
+  asset monitoring("설비에서 무엇을 검토해야 하는가")을 하나의 상태로 합치지 않습니다.
+- **Human Decision**: 운영·정비 판단은 사람이 내립니다. 시스템은 근거를 제공하며 설비 제어나 정비 작업을
+  자동 실행하지 않습니다.
 
-## 2. 모델 학습 및 평가
+### Production path와 Research path
+
+```text
+Production                                   Research
+OPC UA / FILE / historian                    공개 데이터셋 · raw measurements
+  -> raw evidence -> Asset History             -> model / rule / analysis
+  -> analysis projection -> AnalysisRun        -> result
+  -> evidence -> finding / investigation         ↕ provider annotation (예: AI-Hub label)
+  -> human review                              -> evaluation / comparison
+```
+
+현장 설비에는 일반적으로 label이 오지 않습니다. 모든 production capability는 label 없이 동작해야 합니다.
+AI-Hub의 기동패턴·SOH label 같은 provider annotation은 research 평가 비교에만 사용하며 production 입력,
+`AssetHealth`, `OperatingState`, `OperationalFinding`, maintenance decision이나 verified ground truth로
+승격하지 않습니다. 비교 대상의 종류는 [terminology](../terminology.md#7-observation-and-reference-vocabulary)의
+vocabulary로 구분합니다.
+
+### 상세 runtime
+
+```mermaid
+flowchart LR
+    FILE[FILE 원본·명시적 매핑] --> RAW[Raw evidence]
+    OPC[OPC UA] --> COLLECTOR[독립 collection service]
+    COLLECTOR --> SPOOL[SQLite WAL durable spool]
+    SPOOL --> RAW
+    RAW --> HISTORY[DuckLake Asset History]
+    HISTORY --> WINDOW[Durable observation window]
+    HISTORY --> ASSET[Operations Asset Detail<br/>최신 관측·이력·품질·출처]
+    FILE --> ANALYSIS[FILE snapshot 특징 분석]
+    ANALYSIS --> EVIDENCE[Analysis evidence]
+    EVIDENCE --> INVESTIGATION[Investigation]
+    INVESTIGATION --> FINDING[사람의 review finding]
+    FINDING --> REVIEW[Maintenance review]
+    UI[Operations UI] -. desired state .-> COLLECTOR
+    WINDOW -. 후속 연결 .-> EVIDENCE
+```
+
+Operations UI는 desired RUNNING/STOPPED만 기록하고 독립 collection service가 실제 수집을 소유합니다. Live
+window에서 analysis evidence로 이어지는 점선은 아직 구현되지 않은 다음 milestone입니다. 로컬 SQLite DuckLake
+접근은 협조하는 프로세스끼리 직렬화하며, 저장·적재 성능 측정은
+[`measurement-history-evolution.md`](measurement-history-evolution.md)에 기록합니다.
+
+### 연구 reference 구현
+
+Isolation Forest, LSTM Autoencoder, RUL Ridge와 temporal LSTM은 research path의 reference implementation이며
+공통 PHM 코어나 production capability를 정의하지 않습니다. 새로운 모델도 동일한 contract/evaluation 경계를
+지키고 기존 evidence gap을 실제로 해결하는 경우에 추가합니다.
+
+## 2. 모델 학습 및 평가 (research path)
 
 ![입력 데이터부터 모델 비교와 선택까지 이어지는 모델 학습 및 평가 파이프라인](../../assets/model-training-evaluation.png)
 
@@ -413,4 +476,6 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-세 그림은 framework의 전체 책임과 흐름을 설명하는 reference diagram입니다. 현재 구현 범위는 root README의 제품 milestone과 이 문서의 구체적인 runtime 경계에서 확인합니다.
+`assets/`의 PNG(시스템·모델 학습·서비스 아키텍처)는 연구 단계와 향후 서비스 책임을 설명하는 reference
+그림입니다. 현재 시스템의 대표 구조는 위 Mermaid이며, 이전 `system-architecture.png`의 Domain Adapter →
+PHM Core 구조는 현재 수집·Asset History·Operations 흐름을 나타내지 않습니다.

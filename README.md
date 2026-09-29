@@ -15,33 +15,29 @@
 ## 전체 구조
 
 ```mermaid
-flowchart LR
-    FILE[FILE 원본·명시적 매핑] --> HISTORY[DuckLake Asset History]
-    OPC[OPC UA] --> COLLECTOR[독립 수집 서비스]
-    COLLECTOR --> SPOOL[Durable spool]
-    SPOOL --> HISTORY
-    SPOOL --> WINDOW[관측 Window]
-    HISTORY --> ASSET[Operations Asset Detail<br/>최신 관측·이력·품질·출처]
-    FILE --> ANALYSIS[FILE snapshot 특징 분석]
-    ANALYSIS --> EVIDENCE[Analysis Evidence]
-    EVIDENCE --> INVESTIGATION[Investigation]
-    INVESTIGATION --> FINDING[사람의 Review Finding]
-    FINDING --> REVIEW[Maintenance Review<br/>확인·메모·종료 기록]
-    DATA[공개 데이터·연구 프로토콜] --> RESEARCH[모델 학습·평가]
-    RESEARCH --> ARTIFACT[연구 Artifact]
-    ARTIFACT --> EXPLORER[Analysis Explorer]
-    WINDOW -. 후속 연결 .-> EVIDENCE
+flowchart TB
+    SRC["Data Sources<br/>OPC UA · FILE"] --> ACQ["Acquisition & History<br/>raw evidence · Asset History"]
+    ACQ --> ANA["PHM Analysis & Evidence<br/>analysis projection · AnalysisRun · evidence"]
+    ANA --> OPS["Operations & Review<br/>Asset Detail · Investigation · Finding"]
+    OPS --> DEC["Human Decision<br/>운영 · 정비 판단"]
+    subgraph RESEARCH["Research path — production 입력 아님"]
+        PUB["공개 데이터셋 · provider annotation"] --> EVAL["모델·분석 개발과 평가 비교"]
+    end
+    ACQ -. raw measurements .-> EVAL
 ```
 
-FILE과 OPC UA 관측은 원본 근거를 보존하며 설비 이력으로 모입니다. 독립 수집 서비스가 spool과
-history 기록을 담당하고, Operations는 설비별 최신 관측·추세·품질·출처 및 사람의 검토 이력을 보여줍니다.
-로컬 SQLite DuckLake 접근은 협조하는 프로세스끼리 직렬화합니다.
+Identity · Measurement semantics · Quality · Provenance · Reliability는 모든 단계에 걸친 공통 요구사항입니다.
 
-현재 운영 분석은 명시적인 timestamp를 가진 FILE snapshot 특징 추출입니다. Live Window에서
-Analysis Evidence까지의 점선은 후속 연결이며, validated 진단·alarm·operational RUL·자동 정비 권고는
-현재 capability가 아닙니다. 연구 모델 결과는 별도의 artifact와 Analysis Explorer에서 검토합니다.
+설비 데이터는 원본 근거를 보존한 채 설비 이력(Asset History)으로 모이고, 분석은 이력에서 명시적으로
+만든 입력으로 실행되어 근거(evidence)를 남깁니다. 사람은 Operations에서 근거를 조사·검토해 운영·정비를
+판단합니다. 공개 데이터셋의 label 같은 provider annotation은 연구 평가에만 쓰며 production 분석의 입력이
+아닙니다.
 
-자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
+현재 구현 범위: FILE·OPC UA 수집과 Asset History, 설비별 이력·품질·출처 조회, FILE snapshot 특징 분석과
+사람의 review finding·maintenance review입니다. Live window에서 분석 evidence로 이어지는 경로,
+validated 진단·alarm·operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
+
+수집 runtime, 저장소, 분석 경계의 상세 구조는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
 ## 애플리케이션
 
