@@ -49,7 +49,6 @@ class ChannelSemanticBinding:
             raise ValueError("definition must be MeasurementDefinition")
 
 
-
 _SEMANTIC_DEFINITION_KEYS = frozenset(
     {"observed_property", "scope", "statistic", "unit", "unit_evidence"}
 )
