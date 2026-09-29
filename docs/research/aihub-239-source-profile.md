@@ -136,12 +136,30 @@ raw null(device 5702의 105건)도 없고, 압출기는 null을 유지합니다(
 device 7247의 label series 하나는 1,007,976건으로 다른 series보다 24건 적습니다. Record 단위 일치는 아직
 검증하지 않았습니다(count·범위·device 기준 대응).
 
-**Label meaning is unresolved.** 같은 설비 안에서 label별 BASE_ITEM 값 범위가 크게 겹칩니다. 예를 들어
+**Provider label method is unresolved.** 같은 설비 안에서 label별 BASE_ITEM 값 범위가 크게 겹칩니다. 예를 들어
 보일러 211의 `Stop` 구간에도 전류평균이 최대 640까지 관측되고, SOH `정상`과 `경고`가 모두 역률 0..1 범위를
 가집니다. 따라서 label은 해당 순간값의 단순 threshold로 보이지 않지만 산정 방법·기간·기준은 문서로
-확인하지 못했습니다. Provider annotation으로 보존하며, 설비 건강 ground truth나 고장 label로 해석하지
-않습니다. SOH 경고 비율이 역률평균 series에서 매우 높은 점(보일러 약 86%)도 운영상 경고 빈도로 해석하지
-않습니다.
+확인하지 못했습니다. SOH 경고 비율이 역률평균 series에서 매우 높은 점(보일러 약 86%)도 운영상 경고
+빈도로 해석하지 않습니다.
+
+**Provider annotation boundary.** AI-Hub label은 research path의 provider annotation입니다.
+
+```text
+ProviderAnnotation
+  source           = AI-Hub dataset 239 labeling archive (sha256 above)
+  annotation type  = 기동패턴 / SOH, with its BASE_ITEM
+  value            = Stop, Loading, Unloading / 정상, 주의, 경고
+  interval         = source-local TIMESTAMP span of consecutive equal labels
+  provenance       = archive, member, device identifiers, provider method: unresolved
+```
+
+- Production path(OPC UA/FILE → Raw Evidence → Asset History → Analysis → Evidence → Finding → Review)의
+  입력이 아닙니다. 실제 설비에는 이런 label이 없으며 모든 production capability는 label 없이 동작해야 합니다.
+- `AssetHealth`, `OperatingState`, `OperationalFinding`, maintenance decision이나 verified ground truth로
+  승격하지 않습니다. Provider annotation ≠ live sensor state ≠ asset health ≠ maintenance ground truth입니다.
+- 쓰임은 research evaluation입니다: label 없이 만든 분석 결과를 provider annotation과 비교할 때, 비교
+  대상이 provider annotation(방법 미확정)이었다고 명시합니다.
+- Label ZIP은 raw measurement의 대체 source가 아닙니다. Raw evidence는 raw archive에서만 적재합니다.
 
 **Metadata is not unit evidence.** `facility_volt=380`인 여러 설비의 선간전압평균이 약 225로 관측됩니다
 (예: 5764, 7303, 7300). 정격 metadata가 측정점 전압과 일치한다고 가정하지 않습니다. `facility_capacity`의

@@ -2,7 +2,8 @@
 
 Each labeling member repeats observation records with a LABEL_NAME and carries
 provider equipment metadata in its header. The profile records what is observed,
-not what the labels or metadata mean.
+not what the labels or metadata mean. Labels are research-only provider
+annotations; production analysis never reads this archive.
 """
 
 from __future__ import annotations
