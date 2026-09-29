@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol, runtime_checkable
 
 from industrial_phm.application.asset_identity import (
     AssetIdentity,
@@ -88,6 +89,27 @@ class AnalysisRun:
             asset_id=self.asset_id,
             measurement_point_id=self.measurement_point_id,
         )
+
+
+class AnalysisEvidenceReference(Protocol):
+    """Identity of capability-specific evidence; its payload stays capability-owned."""
+
+    @property
+    def evidence_id(self) -> str: ...
+
+    @property
+    def capability_id(self) -> str: ...
+
+
+@runtime_checkable
+class OperationalAnalysisResult(Protocol):
+    """Any persisted analysis result: one AnalysisRun plus its capability evidence."""
+
+    @property
+    def run(self) -> AnalysisRun: ...
+
+    @property
+    def evidence(self) -> AnalysisEvidenceReference: ...
 
 
 @dataclass(frozen=True, slots=True)

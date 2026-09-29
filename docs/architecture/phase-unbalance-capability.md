@@ -70,9 +70,9 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 
 ## 한계와 다음 단계
 
-- 기준값·alarm·finding을 만들지 않습니다. 사람의 review finding 연결은 finding workflow 단계에서 합니다.
-- Operations Asset Detail에서 실행·조회합니다([apps/README](../../apps/README.md)). Asset Detail의 Analysis runs
-  수와 Investigation·finding 흐름에는 아직 포함되지 않습니다.
+- 기준값·alarm·finding을 자동으로 만들지 않습니다. 사람이 Investigation에서 결과를 골라 review finding을
+  만들면 `human-review-request-v1 / REVIEW_REQUIRED`로 기록되고 Maintenance Review로 이어집니다.
+- Operations Asset Detail에서 실행·조회합니다([apps/README](../../apps/README.md)).
 - Live window 연결: 현재 OPC UA source에는 semantic binding이 없어 모든 관측이 `unconfirmed-semantics`로
   제외됩니다. Live 연결 전에 OPC UA channel의 versioned semantic binding이 필요합니다.
 - AI-Hub label과의 비교는 research path에서만 합니다.

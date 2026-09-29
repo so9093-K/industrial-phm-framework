@@ -11,6 +11,10 @@
 
 ### Changed
 
+- 분석 결과를 capability와 무관하게 다룹니다(`OperationalAnalysisResult`). Asset Detail·Overview 분석 수,
+  Investigation의 검토 대상 선택·근거 표시·review finding 생성이 FILE 특징 분석과 3상 불평형을 함께
+  지원하며, Maintenance Review는 finding의 capability·분석 run·evidence를 보여줍니다.
+
 - Operations Asset Detail에 전력 품질 분석 · 3상 불평형을 추가했습니다. Source·구간을 골라 실행하고
   요약, 시간 구간 그래프, 제외 사유, 입력·버전·설정 근거와 이전 분석 기록을 확인합니다.
 
