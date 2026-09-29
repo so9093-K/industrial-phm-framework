@@ -588,6 +588,7 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     # History screens show the same OPC UA meaning the analysis used.
     from industrial_phm.presentation.measurement_history import (
         latest_measurement_rows,
+        measurement_aggregation_rows,
         measurement_history_rows,
     )
 
@@ -602,6 +603,17 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
         "pump-01", start_at=BASE, end_at=BASE + timedelta(minutes=1), channel_id="ia"
     )
     assert measurement_history_rows(page)[0]["unit"] == "A"
+    aggregation = history.query_measurement_aggregation(
+        "pump-01",
+        channel_id="va",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        bucket_count=1,
+    )
+    aggregation_rows = measurement_aggregation_rows(aggregation)
+    assert len(aggregation_rows) == 1
+    assert aggregation_rows[0]["observed_property"] == "phase voltage"
+    assert aggregation_rows[0]["unit"] == "V"
 
     # A stored snapshot naming another channel must not lend its meaning to this row.
     connection = history._connect()
@@ -626,6 +638,17 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
         "vb": "phase voltage",
     }
     assert shown("va")[:2] == ("unresolved", "unknown")
+    changed_aggregation = history.query_measurement_aggregation(
+        "pump-01",
+        channel_id="va",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        bucket_count=1,
+    )
+    changed_rows = measurement_aggregation_rows(changed_aggregation)
+    assert len(changed_rows) == 1
+    assert changed_rows[0]["observed_property"] == "unresolved"
+    assert changed_rows[0]["unit"] == "unknown"
 
 
 def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
