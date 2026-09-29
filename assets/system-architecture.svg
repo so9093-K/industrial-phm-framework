@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" font-family="Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<rect width="1600" height="900" fill="#ffffff"/>
+<text x="34.0" y="92.0" font-size="46" font-weight="800" fill="#1f2d4d" text-anchor="start">시스템 아키텍처</text>
+<text x="364.0" y="90.0" font-size="20" font-weight="500" fill="#5b6b88" text-anchor="start">설비 관측에서 사람의 운영·정비 판단까지</text>
+<rect x="34.0" y="150.0" width="240.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M35.0,214 v-54 a9,9 0 0 1 9,-9 h220.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
+<text x="154.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">설비 · 데이터 소스</text>
+<rect x="322.0" y="150.0" width="270.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M323.0,214 v-54 a9,9 0 0 1 9,-9 h250.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
+<text x="457.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">수집 · 설비 이력</text>
+<rect x="640.0" y="150.0" width="330.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M641.0,214 v-54 a9,9 0 0 1 9,-9 h310.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
+<text x="805.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">PHM 분석 · 근거</text>
+<rect x="1018.0" y="150.0" width="270.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M1019.0,214 v-54 a9,9 0 0 1 9,-9 h250.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
+<text x="1153.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">운영 · 검토</text>
+<rect x="1336.0" y="150.0" width="230.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M1337.0,214 v-54 a9,9 0 0 1 9,-9 h210.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
+<text x="1451.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">사람의 판단</text>
+<path d="M284.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
+<path d="M602.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
+<path d="M980.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
+<path d="M1298.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
+<g fill="none" stroke="#1f2d4d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="110.0" y="265" width="70" height="56" rx="10"/><line x1="124.0" y1="265" x2="124.0" y2="321" stroke-width="3"/><line x1="138.0" y1="265" x2="138.0" y2="321" stroke-width="3"/><line x1="152.0" y1="265" x2="152.0" y2="321" stroke-width="3"/><line x1="166.0" y1="265" x2="166.0" y2="321" stroke-width="3"/><line x1="180.0" y1="293" x2="202.0" y2="293"/><path d="M116.0,321 l-8,16 h78 l-8,-16"/></g>
+<rect x="50.0" y="375.0" width="208.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="154.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">OPC UA 실시간</text>
+<rect x="50.0" y="441.0" width="208.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="154.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">FILE · 과거 데이터</text>
+<rect x="50.0" y="507.0" width="208.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="154.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">설비 · 측정점 매핑</text>
+<text x="154.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">전압 · 전류 · 전력 · 진동 등</text>
+<g fill="none" stroke="#1f2d4d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="457.0" cy="260" rx="44" ry="13"/><path d="M413.0,260 v62 a44,13 0 0 0 88,0 v-62"/><path d="M413.0,290 a44,13 0 0 0 88,0" stroke-width="3.5"/></g>
+<rect x="338.0" y="375.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="457.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">독립 수집 서비스</text>
+<rect x="338.0" y="441.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="457.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">원본 근거 보존</text>
+<rect x="338.0" y="507.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="457.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">설비 이력 (시간·품질·출처)</text>
+<text x="457.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">재시작 · 연결 끊김 복구</text>
+<rect x="654.0" y="234.0" width="302.0" height="144.0" rx="8" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M655.0,276 v-33 a8,8 0 0 1 8,-8 h284.0 a8,8 0 0 1 8,8 v33 z" fill="#e8f0fb"/>
+<text x="805.0" y="263.0" font-size="19" font-weight="700" fill="#1f2d4d" text-anchor="middle">분석 입력</text>
+<text x="684.0" y="312.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  측정 의미 · 단위 확인</text>
+<text x="684.0" y="346.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  품질 · 중복 제외 규칙</text>
+<rect x="654.0" y="392.0" width="302.0" height="144.0" rx="8" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M655.0,434 v-33 a8,8 0 0 1 8,-8 h284.0 a8,8 0 0 1 8,8 v33 z" fill="#e8f0fb"/>
+<text x="805.0" y="421.0" font-size="19" font-weight="700" fill="#1f2d4d" text-anchor="middle">PHM 분석</text>
+<text x="684.0" y="470.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  특징 · 상태 변화</text>
+<text x="684.0" y="504.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  이상 · 열화 · 잔여수명</text>
+<rect x="654.0" y="550.0" width="302.0" height="144.0" rx="8" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
+<path d="M655.0,592 v-33 a8,8 0 0 1 8,-8 h284.0 a8,8 0 0 1 8,8 v33 z" fill="#e8f0fb"/>
+<text x="805.0" y="579.0" font-size="19" font-weight="700" fill="#1f2d4d" text-anchor="middle">분석 근거</text>
+<text x="684.0" y="628.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  입력 범위 · 버전 · 결과</text>
+<text x="684.0" y="662.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  같은 입력으로 재현</text>
+<g fill="none" stroke="#1f2d4d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="1103.0" y="250" width="100" height="66" rx="6"/><path d="M1141.0,316 l-6,16 h36 l-6,-16"/><polyline points="1117.0,298 1139.0,280 1159.0,290 1187.0,266" stroke-width="4"/></g>
+<rect x="1034.0" y="375.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="1153.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">설비 상세 · 이력 · 품질</text>
+<rect x="1034.0" y="441.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="1153.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">조사 (Investigation)</text>
+<rect x="1034.0" y="507.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="1153.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">검토 · 정비 검토 기록</text>
+<text x="1153.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">근거에서 출발하는 검토</text>
+<circle cx="1415.0" cy="272.4" r="12" fill="#1f2d4d"/><path d="M1395.8,320 a19.200000000000003,20.8 0 0 1 38.400000000000006,0 z" fill="#1f2d4d"/><circle cx="1487.0" cy="272.4" r="12" fill="#1f2d4d"/><path d="M1467.8,320 a19.200000000000003,20.8 0 0 1 38.400000000000006,0 z" fill="#1f2d4d"/><circle cx="1451.0" cy="268.0" r="16" fill="#1f2d4d"/><path d="M1427.0,320 a24.0,26.0 0 0 1 48.0,0 z" fill="#1f2d4d"/>
+<rect x="1352.0" y="375.0" width="198.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="1451.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">운영 담당자</text>
+<rect x="1352.0" y="441.0" width="198.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="1451.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">정비 담당자</text>
+<rect x="1352.0" y="507.0" width="198.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
+<text x="1451.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">운영 · 정비 판단</text>
+<text x="1451.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">시스템은 근거를 제공</text>
+<rect x="34.0" y="736.0" width="1532.0" height="52.0" rx="10" fill="#e8f0fb" stroke="none" stroke-width="1.5"/>
+<text x="58.0" y="769.0" font-size="18" font-weight="700" fill="#1f2d4d" text-anchor="start">공통 요구사항</text>
+<text x="204.0" y="769.0" font-size="18" font-weight="500" fill="#1f2d4d" text-anchor="start">설비 식별  ·  측정 의미  ·  데이터 품질  ·  출처 · 재현성  ·  수집 신뢰성</text>
+<rect x="34.0" y="806.0" width="1532.0" height="52.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5" stroke-dasharray="7 6"/>
+<text x="58.0" y="839.0" font-size="18" font-weight="700" fill="#5b6b88" text-anchor="start">연구 경로</text>
+<text x="204.0" y="839.0" font-size="18" font-weight="500" fill="#5b6b88" text-anchor="start">공개 데이터셋 · 제공자 라벨(annotation) → 모델 개발 · 평가 비교   (운영 분석의 입력이 아님)</text>
+</svg>

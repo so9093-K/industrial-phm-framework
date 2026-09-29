@@ -14,19 +14,7 @@
 
 ## 전체 구조
 
-```mermaid
-flowchart TB
-    SRC["Data Sources<br/>OPC UA · FILE"] --> ACQ["Acquisition & History<br/>raw evidence · Asset History"]
-    ACQ --> ANA["PHM Analysis & Evidence<br/>analysis projection · AnalysisRun · evidence"]
-    ANA --> OPS["Operations & Review<br/>Asset Detail · Investigation · Finding"]
-    OPS --> DEC["Human Decision<br/>운영 · 정비 판단"]
-    subgraph RESEARCH["Research path — production 입력 아님"]
-        PUB["공개 데이터셋 · provider annotation"] --> EVAL["모델·분석 개발과 평가 비교"]
-    end
-    ACQ -. raw measurements .-> EVAL
-```
-
-Identity · Measurement semantics · Quality · Provenance · Reliability는 모든 단계에 걸친 공통 요구사항입니다.
+![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](assets/system-architecture.png)
 
 설비 데이터는 원본 근거를 보존한 채 설비 이력(Asset History)으로 모이고, 분석은 이력에서 명시적으로
 만든 입력으로 실행되어 근거(evidence)를 남깁니다. 사람은 Operations에서 근거를 조사·검토해 운영·정비를

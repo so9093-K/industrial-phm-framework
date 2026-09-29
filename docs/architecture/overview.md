@@ -23,36 +23,27 @@ Raw ingestion과 analysis projection, identity와 measurement semantics의 경�
 [ADR-0007](../adr/0007-preserve-raw-measurements-before-analysis-projection.md)에 정리합니다.
 CanonicalTimeSeries의 finite rectangular 계약은 유지합니다.
 
-Continuous source runtime과 Live/Backfill history의 다음 단계는
-[`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)에서 control plane, durable ingress,
-DuckLake Asset History, window/PHM의 ownership과 restart semantics를 정의합니다. 현재 #256/#257 contract를
-유지한 채 이 경계 위에서 구현합니다.
+Continuous OPC UA collection service, durable spool, DuckLake Asset History와 live/backfill 경계는 구현되어
+있으며, control plane·durable ingress·history의 ownership과 restart semantics는
+[`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)와
+[`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. 다음 milestone은 live
+window를 분석 근거와 사람의 검토로 연결하는 것입니다.
 
 ## 1. 시스템 아키텍처
 
-```mermaid
-flowchart TB
-    SRC["Data Sources<br/>OPC UA · FILE"] --> ACQ["Acquisition & History<br/>raw evidence · Asset History"]
-    ACQ --> ANA["PHM Analysis & Evidence<br/>analysis projection · AnalysisRun · evidence"]
-    ANA --> OPS["Operations & Review<br/>Asset Detail · Investigation · Finding"]
-    OPS --> DEC["Human Decision<br/>운영 · 정비 판단"]
-    subgraph RESEARCH["Research path — production 입력 아님"]
-        PUB["공개 데이터셋 · provider annotation"] --> EVAL["모델·분석 개발과 평가 비교"]
-    end
-    ACQ -. raw measurements .-> EVAL
-```
+![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](../../assets/system-architecture.png)
 
-Identity · Measurement semantics · Quality · Provenance · Reliability는 모든 단계에 걸친 공통 요구사항입니다.
-
-README와 이 문서는 같은 대표 구조를 사용합니다. 대표 구조는 구현 부품이 아니라 책임 단계를 보여주며,
-SQLite·DuckLake·spool·window coordinator 같은 구성 요소는 아래 상세 runtime에서 설명합니다.
+README와 이 문서는 같은 대표 그림을 사용합니다. 대표 그림은 구현 부품이 아니라 책임 단계를 보여주며,
+SQLite·DuckLake·spool·window coordinator 같은 구성 요소는 아래 상세 runtime에서 설명합니다. 원본은 편집
+가능한 `assets/system-architecture.svg`이고 PNG는 그 렌더링입니다. 그림의 PHM 분석 항목은 이 단계의
+책임이며, 현재 제공되는 capability는 README의 현재 구현 범위를 따릅니다.
 
 - **Data Sources**: OPC UA subscription과 FILE(prepared CSV, AI-Hub raw archive 등). 명시적 source/asset/
   measurement-point binding 없이 설비 identity를 추정하지 않습니다.
 - **Acquisition & History**: 원본 관측을 raw evidence로 보존하고 공통 Asset History(asset, measurement point,
   channel, event time, value, source, quality, provenance)에 모읍니다. FILE과 OPC UA가 만나는 공통 경계입니다.
 - **PHM Analysis & Evidence**: Asset History에서 alignment·exclusion·deduplication policy를 명시한 analysis
-  projection(`CanonicalTimeSeries` 등)을 만들고, 재현 가능한 `AnalysisRun`과 capability별 evidence를 남깁니다.
+  projection(`CanonicalTimeSeries` 등)을 만들고, 입력 범위·버전·결과를 재현할 수 있는 분석 근거를 남깁니다.
   Raw evidence와 analysis input을 섞지 않습니다([ADR-0007](../adr/0007-preserve-raw-measurements-before-analysis-projection.md)).
 - **Operations & Review**: Asset Detail 중심으로 관측·이력·품질·출처·evidence를 보여주고, Investigation,
   사람이 만든 review finding, maintenance review 기록을 남깁니다. Source monitoring("데이터가 들어오는가")과
@@ -66,7 +57,7 @@ SQLite·DuckLake·spool·window coordinator 같은 구성 요소는 아래 상�
 Production                                   Research
 OPC UA / FILE / historian                    공개 데이터셋 · raw measurements
   -> raw evidence -> Asset History             -> model / rule / analysis
-  -> analysis projection -> AnalysisRun        -> result
+  -> analysis projection -> analysis           -> result
   -> evidence -> finding / investigation         ↕ provider annotation (예: AI-Hub label)
   -> human review                              -> evaluation / comparison
 ```
@@ -476,6 +467,5 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-`assets/`의 PNG(시스템·모델 학습·서비스 아키텍처)는 연구 단계와 향후 서비스 책임을 설명하는 reference
-그림입니다. 현재 시스템의 대표 구조는 위 Mermaid이며, 이전 `system-architecture.png`의 Domain Adapter →
-PHM Core 구조는 현재 수집·Asset History·Operations 흐름을 나타내지 않습니다.
+`assets/system-architecture.png`(원본 `.svg`)는 현재 대표 구조입니다. 모델 학습·평가와 서비스 아키텍처
+PNG는 research path와 향후 서비스 책임을 설명하는 reference 그림이며 현재 구현 범위를 나타내지 않습니다.
