@@ -433,3 +433,52 @@ def test_aggregate_excludes_protocol_non_good_and_keeps_empty_numeric_bucket(tmp
     assert result.buckets[1].mean is None
     assert result.buckets[1].minimum is None
     assert result.buckets[1].maximum is None
+
+
+def test_flush_moves_inlined_rows_without_changing_snapshot_evidence(tmp_path, capsys):
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    events = tuple(
+        _event(channel_id="power", event_at=BASE + timedelta(seconds=i), event_index=i)
+        for i in range(3)
+    )
+    first = history.append_opcua_batch(events[:2], batch_id="first")
+    second = history.append_opcua_batch(events[2:], batch_id="second")
+    before = history.query_opcua_events("source-a")
+    assert not list((tmp_path / "data").rglob("*.parquet"))
+
+    args = [
+        "operations",
+        "flush-history",
+        "--ducklake-catalog",
+        str(tmp_path / "catalog.sqlite"),
+        "--ducklake-data",
+        str(tmp_path / "data"),
+    ]
+    assert main(args) == 0
+    output = capsys.readouterr().out
+    assert "table=history.measurement flushed_rows=3" in output
+    assert list((tmp_path / "data").rglob("*.parquet"))
+    flushed_snapshot = history.current_snapshot_id()
+    assert flushed_snapshot > second.snapshot_id
+
+    assert history.query_opcua_events("source-a") == before
+    # Batch recovery and time travel stay bound to the original commit snapshots.
+    assert history.get_opcua_batch_commit(events[:2], batch_id="first") == first
+    connection = history._connect()
+    try:
+        for commit, expected in ((first, 2), (second, 3)):
+            count = connection.execute(
+                "SELECT count(*) FROM phm_history.history.measurement "
+                f"AT (VERSION => {commit.snapshot_id})"
+            ).fetchone()
+            assert count == (expected,)
+    finally:
+        connection.close()
+
+    # Nothing left to move: no new snapshot, so exact retries report the same state.
+    assert main(args) == 0
+    assert "flushed_rows=0" in capsys.readouterr().out
+    assert history.current_snapshot_id() == flushed_snapshot

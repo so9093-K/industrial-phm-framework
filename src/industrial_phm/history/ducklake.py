@@ -52,6 +52,22 @@ class DuckLakeRuntimeUnavailableError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
+class DuckLakeInlinedDataFlush:
+    """Result of moving catalog-inlined rows into managed Parquet files.
+
+    Flush rewrites physical storage only. Earlier snapshots keep the same rows
+    for time travel, and batch commit provenance keeps its original snapshot.
+    """
+
+    snapshot_id: int
+    flushed_rows: tuple[tuple[str, int], ...]
+
+    @property
+    def flushed_row_count(self) -> int:
+        return sum(count for _, count in self.flushed_rows)
+
+
+@dataclass(frozen=True, slots=True)
 class DuckLakeAssetHistoryConfig:
     """Local-first DuckLake configuration for the v1 history boundary."""
 
@@ -416,6 +432,37 @@ class DuckLakeAssetHistory:
         if row is None or row[0] is None:
             return 0
         return _require_int(row[0], "snapshot_id")
+
+    def flush_inlined_data(self) -> DuckLakeInlinedDataFlush:
+        """Move rows DuckLake inlined into the SQLite catalog to Parquet.
+
+        Every append is otherwise kept as catalog rows (about 2.4 KB per AI-Hub
+        observation measured), which does not scale to full archives. The flush
+        holds the same local catalog lease as writers and readers.
+        """
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"CALL ducklake_flush_inlined_data('{_CATALOG_NAME}')"
+            ).fetchall()
+            snapshot = connection.execute(
+                f"SELECT max(snapshot_id) FROM {_CATALOG_NAME}.snapshots()"
+            ).fetchone()
+        finally:
+            connection.close()
+        flushed = tuple(
+            sorted(
+                (
+                    f"{_require_str(schema, 'schema')}.{_require_str(table, 'table')}",
+                    _require_int(count, "flushed_rows"),
+                )
+                for schema, table, count in rows
+            )
+        )
+        if snapshot is None or snapshot[0] is None:
+            raise RuntimeError("DuckLake did not report a snapshot after flush")
+        return DuckLakeInlinedDataFlush(_require_int(snapshot[0], "snapshot_id"), flushed)
 
     def query_opcua_events(
         self,

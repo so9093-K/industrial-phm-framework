@@ -129,6 +129,25 @@ def _run_operations_backfill_source(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_operations_flush_history(args: argparse.Namespace) -> int:
+    try:
+        history = DuckLakeAssetHistory(
+            DuckLakeAssetHistoryConfig(
+                catalog_path=args.ducklake_catalog,
+                data_path=args.ducklake_data,
+            )
+        )
+        result = history.flush_inlined_data()
+    except (OSError, RuntimeError, TimeoutError, ValueError) as error:
+        print(f"history flush failed: {error}", file=sys.stderr)
+        return 1
+
+    for table, count in result.flushed_rows:
+        print(f"table={table} flushed_rows={count}")
+    print(f"flushed_rows={result.flushed_row_count} history_snapshot={result.snapshot_id}")
+    return 0
+
+
 def _run_operations_request_collection(args: argparse.Namespace) -> int:
     try:
         source_repository = JsonSourceRepository(args.registry)
