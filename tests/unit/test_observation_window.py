@@ -4,8 +4,10 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
+    ChannelSemanticBinding,
     DurableObservationWindow,
     JsonObservationWindowRepository,
+    MeasurementDefinition,
     ObservationWindowBuffer,
     ObservationWindowCompleteness,
     ObservationWindowEventDisposition,
@@ -59,6 +61,17 @@ def _event(
         notification=OpcUaSubscriptionNotification(
             observation=observation,
             replayed=replayed,
+        ),
+        semantic_binding=ChannelSemanticBinding(
+            source_id="source-a",
+            channel_id=channel_id,
+            version="site-a-semantics-v1",
+            definition=MeasurementDefinition(
+                observed_property="test measurement",
+                unit="unit",
+                unit_evidence="synthetic test mapping",
+            ),
+            interpretation_evidence="synthetic test mapping",
         ),
     )
     return project_opcua_persistent_data_change_event(
@@ -304,6 +317,9 @@ def test_json_repository_round_trip_preserves_protocol_and_timing_evidence(
     assert restored == window
     restored_event = restored.events[0]
     assert restored_event.event.notification.replayed is True
+    restored_binding = restored_event.event.semantic_binding
+    assert restored_binding is not None
+    assert restored_binding.version == "site-a-semantics-v1"
     assert restored_event.event.notification.observation.value == 1.25
     assert restored_event.event.notification.observation.status_text == "Good"
     assert restored_event.event_time.source_timestamp == event.event_time.source_timestamp
