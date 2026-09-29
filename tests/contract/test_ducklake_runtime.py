@@ -571,6 +571,29 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     assert current.evaluated_samples == 0
     assert current.excluded_samples == {"unconfirmed-semantics": 1}
 
+    # A stored snapshot naming another channel must not lend its meaning to this row.
+    connection = history._connect()
+    try:
+        connection.execute(
+            "UPDATE phm_history.raw.opcua_data_change SET semantic_binding_json = ("
+            "SELECT semantic_binding_json FROM phm_history.raw.opcua_data_change "
+            "WHERE channel_id = 'vb') WHERE channel_id = 'va'"
+        )
+    finally:
+        connection.close()
+    observations = history.query_channel_observations(
+        "pump-01",
+        source_id="source-a",
+        channel_ids=("va", "vb"),
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        snapshot_id=history.current_snapshot_id(),
+    )
+    assert {o.channel_id: o.observed_property for o in observations} == {
+        "va": None,
+        "vb": "phase voltage",
+    }
+
 
 def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
     _require_duckdb()
@@ -603,3 +626,57 @@ def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
     )
     assert [(o.value, o.observed_property) for o in observations] == [(1.25, None)]
     assert history.current_snapshot_id() > old_snapshot
+
+
+def test_semantics_bearing_batch_committed_before_fingerprint_version_recovers(
+    tmp_path, monkeypatch
+):
+    """#303 wrote spool events with semantics but a semantics-free DuckLake fingerprint.
+
+    A batch committed that way and not acknowledged before a crash must recover after
+    upgrade, and its raw rows must not be backfilled with the current semantics.
+    """
+    from industrial_phm.history import ducklake
+
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    binding = _phase_binding("va", "R", "phase voltage", "V")
+    events = (_event(channel_id="va", event_at=BASE, event_index=0, semantic_binding=binding),)
+    fingerprint = ducklake._opcua_batch_fingerprint
+    with monkeypatch.context() as legacy:
+        legacy.setattr(ducklake, "_OPCUA_FINGERPRINT_VERSION", None)
+        legacy.setattr(
+            ducklake,
+            "_opcua_batch_fingerprint",
+            lambda batch, include_semantics=True: fingerprint(batch, include_semantics=False),
+        )
+        legacy.setattr(ducklake, "_semantic_binding_json", lambda _binding: None)
+        commit = history.append_opcua_batch(events, batch_id="committed-before-ack")
+
+    assert history.get_opcua_batch_commit(events, batch_id="committed-before-ack") == commit
+    assert history.append_opcua_batch(events, batch_id="committed-before-ack") == commit
+    (restored,) = history.query_opcua_events("source-a")
+    assert restored.event.semantic_binding is None
+
+    # Versioned commits still bind the snapshot into the batch identity.
+    later = (
+        _event(
+            channel_id="vb",
+            event_at=BASE,
+            event_index=1,
+            semantic_binding=_phase_binding("vb", "R", "phase voltage", "V"),
+        ),
+    )
+    history.append_opcua_batch(later, batch_id="versioned")
+    changed = (
+        _event(
+            channel_id="vb",
+            event_at=BASE,
+            event_index=1,
+            semantic_binding=_phase_binding("vb", "S", "phase voltage", "V"),
+        ),
+    )
+    with pytest.raises(HistoricalBatchConflictError):
+        history.get_opcua_batch_commit(changed, batch_id="versioned")

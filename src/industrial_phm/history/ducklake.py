@@ -54,6 +54,10 @@ from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNot
 _CATALOG_NAME = "phm_history"
 _COMMIT_AUTHOR = "industrial-phm"
 _COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
+# OPC UA commits written with this version fingerprint the semantic snapshot too.
+# Commits without a version (before it existed, including semantics-bearing spool
+# batches) are verified with the legacy fingerprint that excludes semantics.
+_OPCUA_FINGERPRINT_VERSION = "opcua-semantic-v2"
 
 
 class DuckLakeRuntimeUnavailableError(RuntimeError):
@@ -182,6 +186,8 @@ class DuckLakeAssetHistory:
                 ingestion_mode=ingestion_mode,
                 event_count=len(batch),
                 fingerprint=fingerprint,
+                fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
+                legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
             )
         finally:
             connection.close()
@@ -210,8 +216,12 @@ class DuckLakeAssetHistory:
                 ingestion_mode=ingestion_mode,
                 event_count=len(batch),
                 fingerprint=fingerprint,
+                fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
+                legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
             )
             if existing is not None:
+                # A legacy commit is recovered as stored: its raw rows keep no semantic
+                # snapshot and are never backfilled with the current binding.
                 return existing
             self._reject_existing_deliveries(connection, batch)
 
@@ -258,6 +268,7 @@ class DuckLakeAssetHistory:
                     ingestion_mode=ingestion_mode,
                     event_count=len(batch),
                     fingerprint=fingerprint,
+                    fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
                 )
                 connection.execute(
                     f"CALL {_CATALOG_NAME}.set_commit_message("
@@ -953,32 +964,40 @@ class DuckLakeAssetHistory:
                         WHERE asset_id = ? AND source_id = ?
                             AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                             AND event_at >= ? AND event_at < ?
-                    ), f AS (
-                        SELECT raw_evidence_id, 'file' AS source_type,
-                            json_extract_string(source_metadata_json, '$.semantics.version') AS ver,
-                            json_extract_string(
-                                source_metadata_json, '$.semantics.definition.observed_property'
-                            ) AS prop,
-                            json_extract_string(
-                                source_metadata_json, '$.semantics.definition.scope'
-                            ) AS scope,
-                            json_extract_string(
-                                source_metadata_json, '$.semantics.definition.unit'
-                            ) AS unit
+                    ), bound AS (
+                        SELECT raw_evidence_id, 'file' AS source_type, source_id, channel_id,
+                            json_extract(source_metadata_json, '$.semantics') AS b
                         FROM {_CATALOG_NAME}.raw.file_measurement {at}
                         WHERE asset_id = ? AND source_id = ?
                             AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                             AND source_timestamp >= ? AND source_timestamp < ?
                         UNION ALL
-                        SELECT raw_evidence_id, 'opcua' AS source_type,
-                            json_extract_string({semantic}, '$.version'),
-                            json_extract_string({semantic}, '$.definition.observed_property'),
-                            json_extract_string({semantic}, '$.definition.scope'),
-                            json_extract_string({semantic}, '$.definition.unit')
+                        SELECT raw_evidence_id, 'opcua' AS source_type, source_id, channel_id,
+                            json({semantic}) AS b
                         FROM {_CATALOG_NAME}.raw.opcua_data_change {at}
                         WHERE asset_id = ? AND source_id = ?
                             AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                             AND event_at >= ? AND event_at < ?
+                    ), f AS (
+                        -- A binding counts only for the raw row it names; a snapshot for
+                        -- another source or channel is treated as unresolved.
+                        SELECT raw_evidence_id, source_type,
+                            CASE WHEN identity THEN json_extract_string(b, '$.version') END AS ver,
+                            CASE WHEN identity THEN json_extract_string(
+                                b, '$.definition.observed_property'
+                            ) END AS prop,
+                            CASE WHEN identity
+                                THEN json_extract_string(b, '$.definition.scope') END AS scope,
+                            CASE WHEN identity
+                                THEN json_extract_string(b, '$.definition.unit') END AS unit
+                        FROM (
+                            SELECT *, coalesce(
+                                json_extract_string(b, '$.source_id') = source_id
+                                AND json_extract_string(b, '$.channel_id') = channel_id,
+                                false
+                            ) AS identity
+                            FROM bound
+                        )
                     ), joined AS (
                         SELECT m.*, f.ver, f.prop, f.scope, f.unit,
                             concat_ws('|', f.ver, f.prop, f.scope, f.unit) AS interpretation
@@ -1321,6 +1340,8 @@ class DuckLakeAssetHistory:
         ingestion_mode: HistoryIngestionMode,
         event_count: int,
         fingerprint: str,
+        fingerprint_version: str | None = None,
+        legacy_fingerprint: str | None = None,
     ) -> HistoricalBatchCommit | None:
         batch_rows = connection.execute(
             f"""
@@ -1358,11 +1379,19 @@ class DuckLakeAssetHistory:
             extra = _parse_commit_extra_info(extra_raw)
             if extra is None or extra.get("batch_id") != batch_id:
                 continue
+            stored_version = extra.get("fingerprint_version")
+            if stored_version is None:
+                expected = fingerprint if legacy_fingerprint is None else legacy_fingerprint
+            elif stored_version == fingerprint_version:
+                expected = fingerprint
+            else:
+                expected = None
             if (
                 extra.get("schema") != _COMMIT_EXTRA_SCHEMA
                 or extra.get("ingestion_mode") != ingestion_mode.value
                 or extra.get("event_count") != event_count
-                or extra.get("fingerprint") != fingerprint
+                or expected is None
+                or extra.get("fingerprint") != expected
             ):
                 raise HistoricalBatchConflictError(
                     f"historical batch identity conflicts with commit provenance: {batch_id}"
@@ -1465,6 +1494,7 @@ def _batch_commit_extra_info(
     ingestion_mode: HistoryIngestionMode,
     event_count: int,
     fingerprint: str,
+    fingerprint_version: str | None = None,
 ) -> str:
     return json.dumps(
         {
@@ -1473,6 +1503,7 @@ def _batch_commit_extra_info(
             "ingestion_mode": ingestion_mode.value,
             "event_count": event_count,
             "fingerprint": fingerprint,
+            **({} if fingerprint_version is None else {"fingerprint_version": fingerprint_version}),
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -1497,6 +1528,8 @@ def _parse_commit_extra_info(value: object) -> dict[str, object] | None:
 
 def _opcua_batch_fingerprint(
     events: Sequence[OpcUaPersistentDataChangeEvent],
+    *,
+    include_semantics: bool = True,
 ) -> str:
     payload: list[dict[str, object]] = []
     for event in events:
@@ -1526,11 +1559,11 @@ def _opcua_batch_fingerprint(
                 "connection_epoch": event.connection_epoch,
                 "event_index": event.event_index,
                 "replayed": registered.notification.replayed,
-                # Present only with a snapshot, so batches committed before semantic
-                # snapshots existed keep their recovery fingerprint.
+                # Versioned fingerprints include the snapshot; the legacy variant
+                # (include_semantics=False) verifies commits made before the version.
                 **(
                     {"semantic_binding": serialize_channel_semantic_binding(binding)}
-                    if (binding := registered.semantic_binding) is not None
+                    if include_semantics and (binding := registered.semantic_binding) is not None
                     else {}
                 ),
             }

@@ -41,9 +41,16 @@ The lock coordinates cooperating local processes; it is not a distributed read/w
 An OPC UA DataChange carries the source's registered `ChannelSemanticBinding` snapshot. It is stored with
 the raw delivery as canonical JSON (`raw.opcua_data_change.semantic_binding_json`) and restored by
 `query_opcua_events`/`get_opcua_event`, so windows rebuilt from history keep the same semantics as the
-spool path. The batch fingerprint includes the snapshot only when present; batches committed before
-snapshots existed keep their recovery fingerprint. `query_channel_observations` reads FILE metadata
-semantics and OPC UA snapshots into one shape for analysis eligibility.
+spool path. `query_channel_observations` reads FILE metadata semantics and OPC UA snapshots into one
+shape for analysis eligibility, and accepts a binding only when its `source_id`/`channel_id` name the
+raw row it is stored with; any other snapshot reads as unresolved.
+
+OPC UA batch fingerprints are versioned. New commits record `fingerprint_version = opcua-semantic-v2`
+and fingerprint the semantic snapshot. A commit without a version was written before this change,
+including spool batches that already carried a snapshot but were fingerprinted without it; recovery
+verifies those with the legacy semantics-free fingerprint. So a batch committed by the earlier writer
+and not acknowledged before a crash still recovers after upgrade, and its raw rows stay without a
+semantic snapshot instead of being backfilled with the current binding.
 
 Catalogs created before this column gain it once as a nullable column; earlier rows stay without
 semantics (unresolved), never reinterpreted. Time travel to a snapshot recorded before the column
