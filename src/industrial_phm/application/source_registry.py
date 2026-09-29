@@ -348,8 +348,7 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
             ],
             "timeout_seconds": config.timeout_seconds,
             "semantic_bindings": [
-                serialize_channel_semantic_binding(binding)
-                for binding in config.semantic_bindings
+                serialize_channel_semantic_binding(binding) for binding in config.semantic_bindings
             ],
         }
     else:
@@ -494,9 +493,7 @@ def _parse_opcua_source_config(
         ),
         node_mappings=tuple(node_mappings),
         timeout_seconds=_require_number(config["timeout_seconds"], f"{label}.timeout_seconds"),
-        semantic_bindings=tuple(
-            parse_channel_semantic_binding(value) for value in bindings_raw
-        ),
+        semantic_bindings=tuple(parse_channel_semantic_binding(value) for value in bindings_raw),
     )
 
 
