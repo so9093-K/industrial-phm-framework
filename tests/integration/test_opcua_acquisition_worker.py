@@ -6,8 +6,10 @@ import pytest
 
 from industrial_phm.application import (
     AcquisitionSpoolFullError,
+    ChannelSemanticBinding,
     InMemoryOpcUaPersistentSessionEvidenceSink,
     JsonSourceRepository,
+    MeasurementDefinition,
     OpcUaPersistentSessionPolicy,
     OpcUaPersistentSessionState,
     OpcUaSourceConfig,
@@ -73,6 +75,31 @@ def _repositories(tmp_path: Path) -> tuple[JsonSourceRepository, RegisteredSourc
             node_mappings=(
                 OpcUaNodeMapping("vibration_x", "ns=2;s=Machine/VibrationX"),
                 OpcUaNodeMapping("temperature", "ns=2;s=Machine/Temperature"),
+            ),
+            semantic_bindings=(
+                ChannelSemanticBinding(
+                    source_id="opcua-source",
+                    channel_id="vibration_x",
+                    version="site-a-semantics-v1",
+                    definition=MeasurementDefinition(
+                        observed_property="vibration velocity",
+                        scope="x-axis",
+                        unit="mm/s",
+                        unit_evidence="site engineering channel map",
+                    ),
+                    interpretation_evidence="site engineering channel map revision 1",
+                ),
+                ChannelSemanticBinding(
+                    source_id="opcua-source",
+                    channel_id="temperature",
+                    version="site-a-semantics-v1",
+                    definition=MeasurementDefinition(
+                        observed_property="temperature",
+                        unit="Cel",
+                        unit_evidence="site engineering channel map",
+                    ),
+                    interpretation_evidence="site engineering channel map revision 1",
+                ),
             ),
         ),
         registered_at=BASE,
@@ -223,6 +250,15 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
             ("opcua-source", 2, 0),
         ]
         assert batch.events[1].event.notification.replayed is True
+        bindings = [event.event.semantic_binding for event in batch.events]
+        assert all(binding is not None for binding in bindings)
+        assert [binding.channel_id for binding in bindings if binding is not None] == [
+            "vibration_x",
+            "temperature",
+        ]
+        assert {
+            binding.version for binding in bindings if binding is not None
+        } == {"site-a-semantics-v1"}
 
         runtime = telemetry.get(source.source_id)
         assert runtime.session is not None
