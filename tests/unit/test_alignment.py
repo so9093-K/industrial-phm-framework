@@ -83,6 +83,7 @@ def test_bounded_previous_uses_event_transition_clock_for_staggered_updates():
         [10.0, 20.0, 30.0],
     ]
 
+
 def test_bounded_policy_requires_explicit_age_and_basis():
     with pytest.raises(ValueError, match="max_age"):
         TemporalAlignmentPolicy(AlignmentPolicyKind.BOUNDED_PREVIOUS, basis="x")
