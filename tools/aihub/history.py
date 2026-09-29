@@ -27,7 +27,7 @@ def import_history(
     history: DuckLakeAssetHistory,
     *,
     batch_size: int = 2000,
-    metadata_schema: str = "v2",
+    metadata_schema: str = "v3",
     flush_every_batches: int = 10,
 ) -> dict[str, object]:
     """Use local source time for selection; normalize only with the explicit binding.
@@ -41,8 +41,8 @@ def import_history(
         raise ValueError("selection must be an increasing naive source-local time range")
     if isinstance(batch_size, bool) or not 1 <= batch_size <= 10000:
         raise ValueError("batch_size must be between 1 and 10000")
-    if metadata_schema not in {"v1", "v2"}:
-        raise ValueError("metadata_schema must be v1 or v2")
+    if metadata_schema not in {"v1", "v2", "v3"}:
+        raise ValueError("metadata_schema must be v1, v2 or v3")
     if isinstance(flush_every_batches, bool) or not 1 <= flush_every_batches <= 10000:
         raise ValueError("flush_every_batches must be between 1 and 10000")
     digest = archive_sha256(archive)
@@ -126,9 +126,9 @@ def main() -> None:
     parser.add_argument("--ducklake-data", type=Path, required=True)
     parser.add_argument(
         "--metadata-schema",
-        choices=("v1", "v2"),
-        default="v2",
-        help="v1 only for exact retry of a legacy import; new imports use v2",
+        choices=("v1", "v2", "v3"),
+        default="v3",
+        help="v1/v2 only for exact retry of an earlier import; new imports use v3",
     )
     parser.add_argument(
         "--flush-every-batches",

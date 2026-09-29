@@ -21,3 +21,17 @@ def test_unresolved_property_is_not_a_raw_channel_label():
         MeasurementDefinition(unit="kW")
     with pytest.raises(ValueError, match="empty"):
         MeasurementDefinition(observed_property=" ")
+
+
+def test_aihub_dictionary_confirms_only_items_where_document_and_data_agree():
+    from industrial_phm.adapters.aihub_power_history import confirmed_channel_definition
+
+    frequency = confirmed_channel_definition("주파수")
+    assert (frequency.observed_property, frequency.unit) == ("frequency", "Hz")
+    assert confirmed_channel_definition("전류평균").statistic == (
+        "arithmetic mean of phases R, S and T"
+    )
+    # Power, power factor and energy contradict their documented scale (and
+    # power "평균" is a three-phase sum); temperature has no independent check.
+    for channel in ("유효전력평균", "R상유효전력", "역률평균", "누적전력량", "온도"):
+        assert confirmed_channel_definition(channel) == MeasurementDefinition()

@@ -101,9 +101,12 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     metadata = json.loads(restored[0].source_metadata_json)
     assert metadata["raw_timestamp"] == "2021-02-03 07:01:07"
     assert metadata["binding"]["timezone_evidence"] == _binding().timezone_evidence
-    assert metadata["semantics"]["definition"]["unit"] is None
-    assert metadata["schema"] == "aihub-239-history-v2"
-    assert metadata["semantics"]["definition"]["observed_property"] is None
+    # R상전류 is one of the items where the provider unit table and data agree.
+    assert metadata["schema"] == "aihub-239-history-v3"
+    assert metadata["semantics"]["version"] == "aihub-239-semantics-v1"
+    assert metadata["semantics"]["definition"]["observed_property"] == "phase current"
+    assert metadata["semantics"]["definition"]["unit"] == "A"
+    assert "guideline v1.5" in metadata["semantics"]["definition"]["unit_evidence"]
     assert "property_name" not in metadata["semantics"]["definition"]
     page = history.query_measurement_page(
         _binding().asset_id,
@@ -117,7 +120,7 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     # A conflict beyond the returned row budget must not disappear.
     assert page.points[0].conflicting_duplicate
     rows = measurement_history_rows(page)
-    assert rows[0]["unit"] == "unknown"
+    assert rows[0]["unit"] == "A"
     assert rows[0]["source_sha256"] == first["archive_sha256"]
     assert rows[0]["identity_evidence"] == _binding().identity_evidence
     assert history.list_history_assets()[0].measurement_count == 3
@@ -130,7 +133,7 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert latest_row["value"] is None
     assert latest_row["conflict"] is True
     assert latest_row["event_time_state"] == "recorded"
-    assert latest_row["unit"] == "unknown"
+    assert latest_row["unit"] == "A"
     assert latest_row["source_sha256"] == first["archive_sha256"]
     assert latest_row["source_file"] == f"power.zip!/{MEMBER}"
     assert latest_row["timezone_evidence"] == _binding().timezone_evidence

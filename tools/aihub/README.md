@@ -169,11 +169,14 @@ filename을 shell-quoted 문자열로 바꿔 `find -name`이 part 파일을 찾�
 patch하지 않습니다. 선택한 두 archive에서 검증한 우회이며 임의 filename/다른 OS의 지원 보장이 아닙니다.
 공식 원본과 설치 안내: [AI-Hub Shell](https://www.aihub.or.kr/devsport/apishell/list.do).
 
-New imports use metadata schema `aihub-239-history-v2`: raw ITEM_NAME remains channel identity and
-`observed_property` is null until evidenced. Existing v1 rows are read without rewriting their JSON;
-the old `property_name` is shown only as a legacy source label. To resume an exact pre-v2 selection,
-use `--metadata-schema v1` with its original binding/range/batch size. Retrying it as v2 fails on immutable
-batch/row evidence rather than silently rewriting interpretation. Use v2 for new selections.
+New imports use metadata schema `aihub-239-history-v3`: raw ITEM_NAME remains channel identity, and
+only items confirmed by both the provider unit table and observed data carry `aihub-239-semantics-v1`
+meaning, unit and evidence ([source profile](../../docs/research/aihub-239-source-profile.md)). All other
+items keep `observed_property` null and unit unknown. Existing v1/v2 rows are read without rewriting
+their JSON; the v1 `property_name` is shown only as a legacy source label. To resume an exact earlier
+selection, use `--metadata-schema v1` or `v2` with its original binding/range/batch size. Retrying it
+with another schema fails on immutable batch/row evidence rather than silently rewriting
+interpretation. Use v3 for new selections.
 
 The importer flushes newly appended rows from the SQLite catalog to Parquet every 10 batches and at
 the end (`--flush-every-batches`). Flush preserves snapshots and exact-retry recovery; measurements are
