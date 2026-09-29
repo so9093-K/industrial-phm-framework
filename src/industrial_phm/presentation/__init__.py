@@ -1,6 +1,8 @@
 """Presentation helpers for product-facing application read models."""
 
 from industrial_phm.presentation.operations import (
+    OperationalAnalysisPresentationKind,
+    operational_analysis_presentation_kind,
     render_analysis_quality_markdown,
     render_asset_analysis_markdown,
     render_asset_findings_markdown,
@@ -16,6 +18,8 @@ from industrial_phm.presentation.operations import (
 )
 
 __all__ = [
+    "OperationalAnalysisPresentationKind",
+    "operational_analysis_presentation_kind",
     "render_analysis_quality_markdown",
     "render_asset_analysis_markdown",
     "render_asset_findings_markdown",
