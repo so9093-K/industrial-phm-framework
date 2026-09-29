@@ -3844,7 +3844,8 @@ def _(
                     mo.callout(
                         "These are waveform statistics from one exact FILE snapshot. "
                         "They are operational analysis evidence, but no threshold/state policy "
-                        "has interpreted them as anomaly, fault, health, alert or maintenance need.",
+                        "has interpreted them as anomaly, fault, health, alert or "
+                        "maintenance need.",
                         kind="info",
                         title="Feature evidence semantics",
                     ),
