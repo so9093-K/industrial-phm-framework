@@ -18,12 +18,21 @@ Live collector도 동일한 catalog/data 경로로 실행해야 같은 화면에
 
 Catalog에만 있는 설비도 목록에 표시합니다. 설비·채널 목록은 화면 초기화 시 읽고, 선택한 구간은 조회 버튼으로
 다시 읽습니다. 신규 적재 후 **설비 이력 목록 새로고침**으로 목록을 갱신할 수 있습니다.
-최근 15분/24시간/7일 범위는 조회할 때마다 현재 시각을 기준으로 이동하며, 한도를 넘으면 최근 2,000개를
-시간순으로 표시합니다. 직접 지정한 범위는 기존처럼 첫 2,000개를 표시합니다.
+최근 범위는 조회 시점 기준으로 이동합니다. 15분은 최근 2,000개 원시 관측, 직접 지정은 첫 2,000개를
+표시하며 요청 범위·실제 반환 범위·개수·잘림을 별도로 보여줍니다. 축은 요청 전체 범위로 유지합니다.
+24시간은 200개 시간 구간, 7일은 100개 구간으로 전체 선택 기간을 집계합니다. source/측정점/매핑·의미
+해석별로 분리하며 전체 반환 bucket은 최대 2,000개입니다. 초과 시 일부만 표시하지 않고 오류를 냅니다.
+UI min/max/mean은 null·충돌·원천 non-good 값을 제외하며 제외 개수와 원본 관측 개수를 보존합니다.
+동일값 중복도 개수에 포함하고 mean은 관측 개수 가중치입니다. 시간 가중 평균·에너지·source 평균 측정값이
+아닙니다. 빈 시간 구간은 보간하지 않습니다. 해석 근거와 history snapshot ID를 집계 표에서 확인할 수 있습니다.
 
-Source별 최신 저장값은 그래프 범위/한도와 별개로 조회합니다. Freshness 기준은 화면에서 초 단위로 지정하고
-최근/recent, 오래됨/stale, 미래 시각/future-timestamp를 구분합니다. 이 값은 저장된 event time의 나이이며
-실시간 연결 상태나 설비 건강 판정이 아닙니다. 동일 최신 시각의 값이 충돌하면 대표값을 정상값처럼 표시하지 않습니다.
+Source별 최신 저장값은 그래프 범위/한도와 별개로 조회합니다. `history_age_seconds`는 저장 관측의
+나이이며 `event_time_state`는 recorded/future-timestamp/time-unavailable입니다. 과거 backfill/import/replay의
+expected live freshness는 not-applicable입니다. LIVE 행의 freshness도 이 표에서 판정하지 않고
+Sources의 기존 SourceFreshnessPolicy 및 receipt 화면으로 안내합니다. 설비 건강 판정이 아닙니다.
+동일 최신 시각의 값이 충돌하면 대표값을 정상값처럼 표시하지 않습니다.
+FILE source quality는 unknown이며 numeric/null availability와 분리합니다. OPC UA는 protocol Good/non-good을
+보존합니다. Raw channel label은 canonical observed property로 승격하지 않고 미해석 상태를 표시합니다.
 
 최신 저장 관측의 **최신 관측 출처·매핑 근거**에서 원본 파일·checksum, 시간대 가정,
 설비 grouping 근거, 의미 해석 version과 단위 근거를 확인할 수 있습니다. 그래프 구간에

@@ -16,6 +16,7 @@ from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.presentation.measurement_history import (
     latest_measurement_rows,
+    measurement_aggregation_summary,
     measurement_history_rows,
 )
 
@@ -101,6 +102,9 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert metadata["raw_timestamp"] == "2021-02-03 07:01:07"
     assert metadata["binding"]["timezone_evidence"] == _binding().timezone_evidence
     assert metadata["semantics"]["definition"]["unit"] is None
+    assert metadata["schema"] == "aihub-239-history-v2"
+    assert metadata["semantics"]["definition"]["observed_property"] is None
+    assert "property_name" not in metadata["semantics"]["definition"]
     page = history.query_measurement_page(
         _binding().asset_id,
         start_at=UTC_START,
@@ -122,12 +126,10 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert len(latest) == 1
     assert latest[0].conflicting_duplicate
     assert json.loads(latest[0].source_metadata_json)["binding"] == metadata["binding"]
-    latest_row = latest_measurement_rows(
-        latest, as_of=UTC_START + timedelta(seconds=10), stale_after_seconds=20
-    )[0]
+    latest_row = latest_measurement_rows(latest, as_of=UTC_START + timedelta(seconds=10))[0]
     assert latest_row["value"] is None
     assert latest_row["conflict"] is True
-    assert latest_row["currency"] == "recent"
+    assert latest_row["event_time_state"] == "recorded"
     assert latest_row["unit"] == "unknown"
     assert latest_row["source_sha256"] == first["archive_sha256"]
     assert latest_row["source_file"] == f"power.zip!/{MEMBER}"
@@ -218,4 +220,127 @@ def test_file_raw_rejects_nonfinite_and_boolean_values(value):
             sample_index=0,
             event_at=UTC_START,
             value=value,
+        )
+
+
+def test_legacy_import_retries_without_rewriting_persisted_semantic_evidence(tmp_path):
+    archive = _archive(tmp_path, (1.0,))
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    args = (archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history)
+    first = import_history(*args, metadata_schema="v1")
+    original = history.query_file_events("research-source")[0].source_metadata_json
+    assert json.loads(original)["semantics"]["definition"]["property_name"] == "R상전류"
+    retry = import_history(*args, metadata_schema="v1")
+    assert retry["snapshot_id"] == first["snapshot_id"]
+    assert retry["recovered_batch_count"] == 1
+    # A new interpretation must not silently mutate immutable imported evidence.
+    with pytest.raises(ValueError):
+        import_history(*args)
+    assert history.query_file_events("research-source")[0].source_metadata_json == original
+    latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
+    assert latest_measurement_rows(latest, as_of=UTC_START)[0]["observed_property"] == "unresolved"
+
+
+def test_bounded_aggregation_covers_full_range_and_preserves_excluded_counts(tmp_path):
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    events = tuple(
+        FileBackfillEvent(
+            raw_evidence_id=f"row-{i}",
+            source_id="file",
+            asset_id="asset",
+            channel_id="power",
+            source_file="series.csv",
+            source_sha256="a" * 64,
+            source_size_bytes=100,
+            sample_index=i,
+            event_at=UTC_START + timedelta(seconds=i),
+            value=float(i),
+        )
+        for i in range(2500)
+    )
+    # Equal repeats remain observations; conflicting values and null remain evidence.
+    extras = (
+        replace(events[0], raw_evidence_id="repeat", sample_index=2500),
+        replace(events[1], raw_evidence_id="conflict", sample_index=2501, value=99.0),
+        replace(
+            events[2],
+            raw_evidence_id="null",
+            sample_index=2502,
+            event_at=UTC_START + timedelta(seconds=2500),
+            value=None,
+        ),
+        replace(events[0], raw_evidence_id="other-source", source_id="other", value=10000.0),
+        replace(
+            events[0],
+            raw_evidence_id="new-meaning",
+            sample_index=2503,
+            event_at=UTC_START + timedelta(seconds=2501),
+            source_metadata_json=json.dumps(
+                {"semantics": {"version": "v2", "definition": {"unit": "kW"}}}
+            ),
+        ),
+    )
+    history.append_file_batch(events + extras, batch_id="population")
+    result = history.query_measurement_aggregation(
+        "asset",
+        channel_id="power",
+        start_at=UTC_START,
+        end_at=UTC_START + timedelta(seconds=2502),
+        bucket_count=10,
+    )
+    assert len(result.buckets) <= 12
+    assert sum(b.observation_count for b in result.buckets) == 2505
+    assert sum(b.null_count for b in result.buckets) == 1
+    assert sum(b.conflict_count for b in result.buckets) == 2
+    assert sum(b.usable_count for b in result.buckets) == 2502
+    assert max(b.last_event_at for b in result.buckets) == extras[-1].event_at
+    assert result.snapshot_id == history.current_snapshot_id()
+    assert all(b.bucket_start < b.bucket_end <= result.end_at for b in result.buckets)
+    summary = measurement_aggregation_summary(result)
+    assert datetime.fromisoformat(summary["returned_end"]) == extras[-1].event_at
+    assert summary["observation_count"] == 2505
+    first = next(b for b in result.buckets if b.source_id == "file" and b.bucket_start == UTC_START)
+    assert first.minimum == 0
+    assert first.maximum == 250
+    assert first.mean == pytest.approx((sum(range(251)) - 1) / 251)
+    assert any('"unit":"kW"' in b.interpretation_json for b in result.buckets)
+    empty = history.query_measurement_aggregation(
+        "empty", channel_id="power", start_at=UTC_START, end_at=UTC_START + timedelta(days=1)
+    )
+    assert empty.buckets == ()
+
+
+def test_aggregation_refuses_to_drop_source_groups_over_response_budget(tmp_path):
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"row-{i}",
+                source_id=f"source-{i}",
+                asset_id="asset",
+                channel_id="power",
+                source_file="series.csv",
+                source_sha256="a" * 64,
+                source_size_bytes=100,
+                sample_index=i,
+                event_at=UTC_START,
+                value=float(i),
+            )
+            for i in range(2001)
+        ),
+        batch_id="many-sources",
+    )
+    with pytest.raises(ValueError, match="exceeds 2000"):
+        history.query_measurement_aggregation(
+            "asset",
+            channel_id="power",
+            start_at=UTC_START,
+            end_at=UTC_START + timedelta(days=1),
+            bucket_count=1,
         )

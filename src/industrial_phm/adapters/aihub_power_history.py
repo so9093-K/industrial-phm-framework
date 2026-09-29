@@ -42,7 +42,10 @@ def project_power_observation(
     archive_digest: str,
     archive_bytes: int,
     binding: PowerHistoryBinding,
+    metadata_schema: str = "v2",
 ) -> FileBackfillEvent:
+    if metadata_schema not in {"v1", "v2"}:
+        raise ValueError("metadata_schema must be v1 or v2")
     if (record.device_id, record.device_board_id) != (binding.device_id, binding.device_board_id):
         raise ValueError("source device identifiers do not match the explicit asset binding")
     local = datetime.fromisoformat(record.timestamp_text)
@@ -60,11 +63,17 @@ def project_power_observation(
         source_id=binding.source_id,
         channel_id=record.channel_name,
         version=binding.version,
-        definition=MeasurementDefinition(property_name=record.channel_name),
+        definition=MeasurementDefinition(),
         interpretation_evidence="source ITEM_NAME; canonical property and unit unresolved",
     )
+    semantic_metadata = asdict(semantic)
+    if metadata_schema == "v1":
+        # Exact legacy serialization for resuming an existing import. Readers must
+        # not promote this source label to an interpreted observed property.
+        semantic_metadata["definition"].pop("observed_property")
+        semantic_metadata["definition"]["property_name"] = record.channel_name
     metadata = {
-        "schema": "aihub-239-history-v1",
+        "schema": f"aihub-239-history-{metadata_schema}",
         "archive_name": archive.name,
         "member": record.member,
         "record_index": record.record_index,
@@ -73,7 +82,7 @@ def project_power_observation(
         "raw_timestamp": record.timestamp_text,
         "raw_record": json.loads(record.raw_record_json),
         "binding": asdict(binding),
-        "semantics": asdict(semantic),
+        "semantics": semantic_metadata,
     }
     # The raw identity excludes mapping and selected range. Changing a binding
     # cannot silently insert a second copy of the same source observation.

@@ -27,6 +27,7 @@ def import_history(
     history: DuckLakeAssetHistory,
     *,
     batch_size: int = 2000,
+    metadata_schema: str = "v2",
 ) -> dict[str, object]:
     """Use local source time for selection; normalize only with the explicit binding.
 
@@ -37,6 +38,8 @@ def import_history(
         raise ValueError("selection must be an increasing naive source-local time range")
     if isinstance(batch_size, bool) or not 1 <= batch_size <= 10000:
         raise ValueError("batch_size must be between 1 and 10000")
+    if metadata_schema not in {"v1", "v2"}:
+        raise ValueError("metadata_schema must be v1 or v2")
     digest = archive_sha256(archive)
     archive_bytes = archive.stat().st_size
     selection = {
@@ -79,6 +82,7 @@ def import_history(
                 archive_digest=digest,
                 archive_bytes=archive_bytes,
                 binding=binding,
+                metadata_schema=metadata_schema,
             )
         )
         if len(batch) == batch_size:
@@ -103,6 +107,12 @@ def main() -> None:
     parser.add_argument("--end", type=datetime.fromisoformat, required=True)
     parser.add_argument("--ducklake-catalog", type=Path, required=True)
     parser.add_argument("--ducklake-data", type=Path, required=True)
+    parser.add_argument(
+        "--metadata-schema",
+        choices=("v1", "v2"),
+        default="v2",
+        help="v1 only for exact retry of a legacy import; new imports use v2",
+    )
     args = parser.parse_args()
     try:
         binding = PowerHistoryBinding(**json.loads(args.binding.read_text()))
@@ -112,7 +122,15 @@ def main() -> None:
                 data_path=args.ducklake_data,
             )
         )
-        result = import_history(args.archive, args.member, binding, args.start, args.end, history)
+        result = import_history(
+            args.archive,
+            args.member,
+            binding,
+            args.start,
+            args.end,
+            history,
+            metadata_schema=args.metadata_schema,
+        )
     except (ValueError, OSError, RuntimeError) as error:
         parser.exit(1, f"error: {error}\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))

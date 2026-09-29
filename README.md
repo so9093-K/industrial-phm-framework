@@ -14,10 +14,32 @@
 
 ## 전체 구조
 
-![산업 설비 데이터부터 분석 결과까지 이어지는 시스템 구조](assets/system-architecture.png)
+```mermaid
+flowchart LR
+    FILE[FILE 원본·명시적 매핑] --> HISTORY[DuckLake Asset History]
+    OPC[OPC UA] --> COLLECTOR[독립 수집 서비스]
+    COLLECTOR --> SPOOL[Durable spool]
+    SPOOL --> HISTORY
+    SPOOL --> WINDOW[관측 Window]
+    HISTORY --> ASSET[Operations Asset Detail<br/>최신 관측·이력·품질·출처]
+    FILE --> ANALYSIS[FILE snapshot 특징 분석]
+    ANALYSIS --> EVIDENCE[Analysis Evidence]
+    EVIDENCE --> INVESTIGATION[Investigation]
+    INVESTIGATION --> FINDING[사람의 Review Finding]
+    FINDING --> REVIEW[Maintenance Review<br/>확인·메모·종료 기록]
+    DATA[공개 데이터·연구 프로토콜] --> RESEARCH[모델 학습·평가]
+    RESEARCH --> ARTIFACT[연구 Artifact]
+    ARTIFACT --> EXPLORER[Analysis Explorer]
+    WINDOW -. 후속 연결 .-> EVIDENCE
+```
 
-센서 데이터는 데이터셋별 변환 단계를 거쳐 공통 분석 흐름으로 들어갑니다.
-분석 결과는 파일로 기록되고, 같은 결과를 Analysis Explorer·보고서·생성형 AI 설명에서 함께 사용합니다.
+FILE과 OPC UA 관측은 원본 근거를 보존하며 설비 이력으로 모입니다. 독립 수집 서비스가 spool과
+history 기록을 담당하고, Operations는 설비별 최신 관측·추세·품질·출처 및 사람의 검토 이력을 보여줍니다.
+로컬 SQLite DuckLake 접근은 협조하는 프로세스끼리 직렬화합니다.
+
+현재 운영 분석은 명시적인 timestamp를 가진 FILE snapshot 특징 추출입니다. Live Window에서
+Analysis Evidence까지의 점선은 후속 연결이며, validated 진단·alarm·operational RUL·자동 정비 권고는
+현재 capability가 아닙니다. 연구 모델 결과는 별도의 artifact와 Analysis Explorer에서 검토합니다.
 
 자세한 설계는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
@@ -60,6 +82,7 @@ XJTU-SY, IMS Bearings, MIMII DUE 등의 공개 데이터는 분석 방법과 evi
 [검증된 데이터 범위](docs/research/aihub-239-source-profile.md)를 참고하세요.
 
 - [Applications](apps/README.md) — Analysis Explorer와 Operations 사용 방법
+- [측정 의미·집계·확장 계획](docs/architecture/measurement-history-evolution.md) — 현재 계약과 후속 단계
 - [아키텍처](docs/architecture/overview.md) — 구성 요소와 책임 경계
 - [제품·UX 기준](docs/product/overview.md) — 사용자 흐름과 제품 의미
 - [데이터 준비](data/README.md) — 데이터셋과 입력 검증

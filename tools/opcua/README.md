@@ -46,8 +46,9 @@ uv run --no-sync marimo run apps/operations.py
 1. Sources: select `demo-opcua`, then **Start Collection** and **Refresh Live Monitor**.
 2. Assets: select `demo-power-01`, use **설비 이력 목록 새로고침** if ingestion began after page load.
 3. Select a channel and **최근 15분**, then **이력 조회 / 새로고침**. Relative ranges move on every query.
-4. Inspect source-specific latest stored values and event-time freshness. The threshold is explicit;
-   this is distinct from collector connection state and asset health. Future times are not marked recent.
+4. Inspect source-specific latest values and history age. Historical FILE rows have no expected-live
+   freshness assessment; live rows refer to Sources policy/receipt assessment. Future times are flagged.
+   Choose 24 hours or 7 days for UI-only full-range min/max/mean buckets, not source averages.
 5. Close the browser, reopen it, and verify that the collector continued writing.
 6. Stop/restart the server and collector separately; refresh the monitor and history to check recovery.
 7. Sources **Stop Collection** stops source acquisition. The collector process can remain available.

@@ -11,6 +11,14 @@
 
 ### Changed
 
+- AI-Hub 의미 계약은 `observed_property=None`으로 미해석 상태를 표현합니다. 기존 raw label과
+  metadata v1을 보존하며 legacy import 재개 옵션을 제공합니다. FILE source quality는 unknown으로
+  읽고 numeric/null availability와 구분합니다.
+- 최신 저장 관측은 history age로 표시하고 live freshness와 분리합니다. 24시간/7일은 전체 기간의
+  UI min/max/mean bucket을 조회하며 원시 조회는 요청/반환 범위와 개수를 명시합니다.
+- README 구조도를 현재 수집·history·Operations·검토 흐름의 Mermaid로 갱신하고 연구 PNG는 이전
+  참고자료로 구분했습니다. 목표 사용자 요구와 현재 capability, metadata normalization 전환 조건을 문서화했습니다.
+
 - 최신 저장 관측에도 원본 파일·checksum, 설비/시간대 매핑 근거, 단위 및 해석 version을 연결해
   차트 구간 밖의 최신값에서도 미확정 단위와 normalization 가정을 확인할 수 있습니다.
 

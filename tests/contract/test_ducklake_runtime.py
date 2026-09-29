@@ -393,3 +393,43 @@ def test_backfill_source_cli_reports_snapshot_and_recovers(tmp_path, capsys) -> 
     assert main(args) == 0
     second = capsys.readouterr().out
     assert "state=recovered" in second
+
+
+def test_aggregate_excludes_protocol_non_good_and_keeps_empty_numeric_bucket(tmp_path):
+    from dataclasses import replace
+
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    good = _event(channel_id="power", event_at=BASE, event_index=0)
+    original = _event(channel_id="power", event_at=BASE + timedelta(seconds=5), event_index=1)
+    observation = replace(
+        original.event.notification.observation,
+        status_good=False,
+        status_code=0x80000000,
+        status_text="Bad",
+        value=None,
+    )
+    bad = replace(
+        original,
+        event=replace(
+            original.event,
+            notification=replace(original.event.notification, observation=observation),
+        ),
+    )
+    history.append_opcua_batch((good, bad), batch_id="quality")
+    result = history.query_measurement_aggregation(
+        "pump-01",
+        channel_id="power",
+        start_at=BASE,
+        end_at=BASE + timedelta(seconds=10),
+        bucket_count=2,
+    )
+    assert result.buckets[0].mean == 1.25
+    assert result.buckets[1].observation_count == 1
+    assert result.buckets[1].non_good_count == 1
+    assert result.buckets[1].usable_count == 0
+    assert result.buckets[1].mean is None
+    assert result.buckets[1].minimum is None
+    assert result.buckets[1].maximum is None
