@@ -7,6 +7,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from math import isfinite
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -36,8 +37,9 @@ class FileBackfillEvent:
     source_size_bytes: int
     sample_index: int
     event_at: datetime
-    value: float
+    value: float | None
     measurement_point_id: str | None = None
+    source_metadata_json: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -62,8 +64,17 @@ class FileBackfillEvent:
             raise ValueError("source_size_bytes must be at least 1")
         _validate_non_negative_int(self.sample_index, "sample_index")
         _validate_aware_datetime(self.event_at, "event_at")
-        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
-            raise ValueError("value must be numeric")
+        if self.value is not None and (
+            isinstance(self.value, bool)
+            or not isinstance(self.value, (int, float))
+            or not isfinite(self.value)
+        ):
+            raise ValueError("value must be finite numeric or None")
+        if self.source_metadata_json is not None:
+            if not isinstance(self.source_metadata_json, str):
+                raise ValueError("source_metadata_json must be a JSON object string")
+            if not isinstance(json.loads(self.source_metadata_json), dict):
+                raise ValueError("source_metadata_json must contain a JSON object")
 
 
 @dataclass(frozen=True, slots=True)

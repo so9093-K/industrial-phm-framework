@@ -25,6 +25,11 @@ from industrial_phm.application.asset_history import (
     validate_asset_history_query,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
+from industrial_phm.application.measurement_history import (
+    HistoryAssetSummary,
+    MeasurementHistoryPage,
+    MeasurementHistoryPoint,
+)
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
@@ -358,7 +363,8 @@ class DuckLakeAssetHistory:
                     sample_index,
                     channel_id,
                     source_timestamp,
-                    value
+                    value,
+                    source_metadata_json
                 FROM {_CATALOG_NAME}.raw.file_measurement
                 WHERE source_id = ?
                 ORDER BY source_timestamp, source_file, sample_index, channel_id, raw_evidence_id
@@ -375,7 +381,7 @@ class DuckLakeAssetHistory:
         try:
             self._ensure_initialized(connection)
             row = connection.execute(
-                f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
+                f"SELECT max(snapshot_id) FROM {_CATALOG_NAME}.snapshots()"
             ).fetchone()
         finally:
             connection.close()
@@ -527,6 +533,118 @@ class DuckLakeAssetHistory:
 
         return tuple(_historical_measurement_from_row(row) for row in rows)
 
+    def list_history_assets(self, *, limit: int = 1000) -> tuple[HistoryAssetSummary, ...]:
+        """Discover a bounded asset population that actually has addressable history."""
+        _validate_positive_int(limit, "limit")
+        if limit > 1000:
+            raise ValueError("asset discovery limit must not exceed 1000")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT asset_id, min(event_at), max(event_at), count(*)
+                FROM {_CATALOG_NAME}.history.measurement
+                WHERE event_at IS NOT NULL GROUP BY asset_id ORDER BY asset_id LIMIT ?
+            """,
+                [limit + 1],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > limit:
+            raise ValueError("history asset discovery exceeds limit; use a narrower catalog")
+        return tuple(
+            HistoryAssetSummary(
+                _require_str(r[0], "asset_id"),
+                _require_datetime(r[1], "start_at"),
+                _require_datetime(r[2], "end_at"),
+                _require_int(r[3], "measurement_count"),
+            )
+            for r in rows
+        )
+
+    def list_history_channels(self, asset_id: str) -> tuple[str, ...]:
+        _validate_identifier(asset_id, "asset_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT DISTINCT channel_id FROM {_CATALOG_NAME}.history.measurement
+                WHERE asset_id = ? ORDER BY channel_id LIMIT 1001
+            """,
+                [asset_id],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > 1000:
+            raise ValueError("history channel discovery exceeds 1000 channels")
+        return tuple(_require_str(row[0], "channel_id") for row in rows)
+
+    def query_measurement_page(
+        self,
+        asset_id: str,
+        *,
+        start_at: datetime,
+        end_at: datetime,
+        channel_id: str,
+        point_budget: int = 2000,
+    ) -> MeasurementHistoryPage:
+        """Bounded raw points, with conflicts assessed before the response is limited.
+
+        No interpolation, alignment, aggregation or cross-source deduplication.
+        A conflict is multiple values (including null) for one source/point/channel/time.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        _validate_identifier(channel_id, "channel_id")
+        _validate_positive_int(point_budget, "point_budget")
+        if point_budget > 10000:
+            raise ValueError("point_budget must not exceed 10000")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH selected AS (
+                    SELECT *,
+                        count(DISTINCT value) OVER identity_window
+                        + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
+                        > 1 AS conflict
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ? AND channel_id = ? AND event_at >= ? AND event_at < ?
+                    WINDOW identity_window AS (
+                        PARTITION BY source_id, measurement_point_id, channel_id, event_at
+                    )
+                ), bounded AS (
+                    SELECT * FROM selected ORDER BY event_at, raw_evidence_id LIMIT ?
+                )
+                SELECT m.raw_evidence_id, m.source_id, m.source_type, m.asset_id,
+                    m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
+                    m.value, m.status_good, m.ingestion_mode, m.conflict, f.source_metadata_json,
+                    f.source_file, f.source_sha256
+                FROM bounded m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                ORDER BY m.event_at, m.raw_evidence_id
+            """,
+                [asset_id, channel_id, start_at, end_at, point_budget + 1],
+            ).fetchall()
+        finally:
+            connection.close()
+        return MeasurementHistoryPage(
+            points=tuple(
+                MeasurementHistoryPoint(
+                    _historical_measurement_from_row(row[:11]),
+                    _require_bool(row[11], "conflict"),
+                    _optional_str(row[12], "source_metadata_json"),
+                    _optional_str(row[13], "source_file"),
+                    _optional_str(row[14], "source_sha256"),
+                )
+                for row in rows[:point_budget]
+            ),
+            truncated=len(rows) > point_budget,
+            point_budget=point_budget,
+        )
+
     def _connect(self) -> Any:
         duckdb = _load_duckdb_module()
         catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
@@ -608,10 +726,30 @@ class DuckLakeAssetHistory:
                 sample_index BIGINT NOT NULL,
                 channel_id VARCHAR NOT NULL,
                 source_timestamp TIMESTAMPTZ NOT NULL,
-                value DOUBLE NOT NULL
+                value DOUBLE,
+                source_metadata_json VARCHAR
             )
             """
         )
+        # Existing v1 catalogs keep their rows and commit fingerprints. Migrate
+        # only when necessary; read calls must not create fresh schema snapshots.
+        columns = dict(
+            connection.execute(
+                "SELECT column_name, is_nullable FROM information_schema.columns "
+                "WHERE table_catalog = ? AND table_schema = 'raw' "
+                "AND table_name = 'file_measurement'",
+                [_CATALOG_NAME],
+            ).fetchall()
+        )
+        if columns.get("value") == "NO":
+            connection.execute(
+                f"ALTER TABLE {_CATALOG_NAME}.raw.file_measurement ALTER COLUMN value DROP NOT NULL"
+            )
+        if "source_metadata_json" not in columns:
+            connection.execute(
+                f"ALTER TABLE {_CATALOG_NAME}.raw.file_measurement "
+                "ADD COLUMN source_metadata_json VARCHAR"
+            )
         connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {_CATALOG_NAME}.history.measurement (
@@ -830,6 +968,11 @@ def _file_batch_fingerprint(events: Sequence[FileBackfillEvent]) -> str:
             "channel_id": event.channel_id,
             "event_at": event.event_at.isoformat(),
             "value": event.value,
+            **(
+                {"source_metadata_json": event.source_metadata_json}
+                if event.source_metadata_json is not None
+                else {}
+            ),
         }
         for event in events
     ]
@@ -1012,6 +1155,7 @@ def _file_raw_event_row(
         event.channel_id,
         event.event_at,
         event.value,
+        event.source_metadata_json,
     )
 
 
@@ -1032,13 +1176,13 @@ def _file_measurement_row(
         event.event_at,
         HistoricalEventTimeBasis.SOURCE_TIMESTAMP.value,
         event.value,
-        True,
+        event.value is not None,
         ingestion_mode.value,
     )
 
 
 def _file_event_from_row(row: Sequence[object]) -> FileBackfillEvent:
-    if len(row) != 11:
+    if len(row) != 12:
         raise RuntimeError("DuckLake FILE evidence row has an unexpected column count")
     return FileBackfillEvent(
         raw_evidence_id=_require_str(row[0], "raw_evidence_id"),
@@ -1051,7 +1195,8 @@ def _file_event_from_row(row: Sequence[object]) -> FileBackfillEvent:
         sample_index=_require_int(row[7], "sample_index"),
         channel_id=_require_str(row[8], "channel_id"),
         event_at=_require_datetime(row[9], "source_timestamp"),
-        value=_require_float(row[10], "value"),
+        value=_optional_float(row[10], "value"),
+        source_metadata_json=_optional_str(row[11], "source_metadata_json"),
     )
 
 
@@ -1197,8 +1342,9 @@ def _file_raw_insert_sql() -> str:
             sample_index,
             channel_id,
             source_timestamp,
-            value
-        ) VALUES ({", ".join("?" for _ in range(13))})
+            value,
+            source_metadata_json
+        ) VALUES ({", ".join("?" for _ in range(14))})
     """
 
 

@@ -285,6 +285,16 @@ def test_ducklake_file_backfill_and_live_share_asset_history(tmp_path) -> None:
     assert len(overlap) == 2
     assert {item.source_id for item in overlap} == {"file-source", "source-a"}
 
+    page = repository.query_measurement_page(
+        "pump-01",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        channel_id="vibration_x",
+    )
+    assert len(page.points) == 3
+    assert not page.truncated
+    assert not any(point.conflicting_duplicate for point in page.points)
+
     raw_file_events = repository.query_file_events("file-source")
     assert len(raw_file_events) == 2
     assert raw_file_events[0].source_file == "historical.csv"

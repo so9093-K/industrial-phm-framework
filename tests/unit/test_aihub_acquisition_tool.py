@@ -156,6 +156,8 @@ def test_download_without_api_key_fails_before_running_remote_command(
     fake_shell.write_text("#!/bin/sh\nexit 99\n", encoding="utf-8")
     fake_shell.chmod(0o755)
 
+    # A developer's real .env must not supply the intentionally missing key.
+    monkeypatch.setattr(aihub_cli, "load_local_env", lambda: None)
     monkeypatch.setenv("AIHUBSHELL_PATH", str(fake_shell))
     monkeypatch.delenv("AIHUB_APIKEY", raising=False)
 

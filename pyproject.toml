@@ -37,9 +37,13 @@ deep-learning = [
 ]
 history = [
   "duckdb>=1.5.5,<1.6",
+  "pytz>=2025.2",
 ]
 opcua = [
   "asyncua>=2.0.1,<2.1",
+]
+aihub = [
+    "ijson>=3.4,<4",
 ]
 
 [project.scripts]

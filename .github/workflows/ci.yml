@@ -83,6 +83,11 @@ jobs:
           uv run --locked --extra history pytest \
             tests/contract/test_live_acquisition_reliability.py
 
+      - name: Validate raw power history contract with synthetic archives
+        run: |
+          uv run --locked --extra aihub --extra history pytest \
+            tests/integration/test_aihub_history.py
+
       - name: Build package
         run: uv build
 

@@ -1,5 +1,25 @@
 # Applications
 
+## Asset measurement history
+
+Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측을 시간·채널별로 조회합니다.
+`uv sync --locked --extra history --group research`로 실행 환경을 준비합니다. AI-Hub를 처음 적재할 때는
+[실행 안내](../tools/aihub/README.md#local-power-data-profiling-and-history)를 따릅니다.
+
+기본 catalog는 `artifacts/operations/history/catalog.sqlite`, data는 같은 디렉터리의 `data`입니다.
+다른 저장소는 실행 환경의 `INDUSTRIAL_PHM_HISTORY_CATALOG`, `INDUSTRIAL_PHM_HISTORY_DATA`로 지정합니다.
+Live collector도 동일한 catalog/data 경로로 실행해야 같은 화면에서 조회할 수 있습니다.
+
+**Assets → Asset 선택 → Measurement History → 시간·측정 항목 선택 → 이력 조회 / 새로고침** 순서로
+사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 첫 2,000개 관측만 표시하며 한도를
+넘으면 범위를 줄이라는 안내를 보여줍니다. Source별 관측점, null의 시각 표시, 품질 문제·값 충돌과 provenance를
+확인할 수 있습니다. 보간·집계·자동 건강 판정은 하지 않습니다. 예상 수집 주기가 없는 상태에서 공백을
+자동으로 missing sample이라 부르지 않습니다.
+
+Catalog에만 있는 설비도 목록에 표시합니다. 설비·채널 목록은 화면 초기화 시 읽고, 선택한 구간은 조회 버튼으로
+다시 읽습니다. 첫 신규 적재 후에는 앱을 새로 열어 목록을 갱신합니다. Importer는 single writer로 실행하고
+collector와 동시에 같은 catalog에 쓰지 않습니다.
+
 현재 repository는 목적이 다른 두 interactive application을 분리합니다.
 
 - `apps/operations.py` — source/observation/data quality와 실제로 연결된 운영 review evidence를 보는 Operations surface
@@ -486,4 +506,3 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 
 모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
 앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.
-
