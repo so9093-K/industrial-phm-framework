@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -163,7 +163,8 @@ def test_range_summary_does_not_claim_truncated_points_cover_the_request():
         asset_id="asset",
         channel_id="power",
         event_time_basis=HistoricalEventTimeBasis.SOURCE_TIMESTAMP,
-        event_at=NOW - timedelta(minutes=1),
+        # A reader may return storage time in its local zone; display stays on UTC.
+        event_at=(NOW - timedelta(minutes=1)).astimezone(timezone(timedelta(hours=9))),
         value=1.0,
         status_good=True,
         ingestion_mode=HistoryIngestionMode.LIVE,
@@ -172,7 +173,7 @@ def test_range_summary_does_not_claim_truncated_points_cover_the_request():
     start = NOW - timedelta(days=1)
     summary = measurement_history_range_summary(page, start_at=start, end_at=NOW)
     assert summary["requested_start_inclusive"] == start.isoformat()
-    assert summary["returned_start"] == measurement.event_at.isoformat()
+    assert summary["returned_start"] == (NOW - timedelta(minutes=1)).isoformat()
     assert summary["returned_points"] == 1
     assert summary["truncated"] is True
     empty = measurement_history_range_summary(

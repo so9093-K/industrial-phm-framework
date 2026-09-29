@@ -25,6 +25,12 @@ def measurement_history_rows(page: MeasurementHistoryPage) -> list[dict[str, obj
     return [_measurement_history_row(point) for point in page.points]
 
 
+def _utc_iso(value: datetime | None) -> str | None:
+    # Storage may return event time in the reader's local zone. Displayed event
+    # times share the chart's UTC axis; source-local raw time stays in provenance.
+    return value.astimezone(UTC).isoformat() if value is not None else None
+
+
 def latest_measurement_rows(
     points: tuple[MeasurementHistoryPoint, ...],
     *,
@@ -63,7 +69,7 @@ def _measurement_history_row(point: MeasurementHistoryPoint) -> dict[str, object
     if point.conflicting_duplicate:
         quality.append("conflicting duplicate")
     return {
-        "time": m.event_at.isoformat() if m.event_at else None,
+        "time": _utc_iso(m.event_at),
         "value": m.value,
         "channel": m.channel_id,
         "observed_property": definition.get("observed_property") or "unresolved",
@@ -101,10 +107,10 @@ def measurement_history_range_summary(
     """Describe returned raw points, never claim they represent the full interval."""
     times = [p.measurement.event_at for p in page.points if p.measurement.event_at is not None]
     return {
-        "requested_start_inclusive": start_at.isoformat(),
-        "requested_end_exclusive": end_at.isoformat(),
-        "returned_start": min(times).isoformat() if times else None,
-        "returned_end": max(times).isoformat() if times else None,
+        "requested_start_inclusive": _utc_iso(start_at),
+        "requested_end_exclusive": _utc_iso(end_at),
+        "returned_start": _utc_iso(min(times, default=None)),
+        "returned_end": _utc_iso(max(times, default=None)),
         "returned_points": len(page.points),
         "point_budget": page.point_budget,
         "truncated": page.truncated,
@@ -189,20 +195,16 @@ def render_measurement_history_svg(
 
 def measurement_aggregation_summary(result: MeasurementHistoryAggregation) -> dict[str, object]:
     return {
-        "requested_start_inclusive": result.start_at.isoformat(),
-        "requested_end_exclusive": result.end_at.isoformat(),
-        "returned_start": _isoformat(min((b.first_event_at for b in result.buckets), default=None)),
-        "returned_end": _isoformat(max((b.last_event_at for b in result.buckets), default=None)),
+        "requested_start_inclusive": _utc_iso(result.start_at),
+        "requested_end_exclusive": _utc_iso(result.end_at),
+        "returned_start": _utc_iso(min((b.first_event_at for b in result.buckets), default=None)),
+        "returned_end": _utc_iso(max((b.last_event_at for b in result.buckets), default=None)),
         "bucket_seconds": result.bucket_seconds,
         "returned_buckets": len(result.buckets),
         "observation_count": sum(b.observation_count for b in result.buckets),
         "usable_count": sum(b.usable_count for b in result.buckets),
         "snapshot_id": result.snapshot_id,
     }
-
-
-def _isoformat(value: datetime | None) -> str | None:
-    return value.isoformat() if value is not None else None
 
 
 def measurement_aggregation_rows(
@@ -215,7 +217,7 @@ def measurement_aggregation_rows(
         definition = semantics.get("definition") or {}
         row: dict[str, object] = asdict(bucket)
         for key in ("bucket_start", "bucket_end", "first_event_at", "last_event_at"):
-            row[key] = getattr(bucket, key).isoformat()
+            row[key] = _utc_iso(getattr(bucket, key))
         row["unit"] = definition.get("unit") or "unknown"
         row["observed_property"] = definition.get("observed_property") or "unresolved"
         row["source_quality"] = "unknown" if bucket.source_type == "file" else "see non_good_count"
