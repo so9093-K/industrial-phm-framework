@@ -101,6 +101,10 @@ from industrial_phm.application.history_writer import (
     SpoolHistoryWriterResult,
     SpoolToHistoryWriterPolicy,
 )
+from industrial_phm.application.measurement_semantics import (
+    ChannelSemanticBinding,
+    MeasurementDefinition,
+)
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewEvent,
@@ -285,6 +289,7 @@ __all__ = [
     "AttentionItem",
     "AttentionKind",
     "ChannelIdentity",
+    "ChannelSemanticBinding",
     "CollectionControlRecord",
     "CollectionControlRepository",
     "CollectionDesiredState",
@@ -320,6 +325,7 @@ __all__ = [
     "JsonPhaseUnbalanceRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
+    "MeasurementDefinition",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",
