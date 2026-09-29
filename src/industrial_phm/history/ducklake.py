@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import importlib.util
 import json
-from collections.abc import Sequence
+import sys
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from math import isfinite
@@ -91,6 +94,26 @@ class DuckLakeAssetHistoryConfig:
         data_path = self.data_path.expanduser().resolve(strict=False)
         if catalog_path == data_path:
             raise ValueError("DuckLake catalog_path and data_path must be distinct")
+
+
+@contextmanager
+def _cache_absent_pandas_import() -> Iterator[None]:
+    """Make DuckDB's per-parameter pandas probe fail fast when pandas is absent.
+
+    DuckDB attempts ``import pandas`` for each bound Python value. Without pandas,
+    every attempt rescans sys.path; this was about 60% of measured AI-Hub import
+    time. A None module entry raises the same ImportError without the scan. It is
+    set only while pandas is not importable and removed afterwards.
+    """
+    if "pandas" in sys.modules or importlib.util.find_spec("pandas") is not None:
+        yield
+        return
+    sys.modules["pandas"] = None  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        if "pandas" in sys.modules and sys.modules["pandas"] is None:
+            del sys.modules["pandas"]
 
 
 class _LockedConnection:
@@ -198,8 +221,10 @@ class DuckLakeAssetHistory:
                     """,
                     [batch_id, ingestion_mode.value, len(batch)],
                 )
-                connection.executemany(
-                    _raw_insert_sql(),
+                _insert_columns(
+                    connection,
+                    "raw.opcua_data_change",
+                    _OPCUA_RAW_COLUMNS,
                     [
                         _raw_event_row(
                             event,
@@ -209,8 +234,10 @@ class DuckLakeAssetHistory:
                         for event in batch
                     ],
                 )
-                connection.executemany(
-                    _measurement_insert_sql(),
+                _insert_columns(
+                    connection,
+                    "history.measurement",
+                    _MEASUREMENT_COLUMNS,
                     [
                         _measurement_row(
                             event,
@@ -340,8 +367,10 @@ class DuckLakeAssetHistory:
                     """,
                     [batch_id, ingestion_mode.value, len(batch)],
                 )
-                connection.executemany(
-                    _file_raw_insert_sql(),
+                _insert_columns(
+                    connection,
+                    "raw.file_measurement",
+                    _FILE_RAW_COLUMNS,
                     [
                         _file_raw_event_row(
                             event,
@@ -351,8 +380,10 @@ class DuckLakeAssetHistory:
                         for event in batch
                     ],
                 )
-                connection.executemany(
-                    _file_measurement_insert_sql(),
+                _insert_columns(
+                    connection,
+                    "history.measurement",
+                    _MEASUREMENT_COLUMNS,
                     [
                         _file_measurement_row(
                             event,
@@ -684,7 +715,14 @@ class DuckLakeAssetHistory:
             self._ensure_initialized(connection)
             rows = connection.execute(
                 f"""
-                WITH selected AS (
+                WITH raw_file AS (
+                    -- FILE raw rows share the measurement asset/channel/time. Filter
+                    -- before the outer join so it never builds on the whole raw table.
+                    SELECT raw_evidence_id, source_metadata_json, source_file, source_sha256
+                    FROM {_CATALOG_NAME}.raw.file_measurement
+                    WHERE asset_id = ? AND channel_id = ?
+                        AND source_timestamp >= ? AND source_timestamp < ?
+                ), selected AS (
                     SELECT *,
                         count(DISTINCT value) OVER identity_window
                         + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
@@ -701,11 +739,11 @@ class DuckLakeAssetHistory:
                     m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
                     m.value, m.status_good, m.ingestion_mode, m.conflict, f.source_metadata_json,
                     f.source_file, f.source_sha256
-                FROM bounded m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                FROM bounded m LEFT JOIN raw_file f
                     ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
                 ORDER BY m.event_at {direction}, m.raw_evidence_id
             """,
-                [asset_id, channel_id, start_at, end_at, point_budget + 1],
+                [*(asset_id, channel_id, start_at, end_at) * 2, point_budget + 1],
             ).fetchall()
         finally:
             connection.close()
@@ -750,7 +788,14 @@ class DuckLakeAssetHistory:
             self._ensure_initialized(connection)
             rows = connection.execute(
                 f"""
-                WITH selected AS (
+                WITH raw_file AS (
+                    -- FILE raw rows share the measurement asset/channel/time. Filter
+                    -- before the outer join so it never builds on the whole raw table.
+                    SELECT raw_evidence_id, source_metadata_json, source_file, source_sha256
+                    FROM {_CATALOG_NAME}.raw.file_measurement
+                    WHERE asset_id = ? AND channel_id = ?
+                        AND source_timestamp >= ? AND source_timestamp < ?
+                ), selected AS (
                     SELECT *, count(DISTINCT value) OVER observation
                         + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END)
                             OVER observation > 1 AS conflict
@@ -766,7 +811,7 @@ class DuckLakeAssetHistory:
                         m.source_type != 'file' AND NOT m.status_good AS non_good,
                         m.value IS NOT NULL AND NOT m.conflict
                             AND (m.source_type = 'file' OR m.status_good) AS usable
-                    FROM selected m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                    FROM selected m LEFT JOIN raw_file f
                         ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
                 )
                 SELECT source_id, source_type, measurement_point_id, bucket_index,
@@ -779,7 +824,12 @@ class DuckLakeAssetHistory:
                 GROUP BY source_id, source_type, measurement_point_id, bucket_index, interpretation
                 ORDER BY bucket_index, source_id, measurement_point_id, interpretation LIMIT 2001
                 """,
-                [asset_id, channel_id, start_at, end_at, start_at, width, bucket_count - 1],
+                [
+                    *(asset_id, channel_id, start_at, end_at) * 2,
+                    start_at,
+                    width,
+                    bucket_count - 1,
+                ],
             ).fetchall()
             snapshot = connection.execute(
                 f"SELECT max(snapshot_id) FROM ducklake_snapshots('{_CATALOG_NAME}')"
@@ -836,7 +886,11 @@ class DuckLakeAssetHistory:
             self._ensure_initialized(connection)
             rows = connection.execute(
                 f"""
-                WITH ranked AS (
+                WITH raw_file AS (
+                    SELECT raw_evidence_id, source_metadata_json, source_file, source_sha256
+                    FROM {_CATALOG_NAME}.raw.file_measurement
+                    WHERE asset_id = ? AND channel_id = ?
+                ), ranked AS (
                     SELECT *, row_number() OVER (
                         PARTITION BY source_id, measurement_point_id
                         ORDER BY event_at DESC, raw_evidence_id
@@ -852,12 +906,12 @@ class DuckLakeAssetHistory:
                     m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
                     m.value, m.status_good, m.ingestion_mode, m.has_conflict,
                     f.source_metadata_json, f.source_file, f.source_sha256
-                FROM ranked m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                FROM ranked m LEFT JOIN raw_file f
                     ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
                 WHERE m.observation_rank = 1
                 ORDER BY m.source_id, m.measurement_point_id LIMIT 1001
             """,
-                [asset_id, channel_id],
+                [asset_id, channel_id, asset_id, channel_id],
             ).fetchall()
         finally:
             connection.close()
@@ -1022,16 +1076,16 @@ class DuckLakeAssetHistory:
         events: Sequence[OpcUaPersistentDataChangeEvent],
     ) -> None:
         raw_evidence_ids = tuple(_raw_evidence_id(event) for event in events)
-        placeholders = ", ".join("?" for _ in raw_evidence_ids)
-        row = connection.execute(
-            f"""
-            SELECT raw_evidence_id
-            FROM {_CATALOG_NAME}.raw.opcua_data_change
-            WHERE raw_evidence_id IN ({placeholders})
-            LIMIT 1
-            """,
-            list(raw_evidence_ids),
-        ).fetchone()
+        with _cache_absent_pandas_import():
+            row = connection.execute(
+                f"""
+                SELECT raw_evidence_id
+                FROM {_CATALOG_NAME}.raw.opcua_data_change
+                WHERE raw_evidence_id IN (SELECT unnest(?::VARCHAR[]))
+                LIMIT 1
+                """,
+                [list(raw_evidence_ids)],
+            ).fetchone()
         if row is not None:
             existing_id = _require_str(row[0], "raw_evidence_id")
             raise ValueError(f"historical delivery already exists: {existing_id}")
@@ -1042,16 +1096,16 @@ class DuckLakeAssetHistory:
         events: Sequence[FileBackfillEvent],
     ) -> None:
         raw_evidence_ids = tuple(event.raw_evidence_id for event in events)
-        placeholders = ", ".join("?" for _ in raw_evidence_ids)
-        row = connection.execute(
-            f"""
-            SELECT raw_evidence_id
-            FROM {_CATALOG_NAME}.raw.file_measurement
-            WHERE raw_evidence_id IN ({placeholders})
-            LIMIT 1
-            """,
-            list(raw_evidence_ids),
-        ).fetchone()
+        with _cache_absent_pandas_import():
+            row = connection.execute(
+                f"""
+                SELECT raw_evidence_id
+                FROM {_CATALOG_NAME}.raw.file_measurement
+                WHERE raw_evidence_id IN (SELECT unnest(?::VARCHAR[]))
+                LIMIT 1
+                """,
+                [list(raw_evidence_ids)],
+            ).fetchone()
         if row is not None:
             existing_id = _require_str(row[0], "raw_evidence_id")
             raise ValueError(f"historical FILE evidence already exists: {existing_id}")
@@ -1545,79 +1599,86 @@ def _opcua_event_from_row(row: Sequence[object]) -> OpcUaPersistentDataChangeEve
     )
 
 
-def _raw_insert_sql() -> str:
-    return f"""
-        INSERT INTO {_CATALOG_NAME}.raw.opcua_data_change (
-            raw_evidence_id,
-            batch_id,
-            ingestion_mode,
-            source_id,
-            asset_id,
-            endpoint_url,
-            measurement_point_id,
-            channel_id,
-            node_id,
-            value,
-            status_code,
-            status_good,
-            status_text,
-            variant_type,
-            source_timestamp,
-            server_timestamp,
-            received_at,
-            ingested_at,
-            event_at,
-            event_time_basis,
-            collection_index,
-            connection_epoch,
-            event_index,
-            replayed
-        ) VALUES ({", ".join("?" for _ in range(24))})
+_OPCUA_RAW_COLUMNS = (
+    ("raw_evidence_id", "VARCHAR"),
+    ("batch_id", "VARCHAR"),
+    ("ingestion_mode", "VARCHAR"),
+    ("source_id", "VARCHAR"),
+    ("asset_id", "VARCHAR"),
+    ("endpoint_url", "VARCHAR"),
+    ("measurement_point_id", "VARCHAR"),
+    ("channel_id", "VARCHAR"),
+    ("node_id", "VARCHAR"),
+    ("value", "DOUBLE"),
+    ("status_code", "UBIGINT"),
+    ("status_good", "BOOLEAN"),
+    ("status_text", "VARCHAR"),
+    ("variant_type", "VARCHAR"),
+    ("source_timestamp", "TIMESTAMPTZ"),
+    ("server_timestamp", "TIMESTAMPTZ"),
+    ("received_at", "TIMESTAMPTZ"),
+    ("ingested_at", "TIMESTAMPTZ"),
+    ("event_at", "TIMESTAMPTZ"),
+    ("event_time_basis", "VARCHAR"),
+    ("collection_index", "BIGINT"),
+    ("connection_epoch", "BIGINT"),
+    ("event_index", "BIGINT"),
+    ("replayed", "BOOLEAN"),
+)
+_FILE_RAW_COLUMNS = (
+    ("raw_evidence_id", "VARCHAR"),
+    ("batch_id", "VARCHAR"),
+    ("ingestion_mode", "VARCHAR"),
+    ("source_id", "VARCHAR"),
+    ("asset_id", "VARCHAR"),
+    ("measurement_point_id", "VARCHAR"),
+    ("source_file", "VARCHAR"),
+    ("source_sha256", "VARCHAR"),
+    ("source_size_bytes", "BIGINT"),
+    ("sample_index", "BIGINT"),
+    ("channel_id", "VARCHAR"),
+    ("source_timestamp", "TIMESTAMPTZ"),
+    ("value", "DOUBLE"),
+    ("source_metadata_json", "VARCHAR"),
+)
+_MEASUREMENT_COLUMNS = (
+    ("raw_evidence_id", "VARCHAR"),
+    ("batch_id", "VARCHAR"),
+    ("source_id", "VARCHAR"),
+    ("source_type", "VARCHAR"),
+    ("asset_id", "VARCHAR"),
+    ("measurement_point_id", "VARCHAR"),
+    ("channel_id", "VARCHAR"),
+    ("event_at", "TIMESTAMPTZ"),
+    ("event_time_basis", "VARCHAR"),
+    ("value", "DOUBLE"),
+    ("status_good", "BOOLEAN"),
+    ("ingestion_mode", "VARCHAR"),
+)
+
+
+def _insert_columns(
+    connection: Any,
+    table: str,
+    columns: tuple[tuple[str, str], ...],
+    rows: Sequence[Sequence[object]],
+) -> None:
+    """Bind one typed list per column instead of one parameter set per row.
+
+    Per-row executemany converted every value separately; column lists cut the
+    measured AI-Hub insert time about threefold. Rows keep the column order.
     """
-
-
-def _file_raw_insert_sql() -> str:
-    return f"""
-        INSERT INTO {_CATALOG_NAME}.raw.file_measurement (
-            raw_evidence_id,
-            batch_id,
-            ingestion_mode,
-            source_id,
-            asset_id,
-            measurement_point_id,
-            source_file,
-            source_sha256,
-            source_size_bytes,
-            sample_index,
-            channel_id,
-            source_timestamp,
-            value,
-            source_metadata_json
-        ) VALUES ({", ".join("?" for _ in range(14))})
-    """
-
-
-def _file_measurement_insert_sql() -> str:
-    return _measurement_insert_sql()
-
-
-def _measurement_insert_sql() -> str:
-    return f"""
-        INSERT INTO {_CATALOG_NAME}.history.measurement (
-            raw_evidence_id,
-            batch_id,
-            source_id,
-            source_type,
-            asset_id,
-            measurement_point_id,
-            channel_id,
-            event_at,
-            event_time_basis,
-            value,
-            status_good,
-            ingestion_mode
-        ) VALUES ({", ".join("?" for _ in range(12))})
-    """
+    if not rows:
+        return
+    if any(len(row) != len(columns) for row in rows):
+        raise AssertionError(f"{table} row width does not match its column specification")
+    names = ", ".join(name for name, _ in columns)
+    values = ", ".join(f"unnest(?::{sql_type}[])" for _, sql_type in columns)
+    with _cache_absent_pandas_import():
+        connection.execute(
+            f"INSERT INTO {_CATALOG_NAME}.{table} ({names}) SELECT {values}",
+            [list(column) for column in zip(*rows, strict=True)],
+        )
 
 
 def _quote_sql_literal(value: str) -> str:

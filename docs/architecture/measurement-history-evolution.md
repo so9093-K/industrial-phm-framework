@@ -73,9 +73,37 @@ Same member and range, measured again with flush during import:
 
 SQLite reuses the freed pages (99.9% of the 50-batch catalog was free pages) and does not shrink the
 file. The catalog is therefore bounded by roughly one flush interval of inlined rows instead of
-growing with the archive. Flush did not change import throughput, which remains about 630
-observations/s (about 14 hours for 31 million records); the next scale step is profiling projection
-and append cost, not storage format.
+growing with the archive. Flush did not change import throughput (about 630 observations/s).
+
+## Import and query throughput
+
+Profiling the same import showed 60% of wall time in failed `import pandas` attempts: DuckDB probes
+pandas for every bound Python value, and without pandas each probe rescans `sys.path`. The adapter
+now binds one typed list per column (`INSERT ... SELECT unnest(?::T[])`) and, only while pandas is not
+importable, caches the absent module for the duration of that bind. Stored rows are identical to the
+previous per-row `executemany` (`EXCEPT ALL` difference 0 in both directions for raw, history and
+batch tables; identical batch fingerprints). Column inserts write Parquet directly, so imports no
+longer depend on flush; flush remains for small live batches.
+
+The page, aggregate and latest queries outer-joined the whole raw FILE table to attach provenance,
+which built a hash table over every raw row and its JSON. They now filter raw rows by the same
+asset, channel and time range first (FILE raw and history rows come from one event and share them).
+Results are unchanged; aggregate means can differ in the last binary digit between any two runs,
+including before this change, because parallel summation order varies.
+
+| Extruder member `SourceData_127.json` | Before | After |
+| --- | --- | --- |
+| 48 h import (100,800 observations) | 161 s | 36 s |
+| Whole member (1,209,600 observations, 605 batches) | not run | 350 s, about 3,460/s |
+| Append per 2,000-row batch, first → last 10% | — | 0.458 → 0.483 s |
+| 2,000 raw points / 200-bucket aggregate, 48 h, 1.2 M rows stored | 1.31 / 1.28 s | 0.10 / 0.09 s |
+| Aggregate over the whole member | 14.9 s | 0.59 s |
+
+Whole member storage: 259 MB Parquet (about 214 B per observation, raw JSON included), 1,271 files,
+3 MB catalog. Merging adjacent files did not change query time. Append time grows slowly because
+each batch's duplicate check scans existing raw evidence IDs; linear extrapolation to about 31
+million records is roughly 1.1 s per batch at the end and 3.5–4.5 hours in total on this machine.
+That estimate is not a measured full-archive run.
 
 Not implemented: automatic periodic flush inside the live collection service (operators run
 `flush-history`; it waits for the same catalog lease), small-file compaction for long live runs, and
