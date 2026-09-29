@@ -205,7 +205,6 @@ def test_runner_analyzes_each_window_once_and_remembers_unanalyzable_windows(tmp
     assert len(results.list_results()) == 1
 
 
-
 def test_phase_unbalance_policy_digest_tracks_requested_analysis_policy():
     baseline = phase_unbalance_policy_digest()
     assert baseline == phase_unbalance_policy_digest(PhaseUnbalanceConfig())
@@ -244,7 +243,6 @@ def test_runner_skip_is_scoped_to_analysis_policy(tmp_path):
     assert retried[0].state == WindowAnalysisState.ANALYZED
     assert blocked[0].analysis_policy_digest != retried[0].analysis_policy_digest
     assert len(results.list_results()) == 1
-
 
 
 def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
