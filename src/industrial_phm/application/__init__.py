@@ -112,6 +112,7 @@ from industrial_phm.application.maintenance_review import (
 )
 from industrial_phm.application.measurement_semantics import (
     ChannelSemanticBinding,
+    ChannelSemanticCandidate,
     MeasurementDefinition,
 )
 from industrial_phm.application.observation import (
@@ -290,6 +291,7 @@ __all__ = [
     "AttentionKind",
     "ChannelIdentity",
     "ChannelSemanticBinding",
+    "ChannelSemanticCandidate",
     "CollectionControlRecord",
     "CollectionControlRepository",
     "CollectionDesiredState",

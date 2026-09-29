@@ -46,6 +46,8 @@ def phase_unbalance_summary_rows(result: PhaseUnbalanceAnalysis) -> list[dict[st
             "p95_percent": _round(r.p95_percent),
             "max_percent": _round(r.max_percent),
             "max_at_utc": _utc(r.max_at),
+            "channels": ", ".join(r.channels) or "none",
+            "channel_selection": r.channel_selection.value,
         }
         for r in result.evidence.results
     ]

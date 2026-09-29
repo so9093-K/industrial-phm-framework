@@ -49,6 +49,30 @@ class ChannelSemanticBinding:
             raise ValueError("definition must be MeasurementDefinition")
 
 
+@dataclass(frozen=True, slots=True)
+class ChannelSemanticCandidate:
+    """One interpretation actually bound to a channel's observations in an input scope.
+
+    Capabilities select input channels by meaning from these candidates instead
+    of by source-specific channel names.
+    """
+
+    measurement_point_id: str | None
+    channel_id: str
+    observed_property: str
+    scope: str | None
+    unit: str | None
+    semantic_version: str
+    observation_count: int
+
+    def __post_init__(self) -> None:
+        for value in (self.channel_id, self.observed_property, self.semantic_version):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("candidate channel, property and version must not be empty")
+        if isinstance(self.observation_count, bool) or self.observation_count < 1:
+            raise ValueError("observation_count must be positive")
+
+
 _SEMANTIC_DEFINITION_KEYS = frozenset(
     {"observed_property", "scope", "statistic", "unit", "unit_evidence"}
 )

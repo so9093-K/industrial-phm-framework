@@ -38,6 +38,7 @@ from industrial_phm.application.measurement_history import (
 )
 from industrial_phm.application.measurement_semantics import (
     ChannelSemanticBinding,
+    ChannelSemanticCandidate,
     parse_channel_semantic_binding,
     serialize_channel_semantic_binding,
 )
@@ -910,6 +911,64 @@ class DuckLakeAssetHistory:
             ),
         )
 
+    def list_channel_semantics(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        start_at: datetime,
+        end_at: datetime,
+        snapshot_id: int,
+    ) -> tuple[ChannelSemanticCandidate, ...]:
+        """Interpretations bound to a source's channels in one range at one snapshot.
+
+        Only identity-verified bindings with an observed property are returned; the
+        same rules as query_channel_observations decide what counts as bound.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        _validate_identifier(source_id, "source_id")
+        snapshot = _require_int(snapshot_id, "snapshot_id")
+        at = f"AT (VERSION => {snapshot})"
+        filters = [asset_id, source_id, start_at, end_at]
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            semantic = _snapshot_semantic_column(connection, at)
+            rows = connection.execute(
+                f"""
+                WITH m AS (
+                    SELECT raw_evidence_id, source_type, measurement_point_id, channel_id
+                    FROM {_CATALOG_NAME}.history.measurement {at}
+                    WHERE asset_id = ? AND source_id = ? AND event_at >= ? AND event_at < ?
+                ), {_semantic_ctes(at, semantic, channel_filter=False)}
+                SELECT m.measurement_point_id, m.channel_id, f.prop, f.scope, f.unit, f.ver,
+                    count(*)
+                FROM m JOIN f
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
+                WHERE f.prop IS NOT NULL AND f.ver IS NOT NULL
+                GROUP BY ALL
+                ORDER BY m.measurement_point_id, m.channel_id, f.ver, f.prop
+                LIMIT 10001
+                """,
+                [*filters, *filters, *filters],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > 10000:
+            raise ValueError("channel semantic discovery exceeds 10000 interpretations")
+        return tuple(
+            ChannelSemanticCandidate(
+                measurement_point_id=_optional_str(point, "measurement_point_id"),
+                channel_id=_require_str(channel, "channel_id"),
+                observed_property=_require_str(prop, "observed_property"),
+                scope=_optional_str(scope, "scope"),
+                unit=_optional_str(unit, "unit"),
+                semantic_version=_require_str(ver, "semantic_version"),
+                observation_count=_require_int(count, "observation_count"),
+            )
+            for point, channel, prop, scope, unit, ver, count in rows
+        )
+
     def query_channel_observations(
         self,
         asset_id: str,
@@ -941,19 +1000,7 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            # A snapshot recorded before the semantic column existed has no OPC UA
-            # snapshots; read it as unresolved instead of failing time travel.
-            snapshot_columns = {
-                column[0]
-                for column in connection.execute(
-                    f"SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at} LIMIT 0"
-                ).description
-            }
-            semantic = (
-                "semantic_binding_json"
-                if "semantic_binding_json" in snapshot_columns
-                else "NULL::VARCHAR"
-            )
+            semantic = _snapshot_semantic_column(connection, at)
             with _cache_absent_pandas_import():
                 rows = connection.execute(
                     f"""
@@ -964,41 +1011,7 @@ class DuckLakeAssetHistory:
                         WHERE asset_id = ? AND source_id = ?
                             AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                             AND event_at >= ? AND event_at < ?
-                    ), bound AS (
-                        SELECT raw_evidence_id, 'file' AS source_type, source_id, channel_id,
-                            json_extract(source_metadata_json, '$.semantics') AS b
-                        FROM {_CATALOG_NAME}.raw.file_measurement {at}
-                        WHERE asset_id = ? AND source_id = ?
-                            AND channel_id IN (SELECT unnest(?::VARCHAR[]))
-                            AND source_timestamp >= ? AND source_timestamp < ?
-                        UNION ALL
-                        SELECT raw_evidence_id, 'opcua' AS source_type, source_id, channel_id,
-                            json({semantic}) AS b
-                        FROM {_CATALOG_NAME}.raw.opcua_data_change {at}
-                        WHERE asset_id = ? AND source_id = ?
-                            AND channel_id IN (SELECT unnest(?::VARCHAR[]))
-                            AND event_at >= ? AND event_at < ?
-                    ), f AS (
-                        -- A binding counts only for the raw row it names; a snapshot for
-                        -- another source or channel is treated as unresolved.
-                        SELECT raw_evidence_id, source_type,
-                            CASE WHEN identity THEN json_extract_string(b, '$.version') END AS ver,
-                            CASE WHEN identity THEN json_extract_string(
-                                b, '$.definition.observed_property'
-                            ) END AS prop,
-                            CASE WHEN identity
-                                THEN json_extract_string(b, '$.definition.scope') END AS scope,
-                            CASE WHEN identity
-                                THEN json_extract_string(b, '$.definition.unit') END AS unit
-                        FROM (
-                            SELECT *, coalesce(
-                                json_extract_string(b, '$.source_id') = source_id
-                                AND json_extract_string(b, '$.channel_id') = channel_id,
-                                false
-                            ) AS identity
-                            FROM bound
-                        )
-                    ), joined AS (
+                    ), {_semantic_ctes(at, semantic, channel_filter=True)}, joined AS (
                         SELECT m.*, f.ver, f.prop, f.scope, f.unit,
                             concat_ws('|', f.ver, f.prop, f.scope, f.unit) AS interpretation
                         FROM m LEFT JOIN f
@@ -1915,6 +1928,62 @@ def _insert_columns(
             f"INSERT INTO {_CATALOG_NAME}.{table} ({names}) SELECT {values}",
             [list(column) for column in zip(*rows, strict=True)],
         )
+
+
+def _snapshot_semantic_column(connection: Any, at: str) -> str:
+    """OPC UA semantic column expression valid at a (possibly old) snapshot.
+
+    A snapshot recorded before the column existed has no OPC UA snapshots; read it
+    as unresolved instead of failing time travel.
+    """
+    columns = {
+        column[0]
+        for column in connection.execute(
+            f"SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at} LIMIT 0"
+        ).description
+    }
+    return "semantic_binding_json" if "semantic_binding_json" in columns else "NULL::VARCHAR"
+
+
+def _semantic_ctes(at: str, semantic: str, *, channel_filter: bool) -> str:
+    """`bound` and `f` CTEs: FILE and OPC UA bindings in one identity-verified shape.
+
+    Parameters per branch: asset_id, source_id, [channel list,] start_at, end_at.
+    """
+    channels = "AND channel_id IN (SELECT unnest(?::VARCHAR[]))" if channel_filter else ""
+    return f"""bound AS (
+                        SELECT raw_evidence_id, 'file' AS source_type, source_id, channel_id,
+                            json_extract(source_metadata_json, '$.semantics') AS b
+                        FROM {_CATALOG_NAME}.raw.file_measurement {at}
+                        WHERE asset_id = ? AND source_id = ? {channels}
+                            AND source_timestamp >= ? AND source_timestamp < ?
+                        UNION ALL
+                        SELECT raw_evidence_id, 'opcua' AS source_type, source_id, channel_id,
+                            json({semantic}) AS b
+                        FROM {_CATALOG_NAME}.raw.opcua_data_change {at}
+                        WHERE asset_id = ? AND source_id = ? {channels}
+                            AND event_at >= ? AND event_at < ?
+                    ), f AS (
+                        -- A binding counts only for the raw row it names; a snapshot for
+                        -- another source or channel is treated as unresolved.
+                        SELECT raw_evidence_id, source_type,
+                            CASE WHEN identity THEN json_extract_string(b, '$.version') END AS ver,
+                            CASE WHEN identity THEN json_extract_string(
+                                b, '$.definition.observed_property'
+                            ) END AS prop,
+                            CASE WHEN identity
+                                THEN json_extract_string(b, '$.definition.scope') END AS scope,
+                            CASE WHEN identity
+                                THEN json_extract_string(b, '$.definition.unit') END AS unit
+                        FROM (
+                            SELECT *, coalesce(
+                                json_extract_string(b, '$.source_id') = source_id
+                                AND json_extract_string(b, '$.channel_id') = channel_id,
+                                false
+                            ) AS identity
+                            FROM bound
+                        )
+                    )"""
 
 
 def _quote_sql_literal(value: str) -> str:

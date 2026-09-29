@@ -76,6 +76,18 @@ def test_recorded_snapshot_recomputes_identical_evidence_after_more_history(tmp_
     repository = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
     repository.record(first)
     assert repository.list_results() == (first,)
+    assert first.evidence.results[0].channel_selection == "semantic-role"
+    assert first.evidence.results[0].channels == ("R상전압", "S상전압", "T상전압")
+
+    # Records written before role resolution have no per-series channel fields.
+    legacy_path = tmp_path / "legacy-unbalance.json"
+    stored = json.loads(repository.path.read_text())
+    for series in stored["results"][0]["evidence"]["results"]:
+        del series["channels"], series["channel_selection"]
+    legacy_path.write_text(json.dumps(stored, ensure_ascii=False))
+    (legacy,) = JsonPhaseUnbalanceRepository(legacy_path).list_results()
+    assert legacy.evidence.results[0].channels == first.evidence.results[0].channels
+    assert legacy.evidence.results[0].channel_selection == "explicit"
 
     # A person can request review of this evidence like any other capability's.
     finding = create_human_review_finding(repository.list_results()[0])

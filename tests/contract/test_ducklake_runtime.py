@@ -571,6 +571,20 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     assert current.evaluated_samples == 0
     assert current.excluded_samples == {"unconfirmed-semantics": 1}
 
+    # Without explicit names the channels are found by their bound roles.
+    by_role = run_phase_unbalance_analysis(
+        history,
+        asset_id="pump-01",
+        source_id="source-a",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+    )
+    role_voltage, role_current = by_role.evidence.results
+    assert role_voltage.channels == ("va", "vb", "vc")
+    assert role_voltage.channel_selection == "semantic-role"
+    assert role_voltage.median_percent == voltage.median_percent
+    assert role_current.channel_selection == "unresolved"
+
     # A stored snapshot naming another channel must not lend its meaning to this row.
     connection = history._connect()
     try:
