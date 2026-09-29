@@ -160,6 +160,14 @@ from industrial_phm.application.operations_overview import (
     OperationsReviewSummary,
     build_operations_overview,
 )
+from industrial_phm.application.phase_unbalance import (
+    PHASE_UNBALANCE_CAPABILITY_ID,
+    PhaseUnbalanceAnalysis,
+    PhaseUnbalanceConfig,
+    PhaseUnbalanceEvidence,
+    run_phase_unbalance_analysis,
+)
+from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
 from industrial_phm.application.source_cycle import (
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleResult,
@@ -242,6 +250,7 @@ __all__ = [
     "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
+    "PHASE_UNBALANCE_CAPABILITY_ID",
     "AcquisitionFailureComponent",
     "AcquisitionFailureTelemetry",
     "AcquisitionFlowTelemetry",
@@ -307,6 +316,7 @@ __all__ = [
     "JsonFindingReviewRepository",
     "JsonObservationWindowRepository",
     "JsonOperationalFindingRepository",
+    "JsonPhaseUnbalanceRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
     "MeasurementPointIdentity",
@@ -337,6 +347,9 @@ __all__ = [
     "OperationsAttentionQueue",
     "OperationsOverview",
     "OperationsReviewSummary",
+    "PhaseUnbalanceAnalysis",
+    "PhaseUnbalanceConfig",
+    "PhaseUnbalanceEvidence",
     "ReceivedRegisteredFileObservation",
     "ReceivedRegisteredOpcUaObservation",
     "RegisteredFieldFeatureAnalysis",
@@ -402,6 +415,7 @@ __all__ = [
     "receive_registered_opcua_source_observation",
     "register_file_source",
     "request_collection_state",
+    "run_phase_unbalance_analysis",
     "run_registered_file_feature_analysis",
     "run_registered_file_source_cycle",
     "run_registered_opcua_source_cycle",

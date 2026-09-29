@@ -11,6 +11,12 @@
 
 ### Changed
 
+- 첫 label-free 전력 분석 capability `three-phase-unbalance-v1`을 추가했습니다. 확정된 상전압(V)·상전류(A)만
+  고정된 history snapshot에서 읽어 timestamp별 불평형률 분포와 제외 사유, 입력·버전·설정을 evidence로
+  남기며 같은 snapshot으로 동일하게 재현됩니다. 고장·건강·alarm 판정이 아닙니다.
+- History 조회의 raw FILE join을 equality key만 쓰도록 바꿔 결과는 같고 전체 기간 집계가 0.59초 → 0.17초가
+  됐습니다.
+
 - AI-Hub 239 측정 의미 근거를 전체 archive relation profile(`tools/aihub/relation_profile.py`, 29 member)로
   재현 가능하게 만들었습니다. 5개 member로 만든 `semantics-v1`이 몰랐던 4개 member 예외(전압 관계, 선간전압
   평균, 전류 스케일)를 반영해 `semantics-v2`(metadata v4, 기본값)를 추가하고 v1은 수정하지 않았습니다.

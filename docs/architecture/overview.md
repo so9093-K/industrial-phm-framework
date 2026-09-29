@@ -68,6 +68,8 @@ AI-Hub의 기동패턴·SOH label 같은 provider annotation은 research 평가 
 승격하지 않습니다. 비교 대상의 종류는 [terminology](../terminology.md#7-observation-and-reference-vocabulary)의
 vocabulary로 구분합니다.
 
+첫 label-free 분석 capability는 [3상 불평형](phase-unbalance-capability.md)입니다.
+
 ### 상세 runtime
 
 ```mermaid
