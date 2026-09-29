@@ -256,7 +256,6 @@ def test_in_memory_source_repository_accepts_file_and_opcua_sources() -> None:
     assert repository.list_sources() == (file_source, opcua_source)
 
 
-
 def test_opcua_source_config_validates_and_resolves_explicit_semantic_bindings() -> None:
     binding = ChannelSemanticBinding(
         source_id="opcua:pump-01",
