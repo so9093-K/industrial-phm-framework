@@ -7,6 +7,10 @@ from zipfile import ZipFile
 import pytest
 
 from industrial_phm.adapters.aihub_power_history import PowerHistoryBinding
+from industrial_phm.application.finding_review import (
+    JsonOperationalFindingRepository,
+    create_human_review_finding,
+)
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_analysis
 from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
@@ -72,6 +76,14 @@ def test_recorded_snapshot_recomputes_identical_evidence_after_more_history(tmp_
     repository = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
     repository.record(first)
     assert repository.list_results() == (first,)
+
+    # A person can request review of this evidence like any other capability's.
+    finding = create_human_review_finding(repository.list_results()[0])
+    assert finding.evidence_refs == (first.evidence.evidence_id,)
+    assert finding.capability_id == "three-phase-unbalance-v1"
+    findings = JsonOperationalFindingRepository(tmp_path / "findings.json")
+    findings.record(finding)
+    assert findings.list_findings() == (finding,)
 
     # More history inside the same range must not change a recorded result.
     import_history(

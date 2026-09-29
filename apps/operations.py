@@ -1556,16 +1556,16 @@ def _(
     JsonOperationalFindingRepository,
     create_human_review_finding,
     create_review_finding_button,
-    field_analysis_result,
     finding_state_path,
+    investigation_analysis_result,
     set_finding_action_error,
     set_operational_findings,
 ):
     if create_review_finding_button.value:
         try:
-            if field_analysis_result is None:
-                raise ValueError("run operational FILE analysis before creating a review finding")
-            _finding = create_human_review_finding(field_analysis_result)
+            if investigation_analysis_result is None:
+                raise ValueError("select an analysis result before creating a review finding")
+            _finding = create_human_review_finding(investigation_analysis_result)
             _repository = JsonOperationalFindingRepository(finding_state_path)
             _repository.record(_finding)
             _findings = _repository.list_findings()
@@ -3309,7 +3309,7 @@ def _(
 def _(
     build_operations_overview,
     datetime,
-    field_analysis_results,
+    operational_analysis_results,
     finding_review_events,
     operational_findings,
     registered_sources,
@@ -3324,7 +3324,7 @@ def _(
         receipts=source_runtime_receipts,
         freshness_policies=source_freshness_policies,
         connection_attempts=source_runtime_connection_attempts,
-        analysis_runs=tuple(result.run for result in field_analysis_results),
+        analysis_runs=tuple(result.run for result in operational_analysis_results),
         findings=operational_findings,
         review_events=finding_review_events,
         as_of=datetime.now().astimezone(),
@@ -3689,8 +3689,40 @@ def _(mo, timeline):
 
 
 @app.cell
-def _(field_analysis_result, mo, render_analysis_quality_markdown):
-    if field_analysis_result is None:
+def _(mo, operational_analysis_results):
+    investigation_analysis_selector = None
+    if operational_analysis_results:
+        _options = {
+            f"{result.run.completed_at.isoformat()} · {result.evidence.capability_id} · "
+            f"{result.run.asset_id} · {result.run.source_id}": result.run.analysis_run_id
+            for result in reversed(operational_analysis_results)
+        }
+        investigation_analysis_selector = mo.ui.dropdown(
+            options=_options,
+            value=next(iter(_options)),
+            label="검토할 분석 (최신순)",
+            full_width=True,
+        )
+    return (investigation_analysis_selector,)
+
+
+@app.cell
+def _(investigation_analysis_selector, operational_analysis_results):
+    investigation_analysis_result = (
+        None
+        if investigation_analysis_selector is None
+        else next(
+            result
+            for result in operational_analysis_results
+            if result.run.analysis_run_id == investigation_analysis_selector.value
+        )
+    )
+    return (investigation_analysis_result,)
+
+
+@app.cell
+def _(investigation_analysis_result, mo, render_analysis_quality_markdown):
+    if investigation_analysis_result is None:
         investigation_quality_context_view = mo.callout(
             "Run or load an operational AnalysisRun before analysis-input quality "
             "and source provenance can be inspected.",
@@ -3699,7 +3731,7 @@ def _(field_analysis_result, mo, render_analysis_quality_markdown):
         )
     else:
         investigation_quality_context_view = mo.md(
-            render_analysis_quality_markdown(field_analysis_result.run)
+            render_analysis_quality_markdown(investigation_analysis_result.run)
         )
     return (investigation_quality_context_view,)
 
@@ -3708,15 +3740,18 @@ def _(field_analysis_result, mo, render_analysis_quality_markdown):
 def _(
     create_review_finding_button,
     field_analysis_error,
-    field_analysis_result,
-    field_analysis_results,
-    field_analysis_state_path,
     finding_action_error,
     finding_state_path,
+    investigation_analysis_result,
+    investigation_analysis_selector,
     investigation_quality_context_view,
     mo,
     observation_timeline_view,
+    operational_analysis_results,
     operational_findings,
+    phase_unbalance_provenance_rows,
+    phase_unbalance_summary_rows,
+    render_phase_unbalance_svg,
 ):
     if field_analysis_error:
         _field_analysis_view = mo.callout(
@@ -3724,22 +3759,59 @@ def _(
             kind="danger",
             title="Operational AnalysisRun · Failed",
         )
-    elif field_analysis_result is None:
+    elif investigation_analysis_result is None:
         _field_analysis_view = mo.callout(
-            "No persisted operational field feature analysis is available. "
-            "Select a supported registered FILE snapshot in Sources and run Analyze FILE snapshot.",
+            "No persisted operational analysis is available. Run Analyze FILE snapshot in "
+            "Sources or a phase unbalance analysis in Asset Detail.",
             kind="neutral",
             title="Analysis Run · Not run",
         )
+    elif not hasattr(investigation_analysis_result.evidence, "feature_names"):
+        _run = investigation_analysis_result.run
+        _evidence = investigation_analysis_result.evidence
+        _field_analysis_view = mo.vstack(
+            [
+                investigation_analysis_selector,
+                mo.md(
+                    "### Operational AnalysisRun\n\n"
+                    "| Field | Value |\n"
+                    "| --- | --- |\n"
+                    f"| Run | `{_run.analysis_run_id}` |\n"
+                    f"| Capability | `{_evidence.capability_id}` |\n"
+                    f"| Asset / Source | `{_run.asset_id}` / `{_run.source_id}` |\n"
+                    f"| Evaluated | {_run.observed_start_at.isoformat()} → "
+                    f"{_run.observed_end_at.isoformat()} |\n"
+                    f"| Data quality | {_run.data_quality.state.value.upper()} |\n"
+                    f"| Evidence | `{_evidence.evidence_id}` |"
+                ),
+                mo.ui.table(
+                    phase_unbalance_summary_rows(investigation_analysis_result),
+                    selection=None,
+                ),
+                mo.Html(render_phase_unbalance_svg(investigation_analysis_result)),
+                mo.accordion(
+                    {
+                        "입력·버전·설정 근거": mo.ui.table(
+                            phase_unbalance_provenance_rows(investigation_analysis_result),
+                            selection=None,
+                            page_size=20,
+                        )
+                    }
+                ),
+                mo.callout(_evidence.interpretation, kind="info", title="Evidence semantics"),
+            ],
+            gap=0.8,
+        )
     else:
-        _run = field_analysis_result.run
-        _evidence = field_analysis_result.evidence
+        _run = investigation_analysis_result.run
+        _evidence = investigation_analysis_result.evidence
         _feature_rows = "\n".join(
             f"| `{name}` | {value:.6g} |"
             for name, value in zip(_evidence.feature_names, _evidence.values, strict=True)
         )
         _field_analysis_view = mo.vstack(
             [
+                investigation_analysis_selector,
                 mo.md(
                     "### Operational AnalysisRun\n\n"
                     "| Field | Value |\n"
@@ -3774,9 +3846,9 @@ def _(
             gap=0.8,
         )
 
-    if not field_analysis_results:
+    if not operational_analysis_results:
         _field_analysis_history_view = mo.callout(
-            f"No saved operational AnalysisRun exists at `{field_analysis_state_path}`.",
+            "No saved operational AnalysisRun exists.",
             kind="neutral",
             title="Operational analysis history · Empty",
         )
@@ -3786,21 +3858,20 @@ def _(
             f"`{result.run.analysis_run_id}` | `{result.run.source_id}` | "
             f"`{result.run.asset_id}` | "
             f"{result.run.data_quality.state.value.upper()} | "
-            f"`{result.evidence.feature_set_id}` |"
-            for result in reversed(field_analysis_results[-20:])
+            f"`{result.evidence.capability_id}` |"
+            for result in reversed(operational_analysis_results[-20:])
         )
         _field_analysis_history_view = mo.vstack(
             [
                 mo.md(
                     "### Operational analysis history\n\n"
-                    "| Completed | Run | Source | Asset | Quality | Feature set |\n"
+                    "| Completed | Run | Source | Asset | Quality | Capability |\n"
                     "| --- | --- | --- | --- | --- | --- |\n" + _history_rows
                 ),
                 mo.callout(
-                    f"Persisted history: `{field_analysis_state_path}`. "
-                    "Each row is an AnalysisRun plus feature evidence, not a finding.",
+                    "Each row is an AnalysisRun plus capability evidence, not a finding.",
                     kind="info",
-                    title=f"Saved AnalysisRun · {len(field_analysis_results)} total",
+                    title=f"Saved AnalysisRun · {len(operational_analysis_results)} total",
                 ),
             ],
             gap=0.8,
@@ -3812,9 +3883,9 @@ def _(
             kind="danger",
             title="Review finding · Failed",
         )
-    elif field_analysis_result is None:
+    elif investigation_analysis_result is None:
         _finding_view = mo.callout(
-            "Run a supported operational FILE analysis before creating a review finding.",
+            "Run a supported operational analysis before creating a review finding.",
             kind="neutral",
             title="Finding · No AnalysisRun",
         )
@@ -3822,7 +3893,7 @@ def _(
         _current_findings = tuple(
             finding
             for finding in operational_findings
-            if finding.analysis_run_id == field_analysis_result.run.analysis_run_id
+            if finding.analysis_run_id == investigation_analysis_result.run.analysis_run_id
         )
         if _current_findings:
             _finding = _current_findings[-1]
@@ -3897,9 +3968,10 @@ def _(
             _finding_history_view,
             observation_timeline_view,
             mo.callout(
-                "The current FILE analysis produces vibration feature evidence and can create "
-                "an explicit human review request. It does not produce validated condition, "
-                "fault, alert or operational RUL semantics, and it does not execute maintenance.",
+                "Current capabilities produce FILE vibration feature evidence and "
+                "three-phase unbalance evidence; a person can create an explicit review "
+                "request for any selected result. They do not produce validated condition, "
+                "fault, alert or operational RUL semantics, and do not execute maintenance.",
                 kind="info",
                 title="Current analysis boundary",
             ),
@@ -4067,6 +4139,9 @@ def _(
                     f"| Finding state | **{_finding.state}** |\n"
                     f"| Semantics | `{_finding.finding_semantics_id}` |\n"
                     f"| Asset | `{_finding.asset_id}` |\n"
+                    f"| Capability | `{_finding.capability_id}` |\n"
+                    f"| Analysis run | `{_finding.analysis_run_id}` |\n"
+                    f"| Evidence | {', '.join(f'`{ref}`' for ref in _finding.evidence_refs)} |\n"
                     f"| Observed at | {_finding.observed_at.isoformat()} |"
                 ),
                 *_controls,
@@ -4093,6 +4168,10 @@ def _(
     field_analysis_results,
     field_analysis_state_error,
     field_analysis_state_path,
+    operational_analysis_results,
+    phase_unbalance_state_path,
+    unbalance_results,
+    unbalance_state_error,
     finding_action_error,
     finding_review_error,
     finding_review_events,
@@ -4123,8 +4202,8 @@ def _(
     )
     _latest_analysis_at = (
         None
-        if not field_analysis_results
-        else max(result.run.completed_at for result in field_analysis_results)
+        if not operational_analysis_results
+        else max(result.run.completed_at for result in operational_analysis_results)
     )
 
     _review_statuses = []
@@ -4164,6 +4243,12 @@ def _(
             str(field_analysis_state_path),
             field_analysis_state_error,
             f"{len(field_analysis_results)} run(s)",
+        ),
+        (
+            "Phase unbalance analysis",
+            str(phase_unbalance_state_path),
+            unbalance_state_error,
+            f"{len(unbalance_results)} run(s)",
         ),
         (
             "Operational findings",
@@ -4227,7 +4312,7 @@ def _(
                         caption="Registered control-plane state",
                     ),
                     mo.stat(
-                        str(len(field_analysis_results)),
+                        str(len(operational_analysis_results)),
                         label="Analysis runs",
                         caption=(
                             "No saved run"
@@ -4329,7 +4414,7 @@ def _(Path, os, history_refresh_button):
 
 @app.cell
 def _(
-    field_analysis_results,
+    operational_analysis_results,
     list_operational_asset_identities,
     AssetIdentity,
     history_assets,
@@ -4342,7 +4427,7 @@ def _(
     asset_identities = list_operational_asset_identities(
         sources=registered_sources,
         latest_observations=_latest_observations,
-        analysis_runs=tuple(result.run for result in field_analysis_results),
+        analysis_runs=tuple(result.run for result in operational_analysis_results),
         findings=operational_findings,
     )
     _identities = {item.asset_id: item for item in asset_identities}
@@ -4365,7 +4450,7 @@ def _(
     asset_identities,
     asset_selector,
     build_asset_detail,
-    field_analysis_results,
+    operational_analysis_results,
     finding_review_events,
     observation,
     operational_findings,
@@ -4384,7 +4469,7 @@ def _(
             sources=registered_sources,
             overview=operations_overview,
             latest_observations=_latest_observations,
-            analysis_runs=tuple(result.run for result in field_analysis_results),
+            analysis_runs=tuple(result.run for result in operational_analysis_results),
             findings=operational_findings,
             review_events=finding_review_events,
         )
@@ -4670,6 +4755,7 @@ def _(Path, mo, os):
     get_unbalance_results, set_unbalance_results = mo.state(_initial_unbalance)
     get_unbalance_error, set_unbalance_error = mo.state(_initial_unbalance_error)
     get_unbalance_selected, set_unbalance_selected = mo.state(None)
+    unbalance_state_error = _initial_unbalance_error
     return (
         JsonPhaseUnbalanceRepository,
         get_unbalance_error,
@@ -4685,6 +4771,7 @@ def _(Path, mo, os):
         set_unbalance_error,
         set_unbalance_results,
         set_unbalance_selected,
+        unbalance_state_error,
     )
 
 
@@ -4760,14 +4847,32 @@ def _(
 
 
 @app.cell
+def _(get_unbalance_results):
+    unbalance_results = get_unbalance_results()
+    return (unbalance_results,)
+
+
+@app.cell
+def _(field_analysis_results, unbalance_results):
+    # Every capability's persisted AnalysisRun + evidence, oldest first. Asset,
+    # Overview and Investigation read this list instead of one capability's history.
+    operational_analysis_results = tuple(
+        sorted(
+            (*field_analysis_results, *unbalance_results),
+            key=lambda result: (result.run.completed_at, result.run.analysis_run_id),
+        )
+    )
+    return (operational_analysis_results,)
+
+
+@app.cell
 def _(
     asset_selector,
-    get_unbalance_results,
     get_unbalance_selected,
     mo,
     phase_unbalance_run_options,
+    unbalance_results,
 ):
-    unbalance_results = get_unbalance_results()
     unbalance_run_selector = None
     if asset_selector is not None:
         _options = phase_unbalance_run_options(unbalance_results, asset_selector.value)
@@ -4780,7 +4885,7 @@ def _(
             unbalance_run_selector = mo.ui.dropdown(
                 options=_options, value=_label, label="분석 기록", full_width=True
             )
-    return unbalance_results, unbalance_run_selector
+    return (unbalance_run_selector,)
 
 
 @app.cell

@@ -144,6 +144,7 @@ from industrial_phm.application.opcua_persistent import (
 )
 from industrial_phm.application.operational import (
     AnalysisRun,
+    OperationalAnalysisResult,
     OperationalFinding,
     validate_operational_finding_against_run,
 )
@@ -341,6 +342,7 @@ __all__ = [
     "OpcUaPersistentSessionPolicy",
     "OpcUaPersistentSessionState",
     "OpcUaSourceConfig",
+    "OperationalAnalysisResult",
     "OperationalFinding",
     "OperationalFindingHistoryFormatError",
     "OperationalVibrationFeatureEvidence",

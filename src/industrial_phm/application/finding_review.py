@@ -1,4 +1,4 @@
-"""Manual review findings backed by operational feature evidence."""
+"""Manual review findings backed by operational analysis evidence."""
 
 from __future__ import annotations
 
@@ -10,8 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from industrial_phm.application.field_analysis import RegisteredFieldFeatureAnalysis
 from industrial_phm.application.operational import (
+    AnalysisRun,
+    OperationalAnalysisResult,
     OperationalFinding,
     validate_operational_finding_against_run,
 )
@@ -40,15 +41,16 @@ class OperationalFindingHistoryFormatError(ValueError):
 
 
 def create_human_review_finding(
-    result: RegisteredFieldFeatureAnalysis,
+    result: OperationalAnalysisResult,
 ) -> OperationalFinding:
-    """Create an explicit human-review request linked to one feature-analysis result.
+    """Create an explicit human-review request linked to one analysis result.
 
-    The finding is created only because a user requests review. It does not claim that
-    the feature values indicate a fault, abnormal condition, health state, or alarm.
+    Any capability's result can be reviewed. The finding is created only because a
+    user requests review; it does not claim that the evidence indicates a fault,
+    abnormal condition, health state, or alarm.
     """
-    if not isinstance(result, RegisteredFieldFeatureAnalysis):
-        raise ValueError("result must be RegisteredFieldFeatureAnalysis")
+    if not isinstance(result, OperationalAnalysisResult) or not isinstance(result.run, AnalysisRun):
+        raise ValueError("result must be an analysis result with an AnalysisRun")
 
     finding = OperationalFinding(
         finding_id=f"finding-review-{result.run.analysis_run_id}",
