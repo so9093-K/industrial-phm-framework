@@ -6,6 +6,8 @@ import pytest
 from industrial_phm.application import (
     AcquisitionSpoolFullError,
     AcquisitionSpoolStateError,
+    ChannelSemanticBinding,
+    MeasurementDefinition,
     OpcUaEventTimePolicy,
     RegisteredOpcUaDataChangeEvent,
 )
@@ -48,6 +50,17 @@ def _registered_event(
             observation=observation,
             replayed=False,
         ),
+        semantic_binding=ChannelSemanticBinding(
+            source_id="source-a",
+            channel_id=channel_id,
+            version="site-a-semantics-v1",
+            definition=MeasurementDefinition(
+                observed_property="test measurement",
+                unit="unit",
+                unit_evidence="synthetic test mapping",
+            ),
+            interpretation_evidence="synthetic test mapping",
+        ),
     )
 
 
@@ -86,6 +99,9 @@ def test_spool_restores_pending_event_and_stable_active_batch_after_restart(tmp_
     restored = restored_spool.get_active_batch()
 
     assert restored == batch
+    restored_binding = restored.events[0].event.semantic_binding
+    assert restored_binding is not None
+    assert restored_binding.version == "site-a-semantics-v1"
 
     same_batch = restored_spool.assign_next_batch(
         batch_id="new-id-must-not-replace-active",
