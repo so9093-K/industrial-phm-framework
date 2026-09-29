@@ -170,9 +170,7 @@ def test_window_events_without_snapshot_are_not_reinterpreted():
 def test_phase_unbalance_policy_digest_tracks_requested_analysis_policy():
     baseline = phase_unbalance_policy_digest()
     assert baseline == phase_unbalance_policy_digest(PhaseUnbalanceConfig())
-    assert baseline != phase_unbalance_policy_digest(
-        PhaseUnbalanceConfig(min_mean_current_a=2.0)
-    )
+    assert baseline != phase_unbalance_policy_digest(PhaseUnbalanceConfig(min_mean_current_a=2.0))
     assert baseline != phase_unbalance_policy_digest(
         PhaseUnbalanceConfig(voltage_channels=("va", "vb", "vc"))
     )
