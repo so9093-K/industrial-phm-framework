@@ -4282,11 +4282,11 @@ def _(Path, os, history_refresh_button):
     _refresh = history_refresh_button.value
     from industrial_phm.application.asset_identity import AssetIdentity
     from industrial_phm.application.measurement_history import (
-        assess_latest_measurement,
         resolve_measurement_range,
     )
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.presentation.measurement_history import (
+        latest_measurement_rows,
         measurement_history_rows,
         render_measurement_history_svg,
     )
@@ -4309,7 +4309,7 @@ def _(Path, os, history_refresh_button):
             history_reader = None
     return (
         AssetIdentity,
-        assess_latest_measurement,
+        latest_measurement_rows,
         resolve_measurement_range,
         history_reader,
         history_assets,
@@ -4445,7 +4445,7 @@ def _(
     history_query_form,
     history_reader,
     measurement_history_rows,
-    assess_latest_measurement,
+    latest_measurement_rows,
     resolve_measurement_range,
     mo,
     render_measurement_history_svg,
@@ -4471,26 +4471,11 @@ def _(
                     asset_selector.value,
                     channel_id=_query["channel"],
                 )
-                _latest_rows = []
-                for _point in _latest_points:
-                    _status = assess_latest_measurement(
-                        _point,
-                        as_of=_now,
-                        stale_after_seconds=_query["stale_after"],
-                    )
-                    _m = _point.measurement
-                    _latest_rows.append(
-                        {
-                            "source": _m.source_id,
-                            "measurement_point": _m.measurement_point_id,
-                            "latest_stored_event": _m.event_at.isoformat(),
-                            "value": None if _point.conflicting_duplicate else _m.value,
-                            "conflicting_values": _point.conflicting_duplicate,
-                            "status_good": _m.status_good,
-                            "currency": _status.currency.value,
-                            "age_seconds": _status.age_seconds,
-                        }
-                    )
+                _latest_rows = latest_measurement_rows(
+                    _latest_points,
+                    as_of=_now,
+                    stale_after_seconds=_query["stale_after"],
+                )
                 if _latest_rows:
                     _blocks.extend(
                         [
@@ -4498,9 +4483,36 @@ def _(
                                 "#### 최신 저장 관측\n\n"
                                 "선택한 그래프 구간과 별도로 source별 최신값을 조회합니다. "
                                 "Freshness는 저장된 event time 기준이며 "
-                                "수집 연결 상태나 설비 건강 판정이 아닙니다."
+                                "수집 연결 상태나 설비 건강 판정이 아닙니다. "
+                                "단위 unknown은 미확정이며 시간대 가정은 매핑 근거에서 확인합니다."
                             ),
-                            mo.ui.table(_latest_rows, selection=None),
+                            mo.ui.table(
+                                [
+                                    {
+                                        key: row[key]
+                                        for key in (
+                                            "source",
+                                            "measurement_point",
+                                            "time",
+                                            "value",
+                                            "unit",
+                                            "quality",
+                                            "currency",
+                                            "age_seconds",
+                                            "event_time_basis",
+                                        )
+                                    }
+                                    for row in _latest_rows
+                                ],
+                                selection=None,
+                            ),
+                            mo.accordion(
+                                {
+                                    "최신 관측 출처·매핑 근거": mo.ui.table(
+                                        _latest_rows, selection=None
+                                    )
+                                }
+                            ),
                         ]
                     )
                 _page = history_reader.query_measurement_page(

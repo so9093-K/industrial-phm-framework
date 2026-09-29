@@ -11,7 +11,7 @@ Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측
 Live collector도 동일한 catalog/data 경로로 실행해야 같은 화면에서 조회할 수 있습니다.
 
 **Assets → Asset 선택 → Measurement History → 시간·측정 항목 선택 → 이력 조회 / 새로고침** 순서로
-사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 첫 2,000개 관측만 표시하며 한도를
+사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 최대 2,000개 관측을 표시하며 한도를
 넘으면 범위를 줄이라는 안내를 보여줍니다. Source별 관측점, null의 시각 표시, 품질 문제·값 충돌과 provenance를
 확인할 수 있습니다. 보간·집계·자동 건강 판정은 하지 않습니다. 예상 수집 주기가 없는 상태에서 공백을
 자동으로 missing sample이라 부르지 않습니다.
@@ -24,6 +24,10 @@ Catalog에만 있는 설비도 목록에 표시합니다. 설비·채널 목록�
 Source별 최신 저장값은 그래프 범위/한도와 별개로 조회합니다. Freshness 기준은 화면에서 초 단위로 지정하고
 최근/recent, 오래됨/stale, 미래 시각/future-timestamp를 구분합니다. 이 값은 저장된 event time의 나이이며
 실시간 연결 상태나 설비 건강 판정이 아닙니다. 동일 최신 시각의 값이 충돌하면 대표값을 정상값처럼 표시하지 않습니다.
+
+최신 저장 관측의 **최신 관측 출처·매핑 근거**에서 원본 파일·checksum, 시간대 가정,
+설비 grouping 근거, 의미 해석 version과 단위 근거를 확인할 수 있습니다. 그래프 구간에
+관측이 없어도 이 근거는 조회됩니다. 단위 정보가 없는 FILE/OPC UA 값은 `unknown`을 유지합니다.
 
 독립 collector와 UI를 함께 실행하는 방법은 [로컬 OPC UA 스택](../tools/opcua/README.md)에 있습니다.
 Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 조율하며 대기 한도 초과는 오류로
