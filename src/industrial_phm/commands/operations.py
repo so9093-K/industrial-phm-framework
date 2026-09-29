@@ -5,15 +5,20 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import time
 from datetime import UTC, datetime
 
 from industrial_phm.application import (
     CollectionDesiredState,
     JsonObservationWindowRepository,
+    JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
+    JsonWindowAnalysisLedger,
+    ObservationWindowCoordinatorPolicy,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
+    analyze_finalized_windows,
     backfill_registered_file_source,
     poll_registered_source,
     request_collection_state,
@@ -148,6 +153,33 @@ def _run_operations_flush_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_operations_window_analysis(args: argparse.Namespace) -> int:
+    """Analyze finalized live windows once each; repeat until interrupted unless --once."""
+    try:
+        if args.interval_seconds <= 0:
+            raise ValueError("interval_seconds must be positive")
+        windows = JsonObservationWindowRepository(args.window_state)
+        results = JsonPhaseUnbalanceRepository(args.analysis_state)
+        ledger = JsonWindowAnalysisLedger(args.ledger_state)
+        while True:
+            for outcome in analyze_finalized_windows(windows, results, ledger):
+                detail = outcome.analysis_run_id or outcome.reason
+                print(
+                    f"window={outcome.window_id} capability={outcome.capability_id} "
+                    f"state={outcome.state.value} detail={detail}",
+                    flush=True,
+                )
+            if args.once:
+                return 0
+            time.sleep(args.interval_seconds)
+    except KeyboardInterrupt:
+        print("window analysis interrupted by user", file=sys.stderr)
+        return 130
+    except (OSError, ValueError) as error:
+        print(f"window analysis failed: {error}", file=sys.stderr)
+        return 1
+
+
 def _run_operations_request_collection(args: argparse.Namespace) -> int:
     try:
         source_repository = JsonSourceRepository(args.registry)
@@ -188,6 +220,10 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
         window_repository = JsonObservationWindowRepository(args.window_state)
         policy = CollectionServicePolicy(
             reconcile_interval_seconds=args.reconcile_interval_seconds,
+            window_policy=ObservationWindowCoordinatorPolicy(
+                window_duration_seconds=args.window_duration_seconds,
+                allowed_lateness_seconds=args.allowed_lateness_seconds,
+            ),
         )
 
         async def _run() -> None:

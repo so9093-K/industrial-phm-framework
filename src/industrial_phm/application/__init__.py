@@ -108,6 +108,12 @@ from industrial_phm.application.history_writer import (
     SpoolHistoryWriterResult,
     SpoolToHistoryWriterPolicy,
 )
+from industrial_phm.application.live_window_analysis import (
+    JsonWindowAnalysisLedger,
+    WindowAnalysisOutcome,
+    WindowAnalysisState,
+    analyze_finalized_windows,
+)
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewEvent,
@@ -337,6 +343,7 @@ __all__ = [
     "JsonPhaseUnbalanceRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
+    "JsonWindowAnalysisLedger",
     "MeasurementDefinition",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
@@ -410,7 +417,10 @@ __all__ = [
     "SpoolToHistoryWriterPolicy",
     "SystemStateErrorEvidence",
     "UnknownRegisteredSourceError",
+    "WindowAnalysisOutcome",
+    "WindowAnalysisState",
     "WindowInputReference",
+    "analyze_finalized_windows",
     "assess_source_freshness",
     "assess_source_health",
     "backfill_registered_file_source",

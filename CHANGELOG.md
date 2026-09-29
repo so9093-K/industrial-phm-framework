@@ -11,9 +11,16 @@
 
 ### Changed
 
+- `industrial-phm operations run-window-analysis`: finalized live window를 collection service와 별도 process로
+  한 번씩 3상 불평형 분석합니다. 결과 저장소 기준 idempotency(window·capability·algorithm당 1회, 파일 lock),
+  분석 불가 window의 skip ledger로 재시작에도 중복이 없습니다. Collection service에 window 길이·lateness
+  옵션, OPC UA demo에 semantic binding이 있는 three-phase profile을 추가하고 loopback E2E로 검증했습니다.
+
 - ADR-0008: live 분석의 입력은 finalized window가 accept한 event 집합이며 history 재조회를 하지 않습니다.
   `run_phase_unbalance_on_window`가 window event를 history와 같은 입력 형태로 투영해 같은 capability core로
-  분석하고, window ID·accept/reject 수·accept event digest를 입력 근거로 기록합니다.
+  분석하고, window ID·accept/reject 수·accept event digest를 입력 근거로 기록합니다. Live runner의
+  중복 방지용 analysis policy digest는 role 선택 전 요청 설정(channel override·저신호 기준·bucket 수)을
+  canonical하게 고정해 설정 변경 재분석이 이전 결과에 막히지 않게 합니다.
 
 - 3상 불평형 입력 channel을 AI-Hub 이름 대신 bound meaning(phase voltage/current, scope phase R/S/T,
   V/A)으로 고릅니다. 모호한 역할은 명시적 설정을 요구하고, evidence에 quantity별 사용 channel과 선택 방식을

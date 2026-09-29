@@ -104,6 +104,13 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 - OPC UA source: 등록 시 channel별 semantic binding을 두면 DataChange의 semantic snapshot이 spool, DuckLake
   raw evidence(`raw.opcua_data_change.semantic_binding_json`)까지 보존되고 FILE과 같은 eligibility로 분석
   입력이 됩니다. Binding이 없는 channel과 semantic column 도입 이전에 적재된 행은 `unconfirmed-semantics`입니다.
-- 남은 연결: finalized window가 생길 때마다 한 번씩 분석하고 재시작 뒤에도 중복 기록하지 않는 runner와
-  loopback OPC UA end-to-end 검증은 다음 단계입니다.
+- Live runner: `industrial-phm operations run-window-analysis`가 collection service와 별도 process로 finalized
+  window를 한 번씩 분석합니다. 분석 여부의 기준은 결과 저장소이고(같은 window·capability·algorithm version·analysis policy digest 결과는
+  한 번만 기록, 동시 writer의 결과 저장은 파일 lock으로 직렬화), 분석할 수 없는 window(의미가 묶인 3상 channel 없음 등)는
+  policy-scoped ledger에 사유와 함께 남겨 같은 policy로 매 주기 다시 계산하지 않습니다. 재시작해도 같은 identity 결과를 중복 기록하지 않습니다(loopback OPC UA
+  E2E: `tests/contract/test_live_window_analysis_stack.py`).
+- 알려진 제한: 3상 sample은 세 상이 **같은 source timestamp**에 보고될 때만 만들어집니다. OPC UA DataChange는
+  값이 바뀐 node만 알리므로, 한 상이 안정적이면 그 window에 해당 상 event가 없어 `incomplete-phases`이거나
+  quantity가 `unresolved`가 됩니다. 마지막 값을 유지(sample-and-hold)하는 정렬은 입력 원칙(ADR-0008)을 바꾸는
+  결정이라 별도 ADR로 다룹니다.
 - AI-Hub label과의 비교는 research path에서만 합니다.

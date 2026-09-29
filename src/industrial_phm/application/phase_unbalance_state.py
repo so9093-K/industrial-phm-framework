@@ -5,10 +5,16 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX platforms run without the lock
+    fcntl = None  # type: ignore[assignment]
 
 from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
@@ -21,6 +27,7 @@ from industrial_phm.application.phase_unbalance import (
     UnbalanceBucket,
     UnbalanceQuantity,
     UnbalanceSeriesResult,
+    phase_unbalance_policy_digest,
 )
 from industrial_phm.contracts import (
     DataQualityAssessment,
@@ -69,20 +76,51 @@ class JsonPhaseUnbalanceRepository:
         return results
 
     def record(self, result: PhaseUnbalanceAnalysis) -> None:
+        """Append one result; an identical replay is accepted."""
+        self._record(result, once_per_window=False)
+
+    def record_window_result(self, result: PhaseUnbalanceAnalysis) -> PhaseUnbalanceAnalysis:
+        """Record one result per window, capability, algorithm and requested policy.
+
+        Returns the result already stored for the same identity when another writer
+        recorded it first. Concurrent writers may compute concurrently; persistence
+        is deduplicated under the repository lock.
+        """
+        if not isinstance(result.evidence.input_reference, WindowInputReference):
+            raise ValueError("record_window_result requires a finalized-window input reference")
+        return self._record(result, once_per_window=True)
+
+    def _record(
+        self, result: PhaseUnbalanceAnalysis, *, once_per_window: bool
+    ) -> PhaseUnbalanceAnalysis:
         if not isinstance(result, PhaseUnbalanceAnalysis):
             raise ValueError("result must be PhaseUnbalanceAnalysis")
-        results = {r.run.analysis_run_id: r for r in self.list_results()}
-        existing = results.get(result.run.analysis_run_id)
-        if existing is not None:
-            if existing != result:
-                raise ValueError("analysis_run_id already exists with different evidence")
-            return
-        if any(r.evidence.evidence_id == result.evidence.evidence_id for r in results.values()):
-            raise ValueError("evidence_id already exists for a different analysis run")
-        results[result.run.analysis_run_id] = result
-        ordered = sorted(
-            results.values(), key=lambda r: (r.run.completed_at, r.run.analysis_run_id)
-        )
+        with _exclusive(self._path):
+            results = {r.run.analysis_run_id: r for r in self.list_results()}
+            existing = results.get(result.run.analysis_run_id)
+            if existing is not None:
+                if existing != result:
+                    raise ValueError("analysis_run_id already exists with different evidence")
+                return existing
+            if once_per_window:
+                earlier = next(
+                    (
+                        r
+                        for r in results.values()
+                        if window_result_key(r) == window_result_key(result)
+                    ),
+                    None,
+                )
+                if earlier is not None:
+                    return earlier
+            if any(r.evidence.evidence_id == result.evidence.evidence_id for r in results.values()):
+                raise ValueError("evidence_id already exists for a different analysis run")
+            results[result.run.analysis_run_id] = result
+            self._write(results.values())
+        return result
+
+    def _write(self, results: Iterable[PhaseUnbalanceAnalysis]) -> None:
+        ordered = sorted(results, key=lambda r: (r.run.completed_at, r.run.analysis_run_id))
         payload = {"schema": _SCHEMA, "results": [_serialize(r) for r in ordered]}
         rendered = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -101,6 +139,50 @@ class JsonPhaseUnbalanceRepository:
             os.replace(handle.name, self._path)
         finally:
             Path(handle.name).unlink(missing_ok=True)
+
+
+def window_result_key(result: PhaseUnbalanceAnalysis) -> tuple[str, str, str, str] | None:
+    """Identity of a persisted live result, including the requested analysis policy."""
+    reference = result.evidence.input_reference
+    if not isinstance(reference, WindowInputReference):
+        return None
+    config = result.evidence.config
+    selections = {series.quantity: series.channel_selection for series in result.evidence.results}
+    requested = PhaseUnbalanceConfig(
+        voltage_channels=(
+            config.voltage_channels
+            if selections.get(UnbalanceQuantity.VOLTAGE) == ChannelSelection.EXPLICIT
+            else None
+        ),
+        current_channels=(
+            config.current_channels
+            if selections.get(UnbalanceQuantity.CURRENT) == ChannelSelection.EXPLICIT
+            else None
+        ),
+        min_mean_voltage_v=config.min_mean_voltage_v,
+        min_mean_current_a=config.min_mean_current_a,
+        bucket_count=config.bucket_count,
+    )
+    return (
+        reference.window_id,
+        result.evidence.capability_id,
+        result.evidence.algorithm_version,
+        phase_unbalance_policy_digest(requested),
+    )
+
+
+@contextmanager
+def _exclusive(path: Path) -> Iterator[None]:
+    """Serialize read-modify-write between cooperating local processes (POSIX)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(path) + ".lock", "a+") as handle:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _time(value: datetime | None) -> str | None:

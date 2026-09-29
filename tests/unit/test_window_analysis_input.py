@@ -167,10 +167,117 @@ def test_window_events_without_snapshot_are_not_reinterpreted():
         run_phase_unbalance_on_window(buffer.finalize(finalized_at=END))
 
 
+def test_runner_analyzes_each_window_once_and_remembers_unanalyzable_windows(tmp_path):
+    from industrial_phm.application import (
+        JsonWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows,
+    )
+
+    windows = JsonObservationWindowRepository(tmp_path / "windows.json")
+    windows.record_window(_window())
+    unbound = ObservationWindowBuffer(
+        window_id="unbound",
+        source_id="site-opcua",
+        asset_id="motor-7",
+        measurement_point_id="mcc-3",
+        expected_channel_ids=("va",),
+        window_start=END,
+        window_end=END + timedelta(minutes=1),
+        max_buffered_events=4,
+        max_future_skew_seconds=5.0,
+    )
+    unbound.ingest(_event("va", 70, 220.0, 50, bound=False))
+    unbound.advance_watermark(END + timedelta(minutes=1))
+    windows.record_window(unbound.finalize(finalized_at=END + timedelta(minutes=1)))
+    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
+    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger.json")
+
+    first = analyze_finalized_windows(windows, results, ledger)
+    assert [(o.window_id, o.state) for o in first] == [
+        (_window().window_id, WindowAnalysisState.ANALYZED),
+        ("unbound", WindowAnalysisState.SKIPPED),
+    ]
+    assert "no three-phase" in first[1].reason
+    # A restart finds both windows handled: nothing is analyzed or recorded again.
+    restarted = JsonWindowAnalysisLedger(tmp_path / "ledger.json")
+    assert analyze_finalized_windows(windows, results, restarted) == ()
+    assert len(results.list_results()) == 1
+
+
 def test_phase_unbalance_policy_digest_tracks_requested_analysis_policy():
     baseline = phase_unbalance_policy_digest()
     assert baseline == phase_unbalance_policy_digest(PhaseUnbalanceConfig())
     assert baseline != phase_unbalance_policy_digest(PhaseUnbalanceConfig(min_mean_current_a=2.0))
     assert baseline != phase_unbalance_policy_digest(
         PhaseUnbalanceConfig(voltage_channels=("va", "vb", "vc"))
+    )
+
+
+def test_runner_skip_is_scoped_to_analysis_policy(tmp_path):
+    from industrial_phm.application import (
+        JsonWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows,
+    )
+
+    windows = JsonObservationWindowRepository(tmp_path / "windows-policy.json")
+    windows.record_window(_window())
+    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance-policy.json")
+    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger-policy.json")
+
+    blocked = analyze_finalized_windows(
+        windows,
+        results,
+        ledger,
+        config=PhaseUnbalanceConfig(
+            min_mean_voltage_v=1_000.0,
+            min_mean_current_a=1_000.0,
+        ),
+    )
+    assert len(blocked) == 1
+    assert blocked[0].state == WindowAnalysisState.SKIPPED
+
+    retried = analyze_finalized_windows(windows, results, ledger)
+    assert len(retried) == 1
+    assert retried[0].state == WindowAnalysisState.ANALYZED
+    assert blocked[0].analysis_policy_digest != retried[0].analysis_policy_digest
+    assert len(results.list_results()) == 1
+
+
+def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
+    from industrial_phm.application import (
+        JsonWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows,
+    )
+
+    windows = JsonObservationWindowRepository(tmp_path / "windows-result-policy.json")
+    windows.record_window(_window())
+    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance-result-policy.json")
+    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger-result-policy.json")
+
+    first = analyze_finalized_windows(windows, results, ledger)
+    assert len(first) == 1
+    assert first[0].state == WindowAnalysisState.ANALYZED
+
+    changed = analyze_finalized_windows(
+        windows,
+        results,
+        ledger,
+        config=PhaseUnbalanceConfig(bucket_count=50),
+    )
+    assert len(changed) == 1
+    assert changed[0].state == WindowAnalysisState.ANALYZED
+    assert changed[0].analysis_policy_digest != first[0].analysis_policy_digest
+    assert len(results.list_results()) == 2
+
+    assert (
+        analyze_finalized_windows(
+            windows,
+            results,
+            ledger,
+            config=PhaseUnbalanceConfig(bucket_count=50),
+        )
+        == ()
     )
