@@ -6,8 +6,10 @@ import pytest
 
 import industrial_phm.application.source_subscription as source_subscription_module
 from industrial_phm.application import (
+    ChannelSemanticBinding,
     FileSourceConfig,
     JsonSourceRepository,
+    MeasurementDefinition,
     OpcUaSourceConfig,
     RegisteredOpcUaDataChangeEvent,
     RegisteredOpcUaSubscription,
@@ -43,6 +45,19 @@ def _opcua_source() -> RegisteredSource:
                 OpcUaNodeMapping(
                     channel_id="temperature",
                     node_id="ns=2;s=Machine/Temperature",
+                ),
+            ),
+            semantic_bindings=(
+                ChannelSemanticBinding(
+                    source_id="opcua-source",
+                    channel_id="vibration_x",
+                    version="site-a-semantics-v1",
+                    definition=MeasurementDefinition(
+                        observed_property="vibration velocity",
+                        unit="mm/s",
+                        unit_evidence="site engineering channel map",
+                    ),
+                    interpretation_evidence="site engineering channel map revision 1",
                 ),
             ),
             timeout_seconds=2.5,
@@ -156,6 +171,7 @@ def test_registered_opcua_subscription_reuses_registered_mapping_and_runtime_bou
     assert event.channel_id == "vibration_x"
     assert event.node_id == "ns=2;s=Machine/VibrationX"
     assert event.notification == connector_result.notifications[0]
+    assert event.semantic_binding == source.config.semantic_binding_for("vibration_x")
 
     coverage = result.coverage
     assert coverage.configured_channel_ids == ("vibration_x", "temperature")
