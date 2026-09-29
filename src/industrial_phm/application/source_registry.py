@@ -10,6 +10,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
+from industrial_phm.application.measurement_semantics import (
+    parse_channel_semantic_binding,
+    serialize_channel_semantic_binding,
+)
 from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
@@ -26,7 +30,7 @@ from industrial_phm.application.source_registration import (
 )
 from industrial_phm.connectors import OpcUaNodeMapping
 
-_REGISTRY_SCHEMA = "industrial-phm-source-registry-v4"
+_REGISTRY_SCHEMA = "industrial-phm-source-registry-v5"
 _ROOT_KEYS = frozenset({"schema", "sources", "lifecycle", "freshness_policies"})
 _SOURCE_KEYS = frozenset({"source_id", "name", "source_type", "registered_at", "config"})
 _LIFECYCLE_KEYS = frozenset({"source_id", "state", "changed_at", "detail"})
@@ -52,6 +56,7 @@ _OPCUA_CONFIG_KEYS = frozenset(
         "measurement_point_id",
         "node_mappings",
         "timeout_seconds",
+        "semantic_bindings",
     }
 )
 _OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
@@ -64,7 +69,7 @@ class SourceRegistryFormatError(ValueError):
 class JsonSourceRepository:
     """Single-writer local JSON registration/lifecycle/freshness repository.
 
-    The repository accepts only the current v4 schema. Older pre-alpha local registry
+    The repository accepts only the current v5 schema. Older pre-alpha local registry
     formats are intentionally unsupported; sources must be registered again rather than
     carrying migration branches indefinitely.
 
@@ -342,6 +347,9 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
                 for mapping in config.node_mappings
             ],
             "timeout_seconds": config.timeout_seconds,
+            "semantic_bindings": [
+                serialize_channel_semantic_binding(binding) for binding in config.semantic_bindings
+            ],
         }
     else:
         raise ValueError("unsupported registered source config")
@@ -460,6 +468,10 @@ def _parse_opcua_source_config(
     if not isinstance(mappings_raw, list):
         raise SourceRegistryFormatError(f"{label}.node_mappings must be a JSON array")
 
+    bindings_raw = config["semantic_bindings"]
+    if not isinstance(bindings_raw, list):
+        raise SourceRegistryFormatError(f"{label}.semantic_bindings must be a JSON array")
+
     node_mappings: list[OpcUaNodeMapping] = []
     for index, value in enumerate(mappings_raw):
         mapping_label = f"{label}.node_mappings[{index}]"
@@ -481,6 +493,7 @@ def _parse_opcua_source_config(
         ),
         node_mappings=tuple(node_mappings),
         timeout_seconds=_require_number(config["timeout_seconds"], f"{label}.timeout_seconds"),
+        semantic_bindings=tuple(parse_channel_semantic_binding(value) for value in bindings_raw),
     )
 
 

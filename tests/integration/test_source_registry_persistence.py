@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
+    ChannelSemanticBinding,
     FileSourceConfig,
     FileSourceMode,
     JsonSourceRepository,
+    MeasurementDefinition,
     OpcUaSourceConfig,
     RegisteredSource,
     SourceAlreadyRegisteredError,
@@ -67,6 +69,20 @@ def _opcua_source(*, source_id: str = "opcua-source") -> RegisteredSource:
                 ),
             ),
             timeout_seconds=2.5,
+            semantic_bindings=(
+                ChannelSemanticBinding(
+                    source_id=source_id,
+                    channel_id="vibration_x",
+                    version="site-a-semantics-v1",
+                    definition=MeasurementDefinition(
+                        observed_property="vibration velocity",
+                        scope="x-axis",
+                        unit="mm/s",
+                        unit_evidence="site engineering channel map",
+                    ),
+                    interpretation_evidence="site engineering channel map revision 1",
+                ),
+            ),
         ),
         registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
     )
@@ -132,7 +148,7 @@ def test_json_source_repository_writes_sources_and_lifecycle_in_deterministic_id
     source_ids = [item["source_id"] for item in payload["sources"]]
     lifecycle_ids = [item["source_id"] for item in payload["lifecycle"]]
 
-    assert payload["schema"] == "industrial-phm-source-registry-v4"
+    assert payload["schema"] == "industrial-phm-source-registry-v5"
     assert source_ids == ["source-a", "source-b"]
     assert lifecycle_ids == ["source-a", "source-b"]
 
@@ -337,6 +353,7 @@ def test_json_source_repository_rejects_unsupported_schema(tmp_path: Path) -> No
         "industrial-phm-source-registry-v1",
         "industrial-phm-source-registry-v2",
         "industrial-phm-source-registry-v3",
+        "industrial-phm-source-registry-v4",
     ),
 )
 def test_json_source_repository_rejects_pre_alpha_legacy_schemas(
@@ -489,7 +506,7 @@ def test_json_source_repository_round_trips_opcua_source_config(tmp_path: Path) 
     assert loaded == source
     assert loaded.source_type.value == "opcua"
     payload = json.loads(registry.read_text(encoding="utf-8"))
-    assert payload["schema"] == "industrial-phm-source-registry-v4"
+    assert payload["schema"] == "industrial-phm-source-registry-v5"
     assert payload["sources"][0]["config"] == {
         "asset_id": "pump-01",
         "endpoint_url": "opc.tcp://plc.example.test:4840",
@@ -505,6 +522,21 @@ def test_json_source_repository_round_trips_opcua_source_config(tmp_path: Path) 
             },
         ],
         "timeout_seconds": 2.5,
+        "semantic_bindings": [
+            {
+                "channel_id": "vibration_x",
+                "definition": {
+                    "observed_property": "vibration velocity",
+                    "scope": "x-axis",
+                    "statistic": None,
+                    "unit": "mm/s",
+                    "unit_evidence": "site engineering channel map",
+                },
+                "interpretation_evidence": "site engineering channel map revision 1",
+                "source_id": "opcua-source",
+                "version": "site-a-semantics-v1",
+            }
+        ],
     }
 
 

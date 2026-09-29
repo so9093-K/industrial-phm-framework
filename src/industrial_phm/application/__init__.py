@@ -110,6 +110,10 @@ from industrial_phm.application.maintenance_review import (
     create_finding_review_event,
     finding_review_status,
 )
+from industrial_phm.application.measurement_semantics import (
+    ChannelSemanticBinding,
+    MeasurementDefinition,
+)
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     AssetObservationTimeline,
@@ -285,6 +289,7 @@ __all__ = [
     "AttentionItem",
     "AttentionKind",
     "ChannelIdentity",
+    "ChannelSemanticBinding",
     "CollectionControlRecord",
     "CollectionControlRepository",
     "CollectionDesiredState",
@@ -320,6 +325,7 @@ __all__ = [
     "JsonPhaseUnbalanceRepository",
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
+    "MeasurementDefinition",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",

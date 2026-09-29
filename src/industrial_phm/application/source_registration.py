@@ -14,6 +14,7 @@ from industrial_phm.application.asset_identity import (
     ChannelIdentity,
     MeasurementPointIdentity,
 )
+from industrial_phm.application.measurement_semantics import ChannelSemanticBinding
 from industrial_phm.connectors import OpcUaNodeMapping, OpcUaReadConfig
 
 
@@ -92,6 +93,7 @@ class OpcUaSourceConfig:
     node_mappings: Sequence[OpcUaNodeMapping]
     measurement_point_id: str | None = None
     timeout_seconds: float = 4.0
+    semantic_bindings: Sequence[ChannelSemanticBinding] = ()
 
     def __post_init__(self) -> None:
         _validate_identifier(self.asset_id, "asset_id")
@@ -99,7 +101,30 @@ class OpcUaSourceConfig:
             _validate_identifier(self.measurement_point_id, "measurement_point_id")
 
         read_config = self.to_opcua_read_config()
-        object.__setattr__(self, "node_mappings", tuple(read_config.node_mappings))
+        mappings = tuple(read_config.node_mappings)
+        bindings = tuple(self.semantic_bindings)
+        if any(not isinstance(binding, ChannelSemanticBinding) for binding in bindings):
+            raise ValueError("semantic_bindings must contain ChannelSemanticBinding values")
+        binding_channels = tuple(binding.channel_id for binding in bindings)
+        if len(set(binding_channels)) != len(binding_channels):
+            raise ValueError("semantic_bindings must contain at most one binding per channel")
+        mapped_channels = {mapping.channel_id for mapping in mappings}
+        unexpected = sorted(set(binding_channels) - mapped_channels)
+        if unexpected:
+            raise ValueError(
+                "semantic binding channels must be present in node_mappings; "
+                f"unexpected={unexpected}"
+            )
+        object.__setattr__(self, "node_mappings", mappings)
+        object.__setattr__(self, "semantic_bindings", bindings)
+
+    def semantic_binding_for(self, channel_id: str) -> ChannelSemanticBinding | None:
+        """Return the explicitly registered meaning for a mapped channel, if any."""
+        _validate_identifier(channel_id, "channel_id")
+        return next(
+            (binding for binding in self.semantic_bindings if binding.channel_id == channel_id),
+            None,
+        )
 
     def to_opcua_read_config(self) -> OpcUaReadConfig:
         """Build the existing one-shot connector config without changing semantics."""
@@ -129,6 +154,17 @@ class RegisteredSource:
         _validate_identifier(self.name, "name")
         if not isinstance(self.config, (FileSourceConfig, OpcUaSourceConfig)):
             raise ValueError("config must be FileSourceConfig or OpcUaSourceConfig")
+        if isinstance(self.config, OpcUaSourceConfig):
+            mismatched = sorted(
+                binding.channel_id
+                for binding in self.config.semantic_bindings
+                if binding.source_id != self.source_id
+            )
+            if mismatched:
+                raise ValueError(
+                    "OPC UA semantic bindings must match the registered source_id; "
+                    f"channels={mismatched}"
+                )
         if not isinstance(self.registered_at, datetime):
             raise ValueError("registered_at must be a datetime")
         if self.registered_at.utcoffset() is None:

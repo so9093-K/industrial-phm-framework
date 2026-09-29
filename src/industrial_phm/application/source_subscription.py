@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from industrial_phm.application.measurement_semantics import ChannelSemanticBinding
 from industrial_phm.application.source_cycle import (
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleState,
@@ -50,6 +51,7 @@ class RegisteredOpcUaDataChangeEvent:
     collection_index: int
     notification: OpcUaSubscriptionNotification
     measurement_point_id: str | None = None
+    semantic_binding: ChannelSemanticBinding | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
@@ -63,6 +65,13 @@ class RegisteredOpcUaDataChangeEvent:
             raise ValueError("collection_index must not be negative")
         if not isinstance(self.notification, OpcUaSubscriptionNotification):
             raise ValueError("notification must be an OpcUaSubscriptionNotification")
+        if self.semantic_binding is not None:
+            if not isinstance(self.semantic_binding, ChannelSemanticBinding):
+                raise ValueError("semantic_binding must be a ChannelSemanticBinding")
+            if self.semantic_binding.source_id != self.source_id:
+                raise ValueError("semantic_binding source_id must match event source_id")
+            if self.semantic_binding.channel_id != self.channel_id:
+                raise ValueError("semantic_binding channel_id must match event channel_id")
 
     @property
     def channel_id(self) -> str:
@@ -145,6 +154,7 @@ class RegisteredOpcUaSubscription:
     node_mappings: tuple[OpcUaNodeMapping, ...]
     subscription: OpcUaSubscriptionResult
     measurement_point_id: str | None = None
+    semantic_bindings: tuple[ChannelSemanticBinding, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
@@ -161,6 +171,19 @@ class RegisteredOpcUaSubscription:
         if self.subscription.endpoint_url != self.endpoint_url:
             raise ValueError("subscription endpoint_url must match the registered OPC UA endpoint")
 
+        bindings = tuple(self.semantic_bindings)
+        if any(not isinstance(binding, ChannelSemanticBinding) for binding in bindings):
+            raise ValueError("semantic_bindings must contain ChannelSemanticBinding values")
+        if any(binding.source_id != self.source_id for binding in bindings):
+            raise ValueError("semantic_bindings must match subscription source_id")
+        binding_channels = tuple(binding.channel_id for binding in bindings)
+        if len(set(binding_channels)) != len(binding_channels):
+            raise ValueError("semantic_bindings must contain unique channel IDs")
+        mapped_channels = {mapping.channel_id for mapping in self.node_mappings}
+        if not set(binding_channels) <= mapped_channels:
+            raise ValueError("semantic_bindings must reference registered node mappings")
+        object.__setattr__(self, "semantic_bindings", bindings)
+
         mapping_pairs = {(mapping.channel_id, mapping.node_id) for mapping in self.node_mappings}
         for notification in self.subscription.notifications:
             observation = notification.observation
@@ -172,6 +195,7 @@ class RegisteredOpcUaSubscription:
     @property
     def events(self) -> tuple[RegisteredOpcUaDataChangeEvent, ...]:
         """Return event-level application identity without inventing stream completeness."""
+        bindings = {binding.channel_id: binding for binding in self.semantic_bindings}
         return tuple(
             RegisteredOpcUaDataChangeEvent(
                 source_id=self.source_id,
@@ -180,6 +204,7 @@ class RegisteredOpcUaSubscription:
                 measurement_point_id=self.measurement_point_id,
                 collection_index=index,
                 notification=notification,
+                semantic_binding=bindings.get(notification.observation.channel_id),
             )
             for index, notification in enumerate(self.subscription.notifications)
         )
@@ -310,6 +335,7 @@ async def collect_registered_opcua_source_subscription(
         measurement_point_id=config.measurement_point_id,
         node_mappings=tuple(config.node_mappings),
         subscription=result,
+        semantic_bindings=tuple(config.semantic_bindings),
     )
 
 
