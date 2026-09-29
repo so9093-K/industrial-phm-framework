@@ -358,6 +358,11 @@ condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmar
 
 등록된 **FILE snapshot** 중 explicit timezone-aware timestamp를 가진 source는 Sources의 **Analyze FILE snapshot**으로 on-demand operational analysis를 실행할 수 있습니다. 실행은 현재 source bytes를 다시 검증하고 기존 `CsvSensorAdapter → canonical series → vibration-statistical-v1` 경계를 사용합니다. 성공하면 실제 `AnalysisRun`과 `field-vibration-statistical-features-v1` capability evidence를 현재 Operations session에 생성하고 Investigation에서 feature values와 provenance를 확인할 수 있습니다.
 
+FILE snapshot 특징 분석은 관측 요약과 실제 특징 입력의 SHA-256 및 byte 크기가 같을 때만
+결과를 생성합니다. 분석 도중 파일이 변경되면 `source snapshot changed` 오류가 표시됩니다.
+파일 쓰기가 끝난 안정된 snapshot으로 다시 실행하세요. 이 검사는 입력 byte 일치성을 검증하며,
+물리 설비 매핑이나 측정 단위의 타당성을 확정하지 않습니다.
+
 이 첫 producer는 history-directory, OPC UA snapshot/subscription, naive timestamp source를 지원하지 않습니다. 또한 feature statistics를 anomaly/fault/health/finding으로 해석하지 않습니다.
 
 Investigation에서는 저장된 feature evidence를 사람이 확인한 뒤 **Create review finding**을 눌러 `human-review-request-v1 / REVIEW_REQUIRED` `OperationalFinding`을 만들 수 있습니다. 이 finding은 사람의 검토 요청을 기록하는 workflow fact이며 feature 값이 abnormal/fault라는 자동 판정이 아닙니다. 기본 저장 위치는 `artifacts/operations/findings.json`이고 `INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE`로 변경할 수 있습니다. 성공한 결과는 기본 `artifacts/operations/field-analysis.json`에 `industrial-phm-field-feature-analysis-v1`로 저장되며 `INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE`로 경로를 바꿀 수 있습니다. Operations 재시작 후에도 Investigation에서 최근 run과 최대 20개의 recent history를 확인할 수 있습니다.

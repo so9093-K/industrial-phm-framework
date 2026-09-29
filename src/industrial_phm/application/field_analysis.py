@@ -118,6 +118,9 @@ def run_registered_file_feature_analysis(
 
     loaded = load_registered_file_source_observation(source)
     observation = loaded.latest
+    snapshot = observation.source_snapshot
+    if snapshot is None:
+        raise ValueError("operational analysis requires source snapshot evidence")
     if observation.observed_start_at is None or observation.observed_end_at is None:
         raise ValueError("operational analysis requires explicit observed start/end timestamps")
     if observation.observed_start_at.utcoffset() is None:
@@ -130,7 +133,18 @@ def run_registered_file_feature_analysis(
     series_values = tuple(adapter.iter_series(Path(config.source_path)))
     if len(series_values) != 1:
         raise AssertionError("FILE snapshot adapter unexpectedly produced multiple series")
-    feature_vector = extract_vibration_features(series_values[0])
+    series = series_values[0]
+    if (
+        series.metadata.get("source_sha256") != snapshot.sha256
+        or series.metadata.get("source_size_bytes") != snapshot.size_bytes
+    ):
+        raise ValueError(
+            "source snapshot changed between observation and feature loading; "
+            "retry analysis with a stable FILE snapshot"
+        )
+    # The adapter hashes the same in-memory bytes it parses. Check those bytes,
+    # not a third filesystem read, before associating features with the observation.
+    feature_vector = extract_vibration_features(series)
 
     completed_at = _require_aware_time(now(), "analysis completed_at")
     if completed_at < started_at:
@@ -138,7 +152,6 @@ def run_registered_file_feature_analysis(
 
     analysis_run_id = f"analysis-run-{uuid4()}"
     evidence_id = f"evidence-{uuid4()}"
-    source_snapshots = () if observation.source_snapshot is None else (observation.source_snapshot,)
     run = AnalysisRun(
         analysis_run_id=analysis_run_id,
         asset_id=observation.asset_id,
@@ -149,7 +162,7 @@ def run_registered_file_feature_analysis(
         started_at=started_at,
         completed_at=completed_at,
         data_quality=observation.data_quality,
-        source_snapshots=source_snapshots,
+        source_snapshots=(snapshot,),
         capability_ids=(FIELD_VIBRATION_FEATURE_CAPABILITY_ID,),
     )
     evidence = OperationalVibrationFeatureEvidence(
@@ -159,11 +172,7 @@ def run_registered_file_feature_analysis(
         feature_set_id=VIBRATION_STATISTICAL_FEATURE_SET_ID,
         feature_names=feature_vector.feature_names,
         values=feature_vector.values,
-        source_snapshot_sha256=(
-            observation.source_snapshot.sha256
-            if observation.source_snapshot is not None
-            else str(feature_vector.metadata["source_sha256"])
-        ),
+        source_snapshot_sha256=snapshot.sha256,
     )
     return RegisteredFieldFeatureAnalysis(run=run, evidence=evidence)
 
