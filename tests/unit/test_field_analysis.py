@@ -85,3 +85,56 @@ def test_registered_file_feature_analysis_rejects_history_directory(tmp_path: Pa
         run_registered_file_feature_analysis(
             _source(tmp_path, mode=FileSourceMode.HISTORY_DIRECTORY)
         )
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [("2.0", "9.0"), ("2026-09-27", "2026-09-28")],
+)
+def test_analysis_rejects_snapshot_replaced_between_observation_and_features(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, old: str, new: str
+) -> None:
+    from industrial_phm.application import field_analysis
+
+    source_path = tmp_path / "bearing.csv"
+    _write_csv(source_path, aware=True)
+    load = field_analysis.load_registered_file_source_observation
+    original_size = source_path.stat().st_size
+
+    def load_then_replace(source):
+        loaded = load(source)
+        source_path.write_text(source_path.read_text().replace(old, new), encoding="utf-8")
+        assert source_path.stat().st_size == original_size
+        return loaded
+
+    def unexpected_extraction(series):
+        pytest.fail("changed snapshot must be rejected before feature extraction")
+
+    monkeypatch.setattr(
+        field_analysis, "load_registered_file_source_observation", load_then_replace
+    )
+    monkeypatch.setattr(field_analysis, "extract_vibration_features", unexpected_extraction)
+    with pytest.raises(ValueError, match="source snapshot changed"):
+        run_registered_file_feature_analysis(_source(source_path))
+
+
+def test_analysis_requires_snapshot_evidence_before_extracting_features(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from industrial_phm.application import field_analysis
+
+    source_path = tmp_path / "bearing.csv"
+    _write_csv(source_path, aware=True)
+    load = field_analysis.load_registered_file_source_observation
+
+    def load_without_evidence(source):
+        loaded = load(source)
+        return replace(loaded, latest=replace(loaded.latest, source_snapshot=None))
+
+    monkeypatch.setattr(
+        field_analysis, "load_registered_file_source_observation", load_without_evidence
+    )
+    with pytest.raises(ValueError, match="requires source snapshot evidence"):
+        run_registered_file_feature_analysis(_source(source_path))

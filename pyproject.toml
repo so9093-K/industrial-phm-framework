@@ -37,6 +37,7 @@ deep-learning = [
 ]
 history = [
   "duckdb>=1.5.5,<1.6",
+  "filelock>=3.20,<4",
   "pytz>=2025.2",
 ]
 opcua = [

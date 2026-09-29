@@ -11,6 +11,13 @@
 
 ### Changed
 
+- 최신 저장 관측에도 원본 파일·checksum, 설비/시간대 매핑 근거, 단위 및 해석 version을 연결해
+  차트 구간 밖의 최신값에서도 미확정 단위와 normalization 가정을 확인할 수 있습니다.
+
+- 로컬 DuckLake SQLite catalog의 connection/transaction 수명 동안 프로세스 간 파일 잠금을 유지해
+  독립 collector·window reader·Operations 조회의 metadata 잠금 충돌을 방지합니다. 기본 대기 한도는
+  10초이며 timeout은 명시적으로 실패합니다. 여러 collector의 leadership을 대신하지 않습니다.
+
 - FILE raw history는 null 값과 source-specific JSON provenance를 보존합니다. 기존 DuckLake 카탈로그의
   FILE 테이블을 확장하고 기존 batch fingerprint를 유지합니다. 새 연결에서 현재 history snapshot을
   조회할 때 connection-local last commit 대신 catalog의 최신 snapshot을 사용합니다.
@@ -29,6 +36,11 @@
 - Operational `AnalysisRun`의 observation/execution window와 `OperationalFinding.observed_at`을 timezone-aware absolute time으로 강제하고, finding/run validator가 `finding.capability_id`가 해당 run의 declared `capability_ids`에 포함되는지 확인하도록 강화했습니다. Ambiguous naive operational time과 run이 생산하지 않은 capability finding의 provenance 승격을 fail-fast로 차단합니다.
 
 ### Added
+
+- Operations 측정 이력에 최근 15분/24시간/7일 범위와 source별 최신 저장값·event-time freshness를
+  추가했습니다. 최신값은 그래프의 범위/점 개수 제한과 별도로 조회하고 값 충돌을 임의로 해결하지 않습니다.
+- 합성 FILE 이력과 loopback OPC UA simulator를 사용하는 로컬 스택 및 독립 collector process 회귀
+  검증을 추가했습니다. 서버 재연결, collector restart/epoch, 동시 history 조회와 Stop Collection을 확인합니다.
 
 - AI-Hub 239 ZIP의 streaming reader, 전체 archive profiler와 명시적인 설비·timezone binding을 사용하는
   소구간 history importer를 추가했습니다. 원본 null·중복을 보존하며 단위는 추정하지 않습니다.
@@ -408,6 +420,10 @@
 - architecture PNG는 reference diagram으로 유지하고 이미지 전용 binary/canvas 검증을 CI에서 제거.
 
 ### Fixed
+
+- FILE 특징 분석은 관측 요약과 특징 입력의 SHA-256/크기를 대조합니다. 두 번의 읽기 사이에
+  파일이 교체되거나 snapshot 근거가 없으면 결과를 생성하지 않아, 이전 파일의 시각·품질·출처에
+  새로운 값의 특징이 연결되는 문제를 방지합니다.
 
 - Isolation Forest integer `max_samples`가 model-fit observation 수를 초과할 때 estimator가 silently fallback하지 않도록 fail-fast.
 - `CanonicalTimeSeries`가 mutable input container를 그대로 보관해 생성 이후 invariant가 깨질 수 있던 문제.

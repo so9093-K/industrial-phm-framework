@@ -14,7 +14,10 @@ from industrial_phm.adapters.aihub_power_history import (
 )
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-from industrial_phm.presentation.measurement_history import measurement_history_rows
+from industrial_phm.presentation.measurement_history import (
+    latest_measurement_rows,
+    measurement_history_rows,
+)
 
 
 def _load_tool(name):
@@ -115,6 +118,23 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert rows[0]["identity_evidence"] == _binding().identity_evidence
     assert history.list_history_assets()[0].measurement_count == 3
     assert history.list_history_channels(_binding().asset_id) == ("R상전류",)
+    latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
+    assert len(latest) == 1
+    assert latest[0].conflicting_duplicate
+    assert json.loads(latest[0].source_metadata_json)["binding"] == metadata["binding"]
+    latest_row = latest_measurement_rows(
+        latest, as_of=UTC_START + timedelta(seconds=10), stale_after_seconds=20
+    )[0]
+    assert latest_row["value"] is None
+    assert latest_row["conflict"] is True
+    assert latest_row["currency"] == "recent"
+    assert latest_row["unit"] == "unknown"
+    assert latest_row["source_sha256"] == first["archive_sha256"]
+    assert latest_row["source_file"] == f"power.zip!/{MEMBER}"
+    assert latest_row["timezone_evidence"] == _binding().timezone_evidence
+    assert latest_row["identity_evidence"] == _binding().identity_evidence
+    assert latest_row["binding_version"] == _binding().version
+    assert latest_row["event_time_basis"] == "source-timestamp"
     with pytest.raises(ValueError, match="already exists"):
         import_history(archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=2), history)
 

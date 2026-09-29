@@ -13,6 +13,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -54,8 +55,16 @@ class DuckLakeAssetHistoryConfig:
 
     catalog_path: Path
     data_path: Path
+    catalog_lock_timeout_seconds: float = 10.0
 
     def __post_init__(self) -> None:
+        if (
+            isinstance(self.catalog_lock_timeout_seconds, bool)
+            or not isinstance(self.catalog_lock_timeout_seconds, (int, float))
+            or not isfinite(self.catalog_lock_timeout_seconds)
+            or self.catalog_lock_timeout_seconds <= 0
+        ):
+            raise ValueError("catalog_lock_timeout_seconds must be positive and finite")
         if not isinstance(self.catalog_path, Path):
             raise ValueError("catalog_path must be pathlib.Path")
         if not isinstance(self.data_path, Path):
@@ -64,6 +73,23 @@ class DuckLakeAssetHistoryConfig:
         data_path = self.data_path.expanduser().resolve(strict=False)
         if catalog_path == data_path:
             raise ValueError("DuckLake catalog_path and data_path must be distinct")
+
+
+class _LockedConnection:
+    """Keep the local catalog lease until all DuckLake handles are closed."""
+
+    def __init__(self, connection: Any, lock: Any) -> None:
+        self._connection = connection
+        self._lock = lock
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._connection, name)
+
+    def close(self) -> None:
+        try:
+            self._connection.close()
+        finally:
+            self._lock.release()
 
 
 class DuckLakeAssetHistory:
@@ -589,6 +615,7 @@ class DuckLakeAssetHistory:
         end_at: datetime,
         channel_id: str,
         point_budget: int = 2000,
+        latest: bool = False,
     ) -> MeasurementHistoryPage:
         """Bounded raw points, with conflicts assessed before the response is limited.
 
@@ -600,6 +627,9 @@ class DuckLakeAssetHistory:
         _validate_positive_int(point_budget, "point_budget")
         if point_budget > 10000:
             raise ValueError("point_budget must not exceed 10000")
+        if not isinstance(latest, bool):
+            raise ValueError("latest must be boolean")
+        direction = "DESC" if latest else "ASC"
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
@@ -616,7 +646,7 @@ class DuckLakeAssetHistory:
                         PARTITION BY source_id, measurement_point_id, channel_id, event_at
                     )
                 ), bounded AS (
-                    SELECT * FROM selected ORDER BY event_at, raw_evidence_id LIMIT ?
+                    SELECT * FROM selected ORDER BY event_at {direction}, raw_evidence_id LIMIT ?
                 )
                 SELECT m.raw_evidence_id, m.source_id, m.source_type, m.asset_id,
                     m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
@@ -624,7 +654,7 @@ class DuckLakeAssetHistory:
                     f.source_file, f.source_sha256
                 FROM bounded m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
                     ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
-                ORDER BY m.event_at, m.raw_evidence_id
+                ORDER BY m.event_at {direction}, m.raw_evidence_id
             """,
                 [asset_id, channel_id, start_at, end_at, point_budget + 1],
             ).fetchall()
@@ -639,10 +669,66 @@ class DuckLakeAssetHistory:
                     _optional_str(row[13], "source_file"),
                     _optional_str(row[14], "source_sha256"),
                 )
-                for row in rows[:point_budget]
+                for row in sorted(rows[:point_budget], key=lambda row: (row[7], row[0]))
             ),
             truncated=len(rows) > point_budget,
             point_budget=point_budget,
+        )
+
+    def query_latest_measurements(
+        self,
+        asset_id: str,
+        *,
+        channel_id: str,
+    ) -> tuple[MeasurementHistoryPoint, ...]:
+        """Latest stored event per source/measurement point, independent of chart limits.
+
+        Conflicting values at that time remain explicitly marked; the deterministic
+        representative row must not be presented as a resolved latest value.
+        """
+        _validate_identifier(asset_id, "asset_id")
+        _validate_identifier(channel_id, "channel_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH ranked AS (
+                    SELECT *, row_number() OVER (
+                        PARTITION BY source_id, measurement_point_id
+                        ORDER BY event_at DESC, raw_evidence_id
+                    ) observation_rank,
+                    count(DISTINCT value) OVER observation
+                    + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END)
+                        OVER observation > 1 AS has_conflict
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ? AND channel_id = ? AND event_at IS NOT NULL
+                    WINDOW observation AS (PARTITION BY source_id, measurement_point_id, event_at)
+                )
+                SELECT m.raw_evidence_id, m.source_id, m.source_type, m.asset_id,
+                    m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
+                    m.value, m.status_good, m.ingestion_mode, m.has_conflict,
+                    f.source_metadata_json, f.source_file, f.source_sha256
+                FROM ranked m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                WHERE m.observation_rank = 1
+                ORDER BY m.source_id, m.measurement_point_id LIMIT 1001
+            """,
+                [asset_id, channel_id],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > 1000:
+            raise ValueError("latest measurement population exceeds 1000 source/point groups")
+        return tuple(
+            MeasurementHistoryPoint(
+                _historical_measurement_from_row(row[:11]),
+                _require_bool(row[11], "conflict"),
+                _optional_str(row[12], "source_metadata_json"),
+                _optional_str(row[13], "source_file"),
+                _optional_str(row[14], "source_sha256"),
+            )
+            for row in rows
         )
 
     def _connect(self) -> Any:
@@ -652,7 +738,22 @@ class DuckLakeAssetHistory:
         catalog_path.parent.mkdir(parents=True, exist_ok=True)
         data_path.mkdir(parents=True, exist_ok=True)
 
-        connection = duckdb.connect()
+        try:
+            filelock = importlib.import_module("filelock")
+        except ModuleNotFoundError as error:
+            raise DuckLakeRuntimeUnavailableError("install the complete 'history' extra") from error
+        lock = filelock.FileLock(str(catalog_path) + ".phm.lock")
+        try:
+            lock.acquire(timeout=self._config.catalog_lock_timeout_seconds)
+        except filelock.Timeout as error:
+            raise TimeoutError(
+                f"timed out waiting for local history catalog: {catalog_path}"
+            ) from error
+        try:
+            connection = duckdb.connect()
+        except BaseException:
+            lock.release()
+            raise
         try:
             connection.execute("INSTALL ducklake")
             connection.execute("LOAD ducklake")
@@ -664,10 +765,13 @@ class DuckLakeAssetHistory:
                 + f" AS {_CATALOG_NAME} "
                 + f"(DATA_PATH {_quote_sql_literal(str(data_path))})"
             )
-        except Exception:
-            connection.close()
+        except BaseException:
+            try:
+                connection.close()
+            finally:
+                lock.release()
             raise
-        return connection
+        return _LockedConnection(connection, lock)
 
     def _ensure_initialized(self, connection: Any) -> None:
         connection.execute(f"CREATE SCHEMA IF NOT EXISTS {_CATALOG_NAME}.raw")

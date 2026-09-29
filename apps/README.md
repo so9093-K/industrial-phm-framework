@@ -11,14 +11,27 @@ Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측
 Live collector도 동일한 catalog/data 경로로 실행해야 같은 화면에서 조회할 수 있습니다.
 
 **Assets → Asset 선택 → Measurement History → 시간·측정 항목 선택 → 이력 조회 / 새로고침** 순서로
-사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 첫 2,000개 관측만 표시하며 한도를
+사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 최대 2,000개 관측을 표시하며 한도를
 넘으면 범위를 줄이라는 안내를 보여줍니다. Source별 관측점, null의 시각 표시, 품질 문제·값 충돌과 provenance를
 확인할 수 있습니다. 보간·집계·자동 건강 판정은 하지 않습니다. 예상 수집 주기가 없는 상태에서 공백을
 자동으로 missing sample이라 부르지 않습니다.
 
 Catalog에만 있는 설비도 목록에 표시합니다. 설비·채널 목록은 화면 초기화 시 읽고, 선택한 구간은 조회 버튼으로
-다시 읽습니다. 첫 신규 적재 후에는 앱을 새로 열어 목록을 갱신합니다. Importer는 single writer로 실행하고
-collector와 동시에 같은 catalog에 쓰지 않습니다.
+다시 읽습니다. 신규 적재 후 **설비 이력 목록 새로고침**으로 목록을 갱신할 수 있습니다.
+최근 15분/24시간/7일 범위는 조회할 때마다 현재 시각을 기준으로 이동하며, 한도를 넘으면 최근 2,000개를
+시간순으로 표시합니다. 직접 지정한 범위는 기존처럼 첫 2,000개를 표시합니다.
+
+Source별 최신 저장값은 그래프 범위/한도와 별개로 조회합니다. Freshness 기준은 화면에서 초 단위로 지정하고
+최근/recent, 오래됨/stale, 미래 시각/future-timestamp를 구분합니다. 이 값은 저장된 event time의 나이이며
+실시간 연결 상태나 설비 건강 판정이 아닙니다. 동일 최신 시각의 값이 충돌하면 대표값을 정상값처럼 표시하지 않습니다.
+
+최신 저장 관측의 **최신 관측 출처·매핑 근거**에서 원본 파일·checksum, 시간대 가정,
+설비 grouping 근거, 의미 해석 version과 단위 근거를 확인할 수 있습니다. 그래프 구간에
+관측이 없어도 이 근거는 조회됩니다. 단위 정보가 없는 FILE/OPC UA 값은 `unknown`을 유지합니다.
+
+독립 collector와 UI를 함께 실행하는 방법은 [로컬 OPC UA 스택](../tools/opcua/README.md)에 있습니다.
+Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 조율하며 대기 한도 초과는 오류로
+표시합니다. 하나의 control/spool 구성에는 하나의 collector를 사용합니다.
 
 현재 repository는 목적이 다른 두 interactive application을 분리합니다.
 
@@ -344,6 +357,11 @@ condition, health 또는 RUL 의미를 만들지 않습니다. Research benchmar
 ### Operational FILE snapshot analysis
 
 등록된 **FILE snapshot** 중 explicit timezone-aware timestamp를 가진 source는 Sources의 **Analyze FILE snapshot**으로 on-demand operational analysis를 실행할 수 있습니다. 실행은 현재 source bytes를 다시 검증하고 기존 `CsvSensorAdapter → canonical series → vibration-statistical-v1` 경계를 사용합니다. 성공하면 실제 `AnalysisRun`과 `field-vibration-statistical-features-v1` capability evidence를 현재 Operations session에 생성하고 Investigation에서 feature values와 provenance를 확인할 수 있습니다.
+
+FILE snapshot 특징 분석은 관측 요약과 실제 특징 입력의 SHA-256 및 byte 크기가 같을 때만
+결과를 생성합니다. 분석 도중 파일이 변경되면 `source snapshot changed` 오류가 표시됩니다.
+파일 쓰기가 끝난 안정된 snapshot으로 다시 실행하세요. 이 검사는 입력 byte 일치성을 검증하며,
+물리 설비 매핑이나 측정 단위의 타당성을 확정하지 않습니다.
 
 이 첫 producer는 history-directory, OPC UA snapshot/subscription, naive timestamp source를 지원하지 않습니다. 또한 feature statistics를 anomaly/fault/health/finding으로 해석하지 않습니다.
 
