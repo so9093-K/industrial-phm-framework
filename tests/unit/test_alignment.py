@@ -59,7 +59,6 @@ def test_bounded_previous_carries_only_recent_earlier_values_and_keeps_provenanc
     assert result.samples[2].values[0].origin == ValueOrigin.CARRIED
 
 
-
 def test_bounded_previous_uses_event_transition_clock_for_staggered_updates():
     observations = [
         _obs("a", 0, 1.0),
