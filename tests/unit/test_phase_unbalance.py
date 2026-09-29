@@ -11,12 +11,12 @@ from industrial_phm.application.phase_unbalance import (
 T0 = datetime(2021, 1, 1, tzinfo=UTC)
 
 
-def _obs(channel, minute, value, *, prop=None, unit=None, conflicting=False):
+def _obs(channel, minute, value, *, prop=None, unit=None, conflicting=False, point=None):
     phase = channel[0]
     quantity = "phase voltage" if "전압" in channel else "phase current"
     return ChannelObservation(
         source_id="s",
-        measurement_point_id=None,
+        measurement_point_id=point,
         channel_id=channel,
         event_at=T0 + timedelta(minutes=minute),
         value=value,
@@ -81,3 +81,56 @@ def test_unbalance_uses_only_confirmed_complete_samples_and_counts_exclusions():
             start_at=T0 + timedelta(minutes=1),
             end_at=T0 + timedelta(hours=1),
         )
+
+
+def test_p95_stays_inside_observed_range_for_two_samples():
+    volts = ("R상전압", "S상전압", "T상전압")
+    amps = ("R상전류", "S상전류", "T상전류")
+    observations = [
+        *(_obs(c, 0, v) for c, v in zip(volts, (220, 225, 230), strict=True)),
+        *(_obs(c, 1, v) for c, v in zip(volts, (200, 225, 250), strict=True)),
+        *(_obs(c, 0, v) for c, v in zip(amps, (10, 10, 13), strict=True)),
+        *(_obs(c, 1, v) for c, v in zip(amps, (10, 10, 20), strict=True)),
+    ]
+
+    analysis = run_phase_unbalance_analysis(
+        _Reader(observations),
+        asset_id="a",
+        source_id="s",
+        start_at=T0,
+        end_at=T0 + timedelta(hours=1),
+    )
+
+    for series in analysis.evidence.results:
+        assert series.median_percent <= series.p95_percent <= series.max_percent
+
+
+def test_multiple_measurement_points_require_explicit_selection():
+    volts = ("R상전압", "S상전압", "T상전압")
+    amps = ("R상전류", "S상전류", "T상전류")
+    observations = [
+        *(_obs(c, 0, v, point="p1") for c, v in zip(volts, (220, 225, 230), strict=True)),
+        *(_obs(c, 0, v, point="p1") for c, v in zip(amps, (10, 10, 13), strict=True)),
+        *(_obs(c, 0, v, point="p2") for c, v in zip(volts, (210, 215, 220), strict=True)),
+        *(_obs(c, 0, v, point="p2") for c, v in zip(amps, (8, 9, 10), strict=True)),
+    ]
+
+    with pytest.raises(ValueError, match="multiple measurement points"):
+        run_phase_unbalance_analysis(
+            _Reader(observations),
+            asset_id="a",
+            source_id="s",
+            start_at=T0,
+            end_at=T0 + timedelta(hours=1),
+        )
+
+    selected = run_phase_unbalance_analysis(
+        _Reader(observations),
+        asset_id="a",
+        source_id="s",
+        start_at=T0,
+        end_at=T0 + timedelta(hours=1),
+        measurement_point_id="p1",
+    )
+    assert selected.run.measurement_point_id == "p1"
+    assert selected.evidence.input_reference.measurement_point_id == "p1"
