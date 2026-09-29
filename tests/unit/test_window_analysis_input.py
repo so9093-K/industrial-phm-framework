@@ -284,7 +284,6 @@ def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
     )
 
 
-
 def test_runner_result_identity_distinguishes_alignment_and_survives_reload(tmp_path):
     from industrial_phm.application import (
         JsonWindowAnalysisLedger,
