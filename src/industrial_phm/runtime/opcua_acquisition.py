@@ -311,6 +311,9 @@ async def run_registered_opcua_acquisition_worker(
                     measurement_point_id=source.measurement_point_id,
                     collection_index=next_event_index,
                     notification=notification,
+                    semantic_binding=config.semantic_binding_for(
+                        notification.observation.channel_id
+                    ),
                 )
                 persistent_event = await asyncio.to_thread(
                     spool.accept_opcua_event,
