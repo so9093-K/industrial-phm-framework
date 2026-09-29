@@ -94,6 +94,8 @@
 
 ### Added
 
+- OPC UA source registration에 versioned channel semantic binding을 추가하고, 수집 시점의 binding snapshot을 각 DataChange event에 복사해 durable spool과 finalized observation window 재시작 이후에도 같은 의미 근거를 보존합니다. NodeId/channel 이름에서 물리 의미를 추론하지 않으며 source/channel identity가 맞지 않는 binding은 fail-closed합니다. Source registry schema는 v5로 갱신됩니다.
+
 - Operations 측정 이력에 최근 15분/24시간/7일 범위와 source별 최신 저장값·event-time freshness를
   추가했습니다. 최신값은 그래프의 범위/점 개수 제한과 별도로 조회하고 값 충돌을 임의로 해결하지 않습니다.
 - 합성 FILE 이력과 loopback OPC UA simulator를 사용하는 로컬 스택 및 독립 collector process 회귀
