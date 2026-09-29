@@ -3,9 +3,11 @@ from datetime import datetime
 import pytest
 
 from industrial_phm.application import (
+    ChannelSemanticBinding,
     FileSourceConfig,
     FileSourceMode,
     InMemorySourceRepository,
+    MeasurementDefinition,
     OpcUaSourceConfig,
     RegisteredSource,
     SourceAlreadyRegisteredError,
@@ -252,3 +254,63 @@ def test_in_memory_source_repository_accepts_file_and_opcua_sources() -> None:
     repository.register(file_source)
 
     assert repository.list_sources() == (file_source, opcua_source)
+
+
+
+def test_opcua_source_config_validates_and_resolves_explicit_semantic_bindings() -> None:
+    binding = ChannelSemanticBinding(
+        source_id="opcua:pump-01",
+        channel_id="vibration_x",
+        version="site-a-semantics-v1",
+        definition=MeasurementDefinition(
+            observed_property="vibration velocity",
+            scope="x-axis",
+            unit="mm/s",
+            unit_evidence="site engineering channel map",
+        ),
+        interpretation_evidence="site engineering channel map revision 1",
+    )
+    config = OpcUaSourceConfig(
+        endpoint_url="opc.tcp://plc.example.test:4840",
+        asset_id="pump-01",
+        node_mappings=(
+            OpcUaNodeMapping(
+                channel_id="vibration_x",
+                node_id="ns=2;s=Machine/VibrationX",
+            ),
+        ),
+        semantic_bindings=(binding,),
+    )
+
+    assert config.semantic_bindings == (binding,)
+    assert config.semantic_binding_for("vibration_x") == binding
+    assert config.semantic_binding_for("unknown") is None
+
+    with pytest.raises(ValueError, match="node_mappings"):
+        OpcUaSourceConfig(
+            endpoint_url="opc.tcp://plc.example.test:4840",
+            asset_id="pump-01",
+            node_mappings=(
+                OpcUaNodeMapping(
+                    channel_id="vibration_x",
+                    node_id="ns=2;s=Machine/VibrationX",
+                ),
+            ),
+            semantic_bindings=(
+                ChannelSemanticBinding(
+                    source_id="opcua:pump-01",
+                    channel_id="temperature",
+                    version="site-a-semantics-v1",
+                    definition=MeasurementDefinition(),
+                    interpretation_evidence="unresolved but explicitly versioned mapping",
+                ),
+            ),
+        )
+
+    with pytest.raises(ValueError, match="registered source_id"):
+        RegisteredSource(
+            source_id="other-source",
+            name="Mismatched semantics",
+            config=config,
+            registered_at=datetime.fromisoformat("2026-09-23T14:00:00+09:00"),
+        )
