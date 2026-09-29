@@ -421,6 +421,10 @@
 
 ### Fixed
 
+- FILE 특징 분석은 관측 요약과 특징 입력의 SHA-256/크기를 대조합니다. 두 번의 읽기 사이에
+  파일이 교체되거나 snapshot 근거가 없으면 결과를 생성하지 않아, 이전 파일의 시각·품질·출처에
+  새로운 값의 특징이 연결되는 문제를 방지합니다.
+
 - Isolation Forest integer `max_samples`가 model-fit observation 수를 초과할 때 estimator가 silently fallback하지 않도록 fail-fast.
 - `CanonicalTimeSeries`가 mutable input container를 그대로 보관해 생성 이후 invariant가 깨질 수 있던 문제.
 - dataset acquisition User-Agent가 package version과 별도의 값을 사용하던 중복 version 문제.
