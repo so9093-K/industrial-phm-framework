@@ -27,7 +27,7 @@ from industrial_phm.contracts import (
 )
 
 PHASE_UNBALANCE_CAPABILITY_ID = "three-phase-unbalance-v1"
-PHASE_UNBALANCE_ALGORITHM_VERSION = "phase-unbalance-max-deviation-v1"
+PHASE_UNBALANCE_ALGORITHM_VERSION = "phase-unbalance-max-deviation-v2"
 _PHASES = ("R", "S", "T")
 _MAX_BUCKETS = 1000
 
@@ -252,7 +252,9 @@ def _series(
             len(samples),
             dict(excluded),
             median(percents),
-            quantiles(percents, n=20)[18] if len(percents) > 1 else percents[0],
+            quantiles(percents, n=20, method="inclusive")[18]
+            if len(percents) > 1
+            else percents[0],
             max_percent,
             max_at,
             buckets,
@@ -270,6 +272,7 @@ def run_phase_unbalance_analysis(
     start_at: datetime,
     end_at: datetime,
     config: PhaseUnbalanceConfig | None = None,
+    measurement_point_id: str | None = None,
     snapshot_id: int | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> PhaseUnbalanceAnalysis:
@@ -282,13 +285,6 @@ def run_phase_unbalance_analysis(
     started_at = now()
     snapshot = history.current_snapshot_id() if snapshot_id is None else snapshot_id
     channels = (*effective.voltage_channels, *effective.current_channels)
-    reference = HistoricalInputReference(
-        snapshot_id=snapshot,
-        asset_id=asset_id,
-        start_at=start_at,
-        end_at=end_at,
-        channel_ids=channels,
-    )
     observations = history.query_channel_observations(
         asset_id,
         source_id=source_id,
@@ -296,6 +292,29 @@ def run_phase_unbalance_analysis(
         start_at=start_at,
         end_at=end_at,
         snapshot_id=snapshot,
+    )
+    points = {observation.measurement_point_id for observation in observations}
+    if measurement_point_id is None:
+        if len(points) > 1:
+            raise ValueError(
+                "analysis source contains multiple measurement points; "
+                "select measurement_point_id explicitly"
+            )
+        resolved_point = next(iter(points), None)
+    else:
+        resolved_point = measurement_point_id
+        observations = tuple(
+            observation
+            for observation in observations
+            if observation.measurement_point_id == measurement_point_id
+        )
+    reference = HistoricalInputReference(
+        snapshot_id=snapshot,
+        asset_id=asset_id,
+        start_at=start_at,
+        end_at=end_at,
+        measurement_point_id=resolved_point,
+        channel_ids=channels,
     )
     results = []
     versions: set[str] = set()
@@ -318,7 +337,6 @@ def run_phase_unbalance_analysis(
         for r in results
         for reason, count in sorted(r.excluded_samples.items())
     ]
-    points = {o.measurement_point_id for o in observations}
     run_id = f"analysis-run-{uuid4()}"
     completed_at = now()
     run = AnalysisRun(
@@ -330,7 +348,7 @@ def run_phase_unbalance_analysis(
         started_at=started_at,
         completed_at=completed_at,
         data_quality=DataQualityAssessment(issues),
-        measurement_point_id=next(iter(points)) if len(points) == 1 else None,
+        measurement_point_id=resolved_point,
         capability_ids=(PHASE_UNBALANCE_CAPABILITY_ID,),
     )
     evidence = PhaseUnbalanceEvidence(

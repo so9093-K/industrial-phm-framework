@@ -11,6 +11,8 @@
 
 ### Changed
 
+- 3상 불평형 분석의 p95를 작은 표본에서도 관측 min/max 범위를 벗어나지 않는 inclusive empirical quantile로 고정하고 algorithm version을 `phase-unbalance-max-deviation-v2`로 올렸습니다. 한 source에 여러 measurement point가 있으면 명시적으로 point를 선택하지 않는 분석은 fail-closed해 서로 다른 측정점의 분포가 한 결과로 합쳐지지 않게 했습니다.
+
 - 분석 결과를 capability와 무관하게 다룹니다(`OperationalAnalysisResult`). Asset Detail·Overview 분석 수,
   Investigation의 검토 대상 선택·근거 표시·review finding 생성이 FILE 특징 분석과 3상 불평형을 함께
   지원하며, Maintenance Review는 finding의 capability·분석 run·evidence를 보여줍니다.

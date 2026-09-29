@@ -18,7 +18,7 @@ unbalance % = max(|X_R − X̄|, |X_S − X̄|, |X_T − X̄|) / X̄ × 100,   X
 
 ## 입력과 eligibility
 
-- Asset History의 한 source에서 요청 구간 `[start_at, end_at)`을 **고정된 DuckLake snapshot**으로 읽습니다.
+- Asset History의 한 source·측정점에서 요청 구간 `[start_at, end_at)`을 **고정된 DuckLake snapshot**으로 읽습니다. Source에 여러 측정점이 있으면 `measurement_point_id`를 명시하지 않은 분석은 fail-closed합니다.
 - 기본 channel은 R/S/T상전압과 R/S/T상전류입니다(`PhaseUnbalanceConfig`).
 - 한 timestamp·측정점의 세 상이 모두 다음을 만족할 때만 sample이 됩니다. 아니면 첫 사유 하나로 제외하고
   사유별로 셉니다.
@@ -40,10 +40,10 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 `PhaseUnbalanceEvidence`는 결과를 다시 계산하고 해석하는 데 필요한 것을 모두 담습니다.
 
 - input reference: history snapshot ID, asset, 구간, channel 목록
-- capability ID, algorithm version(`phase-unbalance-max-deviation-v1`), 설정값(channel, 신호 기준, bucket 수)
+- capability ID, algorithm version(`phase-unbalance-max-deviation-v2`), 설정값(channel, 신호 기준, bucket 수)
 - 실제 사용한 semantic binding version 목록
 - 전압·전류 각각의 평가 sample 수, 제외 사유별 수, median·p95·max와 max 시각, 시간 bucket별 sample 수·
-  median·max
+  median·max. p95는 관측 범위 안에 머무는 inclusive empirical quantile로 계산합니다.
 - 해석 경계 문구
 
 `AnalysisRun`은 실행 시각, 관측 구간과 data-quality issue를 담습니다. 결과는
