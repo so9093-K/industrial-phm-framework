@@ -15,6 +15,10 @@
   Analysis & Evidence → Operations & Review → Human Decision)를 사용합니다. 상세 runtime은 overview로
   옮기고, production/research path 경계와 provider annotation·ground truth vocabulary를 정리했습니다.
 
+- AI-Hub 239 보일러·압출기 라벨링 데이터 acquisition preset과 streaming label profiler를 추가했습니다.
+  기동패턴(Stop/Loading/Unloading)·SOH(정상/주의/경고) label 구조, 설비 metadata, raw와의 device·기간
+  대응을 기록했습니다. Label 산정 방법과 측정 단위는 여전히 미확정으로 유지합니다.
+
 - 이력 적재·조회 속도를 개선했습니다. DuckDB의 값별 pandas import 탐색을 제거하고 열 단위 insert로 바꿔
   압출기 48시간 적재가 161초 → 36초가 됐습니다(저장 결과 동일). 조회는 raw 근거 join 전에 같은
   설비·채널·시간으로 걸러 120만 건 기준 전체 기간 집계 14.9초 → 0.59초가 됐습니다.

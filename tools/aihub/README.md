@@ -50,7 +50,9 @@ uv run python -m tools.aihub.cli plan 239 --preset bootstrap
 ```
 
 현재 preset은 `boiler`(Training/raw 보일러 `44033`), `extruder`(Training/raw 압출기 `44035`),
-`bootstrap`(두 archive 모두)을 제공합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의
+`bootstrap`(두 archive 모두)을 제공합니다. 라벨링 데이터는 `boiler-label`(Training/label 보일러 `44023`),
+`extruder-label`(Training/label 압출기 `44025`), `bootstrap-label`(둘 다)로 받으며
+`archives/training/label/`에 보존합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의
 합계는 근사치입니다.
 
 명시적으로 다운로드합니다.
