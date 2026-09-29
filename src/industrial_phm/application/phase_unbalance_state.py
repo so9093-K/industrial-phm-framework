@@ -7,7 +7,7 @@ import os
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +16,11 @@ try:
 except ImportError:  # pragma: no cover - non-POSIX platforms run without the lock
     fcntl = None  # type: ignore[assignment]
 
+from industrial_phm.application.alignment import (
+    STRICT_ALIGNMENT,
+    AlignmentPolicyKind,
+    TemporalAlignmentPolicy,
+)
 from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operational import AnalysisRun
@@ -162,6 +167,7 @@ def window_result_key(result: PhaseUnbalanceAnalysis) -> tuple[str, str, str, st
         min_mean_voltage_v=config.min_mean_voltage_v,
         min_mean_current_a=config.min_mean_current_a,
         bucket_count=config.bucket_count,
+        alignment=config.alignment,
     )
     return (
         reference.window_id,
@@ -224,6 +230,7 @@ def _serialize(result: PhaseUnbalanceAnalysis) -> dict[str, object]:
                 "min_mean_voltage_v": config.min_mean_voltage_v,
                 "min_mean_current_a": config.min_mean_current_a,
                 "bucket_count": config.bucket_count,
+                "alignment": config.alignment.identity(),
             },
             "results": [
                 {
@@ -246,6 +253,9 @@ def _serialize(result: PhaseUnbalanceAnalysis) -> dict[str, object]:
                     ],
                     "channels": list(r.channels),
                     "channel_selection": r.channel_selection.value,
+                    "carried_values": r.carried_values,
+                    "max_carry_age_seconds": r.max_carry_age_seconds,
+                    "p95_carry_age_seconds": r.p95_carry_age_seconds,
                 }
                 for r in evidence.results
             ],
@@ -316,6 +326,17 @@ def _parse_reference(ref: Mapping[str, Any]) -> HistoricalInputReference | Windo
     )
 
 
+def _parse_alignment(value: Any) -> TemporalAlignmentPolicy:
+    if value is None:
+        return STRICT_ALIGNMENT
+    seconds = value["max_age_seconds"]
+    return TemporalAlignmentPolicy(
+        AlignmentPolicyKind(value["kind"]),
+        max_age=None if seconds is None else timedelta(seconds=seconds),
+        basis=value["basis"],
+    )
+
+
 def _optional_list(value: tuple[str, ...] | None) -> list[str] | None:
     return None if value is None else list(value)
 
@@ -371,6 +392,7 @@ def _parse(raw: Mapping[str, Any]) -> PhaseUnbalanceAnalysis:
             min_mean_voltage_v=cfg["min_mean_voltage_v"],
             min_mean_current_a=cfg["min_mean_current_a"],
             bucket_count=cfg["bucket_count"],
+            alignment=_parse_alignment(cfg.get("alignment")),
         ),
         results=tuple(
             UnbalanceSeriesResult(
@@ -393,6 +415,10 @@ def _parse(raw: Mapping[str, Any]) -> PhaseUnbalanceAnalysis:
                     ]
                 ),
                 channel_selection=ChannelSelection(r.get("channel_selection", "explicit")),
+                # Results recorded before alignment policies used strict alignment.
+                carried_values=r.get("carried_values", 0),
+                max_carry_age_seconds=r.get("max_carry_age_seconds"),
+                p95_carry_age_seconds=r.get("p95_carry_age_seconds"),
             )
             for r in ev["results"]
         ),

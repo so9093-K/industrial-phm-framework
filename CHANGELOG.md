@@ -11,9 +11,17 @@
 
 ### Changed
 
+- ADR-0009: 다채널 시간 정렬을 protocol과 무관한 versioned 정책으로 분리했습니다(`application/alignment.py`,
+  새 dependency 없음). 기본 `strict-v1`은 기존 결과·분석 identity와 같고, `bounded-previous-v1`은 이전 값만
+  명시적 `max_age`·근거 안에서 carry합니다. Evidence에는 kind·max age·basis와 carried 값 수·age를 남기고,
+  계산 identity에는 결과를 바꾸는 kind·max age만 포함합니다. `bounded-previous-v1`은 모든 requested channel
+  event timestamp를 anchor로 쓰는 event-transition state reconstruction이며 synchronized acquisition-cycle을
+  주장하지 않습니다. `run-window-analysis`에 `--alignment` 옵션을 추가했습니다.
+
 - `industrial-phm operations run-window-analysis`: finalized live window를 collection service와 별도 process로
-  한 번씩 3상 불평형 분석합니다. 결과 저장소 기준 idempotency(window·capability·algorithm당 1회, 파일 lock),
-  분석 불가 window의 skip ledger로 재시작에도 중복이 없습니다. Collection service에 window 길이·lateness
+  분석합니다. 결과 저장소 기준 idempotency(window·capability·algorithm·analysis policy identity당 1회 persist,
+  파일 lock), 분석 불가 window의 policy-scoped skip ledger로 재시작에도 동일 identity 중복이 없습니다.
+  Collection service에 window 길이·lateness
   옵션, OPC UA demo에 semantic binding이 있는 three-phase profile을 추가하고 loopback E2E로 검증했습니다.
 
 - ADR-0008: live 분석의 입력은 finalized window가 accept한 event 집합이며 history 재조회를 하지 않습니다.

@@ -1,7 +1,7 @@
 """Restart-safe analysis of finalized live observation windows (ADR-0008).
 
-Each finalized window is analyzed at most once per capability and algorithm
-version. The result repository is the source of truth for analyzed windows; a
+Each finalized window result is persisted at most once per capability, algorithm
+version and analysis-policy identity. The result repository is the source of truth; a
 small ledger remembers windows that cannot be analyzed (for example no channels
 bound by semantic role) so they are not recomputed every cycle.
 """

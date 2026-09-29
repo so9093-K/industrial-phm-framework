@@ -49,6 +49,8 @@ def phase_unbalance_summary_rows(result: PhaseUnbalanceAnalysis) -> list[dict[st
             "max_at_utc": _utc(r.max_at),
             "channels": ", ".join(r.channels) or "none",
             "channel_selection": r.channel_selection.value,
+            "carried_values": r.carried_values,
+            "max_carry_age_seconds": r.max_carry_age_seconds,
         }
         for r in result.evidence.results
     ]
@@ -92,6 +94,7 @@ def phase_unbalance_provenance_rows(result: PhaseUnbalanceAnalysis) -> list[dict
         *input_facts,
         ("evaluated_range_utc", f"{_utc(run.observed_start_at)} / {_utc(run.observed_end_at)}"),
         ("semantic_versions", ", ".join(evidence.semantic_versions) or "none"),
+        ("alignment", _alignment_label(config.alignment.identity())),
         ("min_mean_voltage_v", config.min_mean_voltage_v),
         ("min_mean_current_a", config.min_mean_current_a),
         ("completed_at_utc", _utc(run.completed_at)),
@@ -135,3 +138,9 @@ def render_phase_unbalance_svg(result: PhaseUnbalanceAnalysis) -> str:
     output = io.StringIO()
     figure.savefig(output, format="svg")
     return output.getvalue()
+
+
+def _alignment_label(identity: dict[str, object]) -> str:
+    if identity["max_age_seconds"] is None:
+        return str(identity["kind"])
+    return f"{identity['kind']} max_age={identity['max_age_seconds']}s basis: {identity['basis']}"

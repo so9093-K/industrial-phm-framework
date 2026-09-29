@@ -23,6 +23,12 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionWindowTelemetry,
     build_acquisition_telemetry_surface,
 )
+from industrial_phm.application.alignment import (
+    STRICT_ALIGNMENT,
+    AlignmentPolicyKind,
+    TemporalAlignmentPolicy,
+    align_observations,
+)
 from industrial_phm.application.analysis_input import (
     ChannelObservation,
     WindowInputReference,
@@ -272,6 +278,7 @@ __all__ = [
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
     "PHASE_UNBALANCE_CAPABILITY_ID",
+    "STRICT_ALIGNMENT",
     "AcquisitionFailureComponent",
     "AcquisitionFailureTelemetry",
     "AcquisitionFlowTelemetry",
@@ -290,6 +297,7 @@ __all__ = [
     "AcquisitionTelemetrySnapshot",
     "AcquisitionTelemetrySurface",
     "AcquisitionWindowTelemetry",
+    "AlignmentPolicyKind",
     "AnalysisRun",
     "AssetDetail",
     "AssetEvidenceEvent",
@@ -416,10 +424,12 @@ __all__ = [
     "SpoolHistoryWriterResult",
     "SpoolToHistoryWriterPolicy",
     "SystemStateErrorEvidence",
+    "TemporalAlignmentPolicy",
     "UnknownRegisteredSourceError",
     "WindowAnalysisOutcome",
     "WindowAnalysisState",
     "WindowInputReference",
+    "align_observations",
     "analyze_finalized_windows",
     "assess_source_freshness",
     "assess_source_health",
