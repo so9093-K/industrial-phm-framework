@@ -27,6 +27,26 @@
       "equipment_group": "압출기",
       "declared_size": "97 MB",
       "declared_size_bytes_approx": 101711872
+    },
+    {
+      "filekey": 44023,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/5.보일러.zip",
+      "archive_name": "5.보일러.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "보일러",
+      "declared_size": "313 MB",
+      "declared_size_bytes_approx": 328204288
+    },
+    {
+      "filekey": 44025,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/7.압출기.zip",
+      "archive_name": "7.압출기.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "압출기",
+      "declared_size": "516 MB",
+      "declared_size_bytes_approx": 541065216
     }
   ],
   "presets": {
@@ -39,6 +59,16 @@
     "bootstrap": [
       44033,
       44035
+    ],
+    "boiler-label": [
+      44023
+    ],
+    "extruder-label": [
+      44025
+    ],
+    "bootstrap-label": [
+      44023,
+      44025
     ]
   }
 }

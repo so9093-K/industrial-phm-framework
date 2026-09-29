@@ -106,3 +106,54 @@ channel label입니다. v1의 property_name은 legacy label로 표시하며 기�
 FILE의 source quality는 unknown입니다. 숫자 존재/present와 null은 별도 availability이며 protocol Good이 아닙니다.
 기존 history `status_good` 저장 필드는 FILE에서 availability를 담는 호환 필드로 유지하되,
 공통 read model의 `source_quality`와 UI는 이를 source Good 판정에 사용하지 않습니다.
+
+## Labeling data profile
+
+Training/label 보일러(filekey 44023)와 압출기(44025) ZIP의 모든 JSON을 `tools/aihub/label_profile.py`로
+streaming 조사했습니다. 상세 결과는 `artifacts/aihub-239/*-label-profile.json`(Git 제외)에 있습니다.
+
+| Archive | JSON | Records | SHA-256 |
+| --- | ---: | ---: | --- |
+| 보일러 label | 70 | 66,372,401 | `453d94dad934c20414d4465894d9031d1d29ef8672c48641d7861a4f6f912931` |
+| 압출기 label | 75 | 88,245,330 | `b5492c2ee3c707afc5fa01364b2e5cb88de0702bed8ac45120be4b22c96444da` |
+
+**Observed structure.** 각 member는 `SVC_NAME`과 `BASE_ITEM` 하나를 가지며 raw와 같은 35개 item record에
+`LABEL_NAME`을 붙입니다. 설비마다 5개 label series가 있습니다.
+
+| SVC_NAME | BASE_ITEM | LABEL_NAME |
+| --- | --- | --- |
+| 기동패턴 | 전류평균, 유효전력평균 | Stop, Loading, Unloading |
+| SOH | 역률평균, 전류고조파평균, 전압고조파평균 | 정상, 주의, 경고 |
+
+한 timestamp 안의 record는 모두 같은 label입니다. Label은 median 수십~수백 timestamp 동안 유지되는 구간으로
+관측됩니다. Header에는 익명화된 회사 정보, 계약전력, `facility_name`, `facility_type_name`,
+`facility_vendor`, `facility_year`, `facility_capacity`, `facility_volt`가 있습니다. 마스킹된 `KEPCO_INFO`는
+profile에 기록하지 않습니다.
+
+**Correspondence with raw.** Label `DEVICE_ID` 집합(보일러 14, 압출기 13)과 설비별 시간 범위는 raw와
+일치합니다. Label record 수는 raw에서 member 내부 중복 extra record(대부분 1건)를 뺀 수와 같습니다. 보일러는
+raw null(device 5702의 105건)도 없고, 압출기는 null을 유지합니다(2323의 11,856건, 2325의 35건). 보일러
+device 7247의 label series 하나는 1,007,976건으로 다른 series보다 24건 적습니다. Record 단위 일치는 아직
+검증하지 않았습니다(count·범위·device 기준 대응).
+
+**Label meaning is unresolved.** 같은 설비 안에서 label별 BASE_ITEM 값 범위가 크게 겹칩니다. 예를 들어
+보일러 211의 `Stop` 구간에도 전류평균이 최대 640까지 관측되고, SOH `정상`과 `경고`가 모두 역률 0..1 범위를
+가집니다. 따라서 label은 해당 순간값의 단순 threshold로 보이지 않지만 산정 방법·기간·기준은 문서로
+확인하지 못했습니다. Provider annotation으로 보존하며, 설비 건강 ground truth나 고장 label로 해석하지
+않습니다. SOH 경고 비율이 역률평균 series에서 매우 높은 점(보일러 약 86%)도 운영상 경고 빈도로 해석하지
+않습니다.
+
+**Metadata is not unit evidence.** `facility_volt=380`인 여러 설비의 선간전압평균이 약 225로 관측됩니다
+(예: 5764, 7303, 7300). 정격 metadata가 측정점 전압과 일치한다고 가정하지 않습니다. `facility_capacity`의
+단위도 공식 문서에는 kW로 설명되지만 유효전력평균 값(최대 약 2.6×10^5)과 같은 scale이 아닙니다.
+
+**Empirical consistency (not a unit declaration).** 아래는 값 범위가 물리적 관계와 일치한다는 관측이며
+source unit 문서가 아닙니다. Canonical mapping과 unit은 계속 `unresolved`입니다.
+
+- 주파수: 대부분 59.7–60.1 (60 Hz 계통과 일치)
+- 선간전압평균 / 상전압평균 ≈ 1.73 (삼상 √3 관계와 일치)
+- 역률 계열: −1..1 (비율 scale과 일치, 백분율 아님)
+- 유효전력평균: 정격 capacity와 scale이 달라 W/kW/scale factor를 판단할 수 없음
+
+이 관측을 semantic binding으로 승격하려면 provider 문서 또는 계측기 사양 같은 독립 근거, 그리고
+evidence level을 구분하는 versioned binding이 필요합니다.
