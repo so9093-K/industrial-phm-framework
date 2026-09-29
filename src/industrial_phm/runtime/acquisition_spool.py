@@ -23,6 +23,10 @@ from industrial_phm.application.acquisition_spool import (
     AcquisitionSpoolStateError,
 )
 from industrial_phm.application.acquisition_telemetry import AcquisitionSpoolTelemetrySnapshot
+from industrial_phm.application.measurement_semantics import (
+    parse_channel_semantic_binding,
+    serialize_channel_semantic_binding,
+)
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
@@ -642,6 +646,11 @@ def _encode_event(event: OpcUaPersistentDataChangeEvent) -> str:
             "endpoint_url": registered.endpoint_url,
             "measurement_point_id": registered.measurement_point_id,
             "collection_index": registered.collection_index,
+            "semantic_binding": (
+                None
+                if registered.semantic_binding is None
+                else serialize_channel_semantic_binding(registered.semantic_binding)
+            ),
             "notification": {
                 "replayed": registered.notification.replayed,
                 "observation": {
@@ -713,6 +722,14 @@ def _decode_event(payload_json: str) -> OpcUaPersistentDataChangeEvent:
             "received_at",
         ),
     )
+    semantic_raw = registered_raw.get("semantic_binding")
+    try:
+        semantic_binding = (
+            None if semantic_raw is None else parse_channel_semantic_binding(semantic_raw)
+        )
+    except ValueError as error:
+        raise AcquisitionSpoolFormatError(f"invalid semantic binding: {error}") from error
+
     registered = RegisteredOpcUaDataChangeEvent(
         source_id=_require_str(registered_raw.get("source_id"), "source_id"),
         asset_id=_require_str(registered_raw.get("asset_id"), "asset_id"),
@@ -729,6 +746,7 @@ def _decode_event(payload_json: str) -> OpcUaPersistentDataChangeEvent:
             observation=observation,
             replayed=_require_bool(notification_raw.get("replayed"), "replayed"),
         ),
+        semantic_binding=semantic_binding,
     )
     event_time = OpcUaEventTimeEvidence(
         basis=OpcUaEventTimeBasis(_require_str(timing_raw.get("basis"), "basis")),
