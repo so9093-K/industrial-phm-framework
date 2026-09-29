@@ -72,6 +72,7 @@ def test_unbalance_uses_only_confirmed_complete_samples_and_counts_exclusions():
     assert current.excluded_samples == {"low-signal": 1, "conflicting-value": 1}
     assert analysis.evidence.input_reference.snapshot_id == 7
     assert analysis.run.data_quality.state.value == "warning"
+    assert analysis.run.data_quality.issue_codes == ("excluded-current-conflicting-value",)
 
     with pytest.raises(ValueError, match="no eligible"):
         run_phase_unbalance_analysis(
