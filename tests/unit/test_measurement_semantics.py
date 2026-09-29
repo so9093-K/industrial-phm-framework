@@ -4,6 +4,8 @@ import pytest
 
 from industrial_phm.application.measurement_semantics import MeasurementDefinition
 
+EXTRUDER = "7fd3a50f1222a695fc440ef2d4e8f2b431dd419b2249b60a6bc0ab34d5472a17"
+
 
 def test_unresolved_property_is_not_a_raw_channel_label():
     assert asdict(MeasurementDefinition()) == {
@@ -24,14 +26,46 @@ def test_unresolved_property_is_not_a_raw_channel_label():
 
 
 def test_aihub_dictionary_confirms_only_items_where_document_and_data_agree():
-    from industrial_phm.adapters.aihub_power_history import confirmed_channel_definition
+    from industrial_phm.adapters.aihub_power_history import (
+        AIHUB_239_SEMANTICS_V1,
+        AIHUB_239_SEMANTICS_V2,
+        channel_definition,
+    )
 
-    frequency = confirmed_channel_definition("주파수")
+    def definition(version, channel, member="7.압출기/SourceData_127.json"):
+        return channel_definition(version, channel, archive_sha256=EXTRUDER, member=member)
+
+    frequency = definition(AIHUB_239_SEMANTICS_V2, "주파수")
     assert (frequency.observed_property, frequency.unit) == ("frequency", "Hz")
-    assert confirmed_channel_definition("전류평균").statistic == (
+    assert definition(AIHUB_239_SEMANTICS_V2, "전류평균").statistic == (
         "arithmetic mean of phases R, S and T"
     )
     # Power, power factor and energy contradict their documented scale (and
     # power "평균" is a three-phase sum); temperature has no independent check.
     for channel in ("유효전력평균", "R상유효전력", "역률평균", "누적전력량", "온도"):
-        assert confirmed_channel_definition(channel) == MeasurementDefinition()
+        assert definition(AIHUB_239_SEMANTICS_V2, channel) == MeasurementDefinition()
+    # v2 leaves a channel unresolved where its supporting relation fails in that
+    # member; v1 is kept unchanged for exact retry of imports that used it.
+    failing = "7.압출기/SourceData_130.json"
+    assert definition(AIHUB_239_SEMANTICS_V2, "R상전류", failing) == MeasurementDefinition()
+    assert definition(AIHUB_239_SEMANTICS_V1, "R상전류", failing).unit == "A"
+
+
+def test_published_semantics_versions_are_immutable():
+    from industrial_phm.adapters.aihub_power_history import (
+        AIHUB_239_SEMANTICS_DIGESTS,
+        semantics_dictionary_digest,
+    )
+
+    # Stored observations keep their version forever. Changing a dictionary payload
+    # requires a new version and a new pinned digest, never an edit.
+    assert AIHUB_239_SEMANTICS_DIGESTS == {
+        "aihub-239-semantics-v1": (
+            "a90327d6d885480ca7b044dc704fb95aa14677b8713f75a4d9401b80178a054d"
+        ),
+        "aihub-239-semantics-v2": (
+            "4cc29be9d2fc98e7f4531e0504414a848329794ac049c78b3d097fda7da0db7c"
+        ),
+    }
+    for version, digest in AIHUB_239_SEMANTICS_DIGESTS.items():
+        assert semantics_dictionary_digest(version) == digest

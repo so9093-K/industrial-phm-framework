@@ -94,6 +94,8 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     )
     assert first["event_count"] == 3
     assert first["snapshot_id"] > 0
+    assert first["metadata_schema"] == "aihub-239-history-v4"
+    assert first["semantic_binding_version"] == "aihub-239-semantics-v2"
     assert again["recovered_batch_count"] == 1
     assert first["snapshot_id"] == again["snapshot_id"]
     restored = history.query_file_events("research-source")
@@ -102,8 +104,8 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert metadata["raw_timestamp"] == "2021-02-03 07:01:07"
     assert metadata["binding"]["timezone_evidence"] == _binding().timezone_evidence
     # R상전류 is one of the items where the provider unit table and data agree.
-    assert metadata["schema"] == "aihub-239-history-v3"
-    assert metadata["semantics"]["version"] == "aihub-239-semantics-v1"
+    assert metadata["schema"] == "aihub-239-history-v4"
+    assert metadata["semantics"]["version"] == "aihub-239-semantics-v2"
     assert metadata["semantics"]["definition"]["observed_property"] == "phase current"
     assert metadata["semantics"]["definition"]["unit"] == "A"
     assert "guideline v1.5" in metadata["semantics"]["definition"]["unit_evidence"]
@@ -234,6 +236,8 @@ def test_legacy_import_retries_without_rewriting_persisted_semantic_evidence(tmp
     args = (archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history)
     first = import_history(*args, metadata_schema="v1")
     assert first["flushed_row_count"] > 0
+    assert first["metadata_schema"] == "aihub-239-history-v1"
+    assert first["semantic_binding_version"] == _binding().version
     original = history.query_file_events("research-source")[0].source_metadata_json
     assert json.loads(original)["semantics"]["definition"]["property_name"] == "R상전류"
     retry = import_history(*args, metadata_schema="v1")
