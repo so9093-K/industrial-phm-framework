@@ -21,9 +21,11 @@
 판단합니다. 공개 데이터셋의 label 같은 provider annotation은 연구 평가에만 쓰며 production 분석의 입력이
 아닙니다.
 
-현재 구현 범위: FILE·OPC UA 수집과 Asset History, 설비별 이력·품질·출처 조회, FILE snapshot 특징 분석과
-사람의 review finding·maintenance review입니다. Live window에서 분석 evidence로 이어지는 경로,
-validated 진단·alarm·operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
+현재 구현 범위: FILE·OPC UA 수집과 Asset History, 설비별 이력·품질·출처 조회, 근거가 확인된 측정 의미
+(semantic binding), FILE snapshot 특징 분석과 과거 Asset History 기반
+[3상 불평형 분석](docs/architecture/phase-unbalance-capability.md), 분석 결과에 대한 Investigation·사람의 review
+finding·maintenance review입니다. Live window에서 같은 분석으로 이어지는 경로, validated 진단·alarm·
+operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
 
 수집 runtime, 저장소, 분석 경계의 상세 구조는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 

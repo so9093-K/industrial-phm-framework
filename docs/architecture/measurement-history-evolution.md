@@ -36,6 +36,20 @@ A bounded response does not bound the underlying scan time. Long aggregate queri
 catalog lease and can delay a writer; there is no measured full-archive latency/throughput guarantee.
 The lock coordinates cooperating local processes; it is not a distributed read/write service.
 
+## OPC UA semantic snapshots in raw evidence
+
+An OPC UA DataChange carries the source's registered `ChannelSemanticBinding` snapshot. It is stored with
+the raw delivery as canonical JSON (`raw.opcua_data_change.semantic_binding_json`) and restored by
+`query_opcua_events`/`get_opcua_event`, so windows rebuilt from history keep the same semantics as the
+spool path. The batch fingerprint includes the snapshot only when present; batches committed before
+snapshots existed keep their recovery fingerprint. `query_channel_observations` reads FILE metadata
+semantics and OPC UA snapshots into one shape for analysis eligibility.
+
+Catalogs created before this column gain it once as a nullable column; earlier rows stay without
+semantics (unresolved), never reinterpreted. Time travel to a snapshot recorded before the column
+existed reads OPC UA semantics as unresolved instead of failing, so earlier analysis results remain
+recomputable at their recorded snapshot.
+
 ## Measured storage baseline (2026-09-29)
 
 One real extruder member (`7.압출기/SourceData_127.json`, device 2223, 48 source-local hours, 35

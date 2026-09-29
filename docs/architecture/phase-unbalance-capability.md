@@ -76,6 +76,10 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 - 기준값·alarm·finding을 자동으로 만들지 않습니다. 사람이 Investigation에서 결과를 골라 review finding을
   만들면 `human-review-request-v1 / REVIEW_REQUIRED`로 기록되고 Maintenance Review로 이어집니다.
 - Operations Asset Detail에서 실행·조회합니다([apps/README](../../apps/README.md)).
-- Live window 연결: 현재 OPC UA source에는 semantic binding이 없어 모든 관측이 `unconfirmed-semantics`로
-  제외됩니다. Live 연결 전에 OPC UA channel의 versioned semantic binding이 필요합니다.
+- OPC UA source: 등록 시 channel별 semantic binding을 두면 DataChange의 semantic snapshot이 spool, DuckLake
+  raw evidence(`raw.opcua_data_change.semantic_binding_json`)까지 보존되고 FILE과 같은 eligibility로 분석
+  입력이 됩니다. Binding이 없는 channel과 semantic column 도입 이전에 적재된 행은 `unconfirmed-semantics`입니다.
+- 남은 연결: 현재 capability는 channel 이름으로 R/S/T를 고릅니다(AI-Hub 기본값 또는 설정). Semantic role 기반
+  channel 선택과 finalized live window를 입력으로 쓰는 runner는 다음 단계입니다. Live 분석은 window 종료 후
+  같은 시간 범위를 history에서 다시 조회하지 않고 window가 accept한 event 집합을 입력 근거로 사용해야 합니다.
 - AI-Hub label과의 비교는 research path에서만 합니다.

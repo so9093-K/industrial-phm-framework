@@ -36,12 +36,14 @@ def _event(
     event_at: datetime,
     event_index: int,
     replayed: bool = False,
+    value: float | None = None,
+    semantic_binding: object = None,
 ) -> object:
     received_at = event_at + timedelta(milliseconds=20)
     observation = OpcUaNodeObservation(
         channel_id=channel_id,
         node_id=f"ns=2;s={channel_id}",
-        value=1.25 + event_index,
+        value=1.25 + event_index if value is None else value,
         status_code=0,
         status_good=True,
         status_text="Good",
@@ -60,6 +62,7 @@ def _event(
             observation=observation,
             replayed=replayed,
         ),
+        semantic_binding=semantic_binding,
     )
     return project_opcua_persistent_data_change_event(
         registered,
@@ -497,3 +500,106 @@ def test_batch_insert_leaves_import_state_unchanged(tmp_path):
     # The absent-pandas cache is scoped to one bind and must not leak a None module.
     assert ("pandas" in sys.modules) == had_pandas
     assert history.query_opcua_events("source-a") == (event,)
+
+
+def _phase_binding(channel_id: str, phase: str, quantity: str, unit: str) -> object:
+    from industrial_phm.application.measurement_semantics import (
+        ChannelSemanticBinding,
+        MeasurementDefinition,
+    )
+
+    return ChannelSemanticBinding(
+        source_id="source-a",
+        channel_id=channel_id,
+        version="site-semantics-v1",
+        definition=MeasurementDefinition(
+            quantity, scope=f"phase {phase}", unit=unit, unit_evidence="meter nameplate"
+        ),
+        interpretation_evidence="commissioning record",
+    )
+
+
+def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_path):
+    from industrial_phm.application.phase_unbalance import (
+        PhaseUnbalanceConfig,
+        run_phase_unbalance_analysis,
+    )
+
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    channels = {
+        "va": ("R", "phase voltage", "V", 220.0),
+        "vb": ("S", "phase voltage", "V", 230.0),
+        "vc": ("T", "phase voltage", "V", 225.0),
+        "ia": ("R", "phase current", "A", 10.0),
+        "ib": ("S", "phase current", "A", 10.0),
+        # Registered without a binding: must stay unresolved, never inferred.
+        "ic": ("T", None, None, 13.0),
+    }
+    events = tuple(
+        _event(
+            channel_id=channel,
+            event_at=BASE,
+            event_index=index,
+            value=value,
+            semantic_binding=(
+                None if quantity is None else _phase_binding(channel, phase, quantity, unit)
+            ),
+        )
+        for index, (channel, (phase, quantity, unit, value)) in enumerate(channels.items())
+    )
+    commit = history.append_opcua_batch(events, batch_id="semantic")
+
+    # The raw evidence restores the exact snapshot (window rebuilds read this path).
+    assert history.query_opcua_events("source-a") == events
+    assert history.get_opcua_batch_commit(events, batch_id="semantic") == commit
+
+    analysis = run_phase_unbalance_analysis(
+        history,
+        asset_id="pump-01",
+        source_id="source-a",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        config=PhaseUnbalanceConfig(("va", "vb", "vc"), ("ia", "ib", "ic")),
+    )
+    voltage, current = analysis.evidence.results
+    assert voltage.evaluated_samples == 1
+    assert voltage.median_percent == pytest.approx(5 / 225 * 100)
+    assert analysis.evidence.semantic_versions == ("site-semantics-v1",)
+    assert current.evaluated_samples == 0
+    assert current.excluded_samples == {"unconfirmed-semantics": 1}
+
+
+def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    event = _event(channel_id="power", event_at=BASE, event_index=0)
+    history.append_opcua_batch((event,), batch_id="before")
+    # Recreate a catalog whose OPC UA table predates semantic snapshots.
+    connection = history._connect()
+    try:
+        connection.execute(
+            "ALTER TABLE phm_history.raw.opcua_data_change DROP COLUMN semantic_binding_json"
+        )
+        (old_snapshot,) = connection.execute(
+            "SELECT max(snapshot_id) FROM phm_history.snapshots()"
+        ).fetchone()
+    finally:
+        connection.close()
+
+    # Reopening migrates once; the pre-migration snapshot stays readable.
+    assert history.query_opcua_events("source-a") == (event,)
+    observations = history.query_channel_observations(
+        "pump-01",
+        source_id="source-a",
+        channel_ids=("power",),
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        snapshot_id=old_snapshot,
+    )
+    assert [(o.value, o.observed_property) for o in observations] == [(1.25, None)]
+    assert history.current_snapshot_id() > old_snapshot

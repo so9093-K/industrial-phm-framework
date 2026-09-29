@@ -36,6 +36,11 @@ from industrial_phm.application.measurement_history import (
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
 )
+from industrial_phm.application.measurement_semantics import (
+    ChannelSemanticBinding,
+    parse_channel_semantic_binding,
+    serialize_channel_semantic_binding,
+)
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
@@ -528,7 +533,8 @@ class DuckLakeAssetHistory:
                     collection_index,
                     connection_epoch,
                     event_index,
-                    replayed
+                    replayed,
+                    semantic_binding_json
                 FROM {_CATALOG_NAME}.raw.opcua_data_change
                 WHERE source_id = ?
                 ORDER BY ingested_at, connection_epoch, event_index, raw_evidence_id
@@ -583,7 +589,8 @@ class DuckLakeAssetHistory:
                     collection_index,
                     connection_epoch,
                     event_index,
-                    replayed
+                    replayed,
+                    semantic_binding_json
                 FROM {_CATALOG_NAME}.raw.opcua_data_change
                 WHERE raw_evidence_id = ?
                 """,
@@ -923,6 +930,19 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
+            # A snapshot recorded before the semantic column existed has no OPC UA
+            # snapshots; read it as unresolved instead of failing time travel.
+            snapshot_columns = {
+                column[0]
+                for column in connection.execute(
+                    f"SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at} LIMIT 0"
+                ).description
+            }
+            semantic = (
+                "semantic_binding_json"
+                if "semantic_binding_json" in snapshot_columns
+                else "NULL::VARCHAR"
+            )
             with _cache_absent_pandas_import():
                 rows = connection.execute(
                     f"""
@@ -949,6 +969,16 @@ class DuckLakeAssetHistory:
                         WHERE asset_id = ? AND source_id = ?
                             AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                             AND source_timestamp >= ? AND source_timestamp < ?
+                        UNION ALL
+                        SELECT raw_evidence_id, 'opcua' AS source_type,
+                            json_extract_string({semantic}, '$.version'),
+                            json_extract_string({semantic}, '$.definition.observed_property'),
+                            json_extract_string({semantic}, '$.definition.scope'),
+                            json_extract_string({semantic}, '$.definition.unit')
+                        FROM {_CATALOG_NAME}.raw.opcua_data_change {at}
+                        WHERE asset_id = ? AND source_id = ?
+                            AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                            AND event_at >= ? AND event_at < ?
                     ), joined AS (
                         SELECT m.*, f.ver, f.prop, f.scope, f.unit,
                             concat_ws('|', f.ver, f.prop, f.scope, f.unit) AS interpretation
@@ -966,7 +996,7 @@ class DuckLakeAssetHistory:
                     ORDER BY event_at, measurement_point_id, channel_id
                     LIMIT ?
                     """,
-                    [*filters, *filters, max_rows + 1],
+                    [*filters, *filters, *filters, max_rows + 1],
                 ).fetchall()
         finally:
             connection.close()
@@ -1134,10 +1164,27 @@ class DuckLakeAssetHistory:
                 collection_index BIGINT NOT NULL,
                 connection_epoch BIGINT NOT NULL,
                 event_index BIGINT NOT NULL,
-                replayed BOOLEAN NOT NULL
+                replayed BOOLEAN NOT NULL,
+                semantic_binding_json VARCHAR
             )
             """
         )
+        # Catalogs created before semantic snapshots gain a nullable column once;
+        # existing rows stay without semantics rather than being reinterpreted.
+        opcua_columns = {
+            row[0]
+            for row in connection.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_catalog = ? AND table_schema = 'raw' "
+                "AND table_name = 'opcua_data_change'",
+                [_CATALOG_NAME],
+            ).fetchall()
+        }
+        if "semantic_binding_json" not in opcua_columns:
+            connection.execute(
+                f"ALTER TABLE {_CATALOG_NAME}.raw.opcua_data_change "
+                "ADD COLUMN semantic_binding_json VARCHAR"
+            )
         connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {_CATALOG_NAME}.raw.file_measurement (
@@ -1479,6 +1526,13 @@ def _opcua_batch_fingerprint(
                 "connection_epoch": event.connection_epoch,
                 "event_index": event.event_index,
                 "replayed": registered.notification.replayed,
+                # Present only with a snapshot, so batches committed before semantic
+                # snapshots existed keep their recovery fingerprint.
+                **(
+                    {"semantic_binding": serialize_channel_semantic_binding(binding)}
+                    if (binding := registered.semantic_binding) is not None
+                    else {}
+                ),
             }
         )
     encoded = json.dumps(
@@ -1535,6 +1589,18 @@ def _raw_event_row(
         event.connection_epoch,
         event.event_index,
         registered.notification.replayed,
+        _semantic_binding_json(registered.semantic_binding),
+    )
+
+
+def _semantic_binding_json(binding: ChannelSemanticBinding | None) -> str | None:
+    if binding is None:
+        return None
+    return json.dumps(
+        serialize_channel_semantic_binding(binding),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
     )
 
 
@@ -1675,8 +1741,17 @@ def _raw_evidence_id_from_identity(
     )
 
 
+def _parse_semantic_binding_json(value: object) -> ChannelSemanticBinding | None:
+    if value is None:
+        return None
+    try:
+        return parse_channel_semantic_binding(json.loads(_require_str(value, "semantic_binding")))
+    except (json.JSONDecodeError, ValueError) as error:
+        raise RuntimeError(f"DuckLake OPC UA semantic binding is invalid: {error}") from error
+
+
 def _opcua_event_from_row(row: Sequence[object]) -> OpcUaPersistentDataChangeEvent:
-    if len(row) != 21:
+    if len(row) != 22:
         raise RuntimeError("DuckLake OPC UA evidence row has an unexpected column count")
 
     source_timestamp = _optional_datetime(row[11], "source_timestamp")
@@ -1708,6 +1783,7 @@ def _opcua_event_from_row(row: Sequence[object]) -> OpcUaPersistentDataChangeEve
             observation=observation,
             replayed=_require_bool(row[20], "replayed"),
         ),
+        semantic_binding=_parse_semantic_binding_json(row[21]),
     )
     event_time = OpcUaEventTimeEvidence(
         basis=basis,
@@ -1750,6 +1826,7 @@ _OPCUA_RAW_COLUMNS = (
     ("connection_epoch", "BIGINT"),
     ("event_index", "BIGINT"),
     ("replayed", "BOOLEAN"),
+    ("semantic_binding_json", "VARCHAR"),
 )
 _FILE_RAW_COLUMNS = (
     ("raw_evidence_id", "VARCHAR"),
