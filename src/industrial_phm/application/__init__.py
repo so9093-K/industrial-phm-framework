@@ -23,6 +23,13 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionWindowTelemetry,
     build_acquisition_telemetry_surface,
 )
+from industrial_phm.application.analysis_input import (
+    ChannelObservation,
+    WindowInputReference,
+    window_channel_candidates,
+    window_channel_observations,
+    window_input_reference,
+)
 from industrial_phm.application.asset_detail import (
     AssetDetail,
     AssetEvidenceEvent,
@@ -171,7 +178,9 @@ from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
     PhaseUnbalanceConfig,
     PhaseUnbalanceEvidence,
+    resolve_phase_channels,
     run_phase_unbalance_analysis,
+    run_phase_unbalance_on_window,
 )
 from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
 from industrial_phm.application.source_cycle import (
@@ -290,6 +299,7 @@ __all__ = [
     "AttentionItem",
     "AttentionKind",
     "ChannelIdentity",
+    "ChannelObservation",
     "ChannelSemanticBinding",
     "ChannelSemanticCandidate",
     "CollectionControlRecord",
@@ -400,6 +410,7 @@ __all__ = [
     "SpoolToHistoryWriterPolicy",
     "SystemStateErrorEvidence",
     "UnknownRegisteredSourceError",
+    "WindowInputReference",
     "assess_source_freshness",
     "assess_source_health",
     "backfill_registered_file_source",
@@ -425,7 +436,9 @@ __all__ = [
     "receive_registered_opcua_source_observation",
     "register_file_source",
     "request_collection_state",
+    "resolve_phase_channels",
     "run_phase_unbalance_analysis",
+    "run_phase_unbalance_on_window",
     "run_registered_file_feature_analysis",
     "run_registered_file_source_cycle",
     "run_registered_opcua_source_cycle",
@@ -436,4 +449,7 @@ __all__ = [
     "validate_opcua_persistent_session_transition",
     "validate_operational_finding_against_run",
     "validate_registered_file_source",
+    "window_channel_candidates",
+    "window_channel_observations",
+    "window_input_reference",
 ]

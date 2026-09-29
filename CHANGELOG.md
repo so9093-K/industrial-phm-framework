@@ -11,6 +11,10 @@
 
 ### Changed
 
+- ADR-0008: live 분석의 입력은 finalized window가 accept한 event 집합이며 history 재조회를 하지 않습니다.
+  `run_phase_unbalance_on_window`가 window event를 history와 같은 입력 형태로 투영해 같은 capability core로
+  분석하고, window ID·accept/reject 수·accept event digest를 입력 근거로 기록합니다.
+
 - 3상 불평형 입력 channel을 AI-Hub 이름 대신 bound meaning(phase voltage/current, scope phase R/S/T,
   V/A)으로 고릅니다. 모호한 역할은 명시적 설정을 요구하고, evidence에 quantity별 사용 channel과 선택 방식을
   남깁니다. 같은 규칙이 현장 OPC UA channel 이름에도 적용됩니다.
