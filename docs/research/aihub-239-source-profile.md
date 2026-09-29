@@ -27,49 +27,55 @@ Training/raw 보일러(filekey 44033)와 압출기(44035) ZIP의 모든 JSON을 
 - 압출기에서는 한 timestamp에 19개 또는 27개 channel만 관측된 경우도 있습니다.
 - 파일 suffix는 device ID가 아닙니다. `SourceData_391.json`의 `DEVICE_ID`는 7303입니다.
 
-## Measurement dictionary baseline
+## Measurement dictionary
 
-아래 이름은 observed raw identity입니다. 현재 canonical mapping, 단위, aggregation window와
-measurement method는 미확정입니다. UI는 raw name과 `unit: unknown`을 표시합니다. 이름에 평균이
-있어도 temporal average를 뜻한다고 가정하지 않습니다.
+Raw ITEM_NAME은 channel identity입니다. 의미·단위는 provider 문서와 실제 데이터가 **둘 다** 뒷받침할 때만
+`aihub-239-semantics-v1`(history metadata v3)에 기록합니다. 문서의 "평균"은 시간 평균이 아니라 **3상 평균**
+(power는 실제로 3상 합)입니다. 1분 sample 안의 시간 집계 방식(순시값/구간 평균)은 문서에 유효·무효전력만
+"순시값"으로 적혀 있고 나머지는 미확정입니다. Source timezone은 문서에 없어 계속 설정 가정입니다.
 
-| Raw ITEM_NAME | Canonical mapping | Unit |
-| --- | --- | --- |
-| R상무효전력 | unresolved | unknown |
-| R상선간전압 | unresolved | unknown |
-| R상역률 | unresolved | unknown |
-| R상유효전력 | unresolved | unknown |
-| R상전류 | unresolved | unknown |
-| R상전류고조파 | unresolved | unknown |
-| R상전압 | unresolved | unknown |
-| R상전압고조파 | unresolved | unknown |
-| S상무효전력 | unresolved | unknown |
-| S상선간전압 | unresolved | unknown |
-| S상역률 | unresolved | unknown |
-| S상유효전력 | unresolved | unknown |
-| S상전류 | unresolved | unknown |
-| S상전류고조파 | unresolved | unknown |
-| S상전압 | unresolved | unknown |
-| S상전압고조파 | unresolved | unknown |
-| T상무효전력 | unresolved | unknown |
-| T상선간전압 | unresolved | unknown |
-| T상역률 | unresolved | unknown |
-| T상유효전력 | unresolved | unknown |
-| T상전류 | unresolved | unknown |
-| T상전류고조파 | unresolved | unknown |
-| T상전압 | unresolved | unknown |
-| T상전압고조파 | unresolved | unknown |
-| 누적전력량 | unresolved | unknown |
-| 무효전력평균 | unresolved | unknown |
-| 상전압평균 | unresolved | unknown |
-| 선간전압평균 | unresolved | unknown |
-| 역률평균 | unresolved | unknown |
-| 온도 | unresolved | unknown |
-| 유효전력평균 | unresolved | unknown |
-| 전류고조파평균 | unresolved | unknown |
-| 전류평균 | unresolved | unknown |
-| 전압고조파평균 | unresolved | unknown |
-| 주파수 | unresolved | unknown |
+| Raw ITEM_NAME | Provider 문서 (§1.6.3) | 실제 데이터 검증 | semantics-v1 |
+| --- | --- | --- | --- |
+| R상무효전력 | kVar | √(P²+Q²) = V·I → **var** 스케일 (문서와 불일치) | unresolved |
+| R상선간전압 | V (RS/ST/TS) | 선간/상 ≈ √3 | unresolved (R/S/T → pair 대응 미확정) |
+| R상역률 | %, 진상/지상 부호 포함 | −1..1 **비율** (문서와 불일치) | unresolved |
+| R상유효전력 | kW, 순시값 | P = V·I·PF → **W** 스케일 (문서와 불일치) | unresolved |
+| R상전류 | A | √(P²+Q²) = V·I | **phase current, A** |
+| R상전류고조파 | % THD | 독립 검증 없음 | unresolved |
+| R상전압 | V (R/S/T상 전압) | 선간/상 ≈ √3 | **phase voltage, V** |
+| R상전압고조파 | % THD | 독립 검증 없음 | unresolved |
+| S상무효전력 | kVar | √(P²+Q²) = V·I → **var** 스케일 (문서와 불일치) | unresolved |
+| S상선간전압 | V (RS/ST/TS) | 선간/상 ≈ √3 | unresolved (R/S/T → pair 대응 미확정) |
+| S상역률 | %, 진상/지상 부호 포함 | −1..1 **비율** (문서와 불일치) | unresolved |
+| S상유효전력 | kW, 순시값 | P = V·I·PF → **W** 스케일 (문서와 불일치) | unresolved |
+| S상전류 | A | √(P²+Q²) = V·I | **phase current, A** |
+| S상전류고조파 | % THD | 독립 검증 없음 | unresolved |
+| S상전압 | V (R/S/T상 전압) | 선간/상 ≈ √3 | **phase voltage, V** |
+| S상전압고조파 | % THD | 독립 검증 없음 | unresolved |
+| T상무효전력 | kVar | √(P²+Q²) = V·I → **var** 스케일 (문서와 불일치) | unresolved |
+| T상선간전압 | V (RS/ST/TS) | 선간/상 ≈ √3 | unresolved (R/S/T → pair 대응 미확정) |
+| T상역률 | %, 진상/지상 부호 포함 | −1..1 **비율** (문서와 불일치) | unresolved |
+| T상유효전력 | kW, 순시값 | P = V·I·PF → **W** 스케일 (문서와 불일치) | unresolved |
+| T상전류 | A | √(P²+Q²) = V·I | **phase current, A** |
+| T상전류고조파 | % THD | 독립 검증 없음 | unresolved |
+| T상전압 | V (R/S/T상 전압) | 선간/상 ≈ √3 | **phase voltage, V** |
+| T상전압고조파 | % THD | 독립 검증 없음 | unresolved |
+| 누적전력량 | kWh, 3상 합 | 미검증 | unresolved |
+| 무효전력평균 | kVar, 3상 평균 | = **sum**(R,S,T), var 스케일 (문서와 불일치) | unresolved |
+| 상전압평균 | V, 3상 평균 | = mean(R,S,T 상전압) | **phase voltage, 3상 평균, V** |
+| 선간전압평균 | V, 3상 평균 | = mean(3 선간), ≈ √3 × 상전압평균 | **line-to-line voltage, 3상 평균, V** |
+| 역률평균 | %, 3상 평균 | |mean(R,S,T)|와 일치, 일부 member에서 부호 반대 | unresolved |
+| 온도 | °C, 계측부하 온도 | 독립 검증 없음 | unresolved |
+| 유효전력평균 | kW, 3상 평균 | = **sum**(R,S,T), W 스케일 (문서와 불일치) | unresolved |
+| 전류고조파평균 | % THD, 3상 평균 | 대부분 mean(R,S,T)와 일치 | unresolved |
+| 전류평균 | A, 3상 평균 | = mean(R,S,T 상전류) | **phase current, 3상 평균, A** |
+| 전압고조파평균 | % THD, 3상 평균 | 대부분 mean(R,S,T)와 일치 | unresolved |
+| 주파수 | Hz | 대부분 59.7–60.1 (60 Hz 계통) | **frequency, Hz** |
+
+검증은 보일러 `SourceData_211/347/359`, 압출기 `SourceData_127/128`의 같은 timestamp record로 했습니다.
+압출기 member는 대부분 timestamp에서 11개 집계 channel만 기록돼 상별 전력 관계는 보일러에서 확인했습니다.
+Unresolved 항목은 문서 단위를 그대로 쓰지도, 관측 스케일로 조용히 바꾸지도 않습니다. 사용하려면 불일치를
+설명하는 별도 근거와 versioned binding이 필요합니다.
 
 ## Documented / configured / unresolved
 
@@ -83,7 +89,7 @@ measurement method는 미확정입니다. UI는 raw name과 `unit: unknown`을 �
 - **Observed:** 위 archive 범위에 대한 schema/count/null/duplicate/cadence 조사 결과입니다.
 - **Configured:** 소구간 실행의 asset ID는 개발용 grouping이며 `Asia/Seoul`은 명시적인 normalization
   가정입니다. 두 값 모두 binding의 evidence/version과 함께 저장하고 검증된 source fact로 취급하지 않습니다.
-- **Unresolved:** 물리 설비 identity, source timezone, 단위, 평균의 계산 범위, provider label 해석.
+- **Unresolved:** 물리 설비 identity, source timezone, 위 표의 unresolved 항목 단위, sample 내부 시간 집계.
 
 다른 archive/version을 조사하면 그 scope와 근거를 추가합니다. 두 설비군에서 확인한 공통점만으로
 전체 데이터셋의 불변 schema를 선언하지 않습니다. 상세 실행 결과와 원본은 Git에 넣지 않습니다.
@@ -101,8 +107,9 @@ measurement method는 미확정입니다. UI는 raw name과 `unit: unknown`을 �
 
 ## Interpretation and quality boundary
 
-새 metadata v2는 `observed_property=None`으로 canonical 해석 미확정을 표현합니다. 원본 ITEM_NAME은
-channel label입니다. v1의 property_name은 legacy label로 표시하며 기존 JSON을 재작성하지 않습니다.
+새 적재는 metadata v3입니다. 위 표에서 확인된 항목만 `aihub-239-semantics-v1`의 의미·단위·근거를 갖고
+나머지는 `observed_property=None`, 단위 unknown입니다. v2는 모든 항목이 미확정인 이전 형식이며, v1의
+property_name은 legacy label로 표시합니다. 이미 적재된 v1/v2 JSON은 재작성하지 않습니다.
 FILE의 source quality는 unknown입니다. 숫자 존재/present와 null은 별도 availability이며 protocol Good이 아닙니다.
 기존 history `status_good` 저장 필드는 FILE에서 availability를 담는 호환 필드로 유지하되,
 공통 read model의 `source_quality`와 UI는 이를 source Good 판정에 사용하지 않습니다.
@@ -136,11 +143,19 @@ raw null(device 5702의 105건)도 없고, 압출기는 null을 유지합니다(
 device 7247의 label series 하나는 1,007,976건으로 다른 series보다 24건 적습니다. Record 단위 일치는 아직
 검증하지 않았습니다(count·범위·device 기준 대응).
 
-**Provider label method is unresolved.** 같은 설비 안에서 label별 BASE_ITEM 값 범위가 크게 겹칩니다. 예를 들어
-보일러 211의 `Stop` 구간에도 전류평균이 최대 640까지 관측되고, SOH `정상`과 `경고`가 모두 역률 0..1 범위를
-가집니다. 따라서 label은 해당 순간값의 단순 threshold로 보이지 않지만 산정 방법·기간·기준은 문서로
-확인하지 못했습니다. SOH 경고 비율이 역률평균 series에서 매우 높은 점(보일러 약 86%)도 운영상 경고
-빈도로 해석하지 않습니다.
+**Provider label method (documented).** 구축활용가이드 §2.4와 기술문서에 따르면 label은 1분 원시 데이터를
+1시간 구간으로 나눠 크라우드 워커가 labeling tool에서 구간을 선택해 붙이고 전문 인력이 검수했습니다.
+
+- 기동패턴: 설비별 실측값으로 정한 전류·전력 "정격"의 80% 이상 Loading, 10–80% Unloading, 10% 이하 Stop.
+  Transient·glitch는 사람의 판단으로 앞뒤 상태에 붙입니다.
+- SOH: 역률 80% 이상·전압고조파 3% 이하 정상, 60–80%·3–5% 주의, 60% 이하·5% 이상 경고. 한전 전력품질
+  기준에 따른 **전력 품질 등급**이며 설비 열화나 고장 상태를 직접 판정한 것이 아닙니다.
+- 검수 목표는 "사용패턴 분석 정확도 95%", "고장진단 정확도 90–95%"로 적혀 있지만 산출 방법은 없습니다.
+
+Label별 BASE_ITEM 값 범위가 크게 겹치는 관측(예: 보일러 211 `Stop` 구간의 전류평균 최대 640)은 순간값
+threshold가 아니라 1시간 구간 단위의 사람 판단이라는 문서 설명과 일치합니다. SOH 경고 비율이 역률평균
+series에서 매우 높은 점(보일러 약 86%)은 데이터의 역률 부호·스케일 불일치와 함께 해석이 필요하며 운영상
+경고 빈도로 해석하지 않습니다.
 
 **Provider annotation boundary.** AI-Hub label은 research path의 provider annotation입니다.
 
@@ -150,7 +165,7 @@ ProviderAnnotation
   annotation type  = 기동패턴 / SOH, with its BASE_ITEM
   value            = Stop, Loading, Unloading / 정상, 주의, 경고
   interval         = source-local TIMESTAMP span of consecutive equal labels
-  provenance       = archive, member, device identifiers, provider method: unresolved
+  provenance       = archive, member, device identifiers, guideline v1.5 §2.4 method
 ```
 
 - Production path(OPC UA/FILE → Raw Evidence → Asset History → Analysis → Evidence → Finding → Review)의
@@ -158,20 +173,22 @@ ProviderAnnotation
 - `AssetHealth`, `OperatingState`, `OperationalFinding`, maintenance decision이나 verified ground truth로
   승격하지 않습니다. Provider annotation ≠ live sensor state ≠ asset health ≠ maintenance ground truth입니다.
 - 쓰임은 research evaluation입니다: label 없이 만든 분석 결과를 provider annotation과 비교할 때, 비교
-  대상이 provider annotation(방법 미확정)이었다고 명시합니다.
+  대상이 provider annotation(1시간 구간 사람 labeling)이었다고 명시합니다.
 - Label ZIP은 raw measurement의 대체 source가 아닙니다. Raw evidence는 raw archive에서만 적재합니다.
 
 **Metadata is not unit evidence.** `facility_volt=380`인 여러 설비의 선간전압평균이 약 225로 관측됩니다
 (예: 5764, 7303, 7300). 정격 metadata가 측정점 전압과 일치한다고 가정하지 않습니다. `facility_capacity`의
 단위도 공식 문서에는 kW로 설명되지만 유효전력평균 값(최대 약 2.6×10^5)과 같은 scale이 아닙니다.
 
-**Empirical consistency (not a unit declaration).** 아래는 값 범위가 물리적 관계와 일치한다는 관측이며
-source unit 문서가 아닙니다. Canonical mapping과 unit은 계속 `unresolved`입니다.
+## Provider documentation
 
-- 주파수: 대부분 59.7–60.1 (60 Hz 계통과 일치)
-- 선간전압평균 / 상전압평균 ≈ 1.73 (삼상 √3 관계와 일치)
-- 역률 계열: −1..1 (비율 scale과 일치, 백분율 아님)
-- 유효전력평균: 정격 capacity와 scale이 달라 W/kW/scale factor를 판단할 수 없음
+AI-Hub 로그인으로 받은 문서 두 개를 근거로 사용합니다(local `data/raw/aihub/239/docs/`, Git 제외).
 
-이 관측을 semantic binding으로 승격하려면 provider 문서 또는 계측기 사양 같은 독립 근거, 그리고
-evidence level을 구분하는 versioned binding이 필요합니다.
+| 문서 | SHA-256 |
+| --- | --- |
+| 전력 설비 에너지 품질 AI데이터 구축·활용 가이드라인 v1.5 (2021-03-23, 33쪽) | `dfad9cd6d9451f571048813ae394923faec165519cc6eab84babee9c2f66560a` |
+| 테크니컬 리포트: 전력 설비 에너지 품질 (18쪽) | `6577c2f682ef44e932b1fa7d182dca9181d9f668bfb7b2af4e197547f3867b44` |
+
+문서로 확인된 사실: 계측기는 Mobile Energy Meter, 수집 주기 1분, 설비당 약 1개월, 35개 항목의 단위 표
+(§1.6.3), 설비 key는 `DEVICE_ID`+`DEVICE_BD_ID`, `facility_capacity`는 kW 정격, 전력량·유효전력·역률
+정밀도 목표 1.0%(IEC 61850 기준으로 기재). 계측기 모델, timezone, 원시 데이터 자동 필터링 규칙은 없습니다.

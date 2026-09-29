@@ -11,6 +11,12 @@
 
 ### Changed
 
+- AI-Hub 239 구축·활용 가이드라인의 단위 표와 실제 데이터의 물리 관계(선간/상 √3, P=V·I·PF, 3상 평균)를
+  대조해, 둘이 일치하는 주파수(Hz)·상전압/선간전압 평균(V)·상전류(A)만 `aihub-239-semantics-v1`로
+  확정했습니다(history metadata v3). 유효/무효전력(문서 kW·kVar, 실제 W·var 스케일, "평균"은 3상 합),
+  역률(문서 %, 실제 비율)과 누적전력량은 불일치로 미확정 유지합니다. Label 산정 방법(1시간 구간 사람
+  labeling, SOH는 전력 품질 기준 등급)을 문서 근거로 기록했습니다.
+
 - README와 architecture overview가 같은 대표 시스템 구조(Data Sources → Acquisition & History → PHM
   Analysis & Evidence → Operations & Review → Human Decision)를 사용합니다. 상세 runtime은 overview로
   옮기고, production/research path 경계와 provider annotation·ground truth vocabulary를 정리했습니다.
