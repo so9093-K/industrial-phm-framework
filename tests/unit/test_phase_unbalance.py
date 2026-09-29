@@ -1,0 +1,83 @@
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from industrial_phm.application.phase_unbalance import (
+    ChannelObservation,
+    run_phase_unbalance_analysis,
+    unbalance_percent,
+)
+
+T0 = datetime(2021, 1, 1, tzinfo=UTC)
+
+
+def _obs(channel, minute, value, *, prop=None, unit=None, conflicting=False):
+    phase = channel[0]
+    quantity = "phase voltage" if "전압" in channel else "phase current"
+    return ChannelObservation(
+        source_id="s",
+        measurement_point_id=None,
+        channel_id=channel,
+        event_at=T0 + timedelta(minutes=minute),
+        value=value,
+        conflicting=conflicting,
+        source_quality_good=True,
+        observed_property=prop or quantity,
+        scope=f"phase {phase}",
+        unit=unit or ("V" if "전압" in channel else "A"),
+        semantic_version="aihub-239-semantics-v2",
+    )
+
+
+class _Reader:
+    def __init__(self, observations):
+        self.observations = observations
+
+    def current_snapshot_id(self):
+        return 7
+
+    def query_channel_observations(self, asset_id, **kwargs):
+        assert kwargs["snapshot_id"] == 7
+        return tuple(self.observations)
+
+
+def test_unbalance_uses_only_confirmed_complete_samples_and_counts_exclusions():
+    assert unbalance_percent([220, 230, 225]) == pytest.approx(5 / 225 * 100)
+    volts = ("R상전압", "S상전압", "T상전압")
+    amps = ("R상전류", "S상전류", "T상전류")
+    observations = [
+        *(_obs(c, 0, v) for c, v in zip(volts, (220, 230, 225), strict=True)),
+        *(_obs(c, 0, v) for c, v in zip(amps, (10, 10, 13), strict=True)),
+        # A phase bound to an unconfirmed meaning is not eligible input.
+        *(_obs(c, 1, 220, prop=None if c[0] != "R" else "unresolved") for c in volts),
+        *(_obs(c, 1, v) for c, v in zip(amps, (0.1, 0.2, 0.1), strict=True)),
+        *(_obs(c, 2, 220) for c in volts[:2]),
+        _obs("R상전류", 2, 5, conflicting=True),
+        _obs("S상전류", 2, 5),
+        _obs("T상전류", 2, 5),
+    ]
+    analysis = run_phase_unbalance_analysis(
+        _Reader(observations),
+        asset_id="a",
+        source_id="s",
+        start_at=T0,
+        end_at=T0 + timedelta(hours=1),
+    )
+    voltage, current = analysis.evidence.results
+    assert voltage.evaluated_samples == 1
+    assert voltage.median_percent == pytest.approx(2.2222, abs=1e-4)
+    assert voltage.excluded_samples == {"unconfirmed-semantics": 1, "incomplete-phases": 1}
+    assert current.evaluated_samples == 1
+    assert current.max_percent == pytest.approx(2 / 11 * 100)
+    assert current.excluded_samples == {"low-signal": 1, "conflicting-value": 1}
+    assert analysis.evidence.input_reference.snapshot_id == 7
+    assert analysis.run.data_quality.state.value == "warning"
+
+    with pytest.raises(ValueError, match="no eligible"):
+        run_phase_unbalance_analysis(
+            _Reader(observations[6:]),
+            asset_id="a",
+            source_id="s",
+            start_at=T0 + timedelta(minutes=1),
+            end_at=T0 + timedelta(hours=1),
+        )

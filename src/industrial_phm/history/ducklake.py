@@ -15,7 +15,7 @@ import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -41,6 +41,7 @@ from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeEvidence,
     OpcUaPersistentDataChangeEvent,
 )
+from industrial_phm.application.phase_unbalance import ChannelObservation
 from industrial_phm.application.source_registration import SourceType
 from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
@@ -717,8 +718,10 @@ class DuckLakeAssetHistory:
                 f"""
                 WITH raw_file AS (
                     -- FILE raw rows share the measurement asset/channel/time. Filter
-                    -- before the outer join so it never builds on the whole raw table.
-                    SELECT raw_evidence_id, source_metadata_json, source_file, source_sha256
+                    -- before the outer join so it never builds on the whole raw table;
+                    -- equality-only join keys keep it a hash join.
+                    SELECT raw_evidence_id, 'file' AS source_type, source_metadata_json,
+                        source_file, source_sha256
                     FROM {_CATALOG_NAME}.raw.file_measurement
                     WHERE asset_id = ? AND channel_id = ?
                         AND source_timestamp >= ? AND source_timestamp < ?
@@ -740,7 +743,7 @@ class DuckLakeAssetHistory:
                     m.value, m.status_good, m.ingestion_mode, m.conflict, f.source_metadata_json,
                     f.source_file, f.source_sha256
                 FROM bounded m LEFT JOIN raw_file f
-                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
                 ORDER BY m.event_at {direction}, m.raw_evidence_id
             """,
                 [*(asset_id, channel_id, start_at, end_at) * 2, point_budget + 1],
@@ -790,8 +793,10 @@ class DuckLakeAssetHistory:
                 f"""
                 WITH raw_file AS (
                     -- FILE raw rows share the measurement asset/channel/time. Filter
-                    -- before the outer join so it never builds on the whole raw table.
-                    SELECT raw_evidence_id, source_metadata_json, source_file, source_sha256
+                    -- before the outer join so it never builds on the whole raw table;
+                    -- equality-only join keys keep it a hash join.
+                    SELECT raw_evidence_id, 'file' AS source_type, source_metadata_json,
+                        source_file, source_sha256
                     FROM {_CATALOG_NAME}.raw.file_measurement
                     WHERE asset_id = ? AND channel_id = ?
                         AND source_timestamp >= ? AND source_timestamp < ?
@@ -812,7 +817,7 @@ class DuckLakeAssetHistory:
                         m.value IS NOT NULL AND NOT m.conflict
                             AND (m.source_type = 'file' OR m.status_good) AS usable
                     FROM selected m LEFT JOIN raw_file f
-                        ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                        ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
                 )
                 SELECT source_id, source_type, measurement_point_id, bucket_index,
                     min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
@@ -868,6 +873,107 @@ class DuckLakeAssetHistory:
             ),
         )
 
+    def query_channel_observations(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        channel_ids: Sequence[str],
+        start_at: datetime,
+        end_at: datetime,
+        snapshot_id: int,
+        max_rows: int = 2_000_000,
+    ) -> tuple[ChannelObservation, ...]:
+        """Per (point, channel, event time) values and bound semantics at one snapshot.
+
+        Reading at a recorded snapshot makes analysis input reproducible after more
+        history is appended. Conflicting values are flagged, never averaged; a group
+        whose rows disagree on interpretation carries no semantics.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        _validate_identifier(source_id, "source_id")
+        channels = list(channel_ids)
+        if not channels:
+            raise ValueError("channel_ids must not be empty")
+        for channel_id in channels:
+            _validate_identifier(channel_id, "channel_id")
+        snapshot = _require_int(snapshot_id, "snapshot_id")
+        _validate_positive_int(max_rows, "max_rows")
+        at = f"AT (VERSION => {snapshot})"
+        filters = [asset_id, source_id, channels, start_at, end_at]
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            with _cache_absent_pandas_import():
+                rows = connection.execute(
+                    f"""
+                    WITH m AS (
+                        SELECT raw_evidence_id, source_type, measurement_point_id, channel_id,
+                            event_at, value, status_good
+                        FROM {_CATALOG_NAME}.history.measurement {at}
+                        WHERE asset_id = ? AND source_id = ?
+                            AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                            AND event_at >= ? AND event_at < ?
+                    ), f AS (
+                        SELECT raw_evidence_id, 'file' AS source_type,
+                            json_extract_string(source_metadata_json, '$.semantics.version') AS ver,
+                            json_extract_string(
+                                source_metadata_json, '$.semantics.definition.observed_property'
+                            ) AS prop,
+                            json_extract_string(
+                                source_metadata_json, '$.semantics.definition.scope'
+                            ) AS scope,
+                            json_extract_string(
+                                source_metadata_json, '$.semantics.definition.unit'
+                            ) AS unit
+                        FROM {_CATALOG_NAME}.raw.file_measurement {at}
+                        WHERE asset_id = ? AND source_id = ?
+                            AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                            AND source_timestamp >= ? AND source_timestamp < ?
+                    ), joined AS (
+                        SELECT m.*, f.ver, f.prop, f.scope, f.unit,
+                            concat_ws('|', f.ver, f.prop, f.scope, f.unit) AS interpretation
+                        FROM m LEFT JOIN f
+                            ON m.raw_evidence_id = f.raw_evidence_id
+                            AND m.source_type = f.source_type
+                    )
+                    SELECT measurement_point_id, channel_id, event_at, min(value),
+                        count(DISTINCT value) + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) > 1,
+                        bool_and(source_type = 'file' OR status_good),
+                        count(DISTINCT interpretation) = 1 AND count(interpretation) = count(*),
+                        min(prop), min(scope), min(unit), min(ver)
+                    FROM joined
+                    GROUP BY measurement_point_id, channel_id, event_at
+                    ORDER BY event_at, measurement_point_id, channel_id
+                    LIMIT ?
+                    """,
+                    [*filters, *filters, max_rows + 1],
+                ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > max_rows:
+            raise ValueError(f"analysis input exceeds {max_rows} observation groups; narrow range")
+        result = []
+        for point, channel, event_at, value, conflict, good, agreed, prop, scope, unit, ver in rows:
+            interpreted = bool(agreed)
+            result.append(
+                ChannelObservation(
+                    source_id=source_id,
+                    measurement_point_id=_optional_str(point, "measurement_point_id"),
+                    channel_id=_require_str(channel, "channel_id"),
+                    # UTC keeps persisted evidence independent of the reader's zone.
+                    event_at=_require_datetime(event_at, "event_at").astimezone(UTC),
+                    value=_optional_float(value, "value"),
+                    conflicting=bool(conflict),
+                    source_quality_good=bool(good),
+                    observed_property=_optional_str(prop, "prop") if interpreted else None,
+                    scope=_optional_str(scope, "scope") if interpreted else None,
+                    unit=_optional_str(unit, "unit") if interpreted else None,
+                    semantic_version=_optional_str(ver, "version") if interpreted else None,
+                )
+            )
+        return tuple(result)
+
     def query_latest_measurements(
         self,
         asset_id: str,
@@ -887,7 +993,8 @@ class DuckLakeAssetHistory:
             rows = connection.execute(
                 f"""
                 WITH raw_file AS (
-                    SELECT raw_evidence_id, source_metadata_json, source_file, source_sha256
+                    SELECT raw_evidence_id, 'file' AS source_type, source_metadata_json,
+                        source_file, source_sha256
                     FROM {_CATALOG_NAME}.raw.file_measurement
                     WHERE asset_id = ? AND channel_id = ?
                 ), ranked AS (
@@ -907,7 +1014,7 @@ class DuckLakeAssetHistory:
                     m.value, m.status_good, m.ingestion_mode, m.has_conflict,
                     f.source_metadata_json, f.source_file, f.source_sha256
                 FROM ranked m LEFT JOIN raw_file f
-                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
                 WHERE m.observation_rank = 1
                 ORDER BY m.source_id, m.measurement_point_id LIMIT 1001
             """,
