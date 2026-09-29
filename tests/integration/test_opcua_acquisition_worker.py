@@ -256,9 +256,9 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
             "vibration_x",
             "temperature",
         ]
-        assert {
-            binding.version for binding in bindings if binding is not None
-        } == {"site-a-semantics-v1"}
+        assert {binding.version for binding in bindings if binding is not None} == {
+            "site-a-semantics-v1"
+        }
 
         runtime = telemetry.get(source.source_id)
         assert runtime.session is not None
