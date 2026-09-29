@@ -4642,12 +4642,222 @@ def _(
 
 
 @app.cell
+def _(Path, mo, os):
+    from industrial_phm.application import (
+        JsonPhaseUnbalanceRepository,
+        run_phase_unbalance_analysis,
+    )
+    from industrial_phm.presentation.phase_unbalance import (
+        phase_unbalance_exclusion_rows,
+        phase_unbalance_provenance_rows,
+        phase_unbalance_run_options,
+        phase_unbalance_summary_rows,
+        render_phase_unbalance_svg,
+    )
+
+    phase_unbalance_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
+            "artifacts/operations/phase-unbalance.json",
+        )
+    )
+    try:
+        _initial_unbalance = JsonPhaseUnbalanceRepository(phase_unbalance_state_path).list_results()
+        _initial_unbalance_error = ""
+    except (OSError, ValueError) as _error:
+        _initial_unbalance = ()
+        _initial_unbalance_error = str(_error)
+    get_unbalance_results, set_unbalance_results = mo.state(_initial_unbalance)
+    get_unbalance_error, set_unbalance_error = mo.state(_initial_unbalance_error)
+    get_unbalance_selected, set_unbalance_selected = mo.state(None)
+    return (
+        JsonPhaseUnbalanceRepository,
+        get_unbalance_error,
+        get_unbalance_results,
+        get_unbalance_selected,
+        phase_unbalance_exclusion_rows,
+        phase_unbalance_provenance_rows,
+        phase_unbalance_run_options,
+        phase_unbalance_state_path,
+        phase_unbalance_summary_rows,
+        render_phase_unbalance_svg,
+        run_phase_unbalance_analysis,
+        set_unbalance_error,
+        set_unbalance_results,
+        set_unbalance_selected,
+    )
+
+
+@app.cell
+def _(asset_selector, history_assets, history_reader, mo):
+    from datetime import timedelta as _timedelta
+
+    unbalance_controls = None
+    unbalance_controls_error = ""
+    _summaries = {item.asset_id: item for item in history_assets}
+    if history_reader is not None and asset_selector is not None:
+        _summary = _summaries.get(asset_selector.value)
+        if _summary is not None:
+            try:
+                _sources = history_reader.list_history_sources(_summary.asset_id)
+                # mo.ui.dictionary registers the children so a click re-runs readers.
+                unbalance_controls = mo.ui.dictionary(
+                    {
+                        "source": mo.ui.dropdown(
+                            options=list(_sources), value=_sources[0], label="Source"
+                        ),
+                        "start": mo.ui.text(
+                            value=_summary.start_at.isoformat(),
+                            label="분석 시작 (UTC offset 포함)",
+                            full_width=True,
+                        ),
+                        "end": mo.ui.text(
+                            value=(_summary.end_at + _timedelta(seconds=1)).isoformat(),
+                            label="분석 종료 (미포함)",
+                            full_width=True,
+                        ),
+                        "run": mo.ui.run_button(label="3상 불평형 분석 실행", kind="success"),
+                    }
+                )
+            except Exception as _error:
+                unbalance_controls_error = str(_error)
+    return unbalance_controls, unbalance_controls_error
+
+
+@app.cell
+def _(
+    JsonPhaseUnbalanceRepository,
+    asset_selector,
+    datetime,
+    history_reader,
+    phase_unbalance_state_path,
+    run_phase_unbalance_analysis,
+    set_unbalance_error,
+    set_unbalance_results,
+    set_unbalance_selected,
+    unbalance_controls,
+):
+    if unbalance_controls is not None and unbalance_controls.value["run"]:
+        _inputs = unbalance_controls.value
+        try:
+            _analysis = run_phase_unbalance_analysis(
+                history_reader,
+                asset_id=asset_selector.value,
+                source_id=_inputs["source"],
+                start_at=datetime.fromisoformat(_inputs["start"]),
+                end_at=datetime.fromisoformat(_inputs["end"]),
+            )
+            _repository = JsonPhaseUnbalanceRepository(phase_unbalance_state_path)
+            _repository.record(_analysis)
+            _results = _repository.list_results()
+        except (OSError, ValueError, TimeoutError) as _error:
+            set_unbalance_error(f"분석 실패: {_error}")
+        else:
+            set_unbalance_results(_results)
+            set_unbalance_selected(_analysis.run.analysis_run_id)
+            set_unbalance_error("")
+    return
+
+
+@app.cell
+def _(
+    asset_selector,
+    get_unbalance_results,
+    get_unbalance_selected,
+    mo,
+    phase_unbalance_run_options,
+):
+    unbalance_results = get_unbalance_results()
+    unbalance_run_selector = None
+    if asset_selector is not None:
+        _options = phase_unbalance_run_options(unbalance_results, asset_selector.value)
+        if _options:
+            _selected = get_unbalance_selected()
+            _label = next(
+                (label for label, run_id in _options.items() if run_id == _selected),
+                next(iter(_options)),
+            )
+            unbalance_run_selector = mo.ui.dropdown(
+                options=_options, value=_label, label="분석 기록", full_width=True
+            )
+    return unbalance_results, unbalance_run_selector
+
+
+@app.cell
+def _(
+    get_unbalance_error,
+    mo,
+    phase_unbalance_exclusion_rows,
+    phase_unbalance_provenance_rows,
+    phase_unbalance_summary_rows,
+    render_phase_unbalance_svg,
+    unbalance_controls,
+    unbalance_controls_error,
+    unbalance_results,
+    unbalance_run_selector,
+):
+    _blocks = [
+        mo.md(
+            "### 전력 품질 분석 · 3상 불평형\n\n"
+            "확정된 상전압(V)·상전류(A)만 고정된 history snapshot에서 읽어 시각별 불평형률 "
+            "(최대 상 편차 / 3상 평균)을 계산합니다. 서술적 전력 품질 측정값이며 고장·건강 상태·"
+            "alarm 판정이 아닙니다. 의미가 확정되지 않았거나 정지 구간인 시각은 "
+            "사유별로 제외합니다."
+        )
+    ]
+    if unbalance_controls_error:
+        _blocks.append(mo.callout(unbalance_controls_error, kind="danger"))
+    if unbalance_controls is None:
+        _blocks.append(mo.callout("이 설비에는 분석할 측정 이력이 없습니다.", kind="neutral"))
+    else:
+        _blocks.append(
+            mo.vstack(
+                [
+                    unbalance_controls["source"],
+                    unbalance_controls["start"],
+                    unbalance_controls["end"],
+                    unbalance_controls["run"],
+                ],
+                gap=0.5,
+            )
+        )
+    if get_unbalance_error():
+        _blocks.append(mo.callout(get_unbalance_error(), kind="danger"))
+    if unbalance_run_selector is not None:
+        _selected = next(
+            r for r in unbalance_results if r.run.analysis_run_id == unbalance_run_selector.value
+        )
+        _blocks.extend(
+            [
+                unbalance_run_selector,
+                mo.ui.table(phase_unbalance_summary_rows(_selected), selection=None),
+                mo.Html(render_phase_unbalance_svg(_selected)),
+                mo.accordion(
+                    {
+                        "제외된 시각": mo.ui.table(
+                            phase_unbalance_exclusion_rows(_selected), selection=None
+                        ),
+                        "입력·버전·설정 근거": mo.ui.table(
+                            phase_unbalance_provenance_rows(_selected),
+                            selection=None,
+                            page_size=20,
+                        ),
+                    }
+                ),
+            ]
+        )
+    power_quality_view = mo.vstack(_blocks, gap=0.8)
+    return (power_quality_view,)
+
+
+@app.cell
 def _(
     asset_detail,
     asset_selector,
     history_refresh_button,
     measurement_history_view,
     mo,
+    power_quality_view,
     render_asset_analysis_markdown,
     render_asset_findings_markdown,
     render_asset_sources_markdown,
@@ -4772,6 +4982,7 @@ def _(
                 ),
                 _sources_view,
                 measurement_history_view,
+                power_quality_view,
                 _observations_view,
                 _analysis_view,
                 _findings_view,

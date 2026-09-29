@@ -11,6 +11,9 @@
 
 ### Changed
 
+- Operations Asset Detail에 전력 품질 분석 · 3상 불평형을 추가했습니다. Source·구간을 골라 실행하고
+  요약, 시간 구간 그래프, 제외 사유, 입력·버전·설정 근거와 이전 분석 기록을 확인합니다.
+
 - 첫 label-free 전력 분석 capability `three-phase-unbalance-v1`을 추가했습니다. 확정된 상전압(V)·상전류(A)만
   고정된 history snapshot에서 읽어 timestamp별 불평형률 분포와 제외 사유, 입력·버전·설정을 evidence로
   남기며 같은 snapshot으로 동일하게 재현됩니다. 고장·건강·alarm 판정이 아닙니다.
