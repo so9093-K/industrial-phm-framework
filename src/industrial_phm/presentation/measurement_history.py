@@ -5,53 +5,83 @@ from __future__ import annotations
 import importlib
 import io
 import json
-from datetime import UTC
+from datetime import UTC, datetime
 
-from industrial_phm.application.measurement_history import MeasurementHistoryPage
+from industrial_phm.application.measurement_history import (
+    MeasurementHistoryPage,
+    MeasurementHistoryPoint,
+    assess_latest_measurement,
+)
 
 
 def measurement_history_rows(page: MeasurementHistoryPage) -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    for point in page.points:
-        m = point.measurement
-        metadata = json.loads(point.source_metadata_json) if point.source_metadata_json else {}
-        binding = metadata.get("binding", {})
-        semantics = metadata.get("semantics", {})
-        definition = semantics.get("definition", {})
-        quality = []
-        if m.value is None:
-            quality.append("null")
-        if not m.status_good:
-            quality.append("quality unavailable/bad")
-        if point.conflicting_duplicate:
-            quality.append("conflicting duplicate")
-        rows.append(
-            {
-                "time": m.event_at.isoformat() if m.event_at else None,
-                "value": m.value,
-                "channel": m.channel_id,
-                "property": definition.get("property_name", m.channel_id),
-                "unit": definition.get("unit") or "unknown",
-                "quality": ", ".join(quality) or "no recorded issue",
-                "conflict": point.conflicting_duplicate,
-                "source": m.source_id,
-                "source_type": m.source_type.value,
-                "measurement_point": m.measurement_point_id,
-                "ingestion": m.ingestion_mode.value,
-                "raw_evidence_id": m.raw_evidence_id,
-                "source_file": point.source_file,
-                "source_sha256": point.source_sha256,
-                "archive": metadata.get("archive_name"),
-                "member": metadata.get("member"),
-                "record_index": metadata.get("record_index"),
-                "raw_timestamp": metadata.get("raw_timestamp"),
-                "source_timezone": binding.get("timezone"),
-                "timezone_evidence": binding.get("timezone_evidence"),
-                "identity_evidence": binding.get("identity_evidence"),
-                "binding_version": binding.get("version"),
-            }
+    return [_measurement_history_row(point) for point in page.points]
+
+
+def latest_measurement_rows(
+    points: tuple[MeasurementHistoryPoint, ...],
+    *,
+    as_of: datetime,
+    stale_after_seconds: float,
+) -> list[dict[str, object]]:
+    """Keep interpretation evidence visible even outside the selected trend range."""
+    rows = []
+    for point in points:
+        row = _measurement_history_row(point)
+        status = assess_latest_measurement(
+            point, as_of=as_of, stale_after_seconds=stale_after_seconds
         )
+        row.update(
+            value=None if point.conflicting_duplicate else point.measurement.value,
+            status_good=point.measurement.status_good,
+            currency=status.currency.value,
+            age_seconds=status.age_seconds,
+        )
+        rows.append(row)
     return rows
+
+
+def _measurement_history_row(point: MeasurementHistoryPoint) -> dict[str, object]:
+    m = point.measurement
+    metadata = json.loads(point.source_metadata_json) if point.source_metadata_json else {}
+    binding = metadata.get("binding", {})
+    semantics = metadata.get("semantics", {})
+    definition = semantics.get("definition", {})
+    quality = []
+    if m.value is None:
+        quality.append("null")
+    if not m.status_good:
+        quality.append("quality unavailable/bad")
+    if point.conflicting_duplicate:
+        quality.append("conflicting duplicate")
+    return {
+        "time": m.event_at.isoformat() if m.event_at else None,
+        "value": m.value,
+        "channel": m.channel_id,
+        "property": definition.get("property_name", m.channel_id),
+        "unit": definition.get("unit") or "unknown",
+        "unit_evidence": definition.get("unit_evidence"),
+        "semantic_version": semantics.get("version"),
+        "interpretation_evidence": semantics.get("interpretation_evidence"),
+        "event_time_basis": m.event_time_basis.value,
+        "quality": ", ".join(quality) or "no recorded issue",
+        "conflict": point.conflicting_duplicate,
+        "source": m.source_id,
+        "source_type": m.source_type.value,
+        "measurement_point": m.measurement_point_id,
+        "ingestion": m.ingestion_mode.value,
+        "raw_evidence_id": m.raw_evidence_id,
+        "source_file": point.source_file,
+        "source_sha256": point.source_sha256,
+        "archive": metadata.get("archive_name"),
+        "member": metadata.get("member"),
+        "record_index": metadata.get("record_index"),
+        "raw_timestamp": metadata.get("raw_timestamp"),
+        "source_timezone": binding.get("timezone"),
+        "timezone_evidence": binding.get("timezone_evidence"),
+        "identity_evidence": binding.get("identity_evidence"),
+        "binding_version": binding.get("version"),
+    }
 
 
 def render_measurement_history_svg(page: MeasurementHistoryPage) -> str:

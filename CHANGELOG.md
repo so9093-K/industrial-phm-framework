@@ -11,6 +11,9 @@
 
 ### Changed
 
+- 최신 저장 관측에도 원본 파일·checksum, 설비/시간대 매핑 근거, 단위 및 해석 version을 연결해
+  차트 구간 밖의 최신값에서도 미확정 단위와 normalization 가정을 확인할 수 있습니다.
+
 - 로컬 DuckLake SQLite catalog의 connection/transaction 수명 동안 프로세스 간 파일 잠금을 유지해
   독립 collector·window reader·Operations 조회의 metadata 잠금 충돌을 방지합니다. 기본 대기 한도는
   10초이며 timeout은 명시적으로 실패합니다. 여러 collector의 leadership을 대신하지 않습니다.

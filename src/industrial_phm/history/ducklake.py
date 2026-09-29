@@ -705,11 +705,14 @@ class DuckLakeAssetHistory:
                     WHERE asset_id = ? AND channel_id = ? AND event_at IS NOT NULL
                     WINDOW observation AS (PARTITION BY source_id, measurement_point_id, event_at)
                 )
-                SELECT raw_evidence_id, source_id, source_type, asset_id, measurement_point_id,
-                    channel_id, event_time_basis, event_at, value, status_good,
-                    ingestion_mode, has_conflict
-                FROM ranked WHERE observation_rank = 1
-                ORDER BY source_id, measurement_point_id LIMIT 1001
+                SELECT m.raw_evidence_id, m.source_id, m.source_type, m.asset_id,
+                    m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
+                    m.value, m.status_good, m.ingestion_mode, m.has_conflict,
+                    f.source_metadata_json, f.source_file, f.source_sha256
+                FROM ranked m LEFT JOIN {_CATALOG_NAME}.raw.file_measurement f
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = 'file'
+                WHERE m.observation_rank = 1
+                ORDER BY m.source_id, m.measurement_point_id LIMIT 1001
             """,
                 [asset_id, channel_id],
             ).fetchall()
@@ -719,7 +722,11 @@ class DuckLakeAssetHistory:
             raise ValueError("latest measurement population exceeds 1000 source/point groups")
         return tuple(
             MeasurementHistoryPoint(
-                _historical_measurement_from_row(row[:11]), _require_bool(row[11], "conflict")
+                _historical_measurement_from_row(row[:11]),
+                _require_bool(row[11], "conflict"),
+                _optional_str(row[12], "source_metadata_json"),
+                _optional_str(row[13], "source_file"),
+                _optional_str(row[14], "source_sha256"),
             )
             for row in rows
         )
