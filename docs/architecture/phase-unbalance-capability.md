@@ -32,18 +32,19 @@ unbalance % = max(|X_R − X̄|, |X_S − X̄|, |X_T − X̄|) / X̄ × 100,   X
 
 | 순서 | 제외 사유 | 조건 |
 | --- | --- | --- |
-| 1 | `incomplete-phases` | 세 상 중 일부 channel이 없음 |
-| 2 | `unconfirmed-semantics` | semantic binding이 `phase voltage`/V 또는 `phase current`/A, scope `phase R/S/T`가 아님 |
-| 3 | `conflicting-value` | 같은 timestamp에 서로 다른 값 |
-| 4 | `non-good-source-quality` | protocol source quality가 Good이 아님(OPC UA) |
-| 5 | `null-value` | 값이 null |
-| 6 | `low-signal` | 세 상 평균이 전압 50 V 또는 전류 1 A 미만(정지·미부하) |
+| 1 | `incomplete-phases` | strict 정렬에서 같은 timestamp에 세 상 중 일부 channel이 없음 |
+| 2 | `no-recent-phase-value` | bounded-previous 정렬에서 이전 값이 없거나 `max_age`를 초과함 |
+| 3 | `unconfirmed-semantics` | semantic binding이 `phase voltage`/V 또는 `phase current`/A, scope `phase R/S/T`가 아님 |
+| 4 | `conflicting-value` | 같은 timestamp에 서로 다른 값 |
+| 5 | `non-good-source-quality` | protocol source quality가 Good이 아님(OPC UA) |
+| 6 | `null-value` | 값이 null |
+| 7 | `low-signal` | 세 상 평균이 전압 50 V 또는 전류 1 A 미만(정지·미부하) |
 
 Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) 적재, semantic binding이 없는 source의
 관측은 자동으로 제외됩니다. 모든 제외가 source data quality를 뜻하지는 않습니다.
 `null-value`, `conflicting-value`, `non-good-source-quality`만 `AnalysisRun.data_quality` warning으로
-올리고, `unconfirmed-semantics`, `incomplete-phases`, `low-signal`은 capability input eligibility/exclusion
-근거로만 남깁니다.
+올리고, `unconfirmed-semantics`, `incomplete-phases`, `no-recent-phase-value`, `low-signal`은 capability
+input eligibility/exclusion 근거로만 남깁니다.
 
 ## Evidence
 
@@ -80,7 +81,9 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
   구분해 기록하며, 이전 결과(`kind` 없음)는 history snapshot으로 읽습니다.
 - Live runner의 중복 방지 identity는 input digest와 별개로
   `window + capability + algorithm version + analysis policy digest`를 사용합니다. Policy digest는 role 선택 전
-  요청 설정(channel override, 저신호 기준, bucket 수)을 고정하므로 설정을 바꾼 의도적 재분석을 허용합니다.
+  요청 설정(channel override, 저신호 기준, bucket 수)과 alignment의 computational identity(kind·max age)를
+  고정하므로 계산 정책을 바꾼 의도적 재분석을 허용합니다. Alignment basis 문구는 evidence provenance이며
+  계산 digest에는 들어가지 않습니다.
 
 ## 실제 데이터 확인 (2026-09-29)
 
@@ -116,8 +119,13 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
     사용합니다(미래 값 금지). `max_age`와 근거(`basis`)는 명시적으로 요구합니다. OPC UA DataChange처럼 값이
     바뀐 node만 알리는 source에서 안정적인 상을 다루는 용도이며, deadband나 긴 무통신 구간에서는 실제 변화를
     가릴 수 있으므로 source/device 측정 계약이나 검증 결과가 있을 때만 씁니다.
-  - Evidence에는 정책(kind·max age·basis)과 quantity별 carried 값 수, carry age max·p95가 남고, 정책은 분석
-    identity에 포함됩니다. Carried 값은 원래 관측 시각을 그대로 가리키며 raw evidence로 저장하지 않습니다.
+  - Evidence에는 정책(kind·max age·basis)과 quantity별 carried 값 수, carry age max·p95가 남습니다. 계산
+    identity에는 kind·max age만 포함하고 basis는 근거 provenance로 분리합니다. Carried 값은 원래 관측 시각을
+    그대로 가리키며 raw evidence로 저장하지 않습니다.
+  - `bounded-previous-v1`은 모든 requested channel event timestamp를 anchor로 쓰는 event-transition state
+    reconstruction입니다. 같은 물리 cycle의 R/S/T가 staggered timestamp로 보고되면 이전 cycle과 현재 cycle
+    값이 섞인 중간 sample이 생길 수 있고, update가 잦은 channel이 sample 수에 더 큰 영향을 줄 수 있습니다.
+    synchronized-cycle 의미가 필요하면 별도 reference-channel/periodic-grid/device-native snapshot 정책을 써야 합니다.
   - 제한: window 시작 이전 값(carry-in)은 아직 쓰지 않습니다. Window 안에 한 번도 보고되지 않은 상은 정책과
     무관하게 분석되지 않습니다(`unresolved`).
 - AI-Hub label과의 비교는 research path에서만 합니다.
