@@ -23,6 +23,10 @@ from numbers import Real
 from pathlib import Path
 from typing import Protocol, cast, runtime_checkable
 
+from industrial_phm.application.measurement_semantics import (
+    parse_channel_semantic_binding,
+    serialize_channel_semantic_binding,
+)
 from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
@@ -78,6 +82,7 @@ _REGISTERED_EVENT_KEYS = frozenset(
         "notification",
     }
 )
+_REGISTERED_EVENT_OPTIONAL_KEYS = frozenset({"semantic_binding"})
 _NOTIFICATION_KEYS = frozenset({"replayed", "observation"})
 _OBSERVATION_KEYS = frozenset(
     {
@@ -710,6 +715,11 @@ def _serialize_persistent_event(
             "endpoint_url": registered.endpoint_url,
             "measurement_point_id": registered.measurement_point_id,
             "collection_index": registered.collection_index,
+            "semantic_binding": (
+                None
+                if registered.semantic_binding is None
+                else serialize_channel_semantic_binding(registered.semantic_binding)
+            ),
             "notification": {
                 "replayed": notification.replayed,
                 "observation": {
@@ -828,9 +838,10 @@ def _parse_persistent_event(
         item["registered_event"],
         f"{context}.registered_event",
     )
-    _require_exact_keys(
+    _require_required_keys(
         registered_raw,
         _REGISTERED_EVENT_KEYS,
+        _REGISTERED_EVENT_OPTIONAL_KEYS,
         f"{context}.registered_event",
     )
     notification_raw = _require_mapping(
@@ -905,6 +916,10 @@ def _parse_persistent_event(
                 f"{context}.notification.replayed",
             ),
         )
+        semantic_raw = registered_raw.get("semantic_binding")
+        semantic_binding = (
+            None if semantic_raw is None else parse_channel_semantic_binding(semantic_raw)
+        )
         registered = RegisteredOpcUaDataChangeEvent(
             source_id=_require_string(
                 registered_raw["source_id"],
@@ -927,6 +942,7 @@ def _parse_persistent_event(
                 f"{context}.registered_event.collection_index",
             ),
             notification=notification,
+            semantic_binding=semantic_binding,
         )
         try:
             basis = OpcUaEventTimeBasis(
@@ -1002,6 +1018,21 @@ def _require_exact_keys(
     if actual != expected:
         missing = sorted(expected - actual)
         extra = sorted(actual - expected)
+        raise ObservationWindowFormatError(
+            f"{context} keys mismatch: missing={missing!r}, extra={extra!r}"
+        )
+
+
+def _require_required_keys(
+    value: Mapping[str, object],
+    required: frozenset[str],
+    optional: frozenset[str],
+    context: str,
+) -> None:
+    actual = set(value)
+    missing = sorted(required - actual)
+    extra = sorted(actual - required - optional)
+    if missing or extra:
         raise ObservationWindowFormatError(
             f"{context} keys mismatch: missing={missing!r}, extra={extra!r}"
         )
