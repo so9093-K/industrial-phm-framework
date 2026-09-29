@@ -244,3 +244,42 @@ def test_runner_skip_is_scoped_to_analysis_policy(tmp_path):
     assert retried[0].state == WindowAnalysisState.ANALYZED
     assert blocked[0].analysis_policy_digest != retried[0].analysis_policy_digest
     assert len(results.list_results()) == 1
+
+
+
+def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
+    from industrial_phm.application import (
+        JsonWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows,
+    )
+
+    windows = JsonObservationWindowRepository(tmp_path / "windows-result-policy.json")
+    windows.record_window(_window())
+    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance-result-policy.json")
+    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger-result-policy.json")
+
+    first = analyze_finalized_windows(windows, results, ledger)
+    assert len(first) == 1
+    assert first[0].state == WindowAnalysisState.ANALYZED
+
+    changed = analyze_finalized_windows(
+        windows,
+        results,
+        ledger,
+        config=PhaseUnbalanceConfig(bucket_count=50),
+    )
+    assert len(changed) == 1
+    assert changed[0].state == WindowAnalysisState.ANALYZED
+    assert changed[0].analysis_policy_digest != first[0].analysis_policy_digest
+    assert len(results.list_results()) == 2
+
+    assert (
+        analyze_finalized_windows(
+            windows,
+            results,
+            ledger,
+            config=PhaseUnbalanceConfig(bucket_count=50),
+        )
+        == ()
+    )
