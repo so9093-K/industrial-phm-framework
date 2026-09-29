@@ -301,7 +301,7 @@ def test_bounded_aggregation_covers_full_range_and_preserves_excluded_counts(tmp
     assert result.snapshot_id == history.current_snapshot_id()
     assert all(b.bucket_start < b.bucket_end <= result.end_at for b in result.buckets)
     summary = measurement_aggregation_summary(result)
-    assert datetime.fromisoformat(summary["returned_end"]) == extras[-1].event_at
+    assert summary["returned_end"] == extras[-1].event_at.astimezone(UTC).isoformat()
     assert summary["observation_count"] == 2505
     first = next(b for b in result.buckets if b.source_id == "file" and b.bucket_start == UTC_START)
     assert first.minimum == 0

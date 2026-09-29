@@ -11,6 +11,11 @@
 
 ### Changed
 
+- 2,000개를 넘는 직접 지정 이력 범위는 첫 2,000개 대신 전체 기간 UI 집계로 표시해 과거 적재 설비도
+  긴 기간을 대표할 수 있습니다. 이력 표의 event time을 그래프와 같은 UTC로 통일했습니다.
+- 실제 압출기 48시간(100,800건) 적재 측정을 기록했습니다. DuckLake inlining으로 관측 1건당 약 2.4KB가
+  SQLite catalog에 남으며, flush 시 약 11배 감소함을 근거로 저장 개선 우선순위를 조정했습니다.
+
 - AI-Hub 의미 계약은 `observed_property=None`으로 미해석 상태를 표현합니다. 기존 raw label과
   metadata v1을 보존하며 legacy import 재개 옵션을 제공합니다. FILE source quality는 unknown으로
   읽고 numeric/null availability와 구분합니다.

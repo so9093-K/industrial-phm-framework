@@ -4523,14 +4523,36 @@ def _(
                             ),
                         ]
                     )
-                if _query["range"] in {"24h", "7d"}:
+                _page = (
+                    None
+                    if _query["range"] in {"24h", "7d"}
+                    else history_reader.query_measurement_page(
+                        asset_selector.value,
+                        start_at=_start,
+                        end_at=_end,
+                        channel_id=_query["channel"],
+                        point_budget=2000,
+                        latest=_query["range"] != "custom",
+                    )
+                )
+                # A custom range over the raw budget is summarized over its whole
+                # interval rather than showing only its first 2,000 points.
+                if _page is None or (_query["range"] == "custom" and _page.truncated):
                     _aggregation = history_reader.query_measurement_aggregation(
                         asset_selector.value,
                         channel_id=_query["channel"],
                         start_at=_start,
                         end_at=_end,
-                        bucket_count=200 if _query["range"] == "24h" else 100,
+                        bucket_count=100 if _query["range"] == "7d" else 200,
                     )
+                    if _page is not None:
+                        _blocks.append(
+                            mo.callout(
+                                "요청 범위의 원시 관측이 2,000개를 넘어 전체 기간 UI 집계로 "
+                                "표시합니다. 개별 원시 관측과 출처는 범위를 좁혀 확인하세요.",
+                                kind="info",
+                            )
+                        )
                     _blocks.extend(
                         [
                             mo.md(
@@ -4549,14 +4571,6 @@ def _(
                         ]
                     )
                 else:
-                    _page = history_reader.query_measurement_page(
-                        asset_selector.value,
-                        start_at=_start,
-                        end_at=_end,
-                        channel_id=_query["channel"],
-                        point_budget=2000,
-                        latest=_query["range"] != "custom",
-                    )
                     _blocks.append(
                         mo.ui.table(
                             [
@@ -4570,12 +4584,8 @@ def _(
                     if _page.truncated:
                         _blocks.append(
                             mo.callout(
-                                (
-                                    "조회 한도를 넘어 최근 2,000개 관측만 표시합니다. "
-                                    if _query["range"] != "custom"
-                                    else "조회 한도를 넘어 시간순 첫 2,000개 관측만 표시합니다. "
-                                )
-                                + "전체 요청 범위를 대표하는 요약이 아닙니다. "
+                                "조회 한도를 넘어 최근 2,000개 관측만 표시합니다. "
+                                "전체 요청 범위를 대표하는 요약이 아닙니다. "
                                 "빈 구간은 미반환 데이터일 수 "
                                 "있으며 결측 증거가 아닙니다. 시간 범위를 줄여주세요.",
                                 kind="warn",
@@ -4618,7 +4628,8 @@ def _(
                         )
                 _blocks.append(
                     mo.md(
-                        "15분·직접 지정은 원시 관측점, 24시간·7일은 UI 표시용 집계입니다. "
+                        "15분·직접 지정은 원시 관측점, 24시간·7일과 2,000개를 넘는 직접 지정은 "
+                        "UI 표시용 집계입니다. "
                         "빨간 표시는 품질 문제 또는 값 충돌이며, "
                         "null 시각 표시는 0값이 아닙니다. 단위 unknown은 미확정 상태입니다. "
                         "표에서 출처와 설비·시간 매핑 근거를 확인할 수 있습니다."
