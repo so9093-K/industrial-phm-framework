@@ -167,6 +167,7 @@ def window_result_key(result: PhaseUnbalanceAnalysis) -> tuple[str, str, str, st
         min_mean_voltage_v=config.min_mean_voltage_v,
         min_mean_current_a=config.min_mean_current_a,
         bucket_count=config.bucket_count,
+        alignment=config.alignment,
     )
     return (
         reference.window_id,
