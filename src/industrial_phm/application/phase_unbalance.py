@@ -172,7 +172,11 @@ def phase_unbalance_policy_digest(config: PhaseUnbalanceConfig | None = None) ->
         "bucket_count": policy.bucket_count,
         # Strict alignment is the original behavior; omitting it keeps the identity
         # of results recorded before alignment policies existed.
-        **({} if policy.alignment.is_strict else {"alignment": policy.alignment.identity()}),
+        **(
+            {}
+            if policy.alignment.is_strict
+            else {"alignment": policy.alignment.computational_identity()}
+        ),
     }
     encoded = json.dumps(
         payload,
