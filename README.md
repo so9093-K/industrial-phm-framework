@@ -23,9 +23,11 @@
 
 현재 구현 범위: FILE·OPC UA 수집과 Asset History, 설비별 이력·품질·출처 조회, 근거가 확인된 측정 의미
 (semantic binding), FILE snapshot 특징 분석과 과거 Asset History 기반
-[3상 불평형 분석](docs/architecture/phase-unbalance-capability.md), 분석 결과에 대한 Investigation·사람의 review
-finding·maintenance review입니다. Live window에서 같은 분석으로 이어지는 경로, validated 진단·alarm·
-operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
+[3상 불평형 분석](docs/architecture/phase-unbalance-capability.md), finalized live window의 accept event로
+같은 분석을 실행하는 별도 runner([ADR-0008](docs/adr/0008-analyze-finalized-window-accepted-events.md))와
+명시적 시간 정렬 정책([ADR-0009](docs/adr/0009-temporal-alignment-policy.md)), 분석 결과에 대한
+Investigation·사람의 review finding·maintenance review입니다. Live 분석 결과의 Operations 화면, validated
+진단·alarm·operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
 
 수집 runtime, 저장소, 분석 경계의 상세 구조는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 

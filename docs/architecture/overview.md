@@ -26,8 +26,8 @@ CanonicalTimeSeries의 finite rectangular 계약은 유지합니다.
 Continuous OPC UA collection service, durable spool, DuckLake Asset History와 live/backfill 경계는 구현되어
 있으며, control plane·durable ingress·history의 ownership과 restart semantics는
 [`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)와
-[`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. 다음 milestone은 live
-window를 분석 근거와 사람의 검토로 연결하는 것입니다.
+[`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. Finalized live window는
+별도 runner가 분석 evidence로 연결하며, 다음 milestone은 그 결과를 Operations에서 조사·검토하는 것입니다.
 
 ## 1. 시스템 아키텍처
 
@@ -84,17 +84,20 @@ flowchart LR
     HISTORY --> UNBALANCE[3상 불평형<br/>고정 snapshot 입력]
     FILE --> ANALYSIS[FILE snapshot 특징 분석]
     ANALYSIS --> EVIDENCE[Analysis evidence]
+    WINDOW --> RUNNER[Window analysis runner<br/>accept event·시간 정렬 정책]
+    RUNNER --> EVIDENCE
     UNBALANCE --> EVIDENCE
     EVIDENCE --> INVESTIGATION[Investigation]
     INVESTIGATION --> FINDING[사람의 review finding]
     FINDING --> REVIEW[Maintenance review]
     UI[Operations UI] -. desired state .-> COLLECTOR
-    WINDOW -. 후속 연결 .-> EVIDENCE
 ```
 
 Operations UI는 desired RUNNING/STOPPED만 기록하고 독립 collection service가 실제 수집을 소유합니다. 3상
 불평형은 FILE·OPC UA history를 고정 snapshot으로 읽고 semantic binding이 확인된 channel만 사용합니다. Live
-window에서 analysis evidence로 이어지는 점선은 아직 구현되지 않은 다음 milestone입니다. 로컬 SQLite DuckLake
+window는 finalize된 뒤 별도 runner가 window가 accept한 event로 같은 분석을 실행하며(ADR-0008), 다채널 시각
+정렬은 명시적 versioned 정책을 따릅니다(ADR-0009). Asset Detail은 OPC UA 값에도 수집 시 고정한 semantic
+snapshot을 표시합니다. 로컬 SQLite DuckLake
 접근은 협조하는 프로세스끼리 직렬화하며, 저장·적재 성능 측정은
 [`measurement-history-evolution.md`](measurement-history-evolution.md)에 기록합니다.
 

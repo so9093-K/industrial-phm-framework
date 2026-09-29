@@ -11,6 +11,11 @@
 
 ### Changed
 
+- Asset Detail의 최신 관측·이력 page·집계가 OPC UA 값에도 수집 시 raw evidence에 고정한 semantic snapshot
+  (측정 의미·단위·version)을 표시합니다. Snapshot의 source/channel이 raw row와 다르면 FILE과 같이
+  `unresolved`/`unknown`으로 표시합니다. README·아키텍처 문서의 현재 구현 범위를 live window runner와 시간
+  정렬 정책에 맞게 갱신했습니다.
+
 - ADR-0009: 다채널 시간 정렬을 protocol과 무관한 versioned 정책으로 분리했습니다(`application/alignment.py`,
   새 dependency 없음). 기본 `strict-v1`은 기존 결과·분석 identity와 같고, `bounded-previous-v1`은 이전 값만
   명시적 `max_age`·근거 안에서 carry합니다. Evidence에는 kind·max age·basis와 carried 값 수·age를 남기고,
