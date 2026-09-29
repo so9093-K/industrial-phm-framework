@@ -3,9 +3,10 @@
 ## Implemented boundary
 
 `ChannelSemanticBinding` separates the source channel ID from an optional observed property, scope,
-statistic and unit. AI-Hub raw labels do not establish these meanings. New imports use metadata v3,
-which applies `aihub-239-semantics-v1` only to items where the provider unit table and observed data
-agree (frequency, phase/line voltage averages, phase currents); every other item stays unresolved.
+statistic and unit. AI-Hub raw labels do not establish these meanings. New imports use metadata v4,
+which applies `aihub-239-semantics-v2` only to items where the provider unit table and a full-archive
+relation profile agree (frequency, phase/line voltage averages, phase currents), with member
+exceptions where a relation fails; every other item stays unresolved. v3 (`semantics-v1`),
 v2 (all unresolved) and legacy v1 JSON stay immutable; v1 is displayed as a source label rather than
 a resolved property. Exact recovery of an earlier import requires its explicit serialization option. Changing interpretation
 never overwrites historical batch fingerprints or creates another copy of the same raw observation.

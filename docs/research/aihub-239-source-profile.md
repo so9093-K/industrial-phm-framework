@@ -30,11 +30,11 @@ Training/raw 보일러(filekey 44033)와 압출기(44035) ZIP의 모든 JSON을 
 ## Measurement dictionary
 
 Raw ITEM_NAME은 channel identity입니다. 의미·단위는 provider 문서와 실제 데이터가 **둘 다** 뒷받침할 때만
-`aihub-239-semantics-v1`(history metadata v3)에 기록합니다. 문서의 "평균"은 시간 평균이 아니라 **3상 평균**
+semantics dictionary에 기록합니다(현재 `aihub-239-semantics-v2`, history metadata v4). 문서의 "평균"은 시간 평균이 아니라 **3상 평균**
 (power는 실제로 3상 합)입니다. 1분 sample 안의 시간 집계 방식(순시값/구간 평균)은 문서에 유효·무효전력만
 "순시값"으로 적혀 있고 나머지는 미확정입니다. Source timezone은 문서에 없어 계속 설정 가정입니다.
 
-| Raw ITEM_NAME | Provider 문서 (§1.6.3) | 실제 데이터 검증 | semantics-v1 |
+| Raw ITEM_NAME | Provider 문서 (§1.6.3) | 실제 데이터 검증 | semantics 확정 |
 | --- | --- | --- | --- |
 | R상무효전력 | kVar | √(P²+Q²) = V·I → **var** 스케일 (문서와 불일치) | unresolved |
 | R상선간전압 | V (RS/ST/TS) | 선간/상 ≈ √3 | unresolved (R/S/T → pair 대응 미확정) |
@@ -72,10 +72,59 @@ Raw ITEM_NAME은 channel identity입니다. 의미·단위는 provider 문서와
 | 전압고조파평균 | % THD, 3상 평균 | 대부분 mean(R,S,T)와 일치 | unresolved |
 | 주파수 | Hz | 대부분 59.7–60.1 (60 Hz 계통) | **frequency, Hz** |
 
-검증은 보일러 `SourceData_211/347/359`, 압출기 `SourceData_127/128`의 같은 timestamp record로 했습니다.
-압출기 member는 대부분 timestamp에서 11개 집계 channel만 기록돼 상별 전력 관계는 보일러에서 확인했습니다.
 Unresolved 항목은 문서 단위를 그대로 쓰지도, 관측 스케일로 조용히 바꾸지도 않습니다. 사용하려면 불일치를
 설명하는 별도 근거와 versioned binding이 필요합니다.
+
+### Relation profile (재현 가능한 근거)
+
+`tools/aihub/relation_profile.py`가 두 raw archive의 **모든 member**에서 같은 source timestamp의 channel끼리
+관계를 계산합니다. 결과는 `artifacts/aihub-239/{boiler,extruder}-relation-profile.json`(Git 제외)에 member별
+평가 timestamp 수, 제외 사유별 수, median·p01·p99·min·max, 허용오차 안 비율로 남습니다.
+
+```bash
+uv run --no-sync python -m tools.aihub.relation_profile \
+  data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --output artifacts/aihub-239/boiler-relation-profile.json
+```
+
+- 제외: null channel 값(보일러 105, 압출기 11,891), 같은 timestamp의 충돌 값(보일러 6, 압출기 5)은 평균하지
+  않고 제외합니다. 저신호 sample(상전류 < 1 A, |역률| < 0.3, 상 합계 ≤ 0.5)도 제외하고 사유별로 셉니다.
+- 합계는 두 archive 29 member, 888,144 timestamp입니다.
+
+| 관계 (허용오차) | 보일러: 평가 수 / 허용오차 안 / member median 범위 | 압출기: 평가 수 / 허용오차 안 / member median 범위 |
+| --- | --- | --- |
+| 선간전압평균 / 상전압평균 = √3 (±2%) | 365,310 / 92.6% / 1.666–1.736 | 507,929 / 95.1% / 1.721–1.743 |
+| 상전압평균 / mean(R,S,T) = 1 (±1%) | 365,301 / 99.99% / 1.000 | 500,014 / 99.98% / 1.000 |
+| 선간전압평균 / mean(R,S,T 선간) = 1 (±1%) | 365,296 / 99.99% / 1.000 | 500,270 / 87.2% / 1.000–1.735 |
+| 전류평균 / mean(R,S,T) = 1 (±1%) | 93,996 / 99.4% / 1.000 | 340,457 / 99.2% / 1.000 |
+| √(P²+Q²) / (V·I) = 1 (±5%, 상별) | 237,312 / 92.4% / 0.998–1.013 | 949,780 / 88.1% / 0.0625–1.003 |
+| \|P / (V·I·PF)\| = 1 (±5%, 상별) | 231,945 / 92.1% / 1.002–1.016 | 849,888 / 88.0% / 0.105–1.014 |
+| 유효전력평균 / sum(R,S,T) = 1 (±1%) | 80,072 / 99.6% / 1.000 | 340,381 / 99.1% / 1.000 |
+| 무효전력평균 / sum(R,S,T) = 1 (±1%) | 79,999 / 99.5% / 1.000 | 340,046 / 98.7% / 1.000 |
+| 주파수 59.5–60.5 Hz | 379,271 / 93.4% | 508,861 / 96.7% |
+
+Member median이 허용오차를 벗어난 곳은 다음 네 member입니다. 전체 archive로 확인하기 전(5개 member)에
+만든 `semantics-v1`은 이 예외를 몰랐습니다.
+
+| Member | 벗어난 관계 | semantics-v2에서 unresolved로 두는 channel |
+| --- | --- | --- |
+| 보일러 `SourceData_364` (device 7277) | 선간/상전압 median 1.666 | R/S/T상전압, 상전압평균, 선간전압평균 |
+| 압출기 `SourceData_214` (2323), `SourceData_385` (0) | 선간전압평균 / mean(선간) median 1.734–1.735 | 선간전압평균 |
+| 압출기 `SourceData_130` (device 2224, board 2) | √(P²+Q²)/(V·I) median 0.0625 | R/S/T상전류, 전류평균 |
+
+주파수의 대역 밖 값(0 Hz, 57 Hz대)은 설비 정지·계측 상태로 보이며 단위가 아니라 값 품질 문제이므로
+unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지는 capability의 eligibility 규칙이 정합니다.
+
+### Semantics version rule
+
+- Observation은 semantic binding을 immutable provenance로 저장합니다. Dictionary payload(대상 channel,
+  property, scope, statistic, unit, evidence 문구, member 예외)가 조금이라도 바뀌면 새 version입니다.
+- 게시된 version은 수정하지 않습니다. 각 version의 payload SHA-256을 코드에 고정하고 contract test가
+  확인합니다(`AIHUB_239_SEMANTICS_DIGESTS`).
+- Metadata schema와 version: v1/v2는 모든 항목 미확정, v3 → `semantics-v1`, **v4 → `semantics-v2`(기본값)**.
+  이전 schema는 기존 적재의 exact retry에만 씁니다. 이미 적재된 observation은 자동으로 재해석하지 않습니다.
+- Import 결과에는 `metadata_schema`, `semantic_binding_version`, `semantic_dictionary_sha256`이 들어갑니다.
+  Schema는 `selection_id`에 넣지 않아 기존 적재의 batch id가 유지됩니다.
 
 ## Documented / configured / unresolved
 
@@ -107,8 +156,8 @@ Unresolved 항목은 문서 단위를 그대로 쓰지도, 관측 스케일로 �
 
 ## Interpretation and quality boundary
 
-새 적재는 metadata v3입니다. 위 표에서 확인된 항목만 `aihub-239-semantics-v1`의 의미·단위·근거를 갖고
-나머지는 `observed_property=None`, 단위 unknown입니다. v2는 모든 항목이 미확정인 이전 형식이며, v1의
+새 적재는 metadata v4입니다. 위 표에서 확인된 항목만 `aihub-239-semantics-v2`의 의미·단위·근거를 갖고
+나머지는 `observed_property=None`, 단위 unknown입니다. v3은 `semantics-v1`, v2는 모든 항목이 미확정인 이전 형식이며, v1의
 property_name은 legacy label로 표시합니다. 이미 적재된 v1/v2 JSON은 재작성하지 않습니다.
 FILE의 source quality는 unknown입니다. 숫자 존재/present와 null은 별도 availability이며 protocol Good이 아닙니다.
 기존 history `status_good` 저장 필드는 FILE에서 availability를 담는 호환 필드로 유지하되,

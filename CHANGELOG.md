@@ -11,6 +11,11 @@
 
 ### Changed
 
+- AI-Hub 239 측정 의미 근거를 전체 archive relation profile(`tools/aihub/relation_profile.py`, 29 member)로
+  재현 가능하게 만들었습니다. 5개 member로 만든 `semantics-v1`이 몰랐던 4개 member 예외(전압 관계, 선간전압
+  평균, 전류 스케일)를 반영해 `semantics-v2`(metadata v4, 기본값)를 추가하고 v1은 수정하지 않았습니다.
+  Version별 payload digest를 고정하고, import 결과에 schema·semantic version·dictionary digest를 기록합니다.
+
 - AI-Hub 239 구축·활용 가이드라인의 단위 표와 실제 데이터의 물리 관계(선간/상 √3, P=V·I·PF, 3상 평균)를
   대조해, 둘이 일치하는 주파수(Hz)·상전압/선간전압 평균(V)·상전류(A)만 `aihub-239-semantics-v1`로
   확정했습니다(history metadata v3). 유효/무효전력(문서 kW·kVar, 실제 W·var 스케일, "평균"은 3상 합),
