@@ -252,9 +252,7 @@ def _series(
             len(samples),
             dict(excluded),
             median(percents),
-            quantiles(percents, n=20, method="inclusive")[18]
-            if len(percents) > 1
-            else percents[0],
+            quantiles(percents, n=20, method="inclusive")[18] if len(percents) > 1 else percents[0],
             max_percent,
             max_at,
             buckets,
