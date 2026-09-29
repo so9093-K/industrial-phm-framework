@@ -22,3 +22,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0005: Allow implicit time for regularly sampled signals](0005-allow-implicit-regular-sample-time.md)
 - [ADR-0006: Use PyTorch for the CPU reference deep-learning runtime](0006-use-pytorch-cpu-reference-runtime.md)
 - [ADR-0007: Preserve raw measurements before analysis projection](0007-preserve-raw-measurements-before-analysis-projection.md)
+- [ADR-0008: Analyze the finalized window's accepted events, not a history re-query](0008-analyze-finalized-window-accepted-events.md)

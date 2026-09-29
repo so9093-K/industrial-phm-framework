@@ -6,6 +6,7 @@ import importlib
 import io
 from datetime import UTC, datetime
 
+from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
 
 _QUANTITY_LABEL = {"voltage": "전압 (상전압 기준)", "current": "전류"}
@@ -64,16 +65,32 @@ def phase_unbalance_exclusion_rows(result: PhaseUnbalanceAnalysis) -> list[dict[
 def phase_unbalance_provenance_rows(result: PhaseUnbalanceAnalysis) -> list[dict[str, object]]:
     evidence, run = result.evidence, result.run
     reference, config = evidence.input_reference, evidence.config
+    if isinstance(reference, WindowInputReference):
+        input_facts: list[tuple[str, object]] = [
+            ("input", "finalized window accepted events (not a history re-query)"),
+            ("window_id", reference.window_id),
+            ("window_range_utc", f"{_utc(reference.window_start)} / {_utc(reference.window_end)}"),
+            ("finalized_at_utc", _utc(reference.finalized_at)),
+            ("accepted_events", reference.accepted_event_count),
+            ("rejected_events", reference.rejected_event_count),
+            ("missing_channels", ", ".join(reference.missing_channel_ids) or "none"),
+            ("input_digest", f"{reference.digest_version}:{reference.input_digest}"),
+        ]
+    else:
+        input_facts = [
+            ("input", "Asset History at a fixed snapshot"),
+            ("history_snapshot_id", reference.snapshot_id),
+            ("requested_range_utc", f"{_utc(reference.start_at)} / {_utc(reference.end_at)}"),
+            ("channels", ", ".join(reference.channel_ids)),
+        ]
     facts: list[tuple[str, object]] = [
         ("analysis_run_id", run.analysis_run_id),
         ("evidence_id", evidence.evidence_id),
         ("capability", evidence.capability_id),
         ("algorithm_version", evidence.algorithm_version),
-        ("history_snapshot_id", reference.snapshot_id),
         ("source_id", evidence.source_id),
-        ("requested_range_utc", f"{_utc(reference.start_at)} / {_utc(reference.end_at)}"),
+        *input_facts,
         ("evaluated_range_utc", f"{_utc(run.observed_start_at)} / {_utc(run.observed_end_at)}"),
-        ("channels", ", ".join(reference.channel_ids)),
         ("semantic_versions", ", ".join(evidence.semantic_versions) or "none"),
         ("min_mean_voltage_v", config.min_mean_voltage_v),
         ("min_mean_current_a", config.min_mean_current_a),

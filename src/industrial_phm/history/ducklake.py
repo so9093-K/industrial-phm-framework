@@ -20,6 +20,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Any
 
+from industrial_phm.application.analysis_input import ChannelObservation
 from industrial_phm.application.asset_history import (
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
@@ -47,7 +48,6 @@ from industrial_phm.application.opcua_persistent import (
     OpcUaEventTimeEvidence,
     OpcUaPersistentDataChangeEvent,
 )
-from industrial_phm.application.phase_unbalance import ChannelObservation
 from industrial_phm.application.source_registration import SourceType
 from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification

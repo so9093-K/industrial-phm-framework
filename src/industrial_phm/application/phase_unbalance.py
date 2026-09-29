@@ -8,6 +8,8 @@ maintenance recommendation, and it never reads provider annotations.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from collections import Counter, defaultdict
 from collections.abc import Callable, Sequence
@@ -18,8 +20,16 @@ from statistics import median, quantiles
 from typing import Protocol, runtime_checkable
 from uuid import uuid4
 
+from industrial_phm.application.analysis_input import (
+    ChannelObservation,
+    WindowInputReference,
+    window_channel_candidates,
+    window_channel_observations,
+    window_input_reference,
+)
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.measurement_semantics import ChannelSemanticCandidate
+from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.contracts import (
     DataQualityAssessment,
@@ -29,6 +39,7 @@ from industrial_phm.contracts import (
 
 PHASE_UNBALANCE_CAPABILITY_ID = "three-phase-unbalance-v1"
 PHASE_UNBALANCE_ALGORITHM_VERSION = "phase-unbalance-max-deviation-v2"
+PHASE_UNBALANCE_POLICY_DIGEST_VERSION = "phase-unbalance-policy-v1"
 _PHASES = ("R", "S", "T")
 _MAX_BUCKETS = 1000
 
@@ -69,23 +80,6 @@ _SOURCE_QUALITY_EXCLUSIONS = frozenset(
         ExclusionReason.NON_GOOD_QUALITY.value,
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class ChannelObservation:
-    """One (source, point, channel, event time) group read from Asset History."""
-
-    source_id: str
-    measurement_point_id: str | None
-    channel_id: str
-    event_at: datetime
-    value: float | None
-    conflicting: bool
-    source_quality_good: bool
-    observed_property: str | None
-    scope: str | None
-    unit: str | None
-    semantic_version: str | None
 
 
 @runtime_checkable
@@ -153,6 +147,30 @@ class PhaseUnbalanceConfig:
         return self.min_mean_current_a
 
 
+def phase_unbalance_policy_digest(config: PhaseUnbalanceConfig | None = None) -> str:
+    """Stable identity of the requested analysis policy before role resolution."""
+    policy = config or PhaseUnbalanceConfig()
+    payload = {
+        "version": PHASE_UNBALANCE_POLICY_DIGEST_VERSION,
+        "voltage_channels": (
+            None if policy.voltage_channels is None else list(policy.voltage_channels)
+        ),
+        "current_channels": (
+            None if policy.current_channels is None else list(policy.current_channels)
+        ),
+        "min_mean_voltage_v": float(policy.min_mean_voltage_v),
+        "min_mean_current_a": float(policy.min_mean_current_a),
+        "bucket_count": policy.bucket_count,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class UnbalanceBucket:
     start_at: datetime
@@ -184,7 +202,7 @@ class PhaseUnbalanceEvidence:
 
     evidence_id: str
     analysis_run_id: str
-    input_reference: HistoricalInputReference
+    input_reference: HistoricalInputReference | WindowInputReference
     source_id: str
     config: PhaseUnbalanceConfig
     semantic_versions: tuple[str, ...]
@@ -263,7 +281,8 @@ def _series(
     channels: tuple[str, str, str],
     selection: ChannelSelection,
     config: PhaseUnbalanceConfig,
-    reference: HistoricalInputReference,
+    start_at: datetime,
+    end_at: datetime,
 ) -> tuple[UnbalanceSeriesResult, set[str], list[datetime]]:
     phase_of = dict(zip(channels, _PHASES, strict=True))
     prop, unit = _REQUIRED_SEMANTICS[quantity]
@@ -314,15 +333,15 @@ def _series(
         )
     percents = [p for _, p in samples]
     max_at, max_percent = max(samples, key=lambda item: (item[1], -item[0].timestamp()))
-    width = (reference.end_at - reference.start_at) / config.bucket_count
+    width = (end_at - start_at) / config.bucket_count
     by_bucket: dict[int, list[float]] = defaultdict(list)
     for event_at, percent in samples:
-        index = min(int((event_at - reference.start_at) / width), config.bucket_count - 1)
+        index = min(int((event_at - start_at) / width), config.bucket_count - 1)
         by_bucket[index].append(percent)
     buckets = tuple(
         UnbalanceBucket(
-            reference.start_at + width * index,
-            min(reference.end_at, reference.start_at + width * (index + 1)),
+            start_at + width * index,
+            min(end_at, start_at + width * (index + 1)),
             len(values),
             median(values),
             max(values),
@@ -347,6 +366,135 @@ def _series(
     )
 
 
+_Chosen = dict[UnbalanceQuantity, tuple[str, str, str] | None]
+
+
+def _choose_channels(
+    requested: PhaseUnbalanceConfig,
+    candidates: Callable[[], Sequence[ChannelSemanticCandidate]],
+    measurement_point_id: str | None,
+) -> tuple[_Chosen, dict[UnbalanceQuantity, ChannelSelection], PhaseUnbalanceConfig]:
+    """Explicit channels win; the rest are resolved by semantic role."""
+    selection: dict[UnbalanceQuantity, ChannelSelection] = {}
+    chosen: _Chosen = {quantity: requested.channels(quantity) for quantity in UnbalanceQuantity}
+    if any(group is None for group in chosen.values()):
+        found = tuple(candidates())
+        if measurement_point_id is not None:
+            found = tuple(c for c in found if c.measurement_point_id == measurement_point_id)
+        elif len({c.measurement_point_id for c in found}) > 1:
+            raise ValueError(
+                "analysis source contains multiple measurement points; "
+                "select measurement_point_id explicitly"
+            )
+        by_role = resolve_phase_channels(found)
+        for quantity, given in chosen.items():
+            if given is None:
+                chosen[quantity] = by_role[quantity]
+                selection[quantity] = (
+                    ChannelSelection.UNRESOLVED
+                    if by_role[quantity] is None
+                    else ChannelSelection.SEMANTIC_ROLE
+                )
+    for quantity in UnbalanceQuantity:
+        selection.setdefault(quantity, ChannelSelection.EXPLICIT)
+    if all(group is None for group in chosen.values()):
+        raise ValueError(
+            "no three-phase voltage or current channels are bound by semantic role; "
+            "check semantic bindings or configure channels explicitly"
+        )
+    # The persisted configuration names the channels actually used, so a recorded
+    # result recomputes from its evidence without resolving roles again.
+    effective = PhaseUnbalanceConfig(
+        voltage_channels=chosen[UnbalanceQuantity.VOLTAGE],
+        current_channels=chosen[UnbalanceQuantity.CURRENT],
+        min_mean_voltage_v=requested.min_mean_voltage_v,
+        min_mean_current_a=requested.min_mean_current_a,
+        bucket_count=requested.bucket_count,
+    )
+    return chosen, selection, effective
+
+
+def _used_channels(chosen: _Chosen) -> tuple[str, ...]:
+    return tuple(channel for group in chosen.values() if group is not None for channel in group)
+
+
+def _analyze(
+    observations: Sequence[ChannelObservation],
+    chosen: _Chosen,
+    selection: dict[UnbalanceQuantity, ChannelSelection],
+    effective: PhaseUnbalanceConfig,
+    *,
+    reference: HistoricalInputReference | WindowInputReference,
+    asset_id: str,
+    source_id: str,
+    measurement_point_id: str | None,
+    started_at: datetime,
+    now: Callable[[], datetime],
+) -> PhaseUnbalanceAnalysis:
+    """Capability core shared by history-snapshot and finalized-window input."""
+    results = []
+    versions: set[str] = set()
+    sample_times: list[datetime] = []
+    for quantity in UnbalanceQuantity:
+        quantity_channels = chosen[quantity]
+        if quantity_channels is None:
+            results.append(
+                UnbalanceSeriesResult(
+                    quantity, 0, {}, channel_selection=ChannelSelection.UNRESOLVED
+                )
+            )
+            continue
+        result, used_versions, times = _series(
+            observations,
+            quantity,
+            quantity_channels,
+            selection[quantity],
+            effective,
+            reference.start_at,
+            reference.end_at,
+        )
+        results.append(result)
+        versions |= used_versions
+        sample_times += times
+    if not sample_times:
+        raise ValueError(
+            "no eligible three-phase samples; check semantics, range and signal thresholds"
+        )
+    issues = [
+        DataQualityIssue(
+            f"excluded-{r.quantity.value}-{reason}",
+            DataQualitySeverity.WARNING,
+            f"{count} {r.quantity.value} timestamps excluded: {reason}",
+        )
+        for r in results
+        for reason, count in sorted(r.excluded_samples.items())
+        if reason in _SOURCE_QUALITY_EXCLUSIONS
+    ]
+    run_id = f"analysis-run-{uuid4()}"
+    run = AnalysisRun(
+        analysis_run_id=run_id,
+        asset_id=asset_id,
+        source_id=source_id,
+        observed_start_at=min(sample_times),
+        observed_end_at=max(sample_times),
+        started_at=started_at,
+        completed_at=now(),
+        data_quality=DataQualityAssessment(issues),
+        measurement_point_id=measurement_point_id,
+        capability_ids=(PHASE_UNBALANCE_CAPABILITY_ID,),
+    )
+    evidence = PhaseUnbalanceEvidence(
+        evidence_id=f"evidence-{uuid4()}",
+        analysis_run_id=run_id,
+        input_reference=reference,
+        source_id=source_id,
+        config=effective,
+        semantic_versions=tuple(sorted(versions)),
+        results=tuple(results),
+    )
+    return PhaseUnbalanceAnalysis(run, evidence)
+
+
 def run_phase_unbalance_analysis(
     history: ChannelObservationReader,
     *,
@@ -367,54 +515,14 @@ def run_phase_unbalance_analysis(
     requested = config or PhaseUnbalanceConfig()
     started_at = now()
     snapshot = history.current_snapshot_id() if snapshot_id is None else snapshot_id
-    selection: dict[UnbalanceQuantity, ChannelSelection] = {}
-    chosen: dict[UnbalanceQuantity, tuple[str, str, str] | None] = {
-        quantity: requested.channels(quantity) for quantity in UnbalanceQuantity
-    }
-    if any(group is None for group in chosen.values()):
-        candidates = history.list_channel_semantics(
-            asset_id,
-            source_id=source_id,
-            start_at=start_at,
-            end_at=end_at,
-            snapshot_id=snapshot,
-        )
-        if measurement_point_id is not None:
-            candidates = tuple(
-                c for c in candidates if c.measurement_point_id == measurement_point_id
-            )
-        elif len({c.measurement_point_id for c in candidates}) > 1:
-            raise ValueError(
-                "analysis source contains multiple measurement points; "
-                "select measurement_point_id explicitly"
-            )
-        by_role = resolve_phase_channels(candidates)
-        for quantity, given in chosen.items():
-            if given is None:
-                chosen[quantity] = by_role[quantity]
-                selection[quantity] = (
-                    ChannelSelection.UNRESOLVED
-                    if by_role[quantity] is None
-                    else ChannelSelection.SEMANTIC_ROLE
-                )
-    for quantity in UnbalanceQuantity:
-        selection.setdefault(quantity, ChannelSelection.EXPLICIT)
-    used = [channel for group in chosen.values() if group is not None for channel in group]
-    if not used:
-        raise ValueError(
-            "no three-phase voltage or current channels are bound by semantic role; "
-            "check semantic bindings or configure channels explicitly"
-        )
-    # The persisted configuration names the channels actually used, so a recorded
-    # result recomputes from its evidence without resolving roles again.
-    effective = PhaseUnbalanceConfig(
-        voltage_channels=chosen[UnbalanceQuantity.VOLTAGE],
-        current_channels=chosen[UnbalanceQuantity.CURRENT],
-        min_mean_voltage_v=requested.min_mean_voltage_v,
-        min_mean_current_a=requested.min_mean_current_a,
-        bucket_count=requested.bucket_count,
+    chosen, selection, effective = _choose_channels(
+        requested,
+        lambda: history.list_channel_semantics(
+            asset_id, source_id=source_id, start_at=start_at, end_at=end_at, snapshot_id=snapshot
+        ),
+        measurement_point_id,
     )
-    channels = tuple(used)
+    channels = _used_channels(chosen)
     observations = history.query_channel_observations(
         asset_id,
         source_id=source_id,
@@ -446,59 +554,47 @@ def run_phase_unbalance_analysis(
         measurement_point_id=resolved_point,
         channel_ids=channels,
     )
-    results = []
-    versions: set[str] = set()
-    sample_times: list[datetime] = []
-    for quantity in UnbalanceQuantity:
-        quantity_channels = chosen[quantity]
-        if quantity_channels is None:
-            results.append(
-                UnbalanceSeriesResult(
-                    quantity, 0, {}, channel_selection=ChannelSelection.UNRESOLVED
-                )
-            )
-            continue
-        result, used_versions, times = _series(
-            observations, quantity, quantity_channels, selection[quantity], effective, reference
-        )
-        results.append(result)
-        versions |= used_versions
-        sample_times += times
-    if not sample_times:
-        raise ValueError(
-            "no eligible three-phase samples; check semantics, range and signal thresholds"
-        )
-    issues = [
-        DataQualityIssue(
-            f"excluded-{r.quantity.value}-{reason}",
-            DataQualitySeverity.WARNING,
-            f"{count} {r.quantity.value} timestamps excluded: {reason}",
-        )
-        for r in results
-        for reason, count in sorted(r.excluded_samples.items())
-        if reason in _SOURCE_QUALITY_EXCLUSIONS
-    ]
-    run_id = f"analysis-run-{uuid4()}"
-    completed_at = now()
-    run = AnalysisRun(
-        analysis_run_id=run_id,
+    return _analyze(
+        observations,
+        chosen,
+        selection,
+        effective,
+        reference=reference,
         asset_id=asset_id,
         source_id=source_id,
-        observed_start_at=min(sample_times),
-        observed_end_at=max(sample_times),
-        started_at=started_at,
-        completed_at=completed_at,
-        data_quality=DataQualityAssessment(issues),
         measurement_point_id=resolved_point,
-        capability_ids=(PHASE_UNBALANCE_CAPABILITY_ID,),
+        started_at=started_at,
+        now=now,
     )
-    evidence = PhaseUnbalanceEvidence(
-        evidence_id=f"evidence-{uuid4()}",
-        analysis_run_id=run_id,
-        input_reference=reference,
-        source_id=source_id,
-        config=effective,
-        semantic_versions=tuple(sorted(versions)),
-        results=tuple(results),
+
+
+def run_phase_unbalance_on_window(
+    window: DurableObservationWindow,
+    *,
+    config: PhaseUnbalanceConfig | None = None,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> PhaseUnbalanceAnalysis:
+    """Analyze exactly the events a finalized window accepted (ADR-0008).
+
+    The window range is never re-queried from history; the evidence records the
+    window identity and a digest of its accepted events.
+    """
+    requested = config or PhaseUnbalanceConfig()
+    started_at = now()
+    chosen, selection, effective = _choose_channels(
+        requested, lambda: window_channel_candidates(window), window.measurement_point_id
     )
-    return PhaseUnbalanceAnalysis(run, evidence)
+    channels = set(_used_channels(chosen))
+    observations = tuple(o for o in window_channel_observations(window) if o.channel_id in channels)
+    return _analyze(
+        observations,
+        chosen,
+        selection,
+        effective,
+        reference=window_input_reference(window),
+        asset_id=window.asset_id,
+        source_id=window.source_id,
+        measurement_point_id=window.measurement_point_id,
+        started_at=started_at,
+        now=now,
+    )

@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.phase_unbalance import (
@@ -134,14 +135,7 @@ def _serialize(result: PhaseUnbalanceAnalysis) -> dict[str, object]:
             "interpretation": evidence.interpretation,
             "source_id": evidence.source_id,
             "semantic_versions": list(evidence.semantic_versions),
-            "input_reference": {
-                "snapshot_id": reference.snapshot_id,
-                "asset_id": reference.asset_id,
-                "start_at": _time(reference.start_at),
-                "end_at": _time(reference.end_at),
-                "measurement_point_id": reference.measurement_point_id,
-                "channel_ids": list(reference.channel_ids),
-            },
+            "input_reference": _serialize_reference(reference),
             "config": {
                 "voltage_channels": _optional_list(config.voltage_channels),
                 "current_channels": _optional_list(config.current_channels),
@@ -175,6 +169,69 @@ def _serialize(result: PhaseUnbalanceAnalysis) -> dict[str, object]:
             ],
         },
     }
+
+
+def _serialize_reference(
+    reference: HistoricalInputReference | WindowInputReference,
+) -> dict[str, object]:
+    if isinstance(reference, WindowInputReference):
+        return {
+            "kind": "finalized-window",
+            "window_id": reference.window_id,
+            "source_id": reference.source_id,
+            "asset_id": reference.asset_id,
+            "measurement_point_id": reference.measurement_point_id,
+            "window_start": _time(reference.window_start),
+            "window_end": _time(reference.window_end),
+            "watermark_at_close": _time(reference.watermark_at_close),
+            "finalized_at": _time(reference.finalized_at),
+            "accepted_event_count": reference.accepted_event_count,
+            "rejected_event_count": reference.rejected_event_count,
+            "expected_channel_ids": list(reference.expected_channel_ids),
+            "missing_channel_ids": list(reference.missing_channel_ids),
+            "input_digest": reference.input_digest,
+            "digest_version": reference.digest_version,
+        }
+    return {
+        "kind": "history-snapshot",
+        "snapshot_id": reference.snapshot_id,
+        "asset_id": reference.asset_id,
+        "start_at": _time(reference.start_at),
+        "end_at": _time(reference.end_at),
+        "measurement_point_id": reference.measurement_point_id,
+        "channel_ids": list(reference.channel_ids),
+    }
+
+
+def _parse_reference(ref: Mapping[str, Any]) -> HistoricalInputReference | WindowInputReference:
+    # Records written before live input have no kind and are history snapshots.
+    if ref.get("kind", "history-snapshot") == "history-snapshot":
+        return HistoricalInputReference(
+            snapshot_id=ref["snapshot_id"],
+            asset_id=ref["asset_id"],
+            start_at=_dt(ref["start_at"]),
+            end_at=_dt(ref["end_at"]),
+            measurement_point_id=ref["measurement_point_id"],
+            channel_ids=tuple(ref["channel_ids"]),
+        )
+    if ref["kind"] != "finalized-window":
+        raise PhaseUnbalanceHistoryFormatError(f"unknown input reference kind: {ref['kind']}")
+    return WindowInputReference(
+        window_id=ref["window_id"],
+        source_id=ref["source_id"],
+        asset_id=ref["asset_id"],
+        measurement_point_id=ref["measurement_point_id"],
+        window_start=_dt(ref["window_start"]),
+        window_end=_dt(ref["window_end"]),
+        watermark_at_close=_dt(ref["watermark_at_close"]),
+        finalized_at=_dt(ref["finalized_at"]),
+        accepted_event_count=ref["accepted_event_count"],
+        rejected_event_count=ref["rejected_event_count"],
+        expected_channel_ids=tuple(ref["expected_channel_ids"]),
+        missing_channel_ids=tuple(ref["missing_channel_ids"]),
+        input_digest=ref["input_digest"],
+        digest_version=ref["digest_version"],
+    )
 
 
 def _optional_list(value: tuple[str, ...] | None) -> list[str] | None:
@@ -225,14 +282,7 @@ def _parse(raw: Mapping[str, Any]) -> PhaseUnbalanceAnalysis:
         interpretation=ev["interpretation"],
         source_id=ev["source_id"],
         semantic_versions=tuple(ev["semantic_versions"]),
-        input_reference=HistoricalInputReference(
-            snapshot_id=ref["snapshot_id"],
-            asset_id=ref["asset_id"],
-            start_at=_dt(ref["start_at"]),
-            end_at=_dt(ref["end_at"]),
-            measurement_point_id=ref["measurement_point_id"],
-            channel_ids=tuple(ref["channel_ids"]),
-        ),
+        input_reference=_parse_reference(ref),
         config=PhaseUnbalanceConfig(
             voltage_channels=_optional_triple(cfg["voltage_channels"]),
             current_channels=_optional_triple(cfg["current_channels"]),

@@ -64,6 +64,24 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 기록된 snapshot ID로 다시 실행하면 이후 같은 구간에 history가 추가되어도 같은 결과가 나옵니다
 (`tests/integration/test_phase_unbalance_history.py`). 시각은 UTC로 정규화해 실행 환경의 timezone과 무관합니다.
 
+## Finalized window 입력 (live)
+
+[ADR-0008](../adr/0008-analyze-finalized-window-accepted-events.md)에 따라 live 분석은 finalized
+`DurableObservationWindow`가 **accept한 event 집합**을 입력으로 씁니다(`run_phase_unbalance_on_window`). Window
+구간으로 history를 다시 조회하지 않으므로 finalize 뒤 도착한 늦은 값은 입력에 들어가지 않습니다.
+
+- Window event는 history와 같은 `ChannelObservation` 형태로 투영됩니다(`window_channel_observations`). 같은
+  channel·event time에 값이 다른 delivery(예: 새 epoch의 replay)는 평균하지 않고 `conflicting`입니다.
+- 의미는 각 event가 수집 시점에 가진 semantic snapshot에서 읽고, 같은 semantic role 규칙으로 channel을 고릅니다.
+- Evidence의 입력 참조는 `WindowInputReference`입니다: window ID·구간·watermark·finalize 시각, accept/reject 수,
+  missing channel, accept된 event의 delivery identity·channel·event time·값·status·semantic snapshot의 SHA-256
+  (`window-accepted-events-v1`). 값은 float로 정규화해 JSON window 저장 전후 digest가 같습니다.
+- 저장된 window로 다시 실행하면 같은 결과가 나옵니다. 저장소는 history snapshot 입력과 window 입력을 `kind`로
+  구분해 기록하며, 이전 결과(`kind` 없음)는 history snapshot으로 읽습니다.
+- Live runner의 중복 방지 identity는 input digest와 별개로
+  `window + capability + algorithm version + analysis policy digest`를 사용합니다. Policy digest는 role 선택 전
+  요청 설정(channel override, 저신호 기준, bucket 수)을 고정하므로 설정을 바꾼 의도적 재분석을 허용합니다.
+
 ## 실제 데이터 확인 (2026-09-29)
 
 보일러 `SourceData_347`(device 5764) 전체 1,008,001건을 metadata v4로 적재하고 2021-01-15–02-06 UTC를
@@ -86,6 +104,6 @@ Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) �
 - OPC UA source: 등록 시 channel별 semantic binding을 두면 DataChange의 semantic snapshot이 spool, DuckLake
   raw evidence(`raw.opcua_data_change.semantic_binding_json`)까지 보존되고 FILE과 같은 eligibility로 분석
   입력이 됩니다. Binding이 없는 channel과 semantic column 도입 이전에 적재된 행은 `unconfirmed-semantics`입니다.
-- 남은 연결: finalized live window를 입력으로 쓰는 runner는 다음 단계입니다. Live 분석은 window 종료 후
-  같은 시간 범위를 history에서 다시 조회하지 않고 window가 accept한 event 집합을 입력 근거로 사용해야 합니다.
+- 남은 연결: finalized window가 생길 때마다 한 번씩 분석하고 재시작 뒤에도 중복 기록하지 않는 runner와
+  loopback OPC UA end-to-end 검증은 다음 단계입니다.
 - AI-Hub label과의 비교는 research path에서만 합니다.
