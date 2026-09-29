@@ -42,6 +42,7 @@ from industrial_phm.commands.operations import (
     _run_operations_flush_history,
     _run_operations_poll_source,
     _run_operations_request_collection,
+    _run_operations_window_analysis,
 )
 from industrial_phm.data.registry import list_datasets
 
@@ -346,7 +347,46 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.5,
         help="positive desired-state reconciliation interval in seconds (default: 0.5)",
     )
+    operations_collection_service.add_argument(
+        "--window-duration-seconds",
+        type=float,
+        default=60.0,
+        help="fixed aligned observation-window length in seconds (default: 60)",
+    )
+    operations_collection_service.add_argument(
+        "--allowed-lateness-seconds",
+        type=float,
+        default=5.0,
+        help="watermark lateness before a window finalizes, in seconds (default: 5)",
+    )
     operations_collection_service.set_defaults(handler=_run_operations_collection_service)
+
+    operations_window_analysis = operations_commands.add_parser(
+        "run-window-analysis",
+        help="analyze each finalized live observation window once (three-phase unbalance)",
+    )
+    operations_window_analysis.add_argument(
+        "--window-state", type=Path, required=True, help="finalized window JSON path"
+    )
+    operations_window_analysis.add_argument(
+        "--analysis-state",
+        type=Path,
+        required=True,
+        help="phase unbalance result JSON path (shared with Operations)",
+    )
+    operations_window_analysis.add_argument(
+        "--ledger-state",
+        type=Path,
+        required=True,
+        help="JSON path remembering windows that cannot be analyzed",
+    )
+    operations_window_analysis.add_argument(
+        "--interval-seconds", type=float, default=5.0, help="poll interval (default: 5)"
+    )
+    operations_window_analysis.add_argument(
+        "--once", action="store_true", help="analyze pending windows once and exit"
+    )
+    operations_window_analysis.set_defaults(handler=_run_operations_window_analysis)
 
     feature = subcommands.add_parser(
         "feature",

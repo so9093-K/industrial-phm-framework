@@ -70,6 +70,34 @@ uv run --no-sync industrial-phm operations flush-history \
   --ducklake-data artifacts/live-demo/data
 ```
 
+## Three-phase live analysis profile
+
+The `three-phase` profile registers `demo-3phase-opcua` for asset `demo-motor-01` with site-style
+channel names (`Voltage_L1..3`, `Current_L1..3`) and explicit synthetic semantic bindings (phase
+voltage/current, phase R/S/T, V/A). Analysis selects these channels by bound meaning, not by name.
+Values are synthetic; they do not describe a physical motor.
+
+```bash
+uv run --no-sync python -m tools.opcua.demo --root artifacts/live-3phase --profile three-phase \
+  --endpoint opc.tcp://127.0.0.1:4842/phm-demo/ prepare
+uv run --no-sync python -m tools.opcua.demo --profile three-phase \
+  --endpoint opc.tcp://127.0.0.1:4842/phm-demo/ server
+```
+
+Run the collector with the `artifacts/live-3phase` paths as above (optionally
+`--window-duration-seconds 10 --allowed-lateness-seconds 2` for faster windows), start collection for
+`demo-3phase-opcua`, and run the window analysis runner as its own process:
+
+```bash
+uv run --no-sync industrial-phm operations run-window-analysis \
+  --window-state artifacts/live-3phase/windows.json \
+  --analysis-state artifacts/live-3phase/phase-unbalance.json \
+  --ledger-state artifacts/live-3phase/window-analysis-ledger.json
+```
+
+Each finalized window is analyzed once from its accepted events (ADR-0008). Restarting the runner does
+not record a window twice. Windows without all three phases bound are recorded as skipped with a reason.
+
 ## Regression validation
 
 ```bash
