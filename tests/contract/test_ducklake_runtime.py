@@ -482,3 +482,18 @@ def test_flush_moves_inlined_rows_without_changing_snapshot_evidence(tmp_path, c
     assert main(args) == 0
     assert "flushed_rows=0" in capsys.readouterr().out
     assert history.current_snapshot_id() == flushed_snapshot
+
+
+def test_batch_insert_leaves_import_state_unchanged(tmp_path):
+    import sys
+
+    _require_duckdb()
+    had_pandas = "pandas" in sys.modules
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    event = _event(channel_id="power", event_at=BASE, event_index=0)
+    history.append_opcua_batch((event,), batch_id="import-state")
+    # The absent-pandas cache is scoped to one bind and must not leak a None module.
+    assert ("pandas" in sys.modules) == had_pandas
+    assert history.query_opcua_events("source-a") == (event,)

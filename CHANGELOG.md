@@ -11,6 +11,10 @@
 
 ### Changed
 
+- 이력 적재·조회 속도를 개선했습니다. DuckDB의 값별 pandas import 탐색을 제거하고 열 단위 insert로 바꿔
+  압출기 48시간 적재가 161초 → 36초가 됐습니다(저장 결과 동일). 조회는 raw 근거 join 전에 같은
+  설비·채널·시간으로 걸러 120만 건 기준 전체 기간 집계 14.9초 → 0.59초가 됐습니다.
+
 - DuckLake Asset History에 inlined data flush를 추가했습니다. AI-Hub 적재는 10배치마다 Parquet으로
   옮기며, `industrial-phm operations flush-history`로 live/backfill 이력도 옮길 수 있습니다. snapshot
   time travel과 배치 재시도 복구는 유지됩니다. 실제 압출기 48시간 기준 catalog 240MB → 45MB + Parquet 21MB.
