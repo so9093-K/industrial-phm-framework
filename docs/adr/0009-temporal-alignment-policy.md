@@ -26,13 +26,17 @@ raw 데이터의 속성이 아닙니다. 전력품질처럼 동시성이 중요�
   - `strict-v1`(기본): 모든 channel이 같은 timestamp에 관측된 시각만 sample입니다. 추정이 없습니다.
   - `bounded-previous-v1`: 어떤 channel이 관측된 시각 T를 기준으로, 다른 channel은 T 이전(또는 같은 시각)의
     마지막 관측을 `T − observed_at ≤ max_age`일 때만 사용합니다. 미래 관측은 쓰지 않습니다(causal).
+    모든 requested channel의 observation timestamp 합집합을 anchor로 사용하는 **event-transition state
+    reconstruction**이며 synchronized acquisition-cycle reconstruction을 주장하지 않습니다. 한 물리 cycle의
+    R/S/T가 서로 다른 timestamp로 보고되면 old/new 값이 섞인 중간 state도 sample이 될 수 있습니다.
     `max_age`와 그 근거(`basis`: 계측 갱신 주기, 장비 사양, calibration 결과 등)는 **명시적으로 요구**하며
     라이브러리 기본값이 없습니다. Transport timeout은 측정 유효 기간이 아닙니다.
 - 재구성된 값은 원래 관측을 대신하지 않습니다. 각 sample 값은 원래 observation(시각·값·status·의미)과
   origin(`observed`/`carried`), age를 함께 가지며 raw evidence로 저장하지 않습니다.
-- Capability는 필요한 정책을 요청할 뿐 cache나 protocol 상태를 직접 관리하지 않습니다. 정책은 evidence(정책
-  version, max age, basis, carried 값 수, carry age 분포)와 분석 identity(policy digest)에 포함됩니다.
-  기본 strict 정책은 기존 identity를 바꾸지 않습니다.
+- Capability는 필요한 정책을 요청할 뿐 cache나 protocol 상태를 직접 관리하지 않습니다. Evidence에는 정책
+  version, max age, basis, carried 값 수, carry age 분포를 남깁니다. **분석의 computational identity에는 결과를
+  바꿀 수 있는 kind와 max age만 포함**하고, basis 문구는 정책 선택의 provenance이므로 digest에서 제외합니다.
+  같은 kind/max age의 근거 문구를 정정해도 재분석하지 않으며, 기본 strict 정책은 기존 identity를 바꾸지 않습니다.
 - ADR-0008은 유지됩니다. 정렬은 finalized window가 accept한 event에 결정적으로 적용되며, 정렬을 위해
   history를 재조회하지 않습니다.
 - Window 시작 직전의 값(carry-in)은 현재 사용하지 않습니다. Window 첫 부분의 carried 정렬이 필요하면
@@ -45,5 +49,7 @@ raw 데이터의 속성이 아닙니다. 전력품질처럼 동시성이 중요�
 긴 무통신 구간에서는 실제 변화를 가릴 수 있으므로 source/device의 측정 계약이나 검증 결과가 있을 때만
 사용해야 합니다. Source profile에 update 주기·trigger·deadband·timestamp 의미 같은 acquisition semantics를
 기록하는 계약과, DataChange와 주기 grouped Read를 동시에 수집해 정책별 coverage·carry age·불평형 오차를
-비교하는 calibration 실험이 후속 작업입니다. Nearest(비인과)와 주기 grid 정책은 offline 분석 필요가
-확인될 때 추가합니다.
+비교하는 calibration 실험이 후속 작업입니다. Event-transition anchor는 변화가 잦은 channel의 시각이 더 많은
+sample을 만들 수 있고 staggered acquisition cycle의 중간 state를 포함할 수 있으므로, synchronized 분석이
+필요하면 reference-channel, periodic-grid 또는 device-native grouped snapshot 같은 별도 versioned 정책을
+추가합니다. Nearest(비인과)는 offline 분석 필요가 확인될 때만 추가합니다.
