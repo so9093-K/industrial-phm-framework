@@ -53,6 +53,15 @@ class ExclusionReason(StrEnum):
     LOW_SIGNAL = "low-signal"
 
 
+_SOURCE_QUALITY_EXCLUSIONS = frozenset(
+    {
+        ExclusionReason.NULL_VALUE.value,
+        ExclusionReason.CONFLICTING_VALUE.value,
+        ExclusionReason.NON_GOOD_QUALITY.value,
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ChannelObservation:
     """One (source, point, channel, event time) group read from Asset History."""
@@ -334,6 +343,7 @@ def run_phase_unbalance_analysis(
         )
         for r in results
         for reason, count in sorted(r.excluded_samples.items())
+        if reason in _SOURCE_QUALITY_EXCLUSIONS
     ]
     run_id = f"analysis-run-{uuid4()}"
     completed_at = now()

@@ -33,7 +33,10 @@ unbalance % = max(|X_R − X̄|, |X_S − X̄|, |X_T − X̄|) / X̄ × 100,   X
 | 6 | `low-signal` | 세 상 평균이 전압 50 V 또는 전류 1 A 미만(정지·미부하) |
 
 Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) 적재, semantic binding이 없는 source의
-관측은 자동으로 제외됩니다. 제외는 결과의 data-quality warning으로도 남습니다.
+관측은 자동으로 제외됩니다. 모든 제외가 source data quality를 뜻하지는 않습니다.
+`null-value`, `conflicting-value`, `non-good-source-quality`만 `AnalysisRun.data_quality` warning으로
+올리고, `unconfirmed-semantics`, `incomplete-phases`, `low-signal`은 capability input eligibility/exclusion
+근거로만 남깁니다.
 
 ## Evidence
 

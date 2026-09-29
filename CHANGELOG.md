@@ -11,6 +11,8 @@
 
 ### Changed
 
+- 3상 불평형의 analysis exclusion과 source data quality를 분리했습니다. 미확정 semantics, 불완전한 3상 정렬, 저신호 구간은 capability eligibility 근거로 유지하되 `AnalysisRun.data_quality` warning으로 승격하지 않고, null·conflicting value·protocol non-good만 source-quality issue로 기록합니다.
+
 - 3상 불평형 분석의 p95를 작은 표본에서도 관측 min/max 범위를 벗어나지 않는 inclusive empirical quantile로 고정하고 algorithm version을 `phase-unbalance-max-deviation-v2`로 올렸습니다. 한 source에 여러 measurement point가 있으면 명시적으로 point를 선택하지 않는 분석은 fail-closed해 서로 다른 측정점의 분포가 한 결과로 합쳐지지 않게 했습니다.
 
 - 분석 결과를 capability와 무관하게 다룹니다(`OperationalAnalysisResult`). Asset Detail·Overview 분석 수,
