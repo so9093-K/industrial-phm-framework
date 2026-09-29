@@ -57,17 +57,25 @@ class TemporalAlignmentPolicy:
             raise ValueError("bounded-previous alignment requires a positive max_age")
         if not isinstance(self.basis, str) or not self.basis.strip():
             raise ValueError("bounded-previous alignment requires the basis for its max_age")
+        object.__setattr__(self, "basis", self.basis.strip())
 
     @property
     def is_strict(self) -> bool:
         return self.kind == AlignmentPolicyKind.STRICT
 
     def identity(self) -> dict[str, object]:
-        """Canonical, JSON-ready identity for evidence and analysis identity."""
+        """Canonical evidence identity, including the justification text."""
         return {
             "kind": self.kind.value,
             "max_age_seconds": None if self.max_age is None else self.max_age.total_seconds(),
             "basis": self.basis,
+        }
+
+    def computational_identity(self) -> dict[str, object]:
+        """Fields that can change aligned values and therefore analysis results."""
+        return {
+            "kind": self.kind.value,
+            "max_age_seconds": None if self.max_age is None else self.max_age.total_seconds(),
         }
 
 
@@ -107,8 +115,11 @@ def align_observations(
     """Deterministically align one measurement point's observations of ``channels``.
 
     A candidate sample time is every timestamp at which any requested channel was
-    observed. Observations are those given (for example a finalized window's
-    accepted events); nothing outside them is looked up.
+    observed. For bounded-previous this is an event-transition state reconstruction:
+    staggered updates from one physical acquisition cycle can therefore produce
+    intermediate states. It does not claim synchronized-cycle reconstruction.
+    Observations are those given (for example a finalized window's accepted events);
+    nothing outside them is looked up.
     """
     wanted = tuple(channels)
     if len(set(wanted)) != len(wanted) or not wanted:
