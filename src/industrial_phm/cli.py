@@ -39,6 +39,7 @@ from industrial_phm.commands.feature import _run_feature_characterize
 from industrial_phm.commands.operations import (
     _run_operations_backfill_source,
     _run_operations_collection_service,
+    _run_operations_flush_history,
     _run_operations_poll_source,
     _run_operations_request_collection,
 )
@@ -280,6 +281,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="DuckLake managed Parquet data directory",
     )
     operations_backfill_source.set_defaults(handler=_run_operations_backfill_source)
+
+    operations_flush_history = operations_commands.add_parser(
+        "flush-history",
+        help="move catalog-inlined DuckLake Asset History rows to Parquet",
+    )
+    operations_flush_history.add_argument(
+        "--ducklake-catalog",
+        type=Path,
+        required=True,
+        help="DuckLake SQLite catalog path",
+    )
+    operations_flush_history.add_argument(
+        "--ducklake-data",
+        type=Path,
+        required=True,
+        help="DuckLake managed Parquet data directory",
+    )
+    operations_flush_history.set_defaults(handler=_run_operations_flush_history)
 
     operations_request_collection = operations_commands.add_parser(
         "request-collection",

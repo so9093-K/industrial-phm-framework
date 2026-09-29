@@ -61,6 +61,15 @@ distributed locking, high-throughput concurrent writers, or collector leader ele
 for a given control/spool configuration. Source disconnect telemetry and uncommitted spool backlog
 must not be read as machine failure.
 
+Live and FILE backfill history stays inlined in the SQLite catalog until flushed. After a long run,
+move it to Parquet with the same catalog/data paths (it waits for the shared catalog lease):
+
+```bash
+uv run --no-sync industrial-phm operations flush-history \
+  --ducklake-catalog artifacts/live-demo/catalog.sqlite \
+  --ducklake-data artifacts/live-demo/data
+```
+
 ## Regression validation
 
 ```bash

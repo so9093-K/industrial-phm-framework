@@ -172,3 +172,7 @@ New imports use metadata schema `aihub-239-history-v2`: raw ITEM_NAME remains ch
 the old `property_name` is shown only as a legacy source label. To resume an exact pre-v2 selection,
 use `--metadata-schema v1` with its original binding/range/batch size. Retrying it as v2 fails on immutable
 batch/row evidence rather than silently rewriting interpretation. Use v2 for new selections.
+
+The importer flushes newly appended rows from the SQLite catalog to Parquet every 10 batches and at
+the end (`--flush-every-batches`). Flush preserves snapshots and exact-retry recovery; measurements are
+in [measurement-history-evolution.md](../../docs/architecture/measurement-history-evolution.md).

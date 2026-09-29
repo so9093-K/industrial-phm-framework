@@ -11,6 +11,10 @@
 
 ### Changed
 
+- DuckLake Asset History에 inlined data flush를 추가했습니다. AI-Hub 적재는 10배치마다 Parquet으로
+  옮기며, `industrial-phm operations flush-history`로 live/backfill 이력도 옮길 수 있습니다. snapshot
+  time travel과 배치 재시도 복구는 유지됩니다. 실제 압출기 48시간 기준 catalog 240MB → 45MB + Parquet 21MB.
+
 - 2,000개를 넘는 직접 지정 이력 범위는 첫 2,000개 대신 전체 기간 UI 집계로 표시해 과거 적재 설비도
   긴 기간을 대표할 수 있습니다. 이력 표의 event time을 그래프와 같은 UTC로 통일했습니다.
 - 실제 압출기 48시간(100,800건) 적재 측정을 기록했습니다. DuckLake inlining으로 관측 1건당 약 2.4KB가

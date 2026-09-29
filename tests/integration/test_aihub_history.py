@@ -230,11 +230,13 @@ def test_legacy_import_retries_without_rewriting_persisted_semantic_evidence(tmp
     )
     args = (archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history)
     first = import_history(*args, metadata_schema="v1")
+    assert first["flushed_row_count"] > 0
     original = history.query_file_events("research-source")[0].source_metadata_json
     assert json.loads(original)["semantics"]["definition"]["property_name"] == "R상전류"
     retry = import_history(*args, metadata_schema="v1")
     assert retry["snapshot_id"] == first["snapshot_id"]
     assert retry["recovered_batch_count"] == 1
+    assert retry["flushed_row_count"] == 0
     # A new interpretation must not silently mutate immutable imported evidence.
     with pytest.raises(ValueError):
         import_history(*args)

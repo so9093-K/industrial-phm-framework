@@ -28,11 +28,14 @@ def import_history(
     *,
     batch_size: int = 2000,
     metadata_schema: str = "v2",
+    flush_every_batches: int = 10,
 ) -> dict[str, object]:
     """Use local source time for selection; normalize only with the explicit binding.
 
     Exact reruns recover commits. Overlapping selections with different batch
     boundaries fail on existing raw identity; they never silently duplicate rows.
+    Newly appended rows are flushed from the SQLite catalog to Parquet every
+    flush_every_batches batches and at the end; recovered batches need no flush.
     """
     if start.tzinfo is not None or end.tzinfo is not None or end <= start:
         raise ValueError("selection must be an increasing naive source-local time range")
@@ -40,6 +43,8 @@ def import_history(
         raise ValueError("batch_size must be between 1 and 10000")
     if metadata_schema not in {"v1", "v2"}:
         raise ValueError("metadata_schema must be v1 or v2")
+    if isinstance(flush_every_batches, bool) or not 1 <= flush_every_batches <= 10000:
+        raise ValueError("flush_every_batches must be between 1 and 10000")
     digest = archive_sha256(archive)
     archive_bytes = archive.stat().st_size
     selection = {
@@ -52,19 +57,27 @@ def import_history(
     }
     selection_id = hashlib.sha256(json.dumps(selection, sort_keys=True).encode()).hexdigest()
     batch: list[FileBackfillEvent] = []
-    count, batches, recovered = 0, 0, 0
+    count, batches, recovered, unflushed, flushed_rows = 0, 0, 0, 0, 0
+
+    def flush() -> None:
+        nonlocal unflushed, flushed_rows
+        flushed_rows += history.flush_inlined_data().flushed_row_count
+        unflushed = 0
 
     def commit() -> None:
-        nonlocal count, batches, recovered
+        nonlocal count, batches, recovered, unflushed
         batch_id = f"aihub239:{selection_id}:{batches}"
         existing = history.get_file_batch_commit(batch, batch_id=batch_id)
         if existing is not None:
             recovered += 1
         else:
             history.append_file_batch(batch, batch_id=batch_id)
+            unflushed += 1
         count += len(batch)
         batches += 1
         batch.clear()
+        if unflushed >= flush_every_batches:
+            flush()
 
     for record in iter_power_observations(archive, member):
         if (record.device_id, record.device_board_id) != (
@@ -89,11 +102,15 @@ def import_history(
             commit()
     if batch:
         commit()
+    if unflushed:
+        flush()
     return {
         **selection,
         "event_count": count,
         "batch_count": batches,
         "recovered_batch_count": recovered,
+        # Includes other catalog tables that were still inlined at flush time.
+        "flushed_row_count": flushed_rows,
         "snapshot_id": history.current_snapshot_id(),
     }
 
@@ -113,6 +130,12 @@ def main() -> None:
         default="v2",
         help="v1 only for exact retry of a legacy import; new imports use v2",
     )
+    parser.add_argument(
+        "--flush-every-batches",
+        type=int,
+        default=10,
+        help="flush newly appended catalog-inlined rows to Parquet after this many batches",
+    )
     args = parser.parse_args()
     try:
         binding = PowerHistoryBinding(**json.loads(args.binding.read_text()))
@@ -130,6 +153,7 @@ def main() -> None:
             args.end,
             history,
             metadata_schema=args.metadata_schema,
+            flush_every_batches=args.flush_every_batches,
         )
     except (ValueError, OSError, RuntimeError) as error:
         parser.exit(1, f"error: {error}\n")

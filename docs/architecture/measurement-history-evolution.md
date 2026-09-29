@@ -50,12 +50,37 @@ developer machine (DuckDB 1.5.5, DuckLake format 1.0), not a capacity guarantee.
 
 The dominant cost is DuckLake data inlining, not JSON repetition: every append stays as SQLite rows,
 about 2.4 KB per observation. Linear extrapolation to roughly 31 million records is about 74 GB of
-catalog and 14 hours of import; neither is acceptable. Parquet dictionary compression reduced the
-same repeated JSON about 11×. The next storage change is therefore an explicit, recoverable flush of
-inlined data (after import batches and periodically for live collection), verified against
-snapshot-bound analysis reproducibility, raw-evidence identity and exact-retry recovery. Dictionary
-normalization below remains useful for semantic updates and query clarity, but it needs its own
-measured benefit after flush before it is prioritized.
+catalog; that is not acceptable. Parquet dictionary compression reduced the same repeated JSON
+about 11×.
+
+## Implemented inlined-data flush
+
+`DuckLakeAssetHistory.flush_inlined_data()` moves inlined rows to Parquet under the shared catalog
+lease. It creates one storage snapshot and changes no logical rows: earlier snapshots return the same
+rows through time travel, and batch recovery still resolves each batch's original commit snapshot.
+A flush with nothing inlined creates no snapshot. The AI-Hub import tool flushes after every 10 newly
+appended batches (`--flush-every-batches`) and at the end; exact retries of recovered batches do not
+flush. `industrial-phm operations flush-history` flushes an existing catalog, including FILE
+backfills and live collection history.
+
+Same member and range, measured again with flush during import:
+
+| Flush interval | Import | SQLite catalog file | Parquet | Files | 2,000 raw / 200-bucket aggregate |
+| --- | --- | --- | --- | --- | --- |
+| none | 161 s | 240 MB | 0 B | 0 | 0.63 / 0.72 s |
+| every 50 batches | 163 s | 224 MB | 21 MB | 6 | 0.53 / 0.64 s |
+| every 10 batches | 164 s | 45 MB | 21 MB | 18 | 0.24 / 0.23 s |
+
+SQLite reuses the freed pages (99.9% of the 50-batch catalog was free pages) and does not shrink the
+file. The catalog is therefore bounded by roughly one flush interval of inlined rows instead of
+growing with the archive. Flush did not change import throughput, which remains about 630
+observations/s (about 14 hours for 31 million records); the next scale step is profiling projection
+and append cost, not storage format.
+
+Not implemented: automatic periodic flush inside the live collection service (operators run
+`flush-history`; it waits for the same catalog lease), small-file compaction for long live runs, and
+catalog `VACUUM`. Dictionary normalization below remains useful for semantic updates and query
+clarity, but needs its own measured benefit after flush before it is prioritized.
 
 ## Metadata normalization before full-archive ingestion
 
