@@ -688,6 +688,25 @@ class DuckLakeAssetHistory:
             raise ValueError("history channel discovery exceeds 1000 channels")
         return tuple(_require_str(row[0], "channel_id") for row in rows)
 
+    def list_history_sources(self, asset_id: str) -> tuple[str, ...]:
+        """Sources that recorded history for one asset, for explicit analysis selection."""
+        _validate_identifier(asset_id, "asset_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT DISTINCT source_id FROM {_CATALOG_NAME}.history.measurement
+                WHERE asset_id = ? ORDER BY source_id LIMIT 1001
+            """,
+                [asset_id],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > 1000:
+            raise ValueError("history source discovery exceeds 1000 sources")
+        return tuple(_require_str(row[0], "source_id") for row in rows)
+
     def query_measurement_page(
         self,
         asset_id: str,

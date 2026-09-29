@@ -49,6 +49,20 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 - `apps/operations.py` — source/observation/data quality와 실제로 연결된 운영 review evidence를 보는 Operations surface
 - `apps/analysis_explorer.py` — experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
 
+### 전력 품질 분석 · 3상 불평형
+
+Asset Detail의 **전력 품질 분석 · 3상 불평형**에서 source와 구간을 고르고 **3상 불평형 분석 실행**을 누르면
+[`three-phase-unbalance-v1`](../docs/architecture/phase-unbalance-capability.md)이 현재 history snapshot에서
+실행됩니다. 결과는 전압(상전압 기준)·전류별 평가 시각 수, 제외 수, median/p95/max와 max 시각, 시간 구간별
+median·max 그래프, 제외 사유, 입력·버전·설정 근거(snapshot ID, semantic version, 신호 기준)를 보여줍니다.
+의미가 확정되지 않은 channel(예: metadata v1/v2 적재, semantics 예외 member, semantic binding이 없는
+OPC UA source)과 정지 구간은 제외 사유로만 표시됩니다. 서술적 측정값이며 고장·건강·alarm 판정이 아닙니다.
+
+결과는 기본 `artifacts/operations/phase-unbalance.json`(`industrial-phm-phase-unbalance-v1`)에 run 단위로
+저장되며 `INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE`로 바꿀 수 있습니다. **분석 기록**에서 이전 run을
+다시 볼 수 있습니다. 현재 Asset Detail 상단의 Analysis runs 수와 Investigation/finding 흐름은 FILE 특징
+분석만 포함합니다.
+
 ## PHM Operations
 
 ### 외부 데이터 없이 workflow 확인
