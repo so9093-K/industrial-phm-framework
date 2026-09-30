@@ -30,6 +30,8 @@ def _source() -> SetupSourceView:
         connection_target="opc.tcp://127.0.0.1:4840",
         collection_desired_state=CollectionDesiredState.RUNNING,
         collection_requested_at=NOW,
+        freshness_max_age_seconds=30.0,
+        freshness_changed_at=NOW,
         signals=(
             SetupSignalView(
                 channel_id="Current_L1",
@@ -66,6 +68,8 @@ def test_setup_primary_surfaces_use_user_language() -> None:
     assert "Enabled" in detail_html
     assert "Running" in list_html
     assert "phase voltage" in signals_html
+    assert "Data age limit" in detail_html
+    assert "30 s" in detail_html
     assert "Unresolved" in signals_html
     for rendered in (list_html, detail_html, signals_html):
         assert "control-plane" not in rendered
