@@ -51,6 +51,14 @@ def render_setup_source_detail_html(source: SetupSourceView) -> str:
         + _fact("Asset", source.asset_id)
         + _fact("Point", source.measurement_point_id or "—")
         + _fact("Meaning", f"{defined} / {total}")
+        + _fact(
+            "Data age limit",
+            (
+                "Not configured"
+                if source.freshness_max_age_seconds is None
+                else f"{source.freshness_max_age_seconds:g} s"
+            ),
+        )
         + "</div></div>"
         '<div class="phm-section-title phm-section-space">Connection target</div>'
         f'<div class="phm-card-detail">{escape(source.connection_target)}</div>'
