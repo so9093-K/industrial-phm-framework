@@ -214,6 +214,12 @@ from industrial_phm.application.operations_v2_investigations import (
     InvestigationReviewState,
     build_investigation_queue,
 )
+from industrial_phm.application.operations_v2_maintenance import (
+    MaintenanceQueueItem,
+    MaintenanceQueueView,
+    MaintenanceReviewTimelineItem,
+    build_maintenance_queue,
+)
 from industrial_phm.application.phase_unbalance import (
     PHASE_UNBALANCE_CAPABILITY_ID,
     PhaseUnbalanceAnalysis,
@@ -396,6 +402,9 @@ __all__ = [
     "JsonSourceRuntimeRepository",
     "JsonWindowAnalysisLedger",
     "JsonWindowAnalysisRuntimeRepository",
+    "MaintenanceQueueItem",
+    "MaintenanceQueueView",
+    "MaintenanceReviewTimelineItem",
     "MeasurementDefinition",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
@@ -493,6 +502,7 @@ __all__ = [
     "build_asset_workspace_view",
     "build_field_csv_observation_summary",
     "build_investigation_queue",
+    "build_maintenance_queue",
     "build_operations_attention_queue",
     "build_operations_monitor_view",
     "build_operations_overview",
