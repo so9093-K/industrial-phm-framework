@@ -23,11 +23,11 @@ Raw ingestion과 analysis projection, identity와 measurement semantics의 경�
 [ADR-0007](../adr/0007-preserve-raw-measurements-before-analysis-projection.md)에 정리합니다.
 CanonicalTimeSeries의 finite rectangular 계약은 유지합니다.
 
-Continuous OPC UA collection service, durable spool, DuckLake Asset History와 live/backfill 경계는 구현되어
-있으며, control plane·durable ingress·history의 ownership과 restart semantics는
+OPC UA collection, durable spool, DuckLake Asset History와 live/backfill의 ownership·restart contract는
 [`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)와
-[`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. 다음 milestone은 live
-window를 분석 근거와 사람의 검토로 연결하는 것입니다.
+[`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. 이 문서는 component
+책임과 contract를 설명하며 지원 상태나 계획을 소유하지 않습니다. 구현 지원 범위는
+[현재 지원 상태](../status.md)를 기준으로 확인합니다.
 
 ## 1. 시스템 아키텍처
 
@@ -35,8 +35,9 @@ window를 분석 근거와 사람의 검토로 연결하는 것입니다.
 
 README와 이 문서는 같은 대표 그림을 사용합니다. 대표 그림은 구현 부품이 아니라 책임 단계를 보여주며,
 SQLite·DuckLake·spool·window coordinator 같은 구성 요소는 아래 상세 runtime에서 설명합니다. 원본은 편집
-가능한 `assets/system-architecture.svg`이고 PNG는 그 렌더링입니다. 그림의 PHM 분석 항목은 이 단계의
-책임이며, 현재 제공되는 capability는 README의 현재 구현 범위를 따릅니다.
+가능한 `assets/system-architecture.svg`이고 PNG는 그 렌더링입니다. 그림의 PHM 분석 항목은 책임 단계를
+표현하며 특정 capability의 지원 여부를 주장하지 않습니다. 지원 여부는 [현재 지원 상태](../status.md)를
+따릅니다.
 
 - **Data Sources**: OPC UA subscription과 FILE(prepared CSV, AI-Hub raw archive 등). 명시적 source/asset/
   measurement-point binding 없이 설비 identity를 추정하지 않습니다.
@@ -84,19 +85,20 @@ flowchart LR
     HISTORY --> UNBALANCE[3상 불평형<br/>고정 snapshot 입력]
     FILE --> ANALYSIS[FILE snapshot 특징 분석]
     ANALYSIS --> EVIDENCE[Analysis evidence]
+    WINDOW --> RUNNER[Window analysis runner<br/>accepted events·temporal alignment]
+    RUNNER --> EVIDENCE
     UNBALANCE --> EVIDENCE
     EVIDENCE --> INVESTIGATION[Investigation]
     INVESTIGATION --> FINDING[사람의 review finding]
     FINDING --> REVIEW[Maintenance review]
     UI[Operations UI] -. desired state .-> COLLECTOR
-    WINDOW -. 후속 연결 .-> EVIDENCE
 ```
 
-Operations UI는 desired RUNNING/STOPPED만 기록하고 독립 collection service가 실제 수집을 소유합니다. 3상
-불평형은 FILE·OPC UA history를 고정 snapshot으로 읽고 semantic binding이 확인된 channel만 사용합니다. Live
-window에서 analysis evidence로 이어지는 점선은 아직 구현되지 않은 다음 milestone입니다. 로컬 SQLite DuckLake
-접근은 협조하는 프로세스끼리 직렬화하며, 저장·적재 성능 측정은
-[`measurement-history-evolution.md`](measurement-history-evolution.md)에 기록합니다.
+Operations UI의 desired collection state와 실제 collection process ownership은 분리합니다. 3상 불평형 같은
+capability는 history snapshot 또는 finalized window처럼 명시적으로 고정된 입력을 소비하고, temporal
+alignment와 eligibility policy를 evidence에 남깁니다. Live window 분석은 collection service와 별도 runner
+책임으로 두어 수집 생명주기와 분석 실패를 결합하지 않습니다. 로컬 DuckLake 접근의 coordination과
+저장·적재 성능 근거는 [`measurement-history-evolution.md`](measurement-history-evolution.md)에 기록합니다.
 
 ### 연구 reference 구현
 
@@ -126,8 +128,8 @@ ground truth가 정의된 경우에만 사용합니다.
 
 ![모델 산출물부터 대시보드와 생성형 AI를 거쳐 사용자에게 전달되는 서비스 아키텍처](../../assets/service-architecture.png)
 
-이 도식의 서비스/추론 계층은 향후 operational deployment에서 필요한 책임 경계를 설명하는 reference이며,
-현재 pre-alpha application이 이미 service API나 live inference runtime을 제공한다는 의미는 아닙니다.
+이 도식의 서비스/추론 계층은 operational deployment에서 필요한 책임 경계를 설명하는 reference입니다.
+도식 자체는 구현 지원 여부를 주장하지 않으며 현재 지원 범위는 [현재 지원 상태](../status.md)를 따릅니다.
 
 현재 presentation loading 경계는 두 단계입니다. 모든 supported artifact는 schema-specific inspector를 통해
 `ExperimentInspection`으로 검증되고, `AnalysisSurface`는 이 inspection과 optional detailed `AnalysisView`를
@@ -216,7 +218,7 @@ SourceHealthAssessment
   └ freshness?
 
 JsonSourceRuntimeRepository
-  └ industrial-phm-source-runtime-v3
+  └ versioned runtime-state schema
        ├ latest SourceReceiptEvidence per source
        └ latest SourceConnectionAttemptEvidence per source
           (historical bounded attempt, not current connection state)
@@ -333,7 +335,7 @@ Persistent OPC UA acquisition worker
          ├ bounded iterator queue
          ├ overflow -> explicit evidence + reconnect
          └ Republish replay flag preserved
-    -> #256 persistent session evidence
+    -> persistent session evidence
          DISCONNECTED -> CONNECTING -> CONNECTED
          CONNECTED -> RECONNECT_WAIT -> CONNECTING -> CONNECTED
     -> RegisteredOpcUaDataChangeEvent
@@ -348,7 +350,7 @@ Persistent OPC UA acquisition worker
          ├ durable ingestion order replay
          ├ fixed aligned event-time windows
          ├ watermark = max valid event_at - allowed lateness
-         ├ #257 late/out-of-order/future/quality-neutral dispositions
+         ├ late/out-of-order/future/quality-neutral dispositions
          └ finalized DurableObservationWindow history
   transport/session/subscription recovery는 asyncua가 소유하고 application은 connection epoch,
   reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다. Source별 connection epoch는
@@ -380,66 +382,21 @@ Registered OPC UA one-shot runtime
     -> platform runtime-state failure : FAILED/PLATFORM, lifecycle remains ACTIVE
 ```
 
-`RegisteredSource`는 prepared file과 OPC UA source identity를 표현하지만, 등록 record가 존재한다는 사실을
-connection/health/active-ingestion 상태로 해석하지 않습니다. `OpcUaSourceConfig`는 기존 `OpcUaReadConfig`의
-anonymous `opc.tcp` endpoint/NodeId/timeout invariant를 재사용하며 endpoint reachability나 subscription을
-검증하지 않습니다. Endpoint userinfo credential은 connector contract에서 거부하므로 registry config에
-credential을 포함하지 않습니다. `InMemorySourceRepository`는 두 source type을 모두 보존하는 비영속 reference
-implementation이고 `JsonSourceRepository`는 `industrial-phm-source-registry-v4`에서 FILE과 OPC UA config,
-lifecycle, optional source-specific freshness policy를 strict type-specific schema로 보존합니다. Registry
-reader/writer는 current v4만 허용하며 pre-alpha 구버전 state를 자동 migration하지 않습니다. JSON writer는
-same-directory temporary file을 flush/fsync한 뒤 `os.replace`로 교체해 partial write를 노출하지 않으며,
-reader는 schema/key/source type/duplicate ID/lifecycle alignment/freshness-policy source alignment를
-fail-fast 검증합니다.
+`RegisteredSource`는 source/asset/measurement-point와 connector configuration identity를 표현하는
+control-plane record입니다. 등록 record의 존재를 connection, health, active ingestion 또는 PHM evidence로
+해석하지 않습니다. FILE/OPC UA type-specific validation과 explicit mapping contract는 유지하되 exact persisted
+schema version은 executable repository code가 소유하며 Architecture에 복사하지 않습니다.
 
-Runtime receipt evidence는 registry에 저장하지 않습니다. 별도 `JsonSourceRuntimeRepository`가 source별
-latest `SourceReceiptEvidence`와 latest bounded `SourceConnectionAttemptEvidence`를
-`industrial-phm-source-runtime-v3`로 보존합니다. Attempt evidence는 producer operation을
-`opcua-read` / `opcua-subscription`으로 반드시 명시하며, runtime reader/writer도 current v3만 허용하고
-pre-alpha 구버전 state를 자동 migration하지 않습니다. Runtime writer는 same-directory temp + flush/fsync +
-`os.replace`를 사용하고 received_at regression과 same-time conflicting evidence를 거부합니다. Registry와
-runtime-state path가 같은 파일로 resolve되면 control-plane overwrite를 막기 위해 fail-closed로 거부합니다.
-두 repository 모두 현재 single-writer local persistence 경계이며 cross-process write coordination은 아직
-지원하지 않습니다.
+Source registration/lifecycle/freshness policy와 runtime receipt/connection-attempt evidence는 서로 다른
+repository 책임입니다. Administrative lifecycle, desired collection state, observed connection/session,
+data-flow freshness와 asset condition을 하나의 boolean 상태로 합치지 않습니다. Runtime writer의 durable
+format/version 같은 executable invariant도 해당 repository code가 Source of Truth입니다.
 
-OPC UA connector proof와 registration identity는 registry v4를 통해 persistence와 Operations Sources read
-surface까지 연결되었습니다. 현재 connector는 explicit variable NodeId를 한 번 읽어 protocol
-quality/timestamp를 보존하고, application/registry는 같은 endpoint/NodeId mapping을 `RegisteredSource`로
-round-trip합니다. Operations는 FILE과 OPC UA detail을 type별로 표시합니다. FILE 전용 manual Load action은 OPC UA에서 노출하지 않지만 type-specific Run action은 OPC UA one-shot runtime을 실행합니다. Operations Add source는 OPC UA endpoint와 browse candidate 또는 explicit `channel_id,node_id`
-mapping을 `OpcUaSourceConfig` validation 후 registry v4에 저장할 수 있습니다. Application의 `run_registered_opcua_source_cycle`은 ACTIVE registered OPC UA source를 explicit one-shot read하고 latest receipt를 runtime repository에 기록하며 Operations Run action에서도 실행됩니다. 모든 mapped DataValue에 SourceTimestamp가 있을 때만 earliest SourceTimestamp를 complete-channel watermark인 source-level `observed_at`으로 사용하고 하나라도 없으면 timing을 unavailable로 남깁니다. CLI `operations poll-source`는 FILE/OPC UA registered source를 type-specific one-shot cycle로 동기 반복합니다. OPC UA polling은 iteration마다 fresh connect/read/disconnect를 수행하며 connection/session을 유지하지 않습니다. OPC UA one-shot snapshot은 `project_registered_opcua_observation_summary`로 canonical `AssetObservationSummary`에 projection하며 one iteration을 `sample_count=1`로 표현하고 complete-channel watermark만 observed start/end로 사용합니다. Non-good status는 data-quality ERROR로 보존하고 sampling rate/file provenance는 추정하지 않습니다. OPC UA read/browse/subscription connector의 `completed_at`은 successful context teardown 이후에 기록합니다. OPC UA read/subscription cycle은 successful bounded attempt와 source-owned connector/transport failure를 operation-tagged latest `SourceConnectionAttemptEvidence`로 runtime v3에 기록합니다. `SourceHealthAssessment`는 이 historical attempt evidence를 optional inspection fact로 보존하지만 current/session connection state는 계속 `NOT_INSTRUMENTED`입니다. Operations Sources는 latest attempt operation/outcome/timing/detail을 persisted runtime evidence에서 읽어 표시하지만 이를 current connection state로 승격하지 않습니다. Bounded registered-source subscription collection은 Operations Sources의 explicit **Collect bounded subscription** action까지 연결됐습니다. UI는 completion reason, notification count, channel coverage와 event-level value/status/timing을 현재 app session에서 보여주지만 notification persistence나 current session connection telemetry로 승격하지 않습니다. 별도 persistent acquisition worker는 asyncua auto-reconnect와 #260 durable spool까지 연결하지만,
-current session evidence의 durable telemetry, continuous window assembly와 Operations control/monitor surface는
-아직 후속 #263~#265 경계입니다. `asyncua`는 계속 `opcua` optional extra에만 있고 core dependency가 아닙니다.
-One-shot/bounded connector는 계속 `auto_reconnect=False`이고 persistent worker만 `auto_reconnect=True`를 사용합니다.
-username/password, certificate/security policy configuration은 아직 지원하지 않습니다.
-
-Operations Sources UI는 현재 file/history registration의 Discover → Mapping → Validate & Register,
-REGISTERED/ACTIVE/PAUSED/ERROR lifecycle control, ACTIVE one-shot runtime cycle, registry read surface와
-selected registered source의 on-demand Observation load까지 연결합니다. ACTIVE는 runtime execution을
-허용하는 administrative state이며 one-shot cycle이 실제로 이를 소비하지만 connection/health/continuous
-ingestion 성공을 뜻하지 않습니다. One-shot failure의 SOURCE/PLATFORM scope는 failure ownership을 나타내며
-lifecycle 전이와 동일한 개념이 아닙니다. Current file bytes의 validation/I/O 또는 OPC UA data-contract
-failure는 lifecycle을 ERROR로 전이하지만 transient OPC UA transport `OSError`와 runtime-state persistence
-같은 platform failure는 cycle만 FAILED로 만들고 source lifecycle은 ACTIVE로 유지합니다.
-`load_registered_file_source_observation`은 registration-time 검증을 현재 상태로 재사용하지 않고 매 load마다
-현재 source bytes를 기존 field CSV/timeline 경계로 재검증합니다. 따라서 registration은 observation cache나
-source-health evidence가 아닙니다. `receive_registered_file_source_observation`은 이 검증이 성공한 뒤
-application acceptance 시각을 timezone-aware `received_at`으로 기록합니다. Latest `observed_at`이
-timezone-aware일 때만 signed lag를 계산하고, timestamp/timezone이 없으면 lag를 unavailable로 남깁니다.
-Prepared-file receipt는 원래 sensor transport arrival을 소급 표현하지 않습니다. Source-specific
-`SourceFreshnessPolicy`가 설정되면 freshness는 delivery lag가 아니라
-`assessed_at - observed_at` observation age를 policy max age와 비교해 계산합니다. Timestamp/timezone이
-없거나 observed_at이 assessment time보다 미래면 fail-closed로 UNAVAILABLE을 반환하고, policy가 없으면
-NOT_CONFIGURED를 반환합니다. FRESH/STALE은 timing-policy result이며 connection/health/ingestion 성공을
-뜻하지 않습니다. `SourceHealthAssessment`는 lifecycle, latest receipt와 freshness를 한 read model에
-모으지만 boolean healthy/unhealthy를 만들지 않고 prepared-file runtime의 connection state는
-NOT_INSTRUMENTED로 유지합니다. Manual load 또는 successful ACTIVE runtime cycle의 latest receipt는 runtime repository에
-기록되고 앱 재시작 후 Sources monitoring에서 다시 사용됩니다. Freshness assessment는 persisted receipt + policy + 현재
-assessment time으로 재계산하며 assessment 자체는 저장하지 않습니다. Prepared-file polling은
-`SourcePollingPolicy`가 one-shot cycle을 caller-owned synchronous loop로 반복하는 수준까지 구현됐고,
-non-success에서 즉시 중지합니다. Browser upload/file-picker, source edit/delete, background service,
-retry/backoff/buffering, receipt history, persistent OPC UA subscription/continuous ingestion과 MQTT connector는 후속 경계입니다.
-또한 registration config는 기존 `CsvSensorLayout` invariant를 재사용하며 unit/sensor identity 같은 아직
-지원하지 않는 field semantics를 새로 만들어내지 않습니다.
+OPC UA의 one-shot read, bounded subscription, persistent acquisition은 connector/runtime 책임이 서로 다릅니다.
+Persistent acquisition은 session/reconnect, durable ingress, history writer와 observation-window coordination을
+분리하며 Operations는 desired state와 관측 evidence를 통해 이를 제어·검토합니다. 구체적으로 어떤 connector,
+security mode, UI control이 지원되는지는 [현재 지원 상태](../status.md), 로컬 실행 방법은
+[OPC UA stack 문서](../../tools/opcua/README.md)를 따릅니다.
 
 Prepared field source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
 
@@ -472,5 +429,5 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-`assets/system-architecture.png`(원본 `.svg`)는 현재 대표 구조입니다. 모델 학습·평가와 서비스 아키텍처
-PNG는 research path와 향후 서비스 책임을 설명하는 reference 그림이며 현재 구현 범위를 나타내지 않습니다.
+`assets/system-architecture.png`(원본 `.svg`)는 대표 책임 구조입니다. 모델 학습·평가와 서비스 아키텍처
+PNG는 research path와 service responsibility를 설명하는 reference이며 지원 범위 표로 사용하지 않습니다.

@@ -104,17 +104,24 @@ feat(contract): 공통 시계열 데이터 계약 정의
 [`docs/architecture/operational-foundation.md`](docs/architecture/operational-foundation.md)의
 `One Fact, One Authoritative Owner`를 따릅니다.
 
-- Root `README.md`: 현재 capability, 진입점과 project-level roadmap
-- Subsystem `README.md`: 해당 디렉터리의 실행 방법과 운영 규칙
-- `docs/architecture`: 여러 기능에 걸쳐 유지되는 책임과 contract boundary
+- Root `README.md`: 프로젝트 목적, 안정적인 사용자 진입점과 문서 navigation
+- `docs/status.md`: 현재 구현·지원·현장검증 상태와 명시적 미지원 경계
+- Subsystem `README.md`: 해당 디렉터리의 실행 방법, runtime path와 운영 규칙
+- `docs/architecture`: 여러 기능에 걸쳐 유지되는 책임과 contract boundary. milestone/PR 진행 상황을 기록하지 않음
 - `docs/adr`: 장기간 영향을 주는 구조 결정과 대안
 - `docs/research`: dataset 선택, 검증된 source profile, 반복 사용할 protocol과 research method
 - Manifest/config/code: 정확한 provenance, split, experiment parameter와 executable invariant
-- PR 본문: 조사 순서, 일회성 비교표, migration 과정과 review context
+- `CHANGELOG.md`: 사용자·개발자가 알아야 할 동작/호환성 변화의 역사
+- GitHub Issue/PR: 계획된 작업, milestone, 일회성 비교표, migration 과정과 review context
 
 새 문서는 독립적인 장기 소유 책임이 있고 기존 문서나 executable Source of Truth에 합치면 책임이 섞일 때만
 추가합니다. 새 문서를 추가하는 PR은 기존 owner로 충분하지 않은 이유와 갱신·폐기 조건을 설명합니다. 구현 직전의
 임시 계획, widget state, 생성 artifact의 전체 수치와 commit history 요약을 별도 문서로 승격하지 않습니다.
+
+현재 지원 여부를 README·Architecture·Product 문서에 다시 나열하지 않습니다. `docs/status.md`는 지원 경계가
+바뀔 때만 갱신하고 미래 계획을 기록하지 않습니다. "다음 milestone", "후속 #123", "아직 구현되지 않음" 같은
+작업 진행 문구는 contract 자체의 한계를 설명하는 경우가 아니면 Issue/PR에 둡니다. Architecture에는 issue/PR
+번호 대신 변경 이후에도 유지되는 component 책임과 invariant를 기록합니다.
 
 ## Pull Requests
 

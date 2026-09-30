@@ -16,13 +16,13 @@ spool writer의 기존 retry 정책을 따릅니다. Connection 생성/attach �
 
 참고: [DuckLake catalog 선택](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database).
 
-이 문서는 `#267`의 failure/restart/soak 검증 범위와 현재 v1 runtime이 주장하는 신뢰성 경계를 고정합니다.
+이 문서는 failure/restart/soak 검증 범위와 v1 runtime이 주장하는 신뢰성 경계를 고정합니다.
 목표는 synthetic "exactly once"나 gap-free 보장을 만드는 것이 아니라, **어디까지 durable하고 어디서 loss가
 가능한지, restart 후 어떤 identity/evidence를 복구하는지**를 executable test와 연결하는 것입니다.
 
 ## 1. v1 reliability claims
 
-현재 reference runtime이 주장하는 범위는 다음과 같습니다.
+v1 reference runtime이 주장하는 범위는 다음과 같습니다.
 
 - callback이 SQLite ingress spool transaction까지 도달한 뒤에는 collector process restart 후 복구할 수 있습니다.
 - callback queue에만 있고 spool commit 전인 event는 durable하다고 주장하지 않습니다.
@@ -70,7 +70,7 @@ v1은 다음을 주장하지 않습니다.
 
 `tests/contract/test_live_acquisition_reliability.py`는 빠르게 반복 가능한 bounded reference soak입니다.
 
-현재 profile:
+CI reference profile:
 
 - 192 durable OPC UA deliveries
 - 2 collector epochs / simulated process restart

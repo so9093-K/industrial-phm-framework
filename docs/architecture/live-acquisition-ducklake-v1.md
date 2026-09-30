@@ -1,11 +1,10 @@
 # Live Acquisition & DuckLake Asset History v1
 
-이 문서는 continuous source acquisition을 제품의 주 입력 경로로 확장할 때의 v1 책임 경계와
-durability semantics를 정의합니다. 현재 `#256`의 persistent OPC UA/event-time contract와 `#257`의
-bounded observation-window contract를 대체하지 않고, 두 경계 사이와 그 아래에 실제 장기 실행 runtime과
-historical data plane을 추가하는 기준입니다.
+이 문서는 continuous source acquisition의 v1 책임 경계와 durability semantics를 정의합니다.
+Persistent OPC UA/event-time contract와 bounded observation-window contract를 대체하지 않고, 두 경계
+사이와 그 아래의 장기 실행 runtime과 historical data plane 책임을 정의합니다.
 
-현재 단계의 목표는 distributed streaming platform을 만드는 것이 아니라, 한 공장/edge node에서
+v1 reference profile의 목표는 distributed streaming platform을 만드는 것이 아니라, 한 공장/edge node에서
 **source를 지속적으로 수집하고, process restart와 일시적 downstream failure를 견디며, Live와 Backfill을
 동일한 Asset history로 조회할 수 있는 single-writer reference runtime**을 만드는 것입니다.
 
@@ -134,7 +133,7 @@ Normalized history는 source-specific evidence를 참조하며 적어도 다음 
 aggregate입니다. Window policy가 바뀌거나 runtime이 restart되어도 필요한 경우 durable raw history에서 다시
 구성할 수 있어야 합니다.
 
-`COMPLETE` 의미는 #257과 동일하게 expected channel coverage일 뿐이며 synchronized snapshot, equal sampling,
+`COMPLETE` 의미는 bounded observation-window contract와 동일하게 expected channel coverage일 뿐이며 synchronized snapshot, equal sampling,
 gap-free/exactly-once delivery, analysis readiness 또는 asset health를 뜻하지 않습니다.
 
 AnalysisRun은 장기적으로 다음 provenance를 참조할 수 있어야 합니다.
@@ -164,7 +163,7 @@ idempotent batch commit
 DuckLake history
 ```
 
-OPC UA의 `(source_id, connection_epoch, event_index)`는 현재 #256 의미 그대로 platform-local delivery
+OPC UA의 `(source_id, connection_epoch, event_index)`는 persistent OPC UA contract의 의미 그대로 platform-local delivery
 identity입니다. Server sequence number나 physical measurement identity가 아니며 reconnect 후 replay가 새로운
 epoch/index로 도착하면 값이 같다는 이유만으로 제거하지 않습니다.
 
@@ -184,8 +183,9 @@ event_at           # explicit event-time policy가 선택한 time
 watermark          # runtime progress policy
 ```
 
-`event_at`과 watermark는 같은 개념이 아닙니다. #256의 SourceTimestamp 우선 정책과 explicit
-ServerTimestamp fallback을 유지하고, watermark 생성 정책은 #263 continuous window coordinator가 소유합니다.
+`event_at`과 watermark는 같은 개념이 아닙니다. Persistent OPC UA event-time contract의 SourceTimestamp
+우선 정책과 explicit ServerTimestamp fallback을 유지하고, watermark 생성 정책은 continuous window
+coordinator가 소유합니다.
 
 Late/out-of-order/future clock-skew는 timestamp를 덮어써서 해결하지 않고 factual disposition/evidence로
 남깁니다.
@@ -203,7 +203,7 @@ OPC UA / MQTT ───→ Live ─────┘
 두 경로는 동일한 asset/time query surface로 합쳐지지만 provenance는 유지합니다. Backfill이 live보다 늦게
 실행되었다고 해서 historical event의 event time을 ingestion time으로 바꾸지 않습니다.
 
-#266 reference backfill은 registered FILE source의 기존 Asset / Measurement Point / Channel mapping을 재사용하고,
+Registered FILE reference backfill은 기존 Asset / Measurement Point / Channel mapping을 재사용하고,
 explicit timezone-aware CSV timestamp만 SOURCE_TIMESTAMP event time으로 승격합니다. Sampling rate만 있는
 상대시간 CSV에는 임의 absolute time을 만들지 않으며 backfill을 거부합니다.
 
@@ -220,14 +220,14 @@ snapshot ID와 half-open asset input range를 `HistoricalInputReference`로 제�
 
 ## 6. DuckLake v1 deployment profile
 
-이번 milestone의 reference profile은 local-first입니다.
+v1 reference profile은 local-first입니다.
 
 - DuckLake catalog: **SQLite** — collector, writer, Operations/analysis 같은 여러 local client로 성장할 수 있는
   경계를 염두에 둠
 - DuckLake data storage: local filesystem Parquet
 - history writer: single writer
 - ingress spool: DuckLake catalog와 분리된 SQLite WAL database
-- object storage/PostgreSQL catalog: 후속 deployment concern
+- object storage/PostgreSQL catalog: 별도 deployment adapter concern
 
 DuckLake의 catalog/data path와 spool database는 서로 다른 state path를 사용해야 합니다.
 
@@ -249,11 +249,11 @@ source lifecycle
     ≠ PHM finding severity
 ```
 
-Continuous runtime telemetry는 control-plane registry와 기존 bounded `source-runtime-v3`에서 분리된
+Continuous runtime telemetry는 control-plane registry와 bounded source-runtime repository에서 분리된
 SQLite WAL latest-evidence store를 사용합니다. Collector, history writer, window coordinator가 source별
 component row를 독립적으로 갱신해 서로의 최신 evidence를 덮어쓰지 않습니다.
 
-현재 presenter-ready acquisition surface는 다음 factual evidence를 제공합니다.
+Acquisition telemetry surface는 다음 factual evidence를 제공합니다.
 
 - session: CONNECTING / CONNECTED / RECONNECT_WAIT / STOPPED, connected_since,
   last_disconnect_at, connection epoch, reconnect attempt index
@@ -262,10 +262,10 @@ component row를 독립적으로 갱신해 서로의 최신 evidence를 덮어�
 - callback queue: configured maxsize와 overflow count
 - spool: durable pending event/bytes, oldest pending age, active batch depth/bytes를 spool DB에서 직접 sample
 - history writer: latest acknowledged batch/snapshot과 source event count
-- window: latest watermark, active/finalized count와 #257 disposition counts
+- window: latest watermark, active/finalized count와 disposition counts
 - failure: latest runtime component failure evidence
 
-asyncua 2.0.1 iterator의 queue depth는 public/stable API로 노출되지 않으므로 private `_event_queue`에
+asyncua iterator의 queue depth는 public/stable API로 노출되지 않으므로 private `_event_queue`에
 의존하지 않습니다. 따라서 callback queue depth/high-watermark는 현재 명시적으로 uninstrumented(`None`)이고,
 configured maxsize와 실제 overflow signal만 factual evidence로 기록합니다.
 
@@ -311,9 +311,9 @@ Finalized window의 `finalized_at`은 wall clock이 아니라 해당 watermark�
 `ingested_at`을 사용합니다. 따라서 process restart 후 in-memory buffer가 사라져도 같은 raw history에서
 같은 finalized window evidence를 재구성해 repository에 idempotently 기록할 수 있습니다.
 
-이미 close된 window에 뒤늦게 도착한 event는 #257 `LATE` disposition evidence로 남기지만 persisted window를
+이미 close된 window에 뒤늦게 도착한 event는 `LATE` disposition evidence로 남기지만 persisted window를
 사후 변경하지 않습니다. Finalized durable window는 재사용하고, 아직 finalize되지 않은 window state는 raw
-history를 source of truth로 rebuild합니다. #257의 in-memory buffer 자체를 historical truth로 승격하지
+history를 source of truth로 rebuild합니다. in-memory buffer 자체를 historical truth로 승격하지
 않습니다.
 
 ### Operations UI restart
@@ -329,27 +329,10 @@ desired RUNNING과 observed STOPPED/Unavailable이 동시에 보일 수 있으�
 
 Service는 STOP request로 source worker/window coordinator를 종료해도 shared history writer를 계속 유지해
 이미 durable spool에 수용된 backlog를 DuckLake로 drain할 수 있습니다. Service process 자체가 종료될 때는
-remaining sub-threshold spool data를 버리지 않고 durable state로 남깁니다. UI는 #264 telemetry와 spool
+remaining sub-threshold spool data를 버리지 않고 durable state로 남깁니다. UI는 acquisition telemetry와 spool
 snapshot을 다시 읽어 monitor를 구성하며 DuckLake를 직접 mutate하지 않습니다.
 
-## 9. 이번 milestone 작업 순서
-
-1. #258 — 이 architecture/product boundary를 고정
-2. #259 — DuckLake asset-history persistence vertical slice
-3. #260 — SQLite WAL durable acquisition spool
-4. #261 — persistent OPC UA acquisition worker
-5. #262 — spool → DuckLake micro-batch writer
-6. #263 — continuous observation-window coordinator
-7. #264 — live acquisition telemetry
-8. #265 — Operations Start/Stop Collection + Live Monitor
-9. #266 — historical backfill → same Asset history
-10. #267 — reconnect/crash/replay/overflow/restart/soak 검증
-
-#265에서 Operations의 Start/Stop은 durable desired-state command가 되었고 collector ownership은 독립
-collection service로 분리됩니다. #262까지 live event가 DuckLake history에 도달하고 #263이 derived window를
-재구성하며, #264 telemetry와 #265 control/monitor surface가 이 data-plane을 운영 UI와 연결합니다.
-
-## 10. 비목표
+## 9. 비목표
 
 이번 v1에서 다음을 선제 도입하지 않습니다.
 
@@ -365,7 +348,7 @@ collection service로 분리됩니다. #262까지 live event가 DuckLake history
 실제 scale, multi-writer, plant deployment requirement가 확인되면 현재 contract를 유지한 채 infrastructure
 adapter를 교체합니다.
 
-## 11. 참고
+## 10. 참고
 
 - DuckLake specification v1.0: https://ducklake.select/docs/stable/specification/introduction
 - DuckLake transactions/snapshots: https://ducklake.select/docs/stable/duckdb/advanced_features/transactions
@@ -373,7 +356,7 @@ adapter를 교체합니다.
 - DuckLake maintenance: https://ducklake.select/docs/stable/duckdb/maintenance/recommended_maintenance
 - DuckLake checkpoint: https://ducklake.select/docs/stable/duckdb/maintenance/checkpoint
 
-## 9. Reliability verification
+## 11. Reliability verification
 
 Failure/restart semantics와 bounded CI soak의 executable evidence는
 [`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 고정합니다.

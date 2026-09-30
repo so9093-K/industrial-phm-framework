@@ -8,18 +8,16 @@
 판단할 수 있게 되었는가입니다. 측정값이나 수집 성공을 설비 정상 판정으로 승격하지 않습니다.
 
 이 문서는 PHM 결과가 실제 사용자에게 어떤 가치와 정보 구조로 전달되어야 하는지 정리하는 제품 기준선입니다.
-초기 low-fidelity UX 단계에서는 UI framework 선택을 미뤘지만, 현재는 이미 검증된 분석·evidence 계층을
-**end-to-end Analysis Application**으로 연결하면서 analysis contract와 사용자 화면을 함께 검증합니다.
+특정 UI framework나 현재 구현 milestone을 이 문서의 책임으로 두지 않습니다. Frontend/API 기술을 먼저
+고정하지 않는 원칙을 유지하면서 analysis contract와 사용자 화면을 함께 검증합니다.
 
-Frontend/API 기술을 먼저 고정하지 않는 원칙은 유지하되, UI 구현 자체를 미래 단계로 미루지는 않습니다.
-프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를 따릅니다.
+구현된 surface와 미지원 capability는 [현재 지원 상태](../status.md), 프로젝트 공통 용어는
+[`../terminology.md`](../terminology.md)를 따릅니다.
 
 ## 1. 사용자 역할
 
-아래 역할의 위험·alert·정비 우선순위 항목은 **목표 사용자 요구**이며 현재 구현 capability를 뜻하지 않습니다.
-현재 운영 경로는 관측/이력/품질/출처 확인, FILE 특징 evidence와 과거 Asset History 기반 3상 불평형 evidence,
-그 결과에 대한 Investigation·사람이 생성한 review finding과 검토 기록입니다.
-검증된 진단·합리화된 alarm·fleet risk·operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
+아래 역할의 위험·alert·정비 우선순위 항목은 **목표 사용자 요구**이며 구현 여부를 뜻하지 않습니다.
+각 요구의 현재 지원 여부는 이 제품 기준선에 복사하지 않고 [현재 지원 상태](../status.md)에서 확인합니다.
 
 ### 설비 관리자
 
@@ -53,8 +51,7 @@ Frontend/API 기술을 먼저 고정하지 않는 원칙은 유지하되, UI 구
 
 ### PHM/ML 개발자·연구자
 
-현재 pre-alpha 단계의 직접 사용자는 pipeline을 구현·검토하고 experiment evidence를 해석하는
-PHM/ML 개발자와 연구자입니다. 이 역할에는 최종 anomaly score만큼 **어떤 변환과 population 경계를 거쳐
+PHM/ML 개발자와 연구자 역할에는 최종 anomaly score만큼 **어떤 변환과 population 경계를 거쳐
 그 결과가 만들어졌는지**가 중요합니다.
 
 - effective dataset/source, split/partition과 source scope
@@ -555,56 +552,28 @@ Schema-specific reader는 immutable `ExperimentInspection` read model을 만들�
 표현합니다. 이 경계는 inspection semantics를 presentation에서 분리해 이후 developer UI/API가 같은 lineage를
 소비할 수 있게 하며, operational model output을 위한 `PHMResult` 책임과는 구분됩니다.
 
-## 7. End-to-End Analysis Application 현재 상태
+## 7. End-to-End Analysis Application UX contract
 
-첫 vertical slice는 현재 구현되어 있습니다. XJTU LSTM retrospective path를 기준으로 prepared source에서 기존
-production analysis runner를 실행하고, 생성 artifact를 inspection과 detailed projection 경계를 거쳐 같은 사용자
-화면에서 결과·evidence·AI 설명·pipeline transparency로 이어서 검토할 수 있습니다.
+Analysis Application은 분석 실행 결과를 단일 숫자로 끝내지 않고 **결과 → evidence → limitation → human
+review → provenance drill-down** 흐름으로 연결합니다. 어떤 dataset/model path가 이 contract를 현재
+지원하는지는 [현재 지원 상태](../status.md)가 소유합니다.
+
+Reference information flow는 다음과 같습니다.
 
 ```text
-prepared XJTU source
-  -> validation / Adapter / feature / preprocessing / sequence
-  -> frozen LSTM fit / scoring / evaluation
-  -> evidence artifact
-  -> ExperimentInspection
-  -> AnalysisSurface
-  -> XJTU detailed projector / AnalysisView
-  -> anomaly-evidence trajectory
-  -> descriptive score-exceedance interval
-  -> human review acknowledgement / note (artifact/asset/policy-scoped durable local state)
-  -> supporting residual evidence
-  -> Generative AI explanation / Q&A
-  -> pipeline / provenance drill-down
+prepared / registered source
+  -> validation / canonicalization / analysis pipeline
+  -> versioned evidence artifact or AnalysisRun
+  -> validated inspection / projection boundary
+  -> result and supporting evidence
+  -> optional human review
+  -> optional bounded AI explanation
+  -> provenance drill-down
 ```
 
-현재 구현 범위:
-
-- prepared XJTU source에서 analysis를 명시적으로 실행하는 application use case
-- experiment JSON을 UI가 직접 해석하지 않게 하는 `AnalysisSurface` / `AnalysisView` loading boundary
-- acquisition-aligned score trajectory와 model-space feature residual evidence 시각화
-- earliest-third scored-window q95를 사용한 retrospective **descriptive review threshold**
-- threshold 초과 acquisition-contiguous observation을 score-exceedance interval로 표시
-- review threshold/interval을 validated normal/fault State Detection, alarm, diagnosis와 명시적으로 분리
-- review interval이 있으면 사용자가 note와 acknowledgement를 남기는 durable local human-review action. exact artifact SHA-256 + asset + review-policy identity로 재시작 이후 복원하되 이 상태를 `OperationalFinding`이나 maintenance case/work order로 승격하지 않음
-- bounded structured evidence만 소비하는 Generative AI 설명과 analysis-scoped Q&A
-- `ExperimentInspection`의 pipeline/provenance를 Analysis Details drill-down으로 재사용
-- unavailable capability를 임의 값으로 채우지 않는 명시적 capability boundary
-- 동일 Explorer shell을 XJTU detailed artifact와 IMS/MIMII inspection-only artifact에 대해 CI export로 검증
-- prepared single-asset CSV export를 명시적 channel/time mapping으로 검증하고 canonical vibration feature 경계까지 연결하는 field-input baseline
-- validated field CSV의 asset/source/measurement-point/time/channel/data-quality 사실을 AssetObservationSummary application read model로 투영하는 operational observation baseline
-
-따라서 첫 vertical slice의 완성 조건인 **분석 실행 → 변화 구간 확인 → evidence 시각화 → AI 설명 →
-분석 과정 확인**은 충족합니다. 이 상태를 유지한 채 새로운 PHM capability를 같은 application에 추가합니다.
-
-현재 RUL/prognostics vertical slice는 development evidence 기준으로 application까지 연결되어 있습니다.
-
-- XJTU run-to-failure data의 RUL target/split/evaluation semantics 고정
-- age-only / feature-Ridge / temporal LSTM을 같은 evidence lifecycle에서 비교
-- protocol-fixed lifecycle-position diagnostics 추가
-- validation-selected method와 operational primary method를 분리
-- uncertainty/calibration 근거가 부족한 v1에서는 prediction interval을 explicit unsupported로 유지
-- compatible한 prognostics artifact를 `AnalysisView`와 Analysis Explorer에 attached evidence로 구성
-- frozen held-out benchmark runner/schema/inspection은 구현 완료, 실제 numerical artifact 실행은 prepared source 단계로 남김
+UI는 artifact가 실제로 보존하지 않은 observation-level evidence를 재구성하지 않고, 연구용 comparison
+evidence를 operational verdict로 승격하지 않습니다. Capability가 없거나 evidence가 기록되지 않은 경우에는
+각각 `unsupported` / `not recorded` 같은 명시적 상태로 표현합니다.
 
 ### Capability composition
 
@@ -670,83 +639,47 @@ Prognostics context에 담기는 것은 validated read model에서 읽어온 값
 번역, failure threshold·alarm/state·maintenance deadline·confidence interval 생성, 그리고 검증되지 않은 primary
 method 선택. Target에 clipping이 없으므로 음수 추정도 0으로 올리지 않고 기록된 대로 보고하게 합니다.
 
-Deterministic report/export는 validated AnalysisView를 그대로 Markdown으로 렌더링하며 수치 재계산을 하지
-않습니다. `industrial-phm analysis report`는 anomaly artifact를 primary scope로 사용하고, 별도 prognostics
-artifact는 dataset/split/fold/population compatibility를 통과한 경우에만 attached evidence로 포함합니다.
-Report에는 timestamp를 넣지 않아 동일 입력에서 byte-stable text를 만들 수 있고, exact source byte identity가
-artifact에 기록되지 않은 현재 한계도 그대로 표시합니다.
+Deterministic report/export는 validated read model을 그대로 렌더링하며 수치를 다시 계산하거나
+artifact에 없는 capability를 보충하지 않습니다. Generative AI도 같은 evidence boundary를 따릅니다.
 
-Prepared single-asset CSV export에 대해서는 local validation, source byte identity, data-quality provenance,
-canonical mapping과 vibration feature projection을 재사용하는 operational FILE-snapshot producer가 구현되어
-있습니다. 이 producer는 on-demand snapshot AnalysisRun/evidence와 durable local history까지 연결하지만
-history-directory aggregation, OPC UA analysis, automatic condition/fault semantics 또는 operational RUL을
-의미하지 않습니다. MIMII WAV adapter도 generic field WAV contract로 승격하지 않습니다.
+Analysis Application의 완성 기준은 모든 PHM capability를 동시에 제공하는 것이 아니라, **사용 가능한
+capability가 결과·evidence·limitation·provenance까지 일관되게 연결되는가**입니다. 어떤 capability가 현재
+그 경계를 충족하는지는 [현재 지원 상태](../status.md)를 따릅니다.
 
-다음 확장은 실제 private/field source conformance와 Operations UI를 함께 진행하면서 asset/sensor identity,
-vendor quality flag, maintenance/configuration event와 source-specific diagnostics 요구를 확인합니다.
-AssetObservationSummary는 이 UI가 관측 사실을 experiment artifact와 분리해 소비하기 위한 첫 경계입니다.
-Historian/API/live inference, service API, authentication, work-order integration, RAG 같은 기술은 해당 vertical
-slice에서 실제 요구가 확인될 때 도입합니다.
+## 8. PHM Operations workflow contract
 
-완성의 기준은 모든 PHM capability를 동시에 제공하는 것이 아닙니다. 사용 가능한 capability를 끝까지 연결해
-사용자가 결과, evidence, limitation과 분석 과정을 이해할 수 있으면 하나의 완결된 시스템으로 취급하고, 이후
-RUL·diagnosis·새 모델·새 source를 같은 시스템 안에서 확장합니다.
-
-## 8. PHM Operations 현재 상태
-
-Operations의 제품 기준을 "미래 정보구조를 먼저 모두 노출"하는 방식에서 **현재 수행 가능한 사용자 행동과 다음 연결 작업을 우선**하는 방식으로 조정합니다.
-
-현재 제품 milestone은 다음 한 줄입니다.
+Operations는 **Source → Observation/History → Analysis evidence → Investigation → Human review** 흐름에서
+사용자가 사실과 분석 근거를 확인하고 판단을 남기는 surface입니다. 구현된 메뉴나 capability 목록은
+[현재 지원 상태](../status.md)에 두고, 여기서는 제품 의미만 정의합니다.
 
 ```text
-Source -> Analyze -> Results -> Finding -> Maintenance review
+Source / Asset
+  -> observation and history
+  -> capability-specific AnalysisRun / evidence
+  -> Investigation
+  -> explicit human finding / review action
+  -> operational or maintenance decision
 ```
 
-### 현재 실제 가능한 것
+`AnalysisRun`이나 `OperationalFinding` 타입이 존재한다는 사실만으로 사용자 workflow가 완성됐다고
+간주하지 않습니다. Producer, evidence presentation, user action과 durable review linkage가 실제로 이어져야
+합니다. 반대로 research anomaly/RUL evidence를 field identity와 검증 없이 operational asset state로
+복사하지 않습니다.
 
-- prepared FILE source와 OPC UA source 등록
-- source lifecycle 제어와 one-shot runtime 실행
-- bounded OPC UA DataChange collection과 event/channel evidence 확인
-- prepared observation/timeline과 data-quality/provenance 확인
-- timezone-aware registered FILE snapshot에서 on-demand operational `AnalysisRun` + vibration statistical feature evidence 생성, durable local history 저장/재조회
-- 별도 Analysis Explorer에서 XJTU anomaly/RUL 분석 실행과 result/evidence 검토
-- persisted operational feature evidence에서 사용자가 명시적으로 `human-review-request-v1 / REVIEW_REQUIRED` finding을 생성하고 history로 조회
-- finding별 human review disposition을 `OPEN → ACKNOWLEDGED → CLOSED`로 관리하며 append-only note/event history를 durable local state로 보존
-- Operational State에서 source registry/runtime, operational analysis/finding/review store의 readable/error 상태와 현재 recorded population을 확인
-- bundled synthetic FILE snapshot으로 외부 데이터 없이 registration → AnalysisRun → explicit review finding → Maintenance review까지 같은 UI workflow를 재현
+Data Quality는 독립적인 최종 판정이 아니라 Source/Asset/Investigation 문맥의 evidence입니다. Runtime
+connection, collection state, data quality, asset condition, finding severity도 서로 다른 의미로 유지합니다.
 
-### 현재 끊긴 지점
+## 9. Operations Evidence & Operational Data Foundation
 
-```text
-Registered FILE snapshot / observation
-  -> vibration-statistical-v1 operational producer      # connected for supported snapshot
-  -> AnalysisRun
-  -> feature evidence
-  -> human explicit review request                      # connected
-  -> OperationalFinding(REVIEW_REQUIRED)
-  -> validated automatic state/fault policy              # not connected
-  -> maintenance review action
-```
-
-`AnalysisRun`과 `OperationalFinding` 계약이 존재한다는 사실만으로 기능이 완성된 것으로 취급하지 않습니다. producer와 사용자 action이 연결되지 않은 capability는 primary navigation에서 완성 기능처럼 노출하지 않습니다.
-
-Operations primary navigation은 현재 행동 가능한 **Overview / Assets / Sources / Investigation / Maintenance Review / Operational State**에 집중합니다. Data Quality는 별도 destination이 아니라 Source/Asset/Investigation context에서 표시합니다. Maintenance Review는 durable finding-review action을, Operational State는 현재 local state와 read/action error evidence를 실제로 소비합니다.
-
-Research anomaly/RUL evidence는 Analysis Explorer가 소유합니다. Operations는 current field identity와 연결되지 않은
-research estimate를 operational capability처럼 노출하지 않습니다. Automatic condition/fault/alert semantics,
-operational RUL, inspection/work-order/CMMS execution은 현재 Operations capability가 아닙니다.
-
-## 9. Operations v2 — Evidence & Operational Data Foundation
-
-Operations v2의 목적은 새로운 PHM 의미를 먼저 추가하는 것이 아니라, 현재 존재하는 source·observation·analysis·finding·review evidence를
-사용자가 일관된 asset/workflow 문맥에서 소비할 수 있도록 제품 구조와 operational data foundation을 정리하는 것입니다.
+이 foundation의 목적은 새로운 PHM 의미를 UI에서 먼저 만들지 않고 source·observation·analysis·finding·review
+evidence를 일관된 asset/workflow 문맥에서 소비하도록 제품 구조와 operational data boundary를 정의하는 것입니다.
 
 제품의 중심은 문서 첫머리의 목적, 즉 설비의 상태와 변화를 파악해 운영·정비 판단을 지원하는 것입니다.
 Evidence·provenance·재현성·품질은 그 판단을 신뢰할 수 있게 만드는 설계 원칙이며 제품 포지셔닝 자체가
 아닙니다. Automatic diagnosis, alarm, RUL, maintenance recommendation이 이미 구현됐다는 표현을 쓰지 않고,
 현재 capability보다 강한 의미를 제품 copy나 UI가 선행해 만들지 않는다는 원칙을 유지합니다.
 
-### Operations v2 information architecture
+### Operations information architecture
 
 Primary navigation의 목표 구조는 다음과 같습니다.
 
@@ -772,8 +705,7 @@ AI Copilot
 └─ 현재 선택한 asset / investigation / maintenance context 안의 optional side surface
 ```
 
-현재 `Overview / Assets / Sources / Investigation / Maintenance Review / Operational State` navigation은 v2 migration의
-중간 구조이며, 최종 information architecture에서는 다음 원칙을 계속 적용합니다.
+Information architecture는 다음 원칙을 적용합니다.
 
 - `Assets`를 source와 분리된 first-class 사용자 진입점으로 둡니다.
 - `Data Quality`는 독립 destination보다 Source Detail, Asset Detail, Investigation 안의 contextual evidence를 우선합니다.
@@ -783,7 +715,7 @@ AI Copilot
 
 ### Source와 Asset의 제품 의미
 
-Operations v2에서는 다음 identity 경계를 명시적으로 유지합니다.
+Operations는 다음 identity 경계를 명시적으로 유지합니다.
 
 ```text
 Source != Asset
@@ -792,7 +724,7 @@ Analysis != Asset
 Finding != Asset
 ```
 
-향후 asset identity는 최소한 다음 계층을 표현할 수 있어야 합니다.
+Asset identity model은 필요에 따라 다음 계층을 표현할 수 있어야 합니다.
 
 ```text
 Site?
@@ -804,9 +736,9 @@ Site?
                       └ Channel
 ```
 
-초기 implementation이 모든 optional hierarchy level을 영속할 필요는 없습니다. 먼저 `Asset`, optional `Component`,
-`MeasurementPoint`, `Channel` identity와 source mapping을 분리하고, 실제 field/private source에서 hierarchy requirement가
-확인될 때 상위 site/area/system 구조를 확장합니다.
+모든 optional hierarchy level을 항상 영속할 필요는 없습니다. `Asset`, optional `Component`,
+`MeasurementPoint`, `Channel` identity와 source mapping을 분리하고, 실제 source requirement가 있을 때
+site/area/system 계층을 확장합니다.
 
 Operational record는 source identity만으로 asset identity를 대신하지 않습니다. 새 read model과 evidence는 가능한 범위에서 다음 lineage를
 추적할 수 있어야 합니다.
@@ -826,7 +758,7 @@ asset
 
 Overview의 첫 질문은 "fleet이 몇 점인가?"가 아니라 **"지금 사람이 확인하거나 처리해야 할 사실이 무엇인가?"** 입니다.
 
-현재 또는 가까운 v2 foundation에서 허용하는 factual attention category는 다음 범위로 제한합니다.
+Factual attention category는 검증된 evidence 의미 안에서만 정의합니다. 기본 vocabulary는 다음 범위로 제한합니다.
 
 - `SOURCE_ERROR`
 - `NO_RECEIPT`
@@ -990,28 +922,11 @@ Operational prognostics가 실제 field evidence로 도입될 때 RUL point esti
 
 Research `recorded-end` target을 physical failure deadline이나 maintenance deadline으로 번역하지 않습니다.
 
-### Operations v2 implementation order
-
-Operations v2 foundation의 변경 순서는 dependency와 rework를 줄이기 위해 다음과 같이 고정합니다.
-
-1. `docs(product): define Operations v2 information architecture`
-2. `feat(asset): introduce first-class asset identity`
-3. `feat(application): operations overview read model`
-4. `feat(application): evidence-based attention queue`
-5. `refactor(operations): extract shared presentation components`
-6. `feat(operations): add asset detail and evidence timeline`
-7. `refactor(operations): contextualize data-quality evidence`
-8. `feat(opcua): define persistent session and event-time contracts`
-9. `feat(runtime): durable observation/window boundary`
-
-UI component extraction을 read model보다 먼저 하지 않습니다. 기존 marimo cell의 우연한 state shape를 reusable component contract로 굳히지 않기
-위해서입니다. Asset identity를 Overview/Attention보다 먼저 도입해 source-centric read model을 다시 만드는 것도 피합니다.
-
 ### Persistent source와 event-time contract
 
-Persistent OPC UA implementation 전에 timing/data semantics와 reconnect state를 먼저 contract로 고정합니다.
+Persistent OPC UA 경계는 timing/data semantics와 reconnect state를 implementation detail과 분리해 contract로 고정합니다.
 
-현재 contract는 다음 원칙을 executable invariant로 둡니다.
+이 contract는 다음 원칙을 executable invariant로 둡니다.
 
 - session state는 `DISCONNECTED → CONNECTING → CONNECTED`와
   `CONNECTED → RECONNECT_WAIT → CONNECTING`을 구분하고 `STOPPED`를 terminal state로 둡니다.
@@ -1035,11 +950,11 @@ watermark                  # durable window boundary에서 추가
 window_start / window_end  # durable window boundary에서 추가
 ```
 
-Persistent OPC UA session contract 자체는 network reconnect loop, background daemon, notification persistence,
-credentials/certificates 또는 watermark/window assembly를 구현하지 않습니다. 아래 durable window boundary는
-이 event contract를 소비하는 별도 application reference boundary입니다.
+Persistent OPC UA session contract는 network reconnect execution, notification persistence,
+credentials/certificates, watermark/window assembly와 책임을 분리합니다. Durable window boundary는 이 event
+contract를 소비하는 별도 application boundary입니다.
 
-그리고 다음 runtime/window 단계에서 적어도 다음 상태를 서로 구분합니다.
+Runtime/window evidence는 적어도 다음 상태를 서로 구분합니다.
 
 - duplicate event
 - late event
@@ -1049,12 +964,11 @@ credentials/certificates 또는 watermark/window assembly를 구현하지 않습
 - partial window
 - complete window
 
-Full channel coverage만으로 synchronized snapshot, gap-free delivery 또는 analysis-ready window를 주장하지 않는 현재 bounded subscription 원칙을
-persistent runtime에서도 유지합니다.
+Full channel coverage만으로 synchronized snapshot, gap-free delivery 또는 analysis-ready window를 주장하지 않습니다.
 
 ### Durable observation/window foundation
 
-Persistent source의 다음 runtime 목표는 connector event 자체를 저장하는 것에 그치지 않습니다.
+Persistent source의 durable window boundary는 connector event 자체와 window/analysis input 의미를 분리합니다.
 
 ```text
 connector session
@@ -1066,24 +980,24 @@ connector session
   -> analysis-ready input
 ```
 
-현재 reference boundary는 caller가 explicit `window_start/window_end`와 monotonic watermark를 소유하고,
+Reference boundary는 explicit `window_start/window_end`와 monotonic watermark를 소유하고,
 in-memory buffer에 최대 event 수와 허용 future clock-skew를 명시하도록 합니다. Event disposition은
 `IN_ORDER / OUT_OF_ORDER / LATE / DUPLICATE / TIMING_UNAVAILABLE / UNEXPECTED_CHANNEL /
 OUTSIDE_WINDOW / FUTURE_TIMESTAMP / BUFFER_FULL`을 구분합니다. DUPLICATE는 같은 platform-local
 `(source_id, connection_epoch, event_index)`가 다시 제출된 경우만 뜻하며 reconnect 후 replay가 새 local
 identity를 가지면 자동 dedup하지 않습니다.
 
-Watermark가 window end에 도달한 finalized window만 `industrial-phm-observation-window-v1` JSON history에
-restart-safe하게 저장합니다. Partial in-memory buffer 자체는 아직 durable하지 않습니다. COMPLETE는 모든
+Watermark가 window end에 도달한 finalized window만 durable window repository에 저장합니다. Partial in-memory
+assembly는 finalized-window durability contract에 포함하지 않습니다. COMPLETE는 모든
 expected channel이 한 번 이상 accepted event를 가졌다는 coverage 의미뿐이며 synchronized sampling,
 gap-free/exactly-once delivery 또는 analysis-ready input을 뜻하지 않습니다.
 
 Buffering, retry, reconnect 또는 persistence가 source event의 timestamp/quality/provenance를 덮어쓰지 않아야 합니다.
-현재 boundary도 continuous ingestion이 곧 continuous PHM inference라고 표현하지 않습니다.
+Continuous ingestion 자체를 continuous PHM inference와 동일시하지 않습니다.
 
 ### Foundation completion gates
 
-Operations v2 foundation은 코드 목록이 아니라 다음 질문에 evidence로 답할 수 있을 때 완료된 것으로 봅니다.
+Operations foundation의 acceptance criteria는 코드 목록이 아니라 다음 질문에 evidence로 답할 수 있는가입니다.
 
 ```text
 어떤 asset인가?
@@ -1105,9 +1019,9 @@ late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
 그 입력이 durable하게 복원되고 analysis provenance로 연결되는가?
 ```
 
-### Foundation 범위에서 의도적으로 제외하는 것
+### Foundation 의미에서 분리하는 capability
 
-아래 capability는 Operations v2 foundation 1–9의 완료 조건이 아닙니다.
+아래 capability는 evidence foundation 자체와 별개의 검증·제품 계약을 요구합니다.
 
 - automatic fault diagnosis
 - PHM severity / fleet risk score
@@ -1121,8 +1035,8 @@ late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
 - 추가 connector를 위한 generic connector framework
 - 새로운 deep-learning/foundation model
 
-이 capability는 field/private source에서 실제 evidence gap과 운영 requirement가 확인된 뒤
-`Diagnostics -> Alert rationalization -> Operational prognostics -> Maintenance integration -> AI Copilot` 순서로 별도 검토합니다.
+이 capability를 추가할 때는 해당 field evidence와 운영 requirement에 맞는 별도 contract, validation,
+human-approval boundary를 정의합니다.
 
 ## References
 
@@ -1131,10 +1045,10 @@ late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
 - Data-driven prognostics review: uncertainty, robustness, interpretability and feasibility (2025): https://doi.org/10.1016/j.ymssp.2025.113015
 
 
-## Live Acquisition & Asset History v1
+## Live Acquisition & Asset History product flow
 
-Operations의 장기 제품 흐름은 “데이터셋을 먼저 연결해 한 번 분석”하는 방식보다 **source를 등록하고 collection을
-시작한 뒤 지속적으로 상태와 evidence를 확인하는 방식**을 기준으로 합니다.
+Operations의 live product flow는 **source를 등록하고 collection을 시작한 뒤 지속적으로 관측·history·analysis
+evidence를 확인하는 방식**을 기준으로 합니다.
 
 ```text
 Add Source
@@ -1156,12 +1070,11 @@ Historical source도 별도의 제품 세계로 두지 않습니다.
 ```text
 Historical CSV / Historian → Backfill ─┐
                                       ├→ one Asset History
-OPC UA / future MQTT → Live ──────────┘
+Live protocol source ─→ Live ──────────┘
 ```
 
-Live와 Backfill은 동일한 Asset history에서 조회할 수 있지만 source/ingestion provenance를 잃지 않습니다.
-DuckLake는 이 historical data plane을 담당하고, 아직 DuckLake에 commit되지 않은 live event의 crash-safe
-delivery는 별도 local durable spool이 담당합니다.
+Live와 Backfill은 동일한 Asset history query boundary에서 만날 수 있지만 source/ingestion provenance를 잃지
+않습니다. Historical data plane과 commit 이전 ingress durability는 별도 storage responsibility로 유지합니다.
 
 Source lifecycle, runtime connection state, acquisition/data-flow health, data quality, asset condition과 PHM finding
 severity는 서로 다른 factual/evaluative layer입니다. Operations는 acquisition 문제를 asset fault로 자동

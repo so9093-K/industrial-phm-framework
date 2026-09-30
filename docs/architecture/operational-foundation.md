@@ -14,39 +14,10 @@
 개발 명령을 `Makefile`, `just`, shell script 등 여러 wrapper로 중복하지 않습니다. 현재 개발 기준선은
 `uv lock --check`, `uv sync --locked`, Ruff, mypy, pytest, `uv build`입니다.
 
-프로젝트 CLI는 기능이 실제로 생길 때만 command를 추가합니다. 현재 구현된 command tree는 다음과 같습니다.
-
-```text
-industrial-phm
-├── doctor
-├── analysis
-│   └── report
-├── data
-│   ├── list
-│   ├── status
-│   ├── fetch
-│   ├── verify
-│   ├── inspect
-│   └── validate
-├── operations
-│   └── poll-source
-├── feature
-│   └── characterize
-└── experiment
-    ├── inspect
-    ├── validate
-    ├── reference-compare
-    ├── holdout
-    ├── cross-fold
-    ├── cross-test
-    ├── lstm-development
-    ├── rul-baseline-validation
-    ├── rul-validation
-    ├── rul-benchmark
-    ├── mimii-development
-    ├── mimii-external-score
-    └── mimii-external-evaluate
-```
+프로젝트 CLI는 기능이 실제로 생길 때만 command를 추가합니다. 정확한 현재 command surface의
+Source of Truth는 executable parser와 `industrial-phm --help`입니다. 이 architecture 문서는 command tree를
+복사하지 않습니다. 지원되는 workflow의 상태는 [현재 지원 상태](../status.md), 실행 절차는 해당 subsystem
+README를 참조합니다.
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.
 
@@ -87,13 +58,16 @@ Single Source of Truth는 모든 설정을 하나의 파일에 넣는다는 의�
 | asset/run split | split manifest |
 | 실험 parameter | version-controlled experiment config |
 | model artifact provenance | artifact manifest |
-| 현재 capability와 project-level roadmap | root `README.md` |
-| subsystem 실행 방법과 운영 규칙 | 해당 directory의 `README.md` |
+| 프로젝트 목적, 안정적인 진입점과 문서 navigation | root `README.md` |
+| 현재 구현·지원·현장검증 상태 | `docs/status.md` |
+| subsystem 실행 방법과 runtime 운영 규칙 | 해당 directory의 `README.md` |
+| 계획된 작업과 milestone | GitHub Issue/PR |
 | 검증된 dataset 관찰 사실 | dataset source profile |
 | 반복 사용할 research protocol/method | 해당 subject의 research 문서 |
 | secret/token/machine-specific path | environment/runtime configuration |
 | 장기 구조 결정 | ADR |
 | contract invariant | production code와 contract 문서 |
+| 변경 이력 | `CHANGELOG.md` |
 | 작업 과정과 일회성 비교 결과 | PR 본문 또는 generated artifact |
 
 README나 발표 자료에 version, URL, threshold 같은 값을 불필요하게 복사하지 않습니다.
@@ -163,11 +137,11 @@ artifact schema를 직접 해석하거나 numerical PHM 의미를 새로 만드�
 observation time range, channel/sample population과 data-quality state를 application read model로 전달하고,
 anomaly/diagnosis/prognostics/maintenance 의미는 검증된 capability가 실제로 생길 때 별도 evidence로 붙입니다.
 
-Operations v2의 asset-centric read model을 준비하기 위해 `AssetIdentity`, `ComponentIdentity`,
-`MeasurementPointIdentity`, `ChannelIdentity`를 application contract로 분리합니다. 기존 source registry v4와
-operational JSON schema는 이 변경에서 수정하지 않습니다. 현재 source/observation/analysis/finding이 실제로
-보존하는 `asset_id`, optional `measurement_point_id`, channel ID를 typed identity로 projection하며,
-현재 source mapping에 없는 component identity는 channel 이름이나 measurement-point 이름에서 추론하지 않습니다.
+Asset-centric read model은 `AssetIdentity`, `ComponentIdentity`, `MeasurementPointIdentity`,
+`ChannelIdentity`를 application contract로 분리합니다. Persisted source/operational schema의 exact version은
+각 repository code가 소유합니다. Source/observation/analysis/finding이 실제로 보존하는 `asset_id`, optional
+`measurement_point_id`, channel ID를 typed identity로 projection하며, source mapping에 없는 component
+identity는 channel 이름이나 measurement-point 이름에서 추론하지 않습니다.
 
 Operations Overview는 repository별 상태를 presentation cell에서 직접 재집계하지 않고
 `build_operations_overview` application read model을 사용합니다. 이 projection은 이미 로드된 registered source,
@@ -216,17 +190,18 @@ epoch/reconnect attempt를 session state와 함께 기록하고, `OpcUaPersisten
 registered DataChange evidence를 connection epoch 안의 local event index로 감쌉니다. 이 index는 server sequence가
 아니며 gap-free/exactly-once evidence가 아닙니다. Event time은 SourceTimestamp를 우선하고 ServerTimestamp fallback은
 explicit policy로만 허용합니다. Connector `received_at`과 future ingestion boundary의 `ingested_at`은 별도
-platform timing fact로 보존하며 event time으로 대체하지 않습니다. Persistent session contract 자체는 reconnect
-daemon, credential/certificate handling, event persistence, watermark/window assembly를 구현하지 않습니다.
+platform timing fact로 보존하며 event time으로 대체하지 않습니다. Persistent session evidence contract 자체는 connection/reconnect 사실만 소유합니다. Credential/certificate
+설정, durable event persistence와 watermark/window assembly는 각각 별도 connector/runtime/storage 책임으로
+분리하며 session evidence 모델에 합치지 않습니다.
 
 Durable observation/window reference boundary는 explicit window range와 caller-owned monotonic watermark를
 사용합니다. `ObservationWindowBuffer`는 accepted event 수를 bounded하고 event를 in-order/out-of-order,
 late, duplicate(local delivery identity 기준), timing unavailable, unexpected channel, outside-window,
 future clock-skew, buffer-full로 구분합니다. Watermark가 window end에 도달한 뒤에만
 `DurableObservationWindow`로 finalize하며 `JsonObservationWindowRepository`는 finalized window와
-protocol/timing evidence를 current v1 schema로 저장합니다. Partial in-memory buffer는 아직 restart-safe하지
-않습니다. COMPLETE는 expected channel coverage만 뜻하며 synchronization, gap-free/exactly-once delivery,
-analysis readiness 또는 asset condition을 의미하지 않습니다.
+protocol/timing evidence를 current v1 schema로 저장합니다. Durable repository는 finalized window를 소유하고 partial in-memory assembly는 finalized-window persistence
+contract에 포함하지 않습니다. COMPLETE는 expected channel coverage만 뜻하며 synchronization,
+gap-free/exactly-once delivery, analysis readiness 또는 asset condition을 의미하지 않습니다.
 
 초기 역할은 다음 네 가지를 기준으로 검토합니다.
 

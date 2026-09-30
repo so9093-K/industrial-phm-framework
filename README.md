@@ -10,8 +10,6 @@
 
 공개 데이터셋과 연구 모델은 프레임워크를 개발하고 검증하는 데 사용합니다.
 
-> 버전: pre-alpha `0.0.1`
-
 ## 전체 구조
 
 ![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](assets/system-architecture.png)
@@ -21,13 +19,9 @@
 판단합니다. 공개 데이터셋의 label 같은 provider annotation은 연구 평가에만 쓰며 production 분석의 입력이
 아닙니다.
 
-현재 구현 범위: FILE·OPC UA 수집과 Asset History, 설비별 이력·품질·출처 조회, 근거가 확인된 측정 의미
-(semantic binding), FILE snapshot 특징 분석과 과거 Asset History 기반
-[3상 불평형 분석](docs/architecture/phase-unbalance-capability.md), 분석 결과에 대한 Investigation·사람의 review
-finding·maintenance review입니다. Live window에서 같은 분석으로 이어지는 경로, validated 진단·alarm·
-operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
-
-수집 runtime, 저장소, 분석 경계의 상세 구조는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
+구체적인 구현 지원 여부와 명시적 미지원 경계는 [현재 지원 상태](docs/status.md)를 기준으로 확인합니다.
+README는 제품 목적과 주요 진입점을 설명하며 capability matrix나 roadmap을 중복 기록하지 않습니다.
+수집 runtime, 저장소, 분석 책임의 상세 구조는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
 
 ## 애플리케이션
 
@@ -62,13 +56,13 @@ XJTU-SY, IMS Bearings, MIMII DUE 등의 공개 데이터는 분석 방법과 evi
 
 ## 문서
 
-다음 개발은 실제 설비 이력 확인 → 지속적인 상태·변화 관찰 → 분석 근거와 운영·정비 검토 연결 순으로
-진행합니다. AI-Hub 보일러·압출기의 첫 historical slice는
+AI-Hub 보일러·압출기의 historical data 실행 예시는
 [실행 안내](tools/aihub/README.md#local-power-data-profiling-and-history)와
 [검증된 데이터 범위](docs/research/aihub-239-source-profile.md)를 참고하세요.
 
+- [현재 지원 상태](docs/status.md) — 구현된 operational/research 지원 범위와 명시적 미지원 경계
 - [Applications](apps/README.md) — Analysis Explorer와 Operations 사용 방법
-- [측정 의미·집계·확장 계획](docs/architecture/measurement-history-evolution.md) — 현재 계약과 후속 단계
+- [측정 이력 의미·집계·scale 경계](docs/architecture/measurement-history-evolution.md) — semantic/display/storage 계약과 측정 근거
 - [아키텍처](docs/architecture/overview.md) — 구성 요소와 책임 경계
 - [제품·UX 기준](docs/product/overview.md) — 사용자 흐름과 제품 의미
 - [데이터 준비](data/README.md) — 데이터셋과 입력 검증
