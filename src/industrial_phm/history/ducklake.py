@@ -50,6 +50,7 @@ from industrial_phm.application.opcua_persistent import (
 )
 from industrial_phm.application.source_registration import SourceType
 from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
+from industrial_phm.application.window_coordinator import OpcUaHistoricalEventCursor
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 
 _CATALOG_NAME = "phm_history"
@@ -556,6 +557,135 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
 
+        return tuple(_opcua_event_from_row(row) for row in rows)
+
+    def query_opcua_events_after(
+        self,
+        source_id: str,
+        *,
+        cursor: OpcUaHistoricalEventCursor,
+        limit: int,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return a bounded durable-ingestion page strictly after one cursor."""
+        _validate_identifier(source_id, "source_id")
+        if not isinstance(cursor, OpcUaHistoricalEventCursor):
+            raise ValueError("cursor must be OpcUaHistoricalEventCursor")
+        _validate_positive_int(limit, "limit")
+        if limit > 10000:
+            raise ValueError("limit must not exceed 10000")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT
+                    source_id,
+                    asset_id,
+                    endpoint_url,
+                    measurement_point_id,
+                    channel_id,
+                    node_id,
+                    value,
+                    status_code,
+                    status_good,
+                    status_text,
+                    variant_type,
+                    source_timestamp,
+                    server_timestamp,
+                    received_at,
+                    ingested_at,
+                    event_at,
+                    event_time_basis,
+                    collection_index,
+                    connection_epoch,
+                    event_index,
+                    replayed,
+                    semantic_binding_json
+                FROM {_CATALOG_NAME}.raw.opcua_data_change
+                WHERE source_id = ?
+                  AND (
+                        ingested_at > ?
+                     OR (ingested_at = ? AND connection_epoch > ?)
+                     OR (
+                            ingested_at = ?
+                        AND connection_epoch = ?
+                        AND event_index > ?
+                     )
+                  )
+                ORDER BY ingested_at, connection_epoch, event_index, raw_evidence_id
+                LIMIT ?
+                """,
+                [
+                    source_id,
+                    cursor.ingested_at,
+                    cursor.ingested_at,
+                    cursor.connection_epoch,
+                    cursor.ingested_at,
+                    cursor.connection_epoch,
+                    cursor.event_index,
+                    limit,
+                ],
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_opcua_event_from_row(row) for row in rows)
+
+    def query_opcua_events_from_event_time(
+        self,
+        source_id: str,
+        *,
+        start_at: datetime | None,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return a restart tail ordered by durable ingestion.
+
+        When start_at is provided, timing-unavailable events are excluded because
+        they cannot belong to an event-time window. The continuous cursor will
+        still observe future timing-unavailable events after bootstrap.
+        """
+        _validate_identifier(source_id, "source_id")
+        if start_at is not None and (
+            not isinstance(start_at, datetime) or start_at.utcoffset() is None
+        ):
+            raise ValueError("start_at must be timezone-aware when provided")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            if start_at is None:
+                rows = connection.execute(
+                    f"""
+                    SELECT
+                        source_id, asset_id, endpoint_url, measurement_point_id,
+                        channel_id, node_id, value, status_code, status_good,
+                        status_text, variant_type, source_timestamp, server_timestamp,
+                        received_at, ingested_at, event_at, event_time_basis,
+                        collection_index, connection_epoch, event_index, replayed,
+                        semantic_binding_json
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change
+                    WHERE source_id = ?
+                    ORDER BY ingested_at, connection_epoch, event_index, raw_evidence_id
+                    """,
+                    [source_id],
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    f"""
+                    SELECT
+                        source_id, asset_id, endpoint_url, measurement_point_id,
+                        channel_id, node_id, value, status_code, status_good,
+                        status_text, variant_type, source_timestamp, server_timestamp,
+                        received_at, ingested_at, event_at, event_time_basis,
+                        collection_index, connection_epoch, event_index, replayed,
+                        semantic_binding_json
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change
+                    WHERE source_id = ?
+                      AND event_at IS NOT NULL
+                      AND event_at >= ?
+                    ORDER BY ingested_at, connection_epoch, event_index, raw_evidence_id
+                    """,
+                    [source_id, start_at],
+                ).fetchall()
+        finally:
+            connection.close()
         return tuple(_opcua_event_from_row(row) for row in rows)
 
     def get_opcua_event(
