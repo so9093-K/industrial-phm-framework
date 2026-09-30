@@ -7,9 +7,7 @@ from industrial_phm.application import (
     SqliteObservationWindowRepository,
 )
 from industrial_phm.application.opcua_persistent import (
-    OpcUaHistoricalEventCursor if False else OpcUaEventTimeBasis,
-)
-from industrial_phm.application.opcua_persistent import (
+    OpcUaEventTimeBasis,
     OpcUaEventTimeEvidence,
     OpcUaPersistentDataChangeEvent,
 )
