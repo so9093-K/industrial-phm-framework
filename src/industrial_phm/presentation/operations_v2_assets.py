@@ -159,6 +159,7 @@ def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
         f"<tbody>{rows}</tbody></table></section>"
     )
 
+
 def render_asset_events_html(view: AssetWorkspaceView) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
