@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations V2 **Investigations**를 queue + selected detail workspace로 이관했습니다. 저장된 operational
+  analysis를 Review / Asset / Capability로 필터링하고, review workflow 상태와 analysis evidence 의미를
+  분리합니다. Three-phase unbalance와 FILE vibration feature evidence를 capability별로 검토할 수 있고
+  run/evidence/finding identity는 detail로 내려 primary queue에서 숨깁니다. `Not requested` 결과에 대한
+  **Request review**만 명시적 write action으로 제공하며, 저장 직후 queue를 다시 읽어 `Open` 상태를
+  반영합니다. 이 action은 fault/alarm/health/maintenance verdict를 생성하지 않습니다.
+
 - Operations V2 **Assets**를 실제 read-only workspace로 연결했습니다. Monitor/history의 asset 합집합을
   선택하고 Overview / Signals / Analysis / Events / Maintenance를 같은 설비 context에서 확인합니다.
   Signals는 기존 DuckLake Asset History의 raw/aggregate/latest semantics를 재사용하고, history-only asset은
