@@ -908,6 +908,162 @@ def _(
 
 
 @app.cell
+def _(SourceType, mo, setup_selected_source):
+    if setup_selected_source is None:
+        setup_run_diagnostic_button = None
+        setup_subscription_diagnostic_button = None
+    else:
+        setup_run_diagnostic_button = mo.ui.run_button(label="Run one diagnostic cycle")
+        setup_subscription_diagnostic_button = (
+            mo.ui.run_button(label="Collect bounded subscription")
+            if setup_selected_source.source_type == SourceType.OPCUA
+            else None
+        )
+    return setup_run_diagnostic_button, setup_subscription_diagnostic_button
+
+
+@app.cell
+def _(mo):
+    get_setup_diagnostic_error, set_setup_diagnostic_error = mo.state("")
+    get_setup_diagnostic_success, set_setup_diagnostic_success = mo.state("")
+    return (
+        get_setup_diagnostic_error,
+        get_setup_diagnostic_success,
+        set_setup_diagnostic_error,
+        set_setup_diagnostic_success,
+    )
+
+
+@app.cell
+def _(
+    FileSourceConfig,
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
+    SourceRuntimeCycleState,
+    ThreadPoolExecutor,
+    asyncio,
+    get_setup_config,
+    registry_path,
+    run_registered_file_source_cycle,
+    run_registered_opcua_source_cycle,
+    run_registered_opcua_subscription_cycle,
+    set_setup_config,
+    set_setup_diagnostic_error,
+    set_setup_diagnostic_success,
+    setup_run_diagnostic_button,
+    setup_selected_source,
+    setup_subscription_diagnostic_button,
+    source_runtime_path,
+    validate_distinct_source_state_paths,
+):
+    _diagnostic_kind = None
+    if setup_run_diagnostic_button is not None and setup_run_diagnostic_button.value:
+        _diagnostic_kind = "cycle"
+    elif (
+        setup_subscription_diagnostic_button is not None
+        and setup_subscription_diagnostic_button.value
+    ):
+        _diagnostic_kind = "subscription"
+
+    if _diagnostic_kind is not None:
+        try:
+            if setup_selected_source is None:
+                raise ValueError("select a data source before running diagnostics")
+            validate_distinct_source_state_paths(registry_path, source_runtime_path)
+            _source_repository = JsonSourceRepository(registry_path)
+            _runtime_repository = JsonSourceRuntimeRepository(source_runtime_path)
+            _source = _source_repository.get(setup_selected_source.source_id)
+
+            if _diagnostic_kind == "cycle":
+                if isinstance(_source.config, FileSourceConfig):
+                    _result = run_registered_file_source_cycle(
+                        _source_repository,
+                        _source_repository,
+                        _runtime_repository,
+                        _source.source_id,
+                    )
+                elif isinstance(_source.config, OpcUaSourceConfig):
+                    def _run_opcua_cycle():
+                        return asyncio.run(
+                            run_registered_opcua_source_cycle(
+                                _source_repository,
+                                _source_repository,
+                                _runtime_repository,
+                                _source.source_id,
+                            )
+                        )
+
+                    with ThreadPoolExecutor(max_workers=1) as _executor:
+                        _result = _executor.submit(_run_opcua_cycle).result()
+                else:
+                    raise ValueError("unsupported registered source config")
+            else:
+                if not isinstance(_source.config, OpcUaSourceConfig):
+                    raise ValueError("bounded subscription diagnostics require an OPC UA source")
+                _max_events = max(1, len(_source.config.node_mappings))
+
+                def _run_subscription_cycle():
+                    return asyncio.run(
+                        run_registered_opcua_subscription_cycle(
+                            _source_repository,
+                            _source_repository,
+                            _runtime_repository,
+                            _source.source_id,
+                            publishing_interval_ms=500.0,
+                            collection_timeout_seconds=5.0,
+                            max_events=_max_events,
+                            queue_maxsize=128,
+                        )
+                    )
+
+                with ThreadPoolExecutor(max_workers=1) as _executor:
+                    _result = _executor.submit(_run_subscription_cycle).result()
+
+            _sources = _source_repository.list_sources()
+            _lifecycles = tuple(
+                _source_repository.get_lifecycle(item.source_id) for item in _sources
+            )
+        except (LookupError, OSError, RuntimeError, ValueError) as error:
+            set_setup_diagnostic_success("")
+            set_setup_diagnostic_error(str(error))
+        else:
+            _, _, _collection, _freshness = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _collection, _freshness))
+            if _result.state == SourceRuntimeCycleState.SUCCEEDED:
+                _message = (
+                    "Diagnostic cycle completed."
+                    if _diagnostic_kind == "cycle"
+                    else "Bounded subscription completed."
+                )
+                set_setup_diagnostic_error("")
+                set_setup_diagnostic_success(
+                    _message + " Use Refresh to reload current runtime evidence in Monitor."
+                )
+            elif _result.state == SourceRuntimeCycleState.SKIPPED:
+                set_setup_diagnostic_success("")
+                set_setup_diagnostic_error(_result.message or "diagnostic action skipped")
+            else:
+                _scope = (
+                    "unknown"
+                    if _result.failure_scope is None
+                    else _result.failure_scope.value
+                )
+                set_setup_diagnostic_success("")
+                set_setup_diagnostic_error(
+                    f"{_scope} failure · {_result.message or 'diagnostic action failed'}"
+                )
+    return
+
+
+@app.cell
+def _(get_setup_diagnostic_error, get_setup_diagnostic_success):
+    setup_diagnostic_error = get_setup_diagnostic_error()
+    setup_diagnostic_success = get_setup_diagnostic_success()
+    return setup_diagnostic_error, setup_diagnostic_success
+
+
+@app.cell
 def _(
     JsonSourceRepository,
     SourceLifecycleState,
