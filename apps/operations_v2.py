@@ -18,6 +18,7 @@ def _():
         FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
         AcquisitionTelemetrySurface,
         AssetIdentity,
+        AssetWorkspaceAnalysisAttempt,
         ChannelSemanticBinding,
         CollectionDesiredState,
         FileSourceConfig,
@@ -30,6 +31,9 @@ def _():
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
         LiveFlowTiming,
+        SqliteObservationWindowRepository,
+        SqliteWindowAnalysisLedger,
+        WindowAnalysisState,
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
@@ -38,6 +42,7 @@ def _():
         SourceRuntimeCycleState,
         SourceType,
         SystemStateErrorEvidence,
+        WindowAnalysisState,
         build_asset_detail,
         build_investigation_queue,
         build_maintenance_queue,
@@ -63,7 +68,10 @@ def _():
         create_finding_review_event,
     )
     from industrial_phm.application.measurement_history import resolve_measurement_range
-    from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
+    from industrial_phm.application.operations_v2_assets import (
+        AssetWorkspaceAnalysisAttempt,
+        build_asset_workspace_view,
+    )
     from industrial_phm.application.operations_v2_investigations import (
         InvestigationReviewState,
     )
@@ -108,6 +116,7 @@ def _():
     )
     from industrial_phm.presentation.operations_v2_investigations import (
         investigation_capability_label,
+        investigation_group_option_label,
         investigation_queue_option_label,
         investigation_review_label,
         investigation_workspace_css,
