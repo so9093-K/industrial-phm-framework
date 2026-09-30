@@ -12,11 +12,11 @@ from industrial_phm.application.asset_detail import (
     AssetEvidenceEvent,
     AssetEvidenceEventKind,
 )
+from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.maintenance_review import (
     FindingReviewStatus,
     finding_review_status,
 )
-from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operational import OperationalAnalysisResult
 from industrial_phm.application.operations_v2 import (
@@ -128,9 +128,11 @@ class AssetWorkspaceAnalysisAttempt:
         if self.state == WindowAnalysisState.ANALYZED:
             if self.analysis_run_id is None or self.reason is not None:
                 raise ValueError("analyzed attempt requires run id and no skip reason")
-        elif self.state == WindowAnalysisState.SKIPPED:
-            if self.reason is None or self.analysis_run_id is not None:
-                raise ValueError("skipped attempt requires reason and no analysis run id")
+        elif (
+            self.state == WindowAnalysisState.SKIPPED
+            and (self.reason is None or self.analysis_run_id is not None)
+        ):
+            raise ValueError("skipped attempt requires reason and no analysis run id")
 
 
 @dataclass(frozen=True, slots=True)
