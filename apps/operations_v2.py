@@ -14,6 +14,7 @@ def _():
 
     from industrial_phm.application import (
         AcquisitionTelemetrySurface,
+        AssetIdentity,
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
@@ -23,15 +24,38 @@ def _():
         JsonWindowAnalysisRuntimeRepository,
         SourceType,
         SystemStateErrorEvidence,
+        build_asset_detail,
+        build_asset_detail,
+        build_asset_workspace_view,
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
         validate_distinct_source_state_paths,
     )
+    from industrial_phm.application.measurement_history import resolve_measurement_range
+    from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.presentation import (
         operations_v2_theme_css,
         render_monitor_assets_html,
         render_monitor_flow_html,
+    )
+    from industrial_phm.presentation.measurement_history import (
+        latest_measurement_rows,
+        measurement_aggregation_rows,
+        measurement_aggregation_summary,
+        measurement_history_range_summary,
+        measurement_history_rows,
+        render_measurement_aggregation_svg,
+        render_measurement_history_svg,
+    )
+    from industrial_phm.presentation.operations_v2_assets import (
+        asset_workspace_css,
+        render_asset_analysis_html,
+        render_asset_events_html,
+        render_asset_header_html,
+        render_asset_maintenance_html,
+        render_asset_overview_html,
     )
     from industrial_phm.runtime import (
         SqliteAcquisitionSpool,
@@ -47,6 +71,9 @@ def _():
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         AcquisitionTelemetrySurface,
+        AssetIdentity,
+        DuckLakeAssetHistory,
+        DuckLakeAssetHistoryConfig,
         JsonWindowAnalysisRuntimeRepository,
         Path,
         SourceType,
@@ -60,10 +87,24 @@ def _():
         build_operations_overview,
         datetime,
         mo,
+        asset_workspace_css,
+        latest_measurement_rows,
+        measurement_aggregation_rows,
+        measurement_aggregation_summary,
+        measurement_history_range_summary,
+        measurement_history_rows,
         operations_v2_theme_css,
         os,
+        render_asset_analysis_html,
+        render_asset_events_html,
+        render_asset_header_html,
+        render_asset_maintenance_html,
+        render_asset_overview_html,
+        render_measurement_aggregation_svg,
+        render_measurement_history_svg,
         render_monitor_assets_html,
         render_monitor_flow_html,
+        resolve_measurement_range,
         validate_distinct_source_state_paths,
     )
 
@@ -88,6 +129,8 @@ def _(mo):
 
 @app.cell
 def _(
+    DuckLakeAssetHistory,
+    DuckLakeAssetHistoryConfig,
     JsonFieldFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
@@ -167,6 +210,18 @@ def _(
         os.environ.get(
             "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
             "artifacts/operations/finding-review.json",
+        )
+    )
+    history_catalog_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_HISTORY_CATALOG",
+            "artifacts/operations/history/catalog.sqlite",
+        )
+    )
+    history_data_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_HISTORY_DATA",
+            "artifacts/operations/history/data",
         )
     )
 
@@ -336,7 +391,25 @@ def _(
                 )
             )
 
-    attention = build_operations_attention_queue(
+    history_reader = None
+    history_assets = ()
+    if history_catalog_path.is_file():
+        try:
+            history_reader = DuckLakeAssetHistory(
+                DuckLakeAssetHistoryConfig(history_catalog_path, history_data_path)
+            )
+            history_assets = history_reader.list_history_assets()
+        except Exception as error:
+            system_errors.append(
+                SystemStateErrorEvidence(
+                    "asset-history",
+                    str(error),
+                    assessed_at,
+                )
+            )
+            history_reader = None
+
+        attention = build_operations_attention_queue(
         overview=overview,
         system_errors=tuple(system_errors),
     )
@@ -350,7 +423,17 @@ def _(
         as_of=assessed_at,
     )
 
-    return (monitor,)
+    return (
+        analysis_results,
+        assessed_at,
+        findings,
+        history_assets,
+        history_reader,
+        monitor,
+        overview,
+        registered_sources,
+        review_events,
+    )
 
 
 @app.cell
