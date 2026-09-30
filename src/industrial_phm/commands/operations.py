@@ -15,15 +15,15 @@ from industrial_phm.application import (
     JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
-    JsonWindowAnalysisLedger,
     JsonWindowAnalysisRuntimeRepository,
     ObservationWindowCoordinatorPolicy,
     PhaseUnbalanceConfig,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
     SqliteObservationWindowRepository,
+    SqliteWindowAnalysisLedger,
     TemporalAlignmentPolicy,
-    analyze_finalized_windows,
+    analyze_finalized_windows_incremental,
     backfill_registered_file_source,
     poll_registered_source,
     request_collection_state,
@@ -170,10 +170,15 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
             raise ValueError("interval_seconds must be positive")
         windows = SqliteObservationWindowRepository(args.window_state)
         results = JsonPhaseUnbalanceRepository(args.analysis_state)
-        ledger = JsonWindowAnalysisLedger(args.ledger_state)
+        ledger = SqliteWindowAnalysisLedger(args.ledger_state)
         config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
         while True:
-            outcomes = analyze_finalized_windows(windows, results, ledger, config=config)
+            outcomes = analyze_finalized_windows_incremental(
+                windows,
+                results,
+                ledger,
+                config=config,
+            )
             for outcome in outcomes:
                 detail = outcome.analysis_run_id or outcome.reason
                 print(
@@ -289,6 +294,7 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
                 telemetry,
                 stop_event=stop_event,
                 telemetry_recorder=telemetry,
+                service_runtime_recorder=telemetry,
                 policy=policy,
             )
 

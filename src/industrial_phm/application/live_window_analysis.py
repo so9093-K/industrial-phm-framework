@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 try:
     import fcntl
@@ -67,6 +68,69 @@ class WindowAnalysisOutcome:
             self.algorithm_version,
             self.analysis_policy_digest,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class WindowAnalysisCursor:
+    """Progress cursor scoped to one capability/algorithm/policy identity."""
+
+    capability_id: str
+    algorithm_version: str
+    analysis_policy_digest: str
+    window_end: datetime
+    window_id: str
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "capability_id",
+            "algorithm_version",
+            "analysis_policy_digest",
+            "window_id",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} must not be empty")
+        if not isinstance(self.window_end, datetime) or self.window_end.utcoffset() is None:
+            raise ValueError("window_end must be timezone-aware")
+
+    @property
+    def analysis_identity(self) -> tuple[str, str, str]:
+        return (
+            self.capability_id,
+            self.algorithm_version,
+            self.analysis_policy_digest,
+        )
+
+
+@runtime_checkable
+class IncrementalObservationWindowReader(Protocol):
+    def list_windows_after(
+        self,
+        *,
+        after_window_end: datetime | None = None,
+        after_window_id: str | None = None,
+        limit: int = 1000,
+    ) -> tuple[DurableObservationWindow, ...]: ...
+
+
+@runtime_checkable
+class WindowAnalysisProgressLedger(Protocol):
+    def list_skipped(self) -> tuple[WindowAnalysisOutcome, ...]: ...
+
+    def load_cursor(
+        self,
+        capability_id: str,
+        algorithm_version: str,
+        analysis_policy_digest: str,
+    ) -> WindowAnalysisCursor | None: ...
+
+    def advance_cursor(self, cursor: WindowAnalysisCursor) -> None: ...
+
+    def record_skip_and_advance(
+        self,
+        outcome: WindowAnalysisOutcome,
+        cursor: WindowAnalysisCursor,
+    ) -> None: ...
 
 
 class JsonWindowAnalysisLedger:
@@ -148,6 +212,78 @@ def _exclusive(path: Path) -> Iterator[None]:
         finally:
             if fcntl is not None:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def analyze_finalized_windows_incremental(
+    windows: IncrementalObservationWindowReader,
+    results: JsonPhaseUnbalanceRepository,
+    ledger: WindowAnalysisProgressLedger,
+    *,
+    config: PhaseUnbalanceConfig | None = None,
+    page_size: int = 1000,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> tuple[WindowAnalysisOutcome, ...]:
+    """Analyze one bounded page after a durable policy-specific cursor.
+
+    Persistence order is deliberate: result/skip evidence is committed before the
+    cursor advances. A crash may therefore recompute the last window, but cannot
+    skip an unpersisted outcome.
+    """
+    if isinstance(page_size, bool) or not isinstance(page_size, int) or page_size < 1:
+        raise ValueError("page_size must be a positive integer")
+    if page_size > 10_000:
+        raise ValueError("page_size must not exceed 10000")
+    capability, algorithm = PHASE_UNBALANCE_CAPABILITY_ID, PHASE_UNBALANCE_ALGORITHM_VERSION
+    requested = config or PhaseUnbalanceConfig()
+    policy_digest = phase_unbalance_policy_digest(requested)
+    cursor = ledger.load_cursor(capability, algorithm, policy_digest)
+    pending = windows.list_windows_after(
+        after_window_end=None if cursor is None else cursor.window_end,
+        after_window_id=None if cursor is None else cursor.window_id,
+        limit=page_size,
+    )
+
+    outcomes: list[WindowAnalysisOutcome] = []
+    for window in pending:
+        next_cursor = WindowAnalysisCursor(
+            capability_id=capability,
+            algorithm_version=algorithm,
+            analysis_policy_digest=policy_digest,
+            window_end=window.window_end,
+            window_id=window.window_id,
+        )
+        try:
+            analysis = run_phase_unbalance_on_window(window, config=requested, now=now)
+        except ValueError as error:
+            skipped = WindowAnalysisOutcome(
+                window.window_id,
+                capability,
+                algorithm,
+                policy_digest,
+                WindowAnalysisState.SKIPPED,
+                now(),
+                reason=str(error),
+            )
+            ledger.record_skip_and_advance(skipped, next_cursor)
+            outcomes.append(skipped)
+            continue
+
+        stored = results.record_window_result(analysis)
+        reference = stored.evidence.input_reference
+        if not isinstance(reference, WindowInputReference):
+            raise AssertionError("window result must keep its window input reference")
+        analyzed = WindowAnalysisOutcome(
+            window.window_id,
+            capability,
+            algorithm,
+            policy_digest,
+            WindowAnalysisState.ANALYZED,
+            stored.run.completed_at,
+            analysis_run_id=stored.run.analysis_run_id,
+        )
+        ledger.advance_cursor(next_cursor)
+        outcomes.append(analyzed)
+    return tuple(outcomes)
 
 
 def analyze_finalized_windows(

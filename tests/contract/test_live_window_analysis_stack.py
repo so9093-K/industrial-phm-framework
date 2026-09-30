@@ -18,9 +18,9 @@ pytest.importorskip("filelock")
 
 from industrial_phm.application import (
     CollectionDesiredState,
-    JsonObservationWindowRepository,
     JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
+    SqliteObservationWindowRepository,
     WindowInputReference,
     request_collection_state,
     window_input_reference,
@@ -62,7 +62,7 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
     root = tmp_path / "stack"
     demo.prepare(root, endpoint, profile="three-phase")
     sources = JsonSourceRepository(root / "sources.json")
-    windows = JsonObservationWindowRepository(root / "windows.json")
+    windows = SqliteObservationWindowRepository(root / "windows.sqlite")
     results = JsonPhaseUnbalanceRepository(root / "phase-unbalance.json")
     server_cmd = [
         sys.executable,
@@ -80,7 +80,7 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
         ("control-state", "control.sqlite"),
         ("spool-state", "spool.sqlite"),
         ("telemetry-state", "telemetry.sqlite"),
-        ("window-state", "windows.json"),
+        ("window-state", "windows.sqlite"),
         ("ducklake-catalog", "catalog.sqlite"),
         ("ducklake-data", "data"),
     ):
@@ -91,11 +91,11 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
         "operations",
         "run-window-analysis",
         "--window-state",
-        str(root / "windows.json"),
+        str(root / "windows.sqlite"),
         "--analysis-state",
         str(root / "phase-unbalance.json"),
         "--ledger-state",
-        str(root / "window-analysis-ledger.json"),
+        str(root / "window-analysis-ledger.sqlite"),
         "--once",
     ]
     env = os.environ.copy()
@@ -120,7 +120,9 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
                 requested_at=datetime.now(UTC),
             )
             _wait(
-                lambda: root.joinpath("windows.json").exists() and len(windows.list_windows()) >= 2
+                lambda: (
+                    root.joinpath("windows.sqlite").exists() and len(windows.list_windows()) >= 2
+                )
             )
             assert collector.poll() is None
 

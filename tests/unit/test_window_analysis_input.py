@@ -326,3 +326,95 @@ def test_runner_result_identity_distinguishes_alignment_and_survives_reload(tmp_
         == ()
     )
     assert len(reloaded_results.list_results()) == 2
+
+
+def test_incremental_runner_pages_forward_and_restores_policy_cursor(tmp_path):
+    from industrial_phm.application import (
+        SqliteObservationWindowRepository,
+        SqliteWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows_incremental,
+    )
+
+    windows = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
+    windows.record_window(_window())
+    unbound = ObservationWindowBuffer(
+        window_id="unbound-incremental",
+        source_id="site-opcua",
+        asset_id="motor-7",
+        measurement_point_id="mcc-3",
+        expected_channel_ids=("va",),
+        window_start=END,
+        window_end=END + timedelta(minutes=1),
+        max_buffered_events=4,
+        max_future_skew_seconds=5.0,
+    )
+    unbound.ingest(_event("va", 70, 220.0, 51, bound=False))
+    unbound.advance_watermark(END + timedelta(minutes=1))
+    windows.record_window(unbound.finalize(finalized_at=END + timedelta(minutes=1)))
+
+    results = JsonPhaseUnbalanceRepository(tmp_path / "incremental-results.json")
+    ledger_path = tmp_path / "incremental-ledger.sqlite"
+    ledger = SqliteWindowAnalysisLedger(ledger_path)
+
+    first = analyze_finalized_windows_incremental(
+        windows,
+        results,
+        ledger,
+        page_size=1,
+    )
+    assert len(first) == 1
+    assert first[0].state == WindowAnalysisState.ANALYZED
+
+    reloaded = SqliteWindowAnalysisLedger(ledger_path)
+    second = analyze_finalized_windows_incremental(
+        windows,
+        results,
+        reloaded,
+        page_size=1,
+    )
+    assert len(second) == 1
+    assert second[0].window_id == "unbound-incremental"
+    assert second[0].state == WindowAnalysisState.SKIPPED
+    assert "no three-phase" in second[0].reason
+
+    assert (
+        analyze_finalized_windows_incremental(
+            windows,
+            results,
+            SqliteWindowAnalysisLedger(ledger_path),
+            page_size=1,
+        )
+        == ()
+    )
+    assert len(results.list_results()) == 1
+    assert [item.window_id for item in reloaded.list_skipped()] == ["unbound-incremental"]
+
+
+def test_incremental_runner_uses_independent_cursor_per_analysis_policy(tmp_path):
+    from industrial_phm.application import (
+        SqliteObservationWindowRepository,
+        SqliteWindowAnalysisLedger,
+        WindowAnalysisState,
+        analyze_finalized_windows_incremental,
+    )
+
+    windows = SqliteObservationWindowRepository(tmp_path / "policy-windows.sqlite")
+    windows.record_window(_window())
+    results = JsonPhaseUnbalanceRepository(tmp_path / "policy-results.json")
+    ledger = SqliteWindowAnalysisLedger(tmp_path / "policy-ledger.sqlite")
+
+    strict = analyze_finalized_windows_incremental(windows, results, ledger)
+    assert len(strict) == 1
+    assert strict[0].state == WindowAnalysisState.ANALYZED
+
+    changed = analyze_finalized_windows_incremental(
+        windows,
+        results,
+        ledger,
+        config=PhaseUnbalanceConfig(bucket_count=50),
+    )
+    assert len(changed) == 1
+    assert changed[0].state == WindowAnalysisState.ANALYZED
+    assert changed[0].analysis_policy_digest != strict[0].analysis_policy_digest
+    assert len(results.list_results()) == 2

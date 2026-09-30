@@ -21,6 +21,10 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionTelemetrySnapshot,
     AcquisitionTelemetrySurface,
     AcquisitionWindowTelemetry,
+    CollectionServiceRuntimeRecorder,
+    CollectionServiceRuntimeRepository,
+    CollectionServiceRuntimeState,
+    CollectionServiceRuntimeTelemetry,
     build_acquisition_telemetry_surface,
 )
 from industrial_phm.application.alignment import (
@@ -115,10 +119,14 @@ from industrial_phm.application.history_writer import (
     SpoolToHistoryWriterPolicy,
 )
 from industrial_phm.application.live_window_analysis import (
+    IncrementalObservationWindowReader,
     JsonWindowAnalysisLedger,
+    WindowAnalysisCursor,
     WindowAnalysisOutcome,
+    WindowAnalysisProgressLedger,
     WindowAnalysisState,
     analyze_finalized_windows,
+    analyze_finalized_windows_incremental,
 )
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
@@ -320,6 +328,9 @@ from industrial_phm.application.source_subscription import (
     collect_registered_opcua_source_subscription,
     run_registered_opcua_subscription_cycle,
 )
+from industrial_phm.application.window_analysis_ledger_sqlite import (
+    SqliteWindowAnalysisLedger,
+)
 from industrial_phm.application.window_analysis_runtime import (
     JsonWindowAnalysisRuntimeRepository,
     WindowAnalysisRunnerState,
@@ -387,6 +398,10 @@ __all__ = [
     "CollectionControlRecord",
     "CollectionControlRepository",
     "CollectionDesiredState",
+    "CollectionServiceRuntimeRecorder",
+    "CollectionServiceRuntimeRepository",
+    "CollectionServiceRuntimeState",
+    "CollectionServiceRuntimeTelemetry",
     "ComponentIdentity",
     "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
@@ -412,6 +427,7 @@ __all__ = [
     "HistoryIngestionMode",
     "InMemoryOpcUaPersistentSessionEvidenceSink",
     "InMemorySourceRepository",
+    "IncrementalObservationWindowReader",
     "IncrementalObservationWindowRepository",
     "InvestigationQueueItem",
     "InvestigationQueueView",
@@ -515,6 +531,7 @@ __all__ = [
     "SpoolHistoryWriterResult",
     "SpoolToHistoryWriterPolicy",
     "SqliteObservationWindowRepository",
+    "SqliteWindowAnalysisLedger",
     "SystemRuntimeError",
     "SystemRuntimeFact",
     "SystemRuntimeKind",
@@ -523,13 +540,16 @@ __all__ = [
     "SystemStateErrorEvidence",
     "TemporalAlignmentPolicy",
     "UnknownRegisteredSourceError",
+    "WindowAnalysisCursor",
     "WindowAnalysisOutcome",
+    "WindowAnalysisProgressLedger",
     "WindowAnalysisRunnerState",
     "WindowAnalysisRunnerTelemetry",
     "WindowAnalysisState",
     "WindowInputReference",
     "align_observations",
     "analyze_finalized_windows",
+    "analyze_finalized_windows_incremental",
     "assess_source_freshness",
     "assess_source_health",
     "backfill_registered_file_source",
