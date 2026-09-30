@@ -1,8 +1,8 @@
 import pytest
 
 from industrial_phm.application import (
-    MeasurementDefinition,
     OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS,
+    MeasurementDefinition,
     parse_opcua_semantic_bindings,
 )
 
