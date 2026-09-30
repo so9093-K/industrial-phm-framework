@@ -100,7 +100,11 @@ def test_system_view_uses_instrumented_runtime_without_inventing_collection_proc
 
     application = view.services[3]
     assert application.status == OperationsMonitorStatus.RUNNING
-    assert application.summary == "Operations application loaded current state"
+    assert application.title == "Operations state read"
+    assert application.summary == "Current Operations state read succeeded"
+    assert {fact.label: fact.value for fact in application.facts}["Process heartbeat"] == (
+        "Not instrumented"
+    )
 
 
 def test_system_view_surfaces_read_failure_as_application_error() -> None:
@@ -120,6 +124,6 @@ def test_system_view_surfaces_read_failure_as_application_error() -> None:
 
     application = view.services[3]
     assert application.status == OperationsMonitorStatus.ERROR
-    assert application.summary == "1 application read error(s)"
+    assert application.summary == "1 current state-read error(s)"
     assert view.errors[0].title == "Asset History"
     assert view.errors[0].detail == "catalog unreadable"
