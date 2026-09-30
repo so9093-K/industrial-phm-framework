@@ -249,7 +249,7 @@ source lifecycle
     ≠ PHM finding severity
 ```
 
-Continuous runtime telemetry는 control-plane registry와 기존 bounded `source-runtime-v3`에서 분리된
+Continuous runtime telemetry는 control-plane registry와 bounded source-runtime repository에서 분리된
 SQLite WAL latest-evidence store를 사용합니다. Collector, history writer, window coordinator가 source별
 component row를 독립적으로 갱신해 서로의 최신 evidence를 덮어쓰지 않습니다.
 
