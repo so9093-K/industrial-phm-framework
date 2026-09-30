@@ -31,11 +31,23 @@ from industrial_phm.presentation.operations_v2_assets import (
     render_asset_maintenance_html,
     render_asset_overview_html,
 )
+from industrial_phm.presentation.operations_v2_investigations import (
+    investigation_capability_label,
+    investigation_queue_option_label,
+    investigation_review_label,
+    investigation_workspace_css,
+    render_investigation_evidence_identity_html,
+    render_investigation_summary_html,
+)
 
 __all__ = [
     "OPERATIONS_V2_MAIN_BACKGROUND",
     "OperationalAnalysisPresentationKind",
     "asset_workspace_css",
+    "investigation_capability_label",
+    "investigation_queue_option_label",
+    "investigation_review_label",
+    "investigation_workspace_css",
     "operational_analysis_presentation_kind",
     "operations_v2_theme_css",
     "render_analysis_quality_markdown",
@@ -51,6 +63,8 @@ __all__ = [
     "render_attention_queue_markdown",
     "render_collection_monitor_markdown",
     "render_data_quality_issues_markdown",
+    "render_investigation_evidence_identity_html",
+    "render_investigation_summary_html",
     "render_monitor_assets_html",
     "render_monitor_flow_html",
     "render_observation_markdown",
