@@ -263,6 +263,7 @@ def _(
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
+    SqliteCollectionControlRepository,
     SystemStateErrorEvidence,
     UTC,
     build_operations_attention_queue,
@@ -299,6 +300,12 @@ def _(
         os.environ.get(
             "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
             "artifacts/operations/acquisition-spool.sqlite",
+        )
+    )
+    collection_control_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
+            "artifacts/operations/collection-control.sqlite",
         )
     )
     field_analysis_path = Path(
@@ -528,6 +535,21 @@ def _(
             )
             history_reader = None
 
+    collection_records = ()
+    if collection_control_path.is_file():
+        try:
+            collection_records = SqliteCollectionControlRepository(
+                collection_control_path
+            ).list_records()
+        except (OSError, ValueError) as error:
+            system_errors.append(
+                SystemStateErrorEvidence(
+                    "collection-control",
+                    str(error),
+                    assessed_at,
+                )
+            )
+
     attention = build_operations_attention_queue(
         overview=overview,
         system_errors=tuple(system_errors),
@@ -547,6 +569,7 @@ def _(
         ("Source runtime", str(source_runtime_path)),
         ("Acquisition telemetry", str(acquisition_telemetry_path)),
         ("Acquisition spool", str(acquisition_spool_path)),
+        ("Collection control", str(collection_control_path)),
         ("Asset History catalog", str(history_catalog_path)),
         ("Asset History data", str(history_data_path)),
         ("Vibration analysis", str(field_analysis_path)),
@@ -561,13 +584,17 @@ def _(
         analysis_results,
         analysis_runtime,
         assessed_at,
+        collection_control_path,
+        collection_records,
         finding_path,
         findings,
         history_assets,
         history_reader,
+        lifecycle_records,
         monitor,
         overview,
         registered_sources,
+        registry_path,
         review_events,
         review_path,
         system_diagnostics,
