@@ -5,11 +5,17 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX platforms use atomic replace only
+    fcntl = None  # type: ignore[assignment]
 
 from industrial_phm.application.live_window_analysis import (
     WindowAnalysisOutcome,
@@ -119,28 +125,29 @@ class JsonWindowAnalysisRuntimeRepository:
 
     def record_start(self, at: datetime) -> WindowAnalysisRunnerTelemetry:
         _require_aware(at, "at")
-        previous = self.load()
-        status = WindowAnalysisRunnerTelemetry(
-            state=WindowAnalysisRunnerState.RUNNING,
-            started_at=at,
-            heartbeat_at=at,
-            cycle_count=0 if previous is None else previous.cycle_count,
-            analyzed_count=0 if previous is None else previous.analyzed_count,
-            skipped_count=0 if previous is None else previous.skipped_count,
-            last_cycle_completed_at=(
-                None if previous is None else previous.last_cycle_completed_at
-            ),
-            last_analysis_at=None if previous is None else previous.last_analysis_at,
-            last_analysis_run_id=(
-                None if previous is None else previous.last_analysis_run_id
-            ),
-            last_skip_at=None if previous is None else previous.last_skip_at,
-            last_skip_reason=None if previous is None else previous.last_skip_reason,
-            last_failure_at=None if previous is None else previous.last_failure_at,
-            last_failure=None if previous is None else previous.last_failure,
-        )
-        self._write(status)
-        return status
+        with _exclusive(self._path):
+            previous = self.load()
+            status = WindowAnalysisRunnerTelemetry(
+                state=WindowAnalysisRunnerState.RUNNING,
+                started_at=at,
+                heartbeat_at=at,
+                cycle_count=0 if previous is None else previous.cycle_count,
+                analyzed_count=0 if previous is None else previous.analyzed_count,
+                skipped_count=0 if previous is None else previous.skipped_count,
+                last_cycle_completed_at=(
+                    None if previous is None else previous.last_cycle_completed_at
+                ),
+                last_analysis_at=None if previous is None else previous.last_analysis_at,
+                last_analysis_run_id=(
+                    None if previous is None else previous.last_analysis_run_id
+                ),
+                last_skip_at=None if previous is None else previous.last_skip_at,
+                last_skip_reason=None if previous is None else previous.last_skip_reason,
+                last_failure_at=None if previous is None else previous.last_failure_at,
+                last_failure=None if previous is None else previous.last_failure,
+            )
+            self._write(status)
+            return status
 
     def record_cycle(
         self,
@@ -149,10 +156,24 @@ class JsonWindowAnalysisRuntimeRepository:
         completed_at: datetime,
     ) -> WindowAnalysisRunnerTelemetry:
         _require_aware(completed_at, "completed_at")
-        current = self._require_current()
+        with _exclusive(self._path):
+            current = self._require_current()
+            return self._record_cycle_locked(
+                current,
+                tuple(outcomes),
+                completed_at=completed_at,
+            )
+
+    def _record_cycle_locked(
+        self,
+        current: WindowAnalysisRunnerTelemetry,
+        outcomes: tuple[WindowAnalysisOutcome, ...],
+        *,
+        completed_at: datetime,
+    ) -> WindowAnalysisRunnerTelemetry:
         if completed_at < current.heartbeat_at:
             raise ValueError("completed_at must not move backwards")
-        values = tuple(outcomes)
+        values = outcomes
         if any(not isinstance(item, WindowAnalysisOutcome) for item in values):
             raise ValueError("outcomes must contain only WindowAnalysisOutcome values")
 
@@ -200,31 +221,33 @@ class JsonWindowAnalysisRuntimeRepository:
         _require_aware(occurred_at, "occurred_at")
         if not isinstance(detail, str) or not detail.strip():
             raise ValueError("detail must not be empty")
-        current = self._require_current()
-        if occurred_at < current.heartbeat_at:
-            raise ValueError("occurred_at must not move backwards")
-        status = replace(
-            current,
-            state=WindowAnalysisRunnerState.FAILED,
-            heartbeat_at=occurred_at,
-            last_failure_at=occurred_at,
-            last_failure=detail,
-        )
-        self._write(status)
-        return status
+        with _exclusive(self._path):
+            current = self._require_current()
+            if occurred_at < current.heartbeat_at:
+                raise ValueError("occurred_at must not move backwards")
+            status = replace(
+                current,
+                state=WindowAnalysisRunnerState.FAILED,
+                heartbeat_at=occurred_at,
+                last_failure_at=occurred_at,
+                last_failure=detail,
+            )
+            self._write(status)
+            return status
 
     def record_stop(self, at: datetime) -> WindowAnalysisRunnerTelemetry:
         _require_aware(at, "at")
-        current = self._require_current()
-        if at < current.heartbeat_at:
-            raise ValueError("at must not move backwards")
-        status = replace(
-            current,
-            state=WindowAnalysisRunnerState.STOPPED,
-            heartbeat_at=at,
-        )
-        self._write(status)
-        return status
+        with _exclusive(self._path):
+            current = self._require_current()
+            if at < current.heartbeat_at:
+                raise ValueError("at must not move backwards")
+            status = replace(
+                current,
+                state=WindowAnalysisRunnerState.STOPPED,
+                heartbeat_at=at,
+            )
+            self._write(status)
+            return status
 
     def _require_current(self) -> WindowAnalysisRunnerTelemetry:
         current = self.load()
@@ -267,6 +290,20 @@ class JsonWindowAnalysisRuntimeRepository:
             os.replace(handle.name, self._path)
         finally:
             Path(handle.name).unlink(missing_ok=True)
+
+
+@contextmanager
+def _exclusive(path: Path) -> Iterator[None]:
+    """Serialize runner runtime read-modify-write between cooperating local processes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(str(path) + ".lock", "a+") as handle:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _require_aware(value: datetime, field_name: str) -> None:
