@@ -1783,6 +1783,168 @@ def _(
 
 
 @app.cell
+def _(FileSourceConfig, FileSourceMode, asset_workspace, mo, registered_sources):
+    if asset_workspace is None:
+        asset_file_analysis_source = None
+        asset_run_file_analysis_button = None
+    else:
+        _file_candidates = tuple(
+            source
+            for source in registered_sources
+            if source.asset_id == asset_workspace.asset_id
+            and isinstance(source.config, FileSourceConfig)
+            and source.config.mode == FileSourceMode.SNAPSHOT
+        )
+        if _file_candidates:
+            _options = {
+                f"{source.name} · {source.source_id}": source.source_id
+                for source in _file_candidates
+            }
+            asset_file_analysis_source = mo.ui.dropdown(
+                options=list(_options),
+                value=next(iter(_options)),
+                label="FILE snapshot source",
+                full_width=True,
+            )
+            asset_run_file_analysis_button = mo.ui.run_button(
+                label="Analyze FILE snapshot",
+                kind="success",
+            )
+        else:
+            asset_file_analysis_source = None
+            asset_run_file_analysis_button = None
+    return asset_file_analysis_source, asset_run_file_analysis_button
+
+
+@app.cell
+def _(mo):
+    get_asset_analysis_action_error, set_asset_analysis_action_error = mo.state("")
+    get_asset_analysis_action_success, set_asset_analysis_action_success = mo.state("")
+    return (
+        get_asset_analysis_action_error,
+        get_asset_analysis_action_success,
+        set_asset_analysis_action_error,
+        set_asset_analysis_action_success,
+    )
+
+
+@app.cell
+def _(
+    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    JsonFieldFeatureAnalysisRepository,
+    asset_file_analysis_source,
+    asset_run_file_analysis_button,
+    field_analysis_path,
+    get_analysis_results,
+    registered_sources,
+    run_registered_file_feature_analysis,
+    set_analysis_results,
+    set_asset_analysis_action_error,
+    set_asset_analysis_action_success,
+):
+    if asset_run_file_analysis_button is not None and asset_run_file_analysis_button.value:
+        try:
+            if asset_file_analysis_source is None:
+                raise ValueError("select a FILE snapshot source before analysis")
+            _selected_label = asset_file_analysis_source.value
+            _source_id = _selected_label.rsplit(" · ", 1)[-1]
+            _source = next(
+                source for source in registered_sources if source.source_id == _source_id
+            )
+            _result = run_registered_file_feature_analysis(_source)
+            _repository = JsonFieldFeatureAnalysisRepository(field_analysis_path)
+            _repository.record(_result)
+            _field_results = _repository.list_results()
+            _other_results = tuple(
+                item
+                for item in get_analysis_results()
+                if item.evidence.capability_id != FIELD_VIBRATION_FEATURE_CAPABILITY_ID
+            )
+            _updated_results = tuple(
+                sorted(
+                    (*_other_results, *_field_results),
+                    key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
+                )
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_asset_analysis_action_success("")
+            set_asset_analysis_action_error(str(error))
+        else:
+            set_analysis_results(_updated_results)
+            set_asset_analysis_action_error("")
+            set_asset_analysis_action_success(
+                "FILE snapshot analysis recorded. Assets and Investigations now use the "
+                "persisted evidence. This does not create anomaly, fault, health, or "
+                "maintenance meaning."
+            )
+    return
+
+
+@app.cell
+def _(get_asset_analysis_action_error, get_asset_analysis_action_success):
+    asset_analysis_action_error = get_asset_analysis_action_error()
+    asset_analysis_action_success = get_asset_analysis_action_success()
+    return asset_analysis_action_error, asset_analysis_action_success
+
+
+@app.cell
+def _(
+    asset_analysis_action_error,
+    asset_analysis_action_success,
+    asset_file_analysis_source,
+    asset_run_file_analysis_button,
+    asset_workspace,
+    mo,
+    render_asset_analysis_html,
+):
+    if asset_workspace is None:
+        asset_analysis_view = mo.md("No asset is selected.")
+    else:
+        _blocks = [mo.Html(render_asset_analysis_html(asset_workspace))]
+        if asset_analysis_action_error:
+            _blocks.append(
+                mo.callout(
+                    asset_analysis_action_error,
+                    kind="danger",
+                    title="FILE analysis failed",
+                )
+            )
+        if asset_analysis_action_success:
+            _blocks.append(
+                mo.callout(
+                    asset_analysis_action_success,
+                    kind="success",
+                    title="Analysis recorded",
+                )
+            )
+        if (
+            asset_file_analysis_source is not None
+            and asset_run_file_analysis_button is not None
+        ):
+            _blocks.extend(
+                [
+                    mo.md("### Analyze prepared FILE snapshot"),
+                    asset_file_analysis_source,
+                    asset_run_file_analysis_button,
+                    mo.md(
+                        "This action computes and stores versioned vibration statistical "
+                        "feature evidence from the exact registered snapshot. It does not "
+                        "declare anomaly, fault, health state, or maintenance need."
+                    ),
+                ]
+            )
+        else:
+            _blocks.append(
+                mo.md(
+                    "No registered FILE snapshot source is available for on-demand "
+                    "feature analysis on this asset."
+                )
+            )
+        asset_analysis_view = mo.vstack(_blocks, gap=0.8)
+    return (asset_analysis_view,)
+
+
+@app.cell
 def _(asset_workspace, mo):
     if asset_workspace is None or not asset_workspace.history_channels:
         signal_channel_selector = None
@@ -3236,6 +3398,7 @@ def _(
 
 @app.cell
 def _(
+    asset_analysis_view,
     asset_section,
     asset_selector,
     asset_workspace,
@@ -3353,7 +3516,7 @@ def _(
         _asset_sections = {
             "Overview": mo.Html(render_asset_overview_html(asset_workspace)),
             "Signals": signal_view,
-            "Analysis": mo.Html(render_asset_analysis_html(asset_workspace)),
+            "Analysis": asset_analysis_view,
             "Events": mo.Html(render_asset_events_html(asset_workspace)),
             "Maintenance": mo.Html(render_asset_maintenance_html(asset_workspace)),
         }
