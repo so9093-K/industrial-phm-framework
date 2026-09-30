@@ -11,6 +11,12 @@
 
 ### Changed
 
+- Operations의 OPC UA **Add source**에서 channel별 measurement semantics를 explicit CSV row로 등록할 수
+  있습니다. observed property/scope/statistic/unit, semantic version과 interpretation/unit evidence를
+  versioned `ChannelSemanticBinding`으로 저장하며 browse name·channel ID·NodeId에서는 물리 의미를
+  추론하지 않습니다. 입력하지 않은 channel은 기존처럼 unresolved로 유지하고 등록된 binding은 Source
+  detail에서 확인할 수 있습니다.
+
 - 문서 Source of Truth를 재정리했습니다. `docs/status.md`가 현재 구현·지원·현장검증 상태를 단독 소유하고,
   README는 제품 목적/진입점, Architecture는 장기 책임/contract, ADR은 구조 결정, subsystem README는 실행
   절차를 소유합니다. 계획된 작업·milestone은 Issue/PR에서 관리하며 Architecture에 PR 번호나 진행 상태를
