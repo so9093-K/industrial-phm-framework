@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from industrial_phm.application import (
     AlignmentPolicyKind,
     CollectionDesiredState,
-    JsonObservationWindowRepository,
+    SqliteObservationWindowRepository,
     JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
@@ -168,7 +168,7 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
     try:
         if args.interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
-        windows = JsonObservationWindowRepository(args.window_state)
+        windows = SqliteObservationWindowRepository(args.window_state)
         results = JsonPhaseUnbalanceRepository(args.analysis_state)
         ledger = JsonWindowAnalysisLedger(args.ledger_state)
         config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
@@ -267,7 +267,7 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
                 data_path=args.ducklake_data,
             )
         )
-        window_repository = JsonObservationWindowRepository(args.window_state)
+        window_repository = SqliteObservationWindowRepository(args.window_state)
         policy = CollectionServicePolicy(
             reconcile_interval_seconds=args.reconcile_interval_seconds,
             window_policy=ObservationWindowCoordinatorPolicy(
