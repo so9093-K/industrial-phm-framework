@@ -122,9 +122,9 @@ def test_queue_filters_without_reordering_or_inventing_priority() -> None:
 
     assert queue.filter(review_state=InvestigationReviewState.OPEN) == (queue.items[1],)
     assert queue.filter(asset_id="asset-a") == (queue.items[0],)
-    assert queue.filter(
-        capability_id="field-vibration-statistical-features-v1"
-    ) == (queue.items[1],)
+    assert queue.filter(capability_id="field-vibration-statistical-features-v1") == (
+        queue.items[1],
+    )
 
 
 def test_queue_rejects_ambiguous_duplicate_human_review_findings() -> None:
