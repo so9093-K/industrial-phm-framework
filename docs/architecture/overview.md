@@ -26,7 +26,7 @@ CanonicalTimeSeries의 finite rectangular 계약은 유지합니다.
 OPC UA collection, durable spool, DuckLake Asset History와 live/backfill의 ownership·restart contract는
 [`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)와
 [`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. 이 문서는 component
-책임을 설명하며 현재 지원 여부나 다음 milestone을 소유하지 않습니다. 구현 지원 범위는
+책임과 contract를 설명하며 지원 상태나 계획을 소유하지 않습니다. 구현 지원 범위는
 [현재 지원 상태](../status.md)를 기준으로 확인합니다.
 
 ## 1. 시스템 아키텍처
@@ -429,5 +429,5 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-`assets/system-architecture.png`(원본 `.svg`)는 현재 대표 구조입니다. 모델 학습·평가와 서비스 아키텍처
-PNG는 research path와 향후 서비스 책임을 설명하는 reference 그림이며 현재 구현 범위를 나타내지 않습니다.
+`assets/system-architecture.png`(원본 `.svg`)는 대표 책임 구조입니다. 모델 학습·평가와 서비스 아키텍처
+PNG는 research path와 service responsibility를 설명하는 reference이며 지원 범위 표로 사용하지 않습니다.
