@@ -120,6 +120,11 @@ from industrial_phm.application.live_window_analysis import (
     WindowAnalysisState,
     analyze_finalized_windows,
 )
+from industrial_phm.application.window_analysis_runtime import (
+    JsonWindowAnalysisRuntimeRepository,
+    WindowAnalysisRunnerState,
+    WindowAnalysisRunnerTelemetry,
+)
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewEvent,
@@ -357,6 +362,7 @@ __all__ = [
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
     "JsonWindowAnalysisLedger",
+    "JsonWindowAnalysisRuntimeRepository",
     "MeasurementDefinition",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
@@ -433,6 +439,8 @@ __all__ = [
     "UnknownRegisteredSourceError",
     "WindowAnalysisOutcome",
     "WindowAnalysisState",
+    "WindowAnalysisRunnerState",
+    "WindowAnalysisRunnerTelemetry",
     "WindowInputReference",
     "align_observations",
     "analyze_finalized_windows",
