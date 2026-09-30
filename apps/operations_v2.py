@@ -680,7 +680,7 @@ def _(
                     asset_selector.value,
                     start_at=_start_at,
                     end_at=_end_at,
-                    channel_id=channel_id,
+                    channel_id=_channel_id,
                     point_budget=2000,
                     latest=True,
                 )
