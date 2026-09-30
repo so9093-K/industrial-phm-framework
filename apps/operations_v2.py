@@ -805,6 +805,100 @@ def _(CollectionDesiredState, SourceType, mo, setup_selected_source):
 
 
 @app.cell
+def _(mo, setup_selected_source):
+    if setup_selected_source is None:
+        setup_freshness_age_input = None
+        setup_save_freshness_button = None
+        setup_clear_freshness_button = None
+    else:
+        _freshness_value = (
+            ""
+            if setup_selected_source.freshness_max_age_seconds is None
+            else f"{setup_selected_source.freshness_max_age_seconds:g}"
+        )
+        setup_freshness_age_input = mo.ui.text(
+            value=_freshness_value,
+            label="Maximum data age (seconds)",
+            full_width=True,
+        )
+        setup_save_freshness_button = mo.ui.run_button(label="Save data age policy")
+        setup_clear_freshness_button = (
+            None
+            if setup_selected_source.freshness_max_age_seconds is None
+            else mo.ui.run_button(label="Clear policy")
+        )
+    return (
+        setup_clear_freshness_button,
+        setup_freshness_age_input,
+        setup_save_freshness_button,
+    )
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    SourceFreshnessPolicy,
+    datetime,
+    get_setup_config,
+    registry_path,
+    set_setup_config,
+    set_setup_error,
+    set_setup_success,
+    setup_clear_freshness_button,
+    setup_freshness_age_input,
+    setup_save_freshness_button,
+    setup_selected_source,
+):
+    _freshness_action = None
+    if setup_save_freshness_button is not None and setup_save_freshness_button.value:
+        _freshness_action = "save"
+    elif setup_clear_freshness_button is not None and setup_clear_freshness_button.value:
+        _freshness_action = "clear"
+
+    if _freshness_action is not None:
+        try:
+            if setup_selected_source is None:
+                raise ValueError("select a data source before changing its data age policy")
+            _repository = JsonSourceRepository(registry_path)
+            _source_id = setup_selected_source.source_id
+            if _freshness_action == "save":
+                if setup_freshness_age_input is None:
+                    raise ValueError("data age policy input is unavailable")
+                _raw_value = setup_freshness_age_input.value.strip()
+                if not _raw_value:
+                    raise ValueError("maximum data age is required")
+                _policy = SourceFreshnessPolicy(
+                    source_id=_source_id,
+                    max_observation_age_seconds=float(_raw_value),
+                    changed_at=datetime.now().astimezone(),
+                )
+                _repository.set_freshness_policy(_policy)
+                _message = (
+                    f"Data age policy saved: {_source_id} · "
+                    f"{_policy.max_observation_age_seconds:g} s."
+                )
+            else:
+                _repository.clear_freshness_policy(_source_id)
+                _message = f"Data age policy cleared: {_source_id}."
+
+            _sources = _repository.list_sources()
+            _policies = tuple(
+                policy
+                for source in _sources
+                if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            _, _lifecycles, _collection, _ = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _collection, _policies))
+            set_setup_error("")
+            set_setup_success(_message)
+    return
+
+
+@app.cell
 def _(
     JsonSourceRepository,
     SourceLifecycleState,
