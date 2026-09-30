@@ -102,6 +102,28 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
 def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
+
+    attempt_rows = "".join(
+        (
+            "<tr>"
+            f"<td>{escape(_time_label(item.recorded_at))}</td>"
+            f"<td>{escape(item.state.value.title())}</td>"
+            f"<td><strong>{escape(_capability_label(item.capability_id))}</strong></td>"
+            f"<td>{escape(item.source_id)}</td>"
+            f"<td>{escape(_time_label(item.observed_start_at))} → "
+            f"{escape(_time_label(item.observed_end_at))}</td>"
+            f"<td>{escape(item.reason or '—')}</td>"
+            "</tr>"
+        )
+        for item in view.analysis_attempts[:50]
+    )
+    if not attempt_rows:
+        attempt_rows = (
+            '<tr><td colspan="6" class="phm-card-detail">'
+            "No analysis attempt has been recorded for this asset yet."
+            "</td></tr>"
+        )
+
     rows = "".join(
         (
             "<tr>"
@@ -120,18 +142,22 @@ def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
     if not rows:
         rows = (
             '<tr><td colspan="6" class="phm-card-detail">'
-            "No analysis has been recorded for this asset yet."
+            "No analysis evidence has been recorded for this asset yet."
             "</td></tr>"
         )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Analysis</div>'
+        '<div class="phm-section-title">Recent analysis attempts</div>'
+        '<table class="phm-table">'
+        "<thead><tr><th>Time</th><th>Outcome</th><th>Capability</th><th>Source</th>"
+        "<th>Observed range</th><th>Why no result</th></tr></thead>"
+        f"<tbody>{attempt_rows}</tbody></table>"
+        '<div class="phm-section-title phm-section-space">Recorded analysis evidence</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Completed</th><th>Capability</th><th>Source</th>"
         "<th>Point</th><th>Data quality</th><th>Observed range</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
-
 
 def render_asset_events_html(view: AssetWorkspaceView) -> str:
     if not isinstance(view, AssetWorkspaceView):
@@ -285,10 +311,10 @@ def _time_label(value: datetime | None) -> str:
         return "—"
     if value.utcoffset() is None:
         return "Time not comparable"
-    return value.astimezone(UTC).isoformat()
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def _event_time_label(value: datetime | None) -> str:
     if value is None or value.utcoffset() is None:
         return "Time not comparable"
-    return value.astimezone(UTC).isoformat()
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
