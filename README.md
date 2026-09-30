@@ -62,7 +62,7 @@ AI-Hub 보일러·압출기의 historical data 실행 예시는
 
 - [현재 지원 상태](docs/status.md) — 구현된 operational/research 지원 범위와 명시적 미지원 경계
 - [Applications](apps/README.md) — Analysis Explorer와 Operations 사용 방법
-- [측정 의미·집계·확장 계획](docs/architecture/measurement-history-evolution.md) — 현재 계약과 후속 단계
+- [측정 이력 의미·집계·scale 경계](docs/architecture/measurement-history-evolution.md) — semantic/display/storage 계약과 측정 근거
 - [아키텍처](docs/architecture/overview.md) — 구성 요소와 책임 경계
 - [제품·UX 기준](docs/product/overview.md) — 사용자 흐름과 제품 의미
 - [데이터 준비](data/README.md) — 데이터셋과 입력 검증
