@@ -2604,7 +2604,8 @@ def _(
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">1 · Source</div>'
-                    '<div class="phm-setup-help">Choose the prepared file boundary and declare asset identity.</div>'
+                    '<div class="phm-setup-help">Choose the prepared file boundary '
+                    'and declare asset identity.</div>'
                     "</div>"
                 ),
                 add_source_type,
@@ -2616,14 +2617,16 @@ def _(
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">2 · Select signals</div>'
-                    '<div class="phm-setup-help">Keep only discovered columns that belong to this source mapping.</div>'
+                    '<div class="phm-setup-help">Keep only discovered columns that '
+                    'belong to this source mapping.</div>'
                     "</div>"
                 ),
                 _file_discovery_view,
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">3 · Define time & sampling</div>'
-                    '<div class="phm-setup-help">FILE registration currently preserves column identity; it does not infer physical measurement semantics.</div>'
+                    '<div class="phm-setup-help">FILE registration preserves column '
+                    'identity; it does not infer physical measurement semantics.</div>'
                     "</div>"
                 ),
                 mo.hstack(
@@ -2633,7 +2636,8 @@ def _(
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">4 · Review & save</div>'
-                    '<div class="phm-setup-help">The file is validated before its registration is persisted.</div>'
+                    '<div class="phm-setup-help">The file is validated before its '
+                    'registration is persisted.</div>'
                     "</div>"
                 ),
                 register_setup_source_button,
@@ -2650,7 +2654,8 @@ def _(
             )
         else:
             _browse_status = mo.md(
-                "Connect & browse uses one bounded anonymous session to discover variable identity. "
+                "Connect & browse uses one bounded anonymous session to discover "
+                "variable identity. "
                 "It does not read signal values or prove ongoing connection health."
             )
 
@@ -2726,7 +2731,8 @@ def _(
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">1 · Connect</div>'
-                    '<div class="phm-setup-help">Declare endpoint and asset identity, then run a bounded browse.</div>'
+                    '<div class="phm-setup-help">Declare endpoint and asset identity, '
+                    'then run a bounded browse.</div>'
                     "</div>"
                 ),
                 add_source_type,
@@ -2738,7 +2744,9 @@ def _(
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">2 · Select signals</div>'
-                    '<div class="phm-setup-help">Browse selection defines explicit NodeId mapping. NodeId and BrowseName do not establish physical meaning.</div>'
+                    '<div class="phm-setup-help">Browse selection defines explicit '
+                    'NodeId mapping. NodeId and BrowseName do not establish physical '
+                    'meaning.</div>'
                     "</div>"
                 ),
                 (
@@ -2753,14 +2761,17 @@ def _(
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">3 · Define meaning</div>'
-                    '<div class="phm-setup-help">Meaning is explicit, versioned, and evidence-backed. Leave channels unresolved when meaning is not established.</div>'
+                    '<div class="phm-setup-help">Meaning is explicit, versioned, and '
+                    'evidence-backed. Leave channels unresolved when meaning is not '
+                    'established.</div>'
                     "</div>"
                 ),
                 _semantic_editor,
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">4 · Review & save</div>'
-                    '<div class="phm-setup-help">Saving registers configuration only. It does not enable the source or start collection.</div>'
+                    '<div class="phm-setup-help">Saving registers configuration only. '
+                    'It does not enable the source or start collection.</div>'
                     "</div>"
                 ),
                 register_setup_source_button,
@@ -2790,7 +2801,8 @@ def _(
                 setup_source_selector,
                 mo.Html(render_setup_signals_html(setup_selected_source)),
                 mo.md(
-                    "Signal identity comes from declared FILE columns or explicit OPC UA NodeId mapping. "
+                    "Signal identity comes from declared FILE columns or explicit "
+                    "OPC UA NodeId mapping. "
                     "This page does not infer component hierarchy or physical meaning from names."
                 ),
             ],
@@ -2806,8 +2818,10 @@ def _(
                 ),
                 mo.Html(render_setup_signals_html(setup_selected_source)),
                 mo.md(
-                    "Existing registrations are immutable evidence in the current registry contract. "
-                    "Measurement meaning is defined during registration; unresolved channels stay unresolved "
+                    "Existing registrations are immutable evidence in the current "
+                    "registry contract. "
+                    "Measurement meaning is defined during registration; unresolved "
+                    "channels stay unresolved "
                     "instead of being inferred from signal names."
                 ),
             ],
@@ -2819,8 +2833,10 @@ def _(
             mo.md(
                 "## Analysis Configuration\n\n"
                 "Operational analysis policies are versioned outside this Setup workspace today. "
-                "The live three-phase runner and FILE analysis preserve their policy/version in evidence; "
-                "this screen does not expose controls that the application contract cannot persist safely."
+                "The live three-phase runner and FILE analysis preserve their "
+                "policy/version in evidence; "
+                "this screen does not expose controls that the application contract "
+                "cannot persist safely."
             ),
             mo.md(
                 "Use **System** to verify analysis-service runtime status and **Investigations** "
@@ -2842,7 +2858,8 @@ def _(
                 [
                     mo.md(
                         "## Setup\n\n"
-                        "Connect data sources, map signals, and record explicit measurement meaning."
+                        "Connect data sources, map signals, and record explicit "
+                        "measurement meaning."
                     ),
                     setup_section,
                 ],
