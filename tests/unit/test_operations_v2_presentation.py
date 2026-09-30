@@ -61,6 +61,16 @@ def test_v2_theme_uses_fixed_main_background() -> None:
     assert "#292827" in operations_v2_theme_css()
 
 
+def test_v2_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() -> None:
+    # marimo defaults to its light theme; without these switches its widgets and
+    # markdown render light surfaces/dark text over the fixed dark background.
+    css = operations_v2_theme_css()
+    assert "--lightningcss-light: ;" in css
+    assert "--lightningcss-dark: initial;" in css
+    assert "--background: #292827;" in css
+    assert "--tw-prose-headings: #f2f1ef;" in css
+
+
 def test_monitor_presenters_use_operator_vocabulary() -> None:
     view = _view()
     flow = render_monitor_flow_html(view)

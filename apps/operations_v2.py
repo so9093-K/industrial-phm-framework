@@ -2269,12 +2269,10 @@ def _(
     else:
         investigation_selector = None
     investigation_filtered_count = len(_filtered_investigations)
-    investigation_selected_id = (
-        None if investigation_selector is None else _label_to_id[investigation_selector.value]
-    )
+    investigation_label_to_id = _label_to_id
     return (
         investigation_filtered_count,
-        investigation_selected_id,
+        investigation_label_to_id,
         investigation_selector,
     )
 
@@ -2282,9 +2280,16 @@ def _(
 @app.cell
 def _(
     current_analysis_results,
+    investigation_label_to_id,
     investigation_queue,
-    investigation_selected_id,
+    investigation_selector,
 ):
+    # A UI element's value can only be read outside the cell that created it.
+    investigation_selected_id = (
+        None
+        if investigation_selector is None
+        else investigation_label_to_id[investigation_selector.value]
+    )
     selected_investigation = None
     selected_investigation_result = None
     if investigation_selected_id is not None:
@@ -2306,7 +2311,7 @@ def _(
                 ),
                 None,
             )
-    return selected_investigation, selected_investigation_result
+    return investigation_selected_id, selected_investigation, selected_investigation_result
 
 
 @app.cell
@@ -2640,16 +2645,21 @@ def _(
             label="Queue",
             on_change=lambda value: maintenance_selection.update(finding_id=_label_to_id[value]),
         )
-        maintenance_selected_id = _label_to_id[maintenance_selector.value]
     else:
         maintenance_selector = None
-        maintenance_selected_id = None
     maintenance_filtered_count = len(_filtered)
-    return maintenance_filtered_count, maintenance_selected_id, maintenance_selector
+    maintenance_label_to_id = _label_to_id
+    return maintenance_filtered_count, maintenance_label_to_id, maintenance_selector
 
 
 @app.cell
-def _(maintenance_queue, maintenance_selected_id):
+def _(maintenance_label_to_id, maintenance_queue, maintenance_selector):
+    # A UI element's value can only be read outside the cell that created it.
+    maintenance_selected_id = (
+        None
+        if maintenance_selector is None
+        else maintenance_label_to_id[maintenance_selector.value]
+    )
     selected_maintenance = (
         None
         if maintenance_selected_id is None
@@ -2662,7 +2672,7 @@ def _(maintenance_queue, maintenance_selected_id):
             None,
         )
     )
-    return (selected_maintenance,)
+    return maintenance_selected_id, selected_maintenance
 
 
 @app.cell

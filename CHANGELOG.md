@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Operations V2가 분석 결과 또는 검토 요청이 하나라도 있으면 빈 화면이 되던 문제를 고쳤습니다.
+  Investigations·Maintenance queue cell이 자신이 만든 selector 값을 같은 cell에서 읽어 marimo가 예외를
+  냈고, 전체 화면이 그 cell에 의존했습니다. 모든 앱에 같은 패턴이 없는지 정적 검사를 추가했습니다.
+- marimo 기본 light theme에서 V2 배경만 어둡고 marimo 위젯·markdown은 밝은 표면·어두운 글자로 그려져
+  메뉴·표·제목이 읽히지 않던 문제를 고쳤습니다. V2 theme가 marimo의 dark palette를 고정합니다.
+
 ### Changed
 
 - Operations V2 **Phase 9 legacy migration**을 완료했습니다. `apps/operations_v2.py`를 canonical
