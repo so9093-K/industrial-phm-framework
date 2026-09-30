@@ -50,17 +50,20 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 - `apps/operations_v2.py` — #321 마이그레이션 중인 read-only Operations V2 Monitor preview
 - `apps/analysis_explorer.py` — experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
 
-### Operations V2 preview
+### Operations
 
-V2는 현재 source/runtime/acquisition/analysis/review evidence를 읽어
-**Monitor / Assets / Investigations / Maintenance / System / Setup** 구조를 검증합니다.
-메인 배경은 `#292827`입니다. 현재 **Monitor / Assets / Investigations / Maintenance / System / Setup**이
-실제 read model 또는 명시적 application action과 연결돼 있습니다. Investigations에서는 저장된 analysis
-evidence에 대해 사용자가 명시적으로 **Request review**를 누를 때만 human-review finding을 기록합니다.
-Maintenance는 그 finding을 Open / Acknowledged / Closed 업무 queue로 이어 받아 note / acknowledge / close
-action을 기록합니다. 이 workflow는 fault/alarm/health/repair/CMMS 판단을 만들지 않습니다. Source 등록,
-Enable/Pause와 OPC UA Start/Stop collection desired-state는 V2 Setup으로 이관됐습니다. One-shot/bounded
-diagnostic과 분석 실행은 아직 `apps/operations.py`가 소유합니다.
+현재 기본 Operations는 `apps/operations_v2.py`입니다.
+**Monitor / Assets / Investigations / Maintenance / System / Setup**이 실제 operational read model과
+명시적 application action에 연결돼 있습니다. 메인 배경은 `#292827`입니다.
+
+Investigations에서는 저장된 analysis evidence에 대해 사용자가 명시적으로 **Request review**를 누를 때만
+human-review finding을 기록하고, Maintenance는 Open / Acknowledged / Closed 업무 queue로 이어 받아
+note / acknowledge / close action을 기록합니다. 이 workflow는 fault/alarm/health/repair/CMMS 판단을
+만들지 않습니다. Setup은 source 등록, Enable/Pause, OPC UA Start/Stop collection desired-state와
+source별 데이터 경과 시간 정책을 소유합니다. One-shot runtime과 bounded subscription은 persistent
+collection과 분리된 **Advanced diagnostics** action으로만 제공하며, 성공을 현재 connection health로
+승격하지 않습니다. 등록된 FILE snapshot의 on-demand vibration feature 분석은 **Assets → Analysis**에서
+실행하고 결과를 같은 evidence repository에 저장해 Assets와 Investigations에서 즉시 확인합니다.
 
 **Assets**는 Monitor evidence와 DuckLake history asset의 합집합을 보여줍니다. Asset을 고르면
 Overview / Signals / Analysis / Events / Maintenance로 같은 설비 문맥을 유지합니다. Signals는 기존
@@ -129,11 +132,14 @@ Operations는 runner process를 시작·중지하지 않습니다. Asset Detail�
 함께 다룹니다. Investigation의 **검토할 분석**에서 결과를 고르면 capability별 근거가 보이고, **Create review
 finding**으로 그 결과에 대한 사람의 검토 요청을 만들어 Maintenance Review로 이어갈 수 있습니다.
 
-## PHM Operations
+## Legacy Operations reference
 
-### 외부 데이터 없이 workflow 확인
+`apps/operations.py`는 Phase 9 migration 동안 비교·회귀 확인용 legacy surface로만 유지합니다.
+새 운영 workflow와 검증은 `apps/operations_v2.py`를 기준으로 합니다.
 
-`apps/operations.py`의 Overview에서 **Prepare bundled demo source**를 누르면 저장소에 포함된
+### 외부 데이터 없이 legacy workflow 확인
+
+legacy `apps/operations.py`의 Overview에서 **Prepare bundled demo source**를 누르면 저장소에 포함된
 `examples/operations/demo-bearing-snapshot.csv`를 일반 FILE source registration/validation 경로로
 등록(또는 동일 identity를 재검증)하고 current observation을 로드합니다.
 
