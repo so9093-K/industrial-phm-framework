@@ -1201,17 +1201,29 @@ def _(
                 raise ValueError("select a mapped signal before defining meaning")
             _source_id = add_source_id.value.strip()
             _channel_id = semantic_channel_input.value
+            _definition = MeasurementDefinition(
+                observed_property=semantic_observed_property_input.value.strip() or None,
+                scope=semantic_scope_input.value.strip() or None,
+                statistic=semantic_statistic_input.value.strip() or None,
+                unit=semantic_unit_input.value.strip() or None,
+                unit_evidence=semantic_unit_evidence_input.value.strip() or None,
+            )
+            if not any(
+                (
+                    _definition.observed_property,
+                    _definition.scope,
+                    _definition.statistic,
+                    _definition.unit,
+                )
+            ):
+                raise ValueError(
+                    "provide explicit measurement meaning or choose Keep unresolved"
+                )
             _binding = ChannelSemanticBinding(
                 source_id=_source_id,
                 channel_id=_channel_id,
                 version=semantic_version_input.value.strip(),
-                definition=MeasurementDefinition(
-                    observed_property=semantic_observed_property_input.value.strip() or None,
-                    scope=semantic_scope_input.value.strip() or None,
-                    statistic=semantic_statistic_input.value.strip() or None,
-                    unit=semantic_unit_input.value.strip() or None,
-                    unit_evidence=semantic_unit_evidence_input.value.strip() or None,
-                ),
+                definition=_definition,
                 interpretation_evidence=semantic_evidence_input.value.strip(),
             )
         except ValueError as error:
@@ -1252,6 +1264,7 @@ def _(mo):
 
 @app.cell
 def _(
+    ChannelSemanticBinding,
     FileSourceConfig,
     FileSourceMode,
     JsonSourceRepository,
@@ -1345,7 +1358,15 @@ def _(
                         node_mappings=opcua_candidate_mappings,
                         timeout_seconds=float(opcua_timeout_input.value.strip()),
                         semantic_bindings=tuple(
-                            _binding_by_channel[channel]
+                            ChannelSemanticBinding(
+                                source_id=_source_id,
+                                channel_id=channel,
+                                version=_binding_by_channel[channel].version,
+                                definition=_binding_by_channel[channel].definition,
+                                interpretation_evidence=(
+                                    _binding_by_channel[channel].interpretation_evidence
+                                ),
+                            )
                             for channel in sorted(_binding_by_channel)
                         ),
                     ),
