@@ -24,26 +24,40 @@ def _():
         JsonWindowAnalysisRuntimeRepository,
         SourceType,
         SystemStateErrorEvidence,
+        create_human_review_finding,
         build_asset_detail,
+        build_investigation_queue,
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
         validate_distinct_source_state_paths,
     )
     from industrial_phm.application.measurement_history import resolve_measurement_range
+    from industrial_phm.application.operations_v2_investigations import InvestigationReviewState
     from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.presentation import (
+        OperationalAnalysisPresentationKind,
+        operational_analysis_presentation_kind,
         operations_v2_theme_css,
+        render_analysis_quality_markdown,
         render_monitor_assets_html,
         render_monitor_flow_html,
     )
     from industrial_phm.presentation.measurement_history import (
+        InvestigationReviewState,
+        investigation_capability_label,
+        investigation_queue_option_label,
+        investigation_review_label,
+        investigation_workspace_css,
         latest_measurement_rows,
         measurement_aggregation_rows,
         measurement_aggregation_summary,
         measurement_history_range_summary,
         measurement_history_rows,
+        render_analysis_quality_markdown,
+        render_investigation_evidence_identity_html,
+        render_investigation_summary_html,
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
     )
@@ -54,6 +68,20 @@ def _():
         render_asset_header_html,
         render_asset_maintenance_html,
         render_asset_overview_html,
+    )
+    from industrial_phm.presentation.operations_v2_investigations import (
+        investigation_capability_label,
+        investigation_queue_option_label,
+        investigation_review_label,
+        investigation_workspace_css,
+        render_investigation_evidence_identity_html,
+        render_investigation_summary_html,
+    )
+    from industrial_phm.presentation.phase_unbalance import (
+        phase_unbalance_exclusion_rows,
+        phase_unbalance_provenance_rows,
+        phase_unbalance_summary_rows,
+        render_phase_unbalance_svg,
     )
     from industrial_phm.runtime import (
         SqliteAcquisitionSpool,
@@ -80,11 +108,14 @@ def _():
         SqliteAcquisitionTelemetryRepository,
         SystemStateErrorEvidence,
         UTC,
+        OperationalAnalysisPresentationKind,
         build_asset_detail,
+        build_investigation_queue,
         build_asset_workspace_view,
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
+        create_human_review_finding,
         datetime,
         mo,
         asset_workspace_css,
@@ -93,8 +124,12 @@ def _():
         measurement_aggregation_summary,
         measurement_history_range_summary,
         measurement_history_rows,
+        operational_analysis_presentation_kind,
         operations_v2_theme_css,
         os,
+        phase_unbalance_exclusion_rows,
+        phase_unbalance_provenance_rows,
+        phase_unbalance_summary_rows,
         render_asset_analysis_html,
         render_asset_events_html,
         render_asset_header_html,
@@ -104,6 +139,7 @@ def _():
         render_measurement_history_svg,
         render_monitor_assets_html,
         render_monitor_flow_html,
+        render_phase_unbalance_svg,
         resolve_measurement_range,
         validate_distinct_source_state_paths,
     )
@@ -427,6 +463,7 @@ def _(
         acquisition_surfaces,
         analysis_results,
         assessed_at,
+        finding_path,
         findings,
         history_assets,
         history_reader,
