@@ -9,7 +9,7 @@ def _():
     import asyncio
     import os
     from concurrent.futures import ThreadPoolExecutor
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
     from pathlib import Path
 
     import marimo as mo
@@ -29,7 +29,7 @@ def _():
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
-        LiveDataTiming,
+        LiveFlowTiming,
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
@@ -139,7 +139,7 @@ def _():
         AcquisitionTelemetrySurface,
         AssetIdentity,
         ChannelSemanticBinding,
-        LiveDataTiming,
+        LiveFlowTiming,
         CollectionDesiredState,
         DuckLakeAssetHistory,
         DuckLakeAssetHistoryConfig,
@@ -190,6 +190,7 @@ def _():
         create_human_review_finding,
         datetime,
         discover_file_source,
+        timedelta,
         investigation_capability_label,
         investigation_queue_option_label,
         investigation_review_label,
@@ -275,7 +276,7 @@ def _(
     JsonSourceRuntimeRepository,
     AcquisitionTelemetrySurface,
     JsonWindowAnalysisRuntimeRepository,
-    LiveDataTiming,
+    LiveFlowTiming,
     Path,
     SourceType,
     SqliteAcquisitionSpool,
@@ -579,11 +580,11 @@ def _(
         acquisition_surfaces=tuple(acquisition_surfaces),
         analysis_runs=analysis_runs,
         analysis_runtime=analysis_runtime,
-        freshness_policies=freshness_policies,
         as_of=assessed_at,
     )
-    live_data_timing = LiveDataTiming(
-        {item.source_id: item for item in freshness_policies}, assessed_at
+    live_flow_timing = LiveFlowTiming(
+        max_silence=timedelta(seconds=30),
+        as_of=assessed_at,
     )
 
     system_diagnostics = (
@@ -615,7 +616,7 @@ def _(
         history_assets,
         history_reader,
         lifecycle_records,
-        live_data_timing,
+        live_flow_timing,
         monitor,
         overview,
         registered_sources,
@@ -1729,7 +1730,7 @@ def _(
     findings,
     history_assets,
     history_reader,
-    live_data_timing,
+    live_flow_timing,
     monitor,
     navigation,
     overview,
@@ -1776,7 +1777,7 @@ def _(
                 history_summary=_history_summary,
                 history_channels=_history_channels,
                 acquisition_surfaces=_asset_surfaces,
-                live_data_timing=live_data_timing,
+                live_flow_timing=live_flow_timing,
             )
         except Exception as error:
             asset_workspace_error = str(error)
