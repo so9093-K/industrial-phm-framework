@@ -11,6 +11,12 @@
 
 ### Changed
 
+- Operations V2 **Maintenance**를 Open / Acknowledged / Closed review 업무 queue로 이관했습니다.
+  Status / Asset filter, selected review summary, append-only timeline, note / acknowledge / close action을 같은
+  workspace에서 처리합니다. 상태 변경 후 같은 finding selection을 유지하고 Investigation과 review-event
+  state를 공유합니다. Internal finding/run identity는 detail로 내려 primary queue에서 숨기며, acknowledge와
+  close는 fault·repair·asset health·CMMS work order를 확정하지 않습니다.
+
 - Operations V2 **Investigations**를 queue + selected detail workspace로 이관했습니다. 저장된 operational
   analysis를 Review / Asset / Capability로 필터링하고, review workflow 상태와 analysis evidence 의미를
   분리합니다. Three-phase unbalance와 FILE vibration feature evidence를 capability별로 검토할 수 있고
