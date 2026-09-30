@@ -205,6 +205,13 @@
 
 ### Added
 
+- `tools/opcua/aihub_replay.py`: AI-Hub 239 전력 원본 selection을 로컬 OPC UA server로 replay합니다.
+  값은 그대로, 시간만 replay clock으로 옮기며(`--speed`, 원본 시각 대응은 `replay-log.jsonl`) 같은 시각에
+  서로 다른 값이 기록된 channel은 Bad status로 publish합니다. AI-Hub semantics-v2가 근거를 가진 channel만
+  semantic binding으로 등록하고, 누락 phase(`--omit-channel`)·stale data(`--freeze-after-records`)
+  시나리오를 제공합니다. 첫 실제 publish 전 node는 BadWaitingForInitialData로 유지해 synthetic Good
+  observation을 만들지 않습니다. Operations V2 Phase 10 로컬 검증용 도구이며 production connector가 아닙니다.
+
 - OPC UA source registration에 versioned channel semantic binding을 추가하고, 수집 시점의 binding snapshot을 각 DataChange event에 복사해 durable spool과 finalized observation window 재시작 이후에도 같은 의미 근거를 보존합니다. NodeId/channel 이름에서 물리 의미를 추론하지 않으며 source/channel identity가 맞지 않는 binding은 fail-closed합니다. Source registry schema는 v5로 갱신됩니다.
 
 - Operations 측정 이력에 최근 15분/24시간/7일 범위와 source별 최신 저장값·event-time freshness를
