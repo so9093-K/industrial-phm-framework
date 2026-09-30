@@ -632,7 +632,7 @@ def _(
             if _range_id in {"24h", "7d"}:
                 _aggregation = history_reader.query_measurement_aggregation(
                     asset_selector.value,
-                    channel_id=channel_id,
+                    channel_id=_channel_id,
                     start_at=_start_at,
                     end_at=_end_at,
                     bucket_count=100 if _range_id == "7d" else 200,
@@ -697,7 +697,7 @@ def _(
                         )
                     )
                 else:
-                    trend_blocks.append(
+                    _trend_blocks.append(
                         mo.md(
                             "No stored observation falls inside the selected time range."
                         )
