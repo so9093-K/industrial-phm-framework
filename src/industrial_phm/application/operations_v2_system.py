@@ -90,6 +90,8 @@ class SystemRuntimeView:
         _require_aware(self.assessed_at, "assessed_at")
         services = tuple(self.services)
         errors = tuple(self.errors)
+        if any(not isinstance(item, SystemRuntimeService) for item in services):
+            raise ValueError("services must contain SystemRuntimeService values")
         if tuple(item.kind for item in services) != tuple(SystemRuntimeKind):
             raise ValueError("services must use the complete canonical system order")
         if any(not isinstance(item, SystemRuntimeError) for item in errors):
@@ -261,7 +263,7 @@ def _history_service(
             ),
             SystemRuntimeFact(
                 "Oldest waiting age",
-                "None" if oldest_age is None else f"{oldest_age:.1f} s",
+                _oldest_waiting_value(pending, oldest_age),
             ),
             SystemRuntimeFact("Latest commit", _time_value(latest_commit)),
         ),
@@ -327,19 +329,20 @@ def _application_service(
 ) -> SystemRuntimeService:
     status = OperationsMonitorStatus.ERROR if errors else OperationsMonitorStatus.RUNNING
     summary = (
-        f"{len(errors)} application read error(s)"
+        f"{len(errors)} current state-read error(s)"
         if errors
-        else "Operations application loaded current state"
+        else "Current Operations state read succeeded"
     )
     return SystemRuntimeService(
         kind=SystemRuntimeKind.APPLICATION,
-        title="Operations application",
+        title="Operations state read",
         status=status,
         summary=summary,
         updated_at=as_of,
         facts=(
             SystemRuntimeFact("Current read errors", str(len(errors))),
             SystemRuntimeFact("Last refresh", as_of.isoformat()),
+            SystemRuntimeFact("Process heartbeat", "Not instrumented"),
         ),
     )
 
@@ -365,6 +368,19 @@ def _error_title(scope: str) -> str:
         "analysis-service": "Analysis service",
         "asset-history": "Asset History",
     }.get(scope, "Application state")
+
+
+def _oldest_waiting_value(
+    pending: int | None,
+    oldest_age: float | None,
+) -> str:
+    if pending is None:
+        return "Unavailable"
+    if pending == 0:
+        return "None"
+    if oldest_age is None:
+        return "Unavailable"
+    return f"{oldest_age:.1f} s"
 
 
 def _time_value(value: datetime | None) -> str:
