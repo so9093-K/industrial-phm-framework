@@ -17,6 +17,8 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionSessionTelemetry,
     AcquisitionTelemetrySnapshot,
     AcquisitionWindowTelemetry,
+    CollectionServiceRuntimeState,
+    CollectionServiceRuntimeTelemetry,
 )
 from industrial_phm.application.history_writer import SpoolHistoryBatchWriteResult
 from industrial_phm.application.observation_window import ObservationWindowEventDisposition
@@ -103,6 +105,118 @@ class SqliteAcquisitionTelemetryRepository:
         finally:
             connection.close()
         return tuple(self.get(_require_str(row[0], "source_id")) for row in rows)
+
+    def get_collection_service_runtime(self) -> CollectionServiceRuntimeTelemetry | None:
+        connection = self._connect()
+        try:
+            self._ensure_schema(connection)
+            row = connection.execute(
+                """
+                SELECT payload_json
+                FROM collection_service_runtime
+                WHERE singleton_id = 1
+                """
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return _parse_collection_service_runtime(
+            _require_mapping_json(_require_str(row[0], "payload_json"))
+        )
+
+    def record_collection_service_start(
+        self,
+        *,
+        started_at: datetime,
+    ) -> None:
+        _validate_aware_datetime(started_at, "started_at")
+        self._write_collection_service_runtime(
+            CollectionServiceRuntimeTelemetry(
+                state=CollectionServiceRuntimeState.RUNNING,
+                started_at=started_at,
+                heartbeat_at=started_at,
+                reconcile_count=0,
+                owned_source_count=0,
+            )
+        )
+
+    def record_collection_service_heartbeat(
+        self,
+        *,
+        heartbeat_at: datetime,
+        reconcile_count: int,
+        owned_source_count: int,
+    ) -> None:
+        _validate_aware_datetime(heartbeat_at, "heartbeat_at")
+        _validate_non_negative_int(reconcile_count, "reconcile_count")
+        _validate_non_negative_int(owned_source_count, "owned_source_count")
+        current = self.get_collection_service_runtime()
+        if current is None:
+            raise ValueError("collection service runtime has not been started")
+        if heartbeat_at < current.heartbeat_at:
+            raise ValueError("collection service heartbeat must not move backwards")
+        self._write_collection_service_runtime(
+            CollectionServiceRuntimeTelemetry(
+                state=CollectionServiceRuntimeState.RUNNING,
+                started_at=current.started_at,
+                heartbeat_at=heartbeat_at,
+                reconcile_count=reconcile_count,
+                owned_source_count=owned_source_count,
+                last_failure_at=current.last_failure_at,
+                last_failure=current.last_failure,
+            )
+        )
+
+    def record_collection_service_failure(
+        self,
+        detail: str,
+        *,
+        occurred_at: datetime,
+    ) -> None:
+        _validate_detail(detail, "detail")
+        _validate_aware_datetime(occurred_at, "occurred_at")
+        current = self.get_collection_service_runtime()
+        if current is None:
+            raise ValueError("collection service runtime has not been started")
+        if occurred_at < current.heartbeat_at:
+            raise ValueError("collection service failure time must not move backwards")
+        self._write_collection_service_runtime(
+            CollectionServiceRuntimeTelemetry(
+                state=CollectionServiceRuntimeState.FAILED,
+                started_at=current.started_at,
+                heartbeat_at=occurred_at,
+                reconcile_count=current.reconcile_count,
+                owned_source_count=current.owned_source_count,
+                last_failure_at=occurred_at,
+                last_failure=detail,
+            )
+        )
+
+    def record_collection_service_stop(
+        self,
+        *,
+        stopped_at: datetime,
+        reconcile_count: int,
+    ) -> None:
+        _validate_aware_datetime(stopped_at, "stopped_at")
+        _validate_non_negative_int(reconcile_count, "reconcile_count")
+        current = self.get_collection_service_runtime()
+        if current is None:
+            raise ValueError("collection service runtime has not been started")
+        if stopped_at < current.heartbeat_at:
+            raise ValueError("collection service stop time must not move backwards")
+        self._write_collection_service_runtime(
+            CollectionServiceRuntimeTelemetry(
+                state=CollectionServiceRuntimeState.STOPPED,
+                started_at=current.started_at,
+                heartbeat_at=stopped_at,
+                reconcile_count=reconcile_count,
+                owned_source_count=0,
+                last_failure_at=current.last_failure_at,
+                last_failure=current.last_failure,
+            )
+        )
 
     def record_session_configuration(
         self,
@@ -402,6 +516,58 @@ class SqliteAcquisitionTelemetryRepository:
             _serialize_failure(failure),
         )
 
+    def _write_collection_service_runtime(
+        self,
+        value: CollectionServiceRuntimeTelemetry,
+    ) -> None:
+        payload = _serialize_collection_service_runtime(value)
+        rendered = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        connection = self._connect()
+        try:
+            self._ensure_schema(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            current = connection.execute(
+                """
+                SELECT updated_at, payload_json
+                FROM collection_service_runtime
+                WHERE singleton_id = 1
+                """
+            ).fetchone()
+            if current is not None:
+                current_at = _parse_datetime(
+                    _require_str(current[0], "updated_at"),
+                    "updated_at",
+                )
+                current_payload = _require_str(current[1], "payload_json")
+                if value.heartbeat_at < current_at:
+                    raise ValueError("collection service runtime heartbeat must not move backwards")
+                if value.heartbeat_at == current_at and rendered == current_payload:
+                    connection.execute("COMMIT")
+                    return
+            connection.execute(
+                """
+                INSERT INTO collection_service_runtime(
+                    singleton_id, updated_at, payload_json
+                ) VALUES (1, ?, ?)
+                ON CONFLICT(singleton_id) DO UPDATE SET
+                    updated_at = excluded.updated_at,
+                    payload_json = excluded.payload_json
+                """,
+                (value.heartbeat_at.isoformat(), rendered),
+            )
+            connection.execute("COMMIT")
+        except Exception:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
+            raise
+        finally:
+            connection.close()
+
     def _configured_queue_maxsize(self, source_id: str) -> int | None:
         row = self._read_component(source_id, _CONFIG)
         if row is None:
@@ -534,6 +700,15 @@ class SqliteAcquisitionTelemetryRepository:
             )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS collection_service_runtime (
+                singleton_id INTEGER PRIMARY KEY CHECK(singleton_id = 1),
+                updated_at TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS telemetry_component (
                 source_id TEXT NOT NULL,
                 component TEXT NOT NULL,
@@ -544,6 +719,42 @@ class SqliteAcquisitionTelemetryRepository:
             """
         )
         connection.commit()
+
+
+def _serialize_collection_service_runtime(
+    value: CollectionServiceRuntimeTelemetry,
+) -> dict[str, object]:
+    return {
+        "state": value.state.value,
+        "started_at": value.started_at.isoformat(),
+        "heartbeat_at": value.heartbeat_at.isoformat(),
+        "reconcile_count": value.reconcile_count,
+        "owned_source_count": value.owned_source_count,
+        "last_failure_at": _format_optional_datetime(value.last_failure_at),
+        "last_failure": value.last_failure,
+    }
+
+
+def _parse_collection_service_runtime(
+    value: Mapping[str, object],
+) -> CollectionServiceRuntimeTelemetry:
+    return CollectionServiceRuntimeTelemetry(
+        state=CollectionServiceRuntimeState(
+            _require_str(value.get("state"), "state")
+        ),
+        started_at=_require_datetime(value.get("started_at"), "started_at"),
+        heartbeat_at=_require_datetime(value.get("heartbeat_at"), "heartbeat_at"),
+        reconcile_count=_require_int(value.get("reconcile_count"), "reconcile_count"),
+        owned_source_count=_require_int(
+            value.get("owned_source_count"),
+            "owned_source_count",
+        ),
+        last_failure_at=_optional_datetime(
+            value.get("last_failure_at"),
+            "last_failure_at",
+        ),
+        last_failure=_optional_str(value.get("last_failure"), "last_failure"),
+    )
 
 
 def _serialize_session(value: AcquisitionSessionTelemetry) -> dict[str, object]:
