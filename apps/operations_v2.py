@@ -822,7 +822,8 @@ def _(
 
     if asset_selector is None:
         asset_view = mo.md(
-            "## Assets\n\nNo asset evidence is available yet. Add a source in Setup or load history."
+            "## Assets\n\n"
+            "No asset evidence is available yet. Add a source in Setup or load history."
         )
     elif asset_workspace_error:
         asset_view = mo.vstack(
