@@ -286,7 +286,7 @@ def _record_service_runtime_best_effort(
 ) -> None:
     try:
         callback(*args, **kwargs)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return
 
 
