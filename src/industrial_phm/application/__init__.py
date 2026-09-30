@@ -115,10 +115,17 @@ from industrial_phm.application.history_writer import (
     SpoolToHistoryWriterPolicy,
 )
 from industrial_phm.application.live_window_analysis import (
+    IncrementalObservationWindowReader,
     JsonWindowAnalysisLedger,
+    WindowAnalysisCursor,
     WindowAnalysisOutcome,
+    WindowAnalysisProgressLedger,
     WindowAnalysisState,
     analyze_finalized_windows,
+    analyze_finalized_windows_incremental,
+)
+from industrial_phm.application.window_analysis_ledger_sqlite import (
+    SqliteWindowAnalysisLedger,
 )
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
@@ -424,6 +431,11 @@ __all__ = [
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
     "JsonWindowAnalysisLedger",
+    "analyze_finalized_windows_incremental",
+    "WindowAnalysisProgressLedger",
+    "WindowAnalysisCursor",
+    "SqliteWindowAnalysisLedger",
+    "IncrementalObservationWindowReader",
     "JsonWindowAnalysisRuntimeRepository",
     "LiveFlowTiming",
     "MaintenanceQueueItem",
