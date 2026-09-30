@@ -267,9 +267,7 @@ class IncrementalRegisteredOpcUaWindowCoordinator:
                         "coordinator state measurement_point_id no longer matches source"
                     )
                 if tuple(snapshot.expected_channel_ids) != self._expected_channel_ids:
-                    raise RuntimeError(
-                        "coordinator state channel mapping no longer matches source"
-                    )
+                    raise RuntimeError("coordinator state channel mapping no longer matches source")
                 self._buffers[snapshot.window_start] = ObservationWindowBuffer.from_snapshot(
                     snapshot
                 )
