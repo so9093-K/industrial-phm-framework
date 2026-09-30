@@ -34,8 +34,8 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Asset History | **지원** | FILE backfill과 OPC UA live observation을 DuckLake history에서 함께 조회 |
 | 측정 의미(semantic binding) | **조건부 지원** | source가 명시적으로 제공한 versioned binding만 사용. channel 이름에서 물리 의미를 추론하지 않음 |
 | Asset History latest/page/aggregation 의미 표시 | **지원** | FILE/OPC UA raw evidence에 고정된 의미 snapshot을 fail-closed로 표시 |
-| Finalized observation window | **지원** | accepted event set과 rejection/watermark evidence를 durable window로 보존 |
-| Live 분석 runner | **지원** | collection service와 별도 process로 finalized window를 polling하여 분석 결과/skip ledger를 restart-safe하게 저장 |
+| Finalized observation window | **지원** | accepted event set과 rejection/watermark evidence를 SQLite WAL에 보존. continuous coordinator는 bounded durable-ingestion cursor로 새 event만 처리하고 cursor/watermark/active buffer를 finalized window와 같은 transaction에 checkpoint |
+| Live 분석 runner | **지원** | collection service와 별도 process. capability/algorithm/policy별 durable cursor 이후의 finalized window만 bounded page로 처리하고 분석 결과/SQLite skip ledger를 restart-safe하게 저장 |
 
 세부 live stack 실행은 [OPC UA local stack](../tools/opcua/README.md)을 따릅니다.
 
@@ -49,9 +49,10 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Temporal alignment `strict-v1` | **지원** | 같은 timestamp의 세 상만 계산 |
 | Temporal alignment `bounded-previous-v1` | **조건부 지원** | explicit max age와 근거가 필요. causal event-transition reconstruction이며 synchronized acquisition cycle을 주장하지 않음 |
 | window 시작 전 carry-in state | **미제공** | finalized window 밖의 이전 값을 analysis input으로 재조회하지 않음 |
-| Operations source control/monitor | **지원** | desired collection state, telemetry, spool/history evidence를 별도 상태로 표시 |
+| Operations source control/monitor | **지원** | desired collection request, collector-service heartbeat, OPC UA session, live receive silence, spool/history evidence를 서로 다른 사실로 표시 |
 | Operations Asset History | **지원** | 최신값·raw page·UI aggregation·quality·provenance 조회 |
 | Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함. 실행 중 새 결과는 명시적 refresh로 읽음(자동 polling 없음) |
+| Operations 분석 시도/skip 이유 조회 | **조건부 지원** | Operations가 runner와 같은 finalized-window SQLite와 analysis-ledger SQLite를 읽을 때 Asset별 Analyzed/Skipped 시도와 exact skip reason을 표시 |
 | Live runner lifecycle 전용 UI/자동 process 관리 | **미제공** | runner는 별도 CLI process로 실행 |
 | Investigation / review finding / Maintenance Review | **지원** | AnalysisRun evidence를 사람이 조사·검토하고 review 기록을 남김 |
 
