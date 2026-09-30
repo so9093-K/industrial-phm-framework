@@ -91,8 +91,8 @@ class AssetWorkspaceEvent:
         if not isinstance(self.kind, AssetEvidenceEventKind):
             raise ValueError("kind must be an AssetEvidenceEventKind")
         _require_text(self.title, "title")
-        if self.occurred_at is not None:
-            _require_aware(self.occurred_at, "occurred_at")
+        if self.occurred_at is not None and not isinstance(self.occurred_at, datetime):
+            raise ValueError("occurred_at must be a datetime when provided")
         if self.detail is not None:
             _require_text(self.detail, "detail")
 
@@ -405,7 +405,7 @@ def _event_title(kind: AssetEvidenceEventKind) -> str:
 
 
 def _event_sort_key(item: AssetWorkspaceEvent) -> tuple[int, float, str]:
-    if item.occurred_at is None:
+    if item.occurred_at is None or item.occurred_at.utcoffset() is None:
         return 1, 0.0, item.event_id
     return 0, -item.occurred_at.timestamp(), item.event_id
 
