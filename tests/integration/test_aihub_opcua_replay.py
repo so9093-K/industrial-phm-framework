@@ -108,6 +108,43 @@ def test_prepare_binds_only_evidenced_meanings_and_leaves_collection_stopped(tmp
         aihub_replay.prepare(root, endpoint, _selection(_archive(tmp_path)), name="test")
 
 
+def test_server_keeps_unpublished_channel_non_good_until_first_record(tmp_path):
+    asyncua = pytest.importorskip("asyncua")
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    root = tmp_path / "replay"
+    endpoint = f"opc.tcp://127.0.0.1:{port}/replay/"
+    aihub_replay.prepare(root, endpoint, _selection(_archive(tmp_path)), name="test")
+
+    async def scenario():
+        stop = asyncio.Event()
+        server = asyncio.create_task(
+            aihub_replay.serve(
+                root,
+                stop,
+                speed=600.0,
+                loop=False,
+                freeze_after_records=0,
+            )
+        )
+        try:
+            for _ in range(100):
+                if (root / aihub_replay.REPLAY_LOG).exists():
+                    break
+                await asyncio.sleep(0.05)
+            async with asyncua.Client(endpoint) as client:
+                node = client.get_node(aihub_replay.node_id("R상전압"))
+                value = await node.read_data_value()
+        finally:
+            stop.set()
+            await server
+        return value
+
+    value = asyncio.run(scenario())
+    assert not value.StatusCode.is_good()
+
+
 def test_server_publishes_recorded_values_on_the_replay_clock(tmp_path):
     asyncua = pytest.importorskip("asyncua")
     with socket.socket() as sock:
