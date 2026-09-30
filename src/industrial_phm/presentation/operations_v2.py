@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from html import escape
 
 from industrial_phm.application.operations_v2 import (
@@ -185,6 +186,6 @@ def _render_asset(asset: OperationsMonitorAsset) -> str:
     )
 
 
-def _relative_hint(value) -> str:
+def _relative_hint(value: datetime | None) -> str:
     # The app owns a live clock; the pure presenter only preserves an absolute timestamp.
     return "—" if value is None else value.isoformat()
