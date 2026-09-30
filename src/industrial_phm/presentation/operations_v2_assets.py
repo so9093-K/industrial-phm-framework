@@ -15,17 +15,17 @@ def render_asset_header_html(view: AssetWorkspaceView) -> str:
     return (
         '<section class="phm-shell">'
         '<div class="phm-asset-header">'
-        '<div>'
+        "<div>"
         f'<div class="phm-asset-kicker">Asset</div>'
         f'<h2 class="phm-asset-title">{escape(view.asset_id)}</h2>'
-        '</div>'
+        "</div>"
         '<div class="phm-asset-facts">'
         + _fact("Status", status_label(view.status), f"phm-status-{view.status.value}")
         + _fact("Last data", _time_label(view.last_data_at))
         + _fact("Sources", str(view.source_count))
         + _fact("Latest analysis", _time_label(view.latest_analysis_at))
         + _fact("Open reviews", str(view.open_review_count))
-        + '</div></div></section>'
+        + "</div></div></section>"
     )
 
 
