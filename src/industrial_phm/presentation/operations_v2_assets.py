@@ -106,7 +106,8 @@ def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
         (
             "<tr>"
             f"<td>{escape(_time_label(item.completed_at))}</td>"
-            f"<td><strong>{escape(item.capability_id)}</strong></td>"
+            f"<td><strong>{escape(_capability_label(item.capability_id))}</strong><br>"
+            f'<span class="phm-card-detail">{escape(item.capability_id)}</span></td>'
             f"<td>{escape(item.source_id)}</td>"
             f"<td>{escape(item.measurement_point_id or '—')}</td>"
             f"<td>{escape(item.data_quality.upper())}</td>"
@@ -166,7 +167,7 @@ def render_asset_maintenance_html(view: AssetWorkspaceView) -> str:
     rows = "".join(
         (
             "<tr>"
-            f"<td><strong>{escape(item.capability_id)}</strong><br>"
+            f"<td><strong>{escape(_capability_label(item.capability_id))}</strong><br>"
             f'<span class="phm-card-detail">{escape(item.finding_id)}</span></td>'
             f"<td>{escape(item.status.value.title())}</td>"
             f"<td>{escape(_time_label(item.observed_at))}</td>"
@@ -244,6 +245,13 @@ def asset_workspace_css() -> str:
 }
 </style>
 """
+
+
+def _capability_label(capability_id: str) -> str:
+    return {
+        "three-phase-unbalance-v1": "Three-phase unbalance",
+        "field-vibration-statistical-features-v1": "Vibration features",
+    }.get(capability_id, capability_id)
 
 
 def _fact(label: str, value: str, class_name: str = "") -> str:
