@@ -13,13 +13,13 @@ def _():
     import marimo as mo
 
     from industrial_phm.application import (
+        AcquisitionTelemetrySurface,
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
         JsonPhaseUnbalanceRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
-        AcquisitionTelemetrySurface,
         JsonWindowAnalysisRuntimeRepository,
         SourceType,
         SystemStateErrorEvidence,
