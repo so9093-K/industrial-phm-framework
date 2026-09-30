@@ -437,6 +437,295 @@ def _(
 
 
 @app.cell
+def _():
+    asset_selection = {"asset_id": None}
+    return (asset_selection,)
+
+
+@app.cell
+def _(asset_selection, history_assets, mo, monitor):
+    asset_ids = tuple(
+        sorted(
+            {
+                *(item.asset_id for item in monitor.assets),
+                *(item.asset_id for item in history_assets),
+            }
+        )
+    )
+    if asset_ids:
+        selected_asset_id = (
+            asset_selection["asset_id"]
+            if asset_selection["asset_id"] in asset_ids
+            else asset_ids[0]
+        )
+        asset_selector = mo.ui.dropdown(
+            options=list(asset_ids),
+            value=selected_asset_id,
+            label="Asset",
+            full_width=True,
+            on_change=lambda value: asset_selection.update(asset_id=value),
+        )
+    else:
+        asset_selector = None
+    asset_section = mo.ui.radio(
+        options=["Overview", "Signals", "Analysis", "Events", "Maintenance"],
+        value="Overview",
+        label="View",
+    )
+    return asset_section, asset_selector
+
+
+@app.cell
+def _(
+    AssetIdentity,
+    analysis_results,
+    asset_selector,
+    build_asset_detail,
+    build_asset_workspace_view,
+    findings,
+    history_assets,
+    history_reader,
+    monitor,
+    navigation,
+    overview,
+    registered_sources,
+    review_events,
+):
+    asset_workspace = None
+    asset_workspace_error = None
+    if navigation.value == "Assets" and asset_selector is not None:
+        try:
+            selected_asset_id = asset_selector.value
+            history_summary = next(
+                (item for item in history_assets if item.asset_id == selected_asset_id),
+                None,
+            )
+            history_channels = (
+                ()
+                if history_reader is None
+                else history_reader.list_history_channels(selected_asset_id)
+            )
+            detail = build_asset_detail(
+                AssetIdentity(selected_asset_id),
+                sources=registered_sources,
+                overview=overview,
+                analysis_runs=tuple(item.run for item in analysis_results),
+                findings=findings,
+                review_events=review_events,
+            )
+            monitor_asset = next(
+                (item for item in monitor.assets if item.asset_id == selected_asset_id),
+                None,
+            )
+            asset_workspace = build_asset_workspace_view(
+                asset_id=selected_asset_id,
+                detail=detail,
+                analysis_results=analysis_results,
+                monitor_asset=monitor_asset,
+                history_summary=history_summary,
+                history_channels=history_channels,
+            )
+        except Exception as error:
+            asset_workspace_error = str(error)
+    return asset_workspace, asset_workspace_error
+
+
+@app.cell
+def _(asset_workspace, mo):
+    if asset_workspace is None or not asset_workspace.history_channels:
+        signal_channel_selector = None
+    else:
+        signal_channel_selector = mo.ui.dropdown(
+            options=list(asset_workspace.history_channels),
+            value=asset_workspace.history_channels[0],
+            label="Signal",
+            full_width=True,
+        )
+    signal_range_selector = mo.ui.radio(
+        options=["15m", "24h", "7d"],
+        value="15m",
+        label="Time range",
+    )
+    return signal_channel_selector, signal_range_selector
+
+
+@app.cell
+def _(
+    asset_selector,
+    asset_workspace,
+    assessed_at,
+    history_reader,
+    latest_measurement_rows,
+    measurement_aggregation_rows,
+    measurement_aggregation_summary,
+    measurement_history_range_summary,
+    measurement_history_rows,
+    mo,
+    navigation,
+    render_measurement_aggregation_svg,
+    render_measurement_history_svg,
+    resolve_measurement_range,
+    signal_channel_selector,
+    signal_range_selector,
+):
+    if navigation.value != "Assets":
+        signal_view = mo.md("")
+    elif asset_workspace is None:
+        signal_view = mo.md("No asset is selected.")
+    elif history_reader is None:
+        signal_view = mo.md(
+            "### Signals\n\nNo Asset History catalog is available for this workspace."
+        )
+    elif signal_channel_selector is None:
+        signal_view = mo.md(
+            "### Signals\n\nNo stored signal is available for this asset yet."
+        )
+    elif asset_selector is None:
+        signal_view = mo.md("### Signals\n\nNo asset is selected.")
+    else:
+        try:
+            channel_id = signal_channel_selector.value
+            range_id = signal_range_selector.value
+            start_at, end_at = resolve_measurement_range(
+                range_id,
+                as_of=assessed_at,
+                start_at=assessed_at,
+                end_at=assessed_at,
+            )
+            latest = history_reader.query_latest_measurements(
+                asset_selector.value,
+                channel_id=channel_id,
+            )
+            latest_rows = latest_measurement_rows(latest, as_of=assessed_at)
+            controls = mo.hstack(
+                [signal_channel_selector, signal_range_selector],
+                widths=[0.62, 0.38],
+                align="start",
+            )
+            latest_view = mo.vstack(
+                [
+                    mo.md("#### Latest stored value"),
+                    mo.ui.table(
+                        [
+                            {
+                                key: row[key]
+                                for key in (
+                                    "source",
+                                    "measurement_point",
+                                    "time",
+                                    "value",
+                                    "unit",
+                                    "quality",
+                                    "source_quality",
+                                    "event_time_state",
+                                    "history_age_seconds",
+                                )
+                            }
+                            for row in latest_rows
+                        ],
+                        selection=None,
+                    ),
+                ],
+                gap=0.6,
+            )
+
+            if range_id in {"24h", "7d"}:
+                aggregation = history_reader.query_measurement_aggregation(
+                    asset_selector.value,
+                    channel_id=channel_id,
+                    start_at=start_at,
+                    end_at=end_at,
+                    bucket_count=100 if range_id == "7d" else 200,
+                )
+                trend_view = mo.vstack(
+                    [
+                        mo.Html(render_measurement_aggregation_svg(aggregation)),
+                        mo.ui.table(
+                            [measurement_aggregation_summary(aggregation)],
+                            selection=None,
+                        ),
+                        mo.accordion(
+                            {
+                                "Data details": mo.ui.table(
+                                    measurement_aggregation_rows(aggregation),
+                                    page_size=10,
+                                )
+                            }
+                        ),
+                    ],
+                    gap=0.8,
+                )
+            else:
+                page = history_reader.query_measurement_page(
+                    asset_selector.value,
+                    start_at=start_at,
+                    end_at=end_at,
+                    channel_id=channel_id,
+                    point_budget=2000,
+                    latest=True,
+                )
+                trend_blocks = [
+                    mo.ui.table(
+                        [
+                            measurement_history_range_summary(
+                                page,
+                                start_at=start_at,
+                                end_at=end_at,
+                            )
+                        ],
+                        selection=None,
+                    )
+                ]
+                if page.points:
+                    trend_blocks.append(
+                        mo.Html(
+                            render_measurement_history_svg(
+                                page,
+                                start_at=start_at,
+                                end_at=end_at,
+                            )
+                        )
+                    )
+                    trend_blocks.append(
+                        mo.accordion(
+                            {
+                                "Raw observations": mo.ui.table(
+                                    measurement_history_rows(page),
+                                    page_size=10,
+                                )
+                            }
+                        )
+                    )
+                else:
+                    trend_blocks.append(
+                        mo.md(
+                            "No stored observation falls inside the selected time range."
+                        )
+                    )
+                trend_view = mo.vstack(trend_blocks, gap=0.8)
+
+            signal_view = mo.vstack(
+                [
+                    controls,
+                    latest_view,
+                    trend_view,
+                    mo.md(
+                        "Stored measurements and UI aggregates are observation evidence. "
+                        "This view does not infer asset health, fault, alarm, or missing samples."
+                    ),
+                ],
+                gap=1.0,
+            )
+        except Exception as error:
+            signal_view = mo.callout(
+                str(error),
+                kind="danger",
+                title="Signals unavailable",
+            )
+    return (signal_view,)
+
+
+@app.cell
 def _(
     mo,
     monitor,
