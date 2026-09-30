@@ -16,12 +16,12 @@ from industrial_phm.application import (
     build_asset_detail,
     build_operations_overview,
 )
+from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operations_v2 import (
     OperationsMonitorAsset,
     OperationsMonitorStatus,
 )
-from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.operations_v2_assets import (
     AssetWorkspaceAnalysisAttempt,
     build_asset_workspace_view,
