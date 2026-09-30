@@ -280,6 +280,7 @@ def _(mo):
 def _(
     DuckLakeAssetHistory,
     DuckLakeAssetHistoryConfig,
+    AssetWorkspaceAnalysisAttempt,
     JsonFieldFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
@@ -295,7 +296,10 @@ def _(
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
     SqliteCollectionControlRepository,
+    SqliteObservationWindowRepository,
+    SqliteWindowAnalysisLedger,
     SystemStateErrorEvidence,
+    WindowAnalysisState,
     UTC,
     build_operations_attention_queue,
     build_operations_monitor_view,
@@ -356,6 +360,18 @@ def _(
         os.environ.get(
             "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
             str(phase_analysis_path.with_name(f"{phase_analysis_path.stem}-runtime.json")),
+        )
+    )
+    window_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
+            str(phase_analysis_path.with_name("windows.sqlite")),
+        )
+    )
+    analysis_ledger_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
+            str(phase_analysis_path.with_name("window-analysis-ledger.sqlite")),
         )
     )
     finding_path = Path(
@@ -464,6 +480,50 @@ def _(
         )
     )
     analysis_runs = tuple(item.run for item in analysis_results)
+
+    skipped_analysis_attempts = ()
+    if window_state_path.is_file() and analysis_ledger_path.is_file():
+        try:
+            _window_repository = SqliteObservationWindowRepository(window_state_path)
+            _analysis_ledger = SqliteWindowAnalysisLedger(analysis_ledger_path)
+            _skipped_attempts = []
+            for _outcome in _analysis_ledger.list_skipped():
+                if _outcome.reason is None:
+                    raise ValueError(
+                        f"skipped window {_outcome.window_id} has no recorded reason"
+                    )
+                _window = _window_repository.get(_outcome.window_id)
+                _skipped_attempts.append(
+                    AssetWorkspaceAnalysisAttempt(
+                        asset_id=_window.asset_id,
+                        state=WindowAnalysisState.SKIPPED,
+                        capability_id=_outcome.capability_id,
+                        source_id=_window.source_id,
+                        measurement_point_id=_window.measurement_point_id,
+                        observed_start_at=_window.window_start,
+                        observed_end_at=_window.window_end,
+                        recorded_at=_outcome.recorded_at,
+                        window_id=_window.window_id,
+                        reason=_outcome.reason,
+                    )
+                )
+            skipped_analysis_attempts = tuple(
+                sorted(
+                    _skipped_attempts,
+                    key=lambda item: (
+                        -item.recorded_at.timestamp(),
+                        item.window_id or "",
+                    ),
+                )
+            )
+        except (KeyError, LookupError, OSError, ValueError) as error:
+            system_errors.append(
+                SystemStateErrorEvidence(
+                    "analysis-attempts",
+                    str(error),
+                    assessed_at,
+                )
+            )
 
     try:
         findings = JsonOperationalFindingRepository(finding_path).list_findings()
@@ -611,6 +671,8 @@ def _(
         ("Vibration analysis", str(field_analysis_path)),
         ("Three-phase analysis", str(phase_analysis_path)),
         ("Analysis service runtime", str(analysis_runtime_path)),
+        ("Finalized windows", str(window_state_path)),
+        ("Analysis skip ledger", str(analysis_ledger_path)),
         ("Review requests", str(finding_path)),
         ("Maintenance review", str(review_path)),
     )
@@ -636,6 +698,7 @@ def _(
         registry_path,
         review_events,
         review_path,
+        skipped_analysis_attempts,
         source_runtime_path,
         system_diagnostics,
         system_errors,
