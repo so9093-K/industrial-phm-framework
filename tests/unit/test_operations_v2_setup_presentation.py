@@ -66,7 +66,8 @@ def test_setup_primary_surfaces_use_user_language() -> None:
     assert "Main panel" in list_html
     assert "OPC UA" in list_html
     assert "Enabled" in detail_html
-    assert "Running" in list_html
+    assert "Collection request" in list_html
+    assert "Requested: Running" in list_html
     assert "phase voltage" in signals_html
     assert "Data age limit" in detail_html
     assert "30 s" in detail_html
