@@ -8,18 +8,16 @@
 판단할 수 있게 되었는가입니다. 측정값이나 수집 성공을 설비 정상 판정으로 승격하지 않습니다.
 
 이 문서는 PHM 결과가 실제 사용자에게 어떤 가치와 정보 구조로 전달되어야 하는지 정리하는 제품 기준선입니다.
-초기 low-fidelity UX 단계에서는 UI framework 선택을 미뤘지만, 현재는 이미 검증된 분석·evidence 계층을
-**end-to-end Analysis Application**으로 연결하면서 analysis contract와 사용자 화면을 함께 검증합니다.
+특정 UI framework나 현재 구현 milestone을 이 문서의 책임으로 두지 않습니다. Frontend/API 기술을 먼저
+고정하지 않는 원칙을 유지하면서 analysis contract와 사용자 화면을 함께 검증합니다.
 
-Frontend/API 기술을 먼저 고정하지 않는 원칙은 유지하되, UI 구현 자체를 미래 단계로 미루지는 않습니다.
-프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를 따릅니다.
+구현된 surface와 미지원 capability는 [현재 지원 상태](../status.md), 프로젝트 공통 용어는
+[`../terminology.md`](../terminology.md)를 따릅니다.
 
 ## 1. 사용자 역할
 
-아래 역할의 위험·alert·정비 우선순위 항목은 **목표 사용자 요구**이며 현재 구현 capability를 뜻하지 않습니다.
-현재 운영 경로는 관측/이력/품질/출처 확인, FILE 특징 evidence와 과거 Asset History 기반 3상 불평형 evidence,
-그 결과에 대한 Investigation·사람이 생성한 review finding과 검토 기록입니다.
-검증된 진단·합리화된 alarm·fleet risk·operational RUL·자동 정비 권고는 아직 제공하지 않습니다.
+아래 역할의 위험·alert·정비 우선순위 항목은 **목표 사용자 요구**이며 구현 여부를 뜻하지 않습니다.
+각 요구의 현재 지원 여부는 이 제품 기준선에 복사하지 않고 [현재 지원 상태](../status.md)에서 확인합니다.
 
 ### 설비 관리자
 
@@ -53,8 +51,7 @@ Frontend/API 기술을 먼저 고정하지 않는 원칙은 유지하되, UI 구
 
 ### PHM/ML 개발자·연구자
 
-현재 pre-alpha 단계의 직접 사용자는 pipeline을 구현·검토하고 experiment evidence를 해석하는
-PHM/ML 개발자와 연구자입니다. 이 역할에는 최종 anomaly score만큼 **어떤 변환과 population 경계를 거쳐
+PHM/ML 개발자와 연구자 역할에는 최종 anomaly score만큼 **어떤 변환과 population 경계를 거쳐
 그 결과가 만들어졌는지**가 중요합니다.
 
 - effective dataset/source, split/partition과 source scope
