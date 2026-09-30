@@ -409,7 +409,7 @@ def _(
             )
             history_reader = None
 
-        attention = build_operations_attention_queue(
+    attention = build_operations_attention_queue(
         overview=overview,
         system_errors=tuple(system_errors),
     )
