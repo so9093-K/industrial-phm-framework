@@ -134,10 +134,6 @@ from industrial_phm.application.measurement_semantics import (
     ChannelSemanticCandidate,
     MeasurementDefinition,
 )
-from industrial_phm.application.opcua_semantic_registration import (
-    OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS,
-    parse_opcua_semantic_bindings,
-)
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     AssetObservationTimeline,
@@ -169,6 +165,10 @@ from industrial_phm.application.opcua_persistent import (
     OpcUaPersistentSessionState,
     project_opcua_persistent_data_change_event,
     validate_opcua_persistent_session_transition,
+)
+from industrial_phm.application.opcua_semantic_registration import (
+    OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS,
+    parse_opcua_semantic_bindings,
 )
 from industrial_phm.application.operational import (
     AnalysisRun,
