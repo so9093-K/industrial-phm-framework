@@ -489,9 +489,7 @@ def _(
             _skipped_attempts = []
             for _outcome in _analysis_ledger.list_skipped():
                 if _outcome.reason is None:
-                    raise ValueError(
-                        f"skipped window {_outcome.window_id} has no recorded reason"
-                    )
+                    raise ValueError(f"skipped window {_outcome.window_id} has no recorded reason")
                 _window = _window_repository.get(_outcome.window_id)
                 _skipped_attempts.append(
                     AssetWorkspaceAnalysisAttempt(
