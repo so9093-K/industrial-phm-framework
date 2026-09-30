@@ -25,6 +25,43 @@ class AcquisitionFailureComponent(StrEnum):
     WINDOW_COORDINATOR = "window-coordinator"
 
 
+class CollectionServiceRuntimeState(StrEnum):
+    RUNNING = "running"
+    STOPPED = "stopped"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionServiceRuntimeTelemetry:
+    """Process-level collection service evidence, separate from source session state."""
+
+    state: CollectionServiceRuntimeState
+    started_at: datetime
+    heartbeat_at: datetime
+    reconcile_count: int
+    owned_source_count: int
+    last_failure_at: datetime | None = None
+    last_failure: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.state, CollectionServiceRuntimeState):
+            raise ValueError("state must be CollectionServiceRuntimeState")
+        _validate_aware_datetime(self.started_at, "started_at")
+        _validate_aware_datetime(self.heartbeat_at, "heartbeat_at")
+        if self.heartbeat_at < self.started_at:
+            raise ValueError("heartbeat_at must not be before started_at")
+        _validate_non_negative_int(self.reconcile_count, "reconcile_count")
+        _validate_non_negative_int(self.owned_source_count, "owned_source_count")
+        if (self.last_failure_at is None) != (self.last_failure is None):
+            raise ValueError("last failure time and detail must be recorded together")
+        if self.last_failure_at is not None:
+            _validate_aware_datetime(self.last_failure_at, "last_failure_at")
+            if self.last_failure_at > self.heartbeat_at:
+                raise ValueError("last_failure_at must not be after heartbeat_at")
+        if self.last_failure is not None:
+            _validate_detail(self.last_failure, "last_failure")
+
+
 @dataclass(frozen=True, slots=True)
 class AcquisitionSessionTelemetry:
     source_id: str
@@ -393,6 +430,42 @@ class AcquisitionTelemetryRecorder(Protocol):
     ) -> None: ...
 
     def record_failure(self, failure: AcquisitionFailureTelemetry) -> None: ...
+
+
+@runtime_checkable
+class CollectionServiceRuntimeRecorder(Protocol):
+    def record_collection_service_start(
+        self,
+        *,
+        started_at: datetime,
+    ) -> None: ...
+
+    def record_collection_service_heartbeat(
+        self,
+        *,
+        heartbeat_at: datetime,
+        reconcile_count: int,
+        owned_source_count: int,
+    ) -> None: ...
+
+    def record_collection_service_failure(
+        self,
+        detail: str,
+        *,
+        occurred_at: datetime,
+    ) -> None: ...
+
+    def record_collection_service_stop(
+        self,
+        *,
+        stopped_at: datetime,
+        reconcile_count: int,
+    ) -> None: ...
+
+
+@runtime_checkable
+class CollectionServiceRuntimeRepository(Protocol):
+    def get_collection_service_runtime(self) -> CollectionServiceRuntimeTelemetry | None: ...
 
 
 @runtime_checkable
