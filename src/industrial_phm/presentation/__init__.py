@@ -16,8 +16,16 @@ from industrial_phm.presentation.operations import (
     render_source_data_flow_markdown,
     render_unplaced_asset_evidence_markdown,
 )
+from industrial_phm.presentation.operations_v2 import (
+    OPERATIONS_V2_MAIN_BACKGROUND,
+    operations_v2_theme_css,
+    render_monitor_assets_html,
+    render_monitor_flow_html,
+    status_label,
+)
 
 __all__ = [
+    "OPERATIONS_V2_MAIN_BACKGROUND",
     "OperationalAnalysisPresentationKind",
     "operational_analysis_presentation_kind",
     "render_analysis_quality_markdown",
@@ -32,4 +40,8 @@ __all__ = [
     "render_observation_provenance_markdown",
     "render_source_data_flow_markdown",
     "render_unplaced_asset_evidence_markdown",
+    "operations_v2_theme_css",
+    "render_monitor_assets_html",
+    "render_monitor_flow_html",
+    "status_label",
 ]
