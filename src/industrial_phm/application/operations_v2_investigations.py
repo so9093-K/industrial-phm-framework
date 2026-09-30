@@ -168,18 +168,18 @@ def build_investigation_queue(
             raise ValueError("duplicate analysis result identity")
         seen_ids.add(investigation_id)
 
-        finding = review_findings.get((run.analysis_run_id, evidence.capability_id))
-        if finding is None:
+        review_finding = review_findings.get((run.analysis_run_id, evidence.capability_id))
+        if review_finding is None:
             state = InvestigationReviewState.NOT_REQUESTED
             finding_id = None
             updated_at = None
         else:
             matching_events = tuple(
-                event for event in event_values if event.finding_id == finding.finding_id
+                event for event in event_values if event.finding_id == review_finding.finding_id
             )
-            status = finding_review_status(matching_events, finding.finding_id)
+            status = finding_review_status(matching_events, review_finding.finding_id)
             state = _review_state(status)
-            finding_id = finding.finding_id
+            finding_id = review_finding.finding_id
             updated_at = max(
                 (event.recorded_at for event in matching_events),
                 default=None,
