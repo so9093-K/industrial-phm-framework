@@ -836,16 +836,16 @@ def _(
 
 @app.cell
 def _(
+    analysis_results,
     build_investigation_queue,
     get_investigation_findings,
-    review_events,
-    analysis_results,
+    maintenance_events,
 ):
     investigation_findings = get_investigation_findings()
     investigation_queue = build_investigation_queue(
         analysis_results=analysis_results,
         findings=investigation_findings,
-        review_events=review_events,
+        review_events=maintenance_events,
     )
     return investigation_findings, investigation_queue
 
@@ -1307,7 +1307,11 @@ def _(
     }
     _filtered = maintenance_queue.filter(
         status=_status_by_label.get(maintenance_status_filter.value),
-        asset_id=None if maintenance_asset_filter.value == "All" else maintenance_asset_filter.value,
+        asset_id=(
+            None
+            if maintenance_asset_filter.value == "All"
+            else maintenance_asset_filter.value
+        ),
     )
     _label_to_id = {
         f"{maintenance_queue_label(item)} · {index + 1}": item.finding_id
@@ -1554,7 +1558,7 @@ def _(
         align="start",
         gap=1.3,
     )
-    return maintenance_view, maintenance_workspace_css
+    return (maintenance_view,)
 
 
 @app.cell
