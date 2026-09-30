@@ -51,7 +51,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | window 시작 전 carry-in state | **미제공** | finalized window 밖의 이전 값을 analysis input으로 재조회하지 않음 |
 | Operations source control/monitor | **지원** | desired collection state, telemetry, spool/history evidence를 별도 상태로 표시 |
 | Operations Asset History | **지원** | 최신값·raw page·UI aggregation·quality·provenance 조회 |
-| Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함 |
+| Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함. 실행 중 새 결과는 명시적 refresh로 읽음(자동 polling 없음) |
 | Live runner lifecycle 전용 UI/자동 process 관리 | **미제공** | runner는 별도 CLI process로 실행 |
 | Investigation / review finding / Maintenance Review | **지원** | AnalysisRun evidence를 사람이 조사·검토하고 review 기록을 남김 |
 

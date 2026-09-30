@@ -99,8 +99,9 @@ Each pending finalized window is analyzed from its accepted events (ADR-0008). T
 window/capability/algorithm/policy result is persisted once across runner restarts. Windows without all
 three phases bound are recorded as skipped with a reason.
 
-To inspect those live results in Operations, start (or restart) Operations with the **same analysis
-result repository** used by the runner:
+To inspect those live results in Operations, start Operations with the **same analysis result
+repository** used by the runner. Results the runner writes later appear after **Refresh analysis
+results** in Asset Detail or Investigation; no restart is needed:
 
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.json

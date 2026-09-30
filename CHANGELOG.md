@@ -11,6 +11,11 @@
 
 ### Changed
 
+- Operations의 Asset Detail·Investigation에 **Refresh analysis results**를 추가했습니다. 별도
+  `run-window-analysis` process가 기록한 3상 불평형 결과를 앱 재시작 없이 다시 읽고, 선택 중인 분석은
+  refresh 후에도 유지합니다. 읽기 실패 시 마지막 성공 결과와 실패 상태를 구분해 표시하며 Operations는 runner
+  lifecycle을 소유하지 않습니다.
+
 - Operations의 OPC UA **Add source**에서 channel별 measurement semantics를 explicit CSV row로 등록할 수
   있습니다. observed property/scope/statistic/unit, semantic version과 interpretation/unit evidence를
   versioned `ChannelSemanticBinding`으로 저장하며 browse name·channel ID·NodeId에서는 물리 의미를
