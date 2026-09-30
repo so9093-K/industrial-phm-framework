@@ -310,7 +310,7 @@ def _source_stage(
             count=0,
         )
     statuses = tuple(
-        _source_status(item, surfaces.get(item.source_id))
+        source_monitor_status(item, surfaces.get(item.source_id))
         for item in overview.source_health_assessments
     )
     errors = statuses.count(OperationsMonitorStatus.ERROR)
@@ -338,7 +338,7 @@ def _source_stage(
         status = OperationsMonitorStatus.UNAVAILABLE
         summary = "Current source timing is unavailable"
     latest = _latest_time(
-        _latest_source_data_at(item, surfaces.get(item.source_id))
+        latest_source_data_at(item, surfaces.get(item.source_id))
         for item in overview.source_health_assessments
     )
     return OperationsMonitorStage(
@@ -530,11 +530,11 @@ def _asset_rows(
             if source.source_id in health_by_source
         )
         source_statuses = tuple(
-            _source_status(item, surfaces.get(item.source_id)) for item in asset_health
+            source_monitor_status(item, surfaces.get(item.source_id)) for item in asset_health
         )
         status = _aggregate_asset_status(source_statuses, bool(asset_sources))
         last_data = _latest_time(
-            _latest_source_data_at(item, surfaces.get(item.source_id)) for item in asset_health
+            latest_source_data_at(item, surfaces.get(item.source_id)) for item in asset_health
         )
         latest_analysis = max(
             (run.completed_at for run in runs if run.asset_id == asset_id),
@@ -576,7 +576,7 @@ def _monitor_attention(
             if (
                 source_health is not None
                 and surface is not None
-                and _source_status(source_health, surface) == OperationsMonitorStatus.RUNNING
+                and source_monitor_status(source_health, surface) == OperationsMonitorStatus.RUNNING
             ):
                 continue
         values.append(_project_existing_attention(item, sources))
@@ -674,10 +674,11 @@ def _project_existing_attention(
     )
 
 
-def _source_status(
+def source_monitor_status(
     health: SourceHealthAssessment,
-    surface: AcquisitionTelemetrySurface | None,
+    surface: AcquisitionTelemetrySurface | None = None,
 ) -> OperationsMonitorStatus:
+    """Translate current source evidence into the shared operator-facing state."""
     if surface is not None:
         if _current_failure(surface, AcquisitionFailureComponent.OPCUA_WORKER) is not None:
             return OperationsMonitorStatus.ERROR
@@ -702,10 +703,11 @@ def _source_status(
     return OperationsMonitorStatus.UNAVAILABLE
 
 
-def _latest_source_data_at(
+def latest_source_data_at(
     health: SourceHealthAssessment,
-    surface: AcquisitionTelemetrySurface | None,
+    surface: AcquisitionTelemetrySurface | None = None,
 ) -> datetime | None:
+    """Return the newest accepted/live receipt without inventing source event time."""
     values = []
     if health.latest_received_at is not None:
         values.append(health.latest_received_at)

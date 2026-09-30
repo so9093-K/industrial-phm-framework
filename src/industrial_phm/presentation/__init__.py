@@ -23,15 +23,29 @@ from industrial_phm.presentation.operations_v2 import (
     render_monitor_flow_html,
     status_label,
 )
+from industrial_phm.presentation.operations_v2_assets import (
+    asset_workspace_css,
+    render_asset_analysis_html,
+    render_asset_events_html,
+    render_asset_header_html,
+    render_asset_maintenance_html,
+    render_asset_overview_html,
+)
 
 __all__ = [
     "OPERATIONS_V2_MAIN_BACKGROUND",
     "OperationalAnalysisPresentationKind",
+    "asset_workspace_css",
     "operational_analysis_presentation_kind",
     "operations_v2_theme_css",
     "render_analysis_quality_markdown",
+    "render_asset_analysis_html",
     "render_asset_analysis_markdown",
+    "render_asset_events_html",
     "render_asset_findings_markdown",
+    "render_asset_header_html",
+    "render_asset_maintenance_html",
+    "render_asset_overview_html",
     "render_asset_sources_markdown",
     "render_asset_timeline_markdown",
     "render_attention_queue_markdown",

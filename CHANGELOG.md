@@ -11,6 +11,12 @@
 
 ### Changed
 
+- Operations V2 **Assets**를 실제 read-only workspace로 연결했습니다. Monitor/history의 asset 합집합을
+  선택하고 Overview / Signals / Analysis / Events / Maintenance를 같은 설비 context에서 확인합니다.
+  Signals는 기존 DuckLake Asset History의 raw/aggregate/latest semantics를 재사용하고, history-only asset은
+  live status를 추론하지 않습니다. Source 상태는 Monitor와 같은 persistent acquisition telemetry projection을
+  사용하며 history query failure는 Signals에만 격리합니다.
+
 - Operations V2 foundation을 추가했습니다. `apps/operations_v2.py`는 메인 배경 `#292827`의
   Monitor 중심 shell에서 Source → Collect → Store → Analyze → Review 흐름, 현재 attention, asset 요약과
   recent activity를 기존 operational evidence로 읽습니다. 기존 Operations action UI는 마이그레이션 동안
