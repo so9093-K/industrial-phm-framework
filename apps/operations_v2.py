@@ -928,6 +928,7 @@ def _(
             if investigation_selection["investigation_id"] in _id_to_label
             else _filtered_investigations[0].investigation_id
         )
+        investigation_selection["investigation_id"] = _selected_id
         investigation_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
@@ -1324,6 +1325,7 @@ def _(
             if maintenance_selection["finding_id"] in _id_to_label
             else _filtered[0].finding_id
         )
+        maintenance_selection["finding_id"] = _selected_id
         maintenance_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
