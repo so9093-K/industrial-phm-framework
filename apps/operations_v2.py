@@ -31,6 +31,7 @@ def _():
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
+        SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceType,
         SystemStateErrorEvidence,
@@ -153,6 +154,7 @@ def _():
         OperationalAnalysisPresentationKind,
         Path,
         RegisteredSource,
+        SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceType,
         SqliteAcquisitionSpool,
@@ -589,6 +591,7 @@ def _(
         collection_records,
         finding_path,
         findings,
+        freshness_policies,
         history_assets,
         history_reader,
         lifecycle_records,
@@ -638,12 +641,13 @@ def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_o
 
 
 @app.cell
-def _(collection_records, lifecycle_records, mo, registered_sources):
+def _(collection_records, freshness_policies, lifecycle_records, mo, registered_sources):
     get_setup_config, set_setup_config = mo.state(
         (
             tuple(registered_sources),
             tuple(lifecycle_records),
             tuple(collection_records),
+            tuple(freshness_policies),
         )
     )
     get_setup_error, set_setup_error = mo.state("")
@@ -676,6 +680,7 @@ def _(collection_records, lifecycle_records, mo, registered_sources):
 @app.cell
 def _(
     collection_records,
+    freshness_policies,
     lifecycle_records,
     refresh_button,
     registered_sources,
@@ -690,6 +695,7 @@ def _(
                 tuple(registered_sources),
                 tuple(lifecycle_records),
                 tuple(collection_records),
+                tuple(freshness_policies),
             )
         )
         set_pending_semantics({})
@@ -705,17 +711,24 @@ def _(
     get_setup_error,
     get_setup_success,
 ):
-    setup_sources, setup_lifecycles, setup_collection = get_setup_config()
+    (
+        setup_sources,
+        setup_lifecycles,
+        setup_collection,
+        setup_freshness,
+    ) = get_setup_config()
     setup_error = get_setup_error()
     setup_success = get_setup_success()
     setup_workspace = build_setup_workspace(
         sources=setup_sources,
         lifecycle_records=setup_lifecycles,
         collection_records=setup_collection,
+        freshness_policies=setup_freshness,
     )
     return (
         setup_collection,
         setup_error,
+        setup_freshness,
         setup_lifecycles,
         setup_sources,
         setup_success,
@@ -829,8 +842,10 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _, _, _current_collection = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _current_collection))
+            _, _, _current_collection, _current_freshness = get_setup_config()
+            set_setup_config(
+                (_sources, _lifecycles, _current_collection, _current_freshness)
+            )
             set_setup_error("")
             set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
     return
@@ -878,8 +893,15 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _current_sources, _current_lifecycles, _ = get_setup_config()
-            set_setup_config((_current_sources, _current_lifecycles, _records))
+            (
+                _current_sources,
+                _current_lifecycles,
+                _,
+                _current_freshness,
+            ) = get_setup_config()
+            set_setup_config(
+                (_current_sources, _current_lifecycles, _records, _current_freshness)
+            )
             set_setup_error("")
             set_setup_success(
                 "Collection request saved: "
@@ -1365,8 +1387,10 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _, _, _current_collection = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _current_collection))
+            _, _, _current_collection, _current_freshness = get_setup_config()
+            set_setup_config(
+                (_sources, _lifecycles, _current_collection, _current_freshness)
+            )
             set_pending_semantics({})
             set_setup_error("")
             set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
