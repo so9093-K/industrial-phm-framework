@@ -25,13 +25,16 @@ from industrial_phm.contracts import DataQualityAssessment
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
 
 
-def _source() -> RegisteredSource:
+def _source(
+    source_id: str = "source-a",
+    asset_id: str = "boiler-01",
+) -> RegisteredSource:
     return RegisteredSource(
-        source_id="source-a",
-        name="Source A",
+        source_id=source_id,
+        name=source_id,
         config=FileSourceConfig(
-            source_path="data/source.csv",
-            asset_id="boiler-01",
+            source_path=f"data/{source_id}.csv",
+            asset_id=asset_id,
             channel_columns=("value",),
             sampling_rate_hz=1.0,
         ),
@@ -39,25 +42,30 @@ def _source() -> RegisteredSource:
     )
 
 
-def _overview(*, observed_at: datetime, max_age_seconds: float):
-    source = _source()
+def _overview(
+    *,
+    source: RegisteredSource | None = None,
+    observed_at: datetime,
+    max_age_seconds: float,
+):
+    selected = source or _source()
     lifecycle = SourceLifecycleRecord(
-        source_id=source.source_id,
+        source_id=selected.source_id,
         state=SourceLifecycleState.ACTIVE,
         changed_at=NOW - timedelta(hours=1),
     )
     receipt = SourceReceiptEvidence(
-        source_id=source.source_id,
+        source_id=selected.source_id,
         observed_at=observed_at,
         received_at=observed_at + timedelta(seconds=1),
     )
     policy = SourceFreshnessPolicy(
-        source_id=source.source_id,
+        source_id=selected.source_id,
         max_observation_age_seconds=max_age_seconds,
         changed_at=NOW - timedelta(hours=1),
     )
-    return source, build_operations_overview(
-        sources=(source,),
+    return selected, build_operations_overview(
+        sources=(selected,),
         lifecycle_records=(lifecycle,),
         receipts=(receipt,),
         freshness_policies=(policy,),
@@ -102,13 +110,12 @@ def test_monitor_translates_current_evidence_into_small_operator_vocabulary() ->
         observed_at=NOW - timedelta(seconds=5),
         max_age_seconds=60,
     )
-    attention = build_operations_attention_queue(overview=overview)
     run = _analysis_run()
 
     monitor = build_operations_monitor_view(
         sources=(source,),
         overview=overview,
-        attention=attention,
+        attention=build_operations_attention_queue(overview=overview),
         analysis_runs=(run,),
         analysis_runtime=_runner(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
@@ -121,16 +128,16 @@ def test_monitor_translates_current_evidence_into_small_operator_vocabulary() ->
     assert monitor.stages[3].status == OperationsMonitorStatus.RUNNING
     assert monitor.stages[4].status == OperationsMonitorStatus.WAITING
 
-    assert len(monitor.assets) == 1
     asset = monitor.assets[0]
     assert asset.asset_id == "boiler-01"
     assert asset.status == OperationsMonitorStatus.RUNNING
     assert asset.latest_analysis_at == run.completed_at
     assert asset.attention_count == 0
+    assert monitor.attention_count == 0
     assert monitor.activities[0].title == "Analysis completed"
 
 
-def test_monitor_marks_stale_runner_heartbeat_as_delayed() -> None:
+def test_monitor_marks_stale_runner_heartbeat_as_delayed_attention() -> None:
     source, overview = _overview(
         observed_at=NOW - timedelta(seconds=5),
         max_age_seconds=60,
@@ -148,6 +155,8 @@ def test_monitor_marks_stale_runner_heartbeat_as_delayed() -> None:
     )
     assert analysis.status == OperationsMonitorStatus.DELAYED
     assert "45s old" in analysis.summary
+    assert monitor.attention_count == 1
+    assert monitor.attention[0].title == "Analysis service is not updating"
 
 
 def test_monitor_surfaces_stale_source_as_asset_attention_not_asset_health() -> None:
@@ -155,18 +164,66 @@ def test_monitor_surfaces_stale_source_as_asset_attention_not_asset_health() -> 
         observed_at=NOW - timedelta(minutes=2),
         max_age_seconds=30,
     )
-    attention = build_operations_attention_queue(overview=overview)
-
     monitor = build_operations_monitor_view(
         sources=(source,),
         overview=overview,
-        attention=attention,
+        attention=build_operations_attention_queue(overview=overview),
         analysis_runtime=None,
         as_of=NOW,
     )
 
     assert monitor.stages[0].status == OperationsMonitorStatus.DELAYED
     assert monitor.attention_count == 1
+    assert monitor.attention[0].title == "Data is delayed"
     assert monitor.assets[0].status == OperationsMonitorStatus.DELAYED
     assert monitor.assets[0].attention_count == 1
     assert monitor.stages[3].status == OperationsMonitorStatus.UNAVAILABLE
+
+
+def test_monitor_handles_assets_with_and_without_data_time_without_comparing_none() -> None:
+    first = _source("source-a", "asset-a")
+    second = _source("source-b", "asset-b")
+    lifecycles = (
+        SourceLifecycleRecord(
+            source_id="source-a",
+            state=SourceLifecycleState.ACTIVE,
+            changed_at=NOW - timedelta(hours=1),
+        ),
+        SourceLifecycleRecord(
+            source_id="source-b",
+            state=SourceLifecycleState.ACTIVE,
+            changed_at=NOW - timedelta(hours=1),
+        ),
+    )
+    receipt = SourceReceiptEvidence(
+        source_id="source-a",
+        observed_at=NOW - timedelta(seconds=3),
+        received_at=NOW - timedelta(seconds=2),
+    )
+    policy = SourceFreshnessPolicy(
+        source_id="source-a",
+        max_observation_age_seconds=60,
+        changed_at=NOW - timedelta(hours=1),
+    )
+    overview = build_operations_overview(
+        sources=(first, second),
+        lifecycle_records=lifecycles,
+        receipts=(receipt,),
+        freshness_policies=(policy,),
+        connection_attempts=(),
+        analysis_runs=(),
+        findings=(),
+        review_events=(),
+        as_of=NOW,
+    )
+
+    monitor = build_operations_monitor_view(
+        sources=(first, second),
+        overview=overview,
+        attention=build_operations_attention_queue(overview=overview),
+        as_of=NOW,
+    )
+
+    assert tuple(item.asset_id for item in monitor.assets) == ("asset-a", "asset-b")
+    assert monitor.assets[0].last_data_at == receipt.received_at
+    assert monitor.assets[1].last_data_at is None
