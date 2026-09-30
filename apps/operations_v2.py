@@ -3583,6 +3583,7 @@ def _(
     signal_view,
     system_view,
     system_workspace_css,
+    UTC,
 ):
     theme = mo.Html(
         operations_v2_theme_css()
@@ -3602,19 +3603,30 @@ def _(
         align="start",
     )
 
+    def _time_text(value):
+        if value is None or value.utcoffset() is None:
+            return "—"
+        return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    def _md_cell(value):
+        if value is None:
+            return "—"
+        return str(value).replace("|", "\\|").replace("\n", " ")
+
     if monitor.attention:
         attention_rows = "\n".join(
             (
-                f"| **{item.title}** | "
-                f"{'-' if item.asset_id is None else item.asset_id} | "
-                f"{'-' if item.occurred_at is None else item.occurred_at.isoformat()} |"
+                f"| **{_md_cell(item.title)}** | "
+                f"{_md_cell(item.asset_id)} | "
+                f"{_time_text(item.occurred_at)} | "
+                f"{_md_cell(item.detail)} |"
             )
             for item in monitor.attention[:8]
         )
         attention_view = mo.md(
             "### Needs attention\n\n"
-            "| What | Asset | Since |\n"
-            "| --- | --- | --- |\n" + attention_rows
+            "| What | Asset | Since | Detail |\n"
+            "| --- | --- | --- | --- |\n" + attention_rows
         )
     else:
         attention_view = mo.md(
@@ -3624,9 +3636,9 @@ def _(
     if monitor.activities:
         activity_rows = "\n".join(
             (
-                f"| {item.occurred_at.isoformat()} | "
-                f"{'-' if item.asset_id is None else item.asset_id} | "
-                f"{item.title} |"
+                f"| {_time_text(item.occurred_at)} | "
+                f"{_md_cell(item.asset_id)} | "
+                f"{_md_cell(item.title)} |"
             )
             for item in monitor.activities[:8]
         )
