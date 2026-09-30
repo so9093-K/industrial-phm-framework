@@ -188,7 +188,10 @@ def _acquisition_service(
     service_down = (
         as_of is not None
         and collection_service_issue(
-            collection_service, as_of=as_of, timeout=COLLECTION_SERVICE_TIMEOUT
+            collection_service,
+            as_of=as_of,
+            timeout=COLLECTION_SERVICE_TIMEOUT,
+            live_telemetry=bool(surfaces),
         )
         is not None
     )

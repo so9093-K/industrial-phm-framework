@@ -490,10 +490,16 @@ def _(
             _window_repository = SqliteObservationWindowRepository(window_state_path)
             _analysis_ledger = SqliteWindowAnalysisLedger(analysis_ledger_path)
             _skipped_attempts = []
+            _unresolved_windows = []
             for _outcome in _analysis_ledger.list_skipped():
                 if _outcome.reason is None:
                     raise ValueError(f"skipped window {_outcome.window_id} has no recorded reason")
-                _window = _window_repository.get(_outcome.window_id)
+                try:
+                    _window = _window_repository.get(_outcome.window_id)
+                except KeyError:
+                    # One skip whose window is no longer stored must not hide the rest.
+                    _unresolved_windows.append(_outcome.window_id)
+                    continue
                 _skipped_attempts.append(
                     AssetWorkspaceAnalysisAttempt(
                         asset_id=_window.asset_id,
@@ -506,6 +512,16 @@ def _(
                         recorded_at=_outcome.recorded_at,
                         window_id=_window.window_id,
                         reason=_outcome.reason,
+                    )
+                )
+            if _unresolved_windows:
+                system_errors.append(
+                    SystemStateErrorEvidence(
+                        "analysis-attempts",
+                        f"{len(_unresolved_windows)} skipped analysis attempt(s) reference "
+                        "windows that are no longer stored; their asset and range are "
+                        "unavailable",
+                        assessed_at,
                     )
                 )
             skipped_analysis_attempts = tuple(
@@ -663,7 +679,10 @@ def _(
         max_silence=timedelta(seconds=30),
         as_of=assessed_at,
         collection_service_down=collection_service_issue(
-            collection_service, as_of=assessed_at, timeout=timedelta(seconds=20)
+            collection_service,
+            as_of=assessed_at,
+            timeout=timedelta(seconds=20),
+            live_telemetry=bool(acquisition_surfaces),
         )
         is not None,
     )

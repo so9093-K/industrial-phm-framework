@@ -283,7 +283,10 @@ def build_operations_monitor_view(
         raise ValueError("analysis_runs must contain unique analysis ids")
 
     service_issue = collection_service_issue(
-        collection_service, as_of=as_of, timeout=collection_service_timeout
+        collection_service,
+        as_of=as_of,
+        timeout=collection_service_timeout,
+        live_telemetry=bool(surface_values),
     )
     timing = LiveFlowTiming(
         max_silence=live_flow_silence_timeout,
@@ -538,7 +541,7 @@ def _analysis_stage(
         summary = "Analysis service stopped"
     elif age > timeout:
         status = OperationsMonitorStatus.DELAYED
-        summary = f"Analysis service heartbeat is {int(age.total_seconds())}s old"
+        summary = f"Analysis service heartbeat is {_duration_text(age)} old"
     else:
         status = OperationsMonitorStatus.RUNNING
         if runtime.last_analysis_at is None:
@@ -649,7 +652,8 @@ def _monitor_attention(
                 attention_id="collection-service:not-running",
                 status=(
                     OperationsMonitorStatus.NEEDS_ATTENTION
-                    if service_issue.status == OperationsMonitorStatus.STOPPED
+                    if service_issue.status
+                    in (OperationsMonitorStatus.STOPPED, OperationsMonitorStatus.UNAVAILABLE)
                     else service_issue.status
                 ),
                 title=service_issue.title,
@@ -817,10 +821,27 @@ def collection_service_issue(
     *,
     as_of: datetime,
     timeout: timedelta,
+    live_telemetry: bool,
 ) -> CollectionServiceIssue | None:
-    """None while the collector heartbeat is current (or was never instrumented)."""
+    """None only while a collector heartbeat is current.
+
+    Fail closed: when live session telemetry exists but no collector heartbeat was
+    ever recorded (upgrade, lost telemetry, collector not started since), the
+    session reports cannot be confirmed as current.
+    """
     if service is None:
-        return None
+        if not live_telemetry:
+            return None
+        return CollectionServiceIssue(
+            OperationsMonitorStatus.UNAVAILABLE,
+            "Collection service heartbeat unavailable",
+            "No collection-service heartbeat recorded",
+            (
+                "No collection-service heartbeat has been recorded, so the live session "
+                "states shown are unconfirmed reports rather than current connections."
+            ),
+            as_of,
+        )
     if service.state == CollectionServiceRuntimeState.FAILED:
         return CollectionServiceIssue(
             OperationsMonitorStatus.ERROR,
@@ -936,16 +957,12 @@ def latest_source_data_at(
 
 
 def last_live_data_at(surface: AcquisitionTelemetrySurface) -> datetime | None:
-    """Last live delivery, or the source's last history commit.
+    """Latest live receive time (receive clock only), across collector workers.
 
-    Flow telemetry restarts empty with every collector worker (for example while a
-    source refuses connections), so the durable commit time keeps "last data" known.
+    Storage times such as history commit/ack are a different clock and are not
+    substituted here.
     """
-    flow = surface.source.flow
-    if flow is not None and flow.last_received_at is not None:
-        return flow.last_received_at
-    history = surface.source.history
-    return None if history is None else history.acknowledged_at
+    return surface.source.last_received_at
 
 
 def _current_failure(

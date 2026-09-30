@@ -378,3 +378,41 @@ def test_incremental_window_cycles_accumulate_counts_and_keep_last_finalized(tmp
     assert recorded.in_order_count == 3
     assert recorded.last_finalized_window_id == "w-1"
     assert recorded.last_finalized_window_end == END
+
+
+def test_new_worker_keeps_the_previous_live_receive_time(tmp_path: Path) -> None:
+    # Phase 10 soak: while a source refused connections each new worker started with
+    # an empty flow, so "last received data" disappeared. The receive clock is kept;
+    # history commit times are not substituted for it.
+    repository = SqliteAcquisitionTelemetryRepository(tmp_path / "telemetry.sqlite")
+    repository.record_session_configuration("source-a", callback_queue_maxsize=16, recorded_at=BASE)
+    for state, seconds in (
+        (OpcUaPersistentSessionState.DISCONNECTED, 0),
+        (OpcUaPersistentSessionState.CONNECTING, 1),
+        (OpcUaPersistentSessionState.CONNECTED, 2),
+    ):
+        repository.record_session_evidence(_session(state, seconds=seconds, epoch=3))
+    event = SqliteAcquisitionSpool(
+        SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
+    ).accept_opcua_event(
+        _registered_event(event_index=0),
+        connection_epoch=3,
+        event_index=0,
+        accepted_at=BASE + timedelta(seconds=3),
+        event_time_policy=OpcUaEventTimePolicy(),
+    )
+    repository.record_opcua_event(event)
+    received = repository.get("source-a").flow.last_received_at
+    assert received is not None
+
+    # Two refused workers in a row: each restarts with an empty flow.
+    for seconds in (10, 20):
+        repository.record_session_evidence(
+            _session(OpcUaPersistentSessionState.DISCONNECTED, seconds=seconds, epoch=4)
+        )
+    snapshot = repository.get("source-a")
+    assert snapshot.flow.last_received_at is None
+    assert snapshot.last_receipt is not None
+    assert snapshot.last_receipt.received_at == received
+    assert snapshot.last_receipt.delivery_identity == ("source-a", 3, 0)
+    assert snapshot.last_received_at == received

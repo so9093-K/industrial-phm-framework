@@ -302,6 +302,7 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(silent,),
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
     )
 
@@ -317,6 +318,7 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(fresh,),
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
     )
     assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
@@ -328,6 +330,7 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(silent,),
         live_flow_silence_timeout=timedelta(minutes=20),
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
     )
     assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
@@ -449,12 +452,17 @@ def test_reconnecting_session_is_shown_as_connection_loss_not_an_earlier_worker_
         state_changed_at=NOW - timedelta(minutes=10),
         failure=failure,
     )
-    monitor = _monitor(source, overview, wedged)
+    monitor = _monitor(
+        source,
+        overview,
+        wedged,
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
+    )
     assert monitor.stages[1].status == OperationsMonitorStatus.ERROR
     assert [item.title for item in monitor.attention] == ["Collection needs attention"]
 
 
-def test_refused_connection_keeps_worker_error_and_last_stored_data_time() -> None:
+def test_refused_connection_keeps_worker_error_and_last_receive_time() -> None:
     # Phase 10 soak: with the source server down every new worker fails at once
     # and stops; its fresh flow telemetry has no last-data time.
     from dataclasses import replace
@@ -464,6 +472,7 @@ def test_refused_connection_keeps_worker_error_and_last_stored_data_time() -> No
         AcquisitionFailureTelemetry,
         AcquisitionFlowTelemetry,
         AcquisitionHistoryTelemetry,
+        AcquisitionLastReceiptTelemetry,
         OpcUaPersistentSessionState,
     )
 
@@ -481,7 +490,8 @@ def test_refused_connection_keeps_worker_error_and_last_stored_data_time() -> No
         state_changed_at=NOW - timedelta(seconds=1),
         failure=failure,
     )
-    committed = NOW - timedelta(minutes=5)
+    received = NOW - timedelta(minutes=5)
+    committed = received + timedelta(seconds=2)
     worker_started = NOW - timedelta(seconds=3)
     stopped = replace(
         stopped,
@@ -505,6 +515,12 @@ def test_refused_connection_keeps_worker_error_and_last_stored_data_time() -> No
                 acknowledged_at=committed,
                 recovered_existing_commit=False,
             ),
+            last_receipt=AcquisitionLastReceiptTelemetry(
+                source_id=source.source_id,
+                received_at=received,
+                source_timestamp=received,
+                delivery_identity=(source.source_id, 8, 41),
+            ),
         ),
     )
 
@@ -518,4 +534,21 @@ def test_refused_connection_keeps_worker_error_and_last_stored_data_time() -> No
     assert monitor.stages[0].status == OperationsMonitorStatus.ERROR
     (attention,) = monitor.attention
     assert "ConnectionRefusedError" in attention.detail
-    assert monitor.assets[0].last_data_at == committed
+    # Receive clock from the earlier worker, not the history commit/ack clock.
+    assert monitor.assets[0].last_data_at == received
+
+
+def test_live_telemetry_without_any_collector_heartbeat_fails_closed() -> None:
+    # Upgrade, lost telemetry or a collector not started since instrumentation:
+    # an old CONNECTED report must not be shown as a current connection.
+    source, overview = _overview(observed_at=NOW - timedelta(seconds=5), max_age_seconds=3600)
+    last_report = _live_surface(source.source_id, last_received_at=NOW - timedelta(seconds=2))
+
+    monitor = _monitor(source, overview, last_report)
+
+    assert monitor.stages[1].status == OperationsMonitorStatus.UNAVAILABLE
+    assert monitor.stages[1].summary == "No collection-service heartbeat recorded"
+    assert monitor.stages[0].status == OperationsMonitorStatus.UNAVAILABLE
+    assert [item.title for item in monitor.attention] == [
+        "Collection service heartbeat unavailable"
+    ]

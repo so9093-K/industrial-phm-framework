@@ -14,6 +14,7 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionFailureTelemetry,
     AcquisitionFlowTelemetry,
     AcquisitionHistoryTelemetry,
+    AcquisitionLastReceiptTelemetry,
     AcquisitionSessionTelemetry,
     AcquisitionTelemetrySnapshot,
     AcquisitionWindowTelemetry,
@@ -38,6 +39,7 @@ _HISTORY = "history"
 _WINDOW = "window"
 _FAILURE = "failure"
 _CONFIG = "config"
+_RECEIPT = "last-receipt"
 
 
 class AcquisitionTelemetryFormatError(ValueError):
@@ -93,6 +95,7 @@ class SqliteAcquisitionTelemetryRepository:
             history=(None if _HISTORY not in payloads else _parse_history(payloads[_HISTORY])),
             window=(None if _WINDOW not in payloads else _parse_window(payloads[_WINDOW])),
             failure=(None if _FAILURE not in payloads else _parse_failure(payloads[_FAILURE])),
+            last_receipt=(None if _RECEIPT not in payloads else _parse_receipt(payloads[_RECEIPT])),
         )
 
     def list_snapshots(self) -> tuple[AcquisitionTelemetrySnapshot, ...]:
@@ -245,11 +248,32 @@ class SqliteAcquisitionTelemetryRepository:
         if not isinstance(evidence, OpcUaPersistentSessionEvidence):
             raise ValueError("evidence must be OpcUaPersistentSessionEvidence")
 
-        current = self.get(evidence.source_id).session
+        snapshot = self.get(evidence.source_id)
+        current = snapshot.session
         queue_maxsize = self._configured_queue_maxsize(evidence.source_id)
 
         is_new_worker = evidence.state == OpcUaPersistentSessionState.DISCONNECTED
         if is_new_worker:
+            previous = snapshot.flow
+            if (
+                previous is not None
+                and previous.last_received_at is not None
+                and previous.last_delivery_identity is not None
+            ):
+                # Keep the receive-clock fact before the new worker's empty flow.
+                self._write_component(
+                    evidence.source_id,
+                    _RECEIPT,
+                    evidence.changed_at,
+                    {
+                        "source_id": evidence.source_id,
+                        "received_at": previous.last_received_at.isoformat(),
+                        "source_timestamp": _format_optional_datetime(
+                            previous.last_source_timestamp
+                        ),
+                        "delivery_identity": list(previous.last_delivery_identity),
+                    },
+                )
             session = AcquisitionSessionTelemetry(
                 source_id=evidence.source_id,
                 worker_started_at=evidence.changed_at,
@@ -862,6 +886,27 @@ def _serialize_flow(value: AcquisitionFlowTelemetry) -> dict[str, object]:
         "last_received_at": _format_optional_datetime(value.last_received_at),
         "last_ingested_at": _format_optional_datetime(value.last_ingested_at),
     }
+
+
+def _parse_receipt(value: Mapping[str, object]) -> AcquisitionLastReceiptTelemetry:
+    identity = value.get("delivery_identity")
+    if not isinstance(identity, list) or len(identity) != 3:
+        raise AcquisitionTelemetryFormatError("delivery_identity must be a 3-item array")
+    source_timestamp = value.get("source_timestamp")
+    return AcquisitionLastReceiptTelemetry(
+        source_id=_require_str(value.get("source_id"), "source_id"),
+        received_at=_require_datetime(value.get("received_at"), "received_at"),
+        source_timestamp=(
+            None
+            if source_timestamp is None
+            else _require_datetime(source_timestamp, "source_timestamp")
+        ),
+        delivery_identity=(
+            _require_str(identity[0], "delivery_identity[0]"),
+            _require_int(identity[1], "delivery_identity[1]"),
+            _require_int(identity[2], "delivery_identity[2]"),
+        ),
+    )
 
 
 def _parse_flow(value: Mapping[str, object]) -> AcquisitionFlowTelemetry:
