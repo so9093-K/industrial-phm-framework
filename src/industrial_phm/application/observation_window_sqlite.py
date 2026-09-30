@@ -10,9 +10,16 @@ from pathlib import Path
 
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
+    ObservationWindowBufferSnapshot,
     ObservationWindowFormatError,
+    _parse_persistent_event,
     _parse_window,
+    _serialize_persistent_event,
     _serialize_window,
+)
+from industrial_phm.application.window_coordinator import (
+    ObservationWindowCoordinatorState,
+    OpcUaHistoricalEventCursor,
 )
 
 _SCHEMA_VERSION = 1
@@ -146,6 +153,57 @@ class SqliteObservationWindowRepository:
             for index, row in enumerate(rows)
         )
         return tuple(reversed(values))
+
+    def load_coordinator_state(
+        self,
+        source_id: str,
+    ) -> ObservationWindowCoordinatorState | None:
+        if not isinstance(source_id, str) or not source_id.strip():
+            raise ValueError("source_id must not be empty")
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT state_json FROM coordinator_state WHERE source_id = ?",
+                [source_id],
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None:
+            return None
+        return _parse_coordinator_state(row[0], source_id=source_id)
+
+    def record_coordinator_cycle(
+        self,
+        windows: Sequence[DurableObservationWindow],
+        state: ObservationWindowCoordinatorState,
+    ) -> None:
+        values = tuple(windows)
+        if any(not isinstance(item, DurableObservationWindow) for item in values):
+            raise ValueError("windows must contain DurableObservationWindow values")
+        if not isinstance(state, ObservationWindowCoordinatorState):
+            raise ValueError("state must be ObservationWindowCoordinatorState")
+        if any(item.source_id != state.source_id for item in values):
+            raise ValueError("finalized window source_id must match coordinator state")
+
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            for window in values:
+                self._record_window(connection, window)
+            connection.execute(
+                """
+                INSERT INTO coordinator_state(source_id, state_json)
+                VALUES (?, ?)
+                ON CONFLICT(source_id) DO UPDATE SET state_json = excluded.state_json
+                """,
+                [state.source_id, _serialize_coordinator_state(state)],
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def record_window(self, window: DurableObservationWindow) -> None:
         self.record_windows((window,))
@@ -285,6 +343,14 @@ class SqliteObservationWindowRepository:
         )
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS coordinator_state(
+                source_id TEXT PRIMARY KEY,
+                state_json TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS delivery_identity(
                 source_id TEXT NOT NULL,
                 connection_epoch INTEGER NOT NULL,
@@ -296,6 +362,158 @@ class SqliteObservationWindowRepository:
         )
         connection.commit()
         return connection
+
+def _serialize_coordinator_state(state: ObservationWindowCoordinatorState) -> str:
+    cursor = state.cursor
+    payload = {
+        "schema": "industrial-phm-window-coordinator-state-v1",
+        "source_id": state.source_id,
+        "cursor": (
+            None
+            if cursor is None
+            else {
+                "ingested_at": cursor.ingested_at.isoformat(),
+                "connection_epoch": cursor.connection_epoch,
+                "event_index": cursor.event_index,
+            }
+        ),
+        "watermark": None if state.watermark is None else state.watermark.isoformat(),
+        "max_valid_event_at": (
+            None if state.max_valid_event_at is None else state.max_valid_event_at.isoformat()
+        ),
+        "active_buffers": [_serialize_buffer_snapshot(item) for item in state.active_buffers],
+    }
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _serialize_buffer_snapshot(snapshot: ObservationWindowBufferSnapshot) -> dict[str, object]:
+    return {
+        "window_id": snapshot.window_id,
+        "source_id": snapshot.source_id,
+        "asset_id": snapshot.asset_id,
+        "measurement_point_id": snapshot.measurement_point_id,
+        "expected_channel_ids": list(snapshot.expected_channel_ids),
+        "window_start": snapshot.window_start.isoformat(),
+        "window_end": snapshot.window_end.isoformat(),
+        "max_buffered_events": snapshot.max_buffered_events,
+        "max_future_skew_seconds": snapshot.max_future_skew_seconds,
+        "watermark": None if snapshot.watermark is None else snapshot.watermark.isoformat(),
+        "events": [_serialize_persistent_event(event) for event in snapshot.events],
+        "seen_delivery_identities": [list(item) for item in snapshot.seen_delivery_identities],
+        "out_of_order_accepted_count": snapshot.out_of_order_accepted_count,
+        "late_rejected_count": snapshot.late_rejected_count,
+        "duplicate_rejected_count": snapshot.duplicate_rejected_count,
+        "timing_unavailable_rejected_count": snapshot.timing_unavailable_rejected_count,
+        "unexpected_channel_rejected_count": snapshot.unexpected_channel_rejected_count,
+        "outside_window_rejected_count": snapshot.outside_window_rejected_count,
+        "future_timestamp_rejected_count": snapshot.future_timestamp_rejected_count,
+        "buffer_full_rejected_count": snapshot.buffer_full_rejected_count,
+    }
+
+
+def _parse_coordinator_state(
+    payload: str,
+    *,
+    source_id: str,
+) -> ObservationWindowCoordinatorState:
+    try:
+        raw = json.loads(payload)
+        if raw.get("schema") != "industrial-phm-window-coordinator-state-v1":
+            raise ObservationWindowFormatError("unsupported coordinator state schema")
+        if raw.get("source_id") != source_id:
+            raise ObservationWindowFormatError("coordinator state source_id mismatch")
+        cursor_raw = raw.get("cursor")
+        cursor = (
+            None
+            if cursor_raw is None
+            else OpcUaHistoricalEventCursor(
+                ingested_at=datetime.fromisoformat(cursor_raw["ingested_at"]),
+                connection_epoch=int(cursor_raw["connection_epoch"]),
+                event_index=int(cursor_raw["event_index"]),
+            )
+        )
+        buffers = tuple(
+            _parse_buffer_snapshot(item, index=index)
+            for index, item in enumerate(raw.get("active_buffers", []))
+        )
+        watermark_raw = raw.get("watermark")
+        max_valid_raw = raw.get("max_valid_event_at")
+        return ObservationWindowCoordinatorState(
+            source_id=source_id,
+            cursor=cursor,
+            watermark=None if watermark_raw is None else datetime.fromisoformat(watermark_raw),
+            max_valid_event_at=(
+                None if max_valid_raw is None else datetime.fromisoformat(max_valid_raw)
+            ),
+            active_buffers=buffers,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        if isinstance(error, ObservationWindowFormatError):
+            raise
+        raise ObservationWindowFormatError(
+            f"invalid coordinator state for source {source_id}: {error}"
+        ) from error
+
+
+def _parse_buffer_snapshot(
+    raw: object,
+    *,
+    index: int,
+) -> ObservationWindowBufferSnapshot:
+    if not isinstance(raw, dict):
+        raise ObservationWindowFormatError(
+            f"coordinator active_buffers[{index}] must be an object"
+        )
+    try:
+        events = tuple(
+            _parse_persistent_event(
+                item,
+                context=f"coordinator active_buffers[{index}].events[{event_index}]",
+            )
+            for event_index, item in enumerate(raw["events"])
+        )
+        seen = tuple(
+            (str(item[0]), int(item[1]), int(item[2]))
+            for item in raw["seen_delivery_identities"]
+        )
+        watermark_raw = raw["watermark"]
+        return ObservationWindowBufferSnapshot(
+            window_id=str(raw["window_id"]),
+            source_id=str(raw["source_id"]),
+            asset_id=str(raw["asset_id"]),
+            measurement_point_id=(
+                None
+                if raw["measurement_point_id"] is None
+                else str(raw["measurement_point_id"])
+            ),
+            expected_channel_ids=tuple(str(item) for item in raw["expected_channel_ids"]),
+            window_start=datetime.fromisoformat(str(raw["window_start"])),
+            window_end=datetime.fromisoformat(str(raw["window_end"])),
+            max_buffered_events=int(raw["max_buffered_events"]),
+            max_future_skew_seconds=float(raw["max_future_skew_seconds"]),
+            watermark=None if watermark_raw is None else datetime.fromisoformat(str(watermark_raw)),
+            events=events,
+            seen_delivery_identities=seen,
+            out_of_order_accepted_count=int(raw["out_of_order_accepted_count"]),
+            late_rejected_count=int(raw["late_rejected_count"]),
+            duplicate_rejected_count=int(raw["duplicate_rejected_count"]),
+            timing_unavailable_rejected_count=int(
+                raw["timing_unavailable_rejected_count"]
+            ),
+            unexpected_channel_rejected_count=int(
+                raw["unexpected_channel_rejected_count"]
+            ),
+            outside_window_rejected_count=int(raw["outside_window_rejected_count"]),
+            future_timestamp_rejected_count=int(raw["future_timestamp_rejected_count"]),
+            buffer_full_rejected_count=int(raw["buffer_full_rejected_count"]),
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        if isinstance(error, ObservationWindowFormatError):
+            raise
+        raise ObservationWindowFormatError(
+            f"invalid coordinator active buffer {index}: {error}"
+        ) from error
+
 
     @staticmethod
     def _parse_payload(payload: str, *, context: str) -> DurableObservationWindow:
