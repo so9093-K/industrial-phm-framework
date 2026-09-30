@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application.asset_detail import AssetEvidenceEventKind
+from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.maintenance_review import FindingReviewStatus
 from industrial_phm.application.operations_v2 import OperationsMonitorStatus
-from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.operations_v2_assets import (
     AssetWorkspaceAnalysis,
     AssetWorkspaceAnalysisAttempt,
