@@ -154,11 +154,7 @@ def _(
     analysis_runtime_path = Path(
         os.environ.get(
             "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
-            str(
-                phase_analysis_path.with_name(
-                    f"{phase_analysis_path.stem}-runtime.json"
-                )
-            ),
+            str(phase_analysis_path.with_name(f"{phase_analysis_path.stem}-runtime.json")),
         )
     )
     finding_path = Path(
@@ -180,14 +176,12 @@ def _(
         source_repository = JsonSourceRepository(registry_path)
         registered_sources = source_repository.list_sources()
         lifecycle_records = tuple(
-            source_repository.get_lifecycle(source.source_id)
-            for source in registered_sources
+            source_repository.get_lifecycle(source.source_id) for source in registered_sources
         )
         freshness_policies = tuple(
             policy
             for source in registered_sources
-            if (policy := source_repository.get_freshness_policy(source.source_id))
-            is not None
+            if (policy := source_repository.get_freshness_policy(source.source_id)) is not None
         )
     except (OSError, ValueError) as error:
         registered_sources = ()
@@ -297,9 +291,7 @@ def _(
     acquisition_surfaces = []
     if acquisition_telemetry_path.is_file() and acquisition_spool_path.is_file():
         try:
-            telemetry_repository = SqliteAcquisitionTelemetryRepository(
-                acquisition_telemetry_path
-            )
+            telemetry_repository = SqliteAcquisitionTelemetryRepository(acquisition_telemetry_path)
             spool_repository = SqliteAcquisitionSpool(
                 SqliteAcquisitionSpoolConfig(path=acquisition_spool_path)
             )
@@ -334,9 +326,7 @@ def _(
     analysis_runtime = None
     if analysis_runtime_path.is_file():
         try:
-            analysis_runtime = JsonWindowAnalysisRuntimeRepository(
-                analysis_runtime_path
-            ).load()
+            analysis_runtime = JsonWindowAnalysisRuntimeRepository(analysis_runtime_path).load()
         except (OSError, ValueError) as error:
             system_errors.append(
                 SystemStateErrorEvidence(
@@ -377,10 +367,7 @@ def _(
 
     header = mo.hstack(
         [
-            mo.md(
-                "# Operations\n\n"
-                "설비 데이터 흐름과 분석·검토 상태를 한 곳에서 확인합니다."
-            ),
+            mo.md("# Operations\n\n설비 데이터 흐름과 분석·검토 상태를 한 곳에서 확인합니다."),
             refresh_button,
         ],
         widths=[0.82, 0.18],
@@ -399,13 +386,11 @@ def _(
         attention_view = mo.md(
             "### Needs attention\n\n"
             "| What | Asset | Since |\n"
-            "| --- | --- | --- |\n"
-            + attention_rows
+            "| --- | --- | --- |\n" + attention_rows
         )
     else:
         attention_view = mo.md(
-            "### Needs attention\n\n"
-            "No current operational item requires review."
+            "### Needs attention\n\nNo current operational item requires review."
         )
 
     if monitor.activities:
@@ -420,8 +405,7 @@ def _(
         activity_view = mo.md(
             "### Recent activity\n\n"
             "| Time | Asset | Activity |\n"
-            "| --- | --- | --- |\n"
-            + activity_rows
+            "| --- | --- | --- |\n" + activity_rows
         )
     else:
         activity_view = mo.md("### Recent activity\n\nNo recent activity recorded.")
@@ -448,8 +432,7 @@ def _(
             "Queue + detail migration will replace the legacy analysis dropdown."
         ),
         "Maintenance": mo.md(
-            "## Maintenance\n\n"
-            "Open / acknowledged / closed review work will move here."
+            "## Maintenance\n\nOpen / acknowledged / closed review work will move here."
         ),
         "System": mo.md(
             "## System\n\n"
