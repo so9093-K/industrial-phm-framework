@@ -529,6 +529,7 @@ async def run_continuous_registered_opcua_observation_windows(
         last_watermark=last_watermark,
     )
 
+
 def _record_telemetry_best_effort(
     callback: Callable[[], None],
     *,
