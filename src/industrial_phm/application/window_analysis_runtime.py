@@ -138,9 +138,7 @@ class JsonWindowAnalysisRuntimeRepository:
                     None if previous is None else previous.last_cycle_completed_at
                 ),
                 last_analysis_at=None if previous is None else previous.last_analysis_at,
-                last_analysis_run_id=(
-                    None if previous is None else previous.last_analysis_run_id
-                ),
+                last_analysis_run_id=(None if previous is None else previous.last_analysis_run_id),
                 last_skip_at=None if previous is None else previous.last_skip_at,
                 last_skip_reason=None if previous is None else previous.last_skip_reason,
                 last_failure_at=None if previous is None else previous.last_failure_at,
@@ -179,9 +177,7 @@ class JsonWindowAnalysisRuntimeRepository:
 
         analyzed = tuple(item for item in values if item.state == WindowAnalysisState.ANALYZED)
         skipped = tuple(item for item in values if item.state == WindowAnalysisState.SKIPPED)
-        latest_analysis = (
-            None if not analyzed else max(analyzed, key=lambda item: item.recorded_at)
-        )
+        latest_analysis = None if not analyzed else max(analyzed, key=lambda item: item.recorded_at)
         latest_skip = None if not skipped else max(skipped, key=lambda item: item.recorded_at)
 
         status = replace(
@@ -193,18 +189,14 @@ class JsonWindowAnalysisRuntimeRepository:
             skipped_count=current.skipped_count + len(skipped),
             last_cycle_completed_at=completed_at,
             last_analysis_at=(
-                current.last_analysis_at
-                if latest_analysis is None
-                else latest_analysis.recorded_at
+                current.last_analysis_at if latest_analysis is None else latest_analysis.recorded_at
             ),
             last_analysis_run_id=(
                 current.last_analysis_run_id
                 if latest_analysis is None
                 else latest_analysis.analysis_run_id
             ),
-            last_skip_at=(
-                current.last_skip_at if latest_skip is None else latest_skip.recorded_at
-            ),
+            last_skip_at=(current.last_skip_at if latest_skip is None else latest_skip.recorded_at),
             last_skip_reason=(
                 current.last_skip_reason if latest_skip is None else latest_skip.reason
             ),
