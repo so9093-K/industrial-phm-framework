@@ -215,7 +215,11 @@ def _project_source(
             binding.channel_id: binding for binding in config.semantic_bindings
         }
         signals = tuple(
-            _opcua_signal(mapping.channel_id, mapping.node_id, binding_by_channel.get(mapping.channel_id))
+            _opcua_signal(
+                mapping.channel_id,
+                mapping.node_id,
+                binding_by_channel.get(mapping.channel_id),
+            )
             for mapping in sorted(config.node_mappings, key=lambda item: item.channel_id)
         )
         connection_target = config.endpoint_url
