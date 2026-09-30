@@ -211,10 +211,10 @@ class OpcUaHistoricalEventReader(Protocol):
         self,
         source_id: str,
         *,
-        cursor: OpcUaHistoricalEventCursor,
+        cursor: OpcUaHistoricalEventCursor | None,
         limit: int,
     ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
-        """Return at most limit events strictly after one durable-ingestion cursor."""
+        """Return the first page or at most limit events strictly after one cursor."""
         ...
 
     def query_opcua_events_from_event_time(
