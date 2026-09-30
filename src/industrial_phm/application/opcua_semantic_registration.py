@@ -73,13 +73,9 @@ def parse_opcua_semantic_bindings(
         ) = (cell.strip() for cell in row)
 
         if not channel_id:
-            raise ValueError(
-                f"OPC UA semantic binding line {line_number} requires channel_id"
-            )
+            raise ValueError(f"OPC UA semantic binding line {line_number} requires channel_id")
         if channel_id in seen_channels:
-            raise ValueError(
-                f"OPC UA semantic binding channel is duplicated: {channel_id}"
-            )
+            raise ValueError(f"OPC UA semantic binding channel is duplicated: {channel_id}")
         seen_channels.add(channel_id)
 
         def optional(text: str) -> str | None:
