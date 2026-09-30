@@ -19,7 +19,7 @@ from industrial_phm.application.maintenance_review import (
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operational import OperationalAnalysisResult
 from industrial_phm.application.operations_v2 import (
-    LiveDataTiming,
+    LiveFlowTiming,
     OperationsMonitorAsset,
     OperationsMonitorStatus,
     latest_source_data_at,
@@ -226,7 +226,7 @@ def build_asset_workspace_view(
     history_summary: HistoryAssetSummary | None = None,
     history_channels: Sequence[str] = (),
     acquisition_surfaces: Sequence[AcquisitionTelemetrySurface] = (),
-    live_data_timing: LiveDataTiming | None = None,
+    live_flow_timing: LiveFlowTiming | None = None,
 ) -> AssetWorkspaceView:
     """Translate one asset's evidence into the V2 workspace vocabulary."""
 
@@ -323,7 +323,7 @@ def build_asset_workspace_view(
                     status=source_monitor_status(
                         context.health,
                         surface_by_source.get(context.source.source_id),
-                        timing=live_data_timing,
+                        timing=live_flow_timing,
                     ),
                     last_data_at=latest_source_data_at(
                         context.health,
