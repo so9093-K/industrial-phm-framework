@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations V2 **Phase 9 legacy migration**을 완료했습니다. `apps/operations_v2.py`를 canonical
+  Operations surface로 승격하고 Interactive Analysis의 registered-source export도 V2를 검증하도록
+  전환했습니다. Source별 데이터 경과 시간 정책을 Setup으로, one-shot source cycle과 bounded OPC UA
+  subscription을 Setup **Advanced diagnostics**로, FILE snapshot vibration feature analysis를
+  **Assets → Analysis**로 이관했습니다. V2 session은 새 FILE analysis evidence를 Assets와
+  Investigations에 즉시 반영하며, legacy `apps/operations.py` application은 제거했습니다.
+
 - Operations V2 **Setup**을 Data Sources / Signal Mapping / Measurement Semantics / Analysis Configuration으로
   분리하고 source registration/control workflow를 이관했습니다. Add Source는 FILE discovery 또는 bounded
   OPC UA browse 후 explicit signal mapping을 선택하고, OPC UA measurement meaning은 channel별 version과
