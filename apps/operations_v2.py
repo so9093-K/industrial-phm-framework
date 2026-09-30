@@ -2521,7 +2521,8 @@ def _(
     OperationalAnalysisPresentationKind,
     investigation_asset_filter,
     investigation_capability_filter,
-    investigation_filtered_count,
+    investigation_group_count,
+    investigation_group_selector,
     investigation_queue,
     investigation_review_filter,
     investigation_review_label,
@@ -2539,6 +2540,7 @@ def _(
     review_request_error,
     review_request_success,
     selected_investigation,
+    selected_investigation_group,
     selected_investigation_result,
 ):
     _filters = mo.hstack(
@@ -2551,7 +2553,7 @@ def _(
         align="start",
     )
 
-    if investigation_selector is None:
+    if investigation_group_selector is None:
         _queue_panel = mo.vstack(
             [
                 _filters,
@@ -2560,22 +2562,33 @@ def _(
             gap=0.8,
         )
     else:
-        _queue_panel = mo.vstack(
-            [
-                _filters,
-                mo.md(
-                    f"### Queue\n\n"
-                    f"{investigation_filtered_count} shown · "
-                    f"{len(investigation_queue.items)} saved"
-                ),
-                investigation_selector,
-                mo.md(
-                    "Review state describes the human workflow only. "
-                    "Queue order is newest analysis first, not severity."
-                ),
-            ],
-            gap=0.8,
+        _queue_blocks = [
+            _filters,
+            mo.md(
+                f"### Queue\n\n"
+                f"{investigation_group_count} group(s) · "
+                f"{len(investigation_queue.items)} saved analyses"
+            ),
+            investigation_group_selector,
+        ]
+        if selected_investigation_group is not None and investigation_selector is not None:
+            _queue_blocks.extend(
+                [
+                    mo.md(
+                        f"#### Analysis evidence\n\n"
+                        f"{selected_investigation_group.run_count} run(s) in this group"
+                    ),
+                    investigation_selector,
+                ]
+            )
+        _queue_blocks.append(
+            mo.md(
+                "Groups combine the same asset, capability, and human-review state. "
+                "Exact analysis evidence remains selectable inside each group. "
+                "Order is newest evidence first, not severity."
+            )
         )
+        _queue_panel = mo.vstack(_queue_blocks, gap=0.8)
 
     if selected_investigation is None or selected_investigation_result is None:
         _detail_panel = mo.md(
@@ -2700,7 +2713,7 @@ def _(
 
     investigation_view = mo.hstack(
         [_queue_panel, _detail_panel],
-        widths=[0.36, 0.64],
+        widths=[0.40, 0.60],
         align="start",
         gap=1.3,
     )
