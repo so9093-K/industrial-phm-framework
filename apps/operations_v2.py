@@ -424,6 +424,7 @@ def _(
     )
 
     return (
+        acquisition_surfaces,
         analysis_results,
         assessed_at,
         findings,
@@ -478,6 +479,7 @@ def _(asset_selection, history_assets, mo, monitor):
 @app.cell
 def _(
     AssetIdentity,
+    acquisition_surfaces,
     analysis_results,
     asset_selector,
     build_asset_detail,
@@ -493,18 +495,20 @@ def _(
 ):
     asset_workspace = None
     asset_workspace_error = None
+    asset_history_error = None
     if navigation.value == "Assets" and asset_selector is not None:
+        _selected_asset_id = asset_selector.value
+        _history_summary = next(
+            (item for item in history_assets if item.asset_id == _selected_asset_id),
+            None,
+        )
+        _history_channels = ()
+        if history_reader is not None:
+            try:
+                _history_channels = history_reader.list_history_channels(_selected_asset_id)
+            except Exception as error:
+                asset_history_error = str(error)
         try:
-            _selected_asset_id = asset_selector.value
-            _history_summary = next(
-                (item for item in history_assets if item.asset_id == _selected_asset_id),
-                None,
-            )
-            _history_channels = (
-                ()
-                if history_reader is None
-                else history_reader.list_history_channels(_selected_asset_id)
-            )
             _detail = build_asset_detail(
                 AssetIdentity(_selected_asset_id),
                 sources=registered_sources,
@@ -517,6 +521,14 @@ def _(
                 (item for item in monitor.assets if item.asset_id == _selected_asset_id),
                 None,
             )
+            _asset_source_ids = {
+                item.source.source_id for item in _detail.source_contexts
+            }
+            _asset_surfaces = tuple(
+                item
+                for item in acquisition_surfaces
+                if item.source.source_id in _asset_source_ids
+            )
             asset_workspace = build_asset_workspace_view(
                 asset_id=_selected_asset_id,
                 detail=_detail,
@@ -524,10 +536,11 @@ def _(
                 monitor_asset=_monitor_asset,
                 history_summary=_history_summary,
                 history_channels=_history_channels,
+                acquisition_surfaces=_asset_surfaces,
             )
         except Exception as error:
             asset_workspace_error = str(error)
-    return asset_workspace, asset_workspace_error
+    return asset_history_error, asset_workspace, asset_workspace_error
 
 
 @app.cell
@@ -551,6 +564,7 @@ def _(asset_workspace, mo):
 
 @app.cell
 def _(
+    asset_history_error,
     asset_selector,
     asset_workspace,
     assessed_at,
@@ -572,6 +586,12 @@ def _(
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
+    elif asset_history_error:
+        signal_view = mo.callout(
+            asset_history_error,
+            kind="danger",
+            title="Asset History unavailable",
+        )
     elif history_reader is None:
         signal_view = mo.md(
             "### Signals\n\nNo Asset History catalog is available for this workspace."
