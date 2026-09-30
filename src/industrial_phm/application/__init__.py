@@ -134,6 +134,10 @@ from industrial_phm.application.measurement_semantics import (
     ChannelSemanticCandidate,
     MeasurementDefinition,
 )
+from industrial_phm.application.opcua_semantic_registration import (
+    OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS,
+    parse_opcua_semantic_bindings,
+)
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     AssetObservationTimeline,
@@ -354,6 +358,7 @@ __all__ = [
     "JsonWindowAnalysisLedger",
     "MeasurementDefinition",
     "MeasurementPointIdentity",
+    "OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS",
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",
     "ObservationWindowCompleteness",
@@ -449,6 +454,7 @@ __all__ = [
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
+    "parse_opcua_semantic_bindings",
     "poll_registered_source",
     "project_opcua_persistent_data_change_event",
     "project_registered_opcua_observation_summary",
