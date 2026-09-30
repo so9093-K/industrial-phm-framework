@@ -800,9 +800,10 @@ def _(
     JsonSourceRepository,
     SourceLifecycleState,
     datetime,
+    get_setup_config,
     registry_path,
+    set_setup_config,
     set_setup_error,
-    set_setup_lifecycles,
     set_setup_success,
     setup_enable_button,
     setup_pause_button,
@@ -834,7 +835,8 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            set_setup_lifecycles(_lifecycles)
+            _, _, _current_collection = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _current_collection))
             set_setup_error("")
             set_setup_success(
                 f"Source use changed: {_record.source_id} → {_record.state.value}."
@@ -849,9 +851,10 @@ def _(
     SqliteCollectionControlRepository,
     collection_control_path,
     datetime,
+    get_setup_config,
     registry_path,
     request_collection_state,
-    set_setup_collection,
+    set_setup_config,
     set_setup_error,
     set_setup_success,
     setup_selected_source,
@@ -885,7 +888,8 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            set_setup_collection(_records)
+            _current_sources, _current_lifecycles, _ = get_setup_config()
+            set_setup_config((_current_sources, _current_lifecycles, _records))
             set_setup_error("")
             set_setup_success(
                 "Collection request saved: "
@@ -1013,7 +1017,6 @@ def _(
             options=list(file_discovery.common_columns),
             value=[],
             label="Signals to keep",
-            full_width=True,
         )
     else:
         file_signal_selection = None
@@ -1269,11 +1272,11 @@ def _(
     pending_semantics,
     register_file_source,
     register_setup_source_button,
+    get_setup_config,
     registry_path,
     set_pending_semantics,
+    set_setup_config,
     set_setup_error,
-    set_setup_lifecycles,
-    set_setup_sources,
     set_setup_success,
     add_asset_id,
     add_point_id,
@@ -1358,8 +1361,8 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            set_setup_sources(_sources)
-            set_setup_lifecycles(_lifecycles)
+            _, _, _current_collection = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _current_collection))
             set_pending_semantics({})
             set_setup_error("")
             set_setup_success(
