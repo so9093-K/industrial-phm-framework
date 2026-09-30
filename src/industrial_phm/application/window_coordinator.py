@@ -13,6 +13,7 @@ from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     ObservationWindowEventDisposition,
     ObservationWindowIngestResult,
+    ObservationWindowRepository,
 )
 from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
 
@@ -122,6 +123,24 @@ class OpcUaHistoricalEventCursor:
         _validate_aware_datetime(self.ingested_at, "ingested_at")
         _validate_positive_int(self.connection_epoch, "connection_epoch")
         _validate_non_negative_int(self.event_index, "event_index")
+
+
+@runtime_checkable
+class IncrementalObservationWindowRepository(ObservationWindowRepository, Protocol):
+    """Finalized-window store with bounded restart/bootstrap queries."""
+
+    def recent_windows_for_source(
+        self,
+        source_id: str,
+        *,
+        limit: int = 2,
+    ) -> tuple[DurableObservationWindow, ...]:
+        """Return the newest finalized source windows in chronological order."""
+        ...
+
+    def record_windows(self, windows: Sequence[DurableObservationWindow]) -> None:
+        """Persist multiple finalized windows in one repository transaction."""
+        ...
 
 
 @runtime_checkable
