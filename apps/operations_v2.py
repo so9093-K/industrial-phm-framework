@@ -1286,15 +1286,11 @@ def _(
     maintenance_status_label,
     mo,
 ):
-    _status_by_label = {
-        maintenance_status_label(status): status for status in FindingReviewStatus
-    }
+    _status_by_label = {maintenance_status_label(status): status for status in FindingReviewStatus}
     _filtered = maintenance_queue.filter(
         status=_status_by_label.get(maintenance_status_filter.value),
         asset_id=(
-            None
-            if maintenance_asset_filter.value == "All"
-            else maintenance_asset_filter.value
+            None if maintenance_asset_filter.value == "All" else maintenance_asset_filter.value
         ),
     )
     _label_to_id = {
@@ -1313,9 +1309,7 @@ def _(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
             label="Queue",
-            on_change=lambda value: maintenance_selection.update(
-                finding_id=_label_to_id[value]
-            ),
+            on_change=lambda value: maintenance_selection.update(finding_id=_label_to_id[value]),
         )
         maintenance_selected_id = _label_to_id[maintenance_selector.value]
     else:
