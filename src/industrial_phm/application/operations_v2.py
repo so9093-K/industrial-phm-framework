@@ -649,7 +649,7 @@ def _project_existing_attention(
     sources: dict[str, RegisteredSource],
 ) -> OperationsMonitorAttention:
     asset_id = None if item.asset_identity is None else item.asset_identity.asset_id
-    if asset_id is None and item.source_id in sources:
+    if asset_id is None and item.source_id is not None and item.source_id in sources:
         asset_id = sources[item.source_id].asset_id
     if item.kind == AttentionKind.STALE:
         status = OperationsMonitorStatus.DELAYED
