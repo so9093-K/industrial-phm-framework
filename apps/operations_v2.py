@@ -2794,13 +2794,17 @@ def _(
     setup_error,
     setup_freshness_age_input,
     setup_pause_button,
+    setup_run_diagnostic_button,
     setup_save_freshness_button,
     setup_section,
+    setup_subscription_diagnostic_button,
     setup_selected_source,
     setup_source_selector,
     setup_start_collection_button,
     setup_stop_collection_button,
     setup_success,
+    setup_diagnostic_error,
+    setup_diagnostic_success,
     setup_workspace,
 ):
     _message_blocks = []
@@ -2854,6 +2858,55 @@ def _(
                                     "This policy compares the latest comparable observation "
                                     "time with the current assessment time. It does not prove "
                                     "connection health or asset health."
+                                ),
+                            ],
+                            gap=0.6,
+                        )
+                    }
+                ),
+                mo.accordion(
+                    {
+                        "Advanced diagnostics": mo.vstack(
+                            [
+                                *(
+                                    [
+                                        mo.callout(
+                                            setup_diagnostic_error,
+                                            kind="danger",
+                                            title="Diagnostic action failed",
+                                        )
+                                    ]
+                                    if setup_diagnostic_error
+                                    else []
+                                ),
+                                *(
+                                    [
+                                        mo.callout(
+                                            setup_diagnostic_success,
+                                            kind="success",
+                                            title="Diagnostic action completed",
+                                        )
+                                    ]
+                                    if setup_diagnostic_success
+                                    else []
+                                ),
+                                mo.hstack(
+                                    [
+                                        button
+                                        for button in (
+                                            setup_run_diagnostic_button,
+                                            setup_subscription_diagnostic_button,
+                                        )
+                                        if button is not None
+                                    ],
+                                    justify="start",
+                                    gap=0.6,
+                                ),
+                                mo.md(
+                                    "These bounded actions are for connection/data-contract "
+                                    "diagnostics. They do not start the persistent collection "
+                                    "service, and a successful attempt is not current connection "
+                                    "health."
                                 ),
                             ],
                             gap=0.6,
