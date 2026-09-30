@@ -11,6 +11,12 @@
 
 ### Changed
 
+- Operations V2 **System**을 live acquisition / history storage / analysis service / current state read로
+  분리한 runtime workspace로 연결했습니다. Persistent acquisition telemetry와 analysis-runner heartbeat처럼
+  실제 계측된 evidence만 primary 상태로 사용하고, Operations application process heartbeat는 계측되지 않은
+  상태를 **Not instrumented**로 명시합니다. 현재 state-read 오류는 별도 error 목록으로 표시하며 repository
+  path와 local state 위치는 **Advanced diagnostics**로 내려 primary 운영 화면에서 숨깁니다.
+
 - Operations V2 **Maintenance**를 Open / Acknowledged / Closed review 업무 queue로 이관했습니다.
   Status / Asset filter, selected review summary, append-only timeline, note / acknowledge / close action을 같은
   workspace에서 처리합니다. 상태 변경 후 같은 finding selection을 유지하고 Investigation과 review-event

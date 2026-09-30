@@ -48,6 +48,12 @@ from industrial_phm.presentation.operations_v2_maintenance import (
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
 )
+from industrial_phm.presentation.operations_v2_system import (
+    render_system_diagnostics_html,
+    render_system_errors_html,
+    render_system_runtime_html,
+    system_workspace_css,
+)
 
 __all__ = [
     "OPERATIONS_V2_MAIN_BACKGROUND",
@@ -86,6 +92,10 @@ __all__ = [
     "render_observation_markdown",
     "render_observation_provenance_markdown",
     "render_source_data_flow_markdown",
+    "render_system_diagnostics_html",
+    "render_system_errors_html",
+    "render_system_runtime_html",
     "render_unplaced_asset_evidence_markdown",
     "status_label",
+    "system_workspace_css",
 ]

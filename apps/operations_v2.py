@@ -30,6 +30,7 @@ def _():
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
+        build_system_runtime_view,
         create_human_review_finding,
         validate_distinct_source_state_paths,
     )
@@ -51,6 +52,10 @@ def _():
         render_analysis_quality_markdown,
         render_monitor_assets_html,
         render_monitor_flow_html,
+        render_system_diagnostics_html,
+        render_system_errors_html,
+        render_system_runtime_html,
+        system_workspace_css,
     )
     from industrial_phm.presentation.measurement_history import (
         latest_measurement_rows,
@@ -128,6 +133,7 @@ def _():
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
+        build_system_runtime_view,
         create_finding_review_event,
         create_human_review_finding,
         datetime,
@@ -166,7 +172,11 @@ def _():
         render_monitor_assets_html,
         render_monitor_flow_html,
         render_phase_unbalance_svg,
+        render_system_diagnostics_html,
+        render_system_errors_html,
+        render_system_runtime_html,
         resolve_measurement_range,
+        system_workspace_css,
         validate_distinct_source_state_paths,
     )
 
@@ -485,9 +495,24 @@ def _(
         as_of=assessed_at,
     )
 
+    system_diagnostics = (
+        ("Source registry", str(registry_path)),
+        ("Source runtime", str(source_runtime_path)),
+        ("Acquisition telemetry", str(acquisition_telemetry_path)),
+        ("Acquisition spool", str(acquisition_spool_path)),
+        ("Asset History catalog", str(history_catalog_path)),
+        ("Asset History data", str(history_data_path)),
+        ("Vibration analysis", str(field_analysis_path)),
+        ("Three-phase analysis", str(phase_analysis_path)),
+        ("Analysis service runtime", str(analysis_runtime_path)),
+        ("Review requests", str(finding_path)),
+        ("Maintenance review", str(review_path)),
+    )
+
     return (
         acquisition_surfaces,
         analysis_results,
+        analysis_runtime,
         assessed_at,
         finding_path,
         findings,
@@ -498,6 +523,8 @@ def _(
         registered_sources,
         review_events,
         review_path,
+        system_diagnostics,
+        system_errors,
     )
 
 
@@ -1544,6 +1571,58 @@ def _(
 
 @app.cell
 def _(
+    acquisition_surfaces,
+    analysis_runtime,
+    assessed_at,
+    build_system_runtime_view,
+    monitor,
+    registered_sources,
+    system_errors,
+):
+    system_runtime = build_system_runtime_view(
+        monitor=monitor,
+        sources=registered_sources,
+        acquisition_surfaces=tuple(acquisition_surfaces),
+        analysis_runtime=analysis_runtime,
+        system_errors=tuple(system_errors),
+        as_of=assessed_at,
+    )
+    return (system_runtime,)
+
+
+@app.cell
+def _(
+    mo,
+    render_system_diagnostics_html,
+    render_system_errors_html,
+    render_system_runtime_html,
+    system_diagnostics,
+    system_runtime,
+):
+    system_view = mo.vstack(
+        [
+            mo.Html(render_system_runtime_html(system_runtime)),
+            mo.Html(render_system_errors_html(system_runtime)),
+            mo.accordion(
+                {
+                    "Advanced diagnostics": mo.Html(
+                        render_system_diagnostics_html(system_diagnostics)
+                    )
+                }
+            ),
+            mo.md(
+                "Runtime status is shown only where current evidence exists. "
+                "A missing process heartbeat is displayed as unavailable rather than "
+                "assumed healthy."
+            ),
+        ],
+        gap=1.0,
+    )
+    return (system_view,)
+
+
+@app.cell
+def _(
     asset_section,
     asset_selector,
     asset_workspace,
@@ -1566,12 +1645,15 @@ def _(
     render_monitor_assets_html,
     render_monitor_flow_html,
     signal_view,
+    system_view,
+    system_workspace_css,
 ):
     theme = mo.Html(
         operations_v2_theme_css()
         + asset_workspace_css()
         + investigation_workspace_css()
         + maintenance_workspace_css()
+        + system_workspace_css()
     )
 
     header = mo.hstack(
@@ -1677,12 +1759,7 @@ def _(
         "Assets": asset_view,
         "Investigations": investigation_view,
         "Maintenance": maintenance_view,
-        "System": mo.md(
-            "## System\n\n"
-            "Collection, storage, analysis service and application runtime status "
-            "will be consolidated here. Technical state paths belong under "
-            "Advanced diagnostics, not the primary operating view."
-        ),
+        "System": system_view,
         "Setup": mo.md(
             "## Setup\n\n"
             "Source connection, signal mapping and measurement semantics will move here."
