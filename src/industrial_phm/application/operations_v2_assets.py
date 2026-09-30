@@ -128,9 +128,8 @@ class AssetWorkspaceAnalysisAttempt:
         if self.state == WindowAnalysisState.ANALYZED:
             if self.analysis_run_id is None or self.reason is not None:
                 raise ValueError("analyzed attempt requires run id and no skip reason")
-        elif (
-            self.state == WindowAnalysisState.SKIPPED
-            and (self.reason is None or self.analysis_run_id is not None)
+        elif self.state == WindowAnalysisState.SKIPPED and (
+            self.reason is None or self.analysis_run_id is not None
         ):
             raise ValueError("skipped attempt requires reason and no analysis run id")
 
@@ -234,9 +233,7 @@ class AssetWorkspaceView:
             raise ValueError("sources contains an unsupported value")
         if any(not isinstance(item, AssetWorkspaceEvent) for item in events):
             raise ValueError("events contains an unsupported value")
-        if any(
-            not isinstance(item, AssetWorkspaceAnalysisAttempt) for item in analysis_attempts
-        ):
+        if any(not isinstance(item, AssetWorkspaceAnalysisAttempt) for item in analysis_attempts):
             raise ValueError("analysis_attempts contains an unsupported value")
         if any(item.asset_id != self.asset_id for item in analysis_attempts):
             raise ValueError("analysis_attempts must belong to this asset")
@@ -332,10 +329,7 @@ def build_asset_workspace_view(
     asset_results = tuple(item for item in result_values if item.run.asset_id == asset_id)
 
     skipped_attempt_values = tuple(skipped_analysis_attempts)
-    if any(
-        not isinstance(item, AssetWorkspaceAnalysisAttempt)
-        for item in skipped_attempt_values
-    ):
+    if any(not isinstance(item, AssetWorkspaceAnalysisAttempt) for item in skipped_attempt_values):
         raise ValueError(
             "skipped_analysis_attempts must contain AssetWorkspaceAnalysisAttempt values"
         )
@@ -379,11 +373,7 @@ def build_asset_workspace_view(
                     )
                     for item in asset_results
                 ),
-                *(
-                    item
-                    for item in skipped_attempt_values
-                    if item.asset_id == asset_id
-                ),
+                *(item for item in skipped_attempt_values if item.asset_id == asset_id),
             ),
             key=lambda item: (
                 -item.recorded_at.timestamp(),
