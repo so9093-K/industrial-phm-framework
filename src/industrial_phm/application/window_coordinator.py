@@ -11,8 +11,10 @@ from typing import Protocol, runtime_checkable
 
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
+    ObservationWindowBufferSnapshot,
     ObservationWindowEventDisposition,
     ObservationWindowIngestResult,
+    ObservationWindowRepository,
 )
 from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
 
@@ -26,6 +28,7 @@ class ObservationWindowCoordinatorPolicy:
     max_buffered_events: int = 10_000
     max_future_skew_seconds: float = 30.0
     poll_interval_seconds: float = 0.5
+    history_page_size: int = 5000
     alignment_origin: datetime = field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=UTC))
 
     def __post_init__(self) -> None:
@@ -40,6 +43,9 @@ class ObservationWindowCoordinatorPolicy:
             "max_future_skew_seconds",
         )
         _validate_positive_finite(self.poll_interval_seconds, "poll_interval_seconds")
+        _validate_positive_int(self.history_page_size, "history_page_size")
+        if self.history_page_size > 10000:
+            raise ValueError("history_page_size must not exceed 10000")
         _validate_aware_datetime(self.alignment_origin, "alignment_origin")
 
 
@@ -106,6 +112,86 @@ class ContinuousObservationWindowCoordinatorResult:
             _validate_aware_datetime(self.last_watermark, "last_watermark")
 
 
+@dataclass(frozen=True, slots=True, order=True)
+class OpcUaHistoricalEventCursor:
+    """Durable-ingestion cursor for one source's persisted DataChange history."""
+
+    ingested_at: datetime
+    connection_epoch: int
+    event_index: int
+
+    def __post_init__(self) -> None:
+        _validate_aware_datetime(self.ingested_at, "ingested_at")
+        _validate_positive_int(self.connection_epoch, "connection_epoch")
+        _validate_non_negative_int(self.event_index, "event_index")
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationWindowCoordinatorState:
+    """Exact restart state for one continuous source coordinator."""
+
+    source_id: str
+    cursor: OpcUaHistoricalEventCursor | None
+    watermark: datetime | None
+    max_valid_event_at: datetime | None
+    active_buffers: Sequence[ObservationWindowBufferSnapshot]
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.source_id, "source_id")
+        if self.cursor is not None and not isinstance(self.cursor, OpcUaHistoricalEventCursor):
+            raise ValueError("cursor must be OpcUaHistoricalEventCursor when provided")
+        if self.watermark is not None:
+            _validate_aware_datetime(self.watermark, "watermark")
+        if self.max_valid_event_at is not None:
+            _validate_aware_datetime(self.max_valid_event_at, "max_valid_event_at")
+        buffers = tuple(self.active_buffers)
+        if any(not isinstance(item, ObservationWindowBufferSnapshot) for item in buffers):
+            raise ValueError("active_buffers must contain ObservationWindowBufferSnapshot values")
+        if any(item.source_id != self.source_id for item in buffers):
+            raise ValueError("active buffer source_id must match coordinator source_id")
+        starts = tuple(item.window_start for item in buffers)
+        if len(set(starts)) != len(starts):
+            raise ValueError("active buffers must use unique window_start values")
+        object.__setattr__(
+            self,
+            "active_buffers",
+            tuple(sorted(buffers, key=lambda item: item.window_start)),
+        )
+
+
+@runtime_checkable
+class IncrementalObservationWindowRepository(ObservationWindowRepository, Protocol):
+    """Finalized-window store with bounded restart/bootstrap queries."""
+
+    def recent_windows_for_source(
+        self,
+        source_id: str,
+        *,
+        limit: int = 2,
+    ) -> tuple[DurableObservationWindow, ...]:
+        """Return the newest finalized source windows in chronological order."""
+        ...
+
+    def record_windows(self, windows: Sequence[DurableObservationWindow]) -> None:
+        """Persist multiple finalized windows in one repository transaction."""
+        ...
+
+    def load_coordinator_state(
+        self,
+        source_id: str,
+    ) -> ObservationWindowCoordinatorState | None:
+        """Restore exact active-buffer/cursor state when present."""
+        ...
+
+    def record_coordinator_cycle(
+        self,
+        windows: Sequence[DurableObservationWindow],
+        state: ObservationWindowCoordinatorState,
+    ) -> None:
+        """Atomically persist finalized windows and the next restart state."""
+        ...
+
+
 @runtime_checkable
 class OpcUaHistoricalEventReader(Protocol):
     """Durable raw-event reader required by the window coordinator."""
@@ -115,6 +201,25 @@ class OpcUaHistoricalEventReader(Protocol):
         source_id: str,
     ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
         """Return source events in deterministic durable-ingestion order."""
+        ...
+
+    def query_opcua_events_after(
+        self,
+        source_id: str,
+        *,
+        cursor: OpcUaHistoricalEventCursor | None,
+        limit: int,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return the first page or at most limit events strictly after one cursor."""
+        ...
+
+    def query_opcua_events_from_event_time(
+        self,
+        source_id: str,
+        *,
+        start_at: datetime | None,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return a restart bootstrap tail ordered by durable ingestion."""
         ...
 
 

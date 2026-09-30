@@ -144,11 +144,15 @@ from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     JsonObservationWindowRepository,
     ObservationWindowBuffer,
+    ObservationWindowBufferSnapshot,
     ObservationWindowCompleteness,
     ObservationWindowEventDisposition,
     ObservationWindowFormatError,
     ObservationWindowIngestResult,
     ObservationWindowRepository,
+)
+from industrial_phm.application.observation_window_sqlite import (
+    SqliteObservationWindowRepository,
 )
 from industrial_phm.application.opcua_acquisition import (
     InMemoryOpcUaPersistentSessionEvidenceSink,
@@ -323,8 +327,11 @@ from industrial_phm.application.window_analysis_runtime import (
 )
 from industrial_phm.application.window_coordinator import (
     ContinuousObservationWindowCoordinatorResult,
+    IncrementalObservationWindowRepository,
     ObservationWindowCoordinatorCycleResult,
     ObservationWindowCoordinatorPolicy,
+    ObservationWindowCoordinatorState,
+    OpcUaHistoricalEventCursor,
     OpcUaHistoricalEventReader,
 )
 
@@ -405,6 +412,7 @@ __all__ = [
     "HistoryIngestionMode",
     "InMemoryOpcUaPersistentSessionEvidenceSink",
     "InMemorySourceRepository",
+    "IncrementalObservationWindowRepository",
     "InvestigationQueueItem",
     "InvestigationQueueView",
     "InvestigationReviewState",
@@ -425,9 +433,11 @@ __all__ = [
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",
+    "ObservationWindowBufferSnapshot",
     "ObservationWindowCompleteness",
     "ObservationWindowCoordinatorCycleResult",
     "ObservationWindowCoordinatorPolicy",
+    "ObservationWindowCoordinatorState",
     "ObservationWindowEventDisposition",
     "ObservationWindowFormatError",
     "ObservationWindowIngestResult",
@@ -437,6 +447,7 @@ __all__ = [
     "OpcUaEventTimeEvidence",
     "OpcUaEventTimePolicy",
     "OpcUaHistoricalBatchStore",
+    "OpcUaHistoricalEventCursor",
     "OpcUaHistoricalEventReader",
     "OpcUaPersistentDataChangeEvent",
     "OpcUaPersistentSessionEvidence",
@@ -503,6 +514,7 @@ __all__ = [
     "SpoolHistoryBatchWriteResult",
     "SpoolHistoryWriterResult",
     "SpoolToHistoryWriterPolicy",
+    "SqliteObservationWindowRepository",
     "SystemRuntimeError",
     "SystemRuntimeFact",
     "SystemRuntimeKind",

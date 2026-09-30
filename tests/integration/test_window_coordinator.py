@@ -12,6 +12,7 @@ from industrial_phm.application import (
     OpcUaSourceConfig,
     RegisteredOpcUaDataChangeEvent,
     RegisteredSource,
+    SqliteObservationWindowRepository,
     project_opcua_persistent_data_change_event,
 )
 from industrial_phm.connectors import (
@@ -34,6 +35,22 @@ class _History:
 
     def query_opcua_events(self, source_id: str):
         return tuple(event for event in self.events if event.source_id == source_id)
+
+    def query_opcua_events_after(self, source_id: str, *, cursor, limit: int):
+        values = tuple(event for event in self.events if event.source_id == source_id)
+        if cursor is not None:
+            key = (cursor.ingested_at, cursor.connection_epoch, cursor.event_index)
+            values = tuple(
+                event
+                for event in values
+                if (
+                    event.event_time.ingested_at,
+                    event.connection_epoch,
+                    event.event_index,
+                )
+                > key
+            )
+        return values[:limit]
 
 
 def _source_repository() -> InMemorySourceRepository:
@@ -302,7 +319,7 @@ def test_continuous_window_coordinator_records_latest_telemetry(tmp_path: Path) 
             run_continuous_registered_opcua_observation_windows(
                 _source_repository(),
                 _History(events),
-                JsonObservationWindowRepository(tmp_path / "windows.json"),
+                SqliteObservationWindowRepository(tmp_path / "windows.sqlite"),
                 "source-a",
                 stop_event=stop_event,
                 policy=_policy(),

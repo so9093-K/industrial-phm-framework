@@ -23,14 +23,18 @@ from industrial_phm.application.observation_window import (
     ObservationWindowIngestResult,
     ObservationWindowRepository,
 )
+from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
 from industrial_phm.application.source_registration import (
     OpcUaSourceConfig,
     SourceRepository,
 )
 from industrial_phm.application.window_coordinator import (
     ContinuousObservationWindowCoordinatorResult,
+    IncrementalObservationWindowRepository,
     ObservationWindowCoordinatorCycleResult,
     ObservationWindowCoordinatorPolicy,
+    ObservationWindowCoordinatorState,
+    OpcUaHistoricalEventCursor,
     OpcUaHistoricalEventReader,
 )
 
@@ -209,6 +213,236 @@ def rebuild_registered_opcua_observation_windows(
     )
 
 
+class IncrementalRegisteredOpcUaWindowCoordinator:
+    """Restart-safe incremental assembler over durable OPC UA ingestion order."""
+
+    def __init__(
+        self,
+        source_repository: SourceRepository,
+        history: OpcUaHistoricalEventReader,
+        window_repository: IncrementalObservationWindowRepository,
+        source_id: str,
+        *,
+        policy: ObservationWindowCoordinatorPolicy | None = None,
+    ) -> None:
+        effective_policy = ObservationWindowCoordinatorPolicy() if policy is None else policy
+        if not isinstance(effective_policy, ObservationWindowCoordinatorPolicy):
+            raise ValueError("policy must be ObservationWindowCoordinatorPolicy")
+        if not isinstance(window_repository, IncrementalObservationWindowRepository):
+            raise ValueError(
+                "continuous coordinator requires an incremental observation-window repository"
+            )
+
+        source = source_repository.get(source_id)
+        config = source.config
+        if not isinstance(config, OpcUaSourceConfig):
+            raise ValueError("observation-window coordinator requires OpcUaSourceConfig")
+
+        self._history = history
+        self._windows = window_repository
+        self._source_id = source_id
+        self._asset_id = source.asset_id
+        self._measurement_point_id = source.measurement_point_id
+        self._expected_channel_ids = tuple(mapping.channel_id for mapping in config.node_mappings)
+        self._expected_channel_set = set(self._expected_channel_ids)
+        self._policy = effective_policy
+        self._duration = timedelta(seconds=effective_policy.window_duration_seconds)
+        self._allowed_lateness = timedelta(seconds=effective_policy.allowed_lateness_seconds)
+
+        state = window_repository.load_coordinator_state(source_id)
+        if state is None:
+            self._cursor: OpcUaHistoricalEventCursor | None = None
+            self._watermark: datetime | None = None
+            self._max_valid_event_at: datetime | None = None
+            self._buffers: dict[datetime, ObservationWindowBuffer] = {}
+        else:
+            self._cursor = state.cursor
+            self._watermark = state.watermark
+            self._max_valid_event_at = state.max_valid_event_at
+            self._buffers = {}
+            for snapshot in state.active_buffers:
+                if snapshot.asset_id != self._asset_id:
+                    raise RuntimeError("coordinator state asset_id no longer matches source")
+                if snapshot.measurement_point_id != self._measurement_point_id:
+                    raise RuntimeError(
+                        "coordinator state measurement_point_id no longer matches source"
+                    )
+                if tuple(snapshot.expected_channel_ids) != self._expected_channel_ids:
+                    raise RuntimeError("coordinator state channel mapping no longer matches source")
+                self._buffers[snapshot.window_start] = ObservationWindowBuffer.from_snapshot(
+                    snapshot
+                )
+
+    def run_cycle(self) -> ObservationWindowCoordinatorCycleResult:
+        events = self._history.query_opcua_events_after(
+            self._source_id,
+            cursor=self._cursor,
+            limit=self._policy.history_page_size,
+        )
+        finalized: list[DurableObservationWindow] = []
+        event_results: list[ObservationWindowIngestResult] = []
+
+        for event in events:
+            self._process_event(event, finalized=finalized, event_results=event_results)
+            self._cursor = OpcUaHistoricalEventCursor(
+                ingested_at=event.event_time.ingested_at,
+                connection_epoch=event.connection_epoch,
+                event_index=event.event_index,
+            )
+
+        if events:
+            state = ObservationWindowCoordinatorState(
+                source_id=self._source_id,
+                cursor=self._cursor,
+                watermark=self._watermark,
+                max_valid_event_at=self._max_valid_event_at,
+                active_buffers=tuple(
+                    self._buffers[start].snapshot() for start in sorted(self._buffers)
+                ),
+            )
+            self._windows.record_coordinator_cycle(tuple(finalized), state)
+
+        return ObservationWindowCoordinatorCycleResult(
+            source_id=self._source_id,
+            finalized_windows=tuple(
+                sorted(finalized, key=lambda item: (item.window_start, item.window_id))
+            ),
+            event_results=tuple(event_results),
+            watermark=self._watermark,
+            active_window_count=len(self._buffers),
+        )
+
+    def _advance_and_finalize(
+        self,
+        next_watermark: datetime,
+        *,
+        finalized_at: datetime,
+        finalized: list[DurableObservationWindow],
+    ) -> None:
+        if self._watermark is not None and next_watermark < self._watermark:
+            raise RuntimeError("derived observation watermark must not move backwards")
+        self._watermark = next_watermark
+
+        for buffer in self._buffers.values():
+            buffer.advance_watermark(next_watermark)
+
+        due_starts = tuple(
+            sorted(
+                window_start
+                for window_start in self._buffers
+                if window_start + self._duration <= next_watermark
+            )
+        )
+        for window_start in due_starts:
+            buffer = self._buffers.pop(window_start)
+            finalized.append(buffer.finalize(finalized_at=finalized_at))
+
+    def _process_event(
+        self,
+        event: OpcUaPersistentDataChangeEvent,
+        *,
+        finalized: list[DurableObservationWindow],
+        event_results: list[ObservationWindowIngestResult],
+    ) -> None:
+        if event.source_id != self._source_id:
+            raise RuntimeError("historical event source_id does not match requested source")
+        if event.event.asset_id != self._asset_id:
+            raise RuntimeError("historical event asset_id does not match registered source")
+        if event.event.measurement_point_id != self._measurement_point_id:
+            raise RuntimeError(
+                "historical event measurement_point_id does not match registered source"
+            )
+
+        identity = event.local_delivery_identity
+        event_at = event.event_time.event_at
+        if event_at is None:
+            event_results.append(
+                ObservationWindowIngestResult(
+                    disposition=ObservationWindowEventDisposition.TIMING_UNAVAILABLE,
+                    local_delivery_identity=identity,
+                    event_at=None,
+                    watermark_at_ingest=self._watermark,
+                )
+            )
+            return
+
+        future_skew_seconds = (event_at - event.event_time.ingested_at).total_seconds()
+        if future_skew_seconds > self._policy.max_future_skew_seconds:
+            event_results.append(
+                ObservationWindowIngestResult(
+                    disposition=ObservationWindowEventDisposition.FUTURE_TIMESTAMP,
+                    local_delivery_identity=identity,
+                    event_at=event_at,
+                    watermark_at_ingest=self._watermark,
+                )
+            )
+            return
+
+        if event.channel_id not in self._expected_channel_set:
+            window_start, _ = _aligned_window_bounds(event_at, policy=self._policy)
+            buffer = self._buffers.get(window_start)
+            if buffer is None:
+                event_results.append(
+                    ObservationWindowIngestResult(
+                        disposition=ObservationWindowEventDisposition.UNEXPECTED_CHANNEL,
+                        local_delivery_identity=identity,
+                        event_at=event_at,
+                        watermark_at_ingest=self._watermark,
+                    )
+                )
+            else:
+                event_results.append(buffer.ingest(event))
+            return
+
+        if self._max_valid_event_at is None or event_at > self._max_valid_event_at:
+            self._max_valid_event_at = event_at
+        candidate_watermark = self._max_valid_event_at - self._allowed_lateness
+        if self._watermark is None or candidate_watermark > self._watermark:
+            self._advance_and_finalize(
+                candidate_watermark,
+                finalized_at=event.event_time.ingested_at,
+                finalized=finalized,
+            )
+
+        window_start, window_end = _aligned_window_bounds(event_at, policy=self._policy)
+        if self._watermark is not None and window_end <= self._watermark:
+            event_results.append(
+                ObservationWindowIngestResult(
+                    disposition=ObservationWindowEventDisposition.LATE,
+                    local_delivery_identity=identity,
+                    event_at=event_at,
+                    watermark_at_ingest=self._watermark,
+                )
+            )
+            return
+
+        buffer = self._buffers.get(window_start)
+        if buffer is None:
+            buffer = ObservationWindowBuffer(
+                window_id=_window_id(
+                    source_id=self._source_id,
+                    asset_id=self._asset_id,
+                    measurement_point_id=self._measurement_point_id,
+                    window_start=window_start,
+                    window_end=window_end,
+                    expected_channel_ids=self._expected_channel_ids,
+                ),
+                source_id=self._source_id,
+                asset_id=self._asset_id,
+                measurement_point_id=self._measurement_point_id,
+                expected_channel_ids=self._expected_channel_ids,
+                window_start=window_start,
+                window_end=window_end,
+                max_buffered_events=self._policy.max_buffered_events,
+                max_future_skew_seconds=self._policy.max_future_skew_seconds,
+            )
+            if self._watermark is not None:
+                buffer.advance_watermark(self._watermark)
+            self._buffers[window_start] = buffer
+
+        event_results.append(buffer.ingest(event))
+
+
 async def run_continuous_registered_opcua_observation_windows(
     source_repository: SourceRepository,
     history: OpcUaHistoricalEventReader,
@@ -220,27 +454,31 @@ async def run_continuous_registered_opcua_observation_windows(
     telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
 ) -> ContinuousObservationWindowCoordinatorResult:
-    """Repeatedly rebuild closed windows and verify watermark monotonicity."""
+    """Process only newly durable events and persist exact restart state each cycle."""
     if not isinstance(stop_event, asyncio.Event):
         raise ValueError("stop_event must be an asyncio.Event")
     effective_policy = ObservationWindowCoordinatorPolicy() if policy is None else policy
     if not isinstance(effective_policy, ObservationWindowCoordinatorPolicy):
         raise ValueError("policy must be ObservationWindowCoordinatorPolicy")
+    if not isinstance(window_repository, IncrementalObservationWindowRepository):
+        raise ValueError(
+            "continuous coordinator requires an incremental observation-window repository"
+        )
 
+    coordinator = IncrementalRegisteredOpcUaWindowCoordinator(
+        source_repository,
+        history,
+        window_repository,
+        source_id,
+        policy=effective_policy,
+    )
     started_at = _now(now_fn)
     cycle_count = 0
     last_watermark: datetime | None = None
 
     while not stop_event.is_set():
         try:
-            cycle = await asyncio.to_thread(
-                rebuild_registered_opcua_observation_windows,
-                source_repository,
-                history,
-                window_repository,
-                source_id,
-                policy=effective_policy,
-            )
+            cycle = await asyncio.to_thread(coordinator.run_cycle)
             cycle_count += 1
             if (
                 last_watermark is not None

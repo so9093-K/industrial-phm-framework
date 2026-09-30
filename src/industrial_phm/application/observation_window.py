@@ -295,6 +295,82 @@ class DurableObservationWindow:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ObservationWindowBufferSnapshot:
+    """Durable restart state for one not-yet-finalized observation window."""
+
+    window_id: str
+    source_id: str
+    asset_id: str
+    measurement_point_id: str | None
+    expected_channel_ids: Sequence[str]
+    window_start: datetime
+    window_end: datetime
+    max_buffered_events: int
+    max_future_skew_seconds: float
+    watermark: datetime | None
+    events: Sequence[OpcUaPersistentDataChangeEvent]
+    seen_delivery_identities: Sequence[tuple[str, int, int]]
+    out_of_order_accepted_count: int = 0
+    late_rejected_count: int = 0
+    duplicate_rejected_count: int = 0
+    timing_unavailable_rejected_count: int = 0
+    unexpected_channel_rejected_count: int = 0
+    outside_window_rejected_count: int = 0
+    future_timestamp_rejected_count: int = 0
+    buffer_full_rejected_count: int = 0
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.window_id, "window_id")
+        _validate_identifier(self.source_id, "source_id")
+        _validate_identifier(self.asset_id, "asset_id")
+        if self.measurement_point_id is not None:
+            _validate_identifier(self.measurement_point_id, "measurement_point_id")
+        expected = tuple(self.expected_channel_ids)
+        _validate_channel_ids(expected, "expected_channel_ids")
+        _validate_aware_datetime(self.window_start, "window_start")
+        _validate_aware_datetime(self.window_end, "window_end")
+        if self.window_end <= self.window_start:
+            raise ValueError("window_end must be after window_start")
+        if (
+            isinstance(self.max_buffered_events, bool)
+            or not isinstance(self.max_buffered_events, int)
+            or self.max_buffered_events < 1
+        ):
+            raise ValueError("max_buffered_events must be a positive integer")
+        _validate_non_negative_finite(
+            self.max_future_skew_seconds,
+            "max_future_skew_seconds",
+        )
+        if self.watermark is not None:
+            _validate_aware_datetime(self.watermark, "watermark")
+        events = tuple(self.events)
+        seen = tuple(self.seen_delivery_identities)
+        if any(not isinstance(item, OpcUaPersistentDataChangeEvent) for item in events):
+            raise ValueError("events must contain OpcUaPersistentDataChangeEvent values")
+        if len(set(seen)) != len(seen):
+            raise ValueError("seen_delivery_identities must be unique")
+        accepted = {event.local_delivery_identity for event in events}
+        if not accepted.issubset(set(seen)):
+            raise ValueError(
+                "accepted event identities must be present in seen_delivery_identities"
+            )
+        for field_name in (
+            "out_of_order_accepted_count",
+            "late_rejected_count",
+            "duplicate_rejected_count",
+            "timing_unavailable_rejected_count",
+            "unexpected_channel_rejected_count",
+            "outside_window_rejected_count",
+            "future_timestamp_rejected_count",
+            "buffer_full_rejected_count",
+        ):
+            _validate_non_negative_int(getattr(self, field_name), field_name)
+        object.__setattr__(self, "expected_channel_ids", expected)
+        object.__setattr__(self, "events", events)
+        object.__setattr__(self, "seen_delivery_identities", seen)
+
+
 class ObservationWindowBuffer:
     """Bounded, non-durable reference assembler for one explicit event-time window."""
 
@@ -359,6 +435,68 @@ class ObservationWindowBuffer:
         self._future_timestamp_rejected_count = 0
         self._buffer_full_rejected_count = 0
         self._finalized = False
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: ObservationWindowBufferSnapshot,
+    ) -> ObservationWindowBuffer:
+        if not isinstance(snapshot, ObservationWindowBufferSnapshot):
+            raise ValueError("snapshot must be ObservationWindowBufferSnapshot")
+        buffer = cls(
+            window_id=snapshot.window_id,
+            source_id=snapshot.source_id,
+            asset_id=snapshot.asset_id,
+            measurement_point_id=snapshot.measurement_point_id,
+            expected_channel_ids=snapshot.expected_channel_ids,
+            window_start=snapshot.window_start,
+            window_end=snapshot.window_end,
+            max_buffered_events=snapshot.max_buffered_events,
+            max_future_skew_seconds=snapshot.max_future_skew_seconds,
+        )
+        buffer._watermark = snapshot.watermark
+        buffer._events = list(snapshot.events)
+        buffer._seen_delivery_identities = set(snapshot.seen_delivery_identities)
+        accepted_times = tuple(
+            event.event_time.event_at
+            for event in snapshot.events
+            if event.event_time.event_at is not None
+        )
+        buffer._max_accepted_event_at = max(accepted_times, default=None)
+        buffer._out_of_order_accepted_count = snapshot.out_of_order_accepted_count
+        buffer._late_rejected_count = snapshot.late_rejected_count
+        buffer._duplicate_rejected_count = snapshot.duplicate_rejected_count
+        buffer._timing_unavailable_rejected_count = snapshot.timing_unavailable_rejected_count
+        buffer._unexpected_channel_rejected_count = snapshot.unexpected_channel_rejected_count
+        buffer._outside_window_rejected_count = snapshot.outside_window_rejected_count
+        buffer._future_timestamp_rejected_count = snapshot.future_timestamp_rejected_count
+        buffer._buffer_full_rejected_count = snapshot.buffer_full_rejected_count
+        return buffer
+
+    def snapshot(self) -> ObservationWindowBufferSnapshot:
+        """Capture exact mutable state for durable restart."""
+        return ObservationWindowBufferSnapshot(
+            window_id=self._window_id,
+            source_id=self._source_id,
+            asset_id=self._asset_id,
+            measurement_point_id=self._measurement_point_id,
+            expected_channel_ids=self._expected_channel_ids,
+            window_start=self._window_start,
+            window_end=self._window_end,
+            max_buffered_events=self._max_buffered_events,
+            max_future_skew_seconds=self._max_future_skew_seconds,
+            watermark=self._watermark,
+            events=tuple(self._events),
+            seen_delivery_identities=tuple(sorted(self._seen_delivery_identities)),
+            out_of_order_accepted_count=self._out_of_order_accepted_count,
+            late_rejected_count=self._late_rejected_count,
+            duplicate_rejected_count=self._duplicate_rejected_count,
+            timing_unavailable_rejected_count=self._timing_unavailable_rejected_count,
+            unexpected_channel_rejected_count=self._unexpected_channel_rejected_count,
+            outside_window_rejected_count=self._outside_window_rejected_count,
+            future_timestamp_rejected_count=self._future_timestamp_rejected_count,
+            buffer_full_rejected_count=self._buffer_full_rejected_count,
+        )
 
     @property
     def watermark(self) -> datetime | None:
