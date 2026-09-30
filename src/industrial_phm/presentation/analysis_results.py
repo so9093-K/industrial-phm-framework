@@ -29,8 +29,8 @@ class AnalysisResultsLoad[T: _Result]:
     """Results from the last successful read and the outcome of the latest attempt.
 
     ``error`` names the latest failed read; ``results`` and ``loaded_at`` then still
-    describe the earlier successful read. ``added`` counts runs that were new in the
-    latest successful read.
+    describe the earlier successful read. ``added`` counts runs that a successful
+    refresh found beyond those already loaded.
     """
 
     results: tuple[T, ...]
@@ -42,8 +42,12 @@ class AnalysisResultsLoad[T: _Result]:
 def load_analysis_results[T: _Result](
     load: Callable[[], tuple[T, ...]], *, now: datetime
 ) -> AnalysisResultsLoad[T]:
-    """First read at startup; nothing earlier to keep when it fails."""
-    return reload_analysis_results(load, AnalysisResultsLoad((), None), now=now)
+    """First read at startup; nothing earlier to keep when it fails.
+
+    Results found at startup already existed, so none of them count as added.
+    """
+    first = reload_analysis_results(load, AnalysisResultsLoad((), None), now=now)
+    return AnalysisResultsLoad(first.results, first.loaded_at, first.error)
 
 
 def reload_analysis_results[T: _Result](

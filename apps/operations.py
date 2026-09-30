@@ -4511,32 +4511,58 @@ def _(Path, os, history_refresh_button):
 
 
 @app.cell
+def _():
+    # Last asset a person chose, restored whenever the selector is rebuilt. A plain
+    # holder: choosing an asset must not re-run the selector and its dependents twice.
+    asset_selection = {"asset_id": None}
+    return (asset_selection,)
+
+
+@app.cell
+def _(get_analysis_asset_ids, operational_analysis_results, set_analysis_asset_ids):
+    # A refresh that only adds runs for known assets must not rebuild the asset
+    # selector (and the history form under it), so publish asset ids on change only.
+    _analysis_asset_ids = tuple(
+        sorted({result.run.asset_id for result in operational_analysis_results})
+    )
+    if _analysis_asset_ids != get_analysis_asset_ids():
+        set_analysis_asset_ids(_analysis_asset_ids)
+    return
+
+
+@app.cell
 def _(
-    operational_analysis_results,
     list_operational_asset_identities,
     AssetIdentity,
+    asset_selection,
+    get_analysis_asset_ids,
     history_assets,
     mo,
     observation,
     operational_findings,
     registered_sources,
+    retained_option,
 ):
     _latest_observations = () if observation is None else (observation,)
     asset_identities = list_operational_asset_identities(
         sources=registered_sources,
         latest_observations=_latest_observations,
-        analysis_runs=tuple(result.run for result in operational_analysis_results),
         findings=operational_findings,
     )
     _identities = {item.asset_id: item for item in asset_identities}
     _identities.update({item.asset_id: AssetIdentity(item.asset_id) for item in history_assets})
+    _identities.update({asset_id: AssetIdentity(asset_id) for asset_id in get_analysis_asset_ids()})
     asset_identities = tuple(_identities[key] for key in sorted(_identities))
     if asset_identities:
+        _asset_ids = [item.asset_id for item in asset_identities]
         asset_selector = mo.ui.dropdown(
-            options=[item.asset_id for item in asset_identities],
-            value=asset_identities[0].asset_id,
+            options=_asset_ids,
+            value=retained_option(
+                {asset_id: asset_id for asset_id in _asset_ids}, asset_selection["asset_id"]
+            ),
             label="Asset",
             full_width=True,
+            on_change=lambda value: asset_selection.update(asset_id=value),
         )
     else:
         asset_selector = None
@@ -4825,7 +4851,7 @@ def _(
 
 
 @app.cell
-def _(Path, datetime, mo, os):
+def _(Path, datetime, initial_field_analysis_results, mo, os):
     from datetime import UTC
 
     from industrial_phm.application import (
@@ -4853,10 +4879,23 @@ def _(Path, datetime, mo, os):
     )
     # Results written by a separate run-window-analysis process are re-read only
     # on an explicit refresh; Operations never starts or stops that runner.
-    get_unbalance_load, set_unbalance_load = mo.state(
-        load_analysis_results(
-            JsonPhaseUnbalanceRepository(phase_unbalance_state_path).list_results,
-            now=datetime.now(UTC),
+    _initial_unbalance_load = load_analysis_results(
+        JsonPhaseUnbalanceRepository(phase_unbalance_state_path).list_results,
+        now=datetime.now(UTC),
+    )
+    get_unbalance_load, set_unbalance_load = mo.state(_initial_unbalance_load)
+    # Initialised from the startup reads so a static export needs no state update.
+    get_analysis_asset_ids, set_analysis_asset_ids = mo.state(
+        tuple(
+            sorted(
+                {
+                    result.run.asset_id
+                    for result in (
+                        *initial_field_analysis_results,
+                        *_initial_unbalance_load.results,
+                    )
+                }
+            )
         )
     )
     get_unbalance_error, set_unbalance_error = mo.state("")
@@ -4864,6 +4903,7 @@ def _(Path, datetime, mo, os):
     return (
         JsonPhaseUnbalanceRepository,
         UTC,
+        get_analysis_asset_ids,
         get_unbalance_error,
         get_unbalance_load,
         get_unbalance_selected,
@@ -4876,6 +4916,7 @@ def _(Path, datetime, mo, os):
         run_phase_unbalance_analysis,
         reload_analysis_results,
         retained_option,
+        set_analysis_asset_ids,
         set_unbalance_error,
         set_unbalance_load,
         set_unbalance_selected,

@@ -19,7 +19,8 @@ def _result(run_id):
 def test_refresh_reads_results_written_by_another_process():
     stored = [(_result("run-1"),)]
     first = load_analysis_results(lambda: stored[-1], now=T0)
-    assert (len(first.results), first.loaded_at, first.error, first.added) == (1, T0, "", 1)
+    # Results present at startup are existing results, not newly added ones.
+    assert (len(first.results), first.loaded_at, first.error, first.added) == (1, T0, "", 0)
 
     stored.append((_result("run-1"), _result("run-2")))
     later = T0 + timedelta(minutes=1)
@@ -62,3 +63,12 @@ def test_selection_survives_refresh_until_its_run_disappears():
     assert retained_option(options, "run-9") == "newest"
     assert retained_option(options, None) == "newest"
     assert retained_option({}, "run-1") is None
+
+
+def test_chosen_asset_survives_a_refresh_that_adds_a_run():
+    before = ("asset-A", "asset-B")
+    assert retained_option({a: a for a in before}, "asset-B") == "asset-B"
+    # A refreshed run for a new asset sorts before the chosen one.
+    after = ("asset-0", "asset-A", "asset-B")
+    assert retained_option({a: a for a in after}, "asset-B") == "asset-B"
+    assert retained_option({a: a for a in ("asset-A",)}, "asset-B") == "asset-A"
