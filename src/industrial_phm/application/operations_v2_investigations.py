@@ -46,7 +46,7 @@ class InvestigationQueueItem:
     review_updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
-        for value, field_name in (
+        for text_value, field_name in (
             (self.investigation_id, "investigation_id"),
             (self.analysis_run_id, "analysis_run_id"),
             (self.asset_id, "asset_id"),
@@ -55,17 +55,17 @@ class InvestigationQueueItem:
             (self.evidence_id, "evidence_id"),
             (self.data_quality, "data_quality"),
         ):
-            _require_text(value, field_name)
+            _require_text(text_value, field_name)
         if self.measurement_point_id is not None:
             _require_text(self.measurement_point_id, "measurement_point_id")
         if self.finding_id is not None:
             _require_text(self.finding_id, "finding_id")
-        for value, field_name in (
+        for time_value, field_name in (
             (self.observed_start_at, "observed_start_at"),
             (self.observed_end_at, "observed_end_at"),
             (self.completed_at, "completed_at"),
         ):
-            _require_aware(value, field_name)
+            _require_aware(time_value, field_name)
         if self.review_updated_at is not None:
             _require_aware(self.review_updated_at, "review_updated_at")
         if self.observed_start_at > self.observed_end_at:
