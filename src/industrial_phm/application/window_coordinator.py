@@ -12,6 +12,7 @@ from typing import Protocol, runtime_checkable
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     ObservationWindowEventDisposition,
+    ObservationWindowBufferSnapshot,
     ObservationWindowIngestResult,
     ObservationWindowRepository,
 )
@@ -125,6 +126,43 @@ class OpcUaHistoricalEventCursor:
         _validate_non_negative_int(self.event_index, "event_index")
 
 
+@dataclass(frozen=True, slots=True)
+class ObservationWindowCoordinatorState:
+    """Exact restart state for one continuous source coordinator."""
+
+    source_id: str
+    cursor: OpcUaHistoricalEventCursor | None
+    watermark: datetime | None
+    max_valid_event_at: datetime | None
+    active_buffers: Sequence[ObservationWindowBufferSnapshot]
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.source_id, "source_id")
+        if self.cursor is not None and not isinstance(
+            self.cursor, OpcUaHistoricalEventCursor
+        ):
+            raise ValueError("cursor must be OpcUaHistoricalEventCursor when provided")
+        if self.watermark is not None:
+            _validate_aware_datetime(self.watermark, "watermark")
+        if self.max_valid_event_at is not None:
+            _validate_aware_datetime(self.max_valid_event_at, "max_valid_event_at")
+        buffers = tuple(self.active_buffers)
+        if any(not isinstance(item, ObservationWindowBufferSnapshot) for item in buffers):
+            raise ValueError(
+                "active_buffers must contain ObservationWindowBufferSnapshot values"
+            )
+        if any(item.source_id != self.source_id for item in buffers):
+            raise ValueError("active buffer source_id must match coordinator source_id")
+        starts = tuple(item.window_start for item in buffers)
+        if len(set(starts)) != len(starts):
+            raise ValueError("active buffers must use unique window_start values")
+        object.__setattr__(
+            self,
+            "active_buffers",
+            tuple(sorted(buffers, key=lambda item: item.window_start)),
+        )
+
+
 @runtime_checkable
 class IncrementalObservationWindowRepository(ObservationWindowRepository, Protocol):
     """Finalized-window store with bounded restart/bootstrap queries."""
@@ -140,6 +178,21 @@ class IncrementalObservationWindowRepository(ObservationWindowRepository, Protoc
 
     def record_windows(self, windows: Sequence[DurableObservationWindow]) -> None:
         """Persist multiple finalized windows in one repository transaction."""
+        ...
+
+    def load_coordinator_state(
+        self,
+        source_id: str,
+    ) -> ObservationWindowCoordinatorState | None:
+        """Restore exact active-buffer/cursor state when present."""
+        ...
+
+    def record_coordinator_cycle(
+        self,
+        windows: Sequence[DurableObservationWindow],
+        state: ObservationWindowCoordinatorState,
+    ) -> None:
+        """Atomically persist finalized windows and the next restart state."""
         ...
 
 
