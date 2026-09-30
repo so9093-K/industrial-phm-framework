@@ -175,12 +175,8 @@ def _acquisition_service(
     surfaces: Sequence[AcquisitionTelemetrySurface],
 ) -> SystemRuntimeService:
     live_sources = tuple(item for item in sources if item.source_type == SourceType.OPCUA)
-    sessions = tuple(
-        item.source.session for item in surfaces if item.source.session is not None
-    )
-    connected = sum(
-        item.state == OpcUaPersistentSessionState.CONNECTED for item in sessions
-    )
+    sessions = tuple(item.source.session for item in surfaces if item.source.session is not None)
+    connected = sum(item.state == OpcUaPersistentSessionState.CONNECTED for item in sessions)
     reconnecting = sum(
         item.state
         in {
@@ -201,8 +197,7 @@ def _acquisition_service(
         (
             item.source.flow.last_received_at
             for item in surfaces
-            if item.source.flow is not None
-            and item.source.flow.last_received_at is not None
+            if item.source.flow is not None and item.source.flow.last_received_at is not None
         ),
         default=None,
     )
@@ -241,11 +236,7 @@ def _history_service(
     surfaces: Sequence[AcquisitionTelemetrySurface],
 ) -> SystemRuntimeService:
     latest_commit = max(
-        (
-            item.source.history.committed_at
-            for item in surfaces
-            if item.source.history is not None
-        ),
+        (item.source.history.committed_at for item in surfaces if item.source.history is not None),
         default=None,
     )
     pending = None if not surfaces else surfaces[0].spool.pending_event_count
