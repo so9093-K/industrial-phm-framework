@@ -35,8 +35,7 @@ def investigation_queue_option_label(item: InvestigationQueueItem) -> str:
     completed = item.completed_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     return (
         f"{item.asset_id} · {investigation_capability_label(item.capability_id)} · "
-        f"{investigation_review_label(item.review_state)} · {completed} · "
-        f"{item.analysis_run_id}"
+        f"{investigation_review_label(item.review_state)} · {completed}"
     )
 
 
