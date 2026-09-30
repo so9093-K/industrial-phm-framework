@@ -10,7 +10,10 @@ from math import isfinite
 from numbers import Real
 
 from industrial_phm.application.acquisition_spool import AcquisitionSpool
-from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetryRecorder
+from industrial_phm.application.acquisition_telemetry import (
+    AcquisitionTelemetryRecorder,
+    CollectionServiceRuntimeRecorder,
+)
 from industrial_phm.application.collection_control import (
     CollectionControlRepository,
     CollectionDesiredState,
@@ -105,6 +108,7 @@ async def run_collection_service(
     *,
     stop_event: asyncio.Event,
     telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
+    service_runtime_recorder: CollectionServiceRuntimeRecorder | None = None,
     policy: CollectionServicePolicy | None = None,
 ) -> CollectionServiceResult:
     """Reconcile durable desired state into independently owned runtime tasks."""
@@ -115,6 +119,11 @@ async def run_collection_service(
         raise ValueError("policy must be CollectionServicePolicy")
 
     started_at = datetime.now(UTC)
+    if service_runtime_recorder is not None:
+        _record_service_runtime_best_effort(
+            service_runtime_recorder.record_collection_service_start,
+            started_at=started_at,
+        )
     reconcile_count = 0
     source_start_count = 0
     source_stop_count = 0
@@ -224,25 +233,61 @@ async def run_collection_service(
                     raise writer_error
                 raise RuntimeError("history writer stopped while collection service is running")
 
+            if service_runtime_recorder is not None:
+                _record_service_runtime_best_effort(
+                    service_runtime_recorder.record_collection_service_heartbeat,
+                    heartbeat_at=datetime.now(UTC),
+                    reconcile_count=reconcile_count,
+                    owned_source_count=len(owned),
+                )
+
             with suppress(TimeoutError):
                 await asyncio.wait_for(
                     stop_event.wait(),
                     timeout=effective_policy.reconcile_interval_seconds,
                 )
+    except Exception as error:
+        if service_runtime_recorder is not None:
+            _record_service_runtime_best_effort(
+                service_runtime_recorder.record_collection_service_failure,
+                _failure_detail(error),
+                occurred_at=datetime.now(UTC),
+            )
+        raise
     finally:
         for source_id in tuple(owned):
             await _stop_source(source_id)
         writer_stop.set()
         await asyncio.gather(writer_task, return_exceptions=True)
 
+    stopped_at = datetime.now(UTC)
+    if service_runtime_recorder is not None:
+        _record_service_runtime_best_effort(
+            service_runtime_recorder.record_collection_service_stop,
+            stopped_at=stopped_at,
+            reconcile_count=reconcile_count,
+        )
+
     return CollectionServiceResult(
         started_at=started_at,
-        stopped_at=datetime.now(UTC),
+        stopped_at=stopped_at,
         reconcile_count=reconcile_count,
         source_start_count=source_start_count,
         source_stop_count=source_stop_count,
         source_restart_count=source_restart_count,
     )
+
+
+def _record_service_runtime_best_effort(callback, *args, **kwargs) -> None:
+    try:
+        callback(*args, **kwargs)
+    except (OSError, ValueError):
+        return
+
+
+def _failure_detail(error: Exception) -> str:
+    detail = str(error).strip()
+    return type(error).__name__ if not detail else f"{type(error).__name__}: {detail}"
 
 
 def _validate_positive_finite(value: float, field_name: str) -> None:
