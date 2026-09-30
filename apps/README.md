@@ -54,8 +54,8 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 
 V2는 현재 source/runtime/acquisition/analysis/review evidence를 읽어
 **Monitor / Assets / Investigations / Maintenance / System / Setup** 구조를 검증합니다.
-메인 배경은 `#292827`입니다. 현재 **Monitor / Assets / Investigations / Maintenance**가 실제 read model과
-연결돼 있습니다. Investigations에서는 저장된 analysis evidence에 대해 사용자가 명시적으로 **Request review**를
+메인 배경은 `#292827`입니다. 현재 **Monitor / Assets / Investigations / Maintenance / System**이 실제
+read model과 연결돼 있습니다. Investigations에서는 저장된 analysis evidence에 대해 사용자가 명시적으로 **Request review**를
 누를 때만 human-review finding을 기록합니다. Maintenance는 그 finding을 Open / Acknowledged / Closed 업무
 queue로 이어 받아 note / acknowledge / close action을 기록합니다. 이 workflow는 fault/alarm/health/repair/CMMS
 판단을 만들지 않습니다. Source 등록·수집·분석 실행은 아직 `apps/operations.py`가 소유합니다.
@@ -78,6 +78,13 @@ feature evidence를 표시합니다.
 note/close를 허용하며 Closed는 추가 event를 받지 않습니다. Maintenance에서 변경한 review state는 같은
 V2 session의 Investigations에도 즉시 반영됩니다. Finding/run ID는 primary queue가 아니라 Review identity
 detail에 둡니다.
+
+**System**은 live acquisition / history storage / analysis service / current state read를 분리해서 보여줍니다.
+Analysis runner는 persistent heartbeat와 최근 result/skip/failure가 있을 때만 runtime 상태를 표시합니다.
+Operations application 자체의 process heartbeat는 아직 계측하지 않으므로 **Not instrumented**로 명시하고,
+이번 refresh에서 state를 읽은 사실을 process health로 승격하지 않습니다. Source/session/history/spool 같은
+관측 가능한 runtime fact는 primary System에 두고 repository path·state file 위치는 **Advanced diagnostics**로
+내립니다. 읽기 실패는 현재 application state error로 별도 표시합니다.
 
 기존 Operations와 같은 환경변수를 사용한 뒤 다음처럼 실행합니다.
 
