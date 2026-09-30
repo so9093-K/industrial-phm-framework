@@ -100,9 +100,7 @@ class SqliteObservationWindowRepository:
         if after_window_end is not None:
             if after_window_end.utcoffset() is None:
                 raise ValueError("after_window_end must be timezone-aware")
-            where = (
-                "WHERE window_end > ? OR (window_end = ? AND window_id > ?)"
-            )
+            where = "WHERE window_end > ? OR (window_end = ? AND window_id > ?)"
             stamp = after_window_end.isoformat()
             params.extend((stamp, stamp, after_window_id))
         params.append(limit)
@@ -462,9 +460,7 @@ def _parse_buffer_snapshot(
     index: int,
 ) -> ObservationWindowBufferSnapshot:
     if not isinstance(raw, dict):
-        raise ObservationWindowFormatError(
-            f"coordinator active_buffers[{index}] must be an object"
-        )
+        raise ObservationWindowFormatError(f"coordinator active_buffers[{index}] must be an object")
     try:
         events = tuple(
             _parse_persistent_event(
@@ -474,8 +470,7 @@ def _parse_buffer_snapshot(
             for event_index, item in enumerate(raw["events"])
         )
         seen = tuple(
-            (str(item[0]), int(item[1]), int(item[2]))
-            for item in raw["seen_delivery_identities"]
+            (str(item[0]), int(item[1]), int(item[2])) for item in raw["seen_delivery_identities"]
         )
         watermark_raw = raw["watermark"]
         return ObservationWindowBufferSnapshot(
@@ -483,9 +478,7 @@ def _parse_buffer_snapshot(
             source_id=str(raw["source_id"]),
             asset_id=str(raw["asset_id"]),
             measurement_point_id=(
-                None
-                if raw["measurement_point_id"] is None
-                else str(raw["measurement_point_id"])
+                None if raw["measurement_point_id"] is None else str(raw["measurement_point_id"])
             ),
             expected_channel_ids=tuple(str(item) for item in raw["expected_channel_ids"]),
             window_start=datetime.fromisoformat(str(raw["window_start"])),
@@ -498,12 +491,8 @@ def _parse_buffer_snapshot(
             out_of_order_accepted_count=int(raw["out_of_order_accepted_count"]),
             late_rejected_count=int(raw["late_rejected_count"]),
             duplicate_rejected_count=int(raw["duplicate_rejected_count"]),
-            timing_unavailable_rejected_count=int(
-                raw["timing_unavailable_rejected_count"]
-            ),
-            unexpected_channel_rejected_count=int(
-                raw["unexpected_channel_rejected_count"]
-            ),
+            timing_unavailable_rejected_count=int(raw["timing_unavailable_rejected_count"]),
+            unexpected_channel_rejected_count=int(raw["unexpected_channel_rejected_count"]),
             outside_window_rejected_count=int(raw["outside_window_rejected_count"]),
             future_timestamp_rejected_count=int(raw["future_timestamp_rejected_count"]),
             buffer_full_rejected_count=int(raw["buffer_full_rejected_count"]),
