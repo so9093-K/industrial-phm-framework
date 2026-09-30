@@ -103,9 +103,11 @@ class SetupSourceView:
             _require_aware(self.collection_requested_at, "collection_requested_at")
         if (self.collection_desired_state is None) != (self.collection_requested_at is None):
             raise ValueError("collection state and requested time must be recorded together")
-        if self.freshness_max_age_seconds is not None:
-            if self.freshness_max_age_seconds <= 0:
-                raise ValueError("freshness_max_age_seconds must be positive when provided")
+        if (
+            self.freshness_max_age_seconds is not None
+            and self.freshness_max_age_seconds <= 0
+        ):
+            raise ValueError("freshness_max_age_seconds must be positive when provided")
         if (self.freshness_max_age_seconds is None) != (self.freshness_changed_at is None):
             raise ValueError("freshness policy age and changed time must be recorded together")
         if self.freshness_changed_at is not None:
