@@ -796,6 +796,21 @@ def _(findings, mo):
 
 @app.cell
 def _(
+    findings,
+    refresh_button,
+    set_investigation_findings,
+    set_review_request_error,
+    set_review_request_success,
+):
+    if refresh_button.value:
+        set_investigation_findings(findings)
+        set_review_request_error("")
+        set_review_request_success("")
+    return
+
+
+@app.cell
+def _(
     build_investigation_queue,
     get_investigation_findings,
     review_events,
@@ -880,8 +895,8 @@ def _(
         capability_id=_capability_by_label.get(investigation_capability_filter.value),
     )
     _label_to_id = {
-        investigation_queue_option_label(item): item.investigation_id
-        for item in _filtered_investigations
+        f"{investigation_queue_option_label(item)} · {index + 1}": item.investigation_id
+        for index, item in enumerate(_filtered_investigations)
     }
     _id_to_label = {value: key for key, value in _label_to_id.items()}
     if _filtered_investigations:
@@ -900,7 +915,8 @@ def _(
         )
     else:
         investigation_selector = None
-    return investigation_selector
+    investigation_filtered_count = len(_filtered_investigations)
+    return investigation_filtered_count, investigation_selector
 
 
 @app.cell
@@ -996,8 +1012,11 @@ def _(
     OperationalAnalysisPresentationKind,
     investigation_asset_filter,
     investigation_capability_filter,
+    investigation_filtered_count,
+    investigation_filtered_count,
     investigation_queue,
     investigation_review_filter,
+    investigation_review_label,
     investigation_selector,
     mo,
     operational_analysis_presentation_kind,
@@ -1040,7 +1059,9 @@ def _(
             [
                 _filters,
                 mo.md(
-                    f"### Queue\n\n{len(investigation_queue.items)} saved analysis result(s)"
+                    f"### Queue\n\n"
+                    f"{investigation_filtered_count} shown · "
+                    f"{len(investigation_queue.items)} saved"
                 ),
                 investigation_selector,
                 mo.md(
@@ -1156,7 +1177,8 @@ def _(
             _review_blocks.append(
                 mo.md(
                     "### Human review\n\n"
-                    f"Current workflow state: **{selected_investigation.review_state.value}**"
+                    "Current workflow state: "
+                    f"**{investigation_review_label(selected_investigation.review_state)}**"
                 )
             )
 
