@@ -95,8 +95,20 @@ uv run --no-sync industrial-phm operations run-window-analysis \
   --ledger-state artifacts/live-3phase/window-analysis-ledger.json
 ```
 
-Each finalized window is analyzed once from its accepted events (ADR-0008). Restarting the runner does
-not record a window twice. Windows without all three phases bound are recorded as skipped with a reason.
+Each pending finalized window is analyzed from its accepted events (ADR-0008). The same
+window/capability/algorithm/policy result is persisted once across runner restarts. Windows without all
+three phases bound are recorded as skipped with a reason.
+
+To inspect those live results in Operations, start (or restart) Operations with the **same analysis
+result repository** used by the runner:
+
+```bash
+export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.json
+uv run --no-sync marimo run apps/operations.py
+```
+
+The result file is shared evidence storage; this does not make the Operations browser process own the
+analysis runner lifecycle.
 
 Alignment is strict by default (all phases at one source timestamp). OPC UA DataChange reports only
 changed values, so a stable phase may be missing at most timestamps. When the device's update period
