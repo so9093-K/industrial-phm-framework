@@ -1100,6 +1100,20 @@ def _validate_aware_datetime(value: datetime, field_name: str) -> None:
         raise ValueError(f"{field_name} must be a timezone-aware datetime")
 
 
+def _validate_detail(value: str, field_name: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    if value != value.strip():
+        raise ValueError(f"{field_name} must not contain surrounding whitespace")
+
+
+def _validate_non_negative_int(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field_name} must be an integer")
+    if value < 0:
+        raise ValueError(f"{field_name} must not be negative")
+
+
 def _validate_positive_int(value: int, field_name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{field_name} must be an integer")
