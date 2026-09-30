@@ -228,6 +228,7 @@ def _():
         validate_distinct_source_state_paths,
     )
 
+
 @app.cell
 def _(mo):
     navigation = mo.ui.radio(
@@ -611,9 +612,7 @@ def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_o
             if not _line:
                 continue
             if "," not in _line:
-                raise ValueError(
-                    f"Mapping line {line_number} must use signal_id,node_id"
-                )
+                raise ValueError(f"Mapping line {line_number} must use signal_id,node_id")
             _channel_id, _node_id = _line.split(",", 1)
             mappings.append(
                 OpcUaNodeMapping(
@@ -781,10 +780,7 @@ def _(SourceLifecycleState, mo, setup_selected_source):
 def _(CollectionDesiredState, SourceType, mo, setup_selected_source):
     setup_start_collection_button = None
     setup_stop_collection_button = None
-    if (
-        setup_selected_source is not None
-        and setup_selected_source.source_type == SourceType.OPCUA
-    ):
+    if setup_selected_source is not None and setup_selected_source.source_type == SourceType.OPCUA:
         if setup_selected_source.collection_desired_state == CollectionDesiredState.RUNNING:
             setup_stop_collection_button = mo.ui.run_button(label="Stop collection")
         else:
@@ -828,9 +824,7 @@ def _(
                 changed_at=datetime.now().astimezone(),
             )
             _sources = _repository.list_sources()
-            _lifecycles = tuple(
-                _repository.get_lifecycle(item.source_id) for item in _sources
-            )
+            _lifecycles = tuple(_repository.get_lifecycle(item.source_id) for item in _sources)
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
@@ -838,9 +832,7 @@ def _(
             _, _, _current_collection = get_setup_config()
             set_setup_config((_sources, _lifecycles, _current_collection))
             set_setup_error("")
-            set_setup_success(
-                f"Source use changed: {_record.source_id} → {_record.state.value}."
-            )
+            set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
     return
 
 
@@ -872,9 +864,7 @@ def _(
             if setup_selected_source is None:
                 raise ValueError("select an OPC UA source before changing collection")
             _source_repository = JsonSourceRepository(registry_path)
-            _control_repository = SqliteCollectionControlRepository(
-                collection_control_path
-            )
+            _control_repository = SqliteCollectionControlRepository(collection_control_path)
             _record = request_collection_state(
                 _source_repository,
                 _source_repository,
@@ -1071,9 +1061,7 @@ def _(
         opcua_endpoint_input.value.strip(),
         opcua_timeout_input.value.strip(),
     )
-    opcua_browse_current = (
-        opcua_browse is not None and opcua_browse_signature == _opcua_signature
-    )
+    opcua_browse_current = opcua_browse is not None and opcua_browse_signature == _opcua_signature
     if opcua_browse_current:
         opcua_browse_by_label = {
             " / ".join(item.browse_path) + f" · {item.node_id}": item
@@ -1216,9 +1204,7 @@ def _(
                     _definition.unit,
                 )
             ):
-                raise ValueError(
-                    "provide explicit measurement meaning or choose Keep unresolved"
-                )
+                raise ValueError("provide explicit measurement meaning or choose Keep unresolved")
             _binding = ChannelSemanticBinding(
                 source_id=_source_id,
                 channel_id=_channel_id,
@@ -1244,9 +1230,7 @@ def _(
         _current.pop(semantic_channel_input.value, None)
         set_pending_semantics(_current)
         set_setup_error("")
-        set_setup_success(
-            f"{semantic_channel_input.value} will remain unresolved."
-        )
+        set_setup_success(f"{semantic_channel_input.value} will remain unresolved.")
     return
 
 
@@ -1316,9 +1300,7 @@ def _(
                 _common = set(file_discovery.common_columns)
                 _timestamp = file_timestamp_input.value.strip() or None
                 if _timestamp is not None and _timestamp not in _common:
-                    raise ValueError(
-                        "timestamp column was not discovered in every CSV file"
-                    )
+                    raise ValueError("timestamp column was not discovered in every CSV file")
                 _rate_text = file_sampling_rate_input.value.strip()
                 _candidate = RegisteredSource(
                     source_id=_source_id,
@@ -1389,9 +1371,7 @@ def _(
             set_setup_config((_sources, _lifecycles, _current_collection))
             set_pending_semantics({})
             set_setup_error("")
-            set_setup_success(
-                f"Source saved: {_candidate.source_id}. Enable it when ready to use."
-            )
+            set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
     return
 
 
@@ -2541,18 +2521,12 @@ def _(
 ):
     _message_blocks = []
     if setup_error:
-        _message_blocks.append(
-            mo.callout(setup_error, kind="danger", title="Setup action failed")
-        )
+        _message_blocks.append(mo.callout(setup_error, kind="danger", title="Setup action failed"))
     if setup_success:
-        _message_blocks.append(
-            mo.callout(setup_success, kind="success", title="Setup updated")
-        )
+        _message_blocks.append(mo.callout(setup_success, kind="success", title="Setup updated"))
 
     if setup_selected_source is None:
-        _selected_source_panel = mo.md(
-            "### Selected source\n\nNo data source is configured yet."
-        )
+        _selected_source_panel = mo.md("### Selected source\n\nNo data source is configured yet.")
     else:
         _source_actions = [
             button
@@ -2608,7 +2582,7 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">1 · Source</div>'
                     '<div class="phm-setup-help">Choose the prepared file boundary '
-                    'and declare asset identity.</div>'
+                    "and declare asset identity.</div>"
                     "</div>"
                 ),
                 add_source_type,
@@ -2621,7 +2595,7 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">2 · Select signals</div>'
                     '<div class="phm-setup-help">Keep only discovered columns that '
-                    'belong to this source mapping.</div>'
+                    "belong to this source mapping.</div>"
                     "</div>"
                 ),
                 _file_discovery_view,
@@ -2629,7 +2603,7 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">3 · Define time & sampling</div>'
                     '<div class="phm-setup-help">FILE registration preserves column '
-                    'identity; it does not infer physical measurement semantics.</div>'
+                    "identity; it does not infer physical measurement semantics.</div>"
                     "</div>"
                 ),
                 mo.hstack(
@@ -2640,7 +2614,7 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">4 · Review & save</div>'
                     '<div class="phm-setup-help">The file is validated before its '
-                    'registration is persisted.</div>'
+                    "registration is persisted.</div>"
                     "</div>"
                 ),
                 register_setup_source_button,
@@ -2735,7 +2709,7 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">1 · Connect</div>'
                     '<div class="phm-setup-help">Declare endpoint and asset identity, '
-                    'then run a bounded browse.</div>'
+                    "then run a bounded browse.</div>"
                     "</div>"
                 ),
                 add_source_type,
@@ -2748,8 +2722,8 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">2 · Select signals</div>'
                     '<div class="phm-setup-help">Browse selection defines explicit '
-                    'NodeId mapping. NodeId and BrowseName do not establish physical '
-                    'meaning.</div>'
+                    "NodeId mapping. NodeId and BrowseName do not establish physical "
+                    "meaning.</div>"
                     "</div>"
                 ),
                 (
@@ -2758,15 +2732,13 @@ def _(
                     else mo.md("No current browse result.")
                 ),
                 _mapping_view,
-                mo.accordion(
-                    {"Advanced explicit NodeId mapping": opcua_explicit_mapping_input}
-                ),
+                mo.accordion({"Advanced explicit NodeId mapping": opcua_explicit_mapping_input}),
                 mo.Html(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">3 · Define meaning</div>'
                     '<div class="phm-setup-help">Meaning is explicit, versioned, and '
-                    'evidence-backed. Leave channels unresolved when meaning is not '
-                    'established.</div>'
+                    "evidence-backed. Leave channels unresolved when meaning is not "
+                    "established.</div>"
                     "</div>"
                 ),
                 _semantic_editor,
@@ -2774,7 +2746,7 @@ def _(
                     '<div class="phm-setup-step">'
                     '<div class="phm-setup-step-title">4 · Review & save</div>'
                     '<div class="phm-setup-help">Saving registers configuration only. '
-                    'It does not enable the source or start collection.</div>'
+                    "It does not enable the source or start collection.</div>"
                     "</div>"
                 ),
                 register_setup_source_button,
@@ -2792,12 +2764,8 @@ def _(
     )
 
     if setup_selected_source is None:
-        _signal_mapping_view = mo.md(
-            "## Signal Mapping\n\nSelect or add a data source first."
-        )
-        _semantics_view = mo.md(
-            "## Measurement Semantics\n\nSelect or add a data source first."
-        )
+        _signal_mapping_view = mo.md("## Signal Mapping\n\nSelect or add a data source first.")
+        _semantics_view = mo.md("## Measurement Semantics\n\nSelect or add a data source first.")
     else:
         _signal_mapping_view = mo.vstack(
             [
