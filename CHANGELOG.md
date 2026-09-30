@@ -12,10 +12,10 @@
 ### Fixed
 
 - Monitor·Assets가 OPC UA 세션이 연결되어 있기만 하면 source를 "receiving data"로 표시하던 문제를
-  고쳤습니다. 연결된 live 세션의 마지막 수신 시각이 source의 데이터 경과 시간 정책을 넘으면 Delayed와
-  "No new data" attention으로 표시합니다. 정책이 없으면 값 변화가 없는 DataChange source에 대해 지연을
-  주장하지 않습니다. Phase 10 replay에서 collector가 11분간 연결 상태로 멈췄는데도 모든 단계가 Running으로
-  보인 사례에서 발견했습니다.
+  고쳤습니다. **관측 시각 freshness**와 별개인 live-flow silence threshold로 마지막 실제 수신 이후
+  무소식 시간을 판단하고, collector-service heartbeat / OPC UA session / receive flow를 서로 다른
+  runtime 사실로 표시합니다. Phase 10 replay에서 collector가 장시간 연결 상태로 멈췄는데도 모든 단계가
+  Running으로 보인 사례에서 발견했습니다.
 - Operations V2가 분석 결과 또는 검토 요청이 하나라도 있으면 빈 화면이 되던 문제를 고쳤습니다.
   Investigations·Maintenance queue cell이 자신이 만든 selector 값을 같은 cell에서 읽어 marimo가 예외를
   냈고, 전체 화면이 그 cell에 의존했습니다. 모든 앱에 같은 패턴이 없는지 정적 검사를 추가했습니다.
@@ -23,6 +23,21 @@
   메뉴·표·제목이 읽히지 않던 문제를 고쳤습니다. V2 theme가 marimo의 dark palette를 고정합니다.
 
 ### Changed
+
+- Operations V2 **Phase 10 pre-soak hardening**을 완료했습니다. AI-Hub 239 recorded power를
+  local OPC UA로 replay하는 개발 도구를 추가하고, first publish 전 node는
+  `BadWaitingForInitialData`로 유지해 원본에 없는 Good 0.0 observation을 만들지 않습니다.
+  Continuous observation-window coordinator는 full-history rebuild를 반복하지 않고 bounded durable-ingestion
+  cursor로 새 event만 처리하며, finalized window와 cursor/watermark/active-buffer restart state를
+  SQLite WAL의 같은 transaction에 기록합니다. Analysis runner도 capability/algorithm/policy cursor 이후
+  window만 처리하고 SQLite skip ledger를 유지합니다.
+
+- Operations V2 Phase 10 UX 검증에서 발견된 운영 gap을 보강했습니다. Collection request와 실제
+  collector heartbeat/session/live receive를 분리하고, Assets → Analysis에서 Analyzed/Skipped attempt와
+  exact skip reason을 확인할 수 있게 했습니다. Investigations는 30초 window 결과를 flat queue로
+  나열하지 않고 asset + capability + human-review state로 그룹화하되 exact AnalysisRun evidence를
+  그룹 안에서 선택할 수 있습니다. Needs attention 상세문구, readable UTC time, responsive/dark evidence
+  graph, Setup desired-state wording도 함께 정리했습니다.
 
 - Operations V2 **Phase 9 legacy migration**을 완료했습니다. `apps/operations_v2.py`를 canonical
   Operations surface로 승격하고 Interactive Analysis의 registered-source export도 V2를 검증하도록

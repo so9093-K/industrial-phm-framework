@@ -25,7 +25,7 @@ uv run --no-sync industrial-phm operations run-collection-service \
   --control-state artifacts/live-demo/control.sqlite \
   --spool-state artifacts/live-demo/spool.sqlite \
   --telemetry-state artifacts/live-demo/telemetry.sqlite \
-  --window-state artifacts/live-demo/windows.json \
+  --window-state artifacts/live-demo/windows.sqlite \
   --ducklake-catalog artifacts/live-demo/catalog.sqlite \
   --ducklake-data artifacts/live-demo/data
 ```
@@ -38,6 +38,8 @@ export INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME=artifacts/live-demo/source-runti
 export INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL=artifacts/live-demo/control.sqlite
 export INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL=artifacts/live-demo/spool.sqlite
 export INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY=artifacts/live-demo/telemetry.sqlite
+export INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/live-demo/windows.sqlite
+export INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/live-demo/window-analysis-ledger.sqlite
 export INDUSTRIAL_PHM_HISTORY_CATALOG=artifacts/live-demo/catalog.sqlite
 export INDUSTRIAL_PHM_HISTORY_DATA=artifacts/live-demo/data
 uv run --no-sync marimo run apps/operations_v2.py
@@ -89,9 +91,9 @@ Run the collector with the `artifacts/live-3phase` paths as above (optionally
 
 ```bash
 uv run --no-sync industrial-phm operations run-window-analysis \
-  --window-state artifacts/live-3phase/windows.json \
+  --window-state artifacts/live-3phase/windows.sqlite \
   --analysis-state artifacts/live-3phase/phase-unbalance.json \
-  --ledger-state artifacts/live-3phase/window-analysis-ledger.json
+  --ledger-state artifacts/live-3phase/window-analysis-ledger.sqlite
 ```
 
 Runner는 기본적으로 analysis result 옆
@@ -105,12 +107,19 @@ Operations V2 Monitor로 이 상태까지 함께 보려면 동일한 source/acqu
 
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.json
+export INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/live-3phase/windows.sqlite
+export INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/live-3phase/window-analysis-ledger.sqlite
 uv run --no-sync marimo run apps/operations_v2.py
 ```
 
-Each pending finalized window is analyzed from its accepted events (ADR-0008). The same
+The collection service reads newly durable history through a bounded ingestion cursor and stores
+finalized windows plus restart checkpoint state in the SQLite WAL window store. It does not rebuild
+the source's full history on every coordinator cycle.
+
+Each pending finalized window is analyzed from its accepted events (ADR-0008). The runner consumes
+only windows after its capability/algorithm/policy cursor. The same
 window/capability/algorithm/policy result is persisted once across runner restarts. Windows without all
-three phases bound are recorded as skipped with a reason.
+three phases bound are recorded as skipped with a reason in the SQLite analysis ledger.
 
 Operations must use the **same analysis result repository** as the runner (above). Results the runner
 writes later appear after **Refresh**; no restart is needed. The result file is shared evidence storage; this does not make the Operations browser process own the
@@ -167,15 +176,19 @@ and the analysis runner with a carry policy whose basis is the replay's publishi
 
 ```bash
 uv run --no-sync industrial-phm operations run-window-analysis \
-  --window-state artifacts/phase10/windows.json \
+  --window-state artifacts/phase10/windows.sqlite \
   --analysis-state artifacts/phase10/phase-unbalance.json \
-  --ledger-state artifacts/phase10/window-analysis-ledger.json \
+  --ledger-state artifacts/phase10/window-analysis-ledger.sqlite \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
 ```
 
 Point every `INDUSTRIAL_PHM_OPERATIONS_*` state path and `INDUSTRIAL_PHM_HISTORY_CATALOG/DATA` at
-`artifacts/phase10`, then start Operations and use Setup → **Start collection**.
+`artifacts/phase10`. In particular, set
+`INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/phase10/windows.sqlite` and
+`INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/phase10/window-analysis-ledger.sqlite`
+so Assets can resolve skipped analysis attempts back to exact finalized-window evidence. Then start
+Operations and use Setup → **Start collection**.
 
 Fault scenarios for Operations validation:
 
