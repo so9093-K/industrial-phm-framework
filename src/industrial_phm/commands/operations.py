@@ -16,6 +16,7 @@ from industrial_phm.application import (
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     JsonWindowAnalysisLedger,
+    JsonWindowAnalysisRuntimeRepository,
     ObservationWindowCoordinatorPolicy,
     PhaseUnbalanceConfig,
     SourcePollingPolicy,
@@ -157,7 +158,12 @@ def _run_operations_flush_history(args: argparse.Namespace) -> int:
 
 
 def _run_operations_window_analysis(args: argparse.Namespace) -> int:
-    """Analyze finalized live windows once each; repeat until interrupted unless --once."""
+    """Analyze finalized live windows and publish independent runner runtime evidence."""
+    runtime_path = args.runtime_status or args.analysis_state.with_name(
+        f"{args.analysis_state.stem}-runtime.json"
+    )
+    runtime = JsonWindowAnalysisRuntimeRepository(runtime_path)
+    _try_record_window_analysis_runtime(runtime.record_start, datetime.now(UTC))
     try:
         if args.interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
@@ -166,22 +172,43 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
         ledger = JsonWindowAnalysisLedger(args.ledger_state)
         config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
         while True:
-            for outcome in analyze_finalized_windows(windows, results, ledger, config=config):
+            outcomes = analyze_finalized_windows(windows, results, ledger, config=config)
+            for outcome in outcomes:
                 detail = outcome.analysis_run_id or outcome.reason
                 print(
                     f"window={outcome.window_id} capability={outcome.capability_id} "
                     f"state={outcome.state.value} detail={detail}",
                     flush=True,
                 )
+            _try_record_window_analysis_runtime(
+                runtime.record_cycle,
+                outcomes,
+                completed_at=datetime.now(UTC),
+            )
             if args.once:
+                _try_record_window_analysis_runtime(runtime.record_stop, datetime.now(UTC))
                 return 0
             time.sleep(args.interval_seconds)
     except KeyboardInterrupt:
+        _try_record_window_analysis_runtime(runtime.record_stop, datetime.now(UTC))
         print("window analysis interrupted by user", file=sys.stderr)
         return 130
     except (OSError, ValueError) as error:
+        _try_record_window_analysis_runtime(
+            runtime.record_failure,
+            str(error),
+            occurred_at=datetime.now(UTC),
+        )
         print(f"window analysis failed: {error}", file=sys.stderr)
         return 1
+
+
+def _try_record_window_analysis_runtime(callback, *args, **kwargs) -> None:
+    """Keep telemetry failure separate from the analysis data-plane outcome."""
+    try:
+        callback(*args, **kwargs)
+    except (OSError, ValueError) as error:
+        print(f"window analysis runtime telemetry unavailable: {error}", file=sys.stderr)
 
 
 def _alignment_policy(args: argparse.Namespace) -> TemporalAlignmentPolicy:
