@@ -18,7 +18,6 @@ def _():
         FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
         AcquisitionTelemetrySurface,
         AssetIdentity,
-        AssetWorkspaceAnalysisAttempt,
         ChannelSemanticBinding,
         CollectionDesiredState,
         FileSourceConfig,
@@ -146,6 +145,7 @@ def _():
     return (
         AcquisitionTelemetrySurface,
         AssetIdentity,
+        AssetWorkspaceAnalysisAttempt,
         ChannelSemanticBinding,
         LiveFlowTiming,
         CollectionDesiredState,
