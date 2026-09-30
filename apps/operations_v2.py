@@ -603,6 +603,774 @@ def _(
 
 
 @app.cell
+def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_opcua_variables):
+    def parse_opcua_mapping_lines(value: str):
+        mappings = []
+        for line_number, raw_line in enumerate(value.splitlines(), start=1):
+            _line = raw_line.strip()
+            if not _line:
+                continue
+            if "," not in _line:
+                raise ValueError(
+                    f"Mapping line {line_number} must use signal_id,node_id"
+                )
+            _channel_id, _node_id = _line.split(",", 1)
+            mappings.append(
+                OpcUaNodeMapping(
+                    channel_id=_channel_id.strip(),
+                    node_id=_node_id.strip(),
+                )
+            )
+        return tuple(mappings)
+
+    def run_setup_opcua_browse(*, endpoint_url: str, timeout_seconds: float):
+        _config = OpcUaBrowseConfig(
+            endpoint_url=endpoint_url,
+            timeout_seconds=timeout_seconds,
+        )
+
+        def _run():
+            return asyncio.run(browse_opcua_variables(_config))
+
+        with ThreadPoolExecutor(max_workers=1) as _executor:
+            return _executor.submit(_run).result()
+
+    return parse_opcua_mapping_lines, run_setup_opcua_browse
+
+
+@app.cell
+def _(collection_records, lifecycle_records, mo, registered_sources):
+    get_setup_sources, set_setup_sources = mo.state(tuple(registered_sources))
+    get_setup_lifecycles, set_setup_lifecycles = mo.state(tuple(lifecycle_records))
+    get_setup_collection, set_setup_collection = mo.state(tuple(collection_records))
+    get_setup_error, set_setup_error = mo.state("")
+    get_setup_success, set_setup_success = mo.state("")
+    get_file_discovery, set_file_discovery = mo.state(None)
+    get_file_discovery_signature, set_file_discovery_signature = mo.state(None)
+    get_opcua_browse, set_opcua_browse = mo.state(None)
+    get_opcua_browse_signature, set_opcua_browse_signature = mo.state(None)
+    get_pending_semantics, set_pending_semantics = mo.state({})
+    return (
+        get_file_discovery,
+        get_file_discovery_signature,
+        get_opcua_browse,
+        get_opcua_browse_signature,
+        get_pending_semantics,
+        get_setup_collection,
+        get_setup_error,
+        get_setup_lifecycles,
+        get_setup_sources,
+        get_setup_success,
+        set_file_discovery,
+        set_file_discovery_signature,
+        set_opcua_browse,
+        set_opcua_browse_signature,
+        set_pending_semantics,
+        set_setup_collection,
+        set_setup_error,
+        set_setup_lifecycles,
+        set_setup_sources,
+        set_setup_success,
+    )
+
+
+@app.cell
+def _(
+    collection_records,
+    lifecycle_records,
+    refresh_button,
+    registered_sources,
+    set_pending_semantics,
+    set_setup_collection,
+    set_setup_error,
+    set_setup_lifecycles,
+    set_setup_sources,
+    set_setup_success,
+):
+    if refresh_button.value:
+        set_setup_sources(tuple(registered_sources))
+        set_setup_lifecycles(tuple(lifecycle_records))
+        set_setup_collection(tuple(collection_records))
+        set_pending_semantics({})
+        set_setup_error("")
+        set_setup_success("")
+    return
+
+
+@app.cell
+def _(
+    build_setup_workspace,
+    get_setup_collection,
+    get_setup_error,
+    get_setup_lifecycles,
+    get_setup_sources,
+    get_setup_success,
+):
+    setup_sources = get_setup_sources()
+    setup_lifecycles = get_setup_lifecycles()
+    setup_collection = get_setup_collection()
+    setup_error = get_setup_error()
+    setup_success = get_setup_success()
+    setup_workspace = build_setup_workspace(
+        sources=setup_sources,
+        lifecycle_records=setup_lifecycles,
+        collection_records=setup_collection,
+    )
+    return (
+        setup_collection,
+        setup_error,
+        setup_lifecycles,
+        setup_sources,
+        setup_success,
+        setup_workspace,
+    )
+
+
+@app.cell
+def _():
+    setup_selection = {"source_id": None}
+    return (setup_selection,)
+
+
+@app.cell
+def _(mo, setup_selection, setup_workspace):
+    _setup_source_ids = tuple(item.source_id for item in setup_workspace.sources)
+    if _setup_source_ids:
+        _selected_source_id = (
+            setup_selection["source_id"]
+            if setup_selection["source_id"] in _setup_source_ids
+            else _setup_source_ids[0]
+        )
+        setup_source_selector = mo.ui.dropdown(
+            options=list(_setup_source_ids),
+            value=_selected_source_id,
+            label="Data source",
+            full_width=True,
+            on_change=lambda value: setup_selection.update(source_id=value),
+        )
+        setup_selected_source = next(
+            item for item in setup_workspace.sources if item.source_id == _selected_source_id
+        )
+    else:
+        setup_source_selector = None
+        setup_selected_source = None
+    setup_section = mo.ui.radio(
+        options=[
+            "Data Sources",
+            "Signal Mapping",
+            "Measurement Semantics",
+            "Analysis Configuration",
+        ],
+        value="Data Sources",
+        label="Setup area",
+    )
+    return setup_section, setup_selected_source, setup_source_selector
+
+
+@app.cell
+def _(SourceLifecycleState, mo, setup_selected_source):
+    setup_enable_button = None
+    setup_pause_button = None
+    if setup_selected_source is not None:
+        if setup_selected_source.lifecycle_state == SourceLifecycleState.ACTIVE:
+            setup_pause_button = mo.ui.run_button(label="Pause source")
+        else:
+            setup_enable_button = mo.ui.run_button(label="Enable source", kind="success")
+    return setup_enable_button, setup_pause_button
+
+
+@app.cell
+def _(CollectionDesiredState, SourceType, mo, setup_selected_source):
+    setup_start_collection_button = None
+    setup_stop_collection_button = None
+    if (
+        setup_selected_source is not None
+        and setup_selected_source.source_type == SourceType.OPCUA
+    ):
+        if setup_selected_source.collection_desired_state == CollectionDesiredState.RUNNING:
+            setup_stop_collection_button = mo.ui.run_button(label="Stop collection")
+        else:
+            setup_start_collection_button = mo.ui.run_button(
+                label="Start collection",
+                kind="success",
+            )
+    return setup_start_collection_button, setup_stop_collection_button
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    SourceLifecycleState,
+    datetime,
+    registry_path,
+    set_setup_error,
+    set_setup_lifecycles,
+    set_setup_success,
+    setup_enable_button,
+    setup_pause_button,
+    setup_selected_source,
+    transition_source_lifecycle,
+):
+    _setup_lifecycle_target = None
+    if setup_enable_button is not None and setup_enable_button.value:
+        _setup_lifecycle_target = SourceLifecycleState.ACTIVE
+    elif setup_pause_button is not None and setup_pause_button.value:
+        _setup_lifecycle_target = SourceLifecycleState.PAUSED
+
+    if _setup_lifecycle_target is not None:
+        try:
+            if setup_selected_source is None:
+                raise ValueError("select a data source before changing its use state")
+            _repository = JsonSourceRepository(registry_path)
+            _record = transition_source_lifecycle(
+                _repository,
+                setup_selected_source.source_id,
+                _setup_lifecycle_target,
+                changed_at=datetime.now().astimezone(),
+            )
+            _sources = _repository.list_sources()
+            _lifecycles = tuple(
+                _repository.get_lifecycle(item.source_id) for item in _sources
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            set_setup_lifecycles(_lifecycles)
+            set_setup_error("")
+            set_setup_success(
+                f"Source use changed: {_record.source_id} → {_record.state.value}."
+            )
+    return
+
+
+@app.cell
+def _(
+    CollectionDesiredState,
+    JsonSourceRepository,
+    SqliteCollectionControlRepository,
+    collection_control_path,
+    datetime,
+    registry_path,
+    request_collection_state,
+    set_setup_collection,
+    set_setup_error,
+    set_setup_success,
+    setup_selected_source,
+    setup_start_collection_button,
+    setup_stop_collection_button,
+):
+    _setup_collection_target = None
+    if setup_start_collection_button is not None and setup_start_collection_button.value:
+        _setup_collection_target = CollectionDesiredState.RUNNING
+    elif setup_stop_collection_button is not None and setup_stop_collection_button.value:
+        _setup_collection_target = CollectionDesiredState.STOPPED
+
+    if _setup_collection_target is not None:
+        try:
+            if setup_selected_source is None:
+                raise ValueError("select an OPC UA source before changing collection")
+            _source_repository = JsonSourceRepository(registry_path)
+            _control_repository = SqliteCollectionControlRepository(
+                collection_control_path
+            )
+            _record = request_collection_state(
+                _source_repository,
+                _source_repository,
+                _control_repository,
+                setup_selected_source.source_id,
+                _setup_collection_target,
+                requested_at=datetime.now().astimezone(),
+            )
+            _records = _control_repository.list_records()
+        except (LookupError, OSError, ValueError) as error:
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            set_setup_collection(_records)
+            set_setup_error("")
+            set_setup_success(
+                "Collection request saved: "
+                f"{_record.source_id} → {_record.desired_state.value}. "
+                "The browser does not start or supervise the collector process."
+            )
+    return
+
+
+@app.cell
+def _(SourceType, mo):
+    add_source_type = mo.ui.radio(
+        options=["File", "OPC UA"],
+        value="OPC UA",
+        label="Source type",
+    )
+    add_source_id = mo.ui.text(label="Source ID", full_width=True)
+    add_source_name = mo.ui.text(label="Name", full_width=True)
+    add_asset_id = mo.ui.text(label="Asset", full_width=True)
+    add_point_id = mo.ui.text(label="Measurement point (optional)", full_width=True)
+
+    file_path_input = mo.ui.text(
+        label="File or directory path",
+        full_width=True,
+    )
+    file_mode_input = mo.ui.radio(
+        options=["Snapshot", "History directory"],
+        value="Snapshot",
+        label="File shape",
+    )
+    file_discover_button = mo.ui.run_button(label="Discover file")
+    file_timestamp_input = mo.ui.text(
+        value="timestamp",
+        label="Timestamp column (optional for snapshot)",
+        full_width=True,
+    )
+    file_sampling_rate_input = mo.ui.text(
+        value="",
+        label="Sampling rate Hz (optional)",
+        full_width=True,
+    )
+
+    opcua_endpoint_input = mo.ui.text(
+        label="Endpoint",
+        placeholder="opc.tcp://host:4840",
+        full_width=True,
+    )
+    opcua_timeout_input = mo.ui.text(value="4", label="Timeout seconds")
+    opcua_browse_button = mo.ui.run_button(label="Connect & browse signals")
+    opcua_explicit_mapping_input = mo.ui.text_area(
+        value="",
+        label="Advanced explicit mapping (signal_id,node_id)",
+        rows=4,
+        full_width=True,
+    )
+    return (
+        add_asset_id,
+        add_point_id,
+        add_source_id,
+        add_source_name,
+        add_source_type,
+        file_discover_button,
+        file_mode_input,
+        file_path_input,
+        file_sampling_rate_input,
+        file_timestamp_input,
+        opcua_browse_button,
+        opcua_endpoint_input,
+        opcua_explicit_mapping_input,
+        opcua_timeout_input,
+    )
+
+
+@app.cell
+def _(
+    FileSourceMode,
+    Path,
+    discover_file_source,
+    file_discover_button,
+    file_mode_input,
+    file_path_input,
+    set_file_discovery,
+    set_file_discovery_signature,
+    set_setup_error,
+    set_setup_success,
+):
+    if file_discover_button.value:
+        _mode = (
+            FileSourceMode.SNAPSHOT
+            if file_mode_input.value == "Snapshot"
+            else FileSourceMode.HISTORY_DIRECTORY
+        )
+        _path = file_path_input.value.strip()
+        try:
+            _discovery = discover_file_source(Path(_path), _mode)
+        except (OSError, ValueError) as error:
+            set_file_discovery(None)
+            set_file_discovery_signature(None)
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            set_file_discovery(_discovery)
+            set_file_discovery_signature((file_mode_input.value, _path))
+            set_setup_error("")
+            set_setup_success("File discovery completed. Select the signals to keep.")
+    return
+
+
+@app.cell
+def _(
+    get_file_discovery,
+    get_file_discovery_signature,
+    file_mode_input,
+    file_path_input,
+    mo,
+):
+    file_discovery = get_file_discovery()
+    file_discovery_signature = get_file_discovery_signature()
+    _file_signature = (file_mode_input.value, file_path_input.value.strip())
+    file_discovery_current = (
+        file_discovery is not None and file_discovery_signature == _file_signature
+    )
+    if file_discovery_current:
+        file_signal_selection = mo.ui.multiselect(
+            options=list(file_discovery.common_columns),
+            value=[],
+            label="Signals to keep",
+            full_width=True,
+        )
+    else:
+        file_signal_selection = None
+    return file_discovery, file_discovery_current, file_signal_selection
+
+
+@app.cell
+def _(
+    opcua_browse_button,
+    opcua_endpoint_input,
+    opcua_timeout_input,
+    run_setup_opcua_browse,
+    set_opcua_browse,
+    set_opcua_browse_signature,
+    set_setup_error,
+    set_setup_success,
+):
+    if opcua_browse_button.value:
+        _endpoint = opcua_endpoint_input.value.strip()
+        _timeout = opcua_timeout_input.value.strip()
+        try:
+            _result = run_setup_opcua_browse(
+                endpoint_url=_endpoint,
+                timeout_seconds=float(_timeout),
+            )
+        except Exception as error:
+            set_opcua_browse(None)
+            set_opcua_browse_signature(None)
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            set_opcua_browse(_result)
+            set_opcua_browse_signature((_endpoint, _timeout))
+            set_setup_error("")
+            set_setup_success(
+                "Browse completed. This bounded session discovered signal identity only."
+            )
+    return
+
+
+@app.cell
+def _(
+    get_opcua_browse,
+    get_opcua_browse_signature,
+    mo,
+    opcua_endpoint_input,
+    opcua_timeout_input,
+):
+    opcua_browse = get_opcua_browse()
+    opcua_browse_signature = get_opcua_browse_signature()
+    _opcua_signature = (
+        opcua_endpoint_input.value.strip(),
+        opcua_timeout_input.value.strip(),
+    )
+    opcua_browse_current = (
+        opcua_browse is not None and opcua_browse_signature == _opcua_signature
+    )
+    if opcua_browse_current:
+        opcua_browse_by_label = {
+            " / ".join(item.browse_path) + f" · {item.node_id}": item
+            for item in opcua_browse.variables
+        }
+        opcua_signal_selection = mo.ui.multiselect(
+            options=list(opcua_browse_by_label),
+            value=[],
+            label="Signals to keep",
+            full_width=True,
+        )
+    else:
+        opcua_browse_by_label = {}
+        opcua_signal_selection = None
+    return opcua_browse_by_label, opcua_browse_current, opcua_signal_selection
+
+
+@app.cell
+def _(
+    OpcUaNodeMapping,
+    opcua_browse_by_label,
+    opcua_browse_current,
+    opcua_explicit_mapping_input,
+    opcua_signal_selection,
+    parse_opcua_mapping_lines,
+):
+    _browse_mappings = tuple(
+        OpcUaNodeMapping(
+            channel_id=opcua_browse_by_label[label].browse_name,
+            node_id=opcua_browse_by_label[label].node_id,
+        )
+        for label in (() if opcua_signal_selection is None else opcua_signal_selection.value)
+    )
+    try:
+        _explicit_mappings = parse_opcua_mapping_lines(opcua_explicit_mapping_input.value)
+        opcua_mapping_error = ""
+    except ValueError as error:
+        _explicit_mappings = ()
+        opcua_mapping_error = str(error)
+    opcua_candidate_mappings = (
+        _browse_mappings if opcua_browse_current and _browse_mappings else _explicit_mappings
+    )
+    return opcua_candidate_mappings, opcua_mapping_error
+
+
+@app.cell
+def _(mo, opcua_candidate_mappings):
+    _semantic_channels = [item.channel_id for item in opcua_candidate_mappings]
+    if _semantic_channels:
+        semantic_channel_input = mo.ui.dropdown(
+            options=_semantic_channels,
+            value=_semantic_channels[0],
+            label="Signal",
+            full_width=True,
+        )
+        semantic_observed_property_input = mo.ui.text(
+            label="Observed property",
+            full_width=True,
+        )
+        semantic_scope_input = mo.ui.text(label="Scope (optional)", full_width=True)
+        semantic_statistic_input = mo.ui.text(
+            label="Statistic (optional)",
+            full_width=True,
+        )
+        semantic_unit_input = mo.ui.text(label="Unit (optional)", full_width=True)
+        semantic_unit_evidence_input = mo.ui.text(
+            label="Unit evidence (required when unit is known)",
+            full_width=True,
+        )
+        semantic_version_input = mo.ui.text(label="Semantic version", full_width=True)
+        semantic_evidence_input = mo.ui.text(
+            label="Interpretation evidence",
+            full_width=True,
+        )
+        semantic_save_button = mo.ui.run_button(label="Add / update meaning")
+        semantic_clear_button = mo.ui.run_button(label="Keep unresolved")
+    else:
+        semantic_channel_input = None
+        semantic_observed_property_input = None
+        semantic_scope_input = None
+        semantic_statistic_input = None
+        semantic_unit_input = None
+        semantic_unit_evidence_input = None
+        semantic_version_input = None
+        semantic_evidence_input = None
+        semantic_save_button = None
+        semantic_clear_button = None
+    return (
+        semantic_channel_input,
+        semantic_clear_button,
+        semantic_evidence_input,
+        semantic_observed_property_input,
+        semantic_save_button,
+        semantic_scope_input,
+        semantic_statistic_input,
+        semantic_unit_evidence_input,
+        semantic_unit_input,
+        semantic_version_input,
+    )
+
+
+@app.cell
+def _(
+    ChannelSemanticBinding,
+    MeasurementDefinition,
+    add_source_id,
+    get_pending_semantics,
+    semantic_channel_input,
+    semantic_clear_button,
+    semantic_evidence_input,
+    semantic_observed_property_input,
+    semantic_save_button,
+    semantic_scope_input,
+    semantic_statistic_input,
+    semantic_unit_evidence_input,
+    semantic_unit_input,
+    semantic_version_input,
+    set_pending_semantics,
+    set_setup_error,
+    set_setup_success,
+):
+    if semantic_save_button is not None and semantic_save_button.value:
+        try:
+            if semantic_channel_input is None:
+                raise ValueError("select a mapped signal before defining meaning")
+            _source_id = add_source_id.value.strip()
+            _channel_id = semantic_channel_input.value
+            _binding = ChannelSemanticBinding(
+                source_id=_source_id,
+                channel_id=_channel_id,
+                version=semantic_version_input.value.strip(),
+                definition=MeasurementDefinition(
+                    observed_property=semantic_observed_property_input.value.strip() or None,
+                    scope=semantic_scope_input.value.strip() or None,
+                    statistic=semantic_statistic_input.value.strip() or None,
+                    unit=semantic_unit_input.value.strip() or None,
+                    unit_evidence=semantic_unit_evidence_input.value.strip() or None,
+                ),
+                interpretation_evidence=semantic_evidence_input.value.strip(),
+            )
+        except ValueError as error:
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            _current = dict(get_pending_semantics())
+            _current[_channel_id] = _binding
+            set_pending_semantics(_current)
+            set_setup_error("")
+            set_setup_success(f"Meaning saved for {_channel_id}.")
+    elif semantic_clear_button is not None and semantic_clear_button.value:
+        if semantic_channel_input is not None:
+            _current = dict(get_pending_semantics())
+            _current.pop(semantic_channel_input.value, None)
+            set_pending_semantics(_current)
+            set_setup_error("")
+            set_setup_success(
+                f"{semantic_channel_input.value} will remain unresolved."
+            )
+    return
+
+
+@app.cell
+def _(get_pending_semantics):
+    pending_semantics = get_pending_semantics()
+    return (pending_semantics,)
+
+
+@app.cell
+def _(mo):
+    register_setup_source_button = mo.ui.run_button(
+        label="Review & save source",
+        kind="success",
+    )
+    return (register_setup_source_button,)
+
+
+@app.cell
+def _(
+    FileSourceConfig,
+    FileSourceMode,
+    JsonSourceRepository,
+    OpcUaSourceConfig,
+    RegisteredSource,
+    datetime,
+    file_discovery,
+    file_discovery_current,
+    file_mode_input,
+    file_path_input,
+    file_sampling_rate_input,
+    file_signal_selection,
+    file_timestamp_input,
+    opcua_candidate_mappings,
+    opcua_endpoint_input,
+    opcua_mapping_error,
+    opcua_timeout_input,
+    pending_semantics,
+    register_file_source,
+    register_setup_source_button,
+    registry_path,
+    set_pending_semantics,
+    set_setup_error,
+    set_setup_lifecycles,
+    set_setup_sources,
+    set_setup_success,
+    add_asset_id,
+    add_point_id,
+    add_source_id,
+    add_source_name,
+    add_source_type,
+):
+    if register_setup_source_button.value:
+        try:
+            _source_id = add_source_id.value.strip()
+            _candidate = None
+            _repository = JsonSourceRepository(registry_path)
+            if add_source_type.value == "File":
+                if not file_discovery_current or file_discovery is None:
+                    raise ValueError("discover the file source before saving")
+                _signals = tuple(
+                    () if file_signal_selection is None else file_signal_selection.value
+                )
+                if not _signals:
+                    raise ValueError("select at least one file signal")
+                _common = set(file_discovery.common_columns)
+                _timestamp = file_timestamp_input.value.strip() or None
+                if _timestamp is not None and _timestamp not in _common:
+                    raise ValueError(
+                        "timestamp column was not discovered in every CSV file"
+                    )
+                _rate_text = file_sampling_rate_input.value.strip()
+                _candidate = RegisteredSource(
+                    source_id=_source_id,
+                    name=add_source_name.value.strip(),
+                    config=FileSourceConfig(
+                        source_path=file_path_input.value.strip(),
+                        asset_id=add_asset_id.value.strip(),
+                        measurement_point_id=add_point_id.value.strip() or None,
+                        channel_columns=_signals,
+                        mode=(
+                            FileSourceMode.SNAPSHOT
+                            if file_mode_input.value == "Snapshot"
+                            else FileSourceMode.HISTORY_DIRECTORY
+                        ),
+                        timestamp_column=_timestamp,
+                        sampling_rate_hz=None if not _rate_text else float(_rate_text),
+                    ),
+                    registered_at=datetime.now().astimezone(),
+                )
+                register_file_source(_candidate, _repository)
+            else:
+                if opcua_mapping_error:
+                    raise ValueError(opcua_mapping_error)
+                if not opcua_candidate_mappings:
+                    raise ValueError(
+                        "connect and select signals, or provide explicit advanced mapping"
+                    )
+                _binding_by_channel = {
+                    channel: binding
+                    for channel, binding in pending_semantics.items()
+                    if channel in {item.channel_id for item in opcua_candidate_mappings}
+                }
+                _candidate = RegisteredSource(
+                    source_id=_source_id,
+                    name=add_source_name.value.strip(),
+                    config=OpcUaSourceConfig(
+                        endpoint_url=opcua_endpoint_input.value.strip(),
+                        asset_id=add_asset_id.value.strip(),
+                        measurement_point_id=add_point_id.value.strip() or None,
+                        node_mappings=opcua_candidate_mappings,
+                        timeout_seconds=float(opcua_timeout_input.value.strip()),
+                        semantic_bindings=tuple(
+                            _binding_by_channel[channel]
+                            for channel in sorted(_binding_by_channel)
+                        ),
+                    ),
+                    registered_at=datetime.now().astimezone(),
+                )
+                _repository.register(_candidate)
+
+            _sources = _repository.list_sources()
+            _lifecycles = tuple(
+                _repository.get_lifecycle(item.source_id) for item in _sources
+            )
+        except (OSError, ValueError) as error:
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            set_setup_sources(_sources)
+            set_setup_lifecycles(_lifecycles)
+            set_pending_semantics({})
+            set_setup_error("")
+            set_setup_success(
+                f"Source saved: {_candidate.source_id}. Enable it when ready to use."
+            )
+    return
+
+
+@app.cell
 def _():
     asset_selection = {"asset_id": None}
     return (asset_selection,)
