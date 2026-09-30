@@ -1235,15 +1235,18 @@ def _(
             set_pending_semantics(_current)
             set_setup_error("")
             set_setup_success(f"Meaning saved for {_channel_id}.")
-    elif semantic_clear_button is not None and semantic_clear_button.value:
-        if semantic_channel_input is not None:
-            _current = dict(get_pending_semantics())
-            _current.pop(semantic_channel_input.value, None)
-            set_pending_semantics(_current)
-            set_setup_error("")
-            set_setup_success(
-                f"{semantic_channel_input.value} will remain unresolved."
-            )
+    elif (
+        semantic_clear_button is not None
+        and semantic_clear_button.value
+        and semantic_channel_input is not None
+    ):
+        _current = dict(get_pending_semantics())
+        _current.pop(semantic_channel_input.value, None)
+        set_pending_semantics(_current)
+        set_setup_error("")
+        set_setup_success(
+            f"{semantic_channel_input.value} will remain unresolved."
+        )
     return
 
 
