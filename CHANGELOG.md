@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- `tools/opcua/aihub_replay.py`: AI-Hub 239 전력 원본 selection을 로컬 OPC UA server로 replay합니다.
+  값은 그대로, 시간만 replay clock으로 옮기며(`--speed`, 원본 시각 대응은 `replay-log.jsonl`) 같은 시각에
+  서로 다른 값이 기록된 channel은 Bad status로 publish합니다. AI-Hub semantics-v2가 근거를 가진 channel만
+  semantic binding으로 등록하고, 누락 phase(`--omit-channel`)·stale data(`--freeze-after-records`)
+  시나리오를 제공합니다. Operations V2 Phase 10 로컬 검증용 도구이며 production connector가 아닙니다.
+
 ### Changed
 
 - Operations V2 **Phase 9 legacy migration**을 완료했습니다. `apps/operations_v2.py`를 canonical

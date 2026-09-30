@@ -69,7 +69,7 @@ export INDUSTRIAL_PHM_OPERATIONS_MEASUREMENT_POINT_ID=drive-end-bearing
 export INDUSTRIAL_PHM_OPERATIONS_CHANNELS=vibration_x,vibration_y
 export INDUSTRIAL_PHM_OPERATIONS_TIMESTAMP_COLUMN=timestamp
 
-uv run --locked --group research marimo run apps/operations.py
+uv run --locked --group research marimo run apps/operations_v2.py
 ```
 
 각 CSV는 독립 source snapshot으로 SHA-256/byte size를 보존합니다. Application timeline은 recorded timestamp로

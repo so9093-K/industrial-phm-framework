@@ -88,6 +88,11 @@ jobs:
           uv run --locked --extra aihub --extra history pytest \
             tests/integration/test_aihub_history.py
 
+      - name: Validate AI-Hub OPC UA replay source with synthetic archives
+        run: |
+          uv run --locked --extra aihub --extra opcua pytest \
+            tests/integration/test_aihub_opcua_replay.py
+
       - name: Build package
         run: uv build
 
