@@ -135,4 +135,4 @@ def _status_label(status: OperationsMonitorStatus) -> str:
 def _time_label(value: datetime) -> str:
     if value.utcoffset() is None:
         return "Time not comparable"
-    return value.astimezone(UTC).isoformat()
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
