@@ -200,6 +200,14 @@ from industrial_phm.application.operations_v2 import (
     OperationsMonitorView,
     build_operations_monitor_view,
 )
+from industrial_phm.application.operations_v2_assets import (
+    AssetWorkspaceAnalysis,
+    AssetWorkspaceEvent,
+    AssetWorkspaceReview,
+    AssetWorkspaceSource,
+    AssetWorkspaceView,
+    build_asset_workspace_view,
+)
 from industrial_phm.application.phase_unbalance import (
     PHASE_UNBALANCE_CAPABILITY_ID,
     PhaseUnbalanceAnalysis,
@@ -330,6 +338,11 @@ __all__ = [
     "AssetObservationSummary",
     "AssetObservationTimeline",
     "AssetSourceContext",
+    "AssetWorkspaceAnalysis",
+    "AssetWorkspaceEvent",
+    "AssetWorkspaceReview",
+    "AssetWorkspaceSource",
+    "AssetWorkspaceView",
     "AttentionHandlingState",
     "AttentionItem",
     "AttentionKind",
@@ -468,6 +481,7 @@ __all__ = [
     "backfill_registered_file_source",
     "build_acquisition_telemetry_surface",
     "build_asset_detail",
+    "build_asset_workspace_view",
     "build_field_csv_observation_summary",
     "build_operations_attention_queue",
     "build_operations_monitor_view",
