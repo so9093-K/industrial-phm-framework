@@ -1812,6 +1812,7 @@ def _(
     overview,
     registered_sources,
     review_events,
+    skipped_analysis_attempts,
 ):
     asset_workspace = None
     asset_workspace_error = None
@@ -1854,6 +1855,7 @@ def _(
                 history_channels=_history_channels,
                 acquisition_surfaces=_asset_surfaces,
                 live_flow_timing=live_flow_timing,
+                skipped_analysis_attempts=skipped_analysis_attempts,
             )
         except Exception as error:
             asset_workspace_error = str(error)
