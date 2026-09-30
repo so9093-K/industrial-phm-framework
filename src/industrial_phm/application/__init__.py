@@ -220,6 +220,12 @@ from industrial_phm.application.operations_v2_maintenance import (
     MaintenanceReviewTimelineItem,
     build_maintenance_queue,
 )
+from industrial_phm.application.operations_v2_setup import (
+    SetupSignalView,
+    SetupSourceView,
+    SetupWorkspaceView,
+    build_setup_workspace,
+)
 from industrial_phm.application.operations_v2_system import (
     SystemRuntimeError,
     SystemRuntimeFact,
@@ -464,6 +470,9 @@ __all__ = [
     "RegisteredOpcUaSubscriptionCoverage",
     "RegisteredOpcUaSubscriptionCycleResult",
     "RegisteredSource",
+    "SetupSignalView",
+    "SetupSourceView",
+    "SetupWorkspaceView",
     "SourceAlreadyRegisteredError",
     "SourceConnectionAttemptEvidence",
     "SourceConnectionAttemptOperation",
@@ -519,6 +528,7 @@ __all__ = [
     "build_operations_attention_queue",
     "build_operations_monitor_view",
     "build_operations_overview",
+    "build_setup_workspace",
     "build_system_runtime_view",
     "collect_registered_opcua_source_subscription",
     "create_finding_review_event",

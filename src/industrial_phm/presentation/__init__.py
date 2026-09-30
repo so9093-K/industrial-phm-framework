@@ -48,6 +48,13 @@ from industrial_phm.presentation.operations_v2_maintenance import (
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
 )
+from industrial_phm.presentation.operations_v2_setup import (
+    lifecycle_action_label,
+    render_setup_signals_html,
+    render_setup_source_detail_html,
+    render_setup_sources_html,
+    setup_workspace_css,
+)
 from industrial_phm.presentation.operations_v2_system import (
     render_system_diagnostics_html,
     render_system_errors_html,
@@ -63,6 +70,7 @@ __all__ = [
     "investigation_queue_option_label",
     "investigation_review_label",
     "investigation_workspace_css",
+    "lifecycle_action_label",
     "maintenance_capability_label",
     "maintenance_queue_label",
     "maintenance_status_label",
@@ -91,11 +99,15 @@ __all__ = [
     "render_monitor_flow_html",
     "render_observation_markdown",
     "render_observation_provenance_markdown",
+    "render_setup_signals_html",
+    "render_setup_source_detail_html",
+    "render_setup_sources_html",
     "render_source_data_flow_markdown",
     "render_system_diagnostics_html",
     "render_system_errors_html",
     "render_system_runtime_html",
     "render_unplaced_asset_evidence_markdown",
+    "setup_workspace_css",
     "status_label",
     "system_workspace_css",
 ]

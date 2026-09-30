@@ -11,6 +11,15 @@
 
 ### Changed
 
+- Operations V2 **Setup**을 Data Sources / Signal Mapping / Measurement Semantics / Analysis Configuration으로
+  분리하고 source registration/control workflow를 이관했습니다. Add Source는 FILE discovery 또는 bounded
+  OPC UA browse 후 explicit signal mapping을 선택하고, OPC UA measurement meaning은 channel별 version과
+  interpretation/unit evidence가 있을 때만 `ChannelSemanticBinding`으로 저장합니다. 미확정 signal은
+  `Unresolved`로 유지하며 BrowseName·NodeId에서 의미를 추론하지 않습니다. Enable/Pause는 administrative
+  use state, Start/Stop collection은 collector desired-state request로 유지해 connection/process-running
+  증거와 구분합니다. 기존 등록 config와 analysis policy는 안전한 update contract가 없는 범위에서 read-only로
+  표시합니다.
+
 - Operations V2 **System**을 live acquisition / history storage / analysis service / current state read로
   분리한 runtime workspace로 연결했습니다. Persistent acquisition telemetry와 analysis-runner heartbeat처럼
   실제 계측된 evidence만 primary 상태로 사용하고, Operations application process heartbeat는 계측되지 않은
