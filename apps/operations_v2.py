@@ -361,28 +361,19 @@ def _(
         as_of=assessed_at,
     )
 
-    return (
-        analysis_runtime_path,
-        attention,
-        monitor,
-        registry_path,
-        source_runtime_path,
-    )
+    return attention, monitor
 
 
 @app.cell
 def _(
-    analysis_runtime_path,
     attention,
     mo,
     monitor,
     navigation,
     operations_v2_theme_css,
     refresh_button,
-    registry_path,
     render_monitor_assets_html,
     render_monitor_flow_html,
-    source_runtime_path,
 ):
     theme = mo.Html(operations_v2_theme_css())
 
@@ -394,7 +385,7 @@ def _(
             ),
             refresh_button,
         ],
-        justify="space-between",
+        widths=[0.82, 0.18],
         align="start",
     )
 
@@ -464,10 +455,9 @@ def _(
         ),
         "System": mo.md(
             "## System\n\n"
-            f"Source settings: {registry_path}  \n"
-            f"Source runtime: {source_runtime_path}  \n"
-            f"Analysis service status: {analysis_runtime_path}  \n\n"
-            "Technical paths are intentionally kept out of Monitor."
+            "Collection, storage, analysis service and application runtime status "
+            "will be consolidated here. Technical state paths belong under "
+            "Advanced diagnostics, not the primary operating view."
         ),
         "Setup": mo.md(
             "## Setup\n\n"
