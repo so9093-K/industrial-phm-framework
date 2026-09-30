@@ -28,7 +28,7 @@ def render_setup_sources_html(view: SetupWorkspaceView) -> str:
         '<div class="phm-section-title">Data sources</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Source</th><th>Type</th><th>Asset</th><th>Point</th>"
-        "<th>Use</th><th>Collection</th><th>Meaning</th></tr></thead>"
+        "<th>Use</th><th>Collection request</th><th>Meaning</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
@@ -137,7 +137,7 @@ def _source_row(source: SetupSourceView) -> str:
         else (
             "Not requested"
             if source.collection_desired_state is None
-            else source.collection_desired_state.value.title()
+            else f"Requested: {source.collection_desired_state.value.title()}"
         )
     )
     return (
@@ -179,4 +179,4 @@ def _time_label(value: datetime | None) -> str:
         return "—"
     if value.utcoffset() is None:
         return "Time not comparable"
-    return value.astimezone(UTC).isoformat()
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
