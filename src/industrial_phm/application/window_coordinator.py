@@ -11,8 +11,8 @@ from typing import Protocol, runtime_checkable
 
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
-    ObservationWindowEventDisposition,
     ObservationWindowBufferSnapshot,
+    ObservationWindowEventDisposition,
     ObservationWindowIngestResult,
     ObservationWindowRepository,
 )
