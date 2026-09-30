@@ -64,22 +64,22 @@ class AssetWorkspaceAnalysis:
     data_quality: str
 
     def __post_init__(self) -> None:
-        for value, field_name in (
+        for text_value, field_name in (
             (self.analysis_run_id, "analysis_run_id"),
             (self.capability_id, "capability_id"),
             (self.evidence_id, "evidence_id"),
             (self.source_id, "source_id"),
             (self.data_quality, "data_quality"),
         ):
-            _require_text(value, field_name)
+            _require_text(text_value, field_name)
         if self.measurement_point_id is not None:
             _require_text(self.measurement_point_id, "measurement_point_id")
-        for value, field_name in (
+        for time_value, field_name in (
             (self.observed_start_at, "observed_start_at"),
             (self.observed_end_at, "observed_end_at"),
             (self.completed_at, "completed_at"),
         ):
-            _require_aware(value, field_name)
+            _require_aware(time_value, field_name)
         if self.observed_start_at > self.observed_end_at:
             raise ValueError("observed_start_at must not be after observed_end_at")
 
@@ -254,7 +254,7 @@ def build_asset_workspace_view(
     if not set(surface_by_source).issubset(detail_source_ids):
         raise ValueError("acquisition_surfaces must belong to this asset detail")
 
-        result_values = tuple(analysis_results)
+    result_values = tuple(analysis_results)
     if any(not isinstance(item, OperationalAnalysisResult) for item in result_values):
         raise ValueError("analysis_results must contain OperationalAnalysisResult values")
     asset_results = tuple(item for item in result_values if item.run.asset_id == asset_id)
