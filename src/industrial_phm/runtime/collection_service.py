@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -278,7 +279,11 @@ async def run_collection_service(
     )
 
 
-def _record_service_runtime_best_effort(callback, *args, **kwargs) -> None:
+def _record_service_runtime_best_effort(
+    callback: Callable[..., object],
+    *args: object,
+    **kwargs: object,
+) -> None:
     try:
         callback(*args, **kwargs)
     except (OSError, ValueError):
