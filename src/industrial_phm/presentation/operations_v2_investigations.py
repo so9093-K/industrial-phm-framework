@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.operations_v2_investigations import (
+    InvestigationQueueGroup,
     InvestigationQueueItem,
     InvestigationReviewState,
 )
@@ -27,6 +28,16 @@ def investigation_review_label(state: InvestigationReviewState) -> str:
         InvestigationReviewState.ACKNOWLEDGED: "Acknowledged",
         InvestigationReviewState.CLOSED: "Closed",
     }[state]
+
+
+def investigation_group_option_label(group: InvestigationQueueGroup) -> str:
+    if not isinstance(group, InvestigationQueueGroup):
+        raise ValueError("group must be an InvestigationQueueGroup")
+    return (
+        f"{group.asset_id} · {investigation_capability_label(group.capability_id)} · "
+        f"{investigation_review_label(group.review_state)} · {group.run_count} run(s) · "
+        f"latest {_time_label(group.latest.completed_at)}"
+    )
 
 
 def investigation_queue_option_label(item: InvestigationQueueItem) -> str:
@@ -120,6 +131,21 @@ def investigation_workspace_css() -> str:
   font-size: .78rem;
   line-height: 1.45;
 }
+.phm-investigation-heading,
+.phm-investigation-scope,
+.phm-shell {
+  min-width: 0;
+  max-width: 100%;
+}
+.phm-shell svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: transparent !important;
+}
+.phm-shell table {
+  max-width: 100%;
+}
 @media (max-width: 1100px) {
   .phm-investigation-heading {
     align-items: flex-start;
@@ -148,4 +174,4 @@ def _time_label(value: datetime | None) -> str:
         return "—"
     if value.utcoffset() is None:
         return "Time not comparable"
-    return value.astimezone(UTC).isoformat()
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
