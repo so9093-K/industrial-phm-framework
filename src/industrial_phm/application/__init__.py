@@ -194,6 +194,16 @@ from industrial_phm.application.operations_overview import (
     OperationsReviewSummary,
     build_operations_overview,
 )
+from industrial_phm.application.operations_v2 import (
+    OperationsActivityItem,
+    OperationsActivityKind,
+    OperationsMonitorAsset,
+    OperationsMonitorStage,
+    OperationsMonitorStageKind,
+    OperationsMonitorStatus,
+    OperationsMonitorView,
+    build_operations_monitor_view,
+)
 from industrial_phm.application.phase_unbalance import (
     PHASE_UNBALANCE_CAPABILITY_ID,
     PhaseUnbalanceAnalysis,
@@ -393,6 +403,13 @@ __all__ = [
     "OperationsAttentionQueue",
     "OperationsOverview",
     "OperationsReviewSummary",
+    "OperationsActivityItem",
+    "OperationsActivityKind",
+    "OperationsMonitorAsset",
+    "OperationsMonitorStage",
+    "OperationsMonitorStageKind",
+    "OperationsMonitorStatus",
+    "OperationsMonitorView",
     "PhaseUnbalanceAnalysis",
     "PhaseUnbalanceConfig",
     "PhaseUnbalanceEvidence",
@@ -452,6 +469,7 @@ __all__ = [
     "build_field_csv_observation_summary",
     "build_operations_attention_queue",
     "build_operations_overview",
+    "build_operations_monitor_view",
     "collect_registered_opcua_source_subscription",
     "create_finding_review_event",
     "create_human_review_finding",
