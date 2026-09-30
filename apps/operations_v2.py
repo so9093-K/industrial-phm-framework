@@ -521,13 +521,9 @@ def _(
                 (item for item in monitor.assets if item.asset_id == _selected_asset_id),
                 None,
             )
-            _asset_source_ids = {
-                item.source.source_id for item in _detail.source_contexts
-            }
+            _asset_source_ids = {item.source.source_id for item in _detail.source_contexts}
             _asset_surfaces = tuple(
-                item
-                for item in acquisition_surfaces
-                if item.source.source_id in _asset_source_ids
+                item for item in acquisition_surfaces if item.source.source_id in _asset_source_ids
             )
             asset_workspace = build_asset_workspace_view(
                 asset_id=_selected_asset_id,
@@ -597,9 +593,7 @@ def _(
             "### Signals\n\nNo Asset History catalog is available for this workspace."
         )
     elif signal_channel_selector is None:
-        signal_view = mo.md(
-            "### Signals\n\nNo stored signal is available for this asset yet."
-        )
+        signal_view = mo.md("### Signals\n\nNo stored signal is available for this asset yet.")
     elif asset_selector is None:
         signal_view = mo.md("### Signals\n\nNo asset is selected.")
     else:
@@ -715,9 +709,7 @@ def _(
                     )
                 else:
                     _trend_blocks.append(
-                        mo.md(
-                            "No stored observation falls inside the selected time range."
-                        )
+                        mo.md("No stored observation falls inside the selected time range.")
                     )
                 _trend_view = mo.vstack(_trend_blocks, gap=0.8)
 
