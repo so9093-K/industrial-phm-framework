@@ -2465,6 +2465,378 @@ def _(
 
 @app.cell
 def _(
+    add_asset_id,
+    add_point_id,
+    add_source_id,
+    add_source_name,
+    add_source_type,
+    file_discover_button,
+    file_discovery,
+    file_discovery_current,
+    file_mode_input,
+    file_path_input,
+    file_sampling_rate_input,
+    file_signal_selection,
+    file_timestamp_input,
+    mo,
+    opcua_browse,
+    opcua_browse_button,
+    opcua_browse_current,
+    opcua_candidate_mappings,
+    opcua_endpoint_input,
+    opcua_explicit_mapping_input,
+    opcua_mapping_error,
+    opcua_signal_selection,
+    opcua_timeout_input,
+    pending_semantics,
+    register_setup_source_button,
+    render_setup_signals_html,
+    render_setup_source_detail_html,
+    render_setup_sources_html,
+    semantic_channel_input,
+    semantic_clear_button,
+    semantic_evidence_input,
+    semantic_observed_property_input,
+    semantic_save_button,
+    semantic_scope_input,
+    semantic_statistic_input,
+    semantic_unit_evidence_input,
+    semantic_unit_input,
+    semantic_version_input,
+    setup_enable_button,
+    setup_error,
+    setup_pause_button,
+    setup_section,
+    setup_selected_source,
+    setup_source_selector,
+    setup_start_collection_button,
+    setup_stop_collection_button,
+    setup_success,
+    setup_workspace,
+):
+    _message_blocks = []
+    if setup_error:
+        _message_blocks.append(
+            mo.callout(setup_error, kind="danger", title="Setup action failed")
+        )
+    if setup_success:
+        _message_blocks.append(
+            mo.callout(setup_success, kind="success", title="Setup updated")
+        )
+
+    if setup_selected_source is None:
+        _selected_source_panel = mo.md(
+            "### Selected source\n\nNo data source is configured yet."
+        )
+    else:
+        _source_actions = [
+            button
+            for button in (
+                setup_enable_button,
+                setup_pause_button,
+                setup_start_collection_button,
+                setup_stop_collection_button,
+            )
+            if button is not None
+        ]
+        _selected_source_panel = mo.vstack(
+            [
+                setup_source_selector,
+                mo.Html(render_setup_source_detail_html(setup_selected_source)),
+                mo.hstack(_source_actions, justify="start", gap=0.6),
+                mo.md(
+                    "Enable/Pause changes whether a runtime may use the source. "
+                    "Start/Stop collection writes desired collection state for OPC UA; "
+                    "it does not prove the collector process is running or connected."
+                ),
+            ],
+            gap=0.8,
+        )
+
+    if add_source_type.value == "File":
+        if file_discovery_current and file_discovery is not None:
+            _preview_rows = [
+                dict(zip(file_discovery.representative_columns, row, strict=True))
+                for row in file_discovery.preview_rows
+            ]
+            _file_discovery_view = mo.vstack(
+                [
+                    mo.md(
+                        f"Discovered **{file_discovery.file_count}** file(s), "
+                        f"**{len(file_discovery.common_columns)}** common column(s)."
+                    ),
+                    mo.ui.table(_preview_rows, selection=None),
+                    file_signal_selection,
+                ],
+                gap=0.6,
+            )
+        else:
+            _file_discovery_view = mo.md(
+                "Run discovery after choosing a file or history directory. "
+                "No column meaning is inferred during discovery."
+            )
+
+        _source_wizard = mo.vstack(
+            [
+                mo.md("### Add data source"),
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">1 · Source</div>'
+                    '<div class="phm-setup-help">Choose the prepared file boundary and declare asset identity.</div>'
+                    "</div>"
+                ),
+                add_source_type,
+                mo.hstack([add_source_id, add_source_name], widths="equal"),
+                mo.hstack([add_asset_id, add_point_id], widths="equal"),
+                file_mode_input,
+                file_path_input,
+                file_discover_button,
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">2 · Select signals</div>'
+                    '<div class="phm-setup-help">Keep only discovered columns that belong to this source mapping.</div>'
+                    "</div>"
+                ),
+                _file_discovery_view,
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">3 · Define time & sampling</div>'
+                    '<div class="phm-setup-help">FILE registration currently preserves column identity; it does not infer physical measurement semantics.</div>'
+                    "</div>"
+                ),
+                mo.hstack(
+                    [file_timestamp_input, file_sampling_rate_input],
+                    widths="equal",
+                ),
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">4 · Review & save</div>'
+                    '<div class="phm-setup-help">The file is validated before its registration is persisted.</div>'
+                    "</div>"
+                ),
+                register_setup_source_button,
+            ],
+            gap=0.75,
+        )
+    else:
+        if opcua_browse_current and opcua_browse is not None:
+            _browse_status = mo.md(
+                f"Browse completed: **{len(opcua_browse.variables)}** variable candidate(s), "
+                f"visited **{opcua_browse.visited_node_count}** node(s)"
+                + (" · result truncated" if opcua_browse.truncated else "")
+                + "."
+            )
+        else:
+            _browse_status = mo.md(
+                "Connect & browse uses one bounded anonymous session to discover variable identity. "
+                "It does not read signal values or prove ongoing connection health."
+            )
+
+        if opcua_mapping_error:
+            _mapping_view = mo.callout(
+                opcua_mapping_error,
+                kind="danger",
+                title="Explicit mapping invalid",
+            )
+        elif opcua_candidate_mappings:
+            _mapping_view = mo.ui.table(
+                [
+                    {"Signal": item.channel_id, "NodeId": item.node_id}
+                    for item in opcua_candidate_mappings
+                ],
+                selection=None,
+            )
+        else:
+            _mapping_view = mo.md("No signal mapping selected yet.")
+
+        _semantic_rows = [
+            {
+                "Signal": channel_id,
+                "Observed property": binding.definition.observed_property or "Unresolved",
+                "Scope": binding.definition.scope or "—",
+                "Statistic": binding.definition.statistic or "—",
+                "Unit": binding.definition.unit or "—",
+                "Version": binding.version,
+                "Evidence": binding.interpretation_evidence,
+            }
+            for channel_id, binding in sorted(pending_semantics.items())
+        ]
+        _semantic_editor = (
+            mo.vstack(
+                [
+                    semantic_channel_input,
+                    mo.hstack(
+                        [semantic_observed_property_input, semantic_scope_input],
+                        widths="equal",
+                    ),
+                    mo.hstack(
+                        [semantic_statistic_input, semantic_unit_input],
+                        widths="equal",
+                    ),
+                    semantic_unit_evidence_input,
+                    mo.hstack(
+                        [semantic_version_input, semantic_evidence_input],
+                        widths="equal",
+                    ),
+                    mo.hstack(
+                        [semantic_save_button, semantic_clear_button],
+                        justify="start",
+                        gap=0.6,
+                    ),
+                    (
+                        mo.ui.table(_semantic_rows, selection=None)
+                        if _semantic_rows
+                        else mo.md(
+                            "No explicit measurement meaning has been added. "
+                            "Unmapped meaning remains **Unresolved**."
+                        )
+                    ),
+                ],
+                gap=0.6,
+            )
+            if semantic_channel_input is not None
+            else mo.md("Select at least one mapped signal before defining meaning.")
+        )
+
+        _source_wizard = mo.vstack(
+            [
+                mo.md("### Add data source"),
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">1 · Connect</div>'
+                    '<div class="phm-setup-help">Declare endpoint and asset identity, then run a bounded browse.</div>'
+                    "</div>"
+                ),
+                add_source_type,
+                mo.hstack([add_source_id, add_source_name], widths="equal"),
+                mo.hstack([add_asset_id, add_point_id], widths="equal"),
+                mo.hstack([opcua_endpoint_input, opcua_timeout_input], widths=[0.75, 0.25]),
+                opcua_browse_button,
+                _browse_status,
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">2 · Select signals</div>'
+                    '<div class="phm-setup-help">Browse selection defines explicit NodeId mapping. NodeId and BrowseName do not establish physical meaning.</div>'
+                    "</div>"
+                ),
+                (
+                    opcua_signal_selection
+                    if opcua_signal_selection is not None
+                    else mo.md("No current browse result.")
+                ),
+                _mapping_view,
+                mo.accordion(
+                    {"Advanced explicit NodeId mapping": opcua_explicit_mapping_input}
+                ),
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">3 · Define meaning</div>'
+                    '<div class="phm-setup-help">Meaning is explicit, versioned, and evidence-backed. Leave channels unresolved when meaning is not established.</div>'
+                    "</div>"
+                ),
+                _semantic_editor,
+                mo.Html(
+                    '<div class="phm-setup-step">'
+                    '<div class="phm-setup-step-title">4 · Review & save</div>'
+                    '<div class="phm-setup-help">Saving registers configuration only. It does not enable the source or start collection.</div>'
+                    "</div>"
+                ),
+                register_setup_source_button,
+            ],
+            gap=0.75,
+        )
+
+    _data_sources_view = mo.vstack(
+        [
+            mo.Html(render_setup_sources_html(setup_workspace)),
+            _selected_source_panel,
+            mo.accordion({"Add data source": _source_wizard}),
+        ],
+        gap=1.0,
+    )
+
+    if setup_selected_source is None:
+        _signal_mapping_view = mo.md(
+            "## Signal Mapping\n\nSelect or add a data source first."
+        )
+        _semantics_view = mo.md(
+            "## Measurement Semantics\n\nSelect or add a data source first."
+        )
+    else:
+        _signal_mapping_view = mo.vstack(
+            [
+                setup_source_selector,
+                mo.Html(render_setup_signals_html(setup_selected_source)),
+                mo.md(
+                    "Signal identity comes from declared FILE columns or explicit OPC UA NodeId mapping. "
+                    "This page does not infer component hierarchy or physical meaning from names."
+                ),
+            ],
+            gap=0.8,
+        )
+        _defined, _total = setup_selected_source.semantic_coverage
+        _semantics_view = mo.vstack(
+            [
+                setup_source_selector,
+                mo.md(
+                    f"### Measurement Semantics\n\n"
+                    f"Explicit meaning coverage: **{_defined} / {_total}** signal(s)."
+                ),
+                mo.Html(render_setup_signals_html(setup_selected_source)),
+                mo.md(
+                    "Existing registrations are immutable evidence in the current registry contract. "
+                    "Measurement meaning is defined during registration; unresolved channels stay unresolved "
+                    "instead of being inferred from signal names."
+                ),
+            ],
+            gap=0.8,
+        )
+
+    _analysis_configuration_view = mo.vstack(
+        [
+            mo.md(
+                "## Analysis Configuration\n\n"
+                "Operational analysis policies are versioned outside this Setup workspace today. "
+                "The live three-phase runner and FILE analysis preserve their policy/version in evidence; "
+                "this screen does not expose controls that the application contract cannot persist safely."
+            ),
+            mo.md(
+                "Use **System** to verify analysis-service runtime status and **Investigations** "
+                "to inspect the exact policy/evidence of completed analyses."
+            ),
+        ],
+        gap=0.8,
+    )
+
+    _setup_sections = {
+        "Data Sources": _data_sources_view,
+        "Signal Mapping": _signal_mapping_view,
+        "Measurement Semantics": _semantics_view,
+        "Analysis Configuration": _analysis_configuration_view,
+    }
+    setup_view = mo.vstack(
+        [
+            mo.hstack(
+                [
+                    mo.md(
+                        "## Setup\n\n"
+                        "Connect data sources, map signals, and record explicit measurement meaning."
+                    ),
+                    setup_section,
+                ],
+                widths=[0.42, 0.58],
+                align="start",
+            ),
+            *_message_blocks,
+            _setup_sections[setup_section.value],
+        ],
+        gap=1.0,
+    )
+    return (setup_view,)
+
+
+@app.cell
+def _(
     asset_section,
     asset_selector,
     asset_workspace,
