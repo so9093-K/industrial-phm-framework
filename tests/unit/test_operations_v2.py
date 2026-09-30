@@ -227,3 +227,98 @@ def test_monitor_handles_assets_with_and_without_data_time_without_comparing_non
     assert tuple(item.asset_id for item in monitor.assets) == ("asset-a", "asset-b")
     assert monitor.assets[0].last_data_at == receipt.received_at
     assert monitor.assets[1].last_data_at is None
+
+
+def _live_surface(source_id: str, *, last_received_at: datetime):
+    from industrial_phm.application import (
+        AcquisitionFlowTelemetry,
+        AcquisitionSessionTelemetry,
+        AcquisitionSpoolTelemetrySnapshot,
+        AcquisitionTelemetrySnapshot,
+        AcquisitionTelemetrySurface,
+        OpcUaPersistentSessionState,
+    )
+
+    started = NOW - timedelta(hours=1)
+    return AcquisitionTelemetrySurface(
+        source=AcquisitionTelemetrySnapshot(
+            source_id=source_id,
+            session=AcquisitionSessionTelemetry(
+                source_id=source_id,
+                worker_started_at=started,
+                state=OpcUaPersistentSessionState.CONNECTED,
+                state_changed_at=started,
+                connection_epoch=3,
+                reconnect_attempt_index=0,
+                callback_queue_overflow_count=0,
+                connected_since=started,
+                callback_queue_maxsize=128,
+            ),
+            flow=AcquisitionFlowTelemetry(
+                source_id=source_id,
+                worker_started_at=started,
+                accepted_event_count=600,
+                replayed_event_count=0,
+                bad_status_event_count=0,
+                updated_at=last_received_at,
+                last_delivery_identity=(source_id, 3, 599),
+                last_source_timestamp=last_received_at,
+                last_received_at=last_received_at,
+                last_ingested_at=last_received_at,
+            ),
+        ),
+        spool=AcquisitionSpoolTelemetrySnapshot(
+            sampled_at=NOW,
+            pending_event_count=0,
+            payload_bytes=0,
+            oldest_accepted_at=None,
+            active_batch_id=None,
+            active_batch_event_count=0,
+            active_batch_payload_bytes=0,
+        ),
+    )
+
+
+def test_connected_session_silence_is_distinct_from_observation_freshness() -> None:
+    # Observation freshness and platform receive silence are different facts.
+    source, overview = _overview(
+        observed_at=NOW - timedelta(seconds=5),
+        max_age_seconds=3600,
+    )
+    silent = _live_surface(source.source_id, last_received_at=NOW - timedelta(minutes=11))
+
+    monitor = build_operations_monitor_view(
+        sources=(source,),
+        overview=overview,
+        attention=build_operations_attention_queue(overview=overview),
+        acquisition_surfaces=(silent,),
+        as_of=NOW,
+    )
+
+    assert monitor.stages[0].status == OperationsMonitorStatus.DELAYED
+    assert monitor.assets[0].status == OperationsMonitorStatus.DELAYED
+    (attention,) = monitor.attention
+    assert attention.title == "No new data"
+    assert "11m ago (limit 30s)" in attention.detail
+
+    fresh = _live_surface(source.source_id, last_received_at=NOW - timedelta(seconds=5))
+    monitor = build_operations_monitor_view(
+        sources=(source,),
+        overview=overview,
+        attention=build_operations_attention_queue(overview=overview),
+        acquisition_surfaces=(fresh,),
+        as_of=NOW,
+    )
+    assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
+    assert monitor.attention == ()
+
+    monitor = build_operations_monitor_view(
+        sources=(source,),
+        overview=overview,
+        attention=build_operations_attention_queue(overview=overview),
+        acquisition_surfaces=(silent,),
+        live_flow_silence_timeout=timedelta(minutes=20),
+        as_of=NOW,
+    )
+    assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
+    assert monitor.attention == ()

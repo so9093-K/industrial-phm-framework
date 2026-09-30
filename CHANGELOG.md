@@ -11,6 +11,11 @@
 
 ### Fixed
 
+- Monitor·Assets가 OPC UA 세션이 연결되어 있기만 하면 source를 "receiving data"로 표시하던 문제를
+  고쳤습니다. 연결된 live 세션의 마지막 수신 시각이 source의 데이터 경과 시간 정책을 넘으면 Delayed와
+  "No new data" attention으로 표시합니다. 정책이 없으면 값 변화가 없는 DataChange source에 대해 지연을
+  주장하지 않습니다. Phase 10 replay에서 collector가 11분간 연결 상태로 멈췄는데도 모든 단계가 Running으로
+  보인 사례에서 발견했습니다.
 - Operations V2가 분석 결과 또는 검토 요청이 하나라도 있으면 빈 화면이 되던 문제를 고쳤습니다.
   Investigations·Maintenance queue cell이 자신이 만든 selector 값을 같은 cell에서 읽어 marimo가 예외를
   냈고, 전체 화면이 그 cell에 의존했습니다. 모든 앱에 같은 패턴이 없는지 정적 검사를 추가했습니다.

@@ -9,7 +9,7 @@ def _():
     import asyncio
     import os
     from concurrent.futures import ThreadPoolExecutor
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
     from pathlib import Path
 
     import marimo as mo
@@ -29,6 +29,7 @@ def _():
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
+        LiveFlowTiming,
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
@@ -138,6 +139,7 @@ def _():
         AcquisitionTelemetrySurface,
         AssetIdentity,
         ChannelSemanticBinding,
+        LiveFlowTiming,
         CollectionDesiredState,
         DuckLakeAssetHistory,
         DuckLakeAssetHistoryConfig,
@@ -188,6 +190,7 @@ def _():
         create_human_review_finding,
         datetime,
         discover_file_source,
+        timedelta,
         investigation_capability_label,
         investigation_queue_option_label,
         investigation_review_label,
@@ -273,6 +276,7 @@ def _(
     JsonSourceRuntimeRepository,
     AcquisitionTelemetrySurface,
     JsonWindowAnalysisRuntimeRepository,
+    LiveFlowTiming,
     Path,
     SourceType,
     SqliteAcquisitionSpool,
@@ -287,6 +291,7 @@ def _(
     datetime,
     os,
     refresh_button,
+    timedelta,
     validate_distinct_source_state_paths,
 ):
     _refresh = refresh_button.value
@@ -578,6 +583,10 @@ def _(
         analysis_runtime=analysis_runtime,
         as_of=assessed_at,
     )
+    live_flow_timing = LiveFlowTiming(
+        max_silence=timedelta(seconds=30),
+        as_of=assessed_at,
+    )
 
     system_diagnostics = (
         ("Source registry", str(registry_path)),
@@ -608,6 +617,7 @@ def _(
         history_assets,
         history_reader,
         lifecycle_records,
+        live_flow_timing,
         monitor,
         overview,
         registered_sources,
@@ -1721,6 +1731,7 @@ def _(
     findings,
     history_assets,
     history_reader,
+    live_flow_timing,
     monitor,
     navigation,
     overview,
@@ -1767,6 +1778,7 @@ def _(
                 history_summary=_history_summary,
                 history_channels=_history_channels,
                 acquisition_surfaces=_asset_surfaces,
+                live_flow_timing=live_flow_timing,
             )
         except Exception as error:
             asset_workspace_error = str(error)
