@@ -640,9 +640,13 @@ def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_o
 
 @app.cell
 def _(collection_records, lifecycle_records, mo, registered_sources):
-    get_setup_sources, set_setup_sources = mo.state(tuple(registered_sources))
-    get_setup_lifecycles, set_setup_lifecycles = mo.state(tuple(lifecycle_records))
-    get_setup_collection, set_setup_collection = mo.state(tuple(collection_records))
+    get_setup_config, set_setup_config = mo.state(
+        (
+            tuple(registered_sources),
+            tuple(lifecycle_records),
+            tuple(collection_records),
+        )
+    )
     get_setup_error, set_setup_error = mo.state("")
     get_setup_success, set_setup_success = mo.state("")
     get_file_discovery, set_file_discovery = mo.state(None)
@@ -656,20 +660,16 @@ def _(collection_records, lifecycle_records, mo, registered_sources):
         get_opcua_browse,
         get_opcua_browse_signature,
         get_pending_semantics,
-        get_setup_collection,
+        get_setup_config,
         get_setup_error,
-        get_setup_lifecycles,
-        get_setup_sources,
         get_setup_success,
         set_file_discovery,
         set_file_discovery_signature,
         set_opcua_browse,
         set_opcua_browse_signature,
         set_pending_semantics,
-        set_setup_collection,
+        set_setup_config,
         set_setup_error,
-        set_setup_lifecycles,
-        set_setup_sources,
         set_setup_success,
     )
 
@@ -681,16 +681,18 @@ def _(
     refresh_button,
     registered_sources,
     set_pending_semantics,
-    set_setup_collection,
+    set_setup_config,
     set_setup_error,
-    set_setup_lifecycles,
-    set_setup_sources,
     set_setup_success,
 ):
     if refresh_button.value:
-        set_setup_sources(tuple(registered_sources))
-        set_setup_lifecycles(tuple(lifecycle_records))
-        set_setup_collection(tuple(collection_records))
+        set_setup_config(
+            (
+                tuple(registered_sources),
+                tuple(lifecycle_records),
+                tuple(collection_records),
+            )
+        )
         set_pending_semantics({})
         set_setup_error("")
         set_setup_success("")
@@ -700,15 +702,11 @@ def _(
 @app.cell
 def _(
     build_setup_workspace,
-    get_setup_collection,
+    get_setup_config,
     get_setup_error,
-    get_setup_lifecycles,
-    get_setup_sources,
     get_setup_success,
 ):
-    setup_sources = get_setup_sources()
-    setup_lifecycles = get_setup_lifecycles()
-    setup_collection = get_setup_collection()
+    setup_sources, setup_lifecycles, setup_collection = get_setup_config()
     setup_error = get_setup_error()
     setup_success = get_setup_success()
     setup_workspace = build_setup_workspace(
