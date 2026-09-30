@@ -916,9 +916,9 @@ def _(
 
             _sources = _repository.list_sources()
             _policies = tuple(
-                policy
+                _policy
                 for source in _sources
-                if (policy := _repository.get_freshness_policy(source.source_id)) is not None
+                if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
             )
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
