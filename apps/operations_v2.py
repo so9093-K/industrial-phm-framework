@@ -2858,6 +2858,8 @@ def _(
     render_asset_overview_html,
     render_monitor_assets_html,
     render_monitor_flow_html,
+    setup_view,
+    setup_workspace_css,
     signal_view,
     system_view,
     system_workspace_css,
@@ -2868,6 +2870,7 @@ def _(
         + investigation_workspace_css()
         + maintenance_workspace_css()
         + system_workspace_css()
+        + setup_workspace_css()
     )
 
     header = mo.hstack(
@@ -2974,10 +2977,7 @@ def _(
         "Investigations": investigation_view,
         "Maintenance": maintenance_view,
         "System": system_view,
-        "Setup": mo.md(
-            "## Setup\n\n"
-            "Source connection, signal mapping and measurement semantics will move here."
-        ),
+        "Setup": setup_view,
     }
 
     sidebar = mo.vstack(
