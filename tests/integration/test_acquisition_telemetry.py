@@ -323,3 +323,58 @@ def test_collection_service_runtime_heartbeat_is_separate_and_restart_safe(tmp_p
     assert failed is not None
     assert failed.state == CollectionServiceRuntimeState.FAILED
     assert failed.last_failure == "RuntimeError: coordinator stopped"
+
+
+def test_incremental_window_cycles_accumulate_counts_and_keep_last_finalized(tmp_path):
+    # Phase 10 soak: incremental cycles report only new work, so System showed
+    # "0 finalized windows" and no latest input after dozens of analyzed windows.
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parents[1] / "unit"))
+    from test_window_analysis_input import END, START, _event
+
+    from industrial_phm.application import ObservationWindowBuffer
+
+    buffer = ObservationWindowBuffer(
+        window_id="w-1",
+        source_id="site-opcua",
+        asset_id="motor-7",
+        measurement_point_id="mcc-3",
+        expected_channel_ids=("va",),
+        window_start=START,
+        window_end=END,
+        max_buffered_events=4,
+        max_future_skew_seconds=5.0,
+    )
+    buffer.ingest(_event("va", 10, 220.0, 0))
+    buffer.advance_watermark(END)
+    window = buffer.finalize(finalized_at=END)
+
+    def cycle(finalized, events):
+        return ObservationWindowCoordinatorCycleResult(
+            source_id="site-opcua",
+            finalized_windows=finalized,
+            event_results=tuple(
+                ObservationWindowIngestResult(
+                    disposition=ObservationWindowEventDisposition.IN_ORDER,
+                    local_delivery_identity=("site-opcua", 1, index),
+                    event_at=START + timedelta(seconds=index),
+                    watermark_at_ingest=START,
+                )
+                for index in events
+            ),
+            watermark=END,
+            active_window_count=1,
+        )
+
+    telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "telemetry.sqlite")
+    telemetry.record_window_cycle(cycle((window,), (0, 1)), recorded_at=END)
+    telemetry.record_window_cycle(cycle((), (2,)), recorded_at=END + timedelta(seconds=1))
+    telemetry.record_window_cycle(cycle((), ()), recorded_at=END + timedelta(seconds=2))
+
+    recorded = telemetry.get("site-opcua").window
+    assert recorded.finalized_window_count == 1
+    assert recorded.historical_event_count == 3
+    assert recorded.in_order_count == 3
+    assert recorded.last_finalized_window_id == "w-1"
+    assert recorded.last_finalized_window_end == END

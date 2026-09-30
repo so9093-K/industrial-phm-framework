@@ -7,14 +7,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetrySurface
+from industrial_phm.application.acquisition_telemetry import (
+    AcquisitionTelemetrySurface,
+    CollectionServiceRuntimeTelemetry,
+)
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operations_attention import SystemStateErrorEvidence
 from industrial_phm.application.operations_v2 import (
+    COLLECTION_SERVICE_TIMEOUT,
     OperationsMonitorStage,
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     OperationsMonitorView,
+    collection_service_issue,
+    last_live_data_at,
 )
 from industrial_phm.application.source_registration import RegisteredSource, SourceType
 from industrial_phm.application.window_analysis_runtime import WindowAnalysisRunnerTelemetry
@@ -112,6 +118,7 @@ def build_system_runtime_view(
     analysis_runtime: WindowAnalysisRunnerTelemetry | None,
     system_errors: Sequence[SystemStateErrorEvidence],
     as_of: datetime,
+    collection_service: CollectionServiceRuntimeTelemetry | None = None,
 ) -> SystemRuntimeView:
     """Build service/runtime facts without inventing uninstrumented process heartbeats."""
 
@@ -143,7 +150,7 @@ def build_system_runtime_view(
     analysis_stage = _stage(monitor, OperationsMonitorStageKind.ANALYSIS)
 
     services = (
-        _acquisition_service(collection_stage, source_values, surfaces),
+        _acquisition_service(collection_stage, source_values, surfaces, collection_service, as_of),
         _history_service(storage_stage, surfaces),
         _analysis_service(analysis_stage, surfaces, analysis_runtime),
         _application_service(errors, as_of),
@@ -173,7 +180,18 @@ def _acquisition_service(
     stage: OperationsMonitorStage,
     sources: Sequence[RegisteredSource],
     surfaces: Sequence[AcquisitionTelemetrySurface],
+    collection_service: CollectionServiceRuntimeTelemetry | None = None,
+    as_of: datetime | None = None,
 ) -> SystemRuntimeService:
+    # Session facts come from the collector's own reports; when it is not running
+    # they are its last report, not current connections.
+    service_down = (
+        as_of is not None
+        and collection_service_issue(
+            collection_service, as_of=as_of, timeout=COLLECTION_SERVICE_TIMEOUT
+        )
+        is not None
+    )
     live_sources = tuple(item for item in sources if item.source_type == SourceType.OPCUA)
     sessions = tuple(item.source.session for item in surfaces if item.source.session is not None)
     connected = sum(item.state == OpcUaPersistentSessionState.CONNECTED for item in sessions)
@@ -194,11 +212,7 @@ def _acquisition_service(
         for item in sessions
     )
     last_received = max(
-        (
-            item.source.flow.last_received_at
-            for item in surfaces
-            if item.source.flow is not None and item.source.flow.last_received_at is not None
-        ),
+        (value for item in surfaces if (value := last_live_data_at(item)) is not None),
         default=None,
     )
 
@@ -222,8 +236,31 @@ def _acquisition_service(
             default=None,
         ),
         facts=(
+            SystemRuntimeFact(
+                "Collection service",
+                "Not instrumented"
+                if collection_service is None
+                else (
+                    f"Not responding (last reported {collection_service.state.value})"
+                    if service_down
+                    else collection_service.state.value.capitalize()
+                ),
+            ),
+            SystemRuntimeFact(
+                "Service heartbeat",
+                _time_value(
+                    None if collection_service is None else collection_service.heartbeat_at
+                ),
+            ),
             SystemRuntimeFact("Configured live sources", str(len(live_sources))),
-            SystemRuntimeFact("Connected sessions", f"{connected} / {len(live_sources)}"),
+            SystemRuntimeFact(
+                "Connected sessions",
+                (
+                    f"Unknown (last report {connected} / {len(live_sources)})"
+                    if service_down
+                    else f"{connected} / {len(live_sources)}"
+                ),
+            ),
             SystemRuntimeFact("Connecting / reconnecting", str(reconnecting)),
             SystemRuntimeFact("Stopped / disconnected", str(stopped)),
             SystemRuntimeFact("Last received data", _time_value(last_received)),

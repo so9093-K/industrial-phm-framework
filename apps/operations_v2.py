@@ -49,6 +49,7 @@ def _():
         build_operations_overview,
         build_setup_workspace,
         build_system_runtime_view,
+        collection_service_issue,
         create_human_review_finding,
         discover_file_source,
         register_file_source,
@@ -197,6 +198,7 @@ def _():
         build_operations_overview,
         build_setup_workspace,
         build_system_runtime_view,
+        collection_service_issue,
         create_finding_review_event,
         create_human_review_finding,
         datetime,
@@ -304,6 +306,7 @@ def _(
     build_operations_attention_queue,
     build_operations_monitor_view,
     build_operations_overview,
+    collection_service_issue,
     datetime,
     os,
     refresh_button,
@@ -560,9 +563,11 @@ def _(
     )
 
     acquisition_surfaces = []
+    collection_service = None
     if acquisition_telemetry_path.is_file() and acquisition_spool_path.is_file():
         try:
             telemetry_repository = SqliteAcquisitionTelemetryRepository(acquisition_telemetry_path)
+            collection_service = telemetry_repository.get_collection_service_runtime()
             spool_repository = SqliteAcquisitionSpool(
                 SqliteAcquisitionSpoolConfig(path=acquisition_spool_path)
             )
@@ -651,11 +656,16 @@ def _(
         acquisition_surfaces=tuple(acquisition_surfaces),
         analysis_runs=analysis_runs,
         analysis_runtime=analysis_runtime,
+        collection_service=collection_service,
         as_of=assessed_at,
     )
     live_flow_timing = LiveFlowTiming(
         max_silence=timedelta(seconds=30),
         as_of=assessed_at,
+        collection_service_down=collection_service_issue(
+            collection_service, as_of=assessed_at, timeout=timedelta(seconds=20)
+        )
+        is not None,
     )
 
     system_diagnostics = (
@@ -681,6 +691,7 @@ def _(
         analysis_runtime,
         assessed_at,
         collection_control_path,
+        collection_service,
         collection_records,
         field_analysis_path,
         finding_path,
@@ -3045,6 +3056,7 @@ def _(
     analysis_runtime,
     assessed_at,
     build_system_runtime_view,
+    collection_service,
     monitor,
     registered_sources,
     system_errors,
@@ -3056,6 +3068,7 @@ def _(
         analysis_runtime=analysis_runtime,
         system_errors=tuple(system_errors),
         as_of=assessed_at,
+        collection_service=collection_service,
     )
     return (system_runtime,)
 

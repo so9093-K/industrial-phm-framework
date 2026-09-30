@@ -16,6 +16,8 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionFailureComponent,
     AcquisitionFailureTelemetry,
     AcquisitionTelemetrySurface,
+    CollectionServiceRuntimeState,
+    CollectionServiceRuntimeTelemetry,
 )
 from industrial_phm.application.maintenance_review import FindingReviewStatus
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
@@ -36,6 +38,9 @@ from industrial_phm.application.window_analysis_runtime import (
     WindowAnalysisRunnerState,
     WindowAnalysisRunnerTelemetry,
 )
+
+# A collector heartbeat older than this means the collection process is not running.
+COLLECTION_SERVICE_TIMEOUT = timedelta(seconds=20)
 
 
 class OperationsMonitorStatus(StrEnum):
@@ -211,12 +216,16 @@ def build_operations_monitor_view(
     analysis_runtime: WindowAnalysisRunnerTelemetry | None = None,
     analysis_heartbeat_timeout: timedelta = timedelta(seconds=20),
     live_flow_silence_timeout: timedelta = timedelta(seconds=30),
+    collection_service: CollectionServiceRuntimeTelemetry | None = None,
+    collection_service_timeout: timedelta = COLLECTION_SERVICE_TIMEOUT,
     as_of: datetime,
 ) -> OperationsMonitorView:
     """Build the V2 landing-page model from already-loaded operational evidence.
 
-    A connected live session is only "receiving data" while its last data is within
-    the source's data-age policy; without a policy no staleness is claimed.
+    A connected live session is only "receiving data" while its last delivery is
+    within the live-flow silence limit. Session and flow telemetry are the collector
+    process's last report: while that process is not running (stale heartbeat,
+    stopped or failed) they are not presented as current source state.
     """
 
     _require_aware(as_of, "as_of")
@@ -236,6 +245,15 @@ def build_operations_monitor_view(
         or live_flow_silence_timeout <= timedelta()
     ):
         raise ValueError("live_flow_silence_timeout must be positive")
+    if (
+        not isinstance(collection_service_timeout, timedelta)
+        or collection_service_timeout <= timedelta()
+    ):
+        raise ValueError("collection_service_timeout must be positive")
+    if collection_service is not None and not isinstance(
+        collection_service, CollectionServiceRuntimeTelemetry
+    ):
+        raise ValueError("collection_service must be CollectionServiceRuntimeTelemetry")
 
     source_values = tuple(sources)
     if any(not isinstance(item, RegisteredSource) for item in source_values):
@@ -264,9 +282,13 @@ def build_operations_monitor_view(
     if len(set(run_ids)) != len(run_ids):
         raise ValueError("analysis_runs must contain unique analysis ids")
 
+    service_issue = collection_service_issue(
+        collection_service, as_of=as_of, timeout=collection_service_timeout
+    )
     timing = LiveFlowTiming(
         max_silence=live_flow_silence_timeout,
         as_of=as_of,
+        collection_service_down=service_issue is not None,
     )
 
     surface_by_source = {item.source.source_id: item for item in surface_values}
@@ -282,10 +304,11 @@ def build_operations_monitor_view(
         analysis_heartbeat_timeout,
         as_of,
         timing,
+        service_issue,
     )
     stages = (
         _source_stage(overview, surface_by_source, timing),
-        _collection_stage(overview, surface_values),
+        _collection_stage(overview, surface_values, service_issue),
         _storage_stage(surface_values),
         _analysis_stage(
             surface_values,
@@ -335,12 +358,15 @@ def _source_stage(
     delayed = statuses.count(OperationsMonitorStatus.DELAYED)
     running = statuses.count(OperationsMonitorStatus.RUNNING)
     waiting = statuses.count(OperationsMonitorStatus.WAITING)
-    if errors:
+    if timing.collection_service_down and surfaces:
+        status = OperationsMonitorStatus.UNAVAILABLE
+        summary = "Live source state unknown while the collection service is not running"
+    elif errors:
         status = OperationsMonitorStatus.ERROR
         summary = f"{errors} source(s) have a current data-flow failure"
     elif delayed:
         status = OperationsMonitorStatus.DELAYED
-        summary = f"{delayed} source(s) with no new data within the live-flow silence limit"
+        summary = f"{delayed} source(s) not delivering new data (silent or reconnecting)"
     elif running:
         status = OperationsMonitorStatus.RUNNING
         summary = f"{running} of {total} source(s) receiving data"
@@ -372,6 +398,7 @@ def _source_stage(
 def _collection_stage(
     overview: OperationsOverview,
     surfaces: Sequence[AcquisitionTelemetrySurface],
+    service_issue: CollectionServiceIssue | None = None,
 ) -> OperationsMonitorStage:
     if overview.registered_source_count == 0:
         return OperationsMonitorStage(
@@ -389,9 +416,27 @@ def _collection_stage(
         and surface.source.session.state == OpcUaPersistentSessionState.CONNECTED
         for surface in surfaces
     )
+    reconnecting = sum(
+        surface.source.session is not None and surface.source.session.state in _RECONNECTING_STATES
+        for surface in surfaces
+    )
+    if service_issue is not None:
+        return OperationsMonitorStage(
+            OperationsMonitorStageKind.COLLECTION,
+            service_issue.status,
+            "Collect",
+            service_issue.summary,
+            updated_at=service_issue.occurred_at,
+            count=0,
+        )
     if worker_failures:
         status = OperationsMonitorStatus.ERROR
         summary = f"{worker_failures} collection worker failure(s)"
+    elif reconnecting:
+        status = OperationsMonitorStatus.DELAYED
+        summary = f"{reconnecting} live source session(s) reconnecting"
+        if connected:
+            summary += f" · {connected} connected"
     elif connected:
         status = OperationsMonitorStatus.RUNNING
         summary = f"{connected} live source session(s) connected"
@@ -583,6 +628,7 @@ def _monitor_attention(
     timeout: timedelta,
     as_of: datetime,
     timing: LiveFlowTiming,
+    service_issue: CollectionServiceIssue | None = None,
 ) -> tuple[OperationsMonitorAttention, ...]:
     values: list[OperationsMonitorAttention] = []
     source_kinds = {
@@ -591,26 +637,60 @@ def _monitor_attention(
         AttentionKind.STALE,
     }
     for item in queue.items:
-        if item.kind in source_kinds and item.source_id is not None:
-            source_health = health.get(item.source_id)
-            surface = surfaces.get(item.source_id)
-            # Live session timing supersedes older one-shot receipt attention;
-            # an overdue live session gets its own "No new data" item below.
-            if (
-                source_health is not None
-                and surface is not None
-                and source_monitor_status(source_health, surface, timing=timing)
-                in (OperationsMonitorStatus.RUNNING, OperationsMonitorStatus.DELAYED)
-                and surface.source.session is not None
-                and surface.source.session.state == OpcUaPersistentSessionState.CONNECTED
-            ):
-                continue
+        # Live acquisition evidence supersedes one-shot receipt attention for the
+        # same source; live silence, reconnects and failures are projected below.
+        if item.kind in source_kinds and item.source_id is not None and item.source_id in surfaces:
+            continue
         values.append(_project_existing_attention(item, sources))
+
+    if service_issue is not None:
+        values.append(
+            OperationsMonitorAttention(
+                attention_id="collection-service:not-running",
+                status=(
+                    OperationsMonitorStatus.NEEDS_ATTENTION
+                    if service_issue.status == OperationsMonitorStatus.STOPPED
+                    else service_issue.status
+                ),
+                title=service_issue.title,
+                detail=service_issue.detail,
+                occurred_at=service_issue.occurred_at,
+            )
+        )
 
     for source_id, surface in surfaces.items():
         source = sources[source_id]
+        session = surface.source.session
+        if (
+            not timing.collection_service_down
+            and session is not None
+            and session.state in _RECONNECTING_STATES
+        ):
+            last = last_live_data_at(surface)
+            values.append(
+                OperationsMonitorAttention(
+                    attention_id=f"live-session:reconnecting:{source_id}",
+                    status=OperationsMonitorStatus.DELAYED,
+                    title="Source connection lost",
+                    detail=(
+                        f"{source.name}: reconnecting since "
+                        f"{session.state_changed_at.strftime('%H:%M:%S UTC')}"
+                        + (
+                            ""
+                            if last is None
+                            else f"; last data {_duration_text(as_of - last)} ago"
+                        )
+                        + "."
+                    ),
+                    occurred_at=session.state_changed_at,
+                    asset_id=source.asset_id,
+                )
+            )
         overdue = timing.overdue(surface)
-        if overdue is not None and surface.source.flow is not None:
+        worker_failed = (
+            _current_failure(surface, AcquisitionFailureComponent.OPCUA_WORKER) is not None
+        )
+        if overdue is not None and surface.source.flow is not None and not worker_failed:
             age, limit = overdue
             values.append(
                 OperationsMonitorAttention(
@@ -716,12 +796,69 @@ def _project_existing_attention(
     )
 
 
+_RECONNECTING_STATES = frozenset(
+    {OpcUaPersistentSessionState.CONNECTING, OpcUaPersistentSessionState.RECONNECT_WAIT}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionServiceIssue:
+    """Why the collector process is not currently running, from its own telemetry."""
+
+    status: OperationsMonitorStatus
+    title: str
+    summary: str
+    detail: str
+    occurred_at: datetime
+
+
+def collection_service_issue(
+    service: CollectionServiceRuntimeTelemetry | None,
+    *,
+    as_of: datetime,
+    timeout: timedelta,
+) -> CollectionServiceIssue | None:
+    """None while the collector heartbeat is current (or was never instrumented)."""
+    if service is None:
+        return None
+    if service.state == CollectionServiceRuntimeState.FAILED:
+        return CollectionServiceIssue(
+            OperationsMonitorStatus.ERROR,
+            "Collection service stopped on an error",
+            "Collection service failed",
+            service.last_failure or "The collection service recorded a failure.",
+            service.last_failure_at or service.heartbeat_at,
+        )
+    if service.state == CollectionServiceRuntimeState.STOPPED:
+        return CollectionServiceIssue(
+            OperationsMonitorStatus.STOPPED,
+            "Collection service stopped",
+            "Collection service stopped",
+            "The collection service shut down; live sources are not being collected.",
+            service.heartbeat_at,
+        )
+    age = as_of - service.heartbeat_at
+    if age > timeout:
+        return CollectionServiceIssue(
+            OperationsMonitorStatus.ERROR,
+            "Collection service is not running",
+            f"Collection service heartbeat is {_duration_text(age)} old",
+            (
+                f"No collection-service heartbeat for {_duration_text(age)}; live source "
+                "sessions shown are its last report, not current connections."
+            ),
+            service.heartbeat_at,
+        )
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class LiveFlowTiming:
     """Live-flow silence threshold, distinct from source observation freshness."""
 
     max_silence: timedelta
     as_of: datetime
+    collection_service_down: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.max_silence, timedelta) or self.max_silence <= timedelta():
@@ -729,11 +866,16 @@ class LiveFlowTiming:
         _require_aware(self.as_of, "as_of")
 
     def overdue(self, surface: AcquisitionTelemetrySurface) -> tuple[timedelta, timedelta] | None:
-        """Age and limit when a connected session has stopped delivering events."""
+        """Age and limit when a connected session has stopped delivering events.
+
+        Not claimed while the collection service is down: its last session report
+        is then no evidence about the source.
+        """
         session = surface.source.session
         flow = surface.source.flow
         if (
-            session is None
+            self.collection_service_down
+            or session is None
             or session.state != OpcUaPersistentSessionState.CONNECTED
             or flow is None
             or flow.last_received_at is None
@@ -751,10 +893,14 @@ def source_monitor_status(
 ) -> OperationsMonitorStatus:
     """Translate current source evidence into the shared operator-facing state."""
     if surface is not None:
+        if timing is not None and timing.collection_service_down:
+            return OperationsMonitorStatus.UNAVAILABLE
         if _current_failure(surface, AcquisitionFailureComponent.OPCUA_WORKER) is not None:
             return OperationsMonitorStatus.ERROR
         session = surface.source.session
         flow = surface.source.flow
+        if session is not None and session.state in _RECONNECTING_STATES:
+            return OperationsMonitorStatus.DELAYED
         if session is not None and session.state == OpcUaPersistentSessionState.CONNECTED:
             if timing is not None and timing.overdue(surface) is not None:
                 return OperationsMonitorStatus.DELAYED
@@ -784,13 +930,22 @@ def latest_source_data_at(
     values = []
     if health.latest_received_at is not None:
         values.append(health.latest_received_at)
-    if (
-        surface is not None
-        and surface.source.flow is not None
-        and surface.source.flow.last_received_at is not None
-    ):
-        values.append(surface.source.flow.last_received_at)
+    if surface is not None and (live := last_live_data_at(surface)) is not None:
+        values.append(live)
     return max(values, default=None)
+
+
+def last_live_data_at(surface: AcquisitionTelemetrySurface) -> datetime | None:
+    """Last live delivery, or the source's last history commit.
+
+    Flow telemetry restarts empty with every collector worker (for example while a
+    source refuses connections), so the durable commit time keeps "last data" known.
+    """
+    flow = surface.source.flow
+    if flow is not None and flow.last_received_at is not None:
+        return flow.last_received_at
+    history = surface.source.history
+    return None if history is None else history.acknowledged_at
 
 
 def _current_failure(
@@ -801,11 +956,16 @@ def _current_failure(
     if failure is None or failure.component != component:
         return None
     if component == AcquisitionFailureComponent.OPCUA_WORKER:
+        # A later connecting/connected session supersedes the failure (a reconnect
+        # is then shown as reconnecting); a later stop is the failure's own result.
         session = surface.source.session
         if (
             session is not None
-            and session.state == OpcUaPersistentSessionState.CONNECTED
             and session.state_changed_at > failure.occurred_at
+            and (
+                session.state in _RECONNECTING_STATES
+                or session.state == OpcUaPersistentSessionState.CONNECTED
+            )
         ):
             return None
     elif component == AcquisitionFailureComponent.HISTORY_WRITER:
@@ -831,6 +991,9 @@ def _aggregate_asset_status(
         return OperationsMonitorStatus.RUNNING
     if OperationsMonitorStatus.WAITING in statuses:
         return OperationsMonitorStatus.WAITING
+    if OperationsMonitorStatus.UNAVAILABLE in statuses:
+        # Unknown (for example the collector is down) is not "stopped".
+        return OperationsMonitorStatus.UNAVAILABLE
     if has_source:
         return OperationsMonitorStatus.STOPPED
     return OperationsMonitorStatus.UNAVAILABLE

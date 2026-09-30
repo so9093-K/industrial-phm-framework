@@ -421,8 +421,9 @@ def _choose_channels(
         selection.setdefault(quantity, ChannelSelection.EXPLICIT)
     if all(group is None for group in chosen.values()):
         raise ValueError(
-            "no three-phase voltage or current channels are bound by semantic role; "
-            "check semantic bindings or configure channels explicitly"
+            "no three-phase voltage or current channel set (R, S and T) with a bound meaning "
+            "was observed in this input; a phase may be missing from the input or lack a "
+            "semantic binding"
         )
     # The persisted configuration names the channels actually used, so a recorded
     # result recomputes from its evidence without resolving roles again.

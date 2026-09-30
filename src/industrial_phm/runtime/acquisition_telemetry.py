@@ -471,33 +471,59 @@ class SqliteAcquisitionTelemetryRepository:
                 key=lambda item: (item.window_end, item.window_id),
             )
         )
+        # An incremental coordinator cycle reports only what it processed; counts
+        # accumulate here and the last finalized window carries over idle cycles.
+        previous = self.get(cycle.source_id).window
+        base = dict.fromkeys(
+            (
+                "finalized_window_count",
+                "historical_event_count",
+                "in_order_count",
+                "out_of_order_count",
+                "late_count",
+                "timing_unavailable_count",
+                "unexpected_channel_count",
+                "future_timestamp_count",
+                "buffer_full_count",
+                "duplicate_count",
+            ),
+            0,
+        )
+        if previous is not None:
+            base = {name: getattr(previous, name) for name in base}
         telemetry = AcquisitionWindowTelemetry(
             source_id=cycle.source_id,
             updated_at=recorded_at,
             watermark=cycle.watermark,
             active_window_count=cycle.active_window_count,
-            finalized_window_count=cycle.finalized_window_count,
-            historical_event_count=cycle.historical_event_count,
-            in_order_count=cycle.disposition_count(ObservationWindowEventDisposition.IN_ORDER),
-            out_of_order_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.OUT_OF_ORDER
+            finalized_window_count=base["finalized_window_count"] + cycle.finalized_window_count,
+            historical_event_count=base["historical_event_count"] + cycle.historical_event_count,
+            in_order_count=base["in_order_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.IN_ORDER),
+            out_of_order_count=base["out_of_order_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.OUT_OF_ORDER),
+            late_count=base["late_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.LATE),
+            timing_unavailable_count=base["timing_unavailable_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.TIMING_UNAVAILABLE),
+            unexpected_channel_count=base["unexpected_channel_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.UNEXPECTED_CHANNEL),
+            future_timestamp_count=base["future_timestamp_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.FUTURE_TIMESTAMP),
+            buffer_full_count=base["buffer_full_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.BUFFER_FULL),
+            duplicate_count=base["duplicate_count"]
+            + cycle.disposition_count(ObservationWindowEventDisposition.DUPLICATE),
+            last_finalized_window_id=(
+                last_window.window_id
+                if last_window is not None
+                else (None if previous is None else previous.last_finalized_window_id)
             ),
-            late_count=cycle.disposition_count(ObservationWindowEventDisposition.LATE),
-            timing_unavailable_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.TIMING_UNAVAILABLE
+            last_finalized_window_end=(
+                last_window.window_end
+                if last_window is not None
+                else (None if previous is None else previous.last_finalized_window_end)
             ),
-            unexpected_channel_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.UNEXPECTED_CHANNEL
-            ),
-            future_timestamp_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.FUTURE_TIMESTAMP
-            ),
-            buffer_full_count=cycle.disposition_count(
-                ObservationWindowEventDisposition.BUFFER_FULL
-            ),
-            duplicate_count=cycle.disposition_count(ObservationWindowEventDisposition.DUPLICATE),
-            last_finalized_window_id=(None if last_window is None else last_window.window_id),
-            last_finalized_window_end=(None if last_window is None else last_window.window_end),
         )
         self._write_component(
             cycle.source_id,
