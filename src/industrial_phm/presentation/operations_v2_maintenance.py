@@ -38,7 +38,8 @@ def render_maintenance_summary_html(item: MaintenanceQueueItem) -> str:
         "<div>"
         '<div class="phm-asset-kicker">Maintenance review</div>'
         f'<h2 class="phm-asset-title">{escape(item.asset_id)}</h2>'
-        f'<div class="phm-card-detail">{escape(maintenance_capability_label(item.capability_id))}</div>'
+        f'<div class="phm-card-detail">'
+        f"{escape(maintenance_capability_label(item.capability_id))}</div>"
         "</div>"
         '<div class="phm-investigation-facts">'
         + _fact("Status", maintenance_status_label(item.status))
