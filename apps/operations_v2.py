@@ -805,17 +805,17 @@ def _():
 
 
 @app.cell
-def _(findings, mo):
-    get_investigation_findings, set_investigation_findings = mo.state(findings)
+def _(findings, mo, review_events):
+    get_review_workflow, set_review_workflow = mo.state((findings, review_events))
     get_review_request_error, set_review_request_error = mo.state("")
     get_review_request_success, set_review_request_success = mo.state("")
     return (
-        get_investigation_findings,
         get_review_request_error,
         get_review_request_success,
-        set_investigation_findings,
+        get_review_workflow,
         set_review_request_error,
         set_review_request_success,
+        set_review_workflow,
     )
 
 
@@ -823,12 +823,13 @@ def _(findings, mo):
 def _(
     findings,
     refresh_button,
-    set_investigation_findings,
+    review_events,
     set_review_request_error,
     set_review_request_success,
+    set_review_workflow,
 ):
     if refresh_button.value:
-        set_investigation_findings(findings)
+        set_review_workflow((findings, review_events))
         set_review_request_error("")
         set_review_request_success("")
     return
@@ -838,16 +839,15 @@ def _(
 def _(
     analysis_results,
     build_investigation_queue,
-    get_investigation_findings,
-    maintenance_events,
+    get_review_workflow,
 ):
-    investigation_findings = get_investigation_findings()
+    investigation_findings, maintenance_events = get_review_workflow()
     investigation_queue = build_investigation_queue(
         analysis_results=analysis_results,
         findings=investigation_findings,
         review_events=maintenance_events,
     )
-    return investigation_findings, investigation_queue
+    return investigation_findings, maintenance_events, investigation_queue
 
 
 @app.cell
@@ -1001,10 +1001,11 @@ def _(
     create_human_review_finding,
     finding_path,
     request_review_button,
+    get_review_workflow,
     selected_investigation_result,
-    set_investigation_findings,
     set_review_request_error,
     set_review_request_success,
+    set_review_workflow,
 ):
     if request_review_button is not None and request_review_button.value:
         try:
@@ -1018,7 +1019,8 @@ def _(
             set_review_request_error(str(error))
             set_review_request_success("")
         else:
-            set_investigation_findings(_updated_findings)
+            _, _current_events = get_review_workflow()
+            set_review_workflow((_updated_findings, _current_events))
             set_review_request_error("")
             set_review_request_success(
                 "Review requested. The analysis evidence itself was not reinterpreted."
@@ -1231,47 +1233,28 @@ def _():
 
 
 @app.cell
-def _(mo, review_events):
-    get_maintenance_events, set_maintenance_events = mo.state(review_events)
+def _(mo):
     get_maintenance_error, set_maintenance_error = mo.state("")
     get_maintenance_success, set_maintenance_success = mo.state("")
     return (
         get_maintenance_error,
-        get_maintenance_events,
         get_maintenance_success,
         set_maintenance_error,
-        set_maintenance_events,
         set_maintenance_success,
     )
 
 
 @app.cell
 def _(
-    refresh_button,
-    review_events,
-    set_maintenance_error,
-    set_maintenance_events,
-    set_maintenance_success,
-):
-    if refresh_button.value:
-        set_maintenance_events(review_events)
-        set_maintenance_error("")
-        set_maintenance_success("")
-    return
-
-
-@app.cell
-def _(
     build_maintenance_queue,
-    get_maintenance_events,
     investigation_findings,
+    maintenance_events,
 ):
-    maintenance_events = get_maintenance_events()
     maintenance_queue = build_maintenance_queue(
         findings=investigation_findings,
         review_events=maintenance_events,
     )
-    return maintenance_events, maintenance_queue
+    return (maintenance_queue,)
 
 
 @app.cell
@@ -1397,6 +1380,7 @@ def _(
     FindingReviewAction,
     JsonFindingReviewRepository,
     create_finding_review_event,
+    get_review_workflow,
     investigation_findings,
     maintenance_ack_button,
     maintenance_add_note_button,
@@ -1405,8 +1389,8 @@ def _(
     review_path,
     selected_maintenance,
     set_maintenance_error,
-    set_maintenance_events,
     set_maintenance_success,
+    set_review_workflow,
 ):
     _action = None
     if maintenance_add_note_button is not None and maintenance_add_note_button.value:
@@ -1434,7 +1418,8 @@ def _(
             set_maintenance_error(str(error))
             set_maintenance_success("")
         else:
-            set_maintenance_events(_events)
+            _current_findings, _ = get_review_workflow()
+            set_review_workflow((_current_findings, _events))
             set_maintenance_error("")
             set_maintenance_success(f"Review action recorded: {_action.value}.")
     return
