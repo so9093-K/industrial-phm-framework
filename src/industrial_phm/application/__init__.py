@@ -144,11 +144,15 @@ from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     JsonObservationWindowRepository,
     ObservationWindowBuffer,
+    ObservationWindowBufferSnapshot,
     ObservationWindowCompleteness,
     ObservationWindowEventDisposition,
     ObservationWindowFormatError,
     ObservationWindowIngestResult,
     ObservationWindowRepository,
+)
+from industrial_phm.application.observation_window_sqlite import (
+    SqliteObservationWindowRepository,
 )
 from industrial_phm.application.opcua_acquisition import (
     InMemoryOpcUaPersistentSessionEvidenceSink,
@@ -323,8 +327,11 @@ from industrial_phm.application.window_analysis_runtime import (
 )
 from industrial_phm.application.window_coordinator import (
     ContinuousObservationWindowCoordinatorResult,
+    IncrementalObservationWindowRepository,
     ObservationWindowCoordinatorCycleResult,
     ObservationWindowCoordinatorPolicy,
+    ObservationWindowCoordinatorState,
+    OpcUaHistoricalEventCursor,
     OpcUaHistoricalEventReader,
 )
 
@@ -425,9 +432,13 @@ __all__ = [
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
     "ObservationWindowBuffer",
+    "ObservationWindowBufferSnapshot",
     "ObservationWindowCompleteness",
+    "IncrementalObservationWindowRepository",
     "ObservationWindowCoordinatorCycleResult",
     "ObservationWindowCoordinatorPolicy",
+    "ObservationWindowCoordinatorState",
+    "OpcUaHistoricalEventCursor",
     "ObservationWindowEventDisposition",
     "ObservationWindowFormatError",
     "ObservationWindowIngestResult",
@@ -500,6 +511,7 @@ __all__ = [
     "SourceRuntimeRepository",
     "SourceSnapshotEvidence",
     "SourceType",
+    "SqliteObservationWindowRepository",
     "SpoolHistoryBatchWriteResult",
     "SpoolHistoryWriterResult",
     "SpoolToHistoryWriterPolicy",
