@@ -19,10 +19,10 @@ def _():
         JsonPhaseUnbalanceRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
+        AcquisitionTelemetrySurface,
         JsonWindowAnalysisRuntimeRepository,
         SourceType,
         SystemStateErrorEvidence,
-        build_acquisition_telemetry_surface,
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
@@ -46,6 +46,7 @@ def _():
         JsonPhaseUnbalanceRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
+        AcquisitionTelemetrySurface,
         JsonWindowAnalysisRuntimeRepository,
         Path,
         SourceType,
@@ -54,7 +55,6 @@ def _():
         SqliteAcquisitionTelemetryRepository,
         SystemStateErrorEvidence,
         UTC,
-        build_acquisition_telemetry_surface,
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
@@ -94,6 +94,7 @@ def _(
     JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
+    AcquisitionTelemetrySurface,
     JsonWindowAnalysisRuntimeRepository,
     Path,
     SourceType,
@@ -102,7 +103,6 @@ def _(
     SqliteAcquisitionTelemetryRepository,
     SystemStateErrorEvidence,
     UTC,
-    build_acquisition_telemetry_surface,
     build_operations_attention_queue,
     build_operations_monitor_view,
     build_operations_overview,
@@ -303,16 +303,15 @@ def _(
             spool_repository = SqliteAcquisitionSpool(
                 SqliteAcquisitionSpoolConfig(path=acquisition_spool_path)
             )
+            spool_snapshot = spool_repository.telemetry_snapshot(sampled_at=assessed_at)
             for source in registered_sources:
                 if source.source_type != SourceType.OPCUA:
                     continue
                 try:
                     acquisition_surfaces.append(
-                        build_acquisition_telemetry_surface(
-                            telemetry_repository,
-                            spool_repository,
-                            source.source_id,
-                            sampled_at=assessed_at,
+                        AcquisitionTelemetrySurface(
+                            source=telemetry_repository.get(source.source_id),
+                            spool=spool_snapshot,
                         )
                     )
                 except (LookupError, OSError, ValueError) as error:
@@ -361,12 +360,11 @@ def _(
         as_of=assessed_at,
     )
 
-    return attention, monitor
+    return (monitor,)
 
 
 @app.cell
 def _(
-    attention,
     mo,
     monitor,
     navigation,
@@ -389,14 +387,14 @@ def _(
         align="start",
     )
 
-    if attention.items:
+    if monitor.attention:
         attention_rows = "\n".join(
             (
-                f"| **{item.kind.value.replace('_', ' ').title()}** | "
-                f"{'-' if item.asset_identity is None else item.asset_identity.asset_id} | "
+                f"| **{item.title}** | "
+                f"{'-' if item.asset_id is None else item.asset_id} | "
                 f"{'-' if item.occurred_at is None else item.occurred_at.isoformat()} |"
             )
-            for item in attention.items[:8]
+            for item in monitor.attention[:8]
         )
         attention_view = mo.md(
             "### Needs attention\n\n"
