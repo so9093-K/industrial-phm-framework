@@ -156,9 +156,7 @@ def build_investigation_queue(
             continue
         key = (finding.analysis_run_id, finding.capability_id)
         if key in review_findings:
-            raise ValueError(
-                "multiple human-review findings exist for one analysis/capability"
-            )
+            raise ValueError("multiple human-review findings exist for one analysis/capability")
         review_findings[key] = finding
 
     items = []
