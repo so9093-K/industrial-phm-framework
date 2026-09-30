@@ -8,6 +8,8 @@ on:
       - "apps/*.py"
       - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/application/**"
+      - "src/industrial_phm/presentation/**"
+      - "tests/integration/test_operations_v2_app.py"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
       - "src/industrial_phm/genai/**"
@@ -28,6 +30,8 @@ on:
       - "apps/*.py"
       - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/application/**"
+      - "src/industrial_phm/presentation/**"
+      - "tests/integration/test_operations_v2_app.py"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
       - "src/industrial_phm/genai/**"
@@ -77,6 +81,9 @@ jobs:
 
       - name: Check marimo analysis files
         run: uv run --locked --group research marimo check --strict notebooks/*.py apps/*.py
+
+      - name: Render Operations with analysis results and review requests
+        run: uv run --locked --group research pytest tests/integration/test_operations_v2_app.py
 
       - name: Execute Developer Workbench across validated experiment evidence
         run: |

@@ -15,8 +15,6 @@ from industrial_phm.application import (
 )
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
 
-pytest.importorskip("marimo")
-
 REPO = Path(__file__).resolve().parents[2]
 APPS = sorted((REPO / "apps").glob("*.py"))
 
@@ -44,6 +42,7 @@ def _analysis():
 
 
 def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
     analysis = _analysis()
     JsonPhaseUnbalanceRepository(tmp_path / "phase-unbalance.json").record(analysis)
     JsonOperationalFindingRepository(tmp_path / "findings.json").record(
