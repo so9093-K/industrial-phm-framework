@@ -621,6 +621,25 @@ def _(
 
 
 @app.cell
+def _(analysis_results, mo):
+    get_analysis_results, set_analysis_results = mo.state(tuple(analysis_results))
+    return get_analysis_results, set_analysis_results
+
+
+@app.cell
+def _(analysis_results, refresh_button, set_analysis_results):
+    if refresh_button.value:
+        set_analysis_results(tuple(analysis_results))
+    return
+
+
+@app.cell
+def _(get_analysis_results):
+    current_analysis_results = get_analysis_results()
+    return (current_analysis_results,)
+
+
+@app.cell
 def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_opcua_variables):
     def parse_opcua_mapping_lines(value: str):
         mappings = []
@@ -1704,7 +1723,7 @@ def _(asset_selection, history_assets, mo, monitor):
 def _(
     AssetIdentity,
     acquisition_surfaces,
-    analysis_results,
+    current_analysis_results,
     asset_selector,
     build_asset_detail,
     build_asset_workspace_view,
@@ -1737,7 +1756,7 @@ def _(
                 AssetIdentity(_selected_asset_id),
                 sources=registered_sources,
                 overview=overview,
-                analysis_runs=tuple(item.run for item in analysis_results),
+                analysis_runs=tuple(item.run for item in current_analysis_results),
                 findings=findings,
                 review_events=review_events,
             )
@@ -1752,7 +1771,7 @@ def _(
             asset_workspace = build_asset_workspace_view(
                 asset_id=_selected_asset_id,
                 detail=_detail,
-                analysis_results=analysis_results,
+                analysis_results=current_analysis_results,
                 monitor_asset=_monitor_asset,
                 history_summary=_history_summary,
                 history_channels=_history_channels,
@@ -1997,13 +2016,13 @@ def _(
 
 @app.cell
 def _(
-    analysis_results,
+    current_analysis_results,
     build_investigation_queue,
     get_review_workflow,
 ):
     investigation_findings, maintenance_events = get_review_workflow()
     investigation_queue = build_investigation_queue(
-        analysis_results=analysis_results,
+        analysis_results=current_analysis_results,
         findings=investigation_findings,
         review_events=maintenance_events,
     )
@@ -2112,7 +2131,7 @@ def _(
 
 @app.cell
 def _(
-    analysis_results,
+    current_analysis_results,
     investigation_queue,
     investigation_selected_id,
 ):
@@ -2131,7 +2150,7 @@ def _(
             selected_investigation_result = next(
                 (
                     result
-                    for result in analysis_results
+                    for result in current_analysis_results
                     if result.run.analysis_run_id == selected_investigation.analysis_run_id
                     and result.evidence.capability_id == selected_investigation.capability_id
                 ),
