@@ -11,10 +11,15 @@
 
 ### Changed
 
+- 문서 Source of Truth를 재정리했습니다. `docs/status.md`가 현재 구현·지원·현장검증 상태를 단독 소유하고,
+  README는 제품 목적/진입점, Architecture는 장기 책임/contract, ADR은 구조 결정, subsystem README는 실행
+  절차를 소유합니다. 계획된 작업·milestone은 Issue/PR에서 관리하며 Architecture에 PR 번호나 진행 상태를
+  복제하지 않습니다. OPC UA three-phase runbook은 live runner와 Operations가 같은 analysis result path를
+  사용하도록 명시합니다.
+
 - Asset Detail의 최신 관측·이력 page·집계가 OPC UA 값에도 수집 시 raw evidence에 고정한 semantic snapshot
   (측정 의미·단위·version)을 표시합니다. Snapshot의 source/channel이 raw row와 다르면 FILE과 같이
-  `unresolved`/`unknown`으로 표시합니다. README·아키텍처 문서의 현재 구현 범위를 live window runner와 시간
-  정렬 정책에 맞게 갱신했습니다.
+  `unresolved`/`unknown`으로 표시합니다.
 
 - ADR-0009: 다채널 시간 정렬을 protocol과 무관한 versioned 정책으로 분리했습니다(`application/alignment.py`,
   새 dependency 없음). 기본 `strict-v1`은 기존 결과·분석 identity와 같고, `bounded-previous-v1`은 이전 값만
