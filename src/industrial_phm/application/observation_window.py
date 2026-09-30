@@ -466,12 +466,8 @@ class ObservationWindowBuffer:
         buffer._out_of_order_accepted_count = snapshot.out_of_order_accepted_count
         buffer._late_rejected_count = snapshot.late_rejected_count
         buffer._duplicate_rejected_count = snapshot.duplicate_rejected_count
-        buffer._timing_unavailable_rejected_count = (
-            snapshot.timing_unavailable_rejected_count
-        )
-        buffer._unexpected_channel_rejected_count = (
-            snapshot.unexpected_channel_rejected_count
-        )
+        buffer._timing_unavailable_rejected_count = snapshot.timing_unavailable_rejected_count
+        buffer._unexpected_channel_rejected_count = snapshot.unexpected_channel_rejected_count
         buffer._outside_window_rejected_count = snapshot.outside_window_rejected_count
         buffer._future_timestamp_rejected_count = snapshot.future_timestamp_rejected_count
         buffer._buffer_full_rejected_count = snapshot.buffer_full_rejected_count
