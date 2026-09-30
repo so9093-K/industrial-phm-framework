@@ -56,10 +56,9 @@ def test_summary_and_evidence_identity_keep_progressive_disclosure() -> None:
 
 
 def test_capability_and_review_labels_are_explicit_not_severity() -> None:
-    assert investigation_capability_label(
-        "field-vibration-statistical-features-v1"
-    ) == "Vibration features"
-    assert investigation_review_label(
-        InvestigationReviewState.NOT_REQUESTED
-    ) == "Not requested"
+    assert (
+        investigation_capability_label("field-vibration-statistical-features-v1")
+        == "Vibration features"
+    )
+    assert investigation_review_label(InvestigationReviewState.NOT_REQUESTED) == "Not requested"
     assert "severity" not in investigation_workspace_css().lower()
