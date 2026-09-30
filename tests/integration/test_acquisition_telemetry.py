@@ -4,6 +4,7 @@ from pathlib import Path
 from industrial_phm.application import (
     AcquisitionFailureComponent,
     AcquisitionFailureTelemetry,
+    CollectionServiceRuntimeState,
     HistoricalBatchCommit,
     ObservationWindowCoordinatorCycleResult,
     ObservationWindowEventDisposition,
@@ -270,3 +271,55 @@ def test_acquisition_telemetry_records_history_window_failure_and_spool_surface(
     assert surface.spool.active_batch_payload_bytes > 0
     assert surface.spool.oldest_accepted_at == BASE + timedelta(seconds=2)
     assert surface.spool.oldest_pending_age_seconds == 8.0
+
+
+def test_collection_service_runtime_heartbeat_is_separate_and_restart_safe(tmp_path: Path) -> None:
+    path = tmp_path / "acquisition-telemetry.sqlite"
+    repository = SqliteAcquisitionTelemetryRepository(path)
+
+    assert repository.get_collection_service_runtime() is None
+    repository.record_collection_service_start(started_at=BASE)
+    started = repository.get_collection_service_runtime()
+    assert started is not None
+    assert started.state == CollectionServiceRuntimeState.RUNNING
+    assert started.started_at == BASE
+    assert started.heartbeat_at == BASE
+    assert started.reconcile_count == 0
+    assert started.owned_source_count == 0
+
+    repository.record_collection_service_heartbeat(
+        heartbeat_at=BASE + timedelta(seconds=2),
+        reconcile_count=4,
+        owned_source_count=2,
+    )
+    heartbeat = SqliteAcquisitionTelemetryRepository(path).get_collection_service_runtime()
+    assert heartbeat is not None
+    assert heartbeat.state == CollectionServiceRuntimeState.RUNNING
+    assert heartbeat.heartbeat_at == BASE + timedelta(seconds=2)
+    assert heartbeat.reconcile_count == 4
+    assert heartbeat.owned_source_count == 2
+
+    repository.record_collection_service_stop(
+        stopped_at=BASE + timedelta(seconds=3),
+        reconcile_count=5,
+    )
+    stopped = repository.get_collection_service_runtime()
+    assert stopped is not None
+    assert stopped.state == CollectionServiceRuntimeState.STOPPED
+    assert stopped.owned_source_count == 0
+
+    repository.record_collection_service_start(started_at=BASE + timedelta(minutes=1))
+    restarted = repository.get_collection_service_runtime()
+    assert restarted is not None
+    assert restarted.state == CollectionServiceRuntimeState.RUNNING
+    assert restarted.started_at == BASE + timedelta(minutes=1)
+    assert restarted.reconcile_count == 0
+
+    repository.record_collection_service_failure(
+        "RuntimeError: coordinator stopped",
+        occurred_at=BASE + timedelta(minutes=1, seconds=2),
+    )
+    failed = repository.get_collection_service_runtime()
+    assert failed is not None
+    assert failed.state == CollectionServiceRuntimeState.FAILED
+    assert failed.last_failure == "RuntimeError: coordinator stopped"
