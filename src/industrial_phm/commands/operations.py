@@ -294,6 +294,7 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
                 telemetry,
                 stop_event=stop_event,
                 telemetry_recorder=telemetry,
+                service_runtime_recorder=telemetry,
                 policy=policy,
             )
 
