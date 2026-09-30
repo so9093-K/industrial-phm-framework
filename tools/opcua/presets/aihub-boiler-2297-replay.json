@@ -1,0 +1,10 @@
+{
+  "source_id": "aihub239-replay-boiler-2297",
+  "asset_id": "aihub-boiler-2297",
+  "device_id": "2297",
+  "device_board_id": "1",
+  "timezone": "Asia/Seoul",
+  "identity_evidence": "Explicit development grouping by source device/board; physical asset identity unverified",
+  "timezone_evidence": "Explicit development normalization assumption Asia/Seoul; source timezone unverified",
+  "version": "replay-v1"
+}
