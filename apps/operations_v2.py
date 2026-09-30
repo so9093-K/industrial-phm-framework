@@ -2624,9 +2624,12 @@ def _(
     semantic_unit_evidence_input,
     semantic_unit_input,
     semantic_version_input,
+    setup_clear_freshness_button,
     setup_enable_button,
     setup_error,
+    setup_freshness_age_input,
     setup_pause_button,
+    setup_save_freshness_button,
     setup_section,
     setup_selected_source,
     setup_source_selector,
@@ -2654,6 +2657,14 @@ def _(
             )
             if button is not None
         ]
+        _freshness_actions = [
+            button
+            for button in (
+                setup_save_freshness_button,
+                setup_clear_freshness_button,
+            )
+            if button is not None
+        ]
         _selected_source_panel = mo.vstack(
             [
                 setup_source_selector,
@@ -2663,6 +2674,26 @@ def _(
                     "Enable/Pause changes whether a runtime may use the source. "
                     "Start/Stop collection writes desired collection state for OPC UA; "
                     "it does not prove the collector process is running or connected."
+                ),
+                mo.accordion(
+                    {
+                        "Data age policy": mo.vstack(
+                            [
+                                setup_freshness_age_input,
+                                mo.hstack(
+                                    _freshness_actions,
+                                    justify="start",
+                                    gap=0.6,
+                                ),
+                                mo.md(
+                                    "This policy compares the latest comparable observation "
+                                    "time with the current assessment time. It does not prove "
+                                    "connection health or asset health."
+                                ),
+                            ],
+                            gap=0.6,
+                        )
+                    }
                 ),
             ],
             gap=0.8,
