@@ -45,7 +45,7 @@ def render_investigation_summary_html(item: InvestigationQueueItem) -> str:
     return (
         '<section class="phm-shell">'
         '<div class="phm-investigation-heading">'
-        '<div>'
+        "<div>"
         '<div class="phm-asset-kicker">Investigation</div>'
         f'<h2 class="phm-asset-title">{escape(item.asset_id)}</h2>'
         f'<div class="phm-card-detail">'
@@ -82,8 +82,7 @@ def render_investigation_evidence_identity_html(
         ("Review updated", _time_label(item.review_updated_at)),
     )
     rendered = "".join(
-        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>"
-        for label, value in rows
+        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>" for label, value in rows
     )
     return (
         '<section class="phm-shell">'
