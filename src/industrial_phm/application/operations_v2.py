@@ -256,9 +256,7 @@ def build_operations_monitor_view(
 
     surface_by_source = {item.source.source_id: item for item in surface_values}
     source_by_id = {item.source_id: item for item in source_values}
-    health_by_source = {
-        item.source_id: item for item in overview.source_health_assessments
-    }
+    health_by_source = {item.source_id: item for item in overview.source_health_assessments}
 
     monitor_attention = _monitor_attention(
         attention,
@@ -419,9 +417,7 @@ def _storage_stage(
     )
     pending = surfaces[0].spool.pending_event_count
     history = tuple(
-        surface.source.history
-        for surface in surfaces
-        if surface.source.history is not None
+        surface.source.history for surface in surfaces if surface.source.history is not None
     )
     if failures:
         status = OperationsMonitorStatus.ERROR
@@ -453,8 +449,7 @@ def _analysis_stage(
     as_of: datetime,
 ) -> OperationsMonitorStage:
     window_failures = sum(
-        _current_failure(surface, AcquisitionFailureComponent.WINDOW_COORDINATOR)
-        is not None
+        _current_failure(surface, AcquisitionFailureComponent.WINDOW_COORDINATOR) is not None
         for surface in surfaces
     )
     if window_failures:
@@ -501,11 +496,7 @@ def _review_stage(overview: OperationsOverview) -> OperationsMonitorStage:
     pending = overview.pending_review_count
     return OperationsMonitorStage(
         OperationsMonitorStageKind.REVIEW,
-        (
-            OperationsMonitorStatus.NEEDS_ATTENTION
-            if pending
-            else OperationsMonitorStatus.WAITING
-        ),
+        (OperationsMonitorStatus.NEEDS_ATTENTION if pending else OperationsMonitorStatus.WAITING),
         "Review",
         f"{pending} review(s) waiting" if pending else "No review waiting",
         count=pending,
@@ -543,8 +534,7 @@ def _asset_rows(
         )
         status = _aggregate_asset_status(source_statuses, bool(asset_sources))
         last_data = _latest_time(
-            _latest_source_data_at(item, surfaces.get(item.source_id))
-            for item in asset_health
+            _latest_source_data_at(item, surfaces.get(item.source_id)) for item in asset_health
         )
         latest_analysis = max(
             (run.completed_at for run in runs if run.asset_id == asset_id),
