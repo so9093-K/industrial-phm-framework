@@ -60,10 +60,7 @@ class _History:
             if event.source_id == source_id
             and (
                 start_at is None
-                or (
-                    event.event_time.event_at is not None
-                    and event.event_time.event_at >= start_at
-                )
+                or (event.event_time.event_at is not None and event.event_time.event_at >= start_at)
             )
         )
 
@@ -153,9 +150,7 @@ def test_incremental_coordinator_restores_active_buffer_and_reads_after_cursor(t
         1,
     )
     assert len(state.active_buffers) == 1
-    assert state.active_buffers[0].events == (
-        history.events[1],
-    )
+    assert state.active_buffers[0].events == (history.events[1],)
 
     history.events.append(_event(2, BASE + timedelta(minutes=2, seconds=5)))
     restarted = IncrementalRegisteredOpcUaWindowCoordinator(
