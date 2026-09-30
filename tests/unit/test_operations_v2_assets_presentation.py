@@ -1,10 +1,12 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application.asset_detail import AssetEvidenceEventKind
+from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.maintenance_review import FindingReviewStatus
 from industrial_phm.application.operations_v2 import OperationsMonitorStatus
 from industrial_phm.application.operations_v2_assets import (
     AssetWorkspaceAnalysis,
+    AssetWorkspaceAnalysisAttempt,
     AssetWorkspaceEvent,
     AssetWorkspaceReview,
     AssetWorkspaceSource,
@@ -68,6 +70,20 @@ def _view() -> AssetWorkspaceView:
                 channel_count=3,
             ),
         ),
+        analysis_attempts=(
+            AssetWorkspaceAnalysisAttempt(
+                asset_id="boiler-01",
+                state=WindowAnalysisState.SKIPPED,
+                capability_id="three-phase-unbalance-v1",
+                source_id="source-a",
+                measurement_point_id="panel-main",
+                observed_start_at=NOW.replace(minute=51),
+                observed_end_at=NOW.replace(minute=52),
+                recorded_at=NOW.replace(minute=53),
+                window_id="window-2",
+                reason="missing phase T",
+            ),
+        ),
         events=(
             AssetWorkspaceEvent(
                 event_id="event-1",
@@ -100,6 +116,11 @@ def test_asset_workspace_presenters_keep_operator_language() -> None:
     assert "1,200 stored measurements" in overview
     assert "Line A power" in overview
     assert "three-phase-unbalance-v1" in analysis
+    assert "Recent analysis attempts" in analysis
+    assert "Skipped" in analysis
+    assert "missing phase T" in analysis
+    assert "2026-09-30 12:53:00 UTC" in analysis
+    assert "T12:53:00" not in analysis
     assert "Acknowledged" in maintenance
     for rendered in (header, overview, analysis, maintenance):
         assert "control-plane" not in rendered

@@ -13,7 +13,9 @@ _QUANTITY_LABEL = {"voltage": "전압 (상전압 기준)", "current": "전류"}
 
 
 def _utc(value: datetime | None) -> str | None:
-    return value.astimezone(UTC).isoformat() if value is not None else None
+    if value is None:
+        return None
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def _round(value: float | None) -> float | None:
@@ -107,10 +109,17 @@ def render_phase_unbalance_svg(result: PhaseUnbalanceAnalysis) -> str:
     """Per time bucket: median as points, max as a vertical extent; gaps stay empty."""
     figure_module = importlib.import_module("matplotlib.figure")
     figure = figure_module.Figure(figsize=(11, 4.6), layout="constrained")
+    figure.patch.set_alpha(0)
     reference = result.evidence.input_reference
     axes_list = figure.subplots(2, 1, sharex=True)
     titles = {"voltage": "Voltage unbalance (phase-voltage basis)", "current": "Current unbalance"}
     for axes, series in zip(axes_list, result.evidence.results, strict=True):
+        axes.patch.set_alpha(0)
+        axes.tick_params(colors="#aaa7a2")
+        axes.xaxis.label.set_color("#aaa7a2")
+        axes.yaxis.label.set_color("#aaa7a2")
+        for spine in axes.spines.values():
+            spine.set_color("#aaa7a2")
         times = [b.start_at + (b.end_at - b.start_at) / 2 for b in series.buckets]
         if series.buckets:
             axes.vlines(
@@ -128,7 +137,9 @@ def render_phase_unbalance_svg(result: PhaseUnbalanceAnalysis) -> str:
         else:
             axes.text(0.5, 0.5, "no eligible samples", transform=axes.transAxes, ha="center")
         axes.set_title(
-            f"{titles[series.quantity.value]} · n={series.evaluated_samples}", fontsize=10
+            f"{titles[series.quantity.value]} · n={series.evaluated_samples}",
+            fontsize=10,
+            color="#f2f1ef",
         )
         axes.set_ylabel("%")
         axes.grid(alpha=0.2)
@@ -136,7 +147,7 @@ def render_phase_unbalance_svg(result: PhaseUnbalanceAnalysis) -> str:
     axes_list[-1].set_xlabel("Requested event-time range (UTC)")
     figure.autofmt_xdate()
     output = io.StringIO()
-    figure.savefig(output, format="svg")
+    figure.savefig(output, format="svg", transparent=True)
     return output.getvalue()
 
 

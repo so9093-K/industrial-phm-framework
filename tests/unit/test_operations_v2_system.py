@@ -96,7 +96,10 @@ def test_system_view_uses_instrumented_runtime_without_inventing_collection_proc
     analysis = view.services[2]
     assert analysis.status == OperationsMonitorStatus.RUNNING
     assert {fact.label: fact.value for fact in analysis.facts}["Completed analyses"] == "3"
-    assert {fact.label: fact.value for fact in analysis.facts}["Skipped inputs"] == "2"
+    facts = {fact.label: fact.value for fact in analysis.facts}
+    assert facts["Skipped inputs"] == "2"
+    assert facts["Last skip reason"] == "missing phase T"
+    assert facts["Heartbeat"] == "2026-09-30 12:00:00 UTC"
 
     application = view.services[3]
     assert application.status == OperationsMonitorStatus.RUNNING

@@ -12,6 +12,7 @@ from industrial_phm.application.asset_detail import (
     AssetEvidenceEvent,
     AssetEvidenceEventKind,
 )
+from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.maintenance_review import (
     FindingReviewStatus,
     finding_review_status,
@@ -86,6 +87,54 @@ class AssetWorkspaceAnalysis:
 
 
 @dataclass(frozen=True, slots=True)
+class AssetWorkspaceAnalysisAttempt:
+    asset_id: str
+    state: WindowAnalysisState
+    capability_id: str
+    source_id: str
+    measurement_point_id: str | None
+    observed_start_at: datetime
+    observed_end_at: datetime
+    recorded_at: datetime
+    analysis_run_id: str | None = None
+    window_id: str | None = None
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        for text_value, field_name in (
+            (self.asset_id, "asset_id"),
+            (self.capability_id, "capability_id"),
+            (self.source_id, "source_id"),
+        ):
+            _require_text(text_value, field_name)
+        if not isinstance(self.state, WindowAnalysisState):
+            raise ValueError("state must be a WindowAnalysisState")
+        if self.measurement_point_id is not None:
+            _require_text(self.measurement_point_id, "measurement_point_id")
+        if self.analysis_run_id is not None:
+            _require_text(self.analysis_run_id, "analysis_run_id")
+        if self.window_id is not None:
+            _require_text(self.window_id, "window_id")
+        if self.reason is not None:
+            _require_text(self.reason, "reason")
+        for time_value, field_name in (
+            (self.observed_start_at, "observed_start_at"),
+            (self.observed_end_at, "observed_end_at"),
+            (self.recorded_at, "recorded_at"),
+        ):
+            _require_aware(time_value, field_name)
+        if self.observed_start_at > self.observed_end_at:
+            raise ValueError("observed_start_at must not be after observed_end_at")
+        if self.state == WindowAnalysisState.ANALYZED:
+            if self.analysis_run_id is None or self.reason is not None:
+                raise ValueError("analyzed attempt requires run id and no skip reason")
+        elif self.state == WindowAnalysisState.SKIPPED and (
+            self.reason is None or self.analysis_run_id is not None
+        ):
+            raise ValueError("skipped attempt requires reason and no analysis run id")
+
+
+@dataclass(frozen=True, slots=True)
 class AssetWorkspaceEvent:
     event_id: str
     kind: AssetEvidenceEventKind
@@ -142,6 +191,7 @@ class AssetWorkspaceView:
     reviews: Sequence[AssetWorkspaceReview]
     sources: Sequence[AssetWorkspaceSource]
     events: Sequence[AssetWorkspaceEvent]
+    analysis_attempts: Sequence[AssetWorkspaceAnalysisAttempt] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.asset_id, "asset_id")
@@ -174,6 +224,7 @@ class AssetWorkspaceView:
         reviews = tuple(self.reviews)
         sources = tuple(self.sources)
         events = tuple(self.events)
+        analysis_attempts = tuple(self.analysis_attempts)
         if any(not isinstance(item, AssetWorkspaceAnalysis) for item in analyses):
             raise ValueError("analyses contains an unsupported value")
         if any(not isinstance(item, AssetWorkspaceReview) for item in reviews):
@@ -182,6 +233,10 @@ class AssetWorkspaceView:
             raise ValueError("sources contains an unsupported value")
         if any(not isinstance(item, AssetWorkspaceEvent) for item in events):
             raise ValueError("events contains an unsupported value")
+        if any(not isinstance(item, AssetWorkspaceAnalysisAttempt) for item in analysis_attempts):
+            raise ValueError("analysis_attempts contains an unsupported value")
+        if any(item.asset_id != self.asset_id for item in analysis_attempts):
+            raise ValueError("analysis_attempts must belong to this asset")
 
         if analyses != tuple(
             sorted(
@@ -201,12 +256,23 @@ class AssetWorkspaceView:
             raise ValueError("sources must use source-id order")
         if events != tuple(sorted(events, key=_event_sort_key)):
             raise ValueError("events must use newest-first deterministic order")
+        if analysis_attempts != tuple(
+            sorted(
+                analysis_attempts,
+                key=lambda item: (
+                    -item.recorded_at.timestamp(),
+                    item.window_id or item.analysis_run_id or "",
+                ),
+            )
+        ):
+            raise ValueError("analysis_attempts must use newest-first deterministic order")
 
         object.__setattr__(self, "history_channels", channels)
         object.__setattr__(self, "analyses", analyses)
         object.__setattr__(self, "reviews", reviews)
         object.__setattr__(self, "sources", sources)
         object.__setattr__(self, "events", events)
+        object.__setattr__(self, "analysis_attempts", analysis_attempts)
 
     @property
     def latest_analysis_at(self) -> datetime | None:
@@ -227,6 +293,7 @@ def build_asset_workspace_view(
     history_channels: Sequence[str] = (),
     acquisition_surfaces: Sequence[AcquisitionTelemetrySurface] = (),
     live_flow_timing: LiveFlowTiming | None = None,
+    skipped_analysis_attempts: Sequence[AssetWorkspaceAnalysisAttempt] = (),
 ) -> AssetWorkspaceView:
     """Translate one asset's evidence into the V2 workspace vocabulary."""
 
@@ -261,6 +328,14 @@ def build_asset_workspace_view(
         raise ValueError("analysis_results must contain OperationalAnalysisResult values")
     asset_results = tuple(item for item in result_values if item.run.asset_id == asset_id)
 
+    skipped_attempt_values = tuple(skipped_analysis_attempts)
+    if any(not isinstance(item, AssetWorkspaceAnalysisAttempt) for item in skipped_attempt_values):
+        raise ValueError(
+            "skipped_analysis_attempts must contain AssetWorkspaceAnalysisAttempt values"
+        )
+    if any(item.state != WindowAnalysisState.SKIPPED for item in skipped_attempt_values):
+        raise ValueError("skipped_analysis_attempts must contain skipped attempts only")
+
     analyses = tuple(
         sorted(
             (
@@ -278,6 +353,32 @@ def build_asset_workspace_view(
                 for item in asset_results
             ),
             key=lambda item: (-item.completed_at.timestamp(), item.analysis_run_id),
+        )
+    )
+
+    analysis_attempts = tuple(
+        sorted(
+            (
+                *(
+                    AssetWorkspaceAnalysisAttempt(
+                        asset_id=item.run.asset_id,
+                        state=WindowAnalysisState.ANALYZED,
+                        capability_id=item.evidence.capability_id,
+                        source_id=item.run.source_id,
+                        measurement_point_id=item.run.measurement_point_id,
+                        observed_start_at=item.run.observed_start_at,
+                        observed_end_at=item.run.observed_end_at,
+                        recorded_at=item.run.completed_at,
+                        analysis_run_id=item.run.analysis_run_id,
+                    )
+                    for item in asset_results
+                ),
+                *(item for item in skipped_attempt_values if item.asset_id == asset_id),
+            ),
+            key=lambda item: (
+                -item.recorded_at.timestamp(),
+                item.window_id or item.analysis_run_id or "",
+            ),
         )
     )
 
@@ -383,6 +484,7 @@ def build_asset_workspace_view(
         reviews=reviews,
         sources=sources,
         events=events,
+        analysis_attempts=analysis_attempts,
     )
 
 

@@ -16,12 +16,16 @@ from industrial_phm.application import (
     build_asset_detail,
     build_operations_overview,
 )
+from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operations_v2 import (
     OperationsMonitorAsset,
     OperationsMonitorStatus,
 )
-from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
+from industrial_phm.application.operations_v2_assets import (
+    AssetWorkspaceAnalysisAttempt,
+    build_asset_workspace_view,
+)
 from industrial_phm.contracts import DataQualityAssessment
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
@@ -149,6 +153,18 @@ def test_asset_workspace_projects_header_history_analysis_and_review() -> None:
         measurement_count=123456,
     )
 
+    skipped = AssetWorkspaceAnalysisAttempt(
+        asset_id="boiler-01",
+        state=WindowAnalysisState.SKIPPED,
+        capability_id="three-phase-unbalance-v1",
+        source_id="source-a",
+        measurement_point_id="panel-main",
+        observed_start_at=NOW - timedelta(minutes=2),
+        observed_end_at=NOW - timedelta(minutes=1),
+        recorded_at=NOW - timedelta(seconds=30),
+        window_id="window-2",
+        reason="missing phase T",
+    )
     view = build_asset_workspace_view(
         asset_id="boiler-01",
         detail=detail,
@@ -156,6 +172,7 @@ def test_asset_workspace_projects_header_history_analysis_and_review() -> None:
         monitor_asset=monitor,
         history_summary=history,
         history_channels=("voltage-t", "voltage-r", "voltage-s"),
+        skipped_analysis_attempts=(skipped,),
     )
 
     assert view.status == OperationsMonitorStatus.RUNNING
@@ -168,6 +185,12 @@ def test_asset_workspace_projects_header_history_analysis_and_review() -> None:
     assert view.sources[0].source_id == source.source_id
     assert view.sources[0].channel_count == 3
     assert view.analyses[0].capability_id == "three-phase-unbalance-v1"
+    assert tuple(item.state for item in view.analysis_attempts) == (
+        WindowAnalysisState.SKIPPED,
+        WindowAnalysisState.ANALYZED,
+    )
+    assert view.analysis_attempts[0].reason == "missing phase T"
+    assert view.analysis_attempts[0].window_id == "window-2"
     assert view.reviews[0].status.value == "acknowledged"
     assert any(item.title == "Analysis completed" for item in view.events)
     assert any(item.title == "Review updated" for item in view.events)

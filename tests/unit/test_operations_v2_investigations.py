@@ -127,6 +127,30 @@ def test_queue_filters_without_reordering_or_inventing_priority() -> None:
     )
 
 
+def test_queue_groups_repeated_windows_without_losing_exact_runs() -> None:
+    latest = _result("latest", completed_at=NOW)
+    earlier = _result("earlier", completed_at=NOW - timedelta(seconds=30))
+
+    queue = build_investigation_queue(
+        analysis_results=(earlier, latest),
+        findings=(),
+        review_events=(),
+    )
+
+    groups = queue.groups()
+    assert len(groups) == 1
+    group = groups[0]
+    assert group.asset_id == "boiler-01"
+    assert group.capability_id == "three-phase-unbalance-v1"
+    assert group.review_state == InvestigationReviewState.NOT_REQUESTED
+    assert group.run_count == 2
+    assert tuple(item.analysis_run_id for item in group.items) == (
+        "run-latest",
+        "run-earlier",
+    )
+    assert group.latest.analysis_run_id == "run-latest"
+
+
 def test_queue_rejects_ambiguous_duplicate_human_review_findings() -> None:
     result = _result("a", completed_at=NOW)
     first = _finding(result)

@@ -37,7 +37,10 @@ def _():
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
+        SqliteObservationWindowRepository,
+        SqliteWindowAnalysisLedger,
         SystemStateErrorEvidence,
+        WindowAnalysisState,
         build_asset_detail,
         build_investigation_queue,
         build_maintenance_queue,
@@ -63,7 +66,10 @@ def _():
         create_finding_review_event,
     )
     from industrial_phm.application.measurement_history import resolve_measurement_range
-    from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
+    from industrial_phm.application.operations_v2_assets import (
+        AssetWorkspaceAnalysisAttempt,
+        build_asset_workspace_view,
+    )
     from industrial_phm.application.operations_v2_investigations import (
         InvestigationReviewState,
     )
@@ -108,6 +114,7 @@ def _():
     )
     from industrial_phm.presentation.operations_v2_investigations import (
         investigation_capability_label,
+        investigation_group_option_label,
         investigation_queue_option_label,
         investigation_review_label,
         investigation_workspace_css,
@@ -138,6 +145,7 @@ def _():
     return (
         AcquisitionTelemetrySurface,
         AssetIdentity,
+        AssetWorkspaceAnalysisAttempt,
         ChannelSemanticBinding,
         LiveFlowTiming,
         CollectionDesiredState,
@@ -171,9 +179,12 @@ def _():
         SqliteAcquisitionSpoolConfig,
         SqliteAcquisitionTelemetryRepository,
         SqliteCollectionControlRepository,
+        SqliteObservationWindowRepository,
+        SqliteWindowAnalysisLedger,
         SystemStateErrorEvidence,
         ThreadPoolExecutor,
         UTC,
+        WindowAnalysisState,
         asset_workspace_css,
         asyncio,
         browse_opcua_variables,
@@ -192,6 +203,7 @@ def _():
         discover_file_source,
         timedelta,
         investigation_capability_label,
+        investigation_group_option_label,
         investigation_queue_option_label,
         investigation_review_label,
         investigation_workspace_css,
@@ -268,6 +280,7 @@ def _(mo):
 def _(
     DuckLakeAssetHistory,
     DuckLakeAssetHistoryConfig,
+    AssetWorkspaceAnalysisAttempt,
     JsonFieldFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
@@ -283,7 +296,10 @@ def _(
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
     SqliteCollectionControlRepository,
+    SqliteObservationWindowRepository,
+    SqliteWindowAnalysisLedger,
     SystemStateErrorEvidence,
+    WindowAnalysisState,
     UTC,
     build_operations_attention_queue,
     build_operations_monitor_view,
@@ -344,6 +360,18 @@ def _(
         os.environ.get(
             "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
             str(phase_analysis_path.with_name(f"{phase_analysis_path.stem}-runtime.json")),
+        )
+    )
+    window_state_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
+            str(phase_analysis_path.with_name("windows.sqlite")),
+        )
+    )
+    analysis_ledger_path = Path(
+        os.environ.get(
+            "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
+            str(phase_analysis_path.with_name("window-analysis-ledger.sqlite")),
         )
     )
     finding_path = Path(
@@ -452,6 +480,48 @@ def _(
         )
     )
     analysis_runs = tuple(item.run for item in analysis_results)
+
+    skipped_analysis_attempts = ()
+    if window_state_path.is_file() and analysis_ledger_path.is_file():
+        try:
+            _window_repository = SqliteObservationWindowRepository(window_state_path)
+            _analysis_ledger = SqliteWindowAnalysisLedger(analysis_ledger_path)
+            _skipped_attempts = []
+            for _outcome in _analysis_ledger.list_skipped():
+                if _outcome.reason is None:
+                    raise ValueError(f"skipped window {_outcome.window_id} has no recorded reason")
+                _window = _window_repository.get(_outcome.window_id)
+                _skipped_attempts.append(
+                    AssetWorkspaceAnalysisAttempt(
+                        asset_id=_window.asset_id,
+                        state=WindowAnalysisState.SKIPPED,
+                        capability_id=_outcome.capability_id,
+                        source_id=_window.source_id,
+                        measurement_point_id=_window.measurement_point_id,
+                        observed_start_at=_window.window_start,
+                        observed_end_at=_window.window_end,
+                        recorded_at=_outcome.recorded_at,
+                        window_id=_window.window_id,
+                        reason=_outcome.reason,
+                    )
+                )
+            skipped_analysis_attempts = tuple(
+                sorted(
+                    _skipped_attempts,
+                    key=lambda item: (
+                        -item.recorded_at.timestamp(),
+                        item.window_id or "",
+                    ),
+                )
+            )
+        except (KeyError, LookupError, OSError, ValueError) as error:
+            system_errors.append(
+                SystemStateErrorEvidence(
+                    "analysis-attempts",
+                    str(error),
+                    assessed_at,
+                )
+            )
 
     try:
         findings = JsonOperationalFindingRepository(finding_path).list_findings()
@@ -599,6 +669,8 @@ def _(
         ("Vibration analysis", str(field_analysis_path)),
         ("Three-phase analysis", str(phase_analysis_path)),
         ("Analysis service runtime", str(analysis_runtime_path)),
+        ("Finalized windows", str(window_state_path)),
+        ("Analysis skip ledger", str(analysis_ledger_path)),
         ("Review requests", str(finding_path)),
         ("Maintenance review", str(review_path)),
     )
@@ -624,6 +696,7 @@ def _(
         registry_path,
         review_events,
         review_path,
+        skipped_analysis_attempts,
         source_runtime_path,
         system_diagnostics,
         system_errors,
@@ -1737,6 +1810,7 @@ def _(
     overview,
     registered_sources,
     review_events,
+    skipped_analysis_attempts,
 ):
     asset_workspace = None
     asset_workspace_error = None
@@ -1779,6 +1853,7 @@ def _(
                 history_channels=_history_channels,
                 acquisition_surfaces=_asset_surfaces,
                 live_flow_timing=live_flow_timing,
+                skipped_analysis_attempts=skipped_analysis_attempts,
             )
         except Exception as error:
             asset_workspace_error = str(error)
@@ -2141,7 +2216,7 @@ def _(
 
 @app.cell
 def _():
-    investigation_selection = {"investigation_id": None}
+    investigation_selection = {"group_id": None, "investigation_id": None}
     return (investigation_selection,)
 
 
@@ -2237,8 +2312,8 @@ def _(
     investigation_asset_filter,
     investigation_capability_filter,
     investigation_capability_label,
+    investigation_group_option_label,
     investigation_queue,
-    investigation_queue_option_label,
     investigation_review_filter,
     investigation_review_label,
     investigation_selection,
@@ -2251,42 +2326,101 @@ def _(
         investigation_capability_label(capability_id): capability_id
         for capability_id in investigation_queue.capability_ids
     }
-    _filtered_investigations = investigation_queue.filter(
+    _groups = investigation_queue.groups(
         review_state=_review_state_by_label.get(investigation_review_filter.value),
         asset_id=(
             None if investigation_asset_filter.value == "All" else investigation_asset_filter.value
         ),
         capability_id=_capability_by_label.get(investigation_capability_filter.value),
     )
-    _label_to_id = {
-        f"{investigation_queue_option_label(item)} · {index + 1}": item.investigation_id
-        for index, item in enumerate(_filtered_investigations)
+    _group_label_to_id = {
+        f"{investigation_group_option_label(group)} · {index + 1}": group.group_id
+        for index, group in enumerate(_groups)
     }
-    _id_to_label = {value: key for key, value in _label_to_id.items()}
-    if _filtered_investigations:
+    _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
+    if _groups:
+        _selected_group_id = (
+            investigation_selection["group_id"]
+            if investigation_selection["group_id"] in _group_id_to_label
+            else _groups[0].group_id
+        )
+        investigation_selection["group_id"] = _selected_group_id
+        investigation_group_selector = mo.ui.radio(
+            options=list(_group_label_to_id),
+            value=_group_id_to_label[_selected_group_id],
+            label="Queue groups",
+            on_change=lambda value: investigation_selection.update(
+                group_id=_group_label_to_id[value],
+                investigation_id=None,
+            ),
+        )
+    else:
+        investigation_group_selector = None
+    investigation_group_count = len(_groups)
+    investigation_group_label_to_id = _group_label_to_id
+    return (
+        investigation_group_count,
+        investigation_group_label_to_id,
+        investigation_group_selector,
+    )
+
+
+@app.cell
+def _(
+    investigation_group_label_to_id,
+    investigation_group_selector,
+    investigation_queue,
+):
+    investigation_selected_group_id = (
+        None
+        if investigation_group_selector is None
+        else investigation_group_label_to_id[investigation_group_selector.value]
+    )
+    selected_investigation_group = None
+    if investigation_selected_group_id is not None:
+        selected_investigation_group = next(
+            (
+                group
+                for group in investigation_queue.groups()
+                if group.group_id == investigation_selected_group_id
+            ),
+            None,
+        )
+    return investigation_selected_group_id, selected_investigation_group
+
+
+@app.cell
+def _(
+    investigation_queue_option_label,
+    investigation_selection,
+    mo,
+    selected_investigation_group,
+):
+    if selected_investigation_group is None:
+        investigation_selector = None
+        investigation_label_to_id = {}
+    else:
+        _label_to_id = {
+            f"{investigation_queue_option_label(item)} · {index + 1}": item.investigation_id
+            for index, item in enumerate(selected_investigation_group.items)
+        }
+        _id_to_label = {value: key for key, value in _label_to_id.items()}
         _selected_id = (
             investigation_selection["investigation_id"]
             if investigation_selection["investigation_id"] in _id_to_label
-            else _filtered_investigations[0].investigation_id
+            else selected_investigation_group.items[0].investigation_id
         )
         investigation_selection["investigation_id"] = _selected_id
         investigation_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
-            label="Queue",
+            label="Analysis evidence",
             on_change=lambda value: investigation_selection.update(
                 investigation_id=_label_to_id[value]
             ),
         )
-    else:
-        investigation_selector = None
-    investigation_filtered_count = len(_filtered_investigations)
-    investigation_label_to_id = _label_to_id
-    return (
-        investigation_filtered_count,
-        investigation_label_to_id,
-        investigation_selector,
-    )
+        investigation_label_to_id = _label_to_id
+    return investigation_label_to_id, investigation_selector
 
 
 @app.cell
@@ -2296,7 +2430,6 @@ def _(
     investigation_queue,
     investigation_selector,
 ):
-    # A UI element's value can only be read outside the cell that created it.
     investigation_selected_id = (
         None
         if investigation_selector is None
@@ -2386,7 +2519,8 @@ def _(
     OperationalAnalysisPresentationKind,
     investigation_asset_filter,
     investigation_capability_filter,
-    investigation_filtered_count,
+    investigation_group_count,
+    investigation_group_selector,
     investigation_queue,
     investigation_review_filter,
     investigation_review_label,
@@ -2404,6 +2538,7 @@ def _(
     review_request_error,
     review_request_success,
     selected_investigation,
+    selected_investigation_group,
     selected_investigation_result,
 ):
     _filters = mo.hstack(
@@ -2416,7 +2551,7 @@ def _(
         align="start",
     )
 
-    if investigation_selector is None:
+    if investigation_group_selector is None:
         _queue_panel = mo.vstack(
             [
                 _filters,
@@ -2425,22 +2560,33 @@ def _(
             gap=0.8,
         )
     else:
-        _queue_panel = mo.vstack(
-            [
-                _filters,
-                mo.md(
-                    f"### Queue\n\n"
-                    f"{investigation_filtered_count} shown · "
-                    f"{len(investigation_queue.items)} saved"
-                ),
-                investigation_selector,
-                mo.md(
-                    "Review state describes the human workflow only. "
-                    "Queue order is newest analysis first, not severity."
-                ),
-            ],
-            gap=0.8,
+        _queue_blocks = [
+            _filters,
+            mo.md(
+                f"### Queue\n\n"
+                f"{investigation_group_count} group(s) · "
+                f"{len(investigation_queue.items)} saved analyses"
+            ),
+            investigation_group_selector,
+        ]
+        if selected_investigation_group is not None and investigation_selector is not None:
+            _queue_blocks.extend(
+                [
+                    mo.md(
+                        f"#### Analysis evidence\n\n"
+                        f"{selected_investigation_group.run_count} run(s) in this group"
+                    ),
+                    investigation_selector,
+                ]
+            )
+        _queue_blocks.append(
+            mo.md(
+                "Groups combine the same asset, capability, and human-review state. "
+                "Exact analysis evidence remains selectable inside each group. "
+                "Order is newest evidence first, not severity."
+            )
         )
+        _queue_panel = mo.vstack(_queue_blocks, gap=0.8)
 
     if selected_investigation is None or selected_investigation_result is None:
         _detail_panel = mo.md(
@@ -2565,7 +2711,7 @@ def _(
 
     investigation_view = mo.hstack(
         [_queue_panel, _detail_panel],
-        widths=[0.36, 0.64],
+        widths=[0.40, 0.60],
         align="start",
         gap=1.3,
     )
@@ -3435,6 +3581,7 @@ def _(
     signal_view,
     system_view,
     system_workspace_css,
+    UTC,
 ):
     theme = mo.Html(
         operations_v2_theme_css()
@@ -3454,19 +3601,30 @@ def _(
         align="start",
     )
 
+    def _time_text(value):
+        if value is None or value.utcoffset() is None:
+            return "—"
+        return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    def _md_cell(value):
+        if value is None:
+            return "—"
+        return str(value).replace("|", "\\|").replace("\n", " ")
+
     if monitor.attention:
         attention_rows = "\n".join(
             (
-                f"| **{item.title}** | "
-                f"{'-' if item.asset_id is None else item.asset_id} | "
-                f"{'-' if item.occurred_at is None else item.occurred_at.isoformat()} |"
+                f"| **{_md_cell(item.title)}** | "
+                f"{_md_cell(item.asset_id)} | "
+                f"{_time_text(item.occurred_at)} | "
+                f"{_md_cell(item.detail)} |"
             )
             for item in monitor.attention[:8]
         )
         attention_view = mo.md(
             "### Needs attention\n\n"
-            "| What | Asset | Since |\n"
-            "| --- | --- | --- |\n" + attention_rows
+            "| What | Asset | Since | Detail |\n"
+            "| --- | --- | --- | --- |\n" + attention_rows
         )
     else:
         attention_view = mo.md(
@@ -3476,9 +3634,9 @@ def _(
     if monitor.activities:
         activity_rows = "\n".join(
             (
-                f"| {item.occurred_at.isoformat()} | "
-                f"{'-' if item.asset_id is None else item.asset_id} | "
-                f"{item.title} |"
+                f"| {_time_text(item.occurred_at)} | "
+                f"{_md_cell(item.asset_id)} | "
+                f"{_md_cell(item.title)} |"
             )
             for item in monitor.activities[:8]
         )

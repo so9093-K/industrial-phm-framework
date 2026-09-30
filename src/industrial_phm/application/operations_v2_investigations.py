@@ -80,6 +80,54 @@ class InvestigationQueueItem:
 
 
 @dataclass(frozen=True, slots=True)
+class InvestigationQueueGroup:
+    group_id: str
+    asset_id: str
+    capability_id: str
+    review_state: InvestigationReviewState
+    items: Sequence[InvestigationQueueItem]
+
+    def __post_init__(self) -> None:
+        for value, field_name in (
+            (self.group_id, "group_id"),
+            (self.asset_id, "asset_id"),
+            (self.capability_id, "capability_id"),
+        ):
+            _require_text(value, field_name)
+        if not isinstance(self.review_state, InvestigationReviewState):
+            raise ValueError("review_state must be InvestigationReviewState")
+        items = tuple(self.items)
+        if not items:
+            raise ValueError("group must contain at least one investigation")
+        if any(not isinstance(item, InvestigationQueueItem) for item in items):
+            raise ValueError("items must contain InvestigationQueueItem values")
+        if any(
+            item.asset_id != self.asset_id
+            or item.capability_id != self.capability_id
+            or item.review_state != self.review_state
+            for item in items
+        ):
+            raise ValueError("group items must share asset, capability and review state")
+        expected = tuple(
+            sorted(
+                items,
+                key=lambda item: (-item.completed_at.timestamp(), item.investigation_id),
+            )
+        )
+        if items != expected:
+            raise ValueError("group items must use newest-first deterministic ordering")
+        object.__setattr__(self, "items", items)
+
+    @property
+    def latest(self) -> InvestigationQueueItem:
+        return self.items[0]
+
+    @property
+    def run_count(self) -> int:
+        return len(self.items)
+
+
+@dataclass(frozen=True, slots=True)
 class InvestigationQueueView:
     items: Sequence[InvestigationQueueItem]
 
@@ -129,6 +177,56 @@ class InvestigationQueueView:
             if (review_state is None or item.review_state == review_state)
             and (asset_id is None or item.asset_id == asset_id)
             and (capability_id is None or item.capability_id == capability_id)
+        )
+
+    def groups(
+        self,
+        *,
+        review_state: InvestigationReviewState | None = None,
+        asset_id: str | None = None,
+        capability_id: str | None = None,
+    ) -> tuple[InvestigationQueueGroup, ...]:
+        filtered = self.filter(
+            review_state=review_state,
+            asset_id=asset_id,
+            capability_id=capability_id,
+        )
+        grouped: dict[
+            tuple[str, str, InvestigationReviewState],
+            list[InvestigationQueueItem],
+        ] = {}
+        for item in filtered:
+            grouped.setdefault(
+                (item.asset_id, item.capability_id, item.review_state),
+                [],
+            ).append(item)
+
+        values = tuple(
+            InvestigationQueueGroup(
+                group_id=f"{asset}:{capability}:{state.value}",
+                asset_id=asset,
+                capability_id=capability,
+                review_state=state,
+                items=tuple(
+                    sorted(
+                        items,
+                        key=lambda item: (
+                            -item.completed_at.timestamp(),
+                            item.investigation_id,
+                        ),
+                    )
+                ),
+            )
+            for (asset, capability, state), items in grouped.items()
+        )
+        return tuple(
+            sorted(
+                values,
+                key=lambda item: (
+                    -item.latest.completed_at.timestamp(),
+                    item.group_id,
+                ),
+            )
         )
 
 
