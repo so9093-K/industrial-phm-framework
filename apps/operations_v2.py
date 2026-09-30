@@ -2218,7 +2218,7 @@ def _(
 
 @app.cell
 def _():
-    investigation_selection = {"investigation_id": None}
+    investigation_selection = {"group_id": None, "investigation_id": None}
     return (investigation_selection,)
 
 
@@ -2314,8 +2314,8 @@ def _(
     investigation_asset_filter,
     investigation_capability_filter,
     investigation_capability_label,
+    investigation_group_option_label,
     investigation_queue,
-    investigation_queue_option_label,
     investigation_review_filter,
     investigation_review_label,
     investigation_selection,
@@ -2328,42 +2328,101 @@ def _(
         investigation_capability_label(capability_id): capability_id
         for capability_id in investigation_queue.capability_ids
     }
-    _filtered_investigations = investigation_queue.filter(
+    _groups = investigation_queue.groups(
         review_state=_review_state_by_label.get(investigation_review_filter.value),
         asset_id=(
             None if investigation_asset_filter.value == "All" else investigation_asset_filter.value
         ),
         capability_id=_capability_by_label.get(investigation_capability_filter.value),
     )
-    _label_to_id = {
-        f"{investigation_queue_option_label(item)} · {index + 1}": item.investigation_id
-        for index, item in enumerate(_filtered_investigations)
+    _group_label_to_id = {
+        f"{investigation_group_option_label(group)} · {index + 1}": group.group_id
+        for index, group in enumerate(_groups)
     }
-    _id_to_label = {value: key for key, value in _label_to_id.items()}
-    if _filtered_investigations:
+    _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
+    if _groups:
+        _selected_group_id = (
+            investigation_selection["group_id"]
+            if investigation_selection["group_id"] in _group_id_to_label
+            else _groups[0].group_id
+        )
+        investigation_selection["group_id"] = _selected_group_id
+        investigation_group_selector = mo.ui.radio(
+            options=list(_group_label_to_id),
+            value=_group_id_to_label[_selected_group_id],
+            label="Queue groups",
+            on_change=lambda value: investigation_selection.update(
+                group_id=_group_label_to_id[value],
+                investigation_id=None,
+            ),
+        )
+    else:
+        investigation_group_selector = None
+    investigation_group_count = len(_groups)
+    investigation_group_label_to_id = _group_label_to_id
+    return (
+        investigation_group_count,
+        investigation_group_label_to_id,
+        investigation_group_selector,
+    )
+
+
+@app.cell
+def _(
+    investigation_group_label_to_id,
+    investigation_group_selector,
+    investigation_queue,
+):
+    investigation_selected_group_id = (
+        None
+        if investigation_group_selector is None
+        else investigation_group_label_to_id[investigation_group_selector.value]
+    )
+    selected_investigation_group = None
+    if investigation_selected_group_id is not None:
+        selected_investigation_group = next(
+            (
+                group
+                for group in investigation_queue.groups()
+                if group.group_id == investigation_selected_group_id
+            ),
+            None,
+        )
+    return investigation_selected_group_id, selected_investigation_group
+
+
+@app.cell
+def _(
+    investigation_queue_option_label,
+    investigation_selection,
+    mo,
+    selected_investigation_group,
+):
+    if selected_investigation_group is None:
+        investigation_selector = None
+        investigation_label_to_id = {}
+    else:
+        _label_to_id = {
+            f"{investigation_queue_option_label(item)} · {index + 1}": item.investigation_id
+            for index, item in enumerate(selected_investigation_group.items)
+        }
+        _id_to_label = {value: key for key, value in _label_to_id.items()}
         _selected_id = (
             investigation_selection["investigation_id"]
             if investigation_selection["investigation_id"] in _id_to_label
-            else _filtered_investigations[0].investigation_id
+            else selected_investigation_group.items[0].investigation_id
         )
         investigation_selection["investigation_id"] = _selected_id
         investigation_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
-            label="Queue",
+            label="Analysis evidence",
             on_change=lambda value: investigation_selection.update(
                 investigation_id=_label_to_id[value]
             ),
         )
-    else:
-        investigation_selector = None
-    investigation_filtered_count = len(_filtered_investigations)
-    investigation_label_to_id = _label_to_id
-    return (
-        investigation_filtered_count,
-        investigation_label_to_id,
-        investigation_selector,
-    )
+        investigation_label_to_id = _label_to_id
+    return investigation_label_to_id, investigation_selector
 
 
 @app.cell
@@ -2373,7 +2432,6 @@ def _(
     investigation_queue,
     investigation_selector,
 ):
-    # A UI element's value can only be read outside the cell that created it.
     investigation_selected_id = (
         None
         if investigation_selector is None
