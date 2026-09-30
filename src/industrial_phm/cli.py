@@ -381,6 +381,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="JSON path remembering windows that cannot be analyzed",
     )
     operations_window_analysis.add_argument(
+        "--runtime-status",
+        type=Path,
+        default=None,
+        help=(
+            "optional analysis-runner runtime telemetry JSON path; defaults beside "
+            "--analysis-state as <stem>-runtime.json"
+        ),
+    )
+    operations_window_analysis.add_argument(
         "--interval-seconds", type=float, default=5.0, help="poll interval (default: 5)"
     )
     operations_window_analysis.add_argument(
