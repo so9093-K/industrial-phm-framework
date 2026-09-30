@@ -1360,9 +1360,7 @@ def _(
                 _repository.register(_candidate)
 
             _sources = _repository.list_sources()
-            _lifecycles = tuple(
-                _repository.get_lifecycle(item.source_id) for item in _sources
-            )
+            _lifecycles = tuple(_repository.get_lifecycle(item.source_id) for item in _sources)
         except (OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
