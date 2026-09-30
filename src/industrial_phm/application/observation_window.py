@@ -332,7 +332,12 @@ class ObservationWindowBufferSnapshot:
         _validate_aware_datetime(self.window_end, "window_end")
         if self.window_end <= self.window_start:
             raise ValueError("window_end must be after window_start")
-        _validate_positive_int(self.max_buffered_events, "max_buffered_events")
+        if (
+            isinstance(self.max_buffered_events, bool)
+            or not isinstance(self.max_buffered_events, int)
+            or self.max_buffered_events < 1
+        ):
+            raise ValueError("max_buffered_events must be a positive integer")
         _validate_non_negative_finite(
             self.max_future_skew_seconds,
             "max_future_skew_seconds",
@@ -347,7 +352,9 @@ class ObservationWindowBufferSnapshot:
             raise ValueError("seen_delivery_identities must be unique")
         accepted = {event.local_delivery_identity for event in events}
         if not accepted.issubset(set(seen)):
-            raise ValueError("accepted event identities must be present in seen_delivery_identities")
+            raise ValueError(
+                "accepted event identities must be present in seen_delivery_identities"
+            )
         for field_name in (
             "out_of_order_accepted_count",
             "late_rejected_count",
@@ -433,7 +440,7 @@ class ObservationWindowBuffer:
     def from_snapshot(
         cls,
         snapshot: ObservationWindowBufferSnapshot,
-    ) -> "ObservationWindowBuffer":
+    ) -> ObservationWindowBuffer:
         if not isinstance(snapshot, ObservationWindowBufferSnapshot):
             raise ValueError("snapshot must be ObservationWindowBufferSnapshot")
         buffer = cls(
