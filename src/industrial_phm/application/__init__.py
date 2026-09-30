@@ -166,6 +166,10 @@ from industrial_phm.application.opcua_persistent import (
     project_opcua_persistent_data_change_event,
     validate_opcua_persistent_session_transition,
 )
+from industrial_phm.application.opcua_semantic_registration import (
+    OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS,
+    parse_opcua_semantic_bindings,
+)
 from industrial_phm.application.operational import (
     AnalysisRun,
     OperationalAnalysisResult,
@@ -277,6 +281,7 @@ __all__ = [
     "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
+    "OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS",
     "PHASE_UNBALANCE_CAPABILITY_ID",
     "STRICT_ALIGNMENT",
     "AcquisitionFailureComponent",
@@ -449,6 +454,7 @@ __all__ = [
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
+    "parse_opcua_semantic_bindings",
     "poll_registered_source",
     "project_opcua_persistent_data_change_event",
     "project_registered_opcua_observation_summary",

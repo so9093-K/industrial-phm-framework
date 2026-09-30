@@ -47,6 +47,7 @@ def _():
         finding_review_status,
         list_operational_asset_identities,
         load_registered_file_source_observation,
+        parse_opcua_semantic_bindings,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         register_file_source,
@@ -134,6 +135,7 @@ def _():
         load_registered_file_source_observation,
         list_operational_asset_identities,
         operational_analysis_presentation_kind,
+        parse_opcua_semantic_bindings,
         project_registered_opcua_observation_summary,
         receive_registered_file_source_observation,
         render_analysis_quality_markdown,
@@ -661,6 +663,21 @@ def _(FileSourceMode, SourceType, mo, os):
             "vibration_x,ns=2;s=Machine/VibrationX\ntemperature,ns=2;s=Machine/Temperature"
         ),
     )
+    registration_opcua_semantic_bindings_input = mo.ui.text_area(
+        value="",
+        label=(
+            "Channel semantics (optional CSV): channel_id, observed_property, scope, "
+            "statistic, unit, unit_evidence, semantic_version, interpretation_evidence"
+        ),
+        placeholder=(
+            "Voltage_L1,phase voltage,phase R,,V,meter data sheet,site-v1,"
+            "commissioning channel map\n"
+            "Current_L1,phase current,phase R,,A,meter data sheet,site-v1,"
+            "commissioning channel map"
+        ),
+        rows=5,
+        full_width=True,
+    )
     registration_opcua_timeout_input = mo.ui.text(
         value="4",
         label="Request timeout seconds",
@@ -684,6 +701,7 @@ def _(FileSourceMode, SourceType, mo, os):
         registration_name_input,
         registration_opcua_endpoint_input,
         registration_opcua_node_mappings_input,
+        registration_opcua_semantic_bindings_input,
         registration_opcua_timeout_input,
         registration_path_input,
         registration_sampling_rate_input,
@@ -997,12 +1015,14 @@ def _(
     opcua_browse_selection,
     opcua_browse_variables_by_label,
     parse_opcua_node_mappings,
+    parse_opcua_semantic_bindings,
     register_opcua_source_button,
     registration_asset_id_input,
     registration_measurement_point_input,
     registration_name_input,
     registration_opcua_endpoint_input,
     registration_opcua_node_mappings_input,
+    registration_opcua_semantic_bindings_input,
     registration_opcua_timeout_input,
     registration_source_id_input,
     registration_type_input,
@@ -1034,8 +1054,13 @@ def _(
                 if opcua_browse_is_current and _selected_browse_mappings
                 else parse_opcua_node_mappings(registration_opcua_node_mappings_input.value)
             )
+            _source_id = registration_source_id_input.value.strip()
+            _semantic_bindings = parse_opcua_semantic_bindings(
+                registration_opcua_semantic_bindings_input.value,
+                source_id=_source_id,
+            )
             _candidate = RegisteredSource(
-                source_id=registration_source_id_input.value.strip(),
+                source_id=_source_id,
                 name=registration_name_input.value.strip(),
                 config=OpcUaSourceConfig(
                     endpoint_url=registration_opcua_endpoint_input.value.strip(),
@@ -1045,6 +1070,7 @@ def _(
                     ),
                     node_mappings=_node_mappings,
                     timeout_seconds=float(registration_opcua_timeout_input.value.strip()),
+                    semantic_bindings=_semantic_bindings,
                 ),
                 registered_at=datetime.now().astimezone(),
             )
@@ -1094,6 +1120,7 @@ def _(
     registration_name_input,
     registration_opcua_endpoint_input,
     registration_opcua_node_mappings_input,
+    registration_opcua_semantic_bindings_input,
     registration_opcua_timeout_input,
     registration_path_input,
     registration_sampling_rate_input,
@@ -1384,7 +1411,19 @@ def _(
                     "`channel_id,node_id` 형식으로 입력합니다."
                 ),
                 registration_opcua_node_mappings_input,
-                mo.md("**4. Register**"),
+                mo.md("**4. Measurement semantics (optional, explicit only)**"),
+                mo.callout(
+                    "BrowseName, channel ID and NodeId do not establish physical meaning. "
+                    "Leave this empty to keep channels unresolved. Each non-empty CSV row is: "
+                    "channel_id, observed_property, scope, statistic, unit, unit_evidence, "
+                    "semantic_version, interpretation_evidence. Empty optional semantic fields "
+                    "stay unresolved/unspecified. A known unit requires explicit unit evidence. "
+                    "CSV quoting is supported when evidence contains commas.",
+                    kind="info",
+                    title="No semantic inference",
+                ),
+                registration_opcua_semantic_bindings_input,
+                mo.md("**5. Register**"),
                 register_opcua_source_button,
                 _registration_status,
             ],
@@ -2171,9 +2210,32 @@ def _(
                 f"{mapping.channel_id} → {mapping.node_id}"
                 for mapping in _selected_config.node_mappings
             )
+            _semantic_binding_label = "; ".join(
+                (
+                    f"{binding.channel_id} → "
+                    f"{binding.definition.observed_property or 'unresolved'} / "
+                    f"{binding.definition.scope or 'unspecified'} / "
+                    f"{binding.definition.statistic or 'unspecified'} / "
+                    f"{binding.definition.unit or 'unknown'} / {binding.version}"
+                )
+                for binding in _selected_config.semantic_bindings
+            )
+            _semantic_evidence_label = "; ".join(
+                f"{binding.channel_id} → {binding.interpretation_evidence}"
+                for binding in _selected_config.semantic_bindings
+            )
+            _semantic_count = (
+                f"{len(_selected_config.semantic_bindings)}/"
+                f"{len(_selected_config.node_mappings)} explicit"
+            )
             _source_specific_detail = (
                 f"| Endpoint | `{escape_markdown_cell(_selected_config.endpoint_url)}` |\n"
                 f"| Node mappings | {escape_markdown_cell(_node_mapping_label)} |\n"
+                f"| Semantic bindings | {_semantic_count} |\n"
+                f"| Bound meanings | "
+                f"{escape_markdown_cell(_semantic_binding_label or 'None · unresolved')} |\n"
+                f"| Interpretation evidence | "
+                f"{escape_markdown_cell(_semantic_evidence_label or 'None')} |\n"
                 f"| Request timeout | {_selected_config.timeout_seconds:g} s |\n"
             )
         if refresh_collection_monitor_button is not None:
