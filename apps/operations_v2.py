@@ -19,8 +19,6 @@ def _():
         AssetIdentity,
         ChannelSemanticBinding,
         CollectionDesiredState,
-        ChannelSemanticBinding,
-        CollectionDesiredState,
         FileSourceConfig,
         FileSourceMode,
         JsonFieldFeatureAnalysisRepository,
@@ -50,11 +48,8 @@ def _():
         request_collection_state,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
-        asyncio,
     )
     from industrial_phm.application.maintenance_review import (
-        FileSourceConfig,
-        FileSourceMode,
         FindingReviewAction,
         FindingReviewStatus,
         create_finding_review_event,
@@ -77,11 +72,11 @@ def _():
         render_analysis_quality_markdown,
         render_monitor_assets_html,
         render_monitor_flow_html,
-        render_system_diagnostics_html,
-        render_system_errors_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
         render_setup_sources_html,
+        render_system_diagnostics_html,
+        render_system_errors_html,
         render_system_runtime_html,
         setup_workspace_css,
         system_workspace_css,
@@ -135,8 +130,12 @@ def _():
     return (
         AcquisitionTelemetrySurface,
         AssetIdentity,
+        ChannelSemanticBinding,
+        CollectionDesiredState,
         DuckLakeAssetHistory,
         DuckLakeAssetHistoryConfig,
+        FileSourceConfig,
+        FileSourceMode,
         FindingReviewAction,
         FindingReviewStatus,
         InvestigationReviewState,
@@ -164,6 +163,8 @@ def _():
         ThreadPoolExecutor,
         UTC,
         asset_workspace_css,
+        asyncio,
+        browse_opcua_variables,
         build_asset_detail,
         build_asset_workspace_view,
         build_investigation_queue,
@@ -174,7 +175,6 @@ def _():
         build_setup_workspace,
         build_system_runtime_view,
         create_finding_review_event,
-        browse_opcua_variables,
         create_human_review_finding,
         datetime,
         discover_file_source,
@@ -197,6 +197,7 @@ def _():
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
         phase_unbalance_summary_rows,
+        register_file_source,
         render_analysis_quality_markdown,
         render_asset_analysis_html,
         render_asset_events_html,
@@ -219,7 +220,6 @@ def _():
         render_system_diagnostics_html,
         render_system_errors_html,
         render_system_runtime_html,
-        register_file_source,
         request_collection_state,
         resolve_measurement_range,
         setup_workspace_css,
@@ -227,7 +227,6 @@ def _():
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
-
 
 @app.cell
 def _(mo):
