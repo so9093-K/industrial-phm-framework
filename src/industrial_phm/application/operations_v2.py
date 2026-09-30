@@ -17,6 +17,7 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionTelemetrySurface,
 )
 from industrial_phm.application.maintenance_review import FindingReviewStatus
+from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.operations_attention import OperationsAttentionQueue
 from industrial_phm.application.operations_overview import OperationsOverview
@@ -307,7 +308,7 @@ def _collection_stage(
     )
     connected = sum(
         surface.source.session is not None
-        and surface.source.session.state.value == "connected"
+        and surface.source.session.state == OpcUaPersistentSessionState.CONNECTED
         for surface in surfaces
     )
     if worker_failures:
@@ -456,7 +457,6 @@ def _asset_rows(
     attention: OperationsAttentionQueue,
     runs: Sequence[AnalysisRun],
 ) -> tuple[OperationsMonitorAsset, ...]:
-    source_by_id = {source.source_id: source for source in sources}
     asset_ids = {source.config.asset_id for source in sources}
     asset_ids.update(run.asset_id for run in runs)
     asset_ids.update(
