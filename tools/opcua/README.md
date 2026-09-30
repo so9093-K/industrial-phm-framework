@@ -40,18 +40,17 @@ export INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL=artifacts/live-demo/spool.sql
 export INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY=artifacts/live-demo/telemetry.sqlite
 export INDUSTRIAL_PHM_HISTORY_CATALOG=artifacts/live-demo/catalog.sqlite
 export INDUSTRIAL_PHM_HISTORY_DATA=artifacts/live-demo/data
-uv run --no-sync marimo run apps/operations.py
+uv run --no-sync marimo run apps/operations_v2.py
 ```
 
-1. Sources: select `demo-opcua`, then **Start Collection** and **Refresh Live Monitor**.
-2. Assets: select `demo-power-01`, use **설비 이력 목록 새로고침** if ingestion began after page load.
-3. Select a channel and **최근 15분**, then **이력 조회 / 새로고침**. Relative ranges move on every query.
-4. Inspect source-specific latest values and history age. Historical FILE rows have no expected-live
-   freshness assessment; live rows refer to Sources policy/receipt assessment. Future times are flagged.
-   Choose 24 hours or 7 days for UI-only full-range min/max/mean buckets, not source averages.
-5. Close the browser, reopen it, and verify that the collector continued writing.
-6. Stop/restart the server and collector separately; refresh the monitor and history to check recovery.
-7. Sources **Stop Collection** stops source acquisition. The collector process can remain available.
+1. Setup → Data Sources: select `demo-opcua`, then **Start collection**. This records the desired
+   state; the separately running collector does the collection.
+2. Monitor: the Data Flow row shows Sources/Collect/Store/Analyze separately. Use **Refresh** to
+   re-read runtime state.
+3. Assets: select `demo-power-01` and open **Signals** to query recent history and latest values.
+4. Close the browser, reopen it, and verify that the collector continued writing.
+5. Stop/restart the server and collector separately; refresh Monitor and Signals to check recovery.
+6. Setup **Stop collection** stops source acquisition. The collector process can remain available.
    Stop the simulator and collector terminals with Ctrl-C when finished.
 
 The catalog adapter coordinates cooperating local connections through `<catalog>.phm.lock` for the
@@ -113,16 +112,8 @@ Each pending finalized window is analyzed from its accepted events (ADR-0008). T
 window/capability/algorithm/policy result is persisted once across runner restarts. Windows without all
 three phases bound are recorded as skipped with a reason.
 
-To inspect those live results in Operations, start Operations with the **same analysis result
-repository** used by the runner. Results the runner writes later appear after **Refresh analysis
-results** in Asset Detail or Investigation; no restart is needed:
-
-```bash
-export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.json
-uv run --no-sync marimo run apps/operations.py
-```
-
-The result file is shared evidence storage; this does not make the Operations browser process own the
+Operations must use the **same analysis result repository** as the runner (above). Results the runner
+writes later appear after **Refresh**; no restart is needed. The result file is shared evidence storage; this does not make the Operations browser process own the
 analysis runner lifecycle.
 
 Alignment is strict by default (all phases at one source timestamp). OPC UA DataChange reports only
@@ -137,6 +128,61 @@ uv run --no-sync industrial-phm operations run-window-analysis ... \
 
 The carry age is a measurement-validity fact, not a transport timeout; the evidence records the policy,
 its basis and the carried value count and ages.
+
+## AI-Hub 239 recorded power replay
+
+`tools/opcua/aihub_replay.py` publishes one explicit AI-Hub 239 selection as a local OPC UA server so
+the whole Operations flow runs on recorded plant values instead of synthetic ones. It stands in for a
+site server during local validation; it is not a production connector.
+
+- Values are published unchanged, one write per recorded timestamp for every channel. A timestamp
+  that recorded two different values for one channel publishes that value with Bad status.
+- Time is rebased onto the replay clock (`--speed` recorded seconds per replay second, default 60), because
+  a live collector judges lateness and freshness against wall time. `replay-log.jsonl` records each
+  cycle's rule back to recorded source time; `replay.json` records the archive digest, member, binding,
+  selected range and channels.
+- OPC UA DataChange reports changed values only, as on site, so unchanged recorded values raise no
+  notification and a phase can be absent at many timestamps.
+- Measurement meaning is bound only for channels the AI-Hub 239 semantics-v2 dictionary resolves
+  (phase voltages/currents, their means, line voltage mean, frequency); power, power factor, energy,
+  harmonics and temperature stay unresolved.
+
+The selection below (device 2297, 2020-11-14 06:00-12:30 local) contains a stopped period, a start at
+08:11, a 3.7-hour run and a stop at 11:51. The raw archive is local only (see `tools/aihub/README.md`).
+
+```bash
+uv sync --locked --extra history --extra opcua --extra aihub --group research
+uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/phase10 \
+  --endpoint opc.tcp://127.0.0.1:4850/aihub-replay/ \
+  --archive data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --member "5.보일러/SourceData_211.json" \
+  --binding tools/opcua/presets/aihub-boiler-2297-replay.json \
+  --start 2020-11-14T06:00:00 --end 2020-11-14T12:30:00
+uv run --no-sync python -m tools.opcua.aihub_replay server --root artifacts/phase10 --speed 60 --loop
+```
+
+Run the collector with the `artifacts/phase10` paths as in the synthetic demo, using
+`--window-duration-seconds 30 --allowed-lateness-seconds 2` (30 recorded minutes per window at 60x),
+and the analysis runner with a carry policy whose basis is the replay's publishing contract:
+
+```bash
+uv run --no-sync industrial-phm operations run-window-analysis \
+  --window-state artifacts/phase10/windows.json \
+  --analysis-state artifacts/phase10/phase-unbalance.json \
+  --ledger-state artifacts/phase10/window-analysis-ledger.json \
+  --alignment bounded-previous --max-carry-age-seconds 5 \
+  --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
+```
+
+Point every `INDUSTRIAL_PHM_OPERATIONS_*` state path and `INDUSTRIAL_PHM_HISTORY_CATALOG/DATA` at
+`artifacts/phase10`, then start Operations and use Setup → **Start collection**.
+
+Fault scenarios for Operations validation:
+
+- `--omit-channel T상전류` (repeatable) never publishes a channel: a missing phase.
+- `--freeze-after-records N` keeps the server connected but stops updating after N records: stale data.
+- Stopping the replay server, the collector or the analysis runner separately exercises source,
+  collection and analysis outages.
 
 ## Regression validation
 
