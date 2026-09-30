@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetrySurface
-from industrial_phm.application.asset_detail import AssetDetail, AssetEvidenceEvent, AssetEvidenceEventKind
+from industrial_phm.application.asset_detail import (
+    AssetDetail,
+    AssetEvidenceEvent,
+    AssetEvidenceEventKind,
+)
 from industrial_phm.application.maintenance_review import (
     FindingReviewStatus,
     finding_review_status,
