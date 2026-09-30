@@ -98,9 +98,7 @@ class SetupSourceView:
             raise ValueError("collection_desired_state must be CollectionDesiredState or None")
         if self.collection_requested_at is not None:
             _require_aware(self.collection_requested_at, "collection_requested_at")
-        if (self.collection_desired_state is None) != (
-            self.collection_requested_at is None
-        ):
+        if (self.collection_desired_state is None) != (self.collection_requested_at is None):
             raise ValueError("collection state and requested time must be recorded together")
         signals = tuple(self.signals)
         if any(not isinstance(item, SetupSignalView) for item in signals):
@@ -164,8 +162,7 @@ def build_setup_workspace(
     unexpected_collection = sorted(set(collection_by_source) - set(source_ids))
     if unexpected_collection:
         raise ValueError(
-            "collection_records reference unregistered sources: "
-            + ", ".join(unexpected_collection)
+            "collection_records reference unregistered sources: " + ", ".join(unexpected_collection)
         )
 
     projected = tuple(
@@ -211,9 +208,7 @@ def _project_source(
         )
         connection_target = config.source_path
     elif isinstance(config, OpcUaSourceConfig):
-        binding_by_channel = {
-            binding.channel_id: binding for binding in config.semantic_bindings
-        }
+        binding_by_channel = {binding.channel_id: binding for binding in config.semantic_bindings}
         signals = tuple(
             _opcua_signal(
                 mapping.channel_id,
@@ -235,9 +230,7 @@ def _project_source(
         lifecycle_state=lifecycle.state,
         registered_at=source.registered_at,
         connection_target=connection_target,
-        collection_desired_state=(
-            None if collection is None else collection.desired_state
-        ),
+        collection_desired_state=(None if collection is None else collection.desired_state),
         collection_requested_at=None if collection is None else collection.requested_at,
         signals=signals,
     )
@@ -252,16 +245,12 @@ def _opcua_signal(
     return SetupSignalView(
         channel_id=channel_id,
         source_locator=node_id,
-        observed_property=(
-            None if definition is None else definition.observed_property
-        ),
+        observed_property=(None if definition is None else definition.observed_property),
         scope=None if definition is None else definition.scope,
         statistic=None if definition is None else definition.statistic,
         unit=None if definition is None else definition.unit,
         semantic_version=None if binding is None else binding.version,
-        interpretation_evidence=(
-            None if binding is None else binding.interpretation_evidence
-        ),
+        interpretation_evidence=(None if binding is None else binding.interpretation_evidence),
     )
 
 
