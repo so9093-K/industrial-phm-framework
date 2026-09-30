@@ -218,7 +218,7 @@ SourceHealthAssessment
   └ freshness?
 
 JsonSourceRuntimeRepository
-  └ industrial-phm-source-runtime-v3
+  └ versioned runtime-state schema
        ├ latest SourceReceiptEvidence per source
        └ latest SourceConnectionAttemptEvidence per source
           (historical bounded attempt, not current connection state)
