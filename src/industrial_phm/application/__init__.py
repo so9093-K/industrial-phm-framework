@@ -220,6 +220,12 @@ from industrial_phm.application.operations_v2_maintenance import (
     MaintenanceReviewTimelineItem,
     build_maintenance_queue,
 )
+from industrial_phm.application.operations_v2_setup import (
+    SetupSignalView,
+    SetupSourceView,
+    SetupWorkspaceView,
+    build_setup_workspace,
+)
 from industrial_phm.application.operations_v2_system import (
     SystemRuntimeError,
     SystemRuntimeFact,
@@ -227,12 +233,6 @@ from industrial_phm.application.operations_v2_system import (
     SystemRuntimeService,
     SystemRuntimeView,
     build_system_runtime_view,
-)
-from industrial_phm.application.operations_v2_setup import (
-    SetupSignalView,
-    SetupSourceView,
-    SetupWorkspaceView,
-    build_setup_workspace,
 )
 from industrial_phm.application.phase_unbalance import (
     PHASE_UNBALANCE_CAPABILITY_ID,
