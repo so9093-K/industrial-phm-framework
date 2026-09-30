@@ -739,9 +739,7 @@ def _parse_collection_service_runtime(
     value: Mapping[str, object],
 ) -> CollectionServiceRuntimeTelemetry:
     return CollectionServiceRuntimeTelemetry(
-        state=CollectionServiceRuntimeState(
-            _require_str(value.get("state"), "state")
-        ),
+        state=CollectionServiceRuntimeState(_require_str(value.get("state"), "state")),
         started_at=_require_datetime(value.get("started_at"), "started_at"),
         heartbeat_at=_require_datetime(value.get("heartbeat_at"), "heartbeat_at"),
         reconcile_count=_require_int(value.get("reconcile_count"), "reconcile_count"),
