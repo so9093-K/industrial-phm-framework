@@ -258,6 +258,17 @@ async def serve(
         )
         for channel in channels
     }
+    # The server is not serving yet, so establish an explicit non-Good initial
+    # state before any client can subscribe. A replay channel only becomes Good
+    # after its first recorded value is published.
+    waiting_status = ua.StatusCode(ua.StatusCodes.BadWaitingForInitialData)
+    for node in nodes.values():
+        await node.write_value(
+            ua.DataValue(
+                ua.Variant(0.0, ua.VariantType.Double),
+                StatusCode=waiting_status,
+            )
+        )
     published = 0
     cycle = 0
     async with server:
