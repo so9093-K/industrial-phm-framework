@@ -138,9 +138,7 @@ class ObservationWindowCoordinatorState:
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
-        if self.cursor is not None and not isinstance(
-            self.cursor, OpcUaHistoricalEventCursor
-        ):
+        if self.cursor is not None and not isinstance(self.cursor, OpcUaHistoricalEventCursor):
             raise ValueError("cursor must be OpcUaHistoricalEventCursor when provided")
         if self.watermark is not None:
             _validate_aware_datetime(self.watermark, "watermark")
@@ -148,9 +146,7 @@ class ObservationWindowCoordinatorState:
             _validate_aware_datetime(self.max_valid_event_at, "max_valid_event_at")
         buffers = tuple(self.active_buffers)
         if any(not isinstance(item, ObservationWindowBufferSnapshot) for item in buffers):
-            raise ValueError(
-                "active_buffers must contain ObservationWindowBufferSnapshot values"
-            )
+            raise ValueError("active_buffers must contain ObservationWindowBufferSnapshot values")
         if any(item.source_id != self.source_id for item in buffers):
             raise ValueError("active buffer source_id must match coordinator source_id")
         starts = tuple(item.window_start for item in buffers)
