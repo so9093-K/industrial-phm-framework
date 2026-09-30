@@ -26,6 +26,7 @@ class ObservationWindowCoordinatorPolicy:
     max_buffered_events: int = 10_000
     max_future_skew_seconds: float = 30.0
     poll_interval_seconds: float = 0.5
+    history_page_size: int = 5000
     alignment_origin: datetime = field(default_factory=lambda: datetime(1970, 1, 1, tzinfo=UTC))
 
     def __post_init__(self) -> None:
@@ -40,6 +41,9 @@ class ObservationWindowCoordinatorPolicy:
             "max_future_skew_seconds",
         )
         _validate_positive_finite(self.poll_interval_seconds, "poll_interval_seconds")
+        _validate_positive_int(self.history_page_size, "history_page_size")
+        if self.history_page_size > 10000:
+            raise ValueError("history_page_size must not exceed 10000")
         _validate_aware_datetime(self.alignment_origin, "alignment_origin")
 
 
@@ -106,6 +110,20 @@ class ContinuousObservationWindowCoordinatorResult:
             _validate_aware_datetime(self.last_watermark, "last_watermark")
 
 
+@dataclass(frozen=True, slots=True, order=True)
+class OpcUaHistoricalEventCursor:
+    """Durable-ingestion cursor for one source's persisted DataChange history."""
+
+    ingested_at: datetime
+    connection_epoch: int
+    event_index: int
+
+    def __post_init__(self) -> None:
+        _validate_aware_datetime(self.ingested_at, "ingested_at")
+        _validate_positive_int(self.connection_epoch, "connection_epoch")
+        _validate_non_negative_int(self.event_index, "event_index")
+
+
 @runtime_checkable
 class OpcUaHistoricalEventReader(Protocol):
     """Durable raw-event reader required by the window coordinator."""
@@ -115,6 +133,25 @@ class OpcUaHistoricalEventReader(Protocol):
         source_id: str,
     ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
         """Return source events in deterministic durable-ingestion order."""
+        ...
+
+    def query_opcua_events_after(
+        self,
+        source_id: str,
+        *,
+        cursor: OpcUaHistoricalEventCursor,
+        limit: int,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return at most limit events strictly after one durable-ingestion cursor."""
+        ...
+
+    def query_opcua_events_from_event_time(
+        self,
+        source_id: str,
+        *,
+        start_at: datetime | None,
+    ) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
+        """Return a restart bootstrap tail ordered by durable ingestion."""
         ...
 
 
