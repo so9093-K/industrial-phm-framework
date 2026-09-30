@@ -48,18 +48,18 @@ from industrial_phm.presentation.operations_v2_maintenance import (
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
 )
-from industrial_phm.presentation.operations_v2_system import (
-    render_system_diagnostics_html,
-    render_system_errors_html,
-    render_system_runtime_html,
-    system_workspace_css,
-)
 from industrial_phm.presentation.operations_v2_setup import (
     lifecycle_action_label,
     render_setup_signals_html,
     render_setup_source_detail_html,
     render_setup_sources_html,
     setup_workspace_css,
+)
+from industrial_phm.presentation.operations_v2_system import (
+    render_system_diagnostics_html,
+    render_system_errors_html,
+    render_system_runtime_html,
+    system_workspace_css,
 )
 
 __all__ = [
