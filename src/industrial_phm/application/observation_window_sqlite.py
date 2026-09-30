@@ -362,6 +362,17 @@ class SqliteObservationWindowRepository:
         connection.commit()
         return connection
 
+    @staticmethod
+    def _parse_payload(payload: str, *, context: str) -> DurableObservationWindow:
+        try:
+            raw = json.loads(payload)
+        except json.JSONDecodeError as error:
+            raise ObservationWindowFormatError(
+                f"{context} payload must contain valid JSON"
+            ) from error
+        return _parse_window(raw, index=0)
+
+
 def _serialize_coordinator_state(state: ObservationWindowCoordinatorState) -> str:
     cursor = state.cursor
     payload = {
@@ -503,14 +514,3 @@ def _parse_buffer_snapshot(
         raise ObservationWindowFormatError(
             f"invalid coordinator active buffer {index}: {error}"
         ) from error
-
-
-    @staticmethod
-    def _parse_payload(payload: str, *, context: str) -> DurableObservationWindow:
-        try:
-            raw = json.loads(payload)
-        except json.JSONDecodeError as error:
-            raise ObservationWindowFormatError(
-                f"{context} payload must contain valid JSON"
-            ) from error
-        return _parse_window(raw, index=0)
