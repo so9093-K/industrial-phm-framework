@@ -183,8 +183,9 @@ event_at           # explicit event-time policy가 선택한 time
 watermark          # runtime progress policy
 ```
 
-`event_at`과 watermark는 같은 개념이 아닙니다. #256의 SourceTimestamp 우선 정책과 explicit
-ServerTimestamp fallback을 유지하고, watermark 생성 정책은 continuous window coordinator가 소유합니다.
+`event_at`과 watermark는 같은 개념이 아닙니다. Persistent OPC UA event-time contract의 SourceTimestamp
+우선 정책과 explicit ServerTimestamp fallback을 유지하고, watermark 생성 정책은 continuous window
+coordinator가 소유합니다.
 
 Late/out-of-order/future clock-skew는 timestamp를 덮어써서 해결하지 않고 factual disposition/evidence로
 남깁니다.
@@ -261,10 +262,10 @@ Acquisition telemetry surface는 다음 factual evidence를 제공합니다.
 - callback queue: configured maxsize와 overflow count
 - spool: durable pending event/bytes, oldest pending age, active batch depth/bytes를 spool DB에서 직접 sample
 - history writer: latest acknowledged batch/snapshot과 source event count
-- window: latest watermark, active/finalized count와 #257 disposition counts
+- window: latest watermark, active/finalized count와 disposition counts
 - failure: latest runtime component failure evidence
 
-asyncua 2.0.1 iterator의 queue depth는 public/stable API로 노출되지 않으므로 private `_event_queue`에
+asyncua iterator의 queue depth는 public/stable API로 노출되지 않으므로 private `_event_queue`에
 의존하지 않습니다. 따라서 callback queue depth/high-watermark는 현재 명시적으로 uninstrumented(`None`)이고,
 configured maxsize와 실제 overflow signal만 factual evidence로 기록합니다.
 
