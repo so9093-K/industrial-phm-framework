@@ -3755,7 +3755,19 @@ def _(mo, timeline):
 
 
 @app.cell
-def _(mo, operational_analysis_results):
+def _(mo):
+    get_investigation_selected, set_investigation_selected = mo.state(None)
+    return get_investigation_selected, set_investigation_selected
+
+
+@app.cell
+def _(
+    get_investigation_selected,
+    mo,
+    operational_analysis_results,
+    retained_option,
+    set_investigation_selected,
+):
     investigation_analysis_selector = None
     if operational_analysis_results:
         _options = {
@@ -3765,9 +3777,10 @@ def _(mo, operational_analysis_results):
         }
         investigation_analysis_selector = mo.ui.dropdown(
             options=_options,
-            value=next(iter(_options)),
+            value=retained_option(_options, get_investigation_selected()),
             label="검토할 분석 (최신순)",
             full_width=True,
+            on_change=set_investigation_selected,
         )
     return (investigation_analysis_selector,)
 
@@ -3804,6 +3817,7 @@ def _(investigation_analysis_result, mo, render_analysis_quality_markdown):
 
 @app.cell
 def _(
+    analysis_refresh_view,
     create_review_finding_button,
     field_analysis_error,
     finding_action_error,
@@ -4044,6 +4058,7 @@ def _(
                 "## Investigation\n\n"
                 "관측 사실과 PHM evidence를 같은 흐름에서 검토하기 위한 운영 surface입니다."
             ),
+            analysis_refresh_view,
             _field_analysis_view,
             investigation_quality_context_view,
             _field_analysis_history_view,
@@ -4496,32 +4511,58 @@ def _(Path, os, history_refresh_button):
 
 
 @app.cell
+def _():
+    # Last asset a person chose, restored whenever the selector is rebuilt. A plain
+    # holder: choosing an asset must not re-run the selector and its dependents twice.
+    asset_selection = {"asset_id": None}
+    return (asset_selection,)
+
+
+@app.cell
+def _(get_analysis_asset_ids, operational_analysis_results, set_analysis_asset_ids):
+    # A refresh that only adds runs for known assets must not rebuild the asset
+    # selector (and the history form under it), so publish asset ids on change only.
+    _analysis_asset_ids = tuple(
+        sorted({result.run.asset_id for result in operational_analysis_results})
+    )
+    if _analysis_asset_ids != get_analysis_asset_ids():
+        set_analysis_asset_ids(_analysis_asset_ids)
+    return
+
+
+@app.cell
 def _(
-    operational_analysis_results,
     list_operational_asset_identities,
     AssetIdentity,
+    asset_selection,
+    get_analysis_asset_ids,
     history_assets,
     mo,
     observation,
     operational_findings,
     registered_sources,
+    retained_option,
 ):
     _latest_observations = () if observation is None else (observation,)
     asset_identities = list_operational_asset_identities(
         sources=registered_sources,
         latest_observations=_latest_observations,
-        analysis_runs=tuple(result.run for result in operational_analysis_results),
         findings=operational_findings,
     )
     _identities = {item.asset_id: item for item in asset_identities}
     _identities.update({item.asset_id: AssetIdentity(item.asset_id) for item in history_assets})
+    _identities.update({asset_id: AssetIdentity(asset_id) for asset_id in get_analysis_asset_ids()})
     asset_identities = tuple(_identities[key] for key in sorted(_identities))
     if asset_identities:
+        _asset_ids = [item.asset_id for item in asset_identities]
         asset_selector = mo.ui.dropdown(
-            options=[item.asset_id for item in asset_identities],
-            value=asset_identities[0].asset_id,
+            options=_asset_ids,
+            value=retained_option(
+                {asset_id: asset_id for asset_id in _asset_ids}, asset_selection["asset_id"]
+            ),
             label="Asset",
             full_width=True,
+            on_change=lambda value: asset_selection.update(asset_id=value),
         )
     else:
         asset_selector = None
@@ -4810,10 +4851,17 @@ def _(
 
 
 @app.cell
-def _(Path, mo, os):
+def _(Path, datetime, initial_field_analysis_results, mo, os):
+    from datetime import UTC
+
     from industrial_phm.application import (
         JsonPhaseUnbalanceRepository,
         run_phase_unbalance_analysis,
+    )
+    from industrial_phm.presentation.analysis_results import (
+        load_analysis_results,
+        reload_analysis_results,
+        retained_option,
     )
     from industrial_phm.presentation.phase_unbalance import (
         phase_unbalance_exclusion_rows,
@@ -4829,20 +4877,35 @@ def _(Path, mo, os):
             "artifacts/operations/phase-unbalance.json",
         )
     )
-    try:
-        _initial_unbalance = JsonPhaseUnbalanceRepository(phase_unbalance_state_path).list_results()
-        _initial_unbalance_error = ""
-    except (OSError, ValueError) as _error:
-        _initial_unbalance = ()
-        _initial_unbalance_error = str(_error)
-    get_unbalance_results, set_unbalance_results = mo.state(_initial_unbalance)
-    get_unbalance_error, set_unbalance_error = mo.state(_initial_unbalance_error)
+    # Results written by a separate run-window-analysis process are re-read only
+    # on an explicit refresh; Operations never starts or stops that runner.
+    _initial_unbalance_load = load_analysis_results(
+        JsonPhaseUnbalanceRepository(phase_unbalance_state_path).list_results,
+        now=datetime.now(UTC),
+    )
+    get_unbalance_load, set_unbalance_load = mo.state(_initial_unbalance_load)
+    # Initialised from the startup reads so a static export needs no state update.
+    get_analysis_asset_ids, set_analysis_asset_ids = mo.state(
+        tuple(
+            sorted(
+                {
+                    result.run.asset_id
+                    for result in (
+                        *initial_field_analysis_results,
+                        *_initial_unbalance_load.results,
+                    )
+                }
+            )
+        )
+    )
+    get_unbalance_error, set_unbalance_error = mo.state("")
     get_unbalance_selected, set_unbalance_selected = mo.state(None)
-    unbalance_state_error = _initial_unbalance_error
     return (
         JsonPhaseUnbalanceRepository,
+        UTC,
+        get_analysis_asset_ids,
         get_unbalance_error,
-        get_unbalance_results,
+        get_unbalance_load,
         get_unbalance_selected,
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
@@ -4851,10 +4914,12 @@ def _(Path, mo, os):
         phase_unbalance_summary_rows,
         render_phase_unbalance_svg,
         run_phase_unbalance_analysis,
+        reload_analysis_results,
+        retained_option,
+        set_analysis_asset_ids,
         set_unbalance_error,
-        set_unbalance_results,
+        set_unbalance_load,
         set_unbalance_selected,
-        unbalance_state_error,
     )
 
 
@@ -4899,11 +4964,13 @@ def _(
     JsonPhaseUnbalanceRepository,
     asset_selector,
     datetime,
+    get_unbalance_load,
     history_reader,
     phase_unbalance_state_path,
+    reload_analysis_results,
     run_phase_unbalance_analysis,
     set_unbalance_error,
-    set_unbalance_results,
+    set_unbalance_load,
     set_unbalance_selected,
     unbalance_controls,
 ):
@@ -4919,20 +4986,81 @@ def _(
             )
             _repository = JsonPhaseUnbalanceRepository(phase_unbalance_state_path)
             _repository.record(_analysis)
-            _results = _repository.list_results()
         except (OSError, ValueError, TimeoutError) as _error:
             set_unbalance_error(f"분석 실패: {_error}")
         else:
-            set_unbalance_results(_results)
+            set_unbalance_load(
+                reload_analysis_results(
+                    _repository.list_results,
+                    get_unbalance_load(),
+                    now=datetime.now(_analysis.run.completed_at.tzinfo),
+                )
+            )
             set_unbalance_selected(_analysis.run.analysis_run_id)
             set_unbalance_error("")
     return
 
 
 @app.cell
-def _(get_unbalance_results):
-    unbalance_results = get_unbalance_results()
-    return (unbalance_results,)
+def _(mo):
+    analysis_refresh_button = mo.ui.run_button(label="Refresh analysis results")
+    return (analysis_refresh_button,)
+
+
+@app.cell
+def _(
+    JsonPhaseUnbalanceRepository,
+    UTC,
+    analysis_refresh_button,
+    datetime,
+    get_unbalance_load,
+    phase_unbalance_state_path,
+    reload_analysis_results,
+    set_unbalance_load,
+):
+    if analysis_refresh_button.value:
+        set_unbalance_load(
+            reload_analysis_results(
+                JsonPhaseUnbalanceRepository(phase_unbalance_state_path).list_results,
+                get_unbalance_load(),
+                now=datetime.now(UTC),
+            )
+        )
+    return
+
+
+@app.cell
+def _(get_unbalance_load):
+    unbalance_load = get_unbalance_load()
+    unbalance_results = unbalance_load.results
+    unbalance_state_error = unbalance_load.error
+    return unbalance_load, unbalance_results, unbalance_state_error
+
+
+@app.cell
+def _(analysis_refresh_button, mo, phase_unbalance_state_path, unbalance_load):
+    _loaded = (
+        "아직 읽지 못함"
+        if unbalance_load.loaded_at is None
+        else unbalance_load.loaded_at.isoformat(timespec="seconds")
+    )
+    _status = mo.md(
+        f"3상 불평형 결과 {len(unbalance_load.results)}건 · 마지막 성공 읽기 {_loaded}"
+        + (f" · 새 결과 {unbalance_load.added}건" if unbalance_load.added else "")
+        + f"  \n`{phase_unbalance_state_path}`"
+    )
+    _blocks = [mo.hstack([analysis_refresh_button, _status], justify="start", align="center")]
+    if unbalance_load.error:
+        _blocks.append(
+            mo.callout(
+                f"결과 저장소를 다시 읽지 못했습니다: {unbalance_load.error}. "
+                "표시 중인 결과는 마지막 성공 읽기 기준입니다.",
+                kind="danger",
+                title="Analysis results · Refresh failed",
+            )
+        )
+    analysis_refresh_view = mo.vstack(_blocks, gap=0.4)
+    return (analysis_refresh_view,)
 
 
 @app.cell
@@ -4954,25 +5082,27 @@ def _(
     get_unbalance_selected,
     mo,
     phase_unbalance_run_options,
+    retained_option,
+    set_unbalance_selected,
     unbalance_results,
 ):
     unbalance_run_selector = None
     if asset_selector is not None:
         _options = phase_unbalance_run_options(unbalance_results, asset_selector.value)
         if _options:
-            _selected = get_unbalance_selected()
-            _label = next(
-                (label for label, run_id in _options.items() if run_id == _selected),
-                next(iter(_options)),
-            )
             unbalance_run_selector = mo.ui.dropdown(
-                options=_options, value=_label, label="분석 기록", full_width=True
+                options=_options,
+                value=retained_option(_options, get_unbalance_selected()),
+                label="분석 기록",
+                full_width=True,
+                on_change=set_unbalance_selected,
             )
     return (unbalance_run_selector,)
 
 
 @app.cell
 def _(
+    analysis_refresh_view,
     get_unbalance_error,
     mo,
     phase_unbalance_exclusion_rows,
@@ -4991,7 +5121,8 @@ def _(
             "(최대 상 편차 / 3상 평균)을 계산합니다. 서술적 전력 품질 측정값이며 고장·건강 상태·"
             "alarm 판정이 아닙니다. 의미가 확정되지 않았거나 정지 구간인 시각은 "
             "사유별로 제외합니다."
-        )
+        ),
+        analysis_refresh_view,
     ]
     if unbalance_controls_error:
         _blocks.append(mo.callout(unbalance_controls_error, kind="danger"))
