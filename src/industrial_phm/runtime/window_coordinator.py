@@ -23,6 +23,7 @@ from industrial_phm.application.observation_window import (
     ObservationWindowIngestResult,
     ObservationWindowRepository,
 )
+from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
 from industrial_phm.application.source_registration import (
     OpcUaSourceConfig,
     SourceRepository,
@@ -338,7 +339,7 @@ class IncrementalRegisteredOpcUaWindowCoordinator:
 
     def _process_event(
         self,
-        event,
+        event: OpcUaPersistentDataChangeEvent,
         *,
         finalized: list[DurableObservationWindow],
         event_results: list[ObservationWindowIngestResult],
