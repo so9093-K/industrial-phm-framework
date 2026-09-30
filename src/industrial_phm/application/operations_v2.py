@@ -7,7 +7,7 @@ verdicts.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -339,10 +339,9 @@ def _source_stage(
     else:
         status = OperationsMonitorStatus.UNAVAILABLE
         summary = "Current source timing is unavailable"
-    latest = max(
-        (_latest_source_data_at(item, surfaces.get(item.source_id))
-         for item in overview.source_health_assessments),
-        default=None,
+    latest = _latest_time(
+        _latest_source_data_at(item, surfaces.get(item.source_id))
+        for item in overview.source_health_assessments
     )
     return OperationsMonitorStage(
         OperationsMonitorStageKind.SOURCE,
@@ -543,13 +542,9 @@ def _asset_rows(
             _source_status(item, surfaces.get(item.source_id)) for item in asset_health
         )
         status = _aggregate_asset_status(source_statuses, bool(asset_sources))
-        source_ids = {source.source_id for source in asset_sources}
-        last_data = max(
-            (
-                _latest_source_data_at(item, surfaces.get(item.source_id))
-                for item in asset_health
-            ),
-            default=None,
+        last_data = _latest_time(
+            _latest_source_data_at(item, surfaces.get(item.source_id))
+            for item in asset_health
         )
         latest_analysis = max(
             (run.completed_at for run in runs if run.asset_id == asset_id),
@@ -566,7 +561,6 @@ def _asset_rows(
                 attention_count=sum(item.asset_id == asset_id for item in attention),
             )
         )
-        del source_ids
     return tuple(rows)
 
 
@@ -714,7 +708,7 @@ def _source_status(
     if health.data_flow_state == SourceDataFlowState.INACTIVE:
         return OperationsMonitorStatus.STOPPED
     if health.data_flow_state == SourceDataFlowState.FRESHNESS_NOT_CONFIGURED:
-        return OperationsMonitorStatus.RUNNING
+        return OperationsMonitorStatus.UNAVAILABLE
     return OperationsMonitorStatus.UNAVAILABLE
 
 
@@ -808,6 +802,11 @@ def _activities(
             )
         )
     return tuple(sorted(values, key=_activity_sort_key)[:limit])
+
+
+def _latest_time(values: Iterable[datetime | None]) -> datetime | None:
+    available = tuple(value for value in values if value is not None)
+    return max(available, default=None)
 
 
 def _validate_global_spool_snapshot(
