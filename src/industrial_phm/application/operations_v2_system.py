@@ -11,6 +11,7 @@ from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetr
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operations_attention import SystemStateErrorEvidence
 from industrial_phm.application.operations_v2 import (
+    OperationsMonitorStage,
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     OperationsMonitorView,
@@ -167,7 +168,7 @@ def build_system_runtime_view(
 
 
 def _acquisition_service(
-    stage,
+    stage: OperationsMonitorStage,
     sources: Sequence[RegisteredSource],
     surfaces: Sequence[AcquisitionTelemetrySurface],
 ) -> SystemRuntimeService:
@@ -234,7 +235,7 @@ def _acquisition_service(
 
 
 def _history_service(
-    stage,
+    stage: OperationsMonitorStage,
     surfaces: Sequence[AcquisitionTelemetrySurface],
 ) -> SystemRuntimeService:
     latest_commit = max(
@@ -254,7 +255,10 @@ def _history_service(
         summary=stage.summary,
         updated_at=latest_commit,
         facts=(
-            SystemRuntimeFact("Waiting to store", "Unavailable" if pending is None else str(pending)),
+            SystemRuntimeFact(
+                "Waiting to store",
+                "Unavailable" if pending is None else str(pending),
+            ),
             SystemRuntimeFact(
                 "Oldest waiting age",
                 "None" if oldest_age is None else f"{oldest_age:.1f} s",
@@ -265,7 +269,7 @@ def _history_service(
 
 
 def _analysis_service(
-    stage,
+    stage: OperationsMonitorStage,
     surfaces: Sequence[AcquisitionTelemetrySurface],
     runtime: WindowAnalysisRunnerTelemetry | None,
 ) -> SystemRuntimeService:
@@ -340,7 +344,10 @@ def _application_service(
     )
 
 
-def _stage(monitor: OperationsMonitorView, kind: OperationsMonitorStageKind):
+def _stage(
+    monitor: OperationsMonitorView,
+    kind: OperationsMonitorStageKind,
+) -> OperationsMonitorStage:
     return next(item for item in monitor.stages if item.kind == kind)
 
 
