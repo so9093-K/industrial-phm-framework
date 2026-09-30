@@ -19,8 +19,8 @@ pytest.importorskip("filelock")
 from industrial_phm.application import (
     CollectionDesiredState,
     JsonPhaseUnbalanceRepository,
-    SqliteObservationWindowRepository,
     JsonSourceRepository,
+    SqliteObservationWindowRepository,
     WindowInputReference,
     request_collection_state,
     window_input_reference,
@@ -120,7 +120,8 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
                 requested_at=datetime.now(UTC),
             )
             _wait(
-                lambda: root.joinpath("windows.sqlite").exists() and len(windows.list_windows()) >= 2
+                lambda: root.joinpath("windows.sqlite").exists()
+                and len(windows.list_windows()) >= 2
             )
             assert collector.poll() is None
 
