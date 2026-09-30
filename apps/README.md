@@ -53,10 +53,16 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 ### Operations V2 preview
 
 V2는 기존 state를 다시 쓰지 않고 현재 source/runtime/acquisition/analysis/review evidence를 읽어
-**Monitor / Assets / Investigations / Maintenance / System / Setup** 구조를 먼저 검증합니다.
-메인 배경은 `#292827`이며 현재 foundation 단계에서는 **Monitor**가 실제 read model에 연결돼 있고
-나머지 workspace는 후속 마이그레이션 surface입니다. 기존 등록·수집·분석·review action은
+**Monitor / Assets / Investigations / Maintenance / System / Setup** 구조를 검증합니다.
+메인 배경은 `#292827`입니다. 현재 **Monitor**와 **Assets**가 실제 read model에 연결돼 있고,
+Investigations 이후 workspace는 후속 마이그레이션 surface입니다. 기존 등록·수집·분석·review action은
 `apps/operations.py`를 계속 사용합니다.
+
+**Assets**는 Monitor evidence와 DuckLake history asset의 합집합을 보여줍니다. Asset을 고르면
+Overview / Signals / Analysis / Events / Maintenance로 같은 설비 문맥을 유지합니다. Signals는 기존
+Asset History 의미를 그대로 사용해 15분 raw 관측(최대 최근 2,000개), 24시간·7일 전체 기간 UI 집계,
+선택 channel의 latest stored value를 표시합니다. History-only asset은 live 상태를 추론하지 않으며,
+history query 실패도 다른 Asset evidence 화면까지 막지 않습니다.
 
 기존 Operations와 같은 환경변수를 사용한 뒤 다음처럼 실행합니다.
 
