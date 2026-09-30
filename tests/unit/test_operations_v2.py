@@ -279,14 +279,11 @@ def _live_surface(source_id: str, *, last_received_at: datetime):
     )
 
 
-def test_connected_session_without_new_data_beyond_its_policy_is_delayed() -> None:
-    # Found in Phase 10: a wedged collector stayed CONNECTED for 11 minutes without
-    # data while Monitor reported every stage as receiving data.
-    source, overview = _overview(observed_at=NOW - timedelta(hours=2), max_age_seconds=30)
-    policy = SourceFreshnessPolicy(
-        source_id=source.source_id,
-        max_observation_age_seconds=30,
-        changed_at=NOW - timedelta(hours=1),
+def test_connected_session_silence_is_distinct_from_observation_freshness() -> None:
+    # Observation freshness and platform receive silence are different facts.
+    source, overview = _overview(
+        observed_at=NOW - timedelta(seconds=5),
+        max_age_seconds=3600,
     )
     silent = _live_surface(source.source_id, last_received_at=NOW - timedelta(minutes=11))
 
@@ -295,7 +292,6 @@ def test_connected_session_without_new_data_beyond_its_policy_is_delayed() -> No
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(silent,),
-        freshness_policies=(policy,),
         as_of=NOW,
     )
 
@@ -311,18 +307,18 @@ def test_connected_session_without_new_data_beyond_its_policy_is_delayed() -> No
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(fresh,),
-        freshness_policies=(policy,),
         as_of=NOW,
     )
     assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
     assert monitor.attention == ()
 
-    # Without a policy nothing is claimed about an unchanged-value source.
     monitor = build_operations_monitor_view(
         sources=(source,),
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(silent,),
+        live_flow_silence_timeout=timedelta(minutes=20),
         as_of=NOW,
     )
     assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
+    assert monitor.attention == ()
