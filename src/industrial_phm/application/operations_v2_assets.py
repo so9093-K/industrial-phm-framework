@@ -6,7 +6,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
-from industrial_phm.application.asset_detail import AssetDetail, AssetEvidenceEventKind
+from industrial_phm.application.acquisition_telemetry import AcquisitionTelemetrySurface
+from industrial_phm.application.asset_detail import AssetDetail, AssetEvidenceEvent, AssetEvidenceEventKind
 from industrial_phm.application.maintenance_review import (
     FindingReviewStatus,
     finding_review_status,
@@ -16,8 +17,9 @@ from industrial_phm.application.operational import OperationalAnalysisResult
 from industrial_phm.application.operations_v2 import (
     OperationsMonitorAsset,
     OperationsMonitorStatus,
+    latest_source_data_at,
+    source_monitor_status,
 )
-from industrial_phm.application.source_health import SourceDataFlowState
 from industrial_phm.application.source_registration import SourceType
 
 
@@ -218,6 +220,7 @@ def build_asset_workspace_view(
     monitor_asset: OperationsMonitorAsset | None = None,
     history_summary: HistoryAssetSummary | None = None,
     history_channels: Sequence[str] = (),
+    acquisition_surfaces: Sequence[AcquisitionTelemetrySurface] = (),
 ) -> AssetWorkspaceView:
     """Translate one asset's evidence into the V2 workspace vocabulary."""
 
@@ -237,7 +240,17 @@ def build_asset_workspace_view(
         if history_summary.asset_id != asset_id:
             raise ValueError("history_summary must match asset_id")
 
-    result_values = tuple(analysis_results)
+    surface_values = tuple(acquisition_surfaces)
+    if any(not isinstance(item, AcquisitionTelemetrySurface) for item in surface_values):
+        raise ValueError("acquisition_surfaces contains an unsupported value")
+    surface_by_source = {item.source.source_id: item for item in surface_values}
+    if len(surface_by_source) != len(surface_values):
+        raise ValueError("acquisition_surfaces must contain unique source ids")
+    detail_source_ids = {item.source.source_id for item in detail.source_contexts}
+    if not set(surface_by_source).issubset(detail_source_ids):
+        raise ValueError("acquisition_surfaces must belong to this asset detail")
+
+        result_values = tuple(analysis_results)
     if any(not isinstance(item, OperationalAnalysisResult) for item in result_values):
         raise ValueError("analysis_results must contain OperationalAnalysisResult values")
     asset_results = tuple(item for item in result_values if item.run.asset_id == asset_id)
@@ -301,8 +314,14 @@ def build_asset_workspace_view(
                     source_id=context.source.source_id,
                     name=context.source.name,
                     source_type=context.source.source_type,
-                    status=_source_status(context.health.data_flow_state),
-                    last_data_at=context.health.latest_received_at,
+                    status=source_monitor_status(
+                        context.health,
+                        surface_by_source.get(context.source.source_id),
+                    ),
+                    last_data_at=latest_source_data_at(
+                        context.health,
+                        surface_by_source.get(context.source.source_id),
+                    ),
                     measurement_point_id=context.source.measurement_point_id,
                     channel_count=len(context.source.channel_identities),
                 )
@@ -320,7 +339,7 @@ def build_asset_workspace_view(
                     kind=event.kind,
                     title=_event_title(event.kind),
                     occurred_at=event.event_at,
-                    detail=event.detail,
+                    detail=_event_detail(event),
                 )
                 for event in (*detail.timeline.events, *detail.timeline.unplaced_events)
             ),
@@ -360,20 +379,6 @@ def build_asset_workspace_view(
     )
 
 
-def _source_status(state: SourceDataFlowState) -> OperationsMonitorStatus:
-    if state == SourceDataFlowState.SOURCE_ERROR:
-        return OperationsMonitorStatus.ERROR
-    if state == SourceDataFlowState.STALE:
-        return OperationsMonitorStatus.DELAYED
-    if state == SourceDataFlowState.NO_RECEIPT:
-        return OperationsMonitorStatus.WAITING
-    if state == SourceDataFlowState.FRESH:
-        return OperationsMonitorStatus.RUNNING
-    if state == SourceDataFlowState.INACTIVE:
-        return OperationsMonitorStatus.STOPPED
-    return OperationsMonitorStatus.UNAVAILABLE
-
-
 def _aggregate_source_status(
     statuses: Sequence[OperationsMonitorStatus],
 ) -> OperationsMonitorStatus:
@@ -388,6 +393,20 @@ def _aggregate_source_status(
     if OperationsMonitorStatus.STOPPED in statuses:
         return OperationsMonitorStatus.STOPPED
     return OperationsMonitorStatus.UNAVAILABLE
+
+
+def _event_detail(event: AssetEvidenceEvent) -> str | None:
+    if event.detail:
+        return event.detail
+    if event.capability_id is not None:
+        return event.capability_id
+    if event.analysis_run_id is not None:
+        return f"Analysis {event.analysis_run_id}"
+    if event.finding_id is not None:
+        return f"Review {event.finding_id}"
+    if event.source_id is not None:
+        return event.source_id
+    return None
 
 
 def _event_title(kind: AssetEvidenceEventKind) -> str:
