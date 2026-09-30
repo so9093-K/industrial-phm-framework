@@ -366,7 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="analyze each finalized live observation window once (three-phase unbalance)",
     )
     operations_window_analysis.add_argument(
-        "--window-state", type=Path, required=True, help="finalized window JSON path"
+        "--window-state", type=Path, required=True, help="finalized window SQLite path"
     )
     operations_window_analysis.add_argument(
         "--analysis-state",
@@ -378,7 +378,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--ledger-state",
         type=Path,
         required=True,
-        help="JSON path remembering windows that cannot be analyzed",
+        help="SQLite skip ledger and incremental analysis cursor path",
     )
     operations_window_analysis.add_argument(
         "--runtime-status",
