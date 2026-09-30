@@ -190,6 +190,7 @@ from industrial_phm.application.operations_overview import (
     build_operations_overview,
 )
 from industrial_phm.application.operations_v2 import (
+    LiveDataTiming,
     OperationsActivityItem,
     OperationsActivityKind,
     OperationsMonitorAsset,
@@ -416,6 +417,7 @@ __all__ = [
     "JsonSourceRuntimeRepository",
     "JsonWindowAnalysisLedger",
     "JsonWindowAnalysisRuntimeRepository",
+    "LiveDataTiming",
     "MaintenanceQueueItem",
     "MaintenanceQueueView",
     "MaintenanceReviewTimelineItem",

@@ -27,6 +27,7 @@ from industrial_phm.application.operations_attention import (
     OperationsAttentionQueue,
 )
 from industrial_phm.application.operations_overview import OperationsOverview
+from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_health import (
     SourceDataFlowState,
     SourceHealthAssessment,
@@ -210,9 +211,14 @@ def build_operations_monitor_view(
     analysis_runs: Sequence[AnalysisRun] = (),
     analysis_runtime: WindowAnalysisRunnerTelemetry | None = None,
     analysis_heartbeat_timeout: timedelta = timedelta(seconds=20),
+    freshness_policies: Sequence[SourceFreshnessPolicy] = (),
     as_of: datetime,
 ) -> OperationsMonitorView:
-    """Build the V2 landing-page model from already-loaded operational evidence."""
+    """Build the V2 landing-page model from already-loaded operational evidence.
+
+    A connected live session is only "receiving data" while its last data is within
+    the source's data-age policy; without a policy no staleness is claimed.
+    """
 
     _require_aware(as_of, "as_of")
     if not isinstance(overview, OperationsOverview):
@@ -254,6 +260,11 @@ def build_operations_monitor_view(
     if len(set(run_ids)) != len(run_ids):
         raise ValueError("analysis_runs must contain unique analysis ids")
 
+    policy_values = tuple(freshness_policies)
+    if any(not isinstance(item, SourceFreshnessPolicy) for item in policy_values):
+        raise ValueError("freshness_policies must contain only SourceFreshnessPolicy values")
+    timing = LiveDataTiming({item.source_id: item for item in policy_values}, as_of)
+
     surface_by_source = {item.source.source_id: item for item in surface_values}
     source_by_id = {item.source_id: item for item in source_values}
     health_by_source = {item.source_id: item for item in overview.source_health_assessments}
@@ -266,9 +277,10 @@ def build_operations_monitor_view(
         analysis_runtime,
         analysis_heartbeat_timeout,
         as_of,
+        timing,
     )
     stages = (
-        _source_stage(overview, surface_by_source),
+        _source_stage(overview, surface_by_source, timing),
         _collection_stage(overview, surface_values),
         _storage_stage(surface_values),
         _analysis_stage(
@@ -285,6 +297,7 @@ def build_operations_monitor_view(
         monitor_attention,
         runs,
         surface_by_source,
+        timing,
     )
     activities = _activities(monitor_attention, runs, limit=12)
     return OperationsMonitorView(
@@ -299,6 +312,7 @@ def build_operations_monitor_view(
 def _source_stage(
     overview: OperationsOverview,
     surfaces: dict[str, AcquisitionTelemetrySurface],
+    timing: LiveDataTiming,
 ) -> OperationsMonitorStage:
     total = overview.registered_source_count
     if total == 0:
@@ -310,7 +324,7 @@ def _source_stage(
             count=0,
         )
     statuses = tuple(
-        source_monitor_status(item, surfaces.get(item.source_id))
+        source_monitor_status(item, surfaces.get(item.source_id), timing=timing)
         for item in overview.source_health_assessments
     )
     errors = statuses.count(OperationsMonitorStatus.ERROR)
@@ -322,7 +336,7 @@ def _source_stage(
         summary = f"{errors} source(s) have a current data-flow failure"
     elif delayed:
         status = OperationsMonitorStatus.DELAYED
-        summary = f"{delayed} source(s) delayed"
+        summary = f"{delayed} source(s) with no new data within their data-age limit"
     elif running:
         status = OperationsMonitorStatus.RUNNING
         summary = f"{running} of {total} source(s) receiving data"
@@ -509,6 +523,7 @@ def _asset_rows(
     attention: Sequence[OperationsMonitorAttention],
     runs: Sequence[AnalysisRun],
     surfaces: dict[str, AcquisitionTelemetrySurface],
+    timing: LiveDataTiming,
 ) -> tuple[OperationsMonitorAsset, ...]:
     asset_ids = {source.asset_id for source in sources}
     asset_ids.update(run.asset_id for run in runs)
@@ -530,7 +545,8 @@ def _asset_rows(
             if source.source_id in health_by_source
         )
         source_statuses = tuple(
-            source_monitor_status(item, surfaces.get(item.source_id)) for item in asset_health
+            source_monitor_status(item, surfaces.get(item.source_id), timing=timing)
+            for item in asset_health
         )
         status = _aggregate_asset_status(source_statuses, bool(asset_sources))
         last_data = _latest_time(
@@ -562,6 +578,7 @@ def _monitor_attention(
     runtime: WindowAnalysisRunnerTelemetry | None,
     timeout: timedelta,
     as_of: datetime,
+    timing: LiveDataTiming,
 ) -> tuple[OperationsMonitorAttention, ...]:
     values: list[OperationsMonitorAttention] = []
     source_kinds = {
@@ -573,16 +590,37 @@ def _monitor_attention(
         if item.kind in source_kinds and item.source_id is not None:
             source_health = health.get(item.source_id)
             surface = surfaces.get(item.source_id)
+            # Live session timing supersedes older one-shot receipt attention;
+            # an overdue live session gets its own "No new data" item below.
             if (
                 source_health is not None
                 and surface is not None
-                and source_monitor_status(source_health, surface) == OperationsMonitorStatus.RUNNING
+                and source_monitor_status(source_health, surface, timing=timing)
+                in (OperationsMonitorStatus.RUNNING, OperationsMonitorStatus.DELAYED)
+                and surface.source.session is not None
+                and surface.source.session.state == OpcUaPersistentSessionState.CONNECTED
             ):
                 continue
         values.append(_project_existing_attention(item, sources))
 
     for source_id, surface in surfaces.items():
         source = sources[source_id]
+        overdue = timing.overdue(surface)
+        if overdue is not None and surface.source.flow is not None:
+            age, limit = overdue
+            values.append(
+                OperationsMonitorAttention(
+                    attention_id=f"live-data:overdue:{source_id}",
+                    status=OperationsMonitorStatus.DELAYED,
+                    title="No new data",
+                    detail=(
+                        f"{source.name}: connected, but the last data arrived "
+                        f"{_duration_text(age)} ago (limit {_duration_text(limit)})."
+                    ),
+                    occurred_at=surface.source.flow.last_received_at,
+                    asset_id=source.asset_id,
+                )
+            )
         for component, title in (
             (AcquisitionFailureComponent.OPCUA_WORKER, "Collection needs attention"),
             (AcquisitionFailureComponent.HISTORY_WRITER, "History storage needs attention"),
@@ -674,9 +712,36 @@ def _project_existing_attention(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class LiveDataTiming:
+    """Source data-age policies applied to live flow telemetry at one assessment time."""
+
+    policies: dict[str, SourceFreshnessPolicy]
+    as_of: datetime
+
+    def overdue(self, surface: AcquisitionTelemetrySurface) -> tuple[timedelta, timedelta] | None:
+        """Age and limit when a connected session's last data exceeds its policy."""
+        policy = self.policies.get(surface.source.source_id)
+        session = surface.source.session
+        flow = surface.source.flow
+        if (
+            policy is None
+            or session is None
+            or session.state != OpcUaPersistentSessionState.CONNECTED
+            or flow is None
+            or flow.last_received_at is None
+        ):
+            return None
+        age = self.as_of - flow.last_received_at
+        limit = timedelta(seconds=policy.max_observation_age_seconds)
+        return (age, limit) if age > limit else None
+
+
 def source_monitor_status(
     health: SourceHealthAssessment,
     surface: AcquisitionTelemetrySurface | None = None,
+    *,
+    timing: LiveDataTiming | None = None,
 ) -> OperationsMonitorStatus:
     """Translate current source evidence into the shared operator-facing state."""
     if surface is not None:
@@ -685,6 +750,8 @@ def source_monitor_status(
         session = surface.source.session
         flow = surface.source.flow
         if session is not None and session.state == OpcUaPersistentSessionState.CONNECTED:
+            if timing is not None and timing.overdue(surface) is not None:
+                return OperationsMonitorStatus.DELAYED
             if flow is not None and flow.accepted_event_count > 0:
                 return OperationsMonitorStatus.RUNNING
             return OperationsMonitorStatus.WAITING
@@ -794,6 +861,15 @@ def _activities(
             )
         )
     return tuple(sorted(values, key=_activity_sort_key)[:limit])
+
+
+def _duration_text(value: timedelta) -> str:
+    seconds = int(value.total_seconds())
+    if seconds < 120:
+        return f"{seconds}s"
+    if seconds < 7200:
+        return f"{seconds // 60}m"
+    return f"{seconds // 3600}h {seconds % 3600 // 60}m"
 
 
 def _latest_time(values: Iterable[datetime | None]) -> datetime | None:

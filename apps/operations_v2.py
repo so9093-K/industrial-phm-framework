@@ -29,6 +29,7 @@ def _():
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
+        LiveDataTiming,
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
@@ -138,6 +139,7 @@ def _():
         AcquisitionTelemetrySurface,
         AssetIdentity,
         ChannelSemanticBinding,
+        LiveDataTiming,
         CollectionDesiredState,
         DuckLakeAssetHistory,
         DuckLakeAssetHistoryConfig,
@@ -273,6 +275,7 @@ def _(
     JsonSourceRuntimeRepository,
     AcquisitionTelemetrySurface,
     JsonWindowAnalysisRuntimeRepository,
+    LiveDataTiming,
     Path,
     SourceType,
     SqliteAcquisitionSpool,
@@ -576,7 +579,11 @@ def _(
         acquisition_surfaces=tuple(acquisition_surfaces),
         analysis_runs=analysis_runs,
         analysis_runtime=analysis_runtime,
+        freshness_policies=freshness_policies,
         as_of=assessed_at,
+    )
+    live_data_timing = LiveDataTiming(
+        {item.source_id: item for item in freshness_policies}, assessed_at
     )
 
     system_diagnostics = (
@@ -608,6 +615,7 @@ def _(
         history_assets,
         history_reader,
         lifecycle_records,
+        live_data_timing,
         monitor,
         overview,
         registered_sources,
@@ -1721,6 +1729,7 @@ def _(
     findings,
     history_assets,
     history_reader,
+    live_data_timing,
     monitor,
     navigation,
     overview,
@@ -1767,6 +1776,7 @@ def _(
                 history_summary=_history_summary,
                 history_channels=_history_channels,
                 acquisition_surfaces=_asset_surfaces,
+                live_data_timing=live_data_timing,
             )
         except Exception as error:
             asset_workspace_error = str(error)
