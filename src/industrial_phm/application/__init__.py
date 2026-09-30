@@ -328,13 +328,13 @@ from industrial_phm.application.source_subscription import (
     collect_registered_opcua_source_subscription,
     run_registered_opcua_subscription_cycle,
 )
+from industrial_phm.application.window_analysis_ledger_sqlite import (
+    SqliteWindowAnalysisLedger,
+)
 from industrial_phm.application.window_analysis_runtime import (
     JsonWindowAnalysisRuntimeRepository,
     WindowAnalysisRunnerState,
     WindowAnalysisRunnerTelemetry,
-)
-from industrial_phm.application.window_analysis_ledger_sqlite import (
-    SqliteWindowAnalysisLedger,
 )
 from industrial_phm.application.window_coordinator import (
     ContinuousObservationWindowCoordinatorResult,
