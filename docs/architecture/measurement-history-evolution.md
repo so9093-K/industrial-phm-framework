@@ -179,9 +179,8 @@ its analysis eligibility, exclusions, expected outputs and verification fixture 
 analysis action. Do not integrate power into energy across unknown gaps/cadence or manufacture
 power-quality metrics from unspecified source averages.
 
-The next live-analysis milestone connects existing durable Window input to a versioned, reproducible
-AnalysisRun and capability evidence, then explicit human Review Finding → Investigation → Maintenance
-Review. COMPLETE channel coverage alone does not prove synchronized or analysis-ready input. Bind
-input snapshot/window IDs, quality exclusions, algorithm/config version and observed scope before
-producing evidence. Validated diagnostics, alarm rationalization, fleet risk, operational RUL and
-maintenance recommendations remain separate capabilities requiring their own evidence.
+Any live-analysis path must connect durable Window input to versioned, reproducible AnalysisRun and
+capability evidence without treating COMPLETE channel coverage as synchronized or analysis-ready input.
+Bind input snapshot/window IDs, quality exclusions, algorithm/config version and observed scope before
+producing evidence. Diagnostics, alarm rationalization, fleet risk, operational RUL and maintenance
+recommendations remain separate capabilities requiring their own evidence.
