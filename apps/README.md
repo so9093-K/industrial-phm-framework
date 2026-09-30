@@ -54,10 +54,11 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 
 V2는 현재 source/runtime/acquisition/analysis/review evidence를 읽어
 **Monitor / Assets / Investigations / Maintenance / System / Setup** 구조를 검증합니다.
-메인 배경은 `#292827`입니다. 현재 **Monitor / Assets / Investigations**가 실제 read model에 연결돼
-있습니다. Investigations에서는 저장된 analysis evidence에 대해 사용자가 명시적으로 **Request review**를
-누를 때만 human-review finding을 기록합니다. 이 action은 fault/alarm/health/maintenance 판단을 만들지
-않습니다. Source 등록·수집·분석 실행과 Maintenance review 변경은 아직 `apps/operations.py`가 소유합니다.
+메인 배경은 `#292827`입니다. 현재 **Monitor / Assets / Investigations / Maintenance**가 실제 read model과
+연결돼 있습니다. Investigations에서는 저장된 analysis evidence에 대해 사용자가 명시적으로 **Request review**를
+누를 때만 human-review finding을 기록합니다. Maintenance는 그 finding을 Open / Acknowledged / Closed 업무
+queue로 이어 받아 note / acknowledge / close action을 기록합니다. 이 workflow는 fault/alarm/health/repair/CMMS
+판단을 만들지 않습니다. Source 등록·수집·분석 실행은 아직 `apps/operations.py`가 소유합니다.
 
 **Assets**는 Monitor evidence와 DuckLake history asset의 합집합을 보여줍니다. Asset을 고르면
 Overview / Signals / Analysis / Events / Maintenance로 같은 설비 문맥을 유지합니다. Signals는 기존
@@ -71,6 +72,12 @@ history query 실패도 다른 Asset evidence 화면까지 막지 않습니다.
 검토하고, run/evidence/finding ID와 provenance는 detail/accordion으로 내려 progressive disclosure합니다.
 Three-phase unbalance는 summary·trend·제외 사유·provenance를, FILE vibration feature는 exact snapshot
 feature evidence를 표시합니다.
+
+**Maintenance**는 review finding을 Status / Asset으로 필터링하고 selected review의 요청 시각, 현재 workflow
+상태, note 수, append-only action timeline을 보여줍니다. Open은 note/acknowledge, Acknowledged는
+note/close를 허용하며 Closed는 추가 event를 받지 않습니다. Maintenance에서 변경한 review state는 같은
+V2 session의 Investigations에도 즉시 반영됩니다. Finding/run ID는 primary queue가 아니라 Review identity
+detail에 둡니다.
 
 기존 Operations와 같은 환경변수를 사용한 뒤 다음처럼 실행합니다.
 
