@@ -116,6 +116,7 @@ def test_setup_workspace_rejects_collection_for_unknown_source() -> None:
             source_path="data/snapshot.csv",
             asset_id="motor-01",
             channel_columns=("velocity",),
+            sampling_rate_hz=1.0,
         ),
         registered_at=NOW,
     )
