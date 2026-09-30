@@ -40,7 +40,7 @@ def test_queue_option_uses_user_label_but_keeps_identity() -> None:
     assert "boiler-01" in label
     assert "Three-phase unbalance" in label
     assert "Open" in label
-    assert "run-1" in label
+    assert "run-1" not in label
 
 
 def test_summary_and_evidence_identity_keep_progressive_disclosure() -> None:
