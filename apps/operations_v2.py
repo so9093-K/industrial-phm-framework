@@ -628,18 +628,15 @@ def _(
                     mo.ui.table(
                         [
                             {
-                                key: row[key]
-                                for key in (
-                                    "source",
-                                    "measurement_point",
-                                    "time",
-                                    "value",
-                                    "unit",
-                                    "quality",
-                                    "source_quality",
-                                    "event_time_state",
-                                    "history_age_seconds",
-                                )
+                                "Source": row["source"],
+                                "Point": row["measurement_point"],
+                                "Time": row["time"],
+                                "Value": row["value"],
+                                "Unit": row["unit"],
+                                "Quality": row["quality"],
+                                "Source quality": row["source_quality"],
+                                "Time state": row["event_time_state"],
+                                "History age (s)": row["history_age_seconds"],
                             }
                             for row in _latest_rows
                         ],
