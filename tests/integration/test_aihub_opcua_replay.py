@@ -135,7 +135,7 @@ def test_server_keeps_unpublished_channel_non_good_until_first_record(tmp_path):
                 await asyncio.sleep(0.05)
             async with asyncua.Client(endpoint) as client:
                 node = client.get_node(aihub_replay.node_id("R상전압"))
-                value = await node.read_data_value()
+                value = await node.read_data_value(raise_on_bad_status=False)
         finally:
             stop.set()
             await server
