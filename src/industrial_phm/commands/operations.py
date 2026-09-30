@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 from industrial_phm.application import (
@@ -203,7 +204,11 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
         return 1
 
 
-def _try_record_window_analysis_runtime(callback, *args, **kwargs) -> None:
+def _try_record_window_analysis_runtime(
+    callback: Callable[..., object],
+    *args: object,
+    **kwargs: object,
+) -> None:
     """Keep telemetry failure separate from the analysis data-plane outcome."""
     try:
         callback(*args, **kwargs)
