@@ -916,25 +916,32 @@ def _(
     else:
         investigation_selector = None
     investigation_filtered_count = len(_filtered_investigations)
-    return investigation_filtered_count, investigation_selector
+    investigation_selected_id = (
+        None
+        if investigation_selector is None
+        else _label_to_id[investigation_selector.value]
+    )
+    return (
+        investigation_filtered_count,
+        investigation_selected_id,
+        investigation_selector,
+    )
 
 
 @app.cell
 def _(
     analysis_results,
     investigation_queue,
-    investigation_selector,
-    investigation_queue_option_label,
+    investigation_selected_id,
 ):
     selected_investigation = None
     selected_investigation_result = None
-    if investigation_selector is not None:
-        _selected_label = investigation_selector.value
+    if investigation_selected_id is not None:
         selected_investigation = next(
             (
                 item
                 for item in investigation_queue.items
-                if investigation_queue_option_label(item) == _selected_label
+                if item.investigation_id == investigation_selected_id
             ),
             None,
         )
@@ -1012,7 +1019,6 @@ def _(
     OperationalAnalysisPresentationKind,
     investigation_asset_filter,
     investigation_capability_filter,
-    investigation_filtered_count,
     investigation_filtered_count,
     investigation_queue,
     investigation_review_filter,
