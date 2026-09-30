@@ -27,15 +27,18 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 
 ### Operations
 
-현장 데이터와 PHM 결과를 다루는 운영 UI입니다.
+현장 데이터와 PHM 근거를 다루는 운영 UI입니다. 현재 기본 진입점은
+`apps/operations_v2.py`입니다.
 
-- **Sources** — FILE/OPC UA 데이터 연결과 관측
-- **Assets** — 설비별 측정 이력·관측점 추세·품질과 출처 확인
-- **Investigation** — 분석 결과와 evidence 검토
-- **Maintenance Review** — review finding의 확인·메모·acknowledge·close
-- **Operational State** — 기록된 운영 상태와 evidence 확인
+- **Monitor** — 수집·저장·분석·검토 흐름과 지금 확인할 항목
+- **Assets** — 설비별 현재 데이터, Signals, Analysis, Events, Maintenance
+- **Investigations** — 저장된 분석 evidence와 사람의 review 요청
+- **Maintenance** — Open / Acknowledged / Closed review 업무
+- **System** — 수집·저장·분석 runtime과 state-read 상태
+- **Setup** — FILE/OPC UA 연결, signal mapping, measurement meaning과 collection intent
 
-외부 데이터가 없어도 bundled demo source로 같은 흐름을 확인할 수 있습니다.
+설정과 진단 정보는 primary 운영 흐름에서 분리하고, NodeId·state path 같은 세부 정보는 필요한
+경우에만 Setup/System의 advanced 영역에서 확인합니다.
 
 ### Analysis Explorer
 
