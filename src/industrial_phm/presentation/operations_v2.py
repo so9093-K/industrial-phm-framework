@@ -31,6 +31,36 @@ def operations_v2_theme_css() -> str:
 
     return f"""
 <style>
+/* marimo colours every widget through light-dark() switches keyed on these
+   properties and defaults to its light theme; pin its dark palette so the V2
+   background never sits behind light-theme surfaces or text. */
+:root:root, .marimo {{
+  --csstools-color-scheme--light: ;
+  --lightningcss-light: ;
+  --lightningcss-dark: initial;
+  --background: {OPERATIONS_V2_MAIN_BACKGROUND};
+  color-scheme: dark;
+}}
+/* Markdown prose switches to its inverted palette only under a .dark class. */
+.markdown.prose {{
+  --tw-prose-body: #f2f1ef;
+  --tw-prose-headings: #f2f1ef;
+  --tw-prose-lead: #aaa7a2;
+  --tw-prose-links: #8caac5;
+  --tw-prose-bold: #f2f1ef;
+  --tw-prose-counters: #aaa7a2;
+  --tw-prose-bullets: #aaa7a2;
+  --tw-prose-hr: rgba(255,255,255,.08);
+  --tw-prose-quotes: #f2f1ef;
+  --tw-prose-quote-borders: rgba(255,255,255,.08);
+  --tw-prose-captions: #aaa7a2;
+  --tw-prose-code: #f2f1ef;
+  --tw-prose-th-borders: rgba(255,255,255,.14);
+  --tw-prose-td-borders: rgba(255,255,255,.08);
+}}
+.markdown.prose tr {{
+  background: transparent !important;
+}}
 :root {{
   color-scheme: dark;
   --phm-bg: {OPERATIONS_V2_MAIN_BACKGROUND};
