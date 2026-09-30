@@ -1008,6 +1008,7 @@ def _(
                         _source.source_id,
                     )
                 elif isinstance(_source.config, OpcUaSourceConfig):
+
                     def _run_opcua_cycle():
                         return asyncio.run(
                             run_registered_opcua_source_cycle(
@@ -1068,11 +1069,7 @@ def _(
                 set_setup_diagnostic_success("")
                 set_setup_diagnostic_error(_result.message or "diagnostic action skipped")
             else:
-                _scope = (
-                    "unknown"
-                    if _result.failure_scope is None
-                    else _result.failure_scope.value
-                )
+                _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
                 set_setup_diagnostic_success("")
                 set_setup_diagnostic_error(
                     f"{_scope} failure · {_result.message or 'diagnostic action failed'}"
@@ -1126,9 +1123,7 @@ def _(
             set_setup_error(str(error))
         else:
             _, _, _current_collection, _current_freshness = get_setup_config()
-            set_setup_config(
-                (_sources, _lifecycles, _current_collection, _current_freshness)
-            )
+            set_setup_config((_sources, _lifecycles, _current_collection, _current_freshness))
             set_setup_error("")
             set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
     return
@@ -1182,9 +1177,7 @@ def _(
                 _,
                 _current_freshness,
             ) = get_setup_config()
-            set_setup_config(
-                (_current_sources, _current_lifecycles, _records, _current_freshness)
-            )
+            set_setup_config((_current_sources, _current_lifecycles, _records, _current_freshness))
             set_setup_error("")
             set_setup_success(
                 "Collection request saved: "
@@ -1671,9 +1664,7 @@ def _(
             set_setup_error(str(error))
         else:
             _, _, _current_collection, _current_freshness = get_setup_config()
-            set_setup_config(
-                (_sources, _lifecycles, _current_collection, _current_freshness)
-            )
+            set_setup_config((_sources, _lifecycles, _current_collection, _current_freshness))
             set_pending_semantics({})
             set_setup_error("")
             set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
@@ -1917,10 +1908,7 @@ def _(
                     title="Analysis recorded",
                 )
             )
-        if (
-            asset_file_analysis_source is not None
-            and asset_run_file_analysis_button is not None
-        ):
+        if asset_file_analysis_source is not None and asset_run_file_analysis_button is not None:
             _blocks.extend(
                 [
                     mo.md("### Analyze prepared FILE snapshot"),
