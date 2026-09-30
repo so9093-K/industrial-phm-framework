@@ -174,7 +174,7 @@ def test_asset_workspace_projects_header_history_analysis_and_review() -> None:
 
 
 def test_history_only_asset_remains_visible_without_inventing_runtime_status() -> None:
-    source, _, detail = _detail()
+    source, _, _detail_value = _detail()
     empty_overview = build_operations_overview(
         sources=(),
         lifecycle_records=(),
