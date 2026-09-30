@@ -15,6 +15,7 @@ def _():
     import marimo as mo
 
     from industrial_phm.application import (
+        FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
         AcquisitionTelemetrySurface,
         AssetIdentity,
         ChannelSemanticBinding,
@@ -31,7 +32,9 @@ def _():
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
+        SourceFreshnessPolicy,
         SourceLifecycleState,
+        SourceRuntimeCycleState,
         SourceType,
         SystemStateErrorEvidence,
         build_asset_detail,
@@ -46,6 +49,10 @@ def _():
         discover_file_source,
         register_file_source,
         request_collection_state,
+        run_registered_file_feature_analysis,
+        run_registered_file_source_cycle,
+        run_registered_opcua_source_cycle,
+        run_registered_opcua_subscription_cycle,
         transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
@@ -134,6 +141,7 @@ def _():
         CollectionDesiredState,
         DuckLakeAssetHistory,
         DuckLakeAssetHistoryConfig,
+        FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
         FileSourceConfig,
         FileSourceMode,
         FindingReviewAction,
@@ -153,7 +161,9 @@ def _():
         OperationalAnalysisPresentationKind,
         Path,
         RegisteredSource,
+        SourceFreshnessPolicy,
         SourceLifecycleState,
+        SourceRuntimeCycleState,
         SourceType,
         SqliteAcquisitionSpool,
         SqliteAcquisitionSpoolConfig,
@@ -222,6 +232,10 @@ def _():
         render_system_runtime_html,
         request_collection_state,
         resolve_measurement_range,
+        run_registered_file_feature_analysis,
+        run_registered_file_source_cycle,
+        run_registered_opcua_source_cycle,
+        run_registered_opcua_subscription_cycle,
         setup_workspace_css,
         system_workspace_css,
         transition_source_lifecycle,
@@ -587,8 +601,10 @@ def _(
         assessed_at,
         collection_control_path,
         collection_records,
+        field_analysis_path,
         finding_path,
         findings,
+        freshness_policies,
         history_assets,
         history_reader,
         lifecycle_records,
@@ -598,9 +614,29 @@ def _(
         registry_path,
         review_events,
         review_path,
+        source_runtime_path,
         system_diagnostics,
         system_errors,
     )
+
+
+@app.cell
+def _(analysis_results, mo):
+    get_analysis_results, set_analysis_results = mo.state(tuple(analysis_results))
+    return get_analysis_results, set_analysis_results
+
+
+@app.cell
+def _(analysis_results, refresh_button, set_analysis_results):
+    if refresh_button.value:
+        set_analysis_results(tuple(analysis_results))
+    return
+
+
+@app.cell
+def _(get_analysis_results):
+    current_analysis_results = get_analysis_results()
+    return (current_analysis_results,)
 
 
 @app.cell
@@ -638,12 +674,13 @@ def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_o
 
 
 @app.cell
-def _(collection_records, lifecycle_records, mo, registered_sources):
+def _(collection_records, freshness_policies, lifecycle_records, mo, registered_sources):
     get_setup_config, set_setup_config = mo.state(
         (
             tuple(registered_sources),
             tuple(lifecycle_records),
             tuple(collection_records),
+            tuple(freshness_policies),
         )
     )
     get_setup_error, set_setup_error = mo.state("")
@@ -676,6 +713,7 @@ def _(collection_records, lifecycle_records, mo, registered_sources):
 @app.cell
 def _(
     collection_records,
+    freshness_policies,
     lifecycle_records,
     refresh_button,
     registered_sources,
@@ -690,6 +728,7 @@ def _(
                 tuple(registered_sources),
                 tuple(lifecycle_records),
                 tuple(collection_records),
+                tuple(freshness_policies),
             )
         )
         set_pending_semantics({})
@@ -705,17 +744,24 @@ def _(
     get_setup_error,
     get_setup_success,
 ):
-    setup_sources, setup_lifecycles, setup_collection = get_setup_config()
+    (
+        setup_sources,
+        setup_lifecycles,
+        setup_collection,
+        setup_freshness,
+    ) = get_setup_config()
     setup_error = get_setup_error()
     setup_success = get_setup_success()
     setup_workspace = build_setup_workspace(
         sources=setup_sources,
         lifecycle_records=setup_lifecycles,
         collection_records=setup_collection,
+        freshness_policies=setup_freshness,
     )
     return (
         setup_collection,
         setup_error,
+        setup_freshness,
         setup_lifecycles,
         setup_sources,
         setup_success,
@@ -792,6 +838,253 @@ def _(CollectionDesiredState, SourceType, mo, setup_selected_source):
 
 
 @app.cell
+def _(mo, setup_selected_source):
+    if setup_selected_source is None:
+        setup_freshness_age_input = None
+        setup_save_freshness_button = None
+        setup_clear_freshness_button = None
+    else:
+        _freshness_value = (
+            ""
+            if setup_selected_source.freshness_max_age_seconds is None
+            else f"{setup_selected_source.freshness_max_age_seconds:g}"
+        )
+        setup_freshness_age_input = mo.ui.text(
+            value=_freshness_value,
+            label="Maximum data age (seconds)",
+            full_width=True,
+        )
+        setup_save_freshness_button = mo.ui.run_button(label="Save data age policy")
+        setup_clear_freshness_button = (
+            None
+            if setup_selected_source.freshness_max_age_seconds is None
+            else mo.ui.run_button(label="Clear policy")
+        )
+    return (
+        setup_clear_freshness_button,
+        setup_freshness_age_input,
+        setup_save_freshness_button,
+    )
+
+
+@app.cell
+def _(
+    JsonSourceRepository,
+    SourceFreshnessPolicy,
+    datetime,
+    get_setup_config,
+    registry_path,
+    set_setup_config,
+    set_setup_error,
+    set_setup_success,
+    setup_clear_freshness_button,
+    setup_freshness_age_input,
+    setup_save_freshness_button,
+    setup_selected_source,
+):
+    _freshness_action = None
+    if setup_save_freshness_button is not None and setup_save_freshness_button.value:
+        _freshness_action = "save"
+    elif setup_clear_freshness_button is not None and setup_clear_freshness_button.value:
+        _freshness_action = "clear"
+
+    if _freshness_action is not None:
+        try:
+            if setup_selected_source is None:
+                raise ValueError("select a data source before changing its data age policy")
+            _repository = JsonSourceRepository(registry_path)
+            _source_id = setup_selected_source.source_id
+            if _freshness_action == "save":
+                if setup_freshness_age_input is None:
+                    raise ValueError("data age policy input is unavailable")
+                _raw_value = setup_freshness_age_input.value.strip()
+                if not _raw_value:
+                    raise ValueError("maximum data age is required")
+                _policy = SourceFreshnessPolicy(
+                    source_id=_source_id,
+                    max_observation_age_seconds=float(_raw_value),
+                    changed_at=datetime.now().astimezone(),
+                )
+                _repository.set_freshness_policy(_policy)
+                _message = (
+                    f"Data age policy saved: {_source_id} · "
+                    f"{_policy.max_observation_age_seconds:g} s."
+                )
+            else:
+                _repository.clear_freshness_policy(_source_id)
+                _message = f"Data age policy cleared: {_source_id}."
+
+            _sources = _repository.list_sources()
+            _policies = tuple(
+                _policy
+                for source in _sources
+                if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_setup_success("")
+            set_setup_error(str(error))
+        else:
+            _, _lifecycles, _collection, _ = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _collection, _policies))
+            set_setup_error("")
+            set_setup_success(_message)
+    return
+
+
+@app.cell
+def _(SourceType, mo, setup_selected_source):
+    if setup_selected_source is None:
+        setup_run_diagnostic_button = None
+        setup_subscription_diagnostic_button = None
+    else:
+        setup_run_diagnostic_button = mo.ui.run_button(label="Run one diagnostic cycle")
+        setup_subscription_diagnostic_button = (
+            mo.ui.run_button(label="Collect bounded subscription")
+            if setup_selected_source.source_type == SourceType.OPCUA
+            else None
+        )
+    return setup_run_diagnostic_button, setup_subscription_diagnostic_button
+
+
+@app.cell
+def _(mo):
+    get_setup_diagnostic_error, set_setup_diagnostic_error = mo.state("")
+    get_setup_diagnostic_success, set_setup_diagnostic_success = mo.state("")
+    return (
+        get_setup_diagnostic_error,
+        get_setup_diagnostic_success,
+        set_setup_diagnostic_error,
+        set_setup_diagnostic_success,
+    )
+
+
+@app.cell
+def _(
+    FileSourceConfig,
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
+    SourceRuntimeCycleState,
+    ThreadPoolExecutor,
+    asyncio,
+    get_setup_config,
+    registry_path,
+    run_registered_file_source_cycle,
+    run_registered_opcua_source_cycle,
+    run_registered_opcua_subscription_cycle,
+    set_setup_config,
+    set_setup_diagnostic_error,
+    set_setup_diagnostic_success,
+    setup_run_diagnostic_button,
+    setup_selected_source,
+    setup_subscription_diagnostic_button,
+    source_runtime_path,
+    validate_distinct_source_state_paths,
+):
+    _diagnostic_kind = None
+    if setup_run_diagnostic_button is not None and setup_run_diagnostic_button.value:
+        _diagnostic_kind = "cycle"
+    elif (
+        setup_subscription_diagnostic_button is not None
+        and setup_subscription_diagnostic_button.value
+    ):
+        _diagnostic_kind = "subscription"
+
+    if _diagnostic_kind is not None:
+        try:
+            if setup_selected_source is None:
+                raise ValueError("select a data source before running diagnostics")
+            validate_distinct_source_state_paths(registry_path, source_runtime_path)
+            _source_repository = JsonSourceRepository(registry_path)
+            _runtime_repository = JsonSourceRuntimeRepository(source_runtime_path)
+            _source = _source_repository.get(setup_selected_source.source_id)
+
+            if _diagnostic_kind == "cycle":
+                if isinstance(_source.config, FileSourceConfig):
+                    _result = run_registered_file_source_cycle(
+                        _source_repository,
+                        _source_repository,
+                        _runtime_repository,
+                        _source.source_id,
+                    )
+                elif isinstance(_source.config, OpcUaSourceConfig):
+
+                    def _run_opcua_cycle():
+                        return asyncio.run(
+                            run_registered_opcua_source_cycle(
+                                _source_repository,
+                                _source_repository,
+                                _runtime_repository,
+                                _source.source_id,
+                            )
+                        )
+
+                    with ThreadPoolExecutor(max_workers=1) as _executor:
+                        _result = _executor.submit(_run_opcua_cycle).result()
+                else:
+                    raise ValueError("unsupported registered source config")
+            else:
+                if not isinstance(_source.config, OpcUaSourceConfig):
+                    raise ValueError("bounded subscription diagnostics require an OPC UA source")
+                _max_events = max(1, len(_source.config.node_mappings))
+
+                def _run_subscription_cycle():
+                    return asyncio.run(
+                        run_registered_opcua_subscription_cycle(
+                            _source_repository,
+                            _source_repository,
+                            _runtime_repository,
+                            _source.source_id,
+                            publishing_interval_ms=500.0,
+                            collection_timeout_seconds=5.0,
+                            max_events=_max_events,
+                            queue_maxsize=128,
+                        )
+                    )
+
+                with ThreadPoolExecutor(max_workers=1) as _executor:
+                    _result = _executor.submit(_run_subscription_cycle).result()
+
+            _sources = _source_repository.list_sources()
+            _lifecycles = tuple(
+                _source_repository.get_lifecycle(item.source_id) for item in _sources
+            )
+        except (LookupError, OSError, RuntimeError, ValueError) as error:
+            set_setup_diagnostic_success("")
+            set_setup_diagnostic_error(str(error))
+        else:
+            _, _, _collection, _freshness = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _collection, _freshness))
+            if _result.state == SourceRuntimeCycleState.SUCCEEDED:
+                _message = (
+                    "Diagnostic cycle completed."
+                    if _diagnostic_kind == "cycle"
+                    else "Bounded subscription completed."
+                )
+                set_setup_diagnostic_error("")
+                set_setup_diagnostic_success(
+                    _message + " Use Refresh to reload current runtime evidence in Monitor."
+                )
+            elif _result.state == SourceRuntimeCycleState.SKIPPED:
+                set_setup_diagnostic_success("")
+                set_setup_diagnostic_error(_result.message or "diagnostic action skipped")
+            else:
+                _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
+                set_setup_diagnostic_success("")
+                set_setup_diagnostic_error(
+                    f"{_scope} failure · {_result.message or 'diagnostic action failed'}"
+                )
+    return
+
+
+@app.cell
+def _(get_setup_diagnostic_error, get_setup_diagnostic_success):
+    setup_diagnostic_error = get_setup_diagnostic_error()
+    setup_diagnostic_success = get_setup_diagnostic_success()
+    return setup_diagnostic_error, setup_diagnostic_success
+
+
+@app.cell
 def _(
     JsonSourceRepository,
     SourceLifecycleState,
@@ -829,8 +1122,8 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _, _, _current_collection = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _current_collection))
+            _, _, _current_collection, _current_freshness = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _current_collection, _current_freshness))
             set_setup_error("")
             set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
     return
@@ -878,8 +1171,13 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _current_sources, _current_lifecycles, _ = get_setup_config()
-            set_setup_config((_current_sources, _current_lifecycles, _records))
+            (
+                _current_sources,
+                _current_lifecycles,
+                _,
+                _current_freshness,
+            ) = get_setup_config()
+            set_setup_config((_current_sources, _current_lifecycles, _records, _current_freshness))
             set_setup_error("")
             set_setup_success(
                 "Collection request saved: "
@@ -1365,8 +1663,8 @@ def _(
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _, _, _current_collection = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _current_collection))
+            _, _, _current_collection, _current_freshness = get_setup_config()
+            set_setup_config((_sources, _lifecycles, _current_collection, _current_freshness))
             set_pending_semantics({})
             set_setup_error("")
             set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
@@ -1416,7 +1714,7 @@ def _(asset_selection, history_assets, mo, monitor):
 def _(
     AssetIdentity,
     acquisition_surfaces,
-    analysis_results,
+    current_analysis_results,
     asset_selector,
     build_asset_detail,
     build_asset_workspace_view,
@@ -1449,7 +1747,7 @@ def _(
                 AssetIdentity(_selected_asset_id),
                 sources=registered_sources,
                 overview=overview,
-                analysis_runs=tuple(item.run for item in analysis_results),
+                analysis_runs=tuple(item.run for item in current_analysis_results),
                 findings=findings,
                 review_events=review_events,
             )
@@ -1464,7 +1762,7 @@ def _(
             asset_workspace = build_asset_workspace_view(
                 asset_id=_selected_asset_id,
                 detail=_detail,
-                analysis_results=analysis_results,
+                analysis_results=current_analysis_results,
                 monitor_asset=_monitor_asset,
                 history_summary=_history_summary,
                 history_channels=_history_channels,
@@ -1473,6 +1771,165 @@ def _(
         except Exception as error:
             asset_workspace_error = str(error)
     return asset_history_error, asset_workspace, asset_workspace_error
+
+
+@app.cell
+def _(FileSourceConfig, FileSourceMode, asset_workspace, mo, registered_sources):
+    if asset_workspace is None:
+        asset_file_analysis_source = None
+        asset_run_file_analysis_button = None
+    else:
+        _file_candidates = tuple(
+            source
+            for source in registered_sources
+            if source.asset_id == asset_workspace.asset_id
+            and isinstance(source.config, FileSourceConfig)
+            and source.config.mode == FileSourceMode.SNAPSHOT
+        )
+        if _file_candidates:
+            _options = {
+                f"{source.name} · {source.source_id}": source.source_id
+                for source in _file_candidates
+            }
+            asset_file_analysis_source = mo.ui.dropdown(
+                options=list(_options),
+                value=next(iter(_options)),
+                label="FILE snapshot source",
+                full_width=True,
+            )
+            asset_run_file_analysis_button = mo.ui.run_button(
+                label="Analyze FILE snapshot",
+                kind="success",
+            )
+        else:
+            asset_file_analysis_source = None
+            asset_run_file_analysis_button = None
+    return asset_file_analysis_source, asset_run_file_analysis_button
+
+
+@app.cell
+def _(mo):
+    get_asset_analysis_action_error, set_asset_analysis_action_error = mo.state("")
+    get_asset_analysis_action_success, set_asset_analysis_action_success = mo.state("")
+    return (
+        get_asset_analysis_action_error,
+        get_asset_analysis_action_success,
+        set_asset_analysis_action_error,
+        set_asset_analysis_action_success,
+    )
+
+
+@app.cell
+def _(
+    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    JsonFieldFeatureAnalysisRepository,
+    asset_file_analysis_source,
+    asset_run_file_analysis_button,
+    field_analysis_path,
+    get_analysis_results,
+    registered_sources,
+    run_registered_file_feature_analysis,
+    set_analysis_results,
+    set_asset_analysis_action_error,
+    set_asset_analysis_action_success,
+):
+    if asset_run_file_analysis_button is not None and asset_run_file_analysis_button.value:
+        try:
+            if asset_file_analysis_source is None:
+                raise ValueError("select a FILE snapshot source before analysis")
+            _selected_label = asset_file_analysis_source.value
+            _source_id = _selected_label.rsplit(" · ", 1)[-1]
+            _source = next(
+                source for source in registered_sources if source.source_id == _source_id
+            )
+            _result = run_registered_file_feature_analysis(_source)
+            _repository = JsonFieldFeatureAnalysisRepository(field_analysis_path)
+            _repository.record(_result)
+            _field_results = _repository.list_results()
+            _other_results = tuple(
+                item
+                for item in get_analysis_results()
+                if item.evidence.capability_id != FIELD_VIBRATION_FEATURE_CAPABILITY_ID
+            )
+            _updated_results = tuple(
+                sorted(
+                    (*_other_results, *_field_results),
+                    key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
+                )
+            )
+        except (LookupError, OSError, ValueError) as error:
+            set_asset_analysis_action_success("")
+            set_asset_analysis_action_error(str(error))
+        else:
+            set_analysis_results(_updated_results)
+            set_asset_analysis_action_error("")
+            set_asset_analysis_action_success(
+                "FILE snapshot analysis recorded. Assets and Investigations now use the "
+                "persisted evidence. This does not create anomaly, fault, health, or "
+                "maintenance meaning."
+            )
+    return
+
+
+@app.cell
+def _(get_asset_analysis_action_error, get_asset_analysis_action_success):
+    asset_analysis_action_error = get_asset_analysis_action_error()
+    asset_analysis_action_success = get_asset_analysis_action_success()
+    return asset_analysis_action_error, asset_analysis_action_success
+
+
+@app.cell
+def _(
+    asset_analysis_action_error,
+    asset_analysis_action_success,
+    asset_file_analysis_source,
+    asset_run_file_analysis_button,
+    asset_workspace,
+    mo,
+    render_asset_analysis_html,
+):
+    if asset_workspace is None:
+        asset_analysis_view = mo.md("No asset is selected.")
+    else:
+        _blocks = [mo.Html(render_asset_analysis_html(asset_workspace))]
+        if asset_analysis_action_error:
+            _blocks.append(
+                mo.callout(
+                    asset_analysis_action_error,
+                    kind="danger",
+                    title="FILE analysis failed",
+                )
+            )
+        if asset_analysis_action_success:
+            _blocks.append(
+                mo.callout(
+                    asset_analysis_action_success,
+                    kind="success",
+                    title="Analysis recorded",
+                )
+            )
+        if asset_file_analysis_source is not None and asset_run_file_analysis_button is not None:
+            _blocks.extend(
+                [
+                    mo.md("### Analyze prepared FILE snapshot"),
+                    asset_file_analysis_source,
+                    asset_run_file_analysis_button,
+                    mo.md(
+                        "This action computes and stores versioned vibration statistical "
+                        "feature evidence from the exact registered snapshot. It does not "
+                        "declare anomaly, fault, health state, or maintenance need."
+                    ),
+                ]
+            )
+        else:
+            _blocks.append(
+                mo.md(
+                    "No registered FILE snapshot source is available for on-demand "
+                    "feature analysis on this asset."
+                )
+            )
+        asset_analysis_view = mo.vstack(_blocks, gap=0.8)
+    return (asset_analysis_view,)
 
 
 @app.cell
@@ -1709,13 +2166,13 @@ def _(
 
 @app.cell
 def _(
-    analysis_results,
+    current_analysis_results,
     build_investigation_queue,
     get_review_workflow,
 ):
     investigation_findings, maintenance_events = get_review_workflow()
     investigation_queue = build_investigation_queue(
-        analysis_results=analysis_results,
+        analysis_results=current_analysis_results,
         findings=investigation_findings,
         review_events=maintenance_events,
     )
@@ -1824,7 +2281,7 @@ def _(
 
 @app.cell
 def _(
-    analysis_results,
+    current_analysis_results,
     investigation_queue,
     investigation_selected_id,
 ):
@@ -1843,7 +2300,7 @@ def _(
             selected_investigation_result = next(
                 (
                     result
-                    for result in analysis_results
+                    for result in current_analysis_results
                     if result.run.analysis_run_id == selected_investigation.analysis_run_id
                     and result.evidence.capability_id == selected_investigation.capability_id
                 ),
@@ -2506,15 +2963,22 @@ def _(
     semantic_unit_evidence_input,
     semantic_unit_input,
     semantic_version_input,
+    setup_clear_freshness_button,
     setup_enable_button,
     setup_error,
+    setup_freshness_age_input,
     setup_pause_button,
+    setup_run_diagnostic_button,
+    setup_save_freshness_button,
     setup_section,
+    setup_subscription_diagnostic_button,
     setup_selected_source,
     setup_source_selector,
     setup_start_collection_button,
     setup_stop_collection_button,
     setup_success,
+    setup_diagnostic_error,
+    setup_diagnostic_success,
     setup_workspace,
 ):
     _message_blocks = []
@@ -2536,6 +3000,14 @@ def _(
             )
             if button is not None
         ]
+        _freshness_actions = [
+            button
+            for button in (
+                setup_save_freshness_button,
+                setup_clear_freshness_button,
+            )
+            if button is not None
+        ]
         _selected_source_panel = mo.vstack(
             [
                 setup_source_selector,
@@ -2545,6 +3017,75 @@ def _(
                     "Enable/Pause changes whether a runtime may use the source. "
                     "Start/Stop collection writes desired collection state for OPC UA; "
                     "it does not prove the collector process is running or connected."
+                ),
+                mo.accordion(
+                    {
+                        "Data age policy": mo.vstack(
+                            [
+                                setup_freshness_age_input,
+                                mo.hstack(
+                                    _freshness_actions,
+                                    justify="start",
+                                    gap=0.6,
+                                ),
+                                mo.md(
+                                    "This policy compares the latest comparable observation "
+                                    "time with the current assessment time. It does not prove "
+                                    "connection health or asset health."
+                                ),
+                            ],
+                            gap=0.6,
+                        )
+                    }
+                ),
+                mo.accordion(
+                    {
+                        "Advanced diagnostics": mo.vstack(
+                            [
+                                *(
+                                    [
+                                        mo.callout(
+                                            setup_diagnostic_error,
+                                            kind="danger",
+                                            title="Diagnostic action failed",
+                                        )
+                                    ]
+                                    if setup_diagnostic_error
+                                    else []
+                                ),
+                                *(
+                                    [
+                                        mo.callout(
+                                            setup_diagnostic_success,
+                                            kind="success",
+                                            title="Diagnostic action completed",
+                                        )
+                                    ]
+                                    if setup_diagnostic_success
+                                    else []
+                                ),
+                                mo.hstack(
+                                    [
+                                        button
+                                        for button in (
+                                            setup_run_diagnostic_button,
+                                            setup_subscription_diagnostic_button,
+                                        )
+                                        if button is not None
+                                    ],
+                                    justify="start",
+                                    gap=0.6,
+                                ),
+                                mo.md(
+                                    "These bounded actions are for connection/data-contract "
+                                    "diagnostics. They do not start the persistent collection "
+                                    "service, and a successful attempt is not current connection "
+                                    "health."
+                                ),
+                            ],
+                            gap=0.6,
+                        )
+                    }
                 ),
             ],
             gap=0.8,
@@ -2845,6 +3386,7 @@ def _(
 
 @app.cell
 def _(
+    asset_analysis_view,
     asset_section,
     asset_selector,
     asset_workspace,
@@ -2962,7 +3504,7 @@ def _(
         _asset_sections = {
             "Overview": mo.Html(render_asset_overview_html(asset_workspace)),
             "Signals": signal_view,
-            "Analysis": mo.Html(render_asset_analysis_html(asset_workspace)),
+            "Analysis": asset_analysis_view,
             "Events": mo.Html(render_asset_events_html(asset_workspace)),
             "Maintenance": mo.Html(render_asset_maintenance_html(asset_workspace)),
         }

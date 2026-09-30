@@ -11,6 +11,7 @@ from industrial_phm.application.measurement_semantics import (
     MeasurementDefinition,
 )
 from industrial_phm.application.operations_v2_setup import build_setup_workspace
+from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleState,
@@ -84,10 +85,16 @@ def test_setup_workspace_projects_file_and_opcua_configuration_without_health() 
         requested_at=NOW,
     )
 
+    freshness = SourceFreshnessPolicy(
+        source_id="opc-a",
+        max_observation_age_seconds=30.0,
+        changed_at=NOW,
+    )
     view = build_setup_workspace(
         sources=(opcua_source, file_source),
         lifecycle_records=lifecycles,
         collection_records=(collection,),
+        freshness_policies=(freshness,),
     )
 
     assert tuple(item.source_id for item in view.sources) == ("file-a", "opc-a")
@@ -100,6 +107,8 @@ def test_setup_workspace_projects_file_and_opcua_configuration_without_health() 
     opcua_view = view.sources[1]
     assert opcua_view.connection_target == "opc.tcp://127.0.0.1:4840"
     assert opcua_view.collection_desired_state == CollectionDesiredState.RUNNING
+    assert opcua_view.freshness_max_age_seconds == 30.0
+    assert opcua_view.freshness_changed_at == NOW
     assert opcua_view.semantic_coverage == (1, 2)
     voltage = next(item for item in opcua_view.signals if item.channel_id == "Voltage_L1")
     assert voltage.observed_property == "phase voltage"
@@ -137,4 +146,35 @@ def test_setup_workspace_rejects_collection_for_unknown_source() -> None:
             sources=(source,),
             lifecycle_records=(lifecycle,),
             collection_records=(collection,),
+        )
+
+
+def test_setup_workspace_rejects_freshness_policy_for_unknown_source() -> None:
+    source = RegisteredSource(
+        source_id="file-a",
+        name="Snapshot",
+        config=FileSourceConfig(
+            source_path="data/snapshot.csv",
+            asset_id="motor-01",
+            channel_columns=("velocity",),
+            sampling_rate_hz=1.0,
+        ),
+        registered_at=NOW,
+    )
+    lifecycle = SourceLifecycleRecord(
+        source_id="file-a",
+        state=SourceLifecycleState.REGISTERED,
+        changed_at=NOW,
+    )
+    freshness = SourceFreshnessPolicy(
+        source_id="missing",
+        max_observation_age_seconds=15.0,
+        changed_at=NOW,
+    )
+
+    with pytest.raises(ValueError, match="freshness_policies reference unregistered sources"):
+        build_setup_workspace(
+            sources=(source,),
+            lifecycle_records=(lifecycle,),
+            freshness_policies=(freshness,),
         )

@@ -11,6 +11,7 @@ from industrial_phm.application.collection_control import (
     CollectionDesiredState,
 )
 from industrial_phm.application.measurement_semantics import ChannelSemanticBinding
+from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleState,
@@ -74,6 +75,8 @@ class SetupSourceView:
     connection_target: str
     collection_desired_state: CollectionDesiredState | None
     collection_requested_at: datetime | None
+    freshness_max_age_seconds: float | None
+    freshness_changed_at: datetime | None
     signals: Sequence[SetupSignalView]
 
     def __post_init__(self) -> None:
@@ -100,6 +103,12 @@ class SetupSourceView:
             _require_aware(self.collection_requested_at, "collection_requested_at")
         if (self.collection_desired_state is None) != (self.collection_requested_at is None):
             raise ValueError("collection state and requested time must be recorded together")
+        if self.freshness_max_age_seconds is not None and self.freshness_max_age_seconds <= 0:
+            raise ValueError("freshness_max_age_seconds must be positive when provided")
+        if (self.freshness_max_age_seconds is None) != (self.freshness_changed_at is None):
+            raise ValueError("freshness policy age and changed time must be recorded together")
+        if self.freshness_changed_at is not None:
+            _require_aware(self.freshness_changed_at, "freshness_changed_at")
         signals = tuple(self.signals)
         if any(not isinstance(item, SetupSignalView) for item in signals):
             raise ValueError("signals must contain SetupSignalView values")
@@ -134,12 +143,14 @@ def build_setup_workspace(
     sources: Sequence[RegisteredSource],
     lifecycle_records: Sequence[SourceLifecycleRecord],
     collection_records: Sequence[CollectionControlRecord] = (),
+    freshness_policies: Sequence[SourceFreshnessPolicy] = (),
 ) -> SetupWorkspaceView:
     """Project registered source configuration without runtime-health inference."""
 
     source_values = tuple(sources)
     lifecycle_values = tuple(lifecycle_records)
     collection_values = tuple(collection_records)
+    freshness_values = tuple(freshness_policies)
 
     if any(not isinstance(item, RegisteredSource) for item in source_values):
         raise ValueError("sources must contain RegisteredSource values")
@@ -147,6 +158,8 @@ def build_setup_workspace(
         raise ValueError("lifecycle_records must contain SourceLifecycleRecord values")
     if any(not isinstance(item, CollectionControlRecord) for item in collection_values):
         raise ValueError("collection_records must contain CollectionControlRecord values")
+    if any(not isinstance(item, SourceFreshnessPolicy) for item in freshness_values):
+        raise ValueError("freshness_policies must contain SourceFreshnessPolicy values")
 
     source_ids = tuple(item.source_id for item in source_values)
     if len(set(source_ids)) != len(source_ids):
@@ -165,6 +178,15 @@ def build_setup_workspace(
             "collection_records reference unregistered sources: " + ", ".join(unexpected_collection)
         )
 
+    freshness_by_source = {item.source_id: item for item in freshness_values}
+    if len(freshness_by_source) != len(freshness_values):
+        raise ValueError("freshness_policies must use unique source ids")
+    unexpected_freshness = sorted(set(freshness_by_source) - set(source_ids))
+    if unexpected_freshness:
+        raise ValueError(
+            "freshness_policies reference unregistered sources: " + ", ".join(unexpected_freshness)
+        )
+
     projected = tuple(
         sorted(
             (
@@ -172,6 +194,7 @@ def build_setup_workspace(
                     source,
                     lifecycle_by_source[source.source_id],
                     collection_by_source.get(source.source_id),
+                    freshness_by_source.get(source.source_id),
                 )
                 for source in source_values
             ),
@@ -185,11 +208,14 @@ def _project_source(
     source: RegisteredSource,
     lifecycle: SourceLifecycleRecord,
     collection: CollectionControlRecord | None,
+    freshness: SourceFreshnessPolicy | None,
 ) -> SetupSourceView:
     if source.source_id != lifecycle.source_id:
         raise ValueError("source and lifecycle identities must match")
     if collection is not None and collection.source_id != source.source_id:
         raise ValueError("source and collection identities must match")
+    if freshness is not None and freshness.source_id != source.source_id:
+        raise ValueError("source and freshness identities must match")
 
     config = source.config
     if isinstance(config, FileSourceConfig):
@@ -232,6 +258,10 @@ def _project_source(
         connection_target=connection_target,
         collection_desired_state=(None if collection is None else collection.desired_state),
         collection_requested_at=None if collection is None else collection.requested_at,
+        freshness_max_age_seconds=(
+            None if freshness is None else freshness.max_observation_age_seconds
+        ),
+        freshness_changed_at=None if freshness is None else freshness.changed_at,
         signals=signals,
     )
 
