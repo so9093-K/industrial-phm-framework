@@ -763,6 +763,8 @@ class DuckLakeAssetHistory:
                     FROM {_CATALOG_NAME}.raw.file_measurement
                     WHERE asset_id = ? AND channel_id = ?
                         AND source_timestamp >= ? AND source_timestamp < ?
+                    UNION ALL
+                    {_opcua_display_metadata_sql(ranged=True)}
                 ), selected AS (
                     SELECT *,
                         count(DISTINCT value) OVER identity_window
@@ -784,7 +786,7 @@ class DuckLakeAssetHistory:
                     ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
                 ORDER BY m.event_at {direction}, m.raw_evidence_id
             """,
-                [*(asset_id, channel_id, start_at, end_at) * 2, point_budget + 1],
+                [*(asset_id, channel_id, start_at, end_at) * 3, point_budget + 1],
             ).fetchall()
         finally:
             connection.close()
@@ -838,6 +840,8 @@ class DuckLakeAssetHistory:
                     FROM {_CATALOG_NAME}.raw.file_measurement
                     WHERE asset_id = ? AND channel_id = ?
                         AND source_timestamp >= ? AND source_timestamp < ?
+                    UNION ALL
+                    {_opcua_display_metadata_sql(ranged=True)}
                 ), selected AS (
                     SELECT *, count(DISTINCT value) OVER observation
                         + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END)
@@ -868,7 +872,7 @@ class DuckLakeAssetHistory:
                 ORDER BY bucket_index, source_id, measurement_point_id, interpretation LIMIT 2001
                 """,
                 [
-                    *(asset_id, channel_id, start_at, end_at) * 2,
+                    *(asset_id, channel_id, start_at, end_at) * 3,
                     start_at,
                     width,
                     bucket_count - 1,
@@ -1078,6 +1082,8 @@ class DuckLakeAssetHistory:
                         source_file, source_sha256
                     FROM {_CATALOG_NAME}.raw.file_measurement
                     WHERE asset_id = ? AND channel_id = ?
+                    UNION ALL
+                    {_opcua_display_metadata_sql(ranged=False)}
                 ), ranked AS (
                     SELECT *, row_number() OVER (
                         PARTITION BY source_id, measurement_point_id
@@ -1099,7 +1105,7 @@ class DuckLakeAssetHistory:
                 WHERE m.observation_rank = 1
                 ORDER BY m.source_id, m.measurement_point_id LIMIT 1001
             """,
-                [asset_id, channel_id, asset_id, channel_id],
+                [asset_id, channel_id, asset_id, channel_id, asset_id, channel_id],
             ).fetchall()
         finally:
             connection.close()
@@ -1928,6 +1934,27 @@ def _insert_columns(
             f"INSERT INTO {_CATALOG_NAME}.{table} ({names}) SELECT {values}",
             [list(column) for column in zip(*rows, strict=True)],
         )
+
+
+def _opcua_display_metadata_sql(*, ranged: bool) -> str:
+    """OPC UA raw rows as display metadata shaped like FILE metadata semantics.
+
+    Only a semantic snapshot naming the row's own source and channel is shown;
+    parameters: asset_id, channel_id[, start_at, end_at].
+    """
+    time_filter = "AND event_at >= ? AND event_at < ?" if ranged else ""
+    return f"""SELECT raw_evidence_id, 'opcua' AS source_type,
+                        CASE WHEN json_extract_string(semantic_binding_json, '$.source_id')
+                                = source_id
+                            AND json_extract_string(semantic_binding_json, '$.channel_id')
+                                = channel_id
+                        THEN json_object(
+                            'schema', 'opcua-semantic-snapshot',
+                            'semantics', json(semantic_binding_json)
+                        )::VARCHAR END AS source_metadata_json,
+                        NULL::VARCHAR AS source_file, NULL::VARCHAR AS source_sha256
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change
+                    WHERE asset_id = ? AND channel_id = ? {time_filter}"""
 
 
 def _snapshot_semantic_column(connection: Any, at: str) -> str:
