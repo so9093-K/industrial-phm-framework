@@ -44,10 +44,30 @@ FILE source quality는 unknown이며 numeric/null availability와 분리합니�
 Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 조율하며 대기 한도 초과는 오류로
 표시합니다. 하나의 control/spool 구성에는 하나의 collector를 사용합니다.
 
-현재 repository는 목적이 다른 두 interactive application을 분리합니다.
+현재 repository는 목적이 다른 interactive application을 분리합니다.
 
-- `apps/operations.py` — source/observation/data quality와 실제로 연결된 운영 review evidence를 보는 Operations surface
+- `apps/operations.py` — 현재 operational action과 evidence workflow를 소유하는 기존 Operations surface
+- `apps/operations_v2.py` — #321 마이그레이션 중인 read-only Operations V2 Monitor preview
 - `apps/analysis_explorer.py` — experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
+
+### Operations V2 preview
+
+V2는 기존 state를 다시 쓰지 않고 현재 source/runtime/acquisition/analysis/review evidence를 읽어
+**Monitor / Assets / Investigations / Maintenance / System / Setup** 구조를 먼저 검증합니다.
+메인 배경은 `#292827`이며 현재 foundation 단계에서는 **Monitor**가 실제 read model에 연결돼 있고
+나머지 workspace는 후속 마이그레이션 surface입니다. 기존 등록·수집·분석·review action은
+`apps/operations.py`를 계속 사용합니다.
+
+기존 Operations와 같은 환경변수를 사용한 뒤 다음처럼 실행합니다.
+
+```bash
+uv run --locked --group research marimo run apps/operations_v2.py
+```
+
+Live 3상 분석을 함께 모니터링할 때 V2는
+`INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE` 옆의
+`<analysis-stem>-runtime.json`을 기본 analysis-service 상태로 읽습니다.
+별도 위치를 쓰려면 `INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME`으로 지정합니다.
 
 ### 전력 품질 분석 · 3상 불평형
 

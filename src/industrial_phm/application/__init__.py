@@ -189,6 +189,17 @@ from industrial_phm.application.operations_overview import (
     OperationsReviewSummary,
     build_operations_overview,
 )
+from industrial_phm.application.operations_v2 import (
+    OperationsActivityItem,
+    OperationsActivityKind,
+    OperationsMonitorAsset,
+    OperationsMonitorAttention,
+    OperationsMonitorStage,
+    OperationsMonitorStageKind,
+    OperationsMonitorStatus,
+    OperationsMonitorView,
+    build_operations_monitor_view,
+)
 from industrial_phm.application.phase_unbalance import (
     PHASE_UNBALANCE_CAPABILITY_ID,
     PhaseUnbalanceAnalysis,
@@ -269,6 +280,11 @@ from industrial_phm.application.source_subscription import (
     RegisteredOpcUaSubscriptionCycleResult,
     collect_registered_opcua_source_subscription,
     run_registered_opcua_subscription_cycle,
+)
+from industrial_phm.application.window_analysis_runtime import (
+    JsonWindowAnalysisRuntimeRepository,
+    WindowAnalysisRunnerState,
+    WindowAnalysisRunnerTelemetry,
 )
 from industrial_phm.application.window_coordinator import (
     ContinuousObservationWindowCoordinatorResult,
@@ -357,6 +373,7 @@ __all__ = [
     "JsonSourceRepository",
     "JsonSourceRuntimeRepository",
     "JsonWindowAnalysisLedger",
+    "JsonWindowAnalysisRuntimeRepository",
     "MeasurementDefinition",
     "MeasurementPointIdentity",
     "ObservationValidationPolicy",
@@ -384,7 +401,15 @@ __all__ = [
     "OperationalFinding",
     "OperationalFindingHistoryFormatError",
     "OperationalVibrationFeatureEvidence",
+    "OperationsActivityItem",
+    "OperationsActivityKind",
     "OperationsAttentionQueue",
+    "OperationsMonitorAsset",
+    "OperationsMonitorAttention",
+    "OperationsMonitorStage",
+    "OperationsMonitorStageKind",
+    "OperationsMonitorStatus",
+    "OperationsMonitorView",
     "OperationsOverview",
     "OperationsReviewSummary",
     "PhaseUnbalanceAnalysis",
@@ -432,6 +457,8 @@ __all__ = [
     "TemporalAlignmentPolicy",
     "UnknownRegisteredSourceError",
     "WindowAnalysisOutcome",
+    "WindowAnalysisRunnerState",
+    "WindowAnalysisRunnerTelemetry",
     "WindowAnalysisState",
     "WindowInputReference",
     "align_observations",
@@ -443,6 +470,7 @@ __all__ = [
     "build_asset_detail",
     "build_field_csv_observation_summary",
     "build_operations_attention_queue",
+    "build_operations_monitor_view",
     "build_operations_overview",
     "collect_registered_opcua_source_subscription",
     "create_finding_review_event",

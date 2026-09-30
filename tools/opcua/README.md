@@ -95,6 +95,20 @@ uv run --no-sync industrial-phm operations run-window-analysis \
   --ledger-state artifacts/live-3phase/window-analysis-ledger.json
 ```
 
+Runner는 기본적으로 analysis result 옆
+`artifacts/live-3phase/phase-unbalance-runtime.json`에 자신의 heartbeat, 최근 cycle,
+최근 analysis/skip/failure와 누적 처리 수를 기록합니다. 경로를 분리하려면
+`--runtime-status <path>`를 사용합니다. 이 telemetry는 Operations가 runner를 시작·중지하기 위한
+control state가 아니라, 독립 process가 실제로 갱신되고 있는지 관측하기 위한 evidence입니다.
+
+Operations V2 Monitor로 이 상태까지 함께 보려면 동일한 source/acquisition 환경변수에 다음을 추가해
+실행합니다.
+
+```bash
+export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.json
+uv run --no-sync marimo run apps/operations_v2.py
+```
+
 Each pending finalized window is analyzed from its accepted events (ADR-0008). The same
 window/capability/algorithm/policy result is persisted once across runner restarts. Windows without all
 three phases bound are recorded as skipped with a reason.

@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations V2 foundation을 추가했습니다. `apps/operations_v2.py`는 메인 배경 `#292827`의
+  Monitor 중심 shell에서 Source → Collect → Store → Analyze → Review 흐름, 현재 attention, asset 요약과
+  recent activity를 기존 operational evidence로 읽습니다. 기존 Operations action UI는 마이그레이션 동안
+  유지하며 V2 Monitor는 state를 직접 변경하지 않습니다. 독립 `run-window-analysis` process는 별도
+  runtime telemetry에 heartbeat, 최근 성공/skip/failure와 누적 처리 수를 기록해 수집과 분석 중단을
+  화면에서 구분할 수 있게 했습니다.
+
 - Operations의 Asset Detail·Investigation에 **Refresh analysis results**를 추가했습니다. 별도
   `run-window-analysis` process가 기록한 3상 불평형 결과를 앱 재시작 없이 다시 읽고, 선택 중인 분석은
   refresh 후에도 유지합니다. 읽기 실패 시 마지막 성공 결과와 실패 상태를 구분해 표시하며 Operations는 runner
