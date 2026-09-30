@@ -296,11 +296,12 @@ def _analysis_service(
     else:
         facts.extend(
             (
-                SystemRuntimeFact("Heartbeat", runtime.heartbeat_at.isoformat()),
+                SystemRuntimeFact("Heartbeat", _time_value(runtime.heartbeat_at)),
                 SystemRuntimeFact("Completed analyses", str(runtime.analyzed_count)),
                 SystemRuntimeFact("Skipped inputs", str(runtime.skipped_count)),
                 SystemRuntimeFact("Last result", _time_value(runtime.last_analysis_at)),
                 SystemRuntimeFact("Last skip", _time_value(runtime.last_skip_at)),
+                SystemRuntimeFact("Last skip reason", runtime.last_skip_reason or "None"),
                 SystemRuntimeFact("Last failure", runtime.last_failure or "None"),
             )
         )
@@ -332,7 +333,7 @@ def _application_service(
         updated_at=as_of,
         facts=(
             SystemRuntimeFact("Current read errors", str(len(errors))),
-            SystemRuntimeFact("Last refresh", as_of.isoformat()),
+            SystemRuntimeFact("Last refresh", _time_value(as_of)),
             SystemRuntimeFact("Process heartbeat", "Not instrumented"),
         ),
     )
@@ -357,6 +358,7 @@ def _error_title(scope: str) -> str:
         "maintenance-review": "Maintenance review",
         "live-data": "Live data",
         "analysis-service": "Analysis service",
+        "analysis-attempts": "Analysis attempts",
         "asset-history": "Asset History",
     }.get(scope, "Application state")
 
@@ -375,7 +377,11 @@ def _oldest_waiting_value(
 
 
 def _time_value(value: datetime | None) -> str:
-    return "Unavailable" if value is None else value.isoformat()
+    if value is None:
+        return "Unavailable"
+    if value.utcoffset() is None:
+        return "Time not comparable"
+    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def _require_text(value: str, field_name: str) -> None:
