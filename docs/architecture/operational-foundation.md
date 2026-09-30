@@ -137,11 +137,11 @@ artifact schema를 직접 해석하거나 numerical PHM 의미를 새로 만드�
 observation time range, channel/sample population과 data-quality state를 application read model로 전달하고,
 anomaly/diagnosis/prognostics/maintenance 의미는 검증된 capability가 실제로 생길 때 별도 evidence로 붙입니다.
 
-Operations v2의 asset-centric read model을 준비하기 위해 `AssetIdentity`, `ComponentIdentity`,
-`MeasurementPointIdentity`, `ChannelIdentity`를 application contract로 분리합니다. 기존 source registry v4와
-operational JSON schema는 이 변경에서 수정하지 않습니다. 현재 source/observation/analysis/finding이 실제로
-보존하는 `asset_id`, optional `measurement_point_id`, channel ID를 typed identity로 projection하며,
-현재 source mapping에 없는 component identity는 channel 이름이나 measurement-point 이름에서 추론하지 않습니다.
+Asset-centric read model은 `AssetIdentity`, `ComponentIdentity`, `MeasurementPointIdentity`,
+`ChannelIdentity`를 application contract로 분리합니다. Persisted source/operational schema의 exact version은
+각 repository code가 소유합니다. Source/observation/analysis/finding이 실제로 보존하는 `asset_id`, optional
+`measurement_point_id`, channel ID를 typed identity로 projection하며, source mapping에 없는 component
+identity는 channel 이름이나 measurement-point 이름에서 추론하지 않습니다.
 
 Operations Overview는 repository별 상태를 presentation cell에서 직접 재집계하지 않고
 `build_operations_overview` application read model을 사용합니다. 이 projection은 이미 로드된 registered source,
