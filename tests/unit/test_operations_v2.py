@@ -100,7 +100,7 @@ def _runner(*, heartbeat_at: datetime) -> WindowAnalysisRunnerTelemetry:
         analyzed_count=1,
         skipped_count=0,
         last_cycle_completed_at=heartbeat_at,
-        last_analysis_at=NOW - timedelta(seconds=2),
+        last_analysis_at=heartbeat_at - timedelta(seconds=1),
         last_analysis_run_id="analysis-1",
     )
 
