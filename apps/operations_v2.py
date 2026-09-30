@@ -888,9 +888,7 @@ def _(
     _filtered_investigations = investigation_queue.filter(
         review_state=_review_state_by_label.get(investigation_review_filter.value),
         asset_id=(
-            None
-            if investigation_asset_filter.value == "All"
-            else investigation_asset_filter.value
+            None if investigation_asset_filter.value == "All" else investigation_asset_filter.value
         ),
         capability_id=_capability_by_label.get(investigation_capability_filter.value),
     )
@@ -917,9 +915,7 @@ def _(
         investigation_selector = None
     investigation_filtered_count = len(_filtered_investigations)
     investigation_selected_id = (
-        None
-        if investigation_selector is None
-        else _label_to_id[investigation_selector.value]
+        None if investigation_selector is None else _label_to_id[investigation_selector.value]
     )
     return (
         investigation_filtered_count,
@@ -950,10 +946,8 @@ def _(
                 (
                     result
                     for result in analysis_results
-                    if result.run.analysis_run_id
-                    == selected_investigation.analysis_run_id
-                    and result.evidence.capability_id
-                    == selected_investigation.capability_id
+                    if result.run.analysis_run_id == selected_investigation.analysis_run_id
+                    and result.evidence.capability_id == selected_investigation.capability_id
                 ),
                 None,
             )
@@ -964,8 +958,7 @@ def _(
 def _(InvestigationReviewState, mo, selected_investigation):
     if (
         selected_investigation is not None
-        and selected_investigation.review_state
-        == InvestigationReviewState.NOT_REQUESTED
+        and selected_investigation.review_state == InvestigationReviewState.NOT_REQUESTED
     ):
         request_review_button = mo.ui.run_button(
             label="Request review",
@@ -1053,10 +1046,7 @@ def _(
         _queue_panel = mo.vstack(
             [
                 _filters,
-                mo.md(
-                    "### Queue\n\n"
-                    "No saved analysis result matches the current filters."
-                ),
+                mo.md("### Queue\n\nNo saved analysis result matches the current filters."),
             ],
             gap=0.8,
         )
@@ -1103,16 +1093,12 @@ def _(
                     mo.accordion(
                         {
                             "Excluded observations": mo.ui.table(
-                                phase_unbalance_exclusion_rows(
-                                    selected_investigation_result
-                                ),
+                                phase_unbalance_exclusion_rows(selected_investigation_result),
                                 selection=None,
                                 page_size=12,
                             ),
                             "Evidence & provenance": mo.ui.table(
-                                phase_unbalance_provenance_rows(
-                                    selected_investigation_result
-                                ),
+                                phase_unbalance_provenance_rows(selected_investigation_result),
                                 selection=None,
                                 page_size=20,
                             ),
@@ -1195,9 +1181,7 @@ def _(
                 mo.accordion(
                     {
                         "Evidence identity": mo.Html(
-                            render_investigation_evidence_identity_html(
-                                selected_investigation
-                            )
+                            render_investigation_evidence_identity_html(selected_investigation)
                         )
                     }
                 ),
@@ -1238,9 +1222,7 @@ def _(
     signal_view,
 ):
     theme = mo.Html(
-        operations_v2_theme_css()
-        + asset_workspace_css()
-        + investigation_workspace_css()
+        operations_v2_theme_css() + asset_workspace_css() + investigation_workspace_css()
     )
 
     header = mo.hstack(
