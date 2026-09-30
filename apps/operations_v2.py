@@ -6,7 +6,9 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
+    import asyncio
     import os
+    from concurrent.futures import ThreadPoolExecutor
     from datetime import UTC, datetime
     from pathlib import Path
 
@@ -15,6 +17,12 @@ def _():
     from industrial_phm.application import (
         AcquisitionTelemetrySurface,
         AssetIdentity,
+        ChannelSemanticBinding,
+        CollectionDesiredState,
+        ChannelSemanticBinding,
+        CollectionDesiredState,
+        FileSourceConfig,
+        FileSourceMode,
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
@@ -22,6 +30,10 @@ def _():
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
+        MeasurementDefinition,
+        OpcUaSourceConfig,
+        RegisteredSource,
+        SourceLifecycleState,
         SourceType,
         SystemStateErrorEvidence,
         build_asset_detail,
@@ -30,11 +42,19 @@ def _():
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
+        build_setup_workspace,
         build_system_runtime_view,
         create_human_review_finding,
+        discover_file_source,
+        register_file_source,
+        request_collection_state,
+        transition_source_lifecycle,
         validate_distinct_source_state_paths,
+        asyncio,
     )
     from industrial_phm.application.maintenance_review import (
+        FileSourceConfig,
+        FileSourceMode,
         FindingReviewAction,
         FindingReviewStatus,
         create_finding_review_event,
@@ -43,6 +63,11 @@ def _():
     from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
     from industrial_phm.application.operations_v2_investigations import (
         InvestigationReviewState,
+    )
+    from industrial_phm.connectors import (
+        OpcUaBrowseConfig,
+        OpcUaNodeMapping,
+        browse_opcua_variables,
     )
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.presentation import (
@@ -54,7 +79,11 @@ def _():
         render_monitor_flow_html,
         render_system_diagnostics_html,
         render_system_errors_html,
+        render_setup_signals_html,
+        render_setup_source_detail_html,
+        render_setup_sources_html,
         render_system_runtime_html,
+        setup_workspace_css,
         system_workspace_css,
     )
     from industrial_phm.presentation.measurement_history import (
@@ -100,6 +129,7 @@ def _():
         SqliteAcquisitionSpool,
         SqliteAcquisitionSpoolConfig,
         SqliteAcquisitionTelemetryRepository,
+        SqliteCollectionControlRepository,
     )
 
     return (
@@ -117,13 +147,21 @@ def _():
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
+        MeasurementDefinition,
+        OpcUaBrowseConfig,
+        OpcUaNodeMapping,
+        OpcUaSourceConfig,
         OperationalAnalysisPresentationKind,
         Path,
+        RegisteredSource,
+        SourceLifecycleState,
         SourceType,
         SqliteAcquisitionSpool,
         SqliteAcquisitionSpoolConfig,
         SqliteAcquisitionTelemetryRepository,
+        SqliteCollectionControlRepository,
         SystemStateErrorEvidence,
+        ThreadPoolExecutor,
         UTC,
         asset_workspace_css,
         build_asset_detail,
@@ -133,10 +171,13 @@ def _():
         build_operations_attention_queue,
         build_operations_monitor_view,
         build_operations_overview,
+        build_setup_workspace,
         build_system_runtime_view,
         create_finding_review_event,
+        browse_opcua_variables,
         create_human_review_finding,
         datetime,
+        discover_file_source,
         investigation_capability_label,
         investigation_queue_option_label,
         investigation_review_label,
@@ -172,11 +213,18 @@ def _():
         render_monitor_assets_html,
         render_monitor_flow_html,
         render_phase_unbalance_svg,
+        render_setup_signals_html,
+        render_setup_source_detail_html,
+        render_setup_sources_html,
         render_system_diagnostics_html,
         render_system_errors_html,
         render_system_runtime_html,
+        register_file_source,
+        request_collection_state,
         resolve_measurement_range,
+        setup_workspace_css,
         system_workspace_css,
+        transition_source_lifecycle,
         validate_distinct_source_state_paths,
     )
 
