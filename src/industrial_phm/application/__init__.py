@@ -21,6 +21,10 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionTelemetrySnapshot,
     AcquisitionTelemetrySurface,
     AcquisitionWindowTelemetry,
+    CollectionServiceRuntimeRecorder,
+    CollectionServiceRuntimeRepository,
+    CollectionServiceRuntimeState,
+    CollectionServiceRuntimeTelemetry,
     build_acquisition_telemetry_surface,
 )
 from industrial_phm.application.alignment import (
@@ -394,6 +398,10 @@ __all__ = [
     "CollectionControlRecord",
     "CollectionControlRepository",
     "CollectionDesiredState",
+    "CollectionServiceRuntimeTelemetry",
+    "CollectionServiceRuntimeState",
+    "CollectionServiceRuntimeRepository",
+    "CollectionServiceRuntimeRecorder",
     "ComponentIdentity",
     "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
