@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from industrial_phm.application.operations_v2 import (
     OperationsMonitorAsset,
+    OperationsMonitorAttention,
     OperationsMonitorStage,
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
@@ -38,11 +39,19 @@ def _view() -> OperationsMonitorView:
                 last_data_at=NOW,
                 latest_analysis_at=None,
                 pending_review_count=1,
-                attention_count=2,
+                attention_count=1,
             ),
         ),
-        attention_count=2,
-        unhandled_attention_count=1,
+        attention=(
+            OperationsMonitorAttention(
+                attention_id="stale:boiler-01",
+                status=OperationsMonitorStatus.DELAYED,
+                title="Data is delayed",
+                detail="Latest data exceeded its configured age.",
+                occurred_at=NOW,
+                asset_id="boiler-01",
+            ),
+        ),
         activities=(),
     )
 
@@ -52,7 +61,7 @@ def test_v2_theme_uses_fixed_main_background() -> None:
     assert "#292827" in operations_v2_theme_css()
 
 
-def test_monitor_presenters_use_operator_vocabulary_and_escape_html() -> None:
+def test_monitor_presenters_use_operator_vocabulary() -> None:
     view = _view()
     flow = render_monitor_flow_html(view)
     assets = render_monitor_assets_html(view)
