@@ -114,7 +114,7 @@ jobs:
             --no-include-code \
             --output /tmp/analysis-explorer-mimii-inspection.html
 
-      - name: Execute PHM Operations registered-source surfaces
+      - name: Execute PHM Operations V2 registered-source surfaces
         run: |
           uv run --locked --group research python - <<'PY'
           from datetime import datetime
@@ -215,27 +215,27 @@ jobs:
           EOF
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
             uv run --locked --group research marimo export html \
-            apps/operations.py \
+            apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-file-registry.html
 
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
           INDUSTRIAL_PHM_OPERATIONS_REGISTRATION_TYPE=opcua \
             uv run --locked --group research marimo export html \
-            apps/operations.py \
+            apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-registration.html
 
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-opcua-source-registry.json \
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME=/tmp/operations-opcua-source-runtime.json \
             uv run --locked --group research marimo export html \
-            apps/operations.py \
+            apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-attempt-evidence.html
 
           printf '{not-json' > /tmp/operations-source-registry-invalid.json
           INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry-invalid.json \
             uv run --locked --group research marimo export html \
-            apps/operations.py \
+            apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-invalid-registry.html
