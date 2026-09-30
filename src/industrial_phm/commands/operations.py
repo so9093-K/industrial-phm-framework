@@ -12,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 from industrial_phm.application import (
     AlignmentPolicyKind,
     CollectionDesiredState,
-    SqliteObservationWindowRepository,
     JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
@@ -22,6 +21,7 @@ from industrial_phm.application import (
     PhaseUnbalanceConfig,
     SourcePollingPolicy,
     SourceRuntimeCycleState,
+    SqliteObservationWindowRepository,
     TemporalAlignmentPolicy,
     analyze_finalized_windows,
     backfill_registered_file_source,
