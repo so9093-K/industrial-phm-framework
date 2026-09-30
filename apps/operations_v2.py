@@ -1224,6 +1224,340 @@ def _(
 
 
 @app.cell
+def _():
+    maintenance_selection = {"finding_id": None}
+    return (maintenance_selection,)
+
+
+@app.cell
+def _(mo, review_events):
+    get_maintenance_events, set_maintenance_events = mo.state(review_events)
+    get_maintenance_error, set_maintenance_error = mo.state("")
+    get_maintenance_success, set_maintenance_success = mo.state("")
+    return (
+        get_maintenance_error,
+        get_maintenance_events,
+        get_maintenance_success,
+        set_maintenance_error,
+        set_maintenance_events,
+        set_maintenance_success,
+    )
+
+
+@app.cell
+def _(
+    refresh_button,
+    review_events,
+    set_maintenance_error,
+    set_maintenance_events,
+    set_maintenance_success,
+):
+    if refresh_button.value:
+        set_maintenance_events(review_events)
+        set_maintenance_error("")
+        set_maintenance_success("")
+    return
+
+
+@app.cell
+def _(
+    build_maintenance_queue,
+    get_maintenance_events,
+    investigation_findings,
+):
+    maintenance_events = get_maintenance_events()
+    maintenance_queue = build_maintenance_queue(
+        findings=investigation_findings,
+        review_events=maintenance_events,
+    )
+    return maintenance_events, maintenance_queue
+
+
+@app.cell
+def _(FindingReviewStatus, maintenance_queue, maintenance_status_label, mo):
+    _status_labels = ["All", *[maintenance_status_label(status) for status in FindingReviewStatus]]
+    maintenance_status_filter = mo.ui.dropdown(
+        options=_status_labels,
+        value="All",
+        label="Status",
+        full_width=True,
+    )
+    maintenance_asset_filter = mo.ui.dropdown(
+        options=["All", *maintenance_queue.asset_ids],
+        value="All",
+        label="Asset",
+        full_width=True,
+    )
+    return maintenance_asset_filter, maintenance_status_filter
+
+
+@app.cell
+def _(
+    FindingReviewStatus,
+    maintenance_asset_filter,
+    maintenance_queue,
+    maintenance_queue_label,
+    maintenance_selection,
+    maintenance_status_filter,
+    maintenance_status_label,
+    mo,
+):
+    _status_by_label = {
+        maintenance_status_label(status): status for status in FindingReviewStatus
+    }
+    _filtered = maintenance_queue.filter(
+        status=_status_by_label.get(maintenance_status_filter.value),
+        asset_id=None if maintenance_asset_filter.value == "All" else maintenance_asset_filter.value,
+    )
+    _label_to_id = {
+        f"{maintenance_queue_label(item)} · {index + 1}": item.finding_id
+        for index, item in enumerate(_filtered)
+    }
+    _id_to_label = {value: key for key, value in _label_to_id.items()}
+    if _filtered:
+        _selected_id = (
+            maintenance_selection["finding_id"]
+            if maintenance_selection["finding_id"] in _id_to_label
+            else _filtered[0].finding_id
+        )
+        maintenance_selector = mo.ui.radio(
+            options=list(_label_to_id),
+            value=_id_to_label[_selected_id],
+            label="Queue",
+            on_change=lambda value: maintenance_selection.update(
+                finding_id=_label_to_id[value]
+            ),
+        )
+        maintenance_selected_id = _label_to_id[maintenance_selector.value]
+    else:
+        maintenance_selector = None
+        maintenance_selected_id = None
+    maintenance_filtered_count = len(_filtered)
+    return maintenance_filtered_count, maintenance_selected_id, maintenance_selector
+
+
+@app.cell
+def _(maintenance_queue, maintenance_selected_id):
+    selected_maintenance = (
+        None
+        if maintenance_selected_id is None
+        else next(
+            (
+                item
+                for item in maintenance_queue.items
+                if item.finding_id == maintenance_selected_id
+            ),
+            None,
+        )
+    )
+    return (selected_maintenance,)
+
+
+@app.cell
+def _(FindingReviewStatus, mo, selected_maintenance):
+    if selected_maintenance is None or selected_maintenance.status == FindingReviewStatus.CLOSED:
+        maintenance_note_input = None
+        maintenance_add_note_button = None
+        maintenance_ack_button = None
+        maintenance_close_button = None
+    else:
+        maintenance_note_input = mo.ui.text_area(
+            value="",
+            label="Review note",
+            rows=3,
+            full_width=True,
+        )
+        maintenance_add_note_button = mo.ui.run_button(label="Add note")
+        maintenance_ack_button = (
+            mo.ui.run_button(label="Acknowledge", kind="success")
+            if selected_maintenance.status == FindingReviewStatus.OPEN
+            else None
+        )
+        maintenance_close_button = (
+            mo.ui.run_button(label="Close review", kind="warn")
+            if selected_maintenance.status == FindingReviewStatus.ACKNOWLEDGED
+            else None
+        )
+    return (
+        maintenance_ack_button,
+        maintenance_add_note_button,
+        maintenance_close_button,
+        maintenance_note_input,
+    )
+
+
+@app.cell
+def _(
+    FindingReviewAction,
+    JsonFindingReviewRepository,
+    create_finding_review_event,
+    investigation_findings,
+    maintenance_ack_button,
+    maintenance_add_note_button,
+    maintenance_close_button,
+    maintenance_note_input,
+    review_path,
+    selected_maintenance,
+    set_maintenance_error,
+    set_maintenance_events,
+    set_maintenance_success,
+):
+    _action = None
+    if maintenance_add_note_button is not None and maintenance_add_note_button.value:
+        _action = FindingReviewAction.NOTE
+    elif maintenance_ack_button is not None and maintenance_ack_button.value:
+        _action = FindingReviewAction.ACKNOWLEDGE
+    elif maintenance_close_button is not None and maintenance_close_button.value:
+        _action = FindingReviewAction.CLOSE
+
+    if _action is not None:
+        try:
+            if selected_maintenance is None:
+                raise ValueError("select a review before recording an action")
+            _finding = next(
+                item
+                for item in investigation_findings
+                if item.finding_id == selected_maintenance.finding_id
+            )
+            _note = "" if maintenance_note_input is None else maintenance_note_input.value
+            _event = create_finding_review_event(_finding, action=_action, note=_note)
+            _repository = JsonFindingReviewRepository(review_path)
+            _repository.record(_event)
+            _events = _repository.list_events()
+        except (LookupError, OSError, ValueError) as error:
+            set_maintenance_error(str(error))
+            set_maintenance_success("")
+        else:
+            set_maintenance_events(_events)
+            set_maintenance_error("")
+            set_maintenance_success(f"Review action recorded: {_action.value}.")
+    return
+
+
+@app.cell
+def _(get_maintenance_error, get_maintenance_success):
+    maintenance_error = get_maintenance_error()
+    maintenance_success = get_maintenance_success()
+    return maintenance_error, maintenance_success
+
+
+@app.cell
+def _(
+    FindingReviewStatus,
+    maintenance_ack_button,
+    maintenance_add_note_button,
+    maintenance_asset_filter,
+    maintenance_close_button,
+    maintenance_error,
+    maintenance_filtered_count,
+    maintenance_note_input,
+    maintenance_queue,
+    maintenance_selector,
+    maintenance_status_filter,
+    maintenance_success,
+    maintenance_workspace_css,
+    mo,
+    render_maintenance_identity_html,
+    render_maintenance_summary_html,
+    render_maintenance_timeline_html,
+    selected_maintenance,
+):
+    _counts = mo.md(
+        "### Review workload\n\n"
+        f"**Open {maintenance_queue.count(FindingReviewStatus.OPEN)}** · "
+        f"Acknowledged {maintenance_queue.count(FindingReviewStatus.ACKNOWLEDGED)} · "
+        f"Closed {maintenance_queue.count(FindingReviewStatus.CLOSED)}"
+    )
+    _filters = mo.hstack(
+        [maintenance_status_filter, maintenance_asset_filter],
+        widths=[0.45, 0.55],
+        align="start",
+    )
+    if maintenance_selector is None:
+        _queue_panel = mo.vstack(
+            [_counts, _filters, mo.md("No review matches the current filters.")],
+            gap=0.8,
+        )
+    else:
+        _queue_panel = mo.vstack(
+            [
+                _counts,
+                _filters,
+                mo.md(
+                    f"### Queue\n\n{maintenance_filtered_count} shown · "
+                    f"{len(maintenance_queue.items)} total"
+                ),
+                maintenance_selector,
+            ],
+            gap=0.8,
+        )
+
+    if selected_maintenance is None:
+        _detail_panel = mo.md("## Maintenance review\n\nSelect a review from the queue.")
+    else:
+        _action_blocks = []
+        if maintenance_error:
+            _action_blocks.append(
+                mo.callout(maintenance_error, kind="danger", title="Review action failed")
+            )
+        if maintenance_success:
+            _action_blocks.append(
+                mo.callout(maintenance_success, kind="success", title="Review updated")
+            )
+        if selected_maintenance.status != FindingReviewStatus.CLOSED:
+            _buttons = [
+                button
+                for button in (
+                    maintenance_add_note_button,
+                    maintenance_ack_button,
+                    maintenance_close_button,
+                )
+                if button is not None
+            ]
+            _action_blocks.extend(
+                [
+                    mo.md("### Review actions"),
+                    maintenance_note_input,
+                    mo.hstack(_buttons, justify="start", gap=0.6),
+                ]
+            )
+        else:
+            _action_blocks.append(
+                mo.md(
+                    "### Review actions\n\n"
+                    "This review is closed. Closed review history is append-locked."
+                )
+            )
+        _detail_panel = mo.vstack(
+            [
+                mo.Html(render_maintenance_summary_html(selected_maintenance)),
+                mo.Html(render_maintenance_timeline_html(selected_maintenance)),
+                *_action_blocks,
+                mo.accordion(
+                    {
+                        "Review identity": mo.Html(
+                            render_maintenance_identity_html(selected_maintenance)
+                        )
+                    }
+                ),
+                mo.md(
+                    "Acknowledge and Close change only the human review workflow. "
+                    "They do not confirm a fault, repair, asset health, or CMMS work order."
+                ),
+            ],
+            gap=0.9,
+        )
+
+    maintenance_view = mo.hstack(
+        [_queue_panel, _detail_panel],
+        widths=[0.36, 0.64],
+        align="start",
+        gap=1.3,
+    )
+    return maintenance_view, maintenance_workspace_css
+
+
+@app.cell
 def _(
     asset_section,
     asset_selector,
@@ -1232,6 +1566,8 @@ def _(
     asset_workspace_error,
     investigation_view,
     investigation_workspace_css,
+    maintenance_view,
+    maintenance_workspace_css,
     mo,
     monitor,
     navigation,
@@ -1247,7 +1583,10 @@ def _(
     signal_view,
 ):
     theme = mo.Html(
-        operations_v2_theme_css() + asset_workspace_css() + investigation_workspace_css()
+        operations_v2_theme_css()
+        + asset_workspace_css()
+        + investigation_workspace_css()
+        + maintenance_workspace_css()
     )
 
     header = mo.hstack(
@@ -1352,9 +1691,7 @@ def _(
         "Monitor": monitor_view,
         "Assets": asset_view,
         "Investigations": investigation_view,
-        "Maintenance": mo.md(
-            "## Maintenance\n\nOpen / acknowledged / closed review work will move here."
-        ),
+        "Maintenance": maintenance_view,
         "System": mo.md(
             "## System\n\n"
             "Collection, storage, analysis service and application runtime status "
