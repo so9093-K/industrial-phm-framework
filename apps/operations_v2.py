@@ -15,11 +15,11 @@ def _():
     import marimo as mo
 
     from industrial_phm.application import (
+        FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
         AcquisitionTelemetrySurface,
         AssetIdentity,
         ChannelSemanticBinding,
         CollectionDesiredState,
-        FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
         FileSourceConfig,
         FileSourceMode,
         JsonFieldFeatureAnalysisRepository,
