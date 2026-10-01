@@ -558,7 +558,6 @@ class DuckLakeAssetHistory:
             return 0
         return _require_int(row[0], "snapshot_id")
 
-
     def runtime_fingerprint(self) -> DuckLakeRuntimeFingerprint:
         """Return DuckDB/DuckLake versions used by this history adapter."""
         connection = self._connect()
@@ -583,9 +582,7 @@ class DuckLakeAssetHistory:
             ducklake_extension_version=_optional_str(
                 extension_row[0], "ducklake_extension_version"
             ),
-            ducklake_installed_from=_optional_str(
-                extension_row[1], "ducklake_installed_from"
-            ),
+            ducklake_installed_from=_optional_str(extension_row[1], "ducklake_installed_from"),
             ducklake_install_mode=_optional_str(extension_row[2], "ducklake_install_mode"),
         )
 
@@ -675,9 +672,7 @@ class DuckLakeAssetHistory:
                 options.append(f"max_file_size => {max_file_size_bytes}")
             started = time.perf_counter()
             rows = connection.execute(
-                f"CALL ducklake_merge_adjacent_files('{_CATALOG_NAME}', "
-                + ", ".join(options)
-                + ")"
+                f"CALL ducklake_merge_adjacent_files('{_CATALOG_NAME}', " + ", ".join(options) + ")"
             ).fetchall()
             duration_seconds = time.perf_counter() - started
             storage_after = self._inspect_storage_with_connection(connection)
@@ -710,9 +705,7 @@ class DuckLakeAssetHistory:
             raise RuntimeError("DuckLake snapshot metadata is unavailable")
         snapshot_count = _require_int(snapshot_row[0], "snapshot_count")
         current_snapshot_id = (
-            0
-            if snapshot_row[1] is None
-            else _require_int(snapshot_row[1], "current_snapshot_id")
+            0 if snapshot_row[1] is None else _require_int(snapshot_row[1], "current_snapshot_id")
         )
 
         active_sizes: list[int] = []
@@ -722,9 +715,7 @@ class DuckLakeAssetHistory:
                 f"'{_CATALOG_NAME}', '{table}', schema => '{schema}')"
             ).fetchall()
             active_sizes.extend(
-                _require_int(row[0], "data_file_size_bytes")
-                for row in rows
-                if row[0] is not None
+                _require_int(row[0], "data_file_size_bytes") for row in rows if row[0] is not None
             )
         active_sizes.sort()
         active_count = len(active_sizes)
