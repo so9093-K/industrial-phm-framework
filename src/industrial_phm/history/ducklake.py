@@ -12,6 +12,7 @@ import importlib
 import importlib.util
 import json
 import sys
+import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -61,6 +62,19 @@ _COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
 # batches) are verified with the legacy fingerprint that excludes semantics.
 _OPCUA_FINGERPRINT_VERSION = "opcua-semantic-v2"
 
+_HISTORY_DATA_TABLES = (
+    ("raw", "opcua_data_change"),
+    ("raw", "file_measurement"),
+    ("history", "measurement"),
+    ("history", "ingestion_batch"),
+)
+_SNAPSHOT_FINGERPRINT_TABLES = (
+    ("raw", "opcua_data_change", "raw_evidence_id"),
+    ("raw", "file_measurement", "raw_evidence_id"),
+    ("history", "measurement", "raw_evidence_id"),
+    ("history", "ingestion_batch", "batch_id, ingestion_mode"),
+)
+
 
 class DuckLakeRuntimeUnavailableError(RuntimeError):
     """Raised when the optional DuckDB/DuckLake history runtime is unavailable."""
@@ -80,6 +94,68 @@ class DuckLakeInlinedDataFlush:
     @property
     def flushed_row_count(self) -> int:
         return sum(count for _, count in self.flushed_rows)
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeRuntimeFingerprint:
+    """Runtime versions that affect DuckLake maintenance behavior."""
+
+    duckdb_version: str
+    ducklake_extension_version: str | None
+    ducklake_installed_from: str | None
+    ducklake_install_mode: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeStorageInspection:
+    """Physical and logical storage state observed under the catalog lease."""
+
+    snapshot_count: int
+    current_snapshot_id: int
+    active_data_file_count: int
+    active_data_file_bytes: int
+    active_file_size_min_bytes: int | None
+    active_file_size_median_bytes: int | None
+    active_file_size_max_bytes: int | None
+    scheduled_for_deletion_count: int
+    physical_parquet_file_count: int
+    physical_parquet_bytes: int
+    catalog_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeCompactedTable:
+    """One table's output from a merge-adjacent-files operation."""
+
+    schema_name: str
+    table_name: str
+    files_processed: int
+    files_created: int
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeCompactionResult:
+    """Non-destructive compaction result.
+
+    Compaction may create a new snapshot. It does not expire snapshots or clean
+    physical files; earlier snapshot IDs must remain queryable.
+    """
+
+    snapshot_before: int
+    snapshot_after: int
+    duration_seconds: float
+    target_file_size_bytes: int
+    tables: tuple[DuckLakeCompactedTable, ...]
+    storage_before: DuckLakeStorageInspection
+    storage_after: DuckLakeStorageInspection
+
+    @property
+    def files_processed(self) -> int:
+        return sum(table.files_processed for table in self.tables)
+
+    @property
+    def files_created(self) -> int:
+        return sum(table.files_created for table in self.tables)
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,121 +278,140 @@ class DuckLakeAssetHistory:
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit:
         """Atomically persist a batch or recover its already committed identical write."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._append_opcua_batch_with_connection(
+                connection,
+                events,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+            )
+        finally:
+            connection.close()
+
+    def _append_opcua_batch_with_connection(
+        self,
+        connection: Any,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchCommit:
+        """Persist one batch using an already leased/initialized connection.
+
+        This is an internal reuse point for deterministic scale-test state preparation.
+        Public callers use append_opcua_batch(), which owns the catalog lease per call.
+        """
         batch = _validate_opcua_batch_input(
             events,
             batch_id=batch_id,
             ingestion_mode=ingestion_mode,
         )
         fingerprint = _opcua_batch_fingerprint(batch)
+        existing = self._lookup_existing_batch_commit(
+            connection,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+            event_count=len(batch),
+            fingerprint=fingerprint,
+            fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
+            legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
+        )
+        if existing is not None:
+            # A legacy commit is recovered as stored: its raw rows keep no semantic
+            # snapshot and are never backfilled with the current binding.
+            return existing
+        self._reject_existing_deliveries(connection, batch)
 
-        connection = self._connect()
+        transaction_open = False
         try:
-            self._ensure_initialized(connection)
-            existing = self._lookup_existing_batch_commit(
+            connection.execute("BEGIN TRANSACTION")
+            transaction_open = True
+            connection.execute(
+                f"""
+                INSERT INTO {_CATALOG_NAME}.history.ingestion_batch
+                    (batch_id, ingestion_mode, event_count)
+                VALUES (?, ?, ?)
+                """,
+                [batch_id, ingestion_mode.value, len(batch)],
+            )
+            _insert_columns(
                 connection,
+                "raw.opcua_data_change",
+                _OPCUA_RAW_COLUMNS,
+                [
+                    _raw_event_row(
+                        event,
+                        batch_id=batch_id,
+                        ingestion_mode=ingestion_mode,
+                    )
+                    for event in batch
+                ],
+            )
+            _insert_columns(
+                connection,
+                "history.measurement",
+                _MEASUREMENT_COLUMNS,
+                [
+                    _measurement_row(
+                        event,
+                        batch_id=batch_id,
+                        ingestion_mode=ingestion_mode,
+                    )
+                    for event in batch
+                ],
+            )
+            commit_extra_info = _batch_commit_extra_info(
                 batch_id=batch_id,
                 ingestion_mode=ingestion_mode,
                 event_count=len(batch),
                 fingerprint=fingerprint,
                 fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
-                legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
             )
-            if existing is not None:
-                # A legacy commit is recovered as stored: its raw rows keep no semantic
-                # snapshot and are never backfilled with the current binding.
-                return existing
-            self._reject_existing_deliveries(connection, batch)
-
+            connection.execute(
+                f"CALL {_CATALOG_NAME}.set_commit_message("
+                + _quote_sql_literal(_COMMIT_AUTHOR)
+                + ", "
+                + _quote_sql_literal(f"ingestion batch {batch_id}")
+                + ", extra_info => "
+                + _quote_sql_literal(commit_extra_info)
+                + ")"
+            )
+            connection.execute("COMMIT")
             transaction_open = False
-            try:
-                connection.execute("BEGIN TRANSACTION")
-                transaction_open = True
-                connection.execute(
-                    f"""
-                    INSERT INTO {_CATALOG_NAME}.history.ingestion_batch
-                        (batch_id, ingestion_mode, event_count)
-                    VALUES (?, ?, ?)
-                    """,
-                    [batch_id, ingestion_mode.value, len(batch)],
-                )
-                _insert_columns(
-                    connection,
-                    "raw.opcua_data_change",
-                    _OPCUA_RAW_COLUMNS,
-                    [
-                        _raw_event_row(
-                            event,
-                            batch_id=batch_id,
-                            ingestion_mode=ingestion_mode,
-                        )
-                        for event in batch
-                    ],
-                )
-                _insert_columns(
-                    connection,
-                    "history.measurement",
-                    _MEASUREMENT_COLUMNS,
-                    [
-                        _measurement_row(
-                            event,
-                            batch_id=batch_id,
-                            ingestion_mode=ingestion_mode,
-                        )
-                        for event in batch
-                    ],
-                )
-                commit_extra_info = _batch_commit_extra_info(
-                    batch_id=batch_id,
-                    ingestion_mode=ingestion_mode,
-                    event_count=len(batch),
-                    fingerprint=fingerprint,
-                    fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
-                )
-                connection.execute(
-                    f"CALL {_CATALOG_NAME}.set_commit_message("
-                    + _quote_sql_literal(_COMMIT_AUTHOR)
-                    + ", "
-                    + _quote_sql_literal(f"ingestion batch {batch_id}")
-                    + ", extra_info => "
-                    + _quote_sql_literal(commit_extra_info)
-                    + ")"
-                )
-                connection.execute("COMMIT")
-                transaction_open = False
-            except Exception:
-                if transaction_open:
-                    connection.execute("ROLLBACK")
-                raise
+        except Exception:
+            if transaction_open:
+                connection.execute("ROLLBACK")
+            raise
 
-            snapshot_row = connection.execute(
-                f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
-            ).fetchone()
-            if snapshot_row is None or snapshot_row[0] is None:
-                raise RuntimeError("DuckLake did not report the committed batch snapshot")
-            snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
+        snapshot_row = connection.execute(
+            f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
+        ).fetchone()
+        if snapshot_row is None or snapshot_row[0] is None:
+            raise RuntimeError("DuckLake did not report the committed batch snapshot")
+        snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
 
-            time_row = connection.execute(
-                f"""
-                SELECT snapshot_time
-                FROM {_CATALOG_NAME}.snapshots()
-                WHERE snapshot_id = ?
-                """,
-                [snapshot_id],
-            ).fetchone()
-            if time_row is None:
-                raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
-            committed_at = time_row[0]
-            if not isinstance(committed_at, datetime) or committed_at.utcoffset() is None:
-                raise RuntimeError("DuckLake snapshot_time must be timezone-aware")
+        time_row = connection.execute(
+            f"""
+            SELECT snapshot_time
+            FROM {_CATALOG_NAME}.snapshots()
+            WHERE snapshot_id = ?
+            """,
+            [snapshot_id],
+        ).fetchone()
+        if time_row is None:
+            raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
+        committed_at = time_row[0]
+        if not isinstance(committed_at, datetime) or committed_at.utcoffset() is None:
+            raise RuntimeError("DuckLake snapshot_time must be timezone-aware")
 
-            return HistoricalBatchCommit(
-                batch_id=batch_id,
-                snapshot_id=snapshot_id,
-                event_count=len(batch),
-                committed_at=committed_at,
-            )
-        finally:
-            connection.close()
+        return HistoricalBatchCommit(
+            batch_id=batch_id,
+            snapshot_id=snapshot_id,
+            event_count=len(batch),
+            committed_at=committed_at,
+        )
 
     def get_file_batch_commit(
         self,
@@ -482,6 +577,238 @@ class DuckLakeAssetHistory:
         if row is None or row[0] is None:
             return 0
         return _require_int(row[0], "snapshot_id")
+
+    def runtime_fingerprint(self) -> DuckLakeRuntimeFingerprint:
+        """Return DuckDB/DuckLake versions used by this history adapter."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            version_row = connection.execute("SELECT version()").fetchone()
+            extension_row = connection.execute(
+                """
+                SELECT extension_version, installed_from, install_mode
+                FROM duckdb_extensions()
+                WHERE extension_name = 'ducklake'
+                """
+            ).fetchone()
+        finally:
+            connection.close()
+        if version_row is None:
+            raise RuntimeError("DuckDB did not report its version")
+        if extension_row is None:
+            raise RuntimeError("DuckLake extension metadata is unavailable")
+        return DuckLakeRuntimeFingerprint(
+            duckdb_version=_require_str(version_row[0], "duckdb_version"),
+            ducklake_extension_version=_optional_str(
+                extension_row[0], "ducklake_extension_version"
+            ),
+            ducklake_installed_from=_optional_str(extension_row[1], "ducklake_installed_from"),
+            ducklake_install_mode=_optional_str(extension_row[2], "ducklake_install_mode"),
+        )
+
+    def inspect_storage(self) -> DuckLakeStorageInspection:
+        """Inspect active/logical and physical storage without mutating history."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._inspect_storage_with_connection(connection)
+        finally:
+            connection.close()
+
+    def snapshot_evidence_fingerprint(self, snapshot_id: int) -> str:
+        """Hash canonical raw/history rows visible at one existing snapshot."""
+        _validate_non_negative_int(snapshot_id, "snapshot_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            exists = connection.execute(
+                f"SELECT 1 FROM {_CATALOG_NAME}.snapshots() WHERE snapshot_id = ?",
+                [snapshot_id],
+            ).fetchone()
+            if exists is None:
+                raise ValueError(f"history snapshot does not exist: {snapshot_id}")
+
+            digest = hashlib.sha256()
+            for schema, table, order_by in _SNAPSHOT_FINGERPRINT_TABLES:
+                cursor = connection.execute(
+                    f"SELECT * FROM {_CATALOG_NAME}.{schema}.{table} "
+                    f"AT (VERSION => {snapshot_id}) ORDER BY {order_by}"
+                )
+                columns = [description[0] for description in cursor.description]
+                digest.update(
+                    json.dumps(
+                        [schema, table, columns],
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ).encode()
+                )
+                while True:
+                    rows = cursor.fetchmany(1000)
+                    if not rows:
+                        break
+                    for row in rows:
+                        digest.update(
+                            json.dumps(
+                                [_canonical_fingerprint_value(value) for value in row],
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            ).encode()
+                        )
+            return digest.hexdigest()
+        finally:
+            connection.close()
+
+    def compact_adjacent_files(
+        self,
+        *,
+        max_compacted_files: int,
+        target_file_size_bytes: int,
+        min_file_size_bytes: int | None = None,
+        max_file_size_bytes: int | None = None,
+    ) -> DuckLakeCompactionResult:
+        """Merge active adjacent Parquet files without expiring snapshots or deleting files.
+
+        Each DuckLake table is compacted in a separate provider call and connection.
+        This deliberately releases the local catalog lease between tables so writer
+        availability and native-memory working sets are not coupled to a whole-catalog
+        compaction. The operation is therefore not cross-table atomic; each completed
+        DuckLake call remains a valid snapshot and a retry safely continues remaining
+        eligible files.
+
+        max_compacted_files follows DuckLake's provider contract: it limits the
+        number of compaction output operations produced per table, not the number
+        of input files merged into one output. target_file_size_bytes is an explicit,
+        persistent physical-layout policy for future writes/compactions, not a
+        retention policy. Resource bounds are established by measured scale tests.
+        """
+        _validate_positive_int(max_compacted_files, "max_compacted_files")
+        _validate_positive_int(target_file_size_bytes, "target_file_size_bytes")
+        _validate_optional_positive_int(min_file_size_bytes, "min_file_size_bytes")
+        _validate_optional_positive_int(max_file_size_bytes, "max_file_size_bytes")
+        if (
+            min_file_size_bytes is not None
+            and max_file_size_bytes is not None
+            and min_file_size_bytes >= max_file_size_bytes
+        ):
+            raise ValueError("min_file_size_bytes must be less than max_file_size_bytes")
+
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            connection.execute(
+                f"CALL {_CATALOG_NAME}.set_option('target_file_size', "
+                + _quote_sql_literal(f"{target_file_size_bytes}B")
+                + ")"
+            )
+            storage_before = self._inspect_storage_with_connection(connection)
+            snapshot_before = storage_before.current_snapshot_id
+        finally:
+            connection.close()
+
+        options = [f"max_compacted_files => {max_compacted_files}"]
+        if min_file_size_bytes is not None:
+            options.append(f"min_file_size => {min_file_size_bytes}")
+        if max_file_size_bytes is not None:
+            options.append(f"max_file_size => {max_file_size_bytes}")
+
+        rows: list[tuple[object, object, object, object]] = []
+        started = time.perf_counter()
+        for schema, table in _HISTORY_DATA_TABLES:
+            connection = self._connect()
+            try:
+                self._ensure_initialized(connection)
+                table_rows = connection.execute(
+                    f"CALL ducklake_merge_adjacent_files('{_CATALOG_NAME}', "
+                    + _quote_sql_literal(table)
+                    + ", schema => "
+                    + _quote_sql_literal(schema)
+                    + ", "
+                    + ", ".join(options)
+                    + ")"
+                ).fetchall()
+                rows.extend(table_rows)
+            finally:
+                connection.close()
+        duration_seconds = time.perf_counter() - started
+        storage_after = self.inspect_storage()
+
+        tables = tuple(
+            DuckLakeCompactedTable(
+                schema_name=_require_str(schema, "schema_name"),
+                table_name=_require_str(table, "table_name"),
+                files_processed=_require_int(files_processed, "files_processed"),
+                files_created=_require_int(files_created, "files_created"),
+            )
+            for schema, table, files_processed, files_created in rows
+        )
+        return DuckLakeCompactionResult(
+            snapshot_before=snapshot_before,
+            snapshot_after=storage_after.current_snapshot_id,
+            duration_seconds=duration_seconds,
+            target_file_size_bytes=target_file_size_bytes,
+            tables=tables,
+            storage_before=storage_before,
+            storage_after=storage_after,
+        )
+
+    def _inspect_storage_with_connection(self, connection: Any) -> DuckLakeStorageInspection:
+        snapshot_row = connection.execute(
+            f"SELECT count(*), max(snapshot_id) FROM {_CATALOG_NAME}.snapshots()"
+        ).fetchone()
+        if snapshot_row is None:
+            raise RuntimeError("DuckLake snapshot metadata is unavailable")
+        snapshot_count = _require_int(snapshot_row[0], "snapshot_count")
+        current_snapshot_id = (
+            0 if snapshot_row[1] is None else _require_int(snapshot_row[1], "current_snapshot_id")
+        )
+
+        active_sizes: list[int] = []
+        for schema, table in _HISTORY_DATA_TABLES:
+            rows = connection.execute(
+                f"SELECT data_file_size_bytes FROM ducklake_list_files("
+                f"'{_CATALOG_NAME}', '{table}', schema => '{schema}')"
+            ).fetchall()
+            active_sizes.extend(
+                _require_int(row[0], "data_file_size_bytes") for row in rows if row[0] is not None
+            )
+        active_sizes.sort()
+        active_count = len(active_sizes)
+        active_bytes = sum(active_sizes)
+        minimum: int | None
+        median: int | None
+        maximum: int | None
+        if active_sizes:
+            minimum = active_sizes[0]
+            median = active_sizes[(active_count - 1) // 2]
+            maximum = active_sizes[-1]
+        else:
+            minimum = median = maximum = None
+
+        catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
+        scheduled_row = connection.execute(
+            "SELECT count(*) FROM sqlite_scan("
+            + _quote_sql_literal(str(catalog_path))
+            + ", 'ducklake_files_scheduled_for_deletion')"
+        ).fetchone()
+        if scheduled_row is None:
+            raise RuntimeError("DuckLake scheduled-deletion metadata is unavailable")
+        scheduled = _require_int(scheduled_row[0], "scheduled_for_deletion_count")
+
+        data_path = self._config.data_path.expanduser().resolve(strict=False)
+        physical_files = tuple(data_path.rglob("*.parquet"))
+        return DuckLakeStorageInspection(
+            snapshot_count=snapshot_count,
+            current_snapshot_id=current_snapshot_id,
+            active_data_file_count=active_count,
+            active_data_file_bytes=active_bytes,
+            active_file_size_min_bytes=minimum,
+            active_file_size_median_bytes=median,
+            active_file_size_max_bytes=maximum,
+            scheduled_for_deletion_count=scheduled,
+            physical_parquet_file_count=len(physical_files),
+            physical_parquet_bytes=sum(path.stat().st_size for path in physical_files),
+            catalog_bytes=catalog_path.stat().st_size if catalog_path.is_file() else 0,
+        )
 
     def flush_inlined_data(self) -> DuckLakeInlinedDataFlush:
         """Move rows DuckLake inlined into the SQLite catalog to Parquet.
@@ -2237,3 +2564,19 @@ def _validate_positive_int(value: int, field_name: str) -> None:
     _validate_non_negative_int(value, field_name)
     if value < 1:
         raise ValueError(f"{field_name} must be at least 1")
+
+
+def _validate_optional_positive_int(value: int | None, field_name: str) -> None:
+    if value is None:
+        return
+    _validate_positive_int(value, field_name)
+
+
+def _canonical_fingerprint_value(value: object) -> object:
+    if isinstance(value, datetime):
+        return {"type": "datetime", "value": value.isoformat()}
+    if isinstance(value, bytes):
+        return {"type": "bytes", "value": value.hex()}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return {"type": type(value).__name__, "value": str(value)}

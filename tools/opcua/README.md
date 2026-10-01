@@ -71,6 +71,25 @@ uv run --no-sync industrial-phm operations flush-history \
   --ducklake-data artifacts/live-demo/data
 ```
 
+
+Small-file compaction is a separate, explicit maintenance operation. It merges active Parquet files
+without expiring snapshots or deleting physical files. Each table is compacted in a separate provider
+call so the catalog lease is released between tables. `--max-compacted-files` is DuckLake's per-table
+output-operation limit, not an input-file count bound; no automatic schedule or retention threshold is implied.
+
+```bash
+uv run --no-sync industrial-phm operations compact-history \
+  --ducklake-catalog artifacts/live-demo/catalog.sqlite \
+  --ducklake-data artifacts/live-demo/data \
+  --max-compacted-files 32 \
+  --target-file-size-bytes 1048576 \
+  --max-file-size-bytes 262144
+```
+
+`flush` means catalog-inline rows → Parquet. `compact` means active small Parquet → fewer active
+Parquet files. Snapshot expiration, old-file cleanup, catalog VACUUM and CHECKPOINT are deliberately
+outside this command and #317-A.
+
 ## Three-phase live analysis profile
 
 The `three-phase` profile registers `demo-3phase-opcua` for asset `demo-motor-01` with site-style

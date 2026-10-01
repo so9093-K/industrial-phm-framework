@@ -143,6 +143,52 @@ def _run_operations_backfill_source(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_operations_compact_history(args: argparse.Namespace) -> int:
+    """Run explicit bounded DuckLake compaction without expiring snapshots."""
+    try:
+        history = DuckLakeAssetHistory(
+            DuckLakeAssetHistoryConfig(
+                catalog_path=args.ducklake_catalog,
+                data_path=args.ducklake_data,
+            )
+        )
+        fingerprint = history.runtime_fingerprint()
+        result = history.compact_adjacent_files(
+            max_compacted_files=args.max_compacted_files,
+            target_file_size_bytes=args.target_file_size_bytes,
+            min_file_size_bytes=args.min_file_size_bytes,
+            max_file_size_bytes=args.max_file_size_bytes,
+        )
+    except (OSError, RuntimeError, TimeoutError, ValueError) as error:
+        print(f"history compaction failed: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"duckdb={fingerprint.duckdb_version} "
+        f"ducklake={fingerprint.ducklake_extension_version or 'unknown'} "
+        f"installed_from={fingerprint.ducklake_installed_from or 'unknown'}"
+    )
+    for table in result.tables:
+        print(
+            f"table={table.schema_name}.{table.table_name} "
+            f"files_processed={table.files_processed} files_created={table.files_created}"
+        )
+    before = result.storage_before
+    after = result.storage_after
+    print(
+        f"snapshot_before={result.snapshot_before} snapshot_after={result.snapshot_after} "
+        f"active_files_before={before.active_data_file_count} "
+        f"active_files_after={after.active_data_file_count} "
+        f"scheduled_for_deletion_before={before.scheduled_for_deletion_count} "
+        f"scheduled_for_deletion_after={after.scheduled_for_deletion_count} "
+        f"physical_files_before={before.physical_parquet_file_count} "
+        f"physical_files_after={after.physical_parquet_file_count} "
+        f"target_file_size_bytes={result.target_file_size_bytes} "
+        f"duration_seconds={result.duration_seconds:.6f}"
+    )
+    return 0
+
+
 def _run_operations_flush_history(args: argparse.Namespace) -> int:
     try:
         history = DuckLakeAssetHistory(

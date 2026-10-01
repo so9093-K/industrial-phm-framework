@@ -32,3 +32,27 @@ def test_phase_unbalance_result_migration_command_has_explicit_paths() -> None:
     )
     assert args.from_json.name == "legacy.json"
     assert args.to_sqlite.name == "results.sqlite"
+
+
+def test_compact_history_command_requires_explicit_work_bound() -> None:
+    args = build_parser().parse_args(
+        [
+            "operations",
+            "compact-history",
+            "--ducklake-catalog",
+            "catalog.sqlite",
+            "--ducklake-data",
+            "data",
+            "--max-compacted-files",
+            "32",
+            "--target-file-size-bytes",
+            "1048576",
+            "--max-file-size-bytes",
+            "262144",
+        ]
+    )
+    assert args.ducklake_catalog.name == "catalog.sqlite"
+    assert args.ducklake_data.name == "data"
+    assert args.max_compacted_files == 32
+    assert args.target_file_size_bytes == 1048576
+    assert args.max_file_size_bytes == 262144
