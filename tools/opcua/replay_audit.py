@@ -5,7 +5,11 @@ expected to deliver every write whose value or status changed on that node withi
 one server run (the first write of a run is a change from BadWaitingForInitialData).
 Stored raw events are classified as expected deliveries, re-deliveries of the
 current value (a subscription's initial notification), unknown, or duplicates, and
-expected deliveries that were never stored are reported as gaps.
+expected deliveries that were never stored are reported as gaps. Values (including
+null) and Good/Bad quality are compared exactly and separately.
+
+Keys are (channel, source timestamp), so one audit accepts one publish per key: the
+same key written by two server runs fails fast instead of being merged.
 """
 
 from __future__ import annotations
@@ -23,26 +27,45 @@ Key = tuple[str, datetime]
 
 
 @dataclass(frozen=True, slots=True)
+class Written:
+    value: float | None
+    good: bool
+    run: str
+
+
+@dataclass(frozen=True, slots=True)
 class LedgerTruth:
-    writes: dict[Key, float | None]
+    writes: dict[Key, Written]
     expected: frozenset[Key]
 
 
+class LedgerKeyCollisionError(ValueError):
+    """Two publishes share a (channel, source timestamp) key; audit them separately."""
+
+
 def load_ledger(path: Path) -> LedgerTruth:
-    writes: dict[Key, float | None] = {}
+    writes: dict[Key, Written] = {}
     expected: set[Key] = set()
     previous: dict[tuple[str, str], tuple[bool, float | None]] = {}
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             entry = json.loads(line)
             at = datetime.fromisoformat(entry["at"])
+            run = entry["run"]
+            # Ledgers written before quality was recorded: null was published as Bad.
+            good = entry.get("good") or {ch: v is not None for ch, v in entry["values"].items()}
             for channel, value in entry["values"].items():
                 key = (channel, at)
-                writes[key] = value
-                state = (value is not None, value)
-                if previous.get((entry["run"], channel)) != state:
+                if key in writes:
+                    raise LedgerKeyCollisionError(
+                        f"{channel} at {at.isoformat()} was published by runs "
+                        f"{writes[key].run} and {run}; audit one replay run per key"
+                    )
+                writes[key] = Written(value, bool(good[channel]), run)
+                state = (bool(good[channel]), value)
+                if previous.get((run, channel)) != state:
                     expected.add(key)
-                previous[(entry["run"], channel)] = state
+                previous[(run, channel)] = state
     return LedgerTruth(writes, frozenset(expected))
 
 
@@ -66,7 +89,7 @@ def _gaps(missing: list[datetime], *, join: timedelta) -> list[dict[str, object]
 
 def audit(
     truth: LedgerTruth,
-    observed: list[tuple[str, datetime | None, object]],
+    observed: list[tuple[str, datetime | None, object, bool]],
     *,
     since: datetime | None = None,
     until: datetime | None = None,
@@ -77,9 +100,10 @@ def audit(
 
     counts: Counter[Key] = Counter()
     mismatched = 0
+    quality_mismatched = 0
     unknown = 0
     no_timestamp = 0
-    for channel, at, value in observed:
+    for channel, at, value, good in observed:
         if at is None:
             no_timestamp += 1
             continue
@@ -87,10 +111,15 @@ def audit(
             continue
         key = (channel, at)
         counts[key] += 1
-        if key not in truth.writes:
+        written = truth.writes.get(key)
+        if written is None:
             unknown += 1
-        elif truth.writes[key] is not None and value != truth.writes[key]:
+            continue
+        # Exact, null included: a stored 0.0 for a null write is corruption.
+        if value != written.value:
             mismatched += 1
+        if good != written.good:
+            quality_mismatched += 1
     expected = {key for key in truth.expected if inside(key[1])}
     delivered = expected & counts.keys()
     missing = sorted(expected - counts.keys(), key=lambda key: key[1])
@@ -108,19 +137,27 @@ def audit(
         "redelivered_current_values": redelivered,
         "unknown_events": unknown,
         "value_mismatches": mismatched,
+        "quality_mismatches": quality_mismatched,
         "events_without_source_timestamp": no_timestamp,
         "gaps": _gaps([key[1] for key in missing], join=gap_join),
     }
 
 
-def observed_events(root: Path, source_id: str) -> list[tuple[str, datetime | None, object]]:
+def observed_events(root: Path, source_id: str) -> list[tuple[str, datetime | None, object, bool]]:
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(root / "catalog.sqlite", root / "data")
     )
     result = []
     for event in history.query_opcua_events(source_id):
         observation = event.event.notification.observation
-        result.append((observation.channel_id, observation.source_timestamp, observation.value))
+        result.append(
+            (
+                observation.channel_id,
+                observation.source_timestamp,
+                observation.value,
+                observation.status_good,
+            )
+        )
     return result
 
 

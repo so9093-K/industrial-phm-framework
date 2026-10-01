@@ -216,7 +216,9 @@ uv run --no-sync python -m tools.opcua.replay_audit --root artifacts/phase10b \
 ```
 
 The audit expects one delivery per changed write within a server run and reports missing gaps,
-duplicate keys, value mismatches, unknown events and re-delivered current values (subscription start).
+duplicate keys, exact value mismatches (null included), Good/Bad quality mismatches, unknown events and
+re-delivered current values (subscription start). A recorded null is published as a Null variant with Bad
+status. One audit accepts one publish per (channel, timestamp); a key written by two server runs fails fast.
 Measured results are recorded in `docs/research/phase10-acquisition-stress.md`.
 
 ## Regression validation

@@ -92,6 +92,13 @@ async def run_pipeline_metrics_reporter(
         metrics.observe("event_loop_lag", max(0.0, time.monotonic() - started - loop_probe_seconds))
         if time.monotonic() >= next_report:
             line = json.dumps(metrics.take(), sort_keys=True)
-            with path.open("a", encoding="utf-8") as stream:
-                stream.write(line + "\n")
+            # Off the event loop: the diagnostic must not stall what it measures.
+            write_started = time.monotonic()
+            await asyncio.to_thread(_append_line, path, line)
+            metrics.observe("metrics_write", time.monotonic() - write_started)
             next_report += interval_seconds
+
+
+def _append_line(path: Path, line: str) -> None:
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(line + "\n")

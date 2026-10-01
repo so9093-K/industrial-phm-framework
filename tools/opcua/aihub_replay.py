@@ -265,10 +265,7 @@ async def serve(
     waiting_status = ua.StatusCode(ua.StatusCodes.BadWaitingForInitialData)
     for node in nodes.values():
         await node.write_value(
-            ua.DataValue(
-                ua.Variant(0.0, ua.VariantType.Double),
-                StatusCode=waiting_status,
-            )
+            ua.DataValue(ua.Variant(None, ua.VariantType.Null), StatusCode=waiting_status)
         )
     published = 0
     cycle = 0
@@ -306,7 +303,11 @@ async def serve(
                     )
                     await nodes[channel].write_value(
                         ua.DataValue(
-                            ua.Variant(0.0 if value is None else value, ua.VariantType.Double),
+                            # A null recorded value is sent as a Null variant with Bad status,
+                            # never as a synthetic number.
+                            ua.Variant(None, ua.VariantType.Null)
+                            if value is None
+                            else ua.Variant(value, ua.VariantType.Double),
                             StatusCode=status,
                             SourceTimestamp=at,
                             ServerTimestamp=datetime.now(UTC),
@@ -316,7 +317,12 @@ async def serve(
                     with publish_ledger.open("a", encoding="utf-8") as stream:
                         stream.write(
                             json.dumps(
-                                {"run": run_id, "at": at.isoformat(), "values": written},
+                                {
+                                    "run": run_id,
+                                    "at": at.isoformat(),
+                                    "values": written,
+                                    "good": {ch: v is not None for ch, v in written.items()},
+                                },
                                 ensure_ascii=False,
                             )
                             + "\n"

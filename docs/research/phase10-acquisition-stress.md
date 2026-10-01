@@ -25,7 +25,8 @@ event runs on the event loop (p95 ≈ 2 ms, max ≈ 30 ms). No overflow occurred
 | collector stall 20 s (x3) | not run | **0 missing**, 0 duplicates (same session; server queued notifications) |
 | collector stall 20 s, writer reading backlog | spool stats from two autocommit reads → invariant error **stopped the collection service** | single read transaction; regression test fails 4/5 on old code, passes 10/10 |
 
-Across all experiments the audit found 0 duplicate keys, 0 value mismatches and 0 unknown events.
+Across all experiments the audit found 0 duplicate keys, 0 value mismatches (exact, null included), 0 Good/Bad
+quality mismatches and 0 unknown events, and no (channel, timestamp) key was published by two replay runs.
 
 ## Not claimed
 

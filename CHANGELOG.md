@@ -24,8 +24,9 @@
 
 ### Added
 
-- Collector `--pipeline-metrics` opt-in 진단(queue depth, 단계별 지연, event-loop lag), replay
-  `--publish-ledger`, `tools/opcua/replay_audit.py`(유실·중복·값 불일치 audit).
+- Collector `--pipeline-metrics` opt-in 진단(queue depth, 단계별 지연, event-loop lag; JSONL 기록은 event loop 밖),
+  replay `--publish-ledger`(값·Good/Bad), `tools/opcua/replay_audit.py`(유실·중복·null 포함 값 불일치·품질 불일치,
+  run 간 key 충돌 fail-fast). Replay는 null 기록을 0.0이 아닌 Null variant + Bad status로 publish합니다.
 
 - Phase 10 AI-Hub replay soak/fault 검증에서 발견한 runtime 구분 문제를 고쳤습니다.
   - collector process가 종료되면 Monitor가 마지막 세션 보고("connected")를 그대로 보여 source 무소식과
