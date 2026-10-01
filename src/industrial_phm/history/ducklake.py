@@ -31,6 +31,7 @@ from industrial_phm.application.asset_history import (
     validate_asset_history_query,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
+from industrial_phm.application.history_writer import HistoricalBatchAppendResult
 from industrial_phm.application.measurement_history import (
     HistoryAssetSummary,
     MeasurementHistoryAggregation,
@@ -270,6 +271,26 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
 
+    def append_or_recover_opcua_batch(
+        self,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchAppendResult:
+        """Atomically persist a batch or report recovery of its identical prior commit."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._append_or_recover_opcua_batch_with_connection(
+                connection,
+                events,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+            )
+        finally:
+            connection.close()
+
     def append_opcua_batch(
         self,
         events: Sequence[OpcUaPersistentDataChangeEvent],
@@ -278,17 +299,11 @@ class DuckLakeAssetHistory:
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit:
         """Atomically persist a batch or recover its already committed identical write."""
-        connection = self._connect()
-        try:
-            self._ensure_initialized(connection)
-            return self._append_opcua_batch_with_connection(
-                connection,
-                events,
-                batch_id=batch_id,
-                ingestion_mode=ingestion_mode,
-            )
-        finally:
-            connection.close()
+        return self.append_or_recover_opcua_batch(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        ).commit
 
     def _append_opcua_batch_with_connection(
         self,
@@ -298,11 +313,23 @@ class DuckLakeAssetHistory:
         batch_id: str,
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit:
-        """Persist one batch using an already leased/initialized connection.
+        """Persist one batch using an already leased/initialized connection."""
+        return self._append_or_recover_opcua_batch_with_connection(
+            connection,
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        ).commit
 
-        This is an internal reuse point for deterministic scale-test state preparation.
-        Public callers use append_opcua_batch(), which owns the catalog lease per call.
-        """
+    def _append_or_recover_opcua_batch_with_connection(
+        self,
+        connection: Any,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchAppendResult:
+        """Persist one batch or recover it using an already leased/initialized connection."""
         batch = _validate_opcua_batch_input(
             events,
             batch_id=batch_id,
@@ -321,7 +348,10 @@ class DuckLakeAssetHistory:
         if existing is not None:
             # A legacy commit is recovered as stored: its raw rows keep no semantic
             # snapshot and are never backfilled with the current binding.
-            return existing
+            return HistoricalBatchAppendResult(
+                commit=existing,
+                recovered_existing_commit=True,
+            )
         self._reject_existing_deliveries(connection, batch)
 
         transaction_open = False
@@ -406,11 +436,14 @@ class DuckLakeAssetHistory:
         if not isinstance(committed_at, datetime) or committed_at.utcoffset() is None:
             raise RuntimeError("DuckLake snapshot_time must be timezone-aware")
 
-        return HistoricalBatchCommit(
-            batch_id=batch_id,
-            snapshot_id=snapshot_id,
-            event_count=len(batch),
-            committed_at=committed_at,
+        return HistoricalBatchAppendResult(
+            commit=HistoricalBatchCommit(
+                batch_id=batch_id,
+                snapshot_id=snapshot_id,
+                event_count=len(batch),
+                committed_at=committed_at,
+            ),
+            recovered_existing_commit=False,
         )
 
     def get_file_batch_commit(
