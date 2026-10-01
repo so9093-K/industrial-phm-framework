@@ -286,33 +286,11 @@ async def run_registered_opcua_acquisition_worker(
             if stop_task in done:
                 break
 
-            if overflow_task in done:
-                overflow = overflow_task.result()
-                queue_overflow_count += 1
-                overflow_pending = True
-                if telemetry_recorder is not None:
-                    _record_telemetry_best_effort(
-                        partial(
-                            telemetry_recorder.record_callback_queue_overflow,
-                            source_id,
-                            occurred_at=overflow.occurred_at,
-                        ),
-                        label="callback queue overflow",
-                    )
-                # Notifications were already dropped. End this worker so the collection
-                # service starts a fresh session (new epoch) instead of relying on an
-                # in-client reconnect that can stay disconnected after a burst.
-                raise OpcUaSubscriptionOverflowError(
-                    "subscription queue overflow: notifications were dropped "
-                    f"(queue max {effective_session_policy.queue_maxsize}); restarting the "
-                    "collector worker with a new session"
-                )
-
             if notification_task in done:
-                # Persist a notification that was already dequeued before handling a
-                # connection-loss state from the same wakeup: it arrived on this session.
-                # Notifications still queued inside the old client are not drained
-                # (part of the documented loss boundary, ADR-0010).
+                # A notification already dequeued is in application ownership: persist it
+                # before handling a connection-loss state or a queue overflow from the
+                # same wakeup. Notifications still queued inside the old client are not
+                # drained (part of the documented loss boundary, ADR-0010).
                 notification = notification_task.result()
                 notification_task = asyncio.create_task(connector.next_notification())
                 if notification is not None:
@@ -361,6 +339,28 @@ async def run_registered_opcua_acquisition_worker(
                     if notification.replayed:
                         replayed_event_count += 1
                     next_event_index += 1
+
+            if overflow_task in done:
+                overflow = overflow_task.result()
+                queue_overflow_count += 1
+                overflow_pending = True
+                if telemetry_recorder is not None:
+                    _record_telemetry_best_effort(
+                        partial(
+                            telemetry_recorder.record_callback_queue_overflow,
+                            source_id,
+                            occurred_at=overflow.occurred_at,
+                        ),
+                        label="callback queue overflow",
+                    )
+                # Notifications were already dropped. End this worker so the collection
+                # service starts a fresh session (new epoch) instead of relying on an
+                # in-client reconnect that can stay disconnected after a burst.
+                raise OpcUaSubscriptionOverflowError(
+                    "subscription queue overflow: notifications were dropped "
+                    f"(queue max {effective_session_policy.queue_maxsize}); restarting the "
+                    "collector worker with a new session"
+                )
 
             if state_task in done:
                 while state_task.done():

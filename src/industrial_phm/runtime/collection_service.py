@@ -273,6 +273,13 @@ async def run_collection_service(
                 if runtime.worker_task.done():
                     # The acquisition session ended: restart the whole source runtime.
                     failed = _failed(runtime.worker_task)
+                    if failed:
+                        _LOGGER.warning(
+                            "OPC UA worker for %s ended: %r; starting a fresh session after "
+                            "backoff",
+                            source_id,
+                            runtime.worker_task.exception(),
+                        )
                     ran_for = time.monotonic() - runtime.worker_started
                     await _stop_source(source_id)
                     completed_ids.append(source_id)
@@ -284,6 +291,21 @@ async def run_collection_service(
                     # A window store/history failure is not an OPC UA session problem:
                     # keep the session collecting into the spool and restart only the
                     # coordinator (it resumes from its durable cursor) with backoff.
+                    window_task = runtime.window_task
+                    window_error = None if window_task.cancelled() else window_task.exception()
+                    if window_error is None:
+                        _LOGGER.warning(
+                            "observation-window coordinator for %s stopped unexpectedly; "
+                            "restarting after backoff",
+                            source_id,
+                        )
+                    else:
+                        _LOGGER.error(
+                            "observation-window coordinator for %s failed: %r; restarting "
+                            "after backoff",
+                            source_id,
+                            window_error,
+                        )
                     window_backoff.setdefault(source_id, _RestartBackoff()).record_failure(
                         time.monotonic() - runtime.window_started, effective_policy
                     )

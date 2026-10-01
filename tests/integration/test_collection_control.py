@@ -396,4 +396,82 @@ def test_window_failures_restart_only_the_coordinator_and_metrics_failure_is_rep
 
     with caplog.at_level(logging.WARNING, logger="industrial_phm.runtime.collection_service"):
         asyncio.run(_run())
-    assert any("pipeline metrics reporter stopped" in r.getMessage() for r in caplog.records)
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("pipeline metrics reporter stopped" in m for m in messages)
+    # The coordinator's exception is retrieved and logged, not left to asyncio GC.
+    assert any(
+        "observation-window coordinator for source-a failed" in m and "window store" in m
+        for m in messages
+    )
+
+
+def test_window_coordinator_that_returns_is_reported_as_stopped_unexpectedly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    import logging
+
+    import industrial_phm.runtime.collection_service as service_module
+
+    async def _run() -> None:
+        source_repository = _repository(tmp_path / "sources.json")
+        transition_source_lifecycle(
+            source_repository,
+            "source-a",
+            SourceLifecycleState.ACTIVE,
+            changed_at=BASE + timedelta(seconds=1),
+        )
+        control = SqliteCollectionControlRepository(tmp_path / "collection-control.sqlite")
+        request_collection_state(
+            source_repository,
+            source_repository,
+            control,
+            "source-a",
+            CollectionDesiredState.RUNNING,
+            requested_at=BASE + timedelta(seconds=2),
+        )
+        window_starts = 0
+
+        async def _returning_window(*args, **kwargs):
+            nonlocal window_starts
+            del args, kwargs
+            window_starts += 1
+
+        async def _idle(*args, **kwargs):
+            del args
+            await kwargs["stop_event"].wait()
+
+        monkeypatch.setattr(service_module, "run_registered_opcua_acquisition_worker", _idle)
+        monkeypatch.setattr(
+            service_module, "run_continuous_registered_opcua_observation_windows", _returning_window
+        )
+        monkeypatch.setattr(service_module, "run_spool_to_history_writer", _idle)
+        stop = asyncio.Event()
+        service = asyncio.create_task(
+            run_collection_service(
+                source_repository,
+                source_repository,
+                control,
+                object(),
+                object(),
+                object(),
+                object(),
+                object(),
+                stop_event=stop,
+                policy=CollectionServicePolicy(
+                    reconcile_interval_seconds=0.005, restart_backoff_initial_seconds=0.02
+                ),
+            )
+        )
+        for _ in range(2000):
+            if window_starts >= 2:
+                break
+            await asyncio.sleep(0.005)
+        stop.set()
+        await service
+        assert window_starts >= 2
+
+    with caplog.at_level(logging.WARNING, logger="industrial_phm.runtime.collection_service"):
+        asyncio.run(_run())
+    assert any("stopped unexpectedly" in r.getMessage() for r in caplog.records)

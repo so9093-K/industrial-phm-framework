@@ -30,7 +30,9 @@ stall(collector SIGSTOP)은 같은 session이 유지되어 유실 0건이었습�
   도착한 것이므로 먼저 spool에 기록한 뒤 종료합니다. Connector close가 asyncua supervisor와 client를
   정리합니다.
 - Subscription queue overflow hook은 asyncua client state를 건드리지 않고 worker에 한 번만 신호합니다.
-  Worker는 overflow evidence를 기록한 뒤 `OpcUaSubscriptionOverflowError`로 종료합니다.
+  Worker는 같은 wakeup에서 이미 dequeue된 notification을 먼저 기록하고, overflow evidence를 남긴 뒤
+  `OpcUaSubscriptionOverflowError`로 종료합니다. 이미 dequeue된 데이터는 application 소유이므로 어떤
+  종료 경로에서도 버리지 않습니다.
 - Collection service가 종료된 worker를 새 client·session·subscription과 새 durable connection epoch로
   다시 시작합니다. 연속 실패는 1, 2, 4 … 최대 30초 backoff하고, 60초 이상 동작한 뒤의 실패는
   backoff를 처음부터 다시 시작합니다. 이 값은 `CollectionServicePolicy.restart_backoff_*`가 유일하게
@@ -44,13 +46,16 @@ stall(collector SIGSTOP)은 같은 session이 유지되어 유실 0건이었습�
 - 계측: `received_at`은 consumer dequeue 시각이 아니라 asyncua가 notification을 queue에 넣은 시각입니다
   (asyncua 2.0.1 `Subscription._deliver` 감싸기; 없으면 dequeue 시각으로 fallback). Collector의
   `--pipeline-metrics`는 queue depth, arrival→dequeue, spool accept, event-loop 동기 telemetry, event-loop
-  lag, history commit, window cycle을 10초 단위 JSONL로 남기는 opt-in 진단입니다.
+  lag, history commit, window cycle을 10초 단위 JSONL로 남기는 opt-in 진단입니다. Collection service 전체가
+  한 instance를 공유하므로 다중 source에서는 합계·최대치로 섞이며, production observability로 쓰려면
+  source/component/epoch 차원이 필요합니다.
 
 ## Consequences
 
 - asyncua의 session 재활성화·republish로 복구할 수 있었던 일부 notification은 포기합니다. 손실 경계는
   **source/연결 중단 시간 + restart backoff + 상실 시점에 이전 session client queue에 남아 아직 dequeue되지
-  않은 notification**입니다(queue를 drain하지 않음). CONNECTED 상태의 무기한 silent loss나 영구
+  않은 notification**입니다(queue를 drain하지 않음). Queue overflow는 여기에 **queue가 가득 차 asyncua가
+  거부한 notification**이 더해집니다(gap-bearing failure, evidence 기록). CONNECTED 상태의 무기한 silent loss나 영구
   disconnected는 생기지 않으며, 상실 구간은 publish ledger audit과 worker failure evidence로 드러납니다.
 - `--pipeline-metrics` reporter가 실패해도 수집은 계속되고, collector log에 경고가 남습니다. Fault harness는
   최근 metrics record의 존재를 판정 전제 조건으로 확인해야 합니다.

@@ -8,6 +8,11 @@ arrival in the client and durable acceptance, plus what can stall the event loop
 
 Nothing here changes acquisition behaviour; it is only enabled with an explicit
 metrics path and writes one JSON line per interval.
+
+Scope: a Phase 10 diagnostic, not production observability. One instance is shared
+by the whole collection service, so with several sources the counts are totals, the
+high-watermark is the largest of all queues and per-source latencies are mixed;
+production metrics would need source_id / component / session-epoch dimensions.
 """
 
 from __future__ import annotations
