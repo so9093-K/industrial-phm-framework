@@ -484,6 +484,7 @@ def test_notification_ready_with_queue_overflow_is_persisted_before_the_worker_e
 
     asyncio.run(_run())
 
+
 def test_notification_ready_with_stop_is_persisted_before_graceful_shutdown(
     tmp_path: Path,
 ) -> None:
