@@ -29,6 +29,9 @@ class _FakeHistory:
     def __init__(self) -> None:
         self.commits: dict[str, tuple[tuple[object, ...], HistoricalBatchCommit]] = {}
         self.fail_append = False
+        self.get_calls = 0
+        self.append_calls = 0
+        self.append_or_recover_calls = 0
 
     def get_opcua_batch_commit(
         self,
@@ -38,6 +41,7 @@ class _FakeHistory:
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit | None:
         del ingestion_mode
+        self.get_calls += 1
         stored = self.commits.get(batch_id)
         if stored is None:
             return None
@@ -53,21 +57,27 @@ class _FakeHistory:
         batch_id: str,
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchAppendResult:
-        existing = self.get_opcua_batch_commit(
-            events,
-            batch_id=batch_id,
-            ingestion_mode=ingestion_mode,
-        )
-        if existing is not None:
+        del ingestion_mode
+        self.append_or_recover_calls += 1
+        if self.fail_append:
+            raise RuntimeError("history unavailable")
+        stored = self.commits.get(batch_id)
+        event_tuple = tuple(events)
+        if stored is not None:
+            stored_events, commit = stored
+            if event_tuple != stored_events:
+                raise ValueError("batch content conflict")
             return HistoricalBatchAppendResult(
-                commit=existing,
+                commit=commit,
                 recovered_existing_commit=True,
             )
-        commit = self.append_opcua_batch(
-            events,
+        commit = HistoricalBatchCommit(
             batch_id=batch_id,
-            ingestion_mode=ingestion_mode,
+            snapshot_id=len(self.commits) + 1,
+            event_count=len(event_tuple),
+            committed_at=BASE + timedelta(seconds=2),
         )
+        self.commits[batch_id] = (event_tuple, commit)
         return HistoricalBatchAppendResult(
             commit=commit,
             recovered_existing_commit=False,
@@ -81,6 +91,7 @@ class _FakeHistory:
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit:
         del ingestion_mode
+        self.append_calls += 1
         if self.fail_append:
             raise RuntimeError("history unavailable")
         commit = HistoricalBatchCommit(
@@ -182,6 +193,9 @@ def test_writer_waits_for_interval_then_commits_and_acknowledges(tmp_path: Path)
     assert result.event_count == 1
     assert result.payload_bytes > 0
     assert result.recovered_existing_commit is False
+    assert history.append_or_recover_calls == 1
+    assert history.get_calls == 0
+    assert history.append_calls == 0
     assert spool.pending_event_count() == 0
     history_telemetry = telemetry.get("source-a").history
     assert history_telemetry is not None
