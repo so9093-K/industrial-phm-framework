@@ -9,6 +9,7 @@ import pytest
 
 from industrial_phm.application import (
     JsonOperationalFindingRepository,
+    JsonPhaseUnbalanceRepository,
     ObservationWindowBuffer,
     SqlitePhaseUnbalanceRepository,
     create_human_review_finding,
@@ -68,6 +69,23 @@ def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, mo
 
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
+
+
+def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    monkeypatch.chdir(tmp_path)
+    state_dir = tmp_path / "artifacts" / "operations"
+    state_dir.mkdir(parents=True)
+    JsonPhaseUnbalanceRepository(state_dir / "phase-unbalance.json").record(_analysis())
+
+    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    _, defs = app.run()
+
+    migration_errors = [
+        error for error in defs["system_errors"] if error.scope == "phase-analysis-migration"
+    ]
+    assert len(migration_errors) == 1
+    assert "migrate-phase-unbalance-results" in migration_errors[0].detail
 
 
 def _ui_values_read_in_creating_cell(path: Path) -> list[str]:
