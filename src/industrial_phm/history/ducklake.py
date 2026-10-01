@@ -12,6 +12,7 @@ import importlib
 import importlib.util
 import json
 import sys
+import time
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -61,6 +62,19 @@ _COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
 # batches) are verified with the legacy fingerprint that excludes semantics.
 _OPCUA_FINGERPRINT_VERSION = "opcua-semantic-v2"
 
+_HISTORY_DATA_TABLES = (
+    ("raw", "opcua_data_change"),
+    ("raw", "file_measurement"),
+    ("history", "measurement"),
+    ("history", "ingestion_batch"),
+)
+_SNAPSHOT_FINGERPRINT_TABLES = (
+    ("raw", "opcua_data_change", "raw_evidence_id"),
+    ("raw", "file_measurement", "raw_evidence_id"),
+    ("history", "measurement", "raw_evidence_id"),
+    ("history", "ingestion_batch", "batch_id, ingestion_mode"),
+)
+
 
 class DuckLakeRuntimeUnavailableError(RuntimeError):
     """Raised when the optional DuckDB/DuckLake history runtime is unavailable."""
@@ -80,6 +94,67 @@ class DuckLakeInlinedDataFlush:
     @property
     def flushed_row_count(self) -> int:
         return sum(count for _, count in self.flushed_rows)
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeRuntimeFingerprint:
+    """Runtime versions that affect DuckLake maintenance behavior."""
+
+    duckdb_version: str
+    ducklake_extension_version: str | None
+    ducklake_installed_from: str | None
+    ducklake_install_mode: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeStorageInspection:
+    """Physical and logical storage state observed under the catalog lease."""
+
+    snapshot_count: int
+    current_snapshot_id: int
+    active_data_file_count: int
+    active_data_file_bytes: int
+    active_file_size_min_bytes: int | None
+    active_file_size_median_bytes: int | None
+    active_file_size_max_bytes: int | None
+    scheduled_for_deletion_count: int
+    physical_parquet_file_count: int
+    physical_parquet_bytes: int
+    catalog_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeCompactedTable:
+    """One table's output from a merge-adjacent-files operation."""
+
+    schema_name: str
+    table_name: str
+    files_processed: int
+    files_created: int
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeCompactionResult:
+    """Non-destructive compaction result.
+
+    Compaction may create a new snapshot. It does not expire snapshots or clean
+    physical files; earlier snapshot IDs must remain queryable.
+    """
+
+    snapshot_before: int
+    snapshot_after: int
+    duration_seconds: float
+    tables: tuple[DuckLakeCompactedTable, ...]
+    storage_before: DuckLakeStorageInspection
+    storage_after: DuckLakeStorageInspection
+
+    @property
+    def files_processed(self) -> int:
+        return sum(table.files_processed for table in self.tables)
+
+    @property
+    def files_created(self) -> int:
+        return sum(table.files_created for table in self.tables)
 
 
 @dataclass(frozen=True, slots=True)
