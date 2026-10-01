@@ -573,9 +573,18 @@ def _(
     if _phase_result_repository is not None:
         _loaded_phase_run_ids = {item.run.analysis_run_id for item in phase_results}
         _reviewed_run_ids = {finding.analysis_run_id for finding in findings}
-        _phase_review_results = _phase_result_repository.find_results(
-            _reviewed_run_ids - _loaded_phase_run_ids
-        )
+        try:
+            _phase_review_results = _phase_result_repository.find_results(
+                _reviewed_run_ids - _loaded_phase_run_ids
+            )
+        except (OSError, ValueError) as error:
+            system_errors.append(
+                SystemStateErrorEvidence(
+                    "phase-analysis-review-results",
+                    str(error),
+                    assessed_at,
+                )
+            )
         if _phase_review_results:
             phase_results = tuple(
                 sorted(
