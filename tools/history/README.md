@@ -52,3 +52,15 @@ The report records:
 This benchmark does not delete physical files. A post-compaction increase in files scheduled for
 deletion is expected: replaced files remain on disk until a future, separately specified retention
 and cleanup policy (#317-B).
+
+
+## Latest measured result
+
+The final #317-A measurements are recorded in
+[`docs/research/phase10-history-compaction.md`](../../docs/research/phase10-history-compaction.md).
+
+N=10,000 is a late-maintenance stress point, not a production pass threshold. One bounded pass
+processed 14,799 of 20,003 active files and stopped at the provider output-operation limit, leaving
+5,268 active files for a later pass. This is expected; normal maintenance should occur before repeated
+provider-limit saturation. The benchmark also showed that compaction recovers file/query cost but does
+not remove the separate accumulated-history append cost tracked in #344.
