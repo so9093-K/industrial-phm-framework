@@ -99,3 +99,28 @@ def test_pipeline_metrics_report_one_interval_and_reset():
     following = metrics.take()
     assert following["counts"] == {}
     assert following["queue"]["high_watermark"] == 2
+
+
+def test_reporter_tags_records_with_pid_and_flushes_a_final_interval(tmp_path):
+    import asyncio
+    import os
+
+    from industrial_phm.runtime.pipeline_metrics import run_pipeline_metrics_reporter
+
+    metrics = PipelineMetrics()
+    path = tmp_path / "metrics.jsonl"
+
+    async def _run() -> None:
+        stop = asyncio.Event()
+        task = asyncio.create_task(
+            run_pipeline_metrics_reporter(metrics, path, stop_event=stop, interval_seconds=60)
+        )
+        metrics.count("spool_accepted", 2)
+        await asyncio.sleep(0.05)
+        stop.set()
+        await task
+
+    asyncio.run(_run())
+    (record,) = [json.loads(line) for line in path.read_text().splitlines()]
+    assert record["final"] is True and record["pid"] == os.getpid()
+    assert record["counts"]["spool_accepted"] == 2

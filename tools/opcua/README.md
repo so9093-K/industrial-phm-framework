@@ -197,6 +197,49 @@ Fault scenarios for Operations validation:
 - Stopping the replay server, the collector or the analysis runner separately exercises source,
   collection and analysis outages.
 
+## Repeatable fault gate (Phase 10)
+
+`tools/opcua/fault_harness.py` runs the replay, the collection service and the analysis runner as
+separate processes, injects every scenario `--repeat` times and judges the run by machine. Exit code 0
+only when every check passes; the verdict is written to `<root>/harness-verdict.json`.
+
+```bash
+uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3 --repeat 3 --browser
+```
+
+Only a run with every scenario, `--repeat` of at least 3 and `--browser` is recorded as `"gate": "full"`.
+A run with `--scenarios`, a smaller N or no browser check is `"gate": "diagnostic"` and does not stand in for
+the #321 gate. `--browser` starts `marimo run apps/operations_v2.py` against the harness root and opens
+Monitor in Chromium through `uv run --no-sync --with playwright` (screenshots: `<root>/ui-*.png`).
+
+Scenarios: collector stall (SIGSTOP), source stall, collector kill/restart (SIGKILL), analysis runner
+kill/restart, forced queue overflow (queue 16 < one subscription's 35 initial values), spool backlog
+(holding the DuckLake catalog lease), then missing phase, the four Operations states (source stale,
+source unreachable, collector down, analysis stale) and a review request on the newest result.
+
+| Check | Pass condition |
+| --- | --- |
+| `audit_exact` | duplicate, value (null included), quality and unknown events = 0 |
+| `missing_within_loss_boundary` | every missing delivery is inside an injected fault's documented boundary (ADR-0010) |
+| `already_dequeued_loss_zero` | per gracefully stopped collector: notifications handed to the worker = spool accepts; SIGKILLed collectors are a process-memory crash boundary and are judged by the audit boundary instead (ADR-0010) |
+| `windows_no_rollback` | finalized windows neither repeat nor overlap |
+| `analysis_once_and_complete` | one outcome per window/capability/algorithm/policy, none left behind |
+| `no_permanent_wedge` | every fault recovered within `--recovery-timeout` |
+| `metrics_present_around_faults` | a pipeline metrics record just before each fault and another just after its recovery |
+| `forced_overflow_happened` | every forced overflow made asyncua reject notifications |
+| `spool_backlog_drained_to_baseline` | the held lease raised the backlog above the pre-fault baseline by more than 100 and it drained back to baseline + 50 |
+| `missing_phase_explained` | every window inside the omission records T상전류 missing, the result leaves only current unresolved, and the Investigation summary note and provenance `missing_channels` show that reason; no skips there |
+| `ui_states_distinct` | the Operations Monitor read model shows the four states as expected and distinct |
+| `review_workflow_continues` | after the faults the newest phase-unbalance result moves from a not-requested Investigation group, through a review request, to an OPEN Maintenance item |
+| `browser_readable_within_5s` (`--browser`) | in Chromium each of the four states shows the data flow and its attention item within 5 s of opening |
+
+Run time follows from the scenarios and `--repeat`; it is not a pass criterion.
+
+`--steady-minutes 90` runs the same stack without faults instead, samples collector/runner RSS, queue high
+watermark, arrival→dequeue p95, spool backlog and storage size every 60 s, and compares the second half with
+the first (`<root>/steady-verdict.json`). It checks that nothing drifts upward; the length is a bound, not a
+criterion.
+
 ## Queue-pressure and fault reproduction
 
 Short, repeatable experiments replace waiting for failures in a long soak:

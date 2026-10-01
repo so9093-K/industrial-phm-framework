@@ -55,7 +55,8 @@ v1은 다음을 주장하지 않습니다.
 | callback overflow | `test_worker_ends_with_explicit_overflow_so_a_fresh_session_restarts`, `tests/contract/test_opcua_persistent_runtime.py::test_queue_overflow_ends_the_worker_instead_of_wedging_the_client` | overflow evidence 기록 후 명시적 종료, client wedge 없음, gap-free claim 없음 |
 | failed worker restart | `tests/integration/test_collection_control.py::test_collection_service_restarts_failed_workers_with_backoff` | 1·2·4…30초 backoff 재시작 |
 | window coordinator failure | `test_window_failures_restart_only_the_coordinator_and_metrics_failure_is_reported` | OPC UA session 유지, coordinator만 backoff 재시작 |
-| loss + in-flight notification | `tests/integration/test_opcua_acquisition_worker.py::test_notification_ready_with_connection_loss_is_persisted_before_the_worker_ends` | 이미 dequeue된 notification은 종료 전에 spool 기록 |
+| loss + in-flight notification | `tests/integration/test_opcua_acquisition_worker.py::test_notification_ready_with_connection_loss_is_persisted_before_the_worker_ends`, `test_every_notification_handed_to_the_worker_reaches_the_spool` | 이미 dequeue된 notification은 어떤 종료 경로에서도 spool 기록 |
+| repeatable fault gate | `tools/opcua/fault_harness.py` (AI-Hub replay, N회 주입, machine verdict) | `docs/research/phase10-acquisition-stress.md` 결과 |
 | concurrent spool reads | `tests/integration/test_acquisition_spool.py::test_backlog_reads_stay_consistent_while_events_are_accepted` | backlog 통계가 동시 accept와 섞이지 않음 |
 | duplicate local retry | `tests/integration/test_acquisition_spool.py::test_duplicate_local_delivery_is_idempotent_but_conflict_is_rejected` | identical retry idempotent, conflicting payload fail-fast |
 | spool capacity | `test_spool_capacity_is_bounded_without_rejecting_idempotent_retry` | capacity 초과는 explicit failure, 기존 durable row 유지 |

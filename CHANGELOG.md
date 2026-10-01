@@ -11,6 +11,11 @@
 
 ### Fixed
 
+- Fault harness가 발견한 손실을 고쳤습니다. Worker가 현재 notification을 spool에 기록하기 전에 다음
+  notification을 요청해, 기록을 기다리는 사이 dequeue된 notification이 overflow·연결 상실·정상 stop으로
+  worker가 끝날 때 버려졌습니다. 이제 기록 후에 다음을 요청하고, 종료 시 이미 dequeue된 notification을
+  기록합니다. Collector는 SIGINT/SIGTERM에서 정상 종료 경로(소스 정지 → writer 정지 → 진단 flush)를 탑니다.
+
 - Phase 10 queue-pressure 재현(AI-Hub replay + SIGSTOP fault + publish-ledger audit)에서 확인한 수집
   중단을 고쳤습니다(ADR-0010). asyncua 2.0.1 in-client 재연결은 burst overflow 뒤 영구 disconnected가 되거나,
   session 재활성화 뒤 subscription 불일치로 CONNECTED 상태에서 데이터를 무기한 버렸습니다. 연결 상실과
@@ -25,6 +30,16 @@
 - OPC UA `received_at`이 consumer dequeue 시각이던 것을 client 도착 시각으로 바로잡았습니다.
 
 ### Added
+
+- `tools/opcua/fault_harness.py`: Phase 10 repeatable fault gate. Collector/source stall, collector·runner
+  kill/restart, forced overflow, spool backlog을 N회 주입하고 audit·손실 경계·dequeue 손실·window/analysis
+  cursor·wedge·Operations 상태 구분, 결손상 이유(window 누락 채널 → 전류만 unresolved → Investigation note·
+  provenance), 장애 후 Investigation → review request → Maintenance 연결을 machine verdict(JSON, exit code)로
+  판정합니다. `--browser`는 실제 Chromium에서 네 상태가 5초 안에 읽히는지 확인하고, 전체 scenario·N≥3·browser를
+  모두 포함한 실행만 `gate: full`입니다. `--steady-minutes`는 장애 없는 bounded run의 전반/후반을 비교합니다.
+  Collector에 `--subscription-queue-maxsize`를 추가했습니다.
+- Worker 종료 시 이미 dequeue된 notification의 spool 기록이 실패하면 log만 남기지 않고, 다른 종료 원인이 없으면
+  `OpcUaUnpersistedNotificationError`로 실패(재시작)하고 있으면 그 예외에 note로 붙입니다.
 
 - Collector `--pipeline-metrics` opt-in 진단(queue depth, 단계별 지연, event-loop lag; JSONL 기록은 event loop 밖),
   replay `--publish-ledger`(값·Good/Bad), `tools/opcua/replay_audit.py`(유실·중복·null 포함 값 불일치·품질 불일치,

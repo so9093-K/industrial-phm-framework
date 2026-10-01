@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from collections import defaultdict
 from contextlib import suppress
@@ -64,6 +65,8 @@ class PipelineMetrics:
         """Return this interval's metrics and start a new interval."""
         report: dict[str, object] = {
             "at": datetime.now(UTC).isoformat(timespec="milliseconds"),
+            # Several collector processes may append to one file across restarts.
+            "pid": os.getpid(),
             "counts": dict(sorted(self._counts.items())),
             "queue": {
                 "depth": self._queue_depth,
@@ -102,6 +105,11 @@ async def run_pipeline_metrics_reporter(
             await asyncio.to_thread(_append_line, path, line)
             metrics.observe("metrics_write", time.monotonic() - write_started)
             next_report += interval_seconds
+    # Final partial interval on a graceful stop (the service stops sources first), so
+    # per-process totals are complete; a killed process has no final record.
+    report = metrics.take()
+    report["final"] = True
+    await asyncio.to_thread(_append_line, path, json.dumps(report, sort_keys=True))
 
 
 def _append_line(path: Path, line: str) -> None:
