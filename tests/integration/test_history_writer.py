@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
+    HistoricalBatchAppendResult,
     HistoricalBatchCommit,
     HistoryIngestionMode,
     OpcUaEventTimePolicy,
@@ -44,6 +45,33 @@ class _FakeHistory:
         if tuple(events) != stored_events:
             raise ValueError("batch content conflict")
         return commit
+
+    def append_or_recover_opcua_batch(
+        self,
+        events,
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchAppendResult:
+        existing = self.get_opcua_batch_commit(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+        if existing is not None:
+            return HistoricalBatchAppendResult(
+                commit=existing,
+                recovered_existing_commit=True,
+            )
+        commit = self.append_opcua_batch(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+        return HistoricalBatchAppendResult(
+            commit=commit,
+            recovered_existing_commit=False,
+        )
 
     def append_opcua_batch(
         self,
