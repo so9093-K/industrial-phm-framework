@@ -88,87 +88,6 @@ class JsonPhaseUnbalanceRepository:
             raise PhaseUnbalanceHistoryFormatError("duplicate analysis_run_id in history")
         return results
 
-    def count_results(self) -> int:
-        """Return the number of stored results without deserializing their payloads."""
-        if not self._path.exists():
-            return 0
-        connection = self._connect()
-        try:
-            (count,) = connection.execute("SELECT COUNT(*) FROM phase_unbalance_result").fetchone()
-        finally:
-            connection.close()
-        return int(count)
-
-    def list_recent_results(
-        self,
-        limit: int,
-        *,
-        asset_id: str | None = None,
-        capability_id: str | None = None,
-    ) -> tuple[PhaseUnbalanceAnalysis, ...]:
-        """Return at most the requested number of newest results using indexed filters."""
-        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
-            raise ValueError("limit must be a positive integer")
-        for value, field_name in ((asset_id, "asset_id"), (capability_id, "capability_id")):
-            if value is not None and (not isinstance(value, str) or not value.strip()):
-                raise ValueError(f"{field_name} must be non-empty when provided")
-        if not self._path.exists():
-            return ()
-
-        clauses: list[str] = []
-        parameters: list[object] = []
-        if asset_id is not None:
-            clauses.append("asset_id = ?")
-            parameters.append(asset_id)
-        if capability_id is not None:
-            clauses.append("capability_id = ?")
-            parameters.append(capability_id)
-
-        query = "SELECT analysis_run_id, payload_json FROM phase_unbalance_result"
-        if clauses:
-            query += " WHERE " + " AND ".join(clauses)
-        query += " ORDER BY completed_at_us DESC, analysis_run_id DESC LIMIT ?"
-        parameters.append(limit)
-
-        connection = self._connect()
-        try:
-            rows = connection.execute(query, parameters).fetchall()
-        finally:
-            connection.close()
-        return tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
-
-    def find_results(self, analysis_run_ids: Iterable[str]) -> tuple[PhaseUnbalanceAnalysis, ...]:
-        """Return exact stored results for requested run IDs; absent IDs are ignored."""
-        run_ids = tuple(dict.fromkeys(analysis_run_ids))
-        if any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids):
-            raise ValueError("analysis_run_ids must contain non-empty strings")
-        if not run_ids or not self._path.exists():
-            return ()
-
-        rows: list[tuple[str, str]] = []
-        connection = self._connect()
-        try:
-            for start in range(0, len(run_ids), 400):
-                chunk = run_ids[start : start + 400]
-                placeholders = ", ".join("?" for _ in chunk)
-                rows.extend(
-                    connection.execute(
-                        "SELECT analysis_run_id, payload_json FROM phase_unbalance_result "
-                        f"WHERE analysis_run_id IN ({placeholders})",
-                        chunk,
-                    ).fetchall()
-                )
-        finally:
-            connection.close()
-
-        results = tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
-        return tuple(
-            sorted(
-                results,
-                key=lambda result: (result.run.completed_at, result.run.analysis_run_id),
-            )
-        )
-
     def record(self, result: PhaseUnbalanceAnalysis) -> None:
         """Append one result; an identical replay is accepted."""
         self._record(result, once_per_window=False)
@@ -272,6 +191,87 @@ class SqlitePhaseUnbalanceRepository:
         finally:
             connection.close()
         return tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
+
+    def count_results(self) -> int:
+        """Return the number of stored results without deserializing their payloads."""
+        if not self._path.exists():
+            return 0
+        connection = self._connect()
+        try:
+            (count,) = connection.execute("SELECT COUNT(*) FROM phase_unbalance_result").fetchone()
+        finally:
+            connection.close()
+        return int(count)
+
+    def list_recent_results(
+        self,
+        limit: int,
+        *,
+        asset_id: str | None = None,
+        capability_id: str | None = None,
+    ) -> tuple[PhaseUnbalanceAnalysis, ...]:
+        """Return at most the requested number of newest results using indexed filters."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise ValueError("limit must be a positive integer")
+        for value, field_name in ((asset_id, "asset_id"), (capability_id, "capability_id")):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{field_name} must be non-empty when provided")
+        if not self._path.exists():
+            return ()
+
+        clauses: list[str] = []
+        parameters: list[object] = []
+        if asset_id is not None:
+            clauses.append("asset_id = ?")
+            parameters.append(asset_id)
+        if capability_id is not None:
+            clauses.append("capability_id = ?")
+            parameters.append(capability_id)
+
+        query = "SELECT analysis_run_id, payload_json FROM phase_unbalance_result"
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY completed_at_us DESC, analysis_run_id DESC LIMIT ?"
+        parameters.append(limit)
+
+        connection = self._connect()
+        try:
+            rows = connection.execute(query, parameters).fetchall()
+        finally:
+            connection.close()
+        return tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
+
+    def find_results(self, analysis_run_ids: Iterable[str]) -> tuple[PhaseUnbalanceAnalysis, ...]:
+        """Return exact stored results for requested run IDs; absent IDs are ignored."""
+        run_ids = tuple(dict.fromkeys(analysis_run_ids))
+        if any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids):
+            raise ValueError("analysis_run_ids must contain non-empty strings")
+        if not run_ids or not self._path.exists():
+            return ()
+
+        rows: list[tuple[str, str]] = []
+        connection = self._connect()
+        try:
+            for start in range(0, len(run_ids), 400):
+                chunk = run_ids[start : start + 400]
+                placeholders = ", ".join("?" for _ in chunk)
+                rows.extend(
+                    connection.execute(
+                        "SELECT analysis_run_id, payload_json FROM phase_unbalance_result "
+                        f"WHERE analysis_run_id IN ({placeholders})",
+                        chunk,
+                    ).fetchall()
+                )
+        finally:
+            connection.close()
+
+        results = tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
+        return tuple(
+            sorted(
+                results,
+                key=lambda result: (result.run.completed_at, result.run.analysis_run_id),
+            )
+        )
 
     def record(self, result: PhaseUnbalanceAnalysis) -> None:
         """Append one result; an identical replay is accepted."""
