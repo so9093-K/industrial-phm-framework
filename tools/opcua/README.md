@@ -235,11 +235,6 @@ source unreachable, collector down, analysis stale) and a review request on the 
 
 Run time follows from the scenarios and `--repeat`; it is not a pass criterion.
 
-`--steady-minutes 90` runs the same stack without faults instead, samples collector/runner RSS, queue high
-watermark, arrival→dequeue p95, spool backlog and storage size every 60 s, and compares the second half with
-the first (`<root>/steady-verdict.json`). It checks that nothing drifts upward; the length is a bound, not a
-criterion.
-
 ## Queue-pressure and fault reproduction
 
 Short, repeatable experiments replace waiting for failures in a long soak:

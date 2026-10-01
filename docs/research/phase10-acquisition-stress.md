@@ -63,34 +63,25 @@ before persisting the current one, so a notification dequeued during that wait w
 ended (`dequeued 10 / accepted 5` under forced overflow). The worker now persists before requesting the
 next notification and persists an already-dequeued one at shutdown; the gate above verifies it.
 
-## Bounded steady-state run (fault-free)
+## Growth with accumulated state
 
-`--steady-minutes 90` on the same stack, sampled every 60 s. The first attempt stopped at minute 50 on a
-harness bug (an SQLite `-shm` file vanished between listing and `stat`); the harness now tolerates that and
-appends every sample to `<root>-steady-series.jsonl`. Its 50 samples:
+A fault-free run of the same stack (50 minutes, sampled every 60 s) showed queue high watermark (≤ 53 of
+4096), arrival → dequeue p95 (about 80 ms), spool backlog (not accumulating) and storage rate (about
+2.6 MB/min, linear) stable, but process memory still rising: runner about +25 MB/h, collector about
++15 MB/h after warm-up. Elapsed time is not what drives this; accumulated state is. Growth is therefore
+judged by scale tests that preload state of a known size N and measure the cost and memory of one more
+operation, not by running longer.
 
-| Item | First half | Second half | Reading |
-| --- | --- | --- | --- |
-| collector RSS slope | +92 MB/h (315 → 355 MB warm-up) | +15 MB/h | still rising after warm-up: **trend**, measure longer |
-| runner RSS slope | +19 MB/h | +25 MB/h | rising throughout: **trend**, cause below |
-| queue high watermark | ≤ 53 | ≤ 35 | stationary (queue 4096) |
-| arrival → dequeue p95 (median) | 85 ms | 80 ms | stationary |
-| spool backlog | ≤ 32 | 0 at the end | not accumulating |
-| storage growth | 2.63 MB/min | 2.58 MB/min | linear, not accelerating |
-
-A ratio of worst values hid both RSS trends, so the steady check now judges memory by the least-squares
-slope of the second half (≤ 10 MB/h) and also tracks history commit and window cycle p95.
-
-**Runner memory follows the analysis result store.** `JsonPhaseUnbalanceRepository` reads and rewrites the
-whole `phase-unbalance.json` for every window (O(results) per window; 103 results = 1.6 MB after 50 min,
-about 16 KB per result, about 46 MB/day at 30 s windows). On CPython 3.14.7, reading a non-ASCII text file
-with `open(..., encoding="utf-8").read()` / `Path.read_text` leaves process memory proportional to the file
-size (a 1.6 MB file: 3 MB per read until it levels off near 196 MB; 33 MB on 3.13.12; none with
-`read_bytes().decode()`). The Python heap itself does not grow (tracemalloc: 22 KB), so this is allocator
-retention, and the store's unbounded growth makes it a trend. The structural issue is the whole-file
+**Runner: the analysis result store.** `JsonPhaseUnbalanceRepository` reads and rewrites the whole
+`phase-unbalance.json` for every window: O(results) per window, about 16 KB per result (103 results =
+1.6 MB after 50 minutes; about 46 MB/day at 30 s windows). On CPython 3.14.7, reading a non-ASCII text
+file with `open(..., encoding="utf-8").read()` / `Path.read_text` also leaves process memory proportional
+to the file size (a 1.6 MB file: 3 MB per read, levelling off near 196 MB; 33 MB on 3.13.12; none with
+`read_bytes().decode()`; the Python heap itself does not grow). The structural issue is the whole-file
 rewrite, the same pattern already removed from finalized windows.
 
-**Storage.** `windows.sqlite` grew to 88 MB and DuckLake to 5,026 data files (39 MB) in 50 minutes, about
-106 small files per minute. Volume is linear, but file count and window payload retention belong to the
-storage lifecycle work (#317).
+**Collector.** The cause of the remaining growth is not yet identified; the candidates are per-commit
+costs that grow with DuckLake data files (about 106 small files per minute) and window payloads.
 
+**Storage.** `windows.sqlite` reached 88 MB and DuckLake 5,026 data files (39 MB) in 50 minutes. Volume is
+linear, but file count and window payload retention belong to the storage lifecycle work (#317).

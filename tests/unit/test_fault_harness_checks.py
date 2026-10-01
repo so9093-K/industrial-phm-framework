@@ -5,7 +5,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.opcua.fault_harness import (
+    SCENARIOS,
     Fault,
+    build_parser,
     check_analysis_outcomes,
     check_backlog,
     check_dequeued_loss,
@@ -15,7 +17,6 @@ from tools.opcua.fault_harness import (
     check_missing_within_boundary,
     check_recovered,
     check_review_workflow,
-    check_steady_state,
     check_ui_states,
     check_windows,
 )
@@ -176,35 +177,11 @@ def test_every_ui_state_must_render_within_five_seconds():
     assert not check_first_render({"source_stale": fast})["passed"]
 
 
-def _steady(minute: float, **overrides: float) -> dict[str, float]:
-    return {
-        "minute": minute,
-        "rss_collector_mb": 200.0,
-        "rss_runner_mb": 150.0,
-        "queue_high_watermark": 20.0,
-        "a2d_p95_ms": 40.0,
-        "commit_p95_ms": 120.0,
-        "window_cycle_p95_ms": 150.0,
-        "spool_pending": 30.0,
-        "storage_bytes": 1_000_000.0 * minute,
-        "data_files": 10.0 * minute,
-        **overrides,
-    }
-
-
-def test_steady_state_compares_the_second_half_with_the_first():
-    flat = [_steady(float(m)) for m in range(1, 9)]
-    assert check_steady_state(flat)["passed"]
-    leaking = [_steady(float(m), rss_collector_mb=200.0 + 20 * m) for m in range(1, 9)]
-    assert check_steady_state(leaking)["trends"] == ["rss_collector_mb_per_hour"]
-    # Warm-up growth that levels off is not a trend.
-    warming = [_steady(float(m), rss_runner_mb=min(150.0 + 10 * m, 180.0)) for m in range(1, 9)]
-    assert check_steady_state(warming)["passed"]
-    # Commit cost growing with accumulated history is the structural regression to catch.
-    slowing = [_steady(float(m), commit_p95_ms=120.0 * m) for m in range(1, 9)]
-    assert check_steady_state(slowing)["trends"] == ["commit_p95_ms"]
-    accumulating = [*flat[:-1], _steady(8.0, spool_pending=5_000.0)]
-    assert not check_steady_state(accumulating)["passed"]
-    accelerating = [_steady(float(m), storage_bytes=1_000_000.0 * m * m) for m in range(1, 9)]
-    assert not check_steady_state(accelerating)["passed"]
-    assert not check_steady_state(flat[:4])["passed"]
+def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
+    args = build_parser().parse_args(["--root", "artifacts/x"])
+    assert (args.repeat, args.scenarios, args.browser) == (3, list(SCENARIOS), False)
+    # The replay selection the stack is prepared from.
+    assert args.archive.name == "5.보일러.zip"
+    assert args.member == "5.보일러/SourceData_211.json"
+    assert args.binding.exists()
+    assert (args.start.hour, args.end.hour, args.end.minute) == (6, 12, 30)
