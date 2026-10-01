@@ -85,6 +85,25 @@ def _measure[T](operation: Callable[[], T]) -> tuple[T, dict[str, float | int]]:
     return value, {"seconds": elapsed, "python_peak_bytes": peak}
 
 
+def _process_memory() -> dict[str, int | None]:
+    """Return Linux process RSS/high-watermark without adding a runtime dependency."""
+    status = Path("/proc/self/status")
+    if not status.is_file():
+        return {"rss_bytes": None, "high_watermark_bytes": None}
+    values: dict[str, int] = {}
+    for line in status.read_text(encoding="utf-8").splitlines():
+        name, separator, raw = line.partition(":")
+        if not separator or name not in {"VmRSS", "VmHWM"}:
+            continue
+        parts = raw.strip().split()
+        if len(parts) == 2 and parts[1] == "kB":
+            values[name] = int(parts[0]) * 1024
+    return {
+        "rss_bytes": values.get("VmRSS"),
+        "high_watermark_bytes": values.get("VmHWM"),
+    }
+
+
 def _git_sha() -> str:
     try:
         result = subprocess.run(
@@ -179,6 +198,7 @@ def run_benchmark(
     preload_seconds = time.perf_counter() - preload_started
 
     storage_at_n = history.inspect_storage()
+    memory_at_n = _process_memory()
     fingerprints_before = {
         str(index): history.snapshot_evidence_fingerprint(commit.snapshot_id)
         for index, commit in selected_commits.items()
@@ -197,6 +217,7 @@ def run_benchmark(
         )
     )
 
+    memory_before_compaction = _process_memory()
     compaction, compaction_measure = _measure(
         lambda: history.compact_adjacent_files(
             max_compacted_files=max_compacted_files,
@@ -204,6 +225,7 @@ def run_benchmark(
         )
     )
 
+    memory_after_compaction = _process_memory()
     fingerprints_after = {
         str(index): history.snapshot_evidence_fingerprint(commit.snapshot_id)
         for index, commit in selected_commits.items()
@@ -232,6 +254,7 @@ def run_benchmark(
     )
     query_after = _query_metrics(history, commit_count=commit_count + 2)
     final_storage = history.inspect_storage()
+    final_memory = _process_memory()
 
     report: dict[str, object] = {
         "schema": "industrial-phm-ducklake-compaction-benchmark-v1",
@@ -252,16 +275,19 @@ def run_benchmark(
         },
         "preload_seconds": preload_seconds,
         "storage_at_n": asdict(storage_at_n),
+        "process_memory_at_n": memory_at_n,
         "append_before_compaction": {
             **append_before,
             "snapshot_id": probe_before_commit.snapshot_id,
         },
         "query_before_compaction": query_before,
         "snapshot_fingerprints_before": fingerprints_before,
+        "process_memory_before_compaction": memory_before_compaction,
         "compaction": {
             **asdict(compaction),
             "measurement": compaction_measure,
         },
+        "process_memory_after_compaction": memory_after_compaction,
         "snapshot_fingerprints_after": fingerprints_after,
         "batch_recovery_preserved": batch_recovery_preserved,
         "append_after_compaction": {
@@ -270,6 +296,7 @@ def run_benchmark(
         },
         "query_after_compaction": query_after,
         "final_storage": asdict(final_storage),
+        "final_process_memory": final_memory,
         "destructive_operations": {
             "expire_snapshots": 0,
             "cleanup_old_files": 0,
