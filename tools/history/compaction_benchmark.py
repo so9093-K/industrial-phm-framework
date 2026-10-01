@@ -160,6 +160,7 @@ def run_benchmark(
     events_per_commit: int,
     channels: int,
     max_compacted_files: int,
+    target_file_size_bytes: int,
     max_file_size_bytes: int,
 ) -> dict[str, object]:
     if commit_count < 0:
@@ -168,6 +169,7 @@ def run_benchmark(
         (events_per_commit, "events_per_commit"),
         (channels, "channels"),
         (max_compacted_files, "max_compacted_files"),
+        (target_file_size_bytes, "target_file_size_bytes"),
         (max_file_size_bytes, "max_file_size_bytes"),
     ):
         if value < 1:
@@ -230,6 +232,7 @@ def run_benchmark(
     compaction, compaction_measure = _measure(
         lambda: history.compact_adjacent_files(
             max_compacted_files=max_compacted_files,
+            target_file_size_bytes=target_file_size_bytes,
             max_file_size_bytes=max_file_size_bytes,
         )
     )
@@ -280,6 +283,7 @@ def run_benchmark(
             "events_per_commit": events_per_commit,
             "channels": channels,
             "max_compacted_files": max_compacted_files,
+            "target_file_size_bytes": target_file_size_bytes,
             "max_file_size_bytes": max_file_size_bytes,
         },
         "preload_seconds": preload_seconds,
@@ -327,6 +331,7 @@ def main() -> None:
     parser.add_argument("--events-per-commit", type=int, default=35)
     parser.add_argument("--channels", type=int, default=35)
     parser.add_argument("--max-compacted-files", type=int, required=True)
+    parser.add_argument("--target-file-size-bytes", type=int, required=True)
     parser.add_argument("--max-file-size-bytes", type=int, required=True)
     args = parser.parse_args()
     try:
@@ -336,6 +341,7 @@ def main() -> None:
             events_per_commit=args.events_per_commit,
             channels=args.channels,
             max_compacted_files=args.max_compacted_files,
+            target_file_size_bytes=args.target_file_size_bytes,
             max_file_size_bytes=args.max_file_size_bytes,
         )
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
