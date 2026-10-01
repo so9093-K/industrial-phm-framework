@@ -558,6 +558,210 @@ class DuckLakeAssetHistory:
             return 0
         return _require_int(row[0], "snapshot_id")
 
+
+    def runtime_fingerprint(self) -> DuckLakeRuntimeFingerprint:
+        """Return DuckDB/DuckLake versions used by this history adapter."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            version_row = connection.execute("SELECT version()").fetchone()
+            extension_row = connection.execute(
+                """
+                SELECT extension_version, installed_from, install_mode
+                FROM duckdb_extensions()
+                WHERE extension_name = 'ducklake'
+                """
+            ).fetchone()
+        finally:
+            connection.close()
+        if version_row is None:
+            raise RuntimeError("DuckDB did not report its version")
+        if extension_row is None:
+            raise RuntimeError("DuckLake extension metadata is unavailable")
+        return DuckLakeRuntimeFingerprint(
+            duckdb_version=_require_str(version_row[0], "duckdb_version"),
+            ducklake_extension_version=_optional_str(
+                extension_row[0], "ducklake_extension_version"
+            ),
+            ducklake_installed_from=_optional_str(
+                extension_row[1], "ducklake_installed_from"
+            ),
+            ducklake_install_mode=_optional_str(extension_row[2], "ducklake_install_mode"),
+        )
+
+    def inspect_storage(self) -> DuckLakeStorageInspection:
+        """Inspect active/logical and physical storage without mutating history."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._inspect_storage_with_connection(connection)
+        finally:
+            connection.close()
+
+    def snapshot_evidence_fingerprint(self, snapshot_id: int) -> str:
+        """Hash canonical raw/history rows visible at one existing snapshot."""
+        _validate_non_negative_int(snapshot_id, "snapshot_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            exists = connection.execute(
+                f"SELECT 1 FROM {_CATALOG_NAME}.snapshots() WHERE snapshot_id = ?",
+                [snapshot_id],
+            ).fetchone()
+            if exists is None:
+                raise ValueError(f"history snapshot does not exist: {snapshot_id}")
+
+            digest = hashlib.sha256()
+            for schema, table, order_by in _SNAPSHOT_FINGERPRINT_TABLES:
+                cursor = connection.execute(
+                    f"SELECT * FROM {_CATALOG_NAME}.{schema}.{table} "
+                    f"AT (VERSION => {snapshot_id}) ORDER BY {order_by}"
+                )
+                columns = [description[0] for description in cursor.description]
+                digest.update(
+                    json.dumps(
+                        [schema, table, columns],
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ).encode()
+                )
+                while True:
+                    rows = cursor.fetchmany(1000)
+                    if not rows:
+                        break
+                    for row in rows:
+                        digest.update(
+                            json.dumps(
+                                [_canonical_fingerprint_value(value) for value in row],
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            ).encode()
+                        )
+            return digest.hexdigest()
+        finally:
+            connection.close()
+
+    def compact_adjacent_files(
+        self,
+        *,
+        max_compacted_files: int,
+        min_file_size_bytes: int | None = None,
+        max_file_size_bytes: int | None = None,
+    ) -> DuckLakeCompactionResult:
+        """Merge active adjacent Parquet files without expiring snapshots or deleting files.
+
+        max_compacted_files is required so maintenance has an explicit per-table
+        work bound. Size filters describe file eligibility, not a retention policy.
+        """
+        _validate_positive_int(max_compacted_files, "max_compacted_files")
+        _validate_optional_positive_int(min_file_size_bytes, "min_file_size_bytes")
+        _validate_optional_positive_int(max_file_size_bytes, "max_file_size_bytes")
+        if (
+            min_file_size_bytes is not None
+            and max_file_size_bytes is not None
+            and min_file_size_bytes >= max_file_size_bytes
+        ):
+            raise ValueError("min_file_size_bytes must be less than max_file_size_bytes")
+
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            storage_before = self._inspect_storage_with_connection(connection)
+            snapshot_before = storage_before.current_snapshot_id
+            options = [f"max_compacted_files => {max_compacted_files}"]
+            if min_file_size_bytes is not None:
+                options.append(f"min_file_size => {min_file_size_bytes}")
+            if max_file_size_bytes is not None:
+                options.append(f"max_file_size => {max_file_size_bytes}")
+            started = time.perf_counter()
+            rows = connection.execute(
+                f"CALL ducklake_merge_adjacent_files('{_CATALOG_NAME}', "
+                + ", ".join(options)
+                + ")"
+            ).fetchall()
+            duration_seconds = time.perf_counter() - started
+            storage_after = self._inspect_storage_with_connection(connection)
+        finally:
+            connection.close()
+
+        tables = tuple(
+            DuckLakeCompactedTable(
+                schema_name=_require_str(schema, "schema_name"),
+                table_name=_require_str(table, "table_name"),
+                files_processed=_require_int(files_processed, "files_processed"),
+                files_created=_require_int(files_created, "files_created"),
+            )
+            for schema, table, files_processed, files_created in rows
+        )
+        return DuckLakeCompactionResult(
+            snapshot_before=snapshot_before,
+            snapshot_after=storage_after.current_snapshot_id,
+            duration_seconds=duration_seconds,
+            tables=tables,
+            storage_before=storage_before,
+            storage_after=storage_after,
+        )
+
+    def _inspect_storage_with_connection(self, connection: Any) -> DuckLakeStorageInspection:
+        snapshot_row = connection.execute(
+            f"SELECT count(*), max(snapshot_id) FROM {_CATALOG_NAME}.snapshots()"
+        ).fetchone()
+        if snapshot_row is None:
+            raise RuntimeError("DuckLake snapshot metadata is unavailable")
+        snapshot_count = _require_int(snapshot_row[0], "snapshot_count")
+        current_snapshot_id = (
+            0
+            if snapshot_row[1] is None
+            else _require_int(snapshot_row[1], "current_snapshot_id")
+        )
+
+        active_sizes: list[int] = []
+        for schema, table in _HISTORY_DATA_TABLES:
+            rows = connection.execute(
+                f"SELECT data_file_size_bytes FROM ducklake_list_files("
+                f"'{_CATALOG_NAME}', '{table}', schema => '{schema}')"
+            ).fetchall()
+            active_sizes.extend(
+                _require_int(row[0], "data_file_size_bytes")
+                for row in rows
+                if row[0] is not None
+            )
+        active_sizes.sort()
+        active_count = len(active_sizes)
+        active_bytes = sum(active_sizes)
+        if active_sizes:
+            minimum = active_sizes[0]
+            median = active_sizes[(active_count - 1) // 2]
+            maximum = active_sizes[-1]
+        else:
+            minimum = median = maximum = None
+
+        catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
+        scheduled_row = connection.execute(
+            "SELECT count(*) FROM sqlite_scan("
+            + _quote_sql_literal(str(catalog_path))
+            + ", 'ducklake_files_scheduled_for_deletion')"
+        ).fetchone()
+        if scheduled_row is None:
+            raise RuntimeError("DuckLake scheduled-deletion metadata is unavailable")
+        scheduled = _require_int(scheduled_row[0], "scheduled_for_deletion_count")
+
+        data_path = self._config.data_path.expanduser().resolve(strict=False)
+        physical_files = tuple(data_path.rglob("*.parquet"))
+        return DuckLakeStorageInspection(
+            snapshot_count=snapshot_count,
+            current_snapshot_id=current_snapshot_id,
+            active_data_file_count=active_count,
+            active_data_file_bytes=active_bytes,
+            active_file_size_min_bytes=minimum,
+            active_file_size_median_bytes=median,
+            active_file_size_max_bytes=maximum,
+            scheduled_for_deletion_count=scheduled,
+            physical_parquet_file_count=len(physical_files),
+            physical_parquet_bytes=sum(path.stat().st_size for path in physical_files),
+            catalog_bytes=catalog_path.stat().st_size if catalog_path.is_file() else 0,
+        )
+
     def flush_inlined_data(self) -> DuckLakeInlinedDataFlush:
         """Move rows DuckLake inlined into the SQLite catalog to Parquet.
 
