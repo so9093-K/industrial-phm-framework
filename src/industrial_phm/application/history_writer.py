@@ -33,6 +33,20 @@ class SpoolToHistoryWriterPolicy:
 
 
 @dataclass(frozen=True, slots=True)
+class HistoricalBatchAppendResult:
+    """One history append attempt, including idempotent recovery disposition."""
+
+    commit: HistoricalBatchCommit
+    recovered_existing_commit: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.commit, HistoricalBatchCommit):
+            raise ValueError("commit must be a HistoricalBatchCommit")
+        if not isinstance(self.recovered_existing_commit, bool):
+            raise ValueError("recovered_existing_commit must be boolean")
+
+
+@dataclass(frozen=True, slots=True)
 class SpoolHistoryBatchWriteResult:
     """One acknowledged spool batch and its historical commit provenance."""
 
@@ -95,6 +109,16 @@ class SpoolHistoryWriterResult:
 @runtime_checkable
 class OpcUaHistoricalBatchStore(Protocol):
     """Historical sink contract required by the spool writer."""
+
+    def append_or_recover_opcua_batch(
+        self,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchAppendResult:
+        """Atomically append one batch or recover its identical prior commit."""
+        ...
 
     def get_opcua_batch_commit(
         self,
