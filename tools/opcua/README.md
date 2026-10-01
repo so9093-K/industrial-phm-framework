@@ -81,7 +81,8 @@ uv run --no-sync industrial-phm operations compact-history \
   --ducklake-catalog artifacts/live-demo/catalog.sqlite \
   --ducklake-data artifacts/live-demo/data \
   --max-compacted-files 32 \
-  --max-file-size-bytes 1048576
+  --target-file-size-bytes 1048576 \
+  --max-file-size-bytes 262144
 ```
 
 `flush` means catalog-inline rows → Parquet. `compact` means active small Parquet → fewer active
