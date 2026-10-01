@@ -137,10 +137,34 @@ each batch's duplicate check scans existing raw evidence IDs; linear extrapolati
 million records is roughly 1.1 s per batch at the end and 3.5–4.5 hours in total on this machine.
 That estimate is not a measured full-archive run.
 
-Not implemented: automatic periodic flush inside the live collection service (operators run
-`flush-history`; it waits for the same catalog lease), small-file compaction for long live runs, and
-catalog `VACUUM`. Dictionary normalization below remains useful for semantic updates and query
-clarity, but needs its own measured benefit after flush before it is prioritized.
+## Non-destructive small-file compaction
+
+#317-A treats physical file compaction as a DuckLake-specific maintenance capability, not as an
+application or acquisition responsibility. `DuckLakeAssetHistory.compact_adjacent_files()` acquires
+the same local catalog lease as readers/writers and calls only DuckLake merge-adjacent-files. The
+operation requires an explicit per-table work bound and may optionally restrict eligible file sizes.
+
+Compaction is intentionally separate from retention. Existing snapshot IDs remain part of the
+acceptance contract: representative raw/history rows are canonically fingerprinted before compaction
+and the same snapshots must produce the same fingerprint afterwards. Existing batch exact-retry
+provenance must also resolve to its original commit. Old physical Parquet files replaced by a merge can
+remain scheduled for later deletion; #317-A measures active files separately from scheduled and physical
+files.
+
+Terminology is fixed across code and operations:
+
+- **flush**: catalog-inline rows → Parquet
+- **compact**: active small Parquet files → fewer/larger active Parquet files
+- **expire**: remove historical snapshot visibility
+- **cleanup**: delete physical files no longer required by DuckLake
+- **vacuum**: reclaim metadata-catalog storage
+
+#317-A does not call snapshot expiration, old/orphan-file cleanup, CHECKPOINT or VACUUM and does not
+run maintenance from the collector hot path. Retention/deletion and automatic scheduling remain
+#317-B after representative archive measurements.
+
+Dictionary normalization below remains useful for semantic updates and query clarity, but needs its
+own measured benefit after compaction before it is prioritized.
 
 ## Metadata normalization before full-archive ingestion
 
