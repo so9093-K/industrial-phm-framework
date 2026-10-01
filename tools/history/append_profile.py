@@ -181,8 +181,10 @@ def _stage_for_sql(sql: str) -> str:
         or "set_commit_message" in normalized
     ):
         return "insert_commit"
-    if "last_committed_snapshot()" in normalized or (
-        ".snapshots()" in normalized and "where snapshot_id = ?" in normalized
+    if (
+        "last_committed_snapshot()" in normalized
+        or (".snapshots()" in normalized and "where snapshot_id = ?" in normalized)
+        or ("ducklake_snapshot" in normalized and "where snapshot_id = ?" in normalized)
     ):
         return "snapshot_provenance"
     if ".snapshots()" in normalized and "commit_extra_info" in normalized:
