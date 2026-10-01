@@ -1,7 +1,9 @@
 """Long-lived registered OPC UA acquisition worker.
 
-The worker owns application session semantics and durable spool acceptance. asyncua owns
-transport/session/subscription recovery through the concrete connector.
+The worker owns application session semantics and durable spool acceptance. Recovery is
+application-owned (ADR-0010): on connection loss or subscription queue overflow the worker
+ends, and the collection service starts a fresh session with its restart backoff
+(``CollectionServicePolicy.restart_backoff_*``). asyncua's in-client reconnect is not ridden.
 """
 
 from __future__ import annotations
@@ -96,9 +98,11 @@ async def run_registered_opcua_acquisition_worker(
 ) -> OpcUaAcquisitionWorkerResult:
     """Run one ACTIVE registered OPC UA source until explicit stop or failure.
 
-    asyncua 2.0.1 exposes the reconnect delay cap but fixes the initial delay and
-    exponential multiplier to 1 second and 2x. v1 therefore fails fast when the
-    application policy requests different values instead of silently ignoring them.
+    The worker ends with ``OpcUaSessionLostError`` at asyncua's first RECONNECTING
+    and with ``OpcUaSubscriptionOverflowError`` on queue overflow; restarts belong to
+    the collection service. The session policy's ``reconnect_*`` values only bound
+    asyncua's internal retry before the worker ends (asyncua 2.0.1 fixes the initial
+    delay and multiplier to 1 s and 2x, so other values fail fast).
     """
     if not isinstance(stop_event, asyncio.Event):
         raise ValueError("stop_event must be an asyncio.Event")
@@ -304,71 +308,65 @@ async def run_registered_opcua_acquisition_worker(
                     "collector worker with a new session"
                 )
 
+            if notification_task in done:
+                # Persist a notification that was already dequeued before handling a
+                # connection-loss state from the same wakeup: it arrived on this session.
+                # Notifications still queued inside the old client are not drained
+                # (part of the documented loss boundary, ADR-0010).
+                notification = notification_task.result()
+                notification_task = asyncio.create_task(connector.next_notification())
+                if notification is not None:
+                    if current.state != OpcUaPersistentSessionState.CONNECTED:
+                        raise RuntimeError(
+                            "OPC UA DataChange arrived while application session is not CONNECTED"
+                        )
+
+                    registered = RegisteredOpcUaDataChangeEvent(
+                        source_id=source_id,
+                        asset_id=source.asset_id,
+                        endpoint_url=config.endpoint_url,
+                        measurement_point_id=source.measurement_point_id,
+                        collection_index=next_event_index,
+                        notification=notification,
+                        semantic_binding=config.semantic_binding_for(
+                            notification.observation.channel_id
+                        ),
+                    )
+                    accept_started = time.monotonic()
+                    persistent_event = await asyncio.to_thread(
+                        spool.accept_opcua_event,
+                        registered,
+                        connection_epoch=current.connection_epoch,
+                        event_index=next_event_index,
+                        accepted_at=_now(now_fn),
+                        event_time_policy=effective_event_time_policy,
+                    )
+                    if metrics is not None:
+                        metrics.observe("spool_accept", time.monotonic() - accept_started)
+                    if telemetry_recorder is not None:
+                        telemetry_started = time.monotonic()
+                        _record_telemetry_best_effort(
+                            partial(
+                                telemetry_recorder.record_opcua_event,
+                                persistent_event,
+                            ),
+                            label="OPC UA flow event",
+                        )
+                        if metrics is not None:
+                            # Synchronous on the event loop: directly delays queue draining.
+                            metrics.observe(
+                                "telemetry_event_in_loop", time.monotonic() - telemetry_started
+                            )
+                    accepted_event_count += 1
+                    if notification.replayed:
+                        replayed_event_count += 1
+                    next_event_index += 1
+
             if state_task in done:
                 while state_task.done():
                     await _process_state(state_task.result())
                     state_task = asyncio.create_task(connector.next_state())
                     await asyncio.sleep(0)
-
-            if notification_task in done:
-                # Give an already-buffered reconnect state transition priority over
-                # data so replay/new notifications use the new connection epoch.
-                await asyncio.sleep(0)
-                if state_task.done():
-                    while state_task.done():
-                        await _process_state(state_task.result())
-                        state_task = asyncio.create_task(connector.next_state())
-                        await asyncio.sleep(0)
-
-                notification = notification_task.result()
-                notification_task = asyncio.create_task(connector.next_notification())
-                if notification is None:
-                    continue
-                if current.state != OpcUaPersistentSessionState.CONNECTED:
-                    raise RuntimeError(
-                        "OPC UA DataChange arrived while application session is not CONNECTED"
-                    )
-
-                registered = RegisteredOpcUaDataChangeEvent(
-                    source_id=source_id,
-                    asset_id=source.asset_id,
-                    endpoint_url=config.endpoint_url,
-                    measurement_point_id=source.measurement_point_id,
-                    collection_index=next_event_index,
-                    notification=notification,
-                    semantic_binding=config.semantic_binding_for(
-                        notification.observation.channel_id
-                    ),
-                )
-                accept_started = time.monotonic()
-                persistent_event = await asyncio.to_thread(
-                    spool.accept_opcua_event,
-                    registered,
-                    connection_epoch=current.connection_epoch,
-                    event_index=next_event_index,
-                    accepted_at=_now(now_fn),
-                    event_time_policy=effective_event_time_policy,
-                )
-                if metrics is not None:
-                    metrics.observe("spool_accept", time.monotonic() - accept_started)
-                if telemetry_recorder is not None:
-                    telemetry_started = time.monotonic()
-                    _record_telemetry_best_effort(
-                        partial(
-                            telemetry_recorder.record_opcua_event,
-                            persistent_event,
-                        ),
-                        label="OPC UA flow event",
-                    )
-                    if metrics is not None:
-                        # Synchronous on the event loop: directly delays queue draining.
-                        metrics.observe(
-                            "telemetry_event_in_loop", time.monotonic() - telemetry_started
-                        )
-                accepted_event_count += 1
-                if notification.replayed:
-                    replayed_event_count += 1
-                next_event_index += 1
 
     except BaseException as error:
         stop_detail = f"worker-error:{type(error).__name__}"

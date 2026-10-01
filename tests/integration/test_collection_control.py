@@ -273,7 +273,6 @@ def test_collection_service_restarts_failed_workers_with_backoff(
             service_module, "run_continuous_registered_opcua_observation_windows", _idle
         )
         monkeypatch.setattr(service_module, "run_spool_to_history_writer", _idle)
-        monkeypatch.setattr(service_module, "_RESTART_BACKOFF_INITIAL_SECONDS", 0.05)
         stop = asyncio.Event()
         service = asyncio.create_task(
             run_collection_service(
@@ -286,7 +285,9 @@ def test_collection_service_restarts_failed_workers_with_backoff(
                 object(),
                 object(),
                 stop_event=stop,
-                policy=CollectionServicePolicy(reconcile_interval_seconds=0.005),
+                policy=CollectionServicePolicy(
+                    reconcile_interval_seconds=0.005, restart_backoff_initial_seconds=0.05
+                ),
             )
         )
         for _ in range(2000):
@@ -303,3 +304,96 @@ def test_collection_service_restarts_failed_workers_with_backoff(
         assert gaps[2] >= 0.2
 
     asyncio.run(_run())
+
+
+def test_window_failures_restart_only_the_coordinator_and_metrics_failure_is_reported(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A failing window store must not churn the OPC UA session (separate failure
+    # domains), and a dead diagnostics reporter must not vanish silently.
+    import logging
+    import time
+    from itertools import pairwise
+
+    import industrial_phm.runtime.collection_service as service_module
+    from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
+
+    async def _run() -> None:
+        source_repository = _repository(tmp_path / "sources.json")
+        transition_source_lifecycle(
+            source_repository,
+            "source-a",
+            SourceLifecycleState.ACTIVE,
+            changed_at=BASE + timedelta(seconds=1),
+        )
+        control = SqliteCollectionControlRepository(tmp_path / "collection-control.sqlite")
+        request_collection_state(
+            source_repository,
+            source_repository,
+            control,
+            "source-a",
+            CollectionDesiredState.RUNNING,
+            requested_at=BASE + timedelta(seconds=2),
+        )
+        worker_starts: list[float] = []
+        window_starts: list[float] = []
+
+        async def _worker(*args, **kwargs):
+            del args
+            worker_starts.append(time.monotonic())
+            await kwargs["stop_event"].wait()
+
+        async def _failing_window(*args, **kwargs):
+            del args, kwargs
+            window_starts.append(time.monotonic())
+            raise RuntimeError("window store unavailable")
+
+        async def _idle(*args, **kwargs):
+            del args
+            await kwargs["stop_event"].wait()
+
+        async def _broken_reporter(*args, **kwargs):
+            del args, kwargs
+            raise OSError("disk full")
+
+        monkeypatch.setattr(service_module, "run_registered_opcua_acquisition_worker", _worker)
+        monkeypatch.setattr(
+            service_module, "run_continuous_registered_opcua_observation_windows", _failing_window
+        )
+        monkeypatch.setattr(service_module, "run_spool_to_history_writer", _idle)
+        monkeypatch.setattr(service_module, "run_pipeline_metrics_reporter", _broken_reporter)
+        stop = asyncio.Event()
+        service = asyncio.create_task(
+            run_collection_service(
+                source_repository,
+                source_repository,
+                control,
+                object(),
+                object(),
+                object(),
+                object(),
+                object(),
+                stop_event=stop,
+                policy=CollectionServicePolicy(
+                    reconcile_interval_seconds=0.005, restart_backoff_initial_seconds=0.05
+                ),
+                metrics=PipelineMetrics(),
+                metrics_path=tmp_path / "metrics.jsonl",
+            )
+        )
+        for _ in range(2000):
+            if len(window_starts) >= 4:
+                break
+            await asyncio.sleep(0.005)
+        stop.set()
+        await service
+
+        assert len(worker_starts) == 1  # the OPC UA session was never restarted
+        gaps = [later - earlier for earlier, later in pairwise(window_starts)]
+        assert gaps[0] >= 0.05 and gaps[1] >= 0.1 and gaps[2] >= 0.2
+
+    with caplog.at_level(logging.WARNING, logger="industrial_phm.runtime.collection_service"):
+        asyncio.run(_run())
+    assert any("pipeline metrics reporter stopped" in r.getMessage() for r in caplog.records)

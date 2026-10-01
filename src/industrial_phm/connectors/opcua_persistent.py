@@ -80,7 +80,11 @@ class OpcUaPersistentConnectorConfig:
 
 
 class OpcUaPersistentSubscription:
-    """One connected asyncua subscription that survives transport reconnects."""
+    """One connected asyncua subscription for one application session.
+
+    The worker ends the session on connection loss or queue overflow (ADR-0010); this
+    connector does not ride asyncua's in-client reconnect across that boundary.
+    """
 
     def __init__(self, config: OpcUaPersistentConnectorConfig) -> None:
         if not isinstance(config, OpcUaPersistentConnectorConfig):
@@ -112,7 +116,7 @@ class OpcUaPersistentSubscription:
         return self._config
 
     async def start(self) -> None:
-        """Connect once and create one subscription; asyncua owns later reconnect recovery."""
+        """Connect once and create one subscription for this session (ADR-0010)."""
         if self._client is not None:
             raise ValueError("persistent OPC UA subscription has already been started")
 

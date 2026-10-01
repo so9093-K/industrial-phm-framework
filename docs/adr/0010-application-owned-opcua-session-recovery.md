@@ -26,12 +26,18 @@ stall(collector SIGSTOP)은 같은 session이 유지되어 유실 0건이었습�
 ## Decision
 
 - asyncua가 연결 상실을 알리면(`RECONNECTING`) worker는 `RECONNECT_WAIT` evidence를 남기고
-  `OpcUaSessionLostError`로 종료합니다. Connector close가 asyncua supervisor와 client를 정리합니다.
+  `OpcUaSessionLostError`로 종료합니다. 같은 wakeup에서 이미 dequeue된 notification은 이 session에
+  도착한 것이므로 먼저 spool에 기록한 뒤 종료합니다. Connector close가 asyncua supervisor와 client를
+  정리합니다.
 - Subscription queue overflow hook은 asyncua client state를 건드리지 않고 worker에 한 번만 신호합니다.
   Worker는 overflow evidence를 기록한 뒤 `OpcUaSubscriptionOverflowError`로 종료합니다.
 - Collection service가 종료된 worker를 새 client·session·subscription과 새 durable connection epoch로
   다시 시작합니다. 연속 실패는 1, 2, 4 … 최대 30초 backoff하고, 60초 이상 동작한 뒤의 실패는
-  backoff를 처음부터 다시 시작합니다.
+  backoff를 처음부터 다시 시작합니다. 이 값은 `CollectionServicePolicy.restart_backoff_*`가 유일하게
+  소유합니다. `OpcUaPersistentSessionPolicy.reconnect_*`는 worker가 버리는 asyncua 내부 재시도에만
+  해당합니다.
+- Window coordinator 실패는 OPC UA session 문제가 아니므로 worker를 재시작하지 않습니다. Session은 계속
+  spool로 수집하고, coordinator만 durable cursor에서 같은 backoff로 재시작합니다.
 - Subscription queue 기본값을 128에서 4096으로 올립니다. 정상 35 channel × 1 Hz 운전의 high
   watermark는 약 33이고, 30초 source stall 뒤 burst(1,007건, 최대 depth 914)는 overflow 없이 2.2초에
   처리되었습니다.
@@ -42,9 +48,12 @@ stall(collector SIGSTOP)은 같은 session이 유지되어 유실 0건이었습�
 
 ## Consequences
 
-- asyncua의 session 재활성화·republish로 복구할 수 있었던 일부 notification은 포기합니다. 대신 상실 구간은
-  "source/연결 중단 시간 + restart backoff"로 bounded되고, CONNECTED 상태의 무기한 silent loss나 영구
-  disconnected는 생기지 않습니다. 상실 구간은 publish ledger audit과 worker failure evidence로 드러납니다.
+- asyncua의 session 재활성화·republish로 복구할 수 있었던 일부 notification은 포기합니다. 손실 경계는
+  **source/연결 중단 시간 + restart backoff + 상실 시점에 이전 session client queue에 남아 아직 dequeue되지
+  않은 notification**입니다(queue를 drain하지 않음). CONNECTED 상태의 무기한 silent loss나 영구
+  disconnected는 생기지 않으며, 상실 구간은 publish ledger audit과 worker failure evidence로 드러납니다.
+- `--pipeline-metrics` reporter가 실패해도 수집은 계속되고, collector log에 경고가 남습니다. Fault harness는
+  최근 metrics record의 존재를 판정 전제 조건으로 확인해야 합니다.
 - Replay flag(`Republish`)는 fresh session에서는 발생하지 않습니다. 기존 replay evidence 계약은 유지하지만
   in-client 재연결 경로의 epoch 증가 시나리오는 worker 재시작 epoch 계약으로 대체됩니다.
 - asyncua private API(`_deliver`, `_event_queue`)는 진단·도착 시각에만 쓰고, 없으면 기능이 꺼질 뿐

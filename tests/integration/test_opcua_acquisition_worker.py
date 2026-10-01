@@ -411,3 +411,41 @@ def test_worker_process_restart_reserves_new_connection_epoch(tmp_path: Path) ->
         ]
 
     asyncio.run(_run())
+
+
+def test_notification_ready_with_connection_loss_is_persisted_before_the_worker_ends(
+    tmp_path: Path,
+) -> None:
+    # A notification already dequeued in the same wakeup as RECONNECTING arrived on the
+    # current session; it must not be dropped by ending the worker first.
+    async def _run() -> None:
+        repository, source = _repositories(tmp_path)
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
+        sink = InMemoryOpcUaPersistentSessionEvidenceSink()
+        connector = _FakePersistentConnector()
+        worker = asyncio.create_task(
+            run_registered_opcua_acquisition_worker(
+                repository,
+                repository,
+                spool,
+                sink,
+                source.source_id,
+                stop_event=asyncio.Event(),
+                connector_factory=lambda _config: connector,
+            )
+        )
+        await connector.started.wait()
+        await _wait_until(
+            lambda: sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
+        )
+        lost_at = datetime.now(UTC)
+        # Both become ready before the worker's next wakeup.
+        connector.notifications.put_nowait(_notification(channel_id="vibration_x", value=7.0))
+        connector.states.put_nowait(
+            OpcUaConnectorStateEvent(OpcUaConnectorConnectionState.RECONNECTING, lost_at)
+        )
+        with pytest.raises(OpcUaSessionLostError):
+            await worker
+        assert spool.pending_event_count() == 1
+
+    asyncio.run(_run())

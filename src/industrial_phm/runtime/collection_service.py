@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections.abc import Callable
 from contextlib import suppress
@@ -51,10 +52,23 @@ from industrial_phm.runtime.window_coordinator import (
     run_continuous_registered_opcua_observation_windows,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class CollectionServicePolicy:
+    """Service-owned runtime policy.
+
+    ``restart_backoff_*`` is the only restart policy for OPC UA sessions (ADR-0010):
+    a worker that ends on connection loss/refusal or queue overflow, and a window
+    coordinator that fails, are restarted after 1, 2, 4 ... seconds up to the max;
+    a task that ran at least ``restart_backoff_reset_after_seconds`` starts over.
+    """
+
     reconcile_interval_seconds: float = 0.5
+    restart_backoff_initial_seconds: float = 1.0
+    restart_backoff_max_seconds: float = 30.0
+    restart_backoff_reset_after_seconds: float = 60.0
     history_writer_policy: SpoolToHistoryWriterPolicy = field(
         default_factory=SpoolToHistoryWriterPolicy
     )
@@ -67,6 +81,14 @@ class CollectionServicePolicy:
             self.reconcile_interval_seconds,
             "reconcile_interval_seconds",
         )
+        for name in (
+            "restart_backoff_initial_seconds",
+            "restart_backoff_max_seconds",
+            "restart_backoff_reset_after_seconds",
+        ):
+            _validate_positive_finite(getattr(self, name), name)
+        if self.restart_backoff_max_seconds < self.restart_backoff_initial_seconds:
+            raise ValueError("restart_backoff_max_seconds must be >= the initial delay")
         if not isinstance(self.history_writer_policy, SpoolToHistoryWriterPolicy):
             raise ValueError("history_writer_policy must be SpoolToHistoryWriterPolicy")
         if not isinstance(self.window_policy, ObservationWindowCoordinatorPolicy):
@@ -100,16 +122,32 @@ class CollectionServiceResult:
 class _OwnedSourceRuntime:
     stop_event: asyncio.Event
     worker_task: asyncio.Task[object]
-    window_task: asyncio.Task[object]
-    started_monotonic: float = 0.0
+    window_task: asyncio.Task[object] | None
+    worker_started: float = 0.0
+    window_started: float = 0.0
 
 
-# A worker that ends on an error (connection lost/refused, queue overflow) is
-# restarted with a fresh session after 1, 2, 4 ... up to 30 s; one that ran for a
-# minute before ending restarts after the first step again.
-_RESTART_BACKOFF_INITIAL_SECONDS = 1.0
-_RESTART_BACKOFF_MAX_SECONDS = 30.0
-_RESTART_BACKOFF_RESET_SECONDS = 60.0
+@dataclass(slots=True)
+class _RestartBackoff:
+    failures: int = 0
+    not_before: float = 0.0
+
+    def record_failure(self, ran_for: float, policy: CollectionServicePolicy) -> None:
+        if ran_for >= policy.restart_backoff_reset_after_seconds:
+            self.failures = 0
+        self.failures += 1
+        delay = min(
+            policy.restart_backoff_initial_seconds * 2.0 ** (self.failures - 1),
+            policy.restart_backoff_max_seconds,
+        )
+        self.not_before = time.monotonic() + delay
+
+    def ready(self) -> bool:
+        return time.monotonic() >= self.not_before
+
+
+def _failed(task: asyncio.Task[object]) -> bool:
+    return task.done() and not task.cancelled() and task.exception() is not None
 
 
 async def run_collection_service(
@@ -148,8 +186,8 @@ async def run_collection_service(
     source_restart_count = 0
     owned: dict[str, _OwnedSourceRuntime] = {}
     previously_started: set[str] = set()
-    consecutive_failures: dict[str, int] = {}
-    restart_not_before: dict[str, float] = {}
+    worker_backoff: dict[str, _RestartBackoff] = {}
+    window_backoff: dict[str, _RestartBackoff] = {}
 
     writer_stop = asyncio.Event()
     writer_task = asyncio.create_task(
@@ -179,10 +217,24 @@ async def run_collection_service(
         runtime.stop_event.set()
         await asyncio.gather(
             runtime.worker_task,
-            runtime.window_task,
+            *(() if runtime.window_task is None else (runtime.window_task,)),
             return_exceptions=True,
         )
         source_stop_count += 1
+
+    def _window_task(source_id: str, source_stop: asyncio.Event) -> asyncio.Task[object]:
+        return asyncio.create_task(
+            run_continuous_registered_opcua_observation_windows(
+                source_repository,
+                history_reader,
+                window_repository,
+                source_id,
+                stop_event=source_stop,
+                policy=effective_policy.window_policy,
+                telemetry_recorder=telemetry_recorder,
+                metrics=metrics,
+            )
+        )
 
     def _start_source(source_id: str) -> None:
         nonlocal source_start_count, source_restart_count
@@ -199,23 +251,13 @@ async def run_collection_service(
                 metrics=metrics,
             )
         )
-        window_task = asyncio.create_task(
-            run_continuous_registered_opcua_observation_windows(
-                source_repository,
-                history_reader,
-                window_repository,
-                source_id,
-                stop_event=source_stop,
-                policy=effective_policy.window_policy,
-                telemetry_recorder=telemetry_recorder,
-                metrics=metrics,
-            )
-        )
+        now = time.monotonic()
         owned[source_id] = _OwnedSourceRuntime(
             stop_event=source_stop,
             worker_task=worker_task,
-            window_task=window_task,
-            started_monotonic=time.monotonic(),
+            window_task=_window_task(source_id, source_stop),
+            worker_started=now,
+            window_started=now,
         )
         source_start_count += 1
         if source_id in previously_started:
@@ -226,30 +268,35 @@ async def run_collection_service(
         while not stop_event.is_set():
             reconcile_count += 1
 
-            completed_ids = tuple(
-                source_id
-                for source_id, runtime in owned.items()
-                if runtime.worker_task.done() or runtime.window_task.done()
-            )
-            for source_id in completed_ids:
-                runtime = owned[source_id]
-                ran_for = time.monotonic() - runtime.started_monotonic
-                failed = (
-                    runtime.worker_task.done()
-                    and not runtime.worker_task.cancelled()
-                    and runtime.worker_task.exception() is not None
-                )
-                await _stop_source(source_id)
-                if not failed:
-                    continue
-                if ran_for >= _RESTART_BACKOFF_RESET_SECONDS:
-                    consecutive_failures[source_id] = 0
-                consecutive_failures[source_id] = consecutive_failures.get(source_id, 0) + 1
-                delay = min(
-                    _RESTART_BACKOFF_INITIAL_SECONDS * 2.0 ** (consecutive_failures[source_id] - 1),
-                    _RESTART_BACKOFF_MAX_SECONDS,
-                )
-                restart_not_before[source_id] = time.monotonic() + delay
+            completed_ids: list[str] = []
+            for source_id, runtime in tuple(owned.items()):
+                if runtime.worker_task.done():
+                    # The acquisition session ended: restart the whole source runtime.
+                    failed = _failed(runtime.worker_task)
+                    ran_for = time.monotonic() - runtime.worker_started
+                    await _stop_source(source_id)
+                    completed_ids.append(source_id)
+                    if failed:
+                        worker_backoff.setdefault(source_id, _RestartBackoff()).record_failure(
+                            ran_for, effective_policy
+                        )
+                elif runtime.window_task is not None and runtime.window_task.done():
+                    # A window store/history failure is not an OPC UA session problem:
+                    # keep the session collecting into the spool and restart only the
+                    # coordinator (it resumes from its durable cursor) with backoff.
+                    window_backoff.setdefault(source_id, _RestartBackoff()).record_failure(
+                        time.monotonic() - runtime.window_started, effective_policy
+                    )
+                    runtime.window_task = None
+                if (
+                    source_id in owned
+                    and owned[source_id].window_task is None
+                    and window_backoff[source_id].ready()
+                ):
+                    owned[source_id].window_task = _window_task(
+                        source_id, owned[source_id].stop_event
+                    )
+                    owned[source_id].window_started = time.monotonic()
 
             records = {record.source_id: record for record in control_repository.list_records()}
             sources = {source.source_id: source for source in source_repository.list_sources()}
@@ -276,9 +323,19 @@ async def run_collection_service(
                 if (
                     source_id not in owned
                     and source_id not in completed_ids
-                    and time.monotonic() >= restart_not_before.get(source_id, 0.0)
+                    and worker_backoff.get(source_id, _RestartBackoff()).ready()
                 ):
                     _start_source(source_id)
+
+            if metrics_task is not None and metrics_task.done():
+                # Diagnostics must never stop collection, but must not vanish silently.
+                metrics_error = None if metrics_task.cancelled() else metrics_task.exception()
+                _LOGGER.warning(
+                    "pipeline metrics reporter stopped (%s); collection continues without "
+                    "pipeline metrics",
+                    "no error" if metrics_error is None else repr(metrics_error),
+                )
+                metrics_task = None
 
             if writer_task.done():
                 writer_error = writer_task.exception()

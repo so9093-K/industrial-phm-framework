@@ -30,7 +30,12 @@ class OpcUaPersistentSessionState(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class OpcUaPersistentSessionPolicy:
-    """Runtime policy for reconnect timing and bounded connector callback buffering."""
+    """Per-session connector policy: publishing, callback buffering, asyncua retry bounds.
+
+    ``reconnect_*`` only bounds asyncua's internal retry inside one session, which the
+    worker abandons at the first RECONNECTING (ADR-0010). Restarting a lost session is
+    ``CollectionServicePolicy.restart_backoff_*``, not these values.
+    """
 
     publishing_interval_ms: float = 500.0
     # Phase 10: one 30 s source stall released 1,173 queued notifications at once;
