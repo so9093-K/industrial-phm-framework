@@ -3,6 +3,8 @@
 import ast
 import runpy
 import sys
+from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -42,6 +44,25 @@ def _analysis():
     return run_phase_unbalance_on_window(buffer.finalize(finalized_at=END))
 
 
+def _distinct_analysis(template, index: int):
+    run_id = f"bounded-run-{index:04d}"
+    reference = replace(template.evidence.input_reference, window_id=f"bounded-window-{index:04d}")
+    return replace(
+        template,
+        run=replace(
+            template.run,
+            analysis_run_id=run_id,
+            completed_at=template.run.completed_at + timedelta(seconds=index),
+        ),
+        evidence=replace(
+            template.evidence,
+            evidence_id=f"bounded-evidence-{index:04d}",
+            analysis_run_id=run_id,
+            input_reference=reference,
+        ),
+    )
+
+
 def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     analysis = _analysis()
@@ -69,6 +90,47 @@ def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, mo
 
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
+
+
+def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    template = _analysis()
+    result_store = SqlitePhaseUnbalanceRepository(tmp_path / "phase-unbalance.sqlite")
+    oldest = None
+    for index in range(501):
+        result = _distinct_analysis(template, index)
+        result_store.record(result)
+        if index == 0:
+            oldest = result
+    assert oldest is not None
+    JsonOperationalFindingRepository(tmp_path / "findings.json").record(
+        create_human_review_finding(oldest)
+    )
+
+    for name, file in (
+        ("SOURCE_REGISTRY", "sources.json"),
+        ("SOURCE_RUNTIME", "source-runtime.json"),
+        ("ACQUISITION_TELEMETRY", "telemetry.sqlite"),
+        ("ACQUISITION_SPOOL", "spool.sqlite"),
+        ("COLLECTION_CONTROL", "control.sqlite"),
+        ("ANALYSIS_STATE", "field-analysis.json"),
+        ("PHASE_UNBALANCE_STATE", "phase-unbalance.sqlite"),
+        ("FINDING_STATE", "findings.json"),
+        ("MAINTENANCE_REVIEW_STATE", "finding-review.json"),
+    ):
+        monkeypatch.setenv(f"INDUSTRIAL_PHM_OPERATIONS_{name}", str(tmp_path / file))
+    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_CATALOG", str(tmp_path / "catalog.sqlite"))
+    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", str(tmp_path / "data"))
+
+    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    _, defs = app.run()
+
+    loaded_ids = {item.run.analysis_run_id for item in defs["analysis_results"]}
+    assert "bounded-run-0000" in loaded_ids
+    assert "bounded-run-0001" not in loaded_ids
+    assert "bounded-run-0500" in loaded_ids
+    queue_run_ids = {item.analysis_run_id for item in defs["investigation_queue"].items}
+    assert "bounded-run-0000" in queue_run_ids
 
 
 def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypatch):
