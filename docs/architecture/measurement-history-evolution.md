@@ -142,9 +142,11 @@ That estimate is not a measured full-archive run.
 #317-A treats physical file compaction as a DuckLake-specific maintenance capability, not as an
 application or acquisition responsibility. `DuckLakeAssetHistory.compact_adjacent_files()` acquires
 the same local catalog lease as readers/writers and calls only DuckLake merge-adjacent-files. The
-operation requires DuckLake's per-table output-operation limit and may optionally restrict eligible
-file sizes. The provider option does not cap how many input files can feed one output, so memory and
-lock-hold bounds remain measured acceptance criteria rather than inferred guarantees.
+operation requires DuckLake's per-table output-operation limit, an explicit persistent
+`target_file_size` physical-layout setting, and may restrict eligible source-file sizes. The provider
+operation limit does not cap how many input files can feed one output, so RSS/HWM and lock-hold bounds
+remain measured acceptance criteria rather than inferred guarantees. The initial tier-0 validation
+merges files below 256 KiB toward 1 MiB outputs rather than the DuckLake default 512 MiB target.
 
 Compaction is intentionally separate from retention. Existing snapshot IDs remain part of the
 acceptance contract: representative raw/history rows are canonically fingerprinted before compaction
