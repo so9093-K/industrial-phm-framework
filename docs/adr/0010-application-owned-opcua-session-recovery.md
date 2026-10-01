@@ -57,6 +57,17 @@ stall(collector SIGSTOP)은 같은 session이 유지되어 유실 0건이었습�
   않은 notification**입니다(queue를 drain하지 않음). Queue overflow는 여기에 **queue가 가득 차 asyncua가
   거부한 notification**이 더해집니다(gap-bearing failure, evidence 기록). CONNECTED 상태의 무기한 silent loss나 영구
   disconnected는 생기지 않으며, 상실 구간은 publish ledger audit과 worker failure evidence로 드러납니다.
+- **"이미 dequeue된 notification을 버리지 않는다"는 정상 종료·worker 종료·cancel 경로의 계약입니다.**
+  Collector process가 SIGKILL·OOM·전원 차단처럼 코드가 실행되지 않고 죽는 경우는 process memory crash
+  경계입니다. 그 순간 dequeue됐지만 spool commit 전인 notification(최대 한 건의 in-flight accept)과 client
+  queue에 남은 notification은 보장하지 않으며, 손실 경계는 **kill 시점 + 재시작 + 새 session 첫 수신**까지입니다.
+  Durable 경계는 spool commit이고, commit된 이벤트는 crash 뒤에도 유실·중복 없이 history로 이어져야 합니다.
+  Fault harness는 이 구분을 그대로 판정합니다. 정상 종료한 collector process마다 dequeue 수 == spool accept
+  수를 요구하고(`already_dequeued_loss_zero`), SIGKILL된 process는 그 집계에서 빼는 대신 publish ledger
+  audit의 손실이 kill 경계 안에 있는지로 판정합니다(`missing_within_loss_boundary`).
+- Worker 종료 시 남은 notification의 spool 기록이 실패하면 숨기지 않습니다. 다른 종료 원인이 없으면
+  `OpcUaUnpersistedNotificationError`로 끝나 failure evidence가 남고 collection service가 재시작하며, 이미
+  다른 원인으로 끝나는 중이면 그 예외에 note와 error log로 붙습니다.
 - `--pipeline-metrics` reporter가 실패해도 수집은 계속되고, collector log에 경고가 남습니다. Fault harness는
   최근 metrics record의 존재를 판정 전제 조건으로 확인해야 합니다.
 - Replay flag(`Republish`)는 fresh session에서는 발생하지 않습니다. 기존 replay evidence 계약은 유지하지만

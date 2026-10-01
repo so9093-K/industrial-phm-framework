@@ -7,9 +7,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.opcua.fault_harness import (
     Fault,
     check_analysis_outcomes,
+    check_backlog,
     check_dequeued_loss,
+    check_first_render,
+    check_metrics_present,
+    check_missing_phase,
     check_missing_within_boundary,
     check_recovered,
+    check_review_workflow,
+    check_steady_state,
     check_ui_states,
     check_windows,
 )
@@ -105,3 +111,100 @@ def test_ui_states_must_match_and_differ():
     # Collector down shown like a silent source is exactly the Phase 10 bug.
     snapshots["collector_down"] = dict(snapshots["source_stale"])
     assert not check_ui_states(snapshots)["passed"]
+
+
+def test_metrics_must_exist_before_the_fault_and_after_its_recovery():
+    fault = Fault("x", "source_stall", _t(100), ended=_t(120), recovered_at=_t(130))
+    margin = timedelta(seconds=15)
+    assert check_metrics_present([fault], [_t(90), _t(140)], margin=margin)["passed"]
+    # A record only during the fault proves nothing about either side of it.
+    only_during = check_metrics_present([fault], [_t(110)], margin=margin)
+    assert only_during["no_record_before"] == ["x"]
+    assert only_during["no_record_after_recovery"] == ["x"]
+    assert not check_metrics_present([fault], [_t(90)], margin=margin)["passed"]
+
+
+def test_backlog_is_judged_against_its_pre_fault_baseline():
+    built_and_drained = {"baseline_pending": 400, "peak_pending": 650, "drained": True}
+    assert check_backlog([built_and_drained])["passed"]
+    # A peak that never rose above the existing backlog did not exercise the drain.
+    no_backlog = {"baseline_pending": 400, "peak_pending": 450, "drained": True}
+    assert not check_backlog([no_backlog])["passed"]
+    assert not check_backlog([{**built_and_drained, "drained": False}])["passed"]
+    assert not check_backlog([])["passed"]
+
+
+def test_missing_phase_must_name_the_exact_channel_and_reason():
+    explained = {
+        "window_id": "w1",
+        "missing_channels": ["T상전류"],
+        "current_selection": "unresolved",
+        "voltage_selection": "semantic-role",
+        "current_note": "Not evaluated: no complete R/S/T channel set with this meaning ...",
+        "provenance_missing_channels": "T상전류",
+    }
+    assert check_missing_phase("T상전류", [explained], 0)["passed"]
+    for broken in (
+        {"missing_channels": ["S상전류"]},
+        {"voltage_selection": "unresolved"},
+        {"current_selection": None},  # no result for the window at all
+        {"current_note": ""},
+        {"provenance_missing_channels": "none"},
+    ):
+        assert not check_missing_phase("T상전류", [{**explained, **broken}], 0)["passed"]
+    assert not check_missing_phase("T상전류", [explained], 1)["passed"]  # skipped instead
+    assert not check_missing_phase("T상전류", [], 0)["passed"]
+
+
+def test_review_workflow_must_reach_maintenance_from_a_post_fault_result():
+    detail = {
+        "before_state": "not-requested",
+        "after_state": "open",
+        "maintenance_status": "open",
+        "result_after_last_fault": True,
+    }
+    assert check_review_workflow(detail)["passed"]
+    assert not check_review_workflow({**detail, "maintenance_status": None})["passed"]
+    assert not check_review_workflow({**detail, "result_after_last_fault": False})["passed"]
+
+
+def test_every_ui_state_must_render_within_five_seconds():
+    fast = {"within_5s": True, "seconds": 2.1}
+    names = ("source_stale", "source_unreachable", "collector_down", "analysis_stale")
+    assert check_first_render(dict.fromkeys(names, fast))["passed"]
+    assert not check_first_render({**dict.fromkeys(names, fast), "collector_down": {}})["passed"]
+    assert not check_first_render({"source_stale": fast})["passed"]
+
+
+def _steady(minute: float, **overrides: float) -> dict[str, float]:
+    return {
+        "minute": minute,
+        "rss_collector_mb": 200.0,
+        "rss_runner_mb": 150.0,
+        "queue_high_watermark": 20.0,
+        "a2d_p95_ms": 40.0,
+        "commit_p95_ms": 120.0,
+        "window_cycle_p95_ms": 150.0,
+        "spool_pending": 30.0,
+        "storage_bytes": 1_000_000.0 * minute,
+        "data_files": 10.0 * minute,
+        **overrides,
+    }
+
+
+def test_steady_state_compares_the_second_half_with_the_first():
+    flat = [_steady(float(m)) for m in range(1, 9)]
+    assert check_steady_state(flat)["passed"]
+    leaking = [_steady(float(m), rss_collector_mb=200.0 + 20 * m) for m in range(1, 9)]
+    assert check_steady_state(leaking)["trends"] == ["rss_collector_mb_per_hour"]
+    # Warm-up growth that levels off is not a trend.
+    warming = [_steady(float(m), rss_runner_mb=min(150.0 + 10 * m, 180.0)) for m in range(1, 9)]
+    assert check_steady_state(warming)["passed"]
+    # Commit cost growing with accumulated history is the structural regression to catch.
+    slowing = [_steady(float(m), commit_p95_ms=120.0 * m) for m in range(1, 9)]
+    assert check_steady_state(slowing)["trends"] == ["commit_p95_ms"]
+    accumulating = [*flat[:-1], _steady(8.0, spool_pending=5_000.0)]
+    assert not check_steady_state(accumulating)["passed"]
+    accelerating = [_steady(float(m), storage_bytes=1_000_000.0 * m * m) for m in range(1, 9)]
+    assert not check_steady_state(accelerating)["passed"]
+    assert not check_steady_state(flat[:4])["passed"]

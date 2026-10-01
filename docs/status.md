@@ -77,7 +77,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | 영역 | 상태 | 현재 경계 |
 | --- | --- | --- |
 | synthetic OPC UA loopback E2E | **지원** | 실제 asyncua server와 별도 collector process를 사용하는 contract test |
-| AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, machine verdict. 결과는 `docs/research/phase10-acquisition-stress.md` |
+| AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, 결손상 이유·review→Maintenance 연결·실제 브라우저 5초 확인, machine verdict(`full`/`diagnostic`), bounded steady-state 비교. 결과는 `docs/research/phase10-acquisition-stress.md` |
 | 실제 현장 OPC UA 설비 validation | **현장 미검증** | 현장 update/deadband/timestamp/security 특성에 대한 검증 근거가 아직 없음 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
 | HA / distributed coordination / leader election | **미제공** | local-first runtime 경계 |

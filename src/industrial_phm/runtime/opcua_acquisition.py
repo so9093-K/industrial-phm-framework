@@ -81,6 +81,10 @@ class OpcUaSessionLostError(RuntimeError):
     """The connection was lost; this worker ends so a new session starts."""
 
 
+class OpcUaUnpersistedNotificationError(RuntimeError):
+    """A notification already handed to the worker could not reach the spool."""
+
+
 async def run_registered_opcua_acquisition_worker(
     source_repository: SourceRepository,
     lifecycle_repository: SourceLifecycleRepository,
@@ -176,6 +180,8 @@ async def run_registered_opcua_acquisition_worker(
     overflow_task: asyncio.Task[OpcUaConnectorQueueOverflow] | None = None
     stop_task: asyncio.Task[bool] | None = None
     stop_detail = "stop-requested"
+    primary_error: BaseException | None = None
+    unpersisted_error: Exception | None = None
 
     async def _transition(
         state: OpcUaPersistentSessionState,
@@ -372,6 +378,7 @@ async def run_registered_opcua_acquisition_worker(
                     await asyncio.sleep(0)
 
     except BaseException as error:
+        primary_error = error
         stop_detail = f"worker-error:{type(error).__name__}"
         if telemetry_recorder is not None and isinstance(error, Exception):
             failure_at = _now(now_fn)
@@ -417,11 +424,25 @@ async def run_registered_opcua_acquisition_worker(
             and notification_task.exception() is None
             and (leftover := notification_task.result()) is not None
         ):
-            # Dequeued before this worker ended: it belongs to this session's epoch.
+            # Dequeued before this worker ended: it belongs to this session's epoch. A
+            # failure here is a durability failure, never swallowed: it fails a stop
+            # that was otherwise clean, or is attached to the error already ending it.
             try:
                 await _accept_notification(leftover)
-            except Exception:
-                _LOGGER.exception("could not persist a notification dequeued at worker end")
+            except Exception as error:
+                if primary_error is None:
+                    unpersisted_error = error
+                    stop_detail = f"worker-error:{type(error).__name__}"
+                else:
+                    primary_error.add_note(
+                        f"an already-dequeued notification could not be persisted: {error!r}"
+                    )
+                    _LOGGER.error(
+                        "an already-dequeued notification could not be persisted while "
+                        "the worker ended on %r: %r",
+                        primary_error,
+                        error,
+                    )
 
         await connector.close()
         if current.state != OpcUaPersistentSessionState.STOPPED:
@@ -430,6 +451,24 @@ async def run_registered_opcua_acquisition_worker(
                 changed_at=_now(now_fn),
                 detail=stop_detail,
             )
+
+    if unpersisted_error is not None:
+        if telemetry_recorder is not None:
+            _record_telemetry_best_effort(
+                partial(
+                    telemetry_recorder.record_failure,
+                    AcquisitionFailureTelemetry(
+                        source_id=source_id,
+                        component=AcquisitionFailureComponent.OPCUA_WORKER,
+                        occurred_at=_now(now_fn),
+                        detail=_failure_detail(unpersisted_error),
+                    ),
+                ),
+                label="OPC UA worker failure",
+            )
+        raise OpcUaUnpersistedNotificationError(
+            "an already-dequeued notification could not be persisted at worker end"
+        ) from unpersisted_error
 
     stopped_at = current.changed_at
     return OpcUaAcquisitionWorkerResult(

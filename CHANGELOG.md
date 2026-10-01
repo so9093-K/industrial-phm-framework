@@ -33,8 +33,13 @@
 
 - `tools/opcua/fault_harness.py`: Phase 10 repeatable fault gate. Collector/source stall, collector·runner
   kill/restart, forced overflow, spool backlog을 N회 주입하고 audit·손실 경계·dequeue 손실·window/analysis
-  cursor·wedge·Operations 상태 구분을 machine verdict(JSON, exit code)로 판정합니다. Collector에
-  `--subscription-queue-maxsize`를 추가했습니다.
+  cursor·wedge·Operations 상태 구분, 결손상 이유(window 누락 채널 → 전류만 unresolved → Investigation note·
+  provenance), 장애 후 Investigation → review request → Maintenance 연결을 machine verdict(JSON, exit code)로
+  판정합니다. `--browser`는 실제 Chromium에서 네 상태가 5초 안에 읽히는지 확인하고, 전체 scenario·N≥3·browser를
+  모두 포함한 실행만 `gate: full`입니다. `--steady-minutes`는 장애 없는 bounded run의 전반/후반을 비교합니다.
+  Collector에 `--subscription-queue-maxsize`를 추가했습니다.
+- Worker 종료 시 이미 dequeue된 notification의 spool 기록이 실패하면 log만 남기지 않고, 다른 종료 원인이 없으면
+  `OpcUaUnpersistedNotificationError`로 실패(재시작)하고 있으면 그 예외에 note로 붙입니다.
 
 - Collector `--pipeline-metrics` opt-in 진단(queue depth, 단계별 지연, event-loop lag; JSONL 기록은 event loop 밖),
   replay `--publish-ledger`(값·Good/Bad), `tools/opcua/replay_audit.py`(유실·중복·null 포함 값 불일치·품질 불일치,

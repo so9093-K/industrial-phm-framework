@@ -36,24 +36,61 @@ quality mismatches and 0 unknown events, and no (channel, timestamp) key was pub
 
 ## Repeatable fault gate result (N = 3)
 
-`uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3 --repeat 3` on the
-branch that adds the harness: **verdict PASS, all 11 checks**. Six scenarios × 3 plus missing phase and
-four Operations states = 23 injected faults; 14 minutes of wall clock (a consequence, not a criterion).
+`uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3b --repeat 3 --browser`
+on the branch that adds the harness: **`"gate": "full"`, verdict PASS, all 13 checks**. Six scenarios × 3
+plus missing phase and four Operations states = 23 injected faults; 17 minutes of wall clock (a
+consequence, not a criterion). An earlier run with looser oracles (11 checks, no browser) also passed; the
+numbers below are from the stricter run.
 
 | Check | Result |
 | --- | --- |
-| audit | 12,358 expected deliveries; duplicate 0, value mismatch 0 (null included), quality mismatch 0, unknown 0 |
-| missing within loss boundary | 3,606 missing, **0 outside** an injected fault's boundary |
-| already-dequeued loss | 7 gracefully stopped collectors: handed to worker = spool accepts (8,931); 4 SIGKILLed excluded (crash boundary) |
-| windows | 26 finalized windows, none repeated or overlapping |
-| analysis | 26 analyzed, 0 skipped, 1 policy, no duplicate, no window left behind |
+| audit | 16,334 expected deliveries; duplicate 0, value mismatch 0 (null included), quality mismatch 0, unknown 0 |
+| missing within loss boundary | 4,047 missing, **0 outside** an injected fault's boundary |
+| already-dequeued loss | 7 gracefully stopped collectors: handed to worker = spool accepts (4,228); 4 SIGKILLed collectors judged by the audit boundary instead (process-memory crash boundary, ADR-0010) |
+| windows | 32 finalized windows, none repeated or overlapping |
+| analysis | 32 analyzed, 0 skipped, 1 policy, no duplicate, no window left behind |
 | wedge | 23/23 faults recovered; data resumed 0–6 s after a stall/kill ended, ≤16 s after replay restarts |
+| metrics | a record within 15 s before every fault and within 15 s after every recovery (98 records) |
 | forced overflow | 76 rejected notifications per injection; explicit worker end and restart, no wedge |
-| spool backlog | peak 245–617 pending while the catalog lease was held, drained each time |
-| missing phase | current series reported unresolved for the omitted-phase windows |
-| Operations states | source stale `delayed/running/No new data`; unreachable `error/error/Collection needs attention`; collector down `unavailable/error/heartbeat 25s old/Collection service is not running`; analysis stale `running/running/delayed/Analysis service is not updating` — all distinct |
+| spool backlog | baseline → peak → after drain: 31 → 551 → 0, 12 → 233 → 10, 24 → 603 → 27 |
+| missing phase | both windows inside the omission record `T상전류` missing; current unresolved, voltage resolved; Investigation note "Not evaluated: no complete R/S/T channel set…" and provenance `missing_channels = T상전류`; no skip |
+| Operations states | source stale `delayed/running/No new data`; unreachable `error/error/Collection needs attention`; collector down `unavailable/error/heartbeat … old/Collection service is not running`; analysis stale `running/running/delayed/Analysis service is not updating` — all distinct |
+| review workflow | after the last fault, the newest phase-unbalance result went from a not-requested Investigation group → review request → OPEN group and OPEN Maintenance item |
+| browser (Chromium) | Monitor data flow and the state's attention item visible 1.65 s (source stale), 1.08 s (unreachable), 1.10 s (collector down), 1.09 s (analysis stale) after opening |
 
 The first harness runs found a real loss before this result: the worker requested the next notification
 before persisting the current one, so a notification dequeued during that wait was dropped when the worker
 ended (`dequeued 10 / accepted 5` under forced overflow). The worker now persists before requesting the
 next notification and persists an already-dequeued one at shutdown; the gate above verifies it.
+
+## Bounded steady-state run (fault-free)
+
+`--steady-minutes 90` on the same stack, sampled every 60 s. The first attempt stopped at minute 50 on a
+harness bug (an SQLite `-shm` file vanished between listing and `stat`); the harness now tolerates that and
+appends every sample to `<root>-steady-series.jsonl`. Its 50 samples:
+
+| Item | First half | Second half | Reading |
+| --- | --- | --- | --- |
+| collector RSS slope | +92 MB/h (315 → 355 MB warm-up) | +15 MB/h | still rising after warm-up: **trend**, measure longer |
+| runner RSS slope | +19 MB/h | +25 MB/h | rising throughout: **trend**, cause below |
+| queue high watermark | ≤ 53 | ≤ 35 | stationary (queue 4096) |
+| arrival → dequeue p95 (median) | 85 ms | 80 ms | stationary |
+| spool backlog | ≤ 32 | 0 at the end | not accumulating |
+| storage growth | 2.63 MB/min | 2.58 MB/min | linear, not accelerating |
+
+A ratio of worst values hid both RSS trends, so the steady check now judges memory by the least-squares
+slope of the second half (≤ 10 MB/h) and also tracks history commit and window cycle p95.
+
+**Runner memory follows the analysis result store.** `JsonPhaseUnbalanceRepository` reads and rewrites the
+whole `phase-unbalance.json` for every window (O(results) per window; 103 results = 1.6 MB after 50 min,
+about 16 KB per result, about 46 MB/day at 30 s windows). On CPython 3.14.7, reading a non-ASCII text file
+with `open(..., encoding="utf-8").read()` / `Path.read_text` leaves process memory proportional to the file
+size (a 1.6 MB file: 3 MB per read until it levels off near 196 MB; 33 MB on 3.13.12; none with
+`read_bytes().decode()`). The Python heap itself does not grow (tracemalloc: 22 KB), so this is allocator
+retention, and the store's unbounded growth makes it a trend. The structural issue is the whole-file
+rewrite, the same pattern already removed from finalized windows.
+
+**Storage.** `windows.sqlite` grew to 88 MB and DuckLake to 5,026 data files (39 MB) in 50 minutes, about
+106 small files per minute. Volume is linear, but file count and window payload retention belong to the
+storage lifecycle work (#317).
+
