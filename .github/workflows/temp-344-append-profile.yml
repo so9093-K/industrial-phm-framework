@@ -1,0 +1,71 @@
+name: TEMP 344 Append Profile
+
+on:
+  push:
+    branches:
+      - perf/history-append-scaling
+  workflow_dispatch:
+
+jobs:
+  profile:
+    name: History append profile (N=${{ matrix.n }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [0, 2000]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.18"
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync history runtime
+        run: uv sync --locked --extra history
+
+      - name: Run append profile
+        run: |
+          uv run --locked --extra history python -m tools.history.append_profile \
+            --root "artifacts/append-profile-n${{ matrix.n }}" \
+            --commits "${{ matrix.n }}" \
+            --events-per-commit 35 \
+            --channels 35
+
+      - name: Summarize profile
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/append-profile-n${{ matrix.n }}")
+          report = json.loads((root / "append-profile.json").read_text())
+          keys = (
+              "unique_before_compaction",
+              "retry_before_compaction",
+              "unique_after_compaction",
+              "retry_after_compaction",
+          )
+          summary = {
+              "n": report["workload"]["commit_count"],
+              "preload_seconds": report["preload_seconds"],
+              "active_files": report["storage_before_probe"]["active_data_file_count"],
+              "snapshots": report["storage_before_probe"]["snapshot_count"],
+              "catalog_bytes": report["storage_before_probe"]["catalog_bytes"],
+              "compaction": report["compaction"],
+          }
+          for key in keys:
+              item = report[key]
+              summary[key] = {
+                  "total_seconds": item["total_seconds"],
+                  "unattributed_python_seconds": item["unattributed_python_seconds"],
+                  "stage_seconds": item["stage_seconds"],
+                  "rss_before": item["memory_before"]["rss_bytes"],
+                  "rss_after": item["memory_after"]["rss_bytes"],
+              }
+          print(json.dumps(summary, sort_keys=True))
+          PY
