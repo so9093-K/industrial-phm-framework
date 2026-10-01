@@ -36,7 +36,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
-from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
@@ -259,87 +258,6 @@ def check_first_render(renders: dict[str, dict[str, object]]) -> dict[str, objec
     """In a real browser each state is readable within five seconds of opening."""
     slow = {name: r for name, r in renders.items() if not r.get("within_5s")}
     return _check(len(renders) == 4 and not slow, renders=renders, slow=slow)
-
-
-def _median(values: Sequence[float]) -> float:
-    ordered = sorted(values)
-    return ordered[len(ordered) // 2] if ordered else 0.0
-
-
-def _slope_per_hour(rows: Sequence[dict[str, float]], name: str) -> float:
-    """Least-squares slope of ``name`` against ``minute``, per hour."""
-    xs = [row["minute"] for row in rows]
-    ys = [row[name] for row in rows]
-    mean_x, mean_y = sum(xs) / len(xs), sum(ys) / len(ys)
-    spread = sum((x - mean_x) ** 2 for x in xs)
-    if not spread:
-        return 0.0
-    return 60 * sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True)) / spread
-
-
-# Sanity bounds for a bounded run. A process still growing faster than this in the
-# second half is a trend to measure longer for that item (#321), not a pass.
-RSS_SLOPE_LIMIT_MB_PER_HOUR = 10.0
-
-
-def check_steady_state(samples: Sequence[dict[str, float]]) -> dict[str, object]:
-    """Compare the second half of a fault-free run with the first half.
-
-    Stationary means: process memory not still growing in the second half (least-squares
-    slope), queue high watermark, arrival->dequeue p95, history commit p95 and window
-    cycle p95 not drifting up as history accumulates, the spool backlog not accumulating,
-    and storage growing at a steady (not accelerating) rate. Wall-clock duration is not
-    a criterion.
-    """
-    half = len(samples) // 2
-    first, second = samples[:half], samples[half:]
-    if half < 3:
-        return _check(False, reason="fewer than 6 samples")
-
-    def worst(rows: Sequence[dict[str, float]], name: str) -> float:
-        return max(row[name] for row in rows)
-
-    def typical(rows: Sequence[dict[str, float]], name: str) -> float:
-        return _median([row[name] for row in rows])
-
-    def not_slower(name: str) -> tuple[float, float, bool]:
-        a, b = typical(first, name), typical(second, name)
-        return a, b, b <= 2 * a + 50
-
-    def storage_slope(rows: Sequence[dict[str, float]]) -> float:
-        return _slope_per_hour(rows, "storage_bytes") / 60
-
-    findings: dict[str, tuple[float, float, bool]] = {}
-    for name in ("rss_collector_mb", "rss_runner_mb"):
-        a, b = _slope_per_hour(first, name), _slope_per_hour(second, name)
-        findings[f"{name}_per_hour"] = (
-            round(a, 1),
-            round(b, 1),
-            b <= RSS_SLOPE_LIMIT_MB_PER_HOUR,
-        )
-    hwm_a = worst(first, "queue_high_watermark")
-    hwm_b = worst(second, "queue_high_watermark")
-    findings["queue_high_watermark"] = (hwm_a, hwm_b, hwm_b <= max(64.0, 2 * hwm_a))
-    for name in ("a2d_p95_ms", "commit_p95_ms", "window_cycle_p95_ms"):
-        findings[name] = not_slower(name)
-    findings["spool_pending"] = (
-        worst(first, "spool_pending"),
-        second[-1]["spool_pending"],
-        second[-1]["spool_pending"] <= max(200.0, worst(first, "spool_pending")),
-    )
-    findings["storage_bytes_per_minute"] = (
-        round(storage_slope(first)),
-        round(storage_slope(second)),
-        storage_slope(second) <= 1.5 * max(storage_slope(first), 1.0),
-    )
-    return _check(
-        all(ok for _, _, ok in findings.values()),
-        samples=len(samples),
-        first_half_vs_second_half={
-            name: {"first": a, "second": b, "ok": ok} for name, (a, b, ok) in findings.items()
-        },
-        trends=[name for name, (_, _, ok) in findings.items() if not ok],
-    )
 
 
 UI_EXPECTED: dict[str, Callable[[dict[str, object]], bool]] = {
@@ -1125,72 +1043,6 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
     }
 
 
-# ---------------------------------------------------------------- steady state
-
-
-def _rss_mb(process: subprocess.Popen[bytes] | None) -> float:
-    if process is None or process.poll() is not None:
-        return 0.0
-    output = subprocess.run(
-        ["ps", "-o", "rss=", "-p", str(process.pid)], capture_output=True, text=True, check=False
-    )
-    return round(int(output.stdout.strip() or 0) / 1024, 1)
-
-
-def _storage(root: Path) -> tuple[int, int]:
-    total = files = 0
-    for path in (*(root / "data").rglob("*"), *root.glob("*.sqlite*")):
-        try:
-            if path.is_file():
-                total += path.stat().st_size
-                files += path.parent != root
-        except FileNotFoundError:
-            continue  # SQLite -wal/-shm files come and go while running
-    return total, files
-
-
-def _worst_p95(records: Sequence[dict[str, Any]], name: str) -> float:
-    return float(max((r["latency"].get(name, {}).get("p95_ms", 0) for r in records), default=0))
-
-
-def run_steady_state(stack: Stack, *, minutes: float, interval: float = 60.0) -> dict[str, object]:
-    """Sample a fault-free run every ``interval`` seconds and judge stationarity."""
-    started = time.monotonic()
-    samples: list[dict[str, float]] = []
-    metrics_path = stack.root / "pipeline-metrics.jsonl"
-    offset = metrics_path.stat().st_size if metrics_path.exists() else 0
-    while time.monotonic() - started < minutes * 60:
-        time.sleep(interval)
-        records = []
-        if metrics_path.exists():
-            with metrics_path.open(encoding="utf-8") as stream:
-                stream.seek(offset)
-                records = [json.loads(line) for line in stream if line.strip()]
-                offset = stream.tell()
-        storage_bytes, data_files = _storage(stack.root)
-        sample = {
-            "minute": round((time.monotonic() - started) / 60, 2),
-            "rss_collector_mb": _rss_mb(stack.collector),
-            "rss_runner_mb": _rss_mb(stack.runner),
-            "queue_high_watermark": float(
-                max((r["queue"]["high_watermark"] for r in records), default=0)
-            ),
-            "a2d_p95_ms": _worst_p95(records, "arrival_to_dequeue"),
-            "commit_p95_ms": _worst_p95(records, "history_batch_commit"),
-            "window_cycle_p95_ms": _worst_p95(records, "window_cycle"),
-            "spool_pending": float(stack.spool_pending()),
-            "storage_bytes": float(storage_bytes),
-            "data_files": float(data_files),
-        }
-        samples.append(sample)
-        with (stack.root.parent / f"{stack.root.name}-steady-series.jsonl").open("a") as series:
-            series.write(json.dumps(sample) + "\n")  # survives a crash of this harness
-        print(f"  steady {sample}", flush=True)
-    verdict = check_steady_state(samples)
-    verdict["series"] = samples
-    return verdict
-
-
 # --------------------------------------------------------------------------- main
 
 
@@ -1238,25 +1090,6 @@ def main() -> None:
         help="also open Monitor in Chromium (Playwright) for each UI state; required for 'full'",
     )
     parser.add_argument("--ui-port", type=int, default=27190)
-    parser.add_argument(
-        "--steady-minutes",
-        type=float,
-        default=0.0,
-        help="instead of faults, run fault-free for this long and judge stationarity",
-    )
-    parser.add_argument(
-        "--archive",
-        type=Path,
-        default=Path("data/raw/aihub/239/archives/training/raw/5.보일러.zip"),
-    )
-    parser.add_argument("--member", default="5.보일러/SourceData_211.json")
-    parser.add_argument(
-        "--binding", type=Path, default=Path("tools/opcua/presets/aihub-boiler-2297-replay.json")
-    )
-    parser.add_argument("--start", type=datetime.fromisoformat, default=datetime(2020, 11, 14, 6))
-    parser.add_argument(
-        "--end", type=datetime.fromisoformat, default=datetime(2020, 11, 14, 12, 30)
-    )
     args = parser.parse_args()
     if args.repeat < 1:
         parser.error("--repeat must be at least 1")
@@ -1282,11 +1115,6 @@ def main() -> None:
             raise RuntimeError("collector never received data from the replay")
         print(f"first delivery {first}; warming up", flush=True)
         time.sleep(40)
-        if args.steady_minutes > 0:
-            steady = run_steady_state(stack, minutes=args.steady_minutes)
-            stack.stop_all()
-            verdict = {"gate": "steady-state", "passed": steady["passed"], "steady": steady}
-            _finish(root, verdict, args, started, checks={"steady_state": steady})
         if args.browser:
             stack.start_ui_server(args.ui_port)
         for index in range(1, args.repeat + 1):
@@ -1309,33 +1137,20 @@ def main() -> None:
     # Only an unfiltered N>=3 run with the browser check can stand in for the #321 gate.
     full = set(args.scenarios) == set(SCENARIOS) and args.repeat >= 3 and args.browser
     verdict["gate"] = "full" if full else "diagnostic"
-    _finish(root, verdict, args, started, checks=verdict["checks"])  # type: ignore[arg-type]
-
-
-def _finish(
-    root: Path,
-    verdict: dict[str, object],
-    args: argparse.Namespace,
-    started: datetime,
-    *,
-    checks: dict[str, dict[str, object]],
-) -> None:
     verdict["config"] = {
         "repeat": args.repeat,
         "scenarios": args.scenarios,
         "browser": args.browser,
-        "steady_minutes": args.steady_minutes,
         "stall_seconds": args.stall_seconds,
         "speed": args.speed,
         "started": started.isoformat(),
         "finished": _utc().isoformat(),
     }
-    name = "steady-verdict.json" if verdict["gate"] == "steady-state" else "harness-verdict.json"
-    (root / name).write_text(json.dumps(verdict, indent=2, default=str) + "\n")
-    for check_name, check in checks.items():
-        print(f"{'PASS' if check['passed'] else 'FAIL'}  {check_name}", flush=True)
+    (root / "harness-verdict.json").write_text(json.dumps(verdict, indent=2, default=str) + "\n")
+    for name, check in verdict["checks"].items():  # type: ignore[union-attr]
+        print(f"{'PASS' if check['passed'] else 'FAIL'}  {name}", flush=True)
     outcome = "PASS" if verdict["passed"] else "FAIL"
-    print(f"verdict ({verdict['gate']}): {outcome} -> {root / name}")
+    print(f"verdict ({verdict['gate']}): {outcome} -> {root / 'harness-verdict.json'}")
     if verdict["gate"] == "diagnostic":
         print("note: partial scenarios, repeat < 3 or no --browser; this is not the #321 gate")
     raise SystemExit(0 if verdict["passed"] else 1)
