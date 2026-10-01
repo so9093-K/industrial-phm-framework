@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import signal
 import sys
 import time
 from collections.abc import Callable
@@ -29,6 +30,7 @@ from industrial_phm.application import (
     request_collection_state,
     validate_distinct_source_state_paths,
 )
+from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPolicy
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import (
     CollectionServicePolicy,
@@ -280,10 +282,20 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
                 window_duration_seconds=args.window_duration_seconds,
                 allowed_lateness_seconds=args.allowed_lateness_seconds,
             ),
+            session_policy=(
+                OpcUaPersistentSessionPolicy()
+                if args.subscription_queue_maxsize is None
+                else OpcUaPersistentSessionPolicy(queue_maxsize=args.subscription_queue_maxsize)
+            ),
         )
 
         async def _run() -> None:
             stop_event = asyncio.Event()
+            # SIGINT/SIGTERM take the graceful path: sources stop (persisting what was
+            # already dequeued), the writer stops, diagnostics flush their last interval.
+            loop = asyncio.get_running_loop()
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(signum, stop_event.set)
             await run_collection_service(
                 source_repository,
                 source_repository,

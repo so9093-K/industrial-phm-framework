@@ -197,6 +197,35 @@ Fault scenarios for Operations validation:
 - Stopping the replay server, the collector or the analysis runner separately exercises source,
   collection and analysis outages.
 
+## Repeatable fault gate (Phase 10)
+
+`tools/opcua/fault_harness.py` runs the replay, the collection service and the analysis runner as
+separate processes, injects every scenario `--repeat` times and judges the run by machine. Exit code 0
+only when every check passes; the verdict is written to `<root>/harness-verdict.json`.
+
+```bash
+uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3 --repeat 3
+```
+
+Scenarios: collector stall (SIGSTOP), source stall, collector kill/restart (SIGKILL), analysis runner
+kill/restart, forced queue overflow (queue 16 < one subscription's 35 initial values), spool backlog
+(holding the DuckLake catalog lease), then missing phase and the four Operations states (source stale,
+source unreachable, collector down, analysis stale).
+
+| Check | Pass condition |
+| --- | --- |
+| `audit_exact` | duplicate, value (null included), quality and unknown events = 0 |
+| `missing_within_loss_boundary` | every missing delivery is inside an injected fault's documented boundary (ADR-0010) |
+| `already_dequeued_loss_zero` | per gracefully stopped collector: notifications handed to the worker = spool accepts |
+| `windows_no_rollback` | finalized windows neither repeat nor overlap |
+| `analysis_once_and_complete` | one outcome per window/capability/algorithm/policy, none left behind |
+| `no_permanent_wedge` | every fault recovered within `--recovery-timeout` |
+| `metrics_present_around_faults` | pipeline metrics records exist around every fault |
+| `forced_overflow_happened`, `spool_backlog_drained`, `missing_phase_explained` | the fault really happened and was handled |
+| `ui_states_distinct` | the Operations Monitor read model shows the four states as expected and distinct |
+
+Run time follows from the scenarios and `--repeat`; it is not a pass criterion.
+
 ## Queue-pressure and fault reproduction
 
 Short, repeatable experiments replace waiting for failures in a long soak:

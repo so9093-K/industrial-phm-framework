@@ -283,6 +283,9 @@ class OpcUaPersistentSubscription:
         replayed = getattr(event, "replayed", False)
         if not isinstance(replayed, bool):
             raise OpcUaSourceError(f"persistent subscription replayed flag is invalid: {node_id}")
+        if metrics is not None:
+            # Handed to the worker: from here the notification is application-owned.
+            metrics.count("dequeued_data_change")
         return OpcUaSubscriptionNotification(
             observation=_project_data_value(
                 mapping,

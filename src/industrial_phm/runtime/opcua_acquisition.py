@@ -255,6 +255,46 @@ async def run_registered_opcua_acquisition_worker(
                 changed_at=event.occurred_at,
             )
 
+    async def _accept_notification(notification: OpcUaSubscriptionNotification) -> None:
+        nonlocal accepted_event_count, replayed_event_count, next_event_index
+        registered = RegisteredOpcUaDataChangeEvent(
+            source_id=source_id,
+            asset_id=source.asset_id,
+            endpoint_url=config.endpoint_url,
+            measurement_point_id=source.measurement_point_id,
+            collection_index=next_event_index,
+            notification=notification,
+            semantic_binding=config.semantic_binding_for(notification.observation.channel_id),
+        )
+        accept_started = time.monotonic()
+        persistent_event = await asyncio.to_thread(
+            spool.accept_opcua_event,
+            registered,
+            connection_epoch=current.connection_epoch,
+            event_index=next_event_index,
+            accepted_at=_now(now_fn),
+            event_time_policy=effective_event_time_policy,
+        )
+        if metrics is not None:
+            metrics.observe("spool_accept", time.monotonic() - accept_started)
+            metrics.count("spool_accepted")
+        if telemetry_recorder is not None:
+            telemetry_started = time.monotonic()
+            _record_telemetry_best_effort(
+                partial(
+                    telemetry_recorder.record_opcua_event,
+                    persistent_event,
+                ),
+                label="OPC UA flow event",
+            )
+            if metrics is not None:
+                # Synchronous on the event loop: directly delays queue draining.
+                metrics.observe("telemetry_event_in_loop", time.monotonic() - telemetry_started)
+        accepted_event_count += 1
+        if notification.replayed:
+            replayed_event_count += 1
+        next_event_index += 1
+
     try:
         await _transition(
             OpcUaPersistentSessionState.CONNECTING,
@@ -285,57 +325,18 @@ async def run_registered_opcua_acquisition_worker(
 
             if notification_task in done:
                 # A notification already dequeued is in application ownership: persist it
-                # before handling a connection-loss state or a queue overflow from the
-                # same wakeup. Notifications still queued inside the old client are not
-                # drained (part of the documented loss boundary, ADR-0010).
+                # before handling a connection-loss state, a queue overflow or a stop from
+                # the same wakeup, and only then ask for the next one, so no notification
+                # is dequeued while this worker might still end. Notifications still queued
+                # inside the old client are not drained (loss boundary, ADR-0010).
                 notification = notification_task.result()
-                notification_task = asyncio.create_task(connector.next_notification())
                 if notification is not None:
                     if current.state != OpcUaPersistentSessionState.CONNECTED:
                         raise RuntimeError(
                             "OPC UA DataChange arrived while application session is not CONNECTED"
                         )
-
-                    registered = RegisteredOpcUaDataChangeEvent(
-                        source_id=source_id,
-                        asset_id=source.asset_id,
-                        endpoint_url=config.endpoint_url,
-                        measurement_point_id=source.measurement_point_id,
-                        collection_index=next_event_index,
-                        notification=notification,
-                        semantic_binding=config.semantic_binding_for(
-                            notification.observation.channel_id
-                        ),
-                    )
-                    accept_started = time.monotonic()
-                    persistent_event = await asyncio.to_thread(
-                        spool.accept_opcua_event,
-                        registered,
-                        connection_epoch=current.connection_epoch,
-                        event_index=next_event_index,
-                        accepted_at=_now(now_fn),
-                        event_time_policy=effective_event_time_policy,
-                    )
-                    if metrics is not None:
-                        metrics.observe("spool_accept", time.monotonic() - accept_started)
-                    if telemetry_recorder is not None:
-                        telemetry_started = time.monotonic()
-                        _record_telemetry_best_effort(
-                            partial(
-                                telemetry_recorder.record_opcua_event,
-                                persistent_event,
-                            ),
-                            label="OPC UA flow event",
-                        )
-                        if metrics is not None:
-                            # Synchronous on the event loop: directly delays queue draining.
-                            metrics.observe(
-                                "telemetry_event_in_loop", time.monotonic() - telemetry_started
-                            )
-                    accepted_event_count += 1
-                    if notification.replayed:
-                        replayed_event_count += 1
-                    next_event_index += 1
+                    await _accept_notification(notification)
+                notification_task = asyncio.create_task(connector.next_notification())
 
             if stop_task in done:
                 # An explicit stop wins after persisting any notification already
@@ -409,6 +410,18 @@ async def run_registered_opcua_acquisition_worker(
         )
         if pending_tasks:
             await asyncio.gather(*pending_tasks, return_exceptions=True)
+        if (
+            notification_task is not None
+            and notification_task.done()
+            and not notification_task.cancelled()
+            and notification_task.exception() is None
+            and (leftover := notification_task.result()) is not None
+        ):
+            # Dequeued before this worker ended: it belongs to this session's epoch.
+            try:
+                await _accept_notification(leftover)
+            except Exception:
+                _LOGGER.exception("could not persist a notification dequeued at worker end")
 
         await connector.close()
         if current.state != OpcUaPersistentSessionState.STOPPED:

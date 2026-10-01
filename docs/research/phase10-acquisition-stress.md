@@ -1,4 +1,4 @@
-# Phase 10 acquisition queue-pressure and fault reproduction (2026-10-01)
+# Phase 10 acquisition queue-pressure, fault reproduction and fault gate (2026-10-01)
 
 Local AI-Hub 239 replay (device 2297, 35 channels, 60x: one record per second) → instrumented collector
 (`--pipeline-metrics`) → DuckLake. Faults were injected with SIGSTOP/SIGCONT and loss was audited against the
@@ -33,3 +33,27 @@ quality mismatches and 0 unknown events, and no (channel, timestamp) key was pub
 - No loss during a source or connection outage: data during the outage and the restart backoff is lost.
 - The 2026-09-30 overflow coincided with a MacBook clamshell sleep (pmset 19:58:09–20:00:30 KST); the
   reproduction above shows the same burst/overflow/wedge mechanism without sleep.
+
+## Repeatable fault gate result (N = 3)
+
+`uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3 --repeat 3` on the
+branch that adds the harness: **verdict PASS, all 11 checks**. Six scenarios × 3 plus missing phase and
+four Operations states = 23 injected faults; 14 minutes of wall clock (a consequence, not a criterion).
+
+| Check | Result |
+| --- | --- |
+| audit | 12,358 expected deliveries; duplicate 0, value mismatch 0 (null included), quality mismatch 0, unknown 0 |
+| missing within loss boundary | 3,606 missing, **0 outside** an injected fault's boundary |
+| already-dequeued loss | 7 gracefully stopped collectors: handed to worker = spool accepts (8,931); 4 SIGKILLed excluded (crash boundary) |
+| windows | 26 finalized windows, none repeated or overlapping |
+| analysis | 26 analyzed, 0 skipped, 1 policy, no duplicate, no window left behind |
+| wedge | 23/23 faults recovered; data resumed 0–6 s after a stall/kill ended, ≤16 s after replay restarts |
+| forced overflow | 76 rejected notifications per injection; explicit worker end and restart, no wedge |
+| spool backlog | peak 245–617 pending while the catalog lease was held, drained each time |
+| missing phase | current series reported unresolved for the omitted-phase windows |
+| Operations states | source stale `delayed/running/No new data`; unreachable `error/error/Collection needs attention`; collector down `unavailable/error/heartbeat 25s old/Collection service is not running`; analysis stale `running/running/delayed/Analysis service is not updating` — all distinct |
+
+The first harness runs found a real loss before this result: the worker requested the next notification
+before persisting the current one, so a notification dequeued during that wait was dropped when the worker
+ended (`dequeued 10 / accepted 5` under forced overflow). The worker now persists before requesting the
+next notification and persists an already-dequeued one at shutdown; the gate above verifies it.

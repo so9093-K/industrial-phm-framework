@@ -28,6 +28,7 @@ from industrial_phm.application.history_writer import (
 )
 from industrial_phm.application.observation_window import ObservationWindowRepository
 from industrial_phm.application.opcua_acquisition import OpcUaPersistentSessionEvidenceSink
+from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPolicy
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRepository,
     SourceLifecycleState,
@@ -75,6 +76,9 @@ class CollectionServicePolicy:
     window_policy: ObservationWindowCoordinatorPolicy = field(
         default_factory=ObservationWindowCoordinatorPolicy
     )
+    session_policy: OpcUaPersistentSessionPolicy = field(
+        default_factory=OpcUaPersistentSessionPolicy
+    )
 
     def __post_init__(self) -> None:
         _validate_positive_finite(
@@ -93,6 +97,8 @@ class CollectionServicePolicy:
             raise ValueError("history_writer_policy must be SpoolToHistoryWriterPolicy")
         if not isinstance(self.window_policy, ObservationWindowCoordinatorPolicy):
             raise ValueError("window_policy must be ObservationWindowCoordinatorPolicy")
+        if not isinstance(self.session_policy, OpcUaPersistentSessionPolicy):
+            raise ValueError("session_policy must be OpcUaPersistentSessionPolicy")
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +253,7 @@ async def run_collection_service(
                 session_evidence_sink,
                 source_id,
                 stop_event=source_stop,
+                session_policy=effective_policy.session_policy,
                 telemetry_recorder=telemetry_recorder,
                 metrics=metrics,
             )

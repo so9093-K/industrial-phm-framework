@@ -362,6 +362,14 @@ def build_parser() -> argparse.ArgumentParser:
     operations_collection_service.set_defaults(handler=_run_operations_collection_service)
 
     operations_collection_service.add_argument(
+        "--subscription-queue-maxsize",
+        type=int,
+        help=(
+            "per-subscription notification queue size (default 4096); smaller values are "
+            "for fault-harness overflow scenarios"
+        ),
+    )
+    operations_collection_service.add_argument(
         "--pipeline-metrics",
         type=Path,
         help=(

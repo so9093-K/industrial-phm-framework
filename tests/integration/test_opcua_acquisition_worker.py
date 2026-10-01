@@ -524,3 +524,59 @@ def test_notification_ready_with_stop_is_persisted_before_graceful_shutdown(
         assert last.detail == "stop-requested"
 
     asyncio.run(_run())
+
+
+class _CountingConnector(_FakePersistentConnector):
+    """Counts notifications actually handed to the worker (application ownership)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.handed_out = 0
+
+    async def next_notification(self, timeout: float | None = None):
+        notification = await super().next_notification(timeout)
+        if notification is not None:
+            self.handed_out += 1
+        return notification
+
+
+@pytest.mark.parametrize("ending", ["overflow", "stop"])
+def test_every_notification_handed_to_the_worker_reaches_the_spool(
+    tmp_path: Path, ending: str
+) -> None:
+    # Fault harness finding: the next notification was requested before the current
+    # one was persisted, so it could be dequeued and then dropped when the worker ended.
+    async def _run() -> None:
+        repository, source = _repositories(tmp_path)
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
+        sink = InMemoryOpcUaPersistentSessionEvidenceSink()
+        connector = _CountingConnector()
+        stop = asyncio.Event()
+        worker = asyncio.create_task(
+            run_registered_opcua_acquisition_worker(
+                repository,
+                repository,
+                spool,
+                sink,
+                source.source_id,
+                stop_event=stop,
+                connector_factory=lambda _config: connector,
+            )
+        )
+        await connector.started.wait()
+        await _wait_until(
+            lambda: sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
+        )
+        for value in (1.0, 2.0, 3.0):
+            connector.notifications.put_nowait(_notification(channel_id="vibration_x", value=value))
+        if ending == "overflow":
+            connector.overflows.put_nowait(OpcUaConnectorQueueOverflow(datetime.now(UTC)))
+            with pytest.raises(OpcUaSubscriptionOverflowError):
+                await worker
+        else:
+            stop.set()
+            await worker
+        assert connector.handed_out >= 1
+        assert spool.pending_event_count() == connector.handed_out
+
+    asyncio.run(_run())
