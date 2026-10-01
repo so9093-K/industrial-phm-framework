@@ -38,6 +38,15 @@
 
 ### Added
 
+- DuckLake Asset History에 #317-A 비파괴 small-file maintenance를 추가했습니다. `compact-history`는
+  같은 local catalog lease 아래 `merge_adjacent_files`만 실행하고, 작업량을 `--max-compacted-files`로
+  명시적으로 제한합니다. storage inspection은 active/scheduled/physical file과 snapshot을 분리하며,
+  historical snapshot canonical fingerprint와 batch exact-retry로 compaction 전후 evidence 불변을 검증합니다.
+  snapshot expiration, cleanup, CHECKPOINT, VACUUM, 자동 scheduler는 포함하지 않습니다.
+- `tools/history/compaction_benchmark.py`: N=0/2,000/10,000 누적-state 비교용 benchmark. Git/Python/
+  DuckDB/DuckLake/OS fingerprint, append/query/compaction 비용, storage population, snapshot SHA-256과
+  destructive-operation 0회를 JSON evidence로 남깁니다.
+
 - `tools/opcua/fault_harness.py`: Phase 10 repeatable fault gate. Collector/source stall, collector·runner
   kill/restart, forced overflow, spool backlog을 N회 주입하고 audit·손실 경계·dequeue 손실·window/analysis
   cursor·wedge·Operations 상태 구분, 결손상 이유(window 누락 채널 → 전류만 unresolved → Investigation note·
