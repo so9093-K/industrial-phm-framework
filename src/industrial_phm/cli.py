@@ -39,6 +39,7 @@ from industrial_phm.commands.feature import _run_feature_characterize
 from industrial_phm.commands.operations import (
     _run_operations_backfill_source,
     _run_operations_collection_service,
+    _run_operations_compact_history,
     _run_operations_flush_history,
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
@@ -283,6 +284,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="DuckLake managed Parquet data directory",
     )
     operations_backfill_source.set_defaults(handler=_run_operations_backfill_source)
+
+    operations_compact_history = operations_commands.add_parser(
+        "compact-history",
+        help="merge active small DuckLake Parquet files without expiring snapshots",
+    )
+    operations_compact_history.add_argument(
+        "--ducklake-catalog",
+        type=Path,
+        required=True,
+        help="DuckLake SQLite catalog path",
+    )
+    operations_compact_history.add_argument(
+        "--ducklake-data",
+        type=Path,
+        required=True,
+        help="DuckLake managed Parquet data directory",
+    )
+    operations_compact_history.add_argument(
+        "--max-compacted-files",
+        type=int,
+        required=True,
+        help="maximum compaction output operations per table for this invocation",
+    )
+    operations_compact_history.add_argument(
+        "--min-file-size-bytes",
+        type=int,
+        default=None,
+        help="optional minimum active data-file size eligible for compaction",
+    )
+    operations_compact_history.add_argument(
+        "--max-file-size-bytes",
+        type=int,
+        default=None,
+        help="optional maximum active data-file size eligible for compaction",
+    )
+    operations_compact_history.set_defaults(handler=_run_operations_compact_history)
 
     operations_flush_history = operations_commands.add_parser(
         "flush-history",
