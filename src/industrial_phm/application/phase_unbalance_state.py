@@ -167,7 +167,10 @@ class JsonPhaseUnbalanceRepository:
 
         results = tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
         return tuple(
-            sorted(results, key=lambda result: (result.run.completed_at, result.run.analysis_run_id))
+            sorted(
+                results,
+                key=lambda result: (result.run.completed_at, result.run.analysis_run_id),
+            )
         )
 
     def record(self, result: PhaseUnbalanceAnalysis) -> None:
