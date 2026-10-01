@@ -73,8 +73,9 @@ uv run --no-sync industrial-phm operations flush-history \
 
 
 Small-file compaction is a separate, explicit maintenance operation. It merges active Parquet files
-without expiring snapshots or deleting physical files. The work bound is required; no automatic
-schedule or retention threshold is implied.
+without expiring snapshots or deleting physical files. Each table is compacted in a separate provider
+call so the catalog lease is released between tables. `--max-compacted-files` is DuckLake's per-table
+output-operation limit, not an input-file count bound; no automatic schedule or retention threshold is implied.
 
 ```bash
 uv run --no-sync industrial-phm operations compact-history \
