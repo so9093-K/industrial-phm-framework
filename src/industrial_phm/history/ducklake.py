@@ -668,6 +668,13 @@ class DuckLakeAssetHistory:
     ) -> DuckLakeCompactionResult:
         """Merge active adjacent Parquet files without expiring snapshots or deleting files.
 
+        Each DuckLake table is compacted in a separate provider call and connection.
+        This deliberately releases the local catalog lease between tables so writer
+        availability and native-memory working sets are not coupled to a whole-catalog
+        compaction. The operation is therefore not cross-table atomic; each completed
+        DuckLake call remains a valid snapshot and a retry safely continues remaining
+        eligible files.
+
         max_compacted_files follows DuckLake's provider contract: it limits the
         number of compaction output operations produced per table, not the number
         of input files merged into one output. target_file_size_bytes is an explicit,
@@ -695,19 +702,35 @@ class DuckLakeAssetHistory:
             )
             storage_before = self._inspect_storage_with_connection(connection)
             snapshot_before = storage_before.current_snapshot_id
-            options = [f"max_compacted_files => {max_compacted_files}"]
-            if min_file_size_bytes is not None:
-                options.append(f"min_file_size => {min_file_size_bytes}")
-            if max_file_size_bytes is not None:
-                options.append(f"max_file_size => {max_file_size_bytes}")
-            started = time.perf_counter()
-            rows = connection.execute(
-                f"CALL ducklake_merge_adjacent_files('{_CATALOG_NAME}', " + ", ".join(options) + ")"
-            ).fetchall()
-            duration_seconds = time.perf_counter() - started
-            storage_after = self._inspect_storage_with_connection(connection)
         finally:
             connection.close()
+
+        options = [f"max_compacted_files => {max_compacted_files}"]
+        if min_file_size_bytes is not None:
+            options.append(f"min_file_size => {min_file_size_bytes}")
+        if max_file_size_bytes is not None:
+            options.append(f"max_file_size => {max_file_size_bytes}")
+
+        rows: list[tuple[object, object, object, object]] = []
+        started = time.perf_counter()
+        for schema, table in _HISTORY_DATA_TABLES:
+            connection = self._connect()
+            try:
+                self._ensure_initialized(connection)
+                table_rows = connection.execute(
+                    f"CALL ducklake_merge_adjacent_files('{_CATALOG_NAME}', "
+                    + _quote_sql_literal(table)
+                    + ", schema => "
+                    + _quote_sql_literal(schema)
+                    + ", "
+                    + ", ".join(options)
+                    + ")"
+                ).fetchall()
+                rows.extend(table_rows)
+            finally:
+                connection.close()
+        duration_seconds = time.perf_counter() - started
+        storage_after = self.inspect_storage()
 
         tables = tuple(
             DuckLakeCompactedTable(
