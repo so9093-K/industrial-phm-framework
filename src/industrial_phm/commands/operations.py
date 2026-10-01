@@ -155,6 +155,7 @@ def _run_operations_compact_history(args: argparse.Namespace) -> int:
         fingerprint = history.runtime_fingerprint()
         result = history.compact_adjacent_files(
             max_compacted_files=args.max_compacted_files,
+            target_file_size_bytes=args.target_file_size_bytes,
             min_file_size_bytes=args.min_file_size_bytes,
             max_file_size_bytes=args.max_file_size_bytes,
         )
@@ -182,6 +183,7 @@ def _run_operations_compact_history(args: argparse.Namespace) -> int:
         f"scheduled_for_deletion_after={after.scheduled_for_deletion_count} "
         f"physical_files_before={before.physical_parquet_file_count} "
         f"physical_files_after={after.physical_parquet_file_count} "
+        f"target_file_size_bytes={result.target_file_size_bytes} "
         f"duration_seconds={result.duration_seconds:.6f}"
     )
     return 0
