@@ -515,8 +515,7 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
     assert before.active_data_file_count >= 8
     snapshots = (commits[0].snapshot_id, commits[3].snapshot_id, commits[-1].snapshot_id)
     fingerprints = {
-        snapshot_id: history.snapshot_evidence_fingerprint(snapshot_id)
-        for snapshot_id in snapshots
+        snapshot_id: history.snapshot_evidence_fingerprint(snapshot_id) for snapshot_id in snapshots
     }
 
     result = history.compact_adjacent_files(
@@ -543,12 +542,8 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
     for snapshot_id, fingerprint in fingerprints.items():
         assert reopened.snapshot_evidence_fingerprint(snapshot_id) == fingerprint
 
-    assert reopened.get_opcua_batch_commit(
-        batches[0], batch_id="compact-0"
-    ) == commits[0]
-    assert reopened.append_opcua_batch(
-        batches[0], batch_id="compact-0"
-    ) == commits[0]
+    assert reopened.get_opcua_batch_commit(batches[0], batch_id="compact-0") == commits[0]
+    assert reopened.append_opcua_batch(batches[0], batch_id="compact-0") == commits[0]
 
     next_event = _event(
         channel_id="channel-next",
@@ -557,9 +552,7 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
     )
     next_commit = reopened.append_opcua_batch((next_event,), batch_id="after-compact")
     assert next_commit.snapshot_id > result.snapshot_after
-    assert reopened.get_opcua_batch_commit(
-        (next_event,), batch_id="after-compact"
-    ) == next_commit
+    assert reopened.get_opcua_batch_commit((next_event,), batch_id="after-compact") == next_commit
 
     args = [
         "operations",
