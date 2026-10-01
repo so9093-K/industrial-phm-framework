@@ -17,7 +17,6 @@ from collections.abc import Callable
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TypeVar
 
 from industrial_phm.application import (
     OpcUaEventTimePolicy,
@@ -29,7 +28,6 @@ from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChang
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 
-T = TypeVar("T")
 BASE = datetime(2026, 1, 1, tzinfo=UTC)
 
 
@@ -76,7 +74,7 @@ def _batch(commit_index: int, *, events_per_commit: int, channels: int) -> tuple
     )
 
 
-def _measure(operation: Callable[[], T]) -> tuple[T, dict[str, float | int]]:
+def _measure[T](operation: Callable[[], T]) -> tuple[T, dict[str, float | int]]:
     tracemalloc.start()
     started = time.perf_counter()
     try:
