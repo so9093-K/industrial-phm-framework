@@ -499,9 +499,7 @@ def test_recording_one_window_result_does_not_scale_with_stored_results(tmp_path
     )
 
 
-def test_bounded_result_queries_filter_and_preserve_exact_review_lookup(
-    tmp_path, template_result
-):
+def test_bounded_result_queries_filter_and_preserve_exact_review_lookup(tmp_path, template_result):
     store = SqlitePhaseUnbalanceRepository(tmp_path / "bounded.sqlite")
     expected = []
     for index in range(8):
@@ -525,9 +523,9 @@ def test_bounded_result_queries_filter_and_preserve_exact_review_lookup(
     assert [
         item.run.analysis_run_id for item in store.list_recent_results(2, asset_id="asset-b")
     ] == ["analysis-run-000007", "analysis-run-000005"]
-    assert len(
-        store.list_recent_results(2, capability_id=template_result.evidence.capability_id)
-    ) == 2
+    assert (
+        len(store.list_recent_results(2, capability_id=template_result.evidence.capability_id)) == 2
+    )
     exact = store.find_results(
         ["analysis-run-000007", "missing-run", "analysis-run-000001", "analysis-run-000007"]
     )
