@@ -2516,3 +2516,19 @@ def _validate_positive_int(value: int, field_name: str) -> None:
     _validate_non_negative_int(value, field_name)
     if value < 1:
         raise ValueError(f"{field_name} must be at least 1")
+
+
+def _validate_optional_positive_int(value: int | None, field_name: str) -> None:
+    if value is None:
+        return
+    _validate_positive_int(value, field_name)
+
+
+def _canonical_fingerprint_value(value: object) -> object:
+    if isinstance(value, datetime):
+        return {"type": "datetime", "value": value.isoformat()}
+    if isinstance(value, bytes):
+        return {"type": "bytes", "value": value.hex()}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return {"type": type(value).__name__, "value": str(value)}
