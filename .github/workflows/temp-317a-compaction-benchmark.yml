@@ -46,7 +46,8 @@ jobs:
             --events-per-commit 35 \
             --channels 35 \
             --max-compacted-files 32 \
-            --max-file-size-bytes 1048576
+            --target-file-size-bytes 1048576 \
+            --max-file-size-bytes 262144
 
       - name: Summarize measurements
         run: |
@@ -92,6 +93,7 @@ jobs:
                       "aggregate_after_seconds": (
                           None if aggregate_after is None else aggregate_after["seconds"]
                       ),
+                      "target_file_size_bytes": compact["target_file_size_bytes"],
                       "compaction_seconds": compact["duration_seconds"],
                       "compaction_total_seconds": compact["measurement"]["seconds"],
                       "files_processed": sum(t["files_processed"] for t in compact["tables"]),
