@@ -24,6 +24,7 @@ from industrial_phm.application import (
     RegisteredOpcUaDataChangeEvent,
     project_opcua_persistent_data_change_event,
 )
+from industrial_phm.application.asset_history import HistoricalBatchCommit
 from industrial_phm.application.opcua_persistent import OpcUaPersistentDataChangeEvent
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
@@ -166,8 +167,8 @@ def run_benchmark(
         )
     )
     runtime = history.runtime_fingerprint()
-    selected_commits: dict[int, object] = {}
-    first_commit = None
+    selected_commits: dict[int, HistoricalBatchCommit] = {}
+    first_commit: HistoricalBatchCommit | None = None
 
     preload_started = time.perf_counter()
     for index in range(commit_count):
