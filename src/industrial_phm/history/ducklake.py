@@ -720,6 +720,9 @@ class DuckLakeAssetHistory:
         active_sizes.sort()
         active_count = len(active_sizes)
         active_bytes = sum(active_sizes)
+        minimum: int | None
+        median: int | None
+        maximum: int | None
         if active_sizes:
             minimum = active_sizes[0]
             median = active_sizes[(active_count - 1) // 2]
