@@ -134,7 +134,7 @@ def _stage_for_sql(sql: str) -> str:
 
 
 class _ProfileCursor:
-    def __init__(self, cursor: Any, stage: str, profile: "_SqlProfile") -> None:
+    def __init__(self, cursor: Any, stage: str, profile: _SqlProfile) -> None:
         self._cursor = cursor
         self._stage = stage
         self._profile = profile
