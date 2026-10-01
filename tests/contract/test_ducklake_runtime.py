@@ -159,6 +159,14 @@ def test_ducklake_asset_history_round_trip(tmp_path) -> None:
     )
     assert repeated == commit
 
+    recovered_result = repository.append_or_recover_opcua_batch(
+        (first, second),
+        batch_id="batch-1",
+        ingestion_mode=HistoryIngestionMode.LIVE,
+    )
+    assert recovered_result.commit == commit
+    assert recovered_result.recovered_existing_commit is True
+
     changed_first = _event(
         channel_id="vibration_x",
         event_at=BASE + timedelta(seconds=10),
