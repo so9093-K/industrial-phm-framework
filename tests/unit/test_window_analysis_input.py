@@ -1,3 +1,5 @@
+import tracemalloc
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -19,11 +21,18 @@ from industrial_phm.application.analysis_input import (
     window_input_reference,
 )
 from industrial_phm.application.phase_unbalance import (
+    PhaseUnbalanceAnalysis,
     PhaseUnbalanceConfig,
     phase_unbalance_policy_digest,
     run_phase_unbalance_on_window,
 )
-from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
+from industrial_phm.application.phase_unbalance_state import (
+    JsonPhaseUnbalanceRepository,
+    PhaseUnbalanceHistoryFormatError,
+    SqlitePhaseUnbalanceRepository,
+    migrate_json_phase_unbalance_results,
+    window_result_key,
+)
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 
 START = datetime(2026, 9, 29, 12, 0, tzinfo=UTC)
@@ -418,3 +427,113 @@ def test_incremental_runner_uses_independent_cursor_per_analysis_policy(tmp_path
     assert changed[0].state == WindowAnalysisState.ANALYZED
     assert changed[0].analysis_policy_digest != strict[0].analysis_policy_digest
     assert len(results.list_results()) == 2
+
+
+@pytest.fixture(scope="module")
+def template_result() -> PhaseUnbalanceAnalysis:
+    return run_phase_unbalance_on_window(_window())
+
+
+def _result(template: PhaseUnbalanceAnalysis, index: int) -> PhaseUnbalanceAnalysis:
+    """A distinct window result: its own run, evidence and window identity."""
+    run_id = f"analysis-run-{index:06d}"
+    reference = replace(template.evidence.input_reference, window_id=f"window-{index:06d}")
+    return PhaseUnbalanceAnalysis(
+        run=replace(
+            template.run,
+            analysis_run_id=run_id,
+            completed_at=template.run.completed_at + timedelta(seconds=index),
+        ),
+        evidence=replace(
+            template.evidence,
+            evidence_id=f"evidence-{index:06d}",
+            analysis_run_id=run_id,
+            input_reference=reference,
+        ),
+    )
+
+
+def _peak_bytes_of_one_record(store: SqlitePhaseUnbalanceRepository, result) -> int:
+    tracemalloc.start()
+    try:
+        store.record_window_result(result)
+        return tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def test_recording_one_window_result_does_not_scale_with_stored_results(tmp_path, template_result):
+    """N = 10 vs N = 2,000 stored results: one more record costs the same memory.
+
+    The JSON store reread and rewrote every stored result for each window, so its
+    per-window memory and time grew linearly with history (Phase 10 runner growth).
+    """
+    small = SqlitePhaseUnbalanceRepository(tmp_path / "small.sqlite")
+    large = SqlitePhaseUnbalanceRepository(tmp_path / "large.sqlite")
+    for index in range(10):
+        small.record_window_result(_result(template_result, index))
+    for index in range(2_000):
+        large.record_window_result(_result(template_result, index))
+
+    small_peak = _peak_bytes_of_one_record(small, _result(template_result, 10_001))
+    large_peak = _peak_bytes_of_one_record(large, _result(template_result, 10_002))
+
+    assert large_peak < 2 * small_peak + 64 * 1024, (small_peak, large_peak)
+    assert len(large.list_results()) == 2_001
+
+
+def test_store_keeps_run_identity_window_once_and_order(tmp_path, template_result):
+    store = SqlitePhaseUnbalanceRepository(tmp_path / "results.sqlite")
+    first, second = _result(template_result, 2), _result(template_result, 1)
+    assert store.record_window_result(first) == first
+    store.record(second)
+    # Completed-time order, as the JSON store returned it.
+    assert store.list_results() == (second, first)
+    # An identical replay is accepted; a different result for the same run is not.
+    store.record(first)
+    with pytest.raises(ValueError, match="analysis_run_id already exists"):
+        store.record(replace(first, evidence=replace(first.evidence, semantic_versions=("x",))))
+    # One result per window and policy: a second writer gets the stored one back.
+    rival = replace(
+        _result(template_result, 99),
+        evidence=replace(
+            _result(template_result, 99).evidence,
+            input_reference=first.evidence.input_reference,
+        ),
+    )
+    assert window_result_key(rival) == window_result_key(first)
+    assert store.record_window_result(rival) == first
+    # Evidence identity belongs to one run.
+    other = _result(template_result, 7)
+    taken_id = first.evidence.evidence_id
+    stolen = replace(other, evidence=replace(other.evidence, evidence_id=taken_id))
+    with pytest.raises(ValueError, match="evidence_id already exists"):
+        store.record(stolen)
+    assert len(SqlitePhaseUnbalanceRepository(tmp_path / "results.sqlite").list_results()) == 2
+
+
+def test_legacy_json_state_is_rejected_not_overwritten(tmp_path):
+    legacy = tmp_path / "phase-unbalance.json"
+    legacy.write_text('{"schema": "industrial-phm-phase-unbalance-v1", "results": []}\n')
+    with pytest.raises(PhaseUnbalanceHistoryFormatError, match="not SQLite"):
+        SqlitePhaseUnbalanceRepository(legacy)
+    assert legacy.read_text().startswith('{"schema"')
+
+
+def test_legacy_json_results_migrate_idempotently_without_changing_source(
+    tmp_path, template_result
+):
+    legacy_path = tmp_path / "phase-unbalance.json"
+    sqlite_path = tmp_path / "phase-unbalance.sqlite"
+    legacy = JsonPhaseUnbalanceRepository(legacy_path)
+    first, second = _result(template_result, 2), _result(template_result, 1)
+    legacy.record(first)
+    legacy.record(second)
+    original = legacy_path.read_bytes()
+
+    assert migrate_json_phase_unbalance_results(legacy_path, sqlite_path) == 2
+    assert SqlitePhaseUnbalanceRepository(sqlite_path).list_results() == (second, first)
+    assert legacy_path.read_bytes() == original
+
+    assert migrate_json_phase_unbalance_results(legacy_path, sqlite_path) == 2
+    assert SqlitePhaseUnbalanceRepository(sqlite_path).list_results() == (second, first)
