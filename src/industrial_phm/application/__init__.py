@@ -114,6 +114,7 @@ from industrial_phm.application.finding_review import (
     create_human_review_finding,
 )
 from industrial_phm.application.history_writer import (
+    HistoricalBatchAppendResult,
     OpcUaHistoricalBatchStore,
     SpoolHistoryBatchWriteResult,
     SpoolHistoryWriterResult,
@@ -434,6 +435,7 @@ __all__ = [
     "HistoricalInputReference",
     "HistoricalMeasurement",
     "HistoryIngestionMode",
+    "HistoricalBatchAppendResult",
     "InMemoryOpcUaPersistentSessionEvidenceSink",
     "InMemorySourceRepository",
     "IncrementalObservationWindowReader",
