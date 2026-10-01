@@ -160,9 +160,7 @@ def test_worker_ends_on_connection_loss_after_persisting_earlier_events(
     # test_worker_process_restart_reserves_new_connection_epoch).
     async def _run() -> None:
         repository, source = _repositories(tmp_path)
-        spool = SqliteAcquisitionSpool(
-            SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
-        )
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
         connector = _FakePersistentConnector()
@@ -494,7 +492,9 @@ def test_notification_ready_with_stop_is_persisted_before_graceful_shutdown(
     # and must be durable before the worker reports a graceful STOPPED state.
     async def _run() -> None:
         repository, source = _repositories(tmp_path)
-        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
+        spool = SqliteAcquisitionSpool(
+            SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
+        )
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         connector = _FakePersistentConnector()
         stop_event = asyncio.Event()
