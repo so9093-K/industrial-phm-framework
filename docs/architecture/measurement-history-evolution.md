@@ -140,9 +140,11 @@ That estimate is not a measured full-archive run.
 ## Non-destructive small-file compaction
 
 #317-A treats physical file compaction as a DuckLake-specific maintenance capability, not as an
-application or acquisition responsibility. `DuckLakeAssetHistory.compact_adjacent_files()` acquires
-the same local catalog lease as readers/writers and calls only DuckLake merge-adjacent-files. The
-operation requires DuckLake's per-table output-operation limit, an explicit persistent
+application or acquisition responsibility. `DuckLakeAssetHistory.compact_adjacent_files()` uses the same local catalog lease as readers/writers
+for each table and calls only DuckLake merge-adjacent-files. Tables are compacted in separate provider
+calls/connections so the lease and native-memory working set are released between tables; the overall
+operation is intentionally not cross-table atomic and is safely retryable. The operation requires
+DuckLake's per-table output-operation limit, an explicit persistent
 `target_file_size` physical-layout setting, and may restrict eligible source-file sizes. The provider
 operation limit does not cap how many input files can feed one output, so RSS/HWM and lock-hold bounds
 remain measured acceptance criteria rather than inferred guarantees. The initial tier-0 validation
