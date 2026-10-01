@@ -422,19 +422,7 @@ class DuckLakeAssetHistory:
             raise RuntimeError("DuckLake did not report the committed batch snapshot")
         snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
 
-        time_row = connection.execute(
-            f"""
-            SELECT snapshot_time
-            FROM {_CATALOG_NAME}.snapshots()
-            WHERE snapshot_id = ?
-            """,
-            [snapshot_id],
-        ).fetchone()
-        if time_row is None:
-            raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
-        committed_at = time_row[0]
-        if not isinstance(committed_at, datetime) or committed_at.utcoffset() is None:
-            raise RuntimeError("DuckLake snapshot_time must be timezone-aware")
+        committed_at = self._snapshot_time_by_id(connection, snapshot_id)
 
         return HistoricalBatchAppendResult(
             commit=HistoricalBatchCommit(
@@ -654,12 +642,10 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            exists = connection.execute(
-                f"SELECT 1 FROM {_CATALOG_NAME}.snapshots() WHERE snapshot_id = ?",
-                [snapshot_id],
-            ).fetchone()
-            if exists is None:
-                raise ValueError(f"history snapshot does not exist: {snapshot_id}")
+            try:
+                self._snapshot_time_by_id(connection, snapshot_id)
+            except RuntimeError as error:
+                raise ValueError(f"history snapshot does not exist: {snapshot_id}") from error
 
             digest = hashlib.sha256()
             for schema, table, order_by in _SNAPSHOT_FINGERPRINT_TABLES:
@@ -1841,23 +1827,28 @@ class DuckLakeAssetHistory:
         if snapshot_row is None or snapshot_row[0] is None:
             raise RuntimeError("DuckLake did not report the committed batch snapshot")
         snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
-        time_row = connection.execute(
-            f"""
-            SELECT snapshot_time
-            FROM {_CATALOG_NAME}.snapshots()
-            WHERE snapshot_id = ?
-            """,
-            [snapshot_id],
-        ).fetchone()
-        if time_row is None:
-            raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
-        committed_at = _require_datetime(time_row[0], "snapshot_time")
+        committed_at = self._snapshot_time_by_id(connection, snapshot_id)
         return HistoricalBatchCommit(
             batch_id=batch_id,
             snapshot_id=snapshot_id,
             event_count=event_count,
             committed_at=committed_at,
         )
+
+    def _snapshot_time_by_id(self, connection: Any, snapshot_id: int) -> datetime:
+        """Read one DuckLake snapshot timestamp directly from the SQLite catalog PK."""
+        catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
+        row = connection.execute(
+            "SELECT CAST(snapshot_time AS TIMESTAMPTZ) "
+            "FROM sqlite_scan("
+            + _quote_sql_literal(str(catalog_path))
+            + ", 'ducklake_snapshot') "
+            "WHERE snapshot_id = ?",
+            [snapshot_id],
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
+        return _require_datetime(row[0], "snapshot_time")
 
     def _lookup_existing_batch_commit(
         self,
