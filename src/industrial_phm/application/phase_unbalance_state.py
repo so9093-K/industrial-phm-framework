@@ -243,12 +243,15 @@ class SqlitePhaseUnbalanceRepository:
                 raise ValueError("evidence_id already exists for a different analysis run")
             connection.execute(
                 "INSERT INTO phase_unbalance_result("
-                "analysis_run_id, evidence_id, window_key, completed_at_us, payload_json"
-                ") VALUES (?, ?, ?, ?, ?)",
+                "analysis_run_id, evidence_id, window_key, asset_id, capability_id, "
+                "completed_at_us, payload_json"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?)",
                 [
                     run_id,
                     result.evidence.evidence_id,
                     window_key,
+                    result.run.asset_id,
+                    result.evidence.capability_id,
                     _epoch_microseconds(result.run.completed_at),
                     json.dumps(_serialize(result), ensure_ascii=False, sort_keys=True),
                 ],
@@ -296,6 +299,8 @@ class SqlitePhaseUnbalanceRepository:
                     analysis_run_id TEXT PRIMARY KEY,
                     evidence_id TEXT NOT NULL UNIQUE,
                     window_key TEXT,
+                    asset_id TEXT NOT NULL,
+                    capability_id TEXT NOT NULL,
                     completed_at_us INTEGER NOT NULL,
                     payload_json TEXT NOT NULL
                 )
@@ -308,6 +313,14 @@ class SqlitePhaseUnbalanceRepository:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS phase_unbalance_result_completed "
                 "ON phase_unbalance_result(completed_at_us, analysis_run_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS phase_unbalance_result_asset_completed "
+                "ON phase_unbalance_result(asset_id, completed_at_us, analysis_run_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS phase_unbalance_result_capability_completed "
+                "ON phase_unbalance_result(capability_id, completed_at_us, analysis_run_id)"
             )
             connection.commit()
         except BaseException:
