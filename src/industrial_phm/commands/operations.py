@@ -38,6 +38,7 @@ from industrial_phm.runtime import (
     SqliteCollectionControlRepository,
     run_collection_service,
 )
+from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
 
 def _run_operations_poll_source(args: argparse.Namespace) -> int:
@@ -296,6 +297,8 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
                 telemetry_recorder=telemetry,
                 service_runtime_recorder=telemetry,
                 policy=policy,
+                metrics=None if args.pipeline_metrics is None else PipelineMetrics(),
+                metrics_path=args.pipeline_metrics,
             )
 
         asyncio.run(_run())

@@ -156,7 +156,11 @@ def test_server_publishes_recorded_values_on_the_replay_clock(tmp_path):
 
     async def scenario():
         stop = asyncio.Event()
-        server = asyncio.create_task(aihub_replay.serve(root, stop, speed=600.0, loop=False))
+        server = asyncio.create_task(
+            aihub_replay.serve(
+                root, stop, speed=600.0, loop=False, publish_ledger=root / "ledger.jsonl"
+            )
+        )
         try:
             for _ in range(100):
                 if (root / aihub_replay.REPLAY_LOG).exists():
@@ -180,3 +184,7 @@ def test_server_publishes_recorded_values_on_the_replay_clock(tmp_path):
     # Time is rebased: last record is 2 recorded minutes after the first, at 600x.
     assert value.SourceTimestamp.replace(tzinfo=UTC) - started == timedelta(seconds=0.2)
     assert log["source_start_local"] == (LOCAL + timedelta(minutes=1)).isoformat()
+    ledger = [json.loads(line) for line in (root / "ledger.jsonl").read_text().splitlines()]
+    assert len(ledger) == 3 and len({entry["run"] for entry in ledger}) == 1
+    assert ledger[-1]["values"]["T상전압"] == 228.0
+    assert ledger[-1]["good"]["T상전압"] is True

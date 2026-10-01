@@ -227,6 +227,9 @@ class SqliteAcquisitionSpool:
         connection = self._connect()
         try:
             self._ensure_schema(connection)
+            # One read transaction: separate autocommit SELECTs could straddle a
+            # concurrent accept and return an impossible count/oldest combination.
+            connection.execute("BEGIN")
             row = connection.execute(
                 """
                 SELECT
@@ -272,6 +275,8 @@ class SqliteAcquisitionSpool:
                     expected_count=_require_int(batch_row[2], "event_count"),
                 )
         finally:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
             connection.close()
 
         return AcquisitionSpoolTelemetrySnapshot(
@@ -288,6 +293,9 @@ class SqliteAcquisitionSpool:
         connection = self._connect()
         try:
             self._ensure_schema(connection)
+            # One read transaction: separate autocommit SELECTs could straddle a
+            # concurrent accept and return an impossible count/oldest combination.
+            connection.execute("BEGIN")
             row = connection.execute(
                 """
                 SELECT
@@ -325,6 +333,8 @@ class SqliteAcquisitionSpool:
                 oldest_accepted_at=oldest_accepted_at,
             )
         finally:
+            if connection.in_transaction:
+                connection.execute("ROLLBACK")
             connection.close()
 
     def pending_event_count(self) -> int:

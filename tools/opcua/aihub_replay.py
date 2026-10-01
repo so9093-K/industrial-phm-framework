@@ -21,6 +21,7 @@ from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
@@ -227,12 +228,16 @@ async def serve(
     loop: bool,
     omit_channels: Sequence[str] = (),
     freeze_after_records: int | None = None,
+    publish_ledger: Path | None = None,
 ) -> None:
     """Publish records on the replay clock until the selection ends or ``stop``.
 
     ``omit_channels`` never publishes those channels (a missing phase);
     ``freeze_after_records`` keeps the server up but stops updating (stale data).
+    ``publish_ledger`` appends every record actually written (server run, replay
+    time, channel values) as ground truth for loss/duplicate audits.
     """
+    run_id = uuid4().hex
     manifest, selection = load_selection(root)
     records, _ = load_replay_records(selection)
     offsets = replay_offsets(records, speed)
@@ -260,10 +265,7 @@ async def serve(
     waiting_status = ua.StatusCode(ua.StatusCodes.BadWaitingForInitialData)
     for node in nodes.values():
         await node.write_value(
-            ua.DataValue(
-                ua.Variant(0.0, ua.VariantType.Double),
-                StatusCode=waiting_status,
-            )
+            ua.DataValue(ua.Variant(None, ua.VariantType.Null), StatusCode=waiting_status)
         )
     published = 0
     cycle = 0
@@ -291,20 +293,40 @@ async def serve(
                     return
                 if freeze_after_records is not None and published >= freeze_after_records:
                     continue
+                written: dict[str, float | None] = {}
                 for channel, value in record.values.items():
                     if channel in omit_channels:
                         continue
+                    written[channel] = value
                     status = ua.StatusCode(
                         ua.StatusCodes.Good if value is not None else ua.StatusCodes.Bad
                     )
                     await nodes[channel].write_value(
                         ua.DataValue(
-                            ua.Variant(0.0 if value is None else value, ua.VariantType.Double),
+                            # A null recorded value is sent as a Null variant with Bad status,
+                            # never as a synthetic number.
+                            ua.Variant(None, ua.VariantType.Null)
+                            if value is None
+                            else ua.Variant(value, ua.VariantType.Double),
                             StatusCode=status,
                             SourceTimestamp=at,
                             ServerTimestamp=datetime.now(UTC),
                         )
                     )
+                if publish_ledger is not None:
+                    with publish_ledger.open("a", encoding="utf-8") as stream:
+                        stream.write(
+                            json.dumps(
+                                {
+                                    "run": run_id,
+                                    "at": at.isoformat(),
+                                    "values": written,
+                                    "good": {ch: v is not None for ch, v in written.items()},
+                                },
+                                ensure_ascii=False,
+                            )
+                            + "\n"
+                        )
                 published += 1
                 if published % 60 == 0:
                     print(
@@ -343,6 +365,11 @@ def main() -> None:
         "--omit-channel", action="append", default=[], help="never publish this channel"
     )
     server_parser.add_argument(
+        "--publish-ledger",
+        type=Path,
+        help="append every written record as JSON lines (audit ground truth)",
+    )
+    server_parser.add_argument(
         "--freeze-after-records",
         type=int,
         help="keep serving but stop updating values after this many records",
@@ -376,6 +403,7 @@ def main() -> None:
                 loop=args.loop,
                 omit_channels=args.omit_channel,
                 freeze_after_records=args.freeze_after_records,
+                publish_ledger=args.publish_ledger,
             )
 
         asyncio.run(run())

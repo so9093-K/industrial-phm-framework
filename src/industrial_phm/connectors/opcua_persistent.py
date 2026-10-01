@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from collections import deque
 from collections.abc import Sequence
 from contextlib import suppress
 from dataclasses import dataclass
@@ -78,7 +80,11 @@ class OpcUaPersistentConnectorConfig:
 
 
 class OpcUaPersistentSubscription:
-    """One connected asyncua subscription that survives transport reconnects."""
+    """One connected asyncua subscription for one application session.
+
+    The worker ends the session on connection loss or queue overflow (ADR-0010); this
+    connector does not ride asyncua's in-client reconnect across that boundary.
+    """
 
     def __init__(self, config: OpcUaPersistentConnectorConfig) -> None:
         if not isinstance(config, OpcUaPersistentConnectorConfig):
@@ -93,13 +99,24 @@ class OpcUaPersistentSubscription:
             mapping.node_id: mapping for mapping in self._config.node_mappings
         }
         self._overflow_queue: asyncio.Queue[OpcUaConnectorQueueOverflow] = asyncio.Queue()
+        # Arrival (monotonic, wall clock) of each event queued by asyncua, FIFO with
+        # its subscription queue, so received_at is arrival rather than dequeue time.
+        self._arrivals: deque[tuple[float, datetime]] = deque()
+        self._arrival_queue: Any | None = None
+        self._metrics: Any | None = None
+        self._overflow_signalled = False
+        self._overflow_rejected = 0
+
+    def attach_pipeline_metrics(self, metrics: Any) -> None:
+        """Opt-in diagnostics sink (``industrial_phm.runtime.pipeline_metrics``)."""
+        self._metrics = metrics
 
     @property
     def config(self) -> OpcUaPersistentConnectorConfig:
         return self._config
 
     async def start(self) -> None:
-        """Connect once and create one subscription; asyncua owns later reconnect recovery."""
+        """Connect once and create one subscription for this session (ADR-0010)."""
         if self._client is not None:
             raise ValueError("persistent OPC UA subscription has already been started")
 
@@ -143,12 +160,21 @@ class OpcUaPersistentSubscription:
             self._subscription = subscription
 
             def _on_queue_overflow() -> None:
-                self._overflow_queue.put_nowait(
-                    OpcUaConnectorQueueOverflow(occurred_at=datetime.now(UTC))
-                )
-                client.uaclient.notify_transport_lost()
+                # asyncua calls this once per rejected notification. Signal the worker
+                # once and leave the client state alone: notify_transport_lost() during
+                # or just after a reconnect left asyncua 2.0.1 permanently disconnected
+                # (Phase 10 burst reproduction). The worker restarts the session instead.
+                self._overflow_rejected += 1
+                if self._metrics is not None:
+                    self._metrics.count("overflow_rejected")
+                if not self._overflow_signalled:
+                    self._overflow_signalled = True
+                    self._overflow_queue.put_nowait(
+                        OpcUaConnectorQueueOverflow(occurred_at=datetime.now(UTC))
+                    )
 
             subscription.set_overflow_disconnect_handler(_on_queue_overflow)
+            self._install_arrival_probe(subscription)
             await subscription.subscribe_data_change(nodes)
         except Exception:
             await self.close()
@@ -182,6 +208,33 @@ class OpcUaPersistentSubscription:
                 occurred_at=datetime.now(UTC),
             )
 
+    def _install_arrival_probe(self, subscription: Any) -> None:
+        """Stamp arrival as asyncua enqueues each event (asyncua 2.0.1 ``_deliver``)."""
+        deliver = getattr(subscription, "_deliver", None)
+        if not callable(deliver):
+            return
+
+        def probed(event: Any) -> None:
+            queue = getattr(subscription, "_event_queue", None)
+            if queue is not self._arrival_queue:
+                # asyncua replaces the queue on reconnect; old arrivals are gone with it.
+                self._arrivals.clear()
+                self._arrival_queue = queue
+            before = 0 if queue is None else queue.qsize()
+            deliver(event)
+            after = 0 if queue is None else queue.qsize()
+            if after > before:
+                self._arrivals.append((time.monotonic(), datetime.now(UTC)))
+            metrics = self._metrics
+            if metrics is not None:
+                metrics.count("arrived")
+                if after <= before:
+                    metrics.count("not_enqueued_queue_full")
+                if queue is not None:
+                    metrics.queue_depth(after, queue.maxsize)
+
+        subscription._deliver = probed
+
     async def next_notification(
         self,
         timeout: float | None = None,
@@ -195,6 +248,18 @@ class OpcUaPersistentSubscription:
         )
         if event is None:
             return None
+        arrived_monotonic: float | None = None
+        received_at = datetime.now(UTC)
+        if self._arrivals:
+            arrived_monotonic, received_at = self._arrivals.popleft()
+        metrics = self._metrics
+        if metrics is not None:
+            metrics.count("dequeued")
+            if arrived_monotonic is not None:
+                metrics.observe("arrival_to_dequeue", time.monotonic() - arrived_monotonic)
+            queue = getattr(subscription, "_event_queue", None)
+            if queue is not None:
+                metrics.queue_depth(queue.qsize())
         data_change_type = self._data_change_type
         if data_change_type is None:
             raise RuntimeError("persistent OPC UA DataChange runtime is not initialized")
@@ -222,7 +287,7 @@ class OpcUaPersistentSubscription:
             observation=_project_data_value(
                 mapping,
                 data_value,
-                received_at=datetime.now(UTC),
+                received_at=received_at,
             ),
             replayed=replayed,
         )

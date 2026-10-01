@@ -1,13 +1,16 @@
 """Long-lived registered OPC UA acquisition worker.
 
-The worker owns application session semantics and durable spool acceptance. asyncua owns
-transport/session/subscription recovery through the concrete connector.
+The worker owns application session semantics and durable spool acceptance. Recovery is
+application-owned (ADR-0010): on connection loss or subscription queue overflow the worker
+ends, and the collection service starts a fresh session with its restart backoff
+(``CollectionServicePolicy.restart_backoff_*``). asyncua's in-client reconnect is not ridden.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import partial
@@ -47,6 +50,7 @@ from industrial_phm.connectors.opcua_persistent import (
     OpcUaPersistentConnectorConfig,
     OpcUaPersistentSubscription,
 )
+from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
 
 class _PersistentConnector(Protocol):
@@ -69,6 +73,14 @@ NowFunction = Callable[[], datetime]
 _LOGGER = logging.getLogger(__name__)
 
 
+class OpcUaSubscriptionOverflowError(RuntimeError):
+    """The connector dropped notifications; this worker ends so a new session starts."""
+
+
+class OpcUaSessionLostError(RuntimeError):
+    """The connection was lost; this worker ends so a new session starts."""
+
+
 async def run_registered_opcua_acquisition_worker(
     source_repository: SourceRepository,
     lifecycle_repository: SourceLifecycleRepository,
@@ -82,12 +94,15 @@ async def run_registered_opcua_acquisition_worker(
     connector_factory: ConnectorFactory = OpcUaPersistentSubscription,
     telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
+    metrics: PipelineMetrics | None = None,
 ) -> OpcUaAcquisitionWorkerResult:
     """Run one ACTIVE registered OPC UA source until explicit stop or failure.
 
-    asyncua 2.0.1 exposes the reconnect delay cap but fixes the initial delay and
-    exponential multiplier to 1 second and 2x. v1 therefore fails fast when the
-    application policy requests different values instead of silently ignoring them.
+    The worker ends with ``OpcUaSessionLostError`` at asyncua's first RECONNECTING
+    and with ``OpcUaSubscriptionOverflowError`` on queue overflow; restarts belong to
+    the collection service. The session policy's ``reconnect_*`` values only bound
+    asyncua's internal retry before the worker ends (asyncua 2.0.1 fixes the initial
+    delay and multiplier to 1 s and 2x, so other values fail fast).
     """
     if not isinstance(stop_event, asyncio.Event):
         raise ValueError("stop_event must be an asyncio.Event")
@@ -148,6 +163,8 @@ async def run_registered_opcua_acquisition_worker(
             reconnect_max_delay_seconds=effective_session_policy.reconnect_max_delay_seconds,
         )
     )
+    if metrics is not None and hasattr(connector, "attach_pipeline_metrics"):
+        connector.attach_pipeline_metrics(metrics)
 
     accepted_event_count = 0
     replayed_event_count = 0
@@ -216,7 +233,12 @@ async def run_registered_opcua_acquisition_worker(
                     changed_at=event.occurred_at,
                     detail=detail,
                 )
-            return
+            # Do not ride asyncua 2.0.1's in-client reconnect: after a long stall it
+            # either stayed disconnected or reactivated the old session while dropping
+            # its subscription's data (Phase 10). A fresh worker opens a new session.
+            raise OpcUaSessionLostError(
+                "OPC UA connection lost; restarting the collector worker with a new session"
+            )
         if event.state == OpcUaConnectorConnectionState.CONNECTING:
             if current.state == OpcUaPersistentSessionState.RECONNECT_WAIT:
                 await _transition(
@@ -261,7 +283,63 @@ async def run_registered_opcua_acquisition_worker(
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
+            if notification_task in done:
+                # A notification already dequeued is in application ownership: persist it
+                # before handling a connection-loss state or a queue overflow from the
+                # same wakeup. Notifications still queued inside the old client are not
+                # drained (part of the documented loss boundary, ADR-0010).
+                notification = notification_task.result()
+                notification_task = asyncio.create_task(connector.next_notification())
+                if notification is not None:
+                    if current.state != OpcUaPersistentSessionState.CONNECTED:
+                        raise RuntimeError(
+                            "OPC UA DataChange arrived while application session is not CONNECTED"
+                        )
+
+                    registered = RegisteredOpcUaDataChangeEvent(
+                        source_id=source_id,
+                        asset_id=source.asset_id,
+                        endpoint_url=config.endpoint_url,
+                        measurement_point_id=source.measurement_point_id,
+                        collection_index=next_event_index,
+                        notification=notification,
+                        semantic_binding=config.semantic_binding_for(
+                            notification.observation.channel_id
+                        ),
+                    )
+                    accept_started = time.monotonic()
+                    persistent_event = await asyncio.to_thread(
+                        spool.accept_opcua_event,
+                        registered,
+                        connection_epoch=current.connection_epoch,
+                        event_index=next_event_index,
+                        accepted_at=_now(now_fn),
+                        event_time_policy=effective_event_time_policy,
+                    )
+                    if metrics is not None:
+                        metrics.observe("spool_accept", time.monotonic() - accept_started)
+                    if telemetry_recorder is not None:
+                        telemetry_started = time.monotonic()
+                        _record_telemetry_best_effort(
+                            partial(
+                                telemetry_recorder.record_opcua_event,
+                                persistent_event,
+                            ),
+                            label="OPC UA flow event",
+                        )
+                        if metrics is not None:
+                            # Synchronous on the event loop: directly delays queue draining.
+                            metrics.observe(
+                                "telemetry_event_in_loop", time.monotonic() - telemetry_started
+                            )
+                    accepted_event_count += 1
+                    if notification.replayed:
+                        replayed_event_count += 1
+                    next_event_index += 1
+
             if stop_task in done:
+                # An explicit stop wins after persisting any notification already
+                # dequeued into application ownership in this wakeup.
                 break
 
             if overflow_task in done:
@@ -277,64 +355,20 @@ async def run_registered_opcua_acquisition_worker(
                         ),
                         label="callback queue overflow",
                     )
-                overflow_task = asyncio.create_task(connector.next_queue_overflow())
+                # Notifications were already dropped. End this worker so the collection
+                # service starts a fresh session (new epoch) instead of relying on an
+                # in-client reconnect that can stay disconnected after a burst.
+                raise OpcUaSubscriptionOverflowError(
+                    "subscription queue overflow: notifications were dropped "
+                    f"(queue max {effective_session_policy.queue_maxsize}); restarting the "
+                    "collector worker with a new session"
+                )
 
             if state_task in done:
                 while state_task.done():
                     await _process_state(state_task.result())
                     state_task = asyncio.create_task(connector.next_state())
                     await asyncio.sleep(0)
-
-            if notification_task in done:
-                # Give an already-buffered reconnect state transition priority over
-                # data so replay/new notifications use the new connection epoch.
-                await asyncio.sleep(0)
-                if state_task.done():
-                    while state_task.done():
-                        await _process_state(state_task.result())
-                        state_task = asyncio.create_task(connector.next_state())
-                        await asyncio.sleep(0)
-
-                notification = notification_task.result()
-                notification_task = asyncio.create_task(connector.next_notification())
-                if notification is None:
-                    continue
-                if current.state != OpcUaPersistentSessionState.CONNECTED:
-                    raise RuntimeError(
-                        "OPC UA DataChange arrived while application session is not CONNECTED"
-                    )
-
-                registered = RegisteredOpcUaDataChangeEvent(
-                    source_id=source_id,
-                    asset_id=source.asset_id,
-                    endpoint_url=config.endpoint_url,
-                    measurement_point_id=source.measurement_point_id,
-                    collection_index=next_event_index,
-                    notification=notification,
-                    semantic_binding=config.semantic_binding_for(
-                        notification.observation.channel_id
-                    ),
-                )
-                persistent_event = await asyncio.to_thread(
-                    spool.accept_opcua_event,
-                    registered,
-                    connection_epoch=current.connection_epoch,
-                    event_index=next_event_index,
-                    accepted_at=_now(now_fn),
-                    event_time_policy=effective_event_time_policy,
-                )
-                if telemetry_recorder is not None:
-                    _record_telemetry_best_effort(
-                        partial(
-                            telemetry_recorder.record_opcua_event,
-                            persistent_event,
-                        ),
-                        label="OPC UA flow event",
-                    )
-                accepted_event_count += 1
-                if notification.replayed:
-                    replayed_event_count += 1
-                next_event_index += 1
 
     except BaseException as error:
         stop_detail = f"worker-error:{type(error).__name__}"

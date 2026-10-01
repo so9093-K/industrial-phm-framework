@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import Counter
 from collections.abc import Callable
 from contextlib import suppress
@@ -28,6 +29,7 @@ from industrial_phm.application.history_writer import (
     SpoolHistoryWriterResult,
     SpoolToHistoryWriterPolicy,
 )
+from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
 BatchIdFactory = Callable[[], str]
 NowFunction = Callable[[], datetime]
@@ -166,6 +168,7 @@ async def run_spool_to_history_writer(
     batch_id_factory: BatchIdFactory = lambda: f"live-{uuid4()}",
     telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
+    metrics: PipelineMetrics | None = None,
 ) -> SpoolHistoryWriterResult:
     """Continuously flush due micro-batches until an explicit stop request.
 
@@ -188,6 +191,7 @@ async def run_spool_to_history_writer(
 
     while not stop_event.is_set():
         try:
+            batch_started = time.monotonic()
             result = await asyncio.to_thread(
                 write_next_spool_batch,
                 spool,
@@ -214,6 +218,9 @@ async def run_spool_to_history_writer(
             continue
 
         if result is not None:
+            if metrics is not None:
+                metrics.observe("history_batch_commit", time.monotonic() - batch_started)
+                metrics.count("history_batch_events", result.event_count)
             batch_count += 1
             event_count += result.event_count
             if result.recovered_existing_commit:

@@ -330,11 +330,10 @@ Registered OPC UA bounded subscription application
 
 Persistent OPC UA acquisition worker
   RegisteredSource(OPCUA) + ACTIVE lifecycle
-    -> asyncua Client(auto_reconnect=true)
-    -> long-lived DataChange subscription
-         ├ bounded iterator queue
-         ├ overflow -> explicit evidence + reconnect
-         └ Republish replay flag preserved
+    -> asyncua Client + long-lived DataChange subscription
+         ├ bounded iterator queue (default 4096), arrival-stamped received_at
+         ├ overflow or connection loss -> explicit evidence, worker ends
+         └ collection service restarts a fresh session/epoch with backoff (ADR-0010)
     -> persistent session evidence
          DISCONNECTED -> CONNECTING -> CONNECTED
          CONNECTED -> RECONNECT_WAIT -> CONNECTING -> CONNECTED
@@ -352,7 +351,7 @@ Persistent OPC UA acquisition worker
          ├ watermark = max valid event_at - allowed lateness
          ├ late/out-of-order/future/quality-neutral dispositions
          └ finalized DurableObservationWindow history
-  transport/session/subscription recovery는 asyncua가 소유하고 application은 connection epoch,
+  Transport 상실과 queue overflow 복구는 worker 재시작으로 application이 소유하고(ADR-0010), application은 connection epoch,
   reconnect-attempt evidence, local event index와 event-time semantics를 소유합니다. Source별 connection epoch는
   durable spool metadata에서 atomically reserve하므로 worker process restart 뒤에도 이전 epoch를 재사용하지
   않습니다. Epoch reservation 뒤 process가 종료되어 gap이 생기는 것은 허용하지만 identity reuse는 허용하지
@@ -360,8 +359,8 @@ Persistent OPC UA acquisition worker
   Worker failure/stop은 administrative SourceLifecycle ACTIVE를 asset-health verdict로 바꾸지 않습니다.
   별도 SQLite WAL acquisition-telemetry store가 current session/flow, callback overflow, latest DuckLake batch,
   window/watermark/disposition과 runtime failure를 source별 latest evidence로 보존합니다. Durable spool backlog는
-  telemetry DB에 복제하지 않고 spool DB에서 직접 sample합니다. asyncua private queue depth에는 의존하지 않아
-  callback queue depth/high-watermark는 현재 uninstrumented이고 configured maxsize/overflow만 기록합니다.
+  telemetry DB에 복제하지 않고 spool DB에서 직접 sample합니다. Callback queue depth/high-watermark와 단계별
+  지연은 collector `--pipeline-metrics` opt-in 진단 JSONL로만 남기며 primary telemetry 계약은 아닙니다.
   이 telemetry는 existing bounded SourceHealth의 current-connection 의미나 asset health verdict를 자동 변경하지
   않습니다. Operations Start/Stop은 별도 SQLite WAL collection-control store에 desired RUNNING/STOPPED state만
   기록하고, UI와 독립된 collection-service process가 이를 reconcile해 source worker/window coordinator를

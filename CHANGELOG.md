@@ -11,6 +11,25 @@
 
 ### Fixed
 
+- Phase 10 queue-pressure 재현(AI-Hub replay + SIGSTOP fault + publish-ledger audit)에서 확인한 수집
+  중단을 고쳤습니다(ADR-0010). asyncua 2.0.1 in-client 재연결은 burst overflow 뒤 영구 disconnected가 되거나,
+  session 재활성화 뒤 subscription 불일치로 CONNECTED 상태에서 데이터를 무기한 버렸습니다. 연결 상실과
+  queue overflow 시 worker가 명시적으로 종료하고 collection service가 새 session·epoch로 backoff(1~30초)
+  재시작합니다(`CollectionServicePolicy.restart_backoff_*`). overflow hook은 `notify_transport_lost()` 폭주
+  대신 한 번만 신호하고, 연결 상실과 같은 wakeup에 이미 dequeue된 notification은 종료 전에 기록합니다.
+  Window coordinator 실패는 OPC UA session을 재시작하지 않고 coordinator만 backoff 재시작합니다.
+- Subscription queue 기본값을 128에서 4096으로 올렸습니다(정상 high-watermark ≈ 33, 30초 stall burst 1,007건
+  무손실 처리).
+- 동시 accept 중 spool backlog 통계를 두 번의 autocommit 조회로 읽어 불변식 오류로 collection service가 멈추던
+  race를 단일 read transaction으로 고쳤습니다.
+- OPC UA `received_at`이 consumer dequeue 시각이던 것을 client 도착 시각으로 바로잡았습니다.
+
+### Added
+
+- Collector `--pipeline-metrics` opt-in 진단(queue depth, 단계별 지연, event-loop lag; JSONL 기록은 event loop 밖),
+  replay `--publish-ledger`(값·Good/Bad), `tools/opcua/replay_audit.py`(유실·중복·null 포함 값 불일치·품질 불일치,
+  run 간 key 충돌 fail-fast). Replay는 null 기록을 0.0이 아닌 Null variant + Bad status로 publish합니다.
+
 - Phase 10 AI-Hub replay soak/fault 검증에서 발견한 runtime 구분 문제를 고쳤습니다.
   - collector process가 종료되면 Monitor가 마지막 세션 보고("connected")를 그대로 보여 source 무소식과
     구분되지 않았습니다. Collection-service heartbeat(20초)·STOPPED·FAILED를 Collect 단계와 attention에

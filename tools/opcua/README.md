@@ -197,6 +197,30 @@ Fault scenarios for Operations validation:
 - Stopping the replay server, the collector or the analysis runner separately exercises source,
   collection and analysis outages.
 
+## Queue-pressure and fault reproduction
+
+Short, repeatable experiments replace waiting for failures in a long soak:
+
+- Start the replay with `--publish-ledger <root>/publish-ledger.jsonl`. Each line records a server run, the
+  replay time and the channel values actually written; it is the ground truth for loss audits.
+- Start the collector with `--pipeline-metrics <root>/pipeline-metrics.jsonl` (opt-in). Every 10 s it writes
+  arrivals, dequeues, rejected notifications, queue depth/high-watermark, arrival→dequeue lag, spool accept,
+  event-loop-blocking telemetry writes, event-loop lag, history commit and window cycle latencies.
+- Inject a fault by pausing the real python process (not the `uv run` wrapper) with `kill -STOP` /
+  `kill -CONT`: the replay process for a source stall, the collector process for a client stall.
+- Audit stored history against the ledger:
+
+```bash
+uv run --no-sync python -m tools.opcua.replay_audit --root artifacts/phase10b \
+  --ledger artifacts/phase10b/publish-ledger.jsonl --source-id aihub239-replay-boiler-2297
+```
+
+The audit expects one delivery per changed write within a server run and reports missing gaps,
+duplicate keys, exact value mismatches (null included), Good/Bad quality mismatches, unknown events and
+re-delivered current values (subscription start). A recorded null is published as a Null variant with Bad
+status. One audit accepts one publish per (channel, timestamp); a key written by two server runs fails fast.
+Measured results are recorded in `docs/research/phase10-acquisition-stress.md`.
+
 ## Regression validation
 
 ```bash
