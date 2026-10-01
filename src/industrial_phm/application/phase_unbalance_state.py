@@ -330,6 +330,8 @@ def migrate_json_phase_unbalance_results(source: Path, destination: Path) -> int
 
     legacy_results = JsonPhaseUnbalanceRepository(source).list_results()
     destination_store = SqlitePhaseUnbalanceRepository(destination)
+    connection = destination_store._connect()
+    connection.close()
     for result in legacy_results:
         destination_store.record(result)
 
