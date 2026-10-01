@@ -8,6 +8,9 @@ DuckLake catalog, preloads a known number of commits, records storage/query/appe
 
 Run separate empty roots for each accumulated-state size:
 
+The default workload writes 35 observations per commit across 35 channels, matching the Phase 10
+channel-count sanity profile while keeping N focused on accumulated commits/files rather than row volume.
+
 ```bash
 uv run --locked --extra history python -m tools.history.compaction_benchmark \
   --root artifacts/compaction-n0 \
