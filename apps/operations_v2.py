@@ -483,8 +483,13 @@ def _(
         )
 
     phase_results = ()
+    _phase_result_repository = None
+    _phase_result_limit = 500
+    _phase_result_total = 0
     try:
-        phase_results = SqlitePhaseUnbalanceRepository(phase_analysis_path).list_results()
+        _phase_result_repository = SqlitePhaseUnbalanceRepository(phase_analysis_path)
+        _phase_result_total = _phase_result_repository.count_results()
+        phase_results = _phase_result_repository.list_recent_results(_phase_result_limit)
     except (OSError, ValueError) as error:
         system_errors.append(
             SystemStateErrorEvidence(
@@ -493,14 +498,6 @@ def _(
                 assessed_at,
             )
         )
-
-    analysis_results = tuple(
-        sorted(
-            (*field_results, *phase_results),
-            key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
-        )
-    )
-    analysis_runs = tuple(item.run for item in analysis_results)
 
     skipped_analysis_attempts = ()
     if window_state_path.is_file() and analysis_ledger_path.is_file():
@@ -571,6 +568,34 @@ def _(
                 assessed_at,
             )
         )
+
+    _phase_review_results = ()
+    if _phase_result_repository is not None:
+        _loaded_phase_run_ids = {item.run.analysis_run_id for item in phase_results}
+        _reviewed_run_ids = {finding.analysis_run_id for finding in findings}
+        _phase_review_results = _phase_result_repository.find_results(
+            _reviewed_run_ids - _loaded_phase_run_ids
+        )
+        if _phase_review_results:
+            phase_results = tuple(
+                sorted(
+                    (*phase_results, *_phase_review_results),
+                    key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
+                )
+            )
+    _phase_result_query_summary = (
+        f"loaded {len(phase_results)} of {_phase_result_total}; "
+        f"newest up to {_phase_result_limit} plus review-referenced exact runs"
+        if _phase_result_repository is not None
+        else "unavailable"
+    )
+    analysis_results = tuple(
+        sorted(
+            (*field_results, *phase_results),
+            key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
+        )
+    )
+    analysis_runs = tuple(item.run for item in analysis_results)
 
     try:
         review_events = JsonFindingReviewRepository(review_path).list_events()
@@ -715,6 +740,7 @@ def _(
         ("Asset History data", str(history_data_path)),
         ("Vibration analysis", str(field_analysis_path)),
         ("Three-phase analysis", str(phase_analysis_path)),
+        ("Three-phase result query", _phase_result_query_summary),
         ("Analysis service runtime", str(analysis_runtime_path)),
         ("Finalized windows", str(window_state_path)),
         ("Analysis skip ledger", str(analysis_ledger_path)),
