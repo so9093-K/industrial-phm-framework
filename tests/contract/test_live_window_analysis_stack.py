@@ -18,9 +18,9 @@ pytest.importorskip("filelock")
 
 from industrial_phm.application import (
     CollectionDesiredState,
-    JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     SqliteObservationWindowRepository,
+    SqlitePhaseUnbalanceRepository,
     WindowInputReference,
     request_collection_state,
     window_input_reference,
@@ -63,7 +63,7 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
     demo.prepare(root, endpoint, profile="three-phase")
     sources = JsonSourceRepository(root / "sources.json")
     windows = SqliteObservationWindowRepository(root / "windows.sqlite")
-    results = JsonPhaseUnbalanceRepository(root / "phase-unbalance.json")
+    results = SqlitePhaseUnbalanceRepository(root / "phase-unbalance.sqlite")
     server_cmd = [
         sys.executable,
         "-m",
@@ -93,7 +93,7 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
         "--window-state",
         str(root / "windows.sqlite"),
         "--analysis-state",
-        str(root / "phase-unbalance.json"),
+        str(root / "phase-unbalance.sqlite"),
         "--ledger-state",
         str(root / "window-analysis-ledger.sqlite"),
         "--once",

@@ -78,7 +78,10 @@ operation, not by running longer.
 file with `open(..., encoding="utf-8").read()` / `Path.read_text` also leaves process memory proportional
 to the file size (a 1.6 MB file: 3 MB per read, levelling off near 196 MB; 33 MB on 3.13.12; none with
 `read_bytes().decode()`; the Python heap itself does not grow). The structural issue is the whole-file
-rewrite, the same pattern already removed from finalized windows.
+rewrite, the same pattern already removed from finalized windows. Fixed by `SqlitePhaseUnbalanceRepository`
+(one row per run): with a fixed N of stored results, one more record costs 3 / 24 / 96 ms and 0.47 / 2.15 /
+7.70 MB peak at N = 10 / 100 / 400 in the JSON store, and 0.8 ms and 0.012 MB at N = 10 / 2,000 / 10,000 in
+the SQLite store (`test_recording_one_window_result_does_not_scale_with_stored_results`).
 
 **Collector.** The cause of the remaining growth is not yet identified; the candidates are per-commit
 costs that grow with DuckLake data files (about 106 small files per minute) and window payloads.

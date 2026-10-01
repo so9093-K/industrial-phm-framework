@@ -259,7 +259,11 @@ from industrial_phm.application.phase_unbalance import (
     run_phase_unbalance_analysis,
     run_phase_unbalance_on_window,
 )
-from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
+from industrial_phm.application.phase_unbalance_state import (
+    JsonPhaseUnbalanceRepository,
+    SqlitePhaseUnbalanceRepository,
+    migrate_json_phase_unbalance_results,
+)
 from industrial_phm.application.source_cycle import (
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleResult,
@@ -536,6 +540,7 @@ __all__ = [
     "SpoolHistoryWriterResult",
     "SpoolToHistoryWriterPolicy",
     "SqliteObservationWindowRepository",
+    "SqlitePhaseUnbalanceRepository",
     "SqliteWindowAnalysisLedger",
     "SystemRuntimeError",
     "SystemRuntimeFact",
@@ -580,6 +585,7 @@ __all__ = [
     "load_field_csv_observation_timeline",
     "load_field_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
+    "migrate_json_phase_unbalance_results",
     "parse_opcua_semantic_bindings",
     "poll_registered_source",
     "project_opcua_persistent_data_change_event",

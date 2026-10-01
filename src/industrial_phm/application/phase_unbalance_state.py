@@ -1,13 +1,20 @@
-"""Durable local history of three-phase unbalance analysis results."""
+"""Durable local history of three-phase unbalance analysis results.
+
+`SqlitePhaseUnbalanceRepository` is the store for live window analysis and Operations:
+one row per analysis run, so recording a result never rereads or rewrites earlier ones.
+`JsonPhaseUnbalanceRepository` rewrites the whole file per result and remains only for
+small offline histories.
+"""
 
 from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import tempfile
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +48,7 @@ from industrial_phm.contracts import (
 )
 
 _SCHEMA = "industrial-phm-phase-unbalance-v1"
+_SQLITE_SCHEMA_VERSION = 1
 
 
 class PhaseUnbalanceHistoryFormatError(ValueError):
@@ -144,6 +152,214 @@ class JsonPhaseUnbalanceRepository:
             os.replace(handle.name, self._path)
         finally:
             Path(handle.name).unlink(missing_ok=True)
+
+
+class SqlitePhaseUnbalanceRepository:
+    """WAL-backed result store: one row per analysis run.
+
+    Recording looks up only the run, window and evidence identities it must check,
+    so the cost of one more result does not grow with the results already stored.
+    The identity rules are those of `JsonPhaseUnbalanceRepository`.
+    """
+
+    def __init__(self, path: Path) -> None:
+        if not isinstance(path, Path):
+            raise ValueError("path must be a pathlib.Path")
+        if path.exists() and path.is_file():
+            with path.open("rb") as stream:
+                header = stream.read(16)
+            if header and header != b"SQLite format 3\x00":
+                raise PhaseUnbalanceHistoryFormatError(
+                    f"{path} is not SQLite; choose a new phase-unbalance result path "
+                    "(.sqlite) instead of reusing legacy JSON results"
+                )
+        self._path = path
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def list_results(self) -> tuple[PhaseUnbalanceAnalysis, ...]:
+        if not self._path.exists():
+            return ()
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT analysis_run_id, payload_json FROM phase_unbalance_result "
+                "ORDER BY completed_at_us, analysis_run_id"
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
+
+    def record(self, result: PhaseUnbalanceAnalysis) -> None:
+        """Append one result; an identical replay is accepted."""
+        self._record(result, once_per_window=False)
+
+    def record_window_result(self, result: PhaseUnbalanceAnalysis) -> PhaseUnbalanceAnalysis:
+        """Record one result per window, capability, algorithm and requested policy.
+
+        Returns the result already stored for the same identity when another writer
+        recorded it first; the check and the insert share one write transaction.
+        """
+        if not isinstance(result.evidence.input_reference, WindowInputReference):
+            raise ValueError("record_window_result requires a finalized-window input reference")
+        return self._record(result, once_per_window=True)
+
+    def _record(
+        self, result: PhaseUnbalanceAnalysis, *, once_per_window: bool
+    ) -> PhaseUnbalanceAnalysis:
+        if not isinstance(result, PhaseUnbalanceAnalysis):
+            raise ValueError("result must be PhaseUnbalanceAnalysis")
+        run_id = result.run.analysis_run_id
+        key = window_result_key(result)
+        window_key = None if key is None else json.dumps(list(key))
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT payload_json FROM phase_unbalance_result WHERE analysis_run_id = ?",
+                [run_id],
+            ).fetchone()
+            if row is not None:
+                existing = self._parse_row(run_id, row[0])
+                if existing != result:
+                    raise ValueError("analysis_run_id already exists with different evidence")
+                connection.rollback()
+                return existing
+            if once_per_window and window_key is not None:
+                row = connection.execute(
+                    "SELECT analysis_run_id, payload_json FROM phase_unbalance_result "
+                    "WHERE window_key = ? ORDER BY completed_at_us, analysis_run_id LIMIT 1",
+                    [window_key],
+                ).fetchone()
+                if row is not None:
+                    connection.rollback()
+                    return self._parse_row(row[0], row[1])
+            if connection.execute(
+                "SELECT 1 FROM phase_unbalance_result WHERE evidence_id = ?",
+                [result.evidence.evidence_id],
+            ).fetchone():
+                raise ValueError("evidence_id already exists for a different analysis run")
+            connection.execute(
+                "INSERT INTO phase_unbalance_result("
+                "analysis_run_id, evidence_id, window_key, asset_id, capability_id, "
+                "completed_at_us, payload_json"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [
+                    run_id,
+                    result.evidence.evidence_id,
+                    window_key,
+                    result.run.asset_id,
+                    result.evidence.capability_id,
+                    _epoch_microseconds(result.run.completed_at),
+                    json.dumps(_serialize(result), ensure_ascii=False, sort_keys=True),
+                ],
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+        return result
+
+    def _parse_row(self, run_id: str, payload: str) -> PhaseUnbalanceAnalysis:
+        try:
+            return _parse(json.loads(payload))
+        except (KeyError, TypeError, ValueError) as error:
+            raise PhaseUnbalanceHistoryFormatError(
+                f"invalid phase unbalance result {run_id} in {self._path}: {error}"
+            ) from error
+
+    def _connect(self) -> sqlite3.Connection:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(self._path, timeout=30.0)
+        try:
+            connection.execute("PRAGMA journal_mode=WAL")
+            connection.execute("PRAGMA synchronous=FULL")
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS repository_meta("
+                "key TEXT PRIMARY KEY, value TEXT NOT NULL)"
+            )
+            connection.execute(
+                "INSERT OR IGNORE INTO repository_meta(key, value) VALUES ('schema_version', ?)",
+                [str(_SQLITE_SCHEMA_VERSION)],
+            )
+            (version,) = connection.execute(
+                "SELECT value FROM repository_meta WHERE key = 'schema_version'"
+            ).fetchone()
+            if version != str(_SQLITE_SCHEMA_VERSION):
+                raise PhaseUnbalanceHistoryFormatError(
+                    f"unsupported SQLite phase unbalance schema: {version!r}"
+                )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS phase_unbalance_result(
+                    analysis_run_id TEXT PRIMARY KEY,
+                    evidence_id TEXT NOT NULL UNIQUE,
+                    window_key TEXT,
+                    asset_id TEXT NOT NULL,
+                    capability_id TEXT NOT NULL,
+                    completed_at_us INTEGER NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS phase_unbalance_result_window "
+                "ON phase_unbalance_result(window_key)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS phase_unbalance_result_completed "
+                "ON phase_unbalance_result(completed_at_us, analysis_run_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS phase_unbalance_result_asset_completed "
+                "ON phase_unbalance_result(asset_id, completed_at_us, analysis_run_id)"
+            )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS phase_unbalance_result_capability_completed "
+                "ON phase_unbalance_result(capability_id, completed_at_us, analysis_run_id)"
+            )
+            connection.commit()
+        except BaseException:
+            connection.close()
+            raise
+        return connection
+
+
+def migrate_json_phase_unbalance_results(source: Path, destination: Path) -> int:
+    """Copy legacy JSON results into SQLite without changing evidence identity.
+
+    Re-running the migration is idempotent because the SQLite store accepts an
+    identical analysis_run_id and rejects conflicting run/evidence identities.
+    The legacy JSON file is read-only and is never replaced or deleted.
+    """
+    if source.expanduser().resolve(strict=False) == destination.expanduser().resolve(strict=False):
+        raise ValueError("legacy JSON source and SQLite destination must be different paths")
+    if not source.is_file():
+        raise FileNotFoundError(f"legacy phase unbalance result file not found: {source}")
+
+    legacy_results = JsonPhaseUnbalanceRepository(source).list_results()
+    destination_store = SqlitePhaseUnbalanceRepository(destination)
+    connection = destination_store._connect()
+    connection.close()
+    for result in legacy_results:
+        destination_store.record(result)
+
+    migrated = {result.run.analysis_run_id: result for result in destination_store.list_results()}
+    for result in legacy_results:
+        if migrated.get(result.run.analysis_run_id) != result:
+            raise PhaseUnbalanceHistoryFormatError(
+                f"migrated result differs from legacy evidence: {result.run.analysis_run_id}"
+            )
+    return len(legacy_results)
+
+
+def _epoch_microseconds(value: datetime) -> int:
+    delta = value.astimezone(UTC) - datetime(1970, 1, 1, tzinfo=UTC)
+    return (delta.days * 86_400 + delta.seconds) * 1_000_000 + delta.microseconds
 
 
 def window_result_key(result: PhaseUnbalanceAnalysis) -> tuple[str, str, str, str] | None:

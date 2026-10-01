@@ -38,6 +38,7 @@ from industrial_phm.application.phase_unbalance import (
 )
 from industrial_phm.application.phase_unbalance_state import (
     JsonPhaseUnbalanceRepository,
+    SqlitePhaseUnbalanceRepository,
     window_result_key,
 )
 
@@ -216,7 +217,7 @@ def _exclusive(path: Path) -> Iterator[None]:
 
 def analyze_finalized_windows_incremental(
     windows: IncrementalObservationWindowReader,
-    results: JsonPhaseUnbalanceRepository,
+    results: SqlitePhaseUnbalanceRepository | JsonPhaseUnbalanceRepository,
     ledger: WindowAnalysisProgressLedger,
     *,
     config: PhaseUnbalanceConfig | None = None,
@@ -288,7 +289,7 @@ def analyze_finalized_windows_incremental(
 
 def analyze_finalized_windows(
     windows: ObservationWindowRepository,
-    results: JsonPhaseUnbalanceRepository,
+    results: SqlitePhaseUnbalanceRepository | JsonPhaseUnbalanceRepository,
     ledger: JsonWindowAnalysisLedger,
     *,
     config: PhaseUnbalanceConfig | None = None,

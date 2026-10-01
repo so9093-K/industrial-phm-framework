@@ -40,6 +40,7 @@ from industrial_phm.commands.operations import (
     _run_operations_backfill_source,
     _run_operations_collection_service,
     _run_operations_flush_history,
+    _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_request_collection,
     _run_operations_window_analysis,
@@ -301,6 +302,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     operations_flush_history.set_defaults(handler=_run_operations_flush_history)
 
+    operations_migrate_phase_results = operations_commands.add_parser(
+        "migrate-phase-unbalance-results",
+        help="copy legacy phase-unbalance JSON evidence into the SQLite result store",
+    )
+    operations_migrate_phase_results.add_argument(
+        "--from-json",
+        type=Path,
+        required=True,
+        help="legacy phase-unbalance JSON result path; never modified",
+    )
+    operations_migrate_phase_results.add_argument(
+        "--to-sqlite",
+        type=Path,
+        required=True,
+        help="SQLite result path used by the live runner and Operations",
+    )
+    operations_migrate_phase_results.set_defaults(
+        handler=_run_operations_migrate_phase_unbalance_results
+    )
+
     operations_request_collection = operations_commands.add_parser(
         "request-collection",
         help="request desired continuous collection state without owning the runtime loop",
@@ -388,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--analysis-state",
         type=Path,
         required=True,
-        help="phase unbalance result JSON path (shared with Operations)",
+        help="phase unbalance result SQLite path (shared with Operations)",
     )
     operations_window_analysis.add_argument(
         "--ledger-state",

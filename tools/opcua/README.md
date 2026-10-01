@@ -92,7 +92,7 @@ Run the collector with the `artifacts/live-3phase` paths as above (optionally
 ```bash
 uv run --no-sync industrial-phm operations run-window-analysis \
   --window-state artifacts/live-3phase/windows.sqlite \
-  --analysis-state artifacts/live-3phase/phase-unbalance.json \
+  --analysis-state artifacts/live-3phase/phase-unbalance.sqlite \
   --ledger-state artifacts/live-3phase/window-analysis-ledger.sqlite
 ```
 
@@ -106,7 +106,7 @@ Operations V2 Monitor로 이 상태까지 함께 보려면 동일한 source/acqu
 실행합니다.
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.json
+export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.sqlite
 export INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/live-3phase/windows.sqlite
 export INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/live-3phase/window-analysis-ledger.sqlite
 uv run --no-sync marimo run apps/operations_v2.py
@@ -177,7 +177,7 @@ and the analysis runner with a carry policy whose basis is the replay's publishi
 ```bash
 uv run --no-sync industrial-phm operations run-window-analysis \
   --window-state artifacts/phase10/windows.sqlite \
-  --analysis-state artifacts/phase10/phase-unbalance.json \
+  --analysis-state artifacts/phase10/phase-unbalance.sqlite \
   --ledger-state artifacts/phase10/window-analysis-ledger.sqlite \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"

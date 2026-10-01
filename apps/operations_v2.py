@@ -25,7 +25,6 @@ def _():
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
-        JsonPhaseUnbalanceRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
@@ -38,6 +37,7 @@ def _():
         SourceRuntimeCycleState,
         SourceType,
         SqliteObservationWindowRepository,
+        SqlitePhaseUnbalanceRepository,
         SqliteWindowAnalysisLedger,
         SystemStateErrorEvidence,
         WindowAnalysisState,
@@ -161,7 +161,7 @@ def _():
         JsonFieldFeatureAnalysisRepository,
         JsonFindingReviewRepository,
         JsonOperationalFindingRepository,
-        JsonPhaseUnbalanceRepository,
+        SqlitePhaseUnbalanceRepository,
         JsonSourceRepository,
         JsonSourceRuntimeRepository,
         JsonWindowAnalysisRuntimeRepository,
@@ -286,7 +286,7 @@ def _(
     JsonFieldFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
-    JsonPhaseUnbalanceRepository,
+    SqlitePhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     AcquisitionTelemetrySurface,
@@ -356,7 +356,7 @@ def _(
     phase_analysis_path = Path(
         os.environ.get(
             "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
-            "artifacts/operations/phase-unbalance.json",
+            "artifacts/operations/phase-unbalance.sqlite",
         )
     )
     analysis_runtime_path = Path(
@@ -403,6 +403,24 @@ def _(
     )
 
     system_errors = []
+    legacy_phase_analysis_path = phase_analysis_path.with_suffix(".json")
+    if (
+        "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE" not in os.environ
+        and not phase_analysis_path.exists()
+        and legacy_phase_analysis_path.is_file()
+    ):
+        system_errors.append(
+            SystemStateErrorEvidence(
+                "phase-analysis-migration",
+                (
+                    "Legacy phase-unbalance results are still stored at "
+                    f"{legacy_phase_analysis_path}; migrate them with "
+                    "`industrial-phm operations migrate-phase-unbalance-results` "
+                    "before relying on the new SQLite default."
+                ),
+                assessed_at,
+            )
+        )
 
     try:
         source_repository = JsonSourceRepository(registry_path)
@@ -466,7 +484,7 @@ def _(
 
     phase_results = ()
     try:
-        phase_results = JsonPhaseUnbalanceRepository(phase_analysis_path).list_results()
+        phase_results = SqlitePhaseUnbalanceRepository(phase_analysis_path).list_results()
     except (OSError, ValueError) as error:
         system_errors.append(
             SystemStateErrorEvidence(

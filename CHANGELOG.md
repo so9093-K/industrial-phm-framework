@@ -11,6 +11,13 @@
 
 ### Fixed
 
+- Live window analysis와 Operations의 3상 불평형 결과 저장소를 SQLite(`SqlitePhaseUnbalanceRepository`, run마다
+  한 row)로 바꿨습니다. 이전 JSON 저장소는 window마다 전체 결과를 다시 읽고 다시 써서 runner의 기록 비용과
+  메모리가 누적 결과 수에 비례해 늘었습니다(결과 400건에서 기록 1건당 96 ms·7.7 MB; SQLite는 10,000건에서도
+  0.8 ms·0.01 MB). 기본 경로는 `artifacts/operations/phase-unbalance.sqlite`입니다. 기존 JSON 결과는
+  덮어쓰지 않고 `operations migrate-phase-unbalance-results`로 identity를 보존해 명시 이관하며, 기본 SQLite가
+  아직 없고 legacy JSON만 남아 있으면 Operations System이 migration 필요 상태를 표시합니다.
+
 - Fault harness가 발견한 손실을 고쳤습니다. Worker가 현재 notification을 spool에 기록하기 전에 다음
   notification을 요청해, 기록을 기다리는 사이 dequeue된 notification이 overflow·연결 상실·정상 stop으로
   worker가 끝날 때 버려졌습니다. 이제 기록 후에 다음을 요청하고, 종료 시 이미 dequeue된 notification을

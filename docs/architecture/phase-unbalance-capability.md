@@ -58,7 +58,9 @@ input eligibility/exclusion 근거로만 남깁니다.
 - 해석 경계 문구
 
 `AnalysisRun`은 실행 시각, 관측 구간과 data-quality issue를 담습니다. 결과는
-`JsonPhaseUnbalanceRepository`에 run 단위로 append되며 같은 run의 다른 내용 재기록은 거부합니다.
+`SqlitePhaseUnbalanceRepository`에 run마다 한 row로 기록되며 같은 run의 다른 내용 재기록은 거부합니다.
+새 결과 기록은 저장된 결과를 다시 읽거나 다시 쓰지 않으므로 비용이 누적 결과 수에 비례하지 않습니다. 이전
+JSON 결과 파일 경로는 SQLite store가 열지 않고 거부하므로 새 `.sqlite` 경로를 지정합니다.
 
 ## 재현성
 
