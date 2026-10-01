@@ -520,7 +520,8 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
 
     result = history.compact_adjacent_files(
         max_compacted_files=32,
-        max_file_size_bytes=1024 * 1024,
+        target_file_size_bytes=1024 * 1024,
+        max_file_size_bytes=256 * 1024,
     )
     assert result.snapshot_before == before.current_snapshot_id
     assert result.snapshot_after >= result.snapshot_before
@@ -557,8 +558,10 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
         str(tmp_path / "data"),
         "--max-compacted-files",
         "32",
-        "--max-file-size-bytes",
+        "--target-file-size-bytes",
         str(1024 * 1024),
+        "--max-file-size-bytes",
+        str(256 * 1024),
     ]
     assert main(args) == 0
     output = capsys.readouterr().out
@@ -584,7 +587,10 @@ def test_compaction_uses_same_catalog_lease_and_times_out_explicitly(tmp_path):
     external_lock.acquire()
     try:
         with pytest.raises(TimeoutError, match="timed out waiting for local history catalog"):
-            history.compact_adjacent_files(max_compacted_files=1)
+            history.compact_adjacent_files(
+                max_compacted_files=1,
+                target_file_size_bytes=1024 * 1024,
+            )
     finally:
         external_lock.release()
 
@@ -595,10 +601,14 @@ def test_compaction_rejects_unbounded_or_invalid_limits(tmp_path):
         DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
     )
     with pytest.raises(ValueError, match="at least 1"):
-        history.compact_adjacent_files(max_compacted_files=0)
+        history.compact_adjacent_files(
+            max_compacted_files=0,
+            target_file_size_bytes=1024 * 1024,
+        )
     with pytest.raises(ValueError, match="less than"):
         history.compact_adjacent_files(
             max_compacted_files=1,
+            target_file_size_bytes=1024 * 1024,
             min_file_size_bytes=100,
             max_file_size_bytes=100,
         )
