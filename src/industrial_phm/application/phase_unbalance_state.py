@@ -94,9 +94,7 @@ class JsonPhaseUnbalanceRepository:
             return 0
         connection = self._connect()
         try:
-            (count,) = connection.execute(
-                "SELECT COUNT(*) FROM phase_unbalance_result"
-            ).fetchone()
+            (count,) = connection.execute("SELECT COUNT(*) FROM phase_unbalance_result").fetchone()
         finally:
             connection.close()
         return int(count)
@@ -139,9 +137,7 @@ class JsonPhaseUnbalanceRepository:
             connection.close()
         return tuple(self._parse_row(run_id, payload) for run_id, payload in rows)
 
-    def find_results(
-        self, analysis_run_ids: Iterable[str]
-    ) -> tuple[PhaseUnbalanceAnalysis, ...]:
+    def find_results(self, analysis_run_ids: Iterable[str]) -> tuple[PhaseUnbalanceAnalysis, ...]:
         """Return exact stored results for requested run IDs; absent IDs are ignored."""
         run_ids = tuple(dict.fromkeys(analysis_run_ids))
         if any(not isinstance(run_id, str) or not run_id.strip() for run_id in run_ids):
