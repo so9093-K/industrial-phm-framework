@@ -45,11 +45,14 @@ def test_compact_history_command_requires_explicit_work_bound() -> None:
             "data",
             "--max-compacted-files",
             "32",
-            "--max-file-size-bytes",
+            "--target-file-size-bytes",
             "1048576",
+            "--max-file-size-bytes",
+            "262144",
         ]
     )
     assert args.ducklake_catalog.name == "catalog.sqlite"
     assert args.ducklake_data.name == "data"
     assert args.max_compacted_files == 32
-    assert args.max_file_size_bytes == 1048576
+    assert args.target_file_size_bytes == 1048576
+    assert args.max_file_size_bytes == 262144
