@@ -13,6 +13,7 @@ from industrial_phm.application.acquisition_telemetry import (
     AcquisitionFailureTelemetry,
     AcquisitionFlowTelemetry,
     AcquisitionHistoryTelemetry,
+    AcquisitionLastReceiptTelemetry,
     AcquisitionSessionTelemetry,
     AcquisitionSpoolTelemetryReader,
     AcquisitionSpoolTelemetrySnapshot,
@@ -202,6 +203,7 @@ from industrial_phm.application.operations_overview import (
     build_operations_overview,
 )
 from industrial_phm.application.operations_v2 import (
+    CollectionServiceIssue,
     LiveFlowTiming,
     OperationsActivityItem,
     OperationsActivityKind,
@@ -212,6 +214,7 @@ from industrial_phm.application.operations_v2 import (
     OperationsMonitorStatus,
     OperationsMonitorView,
     build_operations_monitor_view,
+    collection_service_issue,
 )
 from industrial_phm.application.operations_v2_assets import (
     AssetWorkspaceAnalysis,
@@ -357,6 +360,7 @@ __all__ = [
     "AcquisitionFailureTelemetry",
     "AcquisitionFlowTelemetry",
     "AcquisitionHistoryTelemetry",
+    "AcquisitionLastReceiptTelemetry",
     "AcquisitionSessionTelemetry",
     "AcquisitionSpool",
     "AcquisitionSpoolBatch",
@@ -398,6 +402,7 @@ __all__ = [
     "CollectionControlRecord",
     "CollectionControlRepository",
     "CollectionDesiredState",
+    "CollectionServiceIssue",
     "CollectionServiceRuntimeRecorder",
     "CollectionServiceRuntimeRepository",
     "CollectionServiceRuntimeState",
@@ -565,6 +570,7 @@ __all__ = [
     "build_setup_workspace",
     "build_system_runtime_view",
     "collect_registered_opcua_source_subscription",
+    "collection_service_issue",
     "create_finding_review_event",
     "create_human_review_finding",
     "discover_file_source",

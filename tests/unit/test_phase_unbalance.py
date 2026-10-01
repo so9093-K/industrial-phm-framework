@@ -197,3 +197,40 @@ def test_channels_are_chosen_by_bound_meaning_not_source_names():
     assert analysis.evidence.config == PhaseUnbalanceConfig(
         voltage_channels=("Voltage_L1", "Voltage_L2", "Voltage_L3")
     )
+
+
+def test_summary_explains_a_series_without_a_complete_phase_set():
+    # Phase 10 soak: with one current phase absent, current showed 0 evaluated and
+    # no exclusion reason, so the operator could not tell why there was no result.
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_window_analysis_input import END, START, _event
+
+    from industrial_phm.application import ObservationWindowBuffer
+    from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
+    from industrial_phm.presentation.phase_unbalance import phase_unbalance_summary_rows
+
+    buffer = ObservationWindowBuffer(
+        window_id="missing-ic",
+        source_id="site-opcua",
+        asset_id="motor-7",
+        measurement_point_id="mcc-3",
+        expected_channel_ids=("va", "vb", "vc", "ia", "ib", "ic"),
+        window_start=START,
+        window_end=END,
+        max_buffered_events=16,
+        max_future_skew_seconds=5.0,
+    )
+    for index, channel in enumerate(("va", "vb", "vc", "ia", "ib")):
+        buffer.ingest(_event(channel, 10, 220.0 if channel[0] == "v" else 10.0, index))
+    buffer.advance_watermark(END)
+    rows = phase_unbalance_summary_rows(
+        run_phase_unbalance_on_window(buffer.finalize(finalized_at=END))
+    )
+
+    voltage, current = rows
+    assert voltage["note"] == ""
+    assert current["channel_selection"] == "unresolved"
+    assert current["note"].startswith("Not evaluated: no complete R/S/T channel set")

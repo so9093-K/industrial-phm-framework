@@ -7,7 +7,11 @@ import io
 from datetime import UTC, datetime
 
 from industrial_phm.application.analysis_input import WindowInputReference
-from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
+from industrial_phm.application.phase_unbalance import (
+    ChannelSelection,
+    PhaseUnbalanceAnalysis,
+    UnbalanceSeriesResult,
+)
 
 _QUANTITY_LABEL = {"voltage": "전압 (상전압 기준)", "current": "전류"}
 
@@ -51,11 +55,24 @@ def phase_unbalance_summary_rows(result: PhaseUnbalanceAnalysis) -> list[dict[st
             "max_at_utc": _utc(r.max_at),
             "channels": ", ".join(r.channels) or "none",
             "channel_selection": r.channel_selection.value,
+            "note": _series_note(r),
             "carried_values": r.carried_values,
             "max_carry_age_seconds": r.max_carry_age_seconds,
         }
         for r in result.evidence.results
     ]
+
+
+def _series_note(series: UnbalanceSeriesResult) -> str:
+    """Why a series has no evaluated timestamps, when the counts alone cannot say."""
+    if series.channel_selection == ChannelSelection.UNRESOLVED:
+        return (
+            "Not evaluated: no complete R/S/T channel set with this meaning was observed "
+            "in the input (a phase is missing or unbound)."
+        )
+    if series.evaluated_samples == 0 and not series.excluded_samples:
+        return "Not evaluated: the input has no timestamps for these channels."
+    return ""
 
 
 def phase_unbalance_exclusion_rows(result: PhaseUnbalanceAnalysis) -> list[dict[str, object]]:

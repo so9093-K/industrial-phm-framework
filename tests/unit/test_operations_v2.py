@@ -229,7 +229,14 @@ def test_monitor_handles_assets_with_and_without_data_time_without_comparing_non
     assert monitor.assets[1].last_data_at is None
 
 
-def _live_surface(source_id: str, *, last_received_at: datetime):
+def _live_surface(
+    source_id: str,
+    *,
+    last_received_at: datetime,
+    state=None,
+    state_changed_at: datetime | None = None,
+    failure=None,
+):
     from industrial_phm.application import (
         AcquisitionFlowTelemetry,
         AcquisitionSessionTelemetry,
@@ -240,18 +247,21 @@ def _live_surface(source_id: str, *, last_received_at: datetime):
     )
 
     started = NOW - timedelta(hours=1)
+    state = OpcUaPersistentSessionState.CONNECTED if state is None else state
+    connected = state == OpcUaPersistentSessionState.CONNECTED
     return AcquisitionTelemetrySurface(
         source=AcquisitionTelemetrySnapshot(
             source_id=source_id,
+            failure=failure,
             session=AcquisitionSessionTelemetry(
                 source_id=source_id,
                 worker_started_at=started,
-                state=OpcUaPersistentSessionState.CONNECTED,
-                state_changed_at=started,
+                state=state,
+                state_changed_at=state_changed_at or started,
                 connection_epoch=3,
-                reconnect_attempt_index=0,
+                reconnect_attempt_index=0 if connected else 2,
                 callback_queue_overflow_count=0,
-                connected_since=started,
+                connected_since=started if connected else None,
                 callback_queue_maxsize=128,
             ),
             flow=AcquisitionFlowTelemetry(
@@ -292,6 +302,7 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(silent,),
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
     )
 
@@ -307,6 +318,7 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
         overview=overview,
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(fresh,),
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
     )
     assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
@@ -318,7 +330,225 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
         attention=build_operations_attention_queue(overview=overview),
         acquisition_surfaces=(silent,),
         live_flow_silence_timeout=timedelta(minutes=20),
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
         as_of=NOW,
     )
     assert monitor.stages[0].status == OperationsMonitorStatus.RUNNING
     assert monitor.attention == ()
+
+
+def _collection_service(*, heartbeat_at: datetime, state=None):
+    from industrial_phm.application import (
+        CollectionServiceRuntimeState,
+        CollectionServiceRuntimeTelemetry,
+    )
+
+    return CollectionServiceRuntimeTelemetry(
+        state=CollectionServiceRuntimeState.RUNNING if state is None else state,
+        started_at=NOW - timedelta(hours=1),
+        heartbeat_at=heartbeat_at,
+        reconcile_count=100,
+        owned_source_count=1,
+    )
+
+
+def _monitor(source, overview, surface, **kwargs):
+    return build_operations_monitor_view(
+        sources=(source,),
+        overview=overview,
+        attention=build_operations_attention_queue(overview=overview),
+        acquisition_surfaces=(surface,),
+        as_of=NOW,
+        **kwargs,
+    )
+
+
+def test_stopped_collector_process_is_not_shown_as_a_connected_or_silent_source() -> None:
+    # Phase 10 soak: killing the collector left its last "CONNECTED" session report,
+    # and Monitor showed the same "No new data" as a silent source.
+    from industrial_phm.application import CollectionServiceRuntimeState
+
+    source, overview = _overview(observed_at=NOW - timedelta(seconds=5), max_age_seconds=3600)
+    last_report = _live_surface(source.source_id, last_received_at=NOW - timedelta(seconds=60))
+
+    monitor = _monitor(
+        source,
+        overview,
+        last_report,
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=60)),
+    )
+    sources, collect = monitor.stages[0], monitor.stages[1]
+    assert collect.status == OperationsMonitorStatus.ERROR
+    assert collect.summary == "Collection service heartbeat is 60s old"
+    assert sources.status == OperationsMonitorStatus.UNAVAILABLE
+    assert monitor.assets[0].status == OperationsMonitorStatus.UNAVAILABLE
+    assert [item.title for item in monitor.attention] == ["Collection service is not running"]
+
+    stopped = _monitor(
+        source,
+        overview,
+        last_report,
+        collection_service=_collection_service(
+            heartbeat_at=NOW - timedelta(seconds=60),
+            state=CollectionServiceRuntimeState.STOPPED,
+        ),
+    )
+    assert stopped.stages[1].status == OperationsMonitorStatus.STOPPED
+    assert [item.title for item in stopped.attention] == ["Collection service stopped"]
+
+    # With a current heartbeat the same session silence is the source's.
+    alive = _monitor(
+        source,
+        overview,
+        last_report,
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
+    )
+    assert alive.stages[1].status == OperationsMonitorStatus.RUNNING
+    assert [item.title for item in alive.attention] == ["No new data"]
+
+
+def test_reconnecting_session_is_shown_as_connection_loss_not_an_earlier_worker_error() -> None:
+    # Phase 10 soak: with the source server down, Collect showed an unrelated
+    # earlier worker exception, plus one-shot "waiting for data" attention.
+    from industrial_phm.application import (
+        AcquisitionFailureComponent,
+        AcquisitionFailureTelemetry,
+        OpcUaPersistentSessionState,
+    )
+
+    source, overview = _overview(observed_at=NOW - timedelta(hours=3), max_age_seconds=30)
+    failure = AcquisitionFailureTelemetry(
+        source_id=source.source_id,
+        component=AcquisitionFailureComponent.OPCUA_WORKER,
+        occurred_at=NOW - timedelta(minutes=3),
+        detail="RuntimeError: earlier worker failure",
+    )
+    reconnecting = _live_surface(
+        source.source_id,
+        last_received_at=NOW - timedelta(minutes=2),
+        state=OpcUaPersistentSessionState.RECONNECT_WAIT,
+        state_changed_at=NOW - timedelta(minutes=2),
+        failure=failure,
+    )
+
+    monitor = _monitor(
+        source,
+        overview,
+        reconnecting,
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
+    )
+    assert monitor.stages[1].status == OperationsMonitorStatus.DELAYED
+    assert monitor.stages[1].summary == "1 live source session(s) reconnecting"
+    assert monitor.stages[0].status == OperationsMonitorStatus.DELAYED
+    (attention,) = monitor.attention
+    assert attention.title == "Source connection lost"
+    assert "last data 2m ago" in attention.detail
+
+    # A worker that failed and did not report any later session state is an error.
+    wedged = _live_surface(
+        source.source_id,
+        last_received_at=NOW - timedelta(minutes=5),
+        state=OpcUaPersistentSessionState.CONNECTED,
+        state_changed_at=NOW - timedelta(minutes=10),
+        failure=failure,
+    )
+    monitor = _monitor(
+        source,
+        overview,
+        wedged,
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
+    )
+    assert monitor.stages[1].status == OperationsMonitorStatus.ERROR
+    assert [item.title for item in monitor.attention] == ["Collection needs attention"]
+
+
+def test_refused_connection_keeps_worker_error_and_last_receive_time() -> None:
+    # Phase 10 soak: with the source server down every new worker fails at once
+    # and stops; its fresh flow telemetry has no last-data time.
+    from dataclasses import replace
+
+    from industrial_phm.application import (
+        AcquisitionFailureComponent,
+        AcquisitionFailureTelemetry,
+        AcquisitionFlowTelemetry,
+        AcquisitionHistoryTelemetry,
+        AcquisitionLastReceiptTelemetry,
+        OpcUaPersistentSessionState,
+    )
+
+    source, overview = _overview(observed_at=NOW - timedelta(hours=3), max_age_seconds=30)
+    failure = AcquisitionFailureTelemetry(
+        source_id=source.source_id,
+        component=AcquisitionFailureComponent.OPCUA_WORKER,
+        occurred_at=NOW - timedelta(seconds=2),
+        detail="ConnectionRefusedError: [Errno 61] Connect call failed",
+    )
+    stopped = _live_surface(
+        source.source_id,
+        last_received_at=NOW - timedelta(minutes=5),
+        state=OpcUaPersistentSessionState.STOPPED,
+        state_changed_at=NOW - timedelta(seconds=1),
+        failure=failure,
+    )
+    received = NOW - timedelta(minutes=5)
+    committed = received + timedelta(seconds=2)
+    worker_started = NOW - timedelta(seconds=3)
+    stopped = replace(
+        stopped,
+        source=replace(
+            stopped.source,
+            flow=AcquisitionFlowTelemetry(
+                source_id=source.source_id,
+                worker_started_at=worker_started,
+                accepted_event_count=0,
+                replayed_event_count=0,
+                bad_status_event_count=0,
+                updated_at=worker_started,
+            ),
+            history=AcquisitionHistoryTelemetry(
+                source_id=source.source_id,
+                batch_id="batch-9",
+                snapshot_id=9,
+                batch_event_count=10,
+                source_event_count=10,
+                committed_at=committed,
+                acknowledged_at=committed,
+                recovered_existing_commit=False,
+            ),
+            last_receipt=AcquisitionLastReceiptTelemetry(
+                source_id=source.source_id,
+                received_at=received,
+                source_timestamp=received,
+                delivery_identity=(source.source_id, 8, 41),
+            ),
+        ),
+    )
+
+    monitor = _monitor(
+        source,
+        overview,
+        stopped,
+        collection_service=_collection_service(heartbeat_at=NOW - timedelta(seconds=1)),
+    )
+    assert monitor.stages[1].status == OperationsMonitorStatus.ERROR
+    assert monitor.stages[0].status == OperationsMonitorStatus.ERROR
+    (attention,) = monitor.attention
+    assert "ConnectionRefusedError" in attention.detail
+    # Receive clock from the earlier worker, not the history commit/ack clock.
+    assert monitor.assets[0].last_data_at == received
+
+
+def test_live_telemetry_without_any_collector_heartbeat_fails_closed() -> None:
+    # Upgrade, lost telemetry or a collector not started since instrumentation:
+    # an old CONNECTED report must not be shown as a current connection.
+    source, overview = _overview(observed_at=NOW - timedelta(seconds=5), max_age_seconds=3600)
+    last_report = _live_surface(source.source_id, last_received_at=NOW - timedelta(seconds=2))
+
+    monitor = _monitor(source, overview, last_report)
+
+    assert monitor.stages[1].status == OperationsMonitorStatus.UNAVAILABLE
+    assert monitor.stages[1].summary == "No collection-service heartbeat recorded"
+    assert monitor.stages[0].status == OperationsMonitorStatus.UNAVAILABLE
+    assert [item.title for item in monitor.attention] == [
+        "Collection service heartbeat unavailable"
+    ]

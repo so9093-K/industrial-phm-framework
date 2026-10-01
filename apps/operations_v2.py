@@ -49,6 +49,7 @@ def _():
         build_operations_overview,
         build_setup_workspace,
         build_system_runtime_view,
+        collection_service_issue,
         create_human_review_finding,
         discover_file_source,
         register_file_source,
@@ -197,6 +198,7 @@ def _():
         build_operations_overview,
         build_setup_workspace,
         build_system_runtime_view,
+        collection_service_issue,
         create_finding_review_event,
         create_human_review_finding,
         datetime,
@@ -304,6 +306,7 @@ def _(
     build_operations_attention_queue,
     build_operations_monitor_view,
     build_operations_overview,
+    collection_service_issue,
     datetime,
     os,
     refresh_button,
@@ -487,10 +490,16 @@ def _(
             _window_repository = SqliteObservationWindowRepository(window_state_path)
             _analysis_ledger = SqliteWindowAnalysisLedger(analysis_ledger_path)
             _skipped_attempts = []
+            _unresolved_windows = []
             for _outcome in _analysis_ledger.list_skipped():
                 if _outcome.reason is None:
                     raise ValueError(f"skipped window {_outcome.window_id} has no recorded reason")
-                _window = _window_repository.get(_outcome.window_id)
+                try:
+                    _window = _window_repository.get(_outcome.window_id)
+                except KeyError:
+                    # One skip whose window is no longer stored must not hide the rest.
+                    _unresolved_windows.append(_outcome.window_id)
+                    continue
                 _skipped_attempts.append(
                     AssetWorkspaceAnalysisAttempt(
                         asset_id=_window.asset_id,
@@ -503,6 +512,16 @@ def _(
                         recorded_at=_outcome.recorded_at,
                         window_id=_window.window_id,
                         reason=_outcome.reason,
+                    )
+                )
+            if _unresolved_windows:
+                system_errors.append(
+                    SystemStateErrorEvidence(
+                        "analysis-attempts",
+                        f"{len(_unresolved_windows)} skipped analysis attempt(s) reference "
+                        "windows that are no longer stored; their asset and range are "
+                        "unavailable",
+                        assessed_at,
                     )
                 )
             skipped_analysis_attempts = tuple(
@@ -560,9 +579,11 @@ def _(
     )
 
     acquisition_surfaces = []
+    collection_service = None
     if acquisition_telemetry_path.is_file() and acquisition_spool_path.is_file():
         try:
             telemetry_repository = SqliteAcquisitionTelemetryRepository(acquisition_telemetry_path)
+            collection_service = telemetry_repository.get_collection_service_runtime()
             spool_repository = SqliteAcquisitionSpool(
                 SqliteAcquisitionSpoolConfig(path=acquisition_spool_path)
             )
@@ -651,11 +672,19 @@ def _(
         acquisition_surfaces=tuple(acquisition_surfaces),
         analysis_runs=analysis_runs,
         analysis_runtime=analysis_runtime,
+        collection_service=collection_service,
         as_of=assessed_at,
     )
     live_flow_timing = LiveFlowTiming(
         max_silence=timedelta(seconds=30),
         as_of=assessed_at,
+        collection_service_down=collection_service_issue(
+            collection_service,
+            as_of=assessed_at,
+            timeout=timedelta(seconds=20),
+            live_telemetry=bool(acquisition_surfaces),
+        )
+        is not None,
     )
 
     system_diagnostics = (
@@ -681,6 +710,7 @@ def _(
         analysis_runtime,
         assessed_at,
         collection_control_path,
+        collection_service,
         collection_records,
         field_analysis_path,
         finding_path,
@@ -3045,6 +3075,7 @@ def _(
     analysis_runtime,
     assessed_at,
     build_system_runtime_view,
+    collection_service,
     monitor,
     registered_sources,
     system_errors,
@@ -3056,6 +3087,7 @@ def _(
         analysis_runtime=analysis_runtime,
         system_errors=tuple(system_errors),
         as_of=assessed_at,
+        collection_service=collection_service,
     )
     return (system_runtime,)
 

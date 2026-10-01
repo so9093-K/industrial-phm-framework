@@ -323,3 +323,96 @@ def test_collection_service_runtime_heartbeat_is_separate_and_restart_safe(tmp_p
     assert failed is not None
     assert failed.state == CollectionServiceRuntimeState.FAILED
     assert failed.last_failure == "RuntimeError: coordinator stopped"
+
+
+def test_incremental_window_cycles_accumulate_counts_and_keep_last_finalized(tmp_path):
+    # Phase 10 soak: incremental cycles report only new work, so System showed
+    # "0 finalized windows" and no latest input after dozens of analyzed windows.
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parents[1] / "unit"))
+    from test_window_analysis_input import END, START, _event
+
+    from industrial_phm.application import ObservationWindowBuffer
+
+    buffer = ObservationWindowBuffer(
+        window_id="w-1",
+        source_id="site-opcua",
+        asset_id="motor-7",
+        measurement_point_id="mcc-3",
+        expected_channel_ids=("va",),
+        window_start=START,
+        window_end=END,
+        max_buffered_events=4,
+        max_future_skew_seconds=5.0,
+    )
+    buffer.ingest(_event("va", 10, 220.0, 0))
+    buffer.advance_watermark(END)
+    window = buffer.finalize(finalized_at=END)
+
+    def cycle(finalized, events):
+        return ObservationWindowCoordinatorCycleResult(
+            source_id="site-opcua",
+            finalized_windows=finalized,
+            event_results=tuple(
+                ObservationWindowIngestResult(
+                    disposition=ObservationWindowEventDisposition.IN_ORDER,
+                    local_delivery_identity=("site-opcua", 1, index),
+                    event_at=START + timedelta(seconds=index),
+                    watermark_at_ingest=START,
+                )
+                for index in events
+            ),
+            watermark=END,
+            active_window_count=1,
+        )
+
+    telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "telemetry.sqlite")
+    telemetry.record_window_cycle(cycle((window,), (0, 1)), recorded_at=END)
+    telemetry.record_window_cycle(cycle((), (2,)), recorded_at=END + timedelta(seconds=1))
+    telemetry.record_window_cycle(cycle((), ()), recorded_at=END + timedelta(seconds=2))
+
+    recorded = telemetry.get("site-opcua").window
+    assert recorded.finalized_window_count == 1
+    assert recorded.historical_event_count == 3
+    assert recorded.in_order_count == 3
+    assert recorded.last_finalized_window_id == "w-1"
+    assert recorded.last_finalized_window_end == END
+
+
+def test_new_worker_keeps_the_previous_live_receive_time(tmp_path: Path) -> None:
+    # Phase 10 soak: while a source refused connections each new worker started with
+    # an empty flow, so "last received data" disappeared. The receive clock is kept;
+    # history commit times are not substituted for it.
+    repository = SqliteAcquisitionTelemetryRepository(tmp_path / "telemetry.sqlite")
+    repository.record_session_configuration("source-a", callback_queue_maxsize=16, recorded_at=BASE)
+    for state, seconds in (
+        (OpcUaPersistentSessionState.DISCONNECTED, 0),
+        (OpcUaPersistentSessionState.CONNECTING, 1),
+        (OpcUaPersistentSessionState.CONNECTED, 2),
+    ):
+        repository.record_session_evidence(_session(state, seconds=seconds, epoch=3))
+    event = SqliteAcquisitionSpool(
+        SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
+    ).accept_opcua_event(
+        _registered_event(event_index=0),
+        connection_epoch=3,
+        event_index=0,
+        accepted_at=BASE + timedelta(seconds=3),
+        event_time_policy=OpcUaEventTimePolicy(),
+    )
+    repository.record_opcua_event(event)
+    received = repository.get("source-a").flow.last_received_at
+    assert received is not None
+
+    # Two refused workers in a row: each restarts with an empty flow.
+    for seconds in (10, 20):
+        repository.record_session_evidence(
+            _session(OpcUaPersistentSessionState.DISCONNECTED, seconds=seconds, epoch=4)
+        )
+    snapshot = repository.get("source-a")
+    assert snapshot.flow.last_received_at is None
+    assert snapshot.last_receipt is not None
+    assert snapshot.last_receipt.received_at == received
+    assert snapshot.last_receipt.delivery_identity == ("source-a", 3, 0)
+    assert snapshot.last_received_at == received

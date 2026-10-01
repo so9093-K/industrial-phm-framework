@@ -11,6 +11,21 @@
 
 ### Fixed
 
+- Phase 10 AI-Hub replay soak/fault 검증에서 발견한 runtime 구분 문제를 고쳤습니다.
+  - collector process가 종료되면 Monitor가 마지막 세션 보고("connected")를 그대로 보여 source 무소식과
+    구분되지 않았습니다. Collection-service heartbeat(20초)·STOPPED·FAILED를 Collect 단계와 attention에
+    반영하고, 그동안 source 상태는 Unavailable로, System 세션 수는 "last report"로 표시합니다. live
+    telemetry가 있는데 heartbeat 기록이 아예 없으면(upgrade·유실·미기동) fail-closed로 Unavailable입니다.
+  - source server 중단 시 이전의 무관한 worker 예외와 one-shot "waiting for data"가 표시됐습니다. 재연결 중
+    세션은 "Source connection lost"로, 연결 거부로 멈춘 worker는 실제 연결 오류로 표시하고 live source에는
+    one-shot receipt attention을 띄우지 않습니다. 새 worker가 빈 flow로 시작해도 이전 worker의 마지막 수신
+    시각(receive clock)을 `last-receipt` telemetry로 유지하며, history commit 시각으로 대체하지 않습니다.
+  - skip ledger가 가리키는 window가 없으면 전체 skip 목록을 버리지 않고 그 항목만 제외하고 System에 기록합니다.
+  - incremental window coordinator 이후 System이 "Finalized windows 0"으로 보이던 window telemetry를
+    누적값·마지막 finalized window 유지로 고쳤습니다.
+  - 한 상이 빠져 series가 unresolved일 때 평가 0·제외 사유 없음으로만 보이던 결과에 이유를 표시하고,
+    window에 상 channel이 없어 skip될 때 binding 문제로만 안내하던 사유 문구를 바로잡았습니다.
+  - Monitor asset 표의 시각을 읽기 쉬운 UTC로 표시합니다.
 - Monitor·Assets가 OPC UA 세션이 연결되어 있기만 하면 source를 "receiving data"로 표시하던 문제를
   고쳤습니다. **관측 시각 freshness**와 별개인 live-flow silence threshold로 마지막 실제 수신 이후
   무소식 시간을 판단하고, collector-service heartbeat / OPC UA session / receive flow를 서로 다른

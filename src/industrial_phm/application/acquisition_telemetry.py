@@ -308,6 +308,28 @@ class AcquisitionFailureTelemetry:
 
 
 @dataclass(frozen=True, slots=True)
+class AcquisitionLastReceiptTelemetry:
+    """A source's latest live receipt from an earlier collector worker.
+
+    Flow telemetry restarts empty with every worker; this keeps the receive-clock
+    fact (``received_at``) across restarts without mixing in storage times.
+    """
+
+    source_id: str
+    received_at: datetime
+    source_timestamp: datetime | None
+    delivery_identity: tuple[str, int, int]
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.source_id, "source_id")
+        _validate_aware_datetime(self.received_at, "received_at")
+        if self.source_timestamp is not None:
+            _validate_aware_datetime(self.source_timestamp, "source_timestamp")
+        if self.delivery_identity[0] != self.source_id:
+            raise ValueError("delivery_identity must belong to source_id")
+
+
+@dataclass(frozen=True, slots=True)
 class AcquisitionTelemetrySnapshot:
     """Presenter-ready runtime facts without a synthetic healthy/unhealthy verdict."""
 
@@ -317,13 +339,21 @@ class AcquisitionTelemetrySnapshot:
     history: AcquisitionHistoryTelemetry | None = None
     window: AcquisitionWindowTelemetry | None = None
     failure: AcquisitionFailureTelemetry | None = None
+    last_receipt: AcquisitionLastReceiptTelemetry | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_id, "source_id")
-        for field_name in ("session", "flow", "history", "window", "failure"):
+        for field_name in ("session", "flow", "history", "window", "failure", "last_receipt"):
             value = getattr(self, field_name)
             if value is not None and value.source_id != self.source_id:
                 raise ValueError(f"{field_name} source_id must match snapshot source_id")
+
+    @property
+    def last_received_at(self) -> datetime | None:
+        """Latest live receipt time, from this worker's flow or an earlier worker."""
+        if self.flow is not None and self.flow.last_received_at is not None:
+            return self.flow.last_received_at
+        return None if self.last_receipt is None else self.last_receipt.received_at
 
 
 @dataclass(frozen=True, slots=True)
