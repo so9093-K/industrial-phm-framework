@@ -16,23 +16,28 @@ uv run --locked --extra history python -m tools.history.compaction_benchmark \
   --root artifacts/compaction-n0 \
   --commits 0 \
   --max-compacted-files 32 \
-  --max-file-size-bytes 1048576
+  --target-file-size-bytes 1048576 \
+  --max-file-size-bytes 262144
 
 uv run --locked --extra history python -m tools.history.compaction_benchmark \
   --root artifacts/compaction-n2000 \
   --commits 2000 \
   --max-compacted-files 32 \
-  --max-file-size-bytes 1048576
+  --target-file-size-bytes 1048576 \
+  --max-file-size-bytes 262144
 
 uv run --locked --extra history python -m tools.history.compaction_benchmark \
   --root artifacts/compaction-n10000 \
   --commits 10000 \
   --max-compacted-files 32 \
-  --max-file-size-bytes 1048576
+  --target-file-size-bytes 1048576 \
+  --max-file-size-bytes 262144
 ```
 
-The numeric file-size/work bounds above are experiment inputs, not production policy. Compare
-`compaction-benchmark.json` across runs before choosing any operational threshold.
+The numeric file-size/work bounds above are experiment inputs, not retention policy. The first
+profile is a tier-0 layout: files below 256 KiB are merged toward 1 MiB outputs. DuckLake persists
+`target_file_size`, so the selected target becomes a physical-layout setting for later writes and
+compactions. Compare `compaction-benchmark.json` across runs before choosing an operational profile.
 
 The report records:
 
