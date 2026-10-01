@@ -305,7 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-compacted-files",
         type=int,
         required=True,
-        help="maximum compaction output operations per table for this invocation",
+        help="maximum DuckLake compaction output operations per table; not an input-file limit",
     )
     operations_compact_history.add_argument(
         "--min-file-size-bytes",
