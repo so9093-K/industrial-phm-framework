@@ -647,8 +647,11 @@ class DuckLakeAssetHistory:
     ) -> DuckLakeCompactionResult:
         """Merge active adjacent Parquet files without expiring snapshots or deleting files.
 
-        max_compacted_files is required so maintenance has an explicit per-table
-        work bound. Size filters describe file eligibility, not a retention policy.
+        max_compacted_files follows DuckLake's provider contract: it limits the
+        number of compaction output operations produced per table, not the number
+        of input files merged into one output. Size filters describe file eligibility;
+        resource bounds are established by measured scale tests, not inferred from
+        this provider option.
         """
         _validate_positive_int(max_compacted_files, "max_compacted_files")
         _validate_optional_positive_int(min_file_size_bytes, "min_file_size_bytes")
