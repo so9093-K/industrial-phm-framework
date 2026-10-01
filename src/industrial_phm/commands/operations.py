@@ -13,7 +13,6 @@ from datetime import UTC, datetime, timedelta
 from industrial_phm.application import (
     AlignmentPolicyKind,
     CollectionDesiredState,
-    JsonPhaseUnbalanceRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
     JsonWindowAnalysisRuntimeRepository,
@@ -22,10 +21,12 @@ from industrial_phm.application import (
     SourcePollingPolicy,
     SourceRuntimeCycleState,
     SqliteObservationWindowRepository,
+    SqlitePhaseUnbalanceRepository,
     SqliteWindowAnalysisLedger,
     TemporalAlignmentPolicy,
     analyze_finalized_windows_incremental,
     backfill_registered_file_source,
+    migrate_json_phase_unbalance_results,
     poll_registered_source,
     request_collection_state,
     validate_distinct_source_state_paths,
@@ -161,6 +162,21 @@ def _run_operations_flush_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_operations_migrate_phase_unbalance_results(args: argparse.Namespace) -> int:
+    """Explicitly copy legacy JSON analysis evidence into the SQLite result store."""
+    try:
+        migrated = migrate_json_phase_unbalance_results(args.from_json, args.to_sqlite)
+    except (OSError, ValueError) as error:
+        print(f"phase unbalance result migration failed: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"verified_results={migrated} legacy_json={args.from_json} "
+        f"sqlite_state={args.to_sqlite}"
+    )
+    return 0
+
+
 def _run_operations_window_analysis(args: argparse.Namespace) -> int:
     """Analyze finalized live windows and publish independent runner runtime evidence."""
     runtime_path = args.runtime_status or args.analysis_state.with_name(
@@ -172,7 +188,7 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
         if args.interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
         windows = SqliteObservationWindowRepository(args.window_state)
-        results = JsonPhaseUnbalanceRepository(args.analysis_state)
+        results = SqlitePhaseUnbalanceRepository(args.analysis_state)
         ledger = SqliteWindowAnalysisLedger(args.ledger_state)
         config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
         while True:
