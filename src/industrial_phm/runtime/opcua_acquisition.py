@@ -283,9 +283,6 @@ async def run_registered_opcua_acquisition_worker(
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
-            if stop_task in done:
-                break
-
             if notification_task in done:
                 # A notification already dequeued is in application ownership: persist it
                 # before handling a connection-loss state or a queue overflow from the
@@ -339,6 +336,11 @@ async def run_registered_opcua_acquisition_worker(
                     if notification.replayed:
                         replayed_event_count += 1
                     next_event_index += 1
+
+            if stop_task in done:
+                # An explicit stop wins after persisting any notification already
+                # dequeued into application ownership in this wakeup.
+                break
 
             if overflow_task in done:
                 overflow = overflow_task.result()

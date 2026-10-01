@@ -483,3 +483,44 @@ def test_notification_ready_with_queue_overflow_is_persisted_before_the_worker_e
         assert spool.pending_event_count() == 1
 
     asyncio.run(_run())
+
+def test_notification_ready_with_stop_is_persisted_before_graceful_shutdown(
+    tmp_path: Path,
+) -> None:
+    # A notification already dequeued when stop is requested is application-owned
+    # and must be durable before the worker reports a graceful STOPPED state.
+    async def _run() -> None:
+        repository, source = _repositories(tmp_path)
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
+        sink = InMemoryOpcUaPersistentSessionEvidenceSink()
+        connector = _FakePersistentConnector()
+        stop_event = asyncio.Event()
+        worker = asyncio.create_task(
+            run_registered_opcua_acquisition_worker(
+                repository,
+                repository,
+                spool,
+                sink,
+                source.source_id,
+                stop_event=stop_event,
+                connector_factory=lambda _config: connector,
+            )
+        )
+        await connector.started.wait()
+        await _wait_until(
+            lambda: sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
+        )
+        # Make both conditions ready without yielding between them.
+        connector.notifications.put_nowait(_notification(channel_id="vibration_x", value=7.0))
+        stop_event.set()
+
+        result = await worker
+
+        assert result.accepted_event_count == 1
+        assert spool.pending_event_count() == 1
+        last = sink.list_session_evidence()[-1]
+        assert last.state == OpcUaPersistentSessionState.STOPPED
+        assert last.detail == "stop-requested"
+
+    asyncio.run(_run())
+
