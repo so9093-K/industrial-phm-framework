@@ -527,14 +527,8 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
     assert result.files_processed > result.files_created > 0
     assert result.storage_after.active_data_file_count < before.active_data_file_count
     # Merge-only compaction schedules replaced files but deliberately does not delete them.
-    assert (
-        result.storage_after.scheduled_for_deletion_count
-        > before.scheduled_for_deletion_count
-    )
-    assert (
-        result.storage_after.physical_parquet_file_count
-        >= before.physical_parquet_file_count
-    )
+    assert result.storage_after.scheduled_for_deletion_count > before.scheduled_for_deletion_count
+    assert result.storage_after.physical_parquet_file_count >= before.physical_parquet_file_count
 
     reopened = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
