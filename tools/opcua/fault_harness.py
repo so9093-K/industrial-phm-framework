@@ -1075,7 +1075,7 @@ def _prepare(root: Path, endpoint: str, args: argparse.Namespace) -> None:
     )
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True, help="empty directory for this run")
     parser.add_argument("--repeat", type=int, default=3, help="injections per scenario (N)")
@@ -1090,6 +1090,24 @@ def main() -> None:
         help="also open Monitor in Chromium (Playwright) for each UI state; required for 'full'",
     )
     parser.add_argument("--ui-port", type=int, default=27190)
+    parser.add_argument(
+        "--archive",
+        type=Path,
+        default=Path("data/raw/aihub/239/archives/training/raw/5.보일러.zip"),
+    )
+    parser.add_argument("--member", default="5.보일러/SourceData_211.json")
+    parser.add_argument(
+        "--binding", type=Path, default=Path("tools/opcua/presets/aihub-boiler-2297-replay.json")
+    )
+    parser.add_argument("--start", type=datetime.fromisoformat, default=datetime(2020, 11, 14, 6))
+    parser.add_argument(
+        "--end", type=datetime.fromisoformat, default=datetime(2020, 11, 14, 12, 30)
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
     if args.repeat < 1:
         parser.error("--repeat must be at least 1")
