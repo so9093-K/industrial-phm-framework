@@ -487,6 +487,111 @@ def test_flush_moves_inlined_rows_without_changing_snapshot_evidence(tmp_path, c
     assert history.current_snapshot_id() == flushed_snapshot
 
 
+def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, capsys):
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    commits = []
+    batches = []
+    for batch_index in range(8):
+        events = tuple(
+            _event(
+                channel_id=f"channel-{event_index % 3}",
+                event_at=BASE + timedelta(seconds=batch_index, milliseconds=event_index),
+                event_index=batch_index * 10 + event_index,
+            )
+            for event_index in range(3)
+        )
+        batches.append(events)
+        commits.append(history.append_opcua_batch(events, batch_id=f"compact-{batch_index}"))
+        history.flush_inlined_data()
+
+    runtime = history.runtime_fingerprint()
+    assert runtime.duckdb_version
+    assert runtime.ducklake_extension_version
+
+    before = history.inspect_storage()
+    assert before.active_data_file_count >= 8
+    snapshots = (commits[0].snapshot_id, commits[3].snapshot_id, commits[-1].snapshot_id)
+    fingerprints = {
+        snapshot_id: history.snapshot_evidence_fingerprint(snapshot_id)
+        for snapshot_id in snapshots
+    }
+
+    result = history.compact_adjacent_files(
+        max_compacted_files=32,
+        max_file_size_bytes=1024 * 1024,
+    )
+    assert result.snapshot_before == before.current_snapshot_id
+    assert result.snapshot_after >= result.snapshot_before
+    assert result.files_processed > result.files_created > 0
+    assert result.storage_after.active_data_file_count < before.active_data_file_count
+    # Merge-only compaction schedules replaced files but deliberately does not delete them.
+    assert (
+        result.storage_after.scheduled_for_deletion_count
+        > before.scheduled_for_deletion_count
+    )
+    assert (
+        result.storage_after.physical_parquet_file_count
+        >= before.physical_parquet_file_count
+    )
+
+    for snapshot_id, fingerprint in fingerprints.items():
+        assert history.snapshot_evidence_fingerprint(snapshot_id) == fingerprint
+
+    assert history.get_opcua_batch_commit(
+        batches[0], batch_id="compact-0"
+    ) == commits[0]
+    assert history.append_opcua_batch(
+        batches[0], batch_id="compact-0"
+    ) == commits[0]
+
+    next_event = _event(
+        channel_id="channel-next",
+        event_at=BASE + timedelta(minutes=1),
+        event_index=999,
+    )
+    next_commit = history.append_opcua_batch((next_event,), batch_id="after-compact")
+    assert next_commit.snapshot_id > result.snapshot_after
+    assert history.get_opcua_batch_commit(
+        (next_event,), batch_id="after-compact"
+    ) == next_commit
+
+    args = [
+        "operations",
+        "compact-history",
+        "--ducklake-catalog",
+        str(tmp_path / "catalog.sqlite"),
+        "--ducklake-data",
+        str(tmp_path / "data"),
+        "--max-compacted-files",
+        "32",
+        "--max-file-size-bytes",
+        str(1024 * 1024),
+    ]
+    assert main(args) == 0
+    output = capsys.readouterr().out
+    assert "duckdb=" in output
+    assert "snapshot_before=" in output
+    assert "scheduled_for_deletion_after=" in output
+
+
+def test_compaction_rejects_unbounded_or_invalid_limits(tmp_path):
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    with pytest.raises(ValueError, match="at least 1"):
+        history.compact_adjacent_files(max_compacted_files=0)
+    with pytest.raises(ValueError, match="less than"):
+        history.compact_adjacent_files(
+            max_compacted_files=1,
+            min_file_size_bytes=100,
+            max_file_size_bytes=100,
+        )
+
+
 def test_batch_insert_leaves_import_state_unchanged(tmp_path):
     import sys
 
