@@ -385,7 +385,7 @@ class Stack:
                 "--window-state",
                 str(r / "windows.sqlite"),
                 "--analysis-state",
-                str(r / "phase-unbalance.json"),
+                str(r / "phase-unbalance.sqlite"),
                 "--ledger-state",
                 str(r / "window-analysis-ledger.sqlite"),
                 "--interval-seconds",
@@ -520,7 +520,9 @@ class Stack:
                     r / "window-analysis-ledger.sqlite"
                 ),
                 "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE": str(r / "field-analysis.json"),
-                "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE": str(r / "phase-unbalance.json"),
+                "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE": str(
+                    r / "phase-unbalance.sqlite"
+                ),
                 "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE": str(r / "findings.json"),
                 "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE": str(
                     r / "finding-review.json"
@@ -900,7 +902,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
     )
     from industrial_phm.application.phase_unbalance import UnbalanceQuantity
     from industrial_phm.application.phase_unbalance_state import (
-        JsonPhaseUnbalanceRepository,
+        SqlitePhaseUnbalanceRepository,
         window_result_key,
     )
     from industrial_phm.application.window_analysis_ledger_sqlite import (
@@ -935,7 +937,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
         )
     ]
     connection.close()
-    results = JsonPhaseUnbalanceRepository(root / "phase-unbalance.json").list_results()
+    results = SqlitePhaseUnbalanceRepository(root / "phase-unbalance.sqlite").list_results()
     analyzed_keys = [key for key in (window_result_key(r) for r in results) if key is not None]
     skipped = SqliteWindowAnalysisLedger(root / "window-analysis-ledger.sqlite").list_skipped()
     skipped_keys = [outcome.key for outcome in skipped]
