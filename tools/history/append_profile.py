@@ -160,7 +160,7 @@ class _ProfileCursor:
 
 
 class _ProfileConnection:
-    def __init__(self, connection: Any, profile: "_SqlProfile") -> None:
+    def __init__(self, connection: Any, profile: _SqlProfile) -> None:
         self._connection = connection
         self._profile = profile
 
