@@ -315,7 +315,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--commits", type=int, required=True)
-    parser.add_argument("--events-per-commit", type=int, default=90)
+    parser.add_argument("--events-per-commit", type=int, default=35)
     parser.add_argument("--channels", type=int, default=35)
     parser.add_argument("--max-compacted-files", type=int, required=True)
     parser.add_argument("--max-file-size-bytes", type=int, required=True)
