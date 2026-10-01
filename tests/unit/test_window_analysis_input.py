@@ -462,6 +462,15 @@ def _peak_bytes_of_one_record(store: SqlitePhaseUnbalanceRepository, result) -> 
         tracemalloc.stop()
 
 
+def _peak_bytes_of_recent_query(store: SqlitePhaseUnbalanceRepository) -> tuple[int, int]:
+    tracemalloc.start()
+    try:
+        results = store.list_recent_results(5)
+        return tracemalloc.get_traced_memory()[1], len(results)
+    finally:
+        tracemalloc.stop()
+
+
 def test_recording_one_window_result_does_not_scale_with_stored_results(tmp_path, template_result):
     """N = 10 vs N = 2,000 stored results: one more record costs the same memory.
 
@@ -480,6 +489,49 @@ def test_recording_one_window_result_does_not_scale_with_stored_results(tmp_path
 
     assert large_peak < 2 * small_peak + 64 * 1024, (small_peak, large_peak)
     assert len(large.list_results()) == 2_001
+
+    small_query_peak, small_count = _peak_bytes_of_recent_query(small)
+    large_query_peak, large_count = _peak_bytes_of_recent_query(large)
+    assert (small_count, large_count) == (5, 5)
+    assert large_query_peak < 2 * small_query_peak + 64 * 1024, (
+        small_query_peak,
+        large_query_peak,
+    )
+
+
+def test_bounded_result_queries_filter_and_preserve_exact_review_lookup(tmp_path, template_result):
+    store = SqlitePhaseUnbalanceRepository(tmp_path / "bounded.sqlite")
+    expected = []
+    for index in range(8):
+        result = _result(template_result, index)
+        asset_id = "asset-b" if index % 2 else "asset-a"
+        reference = replace(result.evidence.input_reference, asset_id=asset_id)
+        result = replace(
+            result,
+            run=replace(result.run, asset_id=asset_id),
+            evidence=replace(result.evidence, input_reference=reference),
+        )
+        store.record_window_result(result)
+        expected.append(result)
+
+    assert store.count_results() == 8
+    assert [item.run.analysis_run_id for item in store.list_recent_results(3)] == [
+        "analysis-run-000007",
+        "analysis-run-000006",
+        "analysis-run-000005",
+    ]
+    assert [
+        item.run.analysis_run_id for item in store.list_recent_results(2, asset_id="asset-b")
+    ] == ["analysis-run-000007", "analysis-run-000005"]
+    assert (
+        len(store.list_recent_results(2, capability_id=template_result.evidence.capability_id)) == 2
+    )
+    exact = store.find_results(
+        ["analysis-run-000007", "missing-run", "analysis-run-000001", "analysis-run-000007"]
+    )
+    assert exact == (expected[1], expected[7])
+    with pytest.raises(ValueError, match="positive integer"):
+        store.list_recent_results(0)
 
 
 def test_store_keeps_run_identity_window_once_and_order(tmp_path, template_result):

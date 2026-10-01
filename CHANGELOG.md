@@ -80,6 +80,7 @@
 
 ### Changed
 
+- Operations V2의 3상 분석 결과 조회를 누적 결과 전체 로드에서 최근 500건 bounded query로 바꿨습니다. 사람의 review가 참조하는 과거 AnalysisRun은 limit 밖이어도 exact lookup으로 다시 합쳐 Investigation/Maintenance evidence를 유지하며, 결과 저장·retention에는 영향을 주지 않습니다.
 - Operations V2 **Phase 10 pre-soak hardening**을 완료했습니다. AI-Hub 239 recorded power를
   local OPC UA로 replay하는 개발 도구를 추가하고, first publish 전 node는
   `BadWaitingForInitialData`로 유지해 원본에 없는 Good 0.0 observation을 만들지 않습니다.
