@@ -9,8 +9,8 @@ import pytest
 
 from industrial_phm.application import (
     JsonOperationalFindingRepository,
-    JsonPhaseUnbalanceRepository,
     ObservationWindowBuffer,
+    SqlitePhaseUnbalanceRepository,
     create_human_review_finding,
 )
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
@@ -44,7 +44,7 @@ def _analysis():
 def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     analysis = _analysis()
-    JsonPhaseUnbalanceRepository(tmp_path / "phase-unbalance.json").record(analysis)
+    SqlitePhaseUnbalanceRepository(tmp_path / "phase-unbalance.sqlite").record(analysis)
     JsonOperationalFindingRepository(tmp_path / "findings.json").record(
         create_human_review_finding(analysis)
     )
@@ -55,7 +55,7 @@ def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, mo
         ("ACQUISITION_SPOOL", "spool.sqlite"),
         ("COLLECTION_CONTROL", "control.sqlite"),
         ("ANALYSIS_STATE", "field-analysis.json"),
-        ("PHASE_UNBALANCE_STATE", "phase-unbalance.json"),
+        ("PHASE_UNBALANCE_STATE", "phase-unbalance.sqlite"),
         ("FINDING_STATE", "findings.json"),
         ("MAINTENANCE_REVIEW_STATE", "finding-review.json"),
     ):
