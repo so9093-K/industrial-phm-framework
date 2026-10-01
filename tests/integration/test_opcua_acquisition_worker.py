@@ -524,4 +524,3 @@ def test_notification_ready_with_stop_is_persisted_before_graceful_shutdown(
         assert last.detail == "stop-requested"
 
     asyncio.run(_run())
-
