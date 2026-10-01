@@ -51,9 +51,10 @@ v1은 다음을 주장하지 않습니다.
 | Scenario | Executable evidence | Expected claim |
 | --- | --- | --- |
 | normal real OPC UA collection | `tests/contract/test_opcua_persistent_runtime.py::test_persistent_worker_collects_real_asyncua_datachange_to_durable_spool` | real asyncua DataChange가 durable spool까지 도달 |
-| disconnect → reconnect | `tests/integration/test_opcua_acquisition_worker.py::test_worker_persists_events_across_reconnect_epochs_and_preserves_replay` | reconnect 후 epoch 증가, lifecycle ACTIVE 유지 |
-| replay evidence | same test | replay flag 보존, 새 factual delivery로 저장 |
-| callback overflow | `test_worker_records_queue_overflow_before_reconnect` | overflow evidence 기록, gap-free claim 없음 |
+| connection lost | `tests/integration/test_opcua_acquisition_worker.py::test_worker_ends_on_connection_loss_after_persisting_earlier_events` | 상실 전 event 보존, worker 종료 후 fresh session(ADR-0010), lifecycle ACTIVE 유지 |
+| callback overflow | `test_worker_ends_with_explicit_overflow_so_a_fresh_session_restarts`, `tests/contract/test_opcua_persistent_runtime.py::test_queue_overflow_ends_the_worker_instead_of_wedging_the_client` | overflow evidence 기록 후 명시적 종료, client wedge 없음, gap-free claim 없음 |
+| failed worker restart | `tests/integration/test_collection_control.py::test_collection_service_restarts_failed_workers_with_backoff` | 1·2·4…30초 backoff 재시작 |
+| concurrent spool reads | `tests/integration/test_acquisition_spool.py::test_backlog_reads_stay_consistent_while_events_are_accepted` | backlog 통계가 동시 accept와 섞이지 않음 |
 | duplicate local retry | `tests/integration/test_acquisition_spool.py::test_duplicate_local_delivery_is_idempotent_but_conflict_is_rejected` | identical retry idempotent, conflicting payload fail-fast |
 | spool capacity | `test_spool_capacity_is_bounded_without_rejecting_idempotent_retry` | capacity 초과는 explicit failure, 기존 durable row 유지 |
 | collector restart | `test_worker_process_restart_reserves_new_connection_epoch` | durable epoch baseline 복구, identity reuse 방지 |

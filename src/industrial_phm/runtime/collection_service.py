@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from math import isfinite
 from numbers import Real
+from pathlib import Path
 
 from industrial_phm.application.acquisition_spool import AcquisitionSpool
 from industrial_phm.application.acquisition_telemetry import (
@@ -40,6 +42,10 @@ from industrial_phm.application.window_coordinator import (
 from industrial_phm.runtime.history_writer import run_spool_to_history_writer
 from industrial_phm.runtime.opcua_acquisition import (
     run_registered_opcua_acquisition_worker,
+)
+from industrial_phm.runtime.pipeline_metrics import (
+    PipelineMetrics,
+    run_pipeline_metrics_reporter,
 )
 from industrial_phm.runtime.window_coordinator import (
     run_continuous_registered_opcua_observation_windows,
@@ -95,6 +101,15 @@ class _OwnedSourceRuntime:
     stop_event: asyncio.Event
     worker_task: asyncio.Task[object]
     window_task: asyncio.Task[object]
+    started_monotonic: float = 0.0
+
+
+# A worker that ends on an error (connection lost/refused, queue overflow) is
+# restarted with a fresh session after 1, 2, 4 ... up to 30 s; one that ran for a
+# minute before ending restarts after the first step again.
+_RESTART_BACKOFF_INITIAL_SECONDS = 1.0
+_RESTART_BACKOFF_MAX_SECONDS = 30.0
+_RESTART_BACKOFF_RESET_SECONDS = 60.0
 
 
 async def run_collection_service(
@@ -111,6 +126,8 @@ async def run_collection_service(
     telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     service_runtime_recorder: CollectionServiceRuntimeRecorder | None = None,
     policy: CollectionServicePolicy | None = None,
+    metrics: PipelineMetrics | None = None,
+    metrics_path: Path | None = None,
 ) -> CollectionServiceResult:
     """Reconcile durable desired state into independently owned runtime tasks."""
     if not isinstance(stop_event, asyncio.Event):
@@ -131,6 +148,8 @@ async def run_collection_service(
     source_restart_count = 0
     owned: dict[str, _OwnedSourceRuntime] = {}
     previously_started: set[str] = set()
+    consecutive_failures: dict[str, int] = {}
+    restart_not_before: dict[str, float] = {}
 
     writer_stop = asyncio.Event()
     writer_task = asyncio.create_task(
@@ -140,6 +159,15 @@ async def run_collection_service(
             stop_event=writer_stop,
             policy=effective_policy.history_writer_policy,
             telemetry_recorder=telemetry_recorder,
+            metrics=metrics,
+        )
+    )
+    metrics_stop = asyncio.Event()
+    metrics_task = (
+        None
+        if metrics is None or metrics_path is None
+        else asyncio.create_task(
+            run_pipeline_metrics_reporter(metrics, metrics_path, stop_event=metrics_stop)
         )
     )
 
@@ -168,6 +196,7 @@ async def run_collection_service(
                 source_id,
                 stop_event=source_stop,
                 telemetry_recorder=telemetry_recorder,
+                metrics=metrics,
             )
         )
         window_task = asyncio.create_task(
@@ -179,12 +208,14 @@ async def run_collection_service(
                 stop_event=source_stop,
                 policy=effective_policy.window_policy,
                 telemetry_recorder=telemetry_recorder,
+                metrics=metrics,
             )
         )
         owned[source_id] = _OwnedSourceRuntime(
             stop_event=source_stop,
             worker_task=worker_task,
             window_task=window_task,
+            started_monotonic=time.monotonic(),
         )
         source_start_count += 1
         if source_id in previously_started:
@@ -201,7 +232,24 @@ async def run_collection_service(
                 if runtime.worker_task.done() or runtime.window_task.done()
             )
             for source_id in completed_ids:
+                runtime = owned[source_id]
+                ran_for = time.monotonic() - runtime.started_monotonic
+                failed = (
+                    runtime.worker_task.done()
+                    and not runtime.worker_task.cancelled()
+                    and runtime.worker_task.exception() is not None
+                )
                 await _stop_source(source_id)
+                if not failed:
+                    continue
+                if ran_for >= _RESTART_BACKOFF_RESET_SECONDS:
+                    consecutive_failures[source_id] = 0
+                consecutive_failures[source_id] = consecutive_failures.get(source_id, 0) + 1
+                delay = min(
+                    _RESTART_BACKOFF_INITIAL_SECONDS * 2.0 ** (consecutive_failures[source_id] - 1),
+                    _RESTART_BACKOFF_MAX_SECONDS,
+                )
+                restart_not_before[source_id] = time.monotonic() + delay
 
             records = {record.source_id: record for record in control_repository.list_records()}
             sources = {source.source_id: source for source in source_repository.list_sources()}
@@ -225,7 +273,11 @@ async def run_collection_service(
                     await _stop_source(source_id)
 
             for source_id in sorted(should_run):
-                if source_id not in owned and source_id not in completed_ids:
+                if (
+                    source_id not in owned
+                    and source_id not in completed_ids
+                    and time.monotonic() >= restart_not_before.get(source_id, 0.0)
+                ):
                     _start_source(source_id)
 
             if writer_task.done():
@@ -235,12 +287,15 @@ async def run_collection_service(
                 raise RuntimeError("history writer stopped while collection service is running")
 
             if service_runtime_recorder is not None:
+                heartbeat_started = time.monotonic()
                 _record_service_runtime_best_effort(
                     service_runtime_recorder.record_collection_service_heartbeat,
                     heartbeat_at=datetime.now(UTC),
                     reconcile_count=reconcile_count,
                     owned_source_count=len(owned),
                 )
+                if metrics is not None:
+                    metrics.observe("heartbeat_in_loop", time.monotonic() - heartbeat_started)
 
             with suppress(TimeoutError):
                 await asyncio.wait_for(
@@ -259,7 +314,12 @@ async def run_collection_service(
         for source_id in tuple(owned):
             await _stop_source(source_id)
         writer_stop.set()
-        await asyncio.gather(writer_task, return_exceptions=True)
+        metrics_stop.set()
+        await asyncio.gather(
+            writer_task,
+            *(() if metrics_task is None else (metrics_task,)),
+            return_exceptions=True,
+        )
 
     stopped_at = datetime.now(UTC)
     if service_runtime_recorder is not None:

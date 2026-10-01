@@ -288,3 +288,47 @@ def test_connection_epoch_reservation_persists_across_spool_restart(tmp_path: Pa
 
     assert restarted.get_last_connection_epoch("source-a") == 2
     assert restarted.get_last_connection_epoch("other-source") == 0
+
+
+def test_backlog_reads_stay_consistent_while_events_are_accepted(tmp_path: Path) -> None:
+    # Phase 10 E3: after a 20 s collector stall the writer read "0 pending" and then an
+    # oldest_accepted_at from a just-committed event, and the invariant check stopped
+    # the whole collection service. Stats are now read in one transaction.
+    import threading
+
+    config = SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite")
+    writer = SqliteAcquisitionSpool(config)
+    reader = SqliteAcquisitionSpool(config)
+    writer.pending_event_count()  # create schema
+    stop = threading.Event()
+    errors: list[Exception] = []
+
+    def _read() -> None:
+        while not stop.is_set():
+            try:
+                reader.pending_unassigned_stats()
+                reader.telemetry_snapshot(sampled_at=BASE + timedelta(days=1))
+            except Exception as error:
+                errors.append(error)
+                return
+
+    thread = threading.Thread(target=_read)
+    thread.start()
+    try:
+        for index in range(300):
+            writer.accept_opcua_event(
+                _registered_event(collection_index=index),
+                connection_epoch=1,
+                event_index=index,
+                accepted_at=BASE + timedelta(seconds=2 + index),
+            )
+            if index % 50 == 49:
+                batch = writer.assign_next_batch(
+                    batch_id=f"batch-{index}", max_events=50, created_at=BASE
+                )
+                assert batch is not None
+                writer.acknowledge_batch(batch.batch_id, acknowledged_at=BASE)
+    finally:
+        stop.set()
+        thread.join()
+    assert errors == []

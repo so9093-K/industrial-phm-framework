@@ -225,3 +225,81 @@ def test_collection_service_owns_runtime_tasks_outside_control_request(
         assert result.source_restart_count == 1
 
     asyncio.run(_run())
+
+
+def test_collection_service_restarts_failed_workers_with_backoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A worker ends on connection loss/refusal or queue overflow; the service starts
+    # a fresh session, backing off while the source keeps failing.
+    import time
+    from itertools import pairwise
+
+    import industrial_phm.runtime.collection_service as service_module
+
+    async def _run() -> None:
+        source_repository = _repository(tmp_path / "sources.json")
+        transition_source_lifecycle(
+            source_repository,
+            "source-a",
+            SourceLifecycleState.ACTIVE,
+            changed_at=BASE + timedelta(seconds=1),
+        )
+        control = SqliteCollectionControlRepository(tmp_path / "collection-control.sqlite")
+        request_collection_state(
+            source_repository,
+            source_repository,
+            control,
+            "source-a",
+            CollectionDesiredState.RUNNING,
+            requested_at=BASE + timedelta(seconds=2),
+        )
+        starts: list[float] = []
+
+        async def _failing_worker(*args, **kwargs):
+            del args, kwargs
+            starts.append(time.monotonic())
+            raise RuntimeError("connection refused")
+
+        async def _idle(*args, **kwargs):
+            del args
+            await kwargs["stop_event"].wait()
+
+        monkeypatch.setattr(
+            service_module, "run_registered_opcua_acquisition_worker", _failing_worker
+        )
+        monkeypatch.setattr(
+            service_module, "run_continuous_registered_opcua_observation_windows", _idle
+        )
+        monkeypatch.setattr(service_module, "run_spool_to_history_writer", _idle)
+        monkeypatch.setattr(service_module, "_RESTART_BACKOFF_INITIAL_SECONDS", 0.05)
+        stop = asyncio.Event()
+        service = asyncio.create_task(
+            run_collection_service(
+                source_repository,
+                source_repository,
+                control,
+                object(),
+                object(),
+                object(),
+                object(),
+                object(),
+                stop_event=stop,
+                policy=CollectionServicePolicy(reconcile_interval_seconds=0.005),
+            )
+        )
+        for _ in range(2000):
+            if len(starts) >= 4:
+                break
+            await asyncio.sleep(0.005)
+        stop.set()
+        await service
+
+        gaps = [later - earlier for earlier, later in pairwise(starts)]
+        assert len(starts) >= 4
+        assert gaps[0] >= 0.05
+        assert gaps[1] >= 0.1
+        assert gaps[2] >= 0.2
+
+    asyncio.run(_run())

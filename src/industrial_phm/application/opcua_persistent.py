@@ -33,7 +33,9 @@ class OpcUaPersistentSessionPolicy:
     """Runtime policy for reconnect timing and bounded connector callback buffering."""
 
     publishing_interval_ms: float = 500.0
-    queue_maxsize: int = 128
+    # Phase 10: one 30 s source stall released 1,173 queued notifications at once;
+    # 4096 holds about two minutes of every channel changing at 35 channels x 1 Hz.
+    queue_maxsize: int = 4096
     reconnect_initial_delay_seconds: float = 1.0
     reconnect_max_delay_seconds: float = 30.0
     reconnect_backoff_multiplier: float = 2.0

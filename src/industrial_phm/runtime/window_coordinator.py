@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
@@ -37,6 +38,7 @@ from industrial_phm.application.window_coordinator import (
     OpcUaHistoricalEventCursor,
     OpcUaHistoricalEventReader,
 )
+from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
 NowFunction = Callable[[], datetime]
 _LOGGER = logging.getLogger(__name__)
@@ -453,6 +455,7 @@ async def run_continuous_registered_opcua_observation_windows(
     policy: ObservationWindowCoordinatorPolicy | None = None,
     telemetry_recorder: AcquisitionTelemetryRecorder | None = None,
     now_fn: NowFunction = lambda: datetime.now(UTC),
+    metrics: PipelineMetrics | None = None,
 ) -> ContinuousObservationWindowCoordinatorResult:
     """Process only newly durable events and persist exact restart state each cycle."""
     if not isinstance(stop_event, asyncio.Event):
@@ -478,7 +481,11 @@ async def run_continuous_registered_opcua_observation_windows(
 
     while not stop_event.is_set():
         try:
+            cycle_started = time.monotonic()
             cycle = await asyncio.to_thread(coordinator.run_cycle)
+            if metrics is not None:
+                metrics.observe("window_cycle", time.monotonic() - cycle_started)
+                metrics.count("window_cycle_events", cycle.historical_event_count)
             cycle_count += 1
             if (
                 last_watermark is not None
@@ -490,6 +497,7 @@ async def run_continuous_registered_opcua_observation_windows(
                 last_watermark = cycle.watermark
             if telemetry_recorder is not None:
                 recorded_at = _now(now_fn)
+                telemetry_started = time.monotonic()
                 _record_telemetry_best_effort(
                     partial(
                         telemetry_recorder.record_window_cycle,
@@ -498,6 +506,10 @@ async def run_continuous_registered_opcua_observation_windows(
                     ),
                     label="window cycle",
                 )
+                if metrics is not None:
+                    metrics.observe(
+                        "telemetry_window_in_loop", time.monotonic() - telemetry_started
+                    )
         except Exception as error:
             if telemetry_recorder is not None:
                 occurred_at = _now(now_fn)

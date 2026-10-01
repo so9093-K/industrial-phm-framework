@@ -361,6 +361,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     operations_collection_service.set_defaults(handler=_run_operations_collection_service)
 
+    operations_collection_service.add_argument(
+        "--pipeline-metrics",
+        type=Path,
+        help=(
+            "opt-in diagnostics: append per-10s JSON lines of queue depth, arrival/dequeue "
+            "lag, spool/telemetry/commit latency and event-loop lag to this path"
+        ),
+    )
     operations_window_analysis = operations_commands.add_parser(
         "run-window-analysis",
         help="analyze each finalized live observation window once (three-phase unbalance)",

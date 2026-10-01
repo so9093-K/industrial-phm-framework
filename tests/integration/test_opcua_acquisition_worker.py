@@ -26,6 +26,8 @@ from industrial_phm.connectors import (
     OpcUaSubscriptionNotification,
 )
 from industrial_phm.runtime import (
+    OpcUaSessionLostError,
+    OpcUaSubscriptionOverflowError,
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
@@ -149,16 +151,19 @@ async def _wait_until(predicate, *, timeout: float = 2.0) -> None:
         await asyncio.sleep(0.001)
 
 
-def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
+def test_worker_ends_on_connection_loss_after_persisting_earlier_events(
     tmp_path: Path,
 ) -> None:
+    # Phase 10: asyncua 2.0.1's in-client reconnect, after a long source stall,
+    # reactivated the old session but dropped its subscription data. The worker
+    # ends instead; the collection service starts a fresh session (new epoch, see
+    # test_worker_process_restart_reserves_new_connection_epoch).
     async def _run() -> None:
         repository, source = _repositories(tmp_path)
         spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         telemetry = SqliteAcquisitionTelemetryRepository(tmp_path / "acquisition-telemetry.sqlite")
         connector = _FakePersistentConnector()
-        stop_event = asyncio.Event()
 
         worker = asyncio.create_task(
             run_registered_opcua_acquisition_worker(
@@ -167,7 +172,7 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
                 spool,
                 sink,
                 source.source_id,
-                stop_event=stop_event,
+                stop_event=asyncio.Event(),
                 connector_factory=lambda _config: connector,
                 telemetry_recorder=telemetry,
             )
@@ -178,107 +183,36 @@ def test_worker_persists_events_across_reconnect_epochs_and_preserves_replay(
         await connector.notifications.put(_notification(channel_id="vibration_x", value=1.0))
         await _wait_until(lambda: spool.pending_event_count() == 1)
 
-        now = sink.list_session_evidence()[-1].changed_at
+        lost_at = sink.list_session_evidence()[-1].changed_at + timedelta(seconds=1)
         await connector.states.put(
-            OpcUaConnectorStateEvent(
-                OpcUaConnectorConnectionState.RECONNECTING,
-                now,
-            )
+            OpcUaConnectorStateEvent(OpcUaConnectorConnectionState.RECONNECTING, lost_at)
         )
-        await connector.states.put(
-            OpcUaConnectorStateEvent(
-                OpcUaConnectorConnectionState.CONNECTING,
-                now,
-            )
-        )
-        await connector.states.put(
-            OpcUaConnectorStateEvent(
-                OpcUaConnectorConnectionState.CONNECTED,
-                now,
-            )
-        )
-        await _wait_until(
-            lambda: (
-                sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
-                and sink.list_session_evidence()[-1].connection_epoch == 2
-            )
-        )
+        with pytest.raises(OpcUaSessionLostError, match="new session"):
+            await worker
 
-        await connector.notifications.put(
-            _notification(channel_id="temperature", value=80.0, replayed=True)
-        )
-        await _wait_until(lambda: spool.pending_event_count() == 2)
-
-        stop_event.set()
-        result = await worker
-
-        assert result.accepted_event_count == 2
-        assert result.replayed_event_count == 1
-        assert result.queue_overflow_count == 0
         assert connector.closed is True
         assert repository.get_lifecycle(source.source_id).state == SourceLifecycleState.ACTIVE
-
         evidence = sink.list_session_evidence()
         assert [item.state for item in evidence] == [
             OpcUaPersistentSessionState.DISCONNECTED,
             OpcUaPersistentSessionState.CONNECTING,
             OpcUaPersistentSessionState.CONNECTED,
             OpcUaPersistentSessionState.RECONNECT_WAIT,
-            OpcUaPersistentSessionState.CONNECTING,
-            OpcUaPersistentSessionState.CONNECTED,
             OpcUaPersistentSessionState.STOPPED,
         ]
-        assert [item.connection_epoch for item in evidence] == [0, 0, 1, 1, 1, 2, 2]
-        assert [item.reconnect_attempt_index for item in evidence] == [
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-        ]
-
-        batch = spool.assign_next_batch(
-            batch_id="inspect",
-            max_events=10,
-            created_at=datetime.now(UTC),
-        )
-        assert batch is not None
-        assert [event.local_delivery_identity for event in batch.events] == [
-            ("opcua-source", 1, 0),
-            ("opcua-source", 2, 0),
-        ]
-        assert batch.events[1].event.notification.replayed is True
-        bindings = [event.event.semantic_binding for event in batch.events]
-        assert all(binding is not None for binding in bindings)
-        assert [binding.channel_id for binding in bindings if binding is not None] == [
-            "vibration_x",
-            "temperature",
-        ]
-        assert {binding.version for binding in bindings if binding is not None} == {
-            "site-a-semantics-v1"
-        }
-
-        runtime = telemetry.get(source.source_id)
-        assert runtime.session is not None
-        assert runtime.session.state == OpcUaPersistentSessionState.STOPPED
-        assert runtime.session.callback_queue_maxsize == 128
-        assert runtime.flow is not None
-        assert runtime.flow.accepted_event_count == 2
-        assert runtime.flow.replayed_event_count == 1
-        assert runtime.flow.last_delivery_identity == ("opcua-source", 2, 0)
-
-    asyncio.run(_run())
+        assert [item.connection_epoch for item in evidence] == [0, 0, 1, 1, 1]
+        assert evidence[-1].detail == "worker-error:OpcUaSessionLostError"
+        assert telemetry.get(source.source_id).failure.detail.startswith("OpcUaSessionLostError")
 
 
-def test_worker_records_queue_overflow_before_reconnect(tmp_path: Path) -> None:
+def test_worker_ends_with_explicit_overflow_so_a_fresh_session_restarts(tmp_path: Path) -> None:
+    # Phase 10: after a burst overflowed the queue, asyncua's in-client reconnect
+    # stayed disconnected indefinitely. The worker now ends explicitly instead.
     async def _run() -> None:
         repository, source = _repositories(tmp_path)
         spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(tmp_path / "spool.sqlite"))
         sink = InMemoryOpcUaPersistentSessionEvidenceSink()
         connector = _FakePersistentConnector()
-        stop_event = asyncio.Event()
 
         worker = asyncio.create_task(
             run_registered_opcua_acquisition_worker(
@@ -287,54 +221,22 @@ def test_worker_records_queue_overflow_before_reconnect(tmp_path: Path) -> None:
                 spool,
                 sink,
                 source.source_id,
-                stop_event=stop_event,
+                stop_event=asyncio.Event(),
                 connector_factory=lambda _config: connector,
             )
         )
         await connector.started.wait()
         await _wait_until(
-            lambda: (
-                sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
-                and sink.list_session_evidence()[-1].connection_epoch == 1
-            )
+            lambda: sink.list_session_evidence()[-1].state == OpcUaPersistentSessionState.CONNECTED
         )
-
         now = sink.list_session_evidence()[-1].changed_at
         await connector.overflows.put(OpcUaConnectorQueueOverflow(now))
-        await connector.states.put(
-            OpcUaConnectorStateEvent(
-                OpcUaConnectorConnectionState.RECONNECTING,
-                now,
-            )
-        )
-        await connector.states.put(
-            OpcUaConnectorStateEvent(
-                OpcUaConnectorConnectionState.CONNECTING,
-                now,
-            )
-        )
-        await connector.states.put(
-            OpcUaConnectorStateEvent(
-                OpcUaConnectorConnectionState.CONNECTED,
-                now,
-            )
-        )
-        await _wait_until(
-            lambda: any(
-                item.state == OpcUaPersistentSessionState.CONNECTED and item.connection_epoch == 2
-                for item in sink.list_session_evidence()
-            )
-        )
-        stop_event.set()
-        result = await worker
 
-        assert result.queue_overflow_count == 1
-        reconnect_wait = next(
-            item
-            for item in sink.list_session_evidence()
-            if item.state == OpcUaPersistentSessionState.RECONNECT_WAIT
-        )
-        assert reconnect_wait.detail == "subscription-queue-overflow"
+        with pytest.raises(OpcUaSubscriptionOverflowError, match="notifications were dropped"):
+            await worker
+        last = sink.list_session_evidence()[-1]
+        assert last.state == OpcUaPersistentSessionState.STOPPED
+        assert last.detail == "worker-error:OpcUaSubscriptionOverflowError"
 
     asyncio.run(_run())
 
