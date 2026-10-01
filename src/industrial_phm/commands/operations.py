@@ -170,10 +170,7 @@ def _run_operations_migrate_phase_unbalance_results(args: argparse.Namespace) ->
         print(f"phase unbalance result migration failed: {error}", file=sys.stderr)
         return 1
 
-    print(
-        f"verified_results={migrated} legacy_json={args.from_json} "
-        f"sqlite_state={args.to_sqlite}"
-    )
+    print(f"verified_results={migrated} legacy_json={args.from_json} sqlite_state={args.to_sqlite}")
     return 0
 
 
