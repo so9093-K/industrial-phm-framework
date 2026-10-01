@@ -122,9 +122,20 @@ median·max 그래프, 제외 사유, 입력·버전·설정 근거(snapshot ID,
 의미가 확정되지 않은 channel(예: metadata v1/v2 적재, semantics 예외 member, semantic binding이 없는
 OPC UA source)과 정지 구간은 제외 사유로만 표시됩니다. 서술적 측정값이며 고장·건강·alarm 판정이 아닙니다.
 
-결과는 기본 `artifacts/operations/phase-unbalance.json`(`industrial-phm-phase-unbalance-v1`)에 run 단위로
-저장되며 `INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE`로 바꿀 수 있습니다. **분석 기록**에서 이전 run을
-다시 볼 수 있습니다. 별도 `run-window-analysis` process가 같은 파일에 기록한 결과는 Asset Detail이나
+결과는 기본 `artifacts/operations/phase-unbalance.sqlite`에 run마다 한 row로 저장되며(이전 결과를 다시 읽거나
+다시 쓰지 않음) `INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE`로 바꿀 수 있습니다. **분석 기록**에서 이전 run을
+다시 볼 수 있습니다.
+
+이전 기본 경로 `artifacts/operations/phase-unbalance.json`에 결과가 있으면 원본을 덮어쓰지 않고 명시적으로
+이관합니다. 같은 명령을 다시 실행해도 동일한 run/evidence는 그대로 검증되며 충돌은 실패합니다.
+
+```bash
+uv run --locked industrial-phm operations migrate-phase-unbalance-results \
+  --from-json artifacts/operations/phase-unbalance.json \
+  --to-sqlite artifacts/operations/phase-unbalance.sqlite
+```
+
+기본 SQLite가 아직 없고 legacy JSON만 남아 있으면 Operations System에 migration 필요 상태를 표시합니다. 별도 `run-window-analysis` process가 같은 파일에 기록한 결과는 Asset Detail이나
 Investigation의 **Refresh analysis results**로 앱 재시작 없이 다시 읽습니다. 자동 polling은 하지 않으며 선택 중인
 분석은 refresh 후에도 유지됩니다. 읽기에 실패하면 마지막 성공 읽기 결과를 그대로 두고 실패를 별도로 표시합니다.
 Operations는 runner process를 시작·중지하지 않습니다. Asset Detail·Overview의 Analysis runs와 Investigation은 FILE 특징 분석과 3상 불평형을
