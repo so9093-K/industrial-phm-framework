@@ -65,12 +65,11 @@ def _event(commit_index: int, event_index: int, *, channels: int) -> OpcUaPersis
     )
 
 
-def _batch(commit_index: int, *, events_per_commit: int, channels: int) -> tuple[
-    OpcUaPersistentDataChangeEvent, ...
-]:
+def _batch(
+    commit_index: int, *, events_per_commit: int, channels: int
+) -> tuple[OpcUaPersistentDataChangeEvent, ...]:
     return tuple(
-        _event(commit_index, index, channels=channels)
-        for index in range(events_per_commit)
+        _event(commit_index, index, channels=channels) for index in range(events_per_commit)
     )
 
 
@@ -94,7 +93,7 @@ def _git_sha() -> str:
             capture_output=True,
             text=True,
         )
-    except (OSError, subprocess.CalledProcessError):
+    except OSError, subprocess.CalledProcessError:
         return "unknown"
     return result.stdout.strip() or "unknown"
 
