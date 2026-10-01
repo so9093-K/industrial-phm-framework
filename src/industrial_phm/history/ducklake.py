@@ -144,6 +144,7 @@ class DuckLakeCompactionResult:
     snapshot_before: int
     snapshot_after: int
     duration_seconds: float
+    target_file_size_bytes: int
     tables: tuple[DuckLakeCompactedTable, ...]
     storage_before: DuckLakeStorageInspection
     storage_after: DuckLakeStorageInspection
@@ -661,6 +662,7 @@ class DuckLakeAssetHistory:
         self,
         *,
         max_compacted_files: int,
+        target_file_size_bytes: int,
         min_file_size_bytes: int | None = None,
         max_file_size_bytes: int | None = None,
     ) -> DuckLakeCompactionResult:
@@ -668,11 +670,12 @@ class DuckLakeAssetHistory:
 
         max_compacted_files follows DuckLake's provider contract: it limits the
         number of compaction output operations produced per table, not the number
-        of input files merged into one output. Size filters describe file eligibility;
-        resource bounds are established by measured scale tests, not inferred from
-        this provider option.
+        of input files merged into one output. target_file_size_bytes is an explicit,
+        persistent physical-layout policy for future writes/compactions, not a
+        retention policy. Resource bounds are established by measured scale tests.
         """
         _validate_positive_int(max_compacted_files, "max_compacted_files")
+        _validate_positive_int(target_file_size_bytes, "target_file_size_bytes")
         _validate_optional_positive_int(min_file_size_bytes, "min_file_size_bytes")
         _validate_optional_positive_int(max_file_size_bytes, "max_file_size_bytes")
         if (
@@ -685,6 +688,11 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
+            connection.execute(
+                f"CALL {_CATALOG_NAME}.set_option('target_file_size', "
+                + _quote_sql_literal(f"{target_file_size_bytes}B")
+                + ")"
+            )
             storage_before = self._inspect_storage_with_connection(connection)
             snapshot_before = storage_before.current_snapshot_id
             options = [f"max_compacted_files => {max_compacted_files}"]
@@ -714,6 +722,7 @@ class DuckLakeAssetHistory:
             snapshot_before=snapshot_before,
             snapshot_after=storage_after.current_snapshot_id,
             duration_seconds=duration_seconds,
+            target_file_size_bytes=target_file_size_bytes,
             tables=tables,
             storage_before=storage_before,
             storage_after=storage_after,
