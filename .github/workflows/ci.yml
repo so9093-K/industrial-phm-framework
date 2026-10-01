@@ -121,3 +121,58 @@ jobs:
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'
 
+
+
+  history-append-metadata-profile:
+    name: History append metadata profile (N=10000)
+    if: github.event_name == 'pull_request' && github.head_ref == 'perf/history-append-scaling'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync history runtime
+        run: uv sync --locked --extra history
+
+      - name: Run metadata-only append profile
+        run: |
+          uv run --locked --extra history python -m tools.history.append_profile \
+            --root artifacts/append-profile-metadata-n10000 \
+            --commits 10000 \
+            --events-per-commit 35 \
+            --channels 35 \
+            --metadata-only
+
+      - name: Summarize metadata profile
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path("artifacts/append-profile-metadata-n10000/append-profile.json").read_text()
+          )
+          print(json.dumps({
+              "n": report["workload"]["commit_count"],
+              "metadata_only": report["workload"]["metadata_only"],
+              "preload_seconds": report["preload_seconds"],
+              "active_files": report["storage_before_probe"]["active_data_file_count"],
+              "snapshots": report["storage_before_probe"]["snapshot_count"],
+              "catalog_bytes": report["storage_before_probe"]["catalog_bytes"],
+              "unique": report["unique_before_compaction"],
+              "retry": report["retry_before_compaction"],
+          }, sort_keys=True))
+          PY
