@@ -187,13 +187,22 @@ def run_benchmark(
     first_commit: HistoricalBatchCommit | None = None
 
     preload_started = time.perf_counter()
-    for index in range(commit_count):
-        batch = _batch(index, events_per_commit=events_per_commit, channels=channels)
-        commit = history.append_opcua_batch(batch, batch_id=f"benchmark-{index:06d}")
-        if first_commit is None:
-            first_commit = commit
-        if index in {0, commit_count // 2, commit_count - 1}:
-            selected_commits[index] = commit
+    connection = history._connect()
+    try:
+        history._ensure_initialized(connection)
+        for index in range(commit_count):
+            batch = _batch(index, events_per_commit=events_per_commit, channels=channels)
+            commit = history._append_opcua_batch_with_connection(
+                connection,
+                batch,
+                batch_id=f"benchmark-{index:06d}",
+            )
+            if first_commit is None:
+                first_commit = commit
+            if index in {0, commit_count // 2, commit_count - 1}:
+                selected_commits[index] = commit
+    finally:
+        connection.close()
     history.flush_inlined_data()
     preload_seconds = time.perf_counter() - preload_started
 
