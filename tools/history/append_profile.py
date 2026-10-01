@@ -90,6 +90,63 @@ def _process_memory() -> dict[str, int | None]:
     }
 
 
+def _sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _prepare_metadata_only_state(
+    history: DuckLakeAssetHistory,
+    *,
+    commit_count: int,
+) -> float:
+    """Create batch/snapshot metadata without replaying full raw/history payloads."""
+    started = time.perf_counter()
+    connection = history._connect()
+    try:
+        history._ensure_initialized(connection)
+        for index in range(commit_count):
+            batch_id = f"metadata-{index:06d}"
+            extra_info = json.dumps(
+                {
+                    "schema": "industrial-phm-history-batch-v1",
+                    "batch_id": batch_id,
+                    "ingestion_mode": "live",
+                    "event_count": 1,
+                    "fingerprint": f"metadata-{index:06d}",
+                    "fingerprint_version": "opcua-semantic-v2",
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            connection.execute("BEGIN TRANSACTION")
+            try:
+                connection.execute(
+                    """
+                    INSERT INTO phm_history.history.ingestion_batch
+                        (batch_id, ingestion_mode, event_count)
+                    VALUES (?, ?, ?)
+                    """,
+                    [batch_id, "live", 1],
+                )
+                connection.execute(
+                    "CALL phm_history.set_commit_message("
+                    + _sql_literal("industrial-phm")
+                    + ", "
+                    + _sql_literal(f"metadata profile {batch_id}")
+                    + ", extra_info => "
+                    + _sql_literal(extra_info)
+                    + ")"
+                )
+                connection.execute("COMMIT")
+            except Exception:
+                connection.execute("ROLLBACK")
+                raise
+    finally:
+        connection.close()
+    return time.perf_counter() - started
+
+
 def _git_sha() -> str:
     try:
         result = subprocess.run(
@@ -249,6 +306,7 @@ def run_profile(
     commit_count: int,
     events_per_commit: int,
     channels: int,
+    metadata_only: bool = False,
 ) -> dict[str, object]:
     if commit_count < 0:
         raise ValueError("commit_count must not be negative")
@@ -262,19 +320,25 @@ def run_profile(
     preload = DuckLakeAssetHistory(config)
     runtime = preload.runtime_fingerprint()
 
-    started = time.perf_counter()
-    connection = preload._connect()
-    try:
-        preload._ensure_initialized(connection)
-        for index in range(commit_count):
-            preload._append_opcua_batch_with_connection(
-                connection,
-                _batch(index, events_per_commit=events_per_commit, channels=channels),
-                batch_id=f"profile-{index:06d}",
-            )
-    finally:
-        connection.close()
-    preload_seconds = time.perf_counter() - started
+    if metadata_only:
+        preload_seconds = _prepare_metadata_only_state(
+            preload,
+            commit_count=commit_count,
+        )
+    else:
+        started = time.perf_counter()
+        connection = preload._connect()
+        try:
+            preload._ensure_initialized(connection)
+            for index in range(commit_count):
+                preload._append_opcua_batch_with_connection(
+                    connection,
+                    _batch(index, events_per_commit=events_per_commit, channels=channels),
+                    batch_id=f"profile-{index:06d}",
+                )
+        finally:
+            connection.close()
+        preload_seconds = time.perf_counter() - started
 
     before_storage = preload.inspect_storage()
     profiling = _ProfilingHistory(config)
@@ -293,25 +357,34 @@ def run_profile(
         batch_id="probe-unique-before",
     )
 
-    compaction = preload.compact_adjacent_files(
-        max_compacted_files=32,
-        target_file_size_bytes=1024 * 1024,
-        max_file_size_bytes=256 * 1024,
-    )
+    compaction_report: dict[str, object] | None = None
+    unique_after: dict[str, object] | None = None
+    retry_after: dict[str, object] | None = None
+    if not metadata_only:
+        compaction = preload.compact_adjacent_files(
+            max_compacted_files=32,
+            target_file_size_bytes=1024 * 1024,
+            max_file_size_bytes=256 * 1024,
+        )
+        compaction_report = {
+            "files_processed": compaction.files_processed,
+            "files_created": compaction.files_created,
+            "active_files_after": compaction.storage_after.active_data_file_count,
+        }
 
-    unique_after_events = _batch(
-        commit_count + 1, events_per_commit=events_per_commit, channels=channels
-    )
-    unique_after = _measure_append(
-        profiling,
-        unique_after_events,
-        batch_id="probe-unique-after",
-    )
-    retry_after = _measure_append(
-        profiling,
-        unique_after_events,
-        batch_id="probe-unique-after",
-    )
+        unique_after_events = _batch(
+            commit_count + 1, events_per_commit=events_per_commit, channels=channels
+        )
+        unique_after = _measure_append(
+            profiling,
+            unique_after_events,
+            batch_id="probe-unique-after",
+        )
+        retry_after = _measure_append(
+            profiling,
+            unique_after_events,
+            batch_id="probe-unique-after",
+        )
 
     return {
         "schema": "industrial-phm-history-append-profile-v1",
@@ -327,6 +400,7 @@ def run_profile(
             "commit_count": commit_count,
             "events_per_commit": events_per_commit,
             "channels": channels,
+            "metadata_only": metadata_only,
         },
         "preload_seconds": preload_seconds,
         "storage_before_probe": {
@@ -336,11 +410,7 @@ def run_profile(
         },
         "unique_before_compaction": unique_before,
         "retry_before_compaction": retry_before,
-        "compaction": {
-            "files_processed": compaction.files_processed,
-            "files_created": compaction.files_created,
-            "active_files_after": compaction.storage_after.active_data_file_count,
-        },
+        "compaction": compaction_report,
         "unique_after_compaction": unique_after,
         "retry_after_compaction": retry_after,
     }
@@ -352,6 +422,11 @@ def main() -> None:
     parser.add_argument("--commits", type=int, required=True)
     parser.add_argument("--events-per-commit", type=int, default=35)
     parser.add_argument("--channels", type=int, default=35)
+    parser.add_argument(
+        "--metadata-only",
+        action="store_true",
+        help="preload only batch/snapshot metadata to isolate catalog scaling",
+    )
     args = parser.parse_args()
 
     try:
@@ -360,6 +435,7 @@ def main() -> None:
             commit_count=args.commits,
             events_per_commit=args.events_per_commit,
             channels=args.channels,
+            metadata_only=args.metadata_only,
         )
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
         parser.exit(1, f"error: {error}\n")
