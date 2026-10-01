@@ -537,13 +537,16 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
         >= before.physical_parquet_file_count
     )
 
+    reopened = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
     for snapshot_id, fingerprint in fingerprints.items():
-        assert history.snapshot_evidence_fingerprint(snapshot_id) == fingerprint
+        assert reopened.snapshot_evidence_fingerprint(snapshot_id) == fingerprint
 
-    assert history.get_opcua_batch_commit(
+    assert reopened.get_opcua_batch_commit(
         batches[0], batch_id="compact-0"
     ) == commits[0]
-    assert history.append_opcua_batch(
+    assert reopened.append_opcua_batch(
         batches[0], batch_id="compact-0"
     ) == commits[0]
 
@@ -552,9 +555,9 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
         event_at=BASE + timedelta(minutes=1),
         event_index=999,
     )
-    next_commit = history.append_opcua_batch((next_event,), batch_id="after-compact")
+    next_commit = reopened.append_opcua_batch((next_event,), batch_id="after-compact")
     assert next_commit.snapshot_id > result.snapshot_after
-    assert history.get_opcua_batch_commit(
+    assert reopened.get_opcua_batch_commit(
         (next_event,), batch_id="after-compact"
     ) == next_commit
 
@@ -575,6 +578,28 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
     assert "duckdb=" in output
     assert "snapshot_before=" in output
     assert "scheduled_for_deletion_after=" in output
+
+
+def test_compaction_uses_same_catalog_lease_and_times_out_explicitly(tmp_path):
+    filelock = pytest.importorskip("filelock")
+    _require_duckdb()
+    catalog = tmp_path / "catalog.sqlite"
+    data = tmp_path / "data"
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(
+            catalog,
+            data,
+            catalog_lock_timeout_seconds=0.01,
+        )
+    )
+    history.initialize()
+    external_lock = filelock.FileLock(str(catalog) + ".phm.lock")
+    external_lock.acquire()
+    try:
+        with pytest.raises(TimeoutError, match="timed out waiting for local history catalog"):
+            history.compact_adjacent_files(max_compacted_files=1)
+    finally:
+        external_lock.release()
 
 
 def test_compaction_rejects_unbounded_or_invalid_limits(tmp_path):
