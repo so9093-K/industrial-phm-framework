@@ -277,121 +277,140 @@ class DuckLakeAssetHistory:
         ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
     ) -> HistoricalBatchCommit:
         """Atomically persist a batch or recover its already committed identical write."""
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            return self._append_opcua_batch_with_connection(
+                connection,
+                events,
+                batch_id=batch_id,
+                ingestion_mode=ingestion_mode,
+            )
+        finally:
+            connection.close()
+
+    def _append_opcua_batch_with_connection(
+        self,
+        connection: Any,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchCommit:
+        """Persist one batch using an already leased/initialized connection.
+
+        This is an internal reuse point for deterministic scale-test state preparation.
+        Public callers use append_opcua_batch(), which owns the catalog lease per call.
+        """
         batch = _validate_opcua_batch_input(
             events,
             batch_id=batch_id,
             ingestion_mode=ingestion_mode,
         )
         fingerprint = _opcua_batch_fingerprint(batch)
+        existing = self._lookup_existing_batch_commit(
+            connection,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+            event_count=len(batch),
+            fingerprint=fingerprint,
+            fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
+            legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
+        )
+        if existing is not None:
+            # A legacy commit is recovered as stored: its raw rows keep no semantic
+            # snapshot and are never backfilled with the current binding.
+            return existing
+        self._reject_existing_deliveries(connection, batch)
 
-        connection = self._connect()
+        transaction_open = False
         try:
-            self._ensure_initialized(connection)
-            existing = self._lookup_existing_batch_commit(
+            connection.execute("BEGIN TRANSACTION")
+            transaction_open = True
+            connection.execute(
+                f"""
+                INSERT INTO {_CATALOG_NAME}.history.ingestion_batch
+                    (batch_id, ingestion_mode, event_count)
+                VALUES (?, ?, ?)
+                """,
+                [batch_id, ingestion_mode.value, len(batch)],
+            )
+            _insert_columns(
                 connection,
+                "raw.opcua_data_change",
+                _OPCUA_RAW_COLUMNS,
+                [
+                    _raw_event_row(
+                        event,
+                        batch_id=batch_id,
+                        ingestion_mode=ingestion_mode,
+                    )
+                    for event in batch
+                ],
+            )
+            _insert_columns(
+                connection,
+                "history.measurement",
+                _MEASUREMENT_COLUMNS,
+                [
+                    _measurement_row(
+                        event,
+                        batch_id=batch_id,
+                        ingestion_mode=ingestion_mode,
+                    )
+                    for event in batch
+                ],
+            )
+            commit_extra_info = _batch_commit_extra_info(
                 batch_id=batch_id,
                 ingestion_mode=ingestion_mode,
                 event_count=len(batch),
                 fingerprint=fingerprint,
                 fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
-                legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
             )
-            if existing is not None:
-                # A legacy commit is recovered as stored: its raw rows keep no semantic
-                # snapshot and are never backfilled with the current binding.
-                return existing
-            self._reject_existing_deliveries(connection, batch)
-
+            connection.execute(
+                f"CALL {_CATALOG_NAME}.set_commit_message("
+                + _quote_sql_literal(_COMMIT_AUTHOR)
+                + ", "
+                + _quote_sql_literal(f"ingestion batch {batch_id}")
+                + ", extra_info => "
+                + _quote_sql_literal(commit_extra_info)
+                + ")"
+            )
+            connection.execute("COMMIT")
             transaction_open = False
-            try:
-                connection.execute("BEGIN TRANSACTION")
-                transaction_open = True
-                connection.execute(
-                    f"""
-                    INSERT INTO {_CATALOG_NAME}.history.ingestion_batch
-                        (batch_id, ingestion_mode, event_count)
-                    VALUES (?, ?, ?)
-                    """,
-                    [batch_id, ingestion_mode.value, len(batch)],
-                )
-                _insert_columns(
-                    connection,
-                    "raw.opcua_data_change",
-                    _OPCUA_RAW_COLUMNS,
-                    [
-                        _raw_event_row(
-                            event,
-                            batch_id=batch_id,
-                            ingestion_mode=ingestion_mode,
-                        )
-                        for event in batch
-                    ],
-                )
-                _insert_columns(
-                    connection,
-                    "history.measurement",
-                    _MEASUREMENT_COLUMNS,
-                    [
-                        _measurement_row(
-                            event,
-                            batch_id=batch_id,
-                            ingestion_mode=ingestion_mode,
-                        )
-                        for event in batch
-                    ],
-                )
-                commit_extra_info = _batch_commit_extra_info(
-                    batch_id=batch_id,
-                    ingestion_mode=ingestion_mode,
-                    event_count=len(batch),
-                    fingerprint=fingerprint,
-                    fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
-                )
-                connection.execute(
-                    f"CALL {_CATALOG_NAME}.set_commit_message("
-                    + _quote_sql_literal(_COMMIT_AUTHOR)
-                    + ", "
-                    + _quote_sql_literal(f"ingestion batch {batch_id}")
-                    + ", extra_info => "
-                    + _quote_sql_literal(commit_extra_info)
-                    + ")"
-                )
-                connection.execute("COMMIT")
-                transaction_open = False
-            except Exception:
-                if transaction_open:
-                    connection.execute("ROLLBACK")
-                raise
+        except Exception:
+            if transaction_open:
+                connection.execute("ROLLBACK")
+            raise
 
-            snapshot_row = connection.execute(
-                f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
-            ).fetchone()
-            if snapshot_row is None or snapshot_row[0] is None:
-                raise RuntimeError("DuckLake did not report the committed batch snapshot")
-            snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
+        snapshot_row = connection.execute(
+            f"SELECT id FROM {_CATALOG_NAME}.last_committed_snapshot()"
+        ).fetchone()
+        if snapshot_row is None or snapshot_row[0] is None:
+            raise RuntimeError("DuckLake did not report the committed batch snapshot")
+        snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
 
-            time_row = connection.execute(
-                f"""
-                SELECT snapshot_time
-                FROM {_CATALOG_NAME}.snapshots()
-                WHERE snapshot_id = ?
-                """,
-                [snapshot_id],
-            ).fetchone()
-            if time_row is None:
-                raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
-            committed_at = time_row[0]
-            if not isinstance(committed_at, datetime) or committed_at.utcoffset() is None:
-                raise RuntimeError("DuckLake snapshot_time must be timezone-aware")
+        time_row = connection.execute(
+            f"""
+            SELECT snapshot_time
+            FROM {_CATALOG_NAME}.snapshots()
+            WHERE snapshot_id = ?
+            """,
+            [snapshot_id],
+        ).fetchone()
+        if time_row is None:
+            raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
+        committed_at = time_row[0]
+        if not isinstance(committed_at, datetime) or committed_at.utcoffset() is None:
+            raise RuntimeError("DuckLake snapshot_time must be timezone-aware")
 
-            return HistoricalBatchCommit(
-                batch_id=batch_id,
-                snapshot_id=snapshot_id,
-                event_count=len(batch),
-                committed_at=committed_at,
-            )
-        finally:
-            connection.close()
+        return HistoricalBatchCommit(
+            batch_id=batch_id,
+            snapshot_id=snapshot_id,
+            event_count=len(batch),
+            committed_at=committed_at,
+        )
 
     def get_file_batch_commit(
         self,
