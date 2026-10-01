@@ -57,8 +57,12 @@ jobs:
                   (Path(f"artifacts/compaction-n{n}") / "compaction-benchmark.json").read_text()
               )
               at_n = report["storage_at_n"]
+              memory_at_n = report["process_memory_at_n"]
               compact = report["compaction"]
+              before = compact["storage_before"]
               after = compact["storage_after"]
+              memory_before = report["process_memory_before_compaction"]
+              memory_after = report["process_memory_after_compaction"]
               append_before = report["append_before_compaction"]
               append_after = report["append_after_compaction"]
               aggregate_before = report["query_before_compaction"].get("aggregate")
@@ -67,7 +71,8 @@ jobs:
                   json.dumps(
                       {
                           "n": n,
-                          "active_files_before": at_n["active_data_file_count"],
+                          "active_files_at_n": at_n["active_data_file_count"],
+                          "active_files_pre_compaction": before["active_data_file_count"],
                           "active_files_after": after["active_data_file_count"],
                           "scheduled_after": after["scheduled_for_deletion_count"],
                           "physical_files_after": after["physical_parquet_file_count"],
@@ -75,6 +80,10 @@ jobs:
                           "append_after_seconds": append_after["seconds"],
                           "append_before_peak": append_before["python_peak_bytes"],
                           "append_after_peak": append_after["python_peak_bytes"],
+                          "rss_at_n": memory_at_n["rss_bytes"],
+                          "rss_pre_compaction": memory_before["rss_bytes"],
+                          "rss_after_compaction": memory_after["rss_bytes"],
+                          "rss_hwm_after_compaction": memory_after["high_watermark_bytes"],
                           "aggregate_before_seconds": (
                               None if aggregate_before is None else aggregate_before["seconds"]
                           ),
