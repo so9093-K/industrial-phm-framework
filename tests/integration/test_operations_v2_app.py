@@ -97,7 +97,7 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
     template = _analysis()
     result_store = SqlitePhaseUnbalanceRepository(tmp_path / "phase-unbalance.sqlite")
     oldest = None
-    for index in range(501):
+    for index in range(502):
         result = _distinct_analysis(template, index)
         result_store.record(result)
         if index == 0:
@@ -128,7 +128,7 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
     loaded_ids = {item.run.analysis_run_id for item in defs["analysis_results"]}
     assert "bounded-run-0000" in loaded_ids
     assert "bounded-run-0001" not in loaded_ids
-    assert "bounded-run-0500" in loaded_ids
+    assert "bounded-run-0501" in loaded_ids
     queue_run_ids = {item.analysis_run_id for item in defs["investigation_queue"].items}
     assert "bounded-run-0000" in queue_run_ids
 
