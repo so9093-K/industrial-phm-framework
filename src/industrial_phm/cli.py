@@ -302,6 +302,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="DuckLake managed Parquet data directory",
     )
     operations_compact_history.add_argument(
+        "--target-file-size-bytes",
+        type=int,
+        required=True,
+        help="persistent DuckLake target_file_size for compaction outputs and future writes",
+    )
+    operations_compact_history.add_argument(
         "--max-compacted-files",
         type=int,
         required=True,
