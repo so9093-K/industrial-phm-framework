@@ -158,12 +158,14 @@ jobs:
               requirement.name == "marimo" and active_for_operations(requirement)
               for requirement in requirements
           ), requirements
-          assert any(
-              requirement.name == "industrial-phm-framework"
-              and requirement.extras == {"history", "opcua"}
-              and active_for_operations(requirement)
+          operations_names = {
+              requirement.name
               for requirement in requirements
-          ), requirements
+              if active_for_operations(requirement)
+          }
+          assert {"marimo", "asyncua", "duckdb", "filelock", "pytz"} <= operations_names, (
+              operations_names
+          )
           PY
 
       - name: Verify packaged license
