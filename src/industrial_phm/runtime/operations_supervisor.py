@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 try:
     import fcntl
@@ -435,7 +435,7 @@ def _supervisor_stop_signal() -> Iterator[Callable[[], bool]]:
         yield lambda: False
         return
 
-    previous_handlers: dict[signal.Signals, signal.Handlers] = {}
+    previous_handlers: dict[signal.Signals, Any] = {}
 
     def request_stop(_signum: int, _frame: object) -> None:
         nonlocal requested
