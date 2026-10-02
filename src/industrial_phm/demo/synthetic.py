@@ -7,8 +7,6 @@ import asyncio
 import importlib
 import math
 import signal
-import socket
-import subprocess
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -16,7 +14,6 @@ from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol
 from urllib.parse import urlparse
 
 from industrial_phm.application import (
@@ -44,6 +41,13 @@ from industrial_phm.runtime import (
     run_operations_supervisor,
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
+from industrial_phm.demo.process import (
+    DemoChildProcess,
+    launch_logged_process,
+    stop_demo_child,
+    wait_for_loopback_listener,
+)
+from industrial_phm.demo.workspace import require_unclaimed_demo_workspace
 
 SYNTHETIC_DEMO_ASSET_ID = "demo-motor-01"
 SYNTHETIC_DEMO_SOURCE_ID = "demo-3phase-opcua"
@@ -56,20 +60,6 @@ SYNTHETIC_DEMO_CHANNELS = {
     "Current_L3": ("phase current", "T", "A"),
 }
 _DEFAULT_ENDPOINT_PATH = "/phm-demo/"
-
-
-class SyntheticDemoProcess(Protocol):
-    pid: int
-
-    def poll(self) -> int | None: ...
-
-    def send_signal(self, sig: int) -> None: ...
-
-    def terminate(self) -> None: ...
-
-    def kill(self) -> None: ...
-
-    def wait(self, timeout: float | None = None) -> int: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,7 +152,7 @@ def prepare_synthetic_demo(
 
     if not sources:
         if not initialization.created:
-            _require_reusable_empty_workspace(workspace)
+            require_unclaimed_demo_workspace(workspace)
         repository.register(expected)
         transition_source_lifecycle(
             repository,
@@ -220,18 +210,6 @@ def prepare_synthetic_demo(
         endpoint=preset.endpoint,
         created_workspace=initialization.created,
     )
-
-
-def _require_reusable_empty_workspace(workspace: OperationsWorkspace) -> None:
-    unexpected_files = tuple(path for path in workspace.runtime_state_files if path.exists())
-    history_entries = (
-        tuple(workspace.history_data_path.iterdir()) if workspace.history_data_path.is_dir() else ()
-    )
-    if unexpected_files or history_entries:
-        raise ValueError(
-            "existing Operations workspace contains runtime/history state but no demo source; "
-            "choose another --workspace"
-        )
 
 
 def _three_phase_values(index: int) -> tuple[float, ...]:
@@ -295,14 +273,14 @@ async def run_synthetic_opcua_server(
 def run_synthetic_demo(
     preset: SyntheticDemoConfig,
     *,
-    process_launcher: Callable[[tuple[str, ...], Path], SyntheticDemoProcess] | None = None,
+    process_launcher: Callable[[tuple[str, ...], Path], DemoChildProcess] | None = None,
     listener_probe: Callable[[str, int], bool] | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     """Prepare and run the simulator plus the normal Operations foreground runtime."""
     preparation = prepare_synthetic_demo(preset)
     simulator_log = preparation.workspace.logs_path / "synthetic-opcua.log"
-    launch = _launch_simulator_process if process_launcher is None else process_launcher
+    launch = launch_logged_process if process_launcher is None else process_launcher
     probe = _listener_ready if listener_probe is None else listener_probe
     simulator = launch(
         (
@@ -319,8 +297,7 @@ def run_synthetic_demo(
     )
     simulator_exit_seen: list[int] = []
     try:
-        _wait_for_listener(
-            "127.0.0.1",
+        wait_for_loopback_listener(
             preset.opcua_port,
             simulator,
             timeout_seconds=preset.startup_timeout_seconds,
@@ -356,74 +333,7 @@ def run_synthetic_demo(
             return 0
         return result.exit_code
     finally:
-        _stop_simulator_process(simulator)
-
-
-def _launch_simulator_process(
-    argv: tuple[str, ...],
-    log_path: Path,
-) -> SyntheticDemoProcess:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("ab", buffering=0) as log:
-        return subprocess.Popen(
-            argv,
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-        )
-
-
-def _wait_for_listener(
-    host: str,
-    port: int,
-    process: SyntheticDemoProcess,
-    *,
-    timeout_seconds: float,
-    listener_probe: Callable[[str, int], bool],
-    sleep: Callable[[float], None],
-) -> None:
-    deadline = time.monotonic() + timeout_seconds
-    while time.monotonic() < deadline:
-        return_code = process.poll()
-        if return_code is not None:
-            raise RuntimeError(
-                f"synthetic OPC UA simulator exited before readiness: code={return_code}"
-            )
-        if listener_probe(host, port):
-            return
-        sleep(0.05)
-    raise RuntimeError(
-        f"synthetic OPC UA simulator did not listen on {host}:{port} within {timeout_seconds:g}s"
-    )
-
-
-def _listener_ready(host: str, port: int) -> bool:
-    try:
-        with socket.create_connection((host, port), timeout=0.2):
-            return True
-    except OSError:
-        return False
-
-
-def _stop_simulator_process(process: SyntheticDemoProcess) -> None:
-    if process.poll() is not None:
-        return
-    try:
-        process.send_signal(signal.SIGINT)
-        process.wait(timeout=5.0)
-        return
-    except OSError, subprocess.TimeoutExpired:
-        pass
-    try:
-        process.terminate()
-        process.wait(timeout=2.0)
-        return
-    except OSError, subprocess.TimeoutExpired:
-        pass
-    with suppress(OSError):
-        process.kill()
-    with suppress(OSError, subprocess.TimeoutExpired):
-        process.wait(timeout=2.0)
+        stop_demo_child(simulator)
 
 
 def server_main(argv: Sequence[str] | None = None) -> int:
