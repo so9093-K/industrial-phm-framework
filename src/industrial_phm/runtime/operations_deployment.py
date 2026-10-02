@@ -133,11 +133,7 @@ def _platform_check() -> OperationsDeploymentCheck:
     supported = os.name == "posix" and fcntl is not None
     return OperationsDeploymentCheck(
         "platform",
-        (
-            OperationsDeploymentCheckState.PASS
-            if supported
-            else OperationsDeploymentCheckState.FAIL
-        ),
+        (OperationsDeploymentCheckState.PASS if supported else OperationsDeploymentCheckState.FAIL),
         (
             "POSIX advisory-lock runtime is available"
             if supported
