@@ -46,12 +46,12 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 
 현재 repository는 목적이 다른 interactive application을 분리합니다.
 
-- `apps/operations_v2.py` — canonical operational action/evidence workspace
-- `apps/analysis_explorer.py` — experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
+- `src/industrial_phm/apps/operations_v2.py` — wheel에 포함되는 canonical operational action/evidence workspace
+- `apps/analysis_explorer.py` — repository research 환경에서 experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
 
 ### Operations
 
-현재 기본 Operations는 `apps/operations_v2.py`입니다.
+현재 기본 Operations는 `src/industrial_phm/apps/operations_v2.py`입니다.
 **Monitor / Assets / Investigations / Maintenance / System / Setup**이 실제 operational read model과
 명시적 application action에 연결돼 있습니다. 메인 배경은 `#292827`입니다.
 
@@ -155,7 +155,7 @@ finding**으로 그 결과에 대한 사람의 검토 요청을 만들어 Mainte
 
 ## Legacy Operations migration
 
-Phase 9부터 `apps/operations_v2.py`가 canonical Operations surface입니다. 이전 legacy Operations
+Phase 9부터 `src/industrial_phm/apps/operations_v2.py`가 canonical Operations surface입니다. 이전 legacy Operations
 application은 제거됐고, 필요한 기능은 Monitor / Assets / Investigations / Maintenance / System / Setup
 문맥으로 이관됐습니다. One-shot source cycle과 bounded OPC UA subscription은 Setup의 **Advanced diagnostics**로,
 FILE snapshot vibration feature analysis는 **Assets → Analysis**로 이동했습니다. Source별 데이터 경과
