@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -158,7 +159,7 @@ def test_run_synthetic_demo_uses_normal_operations_supervisor_and_stops_simulato
     argv = captured["argv"]
     assert isinstance(argv, tuple)
     assert argv[:4] == (
-        __import__("sys").executable,
+        sys.executable,
         "-m",
         "industrial_phm.demo.synthetic",
         "server",
