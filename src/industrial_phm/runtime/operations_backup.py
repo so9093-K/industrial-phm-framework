@@ -164,6 +164,11 @@ def restore_operations_backup(
         restored = OperationsWorkspace(temporary_root)
         load_operations_runtime_config(restored.config_path)
         restored.history_data_path.mkdir(parents=True, exist_ok=True)
+        if restored.history_catalog_path.is_file():
+            _rebind_restored_ducklake_data_path(
+                restored.history_catalog_path,
+                restored.history_data_path,
+            )
         restored.logs_path.mkdir(parents=True, exist_ok=True)
         os.replace(temporary_root, root)
     except BaseException:
@@ -228,6 +233,71 @@ def _workspace_owned_backup_files(
     if workspace.config_path.relative_to(root).as_posix() not in selected:
         raise OSError(f"Operations workspace config is unavailable: {workspace.config_path}")
     return tuple(selected[key] for key in sorted(selected))
+
+
+_DUCKLAKE_PATH_TABLES = (
+    "ducklake_schema",
+    "ducklake_table",
+    "ducklake_data_file",
+    "ducklake_delete_file",
+    "ducklake_files_scheduled_for_deletion",
+)
+
+
+def _rebind_restored_ducklake_data_path(catalog_path: Path, data_path: Path) -> None:
+    """Relocate a copied local DuckLake catalog when all catalog paths are relative.
+
+    DuckLake stores the global data root in ducklake_metadata. Project-created schema,
+    table and file paths use DuckLake's default relative-path layout. A catalog with any
+    absolute/custom path is not safe to relocate automatically.
+    """
+    try:
+        connection = sqlite3.connect(catalog_path)
+        try:
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+                if isinstance(row[0], str)
+            }
+            if "ducklake_metadata" not in tables:
+                return
+
+            for table in _DUCKLAKE_PATH_TABLES:
+                if table not in tables:
+                    continue
+                unsafe_count = connection.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE path_is_relative IS NOT 1"
+                ).fetchone()
+                if unsafe_count is None or unsafe_count[0] != 0:
+                    raise OperationsBackupFormatError(
+                        "restored DuckLake catalog contains absolute/custom paths "
+                        f"and cannot be relocated safely: table={table}"
+                    )
+
+            rows = connection.execute(
+                "SELECT rowid, value FROM ducklake_metadata "
+                "WHERE key = 'data_path' AND scope IS NULL AND scope_id IS NULL"
+            ).fetchall()
+            if len(rows) != 1 or not isinstance(rows[0][0], int):
+                raise OperationsBackupFormatError(
+                    "restored DuckLake catalog has invalid global data_path metadata"
+                )
+            relocated_data_path = str(data_path.resolve(strict=False))
+            if not relocated_data_path.endswith(os.sep):
+                relocated_data_path += os.sep
+            connection.execute(
+                "UPDATE ducklake_metadata SET value = ? WHERE rowid = ?",
+                [relocated_data_path, rows[0][0]],
+            )
+            connection.commit()
+        finally:
+            connection.close()
+    except sqlite3.Error as error:
+        raise OperationsBackupFormatError(
+            f"failed to relocate restored DuckLake catalog: {catalog_path}"
+        ) from error
 
 
 def _backup_sqlite(source: Path, destination: Path) -> None:
