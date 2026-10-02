@@ -56,9 +56,7 @@ def wait_for_loopback_listener(
         if probe("127.0.0.1", port):
             return
         sleep(0.05)
-    raise RuntimeError(
-        f"demo child did not listen on 127.0.0.1:{port} within {timeout_seconds:g}s"
-    )
+    raise RuntimeError(f"demo child did not listen on 127.0.0.1:{port} within {timeout_seconds:g}s")
 
 
 def loopback_listener_ready(host: str, port: int) -> bool:
@@ -79,13 +77,13 @@ def stop_demo_child(process: DemoChildProcess) -> None:
         process.send_signal(signal.SIGINT)
         process.wait(timeout=5.0)
         return
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         pass
     try:
         process.terminate()
         process.wait(timeout=2.0)
         return
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         pass
     with suppress(OSError):
         process.kill()
