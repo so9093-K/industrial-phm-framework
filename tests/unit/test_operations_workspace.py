@@ -23,6 +23,8 @@ def test_operations_workspace_owns_current_flat_live_layout(tmp_path: Path) -> N
     assert workspace.history_catalog_path == root / "catalog.sqlite"
     assert workspace.history_data_path == root / "data"
     assert workspace.logs_path == root / "logs"
+    assert workspace.supervisor_state_path == root / "runtime" / "supervisor.json"
+    assert workspace.supervisor_lock_path == root / "runtime" / "supervisor.lock"
 
 
 def test_operations_workspace_state_files_are_distinct_and_under_root(tmp_path: Path) -> None:
