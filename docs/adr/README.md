@@ -30,3 +30,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0013: Supervise local services without owning component health](0013-supervise-local-services-without-owning-component-health.md)
 - [ADR-0014: Own the packaged Operations UI in the local runtime](0014-own-packaged-operations-ui-in-local-runtime.md)
 - [ADR-0015: Back up a stopped Operations workspace as one recovery unit](0015-back-up-a-stopped-operations-workspace-as-one-recovery-unit.md)
+- [ADR-0016: Let an external service manager own local-node restart](0016-let-an-external-service-manager-own-node-restart.md)
