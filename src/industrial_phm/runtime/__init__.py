@@ -57,6 +57,7 @@ from industrial_phm.runtime.operations_supervisor import (
     OperationsSupervisorState,
     OperationsSupervisorStateKind,
     OperationsSupervisorStateRepository,
+    request_operations_supervisor_stop,
     run_operations_supervisor,
 )
 from industrial_phm.runtime.operations_workspace import (
@@ -107,6 +108,7 @@ __all__ = [
     "initialize_operations_workspace",
     "inspect_operations_runtime_status",
     "load_operations_runtime_config",
+    "request_operations_supervisor_stop",
     "rebuild_registered_opcua_observation_windows",
     "run_collection_service",
     "run_continuous_registered_opcua_observation_windows",
