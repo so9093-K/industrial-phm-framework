@@ -46,9 +46,22 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 industrial-phm operations init ./plant-a
 ```
 
-현재 `init`은 versioned workspace와 data/log directory만 준비하며 collector·analysis·UI process를
-자동으로 시작하지 않습니다. Local runtime의 process identity와 collection/analysis heartbeat 상태는 다음처럼
-확인합니다.
+초기화한 workspace의 collection + analysis service set은 한 foreground supervisor로 실행합니다.
+
+```bash
+industrial-phm operations start ./plant-a
+```
+
+`start`는 workspace `config.toml`의 runtime policy를 사용하고, Ctrl-C 시 child process를 함께
+graceful shutdown합니다. 다른 shell이나 service manager에서 명시적으로 종료하려면:
+
+```bash
+industrial-phm operations stop ./plant-a
+```
+
+`stop`은 이전에 기록된 PID만 보고 signal을 보내지 않고, 해당 workspace의 supervisor lock이 실제로
+점유 중인 경우에만 live supervisor에 종료를 요청합니다. Local runtime의 process identity와
+collection/analysis heartbeat 상태는 다음처럼 확인합니다.
 
 ```bash
 industrial-phm operations status ./plant-a
@@ -56,7 +69,8 @@ industrial-phm operations status ./plant-a
 
 `status`는 supervisor PID와 component-owned heartbeat를 별도 evidence로 표시합니다. 조회 성공 + 전체 runtime
 ready는 exit 0, 조회는 성공했지만 아직 ready하지 않으면 exit 2, workspace/state read 오류는 exit 1입니다.
-현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
+Operations UI는 아직 이 supervisor의 child component가 아니며, 현재 지원되는 실행 경계는
+[지원 상태](docs/status.md)를 기준으로 확인합니다.
 
 ### Analysis Explorer
 
