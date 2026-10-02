@@ -217,6 +217,7 @@ def run_operations_supervisor(
     now: Callable[[], datetime] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     poll_interval_seconds: float = 0.25,
+    heartbeat_interval_seconds: float = 5.0,
     graceful_timeout_seconds: float = 10.0,
     terminate_timeout_seconds: float = 5.0,
 ) -> OperationsSupervisorResult:
@@ -228,6 +229,7 @@ def run_operations_supervisor(
     if not isinstance(plan, OperationsRuntimePlan):
         raise ValueError("plan must be OperationsRuntimePlan")
     _require_positive_seconds(poll_interval_seconds, "poll_interval_seconds")
+    _require_positive_seconds(heartbeat_interval_seconds, "heartbeat_interval_seconds")
     _require_positive_seconds(graceful_timeout_seconds, "graceful_timeout_seconds")
     _require_positive_seconds(terminate_timeout_seconds, "terminate_timeout_seconds")
 
@@ -275,9 +277,9 @@ def run_operations_supervisor(
                 for launch, child in children
             ),
         )
-        effective_repository.write(running_state)
-
+        last_heartbeat_at = started_at
         try:
+            effective_repository.write(running_state)
             while True:
                 exited = tuple(
                     (launch, child, return_code)
@@ -325,7 +327,10 @@ def run_operations_supervisor(
 
                 updated_at = effective_now()
                 _require_aware(updated_at, "updated_at")
-                effective_repository.write(replace(running_state, updated_at=updated_at))
+                if (updated_at - last_heartbeat_at).total_seconds() >= heartbeat_interval_seconds:
+                    running_state = replace(running_state, updated_at=updated_at)
+                    effective_repository.write(running_state)
+                    last_heartbeat_at = updated_at
                 sleep(poll_interval_seconds)
         except KeyboardInterrupt:
             _stop_children(
@@ -343,6 +348,13 @@ def run_operations_supervisor(
             )
             effective_repository.write(state)
             return OperationsSupervisorResult(state, 130)
+        except Exception:
+            _stop_children(
+                children,
+                graceful_timeout_seconds=graceful_timeout_seconds,
+                terminate_timeout_seconds=terminate_timeout_seconds,
+            )
+            raise
 
 
 def _build_final_state(
@@ -430,19 +442,21 @@ def _supervisor_lock(plan: OperationsRuntimePlan) -> Iterator[None]:
     """Prevent two cooperating POSIX supervisors from owning one workspace."""
     path = plan.workspace.supervisor_lock_path
     path.parent.mkdir(parents=True, exist_ok=True)
+    if fcntl is None:  # pragma: no cover - current reference runtime is POSIX
+        raise RuntimeError(
+            "local Operations supervisor requires POSIX advisory file locking"
+        )
     with path.open("a+") as handle:
-        if fcntl is not None:
-            try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as error:
-                raise RuntimeError(
-                    f"another Operations supervisor already owns workspace {plan.workspace.root}"
-                ) from error
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as error:
+            raise RuntimeError(
+                f"another Operations supervisor already owns workspace {plan.workspace.root}"
+            ) from error
         try:
             yield
         finally:
-            if fcntl is not None:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _parse_component(value: object) -> OperationsChildProcessState:
