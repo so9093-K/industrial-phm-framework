@@ -73,10 +73,7 @@ def test_prepare_synthetic_demo_creates_active_running_three_phase_source(
     assert tuple(source.source_id for source in repository.list_sources()) == (
         SYNTHETIC_DEMO_SOURCE_ID,
     )
-    assert (
-        repository.get_lifecycle(SYNTHETIC_DEMO_SOURCE_ID).state
-        == SourceLifecycleState.ACTIVE
-    )
+    assert repository.get_lifecycle(SYNTHETIC_DEMO_SOURCE_ID).state == SourceLifecycleState.ACTIVE
     control = SqliteCollectionControlRepository(preparation.workspace.collection_control_path)
     record = control.get(SYNTHETIC_DEMO_SOURCE_ID)
     assert record is not None
