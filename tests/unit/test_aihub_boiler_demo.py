@@ -119,8 +119,7 @@ def test_prepare_aihub_boiler_demo_owns_replay_and_runtime_policy(tmp_path: Path
     source = repository.get(AIHUB_BOILER_DEMO_SOURCE_ID)
     assert source.asset_id == "aihub-boiler-2297"
     assert (
-        repository.get_lifecycle(AIHUB_BOILER_DEMO_SOURCE_ID).state
-        == SourceLifecycleState.ACTIVE
+        repository.get_lifecycle(AIHUB_BOILER_DEMO_SOURCE_ID).state == SourceLifecycleState.ACTIVE
     )
     control = SqliteCollectionControlRepository(preparation.workspace.collection_control_path)
     record = control.get(AIHUB_BOILER_DEMO_SOURCE_ID)
@@ -196,9 +195,7 @@ def test_prepare_aihub_boiler_demo_rejects_non_demo_registered_source(tmp_path: 
     workspace.phase_unbalance_state_path.write_text("non-demo", encoding="utf-8")
 
     with pytest.raises(ValueError, match="runtime/history state"):
-        prepare_aihub_boiler_demo(
-            AihubBoilerDemoConfig(archive=archive, workspace=workspace.root)
-        )
+        prepare_aihub_boiler_demo(AihubBoilerDemoConfig(archive=archive, workspace=workspace.root))
 
 
 def test_run_aihub_boiler_demo_reuses_normal_operations_supervisor(
