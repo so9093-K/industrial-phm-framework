@@ -45,7 +45,9 @@ from industrial_phm.commands.operations import (
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_request_collection,
+    _run_operations_start,
     _run_operations_status,
+    _run_operations_stop,
     _run_operations_window_analysis,
 )
 from industrial_phm.data.registry import list_datasets
@@ -233,6 +235,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="local Operations workspace root",
     )
     operations_init.set_defaults(handler=_run_operations_init)
+
+    operations_start = operations_commands.add_parser(
+        "start",
+        help="run the local Operations service lifecycle in the foreground",
+    )
+    operations_start.add_argument(
+        "workspace",
+        type=Path,
+        help="initialized local Operations workspace root",
+    )
+    operations_start.set_defaults(handler=_run_operations_start)
+
+    operations_stop = operations_commands.add_parser(
+        "stop",
+        help="request graceful shutdown of the live local Operations supervisor",
+    )
+    operations_stop.add_argument(
+        "workspace",
+        type=Path,
+        help="initialized local Operations workspace root",
+    )
+    operations_stop.set_defaults(handler=_run_operations_stop)
 
     operations_status = operations_commands.add_parser(
         "status",

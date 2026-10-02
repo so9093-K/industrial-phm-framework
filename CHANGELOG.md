@@ -43,6 +43,11 @@
   사용합니다. 새 `operations status <workspace>`는 supervisor process identity와 collection/analysis
   component heartbeat를 분리해 표시하며, PID만으로 component health를 추정하지 않습니다.
 
+- Local Operations lifecycle CLI를 추가했습니다. `operations start <workspace>`는 workspace config에서
+  collection/analysis launch plan을 만들고 한 foreground supervisor로 실행하며, Ctrl-C 또는
+  `operations stop <workspace>`으로 child process를 함께 graceful shutdown합니다. `stop`은 persisted PID만
+  신뢰하지 않고 해당 workspace supervisor lock의 live ownership을 확인한 뒤 종료 signal을 요청합니다.
+
 - `tools/history/append_profile.py`와
   `docs/research/phase10-history-append-scaling.md`: live history append를 단계별로 분해하고
   N=0/2,000 full-data와 N=10,000 metadata-only 상태를 비교하는 #344 재현 도구/evidence입니다.
