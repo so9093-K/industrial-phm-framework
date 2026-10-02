@@ -41,9 +41,27 @@ from industrial_phm.runtime import (
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
     SqliteCollectionControlRepository,
+    initialize_operations_workspace,
     run_collection_service,
 )
 from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
+
+
+def _run_operations_init(args: argparse.Namespace) -> int:
+    """Initialize or validate one local Operations workspace."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        result = initialize_operations_workspace(workspace)
+    except (OSError, ValueError) as error:
+        print(f"Operations workspace initialization failed: {error}", file=sys.stderr)
+        return 1
+
+    state = "created" if result.created else "existing"
+    print(
+        f"workspace={result.workspace.root} config={result.workspace.config_path} "
+        f"schema={result.config.schema} state={state}"
+    )
+    return 0
 
 
 def _run_operations_poll_source(args: argparse.Namespace) -> int:
