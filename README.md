@@ -27,8 +27,8 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 
 ### Operations
 
-현장 데이터와 PHM 근거를 다루는 운영 UI입니다. 현재 기본 진입점은
-`apps/operations_v2.py`입니다.
+현장 데이터와 PHM 근거를 다루는 운영 UI입니다. Canonical application은 wheel에 포함되는
+`industrial_phm.apps.operations_v2`이며, UI runtime dependency는 `operations` extra가 소유합니다.
 
 - **Monitor** — 수집·저장·분석·검토 흐름과 지금 확인할 항목
 - **Assets** — 설비별 현재 데이터, Signals, Analysis, Events, Maintenance
