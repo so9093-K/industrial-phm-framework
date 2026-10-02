@@ -43,6 +43,10 @@ history = [
 opcua = [
   "asyncua>=2.0.1,<2.1",
 ]
+operations = [
+  "industrial-phm-framework[history,opcua]",
+  "marimo>=0.24.2,<0.25",
+]
 aihub = [
     "ijson>=3.4,<4",
 ]
