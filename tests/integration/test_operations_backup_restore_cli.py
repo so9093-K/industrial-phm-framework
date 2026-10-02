@@ -29,12 +29,8 @@ def test_operations_backup_restore_cli_round_trip_with_history_payload(
             "INSERT INTO ducklake_metadata(key, value, scope, scope_id) VALUES (?, ?, NULL, NULL)",
             ["data_path", str(workspace.history_data_path.resolve()) + "/"],
         )
-        catalog.execute(
-            "CREATE TABLE ducklake_schema(path TEXT, path_is_relative BOOLEAN)"
-        )
-        catalog.execute(
-            "INSERT INTO ducklake_schema(path, path_is_relative) VALUES ('raw/', 1)"
-        )
+        catalog.execute("CREATE TABLE ducklake_schema(path TEXT, path_is_relative BOOLEAN)")
+        catalog.execute("INSERT INTO ducklake_schema(path, path_is_relative) VALUES ('raw/', 1)")
         catalog.commit()
     finally:
         catalog.close()
@@ -72,7 +68,6 @@ def test_operations_backup_restore_cli_round_trip_with_history_payload(
     assert tuple(restored.logs_path.iterdir()) == ()
 
 
-
 def test_operations_restore_refuses_ducklake_absolute_paths(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -91,9 +86,7 @@ def test_operations_restore_refuses_ducklake_absolute_paths(
             "INSERT INTO ducklake_metadata(key, value, scope, scope_id) VALUES (?, ?, NULL, NULL)",
             ["data_path", str(workspace.history_data_path.resolve()) + "/"],
         )
-        catalog.execute(
-            "CREATE TABLE ducklake_schema(path TEXT, path_is_relative BOOLEAN)"
-        )
+        catalog.execute("CREATE TABLE ducklake_schema(path TEXT, path_is_relative BOOLEAN)")
         catalog.execute(
             "INSERT INTO ducklake_schema(path, path_is_relative) VALUES (?, 0)",
             [str(workspace.history_data_path.resolve() / "absolute-schema")],
