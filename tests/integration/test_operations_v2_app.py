@@ -17,6 +17,7 @@ from industrial_phm.application import (
     create_human_review_finding,
 )
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
+from industrial_phm.runtime import OperationsWorkspace
 
 REPO = Path(__file__).resolve().parents[2]
 APPS = sorted((REPO / "apps").glob("*.py"))
@@ -88,6 +89,25 @@ def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, mo
     app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
     _, defs = app.run()
 
+    assert defs["investigation_selected_id"] is not None
+    assert defs["maintenance_selected_id"] is not None
+
+
+def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    analysis = _analysis()
+    SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).record(analysis)
+    JsonOperationalFindingRepository(workspace.finding_state_path).record(
+        create_human_review_finding(analysis)
+    )
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+
+    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    _, defs = app.run()
+
+    assert defs["phase_analysis_path"] == workspace.phase_unbalance_state_path
+    assert defs["history_catalog_path"] == workspace.history_catalog_path
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
 

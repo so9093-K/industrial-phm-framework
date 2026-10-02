@@ -9,6 +9,7 @@ import sys
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from industrial_phm.application import (
     AlignmentPolicyKind,
@@ -35,6 +36,7 @@ from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPo
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import (
     CollectionServicePolicy,
+    OperationsWorkspace,
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
@@ -222,17 +224,36 @@ def _run_operations_migrate_phase_unbalance_results(args: argparse.Namespace) ->
 
 def _run_operations_window_analysis(args: argparse.Namespace) -> int:
     """Analyze finalized live windows and publish independent runner runtime evidence."""
-    runtime_path = args.runtime_status or args.analysis_state.with_name(
-        f"{args.analysis_state.stem}-runtime.json"
-    )
+    try:
+        workspace = _resolve_workspace_mode(
+            args,
+            required_explicit=("window_state", "analysis_state", "ledger_state"),
+            all_explicit=("window_state", "analysis_state", "ledger_state", "runtime_status"),
+        )
+        if workspace is None:
+            window_state = args.window_state
+            analysis_state = args.analysis_state
+            ledger_state = args.ledger_state
+            runtime_path = args.runtime_status or analysis_state.with_name(
+                f"{analysis_state.stem}-runtime.json"
+            )
+        else:
+            window_state = workspace.window_state_path
+            analysis_state = workspace.phase_unbalance_state_path
+            ledger_state = workspace.analysis_ledger_path
+            runtime_path = workspace.analysis_runtime_path
+    except ValueError as error:
+        print(f"window analysis failed: {error}", file=sys.stderr)
+        return 1
+
     runtime = JsonWindowAnalysisRuntimeRepository(runtime_path)
     _try_record_window_analysis_runtime(runtime.record_start, datetime.now(UTC))
     try:
         if args.interval_seconds <= 0:
             raise ValueError("interval_seconds must be positive")
-        windows = SqliteObservationWindowRepository(args.window_state)
-        results = SqlitePhaseUnbalanceRepository(args.analysis_state)
-        ledger = SqliteWindowAnalysisLedger(args.ledger_state)
+        windows = SqliteObservationWindowRepository(window_state)
+        results = SqlitePhaseUnbalanceRepository(analysis_state)
+        ledger = SqliteWindowAnalysisLedger(ledger_state)
         config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
         while True:
             outcomes = analyze_finalized_windows_incremental(
@@ -299,8 +320,17 @@ def _alignment_policy(args: argparse.Namespace) -> TemporalAlignmentPolicy:
 
 def _run_operations_request_collection(args: argparse.Namespace) -> int:
     try:
-        source_repository = JsonSourceRepository(args.registry)
-        control_repository = SqliteCollectionControlRepository(args.control_state)
+        workspace = _resolve_workspace_mode(
+            args,
+            required_explicit=("registry", "control_state"),
+            all_explicit=("registry", "control_state"),
+        )
+        registry_path = args.registry if workspace is None else workspace.source_registry_path
+        control_state_path = (
+            args.control_state if workspace is None else workspace.collection_control_path
+        )
+        source_repository = JsonSourceRepository(registry_path)
+        control_repository = SqliteCollectionControlRepository(control_state_path)
         desired_state = CollectionDesiredState(args.state)
         record = request_collection_state(
             source_repository,
@@ -323,18 +353,64 @@ def _run_operations_request_collection(args: argparse.Namespace) -> int:
 
 def _run_operations_collection_service(args: argparse.Namespace) -> int:
     try:
-        _validate_collection_service_paths(args)
-        source_repository = JsonSourceRepository(args.registry)
-        control_repository = SqliteCollectionControlRepository(args.control_state)
-        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(path=args.spool_state))
-        telemetry = SqliteAcquisitionTelemetryRepository(args.telemetry_state)
+        workspace = _resolve_workspace_mode(
+            args,
+            required_explicit=(
+                "registry",
+                "control_state",
+                "spool_state",
+                "telemetry_state",
+                "window_state",
+                "ducklake_catalog",
+                "ducklake_data",
+            ),
+            all_explicit=(
+                "registry",
+                "control_state",
+                "spool_state",
+                "telemetry_state",
+                "window_state",
+                "ducklake_catalog",
+                "ducklake_data",
+            ),
+        )
+        if workspace is None:
+            registry_path = args.registry
+            control_state_path = args.control_state
+            spool_state_path = args.spool_state
+            telemetry_state_path = args.telemetry_state
+            window_state_path = args.window_state
+            ducklake_catalog_path = args.ducklake_catalog
+            ducklake_data_path = args.ducklake_data
+        else:
+            registry_path = workspace.source_registry_path
+            control_state_path = workspace.collection_control_path
+            spool_state_path = workspace.acquisition_spool_path
+            telemetry_state_path = workspace.acquisition_telemetry_path
+            window_state_path = workspace.window_state_path
+            ducklake_catalog_path = workspace.history_catalog_path
+            ducklake_data_path = workspace.history_data_path
+
+        _validate_collection_service_paths(
+            registry=registry_path,
+            control_state=control_state_path,
+            spool_state=spool_state_path,
+            telemetry_state=telemetry_state_path,
+            window_state=window_state_path,
+            ducklake_catalog=ducklake_catalog_path,
+            ducklake_data=ducklake_data_path,
+        )
+        source_repository = JsonSourceRepository(registry_path)
+        control_repository = SqliteCollectionControlRepository(control_state_path)
+        spool = SqliteAcquisitionSpool(SqliteAcquisitionSpoolConfig(path=spool_state_path))
+        telemetry = SqliteAcquisitionTelemetryRepository(telemetry_state_path)
         history = DuckLakeAssetHistory(
             DuckLakeAssetHistoryConfig(
-                catalog_path=args.ducklake_catalog,
-                data_path=args.ducklake_data,
+                catalog_path=ducklake_catalog_path,
+                data_path=ducklake_data_path,
             )
         )
-        window_repository = SqliteObservationWindowRepository(args.window_state)
+        window_repository = SqliteObservationWindowRepository(window_state_path)
         policy = CollectionServicePolicy(
             reconcile_interval_seconds=args.reconcile_interval_seconds,
             window_policy=ObservationWindowCoordinatorPolicy(
@@ -382,14 +458,44 @@ def _run_operations_collection_service(args: argparse.Namespace) -> int:
     return 0
 
 
-def _validate_collection_service_paths(args: argparse.Namespace) -> None:
+def _resolve_workspace_mode(
+    args: argparse.Namespace,
+    *,
+    required_explicit: tuple[str, ...],
+    all_explicit: tuple[str, ...],
+) -> OperationsWorkspace | None:
+    workspace_root = args.workspace
+    explicit_values = tuple(getattr(args, name) for name in all_explicit)
+    if workspace_root is not None:
+        if any(value is not None for value in explicit_values):
+            flags = ", ".join(f"--{name.replace('_', '-')}" for name in all_explicit)
+            raise ValueError(f"--workspace cannot be combined with explicit path flags: {flags}")
+        return OperationsWorkspace(workspace_root)
+
+    missing = tuple(name for name in required_explicit if getattr(args, name) is None)
+    if missing:
+        flags = ", ".join(f"--{name.replace('_', '-')}" for name in required_explicit)
+        raise ValueError(f"provide --workspace or all explicit path flags: {flags}")
+    return None
+
+
+def _validate_collection_service_paths(
+    *,
+    registry: Path,
+    control_state: Path,
+    spool_state: Path,
+    telemetry_state: Path,
+    window_state: Path,
+    ducklake_catalog: Path,
+    ducklake_data: Path,
+) -> None:
     file_paths = {
-        "registry": args.registry,
-        "control-state": args.control_state,
-        "spool-state": args.spool_state,
-        "telemetry-state": args.telemetry_state,
-        "window-state": args.window_state,
-        "ducklake-catalog": args.ducklake_catalog,
+        "registry": registry,
+        "control-state": control_state,
+        "spool-state": spool_state,
+        "telemetry-state": telemetry_state,
+        "window-state": window_state,
+        "ducklake-catalog": ducklake_catalog,
     }
     resolved = {
         label: path.expanduser().resolve(strict=False) for label, path in file_paths.items()
@@ -402,8 +508,8 @@ def _validate_collection_service_paths(args: argparse.Namespace) -> None:
                     f"collection service state paths must be distinct: {left} == {right}"
                 )
 
-    ducklake_data = args.ducklake_data.expanduser().resolve(strict=False)
-    if ducklake_data in resolved.values():
+    resolved_data = ducklake_data.expanduser().resolve(strict=False)
+    if resolved_data in resolved.values():
         raise ValueError(
             "ducklake-data directory must be distinct from collection service state files"
         )

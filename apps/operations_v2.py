@@ -137,6 +137,7 @@ def _():
         render_phase_unbalance_svg,
     )
     from industrial_phm.runtime import (
+        OperationsWorkspace,
         SqliteAcquisitionSpool,
         SqliteAcquisitionSpoolConfig,
         SqliteAcquisitionTelemetryRepository,
@@ -170,6 +171,7 @@ def _():
         OpcUaNodeMapping,
         OpcUaSourceConfig,
         OperationalAnalysisPresentationKind,
+        OperationsWorkspace,
         Path,
         RegisteredSource,
         SourceFreshnessPolicy,
@@ -292,6 +294,7 @@ def _(
     AcquisitionTelemetrySurface,
     JsonWindowAnalysisRuntimeRepository,
     LiveFlowTiming,
+    OperationsWorkspace,
     Path,
     SourceType,
     SqliteAcquisitionSpool,
@@ -316,90 +319,82 @@ def _(
     _refresh = refresh_button.value
     del _refresh
     assessed_at = datetime.now(UTC)
+    _workspace_root = os.environ.get("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE")
+    _workspace = None if _workspace_root is None else OperationsWorkspace(Path(_workspace_root))
 
-    registry_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
-            "artifacts/operations/source-registry.json",
-        )
+    def _runtime_path(env_name, workspace_path, legacy_default):
+        default = workspace_path if _workspace is not None else Path(legacy_default)
+        return Path(os.environ.get(env_name, str(default)))
+
+    registry_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
+        None if _workspace is None else _workspace.source_registry_path,
+        "artifacts/operations/source-registry.json",
     )
-    source_runtime_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
-            "artifacts/operations/source-runtime.json",
-        )
+    source_runtime_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
+        None if _workspace is None else _workspace.source_runtime_path,
+        "artifacts/operations/source-runtime.json",
     )
-    acquisition_telemetry_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
-            "artifacts/operations/acquisition-telemetry.sqlite",
-        )
+    acquisition_telemetry_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
+        None if _workspace is None else _workspace.acquisition_telemetry_path,
+        "artifacts/operations/acquisition-telemetry.sqlite",
     )
-    acquisition_spool_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
-            "artifacts/operations/acquisition-spool.sqlite",
-        )
+    acquisition_spool_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
+        None if _workspace is None else _workspace.acquisition_spool_path,
+        "artifacts/operations/acquisition-spool.sqlite",
     )
-    collection_control_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
-            "artifacts/operations/collection-control.sqlite",
-        )
+    collection_control_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
+        None if _workspace is None else _workspace.collection_control_path,
+        "artifacts/operations/collection-control.sqlite",
     )
-    field_analysis_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE",
-            "artifacts/operations/field-analysis.json",
-        )
+    field_analysis_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE",
+        None if _workspace is None else _workspace.field_analysis_path,
+        "artifacts/operations/field-analysis.json",
     )
-    phase_analysis_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
-            "artifacts/operations/phase-unbalance.sqlite",
-        )
+    phase_analysis_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
+        None if _workspace is None else _workspace.phase_unbalance_state_path,
+        "artifacts/operations/phase-unbalance.sqlite",
     )
-    analysis_runtime_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
-            str(phase_analysis_path.with_name(f"{phase_analysis_path.stem}-runtime.json")),
-        )
+    analysis_runtime_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
+        None if _workspace is None else _workspace.analysis_runtime_path,
+        str(phase_analysis_path.with_name(f"{phase_analysis_path.stem}-runtime.json")),
     )
-    window_state_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
-            str(phase_analysis_path.with_name("windows.sqlite")),
-        )
+    window_state_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
+        None if _workspace is None else _workspace.window_state_path,
+        str(phase_analysis_path.with_name("windows.sqlite")),
     )
-    analysis_ledger_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
-            str(phase_analysis_path.with_name("window-analysis-ledger.sqlite")),
-        )
+    analysis_ledger_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
+        None if _workspace is None else _workspace.analysis_ledger_path,
+        str(phase_analysis_path.with_name("window-analysis-ledger.sqlite")),
     )
-    finding_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE",
-            "artifacts/operations/findings.json",
-        )
+    finding_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE",
+        None if _workspace is None else _workspace.finding_state_path,
+        "artifacts/operations/findings.json",
     )
-    review_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
-            "artifacts/operations/finding-review.json",
-        )
+    review_path = _runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
+        None if _workspace is None else _workspace.maintenance_review_state_path,
+        "artifacts/operations/finding-review.json",
     )
-    history_catalog_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_HISTORY_CATALOG",
-            "artifacts/operations/history/catalog.sqlite",
-        )
+    history_catalog_path = _runtime_path(
+        "INDUSTRIAL_PHM_HISTORY_CATALOG",
+        None if _workspace is None else _workspace.history_catalog_path,
+        "artifacts/operations/history/catalog.sqlite",
     )
-    history_data_path = Path(
-        os.environ.get(
-            "INDUSTRIAL_PHM_HISTORY_DATA",
-            "artifacts/operations/history/data",
-        )
+    history_data_path = _runtime_path(
+        "INDUSTRIAL_PHM_HISTORY_DATA",
+        None if _workspace is None else _workspace.history_data_path,
+        "artifacts/operations/history/data",
     )
 
     system_errors = []

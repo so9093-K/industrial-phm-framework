@@ -102,13 +102,20 @@ Start/Stop collection은 collector에 대한 desired-state 요청일 뿐 connect
 Analysis Configuration은 현재 안전하게 persist할 application contract가 없어 read-only ownership 안내만
 제공합니다.
 
-기존 Operations와 같은 환경변수를 사용한 뒤 다음처럼 실행합니다.
+한 local Operations instance는 workspace root 하나로 지정할 수 있습니다.
 
 ```bash
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live
 uv run --locked --group research marimo run apps/operations_v2.py
 ```
 
-Live 3상 분석을 함께 모니터링할 때 V2는
+workspace를 지정하면 source/runtime/control/spool/telemetry/window/analysis/finding/review와
+DuckLake catalog/data 경로를 같은 root에서 결정합니다. 기존
+`INDUSTRIAL_PHM_OPERATIONS_*`, `INDUSTRIAL_PHM_HISTORY_CATALOG`,
+`INDUSTRIAL_PHM_HISTORY_DATA` 개별 override는 compatibility/internal diagnostics 경로로 계속
+지원합니다.
+
+workspace를 사용하지 않는 기존 실행에서는 V2가
 `INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE` 옆의
 `<analysis-stem>-runtime.json`을 기본 analysis-service 상태로 읽습니다.
 별도 위치를 쓰려면 `INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME`으로 지정합니다.

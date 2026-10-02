@@ -9,7 +9,7 @@ from industrial_phm.application import (
 )
 from industrial_phm.cli import main
 from industrial_phm.connectors import OpcUaNodeMapping
-from industrial_phm.runtime import SqliteCollectionControlRepository
+from industrial_phm.runtime import OperationsWorkspace, SqliteCollectionControlRepository
 
 BASE = datetime(2026, 9, 28, 8, 0, tzinfo=UTC)
 
@@ -84,3 +84,70 @@ def test_collection_request_cli_updates_desired_state_without_running_collector(
     assert record.desired_state.value == "stopped"
     assert record.generation == 2
     assert repository.get_lifecycle("source-a").state == SourceLifecycleState.ACTIVE
+
+
+def test_collection_request_cli_accepts_one_workspace_root(tmp_path, capsys) -> None:
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    repository = JsonSourceRepository(workspace.source_registry_path)
+    repository.register(
+        RegisteredSource(
+            source_id="source-workspace",
+            name="Workspace OPC UA",
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840",
+                asset_id="pump-workspace",
+                node_mappings=(OpcUaNodeMapping("vibration_x", "ns=2;s=vibration_x"),),
+            ),
+            registered_at=BASE,
+        )
+    )
+    transition_source_lifecycle(
+        repository,
+        "source-workspace",
+        SourceLifecycleState.ACTIVE,
+        changed_at=BASE + timedelta(seconds=1),
+    )
+
+    exit_code = main(
+        [
+            "operations",
+            "request-collection",
+            "--workspace",
+            str(workspace.root),
+            "--source-id",
+            "source-workspace",
+            "--state",
+            "running",
+        ]
+    )
+
+    assert exit_code == 0
+    assert "desired=running" in capsys.readouterr().out
+    record = SqliteCollectionControlRepository(workspace.collection_control_path).get(
+        "source-workspace"
+    )
+    assert record is not None
+    assert record.desired_state.value == "running"
+
+
+def test_collection_request_cli_rejects_workspace_mixed_with_explicit_paths(
+    tmp_path,
+    capsys,
+) -> None:
+    exit_code = main(
+        [
+            "operations",
+            "request-collection",
+            "--workspace",
+            str(tmp_path / "workspace"),
+            "--registry",
+            str(tmp_path / "other.json"),
+            "--source-id",
+            "source-a",
+            "--state",
+            "running",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "--workspace cannot be combined" in capsys.readouterr().err
