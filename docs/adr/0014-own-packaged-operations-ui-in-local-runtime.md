@@ -22,9 +22,11 @@ the app.
 - The local Operations runtime owns three child processes in deterministic order:
   collection → analysis → packaged Operations UI.
 - The UI is launched from the installed `industrial_phm.apps.operations_v2` package surface with
-  `marimo run --headless`.
-- The reference local runtime binds the UI to `127.0.0.1`. Network exposure remains a deployment concern,
-  not a workspace default.
+  `marimo run --headless --no-token`.
+- The reference local runtime binds the UI to `127.0.0.1` and deliberately disables marimo token auth.
+  This is a local single-user reference boundary: headless default token auth would require an out-of-band
+  token handoff while the product CLI prints a directly usable local URL. Any non-loopback or shared-host
+  exposure must introduce an explicit authentication/TLS boundary under #318 instead of reusing this mode.
 - The workspace config advances to schema v2 and adds a bounded `[ui] port` setting. Existing v1
   workspaces remain readable and `operations init` upgrades them atomically without rewriting
   repository evidence.
@@ -50,4 +52,5 @@ A live UI PID can still be reported as not ready while its listener is unavailab
 process existence and usable application transport are distinct facts.
 
 This decision does not define public-network exposure, TLS, reverse-proxy authentication, daemonization or
-automatic restart. Those remain deployment responsibilities under #318.
+automatic restart. The `--no-token` reference mode must not be promoted to those deployments; those remain
+deployment responsibilities under #318.
