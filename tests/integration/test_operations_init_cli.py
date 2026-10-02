@@ -11,9 +11,10 @@ def test_operations_init_creates_minimal_versioned_workspace(tmp_path: Path, cap
     exit_code = main(["operations", "init", str(root)])
 
     assert exit_code == 0
-    assert workspace.config_path.read_text(encoding="utf-8") == (
-        f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n'
-    )
+    config_text = workspace.config_path.read_text(encoding="utf-8")
+    assert config_text.startswith(f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n')
+    assert "[collection]" in config_text
+    assert "[analysis]" in config_text
     assert workspace.history_data_path.is_dir()
     assert workspace.logs_path.is_dir()
     assert not workspace.source_registry_path.exists()

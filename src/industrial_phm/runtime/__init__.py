@@ -29,9 +29,17 @@ from industrial_phm.runtime.opcua_acquisition import (
 )
 from industrial_phm.runtime.operations_config import (
     OPERATIONS_CONFIG_SCHEMA,
+    OperationsAnalysisConfig,
+    OperationsCollectionConfig,
     OperationsConfigFormatError,
     OperationsRuntimeConfig,
     load_operations_runtime_config,
+)
+from industrial_phm.runtime.operations_runtime import (
+    OperationsComponentKind,
+    OperationsComponentLaunch,
+    OperationsRuntimePlan,
+    build_operations_runtime_plan,
 )
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
@@ -52,14 +60,20 @@ __all__ = [
     "OpcUaSessionLostError",
     "OpcUaSubscriptionOverflowError",
     "OpcUaUnpersistedNotificationError",
+    "OperationsAnalysisConfig",
+    "OperationsCollectionConfig",
+    "OperationsComponentKind",
+    "OperationsComponentLaunch",
     "OperationsConfigFormatError",
     "OperationsRuntimeConfig",
+    "OperationsRuntimePlan",
     "OperationsWorkspace",
     "OperationsWorkspaceInitialization",
     "SqliteAcquisitionSpool",
     "SqliteAcquisitionSpoolConfig",
     "SqliteAcquisitionTelemetryRepository",
     "SqliteCollectionControlRepository",
+    "build_operations_runtime_plan",
     "initialize_operations_workspace",
     "load_operations_runtime_config",
     "rebuild_registered_opcua_observation_windows",
