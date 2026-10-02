@@ -44,13 +44,13 @@ from industrial_phm.runtime.window_coordinator import (
 )
 
 __all__ = [
+    "OPERATIONS_CONFIG_SCHEMA",
     "AcquisitionTelemetryFormatError",
     "CollectionControlFormatError",
     "CollectionServicePolicy",
     "CollectionServiceResult",
     "OpcUaSessionLostError",
     "OpcUaSubscriptionOverflowError",
-    "OPERATIONS_CONFIG_SCHEMA",
     "OpcUaUnpersistedNotificationError",
     "OperationsConfigFormatError",
     "OperationsRuntimeConfig",
@@ -60,9 +60,9 @@ __all__ = [
     "SqliteAcquisitionSpoolConfig",
     "SqliteAcquisitionTelemetryRepository",
     "SqliteCollectionControlRepository",
-    "rebuild_registered_opcua_observation_windows",
     "initialize_operations_workspace",
     "load_operations_runtime_config",
+    "rebuild_registered_opcua_observation_windows",
     "run_collection_service",
     "run_continuous_registered_opcua_observation_windows",
     "run_registered_opcua_acquisition_worker",
