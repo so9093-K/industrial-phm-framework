@@ -46,7 +46,7 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 industrial-phm operations init ./plant-a
 ```
 
-초기화한 workspace의 collection + analysis service set은 한 foreground supervisor로 실행합니다.
+초기화한 workspace의 collection + analysis + Operations UI는 한 foreground supervisor로 실행합니다.
 
 ```bash
 industrial-phm operations start ./plant-a
@@ -67,9 +67,9 @@ collection/analysis heartbeat 상태는 다음처럼 확인합니다.
 industrial-phm operations status ./plant-a
 ```
 
-`status`는 supervisor PID와 component-owned heartbeat를 별도 evidence로 표시합니다. 조회 성공 + 전체 runtime
+`status`는 supervisor PID, collection/analysis heartbeat와 UI loopback listener readiness를 서로 다른 evidence로 표시합니다. 조회 성공 + 전체 runtime
 ready는 exit 0, 조회는 성공했지만 아직 ready하지 않으면 exit 2, workspace/state read 오류는 exit 1입니다.
-Canonical Operations app은 installable package surface로 제공되지만 아직 이 supervisor의 child component는 아닙니다.
+component 로그는 내부 파일 경로를 직접 찾지 않고 `industrial-phm operations logs ./plant-a`로 확인합니다.
 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
 
 ### Analysis Explorer
