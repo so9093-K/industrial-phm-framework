@@ -314,7 +314,6 @@ def test_ui_child_environment_uses_workspace_and_clears_granular_path_overrides(
     assert "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY" not in environment
 
 
-
 def test_supervisor_treats_sigterm_as_coordinated_clean_stop(tmp_path: Path) -> None:
     plan = _plan(tmp_path / "plant-a")
     repository = OperationsSupervisorStateRepository(plan.workspace.supervisor_state_path)
