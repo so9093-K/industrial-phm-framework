@@ -390,7 +390,25 @@ def _running_component_status(
             heartbeat_at,
             f"{kind.value} runtime is reporting but supervisor process identity is unavailable",
         )
-    if process.return_code is not None or not process.alive:
+    if process.return_code is not None:
+        condition = (
+            OperationsRuntimeCondition.STOPPED
+            if process.return_code == 0
+            else OperationsRuntimeCondition.FAILED
+        )
+        return OperationsComponentStatus(
+            kind,
+            condition,
+            process,
+            runtime_state,
+            heartbeat_at,
+            (
+                f"{kind.value} process exited cleanly"
+                if process.return_code == 0
+                else f"{kind.value} process exited with code {process.return_code}"
+            ),
+        )
+    if not process.alive:
         return OperationsComponentStatus(
             kind,
             OperationsRuntimeCondition.FAILED,
