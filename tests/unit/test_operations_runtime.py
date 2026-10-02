@@ -77,9 +77,10 @@ def test_operations_runtime_plan_preserves_bounded_previous_provenance(tmp_path:
 
     analysis = plan.components[1]
     assert analysis.argv[-6:] == (
+        "--alignment",
         "bounded-previous",
         "--max-carry-age-seconds",
         "5.0",
         "--alignment-basis",
         "device update contract",
-    )[-6:]
+    )
