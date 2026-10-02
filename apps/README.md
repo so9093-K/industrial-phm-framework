@@ -3,7 +3,7 @@
 ## Asset measurement history
 
 Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측을 시간·채널별로 조회합니다.
-`uv sync --locked --extra history --group research`로 실행 환경을 준비합니다. AI-Hub를 처음 적재할 때는
+`uv sync --locked --extra operations`로 Operations 실행 환경을 준비합니다. Analysis Explorer 개발 환경은 별도 `research` group을 사용합니다. AI-Hub를 처음 적재할 때는
 [실행 안내](../tools/aihub/README.md#local-power-data-profiling-and-history)를 따릅니다.
 
 기본 catalog는 `artifacts/operations/history/catalog.sqlite`, data는 같은 디렉터리의 `data`입니다.
