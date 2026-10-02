@@ -325,7 +325,13 @@ def test_supervisor_treats_sigterm_as_coordinated_clean_stop(tmp_path: Path) -> 
         return process
 
     start = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
-    times = iter((start, start + timedelta(seconds=1)))
+    times = iter(
+        (
+            start,
+            start + timedelta(seconds=1),
+            start + timedelta(seconds=2),
+        )
+    )
     raised = False
 
     def request_sigterm(_seconds: float) -> None:
