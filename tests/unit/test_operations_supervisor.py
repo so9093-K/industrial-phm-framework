@@ -232,7 +232,7 @@ def test_stop_request_signals_recorded_supervisor_only_when_lock_is_owned(
         )
     )
     workspace.supervisor_lock_path.parent.mkdir(parents=True, exist_ok=True)
-    workspace.supervisor_lock_path.touch()
+    workspace.supervisor_lock_path.write_text("502\n", encoding="utf-8")
 
     import industrial_phm.runtime.operations_supervisor as supervisor_module
 
@@ -253,3 +253,41 @@ def test_stop_request_signals_recorded_supervisor_only_when_lock_is_owned(
 
     assert pid == 502
     assert signals == [(502, signal.SIGINT)]
+
+
+
+def test_stop_request_rejects_state_and_lock_owner_pid_mismatch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    at = datetime(2026, 10, 2, 6, 0, tzinfo=UTC)
+    repository = OperationsSupervisorStateRepository(workspace.supervisor_state_path)
+    repository.write(
+        OperationsSupervisorState(
+            state=OperationsSupervisorStateKind.RUNNING,
+            supervisor_pid=601,
+            started_at=at,
+            updated_at=at,
+            components=(),
+        )
+    )
+    workspace.supervisor_lock_path.parent.mkdir(parents=True, exist_ok=True)
+    workspace.supervisor_lock_path.write_text("602\n", encoding="utf-8")
+
+    import industrial_phm.runtime.operations_supervisor as supervisor_module
+
+    def owned_lock(file_descriptor: int, operation: int) -> None:
+        if operation == supervisor_module.fcntl.LOCK_EX | supervisor_module.fcntl.LOCK_NB:
+            raise BlockingIOError
+
+    monkeypatch.setattr(supervisor_module.fcntl, "flock", owned_lock)
+    signals: list[tuple[int, int]] = []
+
+    with pytest.raises(RuntimeError, match="state/lock owner mismatch"):
+        request_operations_supervisor_stop(
+            workspace,
+            signal_sender=lambda value, sig: signals.append((value, sig)),
+        )
+
+    assert signals == []
