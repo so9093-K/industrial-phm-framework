@@ -72,9 +72,7 @@ class OperationsAnalysisConfig:
     def __post_init__(self) -> None:
         _validate_positive_finite(self.poll_interval_seconds, "analysis.poll_interval_seconds")
         if self.alignment not in _ALIGNMENT_MODES:
-            raise ValueError(
-                f"analysis.alignment must be one of {sorted(_ALIGNMENT_MODES)!r}"
-            )
+            raise ValueError(f"analysis.alignment must be one of {sorted(_ALIGNMENT_MODES)!r}")
         if self.alignment == "strict":
             if self.max_carry_age_seconds is not None or self.alignment_basis is not None:
                 raise ValueError(
@@ -82,9 +80,7 @@ class OperationsAnalysisConfig:
                 )
             return
         if self.max_carry_age_seconds is None:
-            raise ValueError(
-                "bounded-previous analysis alignment requires max_carry_age_seconds"
-            )
+            raise ValueError("bounded-previous analysis alignment requires max_carry_age_seconds")
         _validate_positive_finite(
             self.max_carry_age_seconds,
             "analysis.max_carry_age_seconds",
@@ -167,9 +163,7 @@ def write_operations_runtime_config(
         f"alignment = {_toml_string(analysis.alignment)}",
     ]
     if analysis.max_carry_age_seconds is not None:
-        lines.append(
-            f"max_carry_age_seconds = {float(analysis.max_carry_age_seconds)!r}"
-        )
+        lines.append(f"max_carry_age_seconds = {float(analysis.max_carry_age_seconds)!r}")
     if analysis.alignment_basis is not None:
         lines.append(f"alignment_basis = {_toml_string(analysis.alignment_basis)}")
     rendered = "\n".join((*lines, ""))
