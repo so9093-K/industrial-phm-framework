@@ -39,6 +39,7 @@ from industrial_phm.commands.experiment import (
 from industrial_phm.commands.feature import _run_feature_characterize
 from industrial_phm.commands.operations import (
     _run_operations_backfill_source,
+    _run_operations_backup,
     _run_operations_collection_service,
     _run_operations_compact_history,
     _run_operations_flush_history,
@@ -47,6 +48,7 @@ from industrial_phm.commands.operations import (
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_request_collection,
+    _run_operations_restore,
     _run_operations_start,
     _run_operations_status,
     _run_operations_stop,
@@ -278,6 +280,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="local Operations workspace root",
     )
     operations_init.set_defaults(handler=_run_operations_init)
+
+    operations_backup = operations_commands.add_parser(
+        "backup",
+        help="create an integrity-checked offline backup of a stopped workspace",
+    )
+    operations_backup.add_argument(
+        "workspace",
+        type=Path,
+        help="initialized local Operations workspace root",
+    )
+    operations_backup.add_argument(
+        "destination",
+        type=Path,
+        help="new backup directory; must not already exist or be inside the workspace",
+    )
+    operations_backup.set_defaults(handler=_run_operations_backup)
+
+    operations_restore = operations_commands.add_parser(
+        "restore",
+        help="restore a verified backup into a new workspace root",
+    )
+    operations_restore.add_argument(
+        "backup",
+        type=Path,
+        help="Operations backup directory containing manifest.json and payload/",
+    )
+    operations_restore.add_argument(
+        "workspace",
+        type=Path,
+        help="new Operations workspace root; must not already exist",
+    )
+    operations_restore.set_defaults(handler=_run_operations_restore)
 
     operations_start = operations_commands.add_parser(
         "start",

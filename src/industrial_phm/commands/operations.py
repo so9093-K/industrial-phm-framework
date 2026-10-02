@@ -45,10 +45,12 @@ from industrial_phm.runtime import (
     SqliteAcquisitionTelemetryRepository,
     SqliteCollectionControlRepository,
     build_operations_runtime_plan,
+    create_operations_backup,
     initialize_operations_workspace,
     inspect_operations_runtime_status,
     load_operations_runtime_config,
     request_operations_supervisor_stop,
+    restore_operations_backup,
     run_collection_service,
     run_operations_supervisor,
     tail_operations_component_log,
@@ -69,6 +71,40 @@ def _run_operations_init(args: argparse.Namespace) -> int:
     print(
         f"workspace={result.workspace.root} config={result.workspace.config_path} "
         f"schema={result.config.schema} state={state}"
+    )
+    return 0
+
+
+def _run_operations_backup(args: argparse.Namespace) -> int:
+    """Create one integrity-checked offline backup of a stopped workspace."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        result = create_operations_backup(workspace, args.destination)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Operations backup failed: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"workspace={workspace.root} backup={result.backup_path} "
+        f"files={len(result.manifest.files)} bytes={result.manifest.total_bytes} "
+        f"schema={result.manifest.schema}"
+    )
+    return 0
+
+
+def _run_operations_restore(args: argparse.Namespace) -> int:
+    """Restore one verified backup into a new workspace root."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        result = restore_operations_backup(args.backup, workspace)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Operations restore failed: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"workspace={workspace.root} backup={result.backup_path} "
+        f"state=restored files={len(result.manifest.files)} "
+        f"bytes={result.manifest.total_bytes}"
     )
     return 0
 

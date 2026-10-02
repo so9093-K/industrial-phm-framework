@@ -27,6 +27,16 @@ from industrial_phm.runtime.opcua_acquisition import (
     OpcUaUnpersistedNotificationError,
     run_registered_opcua_acquisition_worker,
 )
+from industrial_phm.runtime.operations_backup import (
+    OPERATIONS_BACKUP_SCHEMA,
+    OperationsBackupFile,
+    OperationsBackupFormatError,
+    OperationsBackupManifest,
+    OperationsBackupResult,
+    create_operations_backup,
+    restore_operations_backup,
+    validate_operations_backup,
+)
 from industrial_phm.runtime.operations_config import (
     OPERATIONS_CONFIG_SCHEMA,
     OPERATIONS_CONFIG_SCHEMA_V1,
@@ -77,6 +87,7 @@ from industrial_phm.runtime.window_coordinator import (
 
 __all__ = [
     "DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT",
+    "OPERATIONS_BACKUP_SCHEMA",
     "OPERATIONS_CONFIG_SCHEMA",
     "OPERATIONS_CONFIG_SCHEMA_V1",
     "OPERATIONS_UI_HOST",
@@ -88,6 +99,10 @@ __all__ = [
     "OpcUaSubscriptionOverflowError",
     "OpcUaUnpersistedNotificationError",
     "OperationsAnalysisConfig",
+    "OperationsBackupFile",
+    "OperationsBackupFormatError",
+    "OperationsBackupManifest",
+    "OperationsBackupResult",
     "OperationsChildProcessState",
     "OperationsCollectionConfig",
     "OperationsComponentKind",
@@ -113,11 +128,13 @@ __all__ = [
     "SqliteCollectionControlRepository",
     "build_operations_runtime_plan",
     "build_operations_runtime_status",
+    "create_operations_backup",
     "initialize_operations_workspace",
     "inspect_operations_runtime_status",
     "load_operations_runtime_config",
     "rebuild_registered_opcua_observation_windows",
     "request_operations_supervisor_stop",
+    "restore_operations_backup",
     "run_collection_service",
     "run_continuous_registered_opcua_observation_windows",
     "run_operations_supervisor",
@@ -125,5 +142,6 @@ __all__ = [
     "run_spool_to_history_writer",
     "tail_operations_component_log",
     "upgrade_operations_runtime_config",
+    "validate_operations_backup",
     "write_next_spool_batch",
 ]

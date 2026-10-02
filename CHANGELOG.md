@@ -38,6 +38,12 @@
 
 ### Added
 
+- Stopped local Operations workspace의 backup/restore를 추가했습니다. `operations backup`은 supervisor와
+  history catalog lock을 확보한 뒤 config와 durable source/control/spool/window/analysis/history state를 하나의
+  recovery unit으로 capture하고, SQLite repository는 SQLite backup API로 snapshot합니다. manifest가 payload
+  file set·size·SHA-256을 검증하며 logs, supervisor PID/lock, rebuildable batch index는 제외합니다.
+  `operations restore`는 검증된 payload를 기존 root를 덮어쓰지 않고 새 workspace에 atomic restore합니다.
+
 - Clean-workspace Operations product acceptance gate를 추가했습니다. `operations` extra 환경에서 packaged synthetic
   demo를 실제 subprocess로 실행해 runtime ready, finalized window/analysis evidence, graceful stop, 같은
   workspace restart와 evidence 보존을 검증합니다. 외부 dataset이나 remote endpoint는 사용하지 않습니다.
