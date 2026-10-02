@@ -14,7 +14,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, cast
 
 try:
     import fcntl
@@ -394,12 +394,13 @@ def _build_final_state(
 def _spawn_component(launch: OperationsComponentLaunch) -> ManagedOperationsProcess:
     launch.log_path.parent.mkdir(parents=True, exist_ok=True)
     with launch.log_path.open("ab", buffering=0) as log:
-        return subprocess.Popen(
+        process = subprocess.Popen(
             launch.argv,
             stdin=subprocess.DEVNULL,
             stdout=log,
             stderr=subprocess.STDOUT,
         )
+    return cast(ManagedOperationsProcess, process)
 
 
 def _stop_children(
