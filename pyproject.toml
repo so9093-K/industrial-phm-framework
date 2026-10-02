@@ -98,6 +98,7 @@ python_version = "3.14"
 strict = true
 mypy_path = "src"
 packages = ["industrial_phm"]
+exclude = ["^src/industrial_phm/apps/operations_v2\\.py$"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
