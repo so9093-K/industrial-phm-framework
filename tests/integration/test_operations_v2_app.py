@@ -105,7 +105,7 @@ def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     assert defs["phase_analysis_path"] == workspace.phase_unbalance_state_path
@@ -144,7 +144,7 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
     monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_CATALOG", str(tmp_path / "catalog.sqlite"))
     monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", str(tmp_path / "data"))
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     loaded_ids = {item.run.analysis_run_id for item in defs["analysis_results"]}
@@ -162,7 +162,7 @@ def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypa
     state_dir.mkdir(parents=True)
     JsonPhaseUnbalanceRepository(state_dir / "phase-unbalance.json").record(_analysis())
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     migration_errors = [
