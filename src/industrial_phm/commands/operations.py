@@ -42,9 +42,13 @@ from industrial_phm.runtime import (
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
     SqliteCollectionControlRepository,
+    build_operations_runtime_plan,
     initialize_operations_workspace,
     inspect_operations_runtime_status,
+    load_operations_runtime_config,
+    request_operations_supervisor_stop,
     run_collection_service,
+    run_operations_supervisor,
 )
 from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
@@ -63,6 +67,35 @@ def _run_operations_init(args: argparse.Namespace) -> int:
         f"workspace={result.workspace.root} config={result.workspace.config_path} "
         f"schema={result.config.schema} state={state}"
     )
+    return 0
+
+
+def _run_operations_start(args: argparse.Namespace) -> int:
+    """Run the workspace-owned collection/analysis lifecycle in the foreground."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        config = load_operations_runtime_config(workspace.config_path)
+        plan = build_operations_runtime_plan(workspace, config)
+        result = run_operations_supervisor(plan)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Operations runtime start failed: {error}", file=sys.stderr)
+        return 1
+
+    if result.state.failure is not None:
+        print(f"Operations runtime failed: {result.state.failure}", file=sys.stderr)
+    return result.exit_code
+
+
+def _run_operations_stop(args: argparse.Namespace) -> int:
+    """Request graceful shutdown of the live workspace supervisor."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        pid = request_operations_supervisor_stop(workspace)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Operations runtime stop failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"workspace={workspace.root} stop=requested supervisor_pid={pid}")
     return 0
 
 
