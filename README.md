@@ -80,6 +80,19 @@ industrial-phm operations status ./plant-a
 `status`는 supervisor PID, collection/analysis heartbeat와 UI loopback listener readiness를 서로 다른 evidence로 표시합니다. 조회 성공 + 전체 runtime
 ready는 exit 0, 조회는 성공했지만 아직 ready하지 않으면 exit 2, workspace/state read 오류는 exit 1입니다.
 component 로그는 내부 파일 경로를 직접 찾지 않고 `industrial-phm operations logs ./plant-a`로 확인합니다.
+
+중요한 local workspace는 runtime을 중지한 뒤 하나의 recovery unit으로 backup할 수 있습니다.
+
+```bash
+industrial-phm operations stop ./plant-a
+industrial-phm operations backup ./plant-a ./backups/plant-a-2026-10-02
+industrial-phm operations restore ./backups/plant-a-2026-10-02 ./plant-a-restored
+```
+
+backup은 config와 durable source/control/spool/window/analysis/history evidence를 포함하고 로그, supervisor
+PID/lock, rebuildable history accelerator는 제외합니다. restore는 checksum을 검증한 뒤 **새 workspace root**에만
+복원하며 기존 root를 덮어쓰지 않습니다.
+
 이 local UI는 `127.0.0.1` 전용이며 marimo token auth를 사용하지 않습니다. shared/public host 노출은 이
 명령의 지원 범위가 아니며 별도 deployment/auth 경계가 필요합니다.
 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
