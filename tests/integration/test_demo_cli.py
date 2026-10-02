@@ -110,4 +110,4 @@ def test_demo_aihub_boiler_reports_invalid_speed_as_cli_failure(
     )
 
     assert exit_code == 1
-    assert "speed must be a positive number" in capsys.readouterr().err
+    assert "speed must be a finite positive number" in capsys.readouterr().err
