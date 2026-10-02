@@ -370,16 +370,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="request desired continuous collection state without owning the runtime loop",
     )
     operations_request_collection.add_argument(
+        "--workspace",
+        type=Path,
+        help="Operations workspace root; replaces --registry and --control-state",
+    )
+    operations_request_collection.add_argument(
         "--registry",
         type=Path,
-        required=True,
-        help="persistent registered-source control-plane JSON path",
+        help="explicit registered-source JSON path (compatibility/internal mode)",
     )
     operations_request_collection.add_argument(
         "--control-state",
         type=Path,
-        required=True,
-        help="SQLite desired collection-state path",
+        help="explicit desired collection-state SQLite path (compatibility/internal mode)",
     )
     operations_request_collection.add_argument(
         "--source-id",
@@ -398,13 +401,18 @@ def build_parser() -> argparse.ArgumentParser:
         "run-collection-service",
         help="run the independent continuous OPC UA collection service",
     )
-    operations_collection_service.add_argument("--registry", type=Path, required=True)
-    operations_collection_service.add_argument("--control-state", type=Path, required=True)
-    operations_collection_service.add_argument("--spool-state", type=Path, required=True)
-    operations_collection_service.add_argument("--telemetry-state", type=Path, required=True)
-    operations_collection_service.add_argument("--window-state", type=Path, required=True)
-    operations_collection_service.add_argument("--ducklake-catalog", type=Path, required=True)
-    operations_collection_service.add_argument("--ducklake-data", type=Path, required=True)
+    operations_collection_service.add_argument(
+        "--workspace",
+        type=Path,
+        help="Operations workspace root; replaces individual state/history path flags",
+    )
+    operations_collection_service.add_argument("--registry", type=Path)
+    operations_collection_service.add_argument("--control-state", type=Path)
+    operations_collection_service.add_argument("--spool-state", type=Path)
+    operations_collection_service.add_argument("--telemetry-state", type=Path)
+    operations_collection_service.add_argument("--window-state", type=Path)
+    operations_collection_service.add_argument("--ducklake-catalog", type=Path)
+    operations_collection_service.add_argument("--ducklake-data", type=Path)
     operations_collection_service.add_argument(
         "--reconcile-interval-seconds",
         type=float,
@@ -446,27 +454,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="analyze each finalized live observation window once (three-phase unbalance)",
     )
     operations_window_analysis.add_argument(
-        "--window-state", type=Path, required=True, help="finalized window SQLite path"
+        "--workspace",
+        type=Path,
+        help="Operations workspace root; replaces window/analysis/ledger/runtime state paths",
+    )
+    operations_window_analysis.add_argument(
+        "--window-state", type=Path, help="explicit finalized window SQLite path"
     )
     operations_window_analysis.add_argument(
         "--analysis-state",
         type=Path,
-        required=True,
-        help="phase unbalance result SQLite path (shared with Operations)",
+        help="explicit phase unbalance result SQLite path (shared with Operations)",
     )
     operations_window_analysis.add_argument(
         "--ledger-state",
         type=Path,
-        required=True,
-        help="SQLite skip ledger and incremental analysis cursor path",
+        help="explicit SQLite skip ledger and incremental analysis cursor path",
     )
     operations_window_analysis.add_argument(
         "--runtime-status",
         type=Path,
         default=None,
         help=(
-            "optional analysis-runner runtime telemetry JSON path; defaults beside "
-            "--analysis-state as <stem>-runtime.json"
+            "explicit analysis-runner runtime telemetry JSON path; defaults from --workspace "
+            "or beside --analysis-state as <stem>-runtime.json"
         ),
     )
     operations_window_analysis.add_argument(
