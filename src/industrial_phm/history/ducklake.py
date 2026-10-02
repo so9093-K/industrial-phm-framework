@@ -11,6 +11,7 @@ import hashlib
 import importlib
 import importlib.util
 import json
+import sqlite3
 import sys
 import time
 from collections.abc import Iterator, Sequence
@@ -62,6 +63,7 @@ _COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
 # Commits without a version (before it existed, including semantics-bearing spool
 # batches) are verified with the legacy fingerprint that excludes semantics.
 _OPCUA_FINGERPRINT_VERSION = "opcua-semantic-v2"
+_BATCH_PROVENANCE_INDEX_SCHEMA = 1
 
 _HISTORY_DATA_TABLES = (
     ("raw", "opcua_data_change"),
@@ -424,6 +426,7 @@ class DuckLakeAssetHistory:
 
         committed_at = self._snapshot_time_by_id(connection, snapshot_id)
 
+        self._record_batch_snapshot_index(batch_id, snapshot_id)
         return HistoricalBatchAppendResult(
             commit=HistoricalBatchCommit(
                 batch_id=batch_id,
@@ -1828,6 +1831,7 @@ class DuckLakeAssetHistory:
             raise RuntimeError("DuckLake did not report the committed batch snapshot")
         snapshot_id = _require_int(snapshot_row[0], "snapshot_id")
         committed_at = self._snapshot_time_by_id(connection, snapshot_id)
+        self._record_batch_snapshot_index(batch_id, snapshot_id)
         return HistoricalBatchCommit(
             batch_id=batch_id,
             snapshot_id=snapshot_id,
@@ -1835,18 +1839,107 @@ class DuckLakeAssetHistory:
             committed_at=committed_at,
         )
 
-    def _snapshot_time_by_id(self, connection: Any, snapshot_id: int) -> datetime:
-        """Read one DuckLake snapshot timestamp directly from the SQLite catalog PK."""
+    def _snapshot_metadata_by_id(
+        self,
+        connection: Any,
+        snapshot_id: int,
+    ) -> tuple[datetime, str | None, object]:
+        """Read one DuckLake snapshot row directly from the SQLite catalog primary key."""
         catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
         row = connection.execute(
-            "SELECT CAST(snapshot_time AS TIMESTAMPTZ) "
+            "SELECT CAST(snapshot_time AS TIMESTAMPTZ), author, commit_extra_info "
             "FROM sqlite_scan(" + _quote_sql_literal(str(catalog_path)) + ", 'ducklake_snapshot') "
             "WHERE snapshot_id = ?",
             [snapshot_id],
         ).fetchone()
         if row is None:
             raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
-        return _require_datetime(row[0], "snapshot_time")
+        author = None if row[1] is None else _require_str(row[1], "author")
+        return _require_datetime(row[0], "snapshot_time"), author, row[2]
+
+    def _snapshot_time_by_id(self, connection: Any, snapshot_id: int) -> datetime:
+        """Read one DuckLake snapshot timestamp directly from the SQLite catalog primary key."""
+        snapshot_time, _, _ = self._snapshot_metadata_by_id(connection, snapshot_id)
+        return snapshot_time
+
+    def _batch_provenance_index_path(self) -> Path:
+        catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
+        return catalog_path.with_name(catalog_path.name + ".phm-batch-index.sqlite")
+
+    def _lookup_batch_snapshot_index(self, batch_id: str) -> int | None:
+        """Return a derived batch→snapshot accelerator entry when available.
+
+        The sidecar is not evidence. Missing/corrupt entries fall back to DuckLake
+        commit provenance and are rebuilt from that source of truth.
+        """
+        path = self._batch_provenance_index_path()
+        if not path.is_file():
+            return None
+        try:
+            connection = sqlite3.connect(path)
+            try:
+                row = connection.execute(
+                    "SELECT snapshot_id FROM batch_provenance_index WHERE batch_id = ?",
+                    [batch_id],
+                ).fetchone()
+            finally:
+                connection.close()
+        except (OSError, sqlite3.Error):
+            return None
+        if row is None:
+            return None
+        value = row[0]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+        return value
+
+    def _record_batch_snapshot_index(self, batch_id: str, snapshot_id: int) -> None:
+        """Best-effort update of the rebuildable batch provenance accelerator."""
+        path = self._batch_provenance_index_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            connection = sqlite3.connect(path)
+            try:
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS repository_meta(
+                        schema_version INTEGER NOT NULL
+                    )
+                    """
+                )
+                row = connection.execute(
+                    "SELECT schema_version FROM repository_meta LIMIT 1"
+                ).fetchone()
+                if row is None:
+                    connection.execute(
+                        "INSERT INTO repository_meta(schema_version) VALUES (?)",
+                        [_BATCH_PROVENANCE_INDEX_SCHEMA],
+                    )
+                elif row[0] != _BATCH_PROVENANCE_INDEX_SCHEMA:
+                    return
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS batch_provenance_index(
+                        batch_id TEXT PRIMARY KEY,
+                        snapshot_id INTEGER NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO batch_provenance_index(batch_id, snapshot_id)
+                    VALUES (?, ?)
+                    ON CONFLICT(batch_id) DO UPDATE SET snapshot_id = excluded.snapshot_id
+                    """,
+                    [batch_id, snapshot_id],
+                )
+                connection.commit()
+            finally:
+                connection.close()
+        except (OSError, sqlite3.Error):
+            # This is a derived accelerator only. Durable history/provenance remains
+            # in DuckLake and the next recovery can fall back to a source scan.
+            return
 
     def _lookup_existing_batch_commit(
         self,
