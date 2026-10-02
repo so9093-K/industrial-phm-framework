@@ -5,9 +5,10 @@ from __future__ import annotations
 import os
 import tempfile
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, cast
+from typing import cast
 
 OPERATIONS_CONFIG_SCHEMA = "industrial-phm-operations-runtime-v1"
 _CONFIG_KEYS = frozenset({"schema"})
