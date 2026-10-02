@@ -252,7 +252,7 @@ def request_operations_supervisor_stop(
                 raise RuntimeError(
                     "Operations supervisor state/lock owner mismatch for "
                     f"{workspace.root}: state_pid={state.supervisor_pid} lock_pid={owner_pid}"
-                )
+                ) from None
         else:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
             raise RuntimeError(
