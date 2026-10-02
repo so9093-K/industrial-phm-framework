@@ -1,8 +1,9 @@
-"""Local Operations runtime status from process identity and component telemetry."""
+"""Local Operations runtime status from process identity and component evidence."""
 
 from __future__ import annotations
 
 import os
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -19,7 +20,7 @@ from industrial_phm.application.window_analysis_runtime import (
 )
 from industrial_phm.runtime.acquisition_telemetry import SqliteAcquisitionTelemetryRepository
 from industrial_phm.runtime.operations_config import load_operations_runtime_config
-from industrial_phm.runtime.operations_runtime import OperationsComponentKind
+from industrial_phm.runtime.operations_runtime import OPERATIONS_UI_HOST, OperationsComponentKind
 from industrial_phm.runtime.operations_supervisor import (
     OperationsChildProcessState,
     OperationsSupervisorState,
@@ -29,12 +30,14 @@ from industrial_phm.runtime.operations_supervisor import (
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT = timedelta(seconds=20)
+UiListenerProbe = Callable[[str, int], bool]
 
 
 class OperationsRuntimeCondition(StrEnum):
     """Small local-runtime vocabulary without inventing asset/source health."""
 
     RUNNING = "running"
+    NOT_READY = "not-ready"
     STALE = "stale"
     STOPPED = "stopped"
     FAILED = "failed"
@@ -85,7 +88,7 @@ class OperationsSupervisorStatus:
 
 @dataclass(frozen=True, slots=True)
 class OperationsComponentStatus:
-    """One managed service's process identity and authoritative runtime evidence."""
+    """One managed component's process identity and authoritative readiness evidence."""
 
     kind: OperationsComponentKind
     condition: OperationsRuntimeCondition
@@ -114,7 +117,7 @@ class OperationsComponentStatus:
 
 @dataclass(frozen=True, slots=True)
 class OperationsRuntimeStatus:
-    """Local node process/readiness snapshot for CLI and later Operations projection."""
+    """Local node process/readiness snapshot for CLI and Operations projection."""
 
     workspace: OperationsWorkspace
     assessed_at: datetime
@@ -142,6 +145,7 @@ def inspect_operations_runtime_status(
     *,
     as_of: datetime | None = None,
     process_checker: Callable[[int], bool] | None = None,
+    ui_listener_probe: UiListenerProbe | None = None,
     heartbeat_timeout: timedelta = DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT,
 ) -> OperationsRuntimeStatus:
     """Read one initialized workspace without turning PID existence into health."""
@@ -150,10 +154,11 @@ def inspect_operations_runtime_status(
     if not isinstance(heartbeat_timeout, timedelta) or heartbeat_timeout <= timedelta():
         raise ValueError("heartbeat_timeout must be positive")
 
-    load_operations_runtime_config(workspace.config_path)
+    config = load_operations_runtime_config(workspace.config_path)
     effective_as_of = datetime.now(UTC) if as_of is None else as_of
     _require_aware(effective_as_of, "as_of")
     effective_checker = _pid_is_alive if process_checker is None else process_checker
+    effective_ui_probe = _tcp_listener_ready if ui_listener_probe is None else ui_listener_probe
 
     supervisor = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
     collection_runtime = _load_collection_runtime(workspace)
@@ -166,6 +171,9 @@ def inspect_operations_runtime_status(
         analysis_runtime=analysis_runtime,
         as_of=effective_as_of,
         process_checker=effective_checker,
+        ui_listener_probe=effective_ui_probe,
+        ui_host=OPERATIONS_UI_HOST,
+        ui_port=config.ui.port,
         heartbeat_timeout=heartbeat_timeout,
     )
 
@@ -178,9 +186,12 @@ def build_operations_runtime_status(
     analysis_runtime: WindowAnalysisRunnerTelemetry | None,
     as_of: datetime,
     process_checker: Callable[[int], bool],
+    ui_listener_probe: UiListenerProbe = lambda _host, _port: False,
+    ui_host: str = OPERATIONS_UI_HOST,
+    ui_port: int = 2718,
     heartbeat_timeout: timedelta = DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT,
 ) -> OperationsRuntimeStatus:
-    """Combine process identity and component-owned heartbeat evidence."""
+    """Combine process identity with component-owned readiness evidence."""
     if not isinstance(workspace, OperationsWorkspace):
         raise ValueError("workspace must be OperationsWorkspace")
     _require_aware(as_of, "as_of")
@@ -212,6 +223,13 @@ def build_operations_runtime_status(
             as_of=as_of,
             process_checker=process_checker,
             timeout=heartbeat_timeout,
+        ),
+        _ui_status(
+            child_by_kind.get(OperationsComponentKind.UI),
+            process_checker=process_checker,
+            listener_probe=ui_listener_probe,
+            host=ui_host,
+            port=ui_port,
         ),
     )
     return OperationsRuntimeStatus(
@@ -372,6 +390,70 @@ def _analysis_status(
     )
 
 
+def _ui_status(
+    child: OperationsChildProcessState | None,
+    *,
+    process_checker: Callable[[int], bool],
+    listener_probe: UiListenerProbe,
+    host: str,
+    port: int,
+) -> OperationsComponentStatus:
+    process = _child_process_evidence(child, process_checker)
+    if process is None:
+        return OperationsComponentStatus(
+            OperationsComponentKind.UI,
+            OperationsRuntimeCondition.UNAVAILABLE,
+            None,
+            None,
+            None,
+            "ui process identity unavailable",
+        )
+    if process.return_code is not None:
+        condition = (
+            OperationsRuntimeCondition.STOPPED
+            if process.return_code == 0
+            else OperationsRuntimeCondition.FAILED
+        )
+        return OperationsComponentStatus(
+            OperationsComponentKind.UI,
+            condition,
+            process,
+            "stopped" if process.return_code == 0 else "failed",
+            None,
+            (
+                "ui process exited cleanly"
+                if process.return_code == 0
+                else f"ui process exited with code {process.return_code}"
+            ),
+        )
+    if not process.alive:
+        return OperationsComponentStatus(
+            OperationsComponentKind.UI,
+            OperationsRuntimeCondition.FAILED,
+            process,
+            "process-missing",
+            None,
+            "ui process is not running",
+        )
+    if not listener_probe(host, port):
+        return OperationsComponentStatus(
+            OperationsComponentKind.UI,
+            OperationsRuntimeCondition.NOT_READY,
+            process,
+            "listener-not-ready",
+            None,
+            f"ui process is running but {host}:{port} is not accepting connections",
+        )
+    return OperationsComponentStatus(
+        OperationsComponentKind.UI,
+        OperationsRuntimeCondition.RUNNING,
+        process,
+        "listener-ready",
+        None,
+        f"ui listener is accepting connections at {host}:{port}",
+    )
+
+
 def _running_component_status(
     kind: OperationsComponentKind,
     process: OperationsProcessEvidence | None,
@@ -473,6 +555,14 @@ def _pid_is_alive(pid: int) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def _tcp_listener_ready(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            return True
+    except OSError:
+        return False
 
 
 def _stale(heartbeat_at: datetime, *, as_of: datetime, timeout: timedelta) -> bool:
