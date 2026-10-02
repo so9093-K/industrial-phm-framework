@@ -285,9 +285,9 @@ def run_operations_supervisor(
     graceful_timeout_seconds: float = 10.0,
     terminate_timeout_seconds: float = 5.0,
 ) -> OperationsSupervisorResult:
-    """Run collection and analysis as one foreground local service lifecycle.
+    """Run collection, analysis and UI as one foreground local service lifecycle.
 
-    Child telemetry remains the authoritative health/readiness evidence. This function
+    Component-specific telemetry/readiness remains authoritative. This function
     owns process identity, coordinated shutdown and unexpected-process-exit handling only.
     """
     if not isinstance(plan, OperationsRuntimePlan):
@@ -461,14 +461,24 @@ def _build_final_state(
 
 def _spawn_component(launch: OperationsComponentLaunch) -> ManagedOperationsProcess:
     launch.log_path.parent.mkdir(parents=True, exist_ok=True)
+    environment = _component_environment(launch)
     with launch.log_path.open("ab", buffering=0) as log:
         process = subprocess.Popen(
             launch.argv,
             stdin=subprocess.DEVNULL,
             stdout=log,
             stderr=subprocess.STDOUT,
+            env=environment,
         )
     return cast(ManagedOperationsProcess, process)
+
+
+def _component_environment(launch: OperationsComponentLaunch) -> dict[str, str]:
+    environment = dict(os.environ)
+    for key in launch.clear_env:
+        environment.pop(key, None)
+    environment.update(launch.env_overrides)
+    return environment
 
 
 def _stop_children(
