@@ -38,6 +38,11 @@
 
 ### Added
 
+- `industrial-phm demo synthetic` one-command local demo를 추가했습니다. 전용 workspace를 안전하게 생성·재사용하고
+  synthetic 3상 OPC UA source를 ACTIVE/RUNNING으로 준비한 뒤 loopback simulator readiness를 확인하고 기존
+  Operations supervisor(collection + analysis + packaged UI)를 실행합니다. 기존 사용자 source가 섞인 workspace는
+  자동 채택하지 않으며 synthetic 값은 실제 설비 측정이나 진단으로 해석하지 않습니다.
+
 - Local Operations product-runtime foundation을 추가했습니다. `operations init <workspace>`가 versioned
   workspace/config를 만들고, collector/analysis launch policy와 foreground supervisor가 같은 workspace를
   사용합니다. 새 `operations status <workspace>`는 supervisor process identity와 collection/analysis
