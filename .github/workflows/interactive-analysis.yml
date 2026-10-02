@@ -84,7 +84,7 @@ jobs:
       - name: Check marimo analysis files
         run: |
           uv run --locked --group research --extra operations marimo check --strict \
-            notebooks/*.py apps/*.py src/industrial_phm/src/industrial_phm/apps/operations_v2.py
+            notebooks/*.py apps/*.py src/industrial_phm/apps/operations_v2.py
 
       - name: Render Operations with analysis results and review requests
         run: uv run --locked --group research pytest tests/integration/test_operations_v2_app.py
