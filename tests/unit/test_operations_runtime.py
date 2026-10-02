@@ -73,6 +73,7 @@ def test_operations_runtime_plan_uses_one_workspace_root_and_config(tmp_path: Pa
         "run",
         str(operations_app_path()),
         "--headless",
+        "--no-token",
         "--host",
         OPERATIONS_UI_HOST,
         "--port",
