@@ -20,6 +20,6 @@ def require_unclaimed_demo_workspace(workspace: OperationsWorkspace) -> None:
     )
     if unexpected_files or history_entries or runtime_entries:
         raise ValueError(
-            "existing Operations workspace contains runtime/history state but no matching demo source; "
-            "choose another --workspace"
+            "existing Operations workspace contains runtime/history state "
+            "but no matching demo source; choose another --workspace"
         )
