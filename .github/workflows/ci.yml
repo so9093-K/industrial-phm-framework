@@ -111,6 +111,11 @@ jobs:
           uv run --locked --extra operations python -m marimo run --help | grep -q -- '--no-token'
           uv run --locked --extra operations industrial-phm demo synthetic --help
 
+      - name: Validate clean-workspace Operations product acceptance
+        run: |
+          uv run --locked --extra operations pytest \
+            tests/acceptance/test_synthetic_operations_node.py
+
       - name: Validate independent live collection and history queries
         run: |
           uv run --locked --extra history --extra opcua pytest \

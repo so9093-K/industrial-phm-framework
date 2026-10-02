@@ -27,7 +27,8 @@ private helper 호출 횟수, 내부 collection 종류, refactor 가능한 구�
 ## 3. Test Layers Grow with Real Features
 
 현재 repository는 unit과 contract에 더해, 실제로 생긴 adapter → application 경계를 보호하는 최소
-integration test를 유지합니다. acceptance는 service/browser workflow가 실제로 생길 때 추가합니다.
+integration test를 유지합니다. Local Operations service/browser workflow가 생긴 뒤에는 clean-workspace
+product lifecycle을 `tests/acceptance/`에서 보호합니다.
 
 ```text
 tests/
@@ -39,6 +40,11 @@ tests/
 
 Integration test도 concrete boundary를 보호해야 하며 미래용 directory나 fixture framework를 미리 만들지
 않습니다.
+
+현재 Operations acceptance gate는 외부 dataset/network를 사용하지 않습니다. Packaged synthetic demo를 실제
+subprocess로 시작해 workspace 생성 → runtime ready → finalized window/analysis evidence → graceful stop →
+같은 workspace restart/state 보존을 확인합니다. Base unit suite에서는 optional Operations runtime이 없으면
+skip하고, CI의 `operations` extra 환경에서 별도 gate로 실행합니다.
 
 ## 4. Do Not Reimplement Validation in Tests
 
