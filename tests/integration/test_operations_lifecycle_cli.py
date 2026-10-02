@@ -3,7 +3,11 @@ from types import SimpleNamespace
 
 import industrial_phm.commands.operations as operations_commands
 from industrial_phm.cli import main
-from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
+from industrial_phm.runtime import (
+    OperationsSupervisorStateKind,
+    OperationsWorkspace,
+    initialize_operations_workspace,
+)
 
 
 def test_operations_start_runs_supervisor_from_workspace_config(
@@ -17,8 +21,11 @@ def test_operations_start_runs_supervisor_from_workspace_config(
     def fake_run(plan):
         captured["plan"] = plan
         return SimpleNamespace(
-            state=SimpleNamespace(failure=None),
-            exit_code=0,
+            state=SimpleNamespace(
+                failure=None,
+                state=OperationsSupervisorStateKind.STOPPED,
+            ),
+            exit_code=130,
         )
 
     monkeypatch.setattr(operations_commands, "run_operations_supervisor", fake_run)
