@@ -255,7 +255,6 @@ def test_stop_request_signals_recorded_supervisor_only_when_lock_is_owned(
     assert signals == [(502, signal.SIGINT)]
 
 
-
 def test_stop_request_rejects_state_and_lock_owner_pid_mismatch(
     tmp_path: Path,
     monkeypatch,
