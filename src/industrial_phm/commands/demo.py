@@ -9,14 +9,14 @@ from industrial_phm.demo import SyntheticDemoConfig, run_synthetic_demo
 
 
 def _run_demo_synthetic(args: argparse.Namespace) -> int:
-    preset = SyntheticDemoConfig(
-        workspace=args.workspace,
-        opcua_port=args.opcua_port,
-        ui_port=args.ui_port,
-        publish_interval_seconds=args.publish_interval_seconds,
-        startup_timeout_seconds=args.startup_timeout_seconds,
-    )
     try:
+        preset = SyntheticDemoConfig(
+            workspace=args.workspace,
+            opcua_port=args.opcua_port,
+            ui_port=args.ui_port,
+            publish_interval_seconds=args.publish_interval_seconds,
+            startup_timeout_seconds=args.startup_timeout_seconds,
+        )
         return run_synthetic_demo(preset)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"synthetic demo failed: {error}", file=sys.stderr)
