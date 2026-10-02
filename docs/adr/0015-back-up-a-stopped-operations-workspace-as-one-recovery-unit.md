@@ -34,6 +34,9 @@ stale process identity.
   secret management.
 - Restore never overwrites an existing workspace. It materializes the verified payload in a temporary
   sibling directory, validates the restored config and then atomically renames it into a new root.
+- DuckLake persists its root `data_path` in catalog metadata. Restore verifies that schema/table/file
+  paths are relative to that root, then rebinds the copied catalog's global `data_path` to the restored
+  workspace. Catalogs containing absolute/custom DuckLake paths are rejected rather than guessed.
 - Runtime process identity and logs start fresh after restore; durable operational/evidence state remains.
 - Credentials and certificates remain outside the non-secret workspace contract and therefore are not
   added to this backup format.
@@ -53,3 +56,9 @@ contract. Deployment tooling must stop or otherwise coordinate them before backu
 
 A recovery drill must exercise backup → restore into a new root → normal runtime start before #318 can be
 considered complete.
+
+## References
+
+- DuckLake connecting and `OVERRIDE_DATA_PATH`: https://ducklake.select/docs/stable/duckdb/usage/connecting
+- DuckLake path model: https://ducklake.select/docs/stable/duckdb/usage/paths
+- DuckLake `ducklake_metadata` specification: https://ducklake.select/docs/stable/specification/tables/ducklake_metadata
