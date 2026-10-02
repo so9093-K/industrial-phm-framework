@@ -26,4 +26,5 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0009: Align multi-channel observations with an explicit, versioned temporal policy](0009-temporal-alignment-policy.md)
 - [ADR-0010: Recover lost OPC UA sessions with a fresh worker, not asyncua's in-client reconnect](0010-application-owned-opcua-session-recovery.md)
 - [ADR-0011: Own local Operations paths by one workspace root](0011-own-local-operations-paths-by-workspace-root.md)
-- [ADR-0012: Own local service policy in the workspace config](0012-own-local-service-policy-in-workspace-config.md)\n- [ADR-0013: Supervise local services without owning component health](0013-supervise-local-services-without-owning-component-health.md)
+- [ADR-0012: Own local service policy in the workspace config](0012-own-local-service-policy-in-workspace-config.md)
+- [ADR-0013: Supervise local services without owning component health](0013-supervise-local-services-without-owning-component-health.md)
