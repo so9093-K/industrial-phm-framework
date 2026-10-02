@@ -216,7 +216,9 @@ def build_registered_replay_source(
         config=OpcUaSourceConfig(
             endpoint_url=endpoint,
             asset_id=selection.binding.asset_id,
-            node_mappings=tuple(OpcUaNodeMapping(channel, node_id(channel)) for channel in channels),
+            node_mappings=tuple(
+                OpcUaNodeMapping(channel, node_id(channel)) for channel in channels
+            ),
             timeout_seconds=2.0,
             semantic_bindings=bindings,
         ),
@@ -414,7 +416,10 @@ async def serve(
                                     "run": run_id,
                                     "at": at.isoformat(),
                                     "values": written,
-                                    "good": {channel: value is not None for channel, value in written.items()},
+                                    "good": {
+                                        channel: value is not None
+                                        for channel, value in written.items()
+                                    },
                                 },
                                 ensure_ascii=False,
                             )
@@ -495,7 +500,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 f"Prepared {args.root}: {_manifest_int(manifest, 'record_count')} records, "
                 f"{len(_manifest_string_list(manifest, 'channels'))} channels "
-                f"({len(_manifest_string_list(manifest, 'bound_channels'))} with evidenced meaning); "
+                f"({len(_manifest_string_list(manifest, 'bound_channels'))} "
+                "with evidenced meaning); "
                 "collection STOPPED"
             )
             return 0
