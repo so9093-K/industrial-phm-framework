@@ -37,6 +37,7 @@ from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryCon
 from industrial_phm.runtime import (
     CollectionServicePolicy,
     OperationsProcessEvidence,
+    OperationsSupervisorStateKind,
     OperationsWorkspace,
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
@@ -83,6 +84,8 @@ def _run_operations_start(args: argparse.Namespace) -> int:
 
     if result.state.failure is not None:
         print(f"Operations runtime failed: {result.state.failure}", file=sys.stderr)
+    if result.state.state == OperationsSupervisorStateKind.STOPPED:
+        return 0
     return result.exit_code
 
 
