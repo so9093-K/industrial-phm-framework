@@ -74,7 +74,10 @@ def test_operations_init_rejects_invalid_existing_config(tmp_path: Path, capsys)
     assert "unsupported Operations config schema" in capsys.readouterr().err
 
 
-def test_operations_status_reports_unavailable_initialized_workspace(tmp_path: Path, capsys) -> None:
+def test_operations_status_reports_unavailable_initialized_workspace(
+    tmp_path: Path,
+    capsys,
+) -> None:
     root = tmp_path / "plant-a"
     assert main(["operations", "init", str(root)]) == 0
     capsys.readouterr()
