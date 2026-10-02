@@ -38,6 +38,11 @@
 
 ### Added
 
+- Local Operations product-runtime foundation을 추가했습니다. `operations init <workspace>`가 versioned
+  workspace/config를 만들고, collector/analysis launch policy와 foreground supervisor가 같은 workspace를
+  사용합니다. 새 `operations status <workspace>`는 supervisor process identity와 collection/analysis
+  component heartbeat를 분리해 표시하며, PID만으로 component health를 추정하지 않습니다.
+
 - `tools/history/append_profile.py`와
   `docs/research/phase10-history-append-scaling.md`: live history append를 단계별로 분해하고
   N=0/2,000 full-data와 N=10,000 metadata-only 상태를 비교하는 #344 재현 도구/evidence입니다.

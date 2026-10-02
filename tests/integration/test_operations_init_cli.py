@@ -1,7 +1,19 @@
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 
+from industrial_phm.application import JsonWindowAnalysisRuntimeRepository
 from industrial_phm.cli import main
-from industrial_phm.runtime import OPERATIONS_CONFIG_SCHEMA, OperationsWorkspace
+from industrial_phm.runtime import (
+    OPERATIONS_CONFIG_SCHEMA,
+    OperationsChildProcessState,
+    OperationsComponentKind,
+    OperationsSupervisorState,
+    OperationsSupervisorStateKind,
+    OperationsSupervisorStateRepository,
+    OperationsWorkspace,
+    SqliteAcquisitionTelemetryRepository,
+)
 
 
 def test_operations_init_creates_minimal_versioned_workspace(tmp_path: Path, capsys) -> None:
@@ -60,3 +72,67 @@ def test_operations_init_rejects_invalid_existing_config(tmp_path: Path, capsys)
 
     assert exit_code == 1
     assert "unsupported Operations config schema" in capsys.readouterr().err
+
+
+def test_operations_status_reports_unavailable_initialized_workspace(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    root = tmp_path / "plant-a"
+    assert main(["operations", "init", str(root)]) == 0
+    capsys.readouterr()
+
+    exit_code = main(["operations", "status", str(root)])
+
+    assert exit_code == 2
+    output = capsys.readouterr().out
+    assert f"workspace={root} ready=no" in output
+    assert "supervisor condition=unavailable" in output
+    assert "collection condition=unavailable" in output
+    assert "analysis condition=unavailable" in output
+
+
+def test_operations_status_reports_ready_from_process_and_component_evidence(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    root = tmp_path / "plant-a"
+    workspace = OperationsWorkspace(root)
+    assert main(["operations", "init", str(root)]) == 0
+    capsys.readouterr()
+
+    at = datetime.now(UTC)
+    pid = os.getpid()
+    OperationsSupervisorStateRepository(workspace.supervisor_state_path).write(
+        OperationsSupervisorState(
+            state=OperationsSupervisorStateKind.RUNNING,
+            supervisor_pid=pid,
+            started_at=at,
+            updated_at=at,
+            components=(
+                OperationsChildProcessState(
+                    OperationsComponentKind.COLLECTION,
+                    pid,
+                    workspace.logs_path / "collection.log",
+                ),
+                OperationsChildProcessState(
+                    OperationsComponentKind.ANALYSIS,
+                    pid,
+                    workspace.logs_path / "analysis.log",
+                ),
+            ),
+        )
+    )
+    telemetry = SqliteAcquisitionTelemetryRepository(workspace.acquisition_telemetry_path)
+    telemetry.record_collection_service_start(started_at=at)
+    JsonWindowAnalysisRuntimeRepository(workspace.analysis_runtime_path).record_start(at)
+
+    exit_code = main(["operations", "status", str(root)])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert f"workspace={root} ready=yes" in output
+    assert "supervisor condition=running" in output
+    assert "collection condition=running" in output
+    assert "runtime=running" in output
+    assert "analysis condition=running" in output

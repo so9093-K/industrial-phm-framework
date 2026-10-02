@@ -47,7 +47,16 @@ industrial-phm operations init ./plant-a
 ```
 
 현재 `init`은 versioned workspace와 data/log directory만 준비하며 collector·analysis·UI process를
-자동으로 시작하지 않습니다. 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
+자동으로 시작하지 않습니다. Local runtime의 process identity와 collection/analysis heartbeat 상태는 다음처럼
+확인합니다.
+
+```bash
+industrial-phm operations status ./plant-a
+```
+
+`status`는 supervisor PID와 component-owned heartbeat를 별도 evidence로 표시합니다. 조회 성공 + 전체 runtime
+ready는 exit 0, 조회는 성공했지만 아직 ready하지 않으면 exit 2, workspace/state read 오류는 exit 1입니다.
+현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
 
 ### Analysis Explorer
 

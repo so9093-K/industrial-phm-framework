@@ -41,6 +41,16 @@ from industrial_phm.runtime.operations_runtime import (
     OperationsRuntimePlan,
     build_operations_runtime_plan,
 )
+from industrial_phm.runtime.operations_status import (
+    DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT,
+    OperationsComponentStatus,
+    OperationsProcessEvidence,
+    OperationsRuntimeCondition,
+    OperationsRuntimeStatus,
+    OperationsSupervisorStatus,
+    build_operations_runtime_status,
+    inspect_operations_runtime_status,
+)
 from industrial_phm.runtime.operations_supervisor import (
     OperationsChildProcessState,
     OperationsSupervisorResult,
@@ -60,6 +70,7 @@ from industrial_phm.runtime.window_coordinator import (
 )
 
 __all__ = [
+    "DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT",
     "OPERATIONS_CONFIG_SCHEMA",
     "AcquisitionTelemetryFormatError",
     "CollectionControlFormatError",
@@ -73,13 +84,18 @@ __all__ = [
     "OperationsCollectionConfig",
     "OperationsComponentKind",
     "OperationsComponentLaunch",
+    "OperationsComponentStatus",
     "OperationsConfigFormatError",
+    "OperationsProcessEvidence",
+    "OperationsRuntimeCondition",
     "OperationsRuntimeConfig",
     "OperationsRuntimePlan",
+    "OperationsRuntimeStatus",
     "OperationsSupervisorResult",
     "OperationsSupervisorState",
     "OperationsSupervisorStateKind",
     "OperationsSupervisorStateRepository",
+    "OperationsSupervisorStatus",
     "OperationsWorkspace",
     "OperationsWorkspaceInitialization",
     "SqliteAcquisitionSpool",
@@ -87,7 +103,9 @@ __all__ = [
     "SqliteAcquisitionTelemetryRepository",
     "SqliteCollectionControlRepository",
     "build_operations_runtime_plan",
+    "build_operations_runtime_status",
     "initialize_operations_workspace",
+    "inspect_operations_runtime_status",
     "load_operations_runtime_config",
     "rebuild_registered_opcua_observation_windows",
     "run_collection_service",
