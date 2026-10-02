@@ -154,7 +154,11 @@ def load_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
 
     collection = _load_collection_config(root.get("collection"))
     analysis = _load_analysis_config(root.get("analysis"))
-    ui = OperationsUiConfig() if schema == OPERATIONS_CONFIG_SCHEMA_V1 else _load_ui_config(root.get("ui"))
+    ui = (
+        OperationsUiConfig()
+        if schema == OPERATIONS_CONFIG_SCHEMA_V1
+        else _load_ui_config(root.get("ui"))
+    )
     return OperationsRuntimeConfig(
         collection=collection,
         analysis=analysis,
