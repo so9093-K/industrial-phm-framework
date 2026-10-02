@@ -74,28 +74,23 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
         "--profile",
         "three-phase",
     ]
-    collector_cmd = [*CLI, "operations", "run-collection-service"]
-    for flag, file in (
-        ("registry", "sources.json"),
-        ("control-state", "control.sqlite"),
-        ("spool-state", "spool.sqlite"),
-        ("telemetry-state", "telemetry.sqlite"),
-        ("window-state", "windows.sqlite"),
-        ("ducklake-catalog", "catalog.sqlite"),
-        ("ducklake-data", "data"),
-    ):
-        collector_cmd += ["--" + flag, str(root / file)]
-    collector_cmd += ["--window-duration-seconds", "4", "--allowed-lateness-seconds", "1"]
+    collector_cmd = [
+        *CLI,
+        "operations",
+        "run-collection-service",
+        "--workspace",
+        str(root),
+        "--window-duration-seconds",
+        "4",
+        "--allowed-lateness-seconds",
+        "1",
+    ]
     analysis_cmd = [
         *CLI,
         "operations",
         "run-window-analysis",
-        "--window-state",
-        str(root / "windows.sqlite"),
-        "--analysis-state",
-        str(root / "phase-unbalance.sqlite"),
-        "--ledger-state",
-        str(root / "window-analysis-ledger.sqlite"),
+        "--workspace",
+        str(root),
         "--once",
     ]
     env = os.environ.copy()
