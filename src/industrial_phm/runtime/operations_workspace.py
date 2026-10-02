@@ -7,7 +7,7 @@ from pathlib import Path
 
 from industrial_phm.runtime.operations_config import (
     OperationsRuntimeConfig,
-    load_operations_runtime_config,
+    upgrade_operations_runtime_config,
     write_operations_runtime_config,
 )
 
@@ -138,7 +138,7 @@ def initialize_operations_workspace(
         raise OSError(f"Operations workspace root is not a directory: {root}")
 
     if workspace.config_path.exists():
-        config = load_operations_runtime_config(workspace.config_path)
+        config = upgrade_operations_runtime_config(workspace.config_path)
         workspace.history_data_path.mkdir(parents=True, exist_ok=True)
         workspace.logs_path.mkdir(parents=True, exist_ok=True)
         return OperationsWorkspaceInitialization(workspace, config, created=False)
