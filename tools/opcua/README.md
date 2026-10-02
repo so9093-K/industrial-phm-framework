@@ -1,5 +1,16 @@
 # Local live measurement demo
 
+정상 product demo는 repository-local multi-terminal 도구 대신 packaged command를 사용합니다.
+
+```bash
+uv sync --locked --extra operations
+uv run --no-sync industrial-phm demo synthetic
+```
+
+이 명령은 전용 `artifacts/demo-synthetic` workspace에 synthetic 3상 OPC UA source를 등록하고
+simulator + collection + analysis + Operations UI lifecycle을 한 foreground command로 실행합니다.
+아래 `tools.opcua.demo` 절차는 개별 process/failure boundary를 직접 다루는 개발·진단용 경로입니다.
+
 This explicit development tool exposes synthetic numeric `active_power` and `voltage` channels.
 It does not reproduce AI-Hub recordings, establish their units, or diagnose equipment. FILE and OPC UA
 use the same explicitly assigned demo asset/channel IDs to exercise history continuity. Nothing is
