@@ -245,3 +245,111 @@ def test_clean_workspace_synthetic_node_reaches_evidence_and_restarts(tmp_path: 
     assert len(final_events) > first_event_count
     assert len(final_windows) >= first_windows
     assert final_results >= first_results
+
+
+
+def test_stopped_workspace_backup_restores_and_restarts_as_new_node(tmp_path: Path) -> None:
+    root = tmp_path / "plant-original"
+    workspace = OperationsWorkspace(root)
+    opcua_port = _free_loopback_port()
+    ui_port = _free_loopback_port()
+    while ui_port == opcua_port:
+        ui_port = _free_loopback_port()
+
+    original_log = tmp_path / "demo-original.log"
+    original, original_handle = _start_demo(
+        root,
+        opcua_port=opcua_port,
+        ui_port=ui_port,
+        process_log_path=original_log,
+    )
+    try:
+        _wait_until_ready(original, root, process_log_path=original_log)
+        original_windows, original_results = _wait_for_analysis_evidence(workspace)
+        _stop_demo(
+            original,
+            root,
+            process_log_path=original_log,
+            assert_success=True,
+        )
+    finally:
+        _stop_demo(
+            original,
+            root,
+            process_log_path=original_log,
+            assert_success=False,
+        )
+        original_handle.close()
+
+    original_history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(
+            catalog_path=workspace.history_catalog_path,
+            data_path=workspace.history_data_path,
+        )
+    )
+    original_events = original_history.query_opcua_events(SYNTHETIC_DEMO_SOURCE_ID)
+    assert original_events
+    original_event_count = len(original_events)
+
+    backup = tmp_path / "plant-backup"
+    backup_result = _run_cli("operations", "backup", str(root), str(backup))
+    assert backup_result.returncode == 0, (
+        f"stdout={backup_result.stdout}\nstderr={backup_result.stderr}"
+    )
+    assert "schema=industrial-phm-operations-backup-v1" in backup_result.stdout
+
+    restored_root = tmp_path / "plant-restored"
+    restore_result = _run_cli("operations", "restore", str(backup), str(restored_root))
+    assert restore_result.returncode == 0, (
+        f"stdout={restore_result.stdout}\nstderr={restore_result.stderr}"
+    )
+    assert "state=restored" in restore_result.stdout
+    restored_workspace = OperationsWorkspace(restored_root)
+    assert not restored_workspace.supervisor_state_path.exists()
+    assert tuple(restored_workspace.logs_path.iterdir()) == ()
+
+    restored_log = tmp_path / "demo-restored.log"
+    restored, restored_handle = _start_demo(
+        restored_root,
+        opcua_port=opcua_port,
+        ui_port=ui_port,
+        process_log_path=restored_log,
+    )
+    try:
+        _wait_until_ready(restored, restored_root, process_log_path=restored_log)
+        time.sleep(2.0)
+        _stop_demo(
+            restored,
+            restored_root,
+            process_log_path=restored_log,
+            assert_success=True,
+        )
+    finally:
+        _stop_demo(
+            restored,
+            restored_root,
+            process_log_path=restored_log,
+            assert_success=False,
+        )
+        restored_handle.close()
+
+    restored_history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(
+            catalog_path=restored_workspace.history_catalog_path,
+            data_path=restored_workspace.history_data_path,
+        )
+    )
+    restored_events = restored_history.query_opcua_events(SYNTHETIC_DEMO_SOURCE_ID)
+    restored_windows = SqliteObservationWindowRepository(
+        restored_workspace.window_state_path
+    ).list_windows()
+    restored_results = SqlitePhaseUnbalanceRepository(
+        restored_workspace.phase_unbalance_state_path
+    ).count_results()
+
+    assert len(restored_events) > original_event_count
+    assert len(restored_windows) >= original_windows
+    assert restored_results >= original_results
+    assert len(original_history.query_opcua_events(SYNTHETIC_DEMO_SOURCE_ID)) == (
+        original_event_count
+    )
