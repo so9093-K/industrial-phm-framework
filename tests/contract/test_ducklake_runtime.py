@@ -106,7 +106,8 @@ def test_batch_provenance_sidecar_is_rebuildable_and_not_source_of_truth(tmp_pat
     assert indexed_snapshot_id() == result.commit.snapshot_id
 
     index_path.unlink()
-    recovered = repository.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
+    reopened = DuckLakeAssetHistory(DuckLakeAssetHistoryConfig(catalog, tmp_path / "data"))
+    recovered = reopened.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
     assert recovered.recovered_existing_commit is True
     assert recovered.commit == result.commit
     assert indexed_snapshot_id() == result.commit.snapshot_id
@@ -121,7 +122,8 @@ def test_batch_provenance_sidecar_is_rebuildable_and_not_source_of_truth(tmp_pat
     finally:
         connection.close()
 
-    repaired = repository.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
+    restarted = DuckLakeAssetHistory(DuckLakeAssetHistoryConfig(catalog, tmp_path / "data"))
+    repaired = restarted.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
     assert repaired.recovered_existing_commit is True
     assert repaired.commit == result.commit
     assert indexed_snapshot_id() == result.commit.snapshot_id
