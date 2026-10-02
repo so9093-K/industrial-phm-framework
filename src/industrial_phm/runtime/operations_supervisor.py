@@ -444,9 +444,7 @@ def _supervisor_lock(plan: OperationsRuntimePlan) -> Iterator[None]:
     path = plan.workspace.supervisor_lock_path
     path.parent.mkdir(parents=True, exist_ok=True)
     if fcntl is None:  # pragma: no cover - current reference runtime is POSIX
-        raise RuntimeError(
-            "local Operations supervisor requires POSIX advisory file locking"
-        )
+        raise RuntimeError("local Operations supervisor requires POSIX advisory file locking")
     with path.open("a+") as handle:
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
