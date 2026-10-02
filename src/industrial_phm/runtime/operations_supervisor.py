@@ -26,6 +26,7 @@ from industrial_phm.runtime.operations_runtime import (
     OperationsComponentLaunch,
     OperationsRuntimePlan,
 )
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _SUPERVISOR_SCHEMA = "industrial-phm-operations-supervisor-v1"
 
@@ -206,6 +207,57 @@ class OperationsSupervisorResult:
             raise ValueError("state must be OperationsSupervisorState")
         if isinstance(self.exit_code, bool) or not isinstance(self.exit_code, int):
             raise ValueError("exit_code must be an integer")
+
+
+def request_operations_supervisor_stop(
+    workspace: OperationsWorkspace,
+    *,
+    signal_sender: Callable[[int, int], None] = os.kill,
+) -> int:
+    """Request graceful shutdown only when the workspace supervisor lock is live.
+
+    The persisted PID is never used by itself. A STOPPED/FAILED state or an
+    unowned workspace lock is treated as no live supervisor, which avoids
+    signaling a process solely because it reused an old PID.
+    """
+    if not isinstance(workspace, OperationsWorkspace):
+        raise ValueError("workspace must be OperationsWorkspace")
+    if fcntl is None or os.name != "posix":
+        raise RuntimeError("local Operations stop requires POSIX advisory file locking")
+
+    state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
+    if state is None:
+        raise RuntimeError(f"Operations supervisor state is unavailable for {workspace.root}")
+    if state.state != OperationsSupervisorStateKind.RUNNING:
+        raise RuntimeError(
+            f"Operations supervisor is not running for {workspace.root}: {state.state.value}"
+        )
+
+    lock_path = workspace.supervisor_lock_path
+    if not lock_path.is_file():
+        raise RuntimeError(f"Operations supervisor lock is unavailable for {workspace.root}")
+    with lock_path.open("a+") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            raise RuntimeError(
+                f"Operations supervisor lock is not owned for {workspace.root}; refusing stale PID"
+            )
+
+    try:
+        signal_sender(state.supervisor_pid, signal.SIGINT)
+    except ProcessLookupError as error:
+        raise RuntimeError(
+            f"Operations supervisor process no longer exists: pid={state.supervisor_pid}"
+        ) from error
+    except PermissionError as error:
+        raise RuntimeError(
+            f"permission denied signaling Operations supervisor: pid={state.supervisor_pid}"
+        ) from error
+    return state.supervisor_pid
 
 
 def run_operations_supervisor(
