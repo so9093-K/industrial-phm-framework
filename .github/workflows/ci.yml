@@ -96,6 +96,18 @@ jobs:
       - name: Build package
         run: uv build
 
+      - name: Validate packaged Operations extra
+        run: |
+          uv run --locked --extra operations python - <<'PY'
+          from industrial_phm.apps import operations_app_path
+
+          path = operations_app_path()
+          assert path.is_file(), path
+          assert path.name == "operations_v2.py"
+          PY
+          uv run --locked --extra operations python -m marimo check --strict \
+            src/industrial_phm/apps/operations_v2.py
+
       - name: Validate independent live collection and history queries
         run: |
           uv run --locked --extra history --extra opcua pytest \
@@ -117,6 +129,10 @@ jobs:
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: duckdb.*extra == .history.'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: opcua'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: asyncua.*extra == .opcua.'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/operations_v2.py'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: operations'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: marimo.*extra == .operations.'
+          unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: industrial-phm-framework\[history,opcua\].*extra == .operations.'
 
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'
