@@ -1,13 +1,18 @@
 import sys
 from pathlib import Path
 
+from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime import (
     OperationsAnalysisConfig,
     OperationsCollectionConfig,
     OperationsRuntimeConfig,
+    OperationsUiConfig,
     OperationsWorkspace,
 )
 from industrial_phm.runtime.operations_runtime import (
+    LEGACY_OPERATIONS_PATH_ENV,
+    OPERATIONS_UI_HOST,
+    OPERATIONS_WORKSPACE_ENV,
     OperationsComponentKind,
     build_operations_runtime_plan,
 )
@@ -22,6 +27,7 @@ def test_operations_runtime_plan_uses_one_workspace_root_and_config(tmp_path: Pa
             allowed_lateness_seconds=2.0,
         ),
         analysis=OperationsAnalysisConfig(poll_interval_seconds=2.5),
+        ui=OperationsUiConfig(port=3818),
     )
 
     plan = build_operations_runtime_plan(workspace, config)
@@ -29,8 +35,9 @@ def test_operations_runtime_plan_uses_one_workspace_root_and_config(tmp_path: Pa
     assert tuple(component.kind for component in plan.components) == (
         OperationsComponentKind.COLLECTION,
         OperationsComponentKind.ANALYSIS,
+        OperationsComponentKind.UI,
     )
-    collection, analysis = plan.components
+    collection, analysis, ui = plan.components
     assert collection.argv == (
         sys.executable,
         "-c",
@@ -59,8 +66,23 @@ def test_operations_runtime_plan_uses_one_workspace_root_and_config(tmp_path: Pa
         "--alignment",
         "strict",
     )
+    assert ui.argv == (
+        sys.executable,
+        "-m",
+        "marimo",
+        "run",
+        str(operations_app_path()),
+        "--host",
+        OPERATIONS_UI_HOST,
+        "--port",
+        "3818",
+    )
+    assert ui.env_overrides == ((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),)
+    assert ui.clear_env == LEGACY_OPERATIONS_PATH_ENV
     assert collection.log_path == workspace.logs_path / "collection.log"
     assert analysis.log_path == workspace.logs_path / "analysis.log"
+    assert ui.log_path == workspace.logs_path / "ui.log"
+    assert plan.ui_url == "http://127.0.0.1:3818"
 
 
 def test_operations_runtime_plan_preserves_bounded_previous_provenance(tmp_path: Path) -> None:
