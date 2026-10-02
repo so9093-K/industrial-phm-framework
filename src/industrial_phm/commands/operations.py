@@ -42,6 +42,7 @@ from industrial_phm.runtime import (
     SqliteAcquisitionTelemetryRepository,
     SqliteCollectionControlRepository,
     initialize_operations_workspace,
+    inspect_operations_runtime_status,
     run_collection_service,
 )
 from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
@@ -62,6 +63,54 @@ def _run_operations_init(args: argparse.Namespace) -> int:
         f"schema={result.config.schema} state={state}"
     )
     return 0
+
+
+def _run_operations_status(args: argparse.Namespace) -> int:
+    """Report process identity and component-owned runtime readiness separately."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        status = inspect_operations_runtime_status(workspace)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"Operations runtime status failed: {error}", file=sys.stderr)
+        return 1
+
+    print(f"workspace={workspace.root} ready={'yes' if status.ready else 'no'}")
+    supervisor = status.supervisor
+    print(
+        "supervisor "
+        f"condition={supervisor.condition.value} "
+        f"process={_operations_process_value(supervisor.process)} "
+        f"heartbeat={_operations_time_value(supervisor.heartbeat_at)} "
+        f"detail={supervisor.detail}"
+    )
+    for component in status.components:
+        print(
+            f"{component.kind.value} "
+            f"condition={component.condition.value} "
+            f"process={_operations_process_value(component.process)} "
+            f"runtime={component.runtime_state or 'unavailable'} "
+            f"heartbeat={_operations_time_value(component.heartbeat_at)} "
+            f"detail={component.detail}"
+        )
+    return 0 if status.ready else 2
+
+
+def _operations_process_value(process: object) -> str:
+    from industrial_phm.runtime import OperationsProcessEvidence
+
+    if process is None:
+        return "unavailable"
+    if not isinstance(process, OperationsProcessEvidence):
+        raise ValueError("process must be OperationsProcessEvidence or None")
+    return_code = "none" if process.return_code is None else str(process.return_code)
+    return (
+        f"pid:{process.pid},alive:{'yes' if process.alive else 'no'},"
+        f"return_code:{return_code}"
+    )
+
+
+def _operations_time_value(value: datetime | None) -> str:
+    return "unavailable" if value is None else value.isoformat()
 
 
 def _run_operations_poll_source(args: argparse.Namespace) -> int:
