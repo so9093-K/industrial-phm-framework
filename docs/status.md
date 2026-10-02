@@ -79,6 +79,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | --- | --- | --- |
 | synthetic OPC UA loopback E2E | **지원** | 실제 asyncua server와 별도 collector process를 사용하는 contract test |
 | one-command synthetic Operations demo | **지원** | `industrial-phm demo synthetic`이 전용 workspace에 synthetic 3상 OPC UA source를 등록하고 simulator + collection + analysis + packaged UI를 한 foreground lifecycle로 실행. 실제 설비 측정/고장 진단 evidence가 아님 |
+| clean-workspace Operations product acceptance | **지원** | external data 없이 fresh synthetic workspace에서 실제 demo process → runtime ready → finalized window/analysis evidence → stop → 같은 workspace restart/state 보존을 CI에서 검증 |
 | AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, 결손상 이유·review→Maintenance 연결·실제 브라우저 5초 확인, machine verdict(`full`/`diagnostic`). 결과는 `docs/research/phase10-acquisition-stress.md` |
 | Local Operations workspace 초기화 | **지원** | `industrial-phm operations init <root>`가 versioned `config.toml`과 managed data/log directory를 만들고 기존 유효 workspace에는 idempotent하게 동작. config 없는 비어 있지 않은 directory는 자동 채택하지 않음 |
 | Local Operations runtime status | **지원** | `industrial-phm operations status <root>`가 supervisor process identity, collection/analysis heartbeat, UI loopback listener readiness를 분리해 표시. PID 존재만으로 component health/readiness를 추정하지 않음 |
