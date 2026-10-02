@@ -16,9 +16,7 @@ def test_operations_runtime_config_round_trips_current_schema(tmp_path: Path) ->
 
     write_operations_runtime_config(path)
 
-    assert path.read_text(encoding="utf-8") == (
-        f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n'
-    )
+    assert path.read_text(encoding="utf-8") == (f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n')
     assert load_operations_runtime_config(path) == OperationsRuntimeConfig()
 
 
