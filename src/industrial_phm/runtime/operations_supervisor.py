@@ -240,7 +240,19 @@ def request_operations_supervisor_stop(
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            pass
+            handle.seek(0)
+            owner_text = handle.read().strip()
+            try:
+                owner_pid = int(owner_text)
+            except ValueError as error:
+                raise RuntimeError(
+                    f"Operations supervisor lock owner is invalid for {workspace.root}"
+                ) from error
+            if owner_pid != state.supervisor_pid:
+                raise RuntimeError(
+                    "Operations supervisor state/lock owner mismatch for "
+                    f"{workspace.root}: state_pid={state.supervisor_pid} lock_pid={owner_pid}"
+                )
         else:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
             raise RuntimeError(
@@ -508,6 +520,11 @@ def _supervisor_lock(plan: OperationsRuntimePlan) -> Iterator[None]:
             raise RuntimeError(
                 f"another Operations supervisor already owns workspace {plan.workspace.root}"
             ) from error
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"{os.getpid()}\n")
+        handle.flush()
+        os.fsync(handle.fileno())
         try:
             yield
         finally:
