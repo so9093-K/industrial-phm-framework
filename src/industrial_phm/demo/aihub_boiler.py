@@ -52,9 +52,7 @@ AIHUB_BOILER_DEMO_ASSET_ID = "aihub-boiler-2297"
 AIHUB_BOILER_DEMO_MEMBER = "5.보일러/SourceData_211.json"
 AIHUB_BOILER_DEMO_START = datetime(2020, 11, 14, 6, 0)
 AIHUB_BOILER_DEMO_END = datetime(2020, 11, 14, 12, 30)
-AIHUB_BOILER_DEMO_DEFAULT_ARCHIVE = Path(
-    "data/raw/aihub/239/archives/training/raw/5.보일러.zip"
-)
+AIHUB_BOILER_DEMO_DEFAULT_ARCHIVE = Path("data/raw/aihub/239/archives/training/raw/5.보일러.zip")
 AIHUB_BOILER_DEMO_ALIGNMENT_BASIS_PREFIX = (
     "AI-Hub 239 replay: every channel is written once per recorded minute"
 )
@@ -135,8 +133,7 @@ def _binding() -> PowerHistoryBinding:
             "physical asset identity unverified"
         ),
         timezone_evidence=(
-            "Explicit development normalization assumption Asia/Seoul; "
-            "source timezone unverified"
+            "Explicit development normalization assumption Asia/Seoul; source timezone unverified"
         ),
         version="replay-v1",
     )
@@ -214,10 +211,7 @@ def prepare_aihub_boiler_demo(
                 "AI-Hub boiler demo replay manifest is missing; choose another --workspace"
             )
         existing_manifest, existing_selection = load_selection(workspace.root)
-        if (
-            existing_selection != selection
-            or existing_manifest.get("endpoint") != preset.endpoint
-        ):
+        if existing_selection != selection or existing_manifest.get("endpoint") != preset.endpoint:
             raise ValueError(
                 "AI-Hub boiler demo replay selection does not match this preset; "
                 "choose another --workspace"
