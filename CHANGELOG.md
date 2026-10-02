@@ -38,6 +38,10 @@
 
 ### Added
 
+- `tools/history/append_profile.py`와
+  `docs/research/phase10-history-append-scaling.md`: live history append를 단계별로 분해하고
+  N=0/2,000 full-data와 N=10,000 metadata-only 상태를 비교하는 #344 재현 도구/evidence입니다.
+
 - DuckLake Asset History에 #317-A 비파괴 small-file maintenance를 추가했습니다. `compact-history`는
   같은 local catalog lease를 table별 provider call마다 사용해 `merge_adjacent_files`만 실행합니다.
   `--max-compacted-files`는 input-file 상한이 아니라 DuckLake의 table별 output-operation 상한이며,
@@ -89,6 +93,13 @@
   메뉴·표·제목이 읽히지 않던 문제를 고쳤습니다. V2 theme가 marimo의 dark palette를 고정합니다.
 
 ### Changed
+
+- Live Asset History writer의 새 batch preflight와 append 내부 identity check를 하나의
+  `append-or-recover` 계약으로 합쳤습니다. Current batch recovery는 rebuildable
+  `<catalog>.phm-batch-index.sqlite`의 batch→snapshot mapping을 사용하되 DuckLake commit
+  provenance를 직접 검증하며, sidecar miss/손상은 source scan 후 self-heal합니다. N=10,000
+  metadata-only profile에서 exact retry는 0.453 s → 0.279 s로 줄고 all-snapshot provenance scan이
+  사라졌습니다. sidecar는 evidence가 아니며 삭제해도 durable history/recovery identity가 유지됩니다.
 
 - Operations V2의 3상 분석 결과 조회를 누적 결과 전체 로드에서 최근 500건 bounded query로 바꿨습니다. 사람의 review가 참조하는 과거 AnalysisRun은 limit 밖이어도 exact lookup으로 다시 합쳐 Investigation/Maintenance evidence를 유지하며, 결과 저장·retention에는 영향을 주지 않습니다.
 - Operations V2 **Phase 10 pre-soak hardening**을 완료했습니다. AI-Hub 239 recorded power를
