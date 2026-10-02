@@ -87,7 +87,9 @@ jobs:
             notebooks/*.py apps/*.py src/industrial_phm/apps/operations_v2.py
 
       - name: Render Operations with analysis results and review requests
-        run: uv run --locked --group research pytest tests/integration/test_operations_v2_app.py
+        run: |
+          uv run --locked --group research --extra operations pytest \
+            tests/integration/test_operations_v2_app.py
 
       - name: Execute Developer Workbench across validated experiment evidence
         run: |
