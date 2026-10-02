@@ -21,27 +21,13 @@ In a second terminal, start the independent collector:
 
 ```bash
 uv run --no-sync industrial-phm operations run-collection-service \
-  --registry artifacts/live-demo/sources.json \
-  --control-state artifacts/live-demo/control.sqlite \
-  --spool-state artifacts/live-demo/spool.sqlite \
-  --telemetry-state artifacts/live-demo/telemetry.sqlite \
-  --window-state artifacts/live-demo/windows.sqlite \
-  --ducklake-catalog artifacts/live-demo/catalog.sqlite \
-  --ducklake-data artifacts/live-demo/data
+  --workspace artifacts/live-demo
 ```
 
 In a third terminal, open Operations with the same state paths:
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=artifacts/live-demo/sources.json
-export INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME=artifacts/live-demo/source-runtime.json
-export INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL=artifacts/live-demo/control.sqlite
-export INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL=artifacts/live-demo/spool.sqlite
-export INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY=artifacts/live-demo/telemetry.sqlite
-export INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/live-demo/windows.sqlite
-export INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/live-demo/window-analysis-ledger.sqlite
-export INDUSTRIAL_PHM_HISTORY_CATALOG=artifacts/live-demo/catalog.sqlite
-export INDUSTRIAL_PHM_HISTORY_DATA=artifacts/live-demo/data
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live-demo
 uv run --no-sync marimo run apps/operations_v2.py
 ```
 
@@ -110,9 +96,7 @@ Run the collector with the `artifacts/live-3phase` paths as above (optionally
 
 ```bash
 uv run --no-sync industrial-phm operations run-window-analysis \
-  --window-state artifacts/live-3phase/windows.sqlite \
-  --analysis-state artifacts/live-3phase/phase-unbalance.sqlite \
-  --ledger-state artifacts/live-3phase/window-analysis-ledger.sqlite
+  --workspace artifacts/live-3phase
 ```
 
 Runner는 기본적으로 analysis result 옆
@@ -125,9 +109,7 @@ Operations V2 Monitor로 이 상태까지 함께 보려면 동일한 source/acqu
 실행합니다.
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE=artifacts/live-3phase/phase-unbalance.sqlite
-export INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/live-3phase/windows.sqlite
-export INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/live-3phase/window-analysis-ledger.sqlite
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live-3phase
 uv run --no-sync marimo run apps/operations_v2.py
 ```
 
@@ -189,25 +171,27 @@ uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/pha
 uv run --no-sync python -m tools.opcua.aihub_replay server --root artifacts/phase10 --speed 60 --loop
 ```
 
-Run the collector with the `artifacts/phase10` paths as in the synthetic demo, using
-`--window-duration-seconds 30 --allowed-lateness-seconds 2` (30 recorded minutes per window at 60x),
-and the analysis runner with a carry policy whose basis is the replay's publishing contract:
+Use the same `artifacts/phase10` workspace for collector, analysis runner and Operations. The
+collector uses 30 recorded minutes per window at 60x, and the runner records the replay-specific carry
+basis explicitly:
 
 ```bash
+uv run --no-sync industrial-phm operations run-collection-service \
+  --workspace artifacts/phase10 \
+  --window-duration-seconds 30 --allowed-lateness-seconds 2
+
 uv run --no-sync industrial-phm operations run-window-analysis \
-  --window-state artifacts/phase10/windows.sqlite \
-  --analysis-state artifacts/phase10/phase-unbalance.sqlite \
-  --ledger-state artifacts/phase10/window-analysis-ledger.sqlite \
+  --workspace artifacts/phase10 \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
+
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/phase10
+uv run --no-sync marimo run apps/operations_v2.py
 ```
 
-Point every `INDUSTRIAL_PHM_OPERATIONS_*` state path and `INDUSTRIAL_PHM_HISTORY_CATALOG/DATA` at
-`artifacts/phase10`. In particular, set
-`INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE=artifacts/phase10/windows.sqlite` and
-`INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER=artifacts/phase10/window-analysis-ledger.sqlite`
-so Assets can resolve skipped analysis attempts back to exact finalized-window evidence. Then start
-Operations and use Setup → **Start collection**.
+Then use Setup → **Start collection**. The workspace root projects the source/runtime/control/spool,
+window/ledger, analysis and DuckLake paths consistently; individual path flags/environment variables
+remain compatibility/internal overrides.
 
 Fault scenarios for Operations validation:
 
