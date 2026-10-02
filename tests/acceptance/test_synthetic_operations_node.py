@@ -247,7 +247,6 @@ def test_clean_workspace_synthetic_node_reaches_evidence_and_restarts(tmp_path: 
     assert final_results >= first_results
 
 
-
 def test_stopped_workspace_backup_restores_and_restarts_as_new_node(tmp_path: Path) -> None:
     root = tmp_path / "plant-original"
     workspace = OperationsWorkspace(root)
