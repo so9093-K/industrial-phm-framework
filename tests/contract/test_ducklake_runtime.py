@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from importlib.util import find_spec
 
@@ -73,6 +74,59 @@ def _event(
             allow_server_timestamp_fallback=True,
         ),
     )
+
+
+def test_batch_provenance_sidecar_is_rebuildable_and_not_source_of_truth(tmp_path) -> None:
+    _require_duckdb()
+    catalog = tmp_path / "catalog.sqlite"
+    repository = DuckLakeAssetHistory(DuckLakeAssetHistoryConfig(catalog, tmp_path / "data"))
+    event = _event(
+        channel_id="vibration_x",
+        event_at=BASE,
+        event_index=1,
+    )
+    result = repository.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
+    assert result.recovered_existing_commit is False
+
+    index_path = catalog.with_name(catalog.name + ".phm-batch-index.sqlite")
+    assert index_path.is_file()
+
+    def indexed_snapshot_id() -> int:
+        connection = sqlite3.connect(index_path)
+        try:
+            row = connection.execute(
+                "SELECT snapshot_id FROM batch_provenance_index WHERE batch_id = ?",
+                ["indexed-batch"],
+            ).fetchone()
+        finally:
+            connection.close()
+        assert row is not None
+        return int(row[0])
+
+    assert indexed_snapshot_id() == result.commit.snapshot_id
+
+    index_path.unlink()
+    reopened = DuckLakeAssetHistory(DuckLakeAssetHistoryConfig(catalog, tmp_path / "data"))
+    recovered = reopened.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
+    assert recovered.recovered_existing_commit is True
+    assert recovered.commit == result.commit
+    assert indexed_snapshot_id() == result.commit.snapshot_id
+
+    connection = sqlite3.connect(index_path)
+    try:
+        connection.execute(
+            "UPDATE batch_provenance_index SET snapshot_id = ? WHERE batch_id = ?",
+            [result.commit.snapshot_id + 10_000, "indexed-batch"],
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    restarted = DuckLakeAssetHistory(DuckLakeAssetHistoryConfig(catalog, tmp_path / "data"))
+    repaired = restarted.append_or_recover_opcua_batch((event,), batch_id="indexed-batch")
+    assert repaired.recovered_existing_commit is True
+    assert repaired.commit == result.commit
+    assert indexed_snapshot_id() == result.commit.snapshot_id
 
 
 def test_ducklake_asset_history_round_trip(tmp_path) -> None:
@@ -158,6 +212,14 @@ def test_ducklake_asset_history_round_trip(tmp_path) -> None:
         ingestion_mode=HistoryIngestionMode.LIVE,
     )
     assert repeated == commit
+
+    recovered_result = repository.append_or_recover_opcua_batch(
+        (first, second),
+        batch_id="batch-1",
+        ingestion_mode=HistoryIngestionMode.LIVE,
+    )
+    assert recovered_result.commit == commit
+    assert recovered_result.recovered_existing_commit is True
 
     changed_first = _event(
         channel_id="vibration_x",

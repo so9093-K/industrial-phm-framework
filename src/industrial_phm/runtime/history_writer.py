@@ -85,21 +85,13 @@ def write_next_spool_batch(
             )
 
     try:
-        existing = history.get_opcua_batch_commit(
+        append_result = history.append_or_recover_opcua_batch(
             batch.events,
             batch_id=batch.batch_id,
             ingestion_mode=HistoryIngestionMode.LIVE,
         )
-        recovered_existing_commit = existing is not None
-        commit = (
-            existing
-            if existing is not None
-            else history.append_opcua_batch(
-                batch.events,
-                batch_id=batch.batch_id,
-                ingestion_mode=HistoryIngestionMode.LIVE,
-            )
-        )
+        commit = append_result.commit
+        recovered_existing_commit = append_result.recovered_existing_commit
 
         if commit.batch_id != batch.batch_id:
             raise AcquisitionSpoolStateError(

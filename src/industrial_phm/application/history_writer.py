@@ -10,6 +10,7 @@ from numbers import Real
 from typing import Protocol, runtime_checkable
 
 from industrial_phm.application.asset_history import (
+    HistoricalBatchAppendResult,
     HistoricalBatchCommit,
     HistoryIngestionMode,
 )
@@ -95,6 +96,16 @@ class SpoolHistoryWriterResult:
 @runtime_checkable
 class OpcUaHistoricalBatchStore(Protocol):
     """Historical sink contract required by the spool writer."""
+
+    def append_or_recover_opcua_batch(
+        self,
+        events: Sequence[OpcUaPersistentDataChangeEvent],
+        *,
+        batch_id: str,
+        ingestion_mode: HistoryIngestionMode = HistoryIngestionMode.LIVE,
+    ) -> HistoricalBatchAppendResult:
+        """Atomically append one batch or recover its identical prior commit."""
+        ...
 
     def get_opcua_batch_commit(
         self,

@@ -137,6 +137,24 @@ each batch's duplicate check scans existing raw evidence IDs; linear extrapolati
 million records is roughly 1.1 s per batch at the end and 3.5–4.5 hours in total on this machine.
 That estimate is not a measured full-archive run.
 
+## Append identity and recovery acceleration
+
+The durable batch commit remains a DuckLake fact. The live writer uses one
+`append_or_recover_opcua_batch()` history operation so a normal write and crash-after-commit retry
+share one catalog lease and one identity decision.
+
+Current batch commits additionally maintain a derived
+`<catalog>.phm-batch-index.sqlite` mapping from `batch_id` to DuckLake `snapshot_id`. This sidecar
+is an accelerator, not evidence: mode/count remain in `history.ingestion_batch`, and fingerprint/
+commit provenance remain in DuckLake snapshot metadata. Indexed recovery verifies the target snapshot
+against DuckLake catalog primary-key tables before accepting it. Missing or stale mappings fall back
+to DuckLake provenance scanning and self-heal. A process loss after the DuckLake commit but before the
+sidecar write therefore cannot lose history or change retry identity.
+
+The same local catalog lease serializes DuckLake writes and sidecar maintenance. This is still a
+local multi-process contract; distributed/HA coordination is unsupported. Pre-upgrade batches that
+lack an index entry can pay one full provenance scan on first recovery.
+
 ## Non-destructive small-file compaction
 
 #317-A treats physical file compaction as a DuckLake-specific maintenance capability, not as an

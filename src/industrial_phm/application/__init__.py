@@ -53,6 +53,7 @@ from industrial_phm.application.asset_detail import (
 )
 from industrial_phm.application.asset_history import (
     AssetHistoryReader,
+    HistoricalBatchAppendResult,
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
@@ -428,6 +429,7 @@ __all__ = [
     "FindingReviewEvent",
     "FindingReviewHistoryFormatError",
     "FindingReviewStatus",
+    "HistoricalBatchAppendResult",
     "HistoricalBatchCommit",
     "HistoricalBatchConflictError",
     "HistoricalEventTimeBasis",

@@ -145,6 +145,16 @@ class _FailFirstAppendHistory:
         self.delegate = delegate
         self.failed = False
 
+    def append_or_recover_opcua_batch(self, events, *, batch_id, ingestion_mode):
+        if not self.failed:
+            self.failed = True
+            raise RuntimeError("simulated temporary DuckLake outage")
+        return self.delegate.append_or_recover_opcua_batch(
+            events,
+            batch_id=batch_id,
+            ingestion_mode=ingestion_mode,
+        )
+
     def get_opcua_batch_commit(self, events, *, batch_id, ingestion_mode):
         return self.delegate.get_opcua_batch_commit(
             events,
