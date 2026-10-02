@@ -120,4 +120,3 @@ jobs:
 
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'
-
