@@ -296,7 +296,6 @@ def test_stop_request_rejects_state_and_lock_owner_pid_mismatch(
     assert signals == []
 
 
-
 def test_ui_child_environment_uses_workspace_and_clears_granular_path_overrides(
     tmp_path: Path,
     monkeypatch,
