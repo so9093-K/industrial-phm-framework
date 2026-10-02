@@ -67,16 +67,8 @@ def test_operations_runtime_config_round_trips_bounded_previous_policy(tmp_path:
         "schema = 1\n",
         'schema = "future-schema"\n',
         f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\nextra = true\n',
-        (
-            f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n'
-            "[collection]\n"
-            "unknown = 1\n"
-        ),
-        (
-            f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n'
-            "[analysis]\n"
-            'alignment = "bounded-previous"\n'
-        ),
+        (f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n[collection]\nunknown = 1\n'),
+        (f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n[analysis]\nalignment = "bounded-previous"\n'),
         "not valid toml = [",
     ],
 )
