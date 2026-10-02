@@ -225,9 +225,7 @@ def prepare_synthetic_demo(
 def _require_reusable_empty_workspace(workspace: OperationsWorkspace) -> None:
     unexpected_files = tuple(path for path in workspace.runtime_state_files if path.exists())
     history_entries = (
-        tuple(workspace.history_data_path.iterdir())
-        if workspace.history_data_path.is_dir()
-        else ()
+        tuple(workspace.history_data_path.iterdir()) if workspace.history_data_path.is_dir() else ()
     )
     if unexpected_files or history_entries:
         raise ValueError(
@@ -250,11 +248,7 @@ def _three_phase_values(index: int) -> tuple[float, ...]:
 
 def validate_synthetic_endpoint(endpoint: str) -> None:
     parsed = urlparse(endpoint)
-    if (
-        parsed.scheme != "opc.tcp"
-        or parsed.hostname != "127.0.0.1"
-        or parsed.port is None
-    ):
+    if parsed.scheme != "opc.tcp" or parsed.hostname != "127.0.0.1" or parsed.port is None:
         raise ValueError("synthetic endpoint must use opc.tcp://127.0.0.1:<port>/...")
 
 
@@ -399,8 +393,7 @@ def _wait_for_listener(
             return
         sleep(0.05)
     raise RuntimeError(
-        f"synthetic OPC UA simulator did not listen on {host}:{port} "
-        f"within {timeout_seconds:g}s"
+        f"synthetic OPC UA simulator did not listen on {host}:{port} within {timeout_seconds:g}s"
     )
 
 
@@ -419,13 +412,13 @@ def _stop_simulator_process(process: SyntheticDemoProcess) -> None:
         process.send_signal(signal.SIGINT)
         process.wait(timeout=5.0)
         return
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         pass
     try:
         process.terminate()
         process.wait(timeout=2.0)
         return
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         pass
     with suppress(OSError):
         process.kill()
