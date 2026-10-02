@@ -38,6 +38,11 @@
 
 ### Added
 
+- Local Operations lifecycle CLI를 추가했습니다. `operations start <workspace>`는 workspace config에서
+  collection/analysis launch plan을 만들고 한 foreground supervisor로 실행하며, Ctrl-C 또는
+  `operations stop <workspace>`으로 child process를 함께 graceful shutdown합니다. `stop`은 persisted PID만
+  신뢰하지 않고 해당 workspace supervisor lock의 live ownership을 확인한 뒤 종료 signal을 요청합니다.
+
 - Local Operations product-runtime foundation을 추가했습니다. `operations init <workspace>`가 versioned
   workspace/config를 만들고, collector/analysis launch policy와 foreground supervisor가 같은 workspace를
   사용합니다. 새 `operations status <workspace>`는 supervisor process identity와 collection/analysis
