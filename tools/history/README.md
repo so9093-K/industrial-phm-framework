@@ -64,3 +64,31 @@ processed 14,799 of 20,003 active files and stopped at the provider output-opera
 5,268 active files for a later pass. This is expected; normal maintenance should occur before repeated
 provider-limit saturation. The benchmark also showed that compaction recovers file/query cost but does
 not remove the separate accumulated-history append cost tracked in #344.
+
+
+## Live append scaling profile
+
+`append_profile.py` is the repeatable #344 diagnostic. It breaks one OPC UA history append/retry into
+connect/attach, initialization, batch identity, raw duplicate lookup, insert/commit, and snapshot
+provenance stages.
+
+For a small full-data state:
+
+```bash
+uv run --locked --extra history python -m tools.history.append_profile \
+  --root artifacts/append-profile-n2000 \
+  --commits 2000
+```
+
+To isolate snapshot/catalog growth without creating the full raw/history file population:
+
+```bash
+uv run --locked --extra history python -m tools.history.append_profile \
+  --root artifacts/append-profile-metadata-n10000 \
+  --commits 10000 \
+  --metadata-only
+```
+
+The measured Phase 10 results and interpretation are recorded in
+[`docs/research/phase10-history-append-scaling.md`](../../docs/research/phase10-history-append-scaling.md).
+Metadata-only is a diagnostic isolation mode, not an operational ingestion path.
