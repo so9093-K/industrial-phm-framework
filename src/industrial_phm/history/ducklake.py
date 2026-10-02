@@ -24,6 +24,7 @@ from typing import Any
 
 from industrial_phm.application.analysis_input import ChannelObservation
 from industrial_phm.application.asset_history import (
+    HistoricalBatchAppendResult,
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
@@ -32,7 +33,6 @@ from industrial_phm.application.asset_history import (
     validate_asset_history_query,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
-from industrial_phm.application.history_writer import HistoricalBatchAppendResult
 from industrial_phm.application.measurement_history import (
     HistoryAssetSummary,
     MeasurementHistoryAggregation,
@@ -1946,7 +1946,7 @@ class DuckLakeAssetHistory:
                 connection.commit()
             finally:
                 connection.close()
-        except (OSError, sqlite3.Error):
+        except OSError, sqlite3.Error:
             # This is a derived accelerator only. Durable history/provenance remains
             # in DuckLake and the next recovery can fall back to a source scan.
             return
