@@ -152,6 +152,7 @@ def build_operations_runtime_plan(
         "run",
         str(operations_app_path()),
         "--headless",
+        "--no-token",
         "--host",
         OPERATIONS_UI_HOST,
         "--port",
