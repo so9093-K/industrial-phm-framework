@@ -48,6 +48,12 @@ from industrial_phm.runtime.operations_config import (
     load_operations_runtime_config,
     upgrade_operations_runtime_config,
 )
+from industrial_phm.runtime.operations_deployment import (
+    OperationsDeploymentCheck,
+    OperationsDeploymentCheckState,
+    OperationsDeploymentPreflight,
+    inspect_operations_deployment,
+)
 from industrial_phm.runtime.operations_logs import tail_operations_component_log
 from industrial_phm.runtime.operations_runtime import (
     OPERATIONS_UI_HOST,
@@ -109,6 +115,9 @@ __all__ = [
     "OperationsComponentLaunch",
     "OperationsComponentStatus",
     "OperationsConfigFormatError",
+    "OperationsDeploymentCheck",
+    "OperationsDeploymentCheckState",
+    "OperationsDeploymentPreflight",
     "OperationsProcessEvidence",
     "OperationsRuntimeCondition",
     "OperationsRuntimeConfig",
@@ -130,6 +139,7 @@ __all__ = [
     "build_operations_runtime_status",
     "create_operations_backup",
     "initialize_operations_workspace",
+    "inspect_operations_deployment",
     "inspect_operations_runtime_status",
     "load_operations_runtime_config",
     "rebuild_registered_opcua_observation_windows",
