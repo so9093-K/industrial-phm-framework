@@ -29,13 +29,18 @@ from industrial_phm.runtime.opcua_acquisition import (
 )
 from industrial_phm.runtime.operations_config import (
     OPERATIONS_CONFIG_SCHEMA,
+    OPERATIONS_CONFIG_SCHEMA_V1,
     OperationsAnalysisConfig,
     OperationsCollectionConfig,
     OperationsConfigFormatError,
     OperationsRuntimeConfig,
+    OperationsUiConfig,
     load_operations_runtime_config,
+    upgrade_operations_runtime_config,
 )
+from industrial_phm.runtime.operations_logs import tail_operations_component_log
 from industrial_phm.runtime.operations_runtime import (
+    OPERATIONS_UI_HOST,
     OperationsComponentKind,
     OperationsComponentLaunch,
     OperationsRuntimePlan,
@@ -73,6 +78,8 @@ from industrial_phm.runtime.window_coordinator import (
 __all__ = [
     "DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT",
     "OPERATIONS_CONFIG_SCHEMA",
+    "OPERATIONS_CONFIG_SCHEMA_V1",
+    "OPERATIONS_UI_HOST",
     "AcquisitionTelemetryFormatError",
     "CollectionControlFormatError",
     "CollectionServicePolicy",
@@ -97,6 +104,7 @@ __all__ = [
     "OperationsSupervisorStateKind",
     "OperationsSupervisorStateRepository",
     "OperationsSupervisorStatus",
+    "OperationsUiConfig",
     "OperationsWorkspace",
     "OperationsWorkspaceInitialization",
     "SqliteAcquisitionSpool",
@@ -115,5 +123,7 @@ __all__ = [
     "run_operations_supervisor",
     "run_registered_opcua_acquisition_worker",
     "run_spool_to_history_writer",
+    "tail_operations_component_log",
+    "upgrade_operations_runtime_config",
     "write_next_spool_batch",
 ]

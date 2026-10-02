@@ -11,6 +11,7 @@ from industrial_phm.runtime import (
     build_operations_runtime_plan,
 )
 from industrial_phm.runtime.operations_runtime import (
+    OPERATIONS_WORKSPACE_ENV,
     OperationsComponentKind,
     OperationsComponentLaunch,
 )
@@ -89,7 +90,7 @@ def test_supervisor_state_repository_round_trips_process_identity(tmp_path: Path
     assert repository.load() == state
 
 
-def test_supervisor_starts_collection_then_analysis_and_stops_as_one_set(
+def test_supervisor_starts_collection_analysis_ui_and_stops_as_one_set(
     tmp_path: Path,
 ) -> None:
     plan = _plan(tmp_path / "plant-a")
@@ -118,13 +119,15 @@ def test_supervisor_starts_collection_then_analysis_and_stops_as_one_set(
     assert launched == [
         OperationsComponentKind.COLLECTION,
         OperationsComponentKind.ANALYSIS,
+        OperationsComponentKind.UI,
     ]
     assert result.exit_code == 0
     assert result.state.state == OperationsSupervisorStateKind.STOPPED
     assert repository.load() == result.state
-    assert tuple(item.return_code for item in result.state.components) == (0, 0)
+    assert tuple(item.return_code for item in result.state.components) == (0, 0, 0)
     assert processes[OperationsComponentKind.COLLECTION].signals == [signal.SIGINT]
     assert processes[OperationsComponentKind.ANALYSIS].signals == [signal.SIGINT]
+    assert processes[OperationsComponentKind.UI].signals == [signal.SIGINT]
 
 
 def test_supervisor_fails_whole_set_when_one_component_exits(tmp_path: Path) -> None:
@@ -154,8 +157,9 @@ def test_supervisor_fails_whole_set_when_one_component_exits(tmp_path: Path) -> 
     assert result.exit_code == 1
     assert result.state.state == OperationsSupervisorStateKind.FAILED
     assert result.state.failure == "analysis exited with code 3"
-    assert tuple(item.return_code for item in result.state.components) == (0, 3)
+    assert tuple(item.return_code for item in result.state.components) == (0, 3, 0)
     assert processes[OperationsComponentKind.COLLECTION].signals == [signal.SIGINT]
+    assert processes[OperationsComponentKind.UI].signals == [signal.SIGINT]
 
 
 def test_supervisor_cleans_started_child_when_later_spawn_fails(tmp_path: Path) -> None:
@@ -290,3 +294,21 @@ def test_stop_request_rejects_state_and_lock_owner_pid_mismatch(
         )
 
     assert signals == []
+
+
+def test_ui_child_environment_uses_workspace_and_clears_granular_path_overrides(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import industrial_phm.runtime.operations_supervisor as supervisor_module
+
+    plan = _plan(tmp_path / "plant-a")
+    ui = plan.components[2]
+    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", "/tmp/wrong-history")
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY", "/tmp/wrong-registry")
+
+    environment = supervisor_module._component_environment(ui)
+
+    assert environment[OPERATIONS_WORKSPACE_ENV] == str(plan.workspace.root)
+    assert "INDUSTRIAL_PHM_HISTORY_DATA" not in environment
+    assert "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY" not in environment

@@ -13,8 +13,10 @@ from numbers import Real
 from pathlib import Path
 from typing import cast
 
-OPERATIONS_CONFIG_SCHEMA = "industrial-phm-operations-runtime-v1"
-_ROOT_KEYS = frozenset({"schema", "collection", "analysis"})
+OPERATIONS_CONFIG_SCHEMA_V1 = "industrial-phm-operations-runtime-v1"
+OPERATIONS_CONFIG_SCHEMA = "industrial-phm-operations-runtime-v2"
+_ROOT_KEYS_V1 = frozenset({"schema", "collection", "analysis"})
+_ROOT_KEYS = frozenset({"schema", "collection", "analysis", "ui"})
 _COLLECTION_KEYS = frozenset(
     {
         "reconcile_interval_seconds",
@@ -30,6 +32,7 @@ _ANALYSIS_KEYS = frozenset(
         "alignment_basis",
     }
 )
+_UI_KEYS = frozenset({"port"})
 _ALIGNMENT_MODES = frozenset({"strict", "bounded-previous"})
 
 
@@ -93,12 +96,26 @@ class OperationsAnalysisConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class OperationsUiConfig:
+    """Local-only Operations web application transport policy."""
+
+    port: int = 2718
+
+    def __post_init__(self) -> None:
+        if isinstance(self.port, bool) or not isinstance(self.port, int):
+            raise ValueError("ui.port must be an integer")
+        if not 1 <= self.port <= 65535:
+            raise ValueError("ui.port must be between 1 and 65535")
+
+
+@dataclass(frozen=True, slots=True)
 class OperationsRuntimeConfig:
     """Versioned non-secret policy for one local Operations workspace."""
 
     schema: str = OPERATIONS_CONFIG_SCHEMA
     collection: OperationsCollectionConfig = field(default_factory=OperationsCollectionConfig)
     analysis: OperationsAnalysisConfig = field(default_factory=OperationsAnalysisConfig)
+    ui: OperationsUiConfig = field(default_factory=OperationsUiConfig)
 
     def __post_init__(self) -> None:
         if self.schema != OPERATIONS_CONFIG_SCHEMA:
@@ -107,6 +124,8 @@ class OperationsRuntimeConfig:
             raise ValueError("collection must be OperationsCollectionConfig")
         if not isinstance(self.analysis, OperationsAnalysisConfig):
             raise ValueError("analysis must be OperationsAnalysisConfig")
+        if not isinstance(self.ui, OperationsUiConfig):
+            raise ValueError("ui must be OperationsUiConfig")
 
 
 def load_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
@@ -120,23 +139,41 @@ def load_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
         raise OperationsConfigFormatError("Operations config must contain valid TOML") from error
 
     root = _require_mapping(raw, "Operations config root")
-    _reject_unknown_keys(root, _ROOT_KEYS, "Operations config")
     if "schema" not in root:
         raise OperationsConfigFormatError("Operations config requires schema")
 
     schema = root["schema"]
     if not isinstance(schema, str):
         raise OperationsConfigFormatError("Operations config schema must be a string")
-    if schema != OPERATIONS_CONFIG_SCHEMA:
+    if schema == OPERATIONS_CONFIG_SCHEMA_V1:
+        _reject_unknown_keys(root, _ROOT_KEYS_V1, "Operations config")
+    elif schema == OPERATIONS_CONFIG_SCHEMA:
+        _reject_unknown_keys(root, _ROOT_KEYS, "Operations config")
+    else:
         raise OperationsConfigFormatError(f"unsupported Operations config schema: {schema!r}")
 
     collection = _load_collection_config(root.get("collection"))
     analysis = _load_analysis_config(root.get("analysis"))
+    ui = (
+        OperationsUiConfig()
+        if schema == OPERATIONS_CONFIG_SCHEMA_V1
+        else _load_ui_config(root.get("ui"))
+    )
     return OperationsRuntimeConfig(
-        schema=schema,
         collection=collection,
         analysis=analysis,
+        ui=ui,
     )
+
+
+def upgrade_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
+    """Load and atomically normalize a supported older config to the current schema."""
+    config = load_operations_runtime_config(path)
+    raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    source_schema = raw.get("schema")
+    if source_schema != OPERATIONS_CONFIG_SCHEMA:
+        write_operations_runtime_config(path, config)
+    return config
 
 
 def write_operations_runtime_config(
@@ -150,6 +187,7 @@ def write_operations_runtime_config(
 
     collection = effective_config.collection
     analysis = effective_config.analysis
+    ui = effective_config.ui
     lines = [
         f"schema = {_toml_string(effective_config.schema)}",
         "",
@@ -166,6 +204,7 @@ def write_operations_runtime_config(
         lines.append(f"max_carry_age_seconds = {float(analysis.max_carry_age_seconds)!r}")
     if analysis.alignment_basis is not None:
         lines.append(f"alignment_basis = {_toml_string(analysis.alignment_basis)}")
+    lines.extend(("", "[ui]", f"port = {ui.port}"))
     rendered = "\n".join((*lines, ""))
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -236,6 +275,17 @@ def _load_analysis_config(value: object) -> OperationsAnalysisConfig:
         ),
         alignment_basis=basis,
     )
+
+
+def _load_ui_config(value: object) -> OperationsUiConfig:
+    if value is None:
+        return OperationsUiConfig()
+    table = _require_mapping(value, "ui")
+    _reject_unknown_keys(table, _UI_KEYS, "ui")
+    port = table.get("port", 2718)
+    if isinstance(port, bool) or not isinstance(port, int):
+        raise OperationsConfigFormatError("ui.port must be an integer")
+    return OperationsUiConfig(port=port)
 
 
 def _optional_float(

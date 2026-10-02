@@ -10,9 +10,10 @@ from industrial_phm.runtime import (
 )
 
 
-def test_operations_start_runs_supervisor_from_workspace_config(
+def test_operations_start_runs_full_local_node_from_workspace_config(
     tmp_path: Path,
     monkeypatch,
+    capsys,
 ) -> None:
     workspace = OperationsWorkspace(tmp_path / "plant-a")
     initialize_operations_workspace(workspace)
@@ -38,7 +39,12 @@ def test_operations_start_runs_supervisor_from_workspace_config(
     assert tuple(component.kind.value for component in plan.components) == (
         "collection",
         "analysis",
+        "ui",
     )
+    output = capsys.readouterr().out
+    assert f"workspace={workspace.root}" in output
+    assert "operations_url=http://127.0.0.1:2718" in output
+    assert "mode=foreground" in output
 
 
 def test_operations_start_requires_initialized_workspace(tmp_path: Path, capsys) -> None:
@@ -48,6 +54,59 @@ def test_operations_start_requires_initialized_workspace(tmp_path: Path, capsys)
 
     assert exit_code == 1
     assert "Operations runtime start failed" in capsys.readouterr().err
+
+
+def test_operations_logs_reads_bounded_component_tail(tmp_path: Path, capsys) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    initialize_operations_workspace(workspace)
+    workspace.logs_path.joinpath("ui.log").write_text(
+        "line-1\nline-2\nline-3\n",
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "operations",
+            "logs",
+            str(workspace.root),
+            "--component",
+            "ui",
+            "--lines",
+            "2",
+        ]
+    )
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "== ui ==" in output
+    assert "line-1" not in output
+    assert "line-2" in output
+    assert "line-3" in output
+
+
+def test_operations_logs_reports_no_written_logs_without_exposing_paths(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    initialize_operations_workspace(workspace)
+
+    exit_code = main(["operations", "logs", str(workspace.root)])
+
+    assert exit_code == 2
+    output = capsys.readouterr().out
+    assert output.count("[log unavailable: component has not written a log yet]") == 3
+    assert str(workspace.logs_path) not in output
+
+
+def test_operations_logs_rejects_unbounded_line_count(tmp_path: Path, capsys) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    initialize_operations_workspace(workspace)
+
+    exit_code = main(["operations", "logs", str(workspace.root), "--lines", "10001"])
+
+    assert exit_code == 1
+    assert "--lines must be between 1 and 10000" in capsys.readouterr().err
 
 
 def test_operations_stop_requests_supervisor_shutdown(

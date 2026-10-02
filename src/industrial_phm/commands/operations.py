@@ -36,6 +36,7 @@ from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPo
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import (
     CollectionServicePolicy,
+    OperationsComponentKind,
     OperationsProcessEvidence,
     OperationsSupervisorStateKind,
     OperationsWorkspace,
@@ -50,6 +51,7 @@ from industrial_phm.runtime import (
     request_operations_supervisor_stop,
     run_collection_service,
     run_operations_supervisor,
+    tail_operations_component_log,
 )
 from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
@@ -72,11 +74,15 @@ def _run_operations_init(args: argparse.Namespace) -> int:
 
 
 def _run_operations_start(args: argparse.Namespace) -> int:
-    """Run the workspace-owned collection/analysis lifecycle in the foreground."""
+    """Run the workspace-owned local node lifecycle in the foreground."""
     workspace = OperationsWorkspace(args.workspace)
     try:
         config = load_operations_runtime_config(workspace.config_path)
         plan = build_operations_runtime_plan(workspace, config)
+        print(
+            f"workspace={workspace.root} operations_url={plan.ui_url} mode=foreground",
+            flush=True,
+        )
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)
@@ -87,6 +93,47 @@ def _run_operations_start(args: argparse.Namespace) -> int:
     if result.state.state == OperationsSupervisorStateKind.STOPPED:
         return 0
     return result.exit_code
+
+
+def _run_operations_logs(args: argparse.Namespace) -> int:
+    """Print bounded tails from workspace-owned component logs."""
+    workspace = OperationsWorkspace(args.workspace)
+    if isinstance(args.lines, bool) or not 1 <= args.lines <= 10_000:
+        print("Operations logs failed: --lines must be between 1 and 10000", file=sys.stderr)
+        return 1
+    try:
+        config = load_operations_runtime_config(workspace.config_path)
+        plan = build_operations_runtime_plan(workspace, config)
+        kinds = (
+            (OperationsComponentKind(args.component),)
+            if args.component is not None
+            else tuple(OperationsComponentKind)
+        )
+    except (OSError, ValueError) as error:
+        print(f"Operations logs failed: {error}", file=sys.stderr)
+        return 1
+
+    available = 0
+    for index, kind in enumerate(kinds):
+        if index:
+            print()
+        print(f"== {kind.value} ==")
+        try:
+            lines = tail_operations_component_log(plan, kind, lines=args.lines)
+        except FileNotFoundError:
+            print("[log unavailable: component has not written a log yet]")
+            continue
+        except (LookupError, OSError, ValueError) as error:
+            print(f"[log read failed: {error}]", file=sys.stderr)
+            continue
+        available += 1
+        if not lines:
+            print("[log is empty]")
+            continue
+        for line in lines:
+            print(line)
+
+    return 0 if available else 2
 
 
 def _run_operations_stop(args: argparse.Namespace) -> int:

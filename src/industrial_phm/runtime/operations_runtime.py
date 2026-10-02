@@ -7,26 +7,48 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime.operations_config import OperationsRuntimeConfig
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
+OPERATIONS_UI_HOST = "127.0.0.1"
+OPERATIONS_WORKSPACE_ENV = "INDUSTRIAL_PHM_OPERATIONS_WORKSPACE"
+LEGACY_OPERATIONS_PATH_ENV = (
+    "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
+    "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
+    "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
+    "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
+    "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
+    "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE",
+    "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
+    "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
+    "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
+    "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
+    "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE",
+    "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
+    "INDUSTRIAL_PHM_HISTORY_CATALOG",
+    "INDUSTRIAL_PHM_HISTORY_DATA",
+)
 
 
 class OperationsComponentKind(StrEnum):
-    """Independent local processes currently managed by the service runtime."""
+    """Independent local processes managed by the Operations runtime."""
 
     COLLECTION = "collection"
     ANALYSIS = "analysis"
+    UI = "ui"
 
 
 @dataclass(frozen=True, slots=True)
 class OperationsComponentLaunch:
-    """One child-process command and its workspace-owned log destination."""
+    """One child-process command, environment projection and log destination."""
 
     kind: OperationsComponentKind
     argv: tuple[str, ...]
     log_path: Path
+    env_overrides: tuple[tuple[str, str], ...] = ()
+    clear_env: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.kind, OperationsComponentKind):
@@ -35,11 +57,24 @@ class OperationsComponentLaunch:
             raise ValueError("argv must contain non-empty strings")
         if not isinstance(self.log_path, Path):
             raise ValueError("log_path must be Path")
+        override_keys = []
+        for key, value in self.env_overrides:
+            if not isinstance(key, str) or not key or not isinstance(value, str):
+                raise ValueError(
+                    "env_overrides must contain non-empty string keys and string values"
+                )
+            override_keys.append(key)
+        if len(override_keys) != len(set(override_keys)):
+            raise ValueError("env_overrides must not contain duplicate keys")
+        if any(not isinstance(key, str) or not key for key in self.clear_env):
+            raise ValueError("clear_env must contain non-empty strings")
+        if len(self.clear_env) != len(set(self.clear_env)):
+            raise ValueError("clear_env must not contain duplicate keys")
 
 
 @dataclass(frozen=True, slots=True)
 class OperationsRuntimePlan:
-    """Workspace/config-resolved service topology without process side effects."""
+    """Workspace/config-resolved process topology without process side effects."""
 
     workspace: OperationsWorkspace
     config: OperationsRuntimeConfig
@@ -51,18 +86,21 @@ class OperationsRuntimePlan:
         if not isinstance(self.config, OperationsRuntimeConfig):
             raise ValueError("config must be OperationsRuntimeConfig")
         kinds = tuple(component.kind for component in self.components)
-        if kinds != (
-            OperationsComponentKind.COLLECTION,
-            OperationsComponentKind.ANALYSIS,
-        ):
-            raise ValueError("components must contain collection then analysis exactly once")
+        if kinds != tuple(OperationsComponentKind):
+            raise ValueError(
+                "components must contain collection, analysis and ui in canonical order"
+            )
+
+    @property
+    def ui_url(self) -> str:
+        return f"http://{OPERATIONS_UI_HOST}:{self.config.ui.port}"
 
 
 def build_operations_runtime_plan(
     workspace: OperationsWorkspace,
     config: OperationsRuntimeConfig,
 ) -> OperationsRuntimePlan:
-    """Build the current local service plan from one authoritative workspace config."""
+    """Build the local process set from one authoritative workspace config."""
     collection = config.collection
     analysis = config.analysis
 
@@ -107,6 +145,20 @@ def build_operations_runtime_plan(
             )
         )
 
+    ui_argv = (
+        sys.executable,
+        "-m",
+        "marimo",
+        "run",
+        str(operations_app_path()),
+        "--headless",
+        "--no-token",
+        "--host",
+        OPERATIONS_UI_HOST,
+        "--port",
+        str(config.ui.port),
+    )
+
     return OperationsRuntimePlan(
         workspace=workspace,
         config=config,
@@ -120,6 +172,13 @@ def build_operations_runtime_plan(
                 OperationsComponentKind.ANALYSIS,
                 tuple(analysis_args),
                 workspace.logs_path / "analysis.log",
+            ),
+            OperationsComponentLaunch(
+                OperationsComponentKind.UI,
+                ui_argv,
+                workspace.logs_path / "ui.log",
+                env_overrides=((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),),
+                clear_env=LEGACY_OPERATIONS_PATH_ENV,
             ),
         ),
     )
