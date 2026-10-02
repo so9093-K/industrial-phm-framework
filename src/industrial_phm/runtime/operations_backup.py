@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import importlib
 import json
@@ -19,6 +18,11 @@ from typing import Any
 
 from industrial_phm.runtime.operations_config import load_operations_runtime_config
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+
+try:
+    import fcntl
+except ModuleNotFoundError:  # pragma: no cover - reference runtime is POSIX
+    fcntl = None  # type: ignore[assignment]
 
 OPERATIONS_BACKUP_SCHEMA = "industrial-phm-operations-backup-v1"
 _MANIFEST_NAME = "manifest.json"
@@ -159,6 +163,7 @@ def restore_operations_backup(
             shutil.copy2(source, destination)
         restored = OperationsWorkspace(temporary_root)
         load_operations_runtime_config(restored.config_path)
+        restored.history_data_path.mkdir(parents=True, exist_ok=True)
         restored.logs_path.mkdir(parents=True, exist_ok=True)
         os.replace(temporary_root, root)
     except BaseException:
@@ -242,7 +247,7 @@ def _backup_sqlite(source: Path, destination: Path) -> None:
 @contextmanager
 def _offline_workspace_guard(workspace: OperationsWorkspace) -> Iterator[None]:
     """Prevent product supervisor/history access while an offline backup is captured."""
-    if os.name != "posix":
+    if os.name != "posix" or fcntl is None:
         raise RuntimeError("Operations backup currently requires the POSIX local runtime")
 
     workspace.supervisor_lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -257,7 +262,12 @@ def _offline_workspace_guard(workspace: OperationsWorkspace) -> Iterator[None]:
         history_lock: Any | None = None
         try:
             if workspace.history_catalog_path.exists():
-                filelock = importlib.import_module("filelock")
+                try:
+                    filelock = importlib.import_module("filelock")
+                except ModuleNotFoundError as error:
+                    raise RuntimeError(
+                        "Operations backup with history requires the 'history' or 'operations' extra"
+                    ) from error
                 history_lock = filelock.FileLock(str(workspace.history_catalog_path) + ".phm.lock")
                 try:
                     history_lock.acquire(timeout=0)
@@ -380,6 +390,10 @@ def _validate_separate_paths(first: Path, second: Path) -> None:
     second_resolved = second.expanduser().resolve(strict=False)
     if first_resolved == second_resolved:
         raise ValueError("backup and workspace paths must be distinct")
+    if first_resolved.is_relative_to(second_resolved) or second_resolved.is_relative_to(
+        first_resolved
+    ):
+        raise ValueError("backup and workspace paths must not be nested")
 
 
 def _require_regular_non_symlink_file(path: Path) -> None:
