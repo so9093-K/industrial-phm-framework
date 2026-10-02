@@ -38,6 +38,12 @@
 
 ### Added
 
+- Local Operations deployment preflight와 systemd reference contract를 추가했습니다. `operations preflight`는
+  실제 service account에서 absolute workspace, runtime config/dependencies, 쓰기 권한, supervisor/history lock,
+  packaged UI와 loopback port를 확인합니다. reference unit은 foreground `operations start`를
+  `Restart=on-failure`, `KillMode=mixed`, bounded start/restart/stop policy로 감쌉니다. supervisor는
+  SIGINT뿐 아니라 SIGTERM도 같은 coordinated child shutdown 경로로 처리합니다.
+
 - Stopped local Operations workspace의 backup/restore를 추가했습니다. `operations backup`은 supervisor와
   history catalog lock을 확보한 뒤 config와 durable source/control/spool/window/analysis/history state를 하나의
   recovery unit으로 capture하고, SQLite repository는 SQLite backup API로 snapshot합니다. manifest가 payload
