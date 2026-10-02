@@ -1,13 +1,4 @@
-"""Replay one explicit AI-Hub 239 power selection as a local OPC UA source.
-
-The replay stands in for a site OPC UA server during local validation. It publishes
-recorded values unchanged; only time is rebased onto the replay clock, because a
-live collector judges lateness and freshness against wall time. The mapping from
-replay time back to the recorded source time is written to ``replay-log.jsonl``.
-
-OPC UA DataChange reports only changed values, as a real subscription does, so an
-unchanged recorded value produces no notification.
-"""
+"""Packaged AI-Hub 239 power replay engine used by demos and development tools."""
 
 from __future__ import annotations
 
@@ -21,6 +12,7 @@ from contextlib import suppress
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -46,19 +38,14 @@ from industrial_phm.runtime import SqliteCollectionControlRepository
 MANIFEST = "replay.json"
 REPLAY_LOG = "replay-log.jsonl"
 _NAMESPACE = "urn:industrial-phm:aihub-239-replay"
+ReplayManifest = dict[str, object]
 
 
 def validate_replay_endpoint(endpoint: str) -> None:
     """Keep packaged replay servers on explicit loopback OPC UA endpoints."""
     parsed = urlparse(endpoint)
-    if (
-        parsed.scheme != "opc.tcp"
-        or parsed.hostname != "127.0.0.1"
-        or parsed.port is None
-    ):
+    if parsed.scheme != "opc.tcp" or parsed.hostname != "127.0.0.1" or parsed.port is None:
         raise ValueError("AI-Hub replay endpoint must use opc.tcp://127.0.0.1:<port>/...")
-
-
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +65,10 @@ class ReplaySelection:
     end_local: datetime
 
     def __post_init__(self) -> None:
+        if not isinstance(self.archive, Path):
+            raise ValueError("archive must be Path")
+        if not isinstance(self.member, str) or not self.member.strip():
+            raise ValueError("member must not be empty")
         for value in (self.start_local, self.end_local):
             if value.tzinfo is not None:
                 raise ValueError("replay selection uses naive source-local time")
@@ -86,11 +77,7 @@ class ReplaySelection:
 
 
 def load_replay_records(selection: ReplaySelection) -> tuple[tuple[ReplayRecord, ...], int]:
-    """Group the selected observations by source timestamp.
-
-    Returns the records and the number of channel values published as bad because
-    one timestamp recorded different values for the same channel.
-    """
+    """Group selected source observations without inventing values for conflicts."""
     grouped: dict[datetime, dict[str, float | None]] = {}
     conflicts: set[tuple[datetime, str]] = set()
     for observation in iter_power_observations(selection.archive, selection.member):
@@ -117,10 +104,12 @@ def load_replay_records(selection: ReplaySelection) -> tuple[tuple[ReplayRecord,
 
 def replay_offsets(records: Sequence[ReplayRecord], speed: float) -> tuple[float, ...]:
     """Seconds after replay start for each record; recorded spacing divided by speed."""
-    if not speed > 0:
+    if not records:
+        raise ValueError("replay records must not be empty")
+    if isinstance(speed, bool) or not isinstance(speed, (int, float)) or speed <= 0:
         raise ValueError("speed must be positive")
     first = records[0].source_local
-    return tuple((r.source_local - first).total_seconds() / speed for r in records)
+    return tuple((record.source_local - first).total_seconds() / float(speed) for record in records)
 
 
 def replay_channels(records: Sequence[ReplayRecord]) -> tuple[str, ...]:
@@ -132,13 +121,20 @@ def node_id(channel: str, namespace_index: int = 2) -> str:
 
 
 def semantic_bindings(
-    source_id: str, channels: Sequence[str], *, archive_digest: str, member: str
+    source_id: str,
+    channels: Sequence[str],
+    *,
+    archive_digest: str,
+    member: str,
 ) -> tuple[ChannelSemanticBinding, ...]:
-    """Bind only channels the AI-Hub dictionary resolves; others stay unresolved."""
+    """Bind only channels for which the versioned dictionary has evidence."""
     bindings = []
     for channel in channels:
         definition = channel_definition(
-            AIHUB_239_SEMANTICS_V2, channel, archive_sha256=archive_digest, member=member
+            AIHUB_239_SEMANTICS_V2,
+            channel,
+            archive_sha256=archive_digest,
+            member=member,
         )
         if definition.unit is None:
             continue
@@ -162,8 +158,8 @@ def build_replay_manifest(
     selection: ReplaySelection,
     *,
     prepared_at: datetime | None = None,
-) -> dict:
-    """Build the immutable replay selection manifest without mutating runtime state."""
+) -> ReplayManifest:
+    """Build replay provenance and validate the selected archive range."""
     validate_replay_endpoint(endpoint)
     records, conflicts = load_replay_records(selection)
     channels = replay_channels(records)
@@ -194,67 +190,126 @@ def build_replay_manifest(
     }
 
 
-def write_replay_manifest(root: Path, manifest: dict) -> None:
-    root.mkdir(parents=True, exist_ok=True)
-    (root / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-
-
-def prepare(root: Path, endpoint: str, selection: ReplaySelection, *, name: str) -> dict:
-    """Register the replay as an ACTIVE OPC UA source with collection STOPPED."""
-    if root.exists() and any(root.iterdir()):
-        raise ValueError("replay root must be empty; reuse prepared state instead")
-    manifest = build_replay_manifest(endpoint, selection)
-    channels = tuple(manifest["channels"])
-    digest = str(manifest["archive_sha256"])
-    now = datetime.fromisoformat(str(manifest["prepared_at"]))
+def build_registered_replay_source(
+    selection: ReplaySelection,
+    manifest: ReplayManifest,
+    *,
+    name: str,
+    registered_at: datetime,
+) -> RegisteredSource:
+    """Project a validated manifest into the normal registered-source contract."""
+    if registered_at.utcoffset() is None:
+        raise ValueError("registered_at must be timezone-aware")
+    channels = _manifest_string_list(manifest, "channels")
+    digest = _manifest_string(manifest, "archive_sha256")
+    endpoint = _manifest_string(manifest, "endpoint")
     source_id = selection.binding.source_id
     bindings = semantic_bindings(
-        source_id, channels, archive_digest=digest, member=selection.member
+        source_id,
+        channels,
+        archive_digest=digest,
+        member=selection.member,
+    )
+    return RegisteredSource(
+        source_id=source_id,
+        name=name,
+        config=OpcUaSourceConfig(
+            endpoint_url=endpoint,
+            asset_id=selection.binding.asset_id,
+            node_mappings=tuple(OpcUaNodeMapping(channel, node_id(channel)) for channel in channels),
+            timeout_seconds=2.0,
+            semantic_bindings=bindings,
+        ),
+        registered_at=registered_at,
+    )
+
+
+def register_replay_source(
+    root: Path,
+    selection: ReplaySelection,
+    manifest: ReplayManifest,
+    *,
+    name: str,
+    desired_state: CollectionDesiredState,
+    registered_at: datetime,
+) -> RegisteredSource:
+    """Register one replay source into an already chosen local state root."""
+    source = build_registered_replay_source(
+        selection,
+        manifest,
+        name=name,
+        registered_at=registered_at,
     )
     sources = JsonSourceRepository(root / "sources.json")
-    sources.register(
-        RegisteredSource(
-            source_id=source_id,
-            name=name,
-            config=OpcUaSourceConfig(
-                endpoint_url=endpoint,
-                asset_id=selection.binding.asset_id,
-                node_mappings=tuple(OpcUaNodeMapping(c, node_id(c)) for c in channels),
-                timeout_seconds=2.0,
-                semantic_bindings=bindings,
-            ),
-            registered_at=now,
-        )
+    sources.register(source)
+    transition_source_lifecycle(
+        sources,
+        source.source_id,
+        SourceLifecycleState.ACTIVE,
+        changed_at=registered_at,
     )
-    transition_source_lifecycle(sources, source_id, SourceLifecycleState.ACTIVE, changed_at=now)
     request_collection_state(
         sources,
         sources,
         SqliteCollectionControlRepository(root / "control.sqlite"),
-        source_id,
-        CollectionDesiredState.STOPPED,
-        requested_at=now,
+        source.source_id,
+        desired_state,
+        requested_at=registered_at,
+    )
+    return source
+
+
+def write_replay_manifest(root: Path, manifest: ReplayManifest) -> None:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / MANIFEST).write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def prepare(root: Path, endpoint: str, selection: ReplaySelection, *, name: str) -> ReplayManifest:
+    """Development helper: prepare an empty root and leave collection STOPPED."""
+    if root.exists() and any(root.iterdir()):
+        raise ValueError("replay root must be empty; reuse prepared state instead")
+    manifest = build_replay_manifest(endpoint, selection)
+    prepared_at = datetime.fromisoformat(_manifest_string(manifest, "prepared_at"))
+    register_replay_source(
+        root,
+        selection,
+        manifest,
+        name=name,
+        desired_state=CollectionDesiredState.STOPPED,
+        registered_at=prepared_at,
     )
     write_replay_manifest(root, manifest)
     return manifest
 
 
-def load_selection(root: Path) -> tuple[dict, ReplaySelection]:
-    manifest = json.loads((root / MANIFEST).read_text())
+def load_selection(root: Path) -> tuple[ReplayManifest, ReplaySelection]:
+    raw = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("replay manifest root must be an object")
+    manifest = cast(ReplayManifest, raw)
+    binding_raw = manifest.get("binding")
+    if not isinstance(binding_raw, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in binding_raw.items()
+    ):
+        raise ValueError("replay manifest binding must contain string fields")
+    binding = PowerHistoryBinding(**cast(dict[str, str], binding_raw))
     selection = ReplaySelection(
-        archive=Path(manifest["archive"]),
-        member=manifest["member"],
-        binding=PowerHistoryBinding(**manifest["binding"]),
-        start_local=datetime.fromisoformat(manifest["start_local"]),
-        end_local=datetime.fromisoformat(manifest["end_local"]),
+        archive=Path(_manifest_string(manifest, "archive")),
+        member=_manifest_string(manifest, "member"),
+        binding=binding,
+        start_local=datetime.fromisoformat(_manifest_string(manifest, "start_local")),
+        end_local=datetime.fromisoformat(_manifest_string(manifest, "end_local")),
     )
-    if archive_sha256(selection.archive) != manifest["archive_sha256"]:
+    if archive_sha256(selection.archive) != _manifest_string(manifest, "archive_sha256"):
         raise ValueError("archive changed since the replay was prepared")
     return manifest, selection
 
 
-def _log(root: Path, entry: dict) -> None:
-    with (root / REPLAY_LOG).open("a") as stream:
+def _log(root: Path, entry: dict[str, object]) -> None:
+    with (root / REPLAY_LOG).open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
@@ -268,18 +323,12 @@ async def serve(
     freeze_after_records: int | None = None,
     publish_ledger: Path | None = None,
 ) -> None:
-    """Publish records on the replay clock until the selection ends or ``stop``.
-
-    ``omit_channels`` never publishes those channels (a missing phase);
-    ``freeze_after_records`` keeps the server up but stops updating (stale data).
-    ``publish_ledger`` appends every record actually written (server run, replay
-    time, channel values) as ground truth for loss/duplicate audits.
-    """
+    """Publish recorded values on a rebased clock without changing their values."""
     run_id = uuid4().hex
     manifest, selection = load_selection(root)
     records, _ = load_replay_records(selection)
     offsets = replay_offsets(records, speed)
-    channels = tuple(manifest["channels"])
+    channels = tuple(_manifest_string_list(manifest, "channels"))
     unknown = set(omit_channels) - set(channels)
     if unknown:
         raise ValueError(f"unknown channels to omit: {sorted(unknown)}")
@@ -288,7 +337,7 @@ async def serve(
     ua = asyncua.ua
     server = asyncua.Server()
     await server.init()
-    server.set_endpoint(manifest["endpoint"])
+    server.set_endpoint(_manifest_string(manifest, "endpoint"))
     server.set_server_name("industrial-phm AI-Hub 239 replay")
     namespace = await server.register_namespace(_NAMESPACE)
     if namespace != 2:
@@ -296,7 +345,9 @@ async def serve(
     device = await server.nodes.objects.add_object(namespace, "AIHub239Replay")
     nodes = {
         channel: await device.add_variable(
-            ua.NodeId(f"AIHub239.{channel}", namespace), channel, 0.0
+            ua.NodeId(f"AIHub239.{channel}", namespace),
+            channel,
+            0.0,
         )
         for channel in channels
     }
@@ -305,10 +356,11 @@ async def serve(
         await node.write_value(
             ua.DataValue(ua.Variant(None, ua.VariantType.Null), StatusCode=waiting_status)
         )
+
     published = 0
     cycle = 0
     async with server:
-        print(f"AI-Hub replay OPC UA server: {manifest['endpoint']}", flush=True)
+        print(f"AI-Hub replay OPC UA server: {_manifest_string(manifest, 'endpoint')}", flush=True)
         while not stop.is_set():
             started = datetime.now(UTC)
             _log(
@@ -318,8 +370,10 @@ async def serve(
                     "replay_started_at": started.isoformat(),
                     "source_start_local": records[0].source_local.isoformat(),
                     "speed": speed,
-                    "rule": "replay_at = replay_started_at + (source_local - source_start_local)"
-                    " / speed",
+                    "rule": (
+                        "replay_at = replay_started_at + "
+                        "(source_local - source_start_local) / speed"
+                    ),
                 },
             )
             for record, offset in zip(records, offsets, strict=True):
@@ -339,13 +393,14 @@ async def serve(
                     status = ua.StatusCode(
                         ua.StatusCodes.Good if value is not None else ua.StatusCodes.Bad
                     )
+                    variant = (
+                        ua.Variant(None, ua.VariantType.Null)
+                        if value is None
+                        else ua.Variant(value, ua.VariantType.Double)
+                    )
                     await nodes[channel].write_value(
                         ua.DataValue(
-                            # A null recorded value is sent as a Null variant with Bad status,
-                            # never as a synthetic number.
-                            ua.Variant(None, ua.VariantType.Null)
-                            if value is None
-                            else ua.Variant(value, ua.VariantType.Double),
+                            variant,
                             StatusCode=status,
                             SourceTimestamp=at,
                             ServerTimestamp=datetime.now(UTC),
@@ -359,7 +414,7 @@ async def serve(
                                     "run": run_id,
                                     "at": at.isoformat(),
                                     "values": written,
-                                    "good": {ch: v is not None for ch, v in written.items()},
+                                    "good": {channel: value is not None for channel, value in written.items()},
                                 },
                                 ensure_ascii=False,
                             )
@@ -381,9 +436,10 @@ async def serve(
                 await asyncio.wait_for(stop.wait(), timeout=period)
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+
     prepare_parser = commands.add_parser("prepare", help="register the replay source")
     prepare_parser.add_argument("--root", type=Path, required=True)
     prepare_parser.add_argument("--endpoint", required=True)
@@ -393,14 +449,21 @@ def main() -> None:
     prepare_parser.add_argument("--start", type=datetime.fromisoformat, required=True)
     prepare_parser.add_argument("--end", type=datetime.fromisoformat, required=True)
     prepare_parser.add_argument("--name", default="AI-Hub 239 recorded power (OPC UA replay)")
+
     server_parser = commands.add_parser("server", help="publish the prepared selection")
     server_parser.add_argument("--root", type=Path, required=True)
     server_parser.add_argument(
-        "--speed", type=float, default=60.0, help="recorded seconds per replay second"
+        "--speed",
+        type=float,
+        default=60.0,
+        help="recorded seconds per replay second",
     )
     server_parser.add_argument("--loop", action="store_true", help="repeat the selection")
     server_parser.add_argument(
-        "--omit-channel", action="append", default=[], help="never publish this channel"
+        "--omit-channel",
+        action="append",
+        default=[],
+        help="never publish this channel",
     )
     server_parser.add_argument(
         "--publish-ledger",
@@ -412,28 +475,37 @@ def main() -> None:
         type=int,
         help="keep serving but stop updating values after this many records",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         if args.command == "prepare":
+            binding_raw = json.loads(args.binding.read_text(encoding="utf-8"))
+            if not isinstance(binding_raw, dict) or not all(
+                isinstance(key, str) and isinstance(value, str)
+                for key, value in binding_raw.items()
+            ):
+                raise ValueError("binding file must contain string fields")
             selection = ReplaySelection(
                 archive=args.archive,
                 member=args.member,
-                binding=PowerHistoryBinding(**json.loads(args.binding.read_text())),
+                binding=PowerHistoryBinding(**cast(dict[str, str], binding_raw)),
                 start_local=args.start,
                 end_local=args.end,
             )
             manifest = prepare(args.root, args.endpoint, selection, name=args.name)
             print(
-                f"Prepared {args.root}: {manifest['record_count']} records, "
-                f"{len(manifest['channels'])} channels ({len(manifest['bound_channels'])} with "
-                "evidenced meaning); collection STOPPED"
+                f"Prepared {args.root}: {_manifest_int(manifest, 'record_count')} records, "
+                f"{len(_manifest_string_list(manifest, 'channels'))} channels "
+                f"({len(_manifest_string_list(manifest, 'bound_channels'))} with evidenced meaning); "
+                "collection STOPPED"
             )
-            return
+            return 0
 
         async def run() -> None:
             stop = asyncio.Event()
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                asyncio.get_running_loop().add_signal_handler(sig, stop.set)
+            loop = asyncio.get_running_loop()
+            for item in (signal.SIGINT, signal.SIGTERM):
+                with suppress(NotImplementedError):
+                    loop.add_signal_handler(item, stop.set)
             await serve(
                 args.root,
                 stop,
@@ -445,9 +517,32 @@ def main() -> None:
             )
 
         asyncio.run(run())
-    except (ValueError, OSError, RuntimeError) as error:
-        parser.exit(1, f"error: {error}\n")
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"error: {error}", file=__import__("sys").stderr)
+        return 1
+    return 0
+
+
+def _manifest_string(manifest: ReplayManifest, key: str) -> str:
+    value = manifest.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"replay manifest {key} must be a non-empty string")
+    return value
+
+
+def _manifest_string_list(manifest: ReplayManifest, key: str) -> list[str]:
+    value = manifest.get(key)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"replay manifest {key} must be a string list")
+    return cast(list[str], value)
+
+
+def _manifest_int(manifest: ReplayManifest, key: str) -> int:
+    value = manifest.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"replay manifest {key} must be an integer")
+    return value
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
