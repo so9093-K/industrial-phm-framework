@@ -181,9 +181,9 @@ def _workspace_checks(workspace: OperationsWorkspace) -> list[OperationsDeployme
                 else OperationsDeploymentCheckState.FAIL
             ),
             (
-                f"workspace is readable/writable/searchable by uid={os.geteuid()}: {root}"
+                f"workspace is readable/writable/searchable by uid={_effective_uid()}: {root}"
                 if os.access(root, root_access)
-                else f"workspace lacks read/write/search permission for uid={os.geteuid()}: {root}"
+                else f"workspace lacks read/write/search permission for uid={_effective_uid()}: {root}"
             ),
         )
     )
@@ -218,7 +218,7 @@ def _workspace_checks(workspace: OperationsWorkspace) -> list[OperationsDeployme
                 (
                     f"directory is readable/writable/searchable: {path}"
                     if usable
-                    else f"directory is unavailable or not writable by uid={os.geteuid()}: {path}"
+                    else f"directory is unavailable or not writable by uid={_effective_uid()}: {path}"
                 ),
             )
         )
@@ -249,10 +249,15 @@ def _workspace_checks(workspace: OperationsWorkspace) -> list[OperationsDeployme
     return checks
 
 
+def _effective_uid() -> int:
+    getter = getattr(os, "geteuid", None)
+    return -1 if getter is None else int(getter())
+
+
 def _ownership_check(path: Path, name: str) -> OperationsDeploymentCheck:
     info = path.stat()
     world_writable = bool(info.st_mode & stat.S_IWOTH)
-    same_owner = info.st_uid == os.geteuid()
+    same_owner = info.st_uid == _effective_uid()
     if world_writable:
         return OperationsDeploymentCheck(
             name,
@@ -264,14 +269,14 @@ def _ownership_check(path: Path, name: str) -> OperationsDeploymentCheck:
             name,
             OperationsDeploymentCheckState.WARN,
             (
-                f"path owner differs from current service uid={os.geteuid()}: "
+                f"path owner differs from current service uid={_effective_uid()}: "
                 f"owner_uid={info.st_uid} mode={stat.filemode(info.st_mode)} path={path}"
             ),
         )
     return OperationsDeploymentCheck(
         name,
         OperationsDeploymentCheckState.PASS,
-        f"path owner matches current uid={os.geteuid()}: {path}",
+        f"path owner matches current uid={_effective_uid()}: {path}",
     )
 
 
