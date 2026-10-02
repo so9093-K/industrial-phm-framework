@@ -100,10 +100,7 @@ def _operations_process_value(process: OperationsProcessEvidence | None) -> str:
     if process is None:
         return "unavailable"
     return_code = "none" if process.return_code is None else str(process.return_code)
-    return (
-        f"pid:{process.pid},alive:{'yes' if process.alive else 'no'},"
-        f"return_code:{return_code}"
-    )
+    return f"pid:{process.pid},alive:{'yes' if process.alive else 'no'},return_code:{return_code}"
 
 
 def _operations_time_value(value: datetime | None) -> str:
