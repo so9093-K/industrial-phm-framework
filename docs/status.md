@@ -81,7 +81,8 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, 결손상 이유·review→Maintenance 연결·실제 브라우저 5초 확인, machine verdict(`full`/`diagnostic`). 결과는 `docs/research/phase10-acquisition-stress.md` |
 | Local Operations workspace 초기화 | **지원** | `industrial-phm operations init <root>`가 versioned `config.toml`과 managed data/log directory를 만들고 기존 유효 workspace에는 idempotent하게 동작. config 없는 비어 있지 않은 directory는 자동 채택하지 않음 |
 | Local Operations runtime status | **지원** | `industrial-phm operations status <root>`가 supervisor process identity와 collection/analysis component heartbeat를 분리해 표시. PID 존재만으로 component health를 추정하지 않음 |
-| 통합 local Operations lifecycle | **미제공** | collection/analysis/UI의 `start/logs/stop` product runtime은 아직 없음. 현재는 workspace root와 read-only status까지 제공하지만 전체 process lifecycle은 아직 user-facing command로 통합되지 않음 |
+| Local collection/analysis lifecycle | **지원** | `operations start <root>`가 workspace config에서 collection/analysis launch plan을 만들고 한 foreground supervisor로 실행. Ctrl-C 또는 `operations stop <root>`은 child를 역순으로 graceful shutdown. stop은 persisted PID만 믿지 않고 workspace supervisor lock이 실제 점유 중일 때만 signal 요청 |
+| 통합 local Operations lifecycle | **미제공** | packaged Operations UI와 `logs`까지 포함한 전체 node lifecycle은 아직 미완성. 현재 start/stop은 collection + analysis service set을 소유 |
 | installable Operations application | **미제공** | canonical Operations는 현재 repository `apps/operations_v2.py`와 research dependency에서 실행하며 wheel의 독립 product surface가 아님 |
 | 실제 현장 OPC UA 설비 validation | **현장 미검증** | 현장 update/deadband/timestamp/security 특성에 대한 검증 근거가 아직 없음 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
