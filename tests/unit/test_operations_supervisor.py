@@ -1,9 +1,9 @@
 import signal
-
-import pytest
 import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+import pytest
 
 from industrial_phm.runtime import (
     OperationsRuntimeConfig,
