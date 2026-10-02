@@ -21,6 +21,7 @@ from industrial_phm.runtime.history_writer import (
     run_spool_to_history_writer,
     write_next_spool_batch,
 )
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 from industrial_phm.runtime.opcua_acquisition import (
     OpcUaSessionLostError,
     OpcUaSubscriptionOverflowError,
@@ -40,6 +41,7 @@ __all__ = [
     "OpcUaSessionLostError",
     "OpcUaSubscriptionOverflowError",
     "OpcUaUnpersistedNotificationError",
+    "OperationsWorkspace",
     "SqliteAcquisitionSpool",
     "SqliteAcquisitionSpoolConfig",
     "SqliteAcquisitionTelemetryRepository",
