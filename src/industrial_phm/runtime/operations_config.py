@@ -58,14 +58,15 @@ def load_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
 
 def write_operations_runtime_config(
     path: Path,
-    config: OperationsRuntimeConfig = OperationsRuntimeConfig(),
+    config: OperationsRuntimeConfig | None = None,
 ) -> None:
     """Atomically persist the current Operations workspace config."""
-    if not isinstance(config, OperationsRuntimeConfig):
+    effective_config = OperationsRuntimeConfig() if config is None else config
+    if not isinstance(effective_config, OperationsRuntimeConfig):
         raise ValueError("config must be OperationsRuntimeConfig")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    rendered = f'schema = "{config.schema}"\n'
+    rendered = f'schema = "{effective_config.schema}"\n'
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
