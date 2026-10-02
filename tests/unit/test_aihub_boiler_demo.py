@@ -182,16 +182,12 @@ def test_prepare_aihub_boiler_demo_reuses_only_matching_demo_workspace(
     assert record.generation == 1
 
 
-def test_prepare_aihub_boiler_demo_rejects_non_demo_registered_source(tmp_path: Path) -> None:
+def test_prepare_aihub_boiler_demo_rejects_unclaimed_runtime_state(tmp_path: Path) -> None:
     archive = _archive(tmp_path)
     workspace = OperationsWorkspace(tmp_path / "demo")
     from industrial_phm.runtime import initialize_operations_workspace
 
     initialize_operations_workspace(workspace)
-    workspace.source_registry_path.write_text(
-        '{"schema":"registered-sources-v1","sources":[],"lifecycles":[]}\n',
-        encoding="utf-8",
-    )
     workspace.phase_unbalance_state_path.write_text("non-demo", encoding="utf-8")
 
     with pytest.raises(ValueError, match="runtime/history state"):
