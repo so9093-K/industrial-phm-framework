@@ -10,6 +10,7 @@ from numbers import Real
 from typing import Protocol, runtime_checkable
 
 from industrial_phm.application.asset_history import (
+    HistoricalBatchAppendResult,
     HistoricalBatchCommit,
     HistoryIngestionMode,
 )
@@ -30,20 +31,6 @@ class SpoolToHistoryWriterPolicy:
         _validate_positive_int(self.max_bytes, "max_bytes")
         _validate_positive_finite(self.max_interval_seconds, "max_interval_seconds")
         _validate_positive_finite(self.poll_interval_seconds, "poll_interval_seconds")
-
-
-@dataclass(frozen=True, slots=True)
-class HistoricalBatchAppendResult:
-    """One history append attempt, including idempotent recovery disposition."""
-
-    commit: HistoricalBatchCommit
-    recovered_existing_commit: bool
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.commit, HistoricalBatchCommit):
-            raise ValueError("commit must be a HistoricalBatchCommit")
-        if not isinstance(self.recovered_existing_commit, bool):
-            raise ValueError("recovered_existing_commit must be boolean")
 
 
 @dataclass(frozen=True, slots=True)
