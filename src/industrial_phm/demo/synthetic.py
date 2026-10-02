@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import importlib
 import math
-import os
 import signal
 import socket
 import subprocess
