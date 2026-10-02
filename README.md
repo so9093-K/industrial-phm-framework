@@ -40,7 +40,17 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 설정과 진단 정보는 primary 운영 흐름에서 분리하고, NodeId·state path 같은 세부 정보는 필요한
 경우에만 Setup/System의 advanced 영역에서 확인합니다.
 
-새 local Operations workspace는 다음처럼 초기화합니다.
+외부 데이터 없이 전체 local node를 먼저 확인하려면 `operations` extra 설치 후 synthetic demo 하나로
+OPC UA simulator, collection, analysis, Operations UI를 함께 실행할 수 있습니다.
+
+```bash
+industrial-phm demo synthetic
+```
+
+기본 workspace는 `artifacts/demo-synthetic`이며 synthetic 3상 값은 실제 설비 측정값이나 고장 진단이 아닙니다.
+명령은 loopback OPC UA source를 자동 등록·활성화하고 collection을 시작합니다. 종료는 Ctrl-C를 사용합니다.
+
+실제 source를 연결할 새 local Operations workspace는 다음처럼 초기화합니다.
 
 ```bash
 industrial-phm operations init ./plant-a
