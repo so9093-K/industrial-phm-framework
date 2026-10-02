@@ -122,6 +122,20 @@ class HistoricalBatchCommit:
 
 
 @dataclass(frozen=True, slots=True)
+class HistoricalBatchAppendResult:
+    """One history append attempt, including idempotent recovery disposition."""
+
+    commit: HistoricalBatchCommit
+    recovered_existing_commit: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.commit, HistoricalBatchCommit):
+            raise ValueError("commit must be a HistoricalBatchCommit")
+        if not isinstance(self.recovered_existing_commit, bool):
+            raise ValueError("recovered_existing_commit must be boolean")
+
+
+@dataclass(frozen=True, slots=True)
 class HistoricalInputReference:
     """Reproducible Asset History input selection for analysis/baseline provenance."""
 
