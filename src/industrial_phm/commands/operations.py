@@ -36,6 +36,7 @@ from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPo
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import (
     CollectionServicePolicy,
+    OperationsProcessEvidence,
     OperationsWorkspace,
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
@@ -95,13 +96,9 @@ def _run_operations_status(args: argparse.Namespace) -> int:
     return 0 if status.ready else 2
 
 
-def _operations_process_value(process: object) -> str:
-    from industrial_phm.runtime import OperationsProcessEvidence
-
+def _operations_process_value(process: OperationsProcessEvidence | None) -> str:
     if process is None:
         return "unavailable"
-    if not isinstance(process, OperationsProcessEvidence):
-        raise ValueError("process must be OperationsProcessEvidence or None")
     return_code = "none" if process.return_code is None else str(process.return_code)
     return (
         f"pid:{process.pid},alive:{'yes' if process.alive else 'no'},"
