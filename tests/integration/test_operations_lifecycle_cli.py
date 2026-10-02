@@ -103,9 +103,7 @@ def test_operations_logs_rejects_unbounded_line_count(tmp_path: Path, capsys) ->
     workspace = OperationsWorkspace(tmp_path / "plant-a")
     initialize_operations_workspace(workspace)
 
-    exit_code = main(
-        ["operations", "logs", str(workspace.root), "--lines", "10001"]
-    )
+    exit_code = main(["operations", "logs", str(workspace.root), "--lines", "10001"])
 
     assert exit_code == 1
     assert "--lines must be between 1 and 10000" in capsys.readouterr().err
