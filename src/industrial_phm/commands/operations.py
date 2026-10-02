@@ -98,6 +98,9 @@ def _run_operations_start(args: argparse.Namespace) -> int:
 def _run_operations_logs(args: argparse.Namespace) -> int:
     """Print bounded tails from workspace-owned component logs."""
     workspace = OperationsWorkspace(args.workspace)
+    if isinstance(args.lines, bool) or not 1 <= args.lines <= 10_000:
+        print("Operations logs failed: --lines must be between 1 and 10000", file=sys.stderr)
+        return 1
     try:
         config = load_operations_runtime_config(workspace.config_path)
         plan = build_operations_runtime_plan(workspace, config)
