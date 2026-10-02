@@ -93,6 +93,13 @@ jobs:
           uv run --locked --extra aihub --extra opcua pytest \
             tests/integration/test_aihub_opcua_replay.py
 
+      - name: Validate packaged AI-Hub boiler demo preset
+        run: |
+          uv run --locked --extra operations --extra aihub pytest \
+            tests/unit/test_aihub_boiler_demo.py \
+            tests/integration/test_demo_cli.py
+          uv run --locked --extra operations --extra aihub industrial-phm demo aihub-boiler --help
+
       - name: Build package
         run: uv build
 
@@ -145,6 +152,8 @@ jobs:
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: opcua'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: asyncua.*extra == .opcua.'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/operations_v2.py'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/demo/aihub_boiler.py'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/demo/aihub_replay.py'
           uv run --locked python - <<'PY'
           from email.parser import BytesParser
           from pathlib import Path
