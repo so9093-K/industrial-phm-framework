@@ -266,7 +266,8 @@ def _offline_workspace_guard(workspace: OperationsWorkspace) -> Iterator[None]:
                     filelock = importlib.import_module("filelock")
                 except ModuleNotFoundError as error:
                     raise RuntimeError(
-                        "Operations backup with history requires the 'history' or 'operations' extra"
+                        "Operations backup with history requires the "
+                        "'history' or 'operations' extra"
                     ) from error
                 history_lock = filelock.FileLock(str(workspace.history_catalog_path) + ".phm.lock")
                 try:
@@ -331,7 +332,11 @@ def _parse_manifest_file(value: object) -> OperationsBackupFile:
     relative_path = value["relative_path"]
     size_bytes = value["size_bytes"]
     sha256 = value["sha256"]
-    if not isinstance(relative_path, str) or not isinstance(size_bytes, int) or not isinstance(sha256, str):
+    if (
+        not isinstance(relative_path, str)
+        or not isinstance(size_bytes, int)
+        or not isinstance(sha256, str)
+    ):
         raise OperationsBackupFormatError("backup manifest file entry has invalid types")
     return OperationsBackupFile(relative_path, size_bytes, sha256)
 
