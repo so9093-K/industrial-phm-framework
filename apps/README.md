@@ -105,9 +105,12 @@ Analysis Configuration은 현재 안전하게 persist할 application contract가
 한 local Operations instance는 workspace root 하나로 지정할 수 있습니다.
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live
-uv run --locked --group research marimo run apps/operations_v2.py
+industrial-phm operations init artifacts/live
+industrial-phm operations start artifacts/live
 ```
+
+`start`는 packaged Operations app을 collection/analysis와 같은 local supervisor 아래에서 loopback web app으로 실행합니다.
+개발자가 UI만 별도로 확인할 때는 `operations` extra가 설치된 환경에서 packaged app path를 사용할 수 있습니다.
 
 workspace를 지정하면 source/runtime/control/spool/telemetry/window/analysis/finding/review와
 DuckLake catalog/data 경로를 같은 root에서 결정합니다. 기존
@@ -149,7 +152,7 @@ Operations의 primary read는 누적 결과 전체를 매번 역직렬화하지 
 다만 사람이 review를 요청한 과거 run은 500개 범위 밖이어도 analysis_run_id로 정확히 다시 읽어
 Investigation/Maintenance evidence가 사라지지 않습니다. 이 제한은 표시/조회 경계이며 저장된 결과를 삭제하거나
 retention하지 않습니다. 전체 저장 개수와 이번에 읽은 범위는 System → Advanced diagnostics에서 확인할 수 있습니다.
-Operations는 runner process를 시작·중지하지 않습니다. Asset Detail·Overview의 Analysis runs와 Investigation은 FILE 특징 분석과 3상 불평형을
+정상 product runtime에서는 supervisor가 analysis runner와 Operations UI process lifecycle을 함께 소유합니다. UI의 개별 action은 runner process를 직접 제어하지 않습니다. Asset Detail·Overview의 Analysis runs와 Investigation은 FILE 특징 분석과 3상 불평형을
 함께 다룹니다. Investigation의 **검토할 분석**에서 결과를 고르면 capability별 근거가 보이고, **Create review
 finding**으로 그 결과에 대한 사람의 검토 요청을 만들어 Maintenance Review로 이어갈 수 있습니다.
 
