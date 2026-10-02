@@ -40,6 +40,15 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 설정과 진단 정보는 primary 운영 흐름에서 분리하고, NodeId·state path 같은 세부 정보는 필요한
 경우에만 Setup/System의 advanced 영역에서 확인합니다.
 
+새 local Operations workspace는 다음처럼 초기화합니다.
+
+```bash
+industrial-phm operations init ./plant-a
+```
+
+현재 `init`은 versioned workspace와 data/log directory만 준비하며 collector·analysis·UI process를
+자동으로 시작하지 않습니다. 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
+
 ### Analysis Explorer
 
 PHM 분석 결과를 상세하게 검토하는 UI입니다.

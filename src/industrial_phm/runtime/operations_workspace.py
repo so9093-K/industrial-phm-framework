@@ -5,6 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from industrial_phm.runtime.operations_config import (
+    OperationsRuntimeConfig,
+    load_operations_runtime_config,
+    write_operations_runtime_config,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class OperationsWorkspace:
@@ -104,3 +110,39 @@ class OperationsWorkspace:
     def managed_directories(self) -> tuple[Path, ...]:
         """Return directories whose creation is owned by workspace initialization."""
         return (self.root, self.history_data_path, self.logs_path)
+
+
+@dataclass(frozen=True, slots=True)
+class OperationsWorkspaceInitialization:
+    """Result of creating or reopening an initialized workspace."""
+
+    workspace: OperationsWorkspace
+    config: OperationsRuntimeConfig
+    created: bool
+
+
+def initialize_operations_workspace(
+    workspace: OperationsWorkspace,
+) -> OperationsWorkspaceInitialization:
+    """Initialize an empty local workspace without adopting unrelated existing state."""
+    root = workspace.root
+    if root.exists() and not root.is_dir():
+        raise OSError(f"Operations workspace root is not a directory: {root}")
+
+    if workspace.config_path.exists():
+        config = load_operations_runtime_config(workspace.config_path)
+        workspace.history_data_path.mkdir(parents=True, exist_ok=True)
+        workspace.logs_path.mkdir(parents=True, exist_ok=True)
+        return OperationsWorkspaceInitialization(workspace, config, created=False)
+
+    if root.exists() and any(root.iterdir()):
+        raise ValueError(
+            f"refusing to initialize a non-empty Operations workspace without config.toml: {root}"
+        )
+
+    root.mkdir(parents=True, exist_ok=True)
+    config = OperationsRuntimeConfig()
+    write_operations_runtime_config(workspace.config_path, config)
+    workspace.history_data_path.mkdir(parents=True, exist_ok=True)
+    workspace.logs_path.mkdir(parents=True, exist_ok=True)
+    return OperationsWorkspaceInitialization(workspace, config, created=True)
