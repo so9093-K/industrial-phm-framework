@@ -1844,18 +1844,28 @@ class DuckLakeAssetHistory:
         connection: Any,
         snapshot_id: int,
     ) -> tuple[datetime, str | None, object]:
-        """Read one DuckLake snapshot row directly from the SQLite catalog primary key."""
+        """Read one DuckLake snapshot/provenance row from catalog primary keys."""
         catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
-        row = connection.execute(
-            "SELECT CAST(snapshot_time AS TIMESTAMPTZ), author, commit_extra_info "
+        snapshot_row = connection.execute(
+            "SELECT CAST(snapshot_time AS TIMESTAMPTZ) "
             "FROM sqlite_scan(" + _quote_sql_literal(str(catalog_path)) + ", 'ducklake_snapshot') "
             "WHERE snapshot_id = ?",
             [snapshot_id],
         ).fetchone()
-        if row is None:
+        if snapshot_row is None:
             raise RuntimeError("DuckLake committed snapshot metadata is unavailable")
-        author = None if row[1] is None else _require_str(row[1], "author")
-        return _require_datetime(row[0], "snapshot_time"), author, row[2]
+        change_row = connection.execute(
+            "SELECT author, commit_extra_info "
+            "FROM sqlite_scan("
+            + _quote_sql_literal(str(catalog_path))
+            + ", 'ducklake_snapshot_changes') "
+            "WHERE snapshot_id = ?",
+            [snapshot_id],
+        ).fetchone()
+        if change_row is None:
+            raise RuntimeError("DuckLake committed snapshot provenance is unavailable")
+        author = None if change_row[0] is None else _require_str(change_row[0], "author")
+        return _require_datetime(snapshot_row[0], "snapshot_time"), author, change_row[1]
 
     def _snapshot_time_by_id(self, connection: Any, snapshot_id: int) -> datetime:
         """Read one DuckLake snapshot timestamp directly from the SQLite catalog primary key."""
@@ -1884,7 +1894,7 @@ class DuckLakeAssetHistory:
                 ).fetchone()
             finally:
                 connection.close()
-        except (OSError, sqlite3.Error):
+        except OSError, sqlite3.Error:
             return None
         if row is None:
             return None
