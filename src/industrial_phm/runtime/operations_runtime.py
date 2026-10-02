@@ -60,7 +60,9 @@ class OperationsComponentLaunch:
         override_keys = []
         for key, value in self.env_overrides:
             if not isinstance(key, str) or not key or not isinstance(value, str):
-                raise ValueError("env_overrides must contain non-empty string keys and string values")
+                raise ValueError(
+                    "env_overrides must contain non-empty string keys and string values"
+                )
             override_keys.append(key)
         if len(override_keys) != len(set(override_keys)):
             raise ValueError("env_overrides must not contain duplicate keys")
