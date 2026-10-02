@@ -59,11 +59,17 @@ def _supervisor(root: Path, at: datetime, *, stopped: bool = False) -> Operation
                 root / "logs" / "analysis.log",
                 return_code=0 if stopped else None,
             ),
+            OperationsChildProcessState(
+                OperationsComponentKind.UI,
+                103,
+                root / "logs" / "ui.log",
+                return_code=0 if stopped else None,
+            ),
         ),
     )
 
 
-def test_runtime_status_is_ready_only_when_supervisor_and_component_heartbeats_are_live(
+def test_runtime_status_is_ready_only_when_all_component_evidence_is_ready(
     tmp_path: Path,
 ) -> None:
     workspace = OperationsWorkspace(tmp_path / "plant-a")
@@ -76,6 +82,7 @@ def test_runtime_status_is_ready_only_when_supervisor_and_component_heartbeats_a
         analysis_runtime=_analysis(heartbeat),
         as_of=heartbeat + timedelta(seconds=5),
         process_checker=lambda _: True,
+        ui_listener_probe=lambda _host, _port: True,
     )
 
     assert status.ready is True
@@ -83,7 +90,9 @@ def test_runtime_status_is_ready_only_when_supervisor_and_component_heartbeats_a
     assert tuple(item.condition for item in status.components) == (
         OperationsRuntimeCondition.RUNNING,
         OperationsRuntimeCondition.RUNNING,
+        OperationsRuntimeCondition.RUNNING,
     )
+    assert status.components[2].runtime_state == "listener-ready"
 
 
 def test_runtime_status_keeps_stale_analysis_separate_from_process_identity(
@@ -99,6 +108,7 @@ def test_runtime_status_keeps_stale_analysis_separate_from_process_identity(
         analysis_runtime=_analysis(heartbeat),
         as_of=heartbeat + timedelta(seconds=30),
         process_checker=lambda _: True,
+        ui_listener_probe=lambda _host, _port: True,
     )
 
     assert status.ready is False
@@ -110,7 +120,7 @@ def test_runtime_status_keeps_stale_analysis_separate_from_process_identity(
     assert analysis.detail == "analysis runtime heartbeat is stale"
 
 
-def test_runtime_status_does_not_promote_unmanaged_component_telemetry_to_ready(
+def test_runtime_status_does_not_promote_unmanaged_component_evidence_to_ready(
     tmp_path: Path,
 ) -> None:
     workspace = OperationsWorkspace(tmp_path / "plant-a")
@@ -123,11 +133,13 @@ def test_runtime_status_does_not_promote_unmanaged_component_telemetry_to_ready(
         analysis_runtime=_analysis(heartbeat),
         as_of=heartbeat + timedelta(seconds=1),
         process_checker=lambda _: True,
+        ui_listener_probe=lambda _host, _port: True,
     )
 
     assert status.ready is False
     assert status.supervisor.condition == OperationsRuntimeCondition.UNAVAILABLE
     assert tuple(item.condition for item in status.components) == (
+        OperationsRuntimeCondition.UNAVAILABLE,
         OperationsRuntimeCondition.UNAVAILABLE,
         OperationsRuntimeCondition.UNAVAILABLE,
     )
@@ -145,6 +157,7 @@ def test_runtime_status_treats_clean_child_exit_as_stopped_not_failed(tmp_path: 
         analysis_runtime=_analysis(heartbeat),
         as_of=heartbeat + timedelta(seconds=1),
         process_checker=lambda _: False,
+        ui_listener_probe=lambda _host, _port: False,
     )
 
     assert status.ready is False
@@ -152,4 +165,27 @@ def test_runtime_status_treats_clean_child_exit_as_stopped_not_failed(tmp_path: 
     assert tuple(item.condition for item in status.components) == (
         OperationsRuntimeCondition.STOPPED,
         OperationsRuntimeCondition.STOPPED,
+        OperationsRuntimeCondition.STOPPED,
     )
+
+
+def test_ui_pid_without_listener_is_not_ready(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    heartbeat = datetime(2026, 10, 2, 6, 0, tzinfo=UTC)
+
+    status = build_operations_runtime_status(
+        workspace,
+        supervisor=_supervisor(workspace.root, heartbeat),
+        collection_runtime=_collection(heartbeat),
+        analysis_runtime=_analysis(heartbeat),
+        as_of=heartbeat + timedelta(seconds=1),
+        process_checker=lambda _: True,
+        ui_listener_probe=lambda _host, _port: False,
+    )
+
+    ui = status.components[2]
+    assert status.ready is False
+    assert ui.condition == OperationsRuntimeCondition.NOT_READY
+    assert ui.process is not None
+    assert ui.process.alive is True
+    assert ui.runtime_state == "listener-not-ready"
