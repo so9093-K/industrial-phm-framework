@@ -49,7 +49,7 @@
   신뢰하지 않고 해당 workspace supervisor lock의 live ownership을 확인한 뒤 종료 signal을 요청합니다.
 
 - Local Operations lifecycle에 packaged UI를 포함했습니다. runtime config v2의 `[ui] port`를 사용해 loopback에서
-  marimo app을 headless child로 실행하고, `status`는 UI PID와 TCP listener readiness를 분리해 표시합니다.
+  marimo app을 `127.0.0.1` 전용 headless/no-token child로 실행하고, `status`는 UI PID와 TCP listener readiness를 분리해 표시합니다.
   기존 v1 workspace config는 `operations init` 재실행 시 비파괴적으로 v2로 승격됩니다. 새 `operations logs`
   명령은 collection/analysis/ui 로그를 bounded tail로 표시합니다.
 
