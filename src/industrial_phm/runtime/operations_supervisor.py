@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -14,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 try:
     import fcntl
@@ -310,7 +311,7 @@ def run_operations_supervisor(
     )
     effective_now: Callable[[], datetime] = (lambda: datetime.now(UTC)) if now is None else now
 
-    with _supervisor_lock(plan):
+    with _supervisor_lock(plan), _supervisor_stop_signal() as signal_stop_requested:
         started_at = effective_now()
         _require_aware(started_at, "started_at")
         children: list[tuple[OperationsComponentLaunch, ManagedOperationsProcess]] = []
@@ -376,7 +377,7 @@ def run_operations_supervisor(
                     effective_repository.write(state)
                     return OperationsSupervisorResult(state, 1)
 
-                if effective_stop_requested():
+                if effective_stop_requested() or signal_stop_requested():
                     _stop_children(
                         children,
                         graceful_timeout_seconds=graceful_timeout_seconds,
@@ -423,6 +424,31 @@ def run_operations_supervisor(
                 terminate_timeout_seconds=terminate_timeout_seconds,
             )
             raise
+
+
+@contextmanager
+def _supervisor_stop_signal() -> Iterator[Callable[[], bool]]:
+    """Translate SIGINT/SIGTERM into the supervisor's coordinated stop path."""
+    requested = False
+
+    if threading.current_thread() is not threading.main_thread():
+        yield lambda: False
+        return
+
+    previous_handlers: dict[signal.Signals, Any] = {}
+
+    def request_stop(_signum: int, _frame: object) -> None:
+        nonlocal requested
+        requested = True
+
+    try:
+        for item in (signal.SIGINT, signal.SIGTERM):
+            previous_handlers[item] = signal.getsignal(item)
+            signal.signal(item, request_stop)
+        yield lambda: requested
+    finally:
+        for item, handler in previous_handlers.items():
+            signal.signal(item, handler)
 
 
 def _build_final_state(

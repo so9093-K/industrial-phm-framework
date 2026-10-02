@@ -95,6 +95,17 @@ PID/lock, rebuildable history accelerator는 제외합니다. restore는 checksu
 
 이 local UI는 `127.0.0.1` 전용이며 marimo token auth를 사용하지 않습니다. shared/public host 노출은 이
 명령의 지원 범위가 아니며 별도 deployment/auth 경계가 필요합니다.
+
+장시간 host 운영 전에는 실제 service account로 deployment preflight를 실행합니다.
+
+```bash
+industrial-phm operations preflight /var/lib/industrial-phm/plant-a
+```
+
+reference systemd unit과 restart/permission 경계는
+[Local Operations deployment](docs/architecture/operations-deployment.md)에 정리되어 있습니다. node-level
+restart는 application 내부 무한 loop가 아니라 외부 service manager가 소유합니다.
+
 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
 
 ### Analysis Explorer

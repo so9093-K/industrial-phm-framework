@@ -47,6 +47,7 @@ from industrial_phm.commands.operations import (
     _run_operations_logs,
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
+    _run_operations_preflight,
     _run_operations_request_collection,
     _run_operations_restore,
     _run_operations_start,
@@ -296,6 +297,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="new backup directory; must not already exist or be inside the workspace",
     )
     operations_backup.set_defaults(handler=_run_operations_backup)
+
+    operations_preflight = operations_commands.add_parser(
+        "preflight",
+        help="validate service-manager startup requirements as the current service user",
+    )
+    operations_preflight.add_argument(
+        "workspace",
+        type=Path,
+        help="absolute initialized Operations workspace root for long-running deployment",
+    )
+    operations_preflight.set_defaults(handler=_run_operations_preflight)
 
     operations_restore = operations_commands.add_parser(
         "restore",

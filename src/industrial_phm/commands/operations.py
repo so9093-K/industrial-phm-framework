@@ -47,6 +47,7 @@ from industrial_phm.runtime import (
     build_operations_runtime_plan,
     create_operations_backup,
     initialize_operations_workspace,
+    inspect_operations_deployment,
     inspect_operations_runtime_status,
     load_operations_runtime_config,
     request_operations_supervisor_stop,
@@ -90,6 +91,17 @@ def _run_operations_backup(args: argparse.Namespace) -> int:
         f"schema={result.manifest.schema}"
     )
     return 0
+
+
+def _run_operations_preflight(args: argparse.Namespace) -> int:
+    """Validate service-manager startup preconditions as the current service user."""
+    workspace = OperationsWorkspace(args.workspace)
+    report = inspect_operations_deployment(workspace)
+
+    print(f"workspace={workspace.root} deployment_ready={'yes' if report.ready else 'no'}")
+    for check in report.checks:
+        print(f"{check.state.value.upper()} {check.name}: {check.detail}")
+    return 0 if report.ready else 1
 
 
 def _run_operations_restore(args: argparse.Namespace) -> int:

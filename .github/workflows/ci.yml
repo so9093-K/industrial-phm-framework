@@ -114,6 +114,9 @@ jobs:
             tests/integration/test_operations_backup_restore_cli.py
           uv run --locked --extra operations industrial-phm operations backup --help
           uv run --locked --extra operations industrial-phm operations restore --help
+          DEPLOY_ROOT="$(mktemp -d)"
+          uv run --locked --extra operations industrial-phm operations init "$DEPLOY_ROOT/plant-a"
+          uv run --locked --extra operations industrial-phm operations preflight "$DEPLOY_ROOT/plant-a"
 
       - name: Validate clean-workspace Operations product acceptance
         run: |

@@ -312,3 +312,42 @@ def test_ui_child_environment_uses_workspace_and_clears_granular_path_overrides(
     assert environment[OPERATIONS_WORKSPACE_ENV] == str(plan.workspace.root)
     assert "INDUSTRIAL_PHM_HISTORY_DATA" not in environment
     assert "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY" not in environment
+
+
+def test_supervisor_treats_sigterm_as_coordinated_clean_stop(tmp_path: Path) -> None:
+    plan = _plan(tmp_path / "plant-a")
+    repository = OperationsSupervisorStateRepository(plan.workspace.supervisor_state_path)
+    processes: dict[OperationsComponentKind, _FakeProcess] = {}
+
+    def launch(component: OperationsComponentLaunch) -> _FakeProcess:
+        process = _FakeProcess(700 + len(processes))
+        processes[component.kind] = process
+        return process
+
+    start = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
+    times = iter(
+        (
+            start,
+            start + timedelta(seconds=1),
+            start + timedelta(seconds=2),
+        )
+    )
+    raised = False
+
+    def request_sigterm(_seconds: float) -> None:
+        nonlocal raised
+        if not raised:
+            raised = True
+            signal.raise_signal(signal.SIGTERM)
+
+    result = run_operations_supervisor(
+        plan,
+        repository=repository,
+        process_launcher=launch,
+        now=lambda: next(times),
+        sleep=request_sigterm,
+    )
+
+    assert result.exit_code == 0
+    assert result.state.state == OperationsSupervisorStateKind.STOPPED
+    assert all(process.signals == [signal.SIGINT] for process in processes.values())
