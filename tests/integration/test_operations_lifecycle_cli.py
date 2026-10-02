@@ -1,9 +1,9 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import industrial_phm.commands.operations as operations_commands
 from industrial_phm.cli import main
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
-import industrial_phm.commands.operations as operations_commands
 
 
 def test_operations_start_runs_supervisor_from_workspace_config(
