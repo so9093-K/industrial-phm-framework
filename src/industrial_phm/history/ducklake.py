@@ -1840,9 +1840,7 @@ class DuckLakeAssetHistory:
         catalog_path = self._config.catalog_path.expanduser().resolve(strict=False)
         row = connection.execute(
             "SELECT CAST(snapshot_time AS TIMESTAMPTZ) "
-            "FROM sqlite_scan("
-            + _quote_sql_literal(str(catalog_path))
-            + ", 'ducklake_snapshot') "
+            "FROM sqlite_scan(" + _quote_sql_literal(str(catalog_path)) + ", 'ducklake_snapshot') "
             "WHERE snapshot_id = ?",
             [snapshot_id],
         ).fetchone()
