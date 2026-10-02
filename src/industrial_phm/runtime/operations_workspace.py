@@ -88,6 +88,14 @@ class OperationsWorkspace:
         return self.root / "logs"
 
     @property
+    def supervisor_state_path(self) -> Path:
+        return self.root / "runtime" / "supervisor.json"
+
+    @property
+    def supervisor_lock_path(self) -> Path:
+        return self.root / "runtime" / "supervisor.lock"
+
+    @property
     def runtime_state_files(self) -> tuple[Path, ...]:
         """Return durable/local state files owned by this workspace layout."""
         return (
