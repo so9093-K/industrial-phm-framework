@@ -20,7 +20,7 @@ from industrial_phm.commands.data import (
     _run_data_validate_csv,
     _run_data_verify,
 )
-from industrial_phm.commands.demo import _run_demo_synthetic
+from industrial_phm.commands.demo import _run_demo_aihub_boiler, _run_demo_synthetic
 from industrial_phm.commands.experiment import (
     _run_experiment_cross_fold,
     _run_experiment_cross_test,
@@ -227,6 +227,51 @@ def build_parser() -> argparse.ArgumentParser:
         help="run packaged local product demos without external datasets",
     )
     demo_commands = demo.add_subparsers(dest="demo_command", required=True)
+    demo_aihub_boiler = demo_commands.add_parser(
+        "aihub-boiler",
+        help="run the recorded AI-Hub 239 boiler replay on the local Operations node",
+    )
+    demo_aihub_boiler.add_argument(
+        "--archive",
+        type=Path,
+        default=Path("data/raw/aihub/239/archives/training/raw/5.보일러.zip"),
+        help=(
+            "local AI-Hub 239 boiler ZIP archive "
+            "(default: data/raw/aihub/239/archives/training/raw/5.보일러.zip)"
+        ),
+    )
+    demo_aihub_boiler.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path("artifacts/demo-aihub-boiler"),
+        help="dedicated demo workspace root (default: artifacts/demo-aihub-boiler)",
+    )
+    demo_aihub_boiler.add_argument(
+        "--opcua-port",
+        type=int,
+        default=4850,
+        help="loopback replay OPC UA port (default: 4850)",
+    )
+    demo_aihub_boiler.add_argument(
+        "--ui-port",
+        type=int,
+        default=2718,
+        help="loopback Operations UI port (default: 2718)",
+    )
+    demo_aihub_boiler.add_argument(
+        "--speed",
+        type=float,
+        default=60.0,
+        help="recorded seconds per replay second (default: 60)",
+    )
+    demo_aihub_boiler.add_argument(
+        "--startup-timeout-seconds",
+        type=float,
+        default=15.0,
+        help="maximum wait for replay OPC UA listener readiness (default: 15)",
+    )
+    demo_aihub_boiler.set_defaults(handler=_run_demo_aihub_boiler)
+
     demo_synthetic = demo_commands.add_parser(
         "synthetic",
         help="run the synthetic three-phase local Operations node",

@@ -152,6 +152,17 @@ its basis and the carried value count and ages.
 
 ## AI-Hub 239 recorded power replay
 
+정상 product demo는 아래 packaged preset을 우선 사용합니다.
+
+```bash
+uv sync --locked --extra operations --extra aihub
+uv run --no-sync industrial-phm demo aihub-boiler
+```
+
+기본 archive 위치가 다르면 `--archive /path/to/5.보일러.zip`만 지정합니다. preset은 아래 explicit
+development runbook과 같은 device/member/time range, 60× replay, 30 recorded-minute window,
+5 recorded-minute bounded carry semantics를 소유합니다.
+
 `tools/opcua/aihub_replay.py` publishes one explicit AI-Hub 239 selection as a local OPC UA server so
 the whole Operations flow runs on recorded plant values instead of synthetic ones. It stands in for a
 site server during local validation; it is not a production connector.

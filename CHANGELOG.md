@@ -38,6 +38,12 @@
 
 ### Added
 
+- `industrial-phm demo aihub-boiler` recorded-data preset을 추가했습니다. local AI-Hub 239 보일러 archive와
+  `aihub` extra가 있으면 기존 device 2297 / `SourceData_211.json` / 2020-11-14 06:00–12:30 selection을
+  loopback OPC UA replay로 실행하고, normal Operations supervisor가 collection + analysis + packaged UI를
+  소유합니다. replay core는 installable package로 승격해 기존 `tools.opcua.aihub_replay` development CLI와
+  product demo가 같은 값/시간 rebasing/semantic-binding semantics를 사용합니다.
+
 - Local Operations deployment preflight와 systemd reference contract를 추가했습니다. `operations preflight`는
   실제 service account에서 absolute workspace, runtime config/dependencies, 쓰기 권한, supervisor/history lock,
   packaged UI와 loopback port를 확인합니다. reference unit은 foreground `operations start`를
