@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 import time
 from collections.abc import Callable
@@ -332,5 +333,8 @@ def _validate_port(value: object, name: str) -> None:
 
 
 def _validate_positive(value: object, name: str) -> None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0:
-        raise ValueError(f"{name} must be a positive number")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be a finite positive number")
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(f"{name} must be a finite positive number")
