@@ -325,9 +325,7 @@ def _run_operations_request_collection(args: argparse.Namespace) -> int:
             required_explicit=("registry", "control_state"),
             all_explicit=("registry", "control_state"),
         )
-        registry_path = (
-            args.registry if workspace is None else workspace.source_registry_path
-        )
+        registry_path = args.registry if workspace is None else workspace.source_registry_path
         control_state_path = (
             args.control_state if workspace is None else workspace.collection_control_path
         )
