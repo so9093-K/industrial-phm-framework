@@ -99,6 +99,11 @@
 
 ### Changed
 
+- Canonical Operations app을 repository-local `apps/operations_v2.py`에서 wheel에 포함되는
+  `industrial_phm.apps.operations_v2`로 이동하고, published `operations` extra가 history/OPC UA extras와
+  marimo runtime을 함께 제공하도록 packaging 경계를 정리했습니다. Research Analysis Explorer는 기존
+  repository app 경계를 유지합니다.
+
 - Live Asset History writer의 새 batch preflight와 append 내부 identity check를 하나의
   `append-or-recover` 계약으로 합쳤습니다. Current batch recovery는 rebuildable
   `<catalog>.phm-batch-index.sqlite`의 batch→snapshot mapping을 사용하되 DuckLake commit

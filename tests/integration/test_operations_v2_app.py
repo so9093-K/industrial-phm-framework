@@ -17,10 +17,12 @@ from industrial_phm.application import (
     create_human_review_finding,
 )
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
+from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime import OperationsWorkspace
 
 REPO = Path(__file__).resolve().parents[2]
-APPS = sorted((REPO / "apps").glob("*.py"))
+OPERATIONS_APP = operations_app_path()
+APPS = [*sorted((REPO / "apps").glob("*.py")), OPERATIONS_APP]
 
 
 def _analysis():
@@ -86,7 +88,7 @@ def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, mo
     monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_CATALOG", str(tmp_path / "catalog.sqlite"))
     monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", str(tmp_path / "data"))
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     assert defs["investigation_selected_id"] is not None
@@ -103,7 +105,7 @@ def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     assert defs["phase_analysis_path"] == workspace.phase_unbalance_state_path
@@ -142,7 +144,7 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
     monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_CATALOG", str(tmp_path / "catalog.sqlite"))
     monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", str(tmp_path / "data"))
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     loaded_ids = {item.run.analysis_run_id for item in defs["analysis_results"]}
@@ -160,7 +162,7 @@ def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypa
     state_dir.mkdir(parents=True)
     JsonPhaseUnbalanceRepository(state_dir / "phase-unbalance.json").record(_analysis())
 
-    app = runpy.run_path(str(REPO / "apps" / "operations_v2.py"))["app"]
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
     migration_errors = [

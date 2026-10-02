@@ -96,6 +96,18 @@ jobs:
       - name: Build package
         run: uv build
 
+      - name: Validate packaged Operations extra
+        run: |
+          uv run --locked --extra operations python - <<'PY'
+          from industrial_phm.apps import operations_app_path
+
+          path = operations_app_path()
+          assert path.is_file(), path
+          assert path.name == "operations_v2.py"
+          PY
+          uv run --locked --extra operations python -m marimo check --strict \
+            src/industrial_phm/apps/operations_v2.py
+
       - name: Validate independent live collection and history queries
         run: |
           uv run --locked --extra history --extra opcua pytest \
@@ -117,6 +129,44 @@ jobs:
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: duckdb.*extra == .history.'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: opcua'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: asyncua.*extra == .opcua.'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/operations_v2.py'
+          uv run --locked python - <<'PY'
+          from email.parser import BytesParser
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          from packaging.requirements import Requirement
+
+          wheel = next(Path("dist").glob("*.whl"))
+          with ZipFile(wheel) as archive:
+              metadata_name = next(
+                  name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+              )
+              metadata = BytesParser().parsebytes(archive.read(metadata_name))
+
+          extras = set(metadata.get_all("Provides-Extra", []))
+          assert "operations" in extras, extras
+
+          requirements = [Requirement(value) for value in metadata.get_all("Requires-Dist", [])]
+
+          def active_for_operations(requirement: Requirement) -> bool:
+              return requirement.marker is not None and requirement.marker.evaluate(
+                  {"extra": "operations"}
+              )
+
+          assert any(
+              requirement.name == "marimo" and active_for_operations(requirement)
+              for requirement in requirements
+          ), requirements
+          operations_names = {
+              requirement.name
+              for requirement in requirements
+              if active_for_operations(requirement)
+          }
+          assert {"marimo", "asyncua", "duckdb", "filelock", "pytz"} <= operations_names, (
+              operations_names
+          )
+          PY
 
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'
