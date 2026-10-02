@@ -71,7 +71,10 @@ def test_backup_and_restore_preserve_owned_state_without_ephemeral_files(
 
     assert restored.config_path.is_file()
     assert restored.source_registry_path.read_text(encoding="utf-8") == '{"demo": true}\n'
-    assert restored.history_data_path.joinpath("raw", "evidence.parquet").read_bytes() == b"parquet-demo"
+    assert (
+        restored.history_data_path.joinpath("raw", "evidence.parquet").read_bytes()
+        == b"parquet-demo"
+    )
     assert restored.logs_path.is_dir()
     assert tuple(restored.logs_path.iterdir()) == ()
     assert not restored.supervisor_state_path.exists()
@@ -113,7 +116,7 @@ def test_validate_backup_rejects_payload_tamper(tmp_path: Path) -> None:
 
     (backup / "payload" / "sources.json").write_text('{"tampered": true}\n', encoding="utf-8")
 
-    with pytest.raises(OperationsBackupFormatError, match="backup (size|checksum) mismatch"):
+    with pytest.raises(OperationsBackupFormatError, match=r"backup (size|checksum) mismatch"):
         validate_operations_backup(backup)
 
 
