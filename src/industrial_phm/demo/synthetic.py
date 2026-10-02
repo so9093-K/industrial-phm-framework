@@ -28,6 +28,13 @@ from industrial_phm.application import (
     transition_source_lifecycle,
 )
 from industrial_phm.connectors import OpcUaNodeMapping
+from industrial_phm.demo.process import (
+    DemoChildProcess,
+    launch_logged_process,
+    stop_demo_child,
+    wait_for_loopback_listener,
+)
+from industrial_phm.demo.workspace import require_unclaimed_demo_workspace
 from industrial_phm.runtime import (
     OperationsAnalysisConfig,
     OperationsCollectionConfig,
@@ -41,13 +48,6 @@ from industrial_phm.runtime import (
     run_operations_supervisor,
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
-from industrial_phm.demo.process import (
-    DemoChildProcess,
-    launch_logged_process,
-    stop_demo_child,
-    wait_for_loopback_listener,
-)
-from industrial_phm.demo.workspace import require_unclaimed_demo_workspace
 
 SYNTHETIC_DEMO_ASSET_ID = "demo-motor-01"
 SYNTHETIC_DEMO_SOURCE_ID = "demo-3phase-opcua"
@@ -281,7 +281,6 @@ def run_synthetic_demo(
     preparation = prepare_synthetic_demo(preset)
     simulator_log = preparation.workspace.logs_path / "synthetic-opcua.log"
     launch = launch_logged_process if process_launcher is None else process_launcher
-    probe = _listener_ready if listener_probe is None else listener_probe
     simulator = launch(
         (
             sys.executable,
@@ -301,7 +300,7 @@ def run_synthetic_demo(
             preset.opcua_port,
             simulator,
             timeout_seconds=preset.startup_timeout_seconds,
-            listener_probe=probe,
+            listener_probe=listener_probe,
             sleep=sleep,
         )
         plan = build_operations_runtime_plan(preparation.workspace, preparation.config)
