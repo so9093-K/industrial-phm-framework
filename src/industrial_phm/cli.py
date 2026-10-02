@@ -45,6 +45,7 @@ from industrial_phm.commands.operations import (
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_request_collection,
+    _run_operations_status,
     _run_operations_window_analysis,
 )
 from industrial_phm.data.registry import list_datasets
@@ -232,6 +233,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="local Operations workspace root",
     )
     operations_init.set_defaults(handler=_run_operations_init)
+
+    operations_status = operations_commands.add_parser(
+        "status",
+        help="show local supervisor process identity and component runtime readiness",
+    )
+    operations_status.add_argument(
+        "workspace",
+        type=Path,
+        help="initialized local Operations workspace root",
+    )
+    operations_status.set_defaults(handler=_run_operations_status)
 
     operations_poll_source = operations_commands.add_parser(
         "poll-source",
