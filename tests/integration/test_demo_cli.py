@@ -55,7 +55,6 @@ def test_demo_synthetic_reports_invalid_port_as_cli_failure(
     assert "opcua_port must be an integer between 1 and 65535" in capsys.readouterr().err
 
 
-
 def test_demo_aihub_boiler_builds_recorded_data_preset(
     tmp_path: Path,
     monkeypatch,
