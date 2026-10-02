@@ -167,7 +167,7 @@ def restore_operations_backup(
         if restored.history_catalog_path.is_file():
             _rebind_restored_ducklake_data_path(
                 restored.history_catalog_path,
-                restored.history_data_path,
+                workspace.history_data_path,
             )
         restored.logs_path.mkdir(parents=True, exist_ok=True)
         os.replace(temporary_root, root)
