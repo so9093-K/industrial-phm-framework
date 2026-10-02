@@ -110,6 +110,10 @@ jobs:
           uv run --locked --extra operations python -m marimo run --help | grep -q -- '--headless'
           uv run --locked --extra operations python -m marimo run --help | grep -q -- '--no-token'
           uv run --locked --extra operations industrial-phm demo synthetic --help
+          uv run --locked --extra operations pytest \
+            tests/integration/test_operations_backup_restore_cli.py
+          uv run --locked --extra operations industrial-phm operations backup --help
+          uv run --locked --extra operations industrial-phm operations restore --help
 
       - name: Validate clean-workspace Operations product acceptance
         run: |
