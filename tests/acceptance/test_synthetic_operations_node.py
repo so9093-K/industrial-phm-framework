@@ -11,13 +11,13 @@ pytest.importorskip("asyncua")
 pytest.importorskip("duckdb")
 pytest.importorskip("marimo")
 
-from industrial_phm.application import (  # noqa: E402
+from industrial_phm.application import (
     SqliteObservationWindowRepository,
     SqlitePhaseUnbalanceRepository,
 )
-from industrial_phm.demo import SYNTHETIC_DEMO_SOURCE_ID  # noqa: E402
-from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig  # noqa: E402
-from industrial_phm.runtime import OperationsWorkspace  # noqa: E402
+from industrial_phm.demo import SYNTHETIC_DEMO_SOURCE_ID
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.runtime import OperationsWorkspace
 
 _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
 
