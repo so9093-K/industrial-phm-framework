@@ -41,6 +41,7 @@ from industrial_phm.commands.operations import (
     _run_operations_collection_service,
     _run_operations_compact_history,
     _run_operations_flush_history,
+    _run_operations_init,
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_request_collection,
@@ -221,6 +222,17 @@ def build_parser() -> argparse.ArgumentParser:
         dest="operations_command",
         required=True,
     )
+    operations_init = operations_commands.add_parser(
+        "init",
+        help="initialize or validate one local Operations workspace",
+    )
+    operations_init.add_argument(
+        "workspace",
+        type=Path,
+        help="local Operations workspace root",
+    )
+    operations_init.set_defaults(handler=_run_operations_init)
+
     operations_poll_source = operations_commands.add_parser(
         "poll-source",
         help="poll one ACTIVE registered FILE or OPC UA source until stopped",
