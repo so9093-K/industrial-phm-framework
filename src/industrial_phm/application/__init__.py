@@ -53,6 +53,7 @@ from industrial_phm.application.asset_detail import (
 )
 from industrial_phm.application.asset_history import (
     AssetHistoryReader,
+    HistoricalBatchAppendResult,
     HistoricalBatchCommit,
     HistoricalBatchConflictError,
     HistoricalEventTimeBasis,
@@ -114,7 +115,6 @@ from industrial_phm.application.finding_review import (
     create_human_review_finding,
 )
 from industrial_phm.application.history_writer import (
-    HistoricalBatchAppendResult,
     OpcUaHistoricalBatchStore,
     SpoolHistoryBatchWriteResult,
     SpoolHistoryWriterResult,
