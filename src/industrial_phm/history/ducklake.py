@@ -1974,20 +1974,10 @@ class DuckLakeAssetHistory:
                 f"historical batch identity conflicts with stored metadata: {batch_id}"
             )
 
-        matching_snapshots: list[tuple[int, datetime]] = []
-        snapshot_rows = connection.execute(
-            f"""
-            SELECT snapshot_id, snapshot_time, commit_extra_info
-            FROM {_CATALOG_NAME}.snapshots()
-            WHERE author = ? AND commit_extra_info IS NOT NULL
-            ORDER BY snapshot_id
-            """,
-            [_COMMIT_AUTHOR],
-        ).fetchall()
-        for snapshot_id_raw, snapshot_time_raw, extra_raw in snapshot_rows:
+        def validate_commit_extra(extra_raw: object) -> bool:
             extra = _parse_commit_extra_info(extra_raw)
             if extra is None or extra.get("batch_id") != batch_id:
-                continue
+                return False
             stored_version = extra.get("fingerprint_version")
             if stored_version is None:
                 expected = fingerprint if legacy_fingerprint is None else legacy_fingerprint
@@ -2005,6 +1995,39 @@ class DuckLakeAssetHistory:
                 raise HistoricalBatchConflictError(
                     f"historical batch identity conflicts with commit provenance: {batch_id}"
                 )
+            return True
+
+        indexed_snapshot_id = self._lookup_batch_snapshot_index(batch_id)
+        if indexed_snapshot_id is not None:
+            try:
+                snapshot_time, author, extra_raw = self._snapshot_metadata_by_id(
+                    connection,
+                    indexed_snapshot_id,
+                )
+            except RuntimeError:
+                pass
+            else:
+                if author == _COMMIT_AUTHOR and validate_commit_extra(extra_raw):
+                    return HistoricalBatchCommit(
+                        batch_id=batch_id,
+                        snapshot_id=indexed_snapshot_id,
+                        event_count=event_count,
+                        committed_at=snapshot_time,
+                    )
+
+        matching_snapshots: list[tuple[int, datetime]] = []
+        snapshot_rows = connection.execute(
+            f"""
+            SELECT snapshot_id, snapshot_time, commit_extra_info
+            FROM {_CATALOG_NAME}.snapshots()
+            WHERE author = ? AND commit_extra_info IS NOT NULL
+            ORDER BY snapshot_id
+            """,
+            [_COMMIT_AUTHOR],
+        ).fetchall()
+        for snapshot_id_raw, snapshot_time_raw, extra_raw in snapshot_rows:
+            if not validate_commit_extra(extra_raw):
+                continue
             snapshot_id = _require_int(snapshot_id_raw, "snapshot_id")
             snapshot_time = _require_datetime(snapshot_time_raw, "snapshot_time")
             matching_snapshots.append((snapshot_id, snapshot_time))
@@ -2014,6 +2037,7 @@ class DuckLakeAssetHistory:
                 f"historical batch commit provenance is unavailable or ambiguous: {batch_id}"
             )
         snapshot_id, committed_at = matching_snapshots[0]
+        self._record_batch_snapshot_index(batch_id, snapshot_id)
         return HistoricalBatchCommit(
             batch_id=batch_id,
             snapshot_id=snapshot_id,
