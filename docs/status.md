@@ -79,7 +79,8 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | --- | --- | --- |
 | synthetic OPC UA loopback E2E | **지원** | 실제 asyncua server와 별도 collector process를 사용하는 contract test |
 | AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, 결손상 이유·review→Maintenance 연결·실제 브라우저 5초 확인, machine verdict(`full`/`diagnostic`). 결과는 `docs/research/phase10-acquisition-stress.md` |
-| 통합 local Operations lifecycle | **미제공** | collection/analysis/UI의 `init/start/status/logs/stop` product runtime은 아직 없음. 현재 지원 표의 개별 runtime 경로를 직접 조립해야 함 |
+| Local Operations workspace 초기화 | **지원** | `industrial-phm operations init <root>`가 versioned `config.toml` marker와 managed data/log directory를 만들고 기존 유효 workspace에는 idempotent하게 동작. config 없는 비어 있지 않은 directory는 자동 채택하지 않음 |
+| 통합 local Operations lifecycle | **미제공** | collection/analysis/UI의 `start/status/logs/stop` product runtime은 아직 없음. 현재는 workspace root로 path wiring을 통합했지만 process lifecycle은 개별 runtime 경로가 소유함 |
 | installable Operations application | **미제공** | canonical Operations는 현재 repository `apps/operations_v2.py`와 research dependency에서 실행하며 wheel의 독립 product surface가 아님 |
 | 실제 현장 OPC UA 설비 validation | **현장 미검증** | 현장 update/deadband/timestamp/security 특성에 대한 검증 근거가 아직 없음 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
