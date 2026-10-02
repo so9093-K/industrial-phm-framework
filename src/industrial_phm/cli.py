@@ -42,6 +42,7 @@ from industrial_phm.commands.operations import (
     _run_operations_compact_history,
     _run_operations_flush_history,
     _run_operations_init,
+    _run_operations_logs,
     _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_request_collection,
@@ -257,6 +258,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="initialized local Operations workspace root",
     )
     operations_stop.set_defaults(handler=_run_operations_stop)
+
+    operations_logs = operations_commands.add_parser(
+        "logs",
+        help="show bounded tails from local Operations component logs",
+    )
+    operations_logs.add_argument(
+        "workspace",
+        type=Path,
+        help="initialized local Operations workspace root",
+    )
+    operations_logs.add_argument(
+        "--component",
+        choices=("collection", "analysis", "ui"),
+        help="optional single component; default shows all managed components",
+    )
+    operations_logs.add_argument(
+        "--lines",
+        type=int,
+        default=100,
+        help="lines per component to show, between 1 and 10000 (default: 100)",
+    )
+    operations_logs.set_defaults(handler=_run_operations_logs)
 
     operations_status = operations_commands.add_parser(
         "status",
