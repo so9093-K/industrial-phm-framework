@@ -137,8 +137,7 @@ def initialize_operations_workspace(
 
     if root.exists() and any(root.iterdir()):
         raise ValueError(
-            "refusing to initialize a non-empty Operations workspace without config.toml: "
-            f"{root}"
+            f"refusing to initialize a non-empty Operations workspace without config.toml: {root}"
         )
 
     root.mkdir(parents=True, exist_ok=True)
