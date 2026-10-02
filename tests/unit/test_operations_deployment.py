@@ -25,7 +25,7 @@ def _stub_runtime_imports(monkeypatch) -> None:
     original = deployment_module.importlib.import_module
 
     def fake_import(name: str):
-        if name in {"asyncua", "duckdb", "marimo"}:
+        if name in {"asyncua", "duckdb", "filelock", "marimo"}:
             return SimpleNamespace()
         return original(name)
 
@@ -82,7 +82,7 @@ def test_deployment_preflight_reports_missing_runtime_dependency(
     def fake_import(name: str):
         if name == "marimo":
             raise ModuleNotFoundError("marimo")
-        if name in {"asyncua", "duckdb"}:
+        if name in {"asyncua", "duckdb", "filelock"}:
             return SimpleNamespace()
         return original(name)
 
