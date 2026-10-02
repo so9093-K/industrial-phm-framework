@@ -6,13 +6,17 @@ import importlib
 import os
 import socket
 import stat
+from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
 from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime.operations_config import load_operations_runtime_config
-from industrial_phm.runtime.operations_runtime import OPERATIONS_UI_HOST, build_operations_runtime_plan
+from industrial_phm.runtime.operations_runtime import (
+    OPERATIONS_UI_HOST,
+    build_operations_runtime_plan,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 try:
@@ -183,7 +187,10 @@ def _workspace_checks(workspace: OperationsWorkspace) -> list[OperationsDeployme
             (
                 f"workspace is readable/writable/searchable by uid={_effective_uid()}: {root}"
                 if os.access(root, root_access)
-                else f"workspace lacks read/write/search permission for uid={_effective_uid()}: {root}"
+                else (
+                    "workspace lacks read/write/search permission for "
+                    f"uid={_effective_uid()}: {root}"
+                )
             ),
         )
     )
@@ -214,11 +221,18 @@ def _workspace_checks(workspace: OperationsWorkspace) -> list[OperationsDeployme
         checks.append(
             OperationsDeploymentCheck(
                 name,
-                OperationsDeploymentCheckState.PASS if usable else OperationsDeploymentCheckState.FAIL,
+                (
+                    OperationsDeploymentCheckState.PASS
+                    if usable
+                    else OperationsDeploymentCheckState.FAIL
+                ),
                 (
                     f"directory is readable/writable/searchable: {path}"
                     if usable
-                    else f"directory is unavailable or not writable by uid={_effective_uid()}: {path}"
+                    else (
+                        "directory is unavailable or not writable by "
+                        f"uid={_effective_uid()}: {path}"
+                    )
                 ),
             )
         )
@@ -262,7 +276,10 @@ def _ownership_check(path: Path, name: str) -> OperationsDeploymentCheck:
         return OperationsDeploymentCheck(
             name,
             OperationsDeploymentCheckState.WARN,
-            f"path is world-writable: uid={info.st_uid} mode={stat.filemode(info.st_mode)} path={path}",
+            (
+                f"path is world-writable: uid={info.st_uid} "
+                f"mode={stat.filemode(info.st_mode)} path={path}"
+            ),
         )
     if not same_owner:
         return OperationsDeploymentCheck(
@@ -329,10 +346,8 @@ def _supervisor_lock_check(workspace: OperationsWorkspace) -> OperationsDeployme
                     f"workspace supervisor is already running or lock is owned: {lock_path}",
                 )
             finally:
-                try:
+                with suppress(OSError):
                     fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-                except OSError:
-                    pass
     except OSError as error:
         return OperationsDeploymentCheck(
             "supervisor-lock",
