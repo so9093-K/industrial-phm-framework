@@ -238,9 +238,15 @@ def run_operations_supervisor(
         if repository is None
         else repository
     )
-    effective_launcher = _spawn_component if process_launcher is None else process_launcher
-    effective_stop_requested = (lambda: False) if stop_requested is None else stop_requested
-    effective_now = (lambda: datetime.now(UTC)) if now is None else now
+    effective_launcher: ProcessLauncher = (
+        _spawn_component if process_launcher is None else process_launcher
+    )
+    effective_stop_requested: Callable[[], bool] = (
+        (lambda: False) if stop_requested is None else stop_requested
+    )
+    effective_now: Callable[[], datetime] = (
+        (lambda: datetime.now(UTC)) if now is None else now
+    )
 
     with _supervisor_lock(plan):
         started_at = effective_now()
