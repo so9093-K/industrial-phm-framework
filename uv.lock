@@ -446,6 +446,10 @@ history = [
 opcua = [
     { name = "asyncua" },
 ]
+operations = [
+    { name = "industrial-phm-framework", extra = ["history", "opcua"] },
+    { name = "marimo" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -465,12 +469,14 @@ requires-dist = [
     { name = "duckdb", marker = "extra == 'history'", specifier = ">=1.5.5,<1.6" },
     { name = "filelock", marker = "extra == 'history'", specifier = ">=3.20,<4" },
     { name = "ijson", marker = "extra == 'aihub'", specifier = ">=3.4,<4" },
+    { name = "industrial-phm-framework", extras = ["history", "opcua"], marker = "extra == 'operations'" },
+    { name = "marimo", marker = "extra == 'operations'", specifier = ">=0.24.2,<0.25" },
     { name = "numpy", specifier = ">=2.5.3,<3" },
     { name = "pytz", marker = "extra == 'history'", specifier = ">=2025.2" },
     { name = "scikit-learn", specifier = ">=1.9.1,<1.10" },
     { name = "torch", marker = "extra == 'deep-learning'", specifier = ">=2.14.0,<2.15", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "industrial-phm-framework", extra = "deep-learning" } },
 ]
-provides-extras = ["deep-learning", "history", "opcua", "aihub"]
+provides-extras = ["deep-learning", "history", "opcua", "aihub", "operations"]
 
 [package.metadata.requires-dev]
 dev = [
