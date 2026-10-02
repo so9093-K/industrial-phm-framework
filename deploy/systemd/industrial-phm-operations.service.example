@@ -1,0 +1,32 @@
+# Reference systemd unit for one long-running local Operations workspace.
+# Copy to /etc/systemd/system/industrial-phm-operations.service and adjust the
+# executable, service account, and absolute workspace path for the host.
+
+[Unit]
+Description=Industrial PHM Operations local node
+After=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=industrial-phm
+Group=industrial-phm
+UMask=0077
+
+ExecStartPre=/opt/industrial-phm/.venv/bin/industrial-phm operations preflight /var/lib/industrial-phm/plant-a
+ExecStart=/opt/industrial-phm/.venv/bin/industrial-phm operations start /var/lib/industrial-phm/plant-a
+
+Restart=on-failure
+RestartSec=5s
+
+# SIGTERM reaches only the supervisor first. It then performs the repository-owned
+# coordinated child shutdown. If that does not finish, systemd may kill the cgroup.
+KillMode=mixed
+TimeoutStopSec=60s
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
