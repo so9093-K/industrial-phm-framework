@@ -20,6 +20,7 @@ from industrial_phm.commands.data import (
     _run_data_validate_csv,
     _run_data_verify,
 )
+from industrial_phm.commands.demo import _run_demo_synthetic
 from industrial_phm.commands.experiment import (
     _run_experiment_cross_fold,
     _run_experiment_cross_test,
@@ -217,6 +218,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="single-character CSV delimiter",
     )
     data_validate_csv.set_defaults(handler=_run_data_validate_csv)
+
+    demo = subcommands.add_parser(
+        "demo",
+        help="run packaged local product demos without external datasets",
+    )
+    demo_commands = demo.add_subparsers(dest="demo_command", required=True)
+    demo_synthetic = demo_commands.add_parser(
+        "synthetic",
+        help="run the synthetic three-phase local Operations node",
+    )
+    demo_synthetic.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path("artifacts/demo-synthetic"),
+        help="dedicated demo workspace root (default: artifacts/demo-synthetic)",
+    )
+    demo_synthetic.add_argument(
+        "--opcua-port",
+        type=int,
+        default=4841,
+        help="loopback OPC UA simulator port (default: 4841)",
+    )
+    demo_synthetic.add_argument(
+        "--ui-port",
+        type=int,
+        default=2718,
+        help="loopback Operations UI port (default: 2718)",
+    )
+    demo_synthetic.add_argument(
+        "--publish-interval-seconds",
+        type=float,
+        default=1.0,
+        help="synthetic source update interval (default: 1.0)",
+    )
+    demo_synthetic.add_argument(
+        "--startup-timeout-seconds",
+        type=float,
+        default=10.0,
+        help="maximum wait for synthetic OPC UA listener readiness (default: 10)",
+    )
+    demo_synthetic.set_defaults(handler=_run_demo_synthetic)
 
     operations = subcommands.add_parser(
         "operations",
