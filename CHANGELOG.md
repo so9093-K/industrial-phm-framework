@@ -38,6 +38,10 @@
 
 ### Added
 
+- Clean-workspace Operations product acceptance gate를 추가했습니다. `operations` extra 환경에서 packaged synthetic
+  demo를 실제 subprocess로 실행해 runtime ready, finalized window/analysis evidence, graceful stop, 같은
+  workspace restart와 evidence 보존을 검증합니다. 외부 dataset이나 remote endpoint는 사용하지 않습니다.
+
 - `industrial-phm demo synthetic` one-command local demo를 추가했습니다. 전용 workspace를 안전하게 생성·재사용하고
   synthetic 3상 OPC UA source를 ACTIVE/RUNNING으로 준비한 뒤 loopback simulator readiness를 확인하고 기존
   Operations supervisor(collection + analysis + packaged UI)를 실행합니다. 기존 사용자 source가 섞인 workspace는
