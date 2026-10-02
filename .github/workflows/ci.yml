@@ -109,6 +109,7 @@ jobs:
             src/industrial_phm/apps/operations_v2.py
           uv run --locked --extra operations python -m marimo run --help | grep -q -- '--headless'
           uv run --locked --extra operations python -m marimo run --help | grep -q -- '--no-token'
+          uv run --locked --extra operations industrial-phm demo synthetic --help
 
       - name: Validate independent live collection and history queries
         run: |
