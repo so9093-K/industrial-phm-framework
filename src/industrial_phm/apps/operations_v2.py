@@ -773,9 +773,7 @@ def _(
                 _,
                 _current_freshness,
             ) = get_setup_config()
-            set_setup_config(
-                (_current_sources, _current_lifecycles, _records, _current_freshness)
-            )
+            set_setup_config((_current_sources, _current_lifecycles, _records, _current_freshness))
             set_setup_error("")
             set_setup_success(
                 "Collection request saved: "
@@ -1993,9 +1991,7 @@ def _(
         try:
             if selected_investigation_result is None:
                 raise ValueError("select an analysis result before requesting review")
-            _, _updated_findings = operations_actions.request_review(
-                selected_investigation_result
-            )
+            _, _updated_findings = operations_actions.request_review(selected_investigation_result)
         except (OSError, ValueError) as error:
             set_review_request_error(str(error))
             set_review_request_success("")
