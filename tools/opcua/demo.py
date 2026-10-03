@@ -13,11 +13,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from industrial_phm.application import (
-    ChannelSemanticBinding,
     CollectionDesiredState,
     FileSourceConfig,
     JsonSourceRepository,
-    MeasurementDefinition,
     OpcUaSourceConfig,
     RegisteredSource,
     SourceLifecycleState,
@@ -26,24 +24,18 @@ from industrial_phm.application import (
     transition_source_lifecycle,
 )
 from industrial_phm.connectors import OpcUaNodeMapping
+from industrial_phm.demo.synthetic import (
+    SYNTHETIC_DEMO_ASSET_ID,
+    SYNTHETIC_DEMO_SOURCE_ID,
+    build_synthetic_demo_source,
+    run_synthetic_opcua_server,
+)
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import SqliteCollectionControlRepository
 
 ASSET = "demo-power-01"
 SOURCE = "demo-opcua"
 CHANNELS = ("active_power", "voltage")
-# Three-phase profile: site-style channel names bound to meanings explicitly, so
-# analysis selects inputs by semantic role rather than by name.
-THREE_PHASE_ASSET = "demo-motor-01"
-THREE_PHASE_SOURCE = "demo-3phase-opcua"
-THREE_PHASE_CHANNELS = {
-    "Voltage_L1": ("phase voltage", "R", "V"),
-    "Voltage_L2": ("phase voltage", "S", "V"),
-    "Voltage_L3": ("phase voltage", "T", "V"),
-    "Current_L1": ("phase current", "R", "A"),
-    "Current_L2": ("phase current", "S", "A"),
-    "Current_L3": ("phase current", "T", "A"),
-}
 PROFILES = ("power", "three-phase")
 
 
@@ -53,51 +45,18 @@ def validate_endpoint(endpoint: str) -> None:
         raise ValueError("demo endpoint must use opc.tcp://127.0.0.1:<port>/...")
 
 
-def _three_phase_bindings() -> tuple[ChannelSemanticBinding, ...]:
-    return tuple(
-        ChannelSemanticBinding(
-            source_id=THREE_PHASE_SOURCE,
-            channel_id=channel,
-            version="demo-three-phase-semantics-v1",
-            definition=MeasurementDefinition(
-                prop,
-                scope=f"phase {phase}",
-                unit=unit,
-                unit_evidence="synthetic demo simulator definition",
-            ),
-            interpretation_evidence="synthetic demo mapping; not a physical meter",
-        )
-        for channel, (prop, phase, unit) in THREE_PHASE_CHANNELS.items()
-    )
-
-
 def _prepare_three_phase(root: Path, endpoint: str, now: datetime) -> None:
     sources = JsonSourceRepository(root / "sources.json")
-    sources.register(
-        RegisteredSource(
-            source_id=THREE_PHASE_SOURCE,
-            name="Synthetic live three-phase motor feeder",
-            config=OpcUaSourceConfig(
-                endpoint_url=endpoint,
-                asset_id=THREE_PHASE_ASSET,
-                node_mappings=tuple(
-                    OpcUaNodeMapping(name, f"ns=2;s={name}") for name in THREE_PHASE_CHANNELS
-                ),
-                timeout_seconds=2.0,
-                semantic_bindings=_three_phase_bindings(),
-            ),
-            registered_at=now,
-        )
-    )
+    sources.register(build_synthetic_demo_source(endpoint, now))
     transition_source_lifecycle(
-        sources, THREE_PHASE_SOURCE, SourceLifecycleState.ACTIVE, changed_at=now
+        sources, SYNTHETIC_DEMO_SOURCE_ID, SourceLifecycleState.ACTIVE, changed_at=now
     )
     control = SqliteCollectionControlRepository(root / "control.sqlite")
     request_collection_state(
         sources,
         sources,
         control,
-        THREE_PHASE_SOURCE,
+        SYNTHETIC_DEMO_SOURCE_ID,
         CollectionDesiredState.STOPPED,
         requested_at=now,
     )
@@ -166,32 +125,22 @@ def prepare(root: Path, endpoint: str, *, profile: str = "power") -> None:
     print(f"Prepared {root}: {result.event_count} synthetic FILE observations; collection STOPPED")
 
 
-def _three_phase_values(index: int) -> tuple[float, ...]:
-    """Mild voltage unbalance; load cycles with a stopped period (currents near zero).
-
-    Every phase changes each tick: OPC UA DataChange reports only changed values,
-    and the analysis aligns phases by identical source timestamp.
-    """
-    running = index % 60 < 45
-    voltages = (
-        230 + 2 * math.sin(index / 9),
-        228 + 1.5 * math.cos(index / 11),
-        231 + 0.5 * math.sin(index / 5),
-    )
-    load = 12 + 3 * math.sin(index / 6) if running else 0.2 + 0.01 * (index % 7)
-    currents = (load, load * 0.96, load * 1.05)
-    return (*voltages, *currents)
-
-
 async def run_simulator(
     endpoint: str, stop: asyncio.Event, *, interval: float = 1.0, profile: str = "power"
 ) -> None:
     validate_endpoint(endpoint)
     if profile not in PROFILES:
         raise ValueError(f"profile must be one of {PROFILES}")
-    channels = tuple(THREE_PHASE_CHANNELS) if profile == "three-phase" else CHANNELS
     if not math.isfinite(interval) or interval <= 0:
         raise ValueError("interval must be positive and finite")
+    if profile == "three-phase":
+        await run_synthetic_opcua_server(
+            endpoint,
+            stop,
+            interval_seconds=interval,
+        )
+        return
+
     asyncua = importlib.import_module("asyncua")
     ua = asyncua.ua
     server = asyncua.Server()
@@ -200,17 +149,13 @@ async def run_simulator(
     server.set_server_name("industrial-phm synthetic power demo")
     namespace = await server.register_namespace("urn:industrial-phm:synthetic-power")
     machine = await server.nodes.objects.add_object(namespace, "SyntheticPower")
-    nodes = [await machine.add_variable(ua.NodeId(name, namespace), name, 0.0) for name in channels]
+    nodes = [await machine.add_variable(ua.NodeId(name, namespace), name, 0.0) for name in CHANNELS]
     index = 0
     async with server:
         print(f"Synthetic OPC UA server: {endpoint}", flush=True)
         while not stop.is_set():
             now = datetime.now(UTC)
-            values = (
-                _three_phase_values(index)
-                if profile == "three-phase"
-                else (100 + 20 * math.sin(index / 5), 220 + 2 * math.cos(index / 7))
-            )
+            values = (100 + 20 * math.sin(index / 5), 220 + 2 * math.cos(index / 7))
             for node, value in zip(nodes, values, strict=True):
                 await node.write_value(
                     ua.DataValue(
