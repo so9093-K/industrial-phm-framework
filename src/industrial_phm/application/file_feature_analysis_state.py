@@ -22,6 +22,7 @@ from industrial_phm.contracts import (
     DataQualitySeverity,
 )
 
+# Historical schema identity is required to read existing workspace evidence.
 _FILE_FEATURE_ANALYSIS_SCHEMA_V1 = "industrial-phm-field-feature-analysis-v1"
 _ROOT_KEYS = frozenset({"schema", "results"})
 _RESULT_KEYS = frozenset({"run", "evidence"})
