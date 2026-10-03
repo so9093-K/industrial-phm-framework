@@ -116,8 +116,7 @@ def load_prepared_csv_observation_timeline_directory(
     """Load immediate CSV files as one timestamp-ordered prepared CSV observation timeline."""
     if not source_directory.is_dir():
         raise ValueError(
-            "prepared CSV observation timeline directory does not exist: "
-            f"{source_directory}"
+            f"prepared CSV observation timeline directory does not exist: {source_directory}"
         )
 
     sources = tuple(
