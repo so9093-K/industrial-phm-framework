@@ -569,4 +569,3 @@ def test_json_state_is_rejected_not_overwritten(tmp_path):
     with pytest.raises(PhaseUnbalanceHistoryFormatError, match="not SQLite"):
         SqlitePhaseUnbalanceRepository(legacy)
     assert legacy.read_text().startswith('{"schema"')
-
