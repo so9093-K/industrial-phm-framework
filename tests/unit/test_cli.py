@@ -1,7 +1,6 @@
 import pytest
 
 from industrial_phm.cli import build_parser, main
-from industrial_phm.commands.operational_cli import rewrite_legacy_operational_argv
 
 
 def test_doctor_reports_environment_and_next_action(
@@ -61,33 +60,23 @@ def test_compact_history_command_requires_explicit_work_bound() -> None:
 
 
 @pytest.mark.parametrize(
-    ("legacy", "canonical"),
+    "argv",
     [
-        (["operations", "backup"], ["maintenance", "backup"]),
-        (["operations", "restore"], ["maintenance", "restore"]),
-        (["operations", "preflight"], ["validate", "deployment"]),
-        (
-            ["operations", "compact-history"],
-            ["maintenance", "history", "compact"],
-        ),
-        (
-            ["operations", "run-collection-service"],
-            ["internal", "collection-service"],
-        ),
-        (
-            ["operations", "run-window-analysis"],
-            ["internal", "window-analysis"],
-        ),
+        ["operations", "backup"],
+        ["operations", "restore"],
+        ["operations", "preflight"],
+        ["operations", "compact-history"],
+        ["operations", "run-collection-service"],
+        ["operations", "run-window-analysis"],
     ],
 )
-def test_legacy_operational_routes_rewrite_without_changing_arguments(
-    legacy: list[str],
-    canonical: list[str],
+def test_removed_legacy_operational_spellings_are_rejected(
+    argv: list[str],
 ) -> None:
-    argv = [*legacy, "--example", "value"]
+    with pytest.raises(SystemExit) as raised:
+        main(argv)
 
-    assert rewrite_legacy_operational_argv(argv) == [*canonical, "--example", "value"]
-
+    assert raised.value.code == 2
 
 def test_operations_help_contains_only_normal_node_lifecycle(
     capsys: pytest.CaptureFixture[str],
