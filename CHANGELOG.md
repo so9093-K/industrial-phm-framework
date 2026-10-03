@@ -136,6 +136,11 @@
 
 ### Changed
 
+- Operations V2의 read-side composition을 marimo app에서 runtime composition module로 분리했습니다. workspace/
+  legacy path resolution, JSON/SQLite/DuckLake read repository construction, bounded result loading, repository별
+  error isolation, overview/monitor projection을 `OperationsAppSnapshot`이 소유하고 UI는 snapshot을 소비합니다.
+  app에서 500줄 이상 concrete read wiring을 제거했으며 Setup/review write actions의 의미는 변경하지 않았습니다.
+
 - Local Operations CLI를 책임별 taxonomy로 정리했습니다. 정상 node lifecycle은 `operations`,
   backup/restore/history/migration은 `maintenance`, deployment gate는 `validate`, collector/analysis/source
   plumbing은 `internal`이 소유합니다. supervisor/systemd/docs/CI는 canonical path를 사용하고, 기존

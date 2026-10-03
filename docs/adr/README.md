@@ -32,3 +32,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0015: Back up a stopped Operations workspace as one recovery unit](0015-back-up-a-stopped-operations-workspace-as-one-recovery-unit.md)
 - [ADR-0016: Let an external service manager own local-node restart](0016-let-an-external-service-manager-own-node-restart.md)
 - [ADR-0017: Separate the operational CLI by user responsibility](0017-separate-operational-cli-by-user-responsibility.md)
+- [ADR-0018: Keep the Operations UI out of read-repository composition](0018-keep-operations-ui-out-of-read-repository-composition.md)
