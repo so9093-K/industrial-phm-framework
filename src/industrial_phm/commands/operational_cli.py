@@ -13,7 +13,6 @@ from industrial_phm.commands.operations import (
     _run_operations_flush_history,
     _run_operations_init,
     _run_operations_logs,
-    _run_operations_migrate_phase_unbalance_results,
     _run_operations_poll_source,
     _run_operations_preflight,
     _run_operations_request_collection,
@@ -147,24 +146,6 @@ def _add_maintenance_commands(
         help="new Operations workspace root; must not already exist",
     )
     restore.set_defaults(handler=_run_operations_restore)
-
-    migrate = commands.add_parser(
-        "migrate-phase-unbalance-results",
-        help="copy legacy phase-unbalance JSON evidence into the SQLite result store",
-    )
-    migrate.add_argument(
-        "--from-json",
-        type=Path,
-        required=True,
-        help="legacy phase-unbalance JSON result path; never modified",
-    )
-    migrate.add_argument(
-        "--to-sqlite",
-        type=Path,
-        required=True,
-        help="SQLite result path used by the live runner and Operations",
-    )
-    migrate.set_defaults(handler=_run_operations_migrate_phase_unbalance_results)
 
     history = commands.add_parser(
         "history",

@@ -257,7 +257,6 @@ from industrial_phm.application.phase_unbalance import (
 from industrial_phm.application.phase_unbalance_state import (
     JsonPhaseUnbalanceRepository,
     SqlitePhaseUnbalanceRepository,
-    migrate_json_phase_unbalance_results,
 )
 from industrial_phm.application.prepared_csv_observation import (
     build_prepared_csv_observation_summary,
@@ -587,7 +586,6 @@ __all__ = [
     "load_prepared_csv_observation_timeline",
     "load_prepared_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
-    "migrate_json_phase_unbalance_results",
     "parse_opcua_semantic_bindings",
     "poll_registered_source",
     "project_opcua_persistent_data_change_event",

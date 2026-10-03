@@ -77,25 +77,3 @@ def test_operations_app_snapshot_is_error_tolerant_for_one_bad_repository(
     assert any(error.scope == "source-settings" for error in snapshot.system_errors)
     assert snapshot.monitor is not None
     assert snapshot.overview is not None
-
-
-def test_operations_app_snapshot_surfaces_legacy_phase_migration(
-    tmp_path: Path,
-) -> None:
-    workspace = OperationsWorkspace(tmp_path / "plant-a")
-    workspace.root.mkdir(parents=True)
-    workspace.phase_unbalance_state_path.with_suffix(".json").write_text(
-        "{}\n",
-        encoding="utf-8",
-    )
-
-    snapshot = load_operations_app_snapshot(
-        environ={"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(workspace.root)},
-        assessed_at=datetime(2026, 10, 3, 8, 0, tzinfo=UTC),
-    )
-
-    migration = [
-        error for error in snapshot.system_errors if error.scope == "phase-analysis-migration"
-    ]
-    assert len(migration) == 1
-    assert "migrate-phase-unbalance-results" in migration[0].detail

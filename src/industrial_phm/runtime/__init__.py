@@ -39,14 +39,12 @@ from industrial_phm.runtime.operations_backup import (
 )
 from industrial_phm.runtime.operations_config import (
     OPERATIONS_CONFIG_SCHEMA,
-    OPERATIONS_CONFIG_SCHEMA_V1,
     OperationsAnalysisConfig,
     OperationsCollectionConfig,
     OperationsConfigFormatError,
     OperationsRuntimeConfig,
     OperationsUiConfig,
     load_operations_runtime_config,
-    upgrade_operations_runtime_config,
 )
 from industrial_phm.runtime.operations_deployment import (
     OperationsDeploymentCheck,
@@ -95,7 +93,6 @@ __all__ = [
     "DEFAULT_RUNTIME_HEARTBEAT_TIMEOUT",
     "OPERATIONS_BACKUP_SCHEMA",
     "OPERATIONS_CONFIG_SCHEMA",
-    "OPERATIONS_CONFIG_SCHEMA_V1",
     "OPERATIONS_UI_HOST",
     "AcquisitionTelemetryFormatError",
     "CollectionControlFormatError",
@@ -151,7 +148,6 @@ __all__ = [
     "run_registered_opcua_acquisition_worker",
     "run_spool_to_history_writer",
     "tail_operations_component_log",
-    "upgrade_operations_runtime_config",
     "validate_operations_backup",
     "write_next_spool_batch",
 ]

@@ -27,7 +27,6 @@ from industrial_phm.application import (
     TemporalAlignmentPolicy,
     analyze_finalized_windows_incremental,
     backfill_registered_file_source,
-    migrate_json_phase_unbalance_results,
     poll_registered_source,
     request_collection_state,
     validate_distinct_source_state_paths,
@@ -399,18 +398,6 @@ def _run_operations_flush_history(args: argparse.Namespace) -> int:
     for table, count in result.flushed_rows:
         print(f"table={table} flushed_rows={count}")
     print(f"flushed_rows={result.flushed_row_count} history_snapshot={result.snapshot_id}")
-    return 0
-
-
-def _run_operations_migrate_phase_unbalance_results(args: argparse.Namespace) -> int:
-    """Explicitly copy legacy JSON analysis evidence into the SQLite result store."""
-    try:
-        migrated = migrate_json_phase_unbalance_results(args.from_json, args.to_sqlite)
-    except (OSError, ValueError) as error:
-        print(f"phase unbalance result migration failed: {error}", file=sys.stderr)
-        return 1
-
-    print(f"verified_results={migrated} legacy_json={args.from_json} sqlite_state={args.to_sqlite}")
     return 0
 
 

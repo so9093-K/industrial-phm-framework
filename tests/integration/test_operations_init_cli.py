@@ -7,7 +7,6 @@ from industrial_phm.application import JsonWindowAnalysisRuntimeRepository
 from industrial_phm.cli import main
 from industrial_phm.runtime import (
     OPERATIONS_CONFIG_SCHEMA,
-    OPERATIONS_CONFIG_SCHEMA_V1,
     OperationsChildProcessState,
     OperationsComponentKind,
     OperationsRuntimeConfig,
@@ -53,19 +52,22 @@ def test_operations_init_is_idempotent_for_valid_workspace(tmp_path: Path, capsy
     assert "state=existing" in capsys.readouterr().out
 
 
-def test_operations_init_upgrades_v1_workspace_config(tmp_path: Path, capsys) -> None:
+def test_operations_init_rejects_v1_workspace_config(tmp_path: Path, capsys) -> None:
     root = tmp_path / "plant-a"
     root.mkdir()
     config_path = root / "config.toml"
-    config_path.write_text(f'schema = "{OPERATIONS_CONFIG_SCHEMA_V1}"\n', encoding="utf-8")
+    config_path.write_text(
+        'schema = "industrial-phm-operations-runtime-v1"\n',
+        encoding="utf-8",
+    )
 
     exit_code = main(["operations", "init", str(root)])
 
-    assert exit_code == 0
-    assert config_path.read_text(encoding="utf-8").startswith(
-        f'schema = "{OPERATIONS_CONFIG_SCHEMA}"\n'
+    assert exit_code == 1
+    assert "unsupported Operations config schema" in capsys.readouterr().err
+    assert config_path.read_text(encoding="utf-8") == (
+        'schema = "industrial-phm-operations-runtime-v1"\n'
     )
-    assert "state=existing" in capsys.readouterr().out
 
 
 def test_operations_init_refuses_non_empty_uninitialized_directory(

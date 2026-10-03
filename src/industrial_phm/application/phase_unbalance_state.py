@@ -170,8 +170,7 @@ class SqlitePhaseUnbalanceRepository:
                 header = stream.read(16)
             if header and header != b"SQLite format 3\x00":
                 raise PhaseUnbalanceHistoryFormatError(
-                    f"{path} is not SQLite; choose a new phase-unbalance result path "
-                    "(.sqlite) instead of reusing legacy JSON results"
+                    f"{path} is not SQLite; choose a .sqlite phase-unbalance result path"
                 )
         self._path = path
 
@@ -408,34 +407,6 @@ class SqlitePhaseUnbalanceRepository:
             connection.close()
             raise
         return connection
-
-
-def migrate_json_phase_unbalance_results(source: Path, destination: Path) -> int:
-    """Copy legacy JSON results into SQLite without changing evidence identity.
-
-    Re-running the migration is idempotent because the SQLite store accepts an
-    identical analysis_run_id and rejects conflicting run/evidence identities.
-    The legacy JSON file is read-only and is never replaced or deleted.
-    """
-    if source.expanduser().resolve(strict=False) == destination.expanduser().resolve(strict=False):
-        raise ValueError("legacy JSON source and SQLite destination must be different paths")
-    if not source.is_file():
-        raise FileNotFoundError(f"legacy phase unbalance result file not found: {source}")
-
-    legacy_results = JsonPhaseUnbalanceRepository(source).list_results()
-    destination_store = SqlitePhaseUnbalanceRepository(destination)
-    connection = destination_store._connect()
-    connection.close()
-    for result in legacy_results:
-        destination_store.record(result)
-
-    migrated = {result.run.analysis_run_id: result for result in destination_store.list_results()}
-    for result in legacy_results:
-        if migrated.get(result.run.analysis_run_id) != result:
-            raise PhaseUnbalanceHistoryFormatError(
-                f"migrated result differs from legacy evidence: {result.run.analysis_run_id}"
-            )
-    return len(legacy_results)
 
 
 def _epoch_microseconds(value: datetime) -> int:
