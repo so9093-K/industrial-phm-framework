@@ -147,7 +147,7 @@ uv run --no-sync python -m tools.aihub.history \
   --start 2020-11-13T00:00:00 --end 2020-11-13T01:00:00 \
   --ducklake-catalog artifacts/operations/history/catalog.sqlite \
   --ducklake-data artifacts/operations/history/data
-uv run --no-sync marimo run src/industrial_phm/apps/operations_v2.py
+uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
 Operations의 **Assets → Asset → Measurement History → 이력 조회**에서 추세와 provenance를 확인합니다.
