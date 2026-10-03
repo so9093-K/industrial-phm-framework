@@ -147,7 +147,6 @@ def _add_maintenance_commands(
     )
     restore.set_defaults(handler=_run_operations_restore)
 
-
     history = commands.add_parser(
         "history",
         help="perform explicit Asset History backfill/flush/compaction maintenance",
