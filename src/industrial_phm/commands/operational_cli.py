@@ -371,7 +371,11 @@ def _add_internal_commands(
         type=Path,
         help="explicit desired collection-state SQLite path (compatibility/internal mode)",
     )
-    request_collection.add_argument("--source-id", required=True, help="registered OPC UA source ID")
+    request_collection.add_argument(
+        "--source-id",
+        required=True,
+        help="registered OPC UA source ID",
+    )
     request_collection.add_argument(
         "--state",
         choices=("running", "stopped"),
