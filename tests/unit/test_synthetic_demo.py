@@ -71,9 +71,7 @@ def test_prepare_synthetic_demo_creates_active_running_three_phase_source(
     assert preparation.source_id == SYNTHETIC_DEMO_SOURCE_ID
     assert preparation.endpoint == "opc.tcp://127.0.0.1:4845/phm-demo/"
     repository = JsonSourceRepository(preparation.workspace.source_registry_path)
-    assert repository.list_sources() == (
-        build_synthetic_demo_source(preparation.endpoint, at),
-    )
+    assert repository.list_sources() == (build_synthetic_demo_source(preparation.endpoint, at),)
     assert repository.get_lifecycle(SYNTHETIC_DEMO_SOURCE_ID).state == SourceLifecycleState.ACTIVE
     control = SqliteCollectionControlRepository(preparation.workspace.collection_control_path)
     record = control.get(SYNTHETIC_DEMO_SOURCE_ID)
