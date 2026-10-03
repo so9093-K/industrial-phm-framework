@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from industrial_phm.application.field_csv import (
-    load_field_csv_observation_summary,
-    load_field_csv_observation_timeline_directory,
+from industrial_phm.application.prepared_csv_observation import (
+    load_prepared_csv_observation_summary,
+    load_prepared_csv_observation_timeline_directory,
 )
 from industrial_phm.application.observation import (
     AssetObservationSummary,
@@ -197,7 +197,7 @@ def load_registered_file_source_observation(
     path = Path(config.source_path)
 
     if config.mode == FileSourceMode.SNAPSHOT:
-        latest = load_field_csv_observation_summary(
+        latest = load_prepared_csv_observation_summary(
             path,
             layout,
             source_id=source.source_id,
@@ -205,7 +205,7 @@ def load_registered_file_source_observation(
         )
         return RegisteredFileObservation(latest=latest)
 
-    timeline = load_field_csv_observation_timeline_directory(
+    timeline = load_prepared_csv_observation_timeline_directory(
         path,
         layout,
         source_id=source.source_id,
