@@ -15,6 +15,7 @@ from industrial_phm.demo.synthetic import (
     SYNTHETIC_DEMO_SOURCE_ID,
     SyntheticDemoConfig,
     SyntheticDemoPreparation,
+    build_synthetic_demo_source,
     prepare_synthetic_demo,
     run_synthetic_demo,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "AihubBoilerDemoPreparation",
     "SyntheticDemoConfig",
     "SyntheticDemoPreparation",
+    "build_synthetic_demo_source",
     "prepare_aihub_boiler_demo",
     "prepare_synthetic_demo",
     "run_aihub_boiler_demo",

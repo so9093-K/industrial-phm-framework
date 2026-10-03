@@ -114,7 +114,7 @@ def _semantic_bindings() -> tuple[ChannelSemanticBinding, ...]:
     )
 
 
-def _expected_source(endpoint: str, registered_at: datetime) -> RegisteredSource:
+def build_synthetic_demo_source(endpoint: str, registered_at: datetime) -> RegisteredSource:
     return RegisteredSource(
         source_id=SYNTHETIC_DEMO_SOURCE_ID,
         name="Synthetic live three-phase motor feeder",
@@ -147,7 +147,7 @@ def prepare_synthetic_demo(
     workspace = OperationsWorkspace(preset.workspace)
     initialization = initialize_operations_workspace(workspace)
     repository = JsonSourceRepository(workspace.source_registry_path)
-    expected = _expected_source(preset.endpoint, prepared_at)
+    expected = build_synthetic_demo_source(preset.endpoint, prepared_at)
     sources = repository.list_sources()
 
     if not sources:

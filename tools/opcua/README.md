@@ -212,8 +212,8 @@ uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
 Then use Setup → **Start collection**. The workspace root projects the source/runtime/control/spool,
-window/ledger, analysis and DuckLake paths consistently; individual path flags/environment variables
-remain compatibility/internal overrides.
+window/ledger, analysis and DuckLake paths consistently. The packaged Operations app resolves these
+paths from that one workspace; isolated internal service commands may still take explicit path flags.
 
 Fault scenarios for Operations validation:
 
