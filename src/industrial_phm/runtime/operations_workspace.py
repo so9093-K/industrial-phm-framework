@@ -56,7 +56,8 @@ class OperationsWorkspace:
         return self.root / "window-analysis-ledger.sqlite"
 
     @property
-    def field_analysis_path(self) -> Path:
+    def file_feature_analysis_path(self) -> Path:
+        """Return the historical feature-analysis state path retained for workspace compatibility."""
         return self.root / "field-analysis.json"
 
     @property
@@ -106,7 +107,7 @@ class OperationsWorkspace:
             self.acquisition_telemetry_path,
             self.window_state_path,
             self.analysis_ledger_path,
-            self.field_analysis_path,
+            self.file_feature_analysis_path,
             self.phase_unbalance_state_path,
             self.analysis_runtime_path,
             self.finding_state_path,
