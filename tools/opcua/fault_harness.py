@@ -37,7 +37,10 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 
+from industrial_phm.apps import operations_app_path
+
 REPO = Path(__file__).resolve().parents[2]
+OPERATIONS_APP = operations_app_path()
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
 SOURCE_ID = "aihub239-replay-boiler-2297"
 OMITTED_CHANNEL = "T상전류"
@@ -347,22 +350,10 @@ class Stack:
         r = self.root
         command = [
             *CLI,
-            "operations",
-            "run-collection-service",
-            "--registry",
-            str(r / "sources.json"),
-            "--control-state",
-            str(r / "control.sqlite"),
-            "--spool-state",
-            str(r / "spool.sqlite"),
-            "--telemetry-state",
-            str(r / "telemetry.sqlite"),
-            "--window-state",
-            str(r / "windows.sqlite"),
-            "--ducklake-catalog",
-            str(r / "catalog.sqlite"),
-            "--ducklake-data",
-            str(r / "data"),
+            "internal",
+            "collection-service",
+            "--workspace",
+            str(r),
             "--window-duration-seconds",
             "30",
             "--allowed-lateness-seconds",
@@ -380,14 +371,10 @@ class Stack:
             "runner",
             [
                 *CLI,
-                "operations",
-                "run-window-analysis",
-                "--window-state",
-                str(r / "windows.sqlite"),
-                "--analysis-state",
-                str(r / "phase-unbalance.sqlite"),
-                "--ledger-state",
-                str(r / "window-analysis-ledger.sqlite"),
+                "internal",
+                "window-analysis",
+                "--workspace",
+                str(r),
                 "--interval-seconds",
                 "2",
                 "--alignment",
@@ -506,38 +493,15 @@ class Stack:
         )
 
     def app_env(self) -> dict[str, str]:
-        r = self.root
         env = dict(self.env)
-        env.update(
-            {
-                "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY": str(r / "sources.json"),
-                "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME": str(r / "source-runtime.json"),
-                "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL": str(r / "control.sqlite"),
-                "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL": str(r / "spool.sqlite"),
-                "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY": str(r / "telemetry.sqlite"),
-                "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE": str(r / "windows.sqlite"),
-                "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER": str(
-                    r / "window-analysis-ledger.sqlite"
-                ),
-                "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE": str(r / "field-analysis.json"),
-                "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE": str(
-                    r / "phase-unbalance.sqlite"
-                ),
-                "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE": str(r / "findings.json"),
-                "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE": str(
-                    r / "finding-review.json"
-                ),
-                "INDUSTRIAL_PHM_HISTORY_CATALOG": str(r / "catalog.sqlite"),
-                "INDUSTRIAL_PHM_HISTORY_DATA": str(r / "data"),
-            }
-        )
+        env["INDUSTRIAL_PHM_OPERATIONS_WORKSPACE"] = str(self.root)
         return env
 
     def app_probe(self, body: str) -> dict[str, object]:
         """Run Operations V2 in script mode against this root; ``body`` sets ``out``."""
         script = (
             "import json, runpy\n"
-            "app = runpy.run_path('apps/operations_v2.py')['app']\n"
+            f"app = runpy.run_path({str(OPERATIONS_APP)!r})['app']\n"
             "_, defs = app.run()\n"
             f"{body}"
             "print('UI-SNAPSHOT ' + json.dumps(out, default=str))\n"
@@ -566,7 +530,7 @@ class Stack:
                 "-m",
                 "marimo",
                 "run",
-                "apps/operations_v2.py",
+                str(OPERATIONS_APP),
                 "--headless",
                 "--no-token",
                 "--host",
