@@ -79,6 +79,7 @@ def resolve_operations_app_paths(
         history_data=workspace.history_data_path,
     )
 
+
 def load_operations_source_registry_state(
     path: Path,
 ) -> OperationsSourceRegistryState:
