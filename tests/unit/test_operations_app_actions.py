@@ -15,13 +15,13 @@ from industrial_phm.application import (
     SourceRuntimeCycleState,
     SourceSnapshotEvidence,
 )
-from industrial_phm.connectors import OpcUaNodeMapping
+from industrial_phm.connectors import OpcUaBrowseResult, OpcUaNodeMapping
 from industrial_phm.contracts import DataQualityAssessment
 from industrial_phm.runtime.operations_app_actions import (
     OperationsAppActions,
     OperationsDiagnosticKind,
 )
-from industrial_phm.runtime.operations_app_composition import resolve_operations_app_paths
+from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
 
 
 def _actions(tmp_path: Path) -> OperationsAppActions:
@@ -122,6 +122,41 @@ def test_actions_own_source_registry_freshness_lifecycle_and_collection(
     )
     assert cleared is None
     assert state.freshness_policies == ()
+
+
+
+
+
+def test_actions_bridge_opcua_browse_outside_marimo_event_loop(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import industrial_phm.runtime.operations_app_actions as action_module
+
+    actions = _actions(tmp_path)
+    expected = OpcUaBrowseResult(
+        endpoint_url="opc.tcp://127.0.0.1:4840",
+        connected_at=datetime(2026, 10, 3, 8, 5, tzinfo=UTC),
+        completed_at=datetime(2026, 10, 3, 8, 5, 1, tzinfo=UTC),
+        start_node_id="i=85",
+        visited_node_count=1,
+        truncated=False,
+        variables=(),
+    )
+
+    async def fake_browse(config):
+        assert config.endpoint_url == expected.endpoint_url
+        assert config.timeout_seconds == 1.5
+        return expected
+
+    monkeypatch.setattr(action_module, "browse_opcua_variables", fake_browse)
+
+    result = actions.browse_opcua(
+        endpoint_url=expected.endpoint_url,
+        timeout_seconds=1.5,
+    )
+
+    assert result == expected
 
 
 def test_actions_bridge_opcua_diagnostic_outside_marimo_event_loop(
