@@ -140,18 +140,6 @@ retention하지 않습니다. 전체 저장 개수와 이번에 읽은 범위는
 함께 다룹니다. Investigation의 **검토할 분석**에서 결과를 고르면 capability별 근거가 보이고, **Create review
 finding**으로 그 결과에 대한 사람의 검토 요청을 만들어 Maintenance Review로 이어갈 수 있습니다.
 
-## Legacy Operations migration
-
-Phase 9부터 packaged Operations application이 canonical Operations surface입니다. 이전 legacy Operations
-application은 제거됐고, 필요한 기능은 Monitor / Assets / Investigations / Maintenance / System / Setup
-문맥으로 이관됐습니다. One-shot source cycle과 bounded OPC UA subscription은 Setup의 **Advanced diagnostics**로,
-FILE snapshot vibration feature analysis는 **Assets → Analysis**로 이동했습니다. Source별 데이터 경과
-시간 정책도 Setup에서 저장·해제합니다.
-
-Legacy 화면의 Overview / Sources / Investigation / Maintenance Review / Operational State IA는 더 이상
-현재 사용 흐름이 아닙니다. 상세 runtime/contract 경계는 [현재 지원 상태](../docs/status.md)와
-[아키텍처 문서](../docs/architecture/overview.md)를 기준으로 확인합니다.
-
 ## Analysis Explorer
 
 apps/analysis_explorer.py는 저장된 PHM experiment/analysis evidence를 화면에서 검토하고,
