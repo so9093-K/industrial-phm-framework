@@ -57,6 +57,7 @@ def test_operations_app_paths_ignore_granular_path_environment(tmp_path: Path) -
     assert paths.phase_analysis == workspace.phase_unbalance_state_path
     assert paths.analysis_runtime == workspace.analysis_runtime_path
 
+
 def test_operations_app_snapshot_is_error_tolerant_for_one_bad_repository(
     tmp_path: Path,
 ) -> None:
