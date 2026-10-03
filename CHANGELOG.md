@@ -11,6 +11,8 @@
 
 ### Changed
 
+- Pre-release persisted migration surface를 종료했습니다. Operations workspace config는 current `industrial-phm-operations-runtime-v2`만 읽고 v1을 자동 upgrade하지 않습니다. `maintenance migrate-phase-unbalance-results`와 Operations의 legacy JSON migration warning을 제거하고, live/Operations 3상 결과 저장소는 `phase-unbalance.sqlite` 하나로 유지합니다. Offline/historical JSON repository와 기존 evidence/schema identity는 보존합니다(ADR-0022).
+
 - Pre-release Operations compatibility surface를 정리했습니다. 이동 전
   `operations backup/preflight/run-*` spelling은 더 이상 canonical command로 rewrite하지 않으며,
   responsibility별 `operations` / `maintenance` / `validate` / `internal` namespace를 직접 사용합니다.
