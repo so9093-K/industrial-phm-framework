@@ -125,8 +125,6 @@ def test_actions_own_source_registry_freshness_lifecycle_and_collection(
 
 
 
-
-
 def test_actions_bridge_opcua_browse_outside_marimo_event_loop(
     tmp_path: Path,
     monkeypatch,
