@@ -1,6 +1,7 @@
 import pytest
 
 from industrial_phm.cli import build_parser, main
+from industrial_phm.commands.operational_cli import rewrite_legacy_operational_argv
 
 
 def test_doctor_reports_environment_and_next_action(
@@ -22,7 +23,7 @@ def test_doctor_reports_environment_and_next_action(
 def test_phase_unbalance_result_migration_command_has_explicit_paths() -> None:
     args = build_parser().parse_args(
         [
-            "operations",
+            "maintenance",
             "migrate-phase-unbalance-results",
             "--from-json",
             "legacy.json",
@@ -37,8 +38,9 @@ def test_phase_unbalance_result_migration_command_has_explicit_paths() -> None:
 def test_compact_history_command_requires_explicit_work_bound() -> None:
     args = build_parser().parse_args(
         [
-            "operations",
-            "compact-history",
+            "maintenance",
+            "history",
+            "compact",
             "--ducklake-catalog",
             "catalog.sqlite",
             "--ducklake-data",
@@ -56,3 +58,66 @@ def test_compact_history_command_requires_explicit_work_bound() -> None:
     assert args.max_compacted_files == 32
     assert args.target_file_size_bytes == 1048576
     assert args.max_file_size_bytes == 262144
+
+
+@pytest.mark.parametrize(
+    ("legacy", "canonical"),
+    [
+        (["operations", "backup"], ["maintenance", "backup"]),
+        (["operations", "restore"], ["maintenance", "restore"]),
+        (["operations", "preflight"], ["validate", "deployment"]),
+        (
+            ["operations", "compact-history"],
+            ["maintenance", "history", "compact"],
+        ),
+        (
+            ["operations", "run-collection-service"],
+            ["internal", "collection-service"],
+        ),
+        (
+            ["operations", "run-window-analysis"],
+            ["internal", "window-analysis"],
+        ),
+    ],
+)
+def test_legacy_operational_routes_rewrite_without_changing_arguments(
+    legacy: list[str],
+    canonical: list[str],
+) -> None:
+    argv = [*legacy, "--example", "value"]
+
+    assert rewrite_legacy_operational_argv(argv) == [*canonical, "--example", "value"]
+
+
+def test_operations_help_contains_only_normal_node_lifecycle(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as raised:
+        main(["operations", "--help"])
+
+    assert raised.value.code == 0
+    output = capsys.readouterr().out
+    for command in ("init", "start", "status", "logs", "stop"):
+        assert command in output
+    for internal in (
+        "backup",
+        "preflight",
+        "compact-history",
+        "run-collection-service",
+        "run-window-analysis",
+    ):
+        assert internal not in output
+
+
+def test_top_level_help_exposes_operational_responsibility_groups(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as raised:
+        main(["--help"])
+
+    assert raised.value.code == 0
+    output = capsys.readouterr().out
+    assert "operations" in output
+    assert "maintenance" in output
+    assert "validate" in output
+    assert "internal" in output
