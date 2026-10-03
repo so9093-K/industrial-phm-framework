@@ -141,9 +141,7 @@ def resolve_operations_app_paths(
             None if workspace is None else workspace.history_data_path,
             "artifacts/operations/history/data",
         ),
-        phase_analysis_explicit=(
-            "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE" in values
-        ),
+        phase_analysis_explicit=("INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE" in values),
     )
 
 
