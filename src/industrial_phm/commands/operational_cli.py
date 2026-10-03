@@ -24,6 +24,7 @@ from industrial_phm.commands.operations import (
     _run_operations_window_analysis,
 )
 
+
 def add_operational_command_groups(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
