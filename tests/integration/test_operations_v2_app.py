@@ -108,8 +108,9 @@ def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
-    assert defs["phase_analysis_path"] == workspace.phase_unbalance_state_path
-    assert defs["history_catalog_path"] == workspace.history_catalog_path
+    paths = defs["operations_context"].snapshot.paths
+    assert paths.phase_analysis == workspace.phase_unbalance_state_path
+    assert paths.history_catalog == workspace.history_catalog_path
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
 
