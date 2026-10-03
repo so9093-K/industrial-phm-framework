@@ -253,7 +253,9 @@ def _parse_result(value: object, *, index: int) -> RegisteredFileFeatureAnalysis
 
     snapshots_raw = run_raw["source_snapshots"]
     if not isinstance(snapshots_raw, list):
-        raise FileFeatureAnalysisHistoryFormatError(f"{label}.run.source_snapshots must be a JSON array")
+        raise FileFeatureAnalysisHistoryFormatError(
+            f"{label}.run.source_snapshots must be a JSON array"
+        )
     snapshots = tuple(
         _parse_snapshot(
             snapshot,
@@ -378,7 +380,9 @@ def _require_datetime(value: object, label: str) -> datetime:
     try:
         result = datetime.fromisoformat(raw)
     except ValueError as error:
-        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be an ISO 8601 datetime") from error
+        raise FileFeatureAnalysisHistoryFormatError(
+            f"{label} must be an ISO 8601 datetime"
+        ) from error
     if result.utcoffset() is None:
         raise FileFeatureAnalysisHistoryFormatError(f"{label} must be timezone-aware")
     return result
