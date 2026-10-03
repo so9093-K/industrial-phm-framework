@@ -20,15 +20,9 @@ def _():
         CollectionDesiredState,
         FileSourceConfig,
         FileSourceMode,
-        JsonFieldFeatureAnalysisRepository,
-        JsonFindingReviewRepository,
-        JsonOperationalFindingRepository,
-        JsonSourceRepository,
-        JsonSourceRuntimeRepository,
         MeasurementDefinition,
         OpcUaSourceConfig,
         RegisteredSource,
-        SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
@@ -37,21 +31,11 @@ def _():
         build_maintenance_queue,
         build_setup_workspace,
         build_system_runtime_view,
-        create_human_review_finding,
         discover_file_source,
-        register_file_source,
-        request_collection_state,
-        run_registered_file_feature_analysis,
-        run_registered_file_source_cycle,
-        run_registered_opcua_source_cycle,
-        run_registered_opcua_subscription_cycle,
-        transition_source_lifecycle,
-        validate_distinct_source_state_paths,
     )
     from industrial_phm.application.maintenance_review import (
         FindingReviewAction,
         FindingReviewStatus,
-        create_finding_review_event,
     )
     from industrial_phm.application.measurement_history import resolve_measurement_range
     from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
@@ -119,7 +103,10 @@ def _():
         phase_unbalance_summary_rows,
         render_phase_unbalance_svg,
     )
-    from industrial_phm.runtime import SqliteCollectionControlRepository
+    from industrial_phm.runtime.operations_app_actions import (
+        OperationsAppActions,
+        OperationsDiagnosticKind,
+    )
     from industrial_phm.runtime.operations_app_composition import (
         load_operations_app_snapshot,
     )
@@ -134,23 +121,18 @@ def _():
         FindingReviewAction,
         FindingReviewStatus,
         InvestigationReviewState,
-        JsonFieldFeatureAnalysisRepository,
-        JsonFindingReviewRepository,
-        JsonOperationalFindingRepository,
-        JsonSourceRepository,
-        JsonSourceRuntimeRepository,
         MeasurementDefinition,
         OpcUaBrowseConfig,
         OpcUaNodeMapping,
         OpcUaSourceConfig,
         OperationalAnalysisPresentationKind,
+        OperationsAppActions,
+        OperationsDiagnosticKind,
         Path,
         RegisteredSource,
-        SourceFreshnessPolicy,
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
-        SqliteCollectionControlRepository,
         ThreadPoolExecutor,
         UTC,
         asset_workspace_css,
@@ -162,8 +144,6 @@ def _():
         build_maintenance_queue,
         build_setup_workspace,
         build_system_runtime_view,
-        create_finding_review_event,
-        create_human_review_finding,
         datetime,
         discover_file_source,
         investigation_capability_label,
@@ -186,7 +166,6 @@ def _():
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
         phase_unbalance_summary_rows,
-        register_file_source,
         render_analysis_quality_markdown,
         render_asset_analysis_html,
         render_asset_events_html,
@@ -209,16 +188,9 @@ def _():
         render_system_diagnostics_html,
         render_system_errors_html,
         render_system_runtime_html,
-        request_collection_state,
         resolve_measurement_range,
-        run_registered_file_feature_analysis,
-        run_registered_file_source_cycle,
-        run_registered_opcua_source_cycle,
-        run_registered_opcua_subscription_cycle,
         setup_workspace_css,
         system_workspace_css,
-        transition_source_lifecycle,
-        validate_distinct_source_state_paths,
     )
 
 
@@ -241,12 +213,13 @@ def _(mo):
 
 
 @app.cell
-def _(load_operations_app_snapshot, refresh_button):
+def _(OperationsAppActions, load_operations_app_snapshot, refresh_button):
     _refresh = refresh_button.value
     del _refresh
 
     _snapshot = load_operations_app_snapshot()
     _paths = _snapshot.paths
+    operations_actions = OperationsAppActions(_paths)
 
     assessed_at = _snapshot.assessed_at
     registry_path = _paths.registry
@@ -307,6 +280,7 @@ def _(load_operations_app_snapshot, refresh_button):
         live_flow_timing,
         monitor,
         overview,
+        operations_actions,
         phase_analysis_path,
         registered_sources,
         registry_path,
@@ -569,11 +543,9 @@ def _(mo, setup_selected_source):
 
 @app.cell
 def _(
-    JsonSourceRepository,
-    SourceFreshnessPolicy,
     datetime,
     get_setup_config,
-    registry_path,
+    operations_actions,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -592,7 +564,6 @@ def _(
         try:
             if setup_selected_source is None:
                 raise ValueError("select a data source before changing its data age policy")
-            _repository = JsonSourceRepository(registry_path)
             _source_id = setup_selected_source.source_id
             if _freshness_action == "save":
                 if setup_freshness_age_input is None:
@@ -600,32 +571,32 @@ def _(
                 _raw_value = setup_freshness_age_input.value.strip()
                 if not _raw_value:
                     raise ValueError("maximum data age is required")
-                _policy = SourceFreshnessPolicy(
-                    source_id=_source_id,
+                _policy, _state = operations_actions.set_freshness_policy(
+                    _source_id,
                     max_observation_age_seconds=float(_raw_value),
                     changed_at=datetime.now().astimezone(),
                 )
-                _repository.set_freshness_policy(_policy)
+                if _policy is None:
+                    raise AssertionError("saved freshness policy unexpectedly missing")
                 _message = (
                     f"Data age policy saved: {_source_id} · "
                     f"{_policy.max_observation_age_seconds:g} s."
                 )
             else:
-                _repository.clear_freshness_policy(_source_id)
+                _, _state = operations_actions.set_freshness_policy(
+                    _source_id,
+                    max_observation_age_seconds=None,
+                    changed_at=datetime.now().astimezone(),
+                )
                 _message = f"Data age policy cleared: {_source_id}."
-
-            _sources = _repository.list_sources()
-            _policies = tuple(
-                _policy
-                for source in _sources
-                if (_policy := _repository.get_freshness_policy(source.source_id)) is not None
-            )
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
         else:
-            _, _lifecycles, _collection, _ = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _collection, _policies))
+            _, _, _collection, _ = get_setup_config()
+            set_setup_config(
+                (_state.sources, _state.lifecycles, _collection, _state.freshness_policies)
+            )
             set_setup_error("")
             set_setup_success(_message)
     return
@@ -660,105 +631,44 @@ def _(mo):
 
 @app.cell
 def _(
-    FileSourceConfig,
-    JsonSourceRepository,
-    JsonSourceRuntimeRepository,
-    OpcUaSourceConfig,
+    OperationsDiagnosticKind,
     SourceRuntimeCycleState,
-    ThreadPoolExecutor,
-    asyncio,
     get_setup_config,
-    registry_path,
-    run_registered_file_source_cycle,
-    run_registered_opcua_source_cycle,
-    run_registered_opcua_subscription_cycle,
+    operations_actions,
     set_setup_config,
     set_setup_diagnostic_error,
     set_setup_diagnostic_success,
     setup_run_diagnostic_button,
     setup_selected_source,
     setup_subscription_diagnostic_button,
-    source_runtime_path,
-    validate_distinct_source_state_paths,
 ):
     _diagnostic_kind = None
     if setup_run_diagnostic_button is not None and setup_run_diagnostic_button.value:
-        _diagnostic_kind = "cycle"
+        _diagnostic_kind = OperationsDiagnosticKind.CYCLE
     elif (
         setup_subscription_diagnostic_button is not None
         and setup_subscription_diagnostic_button.value
     ):
-        _diagnostic_kind = "subscription"
+        _diagnostic_kind = OperationsDiagnosticKind.SUBSCRIPTION
 
     if _diagnostic_kind is not None:
         try:
             if setup_selected_source is None:
                 raise ValueError("select a data source before running diagnostics")
-            validate_distinct_source_state_paths(registry_path, source_runtime_path)
-            _source_repository = JsonSourceRepository(registry_path)
-            _runtime_repository = JsonSourceRuntimeRepository(source_runtime_path)
-            _source = _source_repository.get(setup_selected_source.source_id)
-
-            if _diagnostic_kind == "cycle":
-                if isinstance(_source.config, FileSourceConfig):
-                    _result = run_registered_file_source_cycle(
-                        _source_repository,
-                        _source_repository,
-                        _runtime_repository,
-                        _source.source_id,
-                    )
-                elif isinstance(_source.config, OpcUaSourceConfig):
-
-                    def _run_opcua_cycle():
-                        return asyncio.run(
-                            run_registered_opcua_source_cycle(
-                                _source_repository,
-                                _source_repository,
-                                _runtime_repository,
-                                _source.source_id,
-                            )
-                        )
-
-                    with ThreadPoolExecutor(max_workers=1) as _executor:
-                        _result = _executor.submit(_run_opcua_cycle).result()
-                else:
-                    raise ValueError("unsupported registered source config")
-            else:
-                if not isinstance(_source.config, OpcUaSourceConfig):
-                    raise ValueError("bounded subscription diagnostics require an OPC UA source")
-                _max_events = max(1, len(_source.config.node_mappings))
-
-                def _run_subscription_cycle():
-                    return asyncio.run(
-                        run_registered_opcua_subscription_cycle(
-                            _source_repository,
-                            _source_repository,
-                            _runtime_repository,
-                            _source.source_id,
-                            publishing_interval_ms=500.0,
-                            collection_timeout_seconds=5.0,
-                            max_events=_max_events,
-                            queue_maxsize=128,
-                        )
-                    )
-
-                with ThreadPoolExecutor(max_workers=1) as _executor:
-                    _result = _executor.submit(_run_subscription_cycle).result()
-
-            _sources = _source_repository.list_sources()
-            _lifecycles = tuple(
-                _source_repository.get_lifecycle(item.source_id) for item in _sources
+            _result, _state = operations_actions.run_diagnostic(
+                setup_selected_source.source_id,
+                kind=_diagnostic_kind,
             )
         except (LookupError, OSError, RuntimeError, ValueError) as error:
             set_setup_diagnostic_success("")
             set_setup_diagnostic_error(str(error))
         else:
             _, _, _collection, _freshness = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _collection, _freshness))
+            set_setup_config((_state.sources, _state.lifecycles, _collection, _freshness))
             if _result.state == SourceRuntimeCycleState.SUCCEEDED:
                 _message = (
                     "Diagnostic cycle completed."
-                    if _diagnostic_kind == "cycle"
+                    if _diagnostic_kind == OperationsDiagnosticKind.CYCLE
                     else "Bounded subscription completed."
                 )
                 set_setup_diagnostic_error("")
@@ -786,18 +696,16 @@ def _(get_setup_diagnostic_error, get_setup_diagnostic_success):
 
 @app.cell
 def _(
-    JsonSourceRepository,
     SourceLifecycleState,
     datetime,
     get_setup_config,
-    registry_path,
+    operations_actions,
     set_setup_config,
     set_setup_error,
     set_setup_success,
     setup_enable_button,
     setup_pause_button,
     setup_selected_source,
-    transition_source_lifecycle,
 ):
     _setup_lifecycle_target = None
     if setup_enable_button is not None and setup_enable_button.value:
@@ -809,21 +717,19 @@ def _(
         try:
             if setup_selected_source is None:
                 raise ValueError("select a data source before changing its use state")
-            _repository = JsonSourceRepository(registry_path)
-            _record = transition_source_lifecycle(
-                _repository,
+            _record, _state = operations_actions.transition_source(
                 setup_selected_source.source_id,
                 _setup_lifecycle_target,
                 changed_at=datetime.now().astimezone(),
             )
-            _sources = _repository.list_sources()
-            _lifecycles = tuple(_repository.get_lifecycle(item.source_id) for item in _sources)
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
         else:
             _, _, _current_collection, _current_freshness = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _current_collection, _current_freshness))
+            set_setup_config(
+                (_state.sources, _state.lifecycles, _current_collection, _current_freshness)
+            )
             set_setup_error("")
             set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
     return
@@ -832,13 +738,9 @@ def _(
 @app.cell
 def _(
     CollectionDesiredState,
-    JsonSourceRepository,
-    SqliteCollectionControlRepository,
-    collection_control_path,
     datetime,
     get_setup_config,
-    registry_path,
-    request_collection_state,
+    operations_actions,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -856,17 +758,11 @@ def _(
         try:
             if setup_selected_source is None:
                 raise ValueError("select an OPC UA source before changing collection")
-            _source_repository = JsonSourceRepository(registry_path)
-            _control_repository = SqliteCollectionControlRepository(collection_control_path)
-            _record = request_collection_state(
-                _source_repository,
-                _source_repository,
-                _control_repository,
+            _record, _records = operations_actions.request_collection(
                 setup_selected_source.source_id,
                 _setup_collection_target,
                 requested_at=datetime.now().astimezone(),
             )
-            _records = _control_repository.list_records()
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
@@ -1252,9 +1148,13 @@ def _(
     ChannelSemanticBinding,
     FileSourceConfig,
     FileSourceMode,
-    JsonSourceRepository,
     OpcUaSourceConfig,
     RegisteredSource,
+    add_asset_id,
+    add_point_id,
+    add_source_id,
+    add_source_name,
+    add_source_type,
     datetime,
     file_discovery,
     file_discovery_current,
@@ -1263,30 +1163,22 @@ def _(
     file_sampling_rate_input,
     file_signal_selection,
     file_timestamp_input,
+    get_setup_config,
+    operations_actions,
     opcua_candidate_mappings,
     opcua_endpoint_input,
     opcua_mapping_error,
     opcua_timeout_input,
     pending_semantics,
-    register_file_source,
     register_setup_source_button,
-    get_setup_config,
-    registry_path,
     set_pending_semantics,
     set_setup_config,
     set_setup_error,
     set_setup_success,
-    add_asset_id,
-    add_point_id,
-    add_source_id,
-    add_source_name,
-    add_source_type,
 ):
     if register_setup_source_button.value:
         try:
             _source_id = add_source_id.value.strip()
-            _candidate = None
-            _repository = JsonSourceRepository(registry_path)
             if add_source_type.value == "File":
                 if not file_discovery_current or file_discovery is None:
                     raise ValueError("discover the file source before saving")
@@ -1318,7 +1210,6 @@ def _(
                     ),
                     registered_at=datetime.now().astimezone(),
                 )
-                register_file_source(_candidate, _repository)
             else:
                 if opcua_mapping_error:
                     raise ValueError(opcua_mapping_error)
@@ -1355,16 +1246,16 @@ def _(
                     ),
                     registered_at=datetime.now().astimezone(),
                 )
-                _repository.register(_candidate)
 
-            _sources = _repository.list_sources()
-            _lifecycles = tuple(_repository.get_lifecycle(item.source_id) for item in _sources)
+            _state = operations_actions.register_source(_candidate)
         except (OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
         else:
             _, _, _current_collection, _current_freshness = get_setup_config()
-            set_setup_config((_sources, _lifecycles, _current_collection, _current_freshness))
+            set_setup_config(
+                (_state.sources, _state.lifecycles, _current_collection, _current_freshness)
+            )
             set_pending_semantics({})
             set_setup_error("")
             set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
@@ -1526,13 +1417,11 @@ def _(mo):
 @app.cell
 def _(
     FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
-    JsonFieldFeatureAnalysisRepository,
     asset_file_analysis_source,
     asset_run_file_analysis_button,
-    field_analysis_path,
     get_analysis_results,
+    operations_actions,
     registered_sources,
-    run_registered_file_feature_analysis,
     set_analysis_results,
     set_asset_analysis_action_error,
     set_asset_analysis_action_success,
@@ -1546,10 +1435,7 @@ def _(
             _source = next(
                 source for source in registered_sources if source.source_id == _source_id
             )
-            _result = run_registered_file_feature_analysis(_source)
-            _repository = JsonFieldFeatureAnalysisRepository(field_analysis_path)
-            _repository.record(_result)
-            _field_results = _repository.list_results()
+            _, _field_results = operations_actions.record_file_analysis(_source)
             _other_results = tuple(
                 item
                 for item in get_analysis_results()
@@ -2093,11 +1979,9 @@ def _(InvestigationReviewState, mo, selected_investigation):
 
 @app.cell
 def _(
-    JsonOperationalFindingRepository,
-    create_human_review_finding,
-    finding_path,
-    request_review_button,
     get_review_workflow,
+    operations_actions,
+    request_review_button,
     selected_investigation_result,
     set_review_request_error,
     set_review_request_success,
@@ -2107,10 +1991,7 @@ def _(
         try:
             if selected_investigation_result is None:
                 raise ValueError("select an analysis result before requesting review")
-            _finding = create_human_review_finding(selected_investigation_result)
-            _repository = JsonOperationalFindingRepository(finding_path)
-            _repository.record(_finding)
-            _updated_findings = _repository.list_findings()
+            _, _updated_findings = operations_actions.request_review(selected_investigation_result)
         except (OSError, ValueError) as error:
             set_review_request_error(str(error))
             set_review_request_success("")
@@ -2486,15 +2367,13 @@ def _(FindingReviewStatus, mo, selected_maintenance):
 @app.cell
 def _(
     FindingReviewAction,
-    JsonFindingReviewRepository,
-    create_finding_review_event,
     get_review_workflow,
     investigation_findings,
     maintenance_ack_button,
     maintenance_add_note_button,
     maintenance_close_button,
     maintenance_note_input,
-    review_path,
+    operations_actions,
     selected_maintenance,
     set_maintenance_error,
     set_maintenance_success,
@@ -2518,10 +2397,11 @@ def _(
                 if item.finding_id == selected_maintenance.finding_id
             )
             _note = "" if maintenance_note_input is None else maintenance_note_input.value
-            _event = create_finding_review_event(_finding, action=_action, note=_note)
-            _repository = JsonFindingReviewRepository(review_path)
-            _repository.record(_event)
-            _events = _repository.list_events()
+            _, _events = operations_actions.record_review_action(
+                _finding,
+                action=_action,
+                note=_note,
+            )
         except (LookupError, OSError, ValueError) as error:
             set_maintenance_error(str(error))
             set_maintenance_success("")

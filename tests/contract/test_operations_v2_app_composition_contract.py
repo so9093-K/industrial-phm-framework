@@ -13,5 +13,11 @@ def test_operations_v2_app_delegates_read_repository_composition() -> None:
         "SqlitePhaseUnbalanceRepository(",
         "SqliteWindowAnalysisLedger(",
         "JsonWindowAnalysisRuntimeRepository(",
+        "JsonSourceRepository(",
+        "JsonSourceRuntimeRepository(",
+        "SqliteCollectionControlRepository(",
+        "JsonFieldFeatureAnalysisRepository(",
+        "JsonOperationalFindingRepository(",
+        "JsonFindingReviewRepository(",
     ):
         assert forbidden not in source
