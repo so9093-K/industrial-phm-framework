@@ -30,7 +30,6 @@ from industrial_phm.application.phase_unbalance_state import (
     JsonPhaseUnbalanceRepository,
     PhaseUnbalanceHistoryFormatError,
     SqlitePhaseUnbalanceRepository,
-    migrate_json_phase_unbalance_results,
     window_result_key,
 )
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
@@ -564,28 +563,10 @@ def test_store_keeps_run_identity_window_once_and_order(tmp_path, template_resul
     assert len(SqlitePhaseUnbalanceRepository(tmp_path / "results.sqlite").list_results()) == 2
 
 
-def test_legacy_json_state_is_rejected_not_overwritten(tmp_path):
+def test_json_state_is_rejected_not_overwritten(tmp_path):
     legacy = tmp_path / "phase-unbalance.json"
     legacy.write_text('{"schema": "industrial-phm-phase-unbalance-v1", "results": []}\n')
     with pytest.raises(PhaseUnbalanceHistoryFormatError, match="not SQLite"):
         SqlitePhaseUnbalanceRepository(legacy)
     assert legacy.read_text().startswith('{"schema"')
 
-
-def test_legacy_json_results_migrate_idempotently_without_changing_source(
-    tmp_path, template_result
-):
-    legacy_path = tmp_path / "phase-unbalance.json"
-    sqlite_path = tmp_path / "phase-unbalance.sqlite"
-    legacy = JsonPhaseUnbalanceRepository(legacy_path)
-    first, second = _result(template_result, 2), _result(template_result, 1)
-    legacy.record(first)
-    legacy.record(second)
-    original = legacy_path.read_bytes()
-
-    assert migrate_json_phase_unbalance_results(legacy_path, sqlite_path) == 2
-    assert SqlitePhaseUnbalanceRepository(sqlite_path).list_results() == (second, first)
-    assert legacy_path.read_bytes() == original
-
-    assert migrate_json_phase_unbalance_results(legacy_path, sqlite_path) == 2
-    assert SqlitePhaseUnbalanceRepository(sqlite_path).list_results() == (second, first)
