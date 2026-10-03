@@ -10,7 +10,6 @@ from industrial_phm.runtime import (
     OperationsWorkspace,
 )
 from industrial_phm.runtime.operations_runtime import (
-    LEGACY_OPERATIONS_PATH_ENV,
     OPERATIONS_UI_HOST,
     OPERATIONS_WORKSPACE_ENV,
     OperationsComponentKind,
@@ -80,7 +79,7 @@ def test_operations_runtime_plan_uses_one_workspace_root_and_config(tmp_path: Pa
         "3818",
     )
     assert ui.env_overrides == ((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),)
-    assert ui.clear_env == LEGACY_OPERATIONS_PATH_ENV
+    assert ui.clear_env == ()
     assert collection.log_path == workspace.logs_path / "collection.log"
     assert analysis.log_path == workspace.logs_path / "analysis.log"
     assert ui.log_path == workspace.logs_path / "ui.log"

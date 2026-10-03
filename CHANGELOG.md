@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Pre-release Operations compatibility surface를 정리했습니다. 이동 전
+  `operations backup/preflight/run-*` spelling은 더 이상 canonical command로 rewrite하지 않으며,
+  responsibility별 `operations` / `maintenance` / `validate` / `internal` namespace를 직접 사용합니다.
+  Packaged Operations app은 `INDUSTRIAL_PHM_OPERATIONS_WORKSPACE` 하나에서 persistence 경로를 결정하고,
+  개별 Operations/history path 환경변수는 app composition input으로 해석하지 않습니다. Internal
+  service/diagnostic CLI의 explicit path flags는 독립 검증 경계로 유지합니다(ADR-0021).
+
 ### Fixed
 
 - Live window analysis와 Operations의 3상 불평형 결과 저장소를 SQLite(`SqlitePhaseUnbalanceRepository`, run마다

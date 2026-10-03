@@ -120,9 +120,8 @@ reference systemd unit과 restart/permission 경계는
 restart는 application 내부 무한 loop가 아니라 외부 service manager가 소유합니다.
 
 정상 node lifecycle은 `operations`, 복구·history 작업은 `maintenance`, 배포 사전검증은
-`validate`, supervisor가 호출하는 service/source plumbing은 `internal` namespace가 소유합니다. 이전
-`operations backup/preflight/run-*` spelling은 호환 routing만 유지하며 새 문서와 runtime은 canonical
-namespace를 사용합니다.
+`validate`, supervisor가 호출하는 service/source plumbing은 `internal` namespace가 소유합니다. 이동 전
+`operations backup/preflight/run-*` spelling은 더 이상 rewrite하지 않으며 canonical namespace만 지원합니다.
 
 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
 

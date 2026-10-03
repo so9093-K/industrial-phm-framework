@@ -68,25 +68,13 @@ def _distinct_analysis(template, index: int):
 
 def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
     analysis = _analysis()
-    SqlitePhaseUnbalanceRepository(tmp_path / "phase-unbalance.sqlite").record(analysis)
-    JsonOperationalFindingRepository(tmp_path / "findings.json").record(
+    SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).record(analysis)
+    JsonOperationalFindingRepository(workspace.finding_state_path).record(
         create_human_review_finding(analysis)
     )
-    for name, file in (
-        ("SOURCE_REGISTRY", "sources.json"),
-        ("SOURCE_RUNTIME", "source-runtime.json"),
-        ("ACQUISITION_TELEMETRY", "telemetry.sqlite"),
-        ("ACQUISITION_SPOOL", "spool.sqlite"),
-        ("COLLECTION_CONTROL", "control.sqlite"),
-        ("ANALYSIS_STATE", "field-analysis.json"),
-        ("PHASE_UNBALANCE_STATE", "phase-unbalance.sqlite"),
-        ("FINDING_STATE", "findings.json"),
-        ("MAINTENANCE_REVIEW_STATE", "finding-review.json"),
-    ):
-        monkeypatch.setenv(f"INDUSTRIAL_PHM_OPERATIONS_{name}", str(tmp_path / file))
-    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_CATALOG", str(tmp_path / "catalog.sqlite"))
-    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
 
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
@@ -117,8 +105,9 @@ def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
 
 def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
     template = _analysis()
-    result_store = SqlitePhaseUnbalanceRepository(tmp_path / "phase-unbalance.sqlite")
+    result_store = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
     oldest = None
     for index in range(502):
         result = _distinct_analysis(template, index)
@@ -126,24 +115,10 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
         if index == 0:
             oldest = result
     assert oldest is not None
-    JsonOperationalFindingRepository(tmp_path / "findings.json").record(
+    JsonOperationalFindingRepository(workspace.finding_state_path).record(
         create_human_review_finding(oldest)
     )
-
-    for name, file in (
-        ("SOURCE_REGISTRY", "sources.json"),
-        ("SOURCE_RUNTIME", "source-runtime.json"),
-        ("ACQUISITION_TELEMETRY", "telemetry.sqlite"),
-        ("ACQUISITION_SPOOL", "spool.sqlite"),
-        ("COLLECTION_CONTROL", "control.sqlite"),
-        ("ANALYSIS_STATE", "field-analysis.json"),
-        ("PHASE_UNBALANCE_STATE", "phase-unbalance.sqlite"),
-        ("FINDING_STATE", "findings.json"),
-        ("MAINTENANCE_REVIEW_STATE", "finding-review.json"),
-    ):
-        monkeypatch.setenv(f"INDUSTRIAL_PHM_OPERATIONS_{name}", str(tmp_path / file))
-    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_CATALOG", str(tmp_path / "catalog.sqlite"))
-    monkeypatch.setenv("INDUSTRIAL_PHM_HISTORY_DATA", str(tmp_path / "data"))
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
 
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
@@ -158,10 +133,12 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
 
 def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
-    monkeypatch.chdir(tmp_path)
-    state_dir = tmp_path / "artifacts" / "operations"
-    state_dir.mkdir(parents=True)
-    JsonPhaseUnbalanceRepository(state_dir / "phase-unbalance.json").record(_analysis())
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    workspace.root.mkdir(parents=True)
+    JsonPhaseUnbalanceRepository(workspace.phase_unbalance_state_path.with_suffix(".json")).record(
+        _analysis()
+    )
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
 
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()

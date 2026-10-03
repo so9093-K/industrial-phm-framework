@@ -436,8 +436,9 @@ def test_backfill_source_cli_reports_snapshot_and_recovers(tmp_path, capsys) -> 
         )
     )
     args = [
-        "operations",
-        "backfill-source",
+        "maintenance",
+        "history",
+        "backfill",
         "--registry",
         str(registry_path),
         "--source-id",
@@ -515,8 +516,9 @@ def test_flush_moves_inlined_rows_without_changing_snapshot_evidence(tmp_path, c
     assert not list((tmp_path / "data").rglob("*.parquet"))
 
     args = [
-        "operations",
-        "flush-history",
+        "maintenance",
+        "history",
+        "flush",
         "--ducklake-catalog",
         str(tmp_path / "catalog.sqlite"),
         "--ducklake-data",
@@ -612,8 +614,9 @@ def test_compaction_preserves_snapshot_evidence_and_batch_recovery(tmp_path, cap
     assert reopened.get_opcua_batch_commit((next_event,), batch_id="after-compact") == next_commit
 
     args = [
-        "operations",
-        "compact-history",
+        "maintenance",
+        "history",
+        "compact",
         "--ducklake-catalog",
         str(tmp_path / "catalog.sqlite"),
         "--ducklake-data",

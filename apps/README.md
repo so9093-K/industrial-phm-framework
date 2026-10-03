@@ -6,9 +6,9 @@ Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측
 `uv sync --locked --extra operations`로 Operations 실행 환경을 준비합니다. Analysis Explorer 개발 환경은 별도 `research` group을 사용합니다. AI-Hub를 처음 적재할 때는
 [실행 안내](../tools/aihub/README.md#local-power-data-profiling-and-history)를 따릅니다.
 
-기본 catalog는 `artifacts/operations/history/catalog.sqlite`, data는 같은 디렉터리의 `data`입니다.
-다른 저장소는 실행 환경의 `INDUSTRIAL_PHM_HISTORY_CATALOG`, `INDUSTRIAL_PHM_HISTORY_DATA`로 지정합니다.
-Live collector도 동일한 catalog/data 경로로 실행해야 같은 화면에서 조회할 수 있습니다.
+Operations의 history catalog/data는 local workspace가 소유합니다. `operations init <root>`로 workspace를
+만들고 `operations start <root>`로 collection/analysis/UI를 같은 root에 연결합니다. UI만 개발용으로 직접
+실행할 때도 `INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=<root>`를 지정합니다.
 
 **Assets → Asset 선택 → Measurement History → 시간·측정 항목 선택 → 이력 조회 / 새로고침** 순서로
 사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 최대 2,000개 관측을 표시하며 한도를
@@ -113,15 +113,9 @@ industrial-phm operations start artifacts/live
 개발자가 UI만 별도로 확인할 때는 `operations` extra가 설치된 환경에서 packaged app path를 사용할 수 있습니다.
 
 workspace를 지정하면 source/runtime/control/spool/telemetry/window/analysis/finding/review와
-DuckLake catalog/data 경로를 같은 root에서 결정합니다. 기존
-`INDUSTRIAL_PHM_OPERATIONS_*`, `INDUSTRIAL_PHM_HISTORY_CATALOG`,
-`INDUSTRIAL_PHM_HISTORY_DATA` 개별 override는 compatibility/internal diagnostics 경로로 계속
-지원합니다.
-
-workspace를 사용하지 않는 기존 실행에서는 V2가
-`INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE` 옆의
-`<analysis-stem>-runtime.json`을 기본 analysis-service 상태로 읽습니다.
-별도 위치를 쓰려면 `INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME`으로 지정합니다.
+DuckLake catalog/data 경로를 같은 root에서 결정합니다. Packaged Operations app은 이 workspace root를
+유일한 persistence composition input으로 사용하며 개별 state/history path 환경변수를 해석하지 않습니다.
+Internal service/diagnostic CLI의 explicit path flag는 독립 process 검증을 위해 별도 경계로 유지합니다.
 
 ### 전력 품질 분석 · 3상 불평형
 
@@ -132,15 +126,14 @@ median·max 그래프, 제외 사유, 입력·버전·설정 근거(snapshot ID,
 의미가 확정되지 않은 channel(예: metadata v1/v2 적재, semantics 예외 member, semantic binding이 없는
 OPC UA source)과 정지 구간은 제외 사유로만 표시됩니다. 서술적 측정값이며 고장·건강·alarm 판정이 아닙니다.
 
-결과는 기본 `artifacts/operations/phase-unbalance.sqlite`에 run마다 한 row로 저장되며(이전 결과를 다시 읽거나
-다시 쓰지 않음) `INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE`로 바꿀 수 있습니다. **분석 기록**에서 이전 run을
-다시 볼 수 있습니다.
+결과는 workspace의 `phase-unbalance.sqlite`에 run마다 한 row로 저장되며(이전 결과를 다시 읽거나 다시 쓰지 않음)
+**분석 기록**에서 이전 run을 다시 볼 수 있습니다.
 
 이전 기본 경로 `artifacts/operations/phase-unbalance.json`에 결과가 있으면 원본을 덮어쓰지 않고 명시적으로
 이관합니다. 같은 명령을 다시 실행해도 동일한 run/evidence는 그대로 검증되며 충돌은 실패합니다.
 
 ```bash
-uv run --locked industrial-phm operations migrate-phase-unbalance-results \
+uv run --locked industrial-phm maintenance migrate-phase-unbalance-results \
   --from-json artifacts/operations/phase-unbalance.json \
   --to-sqlite artifacts/operations/phase-unbalance.sqlite
 ```

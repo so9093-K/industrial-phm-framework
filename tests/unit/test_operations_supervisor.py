@@ -296,7 +296,7 @@ def test_stop_request_rejects_state_and_lock_owner_pid_mismatch(
     assert signals == []
 
 
-def test_ui_child_environment_uses_workspace_and_clears_granular_path_overrides(
+def test_ui_child_environment_adds_authoritative_workspace_without_scrubbing_parent_env(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -310,8 +310,8 @@ def test_ui_child_environment_uses_workspace_and_clears_granular_path_overrides(
     environment = supervisor_module._component_environment(ui)
 
     assert environment[OPERATIONS_WORKSPACE_ENV] == str(plan.workspace.root)
-    assert "INDUSTRIAL_PHM_HISTORY_DATA" not in environment
-    assert "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY" not in environment
+    assert environment["INDUSTRIAL_PHM_HISTORY_DATA"] == "/tmp/wrong-history"
+    assert environment["INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY"] == "/tmp/wrong-registry"
 
 
 def test_supervisor_treats_sigterm_as_coordinated_clean_stop(tmp_path: Path) -> None:
