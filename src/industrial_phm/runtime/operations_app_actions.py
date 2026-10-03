@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, TypeVar
+from typing import Any
 
 from industrial_phm.application import (
     CollectionControlRecord,
@@ -26,9 +26,9 @@ from industrial_phm.application import (
     JsonOperationalFindingRepository,
     JsonSourceRepository,
     JsonSourceRuntimeRepository,
+    OpcUaSourceConfig,
     OperationalAnalysisResult,
     OperationalFinding,
-    OpcUaSourceConfig,
     RegisteredFieldFeatureAnalysis,
     RegisteredSource,
     SourceFreshnessPolicy,
@@ -242,13 +242,10 @@ def _load_registry_state(
     )
 
 
-_T = TypeVar("_T")
-
-
-def _run_async_in_worker(
-    factory: Callable[[], Coroutine[Any, Any, _T]],
-) -> _T:
-    def run() -> _T:
+def _run_async_in_worker[T](
+    factory: Callable[[], Coroutine[Any, Any, T]],
+) -> T:
+    def run() -> T:
         return asyncio.run(factory())
 
     with ThreadPoolExecutor(max_workers=1) as executor:
