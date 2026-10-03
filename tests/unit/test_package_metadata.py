@@ -11,6 +11,6 @@ def test_runtime_version_matches_installed_distribution_metadata() -> None:
 def test_operations_application_is_packaged_under_industrial_phm() -> None:
     path = operations_app_path()
 
-    assert path.name == "operations_v2.py"
+    assert path.name == "operations.py"
     assert path.is_file()
     assert path.parent.name == "apps"

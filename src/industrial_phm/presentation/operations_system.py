@@ -1,12 +1,12 @@
-"""Presentation helpers for the Operations V2 System workspace."""
+"""Presentation helpers for the Operations System workspace."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from html import escape
 
-from industrial_phm.application.operations_v2 import OperationsMonitorStatus
-from industrial_phm.application.operations_v2_system import (
+from industrial_phm.application.operations_monitor import OperationsMonitorStatus
+from industrial_phm.application.operations_system import (
     SystemRuntimeService,
     SystemRuntimeView,
 )

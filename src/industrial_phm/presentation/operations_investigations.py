@@ -1,11 +1,11 @@
-"""Presentation helpers for the Operations V2 Investigation workspace."""
+"""Presentation helpers for the Operations Investigation workspace."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from html import escape
 
-from industrial_phm.application.operations_v2_investigations import (
+from industrial_phm.application.operations_investigations import (
     InvestigationQueueGroup,
     InvestigationQueueItem,
     InvestigationReviewState,

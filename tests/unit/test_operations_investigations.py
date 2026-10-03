@@ -8,7 +8,7 @@ from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewEvent,
 )
-from industrial_phm.application.operations_v2_investigations import (
+from industrial_phm.application.operations_investigations import (
     InvestigationReviewState,
     build_investigation_queue,
 )

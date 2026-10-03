@@ -16,14 +16,7 @@ from industrial_phm.presentation.operations import (
     render_source_data_flow_markdown,
     render_unplaced_asset_evidence_markdown,
 )
-from industrial_phm.presentation.operations_v2 import (
-    OPERATIONS_V2_MAIN_BACKGROUND,
-    operations_v2_theme_css,
-    render_monitor_assets_html,
-    render_monitor_flow_html,
-    status_label,
-)
-from industrial_phm.presentation.operations_v2_assets import (
+from industrial_phm.presentation.operations_assets import (
     asset_workspace_css,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -31,7 +24,7 @@ from industrial_phm.presentation.operations_v2_assets import (
     render_asset_maintenance_html,
     render_asset_overview_html,
 )
-from industrial_phm.presentation.operations_v2_investigations import (
+from industrial_phm.presentation.operations_investigations import (
     investigation_capability_label,
     investigation_queue_option_label,
     investigation_review_label,
@@ -39,7 +32,7 @@ from industrial_phm.presentation.operations_v2_investigations import (
     render_investigation_evidence_identity_html,
     render_investigation_summary_html,
 )
-from industrial_phm.presentation.operations_v2_maintenance import (
+from industrial_phm.presentation.operations_maintenance import (
     maintenance_capability_label,
     maintenance_queue_label,
     maintenance_status_label,
@@ -48,14 +41,21 @@ from industrial_phm.presentation.operations_v2_maintenance import (
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
 )
-from industrial_phm.presentation.operations_v2_setup import (
+from industrial_phm.presentation.operations_setup import (
     lifecycle_action_label,
     render_setup_signals_html,
     render_setup_source_detail_html,
     render_setup_sources_html,
     setup_workspace_css,
 )
-from industrial_phm.presentation.operations_v2_system import (
+from industrial_phm.presentation.operations_shell import (
+    OPERATIONS_MAIN_BACKGROUND,
+    operations_theme_css,
+    render_monitor_assets_html,
+    render_monitor_flow_html,
+    status_label,
+)
+from industrial_phm.presentation.operations_system import (
     render_system_diagnostics_html,
     render_system_errors_html,
     render_system_runtime_html,
@@ -63,7 +63,7 @@ from industrial_phm.presentation.operations_v2_system import (
 )
 
 __all__ = [
-    "OPERATIONS_V2_MAIN_BACKGROUND",
+    "OPERATIONS_MAIN_BACKGROUND",
     "OperationalAnalysisPresentationKind",
     "asset_workspace_css",
     "investigation_capability_label",
@@ -76,7 +76,7 @@ __all__ = [
     "maintenance_status_label",
     "maintenance_workspace_css",
     "operational_analysis_presentation_kind",
-    "operations_v2_theme_css",
+    "operations_theme_css",
     "render_analysis_quality_markdown",
     "render_asset_analysis_html",
     "render_asset_analysis_markdown",

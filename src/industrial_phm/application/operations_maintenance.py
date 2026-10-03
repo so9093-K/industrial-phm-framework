@@ -1,4 +1,4 @@
-"""Maintenance review work queue for Operations V2."""
+"""Maintenance review work queue for Operations."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Concrete read-side composition for the packaged Operations V2 application.
+"""Concrete read-side composition for the packaged Operations application.
 
 The marimo app should render operator workflows, not know how every JSON/SQLite/
 DuckLake repository is wired. Shared path wiring is resolved by operations_app_wiring;
@@ -47,7 +47,7 @@ from industrial_phm.application import (
     validate_distinct_source_state_paths,
 )
 from industrial_phm.application.measurement_history import HistoryAssetSummary
-from industrial_phm.application.operations_v2_assets import AssetWorkspaceAnalysisAttempt
+from industrial_phm.application.operations_assets import AssetWorkspaceAnalysisAttempt
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.acquisition_spool import (
     SqliteAcquisitionSpool,

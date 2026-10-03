@@ -1,12 +1,12 @@
-"""HTML presenters for the Operations V2 asset workspace."""
+"""HTML presenters for the Operations asset workspace."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from html import escape
 
-from industrial_phm.application.operations_v2_assets import AssetWorkspaceView
-from industrial_phm.presentation.operations_v2 import status_label
+from industrial_phm.application.operations_assets import AssetWorkspaceView
+from industrial_phm.presentation.operations_shell import status_label
 
 
 def render_asset_header_html(view: AssetWorkspaceView) -> str:

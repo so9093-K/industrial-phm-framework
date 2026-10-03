@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     OperationsMonitorAsset,
     OperationsMonitorAttention,
     OperationsMonitorStage,
@@ -8,9 +8,9 @@ from industrial_phm.application.operations_v2 import (
     OperationsMonitorStatus,
     OperationsMonitorView,
 )
-from industrial_phm.presentation.operations_v2 import (
-    OPERATIONS_V2_MAIN_BACKGROUND,
-    operations_v2_theme_css,
+from industrial_phm.presentation.operations_shell import (
+    OPERATIONS_MAIN_BACKGROUND,
+    operations_theme_css,
     render_monitor_assets_html,
     render_monitor_flow_html,
 )
@@ -57,14 +57,14 @@ def _view() -> OperationsMonitorView:
 
 
 def test_v2_theme_uses_fixed_main_background() -> None:
-    assert OPERATIONS_V2_MAIN_BACKGROUND == "#292827"
-    assert "#292827" in operations_v2_theme_css()
+    assert OPERATIONS_MAIN_BACKGROUND == "#292827"
+    assert "#292827" in operations_theme_css()
 
 
 def test_v2_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() -> None:
     # marimo defaults to its light theme; without these switches its widgets and
     # markdown render light surfaces/dark text over the fixed dark background.
-    css = operations_v2_theme_css()
+    css = operations_theme_css()
     assert "--lightningcss-light: ;" in css
     assert "--lightningcss-dark: initial;" in css
     assert "--background: #292827;" in css

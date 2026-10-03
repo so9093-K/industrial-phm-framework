@@ -1,4 +1,4 @@
-"""User-question-oriented Operations V2 monitor read models.
+"""User-question-oriented Operations monitor read models.
 
 The V2 monitor translates existing operational evidence into a small operator-facing
 vocabulary. It does not create asset-health, fault, severity, alarm, or maintenance

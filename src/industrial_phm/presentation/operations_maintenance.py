@@ -1,4 +1,4 @@
-"""Presentation helpers for Operations V2 maintenance review workspace."""
+"""Presentation helpers for Operations maintenance review workspace."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.maintenance_review import FindingReviewStatus
-from industrial_phm.application.operations_v2_maintenance import MaintenanceQueueItem
+from industrial_phm.application.operations_maintenance import MaintenanceQueueItem
 
 
 def maintenance_status_label(status: FindingReviewStatus) -> str:

@@ -11,7 +11,7 @@ from industrial_phm.application import (
     build_operations_attention_queue,
     build_operations_overview,
 )
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     build_operations_monitor_view,

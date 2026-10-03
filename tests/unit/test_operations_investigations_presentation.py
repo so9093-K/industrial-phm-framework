@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
-from industrial_phm.application.operations_v2_investigations import (
+from industrial_phm.application.operations_investigations import (
     InvestigationQueueGroup,
     InvestigationQueueItem,
     InvestigationReviewState,
 )
-from industrial_phm.presentation.operations_v2_investigations import (
+from industrial_phm.presentation.operations_investigations import (
     investigation_capability_label,
     investigation_group_option_label,
     investigation_queue_option_label,

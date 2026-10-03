@@ -1,13 +1,13 @@
 from datetime import UTC, datetime, timedelta
 
 from industrial_phm.application.operations_attention import SystemStateErrorEvidence
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     OperationsMonitorStage,
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     OperationsMonitorView,
 )
-from industrial_phm.application.operations_v2_system import (
+from industrial_phm.application.operations_system import (
     SystemRuntimeKind,
     build_system_runtime_view,
 )

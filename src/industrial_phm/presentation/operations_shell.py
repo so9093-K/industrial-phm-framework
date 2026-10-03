@@ -1,18 +1,18 @@
-"""Framework-neutral HTML presenters for the Operations V2 shell."""
+"""Framework-neutral HTML presenters for the Operations shell."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from html import escape
 
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     OperationsMonitorAsset,
     OperationsMonitorStage,
     OperationsMonitorStatus,
     OperationsMonitorView,
 )
 
-OPERATIONS_V2_MAIN_BACKGROUND = "#292827"
+OPERATIONS_MAIN_BACKGROUND = "#292827"
 
 
 _STATUS_LABEL = {
@@ -26,19 +26,19 @@ _STATUS_LABEL = {
 }
 
 
-def operations_v2_theme_css() -> str:
-    """Return the V2 dark shell tokens without depending on a UI framework."""
+def operations_theme_css() -> str:
+    """Return the Operations dark shell tokens without depending on a UI framework."""
 
     return f"""
 <style>
 /* marimo colours every widget through light-dark() switches keyed on these
-   properties and defaults to its light theme; pin its dark palette so the V2
+   properties and defaults to its light theme; pin its dark palette so the Operations
    background never sits behind light-theme surfaces or text. */
 :root:root, .marimo {{
   --csstools-color-scheme--light: ;
   --lightningcss-light: ;
   --lightningcss-dark: initial;
-  --background: {OPERATIONS_V2_MAIN_BACKGROUND};
+  --background: {OPERATIONS_MAIN_BACKGROUND};
   color-scheme: dark;
 }}
 /* Markdown prose switches to its inverted palette only under a .dark class. */
@@ -63,7 +63,7 @@ def operations_v2_theme_css() -> str:
 }}
 :root {{
   color-scheme: dark;
-  --phm-bg: {OPERATIONS_V2_MAIN_BACKGROUND};
+  --phm-bg: {OPERATIONS_MAIN_BACKGROUND};
   --phm-surface: #323130;
   --phm-surface-raised: #373634;
   --phm-border: rgba(255,255,255,.08);

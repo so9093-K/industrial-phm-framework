@@ -1,4 +1,4 @@
-"""Investigation queue projections for Operations V2."""
+"""Investigation queue projections for Operations."""
 
 from __future__ import annotations
 

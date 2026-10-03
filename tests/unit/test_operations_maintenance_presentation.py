@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application.maintenance_review import FindingReviewAction, FindingReviewStatus
-from industrial_phm.application.operations_v2_maintenance import (
+from industrial_phm.application.operations_maintenance import (
     MaintenanceQueueItem,
     MaintenanceReviewTimelineItem,
 )
-from industrial_phm.presentation.operations_v2_maintenance import (
+from industrial_phm.presentation.operations_maintenance import (
     maintenance_queue_label,
     maintenance_status_label,
     maintenance_workspace_css,

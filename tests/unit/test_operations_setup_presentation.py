@@ -1,14 +1,14 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application.collection_control import CollectionDesiredState
-from industrial_phm.application.operations_v2_setup import (
+from industrial_phm.application.operations_setup import (
     SetupSignalView,
     SetupSourceView,
     SetupWorkspaceView,
 )
 from industrial_phm.application.source_lifecycle import SourceLifecycleState
 from industrial_phm.application.source_registration import SourceType
-from industrial_phm.presentation.operations_v2_setup import (
+from industrial_phm.presentation.operations_setup import (
     render_setup_signals_html,
     render_setup_source_detail_html,
     render_setup_sources_html,

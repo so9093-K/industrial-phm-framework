@@ -8,7 +8,7 @@ from industrial_phm.application.maintenance_review import (
     FindingReviewStatus,
 )
 from industrial_phm.application.operational import OperationalFinding
-from industrial_phm.application.operations_v2_maintenance import build_maintenance_queue
+from industrial_phm.application.operations_maintenance import build_maintenance_queue
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
 

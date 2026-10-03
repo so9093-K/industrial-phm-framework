@@ -1,4 +1,4 @@
-"""Single composition root consumed by the packaged Operations V2 UI."""
+"""Single composition root consumed by the packaged Operations UI."""
 
 from __future__ import annotations
 

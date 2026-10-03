@@ -1,11 +1,11 @@
-"""Presentation helpers for the Operations V2 Setup workspace."""
+"""Presentation helpers for the Operations Setup workspace."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from html import escape
 
-from industrial_phm.application.operations_v2_setup import (
+from industrial_phm.application.operations_setup import (
     SetupSourceView,
     SetupWorkspaceView,
 )

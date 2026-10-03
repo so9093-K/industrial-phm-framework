@@ -10,7 +10,7 @@ from industrial_phm.application.measurement_semantics import (
     ChannelSemanticBinding,
     MeasurementDefinition,
 )
-from industrial_phm.application.operations_v2_setup import build_setup_workspace
+from industrial_phm.application.operations_setup import build_setup_workspace
 from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,

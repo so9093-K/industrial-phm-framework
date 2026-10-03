@@ -1,4 +1,4 @@
-"""Setup workspace projections for Operations V2."""
+"""Setup workspace projections for Operations."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Asset workspace projections for the Operations V2 migration."""
+"""Asset workspace projections for the Operations migration."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from industrial_phm.application.maintenance_review import (
 )
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operational import OperationalAnalysisResult
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     LiveFlowTiming,
     OperationsMonitorAsset,
     OperationsMonitorStatus,

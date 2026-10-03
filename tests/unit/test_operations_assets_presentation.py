@@ -3,8 +3,7 @@ from datetime import UTC, datetime
 from industrial_phm.application.asset_detail import AssetEvidenceEventKind
 from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.maintenance_review import FindingReviewStatus
-from industrial_phm.application.operations_v2 import OperationsMonitorStatus
-from industrial_phm.application.operations_v2_assets import (
+from industrial_phm.application.operations_assets import (
     AssetWorkspaceAnalysis,
     AssetWorkspaceAnalysisAttempt,
     AssetWorkspaceEvent,
@@ -12,8 +11,9 @@ from industrial_phm.application.operations_v2_assets import (
     AssetWorkspaceSource,
     AssetWorkspaceView,
 )
+from industrial_phm.application.operations_monitor import OperationsMonitorStatus
 from industrial_phm.application.source_registration import SourceType
-from industrial_phm.presentation.operations_v2_assets import (
+from industrial_phm.presentation.operations_assets import (
     asset_workspace_css,
     render_asset_analysis_html,
     render_asset_events_html,

@@ -1,4 +1,4 @@
-"""Operations V2 must render once analysis results and review requests exist."""
+"""Operations must render once analysis results and review requests exist."""
 
 import ast
 import runpy

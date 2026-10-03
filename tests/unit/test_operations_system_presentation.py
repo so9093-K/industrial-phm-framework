@@ -1,13 +1,13 @@
 from datetime import UTC, datetime
 
-from industrial_phm.application.operations_v2 import OperationsMonitorStatus
-from industrial_phm.application.operations_v2_system import (
+from industrial_phm.application.operations_monitor import OperationsMonitorStatus
+from industrial_phm.application.operations_system import (
     SystemRuntimeFact,
     SystemRuntimeKind,
     SystemRuntimeService,
     SystemRuntimeView,
 )
-from industrial_phm.presentation.operations_v2_system import (
+from industrial_phm.presentation.operations_system import (
     render_system_diagnostics_html,
     render_system_errors_html,
     render_system_runtime_html,

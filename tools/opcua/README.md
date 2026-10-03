@@ -39,7 +39,7 @@ In a third terminal, open Operations with the same state paths:
 
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live-demo
-uv run --no-sync marimo run src/industrial_phm/apps/operations_v2.py
+uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
 1. Setup → Data Sources: select `demo-opcua`, then **Start collection**. This records the desired
@@ -116,12 +116,12 @@ Runner는 기본적으로 analysis result 옆
 `--runtime-status <path>`를 사용합니다. 이 telemetry는 Operations가 runner를 시작·중지하기 위한
 control state가 아니라, 독립 process가 실제로 갱신되고 있는지 관측하기 위한 evidence입니다.
 
-Operations V2 Monitor로 이 상태까지 함께 보려면 동일한 source/acquisition 환경변수에 다음을 추가해
+Operations Monitor로 이 상태까지 함께 보려면 동일한 source/acquisition 환경변수에 다음을 추가해
 실행합니다.
 
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live-3phase
-uv run --no-sync marimo run src/industrial_phm/apps/operations_v2.py
+uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
 The collection service reads newly durable history through a bounded ingestion cursor and stores
@@ -208,7 +208,7 @@ uv run --no-sync industrial-phm internal window-analysis \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
 
 export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/phase10
-uv run --no-sync marimo run src/industrial_phm/apps/operations_v2.py
+uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
 Then use Setup → **Start collection**. The workspace root projects the source/runtime/control/spool,
@@ -234,7 +234,7 @@ uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3
 
 Only a run with every scenario, `--repeat` of at least 3 and `--browser` is recorded as `"gate": "full"`.
 A run with `--scenarios`, a smaller N or no browser check is `"gate": "diagnostic"` and does not stand in for
-the #321 gate. `--browser` starts `marimo run src/industrial_phm/apps/operations_v2.py` against the harness root and opens
+the #321 gate. `--browser` starts `marimo run src/industrial_phm/apps/operations.py` against the harness root and opens
 Monitor in Chromium through `uv run --no-sync --with playwright` (screenshots: `<root>/ui-*.png`).
 
 Scenarios: collector stall (SIGSTOP), source stall, collector kill/restart (SIGKILL), analysis runner

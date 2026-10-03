@@ -36,15 +36,15 @@ def _():
         FindingReviewStatus,
     )
     from industrial_phm.application.measurement_history import resolve_measurement_range
-    from industrial_phm.application.operations_v2_assets import build_asset_workspace_view
-    from industrial_phm.application.operations_v2_investigations import (
+    from industrial_phm.application.operations_assets import build_asset_workspace_view
+    from industrial_phm.application.operations_investigations import (
         InvestigationReviewState,
     )
     from industrial_phm.connectors import OpcUaNodeMapping
     from industrial_phm.presentation import (
         OperationalAnalysisPresentationKind,
         operational_analysis_presentation_kind,
-        operations_v2_theme_css,
+        operations_theme_css,
         render_analysis_quality_markdown,
         render_monitor_assets_html,
         render_monitor_flow_html,
@@ -66,7 +66,7 @@ def _():
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
     )
-    from industrial_phm.presentation.operations_v2_assets import (
+    from industrial_phm.presentation.operations_assets import (
         asset_workspace_css,
         render_asset_analysis_html,
         render_asset_events_html,
@@ -74,7 +74,7 @@ def _():
         render_asset_maintenance_html,
         render_asset_overview_html,
     )
-    from industrial_phm.presentation.operations_v2_investigations import (
+    from industrial_phm.presentation.operations_investigations import (
         investigation_capability_label,
         investigation_group_option_label,
         investigation_queue_option_label,
@@ -83,7 +83,7 @@ def _():
         render_investigation_evidence_identity_html,
         render_investigation_summary_html,
     )
-    from industrial_phm.presentation.operations_v2_maintenance import (
+    from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
         maintenance_status_label,
         maintenance_workspace_css,
@@ -146,7 +146,7 @@ def _():
         measurement_history_rows,
         mo,
         operational_analysis_presentation_kind,
-        operations_v2_theme_css,
+        operations_theme_css,
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
         phase_unbalance_summary_rows,
@@ -3016,7 +3016,7 @@ def _(
     mo,
     monitor,
     navigation,
-    operations_v2_theme_css,
+    operations_theme_css,
     refresh_button,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -3033,7 +3033,7 @@ def _(
     UTC,
 ):
     theme = mo.Html(
-        operations_v2_theme_css()
+        operations_theme_css()
         + asset_workspace_css()
         + investigation_workspace_css()
         + maintenance_workspace_css()

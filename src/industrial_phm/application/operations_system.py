@@ -1,4 +1,4 @@
-"""Operator-facing System runtime projection for Operations V2."""
+"""Operator-facing System runtime projection for Operations."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from industrial_phm.application.acquisition_telemetry import (
 )
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operations_attention import SystemStateErrorEvidence
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     COLLECTION_SERVICE_TIMEOUT,
     OperationsMonitorStage,
     OperationsMonitorStageKind,

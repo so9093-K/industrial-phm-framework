@@ -10,7 +10,7 @@ on:
       - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/application/**"
       - "src/industrial_phm/presentation/**"
-      - "tests/integration/test_operations_v2_app.py"
+      - "tests/integration/test_operations_app.py"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
       - "src/industrial_phm/genai/**"
@@ -33,7 +33,7 @@ on:
       - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/application/**"
       - "src/industrial_phm/presentation/**"
-      - "tests/integration/test_operations_v2_app.py"
+      - "tests/integration/test_operations_app.py"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
       - "src/industrial_phm/genai/**"
@@ -84,12 +84,12 @@ jobs:
       - name: Check marimo analysis files
         run: |
           uv run --locked --group research --extra operations marimo check --strict \
-            notebooks/*.py apps/*.py src/industrial_phm/apps/operations_v2.py
+            notebooks/*.py apps/*.py src/industrial_phm/apps/operations.py
 
       - name: Render Operations with analysis results and review requests
         run: |
           uv run --locked --group research --extra operations pytest \
-            tests/integration/test_operations_v2_app.py
+            tests/integration/test_operations_app.py
 
       - name: Execute Developer Workbench across validated experiment evidence
         run: |
@@ -127,7 +127,7 @@ jobs:
             --no-include-code \
             --output /tmp/analysis-explorer-mimii-inspection.html
 
-      - name: Execute PHM Operations V2 registered-source surfaces
+      - name: Execute PHM Operations registered-source surfaces
         run: |
           uv run --locked --group research python - <<'PY'
           from datetime import datetime
@@ -230,20 +230,20 @@ jobs:
           EOF
           INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-file-workspace \
             uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations_v2.py \
+            src/industrial_phm/apps/operations.py \
             --no-include-code \
             --output /tmp/phm-operations-file-registry.html
 
           INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-file-workspace \
           INDUSTRIAL_PHM_OPERATIONS_REGISTRATION_TYPE=opcua \
             uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations_v2.py \
+            src/industrial_phm/apps/operations.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-registration.html
 
           INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-opcua-workspace \
             uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations_v2.py \
+            src/industrial_phm/apps/operations.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-attempt-evidence.html
 
@@ -251,6 +251,6 @@ jobs:
           printf '{not-json' > /tmp/operations-invalid-workspace/sources.json
           INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-invalid-workspace \
             uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations_v2.py \
+            src/industrial_phm/apps/operations.py \
             --no-include-code \
             --output /tmp/phm-operations-invalid-registry.html
