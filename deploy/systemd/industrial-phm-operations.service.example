@@ -14,7 +14,7 @@ User=industrial-phm
 Group=industrial-phm
 UMask=0077
 
-ExecStartPre=/opt/industrial-phm/.venv/bin/industrial-phm operations preflight /var/lib/industrial-phm/plant-a
+ExecStartPre=/opt/industrial-phm/.venv/bin/industrial-phm validate deployment /var/lib/industrial-phm/plant-a
 ExecStart=/opt/industrial-phm/.venv/bin/industrial-phm operations start /var/lib/industrial-phm/plant-a
 
 Restart=on-failure

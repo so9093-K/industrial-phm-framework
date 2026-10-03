@@ -10,7 +10,7 @@ Run preflight **as the same OS account that will run the service** and use an ab
 
 ```bash
 /opt/industrial-phm/.venv/bin/industrial-phm \
-  operations preflight /var/lib/industrial-phm/plant-a
+  validate deployment /var/lib/industrial-phm/plant-a
 ```
 
 Preflight checks the versioned runtime config/plan, packaged Operations dependencies, current account
@@ -43,7 +43,7 @@ the host and replace the executable, user/group and absolute workspace path.
 
 The unit uses:
 
-- `ExecStartPre=... operations preflight ...` to fail before child processes start when deployment
+- `ExecStartPre=... validate deployment ...` to fail before child processes start when deployment
   prerequisites are invalid.
 - `Restart=on-failure`, so clean/manual stops do not create a restart loop while unexpected non-zero
   runtime exits can be restarted by the service manager.

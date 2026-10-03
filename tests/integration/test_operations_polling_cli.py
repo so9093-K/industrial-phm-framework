@@ -85,7 +85,7 @@ def test_operations_poll_source_runs_bounded_active_cycles(
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "poll-source",
             "--registry",
             str(registry_path),
@@ -148,7 +148,7 @@ def test_operations_poll_source_dispatches_registered_opcua_source(
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "poll-source",
             "--registry",
             str(registry_path),
@@ -177,7 +177,7 @@ def test_operations_poll_source_returns_action_required_for_non_active_source(
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "poll-source",
             "--registry",
             str(registry_path),
@@ -205,7 +205,7 @@ def test_operations_poll_source_rejects_shared_registry_runtime_path(
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "poll-source",
             "--registry",
             str(registry_path),

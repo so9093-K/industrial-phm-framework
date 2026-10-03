@@ -6,7 +6,7 @@ def test_systemd_reference_unit_preserves_supervisor_ownership() -> None:
         encoding="utf-8"
     )
 
-    assert "operations preflight /var/lib/industrial-phm/plant-a" in unit
+    assert "validate deployment /var/lib/industrial-phm/plant-a" in unit
     assert "operations start /var/lib/industrial-phm/plant-a" in unit
     assert "Restart=on-failure" in unit
     assert "RestartSec=5s" in unit

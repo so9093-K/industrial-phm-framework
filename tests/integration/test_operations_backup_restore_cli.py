@@ -38,14 +38,14 @@ def test_operations_backup_restore_cli_round_trip_with_history_payload(
     workspace.logs_path.joinpath("collection.log").write_text("do-not-back-up\n", encoding="utf-8")
 
     backup = tmp_path / "backup-a"
-    assert main(["operations", "backup", str(workspace.root), str(backup)]) == 0
+    assert main(["maintenance", "backup", str(workspace.root), str(backup)]) == 0
     backup_output = capsys.readouterr().out
     assert f"workspace={workspace.root}" in backup_output
     assert f"backup={backup}" in backup_output
     assert "schema=industrial-phm-operations-backup-v1" in backup_output
 
     restored = OperationsWorkspace(tmp_path / "plant-restored")
-    assert main(["operations", "restore", str(backup), str(restored.root)]) == 0
+    assert main(["maintenance", "restore", str(backup), str(restored.root)]) == 0
     restore_output = capsys.readouterr().out
     assert "state=restored" in restore_output
 
@@ -96,11 +96,11 @@ def test_operations_restore_refuses_ducklake_absolute_paths(
         catalog.close()
 
     backup = tmp_path / "backup-a"
-    assert main(["operations", "backup", str(workspace.root), str(backup)]) == 0
+    assert main(["maintenance", "backup", str(workspace.root), str(backup)]) == 0
     capsys.readouterr()
 
     restored = OperationsWorkspace(tmp_path / "plant-restored")
-    exit_code = main(["operations", "restore", str(backup), str(restored.root)])
+    exit_code = main(["maintenance", "restore", str(backup), str(restored.root)])
 
     assert exit_code == 1
     assert "absolute/custom paths" in capsys.readouterr().err
