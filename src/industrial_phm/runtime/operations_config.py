@@ -13,9 +13,7 @@ from numbers import Real
 from pathlib import Path
 from typing import cast
 
-OPERATIONS_CONFIG_SCHEMA_V1 = "industrial-phm-operations-runtime-v1"
 OPERATIONS_CONFIG_SCHEMA = "industrial-phm-operations-runtime-v2"
-_ROOT_KEYS_V1 = frozenset({"schema", "collection", "analysis"})
 _ROOT_KEYS = frozenset({"schema", "collection", "analysis", "ui"})
 _COLLECTION_KEYS = frozenset(
     {
@@ -129,7 +127,7 @@ class OperationsRuntimeConfig:
 
 
 def load_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
-    """Load a workspace config while preserving defaults for omitted v1 policy tables."""
+    """Load one current Operations workspace configuration."""
     if not path.is_file():
         raise OSError(f"Operations config does not exist: {path}")
 
@@ -145,35 +143,18 @@ def load_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
     schema = root["schema"]
     if not isinstance(schema, str):
         raise OperationsConfigFormatError("Operations config schema must be a string")
-    if schema == OPERATIONS_CONFIG_SCHEMA_V1:
-        _reject_unknown_keys(root, _ROOT_KEYS_V1, "Operations config")
-    elif schema == OPERATIONS_CONFIG_SCHEMA:
-        _reject_unknown_keys(root, _ROOT_KEYS, "Operations config")
-    else:
+    if schema != OPERATIONS_CONFIG_SCHEMA:
         raise OperationsConfigFormatError(f"unsupported Operations config schema: {schema!r}")
+    _reject_unknown_keys(root, _ROOT_KEYS, "Operations config")
 
     collection = _load_collection_config(root.get("collection"))
     analysis = _load_analysis_config(root.get("analysis"))
-    ui = (
-        OperationsUiConfig()
-        if schema == OPERATIONS_CONFIG_SCHEMA_V1
-        else _load_ui_config(root.get("ui"))
-    )
+    ui = _load_ui_config(root.get("ui"))
     return OperationsRuntimeConfig(
         collection=collection,
         analysis=analysis,
         ui=ui,
     )
-
-
-def upgrade_operations_runtime_config(path: Path) -> OperationsRuntimeConfig:
-    """Load and atomically normalize a supported older config to the current schema."""
-    config = load_operations_runtime_config(path)
-    raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    source_schema = raw.get("schema")
-    if source_schema != OPERATIONS_CONFIG_SCHEMA:
-        write_operations_runtime_config(path, config)
-    return config
 
 
 def write_operations_runtime_config(
