@@ -31,7 +31,7 @@ reuse the existing state. `--root` and `--endpoint` select a different isolated 
 In a second terminal, start the independent collector:
 
 ```bash
-uv run --no-sync industrial-phm operations run-collection-service \
+uv run --no-sync industrial-phm internal collection-service \
   --workspace artifacts/live-demo
 ```
 
@@ -63,7 +63,7 @@ Live and FILE backfill history stays inlined in the SQLite catalog until flushed
 move it to Parquet with the same catalog/data paths (it waits for the shared catalog lease):
 
 ```bash
-uv run --no-sync industrial-phm operations flush-history \
+uv run --no-sync industrial-phm maintenance history flush \
   --ducklake-catalog artifacts/live-demo/catalog.sqlite \
   --ducklake-data artifacts/live-demo/data
 ```
@@ -75,7 +75,7 @@ call so the catalog lease is released between tables. `--max-compacted-files` is
 output-operation limit, not an input-file count bound; no automatic schedule or retention threshold is implied.
 
 ```bash
-uv run --no-sync industrial-phm operations compact-history \
+uv run --no-sync industrial-phm maintenance history compact \
   --ducklake-catalog artifacts/live-demo/catalog.sqlite \
   --ducklake-data artifacts/live-demo/data \
   --max-compacted-files 32 \
@@ -106,7 +106,7 @@ Run the collector with the `artifacts/live-3phase` paths as above (optionally
 `demo-3phase-opcua`, and run the window analysis runner as its own process:
 
 ```bash
-uv run --no-sync industrial-phm operations run-window-analysis \
+uv run --no-sync industrial-phm internal window-analysis \
   --workspace artifacts/live-3phase
 ```
 
@@ -142,7 +142,7 @@ changed values, so a stable phase may be missing at most timestamps. When the de
 justifies it, the runner can carry a phase's latest earlier value within a stated age (ADR-0009):
 
 ```bash
-uv run --no-sync industrial-phm operations run-window-analysis ... \
+uv run --no-sync industrial-phm internal window-analysis ... \
   --alignment bounded-previous --max-carry-age-seconds 2 \
   --alignment-basis "simulator writes every phase each second"
 ```
@@ -198,11 +198,11 @@ collector uses 30 recorded minutes per window at 60x, and the runner records the
 basis explicitly:
 
 ```bash
-uv run --no-sync industrial-phm operations run-collection-service \
+uv run --no-sync industrial-phm internal collection-service \
   --workspace artifacts/phase10 \
   --window-duration-seconds 30 --allowed-lateness-seconds 2
 
-uv run --no-sync industrial-phm operations run-window-analysis \
+uv run --no-sync industrial-phm internal window-analysis \
   --workspace artifacts/phase10 \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
