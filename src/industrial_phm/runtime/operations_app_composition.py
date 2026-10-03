@@ -1,0 +1,655 @@
+"""Concrete read-side composition for the packaged Operations V2 application.
+
+The marimo app should render operator workflows, not know how every JSON/SQLite/
+DuckLake repository is wired. This module owns path resolution and one bounded,
+error-tolerant operational snapshot from the existing authoritative repositories.
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from industrial_phm.application import (
+    AcquisitionTelemetrySurface,
+    CollectionControlRecord,
+    CollectionServiceRuntimeTelemetry,
+    FindingReviewEvent,
+    JsonFieldFeatureAnalysisRepository,
+    JsonFindingReviewRepository,
+    JsonOperationalFindingRepository,
+    JsonSourceRepository,
+    JsonSourceRuntimeRepository,
+    JsonWindowAnalysisRuntimeRepository,
+    LiveFlowTiming,
+    OperationalAnalysisResult,
+    OperationalFinding,
+    OperationsMonitorView,
+    OperationsOverview,
+    PhaseUnbalanceAnalysis,
+    RegisteredFieldFeatureAnalysis,
+    RegisteredSource,
+    SourceConnectionAttemptEvidence,
+    SourceFreshnessPolicy,
+    SourceLifecycleRecord,
+    SourceReceiptEvidence,
+    SourceType,
+    SqliteObservationWindowRepository,
+    SqlitePhaseUnbalanceRepository,
+    SqliteWindowAnalysisLedger,
+    SystemStateErrorEvidence,
+    WindowAnalysisRunnerTelemetry,
+    WindowAnalysisState,
+    build_operations_attention_queue,
+    build_operations_monitor_view,
+    build_operations_overview,
+    collection_service_issue,
+    validate_distinct_source_state_paths,
+)
+from industrial_phm.application.measurement_history import HistoryAssetSummary
+from industrial_phm.application.operations_v2_assets import AssetWorkspaceAnalysisAttempt
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.runtime.acquisition_spool import (
+    SqliteAcquisitionSpool,
+    SqliteAcquisitionSpoolConfig,
+)
+from industrial_phm.runtime.acquisition_telemetry import (
+    SqliteAcquisitionTelemetryRepository,
+)
+from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+
+_PHASE_RESULT_LIMIT = 500
+
+
+@dataclass(frozen=True, slots=True)
+class OperationsAppPaths:
+    """Resolved persistent paths used by one Operations V2 render."""
+
+    workspace: OperationsWorkspace | None
+    registry: Path
+    source_runtime: Path
+    acquisition_telemetry: Path
+    acquisition_spool: Path
+    collection_control: Path
+    field_analysis: Path
+    phase_analysis: Path
+    analysis_runtime: Path
+    window_state: Path
+    analysis_ledger: Path
+    findings: Path
+    review: Path
+    history_catalog: Path
+    history_data: Path
+    phase_analysis_explicit: bool
+
+
+@dataclass(frozen=True, slots=True)
+class OperationsAppSnapshot:
+    """Bounded operator-facing evidence loaded from concrete repositories."""
+
+    paths: OperationsAppPaths
+    assessed_at: datetime
+    registered_sources: tuple[RegisteredSource, ...]
+    lifecycle_records: tuple[SourceLifecycleRecord, ...]
+    freshness_policies: tuple[SourceFreshnessPolicy, ...]
+    analysis_results: tuple[OperationalAnalysisResult, ...]
+    findings: tuple[OperationalFinding, ...]
+    review_events: tuple[FindingReviewEvent, ...]
+    acquisition_surfaces: tuple[AcquisitionTelemetrySurface, ...]
+    collection_service: CollectionServiceRuntimeTelemetry | None
+    analysis_runtime: WindowAnalysisRunnerTelemetry | None
+    history_reader: DuckLakeAssetHistory | None
+    history_assets: tuple[HistoryAssetSummary, ...]
+    collection_records: tuple[CollectionControlRecord, ...]
+    skipped_analysis_attempts: tuple[AssetWorkspaceAnalysisAttempt, ...]
+    overview: OperationsOverview
+    monitor: OperationsMonitorView
+    live_flow_timing: LiveFlowTiming
+    system_diagnostics: tuple[tuple[str, str], ...]
+    system_errors: tuple[SystemStateErrorEvidence, ...]
+
+
+def resolve_operations_app_paths(
+    environ: Mapping[str, str] | None = None,
+) -> OperationsAppPaths:
+    """Resolve the product workspace first, retaining legacy path compatibility."""
+    values = os.environ if environ is None else environ
+    workspace_root = values.get("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE")
+    workspace = None if workspace_root is None else OperationsWorkspace(Path(workspace_root))
+
+    def runtime_path(
+        env_name: str,
+        workspace_path: Path | None,
+        legacy_default: str | Path,
+    ) -> Path:
+        default = Path(legacy_default) if workspace is None else workspace_path
+        if default is None:
+            raise AssertionError(f"workspace path is required for {env_name}")
+        return Path(values.get(env_name, str(default)))
+
+    registry = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
+        None if workspace is None else workspace.source_registry_path,
+        "artifacts/operations/source-registry.json",
+    )
+    source_runtime = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
+        None if workspace is None else workspace.source_runtime_path,
+        "artifacts/operations/source-runtime.json",
+    )
+    acquisition_telemetry = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
+        None if workspace is None else workspace.acquisition_telemetry_path,
+        "artifacts/operations/acquisition-telemetry.sqlite",
+    )
+    acquisition_spool = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
+        None if workspace is None else workspace.acquisition_spool_path,
+        "artifacts/operations/acquisition-spool.sqlite",
+    )
+    collection_control = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
+        None if workspace is None else workspace.collection_control_path,
+        "artifacts/operations/collection-control.sqlite",
+    )
+    field_analysis = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE",
+        None if workspace is None else workspace.field_analysis_path,
+        "artifacts/operations/field-analysis.json",
+    )
+    phase_analysis = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
+        None if workspace is None else workspace.phase_unbalance_state_path,
+        "artifacts/operations/phase-unbalance.sqlite",
+    )
+    analysis_runtime = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
+        None if workspace is None else workspace.analysis_runtime_path,
+        phase_analysis.with_name(f"{phase_analysis.stem}-runtime.json"),
+    )
+    window_state = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
+        None if workspace is None else workspace.window_state_path,
+        phase_analysis.with_name("windows.sqlite"),
+    )
+    analysis_ledger = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
+        None if workspace is None else workspace.analysis_ledger_path,
+        phase_analysis.with_name("window-analysis-ledger.sqlite"),
+    )
+    findings = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE",
+        None if workspace is None else workspace.finding_state_path,
+        "artifacts/operations/findings.json",
+    )
+    review = runtime_path(
+        "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
+        None if workspace is None else workspace.maintenance_review_state_path,
+        "artifacts/operations/finding-review.json",
+    )
+    history_catalog = runtime_path(
+        "INDUSTRIAL_PHM_HISTORY_CATALOG",
+        None if workspace is None else workspace.history_catalog_path,
+        "artifacts/operations/history/catalog.sqlite",
+    )
+    history_data = runtime_path(
+        "INDUSTRIAL_PHM_HISTORY_DATA",
+        None if workspace is None else workspace.history_data_path,
+        "artifacts/operations/history/data",
+    )
+    return OperationsAppPaths(
+        workspace=workspace,
+        registry=registry,
+        source_runtime=source_runtime,
+        acquisition_telemetry=acquisition_telemetry,
+        acquisition_spool=acquisition_spool,
+        collection_control=collection_control,
+        field_analysis=field_analysis,
+        phase_analysis=phase_analysis,
+        analysis_runtime=analysis_runtime,
+        window_state=window_state,
+        analysis_ledger=analysis_ledger,
+        findings=findings,
+        review=review,
+        history_catalog=history_catalog,
+        history_data=history_data,
+        phase_analysis_explicit="INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE" in values,
+    )
+
+
+def load_operations_app_snapshot(
+    *,
+    environ: Mapping[str, str] | None = None,
+    assessed_at: datetime | None = None,
+) -> OperationsAppSnapshot:
+    """Load one bounded read snapshot without hiding repository-specific failures."""
+    paths = resolve_operations_app_paths(environ)
+    effective_at = datetime.now(UTC) if assessed_at is None else assessed_at
+    if effective_at.utcoffset() is None:
+        raise ValueError("assessed_at must be timezone-aware")
+
+    system_errors: list[SystemStateErrorEvidence] = []
+    _append_legacy_phase_migration_error(paths, effective_at, system_errors)
+
+    registered_sources, lifecycle_records, freshness_policies = _load_sources(
+        paths, effective_at, system_errors
+    )
+    receipts, connection_attempts = _load_source_runtime(
+        paths, registered_sources, effective_at, system_errors
+    )
+    field_results = _load_field_results(paths, effective_at, system_errors)
+    phase_results, phase_repository, phase_result_total = _load_phase_results(
+        paths, effective_at, system_errors
+    )
+    skipped_analysis_attempts = _load_skipped_analysis_attempts(paths, effective_at, system_errors)
+    findings = _load_findings(paths, effective_at, system_errors)
+    phase_results = _include_review_referenced_phase_results(
+        phase_results,
+        phase_repository,
+        findings,
+        effective_at,
+        system_errors,
+    )
+    phase_result_query_summary = (
+        f"loaded {len(phase_results)} of {phase_result_total}; "
+        f"newest up to {_PHASE_RESULT_LIMIT} plus review-referenced exact runs"
+        if phase_repository is not None
+        else "unavailable"
+    )
+    analysis_results: tuple[OperationalAnalysisResult, ...] = tuple(
+        sorted(
+            (*field_results, *phase_results),
+            key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
+        )
+    )
+    analysis_runs = tuple(item.run for item in analysis_results)
+    review_events = _load_review_events(paths, effective_at, system_errors)
+
+    overview = build_operations_overview(
+        sources=registered_sources,
+        lifecycle_records=lifecycle_records,
+        receipts=receipts,
+        freshness_policies=freshness_policies,
+        connection_attempts=connection_attempts,
+        analysis_runs=analysis_runs,
+        findings=findings,
+        review_events=review_events,
+        as_of=effective_at,
+    )
+    acquisition_surfaces, collection_service = _load_acquisition(
+        paths, registered_sources, effective_at, system_errors
+    )
+    analysis_runtime = _load_analysis_runtime(paths, effective_at, system_errors)
+    history_reader, history_assets = _load_history(paths, effective_at, system_errors)
+    collection_records = _load_collection_records(paths, effective_at, system_errors)
+
+    attention = build_operations_attention_queue(
+        overview=overview,
+        system_errors=tuple(system_errors),
+    )
+    monitor = build_operations_monitor_view(
+        sources=registered_sources,
+        overview=overview,
+        attention=attention,
+        acquisition_surfaces=acquisition_surfaces,
+        analysis_runs=analysis_runs,
+        analysis_runtime=analysis_runtime,
+        collection_service=collection_service,
+        as_of=effective_at,
+    )
+    live_flow_timing = LiveFlowTiming(
+        max_silence=timedelta(seconds=30),
+        as_of=effective_at,
+        collection_service_down=collection_service_issue(
+            collection_service,
+            as_of=effective_at,
+            timeout=timedelta(seconds=20),
+            live_telemetry=bool(acquisition_surfaces),
+        )
+        is not None,
+    )
+    diagnostics = (
+        ("Source registry", str(paths.registry)),
+        ("Source runtime", str(paths.source_runtime)),
+        ("Acquisition telemetry", str(paths.acquisition_telemetry)),
+        ("Acquisition spool", str(paths.acquisition_spool)),
+        ("Collection control", str(paths.collection_control)),
+        ("Asset History catalog", str(paths.history_catalog)),
+        ("Asset History data", str(paths.history_data)),
+        ("Vibration analysis", str(paths.field_analysis)),
+        ("Three-phase analysis", str(paths.phase_analysis)),
+        ("Three-phase result query", phase_result_query_summary),
+        ("Analysis service runtime", str(paths.analysis_runtime)),
+        ("Finalized windows", str(paths.window_state)),
+        ("Analysis skip ledger", str(paths.analysis_ledger)),
+        ("Review requests", str(paths.findings)),
+        ("Maintenance review", str(paths.review)),
+    )
+    return OperationsAppSnapshot(
+        paths=paths,
+        assessed_at=effective_at,
+        registered_sources=registered_sources,
+        lifecycle_records=lifecycle_records,
+        freshness_policies=freshness_policies,
+        analysis_results=analysis_results,
+        findings=findings,
+        review_events=review_events,
+        acquisition_surfaces=acquisition_surfaces,
+        collection_service=collection_service,
+        analysis_runtime=analysis_runtime,
+        history_reader=history_reader,
+        history_assets=history_assets,
+        collection_records=collection_records,
+        skipped_analysis_attempts=skipped_analysis_attempts,
+        overview=overview,
+        monitor=monitor,
+        live_flow_timing=live_flow_timing,
+        system_diagnostics=diagnostics,
+        system_errors=tuple(system_errors),
+    )
+
+
+def _append_error(
+    errors: list[SystemStateErrorEvidence],
+    scope: str,
+    error: object,
+    assessed_at: datetime,
+) -> None:
+    errors.append(SystemStateErrorEvidence(scope, str(error), assessed_at))
+
+
+def _append_legacy_phase_migration_error(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> None:
+    legacy_path = paths.phase_analysis.with_suffix(".json")
+    if (
+        not paths.phase_analysis_explicit
+        and not paths.phase_analysis.exists()
+        and legacy_path.is_file()
+    ):
+        errors.append(
+            SystemStateErrorEvidence(
+                "phase-analysis-migration",
+                (
+                    "Legacy phase-unbalance results are still stored at "
+                    f"{legacy_path}; migrate them with "
+                    "`industrial-phm maintenance migrate-phase-unbalance-results` "
+                    "before relying on the new SQLite default."
+                ),
+                assessed_at,
+            )
+        )
+
+
+def _load_sources(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[
+    tuple[RegisteredSource, ...],
+    tuple[SourceLifecycleRecord, ...],
+    tuple[SourceFreshnessPolicy, ...],
+]:
+    try:
+        repository = JsonSourceRepository(paths.registry)
+        sources = repository.list_sources()
+        lifecycles = tuple(repository.get_lifecycle(source.source_id) for source in sources)
+        freshness = tuple(
+            policy
+            for source in sources
+            if (policy := repository.get_freshness_policy(source.source_id)) is not None
+        )
+        return sources, lifecycles, freshness
+    except (OSError, ValueError) as error:
+        _append_error(errors, "source-settings", error, assessed_at)
+        return (), (), ()
+
+
+def _load_source_runtime(
+    paths: OperationsAppPaths,
+    sources: tuple[RegisteredSource, ...],
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[
+    tuple[SourceReceiptEvidence, ...],
+    tuple[SourceConnectionAttemptEvidence, ...],
+]:
+    try:
+        validate_distinct_source_state_paths(paths.registry, paths.source_runtime)
+        repository = JsonSourceRuntimeRepository(paths.source_runtime)
+        source_ids = {source.source_id for source in sources}
+        receipts = tuple(
+            item for item in repository.list_latest_receipts() if item.source_id in source_ids
+        )
+        attempts = tuple(
+            item
+            for item in repository.list_latest_connection_attempts()
+            if item.source_id in source_ids
+        )
+        return receipts, attempts
+    except (OSError, ValueError) as error:
+        _append_error(errors, "source-runtime", error, assessed_at)
+        return (), ()
+
+
+def _load_field_results(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[RegisteredFieldFeatureAnalysis, ...]:
+    try:
+        return JsonFieldFeatureAnalysisRepository(paths.field_analysis).list_results()
+    except (OSError, ValueError) as error:
+        _append_error(errors, "field-analysis-results", error, assessed_at)
+        return ()
+
+
+def _load_phase_results(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[
+    tuple[PhaseUnbalanceAnalysis, ...],
+    SqlitePhaseUnbalanceRepository | None,
+    int,
+]:
+    try:
+        repository = SqlitePhaseUnbalanceRepository(paths.phase_analysis)
+        total = repository.count_results()
+        return repository.list_recent_results(_PHASE_RESULT_LIMIT), repository, total
+    except (OSError, ValueError) as error:
+        _append_error(errors, "phase-analysis-results", error, assessed_at)
+        return (), None, 0
+
+
+def _load_skipped_analysis_attempts(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[AssetWorkspaceAnalysisAttempt, ...]:
+    if not paths.window_state.is_file() or not paths.analysis_ledger.is_file():
+        return ()
+    try:
+        windows = SqliteObservationWindowRepository(paths.window_state)
+        ledger = SqliteWindowAnalysisLedger(paths.analysis_ledger)
+        attempts: list[AssetWorkspaceAnalysisAttempt] = []
+        unresolved: list[str] = []
+        for outcome in ledger.list_skipped():
+            if outcome.reason is None:
+                raise ValueError(f"skipped window {outcome.window_id} has no recorded reason")
+            try:
+                window = windows.get(outcome.window_id)
+            except KeyError:
+                unresolved.append(outcome.window_id)
+                continue
+            attempts.append(
+                AssetWorkspaceAnalysisAttempt(
+                    asset_id=window.asset_id,
+                    state=WindowAnalysisState.SKIPPED,
+                    capability_id=outcome.capability_id,
+                    source_id=window.source_id,
+                    measurement_point_id=window.measurement_point_id,
+                    observed_start_at=window.window_start,
+                    observed_end_at=window.window_end,
+                    recorded_at=outcome.recorded_at,
+                    window_id=window.window_id,
+                    reason=outcome.reason,
+                )
+            )
+        if unresolved:
+            errors.append(
+                SystemStateErrorEvidence(
+                    "analysis-attempts",
+                    (
+                        f"{len(unresolved)} skipped analysis attempt(s) reference windows "
+                        "that are no longer stored; their asset and range are unavailable"
+                    ),
+                    assessed_at,
+                )
+            )
+        return tuple(
+            sorted(
+                attempts,
+                key=lambda item: (-item.recorded_at.timestamp(), item.window_id or ""),
+            )
+        )
+    except (KeyError, LookupError, OSError, ValueError) as error:
+        _append_error(errors, "analysis-attempts", error, assessed_at)
+        return ()
+
+
+def _load_findings(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[OperationalFinding, ...]:
+    try:
+        return JsonOperationalFindingRepository(paths.findings).list_findings()
+    except (OSError, ValueError) as error:
+        _append_error(errors, "review-requests", error, assessed_at)
+        return ()
+
+
+def _include_review_referenced_phase_results(
+    phase_results: tuple[PhaseUnbalanceAnalysis, ...],
+    repository: SqlitePhaseUnbalanceRepository | None,
+    findings: tuple[OperationalFinding, ...],
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[PhaseUnbalanceAnalysis, ...]:
+    if repository is None:
+        return phase_results
+    loaded_run_ids = {item.run.analysis_run_id for item in phase_results}
+    reviewed_run_ids = {finding.analysis_run_id for finding in findings}
+    try:
+        reviewed = repository.find_results(reviewed_run_ids - loaded_run_ids)
+    except (OSError, ValueError) as error:
+        _append_error(errors, "phase-analysis-review-results", error, assessed_at)
+        return phase_results
+    if not reviewed:
+        return phase_results
+    return tuple(
+        sorted(
+            (*phase_results, *reviewed),
+            key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
+        )
+    )
+
+
+def _load_review_events(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[FindingReviewEvent, ...]:
+    try:
+        return JsonFindingReviewRepository(paths.review).list_events()
+    except (OSError, ValueError) as error:
+        _append_error(errors, "maintenance-review", error, assessed_at)
+        return ()
+
+
+def _load_acquisition(
+    paths: OperationsAppPaths,
+    sources: tuple[RegisteredSource, ...],
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[
+    tuple[AcquisitionTelemetrySurface, ...],
+    CollectionServiceRuntimeTelemetry | None,
+]:
+    if not paths.acquisition_telemetry.is_file() or not paths.acquisition_spool.is_file():
+        return (), None
+    surfaces: list[AcquisitionTelemetrySurface] = []
+    try:
+        telemetry = SqliteAcquisitionTelemetryRepository(paths.acquisition_telemetry)
+        service = telemetry.get_collection_service_runtime()
+        spool = SqliteAcquisitionSpool(
+            SqliteAcquisitionSpoolConfig(path=paths.acquisition_spool)
+        ).telemetry_snapshot(sampled_at=assessed_at)
+        for source in sources:
+            if source.source_type != SourceType.OPCUA:
+                continue
+            try:
+                surfaces.append(
+                    AcquisitionTelemetrySurface(
+                        source=telemetry.get(source.source_id),
+                        spool=spool,
+                    )
+                )
+            except (LookupError, OSError, ValueError) as error:
+                _append_error(errors, f"live-data:{source.source_id}", error, assessed_at)
+        return tuple(surfaces), service
+    except (OSError, ValueError) as error:
+        _append_error(errors, "live-data", error, assessed_at)
+        return tuple(surfaces), None
+
+
+def _load_analysis_runtime(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> WindowAnalysisRunnerTelemetry | None:
+    if not paths.analysis_runtime.is_file():
+        return None
+    try:
+        return JsonWindowAnalysisRuntimeRepository(paths.analysis_runtime).load()
+    except (OSError, ValueError) as error:
+        _append_error(errors, "analysis-service", error, assessed_at)
+        return None
+
+
+def _load_history(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[DuckLakeAssetHistory | None, tuple[HistoryAssetSummary, ...]]:
+    if not paths.history_catalog.is_file():
+        return None, ()
+    try:
+        reader = DuckLakeAssetHistory(
+            DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
+        )
+        return reader, reader.list_history_assets()
+    except Exception as error:
+        _append_error(errors, "asset-history", error, assessed_at)
+        return None, ()
+
+
+def _load_collection_records(
+    paths: OperationsAppPaths,
+    assessed_at: datetime,
+    errors: list[SystemStateErrorEvidence],
+) -> tuple[CollectionControlRecord, ...]:
+    if not paths.collection_control.is_file():
+        return ()
+    try:
+        return SqliteCollectionControlRepository(paths.collection_control).list_records()
+    except (OSError, ValueError) as error:
+        _append_error(errors, "collection-control", error, assessed_at)
+        return ()
