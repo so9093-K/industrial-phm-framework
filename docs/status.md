@@ -32,7 +32,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | OPC UA one-shot / bounded subscription | **지원** | explicit NodeId mapping과 protocol quality/timestamp 보존 |
 | OPC UA persistent collection | **지원** | 독립 collection service, reconnect, durable spool, telemetry, DuckLake writer, observation-window coordinator |
 | Asset History | **지원** | FILE backfill과 OPC UA live observation을 DuckLake history에서 함께 조회 |
-| Asset History manual small-file compaction | **조건부 지원** | explicit `compact-history`만 지원. snapshot expiration/cleanup 없이 table별 merge-only compaction을 수행하고 old snapshot evidence/retry를 검증. 자동 scheduling·retention은 미제공 |
+| Asset History manual small-file compaction | **조건부 지원** | explicit `maintenance history compact`만 지원. snapshot expiration/cleanup 없이 table별 merge-only compaction을 수행하고 old snapshot evidence/retry를 검증. 자동 scheduling·retention은 미제공 |
 | 측정 의미(semantic binding) | **조건부 지원** | source가 명시적으로 제공한 versioned binding만 사용. channel 이름에서 물리 의미를 추론하지 않음 |
 | Asset History latest/page/aggregation 의미 표시 | **지원** | FILE/OPC UA raw evidence에 고정된 의미 snapshot을 fail-closed로 표시 |
 | Finalized observation window | **지원** | accepted event set과 rejection/watermark evidence를 SQLite WAL에 보존. continuous coordinator는 bounded durable-ingestion cursor로 새 event만 처리하고 cursor/watermark/active buffer를 finalized window와 같은 transaction에 checkpoint |
@@ -54,7 +54,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Operations Asset History | **지원** | 최신값·raw page·UI aggregation·quality·provenance 조회 |
 | Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함. 실행 중 새 결과는 명시적 refresh로 읽음(자동 polling 없음) |
 | Operations 분석 시도/skip 이유 조회 | **조건부 지원** | Operations가 runner와 같은 finalized-window SQLite와 analysis-ledger SQLite를 읽을 때 Asset별 Analyzed/Skipped 시도와 exact skip reason을 표시 |
-| Live runner lifecycle 전용 UI/자동 process 관리 | **미제공** | runner는 별도 CLI process로 실행 |
+| Live runner process lifecycle | **지원** | `operations start <root>`의 supervisor가 collection과 별도 analysis runner process를 함께 소유. analysis health는 runner-owned heartbeat가 authoritative |
 | Investigation / review finding / Maintenance Review | **지원** | AnalysisRun evidence를 사람이 조사·검토하고 review 기록을 남김 |
 
 3상 불평형의 계산·eligibility·alignment 계약은
@@ -86,9 +86,10 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Local Operations runtime status | **지원** | `industrial-phm operations status <root>`가 supervisor process identity, collection/analysis heartbeat, UI loopback listener readiness를 분리해 표시. PID 존재만으로 component health/readiness를 추정하지 않음 |
 | 통합 local Operations lifecycle | **지원** | `operations start <root>`가 workspace config에서 collection → analysis → packaged UI launch plan을 만들고 한 foreground supervisor로 실행. Ctrl-C 또는 `operations stop <root>`은 child를 역순으로 graceful shutdown. stop은 persisted PID만 믿지 않고 workspace supervisor lock owner PID까지 검증 후 signal 요청 |
 | Local Operations logs | **지원** | `operations logs <root>`가 collection/analysis/ui의 workspace-owned log를 component별 최대 10,000줄 bounded tail로 표시. 내부 log path를 정상 사용자가 직접 지정하지 않음 |
-| stopped workspace backup/restore | **지원** | `operations backup <workspace> <backup>`이 stopped local node의 durable workspace state/history를 manifest+SHA-256으로 capture. SQLite는 backup API 사용. logs/supervisor identity/locks/rebuildable batch index는 제외. `operations restore <backup> <new-root>`는 검증 후 새 root에 atomic restore하며 기존 workspace는 덮어쓰지 않음 |
-| deployment preflight / systemd reference | **지원** | `operations preflight <absolute-root>`가 실제 service user 기준 runtime dependency, config/plan, workspace access, supervisor/history lock, UI port를 검증. reference unit은 foreground `operations start`, `Restart=on-failure`, `KillMode=mixed`, bounded restart/stop policy를 사용 |
+| stopped workspace backup/restore | **지원** | `maintenance backup <workspace> <backup>`이 stopped local node의 durable workspace state/history를 manifest+SHA-256으로 capture. SQLite는 backup API 사용. logs/supervisor identity/locks/rebuildable batch index는 제외. `maintenance restore <backup> <new-root>`는 검증 후 새 root에 atomic restore하며 기존 workspace는 덮어쓰지 않음 |
+| deployment preflight / systemd reference | **지원** | `validate deployment <absolute-root>`가 실제 service user 기준 runtime dependency, config/plan, workspace access, supervisor/history lock, UI port를 검증. reference unit은 foreground `operations start`, `Restart=on-failure`, `KillMode=mixed`, bounded restart/stop policy를 사용 |
 | installable Operations application | **지원** | canonical Operations app이 wheel의 `industrial_phm.apps`에 포함되고 `operations` extra가 marimo + history/OPC UA runtime dependencies를 제공. local supervisor가 packaged app을 `127.0.0.1` loopback-only, no-token UI child로 실행. shared/public host 노출은 미지원 |
+| operational CLI taxonomy | **지원** | normal node lifecycle=`operations`, recovery/history=`maintenance`, deployment gates=`validate`, service/source plumbing=`internal`. legacy `operations` maintenance/internal spellings은 compatibility routing만 유지 |
 | 실제 현장 OPC UA 설비 validation | **현장 미검증** | 현장 update/deadband/timestamp/security 특성에 대한 검증 근거가 아직 없음 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
 | HA / distributed coordination / leader election | **미제공** | local-first runtime 경계 |
