@@ -104,8 +104,6 @@ def load_operations_app_snapshot(
         raise ValueError("assessed_at must be timezone-aware")
 
     system_errors: list[SystemStateErrorEvidence] = []
-    _append_legacy_phase_migration_error(paths, effective_at, system_errors)
-
     registered_sources, lifecycle_records, freshness_policies = _load_sources(
         paths, effective_at, system_errors
     )
@@ -231,27 +229,6 @@ def _append_error(
     assessed_at: datetime,
 ) -> None:
     errors.append(SystemStateErrorEvidence(scope, str(error), assessed_at))
-
-
-def _append_legacy_phase_migration_error(
-    paths: OperationsAppPaths,
-    assessed_at: datetime,
-    errors: list[SystemStateErrorEvidence],
-) -> None:
-    legacy_path = paths.phase_analysis.with_suffix(".json")
-    if not paths.phase_analysis.exists() and legacy_path.is_file():
-        errors.append(
-            SystemStateErrorEvidence(
-                "phase-analysis-migration",
-                (
-                    "Legacy phase-unbalance results are still stored at "
-                    f"{legacy_path}; migrate them with "
-                    "`industrial-phm maintenance migrate-phase-unbalance-results` "
-                    "before relying on the new SQLite default."
-                ),
-                assessed_at,
-            )
-        )
 
 
 def _load_sources(
