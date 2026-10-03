@@ -18,13 +18,13 @@ from industrial_phm.application import (
 )
 from industrial_phm.application.live_window_analysis import WindowAnalysisState
 from industrial_phm.application.measurement_history import HistoryAssetSummary
-from industrial_phm.application.operations_monitor import (
-    OperationsMonitorAsset,
-    OperationsMonitorStatus,
-)
 from industrial_phm.application.operations_assets import (
     AssetWorkspaceAnalysisAttempt,
     build_asset_workspace_view,
+)
+from industrial_phm.application.operations_monitor import (
+    OperationsMonitorAsset,
+    OperationsMonitorStatus,
 )
 from industrial_phm.contracts import DataQualityAssessment
 
