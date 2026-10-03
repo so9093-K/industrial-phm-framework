@@ -25,7 +25,6 @@ from industrial_phm.application import (
 )
 from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.demo.synthetic import (
-    SYNTHETIC_DEMO_ASSET_ID,
     SYNTHETIC_DEMO_SOURCE_ID,
     build_synthetic_demo_source,
     run_synthetic_opcua_server,
