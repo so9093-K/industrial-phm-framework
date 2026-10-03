@@ -16,7 +16,9 @@ from industrial_phm.application.collection_control import (
     CollectionControlRecord,
     CollectionDesiredState,
 )
-from industrial_phm.application.file_feature_analysis import (\n    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,\n)
+from industrial_phm.application.file_feature_analysis import (
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
+)
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     SourceSnapshotEvidence,
