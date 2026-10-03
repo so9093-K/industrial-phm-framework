@@ -146,7 +146,9 @@ jobs:
           )
           from industrial_phm.connectors import OpcUaNodeMapping
 
-          repository = JsonSourceRepository(Path("/tmp/operations-source-registry.json"))
+          file_workspace = Path("/tmp/operations-file-workspace")
+          file_workspace.mkdir(parents=True, exist_ok=True)
+          repository = JsonSourceRepository(file_workspace / "sources.json")
           repository.register(
               RegisteredSource(
                   source_id="ci-registered-file",
@@ -183,9 +185,9 @@ jobs:
               )
           )
 
-          opcua_repository = JsonSourceRepository(
-              Path("/tmp/operations-opcua-source-registry.json")
-          )
+          opcua_workspace = Path("/tmp/operations-opcua-workspace")
+          opcua_workspace.mkdir(parents=True, exist_ok=True)
+          opcua_repository = JsonSourceRepository(opcua_workspace / "sources.json")
           opcua_repository.register(
               RegisteredSource(
                   source_id="ci-opcua",
@@ -206,7 +208,7 @@ jobs:
               )
           )
           runtime_repository = JsonSourceRuntimeRepository(
-              Path("/tmp/operations-opcua-source-runtime.json")
+              opcua_workspace / "source-runtime.json"
           )
           runtime_repository.record_connection_attempt(
               SourceConnectionAttemptEvidence(
@@ -226,28 +228,28 @@ jobs:
           2026-09-22T10:00:01+09:00,0.0,42.2
           2026-09-22T10:00:02+09:00,1.0,42.4
           EOF
-          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
+          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-file-workspace \
             uv run --locked --group research --extra operations marimo export html \
             src/industrial_phm/apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-file-registry.html
 
-          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry.json \
+          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-file-workspace \
           INDUSTRIAL_PHM_OPERATIONS_REGISTRATION_TYPE=opcua \
             uv run --locked --group research --extra operations marimo export html \
             src/industrial_phm/apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-registration.html
 
-          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-opcua-source-registry.json \
-          INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME=/tmp/operations-opcua-source-runtime.json \
+          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-opcua-workspace \
             uv run --locked --group research --extra operations marimo export html \
             src/industrial_phm/apps/operations_v2.py \
             --no-include-code \
             --output /tmp/phm-operations-opcua-attempt-evidence.html
 
-          printf '{not-json' > /tmp/operations-source-registry-invalid.json
-          INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY=/tmp/operations-source-registry-invalid.json \
+          mkdir -p /tmp/operations-invalid-workspace
+          printf '{not-json' > /tmp/operations-invalid-workspace/sources.json
+          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-invalid-workspace \
             uv run --locked --group research --extra operations marimo export html \
             src/industrial_phm/apps/operations_v2.py \
             --no-include-code \
