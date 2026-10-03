@@ -57,7 +57,7 @@ class OperationsWorkspace:
 
     @property
     def file_feature_analysis_path(self) -> Path:
-        """Return the historical feature-analysis state path retained for workspace compatibility."""
+        """Return the historical feature-analysis path retained for workspace compatibility."""
         return self.root / "field-analysis.json"
 
     @property
