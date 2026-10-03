@@ -1,4 +1,4 @@
-"""Concrete write-side actions for the packaged Operations V2 application.
+"""Concrete write-side actions for the packaged Operations application.
 
 The marimo app owns interaction state and form-to-domain input mapping. Concrete
 repository construction, persistence refreshes, and diagnostic event-loop bridging
