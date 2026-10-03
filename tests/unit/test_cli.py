@@ -19,12 +19,12 @@ def test_doctor_reports_environment_and_next_action(
     assert "marimo run apps/analysis_explorer.py" in output
 
 
-
 def test_removed_phase_result_migration_command_is_rejected() -> None:
     with pytest.raises(SystemExit) as raised:
         build_parser().parse_args(["maintenance", "migrate-phase-unbalance-results"])
 
     assert raised.value.code == 2
+
 
 def test_compact_history_command_requires_explicit_work_bound() -> None:
     args = build_parser().parse_args(
