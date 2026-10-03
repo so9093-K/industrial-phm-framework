@@ -12,7 +12,7 @@ def _():
     import marimo as mo
 
     from industrial_phm.application import (
-        FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+        FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
         AssetIdentity,
         ChannelSemanticBinding,
         CollectionDesiredState,
@@ -104,7 +104,7 @@ def _():
         AssetIdentity,
         ChannelSemanticBinding,
         CollectionDesiredState,
-        FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+        FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
         FileSourceConfig,
         FileSourceMode,
         FindingReviewAction,
@@ -1366,7 +1366,7 @@ def _(mo):
 
 @app.cell
 def _(
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     asset_file_analysis_source,
     asset_run_file_analysis_button,
     get_analysis_results,
@@ -1385,15 +1385,15 @@ def _(
             _source = next(
                 source for source in registered_sources if source.source_id == _source_id
             )
-            _, _field_results = operations_actions.record_file_analysis(_source)
+            _, _file_feature_results = operations_actions.record_file_analysis(_source)
             _other_results = tuple(
                 item
                 for item in get_analysis_results()
-                if item.evidence.capability_id != FIELD_VIBRATION_FEATURE_CAPABILITY_ID
+                if item.evidence.capability_id != FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID
             )
             _updated_results = tuple(
                 sorted(
-                    (*_other_results, *_field_results),
+                    (*_other_results, *_file_feature_results),
                     key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
                 )
             )
