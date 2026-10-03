@@ -111,7 +111,7 @@ def test_analysis_rejects_snapshot_replaced_between_observation_and_features(
         pytest.fail("changed snapshot must be rejected before feature extraction")
 
     monkeypatch.setattr(
-        field_analysis, "load_registered_file_source_observation", load_then_replace
+        file_feature_analysis, "load_registered_file_source_observation", load_then_replace
     )
     monkeypatch.setattr(file_feature_analysis, "extract_vibration_features", unexpected_extraction)
     with pytest.raises(ValueError, match="source snapshot changed"):
@@ -134,7 +134,7 @@ def test_analysis_requires_snapshot_evidence_before_extracting_features(
         return replace(loaded, latest=replace(loaded.latest, source_snapshot=None))
 
     monkeypatch.setattr(
-        field_analysis, "load_registered_file_source_observation", load_without_evidence
+        file_feature_analysis, "load_registered_file_source_observation", load_without_evidence
     )
     with pytest.raises(ValueError, match="requires source snapshot evidence"):
         run_registered_file_feature_analysis(_source(source_path))
