@@ -16,7 +16,7 @@ from industrial_phm.application import (
     CollectionControlRecord,
     CollectionServiceRuntimeTelemetry,
     FindingReviewEvent,
-    JsonFieldFeatureAnalysisRepository,
+    JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
     JsonSourceRuntimeRepository,
@@ -27,7 +27,7 @@ from industrial_phm.application import (
     OperationsMonitorView,
     OperationsOverview,
     PhaseUnbalanceAnalysis,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
     RegisteredSource,
     SourceConnectionAttemptEvidence,
     SourceFreshnessPolicy,
@@ -112,7 +112,7 @@ def load_operations_app_snapshot(
     receipts, connection_attempts = _load_source_runtime(
         paths, registered_sources, effective_at, system_errors
     )
-    field_results = _load_field_results(paths, effective_at, system_errors)
+    file_feature_results = _load_file_feature_results(paths, effective_at, system_errors)
     phase_results, phase_repository, phase_result_total = _load_phase_results(
         paths, effective_at, system_errors
     )
@@ -133,7 +133,7 @@ def load_operations_app_snapshot(
     )
     analysis_results: tuple[OperationalAnalysisResult, ...] = tuple(
         sorted(
-            (*field_results, *phase_results),
+            (*file_feature_results, *phase_results),
             key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
         )
     )
@@ -191,7 +191,7 @@ def load_operations_app_snapshot(
         ("Collection control", str(paths.collection_control)),
         ("Asset History catalog", str(paths.history_catalog)),
         ("Asset History data", str(paths.history_data)),
-        ("Vibration analysis", str(paths.field_analysis)),
+        ("Vibration analysis", str(paths.file_feature_analysis)),
         ("Three-phase analysis", str(paths.phase_analysis)),
         ("Three-phase result query", phase_result_query_summary),
         ("Analysis service runtime", str(paths.analysis_runtime)),
@@ -298,15 +298,15 @@ def _load_source_runtime(
         return (), ()
 
 
-def _load_field_results(
+def _load_file_feature_results(
     paths: OperationsAppPaths,
     assessed_at: datetime,
     errors: list[SystemStateErrorEvidence],
-) -> tuple[RegisteredFieldFeatureAnalysis, ...]:
+) -> tuple[RegisteredFileFeatureAnalysis, ...]:
     try:
-        return JsonFieldFeatureAnalysisRepository(paths.field_analysis).list_results()
+        return JsonFileFeatureAnalysisRepository(paths.file_feature_analysis).list_results()
     except (OSError, ValueError) as error:
-        _append_error(errors, "field-analysis-results", error, assessed_at)
+        _append_error(errors, "file-feature-analysis-results", error, assessed_at)
         return ()
 
 
