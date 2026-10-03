@@ -15,7 +15,7 @@ def test_operations_workspace_owns_current_flat_live_layout(tmp_path: Path) -> N
     assert workspace.acquisition_telemetry_path == root / "telemetry.sqlite"
     assert workspace.window_state_path == root / "windows.sqlite"
     assert workspace.analysis_ledger_path == root / "window-analysis-ledger.sqlite"
-    assert workspace.field_analysis_path == root / "field-analysis.json"
+    assert workspace.file_feature_analysis_path == root / "field-analysis.json"
     assert workspace.phase_unbalance_state_path == root / "phase-unbalance.sqlite"
     assert workspace.analysis_runtime_path == root / "phase-unbalance-runtime.json"
     assert workspace.finding_state_path == root / "findings.json"
