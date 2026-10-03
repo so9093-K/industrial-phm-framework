@@ -2,10 +2,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
-from industrial_phm.runtime.operations_app_composition import (
-    load_operations_app_snapshot,
-    resolve_operations_app_paths,
-)
+from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
+from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
 
 
 def test_operations_app_paths_use_single_workspace_root(tmp_path: Path) -> None:
