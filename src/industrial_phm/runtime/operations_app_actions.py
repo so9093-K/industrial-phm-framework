@@ -28,6 +28,8 @@ from industrial_phm.application import (
     RegisteredFieldFeatureAnalysis,
     RegisteredOpcUaSubscriptionCycleResult,
     RegisteredSource,
+    SourceFreshnessPolicy,
+    SourceLifecycleRecord,
     SourceLifecycleState,
     SourceRuntimeCycleResult,
     create_finding_review_event,
