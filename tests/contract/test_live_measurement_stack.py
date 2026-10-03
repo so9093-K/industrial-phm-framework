@@ -72,8 +72,8 @@ def test_file_and_independent_live_collector_share_history_across_restart(tmp_pa
         sys.executable,
         "-c",
         "from industrial_phm.cli import main; raise SystemExit(main())",
-        "operations",
-        "run-collection-service",
+        "internal",
+        "collection-service",
     ]
     for flag, file in (
         ("registry", "sources.json"),
