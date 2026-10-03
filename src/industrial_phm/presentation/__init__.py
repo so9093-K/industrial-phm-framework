@@ -16,13 +16,6 @@ from industrial_phm.presentation.operations import (
     render_source_data_flow_markdown,
     render_unplaced_asset_evidence_markdown,
 )
-from industrial_phm.presentation.operations_shell import (
-    OPERATIONS_MAIN_BACKGROUND,
-    operations_theme_css,
-    render_monitor_assets_html,
-    render_monitor_flow_html,
-    status_label,
-)
 from industrial_phm.presentation.operations_assets import (
     asset_workspace_css,
     render_asset_analysis_html,
@@ -54,6 +47,13 @@ from industrial_phm.presentation.operations_setup import (
     render_setup_source_detail_html,
     render_setup_sources_html,
     setup_workspace_css,
+)
+from industrial_phm.presentation.operations_shell import (
+    OPERATIONS_MAIN_BACKGROUND,
+    operations_theme_css,
+    render_monitor_assets_html,
+    render_monitor_flow_html,
+    status_label,
 )
 from industrial_phm.presentation.operations_system import (
     render_system_diagnostics_html,
