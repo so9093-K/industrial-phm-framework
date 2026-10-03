@@ -24,6 +24,7 @@ from industrial_phm.features import (
     extract_vibration_features,
 )
 
+# Historical capability identity is part of persisted analysis evidence.
 FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID = "field-vibration-statistical-features-v1"
 
 
