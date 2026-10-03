@@ -10,10 +10,10 @@
 3. 사람은 어디에서 근거를 조사·검토하고 판단하는가?
 4. 연구·평가 흐름은 production 흐름과 어떻게 분리되는가?
 
-`CanonicalTimeSeries`의 현재 가정, XJTU-SY에 과적합되지 않기 위한 확장 규칙, 실제 비공개/현장 데이터에서 확인할
+`CanonicalTimeSeries`의 현재 가정, XJTU-SY에 과적합되지 않기 위한 확장 규칙, 조직 제공 데이터나 대상 운영 source에서 확인할
 quality·provenance·security boundary는
 [`canonical-data-contract.md`](canonical-data-contract.md)를 기준으로 검토합니다. Canonical contract는 모든 산업
-데이터를 미리 포괄하는 universal schema가 아니라 실제 source가 추가될 때 공통 의미만 유지하는 adapter/core
+데이터를 미리 포괄하는 universal schema가 아니라 구체적인 source가 추가될 때 공통 의미만 유지하는 adapter/core
 boundary입니다.
 
 AI-Hub 239 raw power data는 별도의 streaming reader로 null·중복·원본 local time을 보존합니다.
@@ -63,7 +63,7 @@ OPC UA / FILE / historian                    공개 데이터셋 · raw measurem
   -> human review                              -> evaluation / comparison
 ```
 
-현장 설비에는 일반적으로 label이 오지 않습니다. 모든 production capability는 label 없이 동작해야 합니다.
+운영 source에는 일반적으로 분석용 label이 함께 오지 않습니다. 모든 production capability는 label 없이 동작해야 합니다.
 AI-Hub의 기동패턴·SOH label 같은 provider annotation은 research 평가 비교에만 사용하며 production 입력,
 `AssetHealth`, `OperatingState`, `OperationalFinding`, maintenance decision이나 verified ground truth로
 승격하지 않습니다. 비교 대상의 종류는 [terminology](../terminology.md#7-observation-and-reference-vocabulary)의
@@ -152,7 +152,7 @@ evidence가 필요한 consumer는 validated `AnalysisView`를 요구합니다.
 Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
 operational output을 하나의 universal `PHMResult`로 합치지 않습니다.
 
-Prepared field source에는 observation data plane과 분리된 source-registration control-plane contract를 두고,
+Prepared FILE source에는 observation data plane과 분리된 source-registration control-plane contract를 두고,
 live protocol requirement는 generic connector framework를 먼저 만들지 않고 concrete connector slice에서
 검증합니다. 첫 concrete live-protocol slice는 OPC UA입니다.
 
@@ -397,7 +397,7 @@ Persistent acquisition은 session/reconnect, durable ingress, history writer와 
 security mode, UI control이 지원되는지는 [현재 지원 상태](../status.md), 로컬 실행 방법은
 [OPC UA stack 문서](../../tools/opcua/README.md)를 따릅니다.
 
-Prepared field source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
+Prepared FILE source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
 
 ```text
 registered FILE snapshot
@@ -419,7 +419,7 @@ window에 연결되어야 하고, `finding.capability_id`도 해당 run의 `capa
 
 `OperationalFinding`은 numerical payload container가 아닙니다. Score, threshold, residual, diagnosis evidence는
 각 capability가 소유하고 finding은 versioned semantics와 evidence linkage만 보존합니다. Prognostics도 같은
-finding에 억지로 넣지 않고 별도 capability contract가 실제 field requirement에서 필요할 때 추가합니다.
+finding에 억지로 넣지 않고 별도 capability contract가 구체적인 source requirement에서 필요할 때 추가합니다.
 Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 생성형 AI는 상태 해석, 가능한 원인 정리, 정비 권고 초안과 보고서 생성을 지원할 수 있지만 PHM 수치를 다시

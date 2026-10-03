@@ -309,3 +309,52 @@ method unresolved로 둡니다. Research 평가 비교에만 사용하며 produc
 독립 근거(예: 분해 점검, 시험실 확인, 확인된 고장 event)로 검증된 설비 상태나 사건입니다. 검증 방법과
 근거를 함께 기록할 때만 이 용어를 사용합니다. Provider annotation, model output, maintenance record를 검증
 없이 ground truth로 부르지 않습니다.
+
+## 8. Source and validation context
+
+Source를 `현장/비현장`, `진짜/가짜`처럼 하나의 축으로 분류하지 않습니다. 데이터가 물리 설비에서
+기록되었는지, 현재 runtime protocol로 직접 수집되는지, 프로젝트의 실제 적용 대상으로 검증되었는지는 서로 다른
+질문입니다. Source와 validation 범위를 설명할 때는 필요한 차원을 명시합니다.
+
+### Source origin
+
+데이터가 어디에서 왔는지를 설명합니다.
+
+- **Synthetic source/data**: 프로젝트나 test fixture가 생성한 값입니다.
+- **Provider-recorded data**: 외부 provider가 기록해 dataset/archive 형태로 제공한 값입니다. 실제 측정 기록일 수
+  있지만 archive만으로 당시 live protocol, gateway, timestamp, deadband 또는 security 동작까지 검증되었다고
+  주장하지 않습니다.
+- **Organization-provided data**: 적용 조직이 승인된 export/snapshot/history 형태로 제공한 데이터입니다. 소유
+  조직이나 비공개 여부 자체가 operational validation을 의미하지 않습니다.
+
+### Acquisition mode
+
+프로젝트가 값을 어떤 방식으로 소비하는지를 설명합니다.
+
+- **Prepared FILE source**: 명시적으로 준비된 snapshot 또는 timestamped file history를 읽습니다.
+- **Recorded archive**: provider/organization이 이미 기록한 archive를 직접 읽습니다.
+- **Replay source**: recorded data를 OPC UA 같은 runtime protocol로 재생합니다.
+- **Live source**: 현재 실행 중인 endpoint/service와 runtime protocol로 직접 통신합니다.
+
+Replay와 live는 protocol 형태가 같을 수 있지만 validation claim은 다릅니다. Replay는 수집·복구·분석 pipeline을
+반복 검증하는 데 유용하지만, target endpoint의 실제 update/deadband/timestamp/security 동작을 대신 검증하지
+않습니다.
+
+### Validation role
+
+어떤 claim을 위해 source를 사용하는지를 설명합니다.
+
+- **Research/evaluation source**: 모델·방법·연구 protocol의 성능과 한계를 평가합니다.
+- **Contract/runtime validation source**: adapter, ingestion, persistence, recovery, analysis contract를 검증합니다.
+- **Target operational source**: 실제 deployment 대상으로 선택한 source입니다. 이 source에서 runtime protocol,
+  timing, semantics, quality, recovery, security 가정을 검증하는 것을 **target-source validation**이라고 합니다.
+
+`target operational source`는 다른 dataset/source보다 더 "진짜"라는 의미가 아닙니다. 프로젝트가 적용하려는
+구체적인 runtime source라서 별도의 validation claim이 필요한 것입니다.
+
+### Terms to avoid as standalone technical categories
+
+`현장 데이터`, `실제 데이터`, `field source` 같은 표현은 문맥상 사용할 수 있지만 단독 canonical category로
+사용하지 않습니다. 필요한 경우 `provider-recorded data`, `prepared FILE source`, `replay source`,
+`live source`, `target operational source`처럼 획득 방식과 validation 역할을 직접 씁니다.
+

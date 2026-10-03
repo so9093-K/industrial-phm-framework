@@ -437,7 +437,7 @@ RUL/prognostics는 `AnalysisView`의 optional capability로 구현되어 있습�
 unavailable로 유지합니다. 반면 IMS/MIMII처럼 inspection은 가능하지만 detailed projector가 없는 artifact는
 같은 Explorer에서 inspection-only surface로 pipeline/capability/provenance까지만 표시합니다.
 
-Prepared field CSV validation에서 이미 반복해서 필요한 첫 application-level 관측 read model은
+Prepared FILE source validation에서 이미 반복해서 필요한 첫 application-level 관측 read model은
 AssetObservationSummary로 분리합니다. 이 read model은 asset_id, explicit source_id, optional
 measurement_point_id, observation time range, channel/sample population과 aggregate data-quality state만
 보존합니다. 이는 current asset health나 operational PHM result가 아니며 anomaly/state/diagnosis/RUL 의미를
@@ -461,12 +461,12 @@ Finding과 run의 identity/measurement-point/observation-window linkage와 capab
 fail-fast 검증합니다. `OperationalFinding.observed_at`도 operational absolute time이므로 timezone-aware datetime만
 허용합니다.
 
-현재 field analysis producer는 timezone-aware registered FILE snapshot 범위에서 연결되어 있습니다.
+현재 FILE snapshot analysis producer는 timezone-aware registered FILE snapshot 범위에서 연결되어 있습니다.
 기존 CSV adapter와 `vibration-statistical-v1` feature extractor를 재사용해 실제 `AnalysisRun`과
 capability-specific feature evidence를 만들고 durable local history에 보존합니다. 사용자가 이 evidence를
 명시적으로 review 대상으로 올리면 `human-review-request-v1 / REVIEW_REQUIRED` `OperationalFinding`을
 생성할 수 있지만, feature 값을 자동 anomaly/fault/health 판정으로 해석하지 않습니다. Prognostics는 별도
-capability type으로 유지하며 field RUL semantics가 검증되기 전에 `OperationalPrognosticEstimate`를
+capability type으로 유지하며 operational RUL semantics가 검증되기 전에 `OperationalPrognosticEstimate`를
 선제 구현하지 않습니다.
 
 `ExperimentInspection`을 operational result로 확장하거나 범용 `PHMResult`를 만들지 않는 원칙은 그대로
@@ -663,7 +663,7 @@ Source / Asset
 
 `AnalysisRun`이나 `OperationalFinding` 타입이 존재한다는 사실만으로 사용자 workflow가 완성됐다고
 간주하지 않습니다. Producer, evidence presentation, user action과 durable review linkage가 실제로 이어져야
-합니다. 반대로 research anomaly/RUL evidence를 field identity와 검증 없이 operational asset state로
+합니다. 반대로 research anomaly/RUL evidence를 operational asset/source identity와 검증 없이 operational asset state로
 복사하지 않습니다.
 
 Data Quality는 독립적인 최종 판정이 아니라 Source/Asset/Investigation 문맥의 evidence입니다. Runtime
@@ -737,7 +737,7 @@ Site?
 ```
 
 모든 optional hierarchy level을 항상 영속할 필요는 없습니다. `Asset`, optional `Component`,
-`MeasurementPoint`, `Channel` identity와 source mapping을 분리하고, 실제 source requirement가 있을 때
+`MeasurementPoint`, `Channel` identity와 source mapping을 분리하고, 구체적인 source requirement가 있을 때
 site/area/system 계층을 확장합니다.
 
 Operational record는 source identity만으로 asset identity를 대신하지 않습니다. 새 read model과 evidence는 가능한 범위에서 다음 lineage를
@@ -908,7 +908,7 @@ operator response, acknowledgement와 suppression/shelving requirement를 별도
 
 ### Operational RUL 표시 원칙
 
-Operational prognostics가 실제 field evidence로 도입될 때 RUL point estimate만 단독 표시하지 않습니다.
+Operational prognostics가 target operational source evidence로 도입될 때 RUL point estimate만 단독 표시하지 않습니다.
 
 최소한 다음 information group을 함께 제공해야 합니다.
 
@@ -1035,7 +1035,7 @@ late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
 - 추가 connector를 위한 generic connector framework
 - 새로운 deep-learning/foundation model
 
-이 capability를 추가할 때는 해당 field evidence와 운영 requirement에 맞는 별도 contract, validation,
+이 capability를 추가할 때는 해당 target-source evidence와 운영 requirement에 맞는 별도 contract, validation,
 human-approval boundary를 정의합니다.
 
 ## References

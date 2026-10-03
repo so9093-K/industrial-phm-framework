@@ -1,13 +1,13 @@
-# Private / Field CSV Source Conformance Runbook
+# Prepared FILE Source Conformance Runbook
 
-상태: prepared export/snapshot baseline · 실제 private source 확보 시 실행
+상태: prepared export/snapshot baseline · authorized organization-provided source 확보 시 실행
 
 이 runbook은 조직이 허가한 **단일 asset CSV export/snapshot** 또는 같은 asset/measurement point의
 **timestamped segment history**를 현재 canonical/application boundary에 연결할 수 있는지 검증하는 절차입니다.
 Raw source를 repository에 복사하지 않고도 source identity, time basis, data quality, observation ordering과
 feature projection compatibility를 확인하는 것이 목적입니다.
 
-이 절차는 field model validation, live inference, maintenance recommendation 또는 historian integration을
+이 절차는 operational model validation, live inference, maintenance recommendation 또는 historian integration을
 승인하는 절차가 아닙니다.
 
 ## 1. Preconditions
@@ -64,7 +64,7 @@ history directory를 지정합니다.
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY=/authorized/path/pump-history
 export INDUSTRIAL_PHM_OPERATIONS_ASSET_ID=pump-01
-export INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=field-export:pump-01
+export INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=file-export:pump-01
 export INDUSTRIAL_PHM_OPERATIONS_MEASUREMENT_POINT_ID=drive-end-bearing
 export INDUSTRIAL_PHM_OPERATIONS_CHANNELS=vibration_x,vibration_y
 export INDUSTRIAL_PHM_OPERATIONS_TIMESTAMP_COLUMN=timestamp
@@ -139,7 +139,7 @@ CSV adapter는 하나의 byte snapshot에서 parsing, SHA-256과 byte size를 �
 `tests/integration/test_field_csv_observation.py`에서 다음 경로를 검증합니다.
 
 ```text
-prepared field CSV
+prepared FILE CSV
   -> CsvSensorAdapter
   -> CanonicalTimeSeries
   -> vibration-statistical-v1 feature projection
@@ -152,12 +152,12 @@ timestamped prepared CSV segments
   -> latest observation + segment evidence in Operations
 ```
 
-실제 source에서 이 경로를 사용할 때 dataset-specific split, reference population, threshold 또는 fault label을
+organization-provided source에서 이 경로를 사용할 때 dataset-specific split, reference population, threshold 또는 fault label을
 임의로 만들지 않습니다.
 
 ## 6. Additional semantics review
 
-첫 private source에서는 CSV 구조 검증과 별개로 다음을 확인합니다.
+첫 organization-provided source에서는 CSV 구조 검증과 별개로 다음을 확인합니다.
 
 | 질문 | 현재 baseline에서의 처리 |
 | --- | --- |
@@ -167,11 +167,11 @@ timestamped prepared CSV segments
 | direct historian/API access가 필수인가? | Path export로 반복 해결 불가할 때 source abstraction 재검토 |
 | lifecycle 종료가 failure인가? | confirmed failure / observed end / right-censored를 구분 |
 | right-censored RUL ground truth가 필요한가? | 현재 exact RUL target 범위 밖 |
-| field-specific diagnosis label이 있는가? | evidence/protocol 없이 canonical label로 승격하지 않음 |
+| source-specific diagnosis label이 있는가? | evidence/protocol 없이 canonical label로 승격하지 않음 |
 
 ## 7. Stop conditions for new contract work
 
-다음 요구가 실제 source에서 확인되면 현재 metadata/CSV adapter에 억지로 넣지 않고 별도 contract 변경으로
+다음 요구가 구체적인 source에서 확인되면 현재 metadata/CSV adapter에 억지로 넣지 않고 별도 contract 변경으로
 분리합니다.
 
 - repeated multi-asset source ingestion
@@ -186,7 +186,7 @@ timestamped prepared CSV segments
 
 ## 8. Conformance completion criteria
 
-첫 private/field source conformance는 다음이 모두 충족될 때 완료로 기록합니다.
+첫 organization-provided prepared FILE source conformance는 다음이 모두 충족될 때 완료로 기록합니다.
 
 1. authorized source가 repository 밖에서 validation됨
 2. exact source byte identity가 기록됨
@@ -194,7 +194,7 @@ timestamped prepared CSV segments
 4. blocking quality issue가 없음
 5. warning이 있으면 의미와 처리 정책이 명시됨
 6. canonical/feature projection에서 provenance가 보존됨
-7. lifecycle/failure/censoring을 실제 source보다 강하게 해석하지 않음
+7. lifecycle/failure/censoring을 source owner가 확인한 의미보다 강하게 해석하지 않음
 8. 현재 contract로 표현하지 못한 실제 요구가 있으면 별도 issue/PR boundary로 분리됨
 
 이 완료 조건은 model accuracy, operational threshold, maintenance action validation을 포함하지 않습니다. 해당

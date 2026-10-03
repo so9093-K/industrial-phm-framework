@@ -27,7 +27,7 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 
 ### Operations
 
-현장 데이터와 PHM 근거를 다루는 운영 UI입니다. Canonical application은 wheel에 포함되는
+설비 관측 데이터와 PHM 근거를 다루는 운영 UI입니다. Canonical application은 wheel에 포함되는
 `industrial_phm.apps.operations_v2`이며, UI runtime dependency는 `operations` extra가 소유합니다.
 
 - **Monitor** — 수집·저장·분석·검토 흐름과 지금 확인할 항목
@@ -47,7 +47,7 @@ OPC UA simulator, collection, analysis, Operations UI를 함께 실행할 수 �
 industrial-phm demo synthetic
 ```
 
-기본 workspace는 `artifacts/demo-synthetic`이며 synthetic 3상 값은 실제 설비 측정값이나 고장 진단이 아닙니다.
+기본 workspace는 `artifacts/demo-synthetic`이며 synthetic 3상 값은 물리 설비에서 측정된 값이나 고장 진단이 아닙니다.
 명령은 loopback OPC UA source를 자동 등록·활성화하고 collection을 시작합니다. 종료는 Ctrl-C를 사용합니다.
 
 이미 로컬에 AI-Hub 239 보일러 raw archive가 있으면, 검증에 사용한 device 2297의 기록 구간을 같은
@@ -61,9 +61,9 @@ uv run --no-sync industrial-phm demo aihub-boiler
 
 기본 preset은 `5.보일러.zip`의 `5.보일러/SourceData_211.json`, 2020-11-14 06:00–12:30 local,
 60× replay를 사용합니다. 기본 archive 경로가 다르면 `--archive`만 지정하면 됩니다. recorded provider
-data를 replay하는 개발·검증 경로이며 실제 현장 OPC UA 검증이나 fault diagnosis를 주장하지 않습니다.
+data를 replay하는 개발·검증 경로이며 대상 운영 OPC UA source validation이나 fault diagnosis를 주장하지 않습니다.
 
-실제 source를 연결할 새 local Operations workspace는 다음처럼 초기화합니다.
+대상 운영 source를 연결할 새 local Operations workspace는 다음처럼 초기화합니다.
 
 ```bash
 industrial-phm operations init ./plant-a
