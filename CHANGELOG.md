@@ -136,6 +136,11 @@
 
 ### Changed
 
+- Operations V2의 write-side concrete repository와 OPC UA diagnostic event-loop bridging을
+  `OperationsAppActions` runtime facade로 분리했습니다. Setup lifecycle/freshness/collection intent/source
+  registration, FILE snapshot analysis persistence, review request와 Maintenance review 기록은 기존 application
+  use-case semantics를 그대로 사용하고 marimo app은 form mapping과 presentation state만 소유합니다.
+
 - Operations V2의 read-side composition을 marimo app에서 runtime composition module로 분리했습니다. workspace/
   legacy path resolution, JSON/SQLite/DuckLake read repository construction, bounded result loading, repository별
   error isolation, overview/monitor projection을 `OperationsAppSnapshot`이 소유하고 UI는 snapshot을 소비합니다.
