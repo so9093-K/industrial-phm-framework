@@ -30,6 +30,7 @@ from industrial_phm.application import (
     OperationalAnalysisResult,
     OperationalFinding,
     RegisteredFieldFeatureAnalysis,
+    RegisteredOpcUaSubscriptionCycleResult,
     RegisteredSource,
     SourceFreshnessPolicy,
     SourceLifecycleRecord,
@@ -97,13 +98,17 @@ class OperationsAppActions:
         source_id: str,
         *,
         kind: OperationsDiagnosticKind,
-    ) -> tuple[SourceRuntimeCycleResult, OperationsSourceRegistryState]:
+    ) -> tuple[
+        SourceRuntimeCycleResult | RegisteredOpcUaSubscriptionCycleResult,
+        OperationsSourceRegistryState,
+    ]:
         if not isinstance(kind, OperationsDiagnosticKind):
             raise ValueError("kind must be an OperationsDiagnosticKind")
         validate_distinct_source_state_paths(self.paths.registry, self.paths.source_runtime)
         source_repository = JsonSourceRepository(self.paths.registry)
         runtime_repository = JsonSourceRuntimeRepository(self.paths.source_runtime)
         source = source_repository.get(source_id)
+        result: SourceRuntimeCycleResult | RegisteredOpcUaSubscriptionCycleResult
 
         if kind == OperationsDiagnosticKind.CYCLE:
             if isinstance(source.config, FileSourceConfig):
