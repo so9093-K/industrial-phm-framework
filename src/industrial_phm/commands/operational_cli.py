@@ -1,9 +1,8 @@
-"""Operational CLI taxonomy and compatibility routing."""
+"""Operational CLI taxonomy by user responsibility."""
 
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm.commands.operations import (
@@ -24,35 +23,6 @@ from industrial_phm.commands.operations import (
     _run_operations_stop,
     _run_operations_window_analysis,
 )
-
-_LEGACY_OPERATIONAL_ROUTES: dict[tuple[str, str], tuple[str, ...]] = {
-    ("operations", "backup"): ("maintenance", "backup"),
-    ("operations", "restore"): ("maintenance", "restore"),
-    ("operations", "preflight"): ("validate", "deployment"),
-    ("operations", "backfill-source"): ("maintenance", "history", "backfill"),
-    ("operations", "compact-history"): ("maintenance", "history", "compact"),
-    ("operations", "flush-history"): ("maintenance", "history", "flush"),
-    ("operations", "migrate-phase-unbalance-results"): (
-        "maintenance",
-        "migrate-phase-unbalance-results",
-    ),
-    ("operations", "poll-source"): ("internal", "poll-source"),
-    ("operations", "request-collection"): ("internal", "request-collection"),
-    ("operations", "run-collection-service"): ("internal", "collection-service"),
-    ("operations", "run-window-analysis"): ("internal", "window-analysis"),
-}
-
-
-def rewrite_legacy_operational_argv(argv: Sequence[str]) -> list[str]:
-    """Route legacy operational spellings to their canonical responsibility group."""
-    normalized = list(argv)
-    if len(normalized) < 2:
-        return normalized
-    replacement = _LEGACY_OPERATIONAL_ROUTES.get((normalized[0], normalized[1]))
-    if replacement is None:
-        return normalized
-    return [*replacement, *normalized[2:]]
-
 
 def add_operational_command_groups(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
@@ -364,12 +334,12 @@ def _add_internal_commands(
     request_collection.add_argument(
         "--registry",
         type=Path,
-        help="explicit registered-source JSON path (compatibility/internal mode)",
+        help="explicit registered-source JSON path (internal/diagnostic mode)",
     )
     request_collection.add_argument(
         "--control-state",
         type=Path,
-        help="explicit desired collection-state SQLite path (compatibility/internal mode)",
+        help="explicit desired collection-state SQLite path (internal/diagnostic mode)",
     )
     request_collection.add_argument(
         "--source-id",
