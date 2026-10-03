@@ -136,6 +136,11 @@
 
 ### Changed
 
+- Operations V2의 read snapshot과 write action을 하나의 `OperationsAppContext` composition root로
+  통합했습니다. workspace/legacy path resolution, source registry projection, bounded async worker를
+  `operations_app_wiring`에서 공유하고, OPC UA browse도 action facade가 소유합니다. marimo app은 더 이상
+  persistence path를 개별 export하거나 asyncio/thread/connector wiring을 직접 구성하지 않습니다.
+
 - Operations V2의 write-side concrete repository와 OPC UA diagnostic event-loop bridging을
   `OperationsAppActions` runtime facade로 분리했습니다. Setup lifecycle/freshness/collection intent/source
   registration, FILE snapshot analysis persistence, review request와 Maintenance review 기록은 기존 application

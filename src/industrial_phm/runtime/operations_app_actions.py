@@ -7,13 +7,9 @@ belong to the local runtime composition boundary.
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Callable, Coroutine
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
 
 from industrial_phm.application import (
     CollectionControlRecord,
@@ -47,8 +43,18 @@ from industrial_phm.application import (
     transition_source_lifecycle,
     validate_distinct_source_state_paths,
 )
+from industrial_phm.connectors import (
+    OpcUaBrowseConfig,
+    OpcUaBrowseResult,
+    browse_opcua_variables,
+)
 from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
-from industrial_phm.runtime.operations_app_composition import OperationsAppPaths
+from industrial_phm.runtime.operations_app_wiring import (
+    OperationsAppPaths,
+    OperationsSourceRegistryState,
+    operations_source_registry_state,
+    run_async_in_worker,
+)
 
 
 class OperationsDiagnosticKind(StrEnum):
@@ -56,15 +62,6 @@ class OperationsDiagnosticKind(StrEnum):
 
     CYCLE = "cycle"
     SUBSCRIPTION = "subscription"
-
-
-@dataclass(frozen=True, slots=True)
-class OperationsSourceRegistryState:
-    """Post-action source registry state needed by the Setup UI."""
-
-    sources: tuple[RegisteredSource, ...]
-    lifecycles: tuple[SourceLifecycleRecord, ...]
-    freshness_policies: tuple[SourceFreshnessPolicy, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +88,20 @@ class OperationsAppActions:
                 changed_at=changed_at,
             )
             repository.set_freshness_policy(policy)
-        return policy, _load_registry_state(repository)
+        return policy, operations_source_registry_state(repository)
+
+    def browse_opcua(
+        self,
+        *,
+        endpoint_url: str,
+        timeout_seconds: float,
+    ) -> OpcUaBrowseResult:
+        """Run one bounded OPC UA browse without exposing event-loop plumbing to the UI."""
+        config = OpcUaBrowseConfig(
+            endpoint_url=endpoint_url,
+            timeout_seconds=timeout_seconds,
+        )
+        return run_async_in_worker(lambda: browse_opcua_variables(config))
 
     def run_diagnostic(
         self,
@@ -119,7 +129,7 @@ class OperationsAppActions:
                     source.source_id,
                 )
             elif isinstance(source.config, OpcUaSourceConfig):
-                result = _run_async_in_worker(
+                result = run_async_in_worker(
                     lambda: run_registered_opcua_source_cycle(
                         source_repository,
                         source_repository,
@@ -133,7 +143,7 @@ class OperationsAppActions:
             if not isinstance(source.config, OpcUaSourceConfig):
                 raise ValueError("bounded subscription diagnostics require an OPC UA source")
             max_events = max(1, len(source.config.node_mappings))
-            result = _run_async_in_worker(
+            result = run_async_in_worker(
                 lambda: run_registered_opcua_subscription_cycle(
                     source_repository,
                     source_repository,
@@ -146,7 +156,7 @@ class OperationsAppActions:
                 )
             )
 
-        return result, _load_registry_state(source_repository)
+        return result, operations_source_registry_state(source_repository)
 
     def transition_source(
         self,
@@ -162,7 +172,7 @@ class OperationsAppActions:
             target,
             changed_at=changed_at,
         )
-        return record, _load_registry_state(repository)
+        return record, operations_source_registry_state(repository)
 
     def request_collection(
         self,
@@ -194,7 +204,7 @@ class OperationsAppActions:
             repository.register(source)
         else:  # pragma: no cover - RegisteredSource validates supported config types.
             raise ValueError("unsupported registered source config")
-        return _load_registry_state(repository)
+        return operations_source_registry_state(repository)
 
     def record_file_analysis(
         self,
@@ -228,30 +238,3 @@ class OperationsAppActions:
         repository = JsonFindingReviewRepository(self.paths.review)
         repository.record(event)
         return event, repository.list_events()
-
-
-def _load_registry_state(
-    repository: JsonSourceRepository,
-) -> OperationsSourceRegistryState:
-    sources = repository.list_sources()
-    lifecycles = tuple(repository.get_lifecycle(source.source_id) for source in sources)
-    freshness = tuple(
-        policy
-        for source in sources
-        if (policy := repository.get_freshness_policy(source.source_id)) is not None
-    )
-    return OperationsSourceRegistryState(
-        sources=sources,
-        lifecycles=lifecycles,
-        freshness_policies=freshness,
-    )
-
-
-def _run_async_in_worker[T](
-    factory: Callable[[], Coroutine[Any, Any, T]],
-) -> T:
-    def run() -> T:
-        return asyncio.run(factory())
-
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        return executor.submit(run).result()

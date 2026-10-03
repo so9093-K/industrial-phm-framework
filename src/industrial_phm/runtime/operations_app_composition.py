@@ -1,17 +1,15 @@
 """Concrete read-side composition for the packaged Operations V2 application.
 
 The marimo app should render operator workflows, not know how every JSON/SQLite/
-DuckLake repository is wired. This module owns path resolution and one bounded,
-error-tolerant operational snapshot from the existing authoritative repositories.
+DuckLake repository is wired. Shared path wiring is resolved by operations_app_wiring;
+this module owns one bounded, error-tolerant operational read snapshot.
 """
 
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from industrial_phm.application import (
     AcquisitionTelemetrySurface,
@@ -21,7 +19,6 @@ from industrial_phm.application import (
     JsonFieldFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
-    JsonSourceRepository,
     JsonSourceRuntimeRepository,
     JsonWindowAnalysisRuntimeRepository,
     LiveFlowTiming,
@@ -60,31 +57,13 @@ from industrial_phm.runtime.acquisition_telemetry import (
     SqliteAcquisitionTelemetryRepository,
 )
 from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
-from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+from industrial_phm.runtime.operations_app_wiring import (
+    OperationsAppPaths,
+    load_operations_source_registry_state,
+    resolve_operations_app_paths,
+)
 
 _PHASE_RESULT_LIMIT = 500
-
-
-@dataclass(frozen=True, slots=True)
-class OperationsAppPaths:
-    """Resolved persistent paths used by one Operations V2 render."""
-
-    workspace: OperationsWorkspace | None
-    registry: Path
-    source_runtime: Path
-    acquisition_telemetry: Path
-    acquisition_spool: Path
-    collection_control: Path
-    field_analysis: Path
-    phase_analysis: Path
-    analysis_runtime: Path
-    window_state: Path
-    analysis_ledger: Path
-    findings: Path
-    review: Path
-    history_catalog: Path
-    history_data: Path
-    phase_analysis_explicit: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,114 +90,6 @@ class OperationsAppSnapshot:
     live_flow_timing: LiveFlowTiming
     system_diagnostics: tuple[tuple[str, str], ...]
     system_errors: tuple[SystemStateErrorEvidence, ...]
-
-
-def resolve_operations_app_paths(
-    environ: Mapping[str, str] | None = None,
-) -> OperationsAppPaths:
-    """Resolve the product workspace first, retaining legacy path compatibility."""
-    values = os.environ if environ is None else environ
-    workspace_root = values.get("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE")
-    workspace = None if workspace_root is None else OperationsWorkspace(Path(workspace_root))
-
-    def runtime_path(
-        env_name: str,
-        workspace_path: Path | None,
-        legacy_default: str | Path,
-    ) -> Path:
-        default = Path(legacy_default) if workspace is None else workspace_path
-        if default is None:
-            raise AssertionError(f"workspace path is required for {env_name}")
-        return Path(values.get(env_name, str(default)))
-
-    registry = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY",
-        None if workspace is None else workspace.source_registry_path,
-        "artifacts/operations/source-registry.json",
-    )
-    source_runtime = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_SOURCE_RUNTIME",
-        None if workspace is None else workspace.source_runtime_path,
-        "artifacts/operations/source-runtime.json",
-    )
-    acquisition_telemetry = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_TELEMETRY",
-        None if workspace is None else workspace.acquisition_telemetry_path,
-        "artifacts/operations/acquisition-telemetry.sqlite",
-    )
-    acquisition_spool = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_ACQUISITION_SPOOL",
-        None if workspace is None else workspace.acquisition_spool_path,
-        "artifacts/operations/acquisition-spool.sqlite",
-    )
-    collection_control = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_COLLECTION_CONTROL",
-        None if workspace is None else workspace.collection_control_path,
-        "artifacts/operations/collection-control.sqlite",
-    )
-    field_analysis = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_STATE",
-        None if workspace is None else workspace.field_analysis_path,
-        "artifacts/operations/field-analysis.json",
-    )
-    phase_analysis = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE",
-        None if workspace is None else workspace.phase_unbalance_state_path,
-        "artifacts/operations/phase-unbalance.sqlite",
-    )
-    analysis_runtime = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_RUNTIME",
-        None if workspace is None else workspace.analysis_runtime_path,
-        phase_analysis.with_name(f"{phase_analysis.stem}-runtime.json"),
-    )
-    window_state = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_WINDOW_STATE",
-        None if workspace is None else workspace.window_state_path,
-        phase_analysis.with_name("windows.sqlite"),
-    )
-    analysis_ledger = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_ANALYSIS_LEDGER",
-        None if workspace is None else workspace.analysis_ledger_path,
-        phase_analysis.with_name("window-analysis-ledger.sqlite"),
-    )
-    findings = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE",
-        None if workspace is None else workspace.finding_state_path,
-        "artifacts/operations/findings.json",
-    )
-    review = runtime_path(
-        "INDUSTRIAL_PHM_OPERATIONS_MAINTENANCE_REVIEW_STATE",
-        None if workspace is None else workspace.maintenance_review_state_path,
-        "artifacts/operations/finding-review.json",
-    )
-    history_catalog = runtime_path(
-        "INDUSTRIAL_PHM_HISTORY_CATALOG",
-        None if workspace is None else workspace.history_catalog_path,
-        "artifacts/operations/history/catalog.sqlite",
-    )
-    history_data = runtime_path(
-        "INDUSTRIAL_PHM_HISTORY_DATA",
-        None if workspace is None else workspace.history_data_path,
-        "artifacts/operations/history/data",
-    )
-    return OperationsAppPaths(
-        workspace=workspace,
-        registry=registry,
-        source_runtime=source_runtime,
-        acquisition_telemetry=acquisition_telemetry,
-        acquisition_spool=acquisition_spool,
-        collection_control=collection_control,
-        field_analysis=field_analysis,
-        phase_analysis=phase_analysis,
-        analysis_runtime=analysis_runtime,
-        window_state=window_state,
-        analysis_ledger=analysis_ledger,
-        findings=findings,
-        review=review,
-        history_catalog=history_catalog,
-        history_data=history_data,
-        phase_analysis_explicit="INDUSTRIAL_PHM_OPERATIONS_PHASE_UNBALANCE_STATE" in values,
-    )
 
 
 def load_operations_app_snapshot(
@@ -397,15 +268,8 @@ def _load_sources(
     tuple[SourceFreshnessPolicy, ...],
 ]:
     try:
-        repository = JsonSourceRepository(paths.registry)
-        sources = repository.list_sources()
-        lifecycles = tuple(repository.get_lifecycle(source.source_id) for source in sources)
-        freshness = tuple(
-            policy
-            for source in sources
-            if (policy := repository.get_freshness_policy(source.source_id)) is not None
-        )
-        return sources, lifecycles, freshness
+        state = load_operations_source_registry_state(paths.registry)
+        return state.sources, state.lifecycles, state.freshness_policies
     except (OSError, ValueError) as error:
         _append_error(errors, "source-settings", error, assessed_at)
         return (), (), ()
