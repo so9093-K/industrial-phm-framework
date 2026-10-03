@@ -4,10 +4,10 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     AnalysisRun,
     OperationalVibrationFeatureEvidence,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
     SourceSnapshotEvidence,
 )
 from industrial_phm.application.finding_review import (
@@ -20,7 +20,7 @@ from industrial_phm.application.finding_review import (
 from industrial_phm.contracts import DataQualityAssessment
 
 
-def _analysis_result() -> RegisteredFieldFeatureAnalysis:
+def _analysis_result() -> RegisteredFileFeatureAnalysis:
     snapshot = SourceSnapshotEvidence(
         name="bearing.csv",
         sha256="a" * 64,
@@ -37,18 +37,18 @@ def _analysis_result() -> RegisteredFieldFeatureAnalysis:
         completed_at=datetime(2026, 9, 27, 1, 5, 1, tzinfo=UTC),
         data_quality=DataQualityAssessment(),
         source_snapshots=(snapshot,),
-        capability_ids=(FIELD_VIBRATION_FEATURE_CAPABILITY_ID,),
+        capability_ids=(FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,),
     )
     evidence = OperationalVibrationFeatureEvidence(
         evidence_id="evidence-1",
         analysis_run_id=run.analysis_run_id,
-        capability_id=FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+        capability_id=FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
         feature_set_id="vibration-statistical-v1",
         feature_names=("rms", "peak"),
         values=(1.25, 2.5),
         source_snapshot_sha256=snapshot.sha256,
     )
-    return RegisteredFieldFeatureAnalysis(run=run, evidence=evidence)
+    return RegisteredFileFeatureAnalysis(run=run, evidence=evidence)
 
 
 def test_create_human_review_finding_links_feature_evidence_without_fault_claim() -> None:
@@ -61,7 +61,7 @@ def test_create_human_review_finding_links_feature_evidence_without_fault_claim(
     assert finding.asset_id == result.run.asset_id
     assert finding.measurement_point_id == result.run.measurement_point_id
     assert finding.observed_at == result.run.observed_end_at
-    assert finding.capability_id == FIELD_VIBRATION_FEATURE_CAPABILITY_ID
+    assert finding.capability_id == FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID
     assert finding.finding_semantics_id == HUMAN_REVIEW_FINDING_SEMANTICS_ID
     assert finding.state == HUMAN_REVIEW_FINDING_STATE
     assert finding.evidence_refs == (result.evidence.evidence_id,)
