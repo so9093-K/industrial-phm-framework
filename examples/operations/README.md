@@ -12,7 +12,7 @@ Start the canonical Operations application:
 
 ```bash
 uv sync --locked --group research
-uv run --no-sync marimo run apps/operations_v2.py
+uv run --no-sync marimo run src/industrial_phm/apps/operations_v2.py
 ```
 
 Open **Setup → Data Sources → Add data source** and register a FILE snapshot with these
