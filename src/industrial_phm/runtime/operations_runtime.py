@@ -15,6 +15,7 @@ _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
 OPERATIONS_UI_HOST = "127.0.0.1"
 OPERATIONS_WORKSPACE_ENV = "INDUSTRIAL_PHM_OPERATIONS_WORKSPACE"
 
+
 class OperationsComponentKind(StrEnum):
     """Independent local processes managed by the Operations runtime."""
 
