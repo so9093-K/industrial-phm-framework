@@ -291,14 +291,14 @@ def test_stopped_workspace_backup_restores_and_restarts_as_new_node(tmp_path: Pa
     original_event_count = len(original_events)
 
     backup = tmp_path / "plant-backup"
-    backup_result = _run_cli("operations", "backup", str(root), str(backup))
+    backup_result = _run_cli("maintenance", "backup", str(root), str(backup))
     assert backup_result.returncode == 0, (
         f"stdout={backup_result.stdout}\nstderr={backup_result.stderr}"
     )
     assert "schema=industrial-phm-operations-backup-v1" in backup_result.stdout
 
     restored_root = tmp_path / "plant-restored"
-    restore_result = _run_cli("operations", "restore", str(backup), str(restored_root))
+    restore_result = _run_cli("maintenance", "restore", str(backup), str(restored_root))
     assert restore_result.returncode == 0, (
         f"stdout={restore_result.stdout}\nstderr={restore_result.stderr}"
     )
