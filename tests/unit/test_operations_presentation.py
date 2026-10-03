@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application import (
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     PHASE_UNBALANCE_CAPABILITY_ID,
     AcquisitionFlowTelemetry,
     AcquisitionSessionTelemetry,
@@ -63,7 +63,7 @@ NOW = datetime(2026, 9, 27, 10, 0, tzinfo=UTC)
 
 def test_operational_analysis_presentation_dispatch_is_capability_explicit() -> None:
     assert (
-        operational_analysis_presentation_kind(FIELD_VIBRATION_FEATURE_CAPABILITY_ID)
+        operational_analysis_presentation_kind(FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID)
         == OperationalAnalysisPresentationKind.VIBRATION_FEATURES
     )
     assert (

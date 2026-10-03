@@ -29,7 +29,7 @@ class OperationsAppPaths:
     acquisition_telemetry: Path
     acquisition_spool: Path
     collection_control: Path
-    field_analysis: Path
+    file_feature_analysis: Path
     phase_analysis: Path
     analysis_runtime: Path
     window_state: Path
@@ -68,7 +68,7 @@ def resolve_operations_app_paths(
         acquisition_telemetry=workspace.acquisition_telemetry_path,
         acquisition_spool=workspace.acquisition_spool_path,
         collection_control=workspace.collection_control_path,
-        field_analysis=workspace.field_analysis_path,
+        file_feature_analysis=workspace.file_feature_analysis_path,
         phase_analysis=workspace.phase_unbalance_state_path,
         analysis_runtime=workspace.analysis_runtime_path,
         window_state=workspace.window_state_path,

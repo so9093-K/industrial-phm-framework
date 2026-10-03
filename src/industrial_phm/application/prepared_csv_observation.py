@@ -1,4 +1,4 @@
-"""Application projection from field CSV validation to operational observation status."""
+"""Application projection from prepared CSV validation to operational observation status."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from industrial_phm.application.observation import (
 from industrial_phm.contracts import DataQualityAssessment
 
 
-def build_field_csv_observation_summary(
+def build_prepared_csv_observation_summary(
     report: CsvSensorValidationReport,
     *,
     source_id: str,
@@ -50,41 +50,41 @@ def build_field_csv_observation_summary(
     )
 
 
-def load_field_csv_observation_summary(
+def load_prepared_csv_observation_summary(
     source: Path,
     layout: CsvSensorLayout,
     *,
     source_id: str,
     measurement_point_id: str | None = None,
 ) -> AssetObservationSummary:
-    """Validate one prepared field CSV and return its operational observation summary."""
+    """Validate one prepared CSV and return its operational observation summary."""
     report = validate_csv_sensor_source(source, layout)
-    return build_field_csv_observation_summary(
+    return build_prepared_csv_observation_summary(
         report,
         source_id=source_id,
         measurement_point_id=measurement_point_id,
     )
 
 
-def load_field_csv_observation_timeline(
+def load_prepared_csv_observation_timeline(
     sources: Sequence[Path],
     layout: CsvSensorLayout,
     *,
     source_id: str,
     measurement_point_id: str | None = None,
 ) -> AssetObservationTimeline:
-    """Validate timestamped field CSV segments and order them by recorded observation time."""
+    """Validate timestamped prepared CSV segments and order them by recorded observation time."""
     source_paths = tuple(sources)
     if not source_paths:
-        raise ValueError("field observation timeline requires at least one source")
+        raise ValueError("prepared CSV observation timeline requires at least one source")
     if len(set(source_paths)) != len(source_paths):
-        raise ValueError("field observation timeline sources must be unique")
+        raise ValueError("prepared CSV observation timeline sources must be unique")
     if layout.timestamp_column is None:
-        raise ValueError("field observation timeline requires an explicit timestamp_column")
+        raise ValueError("prepared CSV observation timeline requires an explicit timestamp_column")
 
     dated_segments: list[tuple[datetime, AssetObservationSummary]] = []
     for source in source_paths:
-        summary = load_field_csv_observation_summary(
+        summary = load_prepared_csv_observation_summary(
             source,
             layout,
             source_id=source_id,
@@ -92,7 +92,7 @@ def load_field_csv_observation_timeline(
         )
         if summary.observed_start_at is None:
             raise AssertionError(
-                "timestamped field CSV summary unexpectedly lacks observed_start_at"
+                "timestamped prepared CSV summary unexpectedly lacks observed_start_at"
             )
         dated_segments.append((summary.observed_start_at, summary))
 
@@ -100,22 +100,24 @@ def load_field_csv_observation_timeline(
         dated_segments.sort(key=lambda item: item[0])
     except TypeError as error:
         raise ValueError(
-            "field observation timeline timestamps must use consistent timezone awareness"
+            "prepared CSV observation timeline timestamps must use consistent timezone awareness"
         ) from error
 
     return AssetObservationTimeline(tuple(summary for _, summary in dated_segments))
 
 
-def load_field_csv_observation_timeline_directory(
+def load_prepared_csv_observation_timeline_directory(
     source_directory: Path,
     layout: CsvSensorLayout,
     *,
     source_id: str,
     measurement_point_id: str | None = None,
 ) -> AssetObservationTimeline:
-    """Load immediate CSV files as one timestamp-ordered field observation timeline."""
+    """Load immediate CSV files as one timestamp-ordered prepared CSV observation timeline."""
     if not source_directory.is_dir():
-        raise ValueError(f"field observation timeline directory does not exist: {source_directory}")
+        raise ValueError(
+            f"prepared CSV observation timeline directory does not exist: {source_directory}"
+        )
 
     sources = tuple(
         path
@@ -124,10 +126,10 @@ def load_field_csv_observation_timeline_directory(
     )
     if not sources:
         raise ValueError(
-            f"field observation timeline directory contains no CSV files: {source_directory}"
+            f"prepared CSV observation timeline directory contains no CSV files: {source_directory}"
         )
 
-    return load_field_csv_observation_timeline(
+    return load_prepared_csv_observation_timeline(
         sources,
         layout,
         source_id=source_id,

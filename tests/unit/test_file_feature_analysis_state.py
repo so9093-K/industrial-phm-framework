@@ -4,15 +4,15 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     AnalysisRun,
     OperationalVibrationFeatureEvidence,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
     SourceSnapshotEvidence,
 )
-from industrial_phm.application.field_analysis_state import (
-    FieldAnalysisHistoryFormatError,
-    JsonFieldFeatureAnalysisRepository,
+from industrial_phm.application.file_feature_analysis_state import (
+    FileFeatureAnalysisHistoryFormatError,
+    JsonFileFeatureAnalysisRepository,
 )
 from industrial_phm.contracts import (
     DataQualityAssessment,
@@ -21,7 +21,7 @@ from industrial_phm.contracts import (
 )
 
 
-def _result(*, run_id: str, completed_minute: int) -> RegisteredFieldFeatureAnalysis:
+def _result(*, run_id: str, completed_minute: int) -> RegisteredFileFeatureAnalysis:
     snapshot = SourceSnapshotEvidence(
         name="bearing.csv",
         sha256="a" * 64,
@@ -30,7 +30,7 @@ def _result(*, run_id: str, completed_minute: int) -> RegisteredFieldFeatureAnal
     run = AnalysisRun(
         analysis_run_id=run_id,
         asset_id="bearing-01",
-        source_id="field-bearing-01",
+        source_id="prepared-bearing-01",
         measurement_point_id="de",
         observed_start_at=datetime(2026, 9, 27, 1, 0, tzinfo=UTC),
         observed_end_at=datetime(2026, 9, 27, 1, 0, 2, tzinfo=UTC),
@@ -46,22 +46,22 @@ def _result(*, run_id: str, completed_minute: int) -> RegisteredFieldFeatureAnal
             )
         ),
         source_snapshots=(snapshot,),
-        capability_ids=(FIELD_VIBRATION_FEATURE_CAPABILITY_ID,),
+        capability_ids=(FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,),
     )
     evidence = OperationalVibrationFeatureEvidence(
         evidence_id=f"evidence-{run_id}",
         analysis_run_id=run_id,
-        capability_id=FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+        capability_id=FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
         feature_set_id="vibration-statistical-v1",
         feature_names=("rms", "peak"),
         values=(1.25, 2.5),
         source_snapshot_sha256=snapshot.sha256,
     )
-    return RegisteredFieldFeatureAnalysis(run=run, evidence=evidence)
+    return RegisteredFileFeatureAnalysis(run=run, evidence=evidence)
 
 
-def test_field_analysis_history_round_trips_and_orders_results(tmp_path: Path) -> None:
-    repository = JsonFieldFeatureAnalysisRepository(tmp_path / "field-analysis.json")
+def test_file_feature_analysis_history_round_trips_and_orders_results(tmp_path: Path) -> None:
+    repository = JsonFileFeatureAnalysisRepository(tmp_path / "field-analysis.json")
     later = _result(run_id="analysis-run-2", completed_minute=12)
     earlier = _result(run_id="analysis-run-1", completed_minute=11)
 
@@ -74,8 +74,8 @@ def test_field_analysis_history_round_trips_and_orders_results(tmp_path: Path) -
     assert results[0].run.source_snapshots[0].sha256 == "a" * 64
 
 
-def test_field_analysis_history_accepts_exact_idempotent_replay(tmp_path: Path) -> None:
-    repository = JsonFieldFeatureAnalysisRepository(tmp_path / "field-analysis.json")
+def test_file_feature_analysis_history_accepts_exact_idempotent_replay(tmp_path: Path) -> None:
+    repository = JsonFileFeatureAnalysisRepository(tmp_path / "field-analysis.json")
     result = _result(run_id="analysis-run-1", completed_minute=11)
 
     repository.record(result)
@@ -84,11 +84,11 @@ def test_field_analysis_history_accepts_exact_idempotent_replay(tmp_path: Path) 
     assert repository.list_results() == (result,)
 
 
-def test_field_analysis_history_rejects_conflicting_run_identity(tmp_path: Path) -> None:
-    repository = JsonFieldFeatureAnalysisRepository(tmp_path / "field-analysis.json")
+def test_file_feature_analysis_history_rejects_conflicting_run_identity(tmp_path: Path) -> None:
+    repository = JsonFileFeatureAnalysisRepository(tmp_path / "field-analysis.json")
     first = _result(run_id="analysis-run-1", completed_minute=11)
     repository.record(first)
-    conflicting = RegisteredFieldFeatureAnalysis(
+    conflicting = RegisteredFileFeatureAnalysis(
         run=first.run,
         evidence=OperationalVibrationFeatureEvidence(
             evidence_id="different-evidence",
@@ -105,7 +105,7 @@ def test_field_analysis_history_rejects_conflicting_run_identity(tmp_path: Path)
         repository.record(conflicting)
 
 
-def test_field_analysis_history_rejects_unsupported_schema(tmp_path: Path) -> None:
+def test_file_feature_analysis_history_rejects_unsupported_schema(tmp_path: Path) -> None:
     path = tmp_path / "field-analysis.json"
     path.write_text(
         '{"schema":"industrial-phm-field-feature-analysis-v999","results":[]}\n',
@@ -113,7 +113,7 @@ def test_field_analysis_history_rejects_unsupported_schema(tmp_path: Path) -> No
     )
 
     with pytest.raises(
-        FieldAnalysisHistoryFormatError,
-        match="unsupported field analysis history schema",
+        FileFeatureAnalysisHistoryFormatError,
+        match="unsupported FILE feature analysis history schema",
     ):
-        JsonFieldFeatureAnalysisRepository(path).list_results()
+        JsonFileFeatureAnalysisRepository(path).list_results()

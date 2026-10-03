@@ -6,14 +6,14 @@ import pytest
 
 from industrial_phm.adapters import CsvSensorLayout
 from industrial_phm.application import (
-    load_field_csv_observation_summary,
-    load_field_csv_observation_timeline,
-    load_field_csv_observation_timeline_directory,
+    load_prepared_csv_observation_summary,
+    load_prepared_csv_observation_timeline,
+    load_prepared_csv_observation_timeline_directory,
 )
 from industrial_phm.contracts import DataQualityState
 
 
-def test_field_csv_validation_projects_into_operational_observation_summary(
+def test_prepared_csv_validation_projects_into_operational_observation_summary(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "pump.csv"
@@ -25,7 +25,7 @@ def test_field_csv_validation_projects_into_operational_observation_summary(
         encoding="utf-8",
     )
 
-    summary = load_field_csv_observation_summary(
+    summary = load_prepared_csv_observation_summary(
         source,
         CsvSensorLayout(
             asset_id="pump-01",
@@ -34,12 +34,12 @@ def test_field_csv_validation_projects_into_operational_observation_summary(
             sampling_rate_hz=2.0,
             sampling_rate_tolerance_ratio=0.05,
         ),
-        source_id="field-export:pump-01",
+        source_id="prepared-export:pump-01",
         measurement_point_id="drive-end-bearing",
     )
 
     assert summary.asset_id == "pump-01"
-    assert summary.source_id == "field-export:pump-01"
+    assert summary.source_id == "prepared-export:pump-01"
     assert summary.measurement_point_id == "drive-end-bearing"
     assert summary.channels == ("vibration_x",)
     assert summary.sample_count == 3
@@ -60,7 +60,7 @@ def test_field_csv_validation_projects_into_operational_observation_summary(
     assert summary.validation_policy.sampling_rate_tolerance_ratio == 0.05
 
 
-def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
+def test_prepared_csv_timeline_orders_segments_by_recorded_timestamp(
     tmp_path: Path,
 ) -> None:
     early = tmp_path / "segment-z.csv"
@@ -79,10 +79,10 @@ def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
         channel_columns=("vibration_x",),
     )
 
-    timeline = load_field_csv_observation_timeline(
+    timeline = load_prepared_csv_observation_timeline(
         (late, early),
         layout,
-        source_id="field-export:pump-01",
+        source_id="prepared-export:pump-01",
         measurement_point_id="drive-end-bearing",
     )
 
@@ -95,25 +95,25 @@ def test_field_csv_timeline_orders_segments_by_recorded_timestamp(
     assert timeline.observed_end_at == datetime.fromisoformat("2026-09-22T11:00:01+09:00")
 
 
-def test_field_csv_timeline_requires_explicit_timestamp_column(
+def test_prepared_csv_timeline_requires_explicit_timestamp_column(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "segment.csv"
     source.write_text("vibration_x\n-1.0\n1.0\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="explicit timestamp_column"):
-        load_field_csv_observation_timeline(
+        load_prepared_csv_observation_timeline(
             (source,),
             CsvSensorLayout(
                 asset_id="pump-01",
                 channel_columns=("vibration_x",),
                 sampling_rate_hz=1_000.0,
             ),
-            source_id="field-export:pump-01",
+            source_id="prepared-export:pump-01",
         )
 
 
-def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
+def test_prepared_csv_timeline_directory_uses_recorded_time_not_filename_order(
     tmp_path: Path,
 ) -> None:
     history = tmp_path / "history"
@@ -127,14 +127,14 @@ def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
         encoding="utf-8",
     )
 
-    timeline = load_field_csv_observation_timeline_directory(
+    timeline = load_prepared_csv_observation_timeline_directory(
         history,
         CsvSensorLayout(
             asset_id="pump-01",
             timestamp_column="timestamp",
             channel_columns=("vibration_x",),
         ),
-        source_id="field-export:pump-01",
+        source_id="prepared-export:pump-01",
         measurement_point_id="drive-end-bearing",
     )
 
@@ -145,34 +145,34 @@ def test_field_csv_timeline_directory_uses_recorded_time_not_filename_order(
     assert timeline.latest.source_snapshot.name == "001-late.csv"
 
 
-def test_field_csv_timeline_directory_rejects_missing_directory(
+def test_prepared_csv_timeline_directory_rejects_missing_directory(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(ValueError, match="directory does not exist"):
-        load_field_csv_observation_timeline_directory(
+        load_prepared_csv_observation_timeline_directory(
             tmp_path / "missing",
             CsvSensorLayout(
                 asset_id="pump-01",
                 timestamp_column="timestamp",
                 channel_columns=("vibration_x",),
             ),
-            source_id="field-export:pump-01",
+            source_id="prepared-export:pump-01",
         )
 
 
-def test_field_csv_timeline_directory_rejects_empty_directory(
+def test_prepared_csv_timeline_directory_rejects_empty_directory(
     tmp_path: Path,
 ) -> None:
     history = tmp_path / "history"
     history.mkdir()
 
     with pytest.raises(ValueError, match="contains no CSV files"):
-        load_field_csv_observation_timeline_directory(
+        load_prepared_csv_observation_timeline_directory(
             history,
             CsvSensorLayout(
                 asset_id="pump-01",
                 timestamp_column="timestamp",
                 channel_columns=("vibration_x",),
             ),
-            source_id="field-export:pump-01",
+            source_id="prepared-export:pump-01",
         )

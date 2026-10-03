@@ -115,5 +115,5 @@ def test_validate_csv_cli_rejects_missing_time_basis(
     captured = capsys.readouterr()
     assert exit_code == 1
     assert captured.out == ""
-    assert "field CSV validation failed:" in captured.err
+    assert "prepared CSV validation failed:" in captured.err
     assert "timestamp_column or sampling_rate_hz" in captured.err

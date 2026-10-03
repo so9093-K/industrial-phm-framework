@@ -16,7 +16,9 @@ from industrial_phm.application.collection_control import (
     CollectionControlRecord,
     CollectionDesiredState,
 )
-from industrial_phm.application.field_analysis import FIELD_VIBRATION_FEATURE_CAPABILITY_ID
+from industrial_phm.application.file_feature_analysis import (
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
+)
 from industrial_phm.application.observation import (
     AssetObservationSummary,
     SourceSnapshotEvidence,
@@ -40,7 +42,9 @@ class OperationalAnalysisPresentationKind(StrEnum):
 
 
 _OPERATIONAL_ANALYSIS_PRESENTATION_KIND = {
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID: OperationalAnalysisPresentationKind.VIBRATION_FEATURES,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID: (
+        OperationalAnalysisPresentationKind.VIBRATION_FEATURES
+    ),
     PHASE_UNBALANCE_CAPABILITY_ID: OperationalAnalysisPresentationKind.PHASE_UNBALANCE,
 }
 

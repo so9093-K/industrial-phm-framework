@@ -19,7 +19,7 @@ def test_operations_app_paths_use_single_workspace_root(tmp_path: Path) -> None:
     assert paths.acquisition_telemetry == workspace.acquisition_telemetry_path
     assert paths.acquisition_spool == workspace.acquisition_spool_path
     assert paths.collection_control == workspace.collection_control_path
-    assert paths.field_analysis == workspace.field_analysis_path
+    assert paths.file_feature_analysis == workspace.file_feature_analysis_path
     assert paths.phase_analysis == workspace.phase_unbalance_state_path
     assert paths.analysis_runtime == workspace.analysis_runtime_path
     assert paths.window_state == workspace.window_state_path

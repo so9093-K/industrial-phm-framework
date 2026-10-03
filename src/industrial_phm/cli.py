@@ -157,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     data_validate_csv = data_commands.add_parser(
         "validate-csv",
-        help="validate a prepared single-asset field CSV export",
+        help="validate a prepared single-asset CSV export",
     )
     data_validate_csv.add_argument(
         "--source",

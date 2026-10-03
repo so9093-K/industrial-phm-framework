@@ -81,21 +81,15 @@ from industrial_phm.application.collection_control import (
     CollectionDesiredState,
     request_collection_state,
 )
-from industrial_phm.application.field_analysis import (
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+from industrial_phm.application.file_feature_analysis import (
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     OperationalVibrationFeatureEvidence,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
     run_registered_file_feature_analysis,
 )
-from industrial_phm.application.field_analysis_state import (
-    FieldAnalysisHistoryFormatError,
-    JsonFieldFeatureAnalysisRepository,
-)
-from industrial_phm.application.field_csv import (
-    build_field_csv_observation_summary,
-    load_field_csv_observation_summary,
-    load_field_csv_observation_timeline,
-    load_field_csv_observation_timeline_directory,
+from industrial_phm.application.file_feature_analysis_state import (
+    FileFeatureAnalysisHistoryFormatError,
+    JsonFileFeatureAnalysisRepository,
 )
 from industrial_phm.application.file_source_registration import (
     FileSourceDiscovery,
@@ -265,6 +259,12 @@ from industrial_phm.application.phase_unbalance_state import (
     SqlitePhaseUnbalanceRepository,
     migrate_json_phase_unbalance_results,
 )
+from industrial_phm.application.prepared_csv_observation import (
+    build_prepared_csv_observation_summary,
+    load_prepared_csv_observation_summary,
+    load_prepared_csv_observation_timeline,
+    load_prepared_csv_observation_timeline_directory,
+)
 from industrial_phm.application.source_cycle import (
     SourceRuntimeCycleFailureScope,
     SourceRuntimeCycleResult,
@@ -355,7 +355,7 @@ from industrial_phm.application.window_coordinator import (
 )
 
 __all__ = [
-    "FIELD_VIBRATION_FEATURE_CAPABILITY_ID",
+    "FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID",
     "HUMAN_REVIEW_FINDING_SEMANTICS_ID",
     "HUMAN_REVIEW_FINDING_STATE",
     "OPCUA_SEMANTIC_BINDING_INPUT_COLUMNS",
@@ -415,10 +415,10 @@ __all__ = [
     "ComponentIdentity",
     "ContinuousObservationWindowCoordinatorResult",
     "DurableObservationWindow",
-    "FieldAnalysisHistoryFormatError",
     "FileBackfillEvent",
     "FileBackfillResult",
     "FileBackfillSegmentResult",
+    "FileFeatureAnalysisHistoryFormatError",
     "FileHistoricalBatchStore",
     "FileSourceConfig",
     "FileSourceDiscovery",
@@ -443,7 +443,7 @@ __all__ = [
     "InvestigationQueueItem",
     "InvestigationQueueView",
     "InvestigationReviewState",
-    "JsonFieldFeatureAnalysisRepository",
+    "JsonFileFeatureAnalysisRepository",
     "JsonFindingReviewRepository",
     "JsonObservationWindowRepository",
     "JsonOperationalFindingRepository",
@@ -502,7 +502,7 @@ __all__ = [
     "PhaseUnbalanceEvidence",
     "ReceivedRegisteredFileObservation",
     "ReceivedRegisteredOpcUaObservation",
-    "RegisteredFieldFeatureAnalysis",
+    "RegisteredFileFeatureAnalysis",
     "RegisteredFileObservation",
     "RegisteredOpcUaDataChangeEvent",
     "RegisteredOpcUaObservation",
@@ -568,12 +568,12 @@ __all__ = [
     "build_acquisition_telemetry_surface",
     "build_asset_detail",
     "build_asset_workspace_view",
-    "build_field_csv_observation_summary",
     "build_investigation_queue",
     "build_maintenance_queue",
     "build_operations_attention_queue",
     "build_operations_monitor_view",
     "build_operations_overview",
+    "build_prepared_csv_observation_summary",
     "build_setup_workspace",
     "build_system_runtime_view",
     "collect_registered_opcua_source_subscription",
@@ -583,9 +583,9 @@ __all__ = [
     "discover_file_source",
     "finding_review_status",
     "list_operational_asset_identities",
-    "load_field_csv_observation_summary",
-    "load_field_csv_observation_timeline",
-    "load_field_csv_observation_timeline_directory",
+    "load_prepared_csv_observation_summary",
+    "load_prepared_csv_observation_timeline",
+    "load_prepared_csv_observation_timeline_directory",
     "load_registered_file_source_observation",
     "migrate_json_phase_unbalance_results",
     "parse_opcua_semantic_bindings",

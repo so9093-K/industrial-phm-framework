@@ -12,7 +12,7 @@ from industrial_phm.features import (
 )
 
 
-def test_field_csv_export_flows_into_vibration_feature_contract(tmp_path: Path) -> None:
+def test_prepared_csv_export_flows_into_vibration_feature_contract(tmp_path: Path) -> None:
     source = tmp_path / "pump.csv"
     source.write_text(
         "vibration_x,vibration_y\n-1.0,-2.0\n0.0,-1.0\n1.0,1.0\n0.0,2.0\n",
@@ -52,7 +52,7 @@ def test_field_csv_export_flows_into_vibration_feature_contract(tmp_path: Path) 
     assert record["meta.source_adapter"] == "field-csv-v1"
 
 
-def test_field_csv_quality_warning_survives_feature_projection(tmp_path: Path) -> None:
+def test_prepared_csv_quality_warning_survives_feature_projection(tmp_path: Path) -> None:
     source = tmp_path / "pump-warning.csv"
     source.write_text(
         "timestamp,vibration_x\n"

@@ -17,7 +17,7 @@ from industrial_phm.application import (
     FileSourceConfig,
     FindingReviewAction,
     FindingReviewEvent,
-    JsonFieldFeatureAnalysisRepository,
+    JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
     JsonSourceRepository,
@@ -25,7 +25,7 @@ from industrial_phm.application import (
     OpcUaSourceConfig,
     OperationalAnalysisResult,
     OperationalFinding,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
     RegisteredOpcUaSubscriptionCycleResult,
     RegisteredSource,
     SourceFreshnessPolicy,
@@ -210,11 +210,11 @@ class OperationsAppActions:
         self,
         source: RegisteredSource,
     ) -> tuple[
-        RegisteredFieldFeatureAnalysis,
-        tuple[RegisteredFieldFeatureAnalysis, ...],
+        RegisteredFileFeatureAnalysis,
+        tuple[RegisteredFileFeatureAnalysis, ...],
     ]:
         result = run_registered_file_feature_analysis(source)
-        repository = JsonFieldFeatureAnalysisRepository(self.paths.field_analysis)
+        repository = JsonFileFeatureAnalysisRepository(self.paths.file_feature_analysis)
         repository.record(result)
         return result, repository.list_results()
 

@@ -1,4 +1,4 @@
-"""Operational field-analysis producer for prepared registered FILE snapshots."""
+"""Operational feature-analysis producer for registered FILE snapshots."""
 
 from __future__ import annotations
 
@@ -24,7 +24,8 @@ from industrial_phm.features import (
     extract_vibration_features,
 )
 
-FIELD_VIBRATION_FEATURE_CAPABILITY_ID = "field-vibration-statistical-features-v1"
+# Historical capability identity is part of persisted analysis evidence.
+FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID = "field-vibration-statistical-features-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,7 +74,7 @@ class OperationalVibrationFeatureEvidence:
 
 
 @dataclass(frozen=True, slots=True)
-class RegisteredFieldFeatureAnalysis:
+class RegisteredFileFeatureAnalysis:
     """One operational AnalysisRun plus its capability-specific feature evidence."""
 
     run: AnalysisRun
@@ -94,7 +95,7 @@ def run_registered_file_feature_analysis(
     source: RegisteredSource,
     *,
     clock: Callable[[], datetime] | None = None,
-) -> RegisteredFieldFeatureAnalysis:
+) -> RegisteredFileFeatureAnalysis:
     """Validate and analyze one registered FILE snapshot using the fixed vibration feature set.
 
     History directories are intentionally excluded from this first operational producer.
@@ -105,13 +106,13 @@ def run_registered_file_feature_analysis(
         raise ValueError("source must be RegisteredSource")
     config = source.config
     if not isinstance(config, FileSourceConfig):
-        raise ValueError("operational field feature analysis currently supports FILE sources only")
+        raise ValueError("operational FILE feature analysis currently supports FILE sources only")
     if config.mode != FileSourceMode.SNAPSHOT:
         raise ValueError(
-            "operational field feature analysis currently supports FILE snapshot mode only"
+            "operational FILE feature analysis currently supports FILE snapshot mode only"
         )
     if config.timestamp_column is None:
-        raise ValueError("operational field feature analysis requires an explicit timestamp column")
+        raise ValueError("operational FILE feature analysis requires an explicit timestamp column")
 
     now = clock or (lambda: datetime.now(UTC))
     started_at = _require_aware_time(now(), "analysis started_at")
@@ -163,18 +164,18 @@ def run_registered_file_feature_analysis(
         completed_at=completed_at,
         data_quality=observation.data_quality,
         source_snapshots=(snapshot,),
-        capability_ids=(FIELD_VIBRATION_FEATURE_CAPABILITY_ID,),
+        capability_ids=(FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,),
     )
     evidence = OperationalVibrationFeatureEvidence(
         evidence_id=evidence_id,
         analysis_run_id=analysis_run_id,
-        capability_id=FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+        capability_id=FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
         feature_set_id=VIBRATION_STATISTICAL_FEATURE_SET_ID,
         feature_names=feature_vector.feature_names,
         values=feature_vector.values,
         source_snapshot_sha256=snapshot.sha256,
     )
-    return RegisteredFieldFeatureAnalysis(run=run, evidence=evidence)
+    return RegisteredFileFeatureAnalysis(run=run, evidence=evidence)
 
 
 def _require_aware_time(value: datetime, field_name: str) -> datetime:

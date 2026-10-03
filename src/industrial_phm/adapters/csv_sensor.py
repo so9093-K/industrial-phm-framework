@@ -15,6 +15,7 @@ from types import MappingProxyType
 
 from industrial_phm.contracts import CanonicalTimeSeries, DataQualityIssue, DataQualitySeverity
 
+# These historical IDs are persisted in feature metadata and must remain stable.
 _DOMAIN_ID = "field-csv"
 _ADAPTER_ID = "field-csv-v1"
 _METADATA_VALUE = str | int | float | bool | None

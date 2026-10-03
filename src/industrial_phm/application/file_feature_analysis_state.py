@@ -10,9 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import cast
 
-from industrial_phm.application.field_analysis import (
+from industrial_phm.application.file_feature_analysis import (
     OperationalVibrationFeatureEvidence,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
 )
 from industrial_phm.application.observation import SourceSnapshotEvidence
 from industrial_phm.application.operational import AnalysisRun
@@ -22,7 +22,8 @@ from industrial_phm.contracts import (
     DataQualitySeverity,
 )
 
-_FIELD_ANALYSIS_SCHEMA_V1 = "industrial-phm-field-feature-analysis-v1"
+# Historical schema identity is required to read existing workspace evidence.
+_FILE_FEATURE_ANALYSIS_SCHEMA_V1 = "industrial-phm-field-feature-analysis-v1"
 _ROOT_KEYS = frozenset({"schema", "results"})
 _RESULT_KEYS = frozenset({"run", "evidence"})
 _RUN_KEYS = frozenset(
@@ -57,11 +58,11 @@ _ISSUE_KEYS = frozenset({"code", "severity", "message"})
 _SNAPSHOT_KEYS = frozenset({"name", "sha256", "size_bytes"})
 
 
-class FieldAnalysisHistoryFormatError(ValueError):
-    """Raised when persisted operational field-analysis history is invalid."""
+class FileFeatureAnalysisHistoryFormatError(ValueError):
+    """Raised when persisted operational FILE feature-analysis history is invalid."""
 
 
-class JsonFieldFeatureAnalysisRepository:
+class JsonFileFeatureAnalysisRepository:
     """Append-only-by-run local repository for operational feature-analysis results."""
 
     def __init__(self, path: Path) -> None:
@@ -74,32 +75,32 @@ class JsonFieldFeatureAnalysisRepository:
         """Return the configured history path."""
         return self._path
 
-    def list_results(self) -> tuple[RegisteredFieldFeatureAnalysis, ...]:
+    def list_results(self) -> tuple[RegisteredFileFeatureAnalysis, ...]:
         """Return results ordered by completion time and run identity."""
         if not self._path.exists():
             return ()
         if not self._path.is_file():
-            raise OSError(f"field analysis history path is not a file: {self._path}")
+            raise OSError(f"FILE feature analysis history path is not a file: {self._path}")
 
         try:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as error:
-            raise FieldAnalysisHistoryFormatError(
-                "field analysis history must contain valid JSON"
+            raise FileFeatureAnalysisHistoryFormatError(
+                "FILE feature analysis history must contain valid JSON"
             ) from error
 
-        root = _require_mapping(raw, "field analysis history root")
-        _require_exact_keys(root, _ROOT_KEYS, "field analysis history root")
-        schema = _require_string(root["schema"], "field analysis history schema")
-        if schema != _FIELD_ANALYSIS_SCHEMA_V1:
-            raise FieldAnalysisHistoryFormatError(
-                f"unsupported field analysis history schema: {schema!r}"
+        root = _require_mapping(raw, "FILE feature analysis history root")
+        _require_exact_keys(root, _ROOT_KEYS, "FILE feature analysis history root")
+        schema = _require_string(root["schema"], "FILE feature analysis history schema")
+        if schema != _FILE_FEATURE_ANALYSIS_SCHEMA_V1:
+            raise FileFeatureAnalysisHistoryFormatError(
+                f"unsupported FILE feature analysis history schema: {schema!r}"
             )
 
         results_raw = root["results"]
         if not isinstance(results_raw, list):
-            raise FieldAnalysisHistoryFormatError(
-                "field analysis history results must be a JSON array"
+            raise FileFeatureAnalysisHistoryFormatError(
+                "FILE feature analysis history results must be a JSON array"
             )
         results = tuple(
             _parse_result(value, index=index) for index, value in enumerate(results_raw)
@@ -107,12 +108,12 @@ class JsonFieldFeatureAnalysisRepository:
         run_ids = tuple(result.run.analysis_run_id for result in results)
         evidence_ids = tuple(result.evidence.evidence_id for result in results)
         if len(set(run_ids)) != len(run_ids):
-            raise FieldAnalysisHistoryFormatError(
-                "field analysis history contains duplicate analysis_run_id values"
+            raise FileFeatureAnalysisHistoryFormatError(
+                "FILE feature analysis history contains duplicate analysis_run_id values"
             )
         if len(set(evidence_ids)) != len(evidence_ids):
-            raise FieldAnalysisHistoryFormatError(
-                "field analysis history contains duplicate evidence_id values"
+            raise FileFeatureAnalysisHistoryFormatError(
+                "FILE feature analysis history contains duplicate evidence_id values"
             )
         return tuple(
             sorted(
@@ -124,10 +125,10 @@ class JsonFieldFeatureAnalysisRepository:
             )
         )
 
-    def record(self, result: RegisteredFieldFeatureAnalysis) -> None:
+    def record(self, result: RegisteredFileFeatureAnalysis) -> None:
         """Append one new result or accept an exact idempotent replay."""
-        if not isinstance(result, RegisteredFieldFeatureAnalysis):
-            raise ValueError("result must be RegisteredFieldFeatureAnalysis")
+        if not isinstance(result, RegisteredFileFeatureAnalysis):
+            raise ValueError("result must be RegisteredFileFeatureAnalysis")
 
         results = {item.run.analysis_run_id: item for item in self.list_results()}
         current = results.get(result.run.analysis_run_id)
@@ -144,7 +145,7 @@ class JsonFieldFeatureAnalysisRepository:
         results[result.run.analysis_run_id] = result
         self._write(tuple(results.values()))
 
-    def _write(self, results: Sequence[RegisteredFieldFeatureAnalysis]) -> None:
+    def _write(self, results: Sequence[RegisteredFileFeatureAnalysis]) -> None:
         ordered = tuple(
             sorted(
                 results,
@@ -155,7 +156,7 @@ class JsonFieldFeatureAnalysisRepository:
             )
         )
         payload = {
-            "schema": _FIELD_ANALYSIS_SCHEMA_V1,
+            "schema": _FILE_FEATURE_ANALYSIS_SCHEMA_V1,
             "results": [_serialize_result(result) for result in ordered],
         }
         rendered = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
@@ -182,7 +183,7 @@ class JsonFieldFeatureAnalysisRepository:
                 temporary_path.unlink(missing_ok=True)
 
 
-def _serialize_result(result: RegisteredFieldFeatureAnalysis) -> dict[str, object]:
+def _serialize_result(result: RegisteredFileFeatureAnalysis) -> dict[str, object]:
     run = result.run
     evidence = result.evidence
     return {
@@ -228,7 +229,7 @@ def _serialize_result(result: RegisteredFieldFeatureAnalysis) -> dict[str, objec
     }
 
 
-def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysis:
+def _parse_result(value: object, *, index: int) -> RegisteredFileFeatureAnalysis:
     label = f"field analysis results[{index}]"
     raw = _require_mapping(value, label)
     _require_exact_keys(raw, _RESULT_KEYS, label)
@@ -242,7 +243,7 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
     _require_exact_keys(quality_raw, _QUALITY_KEYS, f"{label}.run.data_quality")
     issues_raw = quality_raw["issues"]
     if not isinstance(issues_raw, list):
-        raise FieldAnalysisHistoryFormatError(
+        raise FileFeatureAnalysisHistoryFormatError(
             f"{label}.run.data_quality.issues must be a JSON array"
         )
     issues = tuple(
@@ -252,7 +253,9 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
 
     snapshots_raw = run_raw["source_snapshots"]
     if not isinstance(snapshots_raw, list):
-        raise FieldAnalysisHistoryFormatError(f"{label}.run.source_snapshots must be a JSON array")
+        raise FileFeatureAnalysisHistoryFormatError(
+            f"{label}.run.source_snapshots must be a JSON array"
+        )
     snapshots = tuple(
         _parse_snapshot(
             snapshot,
@@ -308,9 +311,9 @@ def _parse_result(value: object, *, index: int) -> RegisteredFieldFeatureAnalysi
         ),
     )
     try:
-        return RegisteredFieldFeatureAnalysis(run=run, evidence=evidence)
+        return RegisteredFileFeatureAnalysis(run=run, evidence=evidence)
     except ValueError as error:
-        raise FieldAnalysisHistoryFormatError(f"{label} is invalid: {error}") from error
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} is invalid: {error}") from error
 
 
 def _parse_issue(value: object, *, label: str) -> DataQualityIssue:
@@ -324,7 +327,7 @@ def _parse_issue(value: object, *, label: str) -> DataQualityIssue:
             message=_require_string(raw["message"], f"{label}.message"),
         )
     except ValueError as error:
-        raise FieldAnalysisHistoryFormatError(f"{label} is invalid: {error}") from error
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} is invalid: {error}") from error
 
 
 def _parse_snapshot(value: object, *, label: str) -> SourceSnapshotEvidence:
@@ -337,12 +340,12 @@ def _parse_snapshot(value: object, *, label: str) -> SourceSnapshotEvidence:
             size_bytes=_require_integer(raw["size_bytes"], f"{label}.size_bytes"),
         )
     except ValueError as error:
-        raise FieldAnalysisHistoryFormatError(f"{label} is invalid: {error}") from error
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} is invalid: {error}") from error
 
 
 def _require_mapping(value: object, label: str) -> Mapping[str, object]:
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        raise FieldAnalysisHistoryFormatError(f"{label} must be a JSON object")
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be a JSON object")
     return cast(dict[str, object], value)
 
 
@@ -355,14 +358,14 @@ def _require_exact_keys(
     if actual != expected:
         missing = sorted(expected - actual)
         unexpected = sorted(actual - expected)
-        raise FieldAnalysisHistoryFormatError(
+        raise FileFeatureAnalysisHistoryFormatError(
             f"{label} keys do not match schema; missing={missing}, unexpected={unexpected}"
         )
 
 
 def _require_string(value: object, label: str) -> str:
     if not isinstance(value, str):
-        raise FieldAnalysisHistoryFormatError(f"{label} must be a string")
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be a string")
     return value
 
 
@@ -377,30 +380,32 @@ def _require_datetime(value: object, label: str) -> datetime:
     try:
         result = datetime.fromisoformat(raw)
     except ValueError as error:
-        raise FieldAnalysisHistoryFormatError(f"{label} must be an ISO 8601 datetime") from error
+        raise FileFeatureAnalysisHistoryFormatError(
+            f"{label} must be an ISO 8601 datetime"
+        ) from error
     if result.utcoffset() is None:
-        raise FieldAnalysisHistoryFormatError(f"{label} must be timezone-aware")
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be timezone-aware")
     return result
 
 
 def _require_string_list(value: object, label: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise FieldAnalysisHistoryFormatError(f"{label} must be a JSON string array")
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be a JSON string array")
     return tuple(value)
 
 
 def _require_number_list(value: object, label: str) -> tuple[float, ...]:
     if not isinstance(value, list):
-        raise FieldAnalysisHistoryFormatError(f"{label} must be a JSON number array")
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be a JSON number array")
     numbers: list[float] = []
     for item in value:
         if isinstance(item, bool) or not isinstance(item, (int, float)):
-            raise FieldAnalysisHistoryFormatError(f"{label} must contain only JSON numbers")
+            raise FileFeatureAnalysisHistoryFormatError(f"{label} must contain only JSON numbers")
         numbers.append(float(item))
     return tuple(numbers)
 
 
 def _require_integer(value: object, label: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise FieldAnalysisHistoryFormatError(f"{label} must be an integer")
+        raise FileFeatureAnalysisHistoryFormatError(f"{label} must be an integer")
     return value
