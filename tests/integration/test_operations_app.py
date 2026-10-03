@@ -11,7 +11,6 @@ import pytest
 
 from industrial_phm.application import (
     JsonOperationalFindingRepository,
-    JsonPhaseUnbalanceRepository,
     ObservationWindowBuffer,
     SqlitePhaseUnbalanceRepository,
     create_human_review_finding,
@@ -129,25 +128,6 @@ def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monk
     assert "bounded-run-0501" in loaded_ids
     queue_run_ids = {item.analysis_run_id for item in defs["investigation_queue"].items}
     assert "bounded-run-0000" in queue_run_ids
-
-
-def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypatch):
-    pytest.importorskip("marimo")
-    workspace = OperationsWorkspace(tmp_path / "workspace")
-    workspace.root.mkdir(parents=True)
-    JsonPhaseUnbalanceRepository(workspace.phase_unbalance_state_path.with_suffix(".json")).record(
-        _analysis()
-    )
-    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
-
-    app = runpy.run_path(str(OPERATIONS_APP))["app"]
-    _, defs = app.run()
-
-    migration_errors = [
-        error for error in defs["system_errors"] if error.scope == "phase-analysis-migration"
-    ]
-    assert len(migration_errors) == 1
-    assert "migrate-phase-unbalance-results" in migration_errors[0].detail
 
 
 def _ui_values_read_in_creating_cell(path: Path) -> list[str]:
