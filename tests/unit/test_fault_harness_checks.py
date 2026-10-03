@@ -182,7 +182,9 @@ def test_harness_uses_packaged_operations_app_path():
     assert OPERATIONS_APP.is_file()
     assert OPERATIONS_APP.parent.name == "apps"
     assert OPERATIONS_APP.parent.parent.name == "industrial_phm"
-    source = Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
+    source = (
+        Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
+    )
     assert "apps/operations_v2.py" not in source
 
 
