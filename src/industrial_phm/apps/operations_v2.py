@@ -6,8 +6,6 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
-    import asyncio
-    from concurrent.futures import ThreadPoolExecutor
     from datetime import UTC, datetime
     from pathlib import Path
 
@@ -42,11 +40,7 @@ def _():
     from industrial_phm.application.operations_v2_investigations import (
         InvestigationReviewState,
     )
-    from industrial_phm.connectors import (
-        OpcUaBrowseConfig,
-        OpcUaNodeMapping,
-        browse_opcua_variables,
-    )
+    from industrial_phm.connectors import OpcUaNodeMapping
     from industrial_phm.presentation import (
         OperationalAnalysisPresentationKind,
         operational_analysis_presentation_kind,
@@ -103,13 +97,8 @@ def _():
         phase_unbalance_summary_rows,
         render_phase_unbalance_svg,
     )
-    from industrial_phm.runtime.operations_app_actions import (
-        OperationsAppActions,
-        OperationsDiagnosticKind,
-    )
-    from industrial_phm.runtime.operations_app_composition import (
-        load_operations_app_snapshot,
-    )
+    from industrial_phm.runtime.operations_app_actions import OperationsDiagnosticKind
+    from industrial_phm.runtime.operations_app_context import load_operations_app_context
 
     return (
         AssetIdentity,
@@ -122,22 +111,17 @@ def _():
         FindingReviewStatus,
         InvestigationReviewState,
         MeasurementDefinition,
-        OpcUaBrowseConfig,
         OpcUaNodeMapping,
         OpcUaSourceConfig,
         OperationalAnalysisPresentationKind,
-        OperationsAppActions,
         OperationsDiagnosticKind,
         Path,
         RegisteredSource,
         SourceLifecycleState,
         SourceRuntimeCycleState,
         SourceType,
-        ThreadPoolExecutor,
         UTC,
         asset_workspace_css,
-        asyncio,
-        browse_opcua_variables,
         build_asset_detail,
         build_asset_workspace_view,
         build_investigation_queue,
@@ -152,7 +136,7 @@ def _():
         investigation_review_label,
         investigation_workspace_css,
         latest_measurement_rows,
-        load_operations_app_snapshot,
+        load_operations_app_context,
         maintenance_queue_label,
         maintenance_status_label,
         maintenance_workspace_css,
@@ -213,30 +197,15 @@ def _(mo):
 
 
 @app.cell
-def _(OperationsAppActions, load_operations_app_snapshot, refresh_button):
+def _(load_operations_app_context, refresh_button):
     _refresh = refresh_button.value
     del _refresh
 
-    _snapshot = load_operations_app_snapshot()
-    _paths = _snapshot.paths
-    operations_actions = OperationsAppActions(_paths)
+    operations_context = load_operations_app_context()
+    _snapshot = operations_context.snapshot
+    operations_actions = operations_context.actions
 
     assessed_at = _snapshot.assessed_at
-    registry_path = _paths.registry
-    source_runtime_path = _paths.source_runtime
-    acquisition_telemetry_path = _paths.acquisition_telemetry
-    acquisition_spool_path = _paths.acquisition_spool
-    collection_control_path = _paths.collection_control
-    field_analysis_path = _paths.field_analysis
-    phase_analysis_path = _paths.phase_analysis
-    analysis_runtime_path = _paths.analysis_runtime
-    window_state_path = _paths.window_state
-    analysis_ledger_path = _paths.analysis_ledger
-    finding_path = _paths.findings
-    review_path = _paths.review
-    history_catalog_path = _paths.history_catalog
-    history_data_path = _paths.history_data
-
     registered_sources = _snapshot.registered_sources
     lifecycle_records = _snapshot.lifecycle_records
     freshness_policies = _snapshot.freshness_policies
@@ -257,40 +226,27 @@ def _(OperationsAppActions, load_operations_app_snapshot, refresh_button):
     system_errors = _snapshot.system_errors
 
     return (
-        acquisition_spool_path,
         acquisition_surfaces,
-        acquisition_telemetry_path,
-        analysis_ledger_path,
         analysis_results,
         analysis_runtime,
-        analysis_runtime_path,
         assessed_at,
-        collection_control_path,
         collection_service,
         collection_records,
-        field_analysis_path,
-        finding_path,
         findings,
         freshness_policies,
         history_assets,
-        history_catalog_path,
-        history_data_path,
         history_reader,
         lifecycle_records,
         live_flow_timing,
         monitor,
-        overview,
         operations_actions,
-        phase_analysis_path,
+        operations_context,
+        overview,
         registered_sources,
-        registry_path,
         review_events,
-        review_path,
         skipped_analysis_attempts,
-        source_runtime_path,
         system_diagnostics,
         system_errors,
-        window_state_path,
     )
 
 
@@ -314,7 +270,7 @@ def _(get_analysis_results):
 
 
 @app.cell
-def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_opcua_variables):
+def _(OpcUaNodeMapping, operations_actions):
     def parse_opcua_mapping_lines(value: str):
         mappings = []
         for line_number, raw_line in enumerate(value.splitlines(), start=1):
@@ -333,16 +289,10 @@ def _(OpcUaBrowseConfig, OpcUaNodeMapping, ThreadPoolExecutor, asyncio, browse_o
         return tuple(mappings)
 
     def run_setup_opcua_browse(*, endpoint_url: str, timeout_seconds: float):
-        _config = OpcUaBrowseConfig(
+        return operations_actions.browse_opcua(
             endpoint_url=endpoint_url,
             timeout_seconds=timeout_seconds,
         )
-
-        def _run():
-            return asyncio.run(browse_opcua_variables(_config))
-
-        with ThreadPoolExecutor(max_workers=1) as _executor:
-            return _executor.submit(_run).result()
 
     return parse_opcua_mapping_lines, run_setup_opcua_browse
 
