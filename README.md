@@ -98,8 +98,8 @@ component 로그는 내부 파일 경로를 직접 찾지 않고 `industrial-phm
 
 ```bash
 industrial-phm operations stop ./plant-a
-industrial-phm operations backup ./plant-a ./backups/plant-a-2026-10-02
-industrial-phm operations restore ./backups/plant-a-2026-10-02 ./plant-a-restored
+industrial-phm maintenance backup ./plant-a ./backups/plant-a-2026-10-02
+industrial-phm maintenance restore ./backups/plant-a-2026-10-02 ./plant-a-restored
 ```
 
 backup은 config와 durable source/control/spool/window/analysis/history evidence를 포함하고 로그, supervisor
@@ -112,12 +112,17 @@ PID/lock, rebuildable history accelerator는 제외합니다. restore는 checksu
 장시간 host 운영 전에는 실제 service account로 deployment preflight를 실행합니다.
 
 ```bash
-industrial-phm operations preflight /var/lib/industrial-phm/plant-a
+industrial-phm validate deployment /var/lib/industrial-phm/plant-a
 ```
 
 reference systemd unit과 restart/permission 경계는
 [Local Operations deployment](docs/architecture/operations-deployment.md)에 정리되어 있습니다. node-level
 restart는 application 내부 무한 loop가 아니라 외부 service manager가 소유합니다.
+
+정상 node lifecycle은 `operations`, 복구·history 작업은 `maintenance`, 배포 사전검증은
+`validate`, supervisor가 호출하는 service/source plumbing은 `internal` namespace가 소유합니다. 이전
+`operations backup/preflight/run-*` spelling은 호환 routing만 유지하며 새 문서와 runtime은 canonical
+namespace를 사용합니다.
 
 현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
 
