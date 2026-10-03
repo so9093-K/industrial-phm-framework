@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.opcua.fault_harness import (
+    OPERATIONS_APP,
     SCENARIOS,
     Fault,
     build_parser,
@@ -175,6 +176,14 @@ def test_every_ui_state_must_render_within_five_seconds():
     assert check_first_render(dict.fromkeys(names, fast))["passed"]
     assert not check_first_render({**dict.fromkeys(names, fast), "collector_down": {}})["passed"]
     assert not check_first_render({"source_stale": fast})["passed"]
+
+
+def test_harness_uses_packaged_operations_app_path():
+    assert OPERATIONS_APP.is_file()
+    assert OPERATIONS_APP.parent.name == "apps"
+    assert OPERATIONS_APP.parent.parent.name == "industrial_phm"
+    source = Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
+    assert "apps/operations_v2.py" not in source
 
 
 def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
