@@ -42,7 +42,7 @@ def test_collection_request_cli_updates_desired_state_without_running_collector(
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "request-collection",
             "--registry",
             str(registry_path),
@@ -65,7 +65,7 @@ def test_collection_request_cli_updates_desired_state_without_running_collector(
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "request-collection",
             "--registry",
             str(registry_path),
@@ -110,7 +110,7 @@ def test_collection_request_cli_accepts_one_workspace_root(tmp_path, capsys) -> 
 
     exit_code = main(
         [
-            "operations",
+            "internal",
             "request-collection",
             "--workspace",
             str(workspace.root),
@@ -136,7 +136,7 @@ def test_collection_request_cli_rejects_workspace_mixed_with_explicit_paths(
 ) -> None:
     exit_code = main(
         [
-            "operations",
+            "internal",
             "request-collection",
             "--workspace",
             str(tmp_path / "workspace"),
