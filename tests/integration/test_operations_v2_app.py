@@ -135,9 +135,9 @@ def test_operations_v2_surfaces_legacy_phase_result_migration(tmp_path, monkeypa
     pytest.importorskip("marimo")
     workspace = OperationsWorkspace(tmp_path / "workspace")
     workspace.root.mkdir(parents=True)
-    JsonPhaseUnbalanceRepository(
-        workspace.phase_unbalance_state_path.with_suffix(".json")
-    ).record(_analysis())
+    JsonPhaseUnbalanceRepository(workspace.phase_unbalance_state_path.with_suffix(".json")).record(
+        _analysis()
+    )
     monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
 
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
