@@ -229,7 +229,7 @@ def _run_data_validate_csv(args: argparse.Namespace) -> int:
         )
         report = validate_csv_sensor_source(args.source, layout)
     except (CsvSensorSourceError, OSError, ValueError) as error:
-        print(f"field CSV validation failed: {error}", file=sys.stderr)
+        print(f"prepared CSV validation failed: {error}", file=sys.stderr)
         return 1
 
     print("source kind: field-csv")
