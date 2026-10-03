@@ -40,7 +40,9 @@ class OperationalAnalysisPresentationKind(StrEnum):
 
 
 _OPERATIONAL_ANALYSIS_PRESENTATION_KIND = {
-    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID: OperationalAnalysisPresentationKind.VIBRATION_FEATURES,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID: (
+        OperationalAnalysisPresentationKind.VIBRATION_FEATURES
+    ),
     PHASE_UNBALANCE_CAPABILITY_ID: OperationalAnalysisPresentationKind.PHASE_UNBALANCE,
 }
 
