@@ -1,8 +1,8 @@
 """Concrete read-side composition for the packaged Operations V2 application.
 
 The marimo app should render operator workflows, not know how every JSON/SQLite/
-DuckLake repository is wired. This module owns path resolution and one bounded,
-error-tolerant operational snapshot from the existing authoritative repositories.
+DuckLake repository is wired. Shared path wiring is resolved by operations_app_wiring;
+this module owns one bounded, error-tolerant operational read snapshot.
 """
 
 from __future__ import annotations
