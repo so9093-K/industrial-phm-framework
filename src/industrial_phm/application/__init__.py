@@ -203,7 +203,7 @@ from industrial_phm.application.operations_overview import (
     OperationsReviewSummary,
     build_operations_overview,
 )
-from industrial_phm.application.operations_v2 import (
+from industrial_phm.application.operations_monitor import (
     CollectionServiceIssue,
     LiveFlowTiming,
     OperationsActivityItem,
@@ -217,7 +217,7 @@ from industrial_phm.application.operations_v2 import (
     build_operations_monitor_view,
     collection_service_issue,
 )
-from industrial_phm.application.operations_v2_assets import (
+from industrial_phm.application.operations_assets import (
     AssetWorkspaceAnalysis,
     AssetWorkspaceEvent,
     AssetWorkspaceReview,
@@ -225,25 +225,25 @@ from industrial_phm.application.operations_v2_assets import (
     AssetWorkspaceView,
     build_asset_workspace_view,
 )
-from industrial_phm.application.operations_v2_investigations import (
+from industrial_phm.application.operations_investigations import (
     InvestigationQueueItem,
     InvestigationQueueView,
     InvestigationReviewState,
     build_investigation_queue,
 )
-from industrial_phm.application.operations_v2_maintenance import (
+from industrial_phm.application.operations_maintenance import (
     MaintenanceQueueItem,
     MaintenanceQueueView,
     MaintenanceReviewTimelineItem,
     build_maintenance_queue,
 )
-from industrial_phm.application.operations_v2_setup import (
+from industrial_phm.application.operations_setup import (
     SetupSignalView,
     SetupSourceView,
     SetupWorkspaceView,
     build_setup_workspace,
 )
-from industrial_phm.application.operations_v2_system import (
+from industrial_phm.application.operations_system import (
     SystemRuntimeError,
     SystemRuntimeFact,
     SystemRuntimeKind,
