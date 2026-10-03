@@ -78,6 +78,7 @@ def test_removed_legacy_operational_spellings_are_rejected(
 
     assert raised.value.code == 2
 
+
 def test_operations_help_contains_only_normal_node_lifecycle(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
