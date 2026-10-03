@@ -2,13 +2,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from industrial_phm.application import (
-    FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+    FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     AnalysisRun,
     CollectionDesiredState,
     FindingReviewAction,
     OpcUaSourceConfig,
     OperationalVibrationFeatureEvidence,
-    RegisteredFieldFeatureAnalysis,
+    RegisteredFileFeatureAnalysis,
     RegisteredSource,
     SourceLifecycleState,
     SourceRuntimeCycleResult,
@@ -47,7 +47,7 @@ def _opcua_source() -> RegisteredSource:
     )
 
 
-def _analysis_result() -> RegisteredFieldFeatureAnalysis:
+def _analysis_result() -> RegisteredFileFeatureAnalysis:
     snapshot = SourceSnapshotEvidence(
         name="bearing.csv",
         sha256="a" * 64,
@@ -64,14 +64,14 @@ def _analysis_result() -> RegisteredFieldFeatureAnalysis:
         completed_at=datetime(2026, 10, 3, 1, 5, 1, tzinfo=UTC),
         data_quality=DataQualityAssessment(),
         source_snapshots=(snapshot,),
-        capability_ids=(FIELD_VIBRATION_FEATURE_CAPABILITY_ID,),
+        capability_ids=(FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,),
     )
-    return RegisteredFieldFeatureAnalysis(
+    return RegisteredFileFeatureAnalysis(
         run=run,
         evidence=OperationalVibrationFeatureEvidence(
             evidence_id="evidence-actions",
             analysis_run_id=run.analysis_run_id,
-            capability_id=FIELD_VIBRATION_FEATURE_CAPABILITY_ID,
+            capability_id=FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
             feature_set_id="vibration-statistical-v1",
             feature_names=("rms", "peak"),
             values=(1.25, 2.5),
