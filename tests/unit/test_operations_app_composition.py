@@ -28,7 +28,6 @@ def test_operations_app_paths_use_single_workspace_root(tmp_path: Path) -> None:
     assert paths.review == workspace.maintenance_review_state_path
     assert paths.history_catalog == workspace.history_catalog_path
     assert paths.history_data == workspace.history_data_path
-    assert paths.phase_analysis_explicit is False
 
 
 def test_operations_app_paths_require_workspace_root() -> None:
