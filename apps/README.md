@@ -129,7 +129,7 @@ OPC UA source)과 정지 구간은 제외 사유로만 표시됩니다. 서술�
 결과는 workspace의 `phase-unbalance.sqlite`에 run마다 한 row로 저장되며(이전 결과를 다시 읽거나 다시 쓰지 않음)
 **분석 기록**에서 이전 run을 다시 볼 수 있습니다.
 
-별도 `run-window-analysis` process가 같은 파일에 기록한 결과는 Asset Detail이나
+별도 analysis runner process가 같은 파일에 기록한 결과는 Asset Detail이나
 Investigation의 **Refresh analysis results**로 앱 재시작 없이 다시 읽습니다. 자동 polling은 하지 않으며 선택 중인
 분석은 refresh 후에도 유지됩니다. 읽기에 실패하면 마지막 성공 읽기 결과를 그대로 두고 실패를 별도로 표시합니다.
 Operations의 primary read는 누적 결과 전체를 매번 역직렬화하지 않고 최근 500개 3상 결과만 읽습니다.
