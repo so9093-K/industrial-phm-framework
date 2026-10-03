@@ -239,11 +239,7 @@ def _append_legacy_phase_migration_error(
     errors: list[SystemStateErrorEvidence],
 ) -> None:
     legacy_path = paths.phase_analysis.with_suffix(".json")
-    if (
-        not paths.phase_analysis_explicit
-        and not paths.phase_analysis.exists()
-        and legacy_path.is_file()
-    ):
+    if not paths.phase_analysis.exists() and legacy_path.is_file():
         errors.append(
             SystemStateErrorEvidence(
                 "phase-analysis-migration",
