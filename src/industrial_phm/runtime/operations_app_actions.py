@@ -8,10 +8,12 @@ belong to the local runtime composition boundary.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from typing import Any, TypeVar
 
 from industrial_phm.application import (
     CollectionControlRecord,
@@ -240,8 +242,13 @@ def _load_registry_state(
     )
 
 
-def _run_async_in_worker(factory):
-    def run():
+_T = TypeVar("_T")
+
+
+def _run_async_in_worker(
+    factory: Callable[[], Coroutine[Any, Any, _T]],
+) -> _T:
+    def run() -> _T:
         return asyncio.run(factory())
 
     with ThreadPoolExecutor(max_workers=1) as executor:
