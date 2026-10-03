@@ -34,3 +34,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0017: Separate the operational CLI by user responsibility](0017-separate-operational-cli-by-user-responsibility.md)
 - [ADR-0018: Keep the Operations UI out of read-repository composition](0018-keep-operations-ui-out-of-read-repository-composition.md)
 - [ADR-0019: Keep the Operations UI out of write-repository composition](0019-keep-operations-ui-out-of-write-repository-composition.md)
+- [ADR-0020: Use one composition root for the Operations app](0020-use-one-composition-root-for-the-operations-app.md)
