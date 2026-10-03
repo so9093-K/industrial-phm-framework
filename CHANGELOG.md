@@ -136,6 +136,12 @@
 
 ### Changed
 
+- Local Operations CLI를 책임별 taxonomy로 정리했습니다. 정상 node lifecycle은 `operations`,
+  backup/restore/history/migration은 `maintenance`, deployment gate는 `validate`, collector/analysis/source
+  plumbing은 `internal`이 소유합니다. supervisor/systemd/docs/CI는 canonical path를 사용하고, 기존
+  `operations backup/preflight/compact-history/run-*` spelling은 parser help에서 제거하되 executable
+  entrypoint의 deterministic compatibility routing으로 계속 동작합니다.
+
 - Canonical Operations app을 repository-local `apps/operations_v2.py`에서 wheel에 포함되는
   `industrial_phm.apps.operations_v2`로 이동하고, published `operations` extra가 history/OPC UA extras와
   marimo runtime을 함께 제공하도록 packaging 경계를 정리했습니다. Research Analysis Explorer는 기존
