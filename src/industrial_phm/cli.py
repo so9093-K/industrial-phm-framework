@@ -39,7 +39,6 @@ from industrial_phm.commands.experiment import (
 from industrial_phm.commands.feature import _run_feature_characterize
 from industrial_phm.commands.operational_cli import (
     add_operational_command_groups,
-    rewrite_legacy_operational_argv,
 )
 from industrial_phm.data.registry import list_datasets
 
@@ -668,7 +667,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser()
     raw_argv = sys.argv[1:] if argv is None else list(argv)
-    args = parser.parse_args(rewrite_legacy_operational_argv(raw_argv))
+    args = parser.parse_args(raw_argv)
     handler = args.handler
     return int(handler(args))
 
