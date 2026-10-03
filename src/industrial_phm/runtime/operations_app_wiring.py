@@ -29,7 +29,7 @@ class OperationsAppPaths:
     acquisition_telemetry: Path
     acquisition_spool: Path
     collection_control: Path
-    field_analysis: Path
+    file_feature_analysis: Path
     phase_analysis: Path
     analysis_runtime: Path
     window_state: Path
