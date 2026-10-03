@@ -238,4 +238,3 @@ class OperationsAppActions:
         repository = JsonFindingReviewRepository(self.paths.review)
         repository.record(event)
         return event, repository.list_events()
-
