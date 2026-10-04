@@ -135,8 +135,8 @@ CSV adapter는 하나의 byte snapshot에서 parsing, SHA-256과 byte size를 �
 
 ## 5. Canonical / feature compatibility
 
-현재 executable contract는 `tests/contract/test_field_csv_feature_path.py`와
-`tests/integration/test_field_csv_observation.py`에서 다음 경로를 검증합니다.
+현재 executable contract는 `tests/contract/test_prepared_csv_feature_path.py`와
+`tests/integration/test_prepared_csv_observation.py`에서 다음 경로를 검증합니다.
 
 ```text
 prepared FILE CSV
