@@ -117,6 +117,7 @@ def _():
         AssetIdentity,
         ChannelSemanticBinding,
         CollectionDesiredState,
+        DEFAULT_OPERATIONS_READ_POLICY,
         FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
         FileSourceConfig,
         FileSourceMode,
@@ -1572,6 +1573,7 @@ def _(mo):
 
 @app.cell
 def _(
+    DEFAULT_OPERATIONS_READ_POLICY,
     UTC,
     asset_history_error,
     asset_section,
@@ -1633,8 +1635,8 @@ def _(
                     registered_sources=registered_sources,
                     asset_sources=asset_workspace.sources,
                     sampled_at=_sampled_at,
-                    lookback_seconds=60.0,
-                    point_budget=600,
+                    lookback_seconds=DEFAULT_OPERATIONS_READ_POLICY.live_lookback_seconds,
+                    point_budget=DEFAULT_OPERATIONS_READ_POLICY.live_point_budget,
                 )
                 _live_page = live_observation_recent_page(_live)
                 _controls = mo.hstack(
