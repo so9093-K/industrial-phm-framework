@@ -11,6 +11,7 @@ from industrial_phm.application.operations_monitor import (
 from industrial_phm.presentation.operations_shell import (
     OPERATIONS_MAIN_BACKGROUND,
     OPERATIONS_PAGE_OPTIONS,
+    data_status_label,
     initial_operations_page,
     operations_theme_css,
     render_monitor_assets_html,
@@ -84,9 +85,12 @@ def test_monitor_presenters_use_operator_vocabulary() -> None:
     flow = render_monitor_flow_html(view)
     assets = render_monitor_assets_html(view)
 
-    assert "Data flow" in flow
+    assert "System data flow" in flow
     assert "Running" in flow
     assert "boiler-01" in assets
+    assert "Data status" in assets
     assert "Delayed" in assets
+    assert "now · 2026-09-30 12:00:00 UTC" in assets
+    assert data_status_label(OperationsMonitorStatus.RUNNING) == "Receiving"
     assert "control-plane" not in flow
     assert "receipt" not in assets
