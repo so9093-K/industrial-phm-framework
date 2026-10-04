@@ -130,7 +130,7 @@ def test_live_loader_anchors_recent_window_to_mapped_live_source(
             latest,
         ):
             assert channel_id == "current-r"
-            assert point_budget == 600
+            assert point_budget == operations_live.DEFAULT_LIVE_POINT_BUDGET
             assert latest is True
             query["start_at"] = start_at
             query["end_at"] = end_at
@@ -160,5 +160,7 @@ def test_live_loader_anchors_recent_window_to_mapped_live_source(
 
     expected_end = REPLAY_EVENT + timedelta(microseconds=1)
     assert query["end_at"] == expected_end
-    assert query["start_at"] == expected_end - timedelta(seconds=60)
+    assert query["start_at"] == expected_end - timedelta(
+        seconds=operations_live.DEFAULT_LIVE_LOOKBACK_SECONDS
+    )
     assert view.series[0].latest_point == live_point

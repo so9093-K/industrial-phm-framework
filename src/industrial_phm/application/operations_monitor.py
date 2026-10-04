@@ -42,6 +42,9 @@ from industrial_phm.application.window_analysis_runtime import (
 # A collector heartbeat older than this means the collection process is not running.
 COLLECTION_SERVICE_TIMEOUT = timedelta(seconds=20)
 
+# A connected live source without a recent receive beyond this age is delayed.
+LIVE_FLOW_SILENCE_TIMEOUT = timedelta(seconds=30)
+
 
 class OperationsMonitorStatus(StrEnum):
     """Small operator-facing state vocabulary used across the V2 shell."""
@@ -244,7 +247,7 @@ def build_operations_monitor_view(
     analysis_runs: Sequence[AnalysisRun] = (),
     analysis_runtime: WindowAnalysisRunnerTelemetry | None = None,
     analysis_heartbeat_timeout: timedelta = timedelta(seconds=20),
-    live_flow_silence_timeout: timedelta = timedelta(seconds=30),
+    live_flow_silence_timeout: timedelta = LIVE_FLOW_SILENCE_TIMEOUT,
     collection_service: CollectionServiceRuntimeTelemetry | None = None,
     collection_service_timeout: timedelta = COLLECTION_SERVICE_TIMEOUT,
     as_of: datetime,
