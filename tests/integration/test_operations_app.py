@@ -4,19 +4,23 @@ import ast
 import runpy
 import sys
 from dataclasses import replace
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from industrial_phm.application import (
     JsonOperationalFindingRepository,
+    JsonSourceRepository,
     ObservationWindowBuffer,
+    OpcUaSourceConfig,
+    RegisteredSource,
     SqlitePhaseUnbalanceRepository,
     create_human_review_finding,
 )
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
 from industrial_phm.apps import operations_app_path
+from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.runtime import OperationsWorkspace
 
 REPO = Path(__file__).resolve().parents[2]
@@ -29,7 +33,7 @@ def _analysis():
     from test_window_analysis_input import END, START, _event
 
     buffer = ObservationWindowBuffer(
-        window_id="ops-v2-render",
+        window_id="ops-render",
         source_id="site-opcua",
         asset_id="motor-7",
         measurement_point_id="mcc-3",
@@ -65,7 +69,50 @@ def _distinct_analysis(template, index: int):
     )
 
 
-def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
+def test_operations_empty_workspace_starts_in_setup(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
+    _, defs = app.run()
+
+    assert defs["navigation_initial_page"] == "Setup"
+    assert defs["navigation"].value == "Setup"
+
+
+def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="acceptance-opcua",
+            name="Acceptance OPC UA source",
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840",
+                asset_id="acceptance-pump",
+                measurement_point_id="drive-end",
+                node_mappings=(
+                    OpcUaNodeMapping(
+                        channel_id="vibration_x",
+                        node_id="ns=2;s=Machine/VibrationX",
+                    ),
+                ),
+                timeout_seconds=2.0,
+            ),
+            registered_at=datetime(2026, 10, 4, 3, 0, tzinfo=UTC),
+        )
+    )
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
+    _, defs = app.run()
+
+    assert defs["navigation_initial_page"] == "Monitor"
+    assert defs["navigation"].value == "Monitor"
+
+
+def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     workspace = OperationsWorkspace(tmp_path / "workspace")
     analysis = _analysis()
@@ -82,7 +129,7 @@ def test_operations_v2_renders_investigation_and_maintenance_queues(tmp_path, mo
     assert defs["maintenance_selected_id"] is not None
 
 
-def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
+def test_operations_uses_single_workspace_environment(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     workspace = OperationsWorkspace(tmp_path / "workspace")
     analysis = _analysis()
@@ -102,7 +149,7 @@ def test_operations_v2_uses_single_workspace_environment(tmp_path, monkeypatch):
     assert defs["maintenance_selected_id"] is not None
 
 
-def test_operations_v2_keeps_reviewed_result_outside_recent_limit(tmp_path, monkeypatch):
+def test_operations_keeps_reviewed_result_outside_recent_limit(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     workspace = OperationsWorkspace(tmp_path / "workspace")
     template = _analysis()
