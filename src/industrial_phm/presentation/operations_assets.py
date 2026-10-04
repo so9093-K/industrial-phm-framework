@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.operations_assets import AssetWorkspaceView
-from industrial_phm.presentation.operations_shell import status_label
+from industrial_phm.presentation.operations_shell import data_status_label
 
 
 def render_asset_header_html(view: AssetWorkspaceView) -> str:
@@ -20,7 +20,11 @@ def render_asset_header_html(view: AssetWorkspaceView) -> str:
         f'<h2 class="phm-asset-title">{escape(view.asset_id)}</h2>'
         "</div>"
         '<div class="phm-asset-facts">'
-        + _fact("Status", status_label(view.status), f"phm-status-{view.status.value}")
+        + _fact(
+            "Data status",
+            data_status_label(view.status),
+            f"phm-status-{view.status.value}",
+        )
         + _fact("Last data", _time_label(view.last_data_at))
         + _fact("Sources", str(view.source_count))
         + _fact("Latest analysis", _time_label(view.latest_analysis_at))
@@ -45,7 +49,7 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
     cards = (
         _overview_card(
             "Data",
-            status_label(view.status),
+            data_status_label(view.status),
             f"Last data {_time_label(view.last_data_at)}",
             view.status.value,
         )
@@ -72,7 +76,7 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
             f'<span class="phm-card-detail">{escape(source.source_id)}</span></td>'
             f"<td>{escape(source.source_type.value.upper())}</td>"
             f'<td class="phm-status-{source.status.value}">'
-            f"{escape(status_label(source.status))}</td>"
+            f"{escape(data_status_label(source.status))}</td>"
             f"<td>{escape(_time_label(source.last_data_at))}</td>"
             f"<td>{escape(source.measurement_point_id or '—')}</td>"
             f"<td>{source.channel_count}</td>"
