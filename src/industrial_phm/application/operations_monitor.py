@@ -1,6 +1,6 @@
 """User-question-oriented Operations monitor read models.
 
-The V2 monitor translates existing operational evidence into a small operator-facing
+The monitor translates existing operational evidence into a small operator-facing
 vocabulary. It does not create asset-health, fault, severity, alarm, or maintenance
 verdicts.
 """
@@ -350,7 +350,7 @@ def _source_stage(
             OperationsMonitorStageKind.SOURCE,
             OperationsMonitorStatus.WAITING,
             "Sources",
-            "No source configured",
+            "No source configured; connect a FILE or OPC UA source in Setup.",
             count=0,
         )
     statuses = tuple(
