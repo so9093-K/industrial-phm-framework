@@ -50,6 +50,7 @@ def _():
         operational_analysis_presentation_kind,
         operations_theme_css,
         render_analysis_quality_markdown,
+        render_live_observation_html,
         render_monitor_assets_html,
         render_monitor_flow_html,
         render_setup_signals_html,
