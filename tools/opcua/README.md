@@ -84,7 +84,7 @@ uv run --no-sync industrial-phm maintenance history compact \
 
 `flush` means catalog-inline rows → Parquet. `compact` means active small Parquet → fewer active
 Parquet files. Snapshot expiration, old-file cleanup, catalog VACUUM and CHECKPOINT are deliberately
-outside this command and #317-A.
+outside this command and require a separate storage-lifecycle policy.
 
 ## Three-phase live analysis profile
 
@@ -183,30 +183,30 @@ The selection below (device 2297, 2020-11-14 06:00-12:30 local) contains a stopp
 
 ```bash
 uv sync --locked --extra history --extra opcua --extra aihub --group research
-uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/phase10 \
+uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/aihub-replay \
   --endpoint opc.tcp://127.0.0.1:4850/aihub-replay/ \
   --archive data/raw/aihub/239/archives/training/raw/5.보일러.zip \
   --member "5.보일러/SourceData_211.json" \
   --binding tools/opcua/presets/aihub-boiler-2297-replay.json \
   --start 2020-11-14T06:00:00 --end 2020-11-14T12:30:00
-uv run --no-sync python -m tools.opcua.aihub_replay server --root artifacts/phase10 --speed 60 --loop
+uv run --no-sync python -m tools.opcua.aihub_replay server --root artifacts/aihub-replay --speed 60 --loop
 ```
 
-Use the same `artifacts/phase10` workspace for collector, analysis runner and Operations. The
+Use the same `artifacts/aihub-replay` workspace for collector, analysis runner and Operations. The
 collector uses 30 recorded minutes per window at 60x, and the runner records the replay-specific carry
 basis explicitly:
 
 ```bash
 uv run --no-sync industrial-phm internal collection-service \
-  --workspace artifacts/phase10 \
+  --workspace artifacts/aihub-replay \
   --window-duration-seconds 30 --allowed-lateness-seconds 2
 
 uv run --no-sync industrial-phm internal window-analysis \
-  --workspace artifacts/phase10 \
+  --workspace artifacts/aihub-replay \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
 
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/phase10
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/aihub-replay
 uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
@@ -221,7 +221,7 @@ Fault scenarios for Operations validation:
 - Stopping the replay server, the collector or the analysis runner separately exercises source,
   collection and analysis outages.
 
-## Repeatable fault gate (Phase 10)
+## Repeatable live fault/recovery gate
 
 `tools/opcua/fault_harness.py` runs the replay, the collection service and the analysis runner as
 separate processes, injects every scenario `--repeat` times and judges the run by machine. Exit code 0
@@ -233,7 +233,7 @@ uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3
 
 Only a run with every scenario, `--repeat` of at least 3 and `--browser` is recorded as `"gate": "full"`.
 A run with `--scenarios`, a smaller N or no browser check is `"gate": "diagnostic"` and does not stand in for
-the #321 gate. `--browser` starts `marimo run src/industrial_phm/apps/operations.py` against the harness root and opens
+the full reliability gate. `--browser` starts `marimo run src/industrial_phm/apps/operations.py` against the harness root and opens
 Monitor in Chromium through `uv run --no-sync --with playwright` (screenshots: `<root>/ui-*.png`).
 
 Scenarios: collector stall (SIGSTOP), source stall, collector kill/restart (SIGKILL), analysis runner
@@ -273,15 +273,15 @@ Short, repeatable experiments replace waiting for failures in a long soak:
 - Audit stored history against the ledger:
 
 ```bash
-uv run --no-sync python -m tools.opcua.replay_audit --root artifacts/phase10b \
-  --ledger artifacts/phase10b/publish-ledger.jsonl --source-id aihub239-replay-boiler-2297
+uv run --no-sync python -m tools.opcua.replay_audit --root artifacts/aihub-replayb \
+  --ledger artifacts/aihub-replayb/publish-ledger.jsonl --source-id aihub239-replay-boiler-2297
 ```
 
 The audit expects one delivery per changed write within a server run and reports missing gaps,
 duplicate keys, exact value mismatches (null included), Good/Bad quality mismatches, unknown events and
 re-delivered current values (subscription start). A recorded null is published as a Null variant with Bad
 status. One audit accepts one publish per (channel, timestamp); a key written by two server runs fails fast.
-Measured results are recorded in `docs/research/phase10-acquisition-stress.md`.
+Measured results are recorded in `docs/research/live-acquisition-fault-evidence.md`.
 
 ## Regression validation
 

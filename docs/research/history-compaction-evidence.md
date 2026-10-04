@@ -1,10 +1,7 @@
-# Phase 10 DuckLake non-destructive compaction evidence
+# DuckLake non-destructive compaction evidence
 
-Date: 2026-10-01  
-Scope: #317-A / PR #343  
-Runtime: CPython 3.14.7, DuckDB v1.5.5, DuckLake d8a1881e, Linux x86_64  
-PR head used for the final benchmark: `55758882a95f70f23a5f5cfa40f50805ed320f2a`
-(the Actions checkout itself is a synthetic pull-request merge commit).
+Measured: 2026-10-01  
+Runtime: CPython 3.14.7, DuckDB v1.5.5, DuckLake d8a1881e, Linux x86_64
 
 ## Question
 
@@ -13,7 +10,7 @@ deleting files, weakening evidence identity, or coupling maintenance to the coll
 
 The answer is **yes for non-destructive file/query maintenance**, with an explicit late-maintenance
 boundary. This experiment does **not** show that live append cost is independent of accumulated
-history; that remaining issue is tracked separately in #344.
+history; append scaling is measured separately in `history-append-scaling-evidence.md`.
 
 ## Workload
 
@@ -129,11 +126,10 @@ throughput benchmark, but together with the one-batch probe it shows that an acc
 dependency remains.
 
 The append path separately performs catalog attach/initialization, batch identity lookup, raw-evidence
-duplicate rejection, insert/commit and committed-snapshot provenance lookup. #344 owns the next
-isolation step and must preserve exact retry/conflict/duplicate semantics. #321 therefore remains open
-after #317-A; #343 closes only the small-file/query maintenance portion of the Phase 10 storage gate.
+duplicate rejection, insert/commit and committed-snapshot provenance lookup. Its scaling and exact
+retry/conflict/duplicate semantics are measured separately in `history-append-scaling-evidence.md`.
 
-## 317-A conclusion
+## Conclusion
 
 **PASS for non-destructive compaction semantics and file/query recovery.**
 
@@ -154,5 +150,5 @@ Not claimed by this result:
 - N-independent live append cost,
 - distributed/HA maintenance.
 
-Retention/deletion remains #317-B after KAIST/#316 evidence. Live append scaling remains the Phase 10
-blocker in #344.
+Retention/deletion requires a separate lifecycle policy and representative deployment evidence. Live
+append scaling is a separate concern from merge-only compaction.

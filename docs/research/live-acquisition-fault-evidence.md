@@ -1,4 +1,6 @@
-# Phase 10 acquisition queue-pressure, fault reproduction and fault gate (2026-10-01)
+# Live acquisition queue-pressure and fault/recovery evidence
+
+Measured: 2026-10-01
 
 Local AI-Hub 239 replay (device 2297, 35 channels, 60x: one record per second) → instrumented collector
 (`--pipeline-metrics`) → DuckLake. Faults were injected with SIGSTOP/SIGCONT and loss was audited against the
@@ -31,16 +33,14 @@ quality mismatches and 0 unknown events, and no (channel, timestamp) key was pub
 ## Not claimed
 
 - No loss during a source or connection outage: data during the outage and the restart backoff is lost.
-- The 2026-09-30 overflow coincided with a MacBook clamshell sleep (pmset 19:58:09–20:00:30 KST); the
-  reproduction above shows the same burst/overflow/wedge mechanism without sleep.
+- One observed overflow coincided with host sleep; the controlled reproduction above demonstrates the
+  same burst/overflow/wedge mechanism independently of host sleep.
 
 ## Repeatable fault gate result (N = 3)
 
 `uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3b --repeat 3 --browser`
-on the branch that adds the harness: **`"gate": "full"`, verdict PASS, all 13 checks**. Six scenarios × 3
-plus missing phase and four Operations states = 23 injected faults; 17 minutes of wall clock (a
-consequence, not a criterion). An earlier run with looser oracles (11 checks, no browser) also passed; the
-numbers below are from the stricter run.
+produced **`"gate": "full"`, verdict PASS, all 13 checks**. Six scenarios × 3 plus missing phase and four
+Operations states = 23 injected faults; 17 minutes of wall clock (a consequence, not a criterion).
 
 | Check | Result |
 | --- | --- |
@@ -58,10 +58,10 @@ numbers below are from the stricter run.
 | review workflow | after the last fault, the newest phase-unbalance result went from a not-requested Investigation group → review request → OPEN group and OPEN Maintenance item |
 | browser (Chromium) | Monitor data flow and the state's attention item visible 1.65 s (source stale), 1.08 s (unreachable), 1.10 s (collector down), 1.09 s (analysis stale) after opening |
 
-The first harness runs found a real loss before this result: the worker requested the next notification
-before persisting the current one, so a notification dequeued during that wait was dropped when the worker
-ended (`dequeued 10 / accepted 5` under forced overflow). The worker now persists before requesting the
-next notification and persists an already-dequeued one at shutdown; the gate above verifies it.
+The gate protects a previously observed loss mode: requesting the next notification before persisting the
+current one allowed an already-dequeued notification to be dropped when the worker ended (`dequeued 10 /
+accepted 5` under forced overflow). The current worker persists before requesting the next notification and
+persists an already-dequeued one at shutdown.
 
 ## Growth with accumulated state
 
@@ -78,8 +78,7 @@ operation, not by running longer.
 file with `open(..., encoding="utf-8").read()` / `Path.read_text` also leaves process memory proportional
 to the file size (a 1.6 MB file: 3 MB per read, levelling off near 196 MB; 33 MB on 3.13.12; none with
 `read_bytes().decode()`; the Python heap itself does not grow). The structural issue is the whole-file
-rewrite, the same pattern already removed from finalized windows. Fixed by `SqlitePhaseUnbalanceRepository`
-(one row per run): with a fixed N of stored results, one more record costs 3 / 24 / 96 ms and 0.47 / 2.15 /
+rewrite, the same pattern already removed from finalized windows. `SqlitePhaseUnbalanceRepository` avoids the whole-file rewrite (one row per run): with a fixed N of stored results, one more record costs 3 / 24 / 96 ms and 0.47 / 2.15 /
 7.70 MB peak at N = 10 / 100 / 400 in the JSON store, and 0.8 ms and 0.012 MB at N = 10 / 2,000 / 10,000 in
 the SQLite store (`test_recording_one_window_result_does_not_scale_with_stored_results`).
 
@@ -87,4 +86,4 @@ the SQLite store (`test_recording_one_window_result_does_not_scale_with_stored_r
 costs that grow with DuckLake data files (about 106 small files per minute) and window payloads.
 
 **Storage.** `windows.sqlite` reached 88 MB and DuckLake 5,026 data files (39 MB) in 50 minutes. Volume is
-linear, but file count and window payload retention belong to the storage lifecycle work (#317).
+linear, but file count and window payload retention require a separate storage lifecycle policy.

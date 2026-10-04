@@ -1,11 +1,10 @@
-# Phase 10 history append scaling
+# History append scaling evidence
 
 ## Purpose
 
-This note records the #344 measurements that separate live DuckLake append cost into
-connection/initialization, batch identity, duplicate evidence, commit, and recovery provenance work.
-It follows #343/#317-A: file compaction is a physical maintenance concern, while append identity and
-crash recovery are a separate history contract.
+This note separates live DuckLake append cost into connection/initialization, batch identity, duplicate
+evidence, commit, and recovery provenance work. File compaction is treated as a physical-maintenance
+concern, while append identity and crash recovery remain a separate history contract.
 
 These are local GitHub-hosted runner measurements, not capacity guarantees.
 
@@ -39,7 +38,7 @@ application-authored DuckLake snapshot to find the matching batch provenance.
 
 A separate mode creates 10,000 ingestion-batch/snapshot commits without raw/history data files. This
 isolates catalog/snapshot count from Parquet/raw-row volume and avoids repeating the roughly 50-minute
-full-data N=10,000 state build used by #317-A.
+full-data N=10,000 state build used by the compaction profile.
 
 Before the indexed recovery change:
 
@@ -101,18 +100,17 @@ The evidence supports three separate conclusions:
    remains in the same roughly 0.34–0.36 s range as N=0/N=2,000.
 2. **Exact retry had a real O(snapshot count) scan.** The batch→snapshot accelerator removes that scan
    for current indexed batches without making the accelerator authoritative.
-3. **Full-data late-state append cost is a different effect.** #317-A measured about 0.668 s after one
-   bounded compaction pass at N=10,000, where 5,268 active files still remained. That late-maintenance
-   state is outside the normal target envelope; #317-A already requires state-based maintenance before
-   repeated provider-limit saturation.
+3. **Full-data late-state append cost is a different effect.** The compaction profile measured about
+   0.668 s after one bounded pass at N=10,000, where 5,268 active files still remained. That
+   late-maintenance state is outside the normal target envelope and supports state-based maintenance
+   before repeated provider-limit saturation.
 
-Accordingly, #344 does not introduce arbitrary retention or weaken duplicate/evidence identity.
-Normal operation combines #343's state-based file maintenance with the bounded current-batch recovery
-path described here.
+The indexed recovery path described here does not introduce arbitrary retention or weaken
+duplicate/evidence identity. Physical file maintenance remains a separate concern.
 
-## Acceptance boundary
+## Supported contract
 
-PASS for #344 means:
+The evidence supports the following contract:
 
 - the live writer performs one append-or-recover operation instead of a separate preflight plus append;
 - a current indexed exact retry has no all-snapshot provenance scan;
@@ -121,6 +119,6 @@ PASS for #344 means:
 - restart and the existing local catalog lease contract remain valid;
 - unique append in the N=10,000 metadata-only isolation remains comparable to N=0/N=2,000 rather than
   scaling with snapshot count;
-- full-data file/query growth remains owned by #317-A maintenance, not hidden with retention.
+- full-data file/query growth remains a separate physical-maintenance concern and is not hidden with retention.
 
 This does not define a distributed/HA recovery index and does not make the sidecar required evidence.
