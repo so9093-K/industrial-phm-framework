@@ -3314,17 +3314,16 @@ def _(
         _target = "Unavailable" if attention_route is None else attention_route.page
         _asset_label = selected_attention.asset_id or "—"
         _metadata = f"Asset **{_asset_label}** · {_when} · Target **{_target}**"
+        _attention_kind = (
+            "danger" if selected_attention.status.value == "error" else "warn"
+        )
         _blocks = [
             mo.md("### Needs attention"),
             attention_selector,
             mo.md(_metadata),
             mo.callout(
                 selected_attention.detail,
-                kind=(
-                    "danger"
-                    if selected_attention.status.value == "error"
-                    else "warn"
-                ),
+                kind=_attention_kind,
                 title=selected_attention.title,
             ),
         ]
