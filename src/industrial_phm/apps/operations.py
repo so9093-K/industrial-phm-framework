@@ -42,7 +42,9 @@ def _():
     )
     from industrial_phm.connectors import OpcUaNodeMapping
     from industrial_phm.presentation import (
+        OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
+        initial_operations_page,
         operational_analysis_presentation_kind,
         operations_theme_css,
         render_analysis_quality_markdown,
@@ -113,6 +115,7 @@ def _():
         MeasurementDefinition,
         OpcUaNodeMapping,
         OpcUaSourceConfig,
+        OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
         OperationsDiagnosticKind,
         Path,
@@ -134,6 +137,7 @@ def _():
         investigation_group_option_label,
         investigation_queue_option_label,
         investigation_review_label,
+        initial_operations_page,
         investigation_workspace_css,
         latest_measurement_rows,
         load_operations_app_context,
@@ -180,20 +184,9 @@ def _():
 
 @app.cell
 def _(mo):
-    navigation = mo.ui.radio(
-        options=[
-            "Monitor",
-            "Assets",
-            "Investigations",
-            "Maintenance",
-            "System",
-            "Setup",
-        ],
-        value="Monitor",
-        label="",
-    )
     refresh_button = mo.ui.run_button(label="Refresh")
-    return navigation, refresh_button
+    get_navigation_page, set_navigation_page = mo.state(None)
+    return get_navigation_page, refresh_button, set_navigation_page
 
 
 @app.cell
@@ -248,6 +241,38 @@ def _(load_operations_app_context, refresh_button):
         system_diagnostics,
         system_errors,
     )
+
+
+@app.cell
+def _(
+    get_navigation_page,
+    initial_operations_page,
+    registered_sources,
+    set_navigation_page,
+):
+    navigation_initial_page = get_navigation_page()
+    if navigation_initial_page is None:
+        navigation_initial_page = initial_operations_page(
+            has_registered_sources=bool(registered_sources)
+        )
+        set_navigation_page(navigation_initial_page)
+    return (navigation_initial_page,)
+
+
+@app.cell
+def _(
+    OPERATIONS_PAGE_OPTIONS,
+    mo,
+    navigation_initial_page,
+    set_navigation_page,
+):
+    navigation = mo.ui.radio(
+        options=list(OPERATIONS_PAGE_OPTIONS),
+        value=navigation_initial_page,
+        label="",
+        on_change=set_navigation_page,
+    )
+    return (navigation,)
 
 
 @app.cell
@@ -2605,7 +2630,11 @@ def _(
         _message_blocks.append(mo.callout(setup_success, kind="success", title="Setup updated"))
 
     if setup_selected_source is None:
-        _selected_source_panel = mo.md("### Selected source\n\nNo data source is configured yet.")
+        _selected_source_panel = mo.md(
+            "### Connect your first data source\n\n"
+            "Operations needs an observation source before it can show asset state or "
+            "analysis evidence. Choose a prepared FILE source or a live OPC UA source below."
+        )
     else:
         _source_actions = [
             button
@@ -2910,11 +2939,16 @@ def _(
             gap=0.75,
         )
 
+    _add_source_surface = (
+        _source_wizard
+        if setup_selected_source is None
+        else mo.accordion({"Add data source": _source_wizard})
+    )
     _data_sources_view = mo.vstack(
         [
             mo.Html(render_setup_sources_html(setup_workspace)),
             _selected_source_panel,
-            mo.accordion({"Add data source": _source_wizard}),
+            _add_source_surface,
         ],
         gap=1.0,
     )
