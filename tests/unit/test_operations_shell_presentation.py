@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application.operations_monitor import (
+    OperationsAttentionDestination,
     OperationsMonitorAsset,
     OperationsMonitorAttention,
     OperationsMonitorStage,
@@ -57,6 +58,7 @@ def _view() -> OperationsMonitorView:
                 status=OperationsMonitorStatus.DELAYED,
                 title="Data is delayed",
                 detail="Latest data exceeded its configured age.",
+                destination=OperationsAttentionDestination.ASSET_SIGNALS,
                 occurred_at=NOW,
                 asset_id="boiler-01",
             ),
