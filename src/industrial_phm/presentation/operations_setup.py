@@ -20,7 +20,7 @@ def render_setup_sources_html(view: SetupWorkspaceView) -> str:
     if not rows:
         rows = (
             '<tr><td colspan="7" class="phm-card-detail">'
-            "No data source is configured yet."
+            "No data source is configured yet. Connect one below to begin."
             "</td></tr>"
         )
     return (
