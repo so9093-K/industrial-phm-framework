@@ -3189,7 +3189,21 @@ def _(
     def _time_text(value):
         if value is None or value.utcoffset() is None:
             return "—"
-        return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        age = (monitor.assessed_at - value).total_seconds()
+        if age < -1:
+            relative = f"{abs(age):.0f}s in future"
+        elif age < 1:
+            relative = "now"
+        elif age < 60:
+            relative = f"{age:.0f}s ago"
+        elif age < 3600:
+            relative = f"{age / 60:.1f}m ago"
+        elif age < 86400:
+            relative = f"{age / 3600:.1f}h ago"
+        else:
+            relative = f"{age / 86400:.1f}d ago"
+        exact = value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        return f"{relative} · {exact}"
 
     def _md_cell(value):
         if value is None:
@@ -3212,9 +3226,7 @@ def _(
             "| --- | --- | --- | --- |\n" + attention_rows
         )
     else:
-        attention_view = mo.md(
-            "### Needs attention\n\nNo current operational item requires review."
-        )
+        attention_view = None
 
     if monitor.activities:
         activity_rows = "\n".join(
@@ -3233,15 +3245,17 @@ def _(
     else:
         activity_view = mo.md("### Recent activity\n\nNo recent activity recorded.")
 
-    monitor_view = mo.vstack(
+    _monitor_blocks = []
+    if attention_view is not None:
+        _monitor_blocks.append(attention_view)
+    _monitor_blocks.extend(
         [
-            mo.Html(render_monitor_flow_html(monitor)),
-            attention_view,
             mo.Html(render_monitor_assets_html(monitor)),
+            mo.Html(render_monitor_flow_html(monitor)),
             activity_view,
-        ],
-        gap=1.3,
+        ]
     )
+    monitor_view = mo.vstack(_monitor_blocks, gap=1.3)
 
     if asset_selector is None:
         asset_view = mo.md(

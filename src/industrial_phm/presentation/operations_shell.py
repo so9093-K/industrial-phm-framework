@@ -41,6 +41,16 @@ _STATUS_LABEL = {
     OperationsMonitorStatus.UNAVAILABLE: "Unavailable",
 }
 
+_DATA_STATUS_LABEL = {
+    OperationsMonitorStatus.RUNNING: "Receiving",
+    OperationsMonitorStatus.WAITING: "Waiting for data",
+    OperationsMonitorStatus.DELAYED: "Delayed",
+    OperationsMonitorStatus.STOPPED: "Stopped",
+    OperationsMonitorStatus.NEEDS_ATTENTION: "Needs attention",
+    OperationsMonitorStatus.ERROR: "Error",
+    OperationsMonitorStatus.UNAVAILABLE: "Unavailable",
+}
+
 
 def operations_theme_css() -> str:
     """Return the Operations dark shell tokens without depending on a UI framework."""
@@ -174,7 +184,7 @@ def render_monitor_flow_html(view: OperationsMonitorView) -> str:
     cards = "".join(_render_stage(stage) for stage in view.stages)
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Data flow</div>'
+        '<div class="phm-section-title">System data flow</div>'
         f'<div class="phm-flow">{cards}</div>'
         "</section>"
     )
@@ -183,7 +193,7 @@ def render_monitor_flow_html(view: OperationsMonitorView) -> str:
 def render_monitor_assets_html(view: OperationsMonitorView) -> str:
     if not isinstance(view, OperationsMonitorView):
         raise ValueError("view must be an OperationsMonitorView")
-    rows = "".join(_render_asset(asset) for asset in view.assets)
+    rows = "".join(_render_asset(asset, as_of=view.assessed_at) for asset in view.assets)
     if not rows:
         rows = (
             '<tr><td colspan="6" class="phm-card-detail">'
@@ -195,7 +205,7 @@ def render_monitor_assets_html(view: OperationsMonitorView) -> str:
         '<div class="phm-section-title">Assets</div>'
         '<table class="phm-table">'
         "<thead><tr>"
-        "<th>Asset</th><th>Status</th><th>Last data</th>"
+        "<th>Asset</th><th>Data status</th><th>Last data</th>"
         "<th>Last analysis</th><th>Reviews</th><th>Attention</th>"
         "</tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
@@ -206,6 +216,13 @@ def status_label(status: OperationsMonitorStatus) -> str:
     if not isinstance(status, OperationsMonitorStatus):
         raise ValueError("status must be an OperationsMonitorStatus")
     return _STATUS_LABEL[status]
+
+
+def data_status_label(status: OperationsMonitorStatus) -> str:
+    """Label source/asset data-flow state without implying asset condition."""
+    if not isinstance(status, OperationsMonitorStatus):
+        raise ValueError("status must be an OperationsMonitorStatus")
+    return _DATA_STATUS_LABEL[status]
 
 
 def _render_stage(stage: OperationsMonitorStage) -> str:
@@ -219,19 +236,37 @@ def _render_stage(stage: OperationsMonitorStage) -> str:
     )
 
 
-def _render_asset(asset: OperationsMonitorAsset) -> str:
+def _render_asset(asset: OperationsMonitorAsset, *, as_of: datetime) -> str:
     return (
         "<tr>"
         f"<td><strong>{escape(asset.asset_id)}</strong></td>"
-        f'<td class="phm-status-{asset.status.value}">{escape(status_label(asset.status))}</td>'
-        f"<td>{escape(_relative_hint(asset.last_data_at))}</td>"
-        f"<td>{escape(_relative_hint(asset.latest_analysis_at))}</td>"
+        f'<td class="phm-status-{asset.status.value}">'
+        f"{escape(data_status_label(asset.status))}</td>"
+        f"<td>{escape(_relative_hint(asset.last_data_at, as_of=as_of))}</td>"
+        f"<td>{escape(_relative_hint(asset.latest_analysis_at, as_of=as_of))}</td>"
         f"<td>{asset.pending_review_count}</td>"
         f"<td>{asset.attention_count}</td>"
         "</tr>"
     )
 
 
-def _relative_hint(value: datetime | None) -> str:
-    # The app owns a live clock; the pure presenter only shows an absolute UTC time.
-    return "—" if value is None else value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+def _relative_hint(value: datetime | None, *, as_of: datetime) -> str:
+    if value is None:
+        return "—"
+    if value.utcoffset() is None or as_of.utcoffset() is None:
+        return "Time not comparable"
+    age = (as_of - value).total_seconds()
+    if age < -1:
+        relative = f"{abs(age):.0f}s in future"
+    elif age < 1:
+        relative = "now"
+    elif age < 60:
+        relative = f"{age:.0f}s ago"
+    elif age < 3600:
+        relative = f"{age / 60:.1f}m ago"
+    elif age < 86400:
+        relative = f"{age / 3600:.1f}h ago"
+    else:
+        relative = f"{age / 86400:.1f}d ago"
+    exact = value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    return f"{relative} · {exact}"
