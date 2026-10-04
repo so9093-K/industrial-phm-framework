@@ -248,9 +248,8 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
     }
 
     assert check_live_browser_journey(renders)["passed"]
-    assert not check_live_browser_journey({**renders, "paused": {"within_5s": False}})[
-        "passed"
-    ]
+    slow_pause = {**renders, "paused": {"within_5s": False}}
+    assert not check_live_browser_journey(slow_pause)["passed"]
     assert not check_live_browser_journey(
         {name: value for name, value in renders.items() if name != "reconnecting"}
     )["passed"]
