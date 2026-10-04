@@ -4,6 +4,7 @@ import pytest
 
 from industrial_phm.application.acquisition_telemetry import (
     AcquisitionFlowTelemetry,
+    AcquisitionSessionTelemetry,
     AcquisitionSpoolTelemetrySnapshot,
     AcquisitionTelemetrySnapshot,
     AcquisitionTelemetrySurface,
@@ -17,6 +18,7 @@ from industrial_phm.application.measurement_history import (
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
 )
+from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operations_assets import AssetWorkspaceSource
 from industrial_phm.application.operations_live import build_live_observation_view
 from industrial_phm.application.operations_monitor import OperationsMonitorStatus
@@ -110,6 +112,16 @@ def _surface() -> AcquisitionTelemetrySurface:
     return AcquisitionTelemetrySurface(
         source=AcquisitionTelemetrySnapshot(
             source_id="source-live",
+            session=AcquisitionSessionTelemetry(
+                source_id="source-live",
+                worker_started_at=NOW - timedelta(seconds=10),
+                state=OpcUaPersistentSessionState.CONNECTED,
+                state_changed_at=NOW - timedelta(seconds=5),
+                connection_epoch=1,
+                reconnect_attempt_index=0,
+                callback_queue_overflow_count=0,
+                connected_since=NOW - timedelta(seconds=5),
+            ),
             flow=flow,
         ),
         spool=AcquisitionSpoolTelemetrySnapshot(
@@ -155,6 +167,7 @@ def test_live_observation_projects_only_mapped_opcua_sources() -> None:
     series = view.series[0]
     assert series.source_id == "source-live"
     assert series.status == OperationsMonitorStatus.RUNNING
+    assert series.session_state == OpcUaPersistentSessionState.CONNECTED
     assert series.latest_point == latest
     assert series.recent_points == (first, latest)
     assert series.last_received_at == NOW - timedelta(seconds=1)
