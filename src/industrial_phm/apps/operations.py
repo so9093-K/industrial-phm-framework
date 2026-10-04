@@ -1823,7 +1823,8 @@ def _(
                         _trend_view,
                         mo.md(
                             "Stored measurements and UI aggregates are observation evidence. "
-                            "This view does not infer asset health, fault, alarm, or missing samples."
+                            "This view does not infer asset health, fault, alarm, or "
+                            "missing samples."
                         ),
                     ],
                     gap=1.0,
