@@ -48,6 +48,10 @@ from industrial_phm.application import (
 )
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operations_assets import AssetWorkspaceAnalysisAttempt
+from industrial_phm.application.operations_monitor import (
+    COLLECTION_SERVICE_TIMEOUT,
+    LIVE_FLOW_SILENCE_TIMEOUT,
+)
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.acquisition_spool import (
     SqliteAcquisitionSpool,
@@ -171,12 +175,12 @@ def load_operations_app_snapshot(
         as_of=effective_at,
     )
     live_flow_timing = LiveFlowTiming(
-        max_silence=timedelta(seconds=30),
+        max_silence=LIVE_FLOW_SILENCE_TIMEOUT,
         as_of=effective_at,
         collection_service_down=collection_service_issue(
             collection_service,
             as_of=effective_at,
-            timeout=timedelta(seconds=20),
+            timeout=COLLECTION_SERVICE_TIMEOUT,
             live_telemetry=bool(acquisition_surfaces),
         )
         is not None,
