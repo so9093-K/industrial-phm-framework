@@ -76,11 +76,6 @@ def _():
         render_asset_maintenance_html,
         render_asset_overview_html,
     )
-    from industrial_phm.presentation.operations_live import (
-        live_observation_css,
-        live_observation_recent_page,
-        render_live_observation_html,
-    )
     from industrial_phm.presentation.operations_investigations import (
         investigation_capability_label,
         investigation_group_option_label,
@@ -89,6 +84,11 @@ def _():
         investigation_workspace_css,
         render_investigation_evidence_identity_html,
         render_investigation_summary_html,
+    )
+    from industrial_phm.presentation.operations_live import (
+        live_observation_css,
+        live_observation_recent_page,
+        render_live_observation_html,
     )
     from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
