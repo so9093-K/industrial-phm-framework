@@ -12,6 +12,7 @@ from industrial_phm.application import (
     build_operations_overview,
 )
 from industrial_phm.application.operations_monitor import (
+    OperationsAttentionDestination,
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     build_operations_monitor_view,
@@ -157,6 +158,7 @@ def test_monitor_marks_stale_runner_heartbeat_as_delayed_attention() -> None:
     assert "45s old" in analysis.summary
     assert monitor.attention_count == 1
     assert monitor.attention[0].title == "Analysis service is not updating"
+    assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
 
 
 def test_monitor_surfaces_stale_source_as_asset_attention_not_asset_health() -> None:
@@ -175,6 +177,8 @@ def test_monitor_surfaces_stale_source_as_asset_attention_not_asset_health() -> 
     assert monitor.stages[0].status == OperationsMonitorStatus.DELAYED
     assert monitor.attention_count == 1
     assert monitor.attention[0].title == "Data is delayed"
+    assert monitor.attention[0].destination == OperationsAttentionDestination.ASSET_SIGNALS
+    assert monitor.attention[0].source_id == source.source_id
     assert monitor.assets[0].status == OperationsMonitorStatus.DELAYED
     assert monitor.assets[0].attention_count == 1
     assert monitor.stages[3].status == OperationsMonitorStatus.UNAVAILABLE
@@ -310,6 +314,8 @@ def test_connected_session_silence_is_distinct_from_observation_freshness() -> N
     assert monitor.assets[0].status == OperationsMonitorStatus.DELAYED
     (attention,) = monitor.attention
     assert attention.title == "No new data"
+    assert attention.destination == OperationsAttentionDestination.ASSET_SIGNALS
+    assert attention.source_id == source.source_id
     assert "11m ago (limit 30s)" in attention.detail
 
     fresh = _live_surface(source.source_id, last_received_at=NOW - timedelta(seconds=5))
@@ -383,6 +389,7 @@ def test_stopped_collector_process_is_not_shown_as_a_connected_or_silent_source(
     assert sources.status == OperationsMonitorStatus.UNAVAILABLE
     assert monitor.assets[0].status == OperationsMonitorStatus.UNAVAILABLE
     assert [item.title for item in monitor.attention] == ["Collection service is not running"]
+    assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
 
     stopped = _monitor(
         source,
@@ -395,6 +402,7 @@ def test_stopped_collector_process_is_not_shown_as_a_connected_or_silent_source(
     )
     assert stopped.stages[1].status == OperationsMonitorStatus.STOPPED
     assert [item.title for item in stopped.attention] == ["Collection service stopped"]
+    assert stopped.attention[0].destination == OperationsAttentionDestination.SYSTEM
 
     # With a current heartbeat the same session silence is the source's.
     alive = _monitor(
@@ -442,6 +450,8 @@ def test_reconnecting_session_is_shown_as_connection_loss_not_an_earlier_worker_
     assert monitor.stages[0].status == OperationsMonitorStatus.DELAYED
     (attention,) = monitor.attention
     assert attention.title == "Source connection lost"
+    assert attention.destination == OperationsAttentionDestination.ASSET_SIGNALS
+    assert attention.source_id == source.source_id
     assert "last data 2m ago" in attention.detail
 
     # A worker that failed and did not report any later session state is an error.
@@ -460,6 +470,7 @@ def test_reconnecting_session_is_shown_as_connection_loss_not_an_earlier_worker_
     )
     assert monitor.stages[1].status == OperationsMonitorStatus.ERROR
     assert [item.title for item in monitor.attention] == ["Collection needs attention"]
+    assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
 
 
 def test_refused_connection_keeps_worker_error_and_last_receive_time() -> None:
@@ -534,6 +545,8 @@ def test_refused_connection_keeps_worker_error_and_last_receive_time() -> None:
     assert monitor.stages[0].status == OperationsMonitorStatus.ERROR
     (attention,) = monitor.attention
     assert "ConnectionRefusedError" in attention.detail
+    assert attention.destination == OperationsAttentionDestination.SYSTEM
+    assert attention.source_id == source.source_id
     # Receive clock from the earlier worker, not the history commit/ack clock.
     assert monitor.assets[0].last_data_at == received
 
@@ -552,3 +565,4 @@ def test_live_telemetry_without_any_collector_heartbeat_fails_closed() -> None:
     assert [item.title for item in monitor.attention] == [
         "Collection service heartbeat unavailable"
     ]
+    assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
