@@ -90,9 +90,6 @@ def _():
         live_observation_recent_page,
         render_live_observation_html,
     )
-    from industrial_phm.presentation.operations_navigation import (
-        resolve_operations_attention_route,
-    )
     from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
         maintenance_status_label,
@@ -100,6 +97,9 @@ def _():
         render_maintenance_identity_html,
         render_maintenance_summary_html,
         render_maintenance_timeline_html,
+    )
+    from industrial_phm.presentation.operations_navigation import (
+        resolve_operations_attention_route,
     )
     from industrial_phm.presentation.phase_unbalance import (
         phase_unbalance_exclusion_rows,
