@@ -1,6 +1,6 @@
 import tracemalloc
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
@@ -28,7 +28,7 @@ from industrial_phm.application.phase_unbalance_state import (
     window_result_key,
 )
 from tests.support.window_analysis import END, PHASES, START, window_event as _event
-from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
+
 
 def _window(*, late_value=None):
     buffer = ObservationWindowBuffer(
