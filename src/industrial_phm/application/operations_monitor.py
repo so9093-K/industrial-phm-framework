@@ -135,9 +135,8 @@ class OperationsMonitorAttention:
             and self.asset_id is None
         ):
             raise ValueError("asset-signals destination requires asset_id")
-        if (
-            self.destination == OperationsAttentionDestination.INVESTIGATIONS
-            and (self.asset_id is None or self.finding_id is None)
+        if self.destination == OperationsAttentionDestination.INVESTIGATIONS and (
+            self.asset_id is None or self.finding_id is None
         ):
             raise ValueError("investigations destination requires asset_id and finding_id")
 
