@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from industrial_phm.application import (
     AnalysisRun,
     FileSourceConfig,
+    OperationalFinding,
     RegisteredSource,
     SourceFreshnessPolicy,
     SourceLifecycleRecord,
@@ -16,6 +17,10 @@ from industrial_phm.application.operations_monitor import (
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     build_operations_monitor_view,
+)
+from industrial_phm.application.finding_review import (
+    HUMAN_REVIEW_FINDING_SEMANTICS_ID,
+    HUMAN_REVIEW_FINDING_STATE,
 )
 from industrial_phm.application.window_analysis_runtime import (
     WindowAnalysisRunnerState,
@@ -566,3 +571,44 @@ def test_live_telemetry_without_any_collector_heartbeat_fails_closed() -> None:
         "Collection service heartbeat unavailable"
     ]
     assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
+
+
+def test_review_attention_routes_to_investigation_with_finding_context() -> None:
+    source, overview = _overview(
+        observed_at=NOW - timedelta(seconds=5),
+        max_age_seconds=60,
+    )
+    run = _analysis_run()
+    finding = OperationalFinding(
+        finding_id="finding-review",
+        analysis_run_id=run.analysis_run_id,
+        asset_id=run.asset_id,
+        observed_at=run.completed_at,
+        capability_id=run.capability_ids[0],
+        finding_semantics_id=HUMAN_REVIEW_FINDING_SEMANTICS_ID,
+        state=HUMAN_REVIEW_FINDING_STATE,
+        evidence_refs=("evidence-review",),
+    )
+    overview = build_operations_overview(
+        sources=(source,),
+        lifecycle_records=overview.lifecycle_records,
+        receipts=overview.receipts,
+        freshness_policies=overview.freshness_policies,
+        connection_attempts=overview.connection_attempts,
+        analysis_runs=(run,),
+        findings=(finding,),
+        review_events=(),
+        as_of=NOW,
+    )
+    monitor = build_operations_monitor_view(
+        sources=(source,),
+        overview=overview,
+        attention=build_operations_attention_queue(overview=overview),
+        analysis_runs=(run,),
+        as_of=NOW,
+    )
+
+    review = next(item for item in monitor.attention if item.finding_id == finding.finding_id)
+    assert review.destination == OperationsAttentionDestination.INVESTIGATIONS
+    assert review.asset_id == source.asset_id
+    assert review.finding_id == finding.finding_id
