@@ -61,9 +61,11 @@ class LiveObservationSeries:
                 recent,
                 key=lambda item: (
                     item.measurement.event_at is None,
-                    item.measurement.event_at or datetime.min.replace(tzinfo=self.last_received_at.tzinfo)
-                    if self.last_received_at is not None
-                    else datetime.min.astimezone(),
+                    (
+                        0.0
+                        if item.measurement.event_at is None
+                        else item.measurement.event_at.timestamp()
+                    ),
                     item.measurement.raw_evidence_id,
                 ),
             )
