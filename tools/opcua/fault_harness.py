@@ -608,11 +608,7 @@ class Stack:
         series = next(item for item in view.series if item.source_id == SOURCE_ID)
         latest = series.latest_point
         history = next(
-            (
-                item
-                for item in context.snapshot.history_assets
-                if item.asset_id == source.asset_id
-            ),
+            (item for item in context.snapshot.history_assets if item.asset_id == source.asset_id),
             None,
         )
         return {
