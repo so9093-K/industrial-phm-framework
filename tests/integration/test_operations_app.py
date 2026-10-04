@@ -110,6 +110,7 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
 
     assert defs["navigation_initial_page"] == "Monitor"
     assert defs["navigation"].value == "Monitor"
+    assert defs["signal_range_selector"].value == "Live"
 
 
 def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
