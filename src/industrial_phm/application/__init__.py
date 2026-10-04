@@ -206,6 +206,11 @@ from industrial_phm.application.operations_investigations import (
     InvestigationReviewState,
     build_investigation_queue,
 )
+from industrial_phm.application.operations_live import (
+    LiveObservationSeries,
+    LiveObservationView,
+    build_live_observation_view,
+)
 from industrial_phm.application.operations_maintenance import (
     MaintenanceQueueItem,
     MaintenanceQueueView,
@@ -452,6 +457,8 @@ __all__ = [
     "JsonWindowAnalysisLedger",
     "JsonWindowAnalysisRuntimeRepository",
     "LiveFlowTiming",
+    "LiveObservationSeries",
+    "LiveObservationView",
     "MaintenanceQueueItem",
     "MaintenanceQueueView",
     "MaintenanceReviewTimelineItem",
@@ -568,6 +575,7 @@ __all__ = [
     "build_asset_detail",
     "build_asset_workspace_view",
     "build_investigation_queue",
+    "build_live_observation_view",
     "build_maintenance_queue",
     "build_operations_attention_queue",
     "build_operations_monitor_view",
