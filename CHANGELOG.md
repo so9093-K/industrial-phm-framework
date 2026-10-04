@@ -49,6 +49,15 @@
 
 ### Added
 
+- Operations에 observation-first monitoring surface를 추가했습니다. `Assets -> Signals`는 mapped OPC UA
+  signal의 current stored value, unit, source quality, collector receive age, event/source timestamp와 bounded recent
+  trend를 `Live / 15m / 24h / 7d`의 같은 asset/signal context에서 보여줍니다. Source flow와 selected-channel
+  evidence를 분리해 reconnect, receive silence, non-good quality, missing channel evidence와 gap을 fault/health로
+  승격하지 않고 표시하며 trend는 관측되지 않은 구간을 interpolation하지 않습니다. Monitor는 `Data status`
+  vocabulary와 Needs Attention 중심으로 재구성했고, typed destination을 통해 Asset Signals/Investigation/System으로
+  직접 drill-down합니다. Replay fault harness와 Chromium gate는 receive -> missing phase -> pause -> reconnect ->
+  recover -> history continuity와 핵심 Live 상태의 5초 이내 가시성을 검증합니다.
+
 - `industrial-phm demo aihub-boiler` recorded-data preset을 추가했습니다. local AI-Hub 239 보일러 archive와
   `aihub` extra가 있으면 기존 device 2297 / `SourceData_211.json` / 2020-11-14 06:00–12:30 selection을
   loopback OPC UA replay로 실행하고, normal Operations supervisor가 collection + analysis + packaged UI를
