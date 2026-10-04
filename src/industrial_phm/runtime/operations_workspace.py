@@ -24,7 +24,7 @@ class OperationsWorkspace:
 
     @property
     def config_path(self) -> Path:
-        """Return the future user-facing runtime configuration path."""
+        """Return the user-facing runtime configuration path."""
         return self.root / "config.toml"
 
     @property
