@@ -64,12 +64,12 @@ def _view() -> OperationsMonitorView:
     )
 
 
-def test_v2_theme_uses_fixed_main_background() -> None:
+def test_operations_theme_uses_fixed_main_background() -> None:
     assert OPERATIONS_MAIN_BACKGROUND == "#292827"
     assert "#292827" in operations_theme_css()
 
 
-def test_v2_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() -> None:
+def test_operations_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() -> None:
     # marimo defaults to its light theme; without these switches its widgets and
     # markdown render light surfaces/dark text over the fixed dark background.
     css = operations_theme_css()
