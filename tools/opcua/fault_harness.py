@@ -44,6 +44,7 @@ OPERATIONS_APP = operations_app_path()
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
 SOURCE_ID = "aihub239-replay-boiler-2297"
 OMITTED_CHANNEL = "T상전류"
+PEER_CHANNEL = "R상전류"
 SCENARIOS = (
     "collector_stall",
     "source_stall",
@@ -261,6 +262,79 @@ def check_first_render(renders: dict[str, dict[str, object]]) -> dict[str, objec
     """In a real browser each state is readable within five seconds of opening."""
     slow = {name: r for name, r in renders.items() if not r.get("within_5s")}
     return _check(len(renders) == 4 and not slow, renders=renders, slow=slow)
+
+
+def check_live_replay_sequence(states: dict[str, dict[str, object]]) -> dict[str, object]:
+    """Judge the observation journey without inventing channel cadence semantics."""
+
+    required = {
+        "before_missing",
+        "before_missing_peer",
+        "during_missing",
+        "during_missing_peer",
+        "paused",
+        "reconnecting",
+        "recovered",
+    }
+    missing = sorted(required - set(states))
+    if missing:
+        return _check(False, missing_states=missing, states=states)
+
+    def event_at(name: str) -> datetime | None:
+        value = states[name].get("channel_event_at")
+        return None if value is None else datetime.fromisoformat(str(value))
+
+    before = event_at("before_missing")
+    before_peer = event_at("before_missing_peer")
+    during = event_at("during_missing")
+    during_peer = event_at("during_missing_peer")
+    recovered = event_at("recovered")
+    reconnect_flow = str(states["reconnecting"].get("source_flow"))
+
+    passed = (
+        states["before_missing"].get("source_flow") == "Receiving"
+        and before is not None
+        and before_peer is not None
+        and states["during_missing"].get("source_flow") == "Receiving"
+        and during == before
+        and during_peer is not None
+        and during_peer > before_peer
+        and "behind latest source timestamp"
+        in str(states["during_missing"].get("channel_event_lag"))
+        and states["paused"].get("source_flow") == "No recent source data"
+        and reconnect_flow in {"Connecting", "Reconnecting", "Disconnected"}
+        and states["recovered"].get("source_flow") == "Receiving"
+        and recovered is not None
+        and during is not None
+        and recovered > during
+        and int(states["recovered"].get("history_count", 0))
+        > int(states["before_missing"].get("history_count", 0))
+    )
+    return _check(passed, states=states)
+
+
+def check_live_browser_journey(renders: dict[str, dict[str, object]]) -> dict[str, object]:
+    """Require the core live states to become readable within five seconds."""
+
+    required = ("before_missing", "paused", "reconnecting", "recovered")
+    missing = [name for name in required if name not in renders]
+    slow = {
+        name: renders[name]
+        for name in required
+        if name in renders and not renders[name].get("within_5s")
+    }
+    unmatched = {
+        name: renders[name]
+        for name in required
+        if name in renders and not renders[name].get("matched")
+    }
+    return _check(
+        not missing and not slow and not unmatched,
+        missing=missing,
+        slow=slow,
+        unmatched=unmatched,
+        renders=renders,
+    )
 
 
 UI_EXPECTED: dict[str, Callable[[dict[str, object]], bool]] = {
@@ -492,6 +566,81 @@ class Stack:
             "}\n"
         )
 
+    def live_snapshot(self, channel_id: str) -> dict[str, object]:
+        """Read the same bounded live projection used by Assets -> Signals."""
+
+        from industrial_phm.application.operations_assets import AssetWorkspaceSource
+        from industrial_phm.application.operations_monitor import OperationsMonitorStatus
+        from industrial_phm.presentation.operations_live import (
+            channel_event_lag_label,
+            live_source_flow_label,
+        )
+        from industrial_phm.runtime.operations_app_context import load_operations_app_context
+        from industrial_phm.runtime.operations_live import load_operations_live_observation
+
+        sampled_at = _utc()
+        context = load_operations_app_context(
+            environ=self.app_env(),
+            assessed_at=sampled_at,
+        )
+        source = next(
+            item
+            for item in context.snapshot.registered_sources
+            if item.source_id == SOURCE_ID
+        )
+        source_view = AssetWorkspaceSource(
+            source_id=source.source_id,
+            name=source.name,
+            source_type=source.source_type,
+            status=OperationsMonitorStatus.RUNNING,
+            last_data_at=None,
+            measurement_point_id=source.measurement_point_id,
+            channel_count=len(source.channel_identities),
+        )
+        view = load_operations_live_observation(
+            context.snapshot.paths,
+            asset_id=source.asset_id,
+            channel_id=channel_id,
+            registered_sources=context.snapshot.registered_sources,
+            asset_sources=(source_view,),
+            sampled_at=sampled_at,
+            lookback_seconds=60.0,
+            point_budget=600,
+        )
+        series = next(item for item in view.series if item.source_id == SOURCE_ID)
+        latest = series.latest_point
+        history = next(
+            (
+                item
+                for item in context.snapshot.history_assets
+                if item.asset_id == source.asset_id
+            ),
+            None,
+        )
+        return {
+            "source_flow": live_source_flow_label(
+                series,
+                sampled_at=sampled_at,
+                silence_limit_seconds=context.snapshot.live_flow_timing.max_silence.total_seconds(),
+            ),
+            "channel_event_at": (
+                None
+                if latest is None or latest.measurement.event_at is None
+                else latest.measurement.event_at.isoformat()
+            ),
+            "last_source_timestamp": (
+                None
+                if series.last_source_timestamp is None
+                else series.last_source_timestamp.isoformat()
+            ),
+            "channel_event_lag": channel_event_lag_label(series),
+            "source_quality": (
+                None if latest is None else latest.measurement.source_quality.value
+            ),
+            "recent_points": len(series.recent_points),
+            "history_count": 0 if history is None else history.measurement_count,
+        }
+
     def app_env(self) -> dict[str, str]:
         env = dict(self.env)
         env["INDUSTRIAL_PHM_OPERATIONS_WORKSPACE"] = str(self.root)
@@ -586,6 +735,44 @@ class Stack:
                 return render
         return {"within_5s": False, "error": output.stderr[-1500:]}
 
+    def browser_live_render(
+        self,
+        name: str,
+        expected: Sequence[str],
+    ) -> dict[str, object]:
+        """Open Assets -> Signals and wait for one expected live observation state."""
+
+        assert self.ui_url is not None, "start_ui_server first"
+        output = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--no-sync",
+                "--with",
+                "playwright",
+                "python",
+                "-c",
+                _BROWSER_LIVE_SCRIPT,
+                self.ui_url,
+                json.dumps(list(expected)),
+                str(self.root / f"ui-live-{name}.png"),
+            ],
+            cwd=REPO,
+            env=self.env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        for line in output.stdout.splitlines():
+            if line.startswith("LIVE-BROWSER "):
+                render = dict(json.loads(line.removeprefix("LIVE-BROWSER ")))
+                render["within_5s"] = bool(
+                    render.get("matched") and float(render["seconds"]) <= 5.0
+                )
+                return render
+        return {"within_5s": False, "error": output.stderr[-1500:]}
+
 
 # Opens a fresh page (a fresh marimo session reads current runtime files), waits for
 # the Monitor data flow and the expected attention title, and reports the elapsed time.
@@ -598,7 +785,7 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 1440, "height": 1100})
     started = time.monotonic()
     page.goto(url)
-    page.get_by_text("Data flow", exact=True).first.wait_for(timeout=30000)
+    page.get_by_text("System data flow", exact=True).first.wait_for(timeout=30000)
     flow = time.monotonic() - started
     seen = True
     try:
@@ -613,6 +800,48 @@ print("BROWSER " + json.dumps({
     "data_flow_seconds": round(flow, 2), "seconds": round(seconds, 2),
     "attention": attention, "attention_seen": seen,
     "stages": [" | ".join(c.split()) for c in cards],
+}))
+"""
+
+
+_BROWSER_LIVE_SCRIPT = """
+import json, sys, time
+from playwright.sync_api import sync_playwright
+url, expected_json, shot = sys.argv[1:4]
+expected = json.loads(expected_json)
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page(viewport={"width": 1440, "height": 1100})
+    started = time.monotonic()
+    page.goto(url)
+    try:
+        page.get_by_role("radio", name="Assets", exact=True).click(timeout=5000)
+    except Exception:
+        page.get_by_text("Assets", exact=True).first.click()
+    try:
+        page.get_by_role("radio", name="Signals", exact=True).click(timeout=5000)
+    except Exception:
+        page.get_by_text("Signals", exact=True).first.click()
+    page.get_by_text("Live observation", exact=True).first.wait_for(timeout=30000)
+    matched = None
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        body = page.locator("body").inner_text()
+        matched = next((item for item in expected if item in body), None)
+        if matched is not None:
+            break
+        page.wait_for_timeout(200)
+    seconds = time.monotonic() - started
+    states = page.locator(".phm-live-state").all_inner_texts()
+    values = page.locator(".phm-live-value").all_inner_texts()
+    page.screenshot(path=shot, full_page=True)
+    browser.close()
+print("LIVE-BROWSER " + json.dumps({
+    "seconds": round(seconds, 2),
+    "expected": expected,
+    "matched": matched,
+    "states": [" | ".join(item.split()) for item in states],
+    "values": [" | ".join(item.split()) for item in values],
 }))
 """
 
@@ -636,6 +865,8 @@ class Harness:
         self.faults: list[Fault] = []
         self.ui: dict[str, dict[str, object]] = {}
         self.renders: dict[str, dict[str, object]] = {}
+        self.live: dict[str, dict[str, object]] = {}
+        self.live_renders: dict[str, dict[str, object]] = {}
         self.omission: tuple[datetime, datetime] | None = None
         self.workflow: dict[str, object] = {}
 
@@ -661,6 +892,27 @@ class Harness:
             render = self.stack.browser_render(name, (wanted or _UI_ATTENTION[name])[0])
             self.renders[name] = render
             print(f"  {name}: browser {render.get('seconds')}s", flush=True)
+
+    def _observe_live(
+        self,
+        name: str,
+        channel_id: str,
+        *,
+        browser_expected: Sequence[str] = (),
+    ) -> dict[str, object]:
+        snapshot = self.stack.live_snapshot(channel_id)
+        self.live[name] = snapshot
+        if self.browser and browser_expected:
+            render = self.stack.browser_live_render(name, browser_expected)
+            self.live_renders[name] = render
+            print(
+                f"  live {name}: {snapshot['source_flow']}; "
+                f"browser {render.get('seconds')}s",
+                flush=True,
+            )
+        else:
+            print(f"  live {name}: {snapshot['source_flow']}", flush=True)
+        return snapshot
 
     def _recover_data(self, fault: Fault) -> None:
         fault.ended = fault.ended or _utc()
@@ -747,12 +999,22 @@ class Harness:
 
     def missing_phase_and_ui(self) -> None:
         s = self.stack
-        # Missing phase: replay omits one current phase for three windows.
+        self._observe_live(
+            "before_missing",
+            OMITTED_CHANNEL,
+            browser_expected=("Source flow · Receiving",),
+        )
+        self._observe_live("before_missing_peer", PEER_CHANNEL)
+
+        # Missing phase: replay omits one current phase for three windows. The source
+        # keeps receiving other channels; the selected channel must not fake continuity.
         fault = Fault("missing_phase", "missing_phase", _utc())
         s.stop(s.replay)
         s.start_replay("--omit-channel", OMITTED_CHANNEL)
         omitted_from = _utc()
         time.sleep(95)
+        self._observe_live("during_missing", OMITTED_CHANNEL)
+        self._observe_live("during_missing_peer", PEER_CHANNEL)
         self.omission = (omitted_from, _utc())
         s.stop(s.replay)
         s.start_replay()
@@ -763,6 +1025,11 @@ class Harness:
         s.stop(s.replay)
         s.start_replay("--freeze-after-records", "3")
         time.sleep(50)
+        self._observe_live(
+            "paused",
+            PEER_CHANNEL,
+            browser_expected=("Source flow · No recent source data",),
+        )
         self._observe_ui("source_stale")
         s.stop(s.replay)
         s.start_replay()
@@ -772,9 +1039,34 @@ class Harness:
         fault = Fault("ui_source_unreachable", "ui_source_unreachable", _utc())
         s.stop(s.replay)
         time.sleep(15)
+        self._observe_live(
+            "reconnecting",
+            PEER_CHANNEL,
+            browser_expected=(
+                "Source flow · Connecting",
+                "Source flow · Reconnecting",
+                "Source flow · Disconnected",
+            ),
+        )
         self._observe_ui("source_unreachable")
         s.start_replay()
         self._recover_data(fault)
+
+        _deadline = time.monotonic() + self.recovery_timeout
+        _recovered = self.stack.live_snapshot(OMITTED_CHANNEL)
+        _missing_event = self.live["during_missing"].get("channel_event_at")
+        while time.monotonic() < _deadline:
+            _event = _recovered.get("channel_event_at")
+            if _event is not None and _event != _missing_event:
+                break
+            time.sleep(1)
+            _recovered = self.stack.live_snapshot(OMITTED_CHANNEL)
+        self.live["recovered"] = _recovered
+        if self.browser:
+            self.live_renders["recovered"] = self.stack.browser_live_render(
+                "recovered",
+                ("Source flow · Receiving",),
+            )
 
         # Collector down.
         fault = Fault("ui_collector_down", "ui_collector_down", _utc())
@@ -986,6 +1278,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
             OMITTED_CHANNEL, omission_windows, skipped_in_omission
         ),
         "ui_states_distinct": check_ui_states(harness.ui),
+        "live_replay_observation_journey": check_live_replay_sequence(harness.live),
         "review_workflow_continues": check_review_workflow(harness.workflow),
     }
     # Scenario-specific checks only for scenarios that ran (a diagnostic run may filter).
@@ -999,6 +1292,9 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
         checks["spool_backlog_drained_to_baseline"] = check_backlog(backlog_faults)
     if harness.browser:
         checks["browser_readable_within_5s"] = check_first_render(harness.renders)
+        checks["live_browser_readable_within_5s"] = check_live_browser_journey(
+            harness.live_renders
+        )
     return {
         "passed": all(bool(check["passed"]) for check in checks.values()),
         "checks": checks,
