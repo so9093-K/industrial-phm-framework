@@ -3310,9 +3310,7 @@ def _(
                 _relative = f"{_age / 60:.1f}m ago"
             else:
                 _relative = f"{_age / 3600:.1f}h ago"
-            _when = (
-                f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-            )
+            _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
         _target = "Unavailable" if attention_route is None else attention_route.page
         _metadata = (
             f"Asset **{selected_attention.asset_id or '—'}** · "
