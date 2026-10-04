@@ -1986,7 +1986,7 @@ def _(
             value=_group_id_to_label[_selected_group_id],
             label="Queue groups",
             on_change=lambda value: set_investigation_selection(
-                (_group_label_to_id[value], None)
+                (_group_label_to_id[value], None),
             ),
         )
     else:
