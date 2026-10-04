@@ -90,6 +90,9 @@ def _():
         live_observation_recent_page,
         render_live_observation_html,
     )
+    from industrial_phm.presentation.operations_navigation import (
+        resolve_operations_attention_route,
+    )
     from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
         maintenance_status_label,
@@ -172,6 +175,7 @@ def _():
         render_investigation_evidence_identity_html,
         render_investigation_summary_html,
         render_live_observation_html,
+        resolve_operations_attention_route,
         render_maintenance_identity_html,
         render_maintenance_summary_html,
         render_maintenance_timeline_html,
@@ -1248,13 +1252,27 @@ def _(
 
 
 @app.cell
-def _():
-    asset_selection = {"asset_id": None}
-    return (asset_selection,)
+def _(mo):
+    get_asset_selection, set_asset_selection = mo.state(None)
+    get_asset_section, set_asset_section = mo.state("Overview")
+    return (
+        get_asset_section,
+        get_asset_selection,
+        set_asset_section,
+        set_asset_selection,
+    )
 
 
 @app.cell
-def _(asset_selection, history_assets, mo, monitor):
+def _(
+    get_asset_section,
+    get_asset_selection,
+    history_assets,
+    mo,
+    monitor,
+    set_asset_section,
+    set_asset_selection,
+):
     _asset_ids = tuple(
         sorted(
             {
@@ -1264,24 +1282,26 @@ def _(asset_selection, history_assets, mo, monitor):
         )
     )
     if _asset_ids:
+        _requested_asset_id = get_asset_selection()
         _selected_asset_id = (
-            asset_selection["asset_id"]
-            if asset_selection["asset_id"] in _asset_ids
-            else _asset_ids[0]
+            _requested_asset_id if _requested_asset_id in _asset_ids else _asset_ids[0]
         )
         asset_selector = mo.ui.dropdown(
             options=list(_asset_ids),
             value=_selected_asset_id,
             label="Asset",
             full_width=True,
-            on_change=lambda value: asset_selection.update(asset_id=value),
+            on_change=set_asset_selection,
         )
     else:
         asset_selector = None
+    _asset_sections = ["Overview", "Signals", "Analysis", "Events", "Maintenance"]
+    _requested_section = get_asset_section()
     asset_section = mo.ui.radio(
-        options=["Overview", "Signals", "Analysis", "Events", "Maintenance"],
-        value="Overview",
+        options=_asset_sections,
+        value=_requested_section if _requested_section in _asset_sections else "Overview",
         label="View",
+        on_change=set_asset_section,
     )
     return asset_section, asset_selector
 
@@ -1804,9 +1824,21 @@ def _(
 
 
 @app.cell
-def _():
-    investigation_selection = {"group_id": None, "investigation_id": None}
-    return (investigation_selection,)
+def _(mo):
+    get_investigation_selection, set_investigation_selection = mo.state((None, None))
+    get_investigation_review_filter, set_investigation_review_filter = mo.state("All")
+    get_investigation_asset_filter, set_investigation_asset_filter = mo.state("All")
+    get_investigation_capability_filter, set_investigation_capability_filter = mo.state("All")
+    return (
+        get_investigation_asset_filter,
+        get_investigation_capability_filter,
+        get_investigation_review_filter,
+        get_investigation_selection,
+        set_investigation_asset_filter,
+        set_investigation_capability_filter,
+        set_investigation_review_filter,
+        set_investigation_selection,
+    )
 
 
 @app.cell
@@ -1858,35 +1890,49 @@ def _(
 @app.cell
 def _(
     InvestigationReviewState,
+    get_investigation_asset_filter,
+    get_investigation_capability_filter,
+    get_investigation_review_filter,
     investigation_capability_label,
     investigation_queue,
     investigation_review_label,
     mo,
+    set_investigation_asset_filter,
+    set_investigation_capability_filter,
+    set_investigation_review_filter,
 ):
     _review_options = ["All"] + [
         investigation_review_label(state) for state in InvestigationReviewState
     ]
+    _review_value = get_investigation_review_filter()
     investigation_review_filter = mo.ui.dropdown(
         options=_review_options,
-        value="All",
+        value=_review_value if _review_value in _review_options else "All",
         label="Review",
         full_width=True,
+        on_change=set_investigation_review_filter,
     )
+    _asset_options = ["All", *investigation_queue.asset_ids]
+    _asset_value = get_investigation_asset_filter()
     investigation_asset_filter = mo.ui.dropdown(
-        options=["All", *investigation_queue.asset_ids],
-        value="All",
+        options=_asset_options,
+        value=_asset_value if _asset_value in _asset_options else "All",
         label="Asset",
         full_width=True,
+        on_change=set_investigation_asset_filter,
     )
     _capability_labels = {
         investigation_capability_label(capability_id): capability_id
         for capability_id in investigation_queue.capability_ids
     }
+    _capability_options = ["All", *_capability_labels]
+    _capability_value = get_investigation_capability_filter()
     investigation_capability_filter = mo.ui.dropdown(
-        options=["All", *_capability_labels],
-        value="All",
+        options=_capability_options,
+        value=_capability_value if _capability_value in _capability_options else "All",
         label="Capability",
         full_width=True,
+        on_change=set_investigation_capability_filter,
     )
     return (
         investigation_asset_filter,
@@ -1905,8 +1951,9 @@ def _(
     investigation_queue,
     investigation_review_filter,
     investigation_review_label,
-    investigation_selection,
+    get_investigation_selection,
     mo,
+    set_investigation_selection,
 ):
     _review_state_by_label = {
         investigation_review_label(state): state for state in InvestigationReviewState
@@ -1928,19 +1975,18 @@ def _(
     }
     _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
     if _groups:
+        _requested_group_id, _ = get_investigation_selection()
         _selected_group_id = (
-            investigation_selection["group_id"]
-            if investigation_selection["group_id"] in _group_id_to_label
+            _requested_group_id
+            if _requested_group_id in _group_id_to_label
             else _groups[0].group_id
         )
-        investigation_selection["group_id"] = _selected_group_id
         investigation_group_selector = mo.ui.radio(
             options=list(_group_label_to_id),
             value=_group_id_to_label[_selected_group_id],
             label="Queue groups",
-            on_change=lambda value: investigation_selection.update(
-                group_id=_group_label_to_id[value],
-                investigation_id=None,
+            on_change=lambda value: set_investigation_selection(
+                (_group_label_to_id[value], None)
             ),
         )
     else:
@@ -1980,10 +2026,11 @@ def _(
 
 @app.cell
 def _(
+    get_investigation_selection,
     investigation_queue_option_label,
-    investigation_selection,
     mo,
     selected_investigation_group,
+    set_investigation_selection,
 ):
     if selected_investigation_group is None:
         investigation_selector = None
@@ -1994,18 +2041,18 @@ def _(
             for index, item in enumerate(selected_investigation_group.items)
         }
         _id_to_label = {value: key for key, value in _label_to_id.items()}
+        _, _requested_investigation_id = get_investigation_selection()
         _selected_id = (
-            investigation_selection["investigation_id"]
-            if investigation_selection["investigation_id"] in _id_to_label
+            _requested_investigation_id
+            if _requested_investigation_id in _id_to_label
             else selected_investigation_group.items[0].investigation_id
         )
-        investigation_selection["investigation_id"] = _selected_id
         investigation_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
             label="Analysis evidence",
-            on_change=lambda value: investigation_selection.update(
-                investigation_id=_label_to_id[value]
+            on_change=lambda value: set_investigation_selection(
+                (selected_investigation_group.group_id, _label_to_id[value])
             ),
         )
         investigation_label_to_id = _label_to_id
