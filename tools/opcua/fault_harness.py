@@ -1283,9 +1283,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
         checks["spool_backlog_drained_to_baseline"] = check_backlog(backlog_faults)
     if harness.browser:
         checks["browser_readable_within_5s"] = check_first_render(harness.renders)
-        checks["live_browser_readable_within_5s"] = check_live_browser_journey(
-            harness.live_renders
-        )
+        checks["live_browser_readable_within_5s"] = check_live_browser_journey(harness.live_renders)
     return {
         "passed": all(bool(check["passed"]) for check in checks.values()),
         "checks": checks,
