@@ -25,6 +25,9 @@ from industrial_phm.runtime.acquisition_spool import (
 from industrial_phm.runtime.acquisition_telemetry import SqliteAcquisitionTelemetryRepository
 from industrial_phm.runtime.operations_app_wiring import OperationsAppPaths
 
+DEFAULT_LIVE_LOOKBACK_SECONDS = 60.0
+DEFAULT_LIVE_POINT_BUDGET = 600
+
 
 def load_operations_live_observation(
     paths: OperationsAppPaths,
@@ -34,8 +37,8 @@ def load_operations_live_observation(
     registered_sources: Sequence[RegisteredSource],
     asset_sources: Sequence[AssetWorkspaceSource],
     sampled_at: datetime,
-    lookback_seconds: float = 60.0,
-    point_budget: int = 600,
+    lookback_seconds: float = DEFAULT_LIVE_LOOKBACK_SECONDS,
+    point_budget: int = DEFAULT_LIVE_POINT_BUDGET,
 ) -> LiveObservationView:
     """Read only the selected live signal; do not reload the full Operations snapshot."""
 
