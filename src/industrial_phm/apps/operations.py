@@ -88,7 +88,6 @@ def _():
         investigation_review_label,
         investigation_workspace_css,
         render_investigation_evidence_identity_html,
-        render_live_observation_html,
         render_investigation_summary_html,
     )
     from industrial_phm.presentation.operations_maintenance import (
@@ -172,6 +171,7 @@ def _():
         render_asset_overview_html,
         render_investigation_evidence_identity_html,
         render_investigation_summary_html,
+        render_live_observation_html,
         render_maintenance_identity_html,
         render_maintenance_summary_html,
         render_maintenance_timeline_html,
