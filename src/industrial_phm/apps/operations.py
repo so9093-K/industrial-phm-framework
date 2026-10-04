@@ -1561,6 +1561,7 @@ def _(
     latest_measurement_rows,
     live_observation_css,
     live_observation_recent_page,
+    live_flow_timing,
     live_signal_refresh,
     load_operations_live_observation,
     measurement_aggregation_rows,
@@ -1622,8 +1623,13 @@ def _(
                 _live_blocks = [
                     mo.Html(live_observation_css()),
                     _controls,
-                    mo.Html(render_live_observation_html(_live)),
-                    mo.md("#### Recent stored event-time window"),
+                    mo.Html(
+                        render_live_observation_html(
+                            _live,
+                            silence_limit_seconds=live_flow_timing.max_silence.total_seconds(),
+                        )
+                    ),
+                    mo.md("#### Recent stored event-time points"),
                 ]
                 if _live_page.points:
                     _live_blocks.extend(
@@ -1648,9 +1654,11 @@ def _(
                     )
                 _live_blocks.append(
                     mo.md(
-                        "Live receive age uses the collector receive clock. Event/source "
-                        "timestamps remain recorded evidence and may be historical during replay. "
-                        "This view does not infer asset health, fault, alarm, or missing samples."
+                        "Source flow uses collector/session evidence; selected-channel quality "
+                        "and event time use stored observation evidence. The trend draws raw points "
+                        "without interpolation, so unobserved intervals remain visually unfilled. "
+                        "Historical replay timestamps remain historical. This view does not infer "
+                        "asset health, fault, alarm, or expected missing samples."
                     )
                 )
                 signal_view = mo.vstack(_live_blocks, gap=1.0)
