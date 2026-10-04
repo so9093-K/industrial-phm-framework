@@ -12,15 +12,15 @@ from industrial_phm.application import (
     build_operations_attention_queue,
     build_operations_overview,
 )
+from industrial_phm.application.finding_review import (
+    HUMAN_REVIEW_FINDING_SEMANTICS_ID,
+    HUMAN_REVIEW_FINDING_STATE,
+)
 from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
     OperationsMonitorStageKind,
     OperationsMonitorStatus,
     build_operations_monitor_view,
-)
-from industrial_phm.application.finding_review import (
-    HUMAN_REVIEW_FINDING_SEMANTICS_ID,
-    HUMAN_REVIEW_FINDING_STATE,
 )
 from industrial_phm.application.window_analysis_runtime import (
     WindowAnalysisRunnerState,
