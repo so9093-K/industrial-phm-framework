@@ -628,9 +628,7 @@ class Stack:
                 else series.last_source_timestamp.isoformat()
             ),
             "channel_event_lag": channel_event_lag_label(series),
-            "source_quality": (
-                None if latest is None else latest.measurement.source_quality.value
-            ),
+            "source_quality": None if latest is None else latest.measurement.source_quality.value,
             "recent_points": len(series.recent_points),
             "history_count": 0 if history is None else history.measurement_count,
         }
