@@ -584,9 +584,7 @@ class Stack:
             assessed_at=sampled_at,
         )
         source = next(
-            item
-            for item in context.snapshot.registered_sources
-            if item.source_id == SOURCE_ID
+            item for item in context.snapshot.registered_sources if item.source_id == SOURCE_ID
         )
         source_view = AssetWorkspaceSource(
             source_id=source.source_id,
