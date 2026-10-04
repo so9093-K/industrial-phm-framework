@@ -3313,8 +3313,8 @@ def _(
             _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
         _target = "Unavailable" if attention_route is None else attention_route.page
         _metadata = (
-            f"Asset **{selected_attention.asset_id or '—'}** · "
-            f"{_when} · Target **{_target}**"
+            f"Asset **{selected_attention.asset_id or '—'}** · {_when} · "
+            f"Target **{_target}**"
         )
         _blocks = [
             mo.md("### Needs attention"),
