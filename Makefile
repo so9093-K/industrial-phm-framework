@@ -1,10 +1,11 @@
 SHELL := /bin/sh
+.DEFAULT_GOAL := help
 
 UV ?= uv
 PYTHON_VERSION ?= 3.14
 WORKSPACE ?= artifacts/operations
 
-.PHONY: help up down status logs demo _prepare
+.PHONY: help up down status logs demo _require-uv _prepare
 
 help:
 	@printf '%s\n' \
@@ -20,11 +21,13 @@ help:
 		'  WORKSPACE=<path>   Local Operations workspace (default: artifacts/operations)' \
 		'  UV=<command>       uv executable (default: uv)'
 
-_prepare:
+_require-uv:
 	@command -v "$(UV)" >/dev/null 2>&1 || { \
 		echo "uv is required. Install uv, then run make again." >&2; \
 		exit 127; \
 	}
+
+_prepare: _require-uv
 	$(UV) python install $(PYTHON_VERSION)
 	$(UV) sync --locked --extra operations
 
@@ -32,13 +35,13 @@ up: _prepare
 	$(UV) run --no-sync industrial-phm operations init "$(WORKSPACE)"
 	$(UV) run --no-sync industrial-phm operations start "$(WORKSPACE)"
 
-down:
+down: _require-uv
 	$(UV) run --locked --extra operations industrial-phm operations stop "$(WORKSPACE)"
 
-status:
+status: _require-uv
 	$(UV) run --locked --extra operations industrial-phm operations status "$(WORKSPACE)"
 
-logs:
+logs: _require-uv
 	$(UV) run --locked --extra operations industrial-phm operations logs "$(WORKSPACE)"
 
 demo: _prepare
