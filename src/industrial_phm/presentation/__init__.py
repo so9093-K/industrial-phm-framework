@@ -32,6 +32,11 @@ from industrial_phm.presentation.operations_investigations import (
     render_investigation_evidence_identity_html,
     render_investigation_summary_html,
 )
+from industrial_phm.presentation.operations_live import (
+    live_observation_css,
+    live_observation_recent_page,
+    render_live_observation_html,
+)
 from industrial_phm.presentation.operations_maintenance import (
     maintenance_capability_label,
     maintenance_queue_label,
@@ -75,6 +80,8 @@ __all__ = [
     "investigation_review_label",
     "investigation_workspace_css",
     "lifecycle_action_label",
+    "live_observation_css",
+    "live_observation_recent_page",
     "maintenance_capability_label",
     "maintenance_queue_label",
     "maintenance_status_label",
@@ -96,6 +103,7 @@ __all__ = [
     "render_data_quality_issues_markdown",
     "render_investigation_evidence_identity_html",
     "render_investigation_summary_html",
+    "render_live_observation_html",
     "render_maintenance_identity_html",
     "render_maintenance_summary_html",
     "render_maintenance_timeline_html",
