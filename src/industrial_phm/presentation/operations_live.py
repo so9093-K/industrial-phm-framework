@@ -252,10 +252,7 @@ def _render_series(
 
 
 def _state_badge(label: str, css_class: str) -> str:
-    return (
-        f'<span class="phm-live-state {escape(css_class)}">'
-        f"{escape(label)}</span>"
-    )
+    return f'<span class="phm-live-state {escape(css_class)}">{escape(label)}</span>'
 
 
 def _source_flow_class(label: str) -> str:
