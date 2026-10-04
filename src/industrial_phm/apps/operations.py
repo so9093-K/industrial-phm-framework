@@ -1552,6 +1552,7 @@ def _(mo):
 def _(
     UTC,
     asset_history_error,
+    asset_section,
     asset_selector,
     asset_workspace,
     assessed_at,
@@ -1577,7 +1578,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation.value != "Assets":
+    if navigation.value != "Assets" or asset_section.value != "Signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
