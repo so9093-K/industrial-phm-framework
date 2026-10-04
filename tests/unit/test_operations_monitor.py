@@ -574,10 +574,7 @@ def test_live_telemetry_without_any_collector_heartbeat_fails_closed() -> None:
 
 
 def test_review_attention_routes_to_investigation_with_finding_context() -> None:
-    source, overview = _overview(
-        observed_at=NOW - timedelta(seconds=5),
-        max_age_seconds=60,
-    )
+    source = _source()
     run = _analysis_run()
     finding = OperationalFinding(
         finding_id="finding-review",
@@ -591,10 +588,28 @@ def test_review_attention_routes_to_investigation_with_finding_context() -> None
     )
     overview = build_operations_overview(
         sources=(source,),
-        lifecycle_records=overview.lifecycle_records,
-        receipts=overview.receipts,
-        freshness_policies=overview.freshness_policies,
-        connection_attempts=overview.connection_attempts,
+        lifecycle_records=(
+            SourceLifecycleRecord(
+                source_id=source.source_id,
+                state=SourceLifecycleState.ACTIVE,
+                changed_at=NOW - timedelta(hours=1),
+            ),
+        ),
+        receipts=(
+            SourceReceiptEvidence(
+                source_id=source.source_id,
+                observed_at=NOW - timedelta(seconds=5),
+                received_at=NOW - timedelta(seconds=4),
+            ),
+        ),
+        freshness_policies=(
+            SourceFreshnessPolicy(
+                source_id=source.source_id,
+                max_observation_age_seconds=60,
+                changed_at=NOW - timedelta(hours=1),
+            ),
+        ),
+        connection_attempts=(),
         analysis_runs=(run,),
         findings=(finding,),
         review_events=(),
