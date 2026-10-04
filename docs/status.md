@@ -52,6 +52,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | window 시작 전 carry-in state | **미제공** | finalized window 밖의 이전 값을 analysis input으로 재조회하지 않음 |
 | Operations source control/monitor | **지원** | desired collection request, collector-service heartbeat, OPC UA session, live receive silence, spool/history evidence를 서로 다른 사실로 표시 |
 | Operations Asset History | **지원** | 최신값·raw page·UI aggregation·quality·provenance 조회 |
+| Operations live signal observation | **지원** | mapped OPC UA signal의 latest stored observation과 current session/receive telemetry를 함께 표시하고, latest event-time 기준 bounded recent trend를 1/2/5초 refresh로 조회. replay의 원래 event time과 현재 receive clock을 분리하며 collector callback을 UI가 직접 소비하지 않음 |
 | Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함. 실행 중 새 결과는 명시적 refresh로 읽음(자동 polling 없음) |
 | Operations 분석 시도/skip 이유 조회 | **조건부 지원** | Operations가 runner와 같은 finalized-window SQLite와 analysis-ledger SQLite를 읽을 때 Asset별 Analyzed/Skipped 시도와 exact skip reason을 표시 |
 | Live runner process lifecycle | **지원** | `operations start <root>`의 supervisor가 collection과 별도 analysis runner process를 함께 소유. analysis health는 runner-owned heartbeat가 authoritative |
