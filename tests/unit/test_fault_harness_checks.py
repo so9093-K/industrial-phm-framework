@@ -13,6 +13,8 @@ from tools.opcua.fault_harness import (
     check_backlog,
     check_dequeued_loss,
     check_first_render,
+    check_live_browser_journey,
+    check_live_replay_sequence,
     check_metrics_present,
     check_missing_phase,
     check_missing_within_boundary,
@@ -178,6 +180,81 @@ def test_every_ui_state_must_render_within_five_seconds():
     assert not check_first_render({"source_stale": fast})["passed"]
 
 
+def test_live_replay_sequence_preserves_missing_gap_and_recovers_history():
+    before = {
+        "source_flow": "Receiving",
+        "channel_event_at": _t(10).isoformat(),
+        "channel_event_lag": "0s",
+        "history_count": 100,
+    }
+    before_peer = {
+        "source_flow": "Receiving",
+        "channel_event_at": _t(10).isoformat(),
+        "history_count": 100,
+    }
+    during = {
+        "source_flow": "Receiving",
+        "channel_event_at": _t(10).isoformat(),
+        "channel_event_lag": "12.0s behind latest source timestamp",
+        "history_count": 140,
+    }
+    during_peer = {
+        "source_flow": "Receiving",
+        "channel_event_at": _t(22).isoformat(),
+        "history_count": 140,
+    }
+    states = {
+        "before_missing": before,
+        "before_missing_peer": before_peer,
+        "during_missing": during,
+        "during_missing_peer": during_peer,
+        "paused": {"source_flow": "No recent source data"},
+        "reconnecting": {"source_flow": "Reconnecting"},
+        "recovered": {
+            "source_flow": "Receiving",
+            "channel_event_at": _t(30).isoformat(),
+            "history_count": 180,
+        },
+    }
+
+    assert check_live_replay_sequence(states)["passed"]
+    assert not check_live_replay_sequence(
+        {
+            **states,
+            "during_missing": {
+                **during,
+                "channel_event_at": _t(20).isoformat(),
+            },
+        }
+    )["passed"]
+    assert not check_live_replay_sequence(
+        {
+            **states,
+            "during_missing_peer": {
+                **during_peer,
+                "channel_event_at": _t(10).isoformat(),
+            },
+        }
+    )["passed"]
+
+
+def test_live_browser_journey_requires_each_core_state_within_five_seconds():
+    fast = {"within_5s": True, "seconds": 2.0, "matched": "Source flow · Receiving"}
+    renders = {
+        "before_missing": fast,
+        "paused": {**fast, "matched": "Source flow · No recent source data"},
+        "reconnecting": {**fast, "matched": "Source flow · Reconnecting"},
+        "recovered": fast,
+    }
+
+    assert check_live_browser_journey(renders)["passed"]
+    slow_pause = {**renders, "paused": {"within_5s": False}}
+    assert not check_live_browser_journey(slow_pause)["passed"]
+    assert not check_live_browser_journey(
+        {name: value for name, value in renders.items() if name != "reconnecting"}
+    )["passed"]
+
+
 def test_harness_uses_packaged_operations_app_path():
     assert OPERATIONS_APP.is_file()
     assert OPERATIONS_APP.parent.name == "apps"
@@ -186,6 +263,9 @@ def test_harness_uses_packaged_operations_app_path():
         Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
     )
     assert "apps/operations_v2.py" not in source
+    assert 'get_by_text("System data flow", exact=True)' in source
+    assert 'get_by_role("radio", name="Assets", exact=True)' in source
+    assert 'get_by_role("radio", name="Signals", exact=True)' in source
 
 
 def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
