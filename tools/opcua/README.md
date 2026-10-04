@@ -1,13 +1,12 @@
 # Local live measurement demo
 
-정상 product demo는 repository-local multi-terminal 도구 대신 packaged command를 사용합니다.
+정상 product demo는 repository root의 canonical front door를 사용합니다.
 
 ```bash
-uv sync --locked --extra operations
-uv run --no-sync industrial-phm demo synthetic
+make demo
 ```
 
-이 명령은 전용 `artifacts/demo-synthetic` workspace에 synthetic 3상 OPC UA source를 등록하고
+이 target은 packaged synthetic demo에 위임하며 전용 `artifacts/demo-synthetic` workspace에 synthetic 3상 OPC UA source를 등록하고
 simulator + collection + analysis + Operations UI lifecycle을 한 foreground command로 실행합니다.
 아래 `tools.opcua.demo` 절차는 개별 process/failure boundary를 직접 다루는 개발·진단용 경로입니다.
 

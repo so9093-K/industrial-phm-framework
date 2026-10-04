@@ -10,6 +10,47 @@
 
 공개 데이터셋과 연구 모델은 프레임워크를 개발하고 검증하는 데 사용합니다.
 
+## 빠른 시작
+
+정상적인 repository-local 진입점은 root `Makefile`입니다. 사용자는 내부 process나
+`marimo` 실행 경로를 조합하지 않고 같은 front door에서 local Operations lifecycle을 다룹니다.
+
+필요한 외부 도구는 `make`와 `uv`입니다.
+
+```bash
+make up
+```
+
+`make up`은 Python 3.14와 locked Operations 환경을 준비하고, 기본 workspace
+`artifacts/operations`를 초기화한 뒤 collection + analysis + Operations UI를 하나의 foreground
+supervisor로 실행합니다. 터미널에 출력되는 `operations_url`을 브라우저에서 엽니다.
+
+처음 만든 빈 workspace는 **Setup**에서 시작해 첫 FILE 또는 OPC UA source를 연결하도록 안내합니다.
+이미 source가 있는 workspace는 **Monitor**에서 시작합니다.
+
+```bash
+make status
+make logs
+make down
+```
+
+다른 workspace를 사용하려면 모든 lifecycle target에 같은 값을 전달합니다.
+
+```bash
+make up WORKSPACE=/var/lib/industrial-phm/plant-a
+make status WORKSPACE=/var/lib/industrial-phm/plant-a
+make down WORKSPACE=/var/lib/industrial-phm/plant-a
+```
+
+외부 데이터 없이 동작하는 synthetic node를 체험하려면 normal workspace와 분리된 demo를 사용합니다.
+
+```bash
+make demo
+```
+
+직접 CLI, UI-only 실행, replay, backup/restore, deployment, 연구 앱 실행은
+[Applications 문서](apps/README.md)와 각 개발·운영 문서에서 다룹니다.
+
 ## 전체 구조
 
 ![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](assets/system-architecture.png)
@@ -28,7 +69,7 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 ### Operations
 
 설비 관측 데이터와 PHM 근거를 다루는 운영 UI입니다. Canonical application은 wheel에 포함되는
-`industrial_phm.apps.operations`이며, UI runtime dependency는 `operations` extra가 소유합니다.
+`industrial_phm.apps.operations`이며, 정상 repository-local 실행은 위의 `make up`을 사용합니다.
 
 - **Monitor** — 수집·저장·분석·검토 흐름과 지금 확인할 항목
 - **Assets** — 설비별 현재 데이터, Signals, Analysis, Events, Maintenance
@@ -37,93 +78,16 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 - **System** — 수집·저장·분석 runtime과 state-read 상태
 - **Setup** — FILE/OPC UA 연결, signal mapping, measurement meaning과 collection intent
 
-설정과 진단 정보는 primary 운영 흐름에서 분리하고, NodeId·state path 같은 세부 정보는 필요한
-경우에만 Setup/System의 advanced 영역에서 확인합니다.
+빈 workspace에서는 Setup이 first-run 진입점입니다. source 등록, Enable/Pause, OPC UA collection 요청은
+각각 별도 의미를 유지하며 UI가 사용자의 판단 없이 자동 실행하지 않습니다. source가 준비된 workspace는
+Monitor를 기본 진입점으로 사용합니다.
 
-외부 데이터 없이 전체 local node를 먼저 확인하려면 `operations` extra 설치 후 synthetic demo 하나로
-OPC UA simulator, collection, analysis, Operations UI를 함께 실행할 수 있습니다.
+Synthetic 체험은 `make demo`로 normal workspace와 분리합니다. AI-Hub recorded replay, 직접
+`industrial-phm` CLI, backup/restore, service deployment, 개별 collector/analysis runner 실행은
+[Applications 문서](apps/README.md), [로컬 OPC UA 개발·진단 문서](tools/opcua/README.md),
+[Local Operations deployment](docs/architecture/operations-deployment.md)에서 설명합니다.
 
-```bash
-industrial-phm demo synthetic
-```
-
-기본 workspace는 `artifacts/demo-synthetic`이며 synthetic 3상 값은 물리 설비에서 측정된 값이나 고장 진단이 아닙니다.
-명령은 loopback OPC UA source를 자동 등록·활성화하고 collection을 시작합니다. 종료는 Ctrl-C를 사용합니다.
-
-이미 로컬에 AI-Hub 239 보일러 raw archive가 있으면, 검증에 사용한 device 2297의 기록 구간을 같은
-Operations runtime 위에서 replay할 수 있습니다. AI-Hub parser는 normal Operations dependency가 아니므로
-`operations`와 `aihub` extras를 함께 설치합니다.
-
-```bash
-uv sync --locked --extra operations --extra aihub
-uv run --no-sync industrial-phm demo aihub-boiler
-```
-
-기본 preset은 `5.보일러.zip`의 `5.보일러/SourceData_211.json`, 2020-11-14 06:00–12:30 local,
-60× replay를 사용합니다. 기본 archive 경로가 다르면 `--archive`만 지정하면 됩니다. recorded provider
-data를 replay하는 개발·검증 경로이며 대상 운영 OPC UA source validation이나 fault diagnosis를 주장하지 않습니다.
-
-대상 운영 source를 연결할 새 local Operations workspace는 다음처럼 초기화합니다.
-
-```bash
-industrial-phm operations init ./plant-a
-```
-
-초기화한 workspace의 collection + analysis + Operations UI는 한 foreground supervisor로 실행합니다.
-
-```bash
-industrial-phm operations start ./plant-a
-```
-
-`start`는 workspace `config.toml`의 runtime policy를 사용하고, Ctrl-C 시 child process를 함께
-graceful shutdown합니다. 다른 shell이나 service manager에서 명시적으로 종료하려면:
-
-```bash
-industrial-phm operations stop ./plant-a
-```
-
-`stop`은 이전에 기록된 PID만 보고 signal을 보내지 않고, 해당 workspace의 supervisor lock이 실제로
-점유 중인 경우에만 live supervisor에 종료를 요청합니다. Local runtime의 process identity와
-collection/analysis heartbeat 상태는 다음처럼 확인합니다.
-
-```bash
-industrial-phm operations status ./plant-a
-```
-
-`status`는 supervisor PID, collection/analysis heartbeat와 UI loopback listener readiness를 서로 다른 evidence로 표시합니다. 조회 성공 + 전체 runtime
-ready는 exit 0, 조회는 성공했지만 아직 ready하지 않으면 exit 2, workspace/state read 오류는 exit 1입니다.
-component 로그는 내부 파일 경로를 직접 찾지 않고 `industrial-phm operations logs ./plant-a`로 확인합니다.
-
-중요한 local workspace는 runtime을 중지한 뒤 하나의 recovery unit으로 backup할 수 있습니다.
-
-```bash
-industrial-phm operations stop ./plant-a
-industrial-phm maintenance backup ./plant-a ./backups/plant-a-2026-10-02
-industrial-phm maintenance restore ./backups/plant-a-2026-10-02 ./plant-a-restored
-```
-
-backup은 config와 durable source/control/spool/window/analysis/history evidence를 포함하고 로그, supervisor
-PID/lock, rebuildable history accelerator는 제외합니다. restore는 checksum을 검증한 뒤 **새 workspace root**에만
-복원하며 기존 root를 덮어쓰지 않습니다.
-
-이 local UI는 `127.0.0.1` 전용이며 marimo token auth를 사용하지 않습니다. shared/public host 노출은 이
-명령의 지원 범위가 아니며 별도 deployment/auth 경계가 필요합니다.
-
-장시간 host 운영 전에는 실제 service account로 deployment preflight를 실행합니다.
-
-```bash
-industrial-phm validate deployment /var/lib/industrial-phm/plant-a
-```
-
-reference systemd unit과 restart/permission 경계는
-[Local Operations deployment](docs/architecture/operations-deployment.md)에 정리되어 있습니다. node-level
-restart는 application 내부 무한 loop가 아니라 외부 service manager가 소유합니다.
-
-정상 node lifecycle은 `operations`, 복구·history 작업은 `maintenance`, 배포 사전검증은
-`validate`, supervisor가 호출하는 service/source plumbing은 `internal` namespace가 소유합니다. 이동 전
-`operations backup/preflight/run-*` spelling은 더 이상 rewrite하지 않으며 canonical namespace만 지원합니다.
-
-현재 지원되는 실행 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
+현재 지원되는 capability와 명시적 미지원 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
 
 ### Analysis Explorer
 

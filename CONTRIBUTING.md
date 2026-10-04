@@ -11,6 +11,9 @@ uv lock --check
 uv sync --locked
 ```
 
+제품의 정상 repository-local 실행은 root `make up`을 사용합니다. 아래 `uv` 명령은 개발 환경과
+변경 검증의 source of truth이며, 제품 lifecycle front door를 대체하지 않습니다.
+
 변경 제출 전:
 
 ```bash

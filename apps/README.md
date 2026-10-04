@@ -1,14 +1,50 @@
 # Applications
 
+## Operations 실행
+
+저장소 root에서 정상 local Operations lifecycle은 한 front door로 실행합니다.
+
+```bash
+make up
+```
+
+기본 workspace는 `artifacts/operations`입니다. 빈 workspace는 Setup에서 첫 data source 연결을
+안내하고, source가 있는 workspace는 Monitor에서 시작합니다.
+
+```bash
+make status
+make logs
+make down
+```
+
+별도 workspace는 `WORKSPACE=<path>`로 같은 값만 전달합니다. Synthetic product demo는 `make demo`를
+사용합니다.
+
+### Direct CLI / development
+
+`Makefile`은 실제 runtime을 구현하지 않고 아래 canonical CLI에 위임합니다. service manager 통합,
+스크립트 자동화, UI-only 개발처럼 lower-level 제어가 필요한 경우에만 직접 사용합니다.
+
+```bash
+uv sync --locked --extra operations
+uv run --no-sync industrial-phm operations init artifacts/live
+uv run --no-sync industrial-phm operations start artifacts/live
+```
+
+UI만 개발용으로 직접 실행할 때는 같은 workspace root를 지정합니다.
+
+```bash
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live
+uv run --no-sync marimo run src/industrial_phm/apps/operations.py
+```
+
+정상 사용 경로에서는 위 직접 명령 대신 root `make up`을 우선합니다.
+
 ## Asset measurement history
 
 Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측을 시간·채널별로 조회합니다.
-`uv sync --locked --extra operations`로 Operations 실행 환경을 준비합니다. Analysis Explorer 개발 환경은 별도 `research` group을 사용합니다. AI-Hub를 처음 적재할 때는
+Operations의 history catalog/data는 같은 local workspace root가 소유합니다. AI-Hub를 처음 적재할 때는
 [실행 안내](../tools/aihub/README.md#local-power-data-profiling-and-history)를 따릅니다.
-
-Operations의 history catalog/data는 local workspace가 소유합니다. `operations init <root>`로 workspace를
-만들고 `operations start <root>`로 collection/analysis/UI를 같은 root에 연결합니다. UI만 개발용으로 직접
-실행할 때도 `INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=<root>`를 지정합니다.
 
 **Assets → Asset 선택 → Measurement History → 시간·측정 항목 선택 → 이력 조회 / 새로고침** 순서로
 사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 최대 2,000개 관측을 표시하며 한도를
@@ -49,7 +85,7 @@ Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 
 - `src/industrial_phm/apps/operations.py` — wheel에 포함되는 canonical operational action/evidence workspace
 - `apps/analysis_explorer.py` — repository research 환경에서 experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
 
-### Operations
+## Operations UI
 
 현재 기본 Operations는 `src/industrial_phm/apps/operations.py`입니다.
 **Monitor / Assets / Investigations / Maintenance / System / Setup**이 실제 operational read model과
@@ -80,7 +116,7 @@ feature evidence를 표시합니다.
 **Maintenance**는 review finding을 Status / Asset으로 필터링하고 selected review의 요청 시각, 현재 workflow
 상태, note 수, append-only action timeline을 보여줍니다. Open은 note/acknowledge, Acknowledged는
 note/close를 허용하며 Closed는 추가 event를 받지 않습니다. Maintenance에서 변경한 review state는 같은
-V2 session의 Investigations에도 즉시 반영됩니다. Finding/run ID는 primary queue가 아니라 Review identity
+Operations session의 Investigations에도 즉시 반영됩니다. Finding/run ID는 primary queue가 아니라 Review identity
 detail에 둡니다.
 
 **System**은 live acquisition / history storage / analysis service / current state read를 분리해서 보여줍니다.
@@ -102,15 +138,10 @@ Start/Stop collection은 collector에 대한 desired-state 요청일 뿐 connect
 Analysis Configuration은 현재 안전하게 persist할 application contract가 없어 read-only ownership 안내만
 제공합니다.
 
-한 local Operations instance는 workspace root 하나로 지정할 수 있습니다.
-
-```bash
-industrial-phm operations init artifacts/live
-industrial-phm operations start artifacts/live
-```
-
-`start`는 packaged Operations app을 collection/analysis와 같은 local supervisor 아래에서 loopback web app으로 실행합니다.
-개발자가 UI만 별도로 확인할 때는 `operations` extra가 설치된 환경에서 packaged app path를 사용할 수 있습니다.
+한 local Operations instance는 workspace root 하나로 지정합니다. 정상 repository-local 실행은
+`make up`이 기본 `artifacts/operations` workspace를 사용하며, 다른 root는
+`make up WORKSPACE=<path>`로 지정합니다. 직접 CLI/UI-only 실행은 위 **Direct CLI / development**
+절의 lower-level 경계입니다.
 
 workspace를 지정하면 source/runtime/control/spool/telemetry/window/analysis/finding/review와
 DuckLake catalog/data 경로를 같은 root에서 결정합니다. Packaged Operations app은 이 workspace root를
