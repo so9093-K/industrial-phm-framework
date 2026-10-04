@@ -44,6 +44,15 @@ jobs:
           uv run --locked industrial-phm doctor
           uv run --locked industrial-phm data list
 
+      - name: Smoke repository front door
+        run: |
+          make help
+          make --dry-run up
+          make --dry-run down
+          make --dry-run status
+          make --dry-run logs
+          make --dry-run demo
+
       - name: Lint
         run: uv run --locked ruff check .
 
