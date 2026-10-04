@@ -63,6 +63,57 @@ PHM/ML 개발자와 연구자 역할에는 최종 anomaly score만큼 **어떤 �
 - artifact/config/code revision을 연결하는 provenance
 - leakage, excluded scope, unsupported capability, consumed holdout 같은 경고 상태
 
+### Operations observation loop
+
+운영 제품의 기본 사용자 흐름은 runtime component 상태를 읽는 것에서 시작하지 않습니다. 사용자는 source를
+연결한 뒤 **관측값이 들어오는지 직접 확인하고**, 현재 값과 변화, 저장된 이력, 분석 근거와 human review를 같은
+asset/signal context에서 이어서 볼 수 있어야 합니다.
+
+```text
+Connect
+  -> See data arriving
+  -> Observe current values and trends
+  -> Inspect history
+  -> Analyze
+  -> Investigate evidence
+  -> Human review
+```
+
+이 흐름에서 observation과 interpretation을 분리합니다. 현재 측정값, signal identity, unit, quality,
+SourceTimestamp/received time, data age와 time-series 변화는 관측 evidence입니다. 이 값을 표시하는 것은 asset
+health, fault, alarm 또는 maintenance need를 선언하는 것이 아닙니다. 검증된 condition/diagnostic semantics가
+없으면 UI는 그런 verdict를 만들지 않습니다.
+
+Operations의 monitoring responsibility도 두 층으로 구분합니다.
+
+- **Operational data monitoring**: 어떤 asset/signal에서 어떤 값이 언제 들어오고 있으며 어떻게 변하는지 보여줍니다.
+- **System monitoring**: source session, collection process, spool/history, analysis runtime이 현재 어떤 evidence를
+  남기고 있는지 보여줍니다.
+
+정상 운영 화면에서는 operational data monitoring을 primary user surface로 두고, system/runtime detail은 문제
+설명과 diagnostics에 필요한 만큼 progressive disclosure합니다. `connected`, collector heartbeat 또는 history
+commit만으로 사용자가 실제 측정값을 본 것으로 간주하지 않습니다.
+
+Asset signal UX는 같은 선택 context에서 current/recent/history를 오갈 수 있어야 합니다. live/recent view는
+bounded read를 사용하며 collector callback을 UI가 직접 우회 소비하는 별도 Source of Truth를 만들지 않습니다.
+데이터 중단, reconnect, missing signal, bad quality 구간에서는 마지막 값을 계속 현재값처럼 보이게 하거나 trend
+선을 거짓으로 이어서 continuity를 만들지 않습니다.
+
+Recorded industrial data, public/open dataset, replay와 synthetic data는 서로 다른 축의 용어입니다. 공개된
+recorded industrial data를 synthetic으로 취급하지 않으며, deterministic replay는 live observation UX와
+failure/recovery behavior를 반복 검증하는 정식 validation input으로 사용할 수 있습니다.
+
+Operations 첫 화면의 기본 질문은 다음 순서로 둡니다.
+
+1. 지금 어떤 data가 들어오고 있으며 마지막 관측은 언제인가?
+2. 사용자가 확인해야 할 data/analysis/review item이 있는가?
+3. 관심 asset의 현재 signal과 최근 변화는 무엇인가?
+4. 저장과 분석 runtime은 이를 정상적으로 처리하고 있는가?
+5. 필요할 때 exact evidence, provenance와 diagnostics를 어디까지 추적할 수 있는가?
+
+이 순서는 분석 결과나 runtime observability를 약화시키지 않습니다. 오히려 source observation에서 analysis,
+investigation과 human review까지 사용자가 같은 evidence chain을 따라갈 수 있게 하는 제품 정보 구조입니다.
+
 ## 2. Developer Pipeline Transparency
 
 개발자 UX에서 가장 먼저 투명해야 하는 것은 model explainability가 아니라 **pipeline lineage**입니다. 같은
