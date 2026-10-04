@@ -12,6 +12,7 @@ from industrial_phm.application.measurement_history import (
     MeasurementHistoryPoint,
 )
 from industrial_phm.application.operations_assets import AssetWorkspaceSource
+from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operations_monitor import OperationsMonitorStatus
 from industrial_phm.application.source_registration import RegisteredSource, SourceType
 
@@ -24,6 +25,7 @@ class LiveObservationSeries:
     source_name: str
     measurement_point_id: str | None
     status: OperationsMonitorStatus
+    session_state: OpcUaPersistentSessionState | None
     last_received_at: datetime | None
     last_source_timestamp: datetime | None
     average_event_rate_hz: float | None
@@ -37,6 +39,10 @@ class LiveObservationSeries:
             _require_text(self.measurement_point_id, "measurement_point_id")
         if not isinstance(self.status, OperationsMonitorStatus):
             raise ValueError("status must be an OperationsMonitorStatus")
+        if self.session_state is not None and not isinstance(
+            self.session_state, OpcUaPersistentSessionState
+        ):
+            raise ValueError("session_state must be an OpcUaPersistentSessionState or None")
         for field_name in ("last_received_at", "last_source_timestamp"):
             value = getattr(self, field_name)
             if value is not None:
@@ -190,6 +196,7 @@ def build_live_observation_view(
             and point.measurement.measurement_point_id == point_id
         )
         surface = surface_by_source.get(source.source_id)
+        session = None if surface is None else surface.source.session
         flow = None if surface is None else surface.source.flow
         last_receipt = None if surface is None else surface.source.last_receipt
         last_received_at = None if surface is None else surface.source.last_received_at
@@ -205,6 +212,7 @@ def build_live_observation_view(
                 source_name=source.name,
                 measurement_point_id=point_id,
                 status=workspace_source.status,
+                session_state=None if session is None else session.state,
                 last_received_at=last_received_at,
                 last_source_timestamp=last_source_timestamp,
                 average_event_rate_hz=event_rate,
