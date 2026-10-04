@@ -55,6 +55,14 @@ class OperationsMonitorStatus(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
+class OperationsAttentionDestination(StrEnum):
+    """Typed destination for one operator attention drill-down."""
+
+    ASSET_SIGNALS = "asset-signals"
+    INVESTIGATIONS = "investigations"
+    SYSTEM = "system"
+
+
 class OperationsMonitorStageKind(StrEnum):
     SOURCE = "source"
     COLLECTION = "collection"
@@ -93,8 +101,12 @@ class OperationsMonitorAttention:
     status: OperationsMonitorStatus
     title: str
     detail: str
+    destination: OperationsAttentionDestination
     occurred_at: datetime | None = None
     asset_id: str | None = None
+    source_id: str | None = None
+    measurement_point_id: str | None = None
+    finding_id: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.attention_id, "attention_id")
@@ -104,12 +116,28 @@ class OperationsMonitorAttention:
             OperationsMonitorStatus.ERROR,
         }:
             raise ValueError("attention status must require inspection")
+        if not isinstance(self.destination, OperationsAttentionDestination):
+            raise ValueError("destination must be an OperationsAttentionDestination")
         _require_text(self.title, "title")
         _require_text(self.detail, "detail")
         if self.occurred_at is not None:
             _require_aware(self.occurred_at, "occurred_at")
-        if self.asset_id is not None:
-            _require_text(self.asset_id, "asset_id")
+        for value, field_name in (
+            (self.asset_id, "asset_id"),
+            (self.source_id, "source_id"),
+            (self.measurement_point_id, "measurement_point_id"),
+            (self.finding_id, "finding_id"),
+        ):
+            if value is not None:
+                _require_text(value, field_name)
+        if self.destination == OperationsAttentionDestination.ASSET_SIGNALS:
+            if self.asset_id is None:
+                raise ValueError("asset-signals destination requires asset_id")
+        elif self.destination == OperationsAttentionDestination.INVESTIGATIONS:
+            if self.asset_id is None or self.finding_id is None:
+                raise ValueError(
+                    "investigations destination requires asset_id and finding_id"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -658,6 +686,7 @@ def _monitor_attention(
                 ),
                 title=service_issue.title,
                 detail=service_issue.detail,
+                destination=OperationsAttentionDestination.SYSTEM,
                 occurred_at=service_issue.occurred_at,
             )
         )
@@ -686,8 +715,10 @@ def _monitor_attention(
                         )
                         + "."
                     ),
+                    destination=OperationsAttentionDestination.ASSET_SIGNALS,
                     occurred_at=session.state_changed_at,
                     asset_id=source.asset_id,
+                    source_id=source_id,
                 )
             )
         overdue = timing.overdue(surface)
@@ -705,8 +736,10 @@ def _monitor_attention(
                         f"{source.name}: connected, but the last data arrived "
                         f"{_duration_text(age)} ago (limit {_duration_text(limit)})."
                     ),
+                    destination=OperationsAttentionDestination.ASSET_SIGNALS,
                     occurred_at=surface.source.flow.last_received_at,
                     asset_id=source.asset_id,
+                    source_id=source_id,
                 )
             )
         for component, title in (
@@ -726,8 +759,10 @@ def _monitor_attention(
                     status=OperationsMonitorStatus.ERROR,
                     title=title,
                     detail=failure.detail,
+                    destination=OperationsAttentionDestination.SYSTEM,
                     occurred_at=failure.occurred_at,
                     asset_id=source.asset_id,
+                    source_id=source_id,
                 )
             )
 
@@ -739,6 +774,7 @@ def _monitor_attention(
                     status=OperationsMonitorStatus.ERROR,
                     title="Analysis service stopped on an error",
                     detail=runtime.last_failure or "Analysis service failed",
+                    destination=OperationsAttentionDestination.SYSTEM,
                     occurred_at=runtime.last_failure_at,
                 )
             )
@@ -752,6 +788,7 @@ def _monitor_attention(
                     status=OperationsMonitorStatus.DELAYED,
                     title="Analysis service is not updating",
                     detail="The latest analysis-service heartbeat is delayed.",
+                    destination=OperationsAttentionDestination.SYSTEM,
                     occurred_at=runtime.heartbeat_at,
                 )
             )
@@ -767,10 +804,12 @@ def _project_existing_attention(
     asset_id = None if item.asset_identity is None else item.asset_identity.asset_id
     if asset_id is None and item.source_id is not None and item.source_id in sources:
         asset_id = sources[item.source_id].asset_id
+    destination = OperationsAttentionDestination.ASSET_SIGNALS
     if item.kind == AttentionKind.STALE:
         status = OperationsMonitorStatus.DELAYED
         title = "Data is delayed"
     elif item.kind == AttentionKind.REVIEW_REQUIRED:
+        destination = OperationsAttentionDestination.INVESTIGATIONS
         status = OperationsMonitorStatus.NEEDS_ATTENTION
         title = (
             "Review waiting"
@@ -781,6 +820,7 @@ def _project_existing_attention(
         status = OperationsMonitorStatus.NEEDS_ATTENTION
         title = "Data quality needs review"
     elif item.kind == AttentionKind.SYSTEM_STATE_ERROR:
+        destination = OperationsAttentionDestination.SYSTEM
         status = OperationsMonitorStatus.ERROR
         title = "System state is unavailable"
     elif item.kind == AttentionKind.SOURCE_ERROR:
@@ -795,8 +835,12 @@ def _project_existing_attention(
         status=status,
         title=title,
         detail=detail,
+        destination=destination,
         occurred_at=item.occurred_at,
         asset_id=asset_id,
+        source_id=item.source_id,
+        measurement_point_id=item.measurement_point_id,
+        finding_id=item.finding_id,
     )
 
 
