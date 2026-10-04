@@ -1654,8 +1654,9 @@ def _(
                     )
                 _live_blocks.append(
                     mo.md(
-                        "Source flow uses collector/session evidence; selected-channel quality "
-                        "and event time use stored observation evidence. The trend draws raw points "
+                        "Source flow uses collector/session evidence; selected-channel "
+                        "quality and event time use stored observation evidence. "
+                        "The trend draws raw points "
                         "without interpolation, so unobserved intervals remain visually unfilled. "
                         "Historical replay timestamps remain historical. This view does not infer "
                         "asset health, fault, alarm, or expected missing samples."
