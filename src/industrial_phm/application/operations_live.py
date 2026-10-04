@@ -193,11 +193,11 @@ def build_live_observation_view(
         flow = None if surface is None else surface.source.flow
         last_receipt = None if surface is None else surface.source.last_receipt
         last_received_at = None if surface is None else surface.source.last_received_at
-        last_source_timestamp = (
-            flow.last_source_timestamp
-            if flow is not None and flow.last_source_timestamp is not None
-            else None if last_receipt is None else last_receipt.source_timestamp
-        )
+        last_source_timestamp = None
+        if flow is not None and flow.last_source_timestamp is not None:
+            last_source_timestamp = flow.last_source_timestamp
+        elif last_receipt is not None:
+            last_source_timestamp = last_receipt.source_timestamp
         event_rate = None if flow is None else flow.average_event_rate_hz(as_of=sampled_at)
         series.append(
             LiveObservationSeries(
