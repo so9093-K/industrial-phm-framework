@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.measurement_history import MeasurementHistoryPage
@@ -180,7 +180,7 @@ def _time_label(value: datetime | None) -> str:
         return "—"
     if value.utcoffset() is None:
         return "Time not comparable"
-    return value.isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 def _rate_label(value: float | None) -> str:
