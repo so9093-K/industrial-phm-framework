@@ -130,14 +130,16 @@ class OperationsMonitorAttention:
         ):
             if value is not None:
                 _require_text(value, field_name)
-        if self.destination == OperationsAttentionDestination.ASSET_SIGNALS:
-            if self.asset_id is None:
-                raise ValueError("asset-signals destination requires asset_id")
-        elif self.destination == OperationsAttentionDestination.INVESTIGATIONS:
-            if self.asset_id is None or self.finding_id is None:
-                raise ValueError(
-                    "investigations destination requires asset_id and finding_id"
-                )
+        if (
+            self.destination == OperationsAttentionDestination.ASSET_SIGNALS
+            and self.asset_id is None
+        ):
+            raise ValueError("asset-signals destination requires asset_id")
+        if (
+            self.destination == OperationsAttentionDestination.INVESTIGATIONS
+            and (self.asset_id is None or self.finding_id is None)
+        ):
+            raise ValueError("investigations destination requires asset_id and finding_id")
 
 
 @dataclass(frozen=True, slots=True)
