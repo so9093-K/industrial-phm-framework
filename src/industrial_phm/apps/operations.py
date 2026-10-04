@@ -3311,8 +3311,7 @@ def _(
             else:
                 _relative = f"{_age / 3600:.1f}h ago"
             _when = (
-                f"{_relative} · "
-                f"{_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
             )
         _target = "Unavailable" if attention_route is None else attention_route.page
         _metadata = (
