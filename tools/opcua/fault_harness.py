@@ -898,8 +898,7 @@ class Harness:
             render = self.stack.browser_live_render(name, browser_expected)
             self.live_renders[name] = render
             print(
-                f"  live {name}: {snapshot['source_flow']}; "
-                f"browser {render.get('seconds')}s",
+                f"  live {name}: {snapshot['source_flow']}; browser {render.get('seconds')}s",
                 flush=True,
             )
         else:
