@@ -45,6 +45,8 @@ def _():
         OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
         initial_operations_page,
+        live_observation_css,
+        live_observation_recent_page,
         operational_analysis_presentation_kind,
         operations_theme_css,
         render_analysis_quality_markdown,
@@ -101,6 +103,7 @@ def _():
     )
     from industrial_phm.runtime.operations_app_actions import OperationsDiagnosticKind
     from industrial_phm.runtime.operations_app_context import load_operations_app_context
+    from industrial_phm.runtime.operations_live import load_operations_live_observation
 
     return (
         AssetIdentity,
@@ -140,7 +143,10 @@ def _():
         initial_operations_page,
         investigation_workspace_css,
         latest_measurement_rows,
+        live_observation_css,
+        live_observation_recent_page,
         load_operations_app_context,
+        load_operations_live_observation,
         maintenance_queue_label,
         maintenance_status_label,
         maintenance_workspace_css,
@@ -162,6 +168,7 @@ def _():
         render_asset_overview_html,
         render_investigation_evidence_identity_html,
         render_investigation_summary_html,
+        render_live_observation_html,
         render_maintenance_identity_html,
         render_maintenance_summary_html,
         render_maintenance_timeline_html,
@@ -1498,22 +1505,99 @@ def _(
 
 
 @app.cell
-def _(asset_workspace, mo):
-    if asset_workspace is None or not asset_workspace.history_channels:
-        signal_channel_selector = None
-    else:
+def _(asset_selector, asset_workspace, mo, registered_sources):
+    _channel_ids = set(() if asset_workspace is None else asset_workspace.history_channels)
+    if asset_selector is not None:
+        _asset_id = asset_selector.value
+        _channel_ids.update(
+            identity.channel_id
+            for source in registered_sources
+            if source.asset_id == _asset_id
+            for identity in source.channel_identities
+        )
+    _channels = tuple(sorted(_channel_ids))
+    if _channels:
         signal_channel_selector = mo.ui.dropdown(
-            options=list(asset_workspace.history_channels),
-            value=asset_workspace.history_channels[0],
+            options=list(_channels),
+            value=_channels[0],
             label="Signal",
             full_width=True,
         )
+    else:
+        signal_channel_selector = None
+    return (signal_channel_selector,)
+
+
+@app.cell
+def _(
+    SourceType,
+    asset_selector,
+    mo,
+    registered_sources,
+    signal_channel_selector,
+):
+    _has_live_source = False
+    if asset_selector is not None and signal_channel_selector is not None:
+        _asset_id = asset_selector.value
+        _channel_id = signal_channel_selector.value
+        _has_live_source = any(
+            source.asset_id == _asset_id
+            and source.source_type == SourceType.OPCUA
+            and any(identity.channel_id == _channel_id for identity in source.channel_identities)
+            for source in registered_sources
+        )
+    _range_options = ["Live", "15m", "24h", "7d"] if _has_live_source else ["15m", "24h", "7d"]
     signal_range_selector = mo.ui.radio(
-        options=["15m", "24h", "7d"],
-        value="15m",
-        label="Time range",
+        options=_range_options,
+        value=_range_options[0],
+        label="Range",
     )
-    return signal_channel_selector, signal_range_selector
+    return signal_range_selector
+
+
+@app.cell
+def _(mo):
+    live_refresh = mo.ui.refresh(options=[1, 2, 5], default_interval=1)
+    return (live_refresh,)
+
+
+@app.cell
+def _(
+    UTC,
+    asset_selector,
+    asset_workspace,
+    datetime,
+    live_refresh,
+    load_operations_live_observation,
+    navigation,
+    operations_context,
+    registered_sources,
+    signal_channel_selector,
+    signal_range_selector,
+):
+    live_observation = None
+    live_observation_error = None
+    if (
+        navigation.value == "Assets"
+        and asset_selector is not None
+        and asset_workspace is not None
+        and signal_channel_selector is not None
+        and signal_range_selector.value == "Live"
+    ):
+        _tick = live_refresh.value
+        del _tick
+        try:
+            live_observation = load_operations_live_observation(
+                operations_context.snapshot.paths,
+                asset_id=asset_selector.value,
+                channel_id=signal_channel_selector.value,
+                registered_sources=registered_sources,
+                asset_sources=asset_workspace.sources,
+                sampled_at=datetime.now(UTC),
+            )
+        except Exception as error:
+            live_observation_error = str(error)
+    return live_observation, live_observation_error
 
 
 @app.cell
@@ -1524,12 +1608,17 @@ def _(
     assessed_at,
     history_reader,
     latest_measurement_rows,
+    live_observation,
+    live_observation_error,
+    live_observation_recent_page,
+    live_refresh,
     measurement_aggregation_rows,
     measurement_aggregation_summary,
     measurement_history_range_summary,
     measurement_history_rows,
     mo,
     navigation,
+    render_live_observation_html,
     render_measurement_aggregation_svg,
     render_measurement_history_svg,
     resolve_measurement_range,
@@ -1540,155 +1629,210 @@ def _(
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
-    elif asset_history_error:
-        signal_view = mo.callout(
-            asset_history_error,
-            kind="danger",
-            title="Asset History unavailable",
-        )
-    elif history_reader is None:
-        signal_view = mo.md(
-            "### Signals\n\nNo Asset History catalog is available for this workspace."
-        )
     elif signal_channel_selector is None:
-        signal_view = mo.md("### Signals\n\nNo stored signal is available for this asset yet.")
+        signal_view = mo.md(
+            "### Signals\n\nNo configured or stored signal is available for this asset yet."
+        )
     elif asset_selector is None:
         signal_view = mo.md("### Signals\n\nNo asset is selected.")
     else:
-        try:
-            _channel_id = signal_channel_selector.value
-            _range_id = signal_range_selector.value
-            _start_at, _end_at = resolve_measurement_range(
-                _range_id,
-                as_of=assessed_at,
-                start_at=assessed_at,
-                end_at=assessed_at,
-            )
-            _latest = history_reader.query_latest_measurements(
-                asset_selector.value,
-                channel_id=_channel_id,
-            )
-            _latest_rows = latest_measurement_rows(_latest, as_of=assessed_at)
-            _controls = mo.hstack(
-                [signal_channel_selector, signal_range_selector],
-                widths=[0.62, 0.38],
-                align="start",
-            )
-            _latest_view = mo.vstack(
-                [
-                    mo.md("#### Latest stored value"),
-                    mo.ui.table(
-                        [
-                            {
-                                "Source": row["source"],
-                                "Point": row["measurement_point"],
-                                "Time": row["time"],
-                                "Value": row["value"],
-                                "Unit": row["unit"],
-                                "Quality": row["quality"],
-                                "Source quality": row["source_quality"],
-                                "Time state": row["event_time_state"],
-                                "History age (s)": row["history_age_seconds"],
-                            }
-                            for row in _latest_rows
-                        ],
-                        selection=None,
-                    ),
-                ],
-                gap=0.6,
-            )
-
-            if _range_id in {"24h", "7d"}:
-                _aggregation = history_reader.query_measurement_aggregation(
-                    asset_selector.value,
-                    channel_id=_channel_id,
-                    start_at=_start_at,
-                    end_at=_end_at,
-                    bucket_count=100 if _range_id == "7d" else 200,
-                )
-                _trend_view = mo.vstack(
+        _channel_id = signal_channel_selector.value
+        _range_id = signal_range_selector.value
+        _controls = mo.hstack(
+            [signal_channel_selector, signal_range_selector],
+            widths=[0.62, 0.38],
+            align="start",
+        )
+        if _range_id == "Live":
+            if live_observation_error:
+                signal_view = mo.vstack(
                     [
-                        mo.Html(render_measurement_aggregation_svg(_aggregation)),
-                        mo.ui.table(
-                            [measurement_aggregation_summary(_aggregation)],
-                            selection=None,
-                        ),
-                        mo.accordion(
-                            {
-                                "Data details": mo.ui.table(
-                                    measurement_aggregation_rows(_aggregation),
-                                    page_size=10,
-                                )
-                            }
+                        mo.hstack([_controls, live_refresh], widths=[0.84, 0.16], align="start"),
+                        mo.callout(
+                            live_observation_error,
+                            kind="danger",
+                            title="Live observation unavailable",
                         ),
                     ],
-                    gap=0.8,
+                    gap=1.0,
                 )
+            elif live_observation is None:
+                signal_view = mo.md("### Live observation\n\nWaiting for the selected signal.")
             else:
-                _page = history_reader.query_measurement_page(
-                    asset_selector.value,
-                    start_at=_start_at,
-                    end_at=_end_at,
-                    channel_id=_channel_id,
-                    point_budget=2000,
-                    latest=True,
-                )
-                _trend_blocks = [
-                    mo.ui.table(
-                        [
-                            measurement_history_range_summary(
-                                _page,
-                                start_at=_start_at,
-                                end_at=_end_at,
-                            )
-                        ],
-                        selection=None,
-                    )
+                _live_page = live_observation_recent_page(live_observation)
+                _live_blocks = [
+                    mo.hstack([_controls, live_refresh], widths=[0.84, 0.16], align="start"),
+                    mo.Html(render_live_observation_html(live_observation)),
                 ]
-                if _page.points:
-                    _trend_blocks.append(
-                        mo.Html(
-                            render_measurement_history_svg(
-                                _page,
-                                start_at=_start_at,
-                                end_at=_end_at,
-                            )
-                        )
-                    )
-                    _trend_blocks.append(
-                        mo.accordion(
-                            {
-                                "Raw observations": mo.ui.table(
-                                    measurement_history_rows(_page),
-                                    page_size=10,
-                                )
-                            }
-                        )
+                if _live_page.points:
+                    _live_blocks.extend(
+                        [
+                            mo.md("#### Recent event-time observations"),
+                            mo.Html(render_measurement_history_svg(_live_page)),
+                            mo.accordion(
+                                {
+                                    "Raw observations": mo.ui.table(
+                                        measurement_history_rows(_live_page),
+                                        page_size=10,
+                                    )
+                                }
+                            ),
+                        ]
                     )
                 else:
-                    _trend_blocks.append(
-                        mo.md("No stored observation falls inside the selected time range.")
+                    _live_blocks.append(
+                        mo.md(
+                            "No stored observation is available yet. Session/receive evidence "
+                            "above can still show whether the source runtime has started receiving."
+                        )
                     )
-                _trend_view = mo.vstack(_trend_blocks, gap=0.8)
-
-            signal_view = mo.vstack(
-                [
-                    _controls,
-                    _latest_view,
-                    _trend_view,
+                _live_blocks.append(
                     mo.md(
-                        "Stored measurements and UI aggregates are observation evidence. "
-                        "This view does not infer asset health, fault, alarm, or missing samples."
-                    ),
-                ],
-                gap=1.0,
-            )
-        except Exception as error:
+                        "Live receive age uses the collector receive clock. The chart preserves "
+                        "recorded event time, so replayed historical data can be arriving now "
+                        "without pretending its original timestamp is current. No line is "
+                        "interpolated across missing observations."
+                    )
+                )
+                signal_view = mo.vstack(_live_blocks, gap=1.0)
+        elif asset_history_error:
             signal_view = mo.callout(
-                str(error),
+                asset_history_error,
                 kind="danger",
-                title="Signals unavailable",
+                title="Asset History unavailable",
             )
+        elif history_reader is None:
+            signal_view = mo.md(
+                "### Signals\n\nNo Asset History catalog is available for this workspace."
+            )
+        else:
+            try:
+                _start_at, _end_at = resolve_measurement_range(
+                    _range_id,
+                    as_of=assessed_at,
+                    start_at=assessed_at,
+                    end_at=assessed_at,
+                )
+                _latest = history_reader.query_latest_measurements(
+                    asset_selector.value,
+                    channel_id=_channel_id,
+                )
+                _latest_rows = latest_measurement_rows(_latest, as_of=assessed_at)
+                _latest_view = mo.vstack(
+                    [
+                        mo.md("#### Latest stored observation"),
+                        mo.ui.table(
+                            [
+                                {
+                                    "Source": row["source"],
+                                    "Point": row["measurement_point"],
+                                    "Time": row["time"],
+                                    "Value": row["value"],
+                                    "Unit": row["unit"],
+                                    "Quality": row["quality"],
+                                    "Source quality": row["source_quality"],
+                                    "Time state": row["event_time_state"],
+                                    "History age (s)": row["history_age_seconds"],
+                                }
+                                for row in _latest_rows
+                            ],
+                            selection=None,
+                        ),
+                    ],
+                    gap=0.6,
+                )
+
+                if _range_id in {"24h", "7d"}:
+                    _aggregation = history_reader.query_measurement_aggregation(
+                        asset_selector.value,
+                        channel_id=_channel_id,
+                        start_at=_start_at,
+                        end_at=_end_at,
+                        bucket_count=100 if _range_id == "7d" else 200,
+                    )
+                    _trend_view = mo.vstack(
+                        [
+                            mo.Html(render_measurement_aggregation_svg(_aggregation)),
+                            mo.ui.table(
+                                [measurement_aggregation_summary(_aggregation)],
+                                selection=None,
+                            ),
+                            mo.accordion(
+                                {
+                                    "Data details": mo.ui.table(
+                                        measurement_aggregation_rows(_aggregation),
+                                        page_size=10,
+                                    )
+                                }
+                            ),
+                        ],
+                        gap=0.8,
+                    )
+                else:
+                    _page = history_reader.query_measurement_page(
+                        asset_selector.value,
+                        start_at=_start_at,
+                        end_at=_end_at,
+                        channel_id=_channel_id,
+                        point_budget=2000,
+                        latest=True,
+                    )
+                    _trend_blocks = [
+                        mo.ui.table(
+                            [
+                                measurement_history_range_summary(
+                                    _page,
+                                    start_at=_start_at,
+                                    end_at=_end_at,
+                                )
+                            ],
+                            selection=None,
+                        )
+                    ]
+                    if _page.points:
+                        _trend_blocks.append(
+                            mo.Html(
+                                render_measurement_history_svg(
+                                    _page,
+                                    start_at=_start_at,
+                                    end_at=_end_at,
+                                )
+                            )
+                        )
+                        _trend_blocks.append(
+                            mo.accordion(
+                                {
+                                    "Raw observations": mo.ui.table(
+                                        measurement_history_rows(_page),
+                                        page_size=10,
+                                    )
+                                }
+                            )
+                        )
+                    else:
+                        _trend_blocks.append(
+                            mo.md("No stored observation falls inside the selected time range.")
+                        )
+                    _trend_view = mo.vstack(_trend_blocks, gap=0.8)
+
+                signal_view = mo.vstack(
+                    [
+                        _controls,
+                        _latest_view,
+                        _trend_view,
+                        mo.md(
+                            "Stored measurements and UI aggregates are observation evidence. "
+                            "This view does not infer asset health, fault, alarm, or missing samples."
+                        ),
+                    ],
+                    gap=1.0,
+                )
+            except Exception as error:
+                signal_view = mo.callout(
+                    str(error),
+                    kind="danger",
+                    title="Signals unavailable",
+                )
     return (signal_view,)
 
 
@@ -3045,6 +3189,7 @@ def _(
     asset_workspace_error,
     investigation_view,
     investigation_workspace_css,
+    live_observation_css,
     maintenance_view,
     maintenance_workspace_css,
     mo,
@@ -3070,6 +3215,7 @@ def _(
         operations_theme_css()
         + asset_workspace_css()
         + investigation_workspace_css()
+        + live_observation_css()
         + maintenance_workspace_css()
         + system_workspace_css()
         + setup_workspace_css()
