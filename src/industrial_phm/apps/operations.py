@@ -3194,8 +3194,163 @@ def _(
 
 
 @app.cell
+def _(mo, monitor):
+    if monitor.attention:
+        attention_label_to_id = {
+            f"{item.title} · {item.asset_id or 'System'} · {index + 1}": item.attention_id
+            for index, item in enumerate(monitor.attention[:8])
+        }
+        attention_selector = mo.ui.radio(
+            options=list(attention_label_to_id),
+            value=next(iter(attention_label_to_id)),
+            label="Needs attention",
+        )
+        attention_open_button = mo.ui.run_button(
+            label="Open selected",
+            kind="warn",
+        )
+    else:
+        attention_label_to_id = {}
+        attention_selector = None
+        attention_open_button = None
+    return attention_label_to_id, attention_open_button, attention_selector
+
+
+@app.cell
+def _(attention_label_to_id, attention_selector, monitor):
+    selected_attention = None
+    if attention_selector is not None:
+        _attention_id = attention_label_to_id[attention_selector.value]
+        selected_attention = next(
+            item for item in monitor.attention if item.attention_id == _attention_id
+        )
+    return (selected_attention,)
+
+
+@app.cell
+def _(
+    investigation_queue,
+    resolve_operations_attention_route,
+    selected_attention,
+):
+    attention_route = None
+    attention_route_error = ""
+    if selected_attention is not None:
+        try:
+            attention_route = resolve_operations_attention_route(
+                selected_attention,
+                investigation_queue=investigation_queue,
+            )
+        except LookupError as error:
+            attention_route_error = str(error)
+    return attention_route, attention_route_error
+
+
+@app.cell
+def _(
+    attention_open_button,
+    attention_route,
+    set_asset_section,
+    set_asset_selection,
+    set_investigation_asset_filter,
+    set_investigation_capability_filter,
+    set_investigation_review_filter,
+    set_investigation_selection,
+    set_navigation_page,
+):
+    if attention_open_button is not None and attention_open_button.value:
+        if attention_route is None:
+            pass
+        elif attention_route.page == "Assets":
+            set_asset_selection(attention_route.asset_id)
+            set_asset_section(attention_route.asset_section)
+            set_navigation_page("Assets")
+        elif attention_route.page == "Investigations":
+            set_investigation_review_filter("All")
+            set_investigation_asset_filter("All")
+            set_investigation_capability_filter("All")
+            set_investigation_selection(
+                (
+                    attention_route.investigation_group_id,
+                    attention_route.investigation_id,
+                )
+            )
+            set_navigation_page("Investigations")
+        else:
+            set_navigation_page("System")
+    return
+
+
+@app.cell
+def _(
+    UTC,
+    attention_open_button,
+    attention_route,
+    attention_route_error,
+    attention_selector,
+    mo,
+    monitor,
+    selected_attention,
+):
+    if selected_attention is None:
+        attention_view = None
+    else:
+        _at = selected_attention.occurred_at
+        if _at is None or _at.utcoffset() is None:
+            _when = "Time unavailable"
+        else:
+            _age = (monitor.assessed_at - _at).total_seconds()
+            if _age < -1:
+                _relative = f"{abs(_age):.0f}s in future"
+            elif _age < 1:
+                _relative = "now"
+            elif _age < 60:
+                _relative = f"{_age:.0f}s ago"
+            elif _age < 3600:
+                _relative = f"{_age / 60:.1f}m ago"
+            else:
+                _relative = f"{_age / 3600:.1f}h ago"
+            _when = (
+                f"{_relative} · "
+                f"{_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            )
+        _target = "Unavailable" if attention_route is None else attention_route.page
+        _metadata = (
+            f"Asset **{selected_attention.asset_id or '—'}** · "
+            f"{_when} · Target **{_target}**"
+        )
+        _blocks = [
+            mo.md("### Needs attention"),
+            attention_selector,
+            mo.md(_metadata),
+            mo.callout(
+                selected_attention.detail,
+                kind=(
+                    "danger"
+                    if selected_attention.status.value == "error"
+                    else "warn"
+                ),
+                title=selected_attention.title,
+            ),
+        ]
+        if attention_route_error:
+            _blocks.append(
+                mo.callout(
+                    attention_route_error,
+                    kind="danger",
+                    title="Drill-down unavailable",
+                )
+            )
+        elif attention_open_button is not None:
+            _blocks.append(attention_open_button)
+        attention_view = mo.vstack(_blocks, gap=0.65)
+    return (attention_view,)
+
+
+@app.cell
 def _(
     asset_analysis_view,
+    attention_view,
     asset_section,
     asset_selector,
     asset_workspace,
@@ -3265,24 +3420,6 @@ def _(
         if value is None:
             return "—"
         return str(value).replace("|", "\\|").replace("\n", " ")
-
-    if monitor.attention:
-        attention_rows = "\n".join(
-            (
-                f"| **{_md_cell(item.title)}** | "
-                f"{_md_cell(item.asset_id)} | "
-                f"{_time_text(item.occurred_at)} | "
-                f"{_md_cell(item.detail)} |"
-            )
-            for item in monitor.attention[:8]
-        )
-        attention_view = mo.md(
-            "### Needs attention\n\n"
-            "| What | Asset | Since | Detail |\n"
-            "| --- | --- | --- | --- |\n" + attention_rows
-        )
-    else:
-        attention_view = None
 
     if monitor.activities:
         activity_rows = "\n".join(
