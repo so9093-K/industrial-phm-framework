@@ -73,7 +73,7 @@ explicit CLI argument and may be placed elsewhere when the same ownership/permis
 
 Do not make the workspace world-writable. Preflight reports that condition as a warning. Credentials and
 OPC UA certificates are not part of the non-secret workspace and must be provisioned separately once the
-field-security boundary is implemented.
+target-source OPC UA security profile is implemented.
 
 ## Restart, backup, and retention
 
