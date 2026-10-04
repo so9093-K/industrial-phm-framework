@@ -2,14 +2,14 @@
 
 ## Non-destructive compaction benchmark
 
-`compaction_benchmark.py` is the repeatable #317-A scale experiment. It creates an isolated
+`compaction_benchmark.py` is the repeatable non-destructive compaction scale experiment. It creates an isolated
 DuckLake catalog, preloads a known number of commits, records storage/query/append metrics, runs
 **merge-only** compaction, and then verifies old snapshot fingerprints plus exact batch recovery.
 
 Run separate empty roots for each accumulated-state size:
 
-The default workload writes 35 observations per commit across 35 channels, matching the Phase 10
-channel-count sanity profile while keeping N focused on accumulated commits/files rather than row volume.
+The default workload writes 35 observations per commit across 35 channels, matching the live three-phase replay
+channel-count profile while keeping N focused on accumulated commits/files rather than row volume.
 
 ```bash
 uv run --locked --extra history python -m tools.history.compaction_benchmark \
@@ -50,25 +50,24 @@ The report records:
 - explicit zero counts for snapshot expiration, cleanup, CHECKPOINT and VACUUM
 
 This benchmark does not delete physical files. A post-compaction increase in files scheduled for
-deletion is expected: replaced files remain on disk until a future, separately specified retention
-and cleanup policy (#317-B).
+deletion is expected: replaced files remain on disk until a separately specified retention and cleanup policy.
 
 
 ## Latest measured result
 
-The final #317-A measurements are recorded in
-[`docs/research/phase10-history-compaction.md`](../../docs/research/phase10-history-compaction.md).
+The measured compaction evidence is recorded in
+[`docs/research/history-compaction-evidence.md`](../../docs/research/history-compaction-evidence.md).
 
 N=10,000 is a late-maintenance stress point, not a production pass threshold. One bounded pass
 processed 14,799 of 20,003 active files and stopped at the provider output-operation limit, leaving
 5,268 active files for a later pass. This is expected; normal maintenance should occur before repeated
 provider-limit saturation. The benchmark also showed that compaction recovers file/query cost but does
-not remove the separate accumulated-history append cost tracked in #344.
+not remove the separate accumulated-history append cost measured by the append profile.
 
 
 ## Live append scaling profile
 
-`append_profile.py` is the repeatable #344 diagnostic. It breaks one OPC UA history append/retry into
+`append_profile.py` is the repeatable live-history append scaling diagnostic. It breaks one OPC UA history append/retry into
 connect/attach, initialization, batch identity, raw duplicate lookup, insert/commit, and snapshot
 provenance stages.
 
@@ -89,6 +88,6 @@ uv run --locked --extra history python -m tools.history.append_profile \
   --metadata-only
 ```
 
-The measured Phase 10 results and interpretation are recorded in
-[`docs/research/phase10-history-append-scaling.md`](../../docs/research/phase10-history-append-scaling.md).
+The measured results and interpretation are recorded in
+[`docs/research/history-append-scaling-evidence.md`](../../docs/research/history-append-scaling-evidence.md).
 Metadata-only is a diagnostic isolation mode, not an operational ingestion path.
