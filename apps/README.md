@@ -1,29 +1,47 @@
 # Applications
 
-## Operations 실행
+이 디렉터리는 repository-local interactive application의 **실행·개발 진입점**을 설명합니다.
 
-저장소 root에서 정상 local Operations lifecycle은 한 front door로 실행합니다.
+현재 지원 capability와 제한은 [프로젝트 상태](../docs/status.md), 제품 정보 구조와 UX 의미는
+[제품·UX 기준](../docs/product/overview.md), runtime/data ownership은
+[architecture 문서](../docs/architecture/overview.md)를 authoritative source로 사용합니다.
+이 문서는 화면별 현재 기능 목록을 중복해서 유지하지 않습니다.
+
+## Operations
+
+wheel에 포함되는 canonical operational application은
+`src/industrial_phm/apps/operations.py`입니다.
+
+정상 local lifecycle은 저장소 root의 한 front door를 사용합니다.
 
 ```bash
 make up
-```
-
-기본 workspace는 `artifacts/operations`입니다. 빈 workspace는 Setup에서 첫 data source 연결을
-안내하고, source가 있는 workspace는 Monitor에서 시작합니다.
-
-```bash
 make status
 make logs
 make down
 ```
 
-별도 workspace는 `WORKSPACE=<path>`로 같은 값만 전달합니다. Synthetic product demo는 `make demo`를
-사용합니다.
+기본 workspace는 `artifacts/operations`입니다. 다른 root는 같은 값을 모든 runtime component에
+공유하도록 `WORKSPACE=<path>`로 지정합니다.
+
+```bash
+make up WORKSPACE=artifacts/site-a
+```
+
+Synthetic product demo는 다음을 사용합니다.
+
+```bash
+make demo
+```
+
+현재 Operations가 지원하는 Monitor / Assets / Investigations / Maintenance / System / Setup의
+정확한 범위는 [docs/status.md](../docs/status.md)를 참조합니다. Live observation과
+observation/interpretation 경계는 [docs/product/overview.md](../docs/product/overview.md)가 소유합니다.
 
 ### Direct CLI / development
 
-`Makefile`은 실제 runtime을 구현하지 않고 아래 canonical CLI에 위임합니다. service manager 통합,
-스크립트 자동화, UI-only 개발처럼 lower-level 제어가 필요한 경우에만 직접 사용합니다.
+`Makefile`은 runtime을 직접 구현하지 않고 canonical CLI에 위임합니다. service-manager 통합,
+자동화 또는 UI-only 개발처럼 lower-level 제어가 필요한 경우에만 직접 실행합니다.
 
 ```bash
 uv sync --locked --extra operations
@@ -31,145 +49,27 @@ uv run --no-sync industrial-phm operations init artifacts/live
 uv run --no-sync industrial-phm operations start artifacts/live
 ```
 
-UI만 개발용으로 직접 실행할 때는 같은 workspace root를 지정합니다.
+UI만 개발용으로 실행할 때도 동일한 workspace root를 사용합니다.
 
 ```bash
 export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live
 uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
-정상 사용 경로에서는 위 직접 명령 대신 root `make up`을 우선합니다.
+source/runtime/control/spool/telemetry/window/analysis/review/history path는
+`OperationsWorkspace`가 workspace root 아래에서 결정합니다. Packaged Operations app은 개별
+persistence path 환경변수를 조합하지 않습니다.
 
-## Asset measurement history
+OPC UA simulator, recorded replay, independent collector와 fault/recovery 검증 절차는
+[OPC UA tools](../tools/opcua/README.md)를 참조합니다. AI-Hub raw data 준비와 profiling은
+[AI-Hub tools](../tools/aihub/README.md)를 참조합니다.
 
-Operations의 Assets는 같은 DuckLake에 있는 FILE backfill과 OPC UA 관측을 시간·채널별로 조회합니다.
-Operations의 history catalog/data는 같은 local workspace root가 소유합니다. AI-Hub를 처음 적재할 때는
-[실행 안내](../tools/aihub/README.md#local-power-data-profiling-and-history)를 따릅니다.
+## Application roles
 
-**Assets → Asset 선택 → Measurement History → 시간·측정 항목 선택 → 이력 조회 / 새로고침** 순서로
-사용합니다. 시각 입력에는 UTC offset이 필요하고 종료는 미포함입니다. 최대 2,000개 관측을 표시하며 한도를
-넘으면 범위를 줄이라는 안내를 보여줍니다. Source별 관측점, null의 시각 표시, 품질 문제·값 충돌과 provenance를
-확인할 수 있습니다. 보간·집계·자동 건강 판정은 하지 않습니다. 예상 수집 주기가 없는 상태에서 공백을
-자동으로 missing sample이라 부르지 않습니다.
+- `src/industrial_phm/apps/operations.py` — operational observation/evidence/human-review workspace
+- `apps/analysis_explorer.py` — research environment에서 experiment/analysis evidence를 검토하는 PHM Workbench surface
 
-Catalog에만 있는 설비도 목록에 표시합니다. 설비·채널 목록은 화면 초기화 시 읽고, 선택한 구간은 조회 버튼으로
-다시 읽습니다. 신규 적재 후 **설비 이력 목록 새로고침**으로 목록을 갱신할 수 있습니다.
-최근 범위는 조회 시점 기준으로 이동합니다. 15분은 최근 2,000개 원시 관측, 직접 지정은 첫 2,000개를
-표시하며 요청 범위·실제 반환 범위·개수·잘림을 별도로 보여줍니다. 축은 요청 전체 범위로 유지합니다.
-직접 지정 범위의 원시 관측이 2,000개를 넘으면 첫 2,000개 대신 전체 기간 200개 구간 집계로 전환합니다.
-과거 적재 설비는 최근 범위 밖에 있으므로 이 경로로 긴 기간을 확인합니다. 표시 시각은 그래프와 같은 UTC입니다.
-24시간은 200개 시간 구간, 7일은 100개 구간으로 전체 선택 기간을 집계합니다. source/측정점/매핑·의미
-해석별로 분리하며 전체 반환 bucket은 최대 2,000개입니다. 초과 시 일부만 표시하지 않고 오류를 냅니다.
-UI min/max/mean은 null·충돌·원천 non-good 값을 제외하며 제외 개수와 원본 관측 개수를 보존합니다.
-동일값 중복도 개수에 포함하고 mean은 관측 개수 가중치입니다. 시간 가중 평균·에너지·source 평균 측정값이
-아닙니다. 빈 시간 구간은 보간하지 않습니다. 해석 근거와 history snapshot ID를 집계 표에서 확인할 수 있습니다.
-
-Source별 최신 저장값은 그래프 범위/한도와 별개로 조회합니다. `history_age_seconds`는 저장 관측의
-나이이며 `event_time_state`는 recorded/future-timestamp/time-unavailable입니다. 과거 backfill/import/replay의
-expected live freshness는 not-applicable입니다. LIVE 행의 freshness도 이 표에서 판정하지 않고
-Sources의 기존 SourceFreshnessPolicy 및 receipt 화면으로 안내합니다. 설비 건강 판정이 아닙니다.
-동일 최신 시각의 값이 충돌하면 대표값을 정상값처럼 표시하지 않습니다.
-FILE source quality는 unknown이며 numeric/null availability와 분리합니다. OPC UA는 protocol Good/non-good을
-보존합니다. Raw channel label은 canonical observed property로 승격하지 않고 미해석 상태를 표시합니다.
-
-최신 저장 관측의 **최신 관측 출처·매핑 근거**에서 원본 파일·checksum, 시간대 가정,
-설비 grouping 근거, 의미 해석 version과 단위 근거를 확인할 수 있습니다. 그래프 구간에
-관측이 없어도 이 근거는 조회됩니다. 단위 정보가 없는 FILE/OPC UA 값은 `unknown`을 유지합니다.
-
-독립 collector와 UI를 함께 실행하는 방법은 [로컬 OPC UA 스택](../tools/opcua/README.md)에 있습니다.
-Local catalog 접근은 adapter가 connection 수명 동안 파일 잠금으로 조율하며 대기 한도 초과는 오류로
-표시합니다. 하나의 control/spool 구성에는 하나의 collector를 사용합니다.
-
-현재 repository는 목적이 다른 interactive application을 분리합니다.
-
-- `src/industrial_phm/apps/operations.py` — wheel에 포함되는 canonical operational action/evidence workspace
-- `apps/analysis_explorer.py` — repository research 환경에서 experiment/analysis evidence와 pipeline을 검토하는 PHM Workbench surface
-
-## Operations UI
-
-현재 기본 Operations는 `src/industrial_phm/apps/operations.py`입니다.
-**Monitor / Assets / Investigations / Maintenance / System / Setup**이 실제 operational read model과
-명시적 application action에 연결돼 있습니다. 메인 배경은 `#292827`입니다.
-
-Investigations에서는 저장된 analysis evidence에 대해 사용자가 명시적으로 **Request review**를 누를 때만
-human-review finding을 기록하고, Maintenance는 Open / Acknowledged / Closed 업무 queue로 이어 받아
-note / acknowledge / close action을 기록합니다. 이 workflow는 fault/alarm/health/repair/CMMS 판단을
-만들지 않습니다. Setup은 source 등록, Enable/Pause, OPC UA Start/Stop collection desired-state와
-source별 데이터 경과 시간 정책을 소유합니다. One-shot runtime과 bounded subscription은 persistent
-collection과 분리된 **Advanced diagnostics** action으로만 제공하며, 성공을 현재 connection health로
-승격하지 않습니다. 등록된 FILE snapshot의 on-demand vibration feature 분석은 **Assets → Analysis**에서
-실행하고 결과를 같은 evidence repository에 저장해 Assets와 Investigations에서 즉시 확인합니다.
-
-**Assets**는 Monitor evidence와 DuckLake history asset의 합집합을 보여줍니다. Asset을 고르면
-Overview / Signals / Analysis / Events / Maintenance로 같은 설비 문맥을 유지합니다. Signals는 기존
-Asset History 의미를 그대로 사용해 15분 raw 관측(최대 최근 2,000개), 24시간·7일 전체 기간 UI 집계,
-선택 channel의 latest stored value를 표시합니다. History-only asset은 live 상태를 추론하지 않으며,
-history query 실패도 다른 Asset evidence 화면까지 막지 않습니다.
-
-**Investigations**는 저장된 operational analysis를 최신순 queue로 보여주고 Review / Asset / Capability로
-필터링합니다. Queue의 `Not requested / Open / Acknowledged / Closed`는 사람의 review workflow 상태이며
-위험도나 고장 심각도가 아닙니다. 선택한 결과의 data quality와 capability-specific evidence를 오른쪽에서
-검토하고, run/evidence/finding ID와 provenance는 detail/accordion으로 내려 progressive disclosure합니다.
-Three-phase unbalance는 summary·trend·제외 사유·provenance를, FILE vibration feature는 exact snapshot
-feature evidence를 표시합니다.
-
-**Maintenance**는 review finding을 Status / Asset으로 필터링하고 selected review의 요청 시각, 현재 workflow
-상태, note 수, append-only action timeline을 보여줍니다. Open은 note/acknowledge, Acknowledged는
-note/close를 허용하며 Closed는 추가 event를 받지 않습니다. Maintenance에서 변경한 review state는 같은
-Operations session의 Investigations에도 즉시 반영됩니다. Finding/run ID는 primary queue가 아니라 Review identity
-detail에 둡니다.
-
-**System**은 live acquisition / history storage / analysis service / current state read를 분리해서 보여줍니다.
-Analysis runner는 persistent heartbeat와 최근 result/skip/failure가 있을 때만 runtime 상태를 표시합니다.
-Operations application 자체의 process heartbeat는 아직 계측하지 않으므로 **Not instrumented**로 명시하고,
-이번 refresh에서 state를 읽은 사실을 process health로 승격하지 않습니다. Source/session/history/spool 같은
-관측 가능한 runtime fact는 primary System에 두고 repository path·state file 위치는 **Advanced diagnostics**로
-내립니다. 읽기 실패는 현재 application state error로 별도 표시합니다.
-
-**Setup**은 Data Sources / Signal Mapping / Measurement Semantics / Analysis Configuration으로 분리합니다.
-Add Source는 **Source → Select signals → Define meaning → Review & save** 흐름을 사용합니다. FILE은 먼저
-discovery로 공통 column을 확인하고 선택한 signal만 등록합니다. OPC UA는 bounded anonymous browse로
-Variable identity를 찾고, 사용자가 선택한 NodeId만 explicit mapping으로 등록합니다. BrowseName·NodeId에서
-물리 의미를 추론하지 않으며, measurement meaning은 channel별로 version과 interpretation evidence를
-명시할 때만 `ChannelSemanticBinding`으로 저장합니다. 의미가 확정되지 않은 signal은 **Unresolved**로
-남깁니다. 기존 registry contract는 등록된 source config의 in-place 수정 API를 제공하지 않으므로 이미
-등록된 mapping/semantics는 read-only evidence로 보여줍니다. Enable/Pause는 administrative use state이고
-Start/Stop collection은 collector에 대한 desired-state 요청일 뿐 connection/process running 증거가 아닙니다.
-Analysis Configuration은 현재 안전하게 persist할 application contract가 없어 read-only ownership 안내만
-제공합니다.
-
-한 local Operations instance는 workspace root 하나로 지정합니다. 정상 repository-local 실행은
-`make up`이 기본 `artifacts/operations` workspace를 사용하며, 다른 root는
-`make up WORKSPACE=<path>`로 지정합니다. 직접 CLI/UI-only 실행은 위 **Direct CLI / development**
-절의 lower-level 경계입니다.
-
-workspace를 지정하면 source/runtime/control/spool/telemetry/window/analysis/finding/review와
-DuckLake catalog/data 경로를 같은 root에서 결정합니다. Packaged Operations app은 이 workspace root를
-유일한 persistence composition input으로 사용하며 개별 state/history path 환경변수를 해석하지 않습니다.
-Internal service/diagnostic CLI의 explicit path flag는 독립 process 검증을 위해 별도 경계로 유지합니다.
-
-### 전력 품질 분석 · 3상 불평형
-
-Asset Detail의 **전력 품질 분석 · 3상 불평형**에서 source와 구간을 고르고 **3상 불평형 분석 실행**을 누르면
-[`three-phase-unbalance-v1`](../docs/architecture/phase-unbalance-capability.md)이 현재 history snapshot에서
-실행됩니다. 결과는 전압(상전압 기준)·전류별 평가 시각 수, 제외 수, median/p95/max와 max 시각, 시간 구간별
-median·max 그래프, 제외 사유, 입력·버전·설정 근거(snapshot ID, semantic version, 신호 기준)를 보여줍니다.
-의미가 확정되지 않은 channel(예: metadata v1/v2 적재, semantics 예외 member, semantic binding이 없는
-OPC UA source)과 정지 구간은 제외 사유로만 표시됩니다. 서술적 측정값이며 고장·건강·alarm 판정이 아닙니다.
-
-결과는 workspace의 `phase-unbalance.sqlite`에 run마다 한 row로 저장되며(이전 결과를 다시 읽거나 다시 쓰지 않음)
-**분석 기록**에서 이전 run을 다시 볼 수 있습니다.
-
-별도 analysis runner process가 같은 파일에 기록한 결과는 Asset Detail이나
-Investigation의 **Refresh analysis results**로 앱 재시작 없이 다시 읽습니다. 자동 polling은 하지 않으며 선택 중인
-분석은 refresh 후에도 유지됩니다. 읽기에 실패하면 마지막 성공 읽기 결과를 그대로 두고 실패를 별도로 표시합니다.
-Operations의 primary read는 누적 결과 전체를 매번 역직렬화하지 않고 최근 500개 3상 결과만 읽습니다.
-다만 사람이 review를 요청한 과거 run은 500개 범위 밖이어도 analysis_run_id로 정확히 다시 읽어
-Investigation/Maintenance evidence가 사라지지 않습니다. 이 제한은 표시/조회 경계이며 저장된 결과를 삭제하거나
-retention하지 않습니다. 전체 저장 개수와 이번에 읽은 범위는 System → Advanced diagnostics에서 확인할 수 있습니다.
-정상 product runtime에서는 supervisor가 analysis runner와 Operations UI process lifecycle을 함께 소유합니다. UI의 개별 action은 runner process를 직접 제어하지 않습니다. Asset Detail·Overview의 Analysis runs와 Investigation은 FILE 특징 분석과 3상 불평형을
-함께 다룹니다. Investigation의 **검토할 분석**에서 결과를 고르면 capability별 근거가 보이고, **Create review
-finding**으로 그 결과에 대한 사람의 검토 요청을 만들어 Maintenance Review로 이어갈 수 있습니다.
+Operations와 Analysis Explorer는 서로의 persistence/runtime ownership을 대신하지 않습니다.
 
 ## Analysis Explorer
 
