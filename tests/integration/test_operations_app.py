@@ -111,6 +111,8 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
     assert defs["navigation_initial_page"] == "Monitor"
     assert defs["navigation"].value == "Monitor"
     assert defs["signal_range_selector"].value == "Live"
+    assert defs["get_asset_section"]() == "Overview"
+    assert defs["get_investigation_review_filter"]() == "All"
 
 
 def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
@@ -128,6 +130,10 @@ def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monke
 
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
+    assert defs["selected_attention"] is not None
+    assert defs["selected_attention"].finding_id is not None
+    assert defs["attention_route"].page == "Investigations"
+    assert defs["attention_open_button"] is not None
 
 
 def test_operations_uses_single_workspace_environment(tmp_path, monkeypatch):
