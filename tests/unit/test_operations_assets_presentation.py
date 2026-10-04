@@ -112,7 +112,8 @@ def test_asset_workspace_presenters_keep_operator_language() -> None:
     maintenance = render_asset_maintenance_html(view)
 
     assert "boiler-01" in header
-    assert "Running" in header
+    assert "Data status" in header
+    assert "Receiving" in header
     assert "1,200 stored measurements" in overview
     assert "Line A power" in overview
     assert "three-phase-unbalance-v1" in analysis
