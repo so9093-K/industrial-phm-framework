@@ -10,12 +10,20 @@ from industrial_phm.application.operations_monitor import (
 )
 from industrial_phm.presentation.operations_shell import (
     OPERATIONS_MAIN_BACKGROUND,
+    OPERATIONS_PAGE_OPTIONS,
+    initial_operations_page,
     operations_theme_css,
     render_monitor_assets_html,
     render_monitor_flow_html,
 )
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
+
+
+def test_initial_page_routes_empty_workspace_to_setup() -> None:
+    assert OPERATIONS_PAGE_OPTIONS[0] == "Monitor"
+    assert initial_operations_page(has_registered_sources=False) == "Setup"
+    assert initial_operations_page(has_registered_sources=True) == "Monitor"
 
 
 def _view() -> OperationsMonitorView:

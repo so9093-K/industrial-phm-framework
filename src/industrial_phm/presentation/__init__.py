@@ -50,6 +50,8 @@ from industrial_phm.presentation.operations_setup import (
 )
 from industrial_phm.presentation.operations_shell import (
     OPERATIONS_MAIN_BACKGROUND,
+    OPERATIONS_PAGE_OPTIONS,
+    initial_operations_page,
     operations_theme_css,
     render_monitor_assets_html,
     render_monitor_flow_html,
@@ -64,8 +66,10 @@ from industrial_phm.presentation.operations_system import (
 
 __all__ = [
     "OPERATIONS_MAIN_BACKGROUND",
+    "OPERATIONS_PAGE_OPTIONS",
     "OperationalAnalysisPresentationKind",
     "asset_workspace_css",
+    "initial_operations_page",
     "investigation_capability_label",
     "investigation_queue_option_label",
     "investigation_review_label",

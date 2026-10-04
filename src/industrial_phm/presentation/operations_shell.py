@@ -13,6 +13,22 @@ from industrial_phm.application.operations_monitor import (
 )
 
 OPERATIONS_MAIN_BACKGROUND = "#292827"
+OPERATIONS_PAGE_OPTIONS = (
+    "Monitor",
+    "Assets",
+    "Investigations",
+    "Maintenance",
+    "System",
+    "Setup",
+)
+
+
+def initial_operations_page(*, has_registered_sources: bool) -> str:
+    """Choose the first Operations page from durable workspace state."""
+
+    if not isinstance(has_registered_sources, bool):
+        raise ValueError("has_registered_sources must be a bool")
+    return "Monitor" if has_registered_sources else "Setup"
 
 
 _STATUS_LABEL = {
