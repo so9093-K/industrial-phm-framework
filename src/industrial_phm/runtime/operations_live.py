@@ -75,7 +75,8 @@ def load_operations_live_observation(
         event_times = tuple(
             point.measurement.event_at
             for point in latest_points
-            if point.measurement.event_at is not None
+            if point.measurement.source_id in mapped_source_ids
+            and point.measurement.event_at is not None
         )
         if event_times:
             end_at = max(event_times) + timedelta(microseconds=1)
