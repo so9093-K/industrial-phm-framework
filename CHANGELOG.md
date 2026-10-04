@@ -49,6 +49,8 @@
 
 ### Added
 
+- Operations `Assets -> Signals`에 Live range를 추가했습니다. mapped OPC UA signal의 latest stored value, source quality, session state, last receive age, source timestamp와 event rate를 current observation으로 표시하고 latest recorded event-time 기준 bounded recent points를 자동 refresh합니다. Replay는 과거 event-time을 그대로 보존하면서 현재 receive clock을 별도로 표시하며, Live refresh는 selected signal만 다시 읽고 full Operations snapshot이나 collector callback을 UI hot path로 만들지 않습니다.
+
 - `industrial-phm demo aihub-boiler` recorded-data preset을 추가했습니다. local AI-Hub 239 보일러 archive와
   `aihub` extra가 있으면 기존 device 2297 / `SourceData_211.json` / 2020-11-14 06:00–12:30 selection을
   loopback OPC UA replay로 실행하고, normal Operations supervisor가 collection + analysis + packaged UI를
