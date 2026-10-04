@@ -192,11 +192,6 @@ from industrial_phm.application.operations_assets import (
     AssetWorkspaceView,
     build_asset_workspace_view,
 )
-from industrial_phm.application.operations_live import (
-    LiveObservationSeries,
-    LiveObservationView,
-    build_live_observation_view,
-)
 from industrial_phm.application.operations_attention import (
     AttentionHandlingState,
     AttentionItem,
@@ -210,6 +205,11 @@ from industrial_phm.application.operations_investigations import (
     InvestigationQueueView,
     InvestigationReviewState,
     build_investigation_queue,
+)
+from industrial_phm.application.operations_live import (
+    LiveObservationSeries,
+    LiveObservationView,
+    build_live_observation_view,
 )
 from industrial_phm.application.operations_maintenance import (
     MaintenanceQueueItem,
