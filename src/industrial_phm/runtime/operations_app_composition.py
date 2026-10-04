@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from industrial_phm.application import (
     AcquisitionTelemetrySurface,
@@ -48,6 +48,7 @@ from industrial_phm.application import (
 )
 from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.operations_assets import AssetWorkspaceAnalysisAttempt
+from industrial_phm.application.operations_monitor import COLLECTION_SERVICE_TIMEOUT
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.acquisition_spool import (
     SqliteAcquisitionSpool,
@@ -62,8 +63,7 @@ from industrial_phm.runtime.operations_app_wiring import (
     load_operations_source_registry_state,
     resolve_operations_app_paths,
 )
-
-_PHASE_RESULT_LIMIT = 500
+from industrial_phm.runtime.operations_read_policy import DEFAULT_OPERATIONS_READ_POLICY
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,8 +111,12 @@ def load_operations_app_snapshot(
         paths, registered_sources, effective_at, system_errors
     )
     file_feature_results = _load_file_feature_results(paths, effective_at, system_errors)
+    read_policy = DEFAULT_OPERATIONS_READ_POLICY
     phase_results, phase_repository, phase_result_total = _load_phase_results(
-        paths, effective_at, system_errors
+        paths,
+        effective_at,
+        system_errors,
+        result_limit=read_policy.recent_phase_result_limit,
     )
     skipped_analysis_attempts = _load_skipped_analysis_attempts(paths, effective_at, system_errors)
     findings = _load_findings(paths, effective_at, system_errors)
@@ -125,7 +129,7 @@ def load_operations_app_snapshot(
     )
     phase_result_query_summary = (
         f"loaded {len(phase_results)} of {phase_result_total}; "
-        f"newest up to {_PHASE_RESULT_LIMIT} plus review-referenced exact runs"
+        f"newest up to {read_policy.recent_phase_result_limit} plus review-referenced exact runs"
         if phase_repository is not None
         else "unavailable"
     )
@@ -171,12 +175,12 @@ def load_operations_app_snapshot(
         as_of=effective_at,
     )
     live_flow_timing = LiveFlowTiming(
-        max_silence=timedelta(seconds=30),
+        max_silence=read_policy.live_max_silence,
         as_of=effective_at,
         collection_service_down=collection_service_issue(
             collection_service,
             as_of=effective_at,
-            timeout=timedelta(seconds=20),
+            timeout=COLLECTION_SERVICE_TIMEOUT,
             live_telemetry=bool(acquisition_surfaces),
         )
         is not None,
@@ -291,6 +295,8 @@ def _load_phase_results(
     paths: OperationsAppPaths,
     assessed_at: datetime,
     errors: list[SystemStateErrorEvidence],
+    *,
+    result_limit: int,
 ) -> tuple[
     tuple[PhaseUnbalanceAnalysis, ...],
     SqlitePhaseUnbalanceRepository | None,
@@ -299,7 +305,7 @@ def _load_phase_results(
     try:
         repository = SqlitePhaseUnbalanceRepository(paths.phase_analysis)
         total = repository.count_results()
-        return repository.list_recent_results(_PHASE_RESULT_LIMIT), repository, total
+        return repository.list_recent_results(result_limit), repository, total
     except (OSError, ValueError) as error:
         _append_error(errors, "phase-analysis-results", error, assessed_at)
         return (), None, 0
