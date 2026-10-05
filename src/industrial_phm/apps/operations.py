@@ -107,9 +107,19 @@ def _():
         phase_unbalance_summary_rows,
         render_phase_unbalance_svg,
     )
-    from industrial_phm.runtime.operations_app_actions import OperationsDiagnosticKind
+    from industrial_phm.runtime.operations_app_actions import (
+        OperationsActionError,
+        OperationsDiagnosticKind,
+    )
     from industrial_phm.runtime.operations_app_context import load_operations_app_context
-    from industrial_phm.runtime.operations_live import load_operations_live_observation
+    from industrial_phm.runtime.operations_live import (
+        OperationsReadError,
+        list_operations_history_channels,
+        load_operations_live_observation,
+        query_operations_latest_measurements,
+        query_operations_measurement_aggregation,
+        query_operations_measurement_page,
+    )
 
     return (
         AssetIdentity,
@@ -126,7 +136,9 @@ def _():
         OpcUaSourceConfig,
         OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
+        OperationsActionError,
         OperationsDiagnosticKind,
+        OperationsReadError,
         Path,
         RegisteredSource,
         SourceLifecycleState,
@@ -151,6 +163,7 @@ def _():
         latest_measurement_rows,
         live_observation_css,
         live_observation_recent_page,
+        list_operations_history_channels,
         load_operations_app_context,
         load_operations_live_observation,
         maintenance_queue_label,
@@ -166,6 +179,9 @@ def _():
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
         phase_unbalance_summary_rows,
+        query_operations_latest_measurements,
+        query_operations_measurement_aggregation,
+        query_operations_measurement_page,
         render_analysis_quality_markdown,
         render_asset_analysis_html,
         render_asset_events_html,
@@ -898,6 +914,7 @@ def _(
 
 @app.cell
 def _(
+    OperationsActionError,
     opcua_browse_button,
     opcua_endpoint_input,
     opcua_timeout_input,
@@ -915,7 +932,7 @@ def _(
                 endpoint_url=_endpoint,
                 timeout_seconds=float(_timeout),
             )
-        except Exception as error:
+        except OperationsActionError as error:
             set_opcua_browse(None)
             set_opcua_browse_signature(None)
             set_setup_success("")
@@ -1309,6 +1326,7 @@ def _(
 @app.cell
 def _(
     AssetIdentity,
+    OperationsReadError,
     acquisition_surfaces,
     current_analysis_results,
     asset_selector,
@@ -1317,6 +1335,7 @@ def _(
     findings,
     history_assets,
     history_reader,
+    list_operations_history_channels,
     live_flow_timing,
     monitor,
     navigation,
@@ -1337,39 +1356,39 @@ def _(
         _history_channels = ()
         if history_reader is not None:
             try:
-                _history_channels = history_reader.list_history_channels(_selected_asset_id)
-            except Exception as error:
+                _history_channels = list_operations_history_channels(
+                    history_reader,
+                    _selected_asset_id,
+                )
+            except OperationsReadError as error:
                 asset_history_error = str(error)
-        try:
-            _detail = build_asset_detail(
-                AssetIdentity(_selected_asset_id),
-                sources=registered_sources,
-                overview=overview,
-                analysis_runs=tuple(item.run for item in current_analysis_results),
-                findings=findings,
-                review_events=review_events,
-            )
-            _monitor_asset = next(
-                (item for item in monitor.assets if item.asset_id == _selected_asset_id),
-                None,
-            )
-            _asset_source_ids = {item.source.source_id for item in _detail.source_contexts}
-            _asset_surfaces = tuple(
-                item for item in acquisition_surfaces if item.source.source_id in _asset_source_ids
-            )
-            asset_workspace = build_asset_workspace_view(
-                asset_id=_selected_asset_id,
-                detail=_detail,
-                analysis_results=current_analysis_results,
-                monitor_asset=_monitor_asset,
-                history_summary=_history_summary,
-                history_channels=_history_channels,
-                acquisition_surfaces=_asset_surfaces,
-                live_flow_timing=live_flow_timing,
-                skipped_analysis_attempts=skipped_analysis_attempts,
-            )
-        except Exception as error:
-            asset_workspace_error = str(error)
+        _detail = build_asset_detail(
+            AssetIdentity(_selected_asset_id),
+            sources=registered_sources,
+            overview=overview,
+            analysis_runs=tuple(item.run for item in current_analysis_results),
+            findings=findings,
+            review_events=review_events,
+        )
+        _monitor_asset = next(
+            (item for item in monitor.assets if item.asset_id == _selected_asset_id),
+            None,
+        )
+        _asset_source_ids = {item.source.source_id for item in _detail.source_contexts}
+        _asset_surfaces = tuple(
+            item for item in acquisition_surfaces if item.source.source_id in _asset_source_ids
+        )
+        asset_workspace = build_asset_workspace_view(
+            asset_id=_selected_asset_id,
+            detail=_detail,
+            analysis_results=current_analysis_results,
+            monitor_asset=_monitor_asset,
+            history_summary=_history_summary,
+            history_channels=_history_channels,
+            acquisition_surfaces=_asset_surfaces,
+            live_flow_timing=live_flow_timing,
+            skipped_analysis_attempts=skipped_analysis_attempts,
+        )
     return asset_history_error, asset_workspace, asset_workspace_error
 
 
@@ -1570,6 +1589,7 @@ def _(mo):
 
 @app.cell
 def _(
+    OperationsReadError,
     UTC,
     asset_history_error,
     asset_section,
@@ -1591,6 +1611,9 @@ def _(
     mo,
     navigation,
     operations_context,
+    query_operations_latest_measurements,
+    query_operations_measurement_aggregation,
+    query_operations_measurement_page,
     registered_sources,
     render_live_observation_html,
     render_measurement_aggregation_svg,
@@ -1694,7 +1717,8 @@ def _(
                     start_at=assessed_at,
                     end_at=assessed_at,
                 )
-                _latest = history_reader.query_latest_measurements(
+                _latest = query_operations_latest_measurements(
+                    history_reader,
                     asset_selector.value,
                     channel_id=_channel_id,
                 )
@@ -1729,7 +1753,8 @@ def _(
                 )
 
                 if _range_id in {"24h", "7d"}:
-                    _aggregation = history_reader.query_measurement_aggregation(
+                    _aggregation = query_operations_measurement_aggregation(
+                        history_reader,
                         asset_selector.value,
                         channel_id=_channel_id,
                         start_at=_start_at,
@@ -1755,7 +1780,8 @@ def _(
                         gap=0.8,
                     )
                 else:
-                    _page = history_reader.query_measurement_page(
+                    _page = query_operations_measurement_page(
+                        history_reader,
                         asset_selector.value,
                         start_at=_start_at,
                         end_at=_end_at,
@@ -1814,7 +1840,7 @@ def _(
                     ],
                     gap=1.0,
                 )
-        except Exception as error:
+        except OperationsReadError as error:
             signal_view = mo.callout(
                 str(error),
                 kind="danger",
