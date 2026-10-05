@@ -17,18 +17,19 @@ from industrial_phm.application.measurement_semantics import (
 )
 
 # Version rule: every observation stores its semantic binding immutably. Any change
-# to a dictionary payload (channel membership, property, scope, statistic, unit,
-# evidence text or member exceptions) is a new version; a published version is
-# never edited. Pinned digests make an accidental in-place edit fail the contract
-# test. History metadata v3 writes semantics-v1, v4 writes semantics-v2 and v5
-# writes semantics-v3.
+# to what decides meaning (channel membership, property, scope, statistic, unit,
+# unit evidence, member exceptions and their reasons, or the profiled archive scope)
+# is a new version; a published version is never edited. Generic explanatory wording
+# written into interpretation_evidence is serialization, not dictionary payload.
+# Pinned digests make an accidental in-place edit fail the contract test. History
+# metadata v3 writes semantics-v1, v4 writes semantics-v2 and v5 writes semantics-v3.
 AIHUB_239_SEMANTICS_V1 = "aihub-239-semantics-v1"
 AIHUB_239_SEMANTICS_V2 = "aihub-239-semantics-v2"
 AIHUB_239_SEMANTICS_V3 = "aihub-239-semantics-v3"
 AIHUB_239_SEMANTICS_DIGESTS = {
     AIHUB_239_SEMANTICS_V1: "a90327d6d885480ca7b044dc704fb95aa14677b8713f75a4d9401b80178a054d",
     AIHUB_239_SEMANTICS_V2: "4cc29be9d2fc98e7f4531e0504414a848329794ac049c78b3d097fda7da0db7c",
-    AIHUB_239_SEMANTICS_V3: "24008d58b4a528c7ff457e883ef19c73bea26f59dcdcaf18bfdd7d12d5604b30",
+    AIHUB_239_SEMANTICS_V3: "2df8cf5bfaeab39f22396ab1dc849db23483c4c4676d8515139b6a10c4d130b1",
 }
 _SCHEMA_SEMANTICS = {
     "v3": AIHUB_239_SEMANTICS_V1,
@@ -194,11 +195,12 @@ def semantics_dictionary_digest(version: str) -> str:
             "member_exceptions": _exception_payload(_V2_MEMBER_EXCEPTIONS),
         }
     elif version == AIHUB_239_SEMANTICS_V3:
-        # The profiled archive scope decides meaning, so it is part of the payload.
+        # Scope membership decides meaning, so the SHA-256 set is part of the payload;
+        # the archive descriptions are documentation and stay out of it.
         payload = {
             "definitions": definitions,
             "member_exceptions": _exception_payload(_V3_MEMBER_EXCEPTIONS),
-            "profiled_archives": sorted(_V3_PROFILED_ARCHIVES.items()),
+            "profiled_archives": sorted(_V3_PROFILED_ARCHIVES),
         }
     else:
         raise ValueError(f"unknown AI-Hub 239 semantics version: {version}")

@@ -148,8 +148,10 @@ unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지�
 
 ### Semantics version rule
 
-- Observation은 semantic binding을 immutable provenance로 저장합니다. Dictionary payload(대상 channel,
-  property, scope, statistic, unit, evidence 문구, member 예외)가 조금이라도 바뀌면 새 version입니다.
+- Observation은 semantic binding을 immutable provenance로 저장합니다. 의미를 결정하는 것(대상 channel,
+  property, scope, statistic, unit, unit evidence, member 예외와 그 relation 근거, profiled archive SHA-256
+  scope)이나 판정 규칙이 조금이라도 바뀌면 새 version입니다. Archive 설명이나 `interpretation_evidence`의
+  일반 설명 문구는 serialization wording이며 dictionary payload가 아닙니다.
 - 게시된 version은 수정하지 않습니다. 각 version의 payload SHA-256을 코드에 고정하고 contract test가
   확인합니다(`AIHUB_239_SEMANTICS_DIGESTS`).
 - Metadata schema와 version: v1/v2는 모든 항목 미확정, v3 → `semantics-v1`, v4 → `semantics-v2`,

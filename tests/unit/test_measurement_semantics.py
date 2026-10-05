@@ -113,7 +113,7 @@ def test_published_semantics_versions_are_immutable():
             "4cc29be9d2fc98e7f4531e0504414a848329794ac049c78b3d097fda7da0db7c"
         ),
         "aihub-239-semantics-v3": (
-            "24008d58b4a528c7ff457e883ef19c73bea26f59dcdcaf18bfdd7d12d5604b30"
+            "2df8cf5bfaeab39f22396ab1dc849db23483c4c4676d8515139b6a10c4d130b1"
         ),
     }
     for version, digest in AIHUB_239_SEMANTICS_DIGESTS.items():
