@@ -21,23 +21,65 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 @dataclass(frozen=True, slots=True)
 class OperationsAppPaths:
-    """Resolved persistent paths used by one Operations app runtime."""
+    """Compatibility projection over the authoritative Operations workspace layout."""
 
     workspace: OperationsWorkspace
-    registry: Path
-    source_runtime: Path
-    acquisition_telemetry: Path
-    acquisition_spool: Path
-    collection_control: Path
-    file_feature_analysis: Path
-    phase_analysis: Path
-    analysis_runtime: Path
-    window_state: Path
-    analysis_ledger: Path
-    findings: Path
-    review: Path
-    history_catalog: Path
-    history_data: Path
+
+    @property
+    def registry(self) -> Path:
+        return self.workspace.source_registry_path
+
+    @property
+    def source_runtime(self) -> Path:
+        return self.workspace.source_runtime_path
+
+    @property
+    def acquisition_telemetry(self) -> Path:
+        return self.workspace.acquisition_telemetry_path
+
+    @property
+    def acquisition_spool(self) -> Path:
+        return self.workspace.acquisition_spool_path
+
+    @property
+    def collection_control(self) -> Path:
+        return self.workspace.collection_control_path
+
+    @property
+    def file_feature_analysis(self) -> Path:
+        return self.workspace.file_feature_analysis_path
+
+    @property
+    def phase_analysis(self) -> Path:
+        return self.workspace.phase_unbalance_state_path
+
+    @property
+    def analysis_runtime(self) -> Path:
+        return self.workspace.analysis_runtime_path
+
+    @property
+    def window_state(self) -> Path:
+        return self.workspace.window_state_path
+
+    @property
+    def analysis_ledger(self) -> Path:
+        return self.workspace.analysis_ledger_path
+
+    @property
+    def findings(self) -> Path:
+        return self.workspace.finding_state_path
+
+    @property
+    def review(self) -> Path:
+        return self.workspace.maintenance_review_state_path
+
+    @property
+    def history_catalog(self) -> Path:
+        return self.workspace.history_catalog_path
+
+    @property
+    def history_data(self) -> Path:
+        return self.workspace.history_data_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,23 +103,7 @@ def resolve_operations_app_paths(
         )
     workspace = OperationsWorkspace(Path(workspace_root))
 
-    return OperationsAppPaths(
-        workspace=workspace,
-        registry=workspace.source_registry_path,
-        source_runtime=workspace.source_runtime_path,
-        acquisition_telemetry=workspace.acquisition_telemetry_path,
-        acquisition_spool=workspace.acquisition_spool_path,
-        collection_control=workspace.collection_control_path,
-        file_feature_analysis=workspace.file_feature_analysis_path,
-        phase_analysis=workspace.phase_unbalance_state_path,
-        analysis_runtime=workspace.analysis_runtime_path,
-        window_state=workspace.window_state_path,
-        analysis_ledger=workspace.analysis_ledger_path,
-        findings=workspace.finding_state_path,
-        review=workspace.maintenance_review_state_path,
-        history_catalog=workspace.history_catalog_path,
-        history_data=workspace.history_data_path,
-    )
+    return OperationsAppPaths(workspace=workspace)
 
 
 def load_operations_source_registry_state(

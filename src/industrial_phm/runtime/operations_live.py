@@ -1,8 +1,9 @@
-"""Bounded concrete reads for the Operations live-signal surface."""
+"""Bounded concrete reads for Operations history and live-signal surfaces."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import sqlite3
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
 from industrial_phm.application import (
@@ -14,10 +15,16 @@ from industrial_phm.application import (
     build_live_observation_view,
 )
 from industrial_phm.application.measurement_history import (
+    HistoryAssetSummary,
+    MeasurementHistoryAggregation,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
 )
-from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.history import (
+    DuckLakeAssetHistory,
+    DuckLakeAssetHistoryConfig,
+    DuckLakeRuntimeUnavailableError,
+)
 from industrial_phm.runtime.acquisition_spool import (
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
@@ -27,6 +34,82 @@ from industrial_phm.runtime.operations_app_wiring import OperationsAppPaths
 
 DEFAULT_LIVE_LOOKBACK_SECONDS = 60.0
 DEFAULT_LIVE_POINT_BUDGET = 600
+
+
+class OperationsReadError(RuntimeError):
+    """Expected operator-facing failure while reading local Operations evidence."""
+
+
+def _history_read[T](factory: Callable[[], T]) -> T:
+    try:
+        return factory()
+    except (DuckLakeRuntimeUnavailableError, OSError, TimeoutError, ValueError) as error:
+        detail = str(error).strip() or type(error).__name__
+        raise OperationsReadError(detail) from error
+
+
+def list_operations_history_assets(
+    history: DuckLakeAssetHistory,
+) -> tuple[HistoryAssetSummary, ...]:
+    return _history_read(history.list_history_assets)
+
+
+def list_operations_history_channels(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+) -> tuple[str, ...]:
+    return _history_read(lambda: history.list_history_channels(asset_id))
+
+
+def query_operations_latest_measurements(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    channel_id: str,
+) -> tuple[MeasurementHistoryPoint, ...]:
+    return _history_read(lambda: history.query_latest_measurements(asset_id, channel_id=channel_id))
+
+
+def query_operations_measurement_page(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    start_at: datetime,
+    end_at: datetime,
+    channel_id: str,
+    point_budget: int,
+    latest: bool,
+) -> MeasurementHistoryPage:
+    return _history_read(
+        lambda: history.query_measurement_page(
+            asset_id,
+            start_at=start_at,
+            end_at=end_at,
+            channel_id=channel_id,
+            point_budget=point_budget,
+            latest=latest,
+        )
+    )
+
+
+def query_operations_measurement_aggregation(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    channel_id: str,
+    start_at: datetime,
+    end_at: datetime,
+    bucket_count: int,
+) -> MeasurementHistoryAggregation:
+    return _history_read(
+        lambda: history.query_measurement_aggregation(
+            asset_id,
+            channel_id=channel_id,
+            start_at=start_at,
+            end_at=end_at,
+            bucket_count=bucket_count,
+        )
+    )
 
 
 def load_operations_live_observation(
@@ -74,7 +157,11 @@ def load_operations_live_observation(
         history = DuckLakeAssetHistory(
             DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
         )
-        latest_points = history.query_latest_measurements(asset_id, channel_id=channel_id)
+        latest_points = query_operations_latest_measurements(
+            history,
+            asset_id,
+            channel_id=channel_id,
+        )
         event_times = tuple(
             point.measurement.event_at
             for point in latest_points
@@ -83,7 +170,8 @@ def load_operations_live_observation(
         )
         if event_times:
             end_at = max(event_times) + timedelta(microseconds=1)
-            recent_page = history.query_measurement_page(
+            recent_page = query_operations_measurement_page(
+                history,
                 asset_id,
                 channel_id=channel_id,
                 start_at=end_at - timedelta(seconds=float(lookback_seconds)),
@@ -92,11 +180,15 @@ def load_operations_live_observation(
                 latest=True,
             )
 
-    surfaces = _load_live_acquisition_surfaces(
-        paths,
-        source_ids=mapped_source_ids,
-        sampled_at=sampled_at,
-    )
+    try:
+        surfaces = _load_live_acquisition_surfaces(
+            paths,
+            source_ids=mapped_source_ids,
+            sampled_at=sampled_at,
+        )
+    except (OSError, sqlite3.Error, ValueError) as error:
+        detail = str(error).strip() or type(error).__name__
+        raise OperationsReadError(detail) from error
     return build_live_observation_view(
         asset_id=asset_id,
         channel_id=channel_id,

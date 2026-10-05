@@ -66,6 +66,10 @@ from industrial_phm.runtime.operations_app_wiring import (
     load_operations_source_registry_state,
     resolve_operations_app_paths,
 )
+from industrial_phm.runtime.operations_live import (
+    OperationsReadError,
+    list_operations_history_assets,
+)
 
 _PHASE_RESULT_LIMIT = 500
 
@@ -476,8 +480,8 @@ def _load_history(
         reader = DuckLakeAssetHistory(
             DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
         )
-        return reader, reader.list_history_assets()
-    except Exception as error:
+        return reader, list_operations_history_assets(reader)
+    except OperationsReadError as error:
         _append_error(errors, "asset-history", error, assessed_at)
         return None, ()
 

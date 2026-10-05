@@ -134,6 +134,31 @@ class _OwnedSourceRuntime:
 
 
 @dataclass(slots=True)
+class _BestEffortRuntimeDiagnostic:
+    failing: bool = False
+
+    def record(
+        self,
+        callback: Callable[..., object],
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        try:
+            callback(*args, **kwargs)
+        except (OSError, ValueError) as error:
+            if not self.failing:
+                _LOGGER.warning(
+                    "collection service runtime telemetry unavailable: %s",
+                    _failure_detail(error),
+                )
+            self.failing = True
+            return
+        if self.failing:
+            _LOGGER.info("collection service runtime telemetry recovered")
+        self.failing = False
+
+
+@dataclass(slots=True)
 class _RestartBackoff:
     failures: int = 0
     not_before: float = 0.0
@@ -180,9 +205,10 @@ async def run_collection_service(
     if not isinstance(effective_policy, CollectionServicePolicy):
         raise ValueError("policy must be CollectionServicePolicy")
 
+    service_runtime_diagnostic = _BestEffortRuntimeDiagnostic()
     started_at = datetime.now(UTC)
     if service_runtime_recorder is not None:
-        _record_service_runtime_best_effort(
+        service_runtime_diagnostic.record(
             service_runtime_recorder.record_collection_service_start,
             started_at=started_at,
         )
@@ -374,7 +400,7 @@ async def run_collection_service(
 
             if service_runtime_recorder is not None:
                 heartbeat_started = time.monotonic()
-                _record_service_runtime_best_effort(
+                service_runtime_diagnostic.record(
                     service_runtime_recorder.record_collection_service_heartbeat,
                     heartbeat_at=datetime.now(UTC),
                     reconcile_count=reconcile_count,
@@ -390,7 +416,7 @@ async def run_collection_service(
                 )
     except Exception as error:
         if service_runtime_recorder is not None:
-            _record_service_runtime_best_effort(
+            service_runtime_diagnostic.record(
                 service_runtime_recorder.record_collection_service_failure,
                 _failure_detail(error),
                 occurred_at=datetime.now(UTC),
@@ -409,7 +435,7 @@ async def run_collection_service(
 
     stopped_at = datetime.now(UTC)
     if service_runtime_recorder is not None:
-        _record_service_runtime_best_effort(
+        service_runtime_diagnostic.record(
             service_runtime_recorder.record_collection_service_stop,
             stopped_at=stopped_at,
             reconcile_count=reconcile_count,
@@ -423,17 +449,6 @@ async def run_collection_service(
         source_stop_count=source_stop_count,
         source_restart_count=source_restart_count,
     )
-
-
-def _record_service_runtime_best_effort(
-    callback: Callable[..., object],
-    *args: object,
-    **kwargs: object,
-) -> None:
-    try:
-        callback(*args, **kwargs)
-    except OSError, ValueError:
-        return
 
 
 def _failure_detail(error: Exception) -> str:
