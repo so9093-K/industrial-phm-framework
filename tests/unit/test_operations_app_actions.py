@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from industrial_phm.application import (
     FILE_SNAPSHOT_VIBRATION_FEATURE_CAPABILITY_ID,
     AnalysisRun,
@@ -18,6 +20,7 @@ from industrial_phm.application import (
 from industrial_phm.connectors import OpcUaBrowseResult, OpcUaNodeMapping
 from industrial_phm.contracts import DataQualityAssessment
 from industrial_phm.runtime.operations_app_actions import (
+    OperationsActionError,
     OperationsAppActions,
     OperationsDiagnosticKind,
 )
@@ -154,6 +157,37 @@ def test_actions_bridge_opcua_browse_outside_marimo_event_loop(
     )
 
     assert result == expected
+
+
+def test_actions_browse_wraps_expected_connector_failure_only(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    import industrial_phm.runtime.operations_app_actions as action_module
+
+    actions = _actions(tmp_path)
+
+    async def unavailable(_config):
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(action_module, "browse_opcua_variables", unavailable)
+
+    with pytest.raises(OperationsActionError, match="connection refused"):
+        actions.browse_opcua(
+            endpoint_url="opc.tcp://127.0.0.1:4840",
+            timeout_seconds=1.5,
+        )
+
+    async def programmer_error(_config):
+        raise AssertionError("connector invariant broken")
+
+    monkeypatch.setattr(action_module, "browse_opcua_variables", programmer_error)
+
+    with pytest.raises(AssertionError, match="connector invariant broken"):
+        actions.browse_opcua(
+            endpoint_url="opc.tcp://127.0.0.1:4840",
+            timeout_seconds=1.5,
+        )
 
 
 def test_actions_bridge_opcua_diagnostic_outside_marimo_event_loop(
