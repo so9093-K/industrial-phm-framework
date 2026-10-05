@@ -932,7 +932,7 @@ def _(
                 endpoint_url=_endpoint,
                 timeout_seconds=float(_timeout),
             )
-        except OperationsActionError as error:
+        except (OperationsActionError, ValueError) as error:
             set_opcua_browse(None)
             set_opcua_browse_signature(None)
             set_setup_success("")
