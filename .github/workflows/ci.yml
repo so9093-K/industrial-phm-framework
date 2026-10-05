@@ -13,8 +13,143 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Python 3.14 validation
+  classify:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+      runtime: ${{ steps.changes.outputs.runtime }}
+      operations: ${{ steps.changes.outputs.operations }}
+      research: ${{ steps.changes.outputs.research }}
+      package: ${{ steps.changes.outputs.package }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Classify changed paths
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+
+          event = os.environ["EVENT_NAME"]
+          if event == "pull_request":
+              base = os.environ["PR_BASE_SHA"]
+              head = os.environ["PR_HEAD_SHA"]
+          else:
+              base = os.environ["PUSH_BEFORE"]
+              head = os.environ["CURRENT_SHA"]
+
+          if not base or set(base) == {"0"}:
+              base = subprocess.check_output(
+                  ["git", "rev-parse", f"{head}^"],
+                  text=True,
+              ).strip()
+
+          changed = tuple(
+              line
+              for line in subprocess.check_output(
+                  ["git", "diff", "--name-only", base, head],
+                  text=True,
+              ).splitlines()
+              if line
+          )
+          print("changed files:")
+          for path in changed:
+              print(f"  {path}")
+
+          def any_path(*prefixes: str) -> bool:
+              return any(path.startswith(prefixes) for path in changed)
+
+          def any_exact(*names: str) -> bool:
+              return any(path in names for path in changed)
+
+          def documentation_only(path: str) -> bool:
+              if path == "LICENSE" or path.endswith(".md"):
+                  return True
+              return path.startswith("docs/") and path.endswith((".md", ".rst", ".txt"))
+
+          docs_only = bool(changed) and all(documentation_only(path) for path in changed)
+          force_all = any_path(".github/workflows/") or any_exact("pyproject.toml", "uv.lock")
+
+          runtime = force_all or any_path(
+              "src/industrial_phm/runtime/",
+              "src/industrial_phm/connectors/",
+              "src/industrial_phm/history/",
+              "src/industrial_phm/application/",
+              "tests/contract/test_opcua",
+              "tests/contract/test_ducklake",
+              "tests/contract/test_spool",
+              "tests/contract/test_window_",
+              "tests/contract/test_live_",
+              "tests/integration/test_acquisition_",
+              "tests/integration/test_aihub_history.py",
+              "tests/integration/test_aihub_opcua_replay.py",
+              "tools/opcua/",
+          )
+          operations = force_all or any_path(
+              "src/industrial_phm/apps/",
+              "src/industrial_phm/presentation/",
+              "src/industrial_phm/runtime/",
+              "src/industrial_phm/application/",
+              "tests/acceptance/",
+              "tests/support/",
+              "tests/integration/test_operations",
+              "tests/unit/test_operations",
+          ) or any_exact("Makefile")
+          research = force_all or any_path(
+              "notebooks/",
+              "apps/",
+              "src/industrial_phm/adapters/",
+              "src/industrial_phm/contracts/",
+              "src/industrial_phm/experiments/",
+              "src/industrial_phm/features/",
+              "src/industrial_phm/genai/",
+              "src/industrial_phm/models/",
+              "tests/contract/test_deep_learning",
+              "tests/contract/test_lstm_",
+              "tests/contract/test_xjtu_",
+              "tests/contract/test_ims_",
+              "tests/contract/test_mimii_",
+              "tests/unit/test_xjtu_",
+              "tests/unit/test_ims_",
+              "tests/unit/test_mimii_",
+          )
+          package = force_all or any_path("src/") or any_exact(
+              "pyproject.toml",
+              "uv.lock",
+              "LICENSE",
+          )
+
+          values = {
+              "docs_only": docs_only,
+              "runtime": runtime and not docs_only,
+              "operations": operations and not docs_only,
+              "research": research and not docs_only,
+              "package": package and not docs_only,
+          }
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              for name, value in values.items():
+                  output.write(f"{name}={'true' if value else 'false'}\n")
+                  print(f"{name}={value}")
+          PY
+
+  core:
+    name: Core validation
+    needs: classify
+    if: needs.classify.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -51,9 +186,9 @@ jobs:
           make --dry-run up WORKSPACE="$FRONT_DOOR_WORKSPACE" | tee /tmp/make-up.txt
           grep -F "industrial-phm operations init \"$FRONT_DOOR_WORKSPACE\"" /tmp/make-up.txt
           grep -F "industrial-phm operations start \"$FRONT_DOOR_WORKSPACE\"" /tmp/make-up.txt
-          make --dry-run down WORKSPACE="$FRONT_DOOR_WORKSPACE" |             grep -F "industrial-phm operations stop \"$FRONT_DOOR_WORKSPACE\""
-          make --dry-run status WORKSPACE="$FRONT_DOOR_WORKSPACE" |             grep -F "industrial-phm operations status \"$FRONT_DOOR_WORKSPACE\""
-          make --dry-run logs WORKSPACE="$FRONT_DOOR_WORKSPACE" |             grep -F "industrial-phm operations logs \"$FRONT_DOOR_WORKSPACE\""
+          make --dry-run down WORKSPACE="$FRONT_DOOR_WORKSPACE" | grep -F "industrial-phm operations stop \"$FRONT_DOOR_WORKSPACE\""
+          make --dry-run status WORKSPACE="$FRONT_DOOR_WORKSPACE" | grep -F "industrial-phm operations status \"$FRONT_DOOR_WORKSPACE\""
+          make --dry-run logs WORKSPACE="$FRONT_DOOR_WORKSPACE" | grep -F "industrial-phm operations logs \"$FRONT_DOOR_WORKSPACE\""
           make --dry-run demo | grep -F "industrial-phm demo synthetic"
 
       - name: Lint
@@ -68,6 +203,28 @@ jobs:
       - name: Test
         run: uv run --locked pytest --cov=industrial_phm --cov-report=term-missing
 
+  research:
+    name: Research contracts
+    needs: classify
+    if: needs.classify.outputs.research == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
       - name: Validate deep-learning runtime and model contracts
         run: |
           uv run --locked --extra deep-learning pytest \
@@ -76,6 +233,28 @@ jobs:
             tests/contract/test_lstm_rul_regression.py \
             tests/contract/test_xjtu_lstm_execution.py \
             tests/contract/test_xjtu_rul_lstm.py
+
+  runtime-contracts:
+    name: Runtime contracts
+    needs: classify
+    if: needs.classify.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
 
       - name: Validate OPC UA runtime contract
         run: |
@@ -105,15 +284,32 @@ jobs:
           uv run --locked --extra aihub --extra opcua pytest \
             tests/integration/test_aihub_opcua_replay.py
 
-      - name: Validate packaged AI-Hub boiler demo preset
+      - name: Validate independent live collection and history queries
         run: |
-          uv run --locked --extra operations --extra aihub pytest \
-            tests/unit/test_aihub_boiler_demo.py \
-            tests/integration/test_demo_cli.py
-          uv run --locked --extra operations --extra aihub industrial-phm demo aihub-boiler --help
+          uv run --locked --extra history --extra opcua pytest \
+            tests/contract/test_live_measurement_stack.py
 
-      - name: Build package
-        run: uv build
+  operations:
+    name: Operations product
+    needs: classify
+    if: needs.classify.outputs.operations == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
 
       - name: Validate packaged Operations extra
         run: |
@@ -142,10 +338,40 @@ jobs:
           uv run --locked --extra operations pytest \
             tests/acceptance/test_synthetic_operations_node.py
 
-      - name: Validate independent live collection and history queries
+      - name: Validate packaged AI-Hub boiler demo preset
         run: |
-          uv run --locked --extra history --extra opcua pytest \
-            tests/contract/test_live_measurement_stack.py
+          uv run --locked --extra operations --extra aihub pytest \
+            tests/unit/test_aihub_boiler_demo.py \
+            tests/integration/test_demo_cli.py
+          uv run --locked --extra operations --extra aihub industrial-phm demo aihub-boiler --help
+
+  package:
+    name: Package contract
+    needs: classify
+    if: needs.classify.outputs.package == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Build package
+        run: uv build
 
       - name: Verify packaged runtime contract
         run: |
@@ -206,3 +432,37 @@ jobs:
 
       - name: Verify packaged license
         run: unzip -l dist/*.whl | grep -q '/licenses/LICENSE$'
+
+  required:
+    name: Required validation
+    if: always()
+    needs:
+      - classify
+      - core
+      - research
+      - runtime-contracts
+      - operations
+      - package
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Require selected validation domains
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          CORE_RESULT: ${{ needs.core.result }}
+          RESEARCH_RESULT: ${{ needs.research.result }}
+          RUNTIME_RESULT: ${{ needs.runtime-contracts.result }}
+          OPERATIONS_RESULT: ${{ needs.operations.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          for result in "$CORE_RESULT" "$RESEARCH_RESULT" "$RUNTIME_RESULT" "$OPERATIONS_RESULT" "$PACKAGE_RESULT"; do
+            case "$result" in
+              success|skipped) ;;
+              *)
+                echo "::error::validation domain finished with $result"
+                exit 1
+                ;;
+            esac
+          done

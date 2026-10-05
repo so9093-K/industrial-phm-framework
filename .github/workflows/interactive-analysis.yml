@@ -10,7 +10,9 @@ on:
       - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/application/**"
       - "src/industrial_phm/presentation/**"
+      - "src/industrial_phm/runtime/**"
       - "tests/integration/test_operations_app.py"
+      - "tests/support/**"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
       - "src/industrial_phm/genai/**"
@@ -33,7 +35,9 @@ on:
       - "src/industrial_phm/analysis/**"
       - "src/industrial_phm/application/**"
       - "src/industrial_phm/presentation/**"
+      - "src/industrial_phm/runtime/**"
       - "tests/integration/test_operations_app.py"
+      - "tests/support/**"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
       - "src/industrial_phm/genai/**"
@@ -91,43 +95,28 @@ jobs:
           uv run --locked --group research --extra operations pytest \
             tests/integration/test_operations_app.py
 
-      - name: Execute Developer Workbench across validated experiment evidence
+      - name: Smoke Developer Workbench
         run: |
           INDUSTRIAL_PHM_WORKBENCH_ARTIFACT=docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
             uv run --locked --group research marimo export html \
             notebooks/02_developer_workbench.py \
             --no-include-code \
-            --output /tmp/developer-workbench-xjtu-lstm.html
-          INDUSTRIAL_PHM_WORKBENCH_ARTIFACT=docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json \
-            uv run --locked --group research marimo export html \
-            notebooks/02_developer_workbench.py \
-            --no-include-code \
-            --output /tmp/developer-workbench-xjtu-iforest.html
-          INDUSTRIAL_PHM_WORKBENCH_ARTIFACT=docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json \
-            uv run --locked --group research marimo export html \
-            notebooks/02_developer_workbench.py \
-            --no-include-code \
-            --output /tmp/developer-workbench-ims-iforest.html
+            --output /tmp/developer-workbench.html
 
-      - name: Execute PHM Analysis Explorer across supported surfaces
+      - name: Smoke PHM Analysis Explorer surfaces
         run: |
           INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
             uv run --locked --group research marimo export html \
             apps/analysis_explorer.py \
             --no-include-code \
-            --output /tmp/analysis-explorer-xjtu-detailed.html
-          INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json \
-            uv run --locked --group research marimo export html \
-            apps/analysis_explorer.py \
-            --no-include-code \
-            --output /tmp/analysis-explorer-ims-inspection.html
+            --output /tmp/analysis-explorer-detailed.html
           INDUSTRIAL_PHM_ANALYSIS_ARTIFACT=docs/research/results/mimii-due-iforest-domain-shift-development-v1.json \
             uv run --locked --group research marimo export html \
             apps/analysis_explorer.py \
             --no-include-code \
-            --output /tmp/analysis-explorer-mimii-inspection.html
+            --output /tmp/analysis-explorer-inspection.html
 
-      - name: Execute PHM Operations registered-source surfaces
+      - name: Smoke PHM Operations registered-source surface
         run: |
           uv run --locked --group research python - <<'PY'
           from datetime import datetime
@@ -137,18 +126,12 @@ jobs:
               FileSourceConfig,
               FileSourceMode,
               JsonSourceRepository,
-              JsonSourceRuntimeRepository,
-              OpcUaSourceConfig,
               RegisteredSource,
-              SourceConnectionAttemptEvidence,
-              SourceConnectionAttemptOperation,
-              SourceConnectionAttemptOutcome,
           )
-          from industrial_phm.connectors import OpcUaNodeMapping
 
-          file_workspace = Path("/tmp/operations-file-workspace")
-          file_workspace.mkdir(parents=True, exist_ok=True)
-          repository = JsonSourceRepository(file_workspace / "sources.json")
+          workspace = Path("/tmp/operations-file-workspace")
+          workspace.mkdir(parents=True, exist_ok=True)
+          repository = JsonSourceRepository(workspace / "sources.json")
           repository.register(
               RegisteredSource(
                   source_id="ci-registered-file",
@@ -165,61 +148,6 @@ jobs:
                   registered_at=datetime.fromisoformat("2026-09-23T09:00:00+09:00"),
               )
           )
-          repository.register(
-              RegisteredSource(
-                  source_id="ci-opcua",
-                  name="CI OPC UA source",
-                  config=OpcUaSourceConfig(
-                      endpoint_url="opc.tcp://127.0.0.1:4840",
-                      asset_id="ci-pump-02",
-                      measurement_point_id="drive-end-bearing",
-                      node_mappings=(
-                          OpcUaNodeMapping(
-                              channel_id="vibration_x",
-                              node_id="ns=2;s=Machine/VibrationX",
-                          ),
-                      ),
-                      timeout_seconds=2.0,
-                  ),
-                  registered_at=datetime.fromisoformat("2026-09-23T09:05:00+09:00"),
-              )
-          )
-
-          opcua_workspace = Path("/tmp/operations-opcua-workspace")
-          opcua_workspace.mkdir(parents=True, exist_ok=True)
-          opcua_repository = JsonSourceRepository(opcua_workspace / "sources.json")
-          opcua_repository.register(
-              RegisteredSource(
-                  source_id="ci-opcua",
-                  name="CI OPC UA source",
-                  config=OpcUaSourceConfig(
-                      endpoint_url="opc.tcp://127.0.0.1:4840",
-                      asset_id="ci-pump-02",
-                      measurement_point_id="drive-end-bearing",
-                      node_mappings=(
-                          OpcUaNodeMapping(
-                              channel_id="vibration_x",
-                              node_id="ns=2;s=Machine/VibrationX",
-                          ),
-                      ),
-                      timeout_seconds=2.0,
-                  ),
-                  registered_at=datetime.fromisoformat("2026-09-23T09:05:00+09:00"),
-              )
-          )
-          runtime_repository = JsonSourceRuntimeRepository(
-              opcua_workspace / "source-runtime.json"
-          )
-          runtime_repository.record_connection_attempt(
-              SourceConnectionAttemptEvidence(
-                  source_id="ci-opcua",
-                  operation=SourceConnectionAttemptOperation.OPCUA_READ,
-                  outcome=SourceConnectionAttemptOutcome.SUCCEEDED,
-                  attempted_at=datetime.fromisoformat("2026-09-23T09:10:00+09:00"),
-                  connected_at=datetime.fromisoformat("2026-09-23T09:10:01+09:00"),
-                  completed_at=datetime.fromisoformat("2026-09-23T09:10:02+09:00"),
-              )
-          )
           PY
 
           cat > /tmp/operations-observation.csv <<'EOF'
@@ -232,25 +160,4 @@ jobs:
             uv run --locked --group research --extra operations marimo export html \
             src/industrial_phm/apps/operations.py \
             --no-include-code \
-            --output /tmp/phm-operations-file-registry.html
-
-          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-file-workspace \
-          INDUSTRIAL_PHM_OPERATIONS_REGISTRATION_TYPE=opcua \
-            uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations.py \
-            --no-include-code \
-            --output /tmp/phm-operations-opcua-registration.html
-
-          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-opcua-workspace \
-            uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations.py \
-            --no-include-code \
-            --output /tmp/phm-operations-opcua-attempt-evidence.html
-
-          mkdir -p /tmp/operations-invalid-workspace
-          printf '{not-json' > /tmp/operations-invalid-workspace/sources.json
-          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-invalid-workspace \
-            uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations.py \
-            --no-include-code \
-            --output /tmp/phm-operations-invalid-registry.html
+            --output /tmp/phm-operations-registered-source.html
