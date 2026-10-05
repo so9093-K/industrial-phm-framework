@@ -28,9 +28,7 @@ def window_event(
     """Build one projected OPC UA event with explicit test semantics."""
 
     event_at = START + timedelta(seconds=second)
-    quantity, unit = (
-        ("phase voltage", "V") if channel[0] == "v" else ("phase current", "A")
-    )
+    quantity, unit = ("phase voltage", "V") if channel[0] == "v" else ("phase current", "A")
     registered = RegisteredOpcUaDataChangeEvent(
         source_id="site-opcua",
         asset_id="motor-7",
