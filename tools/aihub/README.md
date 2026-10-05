@@ -188,6 +188,8 @@ Existing v1-v4 rows are read without rewriting their JSON; the v1 `property_name
 legacy source label. To resume an exact earlier selection, use `--metadata-schema v1`, `v2`, `v3` or
 `v4` with its original binding/range/batch size. Retrying it with
 another schema fails on immutable batch/row evidence rather than silently rewriting interpretation.
+A legacy schema is retry-only: the importer accepts it only when the selection's first batch already
+exists, so an interrupted earlier import can be finished but a new selection cannot use v1-v4.
 The import result reports `metadata_schema`, `semantic_binding_version` and
 `semantic_dictionary_sha256`. Use v5 for new selections.
 

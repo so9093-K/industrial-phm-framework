@@ -236,7 +236,7 @@ def interpret_channel(
     if definition is None:
         return ChannelInterpretation(
             MeasurementDefinition(),
-            "provider unit table and observed data do not agree on a definition for this ITEM_NAME",
+            f"no evidenced canonical definition is published for this ITEM_NAME in {version}",
         )
     return ChannelInterpretation(definition)
 

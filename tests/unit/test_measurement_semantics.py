@@ -91,7 +91,10 @@ def test_semantics_v3_applies_meaning_only_inside_its_profiled_archive_scope():
 
     power = interpret("R상유효전력", COMPRESSOR, "3.공기압축기/SourceData_112.json")
     assert power.definition == MeasurementDefinition()
-    assert "do not agree" in power.unresolved_reason
+    assert power.unresolved_reason == (
+        "no evidenced canonical definition is published for this ITEM_NAME in "
+        "aihub-239-semantics-v3"
+    )
 
 
 def test_published_semantics_versions_are_immutable():

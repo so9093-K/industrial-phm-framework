@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from industrial_phm.adapters.aihub_power import iter_power_observations
+from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
     PowerHistoryBinding,
     project_power_observation,
@@ -30,7 +30,8 @@ def _load_tool(name):
     return module
 
 
-import_history = _load_tool("history").import_history
+history_tool = _load_tool("history")
+import_history = history_tool.import_history
 profile_archive = _load_tool("profile").profile_archive
 
 pytest.importorskip("ijson")
@@ -252,20 +253,90 @@ def test_file_raw_rejects_nonfinite_and_boolean_values(value):
         )
 
 
+def _seed_first_legacy_batch(archive, history, *, schema, batch_size):
+    """Write batch 0 as an import made before legacy schemas became retry-only."""
+    end = LOCAL + timedelta(seconds=1)
+    _, selection_id = history_tool.selection_identity(
+        archive_sha256(archive), MEMBER, _binding(), LOCAL, end, batch_size
+    )
+    records = [
+        r
+        for r in iter_power_observations(archive, MEMBER)
+        if LOCAL <= datetime.fromisoformat(r.timestamp_text) < end
+    ][:batch_size]
+    events = [
+        project_power_observation(
+            record,
+            archive=archive,
+            archive_digest=archive_sha256(archive),
+            archive_bytes=archive.stat().st_size,
+            binding=_binding(),
+            metadata_schema=schema,
+        )
+        for record in records
+    ]
+    return history.append_file_batch(events, batch_id=history_tool.batch_id(selection_id, 0))
+
+
+@pytest.mark.parametrize("schema", ["v1", "v2", "v3", "v4"])
+def test_legacy_schema_cannot_start_a_new_import(tmp_path, schema):
+    archive = _archive(tmp_path, (1.0,))
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    with pytest.raises(ValueError, match="retry-only"):
+        import_history(
+            archive,
+            MEMBER,
+            _binding(),
+            LOCAL,
+            LOCAL + timedelta(seconds=1),
+            history,
+            metadata_schema=schema,
+        )
+    assert history.query_file_events("research-source") == ()
+
+
+def test_interrupted_legacy_import_can_be_completed_with_its_schema(tmp_path):
+    archive = _archive(tmp_path)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    _seed_first_legacy_batch(archive, history, schema="v4", batch_size=1)
+    result = import_history(
+        archive,
+        MEMBER,
+        _binding(),
+        LOCAL,
+        LOCAL + timedelta(seconds=1),
+        history,
+        batch_size=1,
+        metadata_schema="v4",
+    )
+    assert (result["event_count"], result["batch_count"]) == (3, 3)
+    assert result["recovered_batch_count"] == 1
+    assert result["semantic_binding_version"] == "aihub-239-semantics-v2"
+    schemas = {
+        json.loads(e.source_metadata_json)["schema"]
+        for e in history.query_file_events("research-source")
+    }
+    assert schemas == {"aihub-239-history-v4"}
+
+
 def test_legacy_import_retries_without_rewriting_persisted_semantic_evidence(tmp_path):
     archive = _archive(tmp_path, (1.0,))
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
     )
     args = (archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history)
-    first = import_history(*args, metadata_schema="v1")
-    assert first["flushed_row_count"] > 0
-    assert first["metadata_schema"] == "aihub-239-history-v1"
-    assert first["semantic_binding_version"] == _binding().version
+    first = _seed_first_legacy_batch(archive, history, schema="v1", batch_size=2000)
     original = history.query_file_events("research-source")[0].source_metadata_json
+    assert json.loads(original)["schema"] == "aihub-239-history-v1"
     assert json.loads(original)["semantics"]["definition"]["property_name"] == "R상전류"
     retry = import_history(*args, metadata_schema="v1")
-    assert retry["snapshot_id"] == first["snapshot_id"]
+    assert retry["metadata_schema"] == "aihub-239-history-v1"
+    assert retry["semantic_binding_version"] == _binding().version
+    assert retry["snapshot_id"] == first.snapshot_id
     assert retry["recovered_batch_count"] == 1
     assert retry["flushed_row_count"] == 0
     # A new interpretation must not silently mutate immutable imported evidence.

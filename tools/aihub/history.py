@@ -22,6 +22,31 @@ from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 
 
+def selection_identity(
+    archive_digest: str,
+    member: str,
+    binding: PowerHistoryBinding,
+    start: datetime,
+    end: datetime,
+    batch_size: int,
+) -> tuple[dict[str, object], str]:
+    """Return the selection record and its id; the metadata schema is not part of it."""
+    selection: dict[str, object] = {
+        "archive_sha256": archive_digest,
+        "member": member,
+        "binding": asdict(binding),
+        "start_local": start.isoformat(),
+        "end_local": end.isoformat(),
+        "batch_size": batch_size,
+    }
+    selection_id = hashlib.sha256(json.dumps(selection, sort_keys=True).encode()).hexdigest()
+    return selection, selection_id
+
+
+def batch_id(selection_id: str, index: int) -> str:
+    return f"aihub239:{selection_id}:{index}"
+
+
 def import_history(
     archive: Path,
     member: str,
@@ -40,6 +65,8 @@ def import_history(
     boundaries fail on existing raw identity; they never silently duplicate rows.
     Newly appended rows are flushed from the SQLite catalog to Parquet every
     flush_every_batches batches and at the end; recovered batches need no flush.
+    A legacy metadata schema only continues an import whose first batch already
+    exists; a new selection always uses the default schema.
     """
     if start.tzinfo is not None or end.tzinfo is not None or end <= start:
         raise ValueError("selection must be an increasing naive source-local time range")
@@ -50,15 +77,8 @@ def import_history(
         raise ValueError("flush_every_batches must be between 1 and 10000")
     digest = archive_sha256(archive)
     archive_bytes = archive.stat().st_size
-    selection = {
-        "archive_sha256": digest,
-        "member": member,
-        "binding": asdict(binding),
-        "start_local": start.isoformat(),
-        "end_local": end.isoformat(),
-        "batch_size": batch_size,
-    }
-    selection_id = hashlib.sha256(json.dumps(selection, sort_keys=True).encode()).hexdigest()
+    selection, selection_id = selection_identity(digest, member, binding, start, end, batch_size)
+    retry_only = metadata_schema != AIHUB_239_DEFAULT_HISTORY_SCHEMA
     batch: list[FileBackfillEvent] = []
     count, batches, recovered, unflushed, flushed_rows = 0, 0, 0, 0, 0
 
@@ -69,12 +89,19 @@ def import_history(
 
     def commit() -> None:
         nonlocal count, batches, recovered, unflushed
-        batch_id = f"aihub239:{selection_id}:{batches}"
-        existing = history.get_file_batch_commit(batch, batch_id=batch_id)
+        current = batch_id(selection_id, batches)
+        existing = history.get_file_batch_commit(batch, batch_id=current)
         if existing is not None:
             recovered += 1
         else:
-            history.append_file_batch(batch, batch_id=batch_id)
+            if retry_only and batches == 0:
+                # Older schemas would apply open-by-default semantics to an archive
+                # nobody profiled; they exist only to finish an earlier import.
+                raise ValueError(
+                    f"metadata schema {metadata_schema} is retry-only and this selection has "
+                    f"no existing import; new imports use {AIHUB_239_DEFAULT_HISTORY_SCHEMA}"
+                )
+            history.append_file_batch(batch, batch_id=current)
             unflushed += 1
         count += len(batch)
         batches += 1

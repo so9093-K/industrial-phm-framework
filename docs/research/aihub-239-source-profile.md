@@ -136,7 +136,7 @@ Member median이 허용오차를 벗어난 곳은 보일러·압출기 네 membe
 | 압출기 `SourceData_214` (2323), `SourceData_385` (0) | 선간전압평균 / mean(선간) median 1.734–1.735 | 선간전압평균 |
 | 압출기 `SourceData_130` (device 2224, board 2) | √(P²+Q²)/(V·I) median 0.0625 | R/S/T상전류, 전류평균 |
 
-공기압축기에서는 다음 15개 member입니다. 같은 규칙으로 `semantics-v3`에 member 예외를 추가했습니다.
+공기압축기에서는 다음 14개 member입니다. 같은 규칙으로 `semantics-v3`에 member 예외를 추가했습니다.
 
 | Member | 벗어난 관계 | semantics-v3에서 unresolved로 두는 channel |
 | --- | --- | --- |
@@ -159,8 +159,11 @@ unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지�
   relation profile로 확인한 archive(위 세 SHA-256)에만 의미를 부여하고, 그 밖의 archive는 raw 값·timestamp·
   provenance를 그대로 적재하되 모든 channel의 의미·단위를 unresolved로 둡니다(fail-closed). v2는 처음 보는
   archive에도 확정 의미를 부여하므로 새 적재에 쓰지 않습니다.
-- v5는 unresolved 이유(archive가 profiled scope 밖, member 예외와 그 relation, 문서·데이터 불일치)를
-  `interpretation_evidence`에 남깁니다.
+- v5는 unresolved 이유(archive가 profiled scope 밖, member 예외와 그 relation, 해당 version에 게시된
+  canonical definition 없음)를 `interpretation_evidence`에 남깁니다. 마지막 경우의 구체적 근거(문서·데이터
+  불일치, pair 대응 미확정, 독립 검증 없음)는 위 dictionary 표가 소유합니다.
+- v1–v4는 **retry 전용**입니다. Importer는 같은 selection의 첫 batch가 이미 있을 때만 legacy schema를
+  허용하므로 중단된 이전 적재는 이어서 완료할 수 있지만, legacy schema로 새 selection을 시작할 수는 없습니다.
 - Import 결과에는 `metadata_schema`, `semantic_binding_version`, `semantic_dictionary_sha256`이 들어갑니다.
   Schema는 `selection_id`에 넣지 않아 기존 적재의 batch id가 유지됩니다.
 
