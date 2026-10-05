@@ -1,4 +1,8 @@
-"""Repeatable Phase 10 fault gate (#321): inject faults N times and judge by machine.
+"""Repeatable AI-Hub boiler 2297 replay fault/recovery gate.
+
+This harness is intentionally scoped to the bundled AI-Hub 239 boiler device 2297
+replay profile and its explicit phase-current identities; it is not a generic
+live-source fault harness.
 
 Runs the AI-Hub replay OPC UA server, the collection service and the analysis runner
 as separate processes, injects each fault scenario ``--repeat`` times, then checks:
@@ -42,9 +46,10 @@ from industrial_phm.apps import operations_app_path
 REPO = Path(__file__).resolve().parents[2]
 OPERATIONS_APP = operations_app_path()
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
-SOURCE_ID = "aihub239-replay-boiler-2297"
-OMITTED_CHANNEL = "T상전류"
-PEER_CHANNEL = "R상전류"
+# Deliberately fixed identities for the bundled boiler-2297 replay gate.
+AIHUB_BOILER_2297_AIHUB_BOILER_2297_SOURCE_ID = "aihub239-replay-boiler-2297"
+AIHUB_BOILER_2297_AIHUB_BOILER_2297_OMITTED_CHANNEL = "T상전류"
+AIHUB_BOILER_2297_AIHUB_BOILER_2297_PEER_CHANNEL = "R상전류"
 SCENARIOS = (
     "collector_stall",
     "source_stall",
@@ -504,7 +509,7 @@ class Stack:
         if not path.exists():
             return None
         try:
-            return SqliteAcquisitionTelemetryRepository(path).get(SOURCE_ID).last_received_at
+            return SqliteAcquisitionTelemetryRepository(path).get(AIHUB_BOILER_2297_SOURCE_ID).last_received_at
         except LookupError, sqlite3.Error, ValueError:
             return None
 
@@ -584,7 +589,7 @@ class Stack:
             assessed_at=sampled_at,
         )
         source = next(
-            item for item in context.snapshot.registered_sources if item.source_id == SOURCE_ID
+            item for item in context.snapshot.registered_sources if item.source_id == AIHUB_BOILER_2297_SOURCE_ID
         )
         source_view = AssetWorkspaceSource(
             source_id=source.source_id,
@@ -605,7 +610,7 @@ class Stack:
             lookback_seconds=60.0,
             point_budget=600,
         )
-        series = next(item for item in view.series if item.source_id == SOURCE_ID)
+        series = next(item for item in view.series if item.source_id == AIHUB_BOILER_2297_SOURCE_ID)
         latest = series.latest_point
         history = next(
             (item for item in context.snapshot.history_assets if item.asset_id == source.asset_id),
@@ -992,20 +997,20 @@ class Harness:
         s = self.stack
         self._observe_live(
             "before_missing",
-            OMITTED_CHANNEL,
+            AIHUB_BOILER_2297_OMITTED_CHANNEL,
             browser_expected=("Source flow · Receiving",),
         )
-        self._observe_live("before_missing_peer", PEER_CHANNEL)
+        self._observe_live("before_missing_peer", AIHUB_BOILER_2297_PEER_CHANNEL)
 
         # Missing phase: replay omits one current phase for three windows. The source
         # keeps receiving other channels; the selected channel must not fake continuity.
         fault = Fault("missing_phase", "missing_phase", _utc())
         s.stop(s.replay)
-        s.start_replay("--omit-channel", OMITTED_CHANNEL)
+        s.start_replay("--omit-channel", AIHUB_BOILER_2297_OMITTED_CHANNEL)
         omitted_from = _utc()
         time.sleep(95)
-        self._observe_live("during_missing", OMITTED_CHANNEL)
-        self._observe_live("during_missing_peer", PEER_CHANNEL)
+        self._observe_live("during_missing", AIHUB_BOILER_2297_OMITTED_CHANNEL)
+        self._observe_live("during_missing_peer", AIHUB_BOILER_2297_PEER_CHANNEL)
         self.omission = (omitted_from, _utc())
         s.stop(s.replay)
         s.start_replay()
@@ -1018,7 +1023,7 @@ class Harness:
         time.sleep(50)
         self._observe_live(
             "paused",
-            PEER_CHANNEL,
+            AIHUB_BOILER_2297_PEER_CHANNEL,
             browser_expected=("Source flow · No recent source data",),
         )
         self._observe_ui("source_stale")
@@ -1032,7 +1037,7 @@ class Harness:
         time.sleep(15)
         self._observe_live(
             "reconnecting",
-            PEER_CHANNEL,
+            AIHUB_BOILER_2297_PEER_CHANNEL,
             browser_expected=(
                 "Source flow · Connecting",
                 "Source flow · Reconnecting",
@@ -1044,14 +1049,14 @@ class Harness:
         self._recover_data(fault)
 
         _deadline = time.monotonic() + self.recovery_timeout
-        _recovered = self.stack.live_snapshot(OMITTED_CHANNEL)
+        _recovered = self.stack.live_snapshot(AIHUB_BOILER_2297_OMITTED_CHANNEL)
         _missing_event = self.live["during_missing"].get("channel_event_at")
         while time.monotonic() < _deadline:
             _event = _recovered.get("channel_event_at")
             if _event is not None and _event != _missing_event:
                 break
             time.sleep(1)
-            _recovered = self.stack.live_snapshot(OMITTED_CHANNEL)
+            _recovered = self.stack.live_snapshot(AIHUB_BOILER_2297_OMITTED_CHANNEL)
         self.live["recovered"] = _recovered
         if self.browser:
             self.live_renders["recovered"] = self.stack.browser_live_render(
@@ -1163,7 +1168,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
 
     root = harness.stack.root
     truth = load_ledger(root / "publish-ledger.jsonl")
-    observed = observed_events(root, SOURCE_ID)
+    observed = observed_events(root, AIHUB_BOILER_2297_SOURCE_ID)
     report = audit(truth, observed, since=audit_since, until=audit_until)
     stored = {(channel, at) for channel, at, _, _ in observed if at is not None}
     missing = [
@@ -1266,7 +1271,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
             harness.faults, metric_times, margin=timedelta(seconds=15)
         ),
         "missing_phase_explained": check_missing_phase(
-            OMITTED_CHANNEL, omission_windows, skipped_in_omission
+            AIHUB_BOILER_2297_OMITTED_CHANNEL, omission_windows, skipped_in_omission
         ),
         "ui_states_distinct": check_ui_states(harness.ui),
         "live_replay_observation_journey": check_live_replay_sequence(harness.live),
@@ -1320,7 +1325,7 @@ def _prepare(root: Path, endpoint: str, args: argparse.Namespace) -> None:
         sources,
         sources,
         SqliteCollectionControlRepository(root / "control.sqlite"),
-        SOURCE_ID,
+        AIHUB_BOILER_2297_SOURCE_ID,
         CollectionDesiredState.RUNNING,
         requested_at=_utc(),
     )
@@ -1403,7 +1408,7 @@ def main() -> None:
         verdict = judge(harness, audit_since=first, audit_until=audit_until)
     finally:
         stack.stop_all()
-    # Only an unfiltered N>=3 run with the browser check can stand in for the #321 gate.
+    # Only an unfiltered N>=3 run with the browser check qualifies as the full reliability gate.
     full = set(args.scenarios) == set(SCENARIOS) and args.repeat >= 3 and args.browser
     verdict["gate"] = "full" if full else "diagnostic"
     verdict["config"] = {
@@ -1421,7 +1426,7 @@ def main() -> None:
     outcome = "PASS" if verdict["passed"] else "FAIL"
     print(f"verdict ({verdict['gate']}): {outcome} -> {root / 'harness-verdict.json'}")
     if verdict["gate"] == "diagnostic":
-        print("note: partial scenarios, repeat < 3 or no --browser; this is not the #321 gate")
+        print("note: partial scenarios, repeat < 3 or no --browser; this is a diagnostic run")
     raise SystemExit(0 if verdict["passed"] else 1)
 
 
