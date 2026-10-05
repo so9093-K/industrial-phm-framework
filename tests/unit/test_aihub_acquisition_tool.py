@@ -102,6 +102,9 @@ def test_dataset_239_catalog_lists_every_observed_file_separately_from_presets()
         assert item.remote_path.endswith(
             f"/{split_dirs[item.split]}/{role_dirs[item.role]}/{item.archive_name}"
         )
+        number, equipment = item.archive_name.removesuffix(".zip").split(".", 1)
+        assert number.isdigit()
+        assert equipment == item.equipment_group
 
     catalog_keys = {item.filekey for item in files}
     presets = raw["presets"]
