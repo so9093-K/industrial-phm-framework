@@ -61,6 +61,10 @@ from industrial_phm.runtime.acquisition_telemetry import (
     SqliteAcquisitionTelemetryRepository,
 )
 from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
+from industrial_phm.runtime.operations_live import (
+    OperationsReadError,
+    list_operations_history_assets,
+)
 from industrial_phm.runtime.operations_app_wiring import (
     OperationsAppPaths,
     load_operations_source_registry_state,
@@ -476,8 +480,8 @@ def _load_history(
         reader = DuckLakeAssetHistory(
             DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
         )
-        return reader, reader.list_history_assets()
-    except Exception as error:
+        return reader, list_operations_history_assets(reader)
+    except OperationsReadError as error:
         _append_error(errors, "asset-history", error, assessed_at)
         return None, ()
 
