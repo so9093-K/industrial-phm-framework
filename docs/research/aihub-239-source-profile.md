@@ -20,6 +20,8 @@ profiler로 조사했습니다. 결과는 아래 SHA-256의 local bytes에 한�
 - 공기압축기 SHA-256: `ffde668bfab1d669fa7dc649fdcc9aaee30305af61c732852377c10818043119`
 
 공기압축기는 보일러·압출기 개발에 쓰지 않은 설비군에서 현재 abstraction을 확인하기 위해 추가했습니다(#403).
+대표 device와 구간, 사용자 설명과 주장 경계는
+[air-compressor reference asset profile](aihub-239-air-compressor-reference-profile.md)이 소유합니다.
 72개 member는 각각 서로 다른 device(board 1)이고 member당 7–40일, 2020-09-16–2021-02-06 범위입니다.
 Validation/raw 공기압축기(44051)도 같은 72개 device를 다른 기간으로 담고 있어, Training/Validation은
 device holdout이 아니라 기간 분할입니다. Validation archive는 후보 비교에만 사용했고 semantics 근거 범위에는
