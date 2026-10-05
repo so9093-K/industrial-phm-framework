@@ -32,6 +32,11 @@
 
 ### Fixed
 
+- Operations Assets → Signals가 collection 실행 중 "oldest_accepted_at must not be after sampled_at" 오류로
+  열리지 않던 문제를 고쳤습니다. 화면은 `sampled_at`을 먼저 정하고 history를 읽은 뒤 spool을 읽는데, 그 사이
+  collector가 받아들인 event 때문에 spool telemetry snapshot이 자기 불변식을 어겼습니다. Spool snapshot은 이제
+  관측한 가장 늦은 `accepted_at`보다 이른 시각으로 날짜를 매기지 않습니다.
+
 - Live window analysis와 Operations의 3상 불평형 결과 저장소를 SQLite(`SqlitePhaseUnbalanceRepository`, run마다
   한 row)로 바꿨습니다. 이전 JSON 저장소는 window마다 전체 결과를 다시 읽고 다시 써서 runner의 기록 비용과
   메모리가 누적 결과 수에 비례해 늘었습니다(결과 400건에서 기록 1건당 96 ms·7.7 MB; SQLite는 10,000건에서도

@@ -332,3 +332,27 @@ def test_backlog_reads_stay_consistent_while_events_are_accepted(tmp_path: Path)
         stop.set()
         thread.join()
     assert errors == []
+
+
+def test_telemetry_snapshot_is_never_dated_before_the_events_it_observed(tmp_path: Path) -> None:
+    # Operations picks sampled_at, reads history, then samples the spool. A running
+    # collector can accept events in between; the snapshot used to fail its own
+    # invariant (oldest_accepted_at after sampled_at) and blanked the Signals view.
+    spool = _spool(tmp_path / "spool.sqlite")
+    for index, offset in enumerate((10, 20)):
+        spool.accept_opcua_event(
+            _registered_event(collection_index=index),
+            connection_epoch=1,
+            event_index=index,
+            accepted_at=BASE + timedelta(seconds=offset),
+        )
+
+    early = spool.telemetry_snapshot(sampled_at=BASE + timedelta(seconds=5))
+    assert early.sampled_at == BASE + timedelta(seconds=20)
+    assert early.oldest_accepted_at == BASE + timedelta(seconds=10)
+    assert early.oldest_pending_age_seconds == 10.0
+    assert early.pending_event_count == 2
+
+    later = spool.telemetry_snapshot(sampled_at=BASE + timedelta(seconds=60))
+    assert later.sampled_at == BASE + timedelta(seconds=60)
+    assert later.oldest_pending_age_seconds == 50.0
