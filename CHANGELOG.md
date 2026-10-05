@@ -11,6 +11,16 @@
 
 ### Changed
 
+- AI-Hub 239 새 적재의 기본값을 metadata `aihub-239-history-v5` / `aihub-239-semantics-v3`로 바꿨습니다.
+  v3는 전체 archive source/relation profile로 확인한 archive(Training/raw 보일러·압출기·공기압축기 SHA-256)에만
+  의미·단위를 부여하고, 그 밖의 archive는 raw 값·timestamp·provenance를 그대로 적재하되 모든 channel을
+  unresolved로 둡니다(fail-closed). v2는 처음 보는 archive에도 확정 의미를 부여했습니다. 공기압축기 full profile에서
+  relation이 벗어난 14개 member 예외(모두 선간전압평균, 그중 member 135는 상전류도)를 추가했고, v5는 unresolved
+  이유를 `interpretation_evidence`에 남깁니다. v1–v4와 semantics-v1/v2는 수정하지 않으며, importer는 legacy
+  schema를 같은 selection의 첫 batch가 이미 있는 retry에만 허용합니다.
+  AI-Hub OPC UA replay(`demo aihub-boiler` 포함)도 semantics-v3로 binding하므로, v2로 준비된 기존 boiler demo
+  workspace는 source config 불일치로 시작을 거부합니다. 새 `--workspace`를 사용합니다.
+
 - Pre-release persisted migration surface를 종료했습니다. Operations workspace config는 current `industrial-phm-operations-runtime-v2`만 읽고 v1을 자동 upgrade하지 않습니다. `maintenance migrate-phase-unbalance-results`와 Operations의 legacy JSON migration warning을 제거하고, live/Operations 3상 결과 저장소는 `phase-unbalance.sqlite` 하나로 유지합니다. Offline/historical JSON repository와 기존 evidence/schema identity는 보존합니다(ADR-0022).
 
 - Pre-release Operations compatibility surface를 정리했습니다. 이동 전

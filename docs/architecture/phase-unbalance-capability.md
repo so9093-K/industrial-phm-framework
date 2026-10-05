@@ -13,7 +13,7 @@ unbalance % = max(|X_R − X̄|, |X_S − X̄|, |X_T − X̄|) / X̄ × 100,   X
 ```
 
 전압은 **상전압** 기준입니다. 선간전압 기준 정의(NEMA MG1 LVUR)는 R/S/T상선간전압 channel과 선간 pair의
-대응이 확정되지 않아 사용하지 않습니다(`aihub-239-semantics-v2`에서 unresolved). 두 정의의 값은 서로
+대응이 확정되지 않아 사용하지 않습니다(`aihub-239-semantics-v3`에서 unresolved). 두 정의의 값은 서로
 같지 않으므로 외부 기준값과 비교할 때 정의를 확인해야 합니다.
 
 ## 입력과 eligibility
@@ -40,8 +40,8 @@ unbalance % = max(|X_R − X̄|, |X_S − X̄|, |X_T − X̄|) / X̄ × 100,   X
 | 6 | `null-value` | 값이 null |
 | 7 | `low-signal` | 세 상 평균이 전압 50 V 또는 전류 1 A 미만(정지·미부하) |
 
-Semantics 조건 때문에 semantics-v2 예외 member, 이전 metadata(v1/v2) 적재, semantic binding이 없는 source의
-관측은 자동으로 제외됩니다. 모든 제외가 source data quality를 뜻하지는 않습니다.
+Semantics 조건 때문에 semantics-v2/v3 예외 member, semantics-v3 profiled scope 밖 archive, 이전 metadata(v1/v2)
+적재, semantic binding이 없는 source의 관측은 자동으로 제외됩니다. 모든 제외가 source data quality를 뜻하지는 않습니다.
 `null-value`, `conflicting-value`, `non-good-source-quality`만 `AnalysisRun.data_quality` warning으로
 올리고, `unconfirmed-semantics`, `incomplete-phases`, `no-recent-phase-value`, `low-signal`은 capability
 input eligibility/exclusion 근거로만 남깁니다.

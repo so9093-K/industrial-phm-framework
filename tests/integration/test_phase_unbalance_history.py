@@ -14,6 +14,7 @@ from industrial_phm.application.finding_review import (
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_analysis
 from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from tests.support.aihub import treat_archive_as_profiled
 
 pytest.importorskip("ijson")
 pytest.importorskip("duckdb")
@@ -44,9 +45,10 @@ def _archive(tmp_path):
     return path
 
 
-def test_recorded_snapshot_recomputes_identical_evidence_after_more_history(tmp_path):
+def test_recorded_snapshot_recomputes_identical_evidence_after_more_history(tmp_path, monkeypatch):
     import_history = _import_history()
     archive = _archive(tmp_path)
+    treat_archive_as_profiled(monkeypatch, archive)
     binding = PowerHistoryBinding(
         source_id="boiler-source",
         asset_id="boiler-asset",
@@ -70,7 +72,7 @@ def test_recorded_snapshot_recomputes_identical_evidence_after_more_history(tmp_
     first = run_phase_unbalance_analysis(history, **window)
     voltage = first.evidence.results[0]
     assert voltage.evaluated_samples == 2
-    assert first.evidence.semantic_versions == ("aihub-239-semantics-v2",)
+    assert first.evidence.semantic_versions == ("aihub-239-semantics-v3",)
     assert voltage.max_at.utcoffset() == timedelta(0)
 
     repository = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
