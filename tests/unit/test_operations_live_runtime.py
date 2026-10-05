@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from industrial_phm.application.asset_history import (
     HistoricalEventTimeBasis,
     HistoricalMeasurement,
@@ -164,3 +166,25 @@ def test_live_loader_anchors_recent_window_to_mapped_live_source(
         seconds=operations_live.DEFAULT_LIVE_LOOKBACK_SECONDS
     )
     assert view.series[0].latest_point == live_point
+
+
+def test_history_read_boundary_wraps_expected_storage_failure_only() -> None:
+    class _ExpectedFailureHistory:
+        def list_history_channels(self, _asset_id):
+            raise OSError("catalog unavailable")
+
+    with pytest.raises(operations_live.OperationsReadError, match="catalog unavailable"):
+        operations_live.list_operations_history_channels(
+            _ExpectedFailureHistory(),
+            "boiler-01",
+        )
+
+    class _ProgrammerFailureHistory:
+        def list_history_channels(self, _asset_id):
+            raise AssertionError("history invariant broken")
+
+    with pytest.raises(AssertionError, match="history invariant broken"):
+        operations_live.list_operations_history_channels(
+            _ProgrammerFailureHistory(),
+            "boiler-01",
+        )
