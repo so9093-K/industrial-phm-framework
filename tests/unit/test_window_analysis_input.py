@@ -27,6 +27,7 @@ from industrial_phm.application.phase_unbalance_state import (
     SqlitePhaseUnbalanceRepository,
     window_result_key,
 )
+
 from tests.support.window_analysis import END, PHASES, START, window_event as _event
 
 
