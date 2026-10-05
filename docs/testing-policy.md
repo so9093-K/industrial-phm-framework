@@ -94,7 +94,25 @@ property-based testing이나 mutation testing은 기본 도구가 아닙니다. 
 
 대표 후보는 canonical contract, split logic, serialization, artifact validation입니다.
 
-## 9. Review Checklist
+## 9. Critical Regression Ownership
+
+같은 failure를 여러 layer가 중복해서 보호하지 않도록 대표 regression의 primary owner를 명시합니다.
+보조 smoke나 integration coverage가 존재할 수 있지만, 아래 owner가 해당 failure 의미의 기준입니다.
+
+| Failure | Primary owner |
+| --- | --- |
+| OPC UA reconnect / delivery loss | live acquisition runtime contract / fault gate |
+| spool → DuckLake recovery와 idempotent replay | runtime contract |
+| observation window cursor / restart | window contract |
+| Operations first-run / navigation | Operations integration |
+| 실제 browser에서 Live observation 가시성 | acceptance / fault browser gate |
+| marimo same-cell `.value` runtime regression | marimo structural contract |
+| Operations UI의 concrete storage/runtime composition 침범 | Operations architecture import contract |
+| presenter의 단순 문구·HTML 모양 | 기본적으로 regression owner를 두지 않음 |
+
+새 회귀 테스트를 추가할 때는 먼저 이 표 또는 기존 테스트에서 같은 failure owner가 있는지 확인합니다.
+
+## 10. Review Checklist
 
 테스트 PR 리뷰에서는 다음을 확인합니다.
 

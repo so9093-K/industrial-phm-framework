@@ -1,10 +1,8 @@
 """Operations must render once analysis results and review requests exist."""
 
-import ast
 import runpy
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
 
@@ -24,9 +22,7 @@ from industrial_phm.runtime import OperationsWorkspace
 from tests.support.window_analysis import END, START
 from tests.support.window_analysis import window_event as _event
 
-REPO = Path(__file__).resolve().parents[2]
 OPERATIONS_APP = operations_app_path()
-APPS = [*sorted((REPO / "apps").glob("*.py")), OPERATIONS_APP]
 
 
 def _analysis():
@@ -180,43 +176,3 @@ def test_operations_keeps_reviewed_result_outside_recent_limit(tmp_path, monkeyp
     assert "bounded-run-0501" in loaded_ids
     queue_run_ids = {item.analysis_run_id for item in defs["investigation_queue"].items}
     assert "bounded-run-0000" in queue_run_ids
-
-
-def _ui_values_read_in_creating_cell(path: Path) -> list[str]:
-    """``x = mo.ui.*(...)`` followed by ``x.value`` in the same cell (not a callback)."""
-    tree = ast.parse(path.read_text())
-    problems = []
-    for cell in tree.body:
-        if not isinstance(cell, ast.FunctionDef):
-            continue
-        created = {
-            target.id
-            for node in ast.walk(cell)
-            if isinstance(node, ast.Assign)
-            and isinstance(node.value, ast.Call)
-            and ast.unparse(node.value.func).startswith("mo.ui.")
-            for target in node.targets
-            if isinstance(target, ast.Name)
-        }
-        callbacks = {
-            id(inner)
-            for node in ast.walk(cell)
-            if isinstance(node, ast.Lambda)
-            for inner in ast.walk(node)
-        }
-        problems += [
-            f"{path.name}:{node.lineno} {node.value.id}.value"
-            for node in ast.walk(cell)
-            if isinstance(node, ast.Attribute)
-            and node.attr == "value"
-            and isinstance(node.value, ast.Name)
-            and node.value.id in created
-            and id(node) not in callbacks
-        ]
-    return problems
-
-
-@pytest.mark.parametrize("path", APPS, ids=lambda path: path.name)
-def test_no_cell_reads_the_value_of_a_ui_element_it_creates(path):
-    # marimo raises at runtime and every dependent cell (the whole page) fails.
-    assert _ui_values_read_in_creating_cell(path) == []
