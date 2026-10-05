@@ -21,6 +21,7 @@ from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_wi
 from industrial_phm.apps import operations_app_path
 from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.runtime import OperationsWorkspace
+
 from tests.support.window_analysis import END, START, window_event as _event
 
 REPO = Path(__file__).resolve().parents[2]
