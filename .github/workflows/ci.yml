@@ -102,7 +102,7 @@ jobs:
           operations = force_all or any_path(
               "src/industrial_phm/apps/",
               "src/industrial_phm/presentation/",
-              "src/industrial_phm/runtime/operations",
+              "src/industrial_phm/runtime/",
               "src/industrial_phm/application/",
               "tests/acceptance/",
               "tests/support/",
