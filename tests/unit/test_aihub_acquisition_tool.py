@@ -83,6 +83,51 @@ def test_single_archive_preset_can_plan_existing_boiler_only(
     assert "44035" not in output
 
 
+def test_dataset_239_catalog_lists_every_observed_file_separately_from_presets() -> None:
+    raw = aihub_cli._read_preset(239)
+    files = [aihub_cli._parse_preset_file(item) for item in raw["files"]]
+    split_dirs = {"training": "1.Training", "validation": "2.Validation"}
+    role_dirs = {"raw": "원천데이터", "label": "라벨링데이터"}
+
+    assert len(files) == raw["observed_inventory"]["observed_file_count"] == 40
+    assert len({item.filekey for item in files}) == 40
+    assert {(item.equipment_group, item.split, item.role) for item in files} == {
+        (group, split, role)
+        for group in {item.equipment_group for item in files}
+        for split in split_dirs
+        for role in role_dirs
+    }
+    assert len({item.equipment_group for item in files}) == 10
+    for item in files:
+        assert item.remote_path.endswith(
+            f"/{split_dirs[item.split]}/{role_dirs[item.role]}/{item.archive_name}"
+        )
+
+    catalog_keys = {item.filekey for item in files}
+    presets = raw["presets"]
+    assert all(set(keys) <= catalog_keys for keys in presets.values())
+    assert len(set().union(*map(set, presets.values()))) < len(catalog_keys)
+
+
+def test_reference_candidate_plan_selects_only_validation_raw_archives(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert (
+        aihub_cli.main(
+            ["plan", "239", "--preset", "reference-candidates-validation", "--root", str(tmp_path)]
+        )
+        == 0
+    )
+
+    output = capsys.readouterr().out
+    assert "44051  validation/raw  공기압축기  57 MB" in output
+    assert "44049  validation/raw  펌프_일반모터  57 MB" in output
+    assert "보일러" not in output
+    assert "압출기" not in output
+    assert "114.0 MiB" in output
+
+
 def test_download_uses_required_auth_argument_and_preserves_archive_on_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

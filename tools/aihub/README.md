@@ -3,8 +3,13 @@
 이 디렉터리는 AI-Hub 공개 데이터의 **개발/연구용 local acquisition**을 재현하기 위한 tooling입니다.
 `src/industrial_phm`의 runtime capability가 아니며 framework code는 이 디렉터리를 import하지 않습니다.
 
-현재 preset은 dataset `239`의 실제 `aihubshell` file inventory를 기준으로 한 최소 bootstrap selection만
-소유합니다. 실제 원본 ZIP, API key, local manifest는 repository에 commit하지 않습니다.
+`presets/dataset-239.json`은 두 가지를 분리해서 소유합니다.
+
+- `files`: 2026-09-28 `aihubshell` inventory에서 관찰한 dataset `239` 전체 40개 file catalog
+  (10개 설비군 × Training/Validation × 원천/라벨링). 모든 file이 download 대상이라는 뜻이 아닙니다.
+- `presets`: catalog에서 고른 curated download selection. 실제로 받을 archive만 이름을 붙여 추가합니다.
+
+실제 원본 ZIP, API key, local manifest는 repository에 commit하지 않습니다.
 
 ## Local configuration
 
@@ -52,8 +57,10 @@ uv run python -m tools.aihub.cli plan 239 --preset bootstrap
 현재 preset은 `boiler`(Training/raw 보일러 `44033`), `extruder`(Training/raw 압출기 `44035`),
 `bootstrap`(두 archive 모두)을 제공합니다. 라벨링 데이터는 `boiler-label`(Training/label 보일러 `44023`),
 `extruder-label`(Training/label 압출기 `44025`), `bootstrap-label`(둘 다)로 받으며
-`archives/training/label/`에 보존합니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의
-합계는 근사치입니다.
+`archives/training/label/`에 보존합니다. 보일러·압출기 외 reference 설비군 후보는 validation 원천
+데이터로 먼저 비교합니다: `air-compressor-validation`(공기압축기 `44051`), `pump-motor-validation`
+(펌프_일반모터 `44049`), `reference-candidates-validation`(둘 다). AI-Hub file tree의 용량 표시는 반올림된
+값이므로 plan의 합계는 근사치입니다.
 
 명시적으로 다운로드합니다.
 

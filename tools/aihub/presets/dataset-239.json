@@ -4,10 +4,52 @@
   "title": "전력 설비 에너지 품질",
   "observed_inventory": {
     "aihubshell_version": "25.09.19 v0.6",
+    "observed_at": "2026-09-28T10:29:25Z",
+    "source_command": "aihubshell -mode l -datasetkey 239",
     "observed_file_count": 40,
     "note": "file sizes are rounded display values from aihubshell inventory"
   },
   "files": [
+    {
+      "filekey": 44029,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/1.펌프_일반모터.zip",
+      "archive_name": "1.펌프_일반모터.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "펌프_일반모터",
+      "declared_size": "423 MB",
+      "declared_size_bytes_approx": 443547648
+    },
+    {
+      "filekey": 44030,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/2.공조설비.zip",
+      "archive_name": "2.공조설비.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "공조설비",
+      "declared_size": "191 MB",
+      "declared_size_bytes_approx": 200278016
+    },
+    {
+      "filekey": 44031,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/3.공기압축기.zip",
+      "archive_name": "3.공기압축기.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "공기압축기",
+      "declared_size": "445 MB",
+      "declared_size_bytes_approx": 466616320
+    },
+    {
+      "filekey": 44032,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/4.공작기계.zip",
+      "archive_name": "4.공작기계.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "공작기계",
+      "declared_size": "868 MB",
+      "declared_size_bytes_approx": 910163968
+    },
     {
       "filekey": 44033,
       "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/5.보일러.zip",
@@ -17,6 +59,16 @@
       "equipment_group": "보일러",
       "declared_size": "59 MB",
       "declared_size_bytes_approx": 61865984
+    },
+    {
+      "filekey": 44034,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/6.가열로.zip",
+      "archive_name": "6.가열로.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "가열로",
+      "declared_size": "85 MB",
+      "declared_size_bytes_approx": 89128960
     },
     {
       "filekey": 44035,
@@ -29,6 +81,76 @@
       "declared_size_bytes_approx": 101711872
     },
     {
+      "filekey": 44036,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/8.사출기.zip",
+      "archive_name": "8.사출기.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "사출기",
+      "declared_size": "94 MB",
+      "declared_size_bytes_approx": 98566144
+    },
+    {
+      "filekey": 44037,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/9.주조기.zip",
+      "archive_name": "9.주조기.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "주조기",
+      "declared_size": "134 MB",
+      "declared_size_bytes_approx": 140509184
+    },
+    {
+      "filekey": 44038,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/원천데이터/10.열처리.zip",
+      "archive_name": "10.열처리.zip",
+      "split": "training",
+      "role": "raw",
+      "equipment_group": "열처리",
+      "declared_size": "482 MB",
+      "declared_size_bytes_approx": 505413632
+    },
+    {
+      "filekey": 44108,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/1.펌프_일반모터.zip",
+      "archive_name": "1.펌프_일반모터.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "펌프_일반모터",
+      "declared_size": "2 GB",
+      "declared_size_bytes_approx": 2147483648
+    },
+    {
+      "filekey": 44109,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/2.공조설비.zip",
+      "archive_name": "2.공조설비.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "공조설비",
+      "declared_size": "1007 MB",
+      "declared_size_bytes_approx": 1055916032
+    },
+    {
+      "filekey": 44110,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/3.공기압축기.zip",
+      "archive_name": "3.공기압축기.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "공기압축기",
+      "declared_size": "2 GB",
+      "declared_size_bytes_approx": 2147483648
+    },
+    {
+      "filekey": 44022,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/4.공작기계.zip",
+      "archive_name": "4.공작기계.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "공작기계",
+      "declared_size": "5 GB",
+      "declared_size_bytes_approx": 5368709120
+    },
+    {
       "filekey": 44023,
       "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/5.보일러.zip",
       "archive_name": "5.보일러.zip",
@@ -39,6 +161,16 @@
       "declared_size_bytes_approx": 328204288
     },
     {
+      "filekey": 44024,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/6.가열로.zip",
+      "archive_name": "6.가열로.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "가열로",
+      "declared_size": "447 MB",
+      "declared_size_bytes_approx": 468713472
+    },
+    {
       "filekey": 44025,
       "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/7.압출기.zip",
       "archive_name": "7.압출기.zip",
@@ -47,6 +179,236 @@
       "equipment_group": "압출기",
       "declared_size": "516 MB",
       "declared_size_bytes_approx": 541065216
+    },
+    {
+      "filekey": 44026,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/8.사출기.zip",
+      "archive_name": "8.사출기.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "사출기",
+      "declared_size": "483 MB",
+      "declared_size_bytes_approx": 506462208
+    },
+    {
+      "filekey": 44027,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/9.주조기.zip",
+      "archive_name": "9.주조기.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "주조기",
+      "declared_size": "706 MB",
+      "declared_size_bytes_approx": 740294656
+    },
+    {
+      "filekey": 44028,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/1.Training/라벨링데이터/10.열처리.zip",
+      "archive_name": "10.열처리.zip",
+      "split": "training",
+      "role": "label",
+      "equipment_group": "열처리",
+      "declared_size": "2 GB",
+      "declared_size_bytes_approx": 2147483648
+    },
+    {
+      "filekey": 44049,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/1.펌프_일반모터.zip",
+      "archive_name": "1.펌프_일반모터.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "펌프_일반모터",
+      "declared_size": "57 MB",
+      "declared_size_bytes_approx": 59768832
+    },
+    {
+      "filekey": 44050,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/2.공조설비.zip",
+      "archive_name": "2.공조설비.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "공조설비",
+      "declared_size": "24 MB",
+      "declared_size_bytes_approx": 25165824
+    },
+    {
+      "filekey": 44051,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/3.공기압축기.zip",
+      "archive_name": "3.공기압축기.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "공기압축기",
+      "declared_size": "57 MB",
+      "declared_size_bytes_approx": 59768832
+    },
+    {
+      "filekey": 44052,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/4.공작기계.zip",
+      "archive_name": "4.공작기계.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "공작기계",
+      "declared_size": "108 MB",
+      "declared_size_bytes_approx": 113246208
+    },
+    {
+      "filekey": 44053,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/5.보일러.zip",
+      "archive_name": "5.보일러.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "보일러",
+      "declared_size": "8 MB",
+      "declared_size_bytes_approx": 8388608
+    },
+    {
+      "filekey": 44054,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/6.가열로.zip",
+      "archive_name": "6.가열로.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "가열로",
+      "declared_size": "11 MB",
+      "declared_size_bytes_approx": 11534336
+    },
+    {
+      "filekey": 44055,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/7.압출기.zip",
+      "archive_name": "7.압출기.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "압출기",
+      "declared_size": "12 MB",
+      "declared_size_bytes_approx": 12582912
+    },
+    {
+      "filekey": 44056,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/8.사출기.zip",
+      "archive_name": "8.사출기.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "사출기",
+      "declared_size": "11 MB",
+      "declared_size_bytes_approx": 11534336
+    },
+    {
+      "filekey": 44057,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/9.주조기.zip",
+      "archive_name": "9.주조기.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "주조기",
+      "declared_size": "18 MB",
+      "declared_size_bytes_approx": 18874368
+    },
+    {
+      "filekey": 44058,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/원천데이터/10.열처리.zip",
+      "archive_name": "10.열처리.zip",
+      "split": "validation",
+      "role": "raw",
+      "equipment_group": "열처리",
+      "declared_size": "61 MB",
+      "declared_size_bytes_approx": 63963136
+    },
+    {
+      "filekey": 44039,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/1.펌프_일반모터.zip",
+      "archive_name": "1.펌프_일반모터.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "펌프_일반모터",
+      "declared_size": "301 MB",
+      "declared_size_bytes_approx": 315621376
+    },
+    {
+      "filekey": 44040,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/2.공조설비.zip",
+      "archive_name": "2.공조설비.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "공조설비",
+      "declared_size": "128 MB",
+      "declared_size_bytes_approx": 134217728
+    },
+    {
+      "filekey": 44041,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/3.공기압축기.zip",
+      "archive_name": "3.공기압축기.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "공기압축기",
+      "declared_size": "303 MB",
+      "declared_size_bytes_approx": 317718528
+    },
+    {
+      "filekey": 44042,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/4.공작기계.zip",
+      "archive_name": "4.공작기계.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "공작기계",
+      "declared_size": "601 MB",
+      "declared_size_bytes_approx": 630194176
+    },
+    {
+      "filekey": 44043,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/5.보일러.zip",
+      "archive_name": "5.보일러.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "보일러",
+      "declared_size": "42 MB",
+      "declared_size_bytes_approx": 44040192
+    },
+    {
+      "filekey": 44044,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/6.가열로.zip",
+      "archive_name": "6.가열로.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "가열로",
+      "declared_size": "58 MB",
+      "declared_size_bytes_approx": 60817408
+    },
+    {
+      "filekey": 44045,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/7.압출기.zip",
+      "archive_name": "7.압출기.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "압출기",
+      "declared_size": "62 MB",
+      "declared_size_bytes_approx": 65011712
+    },
+    {
+      "filekey": 44046,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/8.사출기.zip",
+      "archive_name": "8.사출기.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "사출기",
+      "declared_size": "60 MB",
+      "declared_size_bytes_approx": 62914560
+    },
+    {
+      "filekey": 44047,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/9.주조기.zip",
+      "archive_name": "9.주조기.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "주조기",
+      "declared_size": "94 MB",
+      "declared_size_bytes_approx": 98566144
+    },
+    {
+      "filekey": 44048,
+      "remote_path": "149.전력 설비 에너지 품질/01.데이터/2.Validation/라벨링데이터/10.열처리.zip",
+      "archive_name": "10.열처리.zip",
+      "split": "validation",
+      "role": "label",
+      "equipment_group": "열처리",
+      "declared_size": "324 MB",
+      "declared_size_bytes_approx": 339738624
     }
   ],
   "presets": {
@@ -69,6 +431,16 @@
     "bootstrap-label": [
       44023,
       44025
+    ],
+    "air-compressor-validation": [
+      44051
+    ],
+    "pump-motor-validation": [
+      44049
+    ],
+    "reference-candidates-validation": [
+      44051,
+      44049
     ]
   }
 }
