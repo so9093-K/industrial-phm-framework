@@ -19,6 +19,7 @@ from industrial_phm.presentation.measurement_history import (
     measurement_aggregation_summary,
     measurement_history_rows,
 )
+from tests.support.aihub import treat_archive_as_profiled
 
 
 def _load_tool(name):
@@ -77,8 +78,9 @@ def _binding():
     )
 
 
-def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path):
+def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path, monkeypatch):
     archive = _archive(tmp_path)
+    treat_archive_as_profiled(monkeypatch, archive)
     records = tuple(iter_power_observations(archive, MEMBER))
     assert [r.value for r in records] == [1.0, None, 2.0]
     assert records[0].device_id == "7303"
@@ -94,8 +96,8 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     )
     assert first["event_count"] == 3
     assert first["snapshot_id"] > 0
-    assert first["metadata_schema"] == "aihub-239-history-v4"
-    assert first["semantic_binding_version"] == "aihub-239-semantics-v2"
+    assert first["metadata_schema"] == "aihub-239-history-v5"
+    assert first["semantic_binding_version"] == "aihub-239-semantics-v3"
     assert again["recovered_batch_count"] == 1
     assert first["snapshot_id"] == again["snapshot_id"]
     restored = history.query_file_events("research-source")
@@ -104,8 +106,8 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert metadata["raw_timestamp"] == "2021-02-03 07:01:07"
     assert metadata["binding"]["timezone_evidence"] == _binding().timezone_evidence
     # R상전류 is one of the items where the provider unit table and data agree.
-    assert metadata["schema"] == "aihub-239-history-v4"
-    assert metadata["semantics"]["version"] == "aihub-239-semantics-v2"
+    assert metadata["schema"] == "aihub-239-history-v5"
+    assert metadata["semantics"]["version"] == "aihub-239-semantics-v3"
     assert metadata["semantics"]["definition"]["observed_property"] == "phase current"
     assert metadata["semantics"]["definition"]["unit"] == "A"
     assert "guideline v1.5" in metadata["semantics"]["definition"]["unit_evidence"]
@@ -144,6 +146,28 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert latest_row["event_time_basis"] == "source-timestamp"
     with pytest.raises(ValueError, match="already exists"):
         import_history(archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=2), history)
+
+
+def test_unprofiled_archive_keeps_raw_values_but_leaves_meaning_unresolved(tmp_path):
+    archive = _archive(tmp_path, (1.0,))
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    result = import_history(
+        archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history
+    )
+    assert result["metadata_schema"] == "aihub-239-history-v5"
+    (event,) = history.query_file_events("research-source")
+    assert event.value == 1.0
+    semantics = json.loads(event.source_metadata_json)["semantics"]
+    assert semantics["version"] == "aihub-239-semantics-v3"
+    assert semantics["definition"]["observed_property"] is None
+    assert semantics["definition"]["unit"] is None
+    assert semantics["interpretation_evidence"].endswith(
+        "unresolved: archive sha256 is outside the aihub-239-semantics-v3 profiled evidence scope"
+    )
+    latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
+    assert latest_measurement_rows(latest, as_of=UTC_START)[0]["observed_property"] == "unresolved"
 
 
 def test_reader_rejects_invalid_numeric_values_and_binding_guesses(tmp_path):

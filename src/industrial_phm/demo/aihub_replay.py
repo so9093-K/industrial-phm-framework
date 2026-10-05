@@ -18,7 +18,7 @@ from uuid import uuid4
 
 from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
-    AIHUB_239_SEMANTICS_V2,
+    AIHUB_239_SEMANTICS_V3,
     PowerHistoryBinding,
     channel_definition,
 )
@@ -131,7 +131,7 @@ def semantic_bindings(
     bindings = []
     for channel in channels:
         definition = channel_definition(
-            AIHUB_239_SEMANTICS_V2,
+            AIHUB_239_SEMANTICS_V3,
             channel,
             archive_sha256=archive_digest,
             member=member,
@@ -142,7 +142,7 @@ def semantic_bindings(
             ChannelSemanticBinding(
                 source_id=source_id,
                 channel_id=channel,
-                version=AIHUB_239_SEMANTICS_V2,
+                version=AIHUB_239_SEMANTICS_V3,
                 definition=definition,
                 interpretation_evidence=(
                     "AI-Hub 239 ITEM_NAME replayed unchanged over local OPC UA; provider unit "

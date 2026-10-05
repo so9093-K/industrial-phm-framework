@@ -11,10 +11,11 @@ from pathlib import Path
 
 from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
+    AIHUB_239_DEFAULT_HISTORY_SCHEMA,
+    AIHUB_239_HISTORY_SCHEMAS,
     AIHUB_239_SEMANTICS_DIGESTS,
-    AIHUB_239_SEMANTICS_V1,
-    AIHUB_239_SEMANTICS_V2,
     PowerHistoryBinding,
+    history_schema_semantics,
     project_power_observation,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
@@ -30,7 +31,7 @@ def import_history(
     history: DuckLakeAssetHistory,
     *,
     batch_size: int = 2000,
-    metadata_schema: str = "v4",
+    metadata_schema: str = AIHUB_239_DEFAULT_HISTORY_SCHEMA,
     flush_every_batches: int = 10,
 ) -> dict[str, object]:
     """Use local source time for selection; normalize only with the explicit binding.
@@ -44,8 +45,7 @@ def import_history(
         raise ValueError("selection must be an increasing naive source-local time range")
     if isinstance(batch_size, bool) or not 1 <= batch_size <= 10000:
         raise ValueError("batch_size must be between 1 and 10000")
-    if metadata_schema not in {"v1", "v2", "v3", "v4"}:
-        raise ValueError("metadata_schema must be v1, v2, v3 or v4")
+    version = history_schema_semantics(metadata_schema)
     if isinstance(flush_every_batches, bool) or not 1 <= flush_every_batches <= 10000:
         raise ValueError("flush_every_batches must be between 1 and 10000")
     digest = archive_sha256(archive)
@@ -109,7 +109,6 @@ def import_history(
         flush()
     # The schema is not part of selection_id, so batch ids of earlier imports
     # stay resumable; the result states which interpretation was written.
-    version = {"v3": AIHUB_239_SEMANTICS_V1, "v4": AIHUB_239_SEMANTICS_V2}.get(metadata_schema)
     semantics = {
         "semantic_binding_version": version or binding.version,
         "semantic_dictionary_sha256": AIHUB_239_SEMANTICS_DIGESTS.get(version or ""),
@@ -138,9 +137,12 @@ def main() -> None:
     parser.add_argument("--ducklake-data", type=Path, required=True)
     parser.add_argument(
         "--metadata-schema",
-        choices=("v1", "v2", "v3", "v4"),
-        default="v4",
-        help="v1-v3 only for exact retry of an earlier import; new imports use v4",
+        choices=AIHUB_239_HISTORY_SCHEMAS,
+        default=AIHUB_239_DEFAULT_HISTORY_SCHEMA,
+        help=(
+            "v1-v4 only for exact retry of an earlier import; "
+            f"new imports use {AIHUB_239_DEFAULT_HISTORY_SCHEMA}"
+        ),
     )
     parser.add_argument(
         "--flush-every-batches",

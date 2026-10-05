@@ -2,20 +2,28 @@
 
 ## Scope and evidence
 
-Training/raw 보일러(filekey 44033)와 압출기(44035) ZIP의 모든 JSON을 local streaming profiler로
-조사했습니다. 결과는 아래 SHA-256의 local bytes에 한정되며 publisher checksum이나 전체 데이터셋의
+Training/raw 보일러(filekey 44033), 압출기(44035), 공기압축기(44031) ZIP의 모든 JSON을 local streaming
+profiler로 조사했습니다. 결과는 아래 SHA-256의 local bytes에 한정되며 publisher checksum이나 전체 데이터셋의
 보장을 뜻하지 않습니다. 재현 방법은 [tooling README](../../tools/aihub/README.md)에 있습니다.
 
 | Archive | JSON | Records | Null | Extra duplicate records | Conflicting timestamp/channel groups |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | 보일러 | 14 | 13,274,603 | 105 | 13 | 6 |
 | 압출기 | 15 | 17,649,075 | 11,891 | 9 | 5 |
+| 공기압축기 | 72 | 84,685,346 | 48 | 54 | 32 |
 
 중복 통계는 member 내부 timestamp/channel 기준입니다. null과 숫자는 다른 값으로 계산하고, 같은 값의
 반복도 삭제하지 않습니다. 서로 다른 member/device의 같은 시각은 충돌로 합치지 않습니다.
 
 - 보일러 SHA-256: `87ad1f77172f549c5aa5f78a857ddd8b02cb010a08af67ea64a3cf4c5a824023`
 - 압출기 SHA-256: `7fd3a50f1222a695fc440ef2d4e8f2b431dd419b2249b60a6bc0ab34d5472a17`
+- 공기압축기 SHA-256: `ffde668bfab1d669fa7dc649fdcc9aaee30305af61c732852377c10818043119`
+
+공기압축기는 보일러·압출기 개발에 쓰지 않은 설비군에서 현재 abstraction을 확인하기 위해 추가했습니다(#403).
+72개 member는 각각 서로 다른 device(board 1)이고 member당 7–40일, 2020-09-16–2021-02-06 범위입니다.
+Validation/raw 공기압축기(44051)도 같은 72개 device를 다른 기간으로 담고 있어, Training/Validation은
+device holdout이 아니라 기간 분할입니다. Validation archive는 후보 비교에만 사용했고 semantics 근거 범위에는
+넣지 않았습니다.
 
 ## Observed source contract
 
@@ -24,13 +32,15 @@ Training/raw 보일러(filekey 44033)와 압출기(44035) ZIP의 모든 JSON을 
 - Timestamp는 offset 없는 `YYYY-MM-DD HH:MM:SS`입니다. 주로 60초와 다른 간격이 함께 관측됩니다.
 - 한 시각에 35개가 모두 있는 경우 외에 11개/24개로 나뉜 경우도 있습니다. 이를 자동 정렬하거나
   오류로 판정하지 않습니다. Sampling cadence와 aggregation window는 별개입니다.
-- 압출기에서는 한 timestamp에 19개 또는 27개 channel만 관측된 경우도 있습니다.
+- 압출기에서는 한 timestamp에 19개 또는 27개 channel만 관측된 경우도 있습니다. 공기압축기도 9개 member에서
+  19/24/27개 channel timestamp가 소수 관측됩니다(35개 완전 timestamp 99.88%).
+- 공기압축기 cadence는 60초가 99.63%입니다. `SourceData_231`은 111초/9초 간격이 번갈아 약 6% 관측됩니다.
 - 파일 suffix는 device ID가 아닙니다. `SourceData_391.json`의 `DEVICE_ID`는 7303입니다.
 
 ## Measurement dictionary
 
 Raw ITEM_NAME은 channel identity입니다. 의미·단위는 provider 문서와 실제 데이터가 **둘 다** 뒷받침할 때만
-semantics dictionary에 기록합니다(현재 `aihub-239-semantics-v2`, history metadata v4). 문서의 "평균"은 시간 평균이 아니라 **3상 평균**
+semantics dictionary에 기록합니다(현재 `aihub-239-semantics-v3`, history metadata v5). 문서의 "평균"은 시간 평균이 아니라 **3상 평균**
 (power는 실제로 3상 합)입니다. 1분 sample 안의 시간 집계 방식(순시값/구간 평균)은 문서에 유효·무효전력만
 "순시값"으로 적혀 있고 나머지는 미확정입니다. Source timezone은 문서에 없어 계속 설정 가정입니다.
 
@@ -89,7 +99,7 @@ uv run --no-sync python -m tools.aihub.relation_profile \
 
 - 제외: null channel 값(보일러 105, 압출기 11,891), 같은 timestamp의 충돌 값(보일러 6, 압출기 5)은 평균하지
   않고 제외합니다. 저신호 sample(상전류 < 1 A, |역률| < 0.3, 상 합계 ≤ 0.5)도 제외하고 사유별로 셉니다.
-- 합계는 두 archive 29 member, 888,144 timestamp입니다.
+- 합계는 보일러·압출기 29 member, 888,144 timestamp입니다. 공기압축기는 아래 별도 표에 있습니다.
 
 | 관계 (허용오차) | 보일러: 평가 수 / 허용오차 안 / member median 범위 | 압출기: 평가 수 / 허용오차 안 / member median 범위 |
 | --- | --- | --- |
@@ -103,7 +113,21 @@ uv run --no-sync python -m tools.aihub.relation_profile \
 | 무효전력평균 / sum(R,S,T) = 1 (±1%) | 79,999 / 99.5% / 1.000 | 340,046 / 98.7% / 1.000 |
 | 주파수 59.5–60.5 Hz | 379,271 / 93.4% | 508,861 / 96.7% |
 
-Member median이 허용오차를 벗어난 곳은 다음 네 member입니다. 전체 archive로 확인하기 전(5개 member)에
+공기압축기 72 member, 2,420,566 timestamp입니다(제외: null 48, 충돌 32).
+
+| 관계 (허용오차) | 공기압축기: 평가 수 / 허용오차 안 / member median 범위 |
+| --- | --- |
+| 선간전압평균 / 상전압평균 = √3 (±2%) | 2,332,387 / 100.0% / 1.726–1.740 |
+| 상전압평균 / mean(R,S,T) = 1 (±1%) | 2,329,491 / 99.99% / 1.000 |
+| 선간전압평균 / mean(R,S,T 선간) = 1 (±1%) | 2,329,492 / 76.4% / 1.000–1.740 |
+| 전류평균 / mean(R,S,T) = 1 (±1%) | 1,749,126 / 99.7% / 1.000 |
+| √(P²+Q²) / (V·I) = 1 (±5%, 상별) | 4,955,268 / 96.9% / 0.997–1.143 |
+| \|P / (V·I·PF)\| = 1 (±5%, 상별) | 4,864,481 / 96.7% / 1.000–2.965 |
+| 유효전력평균 / sum(R,S,T) = 1 (±1%) | 1,677,032 / 99.7% / 1.000 |
+| 무효전력평균 / sum(R,S,T) = 1 (±1%) | 1,675,989 / 99.7% / 1.000 |
+| 주파수 59.5–60.5 Hz | 2,420,548 / 91.1% |
+
+Member median이 허용오차를 벗어난 곳은 보일러·압출기 네 member입니다. 전체 archive로 확인하기 전(5개 member)에
 만든 `semantics-v1`은 이 예외를 몰랐습니다.
 
 | Member | 벗어난 관계 | semantics-v2에서 unresolved로 두는 channel |
@@ -111,6 +135,13 @@ Member median이 허용오차를 벗어난 곳은 다음 네 member입니다. �
 | 보일러 `SourceData_364` (device 7277) | 선간/상전압 median 1.666 | R/S/T상전압, 상전압평균, 선간전압평균 |
 | 압출기 `SourceData_214` (2323), `SourceData_385` (0) | 선간전압평균 / mean(선간) median 1.734–1.735 | 선간전압평균 |
 | 압출기 `SourceData_130` (device 2224, board 2) | √(P²+Q²)/(V·I) median 0.0625 | R/S/T상전류, 전류평균 |
+
+공기압축기에서는 다음 15개 member입니다. 같은 규칙으로 `semantics-v3`에 member 예외를 추가했습니다.
+
+| Member | 벗어난 관계 | semantics-v3에서 unresolved로 두는 channel |
+| --- | --- | --- |
+| 공기압축기 `SourceData_34`, `38`, `44`, `48`, `76`, `137`, `138`, `232`, `233`, `336`–`339` | 선간전압평균 / mean(선간) median 1.726–1.740 | 선간전압평균 |
+| 공기압축기 `SourceData_135` | 선간전압평균 / mean(선간) median 1.732, √(P²+Q²)/(V·I) median 1.143 | 선간전압평균, R/S/T상전류, 전류평균 |
 
 주파수의 대역 밖 값(0 Hz, 57 Hz대)은 설비 정지·계측 상태로 보이며 단위가 아니라 값 품질 문제이므로
 unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지는 capability의 eligibility 규칙이 정합니다.
@@ -121,8 +152,15 @@ unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지�
   property, scope, statistic, unit, evidence 문구, member 예외)가 조금이라도 바뀌면 새 version입니다.
 - 게시된 version은 수정하지 않습니다. 각 version의 payload SHA-256을 코드에 고정하고 contract test가
   확인합니다(`AIHUB_239_SEMANTICS_DIGESTS`).
-- Metadata schema와 version: v1/v2는 모든 항목 미확정, v3 → `semantics-v1`, **v4 → `semantics-v2`(기본값)**.
-  이전 schema는 기존 적재의 exact retry에만 씁니다. 이미 적재된 observation은 자동으로 재해석하지 않습니다.
+- Metadata schema와 version: v1/v2는 모든 항목 미확정, v3 → `semantics-v1`, v4 → `semantics-v2`,
+  **v5 → `semantics-v3`(기본값)**. 이전 schema는 기존 적재의 exact retry에만 씁니다. 이미 적재된
+  observation은 자동으로 재해석하지 않습니다.
+- `semantics-v3`은 **profiled archive scope**를 payload에 포함합니다. 모든 member를 source profile과
+  relation profile로 확인한 archive(위 세 SHA-256)에만 의미를 부여하고, 그 밖의 archive는 raw 값·timestamp·
+  provenance를 그대로 적재하되 모든 channel의 의미·단위를 unresolved로 둡니다(fail-closed). v2는 처음 보는
+  archive에도 확정 의미를 부여하므로 새 적재에 쓰지 않습니다.
+- v5는 unresolved 이유(archive가 profiled scope 밖, member 예외와 그 relation, 문서·데이터 불일치)를
+  `interpretation_evidence`에 남깁니다.
 - Import 결과에는 `metadata_schema`, `semantic_binding_version`, `semantic_dictionary_sha256`이 들어갑니다.
   Schema는 `selection_id`에 넣지 않아 기존 적재의 batch id가 유지됩니다.
 
@@ -140,7 +178,7 @@ unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지�
   가정입니다. 두 값 모두 binding의 evidence/version과 함께 저장하고 검증된 source fact로 취급하지 않습니다.
 - **Unresolved:** 물리 설비 identity, source timezone, 위 표의 unresolved 항목 단위, sample 내부 시간 집계.
 
-다른 archive/version을 조사하면 그 scope와 근거를 추가합니다. 두 설비군에서 확인한 공통점만으로
+다른 archive/version을 조사하면 그 scope와 근거를 추가합니다. 세 설비군에서 확인한 공통점만으로
 전체 데이터셋의 불변 schema를 선언하지 않습니다. 상세 실행 결과와 원본은 Git에 넣지 않습니다.
 
 ## Actual historical slice
@@ -156,8 +194,9 @@ unit을 바꾸지 않습니다. 이 값을 분석에서 어떻게 제외할지�
 
 ## Interpretation and quality boundary
 
-새 적재는 metadata v4입니다. 위 표에서 확인된 항목만 `aihub-239-semantics-v2`의 의미·단위·근거를 갖고
-나머지는 `observed_property=None`, 단위 unknown입니다. v3은 `semantics-v1`, v2는 모든 항목이 미확정인 이전 형식이며, v1의
+새 적재는 metadata v5입니다. Profiled archive에서 위 표로 확인된 항목만 `aihub-239-semantics-v3`의
+의미·단위·근거를 갖고 나머지는 `observed_property=None`, 단위 unknown입니다. v4는 `semantics-v2`, v3은
+`semantics-v1`, v2는 모든 항목이 미확정인 이전 형식이며, v1의
 property_name은 legacy label로 표시합니다. 이미 적재된 v1/v2 JSON은 재작성하지 않습니다.
 FILE의 source quality는 unknown입니다. 숫자 존재/present와 null은 별도 availability이며 protocol Good이 아닙니다.
 기존 history `status_good` 저장 필드는 FILE에서 availability를 담는 호환 필드로 유지하되,

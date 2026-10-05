@@ -174,9 +174,10 @@ site server during local validation; it is not a production connector.
   selected range and channels.
 - OPC UA DataChange reports changed values only, as on site, so unchanged recorded values raise no
   notification and a phase can be absent at many timestamps.
-- Measurement meaning is bound only for channels the AI-Hub 239 semantics-v2 dictionary resolves
+- Measurement meaning is bound only for channels the AI-Hub 239 semantics-v3 dictionary resolves
   (phase voltages/currents, their means, line voltage mean, frequency); power, power factor, energy,
-  harmonics and temperature stay unresolved.
+  harmonics and temperature stay unresolved. An archive outside the semantics-v3 profiled scope is
+  replayed with no bound meaning at all.
 
 The selection below (device 2297, 2020-11-14 06:00-12:30 local) contains a stopped period, a start at
 08:11, a 3.7-hour run and a stop at 11:51. The raw archive is local only (see `tools/aihub/README.md`).

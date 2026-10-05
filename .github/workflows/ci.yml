@@ -95,8 +95,12 @@ jobs:
               "tests/contract/test_window_",
               "tests/contract/test_live_",
               "tests/integration/test_acquisition_",
-              "tests/integration/test_aihub_history.py",
-              "tests/integration/test_aihub_opcua_replay.py",
+              "tests/integration/test_aihub_",
+              "tests/integration/test_phase_unbalance_history.py",
+              "tests/support/aihub.py",
+              "src/industrial_phm/adapters/aihub_",
+              "src/industrial_phm/demo/aihub_",
+              "tools/aihub/",
               "tools/opcua/",
           )
           operations = force_all or any_path(
@@ -277,7 +281,10 @@ jobs:
       - name: Validate raw power history contract with synthetic archives
         run: |
           uv run --locked --extra aihub --extra history pytest \
-            tests/integration/test_aihub_history.py
+            tests/integration/test_aihub_history.py \
+            tests/integration/test_aihub_relation_profile.py \
+            tests/integration/test_aihub_label_profile.py \
+            tests/integration/test_phase_unbalance_history.py
 
       - name: Validate AI-Hub OPC UA replay source with synthetic archives
         run: |
