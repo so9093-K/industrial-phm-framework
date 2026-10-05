@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
@@ -187,7 +188,7 @@ def load_operations_live_observation(
             source_ids=mapped_source_ids,
             sampled_at=sampled_at,
         )
-    except (OSError, ValueError) as error:
+    except (OSError, sqlite3.Error, ValueError) as error:
         detail = str(error).strip() or type(error).__name__
         raise OperationsReadError(detail) from error
     return build_live_observation_view(
