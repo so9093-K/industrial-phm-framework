@@ -90,7 +90,6 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | deployment preflight / systemd reference | **지원** | `validate deployment <absolute-root>`가 실제 service user 기준 runtime dependency, config/plan, workspace access, supervisor/history lock, UI port를 검증. reference unit은 foreground `operations start`, `Restart=on-failure`, `KillMode=mixed`, bounded restart/stop policy를 사용 |
 | installable Operations application | **지원** | canonical Operations app이 wheel의 `industrial_phm.apps`에 포함되고 `operations` extra가 marimo + history/OPC UA runtime dependencies를 제공. local supervisor가 packaged app을 `127.0.0.1` loopback-only, no-token UI child로 실행. shared/public host 노출은 미지원 |
 | operational CLI taxonomy | **지원** | normal node lifecycle=`operations`, recovery/history=`maintenance`, deployment gates=`validate`, service/source plumbing=`internal`. 이동 전 `operations` spelling은 더 이상 rewrite하지 않음 |
-| 특정 live OPC UA endpoint의 update/deadband/timestamp 특성 판정 | **미제공** | synthetic/replay 검증은 collection·history·analysis pipeline을 검증하며, 특정 live endpoint의 update/deadband/timestamp 동작을 대신 검증하지 않음. Replay의 publish interval/deadband는 reference configuration임 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
 | HA / distributed coordination / leader election | **미제공** | local-first runtime 경계 |
 | OPC UA username/password/certificate/security-policy configuration | **미제공** | 현재 connector는 anonymous local/dev 경계를 사용 |
