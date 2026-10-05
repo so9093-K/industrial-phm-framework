@@ -47,9 +47,9 @@ REPO = Path(__file__).resolve().parents[2]
 OPERATIONS_APP = operations_app_path()
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
 # Deliberately fixed identities for the bundled boiler-2297 replay gate.
-AIHUB_BOILER_2297_AIHUB_BOILER_2297_SOURCE_ID = "aihub239-replay-boiler-2297"
-AIHUB_BOILER_2297_AIHUB_BOILER_2297_OMITTED_CHANNEL = "T상전류"
-AIHUB_BOILER_2297_AIHUB_BOILER_2297_PEER_CHANNEL = "R상전류"
+AIHUB_BOILER_2297_SOURCE_ID = "aihub239-replay-boiler-2297"
+AIHUB_BOILER_2297_OMITTED_CHANNEL = "T상전류"
+AIHUB_BOILER_2297_PEER_CHANNEL = "R상전류"
 SCENARIOS = (
     "collector_stall",
     "source_stall",
