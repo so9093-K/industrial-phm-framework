@@ -10,6 +10,7 @@
 - [Dataset Selection and Acquisition Research](dataset-selection.md)
 - [PHM Industry Direction and Research Context (2025–2026)](phm-industry-direction.md)
 - [AI-Hub 239 Power Equipment Source Profile](aihub-239-source-profile.md)
+- [AI-Hub 239 Air-compressor Reference Asset Profile](aihub-239-air-compressor-reference-profile.md)
 - [XJTU-SY Local Source Profile](xjtu-source-profile.md)
 - [IMS Bearing Data Set Source Profile](ims-source-profile.md)
 - [MIMII DUE Source Profile](mimii-due-source-profile.md)
