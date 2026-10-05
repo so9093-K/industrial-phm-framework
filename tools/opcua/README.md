@@ -223,6 +223,10 @@ Fault scenarios for Operations validation:
 
 ## Repeatable live fault/recovery gate
 
+`tools/opcua/fault_harness.py` is intentionally scoped to the bundled AI-Hub 239 boiler device 2297
+replay profile and its explicit R/T phase-current identities. It is not a generic live-source fault
+harness; a different source profile needs its own preset/CLI contract before reusing this gate.
+
 `tools/opcua/fault_harness.py` runs the replay, the collection service and the analysis runner as
 separate processes, injects every scenario `--repeat` times and judges the run by machine. Exit code 0
 only when every check passes; the verdict is written to `<root>/harness-verdict.json`.
