@@ -418,6 +418,9 @@
     "extruder": [
       44035
     ],
+    "air-compressor": [
+      44031
+    ],
     "bootstrap": [
       44033,
       44035

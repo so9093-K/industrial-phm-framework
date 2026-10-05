@@ -59,8 +59,9 @@ uv run python -m tools.aihub.cli plan 239 --preset bootstrap
 `extruder-label`(Training/label 압출기 `44025`), `bootstrap-label`(둘 다)로 받으며
 `archives/training/label/`에 보존합니다. 보일러·압출기 외 reference 설비군 후보는 validation 원천
 데이터로 먼저 비교합니다: `air-compressor-validation`(공기압축기 `44051`), `pump-motor-validation`
-(펌프_일반모터 `44049`), `reference-candidates-validation`(둘 다). AI-Hub file tree의 용량 표시는 반올림된
-값이므로 plan의 합계는 근사치입니다.
+(펌프_일반모터 `44049`), `reference-candidates-validation`(둘 다). 비교 후 선정한 공기압축기의 Training 원천
+데이터는 `air-compressor`(`44031`)로 받습니다. AI-Hub file tree의 용량 표시는 반올림된 값이므로 plan의
+합계는 근사치입니다.
 
 명시적으로 다운로드합니다.
 
