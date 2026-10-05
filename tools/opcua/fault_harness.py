@@ -509,7 +509,11 @@ class Stack:
         if not path.exists():
             return None
         try:
-            return SqliteAcquisitionTelemetryRepository(path).get(AIHUB_BOILER_2297_SOURCE_ID).last_received_at
+            return (
+                SqliteAcquisitionTelemetryRepository(path)
+                .get(AIHUB_BOILER_2297_SOURCE_ID)
+                .last_received_at
+            )
         except LookupError, sqlite3.Error, ValueError:
             return None
 
@@ -589,7 +593,9 @@ class Stack:
             assessed_at=sampled_at,
         )
         source = next(
-            item for item in context.snapshot.registered_sources if item.source_id == AIHUB_BOILER_2297_SOURCE_ID
+            item
+            for item in context.snapshot.registered_sources
+            if item.source_id == AIHUB_BOILER_2297_SOURCE_ID
         )
         source_view = AssetWorkspaceSource(
             source_id=source.source_id,
