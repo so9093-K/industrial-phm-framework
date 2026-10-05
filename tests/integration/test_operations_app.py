@@ -22,7 +22,8 @@ from industrial_phm.apps import operations_app_path
 from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.runtime import OperationsWorkspace
 
-from tests.support.window_analysis import END, START, window_event as _event
+from tests.support.window_analysis import END, START
+from tests.support.window_analysis import window_event as _event
 
 REPO = Path(__file__).resolve().parents[2]
 OPERATIONS_APP = operations_app_path()
