@@ -959,7 +959,7 @@ operator response, acknowledgement와 suppression/shelving requirement를 별도
 
 ### Operational RUL 표시 원칙
 
-Operational prognostics가 target operational source evidence로 도입될 때 RUL point estimate만 단독 표시하지 않습니다.
+Operational prognostics가 operational source evidence로 도입될 때 RUL point estimate만 단독 표시하지 않습니다.
 
 최소한 다음 information group을 함께 제공해야 합니다.
 
@@ -1086,7 +1086,7 @@ late/out-of-order/duplicate/missing event를 어떻게 처리했는가?
 - 추가 connector를 위한 generic connector framework
 - 새로운 deep-learning/foundation model
 
-이 capability를 추가할 때는 해당 target-source evidence와 운영 requirement에 맞는 별도 contract, validation,
+이 capability를 추가할 때는 해당 source evidence와 운영 requirement에 맞는 별도 contract, validation,
 human-approval boundary를 정의합니다.
 
 ## References

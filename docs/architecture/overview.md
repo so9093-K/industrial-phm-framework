@@ -10,7 +10,7 @@
 3. 사람은 어디에서 근거를 조사·검토하고 판단하는가?
 4. 연구·평가 흐름은 production 흐름과 어떻게 분리되는가?
 
-`CanonicalTimeSeries`의 현재 가정, XJTU-SY에 과적합되지 않기 위한 확장 규칙, 조직 제공 데이터나 대상 운영 source에서 확인할
+`CanonicalTimeSeries`의 현재 가정, XJTU-SY에 과적합되지 않기 위한 확장 규칙, 조직 제공 데이터나 새 live source에서 확인할
 quality·provenance·security boundary는
 [`canonical-data-contract.md`](canonical-data-contract.md)를 기준으로 검토합니다. Canonical contract는 모든 산업
 데이터를 미리 포괄하는 universal schema가 아니라 구체적인 source가 추가될 때 공통 의미만 유지하는 adapter/core

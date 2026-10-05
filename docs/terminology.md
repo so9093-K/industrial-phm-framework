@@ -337,8 +337,8 @@ Source를 `현장/비현장`, `진짜/가짜`처럼 하나의 축으로 분류�
 - **Live source**: 현재 실행 중인 endpoint/service와 runtime protocol로 직접 통신합니다.
 
 Replay와 live는 protocol 형태가 같을 수 있지만 validation claim은 다릅니다. Replay는 수집·복구·분석 pipeline을
-반복 검증하는 데 유용하지만, target endpoint의 실제 update/deadband/timestamp/security 동작을 대신 검증하지
-않습니다.
+반복 검증하는 데 유용합니다. 다만 replay configuration에서 관찰된 publish interval, DataChange cadence, deadband,
+timestamp 동작은 우리가 설정한 것이며 다른 source의 runtime behavior를 대신 증명하지 않습니다.
 
 ### Validation role
 
@@ -346,11 +346,13 @@ Replay와 live는 protocol 형태가 같을 수 있지만 validation claim은 �
 
 - **Research/evaluation source**: 모델·방법·연구 protocol의 성능과 한계를 평가합니다.
 - **Contract/runtime validation source**: adapter, ingestion, persistence, recovery, analysis contract를 검증합니다.
-- **Target operational source**: 실제 deployment 대상으로 선택한 source입니다. 이 source에서 runtime protocol,
+- **Target operational source**: 적용 대상으로 명시적으로 선택된 live source입니다. 이 source에서 runtime protocol,
   timing, semantics, quality, recovery, security 가정을 검증하는 것을 **target-source validation**이라고 합니다.
 
 `target operational source`는 다른 dataset/source보다 더 "진짜"라는 의미가 아닙니다. 프로젝트가 적용하려는
-구체적인 runtime source라서 별도의 validation claim이 필요한 것입니다.
+구체적인 runtime source라서 그 source에 대한 별도의 validation claim이 필요한 것입니다. Target-source validation은
+그런 source가 선택되었을 때 그 source의 요구와 evidence로 수행하며, 다른 검증 뒤에 항상 이어지는 roadmap 단계나
+상위 진위 등급이 아닙니다.
 
 ### Terms to avoid as standalone technical categories
 
