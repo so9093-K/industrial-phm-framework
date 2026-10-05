@@ -222,7 +222,13 @@ class SqliteAcquisitionSpool:
         *,
         sampled_at: datetime,
     ) -> AcquisitionSpoolTelemetrySnapshot:
-        """Sample durable backlog facts without mutating spool delivery state."""
+        """Sample durable backlog facts without mutating spool delivery state.
+
+        A spool read cannot be dated before the newest event it observed. A caller
+        that picked ``sampled_at`` before other reads may see events the collector
+        accepted after that instant; the snapshot is then dated at the newest
+        accepted event so the backlog age never becomes negative.
+        """
         _validate_aware_datetime(sampled_at, "sampled_at")
         connection = self._connect()
         try:
@@ -259,6 +265,28 @@ class SqliteAcquisitionSpool:
                     "oldest accepted_at",
                 )
             )
+            newest_row = connection.execute(
+                """
+                SELECT accepted_at
+                FROM spool_event
+                ORDER BY julianday(accepted_at) DESC, sequence DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            observed_at = max(
+                [sampled_at]
+                + ([] if oldest_accepted_at is None else [oldest_accepted_at])
+                + (
+                    []
+                    if newest_row is None
+                    else [
+                        _parse_datetime(
+                            _require_str(newest_row[0], "newest accepted_at"),
+                            "newest accepted_at",
+                        )
+                    ]
+                )
+            )
 
             batch_row = connection.execute(
                 "SELECT batch_id, created_at, event_count FROM spool_batch LIMIT 1"
@@ -280,7 +308,7 @@ class SqliteAcquisitionSpool:
             connection.close()
 
         return AcquisitionSpoolTelemetrySnapshot(
-            sampled_at=sampled_at,
+            sampled_at=observed_at,
             pending_event_count=pending_event_count,
             payload_bytes=payload_bytes,
             oldest_accepted_at=oldest_accepted_at,
