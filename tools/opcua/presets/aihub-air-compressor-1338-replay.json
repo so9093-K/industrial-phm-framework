@@ -1,0 +1,10 @@
+{
+  "source_id": "aihub239-replay-air-compressor-1338",
+  "asset_id": "aihub-air-compressor-1338",
+  "device_id": "1338",
+  "device_board_id": "1",
+  "timezone": "Asia/Seoul",
+  "identity_evidence": "Explicit reference grouping by source device/board; physical asset identity unverified",
+  "timezone_evidence": "Explicit normalization assumption Asia/Seoul; source timezone unverified",
+  "version": "replay-v1"
+}

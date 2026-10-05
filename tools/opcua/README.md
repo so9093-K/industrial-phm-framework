@@ -193,21 +193,35 @@ uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/aih
 uv run --no-sync python -m tools.opcua.aihub_replay server --root artifacts/aihub-replay --speed 60 --loop
 ```
 
-Use the same `artifacts/aihub-replay` workspace for collector, analysis runner and Operations. The
-collector uses 30 recorded minutes per window at 60x, and the runner records the replay-specific carry
-basis explicitly:
+The air-compressor reference asset (#403) uses the same commands with its own selection; see the
+[reference profile](../../docs/research/aihub-239-air-compressor-reference-profile.md) for why this
+device and range were chosen:
 
 ```bash
+uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/aihub-replay-air-compressor \
+  --endpoint opc.tcp://127.0.0.1:4850/aihub-replay/ \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --member "3.공기압축기/SourceData_16.json" \
+  --binding tools/opcua/presets/aihub-air-compressor-1338-replay.json \
+  --start 2020-11-16T04:00:00 --end 2020-11-16T10:00:00
+```
+
+Use the same workspace root for prepare, replay server, collector, analysis runner and Operations.
+For the air-compressor example above:
+
+```bash
+export WORKSPACE=artifacts/aihub-replay-air-compressor
+
 uv run --no-sync industrial-phm internal collection-service \
-  --workspace artifacts/aihub-replay \
+  --workspace "$WORKSPACE" \
   --window-duration-seconds 30 --allowed-lateness-seconds 2
 
 uv run --no-sync industrial-phm internal window-analysis \
-  --workspace artifacts/aihub-replay \
+  --workspace "$WORKSPACE" \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
 
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/aihub-replay
+export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE="$WORKSPACE"
 uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 ```
 
