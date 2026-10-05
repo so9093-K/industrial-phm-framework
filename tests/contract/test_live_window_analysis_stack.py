@@ -76,8 +76,8 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
     ]
     collector_cmd = [
         *CLI,
-        "operations",
-        "run-collection-service",
+        "internal",
+        "collection-service",
         "--workspace",
         str(root),
         "--window-duration-seconds",
@@ -87,8 +87,8 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
     ]
     analysis_cmd = [
         *CLI,
-        "operations",
-        "run-window-analysis",
+        "internal",
+        "window-analysis",
         "--workspace",
         str(root),
         "--once",
