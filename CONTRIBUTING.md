@@ -108,7 +108,7 @@ feat(contract): 공통 시계열 데이터 계약 정의
 `One Fact, One Authoritative Owner`를 따릅니다.
 
 - Root `README.md`: 프로젝트 목적, 안정적인 사용자 진입점과 문서 navigation
-- `docs/status.md`: 현재 구현·지원·대상 source validation 상태와 명시적 미지원 경계
+- `docs/status.md`: 현재 구현·지원 경계와 명시적 미지원 경계
 - Subsystem `README.md`: 해당 디렉터리의 실행 방법, runtime path와 운영 규칙
 - `docs/architecture`: 여러 기능에 걸쳐 유지되는 책임과 contract boundary. milestone/PR 진행 상황을 기록하지 않음
 - `docs/adr`: 장기간 영향을 주는 구조 결정과 대안

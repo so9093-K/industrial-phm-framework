@@ -350,7 +350,9 @@ Replay와 live는 protocol 형태가 같을 수 있지만 validation claim은 �
   timing, semantics, quality, recovery, security 가정을 검증하는 것을 **target-source validation**이라고 합니다.
 
 `target operational source`는 다른 dataset/source보다 더 "진짜"라는 의미가 아닙니다. 프로젝트가 적용하려는
-구체적인 runtime source라서 별도의 validation claim이 필요한 것입니다.
+구체적인 runtime source라서 별도의 validation claim이 필요한 것입니다. Target-source validation은 실제로 적용할
+source가 생겼을 때 그 source의 요구와 evidence로 수행하는 claim이며, 다른 검증 뒤에 항상 이어지는 roadmap 단계나
+상위 진위 등급이 아닙니다.
 
 ### Terms to avoid as standalone technical categories
 

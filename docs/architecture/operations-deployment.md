@@ -72,8 +72,8 @@ This is a deployment convention, not a new hard-coded application path. The work
 explicit CLI argument and may be placed elsewhere when the same ownership/permission contract is met.
 
 Do not make the workspace world-writable. Preflight reports that condition as a warning. Credentials and
-OPC UA certificates are not part of the non-secret workspace and must be provisioned separately once the
-target-source OPC UA security profile is implemented.
+OPC UA certificates are not part of the non-secret workspace and must be provisioned separately once a
+connected source requires an OPC UA security profile and that profile is implemented.
 
 ## Restart, backup, and retention
 

@@ -22,7 +22,6 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | **조건부 지원** | 명시적 configuration 또는 제한된 contract 안에서 지원함 |
 | **Research only** | 연구·평가 evidence 경로이며 operational capability로 주장하지 않음 |
 | **미제공** | 현재 public/runtime 경로가 없음 |
-| **대상 source 미검증** | synthetic/replay/contract 검증은 있지만 대상 운영 source validation 근거는 아직 없음 |
 
 ## Operational data path
 
@@ -80,7 +79,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | --- | --- | --- |
 | synthetic OPC UA loopback E2E | **지원** | 실제 asyncua server와 별도 collector process를 사용하는 contract test |
 | one-command synthetic Operations demo | **지원** | `industrial-phm demo synthetic`이 전용 workspace에 synthetic 3상 OPC UA source를 등록하고 simulator + collection + analysis + packaged UI를 한 foreground lifecycle로 실행. 물리 설비 측정/고장 진단 evidence가 아님 |
-| AI-Hub boiler recorded replay demo | **조건부 지원** | local AI-Hub 239 boiler archive + `aihub` extra가 있을 때 `industrial-phm demo aihub-boiler`가 검증된 device 2297/member/time-range preset을 replay server + normal Operations runtime으로 실행. recorded provider data replay이며 대상 운영 OPC UA source validation/diagnosis가 아님 |
+| AI-Hub boiler recorded replay demo | **조건부 지원** | local AI-Hub 239 boiler archive + `aihub` extra가 있을 때 `industrial-phm demo aihub-boiler`가 검증된 device 2297/member/time-range preset을 replay server + normal Operations runtime으로 실행. recorded provider data replay이며 live endpoint 동작 검증이나 설비 진단이 아님 |
 | clean-workspace Operations product acceptance | **지원** | external data 없이 fresh synthetic workspace에서 실제 demo process → runtime ready → finalized window/analysis evidence → stop → 같은 workspace restart/state 보존을 CI에서 검증 |
 | AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, missing-phase evidence, Live receive→pause→reconnect→recover/history continuity, review→Maintenance 연결, Monitor와 Assets→Signals 실제 브라우저 5초 확인을 machine verdict(`full`/`diagnostic`)로 판정. 결과는 `docs/research/live-acquisition-fault-evidence.md` |
 | Local Operations workspace 초기화 | **지원** | `industrial-phm operations init <root>`가 versioned `config.toml`과 managed data/log directory를 만들고 기존 유효 workspace에는 idempotent하게 동작. config 없는 비어 있지 않은 directory는 자동 채택하지 않음 |
@@ -91,7 +90,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | deployment preflight / systemd reference | **지원** | `validate deployment <absolute-root>`가 실제 service user 기준 runtime dependency, config/plan, workspace access, supervisor/history lock, UI port를 검증. reference unit은 foreground `operations start`, `Restart=on-failure`, `KillMode=mixed`, bounded restart/stop policy를 사용 |
 | installable Operations application | **지원** | canonical Operations app이 wheel의 `industrial_phm.apps`에 포함되고 `operations` extra가 marimo + history/OPC UA runtime dependencies를 제공. local supervisor가 packaged app을 `127.0.0.1` loopback-only, no-token UI child로 실행. shared/public host 노출은 미지원 |
 | operational CLI taxonomy | **지원** | normal node lifecycle=`operations`, recovery/history=`maintenance`, deployment gates=`validate`, service/source plumbing=`internal`. 이동 전 `operations` spelling은 더 이상 rewrite하지 않음 |
-| 대상 운영 OPC UA source validation | **대상 source 미검증** | 대상 source의 update/deadband/timestamp/security 특성에 대한 검증 근거가 아직 없음 |
+| 특정 live OPC UA endpoint의 update/deadband/timestamp 특성 판정 | **미제공** | synthetic/replay 검증은 collection·history·analysis pipeline을 검증하며, 특정 live endpoint의 update/deadband/timestamp 동작을 대신 검증하지 않음. Replay의 publish interval/deadband는 reference configuration임 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
 | HA / distributed coordination / leader election | **미제공** | local-first runtime 경계 |
 | OPC UA username/password/certificate/security-policy configuration | **미제공** | 현재 connector는 anonymous local/dev 경계를 사용 |

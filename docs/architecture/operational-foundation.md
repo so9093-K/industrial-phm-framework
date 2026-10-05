@@ -59,7 +59,7 @@ Single Source of Truth는 모든 설정을 하나의 파일에 넣는다는 의�
 | 실험 parameter | version-controlled experiment config |
 | model artifact provenance | artifact manifest |
 | 프로젝트 목적, 안정적인 진입점과 문서 navigation | root `README.md` |
-| 현재 구현·지원·대상 source validation 상태 | `docs/status.md` |
+| 현재 구현·지원 경계와 명시적 미지원 경계 | `docs/status.md` |
 | subsystem 실행 방법과 runtime 운영 규칙 | 해당 directory의 `README.md` |
 | 계획된 작업과 milestone | GitHub Issue/PR |
 | 검증된 dataset 관찰 사실 | dataset source profile |
@@ -124,7 +124,7 @@ Python compatibility, memory/layout 비용과 serialization boundary를 검증�
 
 ## 7. UI and Operational Contracts Co-Evolve
 
-운영 UI를 PHM result contract와 service boundary가 완성될 때까지 미루지 않습니다. 대상 운영 source와
+운영 UI를 PHM result contract와 service boundary가 완성될 때까지 미루지 않습니다. 새 source와
 사용자 surface를 연결하면서 필요한 operational read model/API를 함께 검증합니다. 반대로 UI가 experiment
 artifact schema를 직접 해석하거나 numerical PHM 의미를 새로 만드는 것도 허용하지 않습니다.
 
