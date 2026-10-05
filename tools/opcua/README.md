@@ -193,6 +193,19 @@ uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/aih
 uv run --no-sync python -m tools.opcua.aihub_replay server --root artifacts/aihub-replay --speed 60 --loop
 ```
 
+The air-compressor reference asset (#403) uses the same commands with its own selection; see the
+[reference profile](../../docs/research/aihub-239-air-compressor-reference-profile.md) for why this
+device and range were chosen:
+
+```bash
+uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/aihub-replay-air-compressor \
+  --endpoint opc.tcp://127.0.0.1:4850/aihub-replay/ \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --member "3.공기압축기/SourceData_16.json" \
+  --binding tools/opcua/presets/aihub-air-compressor-1338-replay.json \
+  --start 2020-11-16T04:00:00 --end 2020-11-16T10:00:00
+```
+
 Use the same `artifacts/aihub-replay` workspace for collector, analysis runner and Operations. The
 collector uses 30 recorded minutes per window at 60x, and the runner records the replay-specific carry
 basis explicitly:
