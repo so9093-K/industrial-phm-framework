@@ -46,6 +46,8 @@ from industrial_phm.application import (
 from industrial_phm.connectors import (
     OpcUaBrowseConfig,
     OpcUaBrowseResult,
+    OpcUaRuntimeUnavailableError,
+    OpcUaSourceError,
     browse_opcua_variables,
 )
 from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
@@ -55,6 +57,10 @@ from industrial_phm.runtime.operations_app_wiring import (
     operations_source_registry_state,
     run_async_in_worker,
 )
+
+
+class OperationsActionError(RuntimeError):
+    """Expected operator-facing failure from one bounded Operations action."""
 
 
 class OperationsDiagnosticKind(StrEnum):
@@ -97,11 +103,15 @@ class OperationsAppActions:
         timeout_seconds: float,
     ) -> OpcUaBrowseResult:
         """Run one bounded OPC UA browse without exposing event-loop plumbing to the UI."""
-        config = OpcUaBrowseConfig(
-            endpoint_url=endpoint_url,
-            timeout_seconds=timeout_seconds,
-        )
-        return run_async_in_worker(lambda: browse_opcua_variables(config))
+        try:
+            config = OpcUaBrowseConfig(
+                endpoint_url=endpoint_url,
+                timeout_seconds=timeout_seconds,
+            )
+            return run_async_in_worker(lambda: browse_opcua_variables(config))
+        except (OSError, ValueError, OpcUaRuntimeUnavailableError, OpcUaSourceError) as error:
+            detail = str(error).strip() or type(error).__name__
+            raise OperationsActionError(detail) from error
 
     def run_diagnostic(
         self,
