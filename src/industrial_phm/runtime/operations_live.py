@@ -67,9 +67,7 @@ def query_operations_latest_measurements(
     *,
     channel_id: str,
 ) -> tuple[MeasurementHistoryPoint, ...]:
-    return _history_read(
-        lambda: history.query_latest_measurements(asset_id, channel_id=channel_id)
-    )
+    return _history_read(lambda: history.query_latest_measurements(asset_id, channel_id=channel_id))
 
 
 def query_operations_measurement_page(
