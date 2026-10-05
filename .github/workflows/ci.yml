@@ -287,7 +287,8 @@ jobs:
       - name: Validate independent live collection and history queries
         run: |
           uv run --locked --extra history --extra opcua pytest \
-            tests/contract/test_live_measurement_stack.py
+            tests/contract/test_live_measurement_stack.py \
+            tests/contract/test_live_window_analysis_stack.py
 
   operations:
     name: Operations product

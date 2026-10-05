@@ -110,7 +110,7 @@ def test_finalized_live_windows_are_analyzed_once_from_their_accepted_events(tmp
                 sources,
                 sources,
                 SqliteCollectionControlRepository(root / "control.sqlite"),
-                demo.THREE_PHASE_SOURCE,
+                demo.SYNTHETIC_DEMO_SOURCE_ID,
                 CollectionDesiredState.RUNNING,
                 requested_at=datetime.now(UTC),
             )
