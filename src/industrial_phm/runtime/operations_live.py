@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
 from industrial_phm.application import (
@@ -39,7 +39,7 @@ class OperationsReadError(RuntimeError):
     """Expected operator-facing failure while reading local Operations evidence."""
 
 
-def _history_read[T](factory) -> T:
+def _history_read[T](factory: Callable[[], T]) -> T:
     try:
         return factory()
     except (DuckLakeRuntimeUnavailableError, OSError, TimeoutError, ValueError) as error:
