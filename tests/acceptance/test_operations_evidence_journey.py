@@ -1,8 +1,10 @@
 """One person's evidence journey keeps the same asset, evidence and display identity.
 
 Monitor -> Signals -> Analysis -> Investigation -> Request review -> Maintenance ->
-back to Investigation, on a synthetic fixture so it runs in CI. Live receive, pause,
-reconnect and recovery belong to the #388 fault gate and are not repeated here.
+back to Investigation, on a synthetic fixture so it runs in CI. The packaged app runs
+in script mode; the journey uses the same review action, navigation resolver and
+renderers the UI calls rather than browser clicks. Live receive, pause, reconnect and
+recovery belong to the #388 fault gate and are not repeated here.
 """
 
 import runpy
