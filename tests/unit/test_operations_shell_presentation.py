@@ -193,13 +193,19 @@ def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
         {"channel": "current-t", "quality": "null", "source": "a"},
         {"channel": "vibration", "quality": "no recorded issue", "source": "a"},
         {"channel": "pressure", "quality": "source status non-good", "source": "a"},
+        {
+            "channel": "speed",
+            "quality": "no recorded issue",
+            "event_time_state": "future-timestamp",
+            "source": "a",
+        },
     )
 
     channels = monitor_signal_channels(
         rows,
         selected_channel="vibration",
-        limit=3,
+        limit=4,
     )
 
-    assert channels == ("vibration", "current-t", "pressure")
+    assert channels == ("vibration", "current-t", "pressure", "speed")
 
