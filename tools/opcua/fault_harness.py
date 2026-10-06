@@ -264,9 +264,23 @@ def check_review_workflow(detail: dict[str, object]) -> dict[str, object]:
 
 
 def check_first_render(renders: dict[str, dict[str, object]]) -> dict[str, object]:
-    """In a real browser each state is readable within five seconds of opening."""
+    """Require the observation-first Monitor surface to be readable within five seconds."""
+
     slow = {name: r for name, r in renders.items() if not r.get("within_5s")}
-    return _check(len(renders) == 4 and not slow, renders=renders, slow=slow)
+    incomplete = {
+        name: r
+        for name, r in renders.items()
+        if not r.get("monitor_ready")
+        or not r.get("attention_seen")
+        or int(r.get("signal_value_count", 0)) < 1
+        or not r.get("system_data_flow_absent")
+    }
+    return _check(
+        len(renders) == 4 and not slow and not incomplete,
+        renders=renders,
+        slow=slow,
+        incomplete=incomplete,
+    )
 
 
 def check_live_replay_sequence(states: dict[str, dict[str, object]]) -> dict[str, object]:
@@ -333,11 +347,21 @@ def check_live_browser_journey(renders: dict[str, dict[str, object]]) -> dict[st
         for name in required
         if name in renders and not renders[name].get("matched")
     }
+    incomplete = {
+        name: renders[name]
+        for name in required
+        if name in renders
+        and (
+            not renders[name].get("current_observation_seen")
+            or int(renders[name].get("value_count", 0)) < 1
+        )
+    }
     return _check(
-        not missing and not slow and not unmatched,
+        not missing and not slow and not unmatched and not incomplete,
         missing=missing,
         slow=slow,
         unmatched=unmatched,
+        incomplete=incomplete,
         renders=renders,
     )
 
@@ -706,7 +730,7 @@ class Stack:
         raise RuntimeError("marimo UI server did not start")
 
     def browser_render(self, name: str, expected_attention: str) -> dict[str, object]:
-        """Open Monitor in Chromium; time until the data flow and the attention item show."""
+        """Open Monitor in Chromium; time until observation data and attention are readable."""
         assert self.ui_url is not None, "start_ui_server first"
         output = subprocess.run(
             [
@@ -733,7 +757,9 @@ class Stack:
             if line.startswith("BROWSER "):
                 render = dict(json.loads(line.removeprefix("BROWSER ")))
                 render["within_5s"] = bool(
-                    render["attention_seen"] and float(render["seconds"]) <= 5.0  # type: ignore[arg-type]
+                    render.get("monitor_ready")
+                    and render.get("attention_seen")
+                    and float(render["seconds"]) <= 5.0  # type: ignore[arg-type]
                 )
                 return render
         return {"within_5s": False, "error": output.stderr[-1500:]}
@@ -771,14 +797,18 @@ class Stack:
             if line.startswith("LIVE-BROWSER "):
                 render = dict(json.loads(line.removeprefix("LIVE-BROWSER ")))
                 render["within_5s"] = bool(
-                    render.get("matched") and float(render["seconds"]) <= 5.0
+                    render.get("current_observation_seen")
+                    and int(render.get("value_count", 0)) >= 1
+                    and render.get("matched")
+                    and float(render["seconds"]) <= 5.0
                 )
                 return render
         return {"within_5s": False, "error": output.stderr[-1500:]}
 
 
 # Opens a fresh page (a fresh marimo session reads current runtime files), waits for
-# the Monitor data flow and the expected attention title, and reports the elapsed time.
+# the observation-first Monitor surface and the expected attention title, and reports
+# the elapsed time. Runtime/System flow is deliberately not a Monitor readiness signal.
 _BROWSER_SCRIPT = """
 import json, sys, time
 from playwright.sync_api import sync_playwright
@@ -788,21 +818,47 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 1440, "height": 1100})
     started = time.monotonic()
     page.goto(url)
-    page.get_by_text("System data flow", exact=True).first.wait_for(timeout=30000)
-    flow = time.monotonic() - started
-    seen = True
+    observed_asset_seen = latest_seen = trends_seen = False
+    try:
+        page.get_by_text("Observed asset", exact=True).first.wait_for(timeout=30000)
+        observed_asset_seen = True
+        page.get_by_text("Latest stored observations", exact=True).first.wait_for(timeout=30000)
+        latest_seen = True
+        page.get_by_text("Recent signal trends", exact=True).first.wait_for(timeout=30000)
+        trends_seen = True
+        page.locator(".phm-signal-value").first.wait_for(timeout=30000)
+    except Exception:
+        pass
+    observation_seconds = time.monotonic() - started
+    attention_seen = True
     try:
         page.get_by_text(attention).first.wait_for(timeout=30000)
     except Exception:
-        seen = False
+        attention_seen = False
     seconds = time.monotonic() - started
-    cards = page.locator(".phm-flow > *").all_inner_texts()
+    signal_values = page.locator(".phm-signal-value").all_inner_texts()
+    system_data_flow_absent = page.get_by_text("System data flow", exact=True).count() == 0
+    monitor_ready = (
+        observed_asset_seen
+        and latest_seen
+        and trends_seen
+        and bool(signal_values)
+        and system_data_flow_absent
+    )
     page.screenshot(path=shot, full_page=True)
     browser.close()
 print("BROWSER " + json.dumps({
-    "data_flow_seconds": round(flow, 2), "seconds": round(seconds, 2),
-    "attention": attention, "attention_seen": seen,
-    "stages": [" | ".join(c.split()) for c in cards],
+    "observation_seconds": round(observation_seconds, 2),
+    "seconds": round(seconds, 2),
+    "attention": attention,
+    "attention_seen": attention_seen,
+    "observed_asset_seen": observed_asset_seen,
+    "latest_observations_seen": latest_seen,
+    "recent_trends_seen": trends_seen,
+    "signal_value_count": len(signal_values),
+    "signal_values": [" | ".join(item.split()) for item in signal_values[:8]],
+    "system_data_flow_absent": system_data_flow_absent,
+    "monitor_ready": monitor_ready,
 }))
 """
 
@@ -825,7 +881,12 @@ with sync_playwright() as p:
         page.get_by_role("radio", name="Signals", exact=True).click(timeout=5000)
     except Exception:
         page.get_by_text("Signals", exact=True).first.click()
-    page.get_by_text("Live observation", exact=True).first.wait_for(timeout=30000)
+    current_observation_seen = True
+    try:
+        page.get_by_text("Current observation", exact=True).first.wait_for(timeout=30000)
+        page.locator(".phm-live-value").first.wait_for(timeout=30000)
+    except Exception:
+        current_observation_seen = False
     matched = None
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
@@ -843,6 +904,8 @@ print("LIVE-BROWSER " + json.dumps({
     "seconds": round(seconds, 2),
     "expected": expected,
     "matched": matched,
+    "current_observation_seen": current_observation_seen,
+    "value_count": len(values),
     "states": [" | ".join(item.split()) for item in states],
     "values": [" | ".join(item.split()) for item in values],
 }))
