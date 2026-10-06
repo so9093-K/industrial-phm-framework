@@ -347,6 +347,27 @@ def render_monitor_asset_context_html(
     )
 
 
+def monitor_signal_channels(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    selected_channel: str | None = None,
+    limit: int = 6,
+) -> tuple[str, ...]:
+    """Choose a bounded signal set using the same attention order as the overview."""
+
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 8:
+        raise ValueError("limit must be an integer from 1 to 8")
+    ordered = _ordered_monitor_signal_rows(rows, selected_channel=selected_channel)
+    result: list[str] = []
+    for row in ordered:
+        channel = _monitor_row_text(row, "channel")
+        if channel and channel not in result:
+            result.append(channel)
+        if len(result) == limit:
+            break
+    return tuple(result)
+
+
 def render_monitor_signal_overview_html(
     rows: Sequence[Mapping[str, object]],
     *,
@@ -364,21 +385,7 @@ def render_monitor_signal_overview_html(
     ):
         raise ValueError("selected_channel must be non-empty when provided")
 
-    values = tuple(rows)
-    ordered = tuple(
-        sorted(
-            values,
-            key=lambda row: (
-                _monitor_row_text(row, "channel") != selected_channel
-                if selected_channel is not None
-                else False,
-                _monitor_row_text(row, "quality") == "no recorded issue",
-                _monitor_row_text(row, "channel"),
-                _monitor_row_text(row, "source"),
-                _monitor_row_text(row, "measurement_point"),
-            ),
-        )
-    )
+    ordered = _ordered_monitor_signal_rows(rows, selected_channel=selected_channel)
     if not ordered:
         return (
             '<section class="phm-shell">'
@@ -400,6 +407,27 @@ def render_monitor_signal_overview_html(
     return (
         '<section class="phm-shell">'
         '<div class="phm-section-title">Latest stored observations</div>' + body + "</section>"
+    )
+
+
+def _ordered_monitor_signal_rows(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    selected_channel: str | None,
+) -> tuple[Mapping[str, object], ...]:
+    return tuple(
+        sorted(
+            tuple(rows),
+            key=lambda row: (
+                _monitor_row_text(row, "channel") != selected_channel
+                if selected_channel is not None
+                else False,
+                _monitor_row_text(row, "quality") == "no recorded issue",
+                _monitor_row_text(row, "channel"),
+                _monitor_row_text(row, "source"),
+                _monitor_row_text(row, "measurement_point"),
+            ),
+        )
     )
 
 
