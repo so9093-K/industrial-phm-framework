@@ -295,6 +295,7 @@ def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
     assert args.binding.exists()
     assert (args.start.hour, args.end.hour, args.end.minute) == (6, 12, 30)
 
+
 def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
     ready = {
         "within_5s": True,
@@ -308,9 +309,9 @@ def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
     renders = dict.fromkeys(names, ready)
 
     assert check_first_render(renders)["passed"]
-    assert not check_first_render(
-        {**renders, "source_stale": {**ready, "signal_value_count": 0}}
-    )["passed"]
+    assert not check_first_render({**renders, "source_stale": {**ready, "signal_value_count": 0}})[
+        "passed"
+    ]
     assert not check_first_render(
         {**renders, "source_stale": {**ready, "system_data_flow_absent": False}}
     )["passed"]
@@ -335,7 +336,7 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
     assert not check_live_browser_journey(
         {**renders, "recovered": {**fast, "current_observation_seen": False}}
     )["passed"]
-    assert not check_live_browser_journey(
-        {**renders, "recovered": {**fast, "value_count": 0}}
-    )["passed"]
+    assert not check_live_browser_journey({**renders, "recovered": {**fast, "value_count": 0}})[
+        "passed"
+    ]
 
