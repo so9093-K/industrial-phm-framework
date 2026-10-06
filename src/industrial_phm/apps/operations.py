@@ -3834,7 +3834,15 @@ def _(
             gap=1.0,
         )
     else:
-        _observation_view = mo.vstack(
+        _overview_row = monitor_signal_overview
+        if attention_view is not None:
+            _overview_row = mo.hstack(
+                [monitor_signal_overview, attention_view],
+                widths=[0.72, 0.28],
+                align="start",
+                gap=1.2,
+            )
+        monitor_view = mo.vstack(
             [
                 asset_selector,
                 mo.Html(
@@ -3844,21 +3852,12 @@ def _(
                         as_of=monitor.assessed_at,
                     )
                 ),
-                monitor_signal_overview,
+                _overview_row,
                 monitor_signal_trends,
                 signal_view,
             ],
             gap=1.0,
         )
-        if attention_view is None:
-            monitor_view = _observation_view
-        else:
-            monitor_view = mo.hstack(
-                [_observation_view, attention_view],
-                widths=[0.72, 0.28],
-                align="start",
-                gap=1.2,
-            )
 
     if asset_selector is None:
         asset_view = mo.md(
