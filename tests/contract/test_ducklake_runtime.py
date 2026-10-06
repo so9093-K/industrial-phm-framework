@@ -788,9 +788,7 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     )
 
     latest_asset = history.query_latest_asset_measurements("pump-01")
-    assert tuple(point.measurement.channel_id for point in latest_asset) == tuple(
-        sorted(channels)
-    )
+    assert tuple(point.measurement.channel_id for point in latest_asset) == tuple(sorted(channels))
     latest_asset_rows = latest_measurement_rows(
         latest_asset,
         as_of=BASE + timedelta(minutes=1),
