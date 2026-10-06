@@ -19,6 +19,7 @@ from industrial_phm.presentation.operations_shell import (
     render_monitor_asset_context_html,
     render_monitor_assets_html,
     render_monitor_flow_html,
+    render_monitor_signal_overview_html,
 )
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
@@ -128,3 +129,59 @@ def test_monitor_asset_context_prioritizes_observation_facts() -> None:
     assert "Delayed" in rendered
     assert "System data flow" not in rendered
     assert "Recent activity" not in rendered
+
+
+def test_monitor_signal_overview_prioritizes_selected_and_quality_issue() -> None:
+    rows = [
+        {
+            "channel": "temperature",
+            "observed_property": "temperature",
+            "scope": None,
+            "value": 72.4,
+            "unit": "degC",
+            "quality": "no recorded issue",
+            "event_time_state": "recorded",
+            "history_age_seconds": 2.0,
+            "source": "source-a",
+            "measurement_point": "panel-main",
+        },
+        {
+            "channel": "current-t",
+            "observed_property": "phase current",
+            "scope": "phase T",
+            "value": None,
+            "unit": "A",
+            "quality": "null",
+            "event_time_state": "recorded",
+            "history_age_seconds": 5.0,
+            "source": "source-a",
+            "measurement_point": "panel-main",
+        },
+        {
+            "channel": "vibration",
+            "observed_property": "vibration",
+            "scope": None,
+            "value": 4.81,
+            "unit": "mm/s",
+            "quality": "no recorded issue",
+            "event_time_state": "recorded",
+            "history_age_seconds": 1.0,
+            "source": "source-a",
+            "measurement_point": "bearing-1",
+        },
+    ]
+
+    rendered = render_monitor_signal_overview_html(
+        rows,
+        selected_channel="vibration",
+        primary_limit=2,
+    )
+
+    assert "Latest stored observations" in rendered
+    assert "phm-signal-row-selected" in rendered
+    assert "phm-signal-row-issue" in rendered
+    assert "vibration" in rendered
+    assert "4.81 mm/s" in rendered
+    assert "phase current · phase T" in rendered
+    assert "Show 1 more stored observations" in rendered
+    assert "asset health" not in rendered.lower()

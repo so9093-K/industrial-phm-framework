@@ -50,6 +50,7 @@ def _():
         operations_theme_css,
         render_analysis_quality_markdown,
         render_monitor_asset_context_html,
+        render_monitor_signal_overview_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
         render_setup_sources_html,
@@ -120,6 +121,7 @@ def _():
         OperationsReadError,
         list_operations_history_channels,
         load_operations_live_observation,
+        query_operations_latest_asset_measurements,
         query_operations_latest_measurements,
         query_operations_measurement_aggregation,
         query_operations_measurement_page,
@@ -184,6 +186,7 @@ def _():
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
         phase_unbalance_summary_rows,
+        query_operations_latest_asset_measurements,
         query_operations_latest_measurements,
         query_operations_measurement_aggregation,
         query_operations_measurement_page,
@@ -207,6 +210,7 @@ def _():
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
         render_monitor_asset_context_html,
+        render_monitor_signal_overview_html,
         render_phase_unbalance_svg,
         render_setup_signals_html,
         render_setup_source_detail_html,
@@ -1622,6 +1626,57 @@ def _(
 def _(mo):
     live_signal_refresh = mo.ui.refresh(default_interval="1s")
     return (live_signal_refresh,)
+
+
+@app.cell
+def _(
+    OperationsReadError,
+    assessed_at,
+    asset_selector,
+    history_reader,
+    latest_measurement_rows,
+    mo,
+    navigation,
+    query_operations_latest_asset_measurements,
+    render_monitor_signal_overview_html,
+    signal_channel_selector,
+):
+    if navigation.value != "Monitor" or asset_selector is None:
+        monitor_signal_overview = mo.md("")
+    elif history_reader is None:
+        monitor_signal_overview = mo.md(
+            "### Latest stored observations\n\n"
+            "No Asset History catalog is available for this workspace."
+        )
+    else:
+        try:
+            _asset_latest = query_operations_latest_asset_measurements(
+                history_reader,
+                asset_selector.value,
+                limit=1000,
+            )
+            _asset_latest_rows = latest_measurement_rows(
+                _asset_latest,
+                as_of=assessed_at,
+            )
+        except OperationsReadError as error:
+            monitor_signal_overview = mo.callout(
+                str(error),
+                kind="danger",
+                title="Latest stored observations unavailable",
+            )
+        else:
+            _selected_channel = (
+                None if signal_channel_selector is None else signal_channel_selector.value
+            )
+            monitor_signal_overview = mo.Html(
+                render_monitor_signal_overview_html(
+                    _asset_latest_rows,
+                    selected_channel=_selected_channel,
+                    primary_limit=8,
+                )
+            )
+    return (monitor_signal_overview,)
 
 
 @app.cell
@@ -3591,6 +3646,7 @@ def _(
     maintenance_workspace_css,
     mo,
     monitor,
+    monitor_signal_overview,
     navigation,
     operations_theme_css,
     refresh_button,
@@ -3657,6 +3713,7 @@ def _(
                         as_of=monitor.assessed_at,
                     )
                 ),
+                monitor_signal_overview,
                 signal_view,
             ],
             gap=1.0,

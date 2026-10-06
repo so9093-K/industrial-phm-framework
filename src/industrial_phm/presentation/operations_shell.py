@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from html import escape
 
@@ -222,6 +223,71 @@ body, #root, .marimo {{
   font-size: .9rem;
   font-weight: 600;
 }}
+.phm-signal-board {{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--phm-border);
+  border-left: 1px solid var(--phm-border);
+}}
+.phm-signal-row {{
+  min-width: 0;
+  padding: .78rem .9rem;
+  border-right: 1px solid var(--phm-border);
+  border-bottom: 1px solid var(--phm-border);
+  background: rgba(255,255,255,.012);
+}}
+.phm-signal-row-selected {{
+  box-shadow: inset 3px 0 0 var(--phm-info);
+  background: rgba(140,170,197,.06);
+}}
+.phm-signal-row-issue {{
+  box-shadow: inset 3px 0 0 var(--phm-attention);
+}}
+.phm-signal-head {{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .75rem;
+}}
+.phm-signal-name {{
+  min-width: 0;
+  font-size: .86rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}}
+.phm-signal-channel {{
+  margin-top: .18rem;
+  color: var(--phm-muted);
+  font-size: .7rem;
+  overflow-wrap: anywhere;
+}}
+.phm-signal-value {{
+  white-space: nowrap;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}}
+.phm-signal-meta {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem .8rem;
+  margin-top: .55rem;
+  color: var(--phm-muted);
+  font-size: .73rem;
+}}
+.phm-signal-meta-issue {{
+  color: var(--phm-attention);
+}}
+.phm-signal-more {{
+  margin-top: .65rem;
+  color: var(--phm-muted);
+}}
+.phm-signal-more summary {{
+  cursor: pointer;
+  font-size: .78rem;
+  user-select: none;
+  margin-bottom: .65rem;
+}}
 @media (max-width: 980px) {{
   .phm-flow {{ grid-template-columns: 1fr 1fr; }}
   .phm-monitor-context {{
@@ -229,6 +295,7 @@ body, #root, .marimo {{
     flex-direction: column;
   }}
   .phm-monitor-facts {{ justify-content: flex-start; }}
+  .phm-signal-board {{ grid-template-columns: 1fr; }}
 }}
 </style>
 """
@@ -278,6 +345,165 @@ def render_monitor_asset_context_html(
         + _monitor_fact("Reviews", reviews)
         + "</div></section>"
     )
+
+
+def render_monitor_signal_overview_html(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    selected_channel: str | None = None,
+    primary_limit: int = 8,
+) -> str:
+    """Render factual latest observations across one asset without collapsing identities."""
+
+    if isinstance(primary_limit, bool) or not isinstance(primary_limit, int) or primary_limit < 1:
+        raise ValueError("primary_limit must be a positive integer")
+    if primary_limit > 24:
+        raise ValueError("primary_limit must not exceed 24")
+    if selected_channel is not None and (
+        not isinstance(selected_channel, str) or not selected_channel.strip()
+    ):
+        raise ValueError("selected_channel must be non-empty when provided")
+
+    values = tuple(rows)
+    ordered = tuple(
+        sorted(
+            values,
+            key=lambda row: (
+                _monitor_row_text(row, "channel") != selected_channel
+                if selected_channel is not None
+                else False,
+                _monitor_row_text(row, "quality") == "no recorded issue",
+                _monitor_row_text(row, "channel"),
+                _monitor_row_text(row, "source"),
+                _monitor_row_text(row, "measurement_point"),
+            ),
+        )
+    )
+    if not ordered:
+        return (
+            '<section class="phm-shell">'
+            '<div class="phm-section-title">Latest stored observations</div>'
+            '<div class="phm-card-detail">No stored observation is available yet.</div>'
+            "</section>"
+        )
+
+    primary = ordered[:primary_limit]
+    remainder = ordered[primary_limit:]
+    body = _render_monitor_signal_board(primary, selected_channel=selected_channel)
+    if remainder:
+        body += (
+            '<details class="phm-signal-more">'
+            f"<summary>Show {len(remainder)} more stored observations</summary>"
+            + _render_monitor_signal_board(remainder, selected_channel=selected_channel)
+            + "</details>"
+        )
+    return (
+        '<section class="phm-shell">'
+        '<div class="phm-section-title">Latest stored observations</div>' + body + "</section>"
+    )
+
+
+def _render_monitor_signal_board(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    selected_channel: str | None,
+) -> str:
+    return (
+        '<div class="phm-signal-board">'
+        + "".join(
+            _render_monitor_signal_row(row, selected_channel=selected_channel) for row in rows
+        )
+        + "</div>"
+    )
+
+
+def _render_monitor_signal_row(
+    row: Mapping[str, object],
+    *,
+    selected_channel: str | None,
+) -> str:
+    channel = _monitor_row_text(row, "channel", fallback="unknown-signal")
+    observed_property = _monitor_row_text(row, "observed_property")
+    scope = _monitor_row_text(row, "scope")
+    label = channel if observed_property in {"", "unresolved"} else observed_property
+    if scope:
+        label = f"{label} · {scope}"
+
+    value = _monitor_value(row.get("value"))
+    unit = _monitor_row_text(row, "unit")
+    if unit in {"", "unknown"}:
+        unit = ""
+    value_text = value if not unit else f"{value} {unit}"
+
+    quality = _monitor_row_text(row, "quality", fallback="unknown")
+    event_state = _monitor_row_text(row, "event_time_state")
+    age = _monitor_age(row.get("history_age_seconds"))
+    source = _monitor_row_text(row, "source")
+    measurement_point = _monitor_row_text(row, "measurement_point")
+    source_point = source
+    if measurement_point:
+        source_point += f" / {measurement_point}"
+
+    classes = ["phm-signal-row"]
+    if selected_channel == channel:
+        classes.append("phm-signal-row-selected")
+    issue = quality != "no recorded issue" or event_state not in {"", "recorded"}
+    if issue:
+        classes.append("phm-signal-row-issue")
+    quality_class = "phm-signal-meta-issue" if issue else ""
+
+    return (
+        f'<div class="{" ".join(classes)}">'
+        '<div class="phm-signal-head">'
+        "<div>"
+        f'<div class="phm-signal-name">{escape(label)}</div>'
+        f'<div class="phm-signal-channel">{escape(channel)}</div>'
+        "</div>"
+        f'<div class="phm-signal-value">{escape(value_text)}</div>'
+        "</div>"
+        '<div class="phm-signal-meta">'
+        f'<span class="{quality_class}">{escape(quality)}</span>'
+        f"<span>{escape(age)}</span>"
+        f"<span>{escape(source_point)}</span>"
+        "</div></div>"
+    )
+
+
+def _monitor_row_text(
+    row: Mapping[str, object],
+    key: str,
+    *,
+    fallback: str = "",
+) -> str:
+    value = row.get(key)
+    if value is None:
+        return fallback
+    return str(value)
+
+
+def _monitor_value(value: object) -> str:
+    if value is None:
+        return "—"
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, (int, float)):
+        return f"{float(value):.6g}"
+    return str(value)
+
+
+def _monitor_age(value: object) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "time unavailable"
+    seconds = float(value)
+    if seconds < 0:
+        return f"{abs(seconds):.0f}s in future"
+    if seconds < 60:
+        return f"{seconds:.0f}s ago"
+    if seconds < 3600:
+        return f"{seconds / 60:.1f}m ago"
+    if seconds < 86400:
+        return f"{seconds / 3600:.1f}h ago"
+    return f"{seconds / 86400:.1f}d ago"
 
 
 def _monitor_fact(label: str, value: str, *, css_class: str | None = None) -> str:

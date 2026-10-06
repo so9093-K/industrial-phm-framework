@@ -787,6 +787,17 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
         measurement_history_rows,
     )
 
+    latest_asset = history.query_latest_asset_measurements("pump-01")
+    assert tuple(point.measurement.channel_id for point in latest_asset) == tuple(sorted(channels))
+    latest_asset_rows = latest_measurement_rows(
+        latest_asset,
+        as_of=BASE + timedelta(minutes=1),
+    )
+    assert {row["channel"]: row["unit"] for row in latest_asset_rows}["va"] == "V"
+    assert {row["channel"]: row["observed_property"] for row in latest_asset_rows}["ic"] == (
+        "unresolved"
+    )
+
     def shown(channel):
         latest = history.query_latest_measurements("pump-01", channel_id=channel)
         (row,) = latest_measurement_rows(latest, as_of=BASE + timedelta(minutes=1))
