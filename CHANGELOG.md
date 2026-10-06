@@ -11,6 +11,12 @@
 
 ### Changed
 
+- Operations Monitor의 Needs Attention을 기존 radio/workflow 중심 UI에서 compact secondary rail로
+  재구성했습니다. 현재 typed destination contract에 따라 Data / Review / System evidence를 구분하고,
+  title 문자열로 의미를 추론하지 않습니다. attention이 있을 때만 latest observation 옆에 rail을 두며,
+  synchronized multi-signal trend와 selected-signal 상세는 전체 폭을 유지합니다. 현재 contract에 독립적인
+  analysis-evidence attention 타입이 없으므로 Analysis 범주는 임의로 생성하지 않습니다.
+
 - Operations Monitor에 selected asset의 여러 signal을 같은 event-time window에서 비교하는 synchronized
   small-multiple trend를 추가했습니다. 최대 6개 signal을 한 번의 bounded multi-channel aggregation query로
   읽고, 각 signal의 unit/semantic identity를 분리한 채 같은 UTC 시간축을 사용합니다. trend window는 wall-clock
