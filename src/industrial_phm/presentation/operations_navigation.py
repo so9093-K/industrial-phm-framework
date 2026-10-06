@@ -89,24 +89,6 @@ def resolve_investigation_route(
         raise LookupError(
             f"investigation must resolve to exactly one queue item: {investigation_id}"
         )
-    return resolve_investigation_route(
-        matches[0].investigation_id,
-        investigation_queue=investigation_queue,
-    )
-
-
-def resolve_finding_investigation_route(
-    finding_id: str,
-    *,
-    investigation_queue: InvestigationQueueView,
-) -> OperationsAttentionRoute:
-    """Route a review request back to the exact analysis evidence it references."""
-
-    if not isinstance(investigation_queue, InvestigationQueueView):
-        raise ValueError("investigation_queue must be an InvestigationQueueView")
-    matches = tuple(item for item in investigation_queue.items if item.finding_id == finding_id)
-    if len(matches) != 1:
-        raise LookupError(f"review finding must resolve to exactly one investigation: {finding_id}")
     item = matches[0]
     group = next(
         (
@@ -122,4 +104,22 @@ def resolve_finding_investigation_route(
         page="Investigations",
         investigation_group_id=group.group_id,
         investigation_id=item.investigation_id,
+    )
+
+
+def resolve_finding_investigation_route(
+    finding_id: str,
+    *,
+    investigation_queue: InvestigationQueueView,
+) -> OperationsAttentionRoute:
+    """Route a review request back to the exact analysis evidence it references."""
+
+    if not isinstance(investigation_queue, InvestigationQueueView):
+        raise ValueError("investigation_queue must be an InvestigationQueueView")
+    matches = tuple(item for item in investigation_queue.items if item.finding_id == finding_id)
+    if len(matches) != 1:
+        raise LookupError(f"review finding must resolve to exactly one investigation: {finding_id}")
+    return resolve_investigation_route(
+        matches[0].investigation_id,
+        investigation_queue=investigation_queue,
     )
