@@ -60,7 +60,11 @@ _OPCUA_CONFIG_KEYS = frozenset(
     }
 )
 _OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
-# Optional within v5: written only when present, so registries without it are unchanged.
+# Schema convention: v5 is not a frozen key set. A source config may carry these
+# optional keys, written only when present, so any registry without them is
+# byte-for-byte the original v5 shape and stays readable. Older v5 readers reject a
+# registry that uses them; pre-release builds do not promise downgrade reads. A
+# required key, a renamed key or a changed meaning still needs a new schema version.
 _CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name"})
 
 
@@ -73,7 +77,8 @@ class JsonSourceRepository:
 
     The repository accepts only the current v5 schema. Older pre-alpha local registry
     formats are intentionally unsupported; sources must be registered again rather than
-    carrying migration branches indefinitely.
+    carrying migration branches indefinitely. v5 admits backward-readable optional
+    config keys (``_CONFIG_OPTIONAL_KEYS``); see the convention next to that set.
 
     Writes use a same-directory temporary file plus os.replace so readers never observe
     a partially written registry. Cross-process write coordination is not yet provided.

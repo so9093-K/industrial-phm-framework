@@ -555,7 +555,9 @@ def test_json_source_repository_rejects_invalid_opcua_node_mapping_shape(
         JsonSourceRepository(registry).list_sources()
 
 
-def test_asset_display_name_is_an_optional_key_within_the_current_schema(tmp_path: Path) -> None:
+def test_v5_admits_display_name_as_a_backward_readable_optional_key(tmp_path: Path) -> None:
+    # v5 is not a frozen key set: an optional key is written only when present, so a
+    # registry without it keeps the original v5 shape and every v5 reader can read it.
     from dataclasses import replace
 
     path = tmp_path / "sources.json"
