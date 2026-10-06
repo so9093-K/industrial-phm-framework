@@ -339,4 +339,3 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
     assert not check_live_browser_journey({**renders, "recovered": {**fast, "value_count": 0}})[
         "passed"
     ]
-
