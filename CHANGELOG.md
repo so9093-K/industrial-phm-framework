@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations Monitor의 시각 계층을 다시 정리했습니다. contextual Attention은 latest stored observation 옆의
+  secondary rail에만 두고 synchronized multi-signal trends, analysis evidence, selected-signal detail은
+  full-width로 유지합니다. Attention rail은 selected asset + global System evidence의 Data / Review / System
+  count를 factual summary로 표시하며 alarm severity나 asset-health score로 해석하지 않습니다.
+- 현재 지원 상태에 #417~#421 observation-first Monitor 기능을 반영하고, redesign 이후 전체 visual hierarchy를
+  실제 브라우저에서 다시 검증하는 전용 acceptance gate가 아직 없다는 검증 공백을 명시했습니다.
+
 - Operations Monitor의 Attention을 selected asset 문맥으로 좁히고 Data / Review / System으로 구분했습니다.
   다른 asset의 attention은 현재 관제 화면에 섞이지 않으며 global System issue만 함께 보입니다. 같은 Monitor
   trend window와 겹치는 persisted analysis observation window는 signal chart에 shaded evidence range로
