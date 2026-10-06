@@ -1,6 +1,10 @@
 from datetime import UTC, datetime
 
 from industrial_phm.application.maintenance_review import FindingReviewAction, FindingReviewStatus
+from industrial_phm.application.operations_investigations import (
+    InvestigationQueueItem,
+    InvestigationReviewState,
+)
 from industrial_phm.application.operations_maintenance import (
     MaintenanceQueueItem,
     MaintenanceReviewTimelineItem,
@@ -9,6 +13,7 @@ from industrial_phm.presentation.operations_maintenance import (
     maintenance_queue_label,
     maintenance_status_label,
     maintenance_workspace_css,
+    render_maintenance_evidence_html,
     render_maintenance_identity_html,
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
@@ -66,3 +71,43 @@ def test_maintenance_status_labels_and_css_are_explicit() -> None:
     assert maintenance_status_label(FindingReviewStatus.OPEN) == "Open"
     assert maintenance_status_label(FindingReviewStatus.CLOSED) == "Closed"
     assert "severity" not in maintenance_workspace_css().lower()
+
+
+def test_reviewed_evidence_is_read_from_the_referenced_analysis() -> None:
+    evidence = InvestigationQueueItem(
+        investigation_id="run-1:three-phase-unbalance-v1",
+        analysis_run_id="run-1",
+        asset_id="boiler-01",
+        source_id="replay-source",
+        measurement_point_id=None,
+        capability_id="three-phase-unbalance-v1",
+        evidence_id="evidence-1",
+        observed_start_at=NOW,
+        observed_end_at=NOW,
+        completed_at=NOW,
+        data_quality="pass",
+        review_state=InvestigationReviewState.OPEN,
+        finding_id="finding-1",
+        review_updated_at=NOW,
+    )
+    rendered = render_maintenance_evidence_html(
+        evidence,
+        analysis_run_id="run-1",
+        metrics=(
+            {
+                "quantity": "전류",
+                "median_percent": 4.736,
+                "p95_percent": 6.696,
+                "max_percent": None,
+            },
+        ),
+    )
+
+    assert "Reviewed evidence" in rendered
+    assert "replay-source" in rendered
+    assert "PASS" in rendered
+    assert "4.74%" in rendered and "6.70%" in rendered and "—" in rendered
+
+    missing = render_maintenance_evidence_html(None, analysis_run_id="run-gone")
+    assert "run-gone" in missing
+    assert "not in the loaded analysis results" in missing

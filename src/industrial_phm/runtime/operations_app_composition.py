@@ -7,7 +7,7 @@ this module owns one bounded, error-tolerant operational read snapshot.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -86,6 +86,8 @@ class OperationsAppSnapshot:
     analysis_results: tuple[OperationalAnalysisResult, ...]
     findings: tuple[OperationalFinding, ...]
     review_events: tuple[FindingReviewEvent, ...]
+    receipts: tuple[SourceReceiptEvidence, ...]
+    connection_attempts: tuple[SourceConnectionAttemptEvidence, ...]
     acquisition_surfaces: tuple[AcquisitionTelemetrySurface, ...]
     collection_service: CollectionServiceRuntimeTelemetry | None
     analysis_runtime: WindowAnalysisRunnerTelemetry | None
@@ -98,6 +100,84 @@ class OperationsAppSnapshot:
     live_flow_timing: LiveFlowTiming
     system_diagnostics: tuple[tuple[str, str], ...]
     system_errors: tuple[SystemStateErrorEvidence, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class OperationsReviewProjection:
+    """Projections that change when the human review workflow changes."""
+
+    overview: OperationsOverview
+    monitor: OperationsMonitorView
+
+
+def project_review_workflow(
+    snapshot: OperationsAppSnapshot,
+    *,
+    findings: Sequence[OperationalFinding],
+    review_events: Sequence[FindingReviewEvent],
+) -> OperationsReviewProjection:
+    """Recompute review-dependent projections after an in-session review action.
+
+    Every other input comes from the snapshot at its own assessment time. Nothing is
+    read from a repository, so source, collection and analysis state are not refreshed.
+    """
+    return _review_projection(
+        sources=snapshot.registered_sources,
+        lifecycle_records=snapshot.lifecycle_records,
+        receipts=snapshot.receipts,
+        freshness_policies=snapshot.freshness_policies,
+        connection_attempts=snapshot.connection_attempts,
+        analysis_results=snapshot.analysis_results,
+        findings=tuple(findings),
+        review_events=tuple(review_events),
+        acquisition_surfaces=snapshot.acquisition_surfaces,
+        analysis_runtime=snapshot.analysis_runtime,
+        collection_service=snapshot.collection_service,
+        system_errors=snapshot.system_errors,
+        as_of=snapshot.assessed_at,
+    )
+
+
+def _review_projection(
+    *,
+    sources: tuple[RegisteredSource, ...],
+    lifecycle_records: tuple[SourceLifecycleRecord, ...],
+    receipts: tuple[SourceReceiptEvidence, ...],
+    freshness_policies: tuple[SourceFreshnessPolicy, ...],
+    connection_attempts: tuple[SourceConnectionAttemptEvidence, ...],
+    analysis_results: tuple[OperationalAnalysisResult, ...],
+    findings: tuple[OperationalFinding, ...],
+    review_events: tuple[FindingReviewEvent, ...],
+    acquisition_surfaces: tuple[AcquisitionTelemetrySurface, ...],
+    analysis_runtime: WindowAnalysisRunnerTelemetry | None,
+    collection_service: CollectionServiceRuntimeTelemetry | None,
+    system_errors: tuple[SystemStateErrorEvidence, ...],
+    as_of: datetime,
+) -> OperationsReviewProjection:
+    analysis_runs = tuple(item.run for item in analysis_results)
+    overview = build_operations_overview(
+        sources=sources,
+        lifecycle_records=lifecycle_records,
+        receipts=receipts,
+        freshness_policies=freshness_policies,
+        connection_attempts=connection_attempts,
+        analysis_runs=analysis_runs,
+        findings=findings,
+        review_events=review_events,
+        as_of=as_of,
+    )
+    attention = build_operations_attention_queue(overview=overview, system_errors=system_errors)
+    monitor = build_operations_monitor_view(
+        sources=sources,
+        overview=overview,
+        attention=attention,
+        acquisition_surfaces=acquisition_surfaces,
+        analysis_runs=analysis_runs,
+        analysis_runtime=analysis_runtime,
+        collection_service=collection_service,
+        as_of=as_of,
+    )
+    return OperationsReviewProjection(overview=overview, monitor=monitor)
 
 
 def load_operations_app_snapshot(
@@ -143,20 +223,8 @@ def load_operations_app_snapshot(
             key=lambda item: (item.run.completed_at, item.run.analysis_run_id),
         )
     )
-    analysis_runs = tuple(item.run for item in analysis_results)
     review_events = _load_review_events(paths, effective_at, system_errors)
 
-    overview = build_operations_overview(
-        sources=registered_sources,
-        lifecycle_records=lifecycle_records,
-        receipts=receipts,
-        freshness_policies=freshness_policies,
-        connection_attempts=connection_attempts,
-        analysis_runs=analysis_runs,
-        findings=findings,
-        review_events=review_events,
-        as_of=effective_at,
-    )
     acquisition_surfaces, collection_service = _load_acquisition(
         paths, registered_sources, effective_at, system_errors
     )
@@ -164,18 +232,20 @@ def load_operations_app_snapshot(
     history_reader, history_assets = _load_history(paths, effective_at, system_errors)
     collection_records = _load_collection_records(paths, effective_at, system_errors)
 
-    attention = build_operations_attention_queue(
-        overview=overview,
-        system_errors=tuple(system_errors),
-    )
-    monitor = build_operations_monitor_view(
+    # System errors collected by any load step above are attention input.
+    review_projection = _review_projection(
         sources=registered_sources,
-        overview=overview,
-        attention=attention,
+        lifecycle_records=lifecycle_records,
+        receipts=receipts,
+        freshness_policies=freshness_policies,
+        connection_attempts=connection_attempts,
+        analysis_results=analysis_results,
+        findings=findings,
+        review_events=review_events,
         acquisition_surfaces=acquisition_surfaces,
-        analysis_runs=analysis_runs,
         analysis_runtime=analysis_runtime,
         collection_service=collection_service,
+        system_errors=tuple(system_errors),
         as_of=effective_at,
     )
     live_flow_timing = LiveFlowTiming(
@@ -215,6 +285,8 @@ def load_operations_app_snapshot(
         analysis_results=analysis_results,
         findings=findings,
         review_events=review_events,
+        receipts=receipts,
+        connection_attempts=connection_attempts,
         acquisition_surfaces=acquisition_surfaces,
         collection_service=collection_service,
         analysis_runtime=analysis_runtime,
@@ -222,8 +294,8 @@ def load_operations_app_snapshot(
         history_assets=history_assets,
         collection_records=collection_records,
         skipped_analysis_attempts=skipped_analysis_attempts,
-        overview=overview,
-        monitor=monitor,
+        overview=review_projection.overview,
+        monitor=review_projection.monitor,
         live_flow_timing=live_flow_timing,
         system_diagnostics=diagnostics,
         system_errors=tuple(system_errors),

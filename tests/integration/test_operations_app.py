@@ -176,3 +176,57 @@ def test_operations_keeps_reviewed_result_outside_recent_limit(tmp_path, monkeyp
     assert "bounded-run-0501" in loaded_ids
     queue_run_ids = {item.analysis_run_id for item in defs["investigation_queue"].items}
     assert "bounded-run-0000" in queue_run_ids
+
+
+def test_review_request_updates_review_projections_without_reloading_state(tmp_path):
+    import shutil
+
+    from industrial_phm.runtime.operations_app_composition import (
+        load_operations_app_snapshot,
+        project_review_workflow,
+    )
+
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    analysis = _analysis()
+    SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).record(analysis)
+    snapshot = load_operations_app_snapshot(
+        environ={"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(workspace.root)},
+        assessed_at=END + timedelta(minutes=1),
+    )
+    (asset,) = (item for item in snapshot.monitor.assets if item.asset_id == "motor-7")
+    assert asset.pending_review_count == 0
+    assert not any(item.finding_id for item in snapshot.monitor.attention)
+
+    # The projection reads nothing from disk: removing the workspace must not matter.
+    shutil.rmtree(workspace.root)
+    finding = create_human_review_finding(analysis)
+    projection = project_review_workflow(snapshot, findings=(finding,), review_events=())
+
+    (asset,) = (item for item in projection.monitor.assets if item.asset_id == "motor-7")
+    assert asset.pending_review_count == 1
+    assert [item.finding_id for item in projection.monitor.attention] == [finding.finding_id]
+    assert projection.monitor.assessed_at == snapshot.assessed_at
+
+
+def test_maintenance_review_reads_its_evidence_by_reference(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    analysis = _analysis()
+    SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).record(analysis)
+    JsonOperationalFindingRepository(workspace.finding_state_path).record(
+        create_human_review_finding(analysis)
+    )
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
+    _, defs = app.run()
+
+    evidence = defs["maintenance_evidence"]
+    assert evidence is not None
+    assert evidence.analysis_run_id == analysis.run.analysis_run_id
+    assert evidence.observed_start_at == analysis.run.observed_start_at
+    assert [row["quantity"] for row in defs["maintenance_evidence_metrics"]]
+    assert defs["maintenance_open_investigation_button"] is not None
+    # The persisted review keeps references only.
+    stored = workspace.finding_state_path.read_text(encoding="utf-8")
+    assert "median_percent" not in stored
