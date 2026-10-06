@@ -7,6 +7,7 @@ import io
 import json
 from dataclasses import asdict
 from datetime import UTC, datetime
+from typing import Any
 
 from industrial_phm.application.asset_history import (
     HistoryIngestionMode,
@@ -272,7 +273,7 @@ def render_multi_signal_measurement_aggregation_svg(
 
 
 def _render_multi_signal_channel_axis(
-    axis: object,
+    axis: Any,
     channel: str,
     buckets: tuple[MultiSignalMeasurementHistoryBucket, ...],
 ) -> None:
