@@ -1717,11 +1717,7 @@ def _(
     resolve_measurement_range,
     signal_channel_selector,
 ):
-    if (
-        navigation.value != "Monitor"
-        or asset_selector is None
-        or history_reader is None
-    ):
+    if navigation.value != "Monitor" or asset_selector is None or history_reader is None:
         monitor_signal_trends = mo.md("")
     else:
         _event_times = tuple(
