@@ -241,7 +241,10 @@ def render_multi_signal_measurement_aggregation_svg(
         raise ValueError("result must be a MultiSignalMeasurementHistoryAggregation")
     channels = tuple(dict.fromkeys(bucket.channel_id for bucket in result.buckets))
     if selected_channel in channels:
-        channels = (selected_channel, *(channel for channel in channels if channel != selected_channel))
+        channels = (
+            selected_channel,
+            *(channel for channel in channels if channel != selected_channel),
+        )
     figure_module = importlib.import_module("matplotlib.figure")
     row_count = max(1, len(channels))
     figure = figure_module.Figure(
@@ -258,7 +261,9 @@ def render_multi_signal_measurement_aggregation_svg(
         axis.set_xlabel("Event time (UTC)")
     else:
         for axis, channel in zip(axes, channels, strict=True):
-            channel_buckets = tuple(bucket for bucket in result.buckets if bucket.channel_id == channel)
+            channel_buckets = tuple(
+                bucket for bucket in result.buckets if bucket.channel_id == channel
+            )
             _render_multi_signal_channel_axis(axis, channel, channel_buckets)
             axis.set_xlim(result.start_at.astimezone(UTC), result.end_at.astimezone(UTC))
             axis.grid(alpha=0.16)
