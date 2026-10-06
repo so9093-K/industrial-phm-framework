@@ -82,7 +82,11 @@ def test_latest_rows_preserve_known_units_and_expose_missing_event_time():
                 "semantics": {
                     "version": "v2",
                     "interpretation_evidence": "instrument documentation",
-                    "definition": {"unit": "kW", "unit_evidence": "instrument manual section 4"},
+                    "definition": {
+                        "scope": "motor input",
+                        "unit": "kW",
+                        "unit_evidence": "instrument manual section 4",
+                    },
                 }
             }
         ),
@@ -90,6 +94,7 @@ def test_latest_rows_preserve_known_units_and_expose_missing_event_time():
     row = latest_measurement_rows((point,), as_of=NOW)[0]
     assert row["value"] == 2.0
     assert row["unit"] == "kW"
+    assert row["scope"] == "motor input"
     assert row["unit_evidence"] == "instrument manual section 4"
     assert row["semantic_version"] == "v2"
     assert row["event_time_state"] == "time-unavailable"
