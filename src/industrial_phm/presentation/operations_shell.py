@@ -109,6 +109,12 @@ body, #root, .marimo {{
   background: var(--phm-bg) !important;
   color: var(--phm-text) !important;
 }}
+/* marimo stacks default to min-width:auto, so the widest content inside (a fact row,
+   a wide table, a fixed-width chart) widened every enclosing stack past the viewport.
+   Let any stack around Operations content shrink to its column instead. */
+div:has(.phm-shell) {{
+  min-width: 0;
+}}
 .phm-shell {{
   background: var(--phm-bg);
   color: var(--phm-text);
@@ -392,7 +398,8 @@ def render_monitor_asset_context_html(
         )
         + _monitor_fact("Last observation", last_observation)
         + _monitor_fact("Stored signals", f"{signal_count} {signal_label}")
-        + _monitor_fact("Attention", attention)
+        # Asset-scoped; global System attention is counted in the attention rail.
+        + _monitor_fact("Asset attention", attention)
         + _monitor_fact("Reviews", reviews)
         + "</div></section>"
     )
@@ -540,6 +547,9 @@ def _ordered_monitor_signal_rows(
                 if selected_channel is not None
                 else False,
                 not _monitor_row_has_issue(row),
+                # Signals with a confirmed meaning (e.g. R/S/T phase current and voltage)
+                # lead; unresolved raw channels follow instead of filling the first view.
+                _monitor_row_text(row, "observed_property") in ("", "unresolved"),
                 _monitor_row_text(row, "channel"),
                 _monitor_row_text(row, "source"),
                 _monitor_row_text(row, "measurement_point"),

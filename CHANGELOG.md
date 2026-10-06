@@ -86,6 +86,14 @@
 
 ### Fixed
 
+- Observation-first Monitor를 #424 reference Chromium run(1440px)에서 확인한 결함을 고쳤습니다.
+  - marimo stack의 `min-width: auto` 때문에 관측 grid, 헤더 사실값, Attention rail이 화면 밖으로 잘리던 문제(공통 theme에서 `.phm-shell`을 감싼 stack이 줄어들 수 있게 함)
+  - 관측 보드가 이름순이라 unresolved raw channel이 첫 화면을 차지하고 빠진 상(T상전류)이 접힌 목록에 숨던 문제(의미가 확정된 signal 우선)
+  - 차트 한글이 □로 깨지던 문제(SVG에 글자를 텍스트로 내보내 브라우저 폰트로 렌더링)
+  - 최신 event-time이 microsecond·+09:00이 붙은 원시 ISO로 나오던 문제(UTC 표기로 통일)
+  - 오류로 끝난 OPC UA worker가 "Stopped"로 보여 사용자가 멈춘 것처럼 읽히던 문제("Disconnected")
+  - 헤더 Attention 수가 전역 System attention을 포함한 rail과 달라 보이던 문제(헤더를 "Asset attention"으로 표기)
+
 - Asset History FILE backfill의 중복 검사가 batch마다 `raw.file_measurement` 전체를 해시 `raw_evidence_id`로
   조회해 비용이 저장 행 수 N에 비례했습니다(전체 적재는 O(N²)). 이제 `(source_id, source_sha256,
   sample_index 범위)`로 범위를 좁혀 같은 결과를 내면서 Parquet 통계로 다른 파일을 건너뜁니다. 이 방식은

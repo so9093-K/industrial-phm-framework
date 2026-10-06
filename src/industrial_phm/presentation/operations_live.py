@@ -209,6 +209,11 @@ def live_source_flow_label(
     if state == OpcUaPersistentSessionState.DISCONNECTED:
         return "Disconnected"
     if state == OpcUaPersistentSessionState.STOPPED:
+        # A worker that ended on an error lost its session; it was not stopped on request.
+        # The collection service restarts it with backoff (ADR-0010) only while it runs,
+        # so "Disconnected" is the claim that holds either way.
+        if (series.session_detail or "").startswith("worker-error"):
+            return "Disconnected"
         return "Stopped"
     if series.last_received_at is None:
         return "Waiting for source data"

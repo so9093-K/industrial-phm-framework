@@ -1726,6 +1726,7 @@ def _(
     render_multi_signal_measurement_aggregation_svg,
     resolve_measurement_range,
     signal_channel_selector,
+    UTC,
 ):
     monitor_trend_start_at = None
     monitor_trend_end_at = None
@@ -1798,7 +1799,7 @@ def _(
                     title="Signal trends unavailable",
                 )
             else:
-                _window_end = _anchor_at.isoformat()
+                _window_end = _anchor_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
                 _evidence_count = len(monitor_window_evidence_items)
                 _evidence_note = (
                     "No analysis evidence overlaps this event-time window."
@@ -1812,7 +1813,7 @@ def _(
                                 monitor_trend_range_selector,
                                 mo.md(
                                     "**Recent signal trends**  \n"
-                                    f"Latest recorded event-time: `{_window_end}`"
+                                    f"Latest recorded event-time: {_window_end}"
                                 ),
                             ],
                             widths=[0.34, 0.66],

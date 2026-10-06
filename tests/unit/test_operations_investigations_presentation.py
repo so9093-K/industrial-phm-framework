@@ -14,6 +14,7 @@ from industrial_phm.presentation.operations_investigations import (
     render_investigation_evidence_identity_html,
     render_investigation_summary_html,
 )
+from industrial_phm.presentation.operations_shell import operations_theme_css
 
 NOW = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
 
@@ -82,6 +83,6 @@ def test_capability_and_review_labels_are_explicit_not_severity() -> None:
     )
     assert investigation_review_label(InvestigationReviewState.NOT_REQUESTED) == "Not requested"
     assert "severity" not in investigation_workspace_css().lower()
-    # marimo stacks default to min-width:auto; without this the wide evidence table
-    # pushed the investigation detail past a 1440px viewport.
-    assert "div:has(.phm-investigation-heading)" in investigation_workspace_css()
+    # marimo stacks default to min-width:auto; the shared theme lets every stack around
+    # Operations content shrink, so wide evidence cannot push detail past the viewport.
+    assert "div:has(.phm-shell)" in operations_theme_css()

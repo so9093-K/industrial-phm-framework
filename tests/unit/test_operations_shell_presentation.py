@@ -305,3 +305,55 @@ def test_monitor_attention_summary_is_factual_not_severity_scoring() -> None:
     assert ">3<" in rendered
     assert "alarm severity" in rendered
     assert "asset-health scores" in rendered
+
+
+def test_monitor_signal_channels_lead_with_confirmed_meaning_before_raw_channels() -> None:
+    # AI-Hub raw names sort R상무효전력 before R상전압 and push T상전류 off the first view.
+    rows = (
+        {
+            "channel": "R상무효전력",
+            "observed_property": "unresolved",
+            "quality": "no recorded issue",
+            "source": "a",
+        },
+        {
+            "channel": "R상역률",
+            "observed_property": "unresolved",
+            "quality": "no recorded issue",
+            "source": "a",
+        },
+        {
+            "channel": "R상전류",
+            "observed_property": "phase current",
+            "quality": "no recorded issue",
+            "source": "a",
+        },
+        {
+            "channel": "S상전류",
+            "observed_property": "phase current",
+            "quality": "no recorded issue",
+            "source": "a",
+        },
+        {
+            "channel": "T상전류",
+            "observed_property": "phase current",
+            "quality": "no recorded issue",
+            "source": "a",
+        },
+        {
+            "channel": "R상전압",
+            "observed_property": "phase voltage",
+            "quality": "no recorded issue",
+            "source": "a",
+        },
+    )
+
+    channels = monitor_signal_channels(rows, selected_channel=None, limit=4)
+
+    assert channels == ("R상전류", "R상전압", "S상전류", "T상전류")
+    # An explicit selection and a data issue still come first.
+    issue = {"channel": "R상역률", "observed_property": "unresolved", "quality": "null"}
+    assert monitor_signal_channels((*rows[2:], issue), selected_channel=None, limit=2) == (
+        "R상역률",
+        "R상전류",
+    )
