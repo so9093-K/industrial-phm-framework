@@ -807,9 +807,7 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     )
     assert {bucket.channel_id for bucket in multi_signal.buckets} == {"va", "ia"}
     assert {
-        (bucket.channel_id, bucket.mean)
-        for bucket in multi_signal.buckets
-        if bucket.usable_count
+        (bucket.channel_id, bucket.mean) for bucket in multi_signal.buckets if bucket.usable_count
     } == {("va", 220.0), ("ia", 10.0)}
     assert {bucket.bucket_start for bucket in multi_signal.buckets} == {BASE}
 
