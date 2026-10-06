@@ -1842,6 +1842,161 @@ def _(
 
 @app.cell
 def _(
+    UTC,
+    investigation_capability_label,
+    investigation_review_label,
+    mo,
+    monitor_window_evidence_items,
+):
+    if monitor_window_evidence_items:
+        monitor_evidence_label_to_id = {
+            (
+                f"{investigation_capability_label(item.capability_id)} · "
+                f"{item.observed_start_at.astimezone(UTC).strftime('%H:%M:%S')}–"
+                f"{item.observed_end_at.astimezone(UTC).strftime('%H:%M:%S')} UTC · "
+                f"{investigation_review_label(item.review_state)} · {index + 1}"
+            ): item.investigation_id
+            for index, item in enumerate(monitor_window_evidence_items)
+        }
+        monitor_evidence_selector = mo.ui.dropdown(
+            options=list(monitor_evidence_label_to_id),
+            value=next(iter(monitor_evidence_label_to_id)),
+            label="Analysis evidence",
+            full_width=True,
+        )
+        monitor_evidence_open_button = mo.ui.run_button(
+            label="Open investigation",
+        )
+    else:
+        monitor_evidence_label_to_id = {}
+        monitor_evidence_selector = None
+        monitor_evidence_open_button = None
+    return (
+        monitor_evidence_label_to_id,
+        monitor_evidence_open_button,
+        monitor_evidence_selector,
+    )
+
+
+@app.cell
+def _(
+    monitor_evidence_label_to_id,
+    monitor_evidence_selector,
+    monitor_window_evidence_items,
+):
+    selected_monitor_evidence = None
+    if monitor_evidence_selector is not None:
+        _investigation_id = monitor_evidence_label_to_id[monitor_evidence_selector.value]
+        selected_monitor_evidence = next(
+            item
+            for item in monitor_window_evidence_items
+            if item.investigation_id == _investigation_id
+        )
+    return (selected_monitor_evidence,)
+
+
+@app.cell
+def _(
+    investigation_queue,
+    resolve_investigation_route,
+    selected_monitor_evidence,
+):
+    monitor_evidence_route = None
+    monitor_evidence_route_error = ""
+    if selected_monitor_evidence is not None:
+        try:
+            monitor_evidence_route = resolve_investigation_route(
+                selected_monitor_evidence.investigation_id,
+                investigation_queue=investigation_queue,
+            )
+        except LookupError as error:
+            monitor_evidence_route_error = str(error)
+    return monitor_evidence_route, monitor_evidence_route_error
+
+
+@app.cell
+def _(
+    monitor_evidence_open_button,
+    monitor_evidence_route,
+    set_investigation_asset_filter,
+    set_investigation_capability_filter,
+    set_investigation_review_filter,
+    set_investigation_selection,
+    set_navigation_page,
+):
+    if (
+        monitor_evidence_open_button is not None
+        and monitor_evidence_open_button.value
+        and monitor_evidence_route is not None
+    ):
+        set_investigation_review_filter("All")
+        set_investigation_asset_filter("All")
+        set_investigation_capability_filter("All")
+        set_investigation_selection(
+            (
+                monitor_evidence_route.investigation_group_id,
+                monitor_evidence_route.investigation_id,
+            )
+        )
+        set_navigation_page("Investigations")
+    return
+
+
+@app.cell
+def _(
+    UTC,
+    investigation_capability_label,
+    investigation_review_label,
+    mo,
+    monitor_evidence_open_button,
+    monitor_evidence_route_error,
+    monitor_evidence_selector,
+    monitor_window_evidence_items,
+):
+    if not monitor_window_evidence_items:
+        monitor_evidence_view = None
+    else:
+        _rows = [
+            {
+                "Capability": investigation_capability_label(item.capability_id),
+                "Observed start": item.observed_start_at.astimezone(UTC).isoformat(),
+                "Observed end": item.observed_end_at.astimezone(UTC).isoformat(),
+                "Source": item.source_id,
+                "Point": item.measurement_point_id or "—",
+                "Data quality": item.data_quality,
+                "Review": investigation_review_label(item.review_state),
+            }
+            for item in monitor_window_evidence_items
+        ]
+        _blocks = [
+            mo.md(
+                "### Analysis evidence in this window\n\n"
+                "Shaded ranges on the signal charts are persisted analysis observation windows."
+            ),
+            mo.ui.table(_rows, page_size=6, selection=None),
+        ]
+        if monitor_evidence_selector is not None and monitor_evidence_open_button is not None:
+            _blocks.append(
+                mo.hstack(
+                    [monitor_evidence_selector, monitor_evidence_open_button],
+                    widths=[0.72, 0.28],
+                    align="end",
+                )
+            )
+        if monitor_evidence_route_error:
+            _blocks.append(
+                mo.callout(
+                    monitor_evidence_route_error,
+                    kind="danger",
+                    title="Analysis drill-down unavailable",
+                )
+            )
+        monitor_evidence_view = mo.vstack(_blocks, gap=0.6)
+    return (monitor_evidence_view,)
+
+
+@app.cell
+def _(
     OperationsReadError,
     UTC,
     asset_history_error,
