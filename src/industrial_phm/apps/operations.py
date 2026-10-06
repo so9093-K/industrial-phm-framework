@@ -49,8 +49,7 @@ def _():
         operational_analysis_presentation_kind,
         operations_theme_css,
         render_analysis_quality_markdown,
-        render_monitor_assets_html,
-        render_monitor_flow_html,
+        render_monitor_asset_context_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
         render_setup_sources_html,
@@ -207,8 +206,7 @@ def _():
         render_maintenance_timeline_html,
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
-        render_monitor_assets_html,
-        render_monitor_flow_html,
+        render_monitor_asset_context_html,
         render_phase_unbalance_svg,
         render_setup_signals_html,
         render_setup_source_detail_html,
@@ -1361,7 +1359,7 @@ def _(
     asset_workspace = None
     asset_workspace_error = None
     asset_history_error = None
-    if navigation.value == "Assets" and asset_selector is not None:
+    if navigation.value in {"Assets", "Monitor"} and asset_selector is not None:
         _selected_asset_id = asset_selector.value
         _history_summary = next(
             (item for item in history_assets if item.asset_id == _selected_asset_id),
@@ -1661,7 +1659,9 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation.value != "Assets" or asset_section.value != "Signals":
+    if navigation.value not in {"Monitor", "Assets"} or (
+        navigation.value == "Assets" and asset_section.value != "Signals"
+    ):
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -3599,14 +3599,12 @@ def _(
     render_asset_header_html,
     render_asset_maintenance_html,
     render_asset_overview_html,
-    render_monitor_assets_html,
-    render_monitor_flow_html,
+    render_monitor_asset_context_html,
     setup_view,
     setup_workspace_css,
     signal_view,
     system_view,
     system_workspace_css,
-    UTC,
 ):
     theme = mo.Html(
         operations_theme_css()
@@ -3619,65 +3617,59 @@ def _(
 
     header = mo.hstack(
         [
-            mo.md("# Operations\n\n설비 데이터 흐름과 분석·검토 상태를 한 곳에서 확인합니다."),
+            mo.md("# Operations\n\n설비의 현재 관측값과 시간 변화를 중심으로 확인합니다."),
             refresh_button,
         ],
         widths=[0.82, 0.18],
         align="start",
     )
 
-    def _time_text(value):
-        if value is None or value.utcoffset() is None:
-            return "—"
-        age = (monitor.assessed_at - value).total_seconds()
-        if age < -1:
-            relative = f"{abs(age):.0f}s in future"
-        elif age < 1:
-            relative = "now"
-        elif age < 60:
-            relative = f"{age:.0f}s ago"
-        elif age < 3600:
-            relative = f"{age / 60:.1f}m ago"
-        elif age < 86400:
-            relative = f"{age / 3600:.1f}h ago"
-        else:
-            relative = f"{age / 86400:.1f}d ago"
-        exact = value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-        return f"{relative} · {exact}"
-
-    def _md_cell(value):
-        if value is None:
-            return "—"
-        return str(value).replace("|", "\\|").replace("\n", " ")
-
-    if monitor.activities:
-        activity_rows = "\n".join(
-            (
-                f"| {_time_text(item.occurred_at)} | "
-                f"{_md_cell(asset_names.label(item.asset_id) if item.asset_id else None)} | "
-                f"{_md_cell(item.title)} |"
-            )
-            for item in monitor.activities[:8]
+    if asset_selector is None:
+        monitor_view = mo.md(
+            "## Monitor\n\n"
+            "No asset evidence is available yet. Add a source in Setup or load history."
         )
-        activity_view = mo.md(
-            "### Recent activity\n\n"
-            "| Time | Asset | Activity |\n"
-            "| --- | --- | --- |\n" + activity_rows
+    elif asset_workspace_error:
+        monitor_view = mo.vstack(
+            [
+                asset_selector,
+                mo.callout(
+                    asset_workspace_error,
+                    kind="danger",
+                    title="Asset observation unavailable",
+                ),
+            ],
+            gap=1.0,
+        )
+    elif asset_workspace is None:
+        monitor_view = mo.vstack(
+            [asset_selector, mo.md("Select an asset to observe its signals.")],
+            gap=1.0,
         )
     else:
-        activity_view = mo.md("### Recent activity\n\nNo recent activity recorded.")
-
-    _monitor_blocks = []
-    if attention_view is not None:
-        _monitor_blocks.append(attention_view)
-    _monitor_blocks.extend(
-        [
-            mo.Html(render_monitor_assets_html(monitor, asset_names)),
-            mo.Html(render_monitor_flow_html(monitor)),
-            activity_view,
-        ]
-    )
-    monitor_view = mo.vstack(_monitor_blocks, gap=1.3)
+        _observation_view = mo.vstack(
+            [
+                asset_selector,
+                mo.Html(
+                    render_monitor_asset_context_html(
+                        asset_workspace,
+                        asset_names,
+                        as_of=monitor.assessed_at,
+                    )
+                ),
+                signal_view,
+            ],
+            gap=1.0,
+        )
+        if attention_view is None:
+            monitor_view = _observation_view
+        else:
+            monitor_view = mo.hstack(
+                [_observation_view, attention_view],
+                widths=[0.72, 0.28],
+                align="start",
+                gap=1.2,
+            )
 
     if asset_selector is None:
         asset_view = mo.md(
