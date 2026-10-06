@@ -218,7 +218,7 @@ def test_monitor_analysis_windows_are_clipped_to_visible_time_range() -> None:
         (
             NOW - timedelta(hours=1),
             NOW - timedelta(minutes=15),
-            "analysis · phase unbalance",
+            "analysis evidence",
         )
     ]
 
