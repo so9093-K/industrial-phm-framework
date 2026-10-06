@@ -1630,6 +1630,16 @@ def _(
 
 @app.cell
 def _(mo):
+    monitor_trend_range_selector = mo.ui.radio(
+        options=["15m", "1h", "24h", "7d"],
+        value="1h",
+        label="Overview range",
+    )
+    return (monitor_trend_range_selector,)
+
+
+@app.cell
+def _(mo):
     live_signal_refresh = mo.ui.refresh(default_interval="1s")
     return (live_signal_refresh,)
 
@@ -1647,6 +1657,8 @@ def _(
     render_monitor_signal_overview_html,
     signal_channel_selector,
 ):
+    monitor_latest_points = ()
+    monitor_latest_rows = ()
     if navigation.value != "Monitor" or asset_selector is None:
         monitor_signal_overview = mo.md("")
     elif history_reader is None:
@@ -1656,16 +1668,20 @@ def _(
         )
     else:
         try:
-            _asset_latest = query_operations_latest_asset_measurements(
+            monitor_latest_points = query_operations_latest_asset_measurements(
                 history_reader,
                 asset_selector.value,
                 limit=1000,
             )
-            _asset_latest_rows = latest_measurement_rows(
-                _asset_latest,
-                as_of=assessed_at,
+            monitor_latest_rows = tuple(
+                latest_measurement_rows(
+                    monitor_latest_points,
+                    as_of=assessed_at,
+                )
             )
         except OperationsReadError as error:
+            monitor_latest_points = ()
+            monitor_latest_rows = ()
             monitor_signal_overview = mo.callout(
                 str(error),
                 kind="danger",
@@ -1677,12 +1693,113 @@ def _(
             )
             monitor_signal_overview = mo.Html(
                 render_monitor_signal_overview_html(
-                    _asset_latest_rows,
+                    monitor_latest_rows,
                     selected_channel=_selected_channel,
                     primary_limit=8,
                 )
             )
-    return (monitor_signal_overview,)
+    return monitor_latest_points, monitor_latest_rows, monitor_signal_overview
+
+
+@app.cell
+def _(
+    OperationsReadError,
+    asset_selector,
+    history_reader,
+    mo,
+    monitor_latest_points,
+    monitor_latest_rows,
+    monitor_signal_channels,
+    monitor_trend_range_selector,
+    navigation,
+    query_operations_multi_signal_measurement_aggregation,
+    render_multi_signal_measurement_aggregation_svg,
+    resolve_measurement_range,
+    signal_channel_selector,
+):
+    if navigation.value != "Monitor" or asset_selector is None:
+        monitor_signal_trends = mo.md("")
+    elif history_reader is None:
+        monitor_signal_trends = mo.md("")
+    else:
+        _event_times = tuple(
+            point.measurement.event_at
+            for point in monitor_latest_points
+            if point.measurement.event_at is not None
+        )
+        _selected_channel = (
+            None if signal_channel_selector is None else signal_channel_selector.value
+        )
+        _channels = monitor_signal_channels(
+            monitor_latest_rows,
+            selected_channel=_selected_channel,
+            limit=6,
+        )
+        if not _event_times or not _channels:
+            monitor_signal_trends = mo.md(
+                "### Recent signal trends\n\nNo event-time observations are available to compare."
+            )
+        else:
+            _anchor_at = max(_event_times)
+            _range_id = monitor_trend_range_selector.value
+            _start_at, _end_at = resolve_measurement_range(
+                _range_id,
+                as_of=_anchor_at,
+                start_at=_anchor_at,
+                end_at=_anchor_at,
+            )
+            _bucket_count = {
+                "15m": 90,
+                "1h": 120,
+                "24h": 144,
+                "7d": 168,
+            }[_range_id]
+            try:
+                _multi_signal = query_operations_multi_signal_measurement_aggregation(
+                    history_reader,
+                    asset_selector.value,
+                    channel_ids=_channels,
+                    start_at=_start_at,
+                    end_at=_end_at,
+                    bucket_count=_bucket_count,
+                )
+            except OperationsReadError as error:
+                monitor_signal_trends = mo.callout(
+                    str(error),
+                    kind="danger",
+                    title="Signal trends unavailable",
+                )
+            else:
+                _window_end = _anchor_at.isoformat()
+                monitor_signal_trends = mo.vstack(
+                    [
+                        mo.hstack(
+                            [
+                                monitor_trend_range_selector,
+                                mo.md(
+                                    "**Recent signal trends**  \n"
+                                    f"Latest recorded event-time: `{_window_end}`"
+                                ),
+                            ],
+                            widths=[0.34, 0.66],
+                            align="end",
+                        ),
+                        mo.Html(
+                            render_multi_signal_measurement_aggregation_svg(
+                                _multi_signal,
+                                selected_channel=_selected_channel,
+                            )
+                        ),
+                        mo.md(
+                            "Each signal keeps its own unit while sharing the same UTC time axis. "
+                            "Buckets show stored min/max/mean only; null, non-good and conflicting "
+                            "observations are marked as excluded evidence. No interpolation, "
+                            "cross-signal normalization, asset health or alarm state is inferred."
+                        ),
+                    ],
+                    gap=0.7,
+                )
+    return (monitor_signal_trends,)
 
 
 @app.cell
