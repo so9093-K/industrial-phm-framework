@@ -31,60 +31,81 @@ def main() -> None:
                 errors = []
                 page.on("pageerror", lambda error, sink=errors: sink.append(str(error)))
                 page.goto(args.url)
-                chart = page.locator(".phm-chart-workspace")
+                chart = page.locator(".mw-plot")
                 expect(chart.locator("svg")).to_be_visible(timeout=30000)
-                expect(page.get_by_role("tab", name="Monitor", exact=True)).to_have_attribute(
-                    "aria-selected", "true"
+                expect(page.get_by_role("button", name="Monitor", exact=True)).to_have_attribute(
+                    "aria-current", "page"
                 )
-                initial_asset = page.get_by_label("Asset", exact=True).input_value()
-                # Test the first fold before Playwright scrolls any control into view.
+                initial_asset = page.locator(".mw-asset h1").inner_text()
                 bounds = chart.bounding_box()
-                assert bounds is not None and bounds["y"] < 750, bounds
-                assert chart.locator("svg text").count() > 5
+                assert bounds is not None and bounds["y"] < 600, bounds
+                assert page.locator(".mw-shell select").count() == 0
+                assert chart.locator("circle").count() > 0
                 page.screenshot(path=str(args.output / f"monitor-{width}-fold.png"))
-                before = chart.inner_html()
-                page.get_by_role("tab", name="15m", exact=True).click()
-                expect(page.get_by_role("tab", name="15m", exact=True)).to_have_attribute(
-                    "aria-selected", "true"
-                )
-                page.wait_for_function(
-                    "old => document.querySelector('.phm-chart-workspace')?.innerHTML !== old",
-                    arg=before,
-                )
-                for period in ("24h", "7d", "1h"):
-                    previous_chart = chart.inner_html()
-                    page.get_by_role("tab", name=period, exact=True).click()
-                    expect(page.get_by_role("tab", name=period, exact=True)).to_have_attribute(
-                        "aria-selected", "true"
+                for period in ("15m", "24h", "7d", "1h"):
+                    page.get_by_role("button", name=period, exact=True).click()
+                    expect(page.get_by_role("button", name=period, exact=True)).to_have_attribute(
+                        "aria-pressed", "true", timeout=30000
                     )
-                    page.wait_for_function(
-                        "old => document.querySelector('.phm-chart-workspace')?.innerHTML !== old",
-                        arg=previous_chart,
-                    )
-                focus = page.get_by_label("Signal", exact=True)
-                focus.select_option(args.focus)
-                expect(focus).to_have_value(args.focus)
-                expect(chart).to_contain_text(args.focus, timeout=30000)
-                comparison = page.get_by_label("Compare signals", exact=True)
-                comparison.click()
-                option = page.get_by_role("listbox", name="Suggestions").get_by_role(
-                    "option", name=args.compare, exact=True
-                )
-                if option.get_attribute("aria-selected") != "true":
-                    option.click()
-                page.keyboard.press("Escape")
-                expect(chart).to_contain_text(args.compare, timeout=30000)
-                page.get_by_role("button", name="Open signal details", exact=True).click()
-                expect(page.get_by_role("tab", name="Assets", exact=True)).to_have_attribute(
-                    "aria-selected", "true"
+                search = page.get_by_role("searchbox", name="Find a signal")
+                search.fill(args.focus)
+                focus = page.get_by_role("button", name=f"Inspect {args.focus}", exact=True)
+                focus.click()
+                expect(focus).to_have_attribute("aria-pressed", "true", timeout=30000)
+                expect(
+                    page.locator(".mw-reading-label").filter(has_text=args.focus)
+                ).to_be_visible()
+                search.fill(args.compare)
+                comparison = page.get_by_role("button", name=f"Compare {args.compare}", exact=True)
+                if comparison.get_attribute("aria-pressed") != "true":
+                    comparison.click()
+                expect(comparison).to_have_attribute("aria-pressed", "true", timeout=30000)
+                expect(
+                    page.locator(".mw-reading-label").filter(has_text=args.compare)
+                ).to_be_visible()
+                search.fill("")
+                box = chart.bounding_box()
+                assert box is not None
+                page.mouse.move(box["x"] + box["width"] * 0.85, box["y"] + 80)
+                expect(page.locator(".mw-tooltip")).to_be_visible()
+                expect(page.locator(".mw-tooltip")).to_contain_text("BUCKET SUMMARY")
+                page.mouse.move(0, 0)
+                page.get_by_role("button", name="Choose asset").click()
+                expect(page.get_by_role("dialog", name="Choose an asset")).to_be_visible()
+                page.get_by_role("button", name="Close asset picker").click()
+                page.get_by_role("button", name="Inspect selected signal", exact=True).click()
+                expect(page.get_by_role("button", name="Assets", exact=True)).to_have_attribute(
+                    "aria-current", "page", timeout=30000
                 )
                 expect(page.get_by_label("Signal", exact=True)).to_have_value(args.focus)
-                page.get_by_role("tab", name="Monitor", exact=True).click()
-                expect(chart).to_contain_text(args.focus, timeout=30000)
-                expect(chart).to_contain_text(args.compare, timeout=30000)
-                expect(page.get_by_label("Asset", exact=True)).to_have_value(initial_asset)
-                expect(page.get_by_role("tab", name="1h", exact=True)).to_have_attribute(
-                    "aria-selected", "true"
+                page.get_by_role("button", name="Monitor", exact=True).click()
+                expect(page.locator(".mw-reading-label").filter(has_text=args.focus)).to_be_visible(
+                    timeout=30000
+                )
+                expect(
+                    page.locator(".mw-reading-label").filter(has_text=args.compare)
+                ).to_be_visible()
+                expect(page.locator(".mw-asset h1")).to_have_text(initial_asset)
+                expect(page.get_by_role("button", name="1h", exact=True)).to_have_attribute(
+                    "aria-pressed", "true"
+                )
+                evidence_rows = page.locator(".mw-evidence-row")
+                evidence_routing = None
+                if evidence_rows.count():
+                    expected_id = evidence_rows.first.get_attribute("data-evidence-id")
+                    evidence_rows.first.click()
+                    expect(
+                        page.get_by_role("button", name="Investigations", exact=True)
+                    ).to_have_attribute("aria-current", "page", timeout=30000)
+                    expect(page.locator(".mw-shell")).to_have_attribute(
+                        "data-current-investigation", expected_id
+                    )
+                    page.get_by_role("button", name="Monitor", exact=True).click()
+                    expect(page.locator(".mw-plot svg")).to_be_visible(timeout=30000)
+                    evidence_routing = expected_id
+                page.get_by_role("button", name="Refresh observations").click()
+                expect(page.locator(".mw-shell")).not_to_have_class(
+                    "mw-shell mw-pending", timeout=30000
                 )
                 overflow = page.evaluate("""() => [...document.querySelectorAll('.output-area *')]
                     .filter(e => { const r = e.getBoundingClientRect();
@@ -109,6 +130,10 @@ def main() -> None:
                         "range_changes": ["15m", "24h", "7d", "1h"],
                         "focus_and_comparison": True,
                         "detail_return_context": True,
+                        "cursor_bucket_summary": True,
+                        "asset_picker": True,
+                        "native_select_count": 0,
+                        "exact_evidence_routing": evidence_routing,
                     }
                 )
                 page.close()

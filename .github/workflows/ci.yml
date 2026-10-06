@@ -385,6 +385,8 @@ jobs:
       - name: Verify packaged runtime contract
         run: |
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/xjtu-sy.toml'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/monitor_widget.js'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/monitor_widget.css'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ai4i-2020.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ims-bearings.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-condition-stratified-5fold-v1.toml'

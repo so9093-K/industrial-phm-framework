@@ -334,7 +334,16 @@ uv run --no-sync --with playwright python -m tools.opcua.monitor_browser \
 The channel arguments must exist in that workspace. Chromium must already be installed
 (`uv run --no-sync --with playwright playwright install chromium` if needed).
 The caller owns the UI server lifecycle. The gate checks 1440px and 1024px viewports, the initial
-chart position, actual chart changes for all four ranges, focus/comparison selection, return from
-Assets signal detail with selection preserved, browser errors, and viewport overflow. It writes
+chart position, actual chart changes for all four ranges, signal search and focus/comparison selection, Asset picker, cursor bucket summaries, exact analysis
+evidence routing, and return from Assets signal detail with selection preserved. It also checks that
+Monitor contains no native selects, reports browser errors, and detects viewport overflow. It writes
 JSON and screenshots; screenshots still require visual review. This is a stored-data interaction
 gate, not the live fault/reconnect protocol owned by `fault_harness.py`.
+
+
+The Monitor renderer is packaged in `industrial_phm/apps/monitor_widget.js` and `.css`, connected
+through the optional Operations `anywidget` bridge. It owns presentation and transient selection;
+canonical history queries, quality, registration, inspection routing and review remain in Python.
+Charts connect adjacent usable bucket means and break at empty/excluded buckets; cursor values
+are summaries, not same-instant sensor samples. Old recorded meaning is never filled from a newer
+registration. Install the locked Operations extra when updating an existing development environment.

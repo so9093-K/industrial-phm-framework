@@ -17,7 +17,7 @@ from industrial_phm.application.operations_monitor import (
     OperationsMonitorView,
 )
 
-OPERATIONS_MAIN_BACKGROUND = "#292827"
+OPERATIONS_MAIN_BACKGROUND = "#10151c"
 OPERATIONS_PAGE_OPTIONS = (
     "Monitor",
     "Assets",
@@ -95,8 +95,8 @@ def operations_theme_css() -> str:
 :root {{
   color-scheme: dark;
   --phm-bg: {OPERATIONS_MAIN_BACKGROUND};
-  --phm-surface: #323130;
-  --phm-surface-raised: #373634;
+  --phm-surface: #1c222c;
+  --phm-surface-raised: #252d39;
   --phm-border: rgba(255,255,255,.08);
   --phm-text: #f2f1ef;
   --phm-muted: #aaa7a2;

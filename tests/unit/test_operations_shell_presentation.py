@@ -75,8 +75,8 @@ def _view() -> OperationsMonitorView:
 
 
 def test_operations_theme_uses_fixed_main_background() -> None:
-    assert OPERATIONS_MAIN_BACKGROUND == "#292827"
-    assert "#292827" in operations_theme_css()
+    assert OPERATIONS_MAIN_BACKGROUND == "#10151c"
+    assert "#10151c" in operations_theme_css()
 
 
 def test_operations_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() -> None:
@@ -85,7 +85,7 @@ def test_operations_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() 
     css = operations_theme_css()
     assert "--lightningcss-light: ;" in css
     assert "--lightningcss-dark: initial;" in css
-    assert "--background: #292827;" in css
+    assert "--background: #10151c;" in css
     assert "--tw-prose-headings: #f2f1ef;" in css
 
 

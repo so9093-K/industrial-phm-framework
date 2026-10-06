@@ -87,7 +87,7 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
     assert defs["navigation_initial_page"] == "Monitor"
     assert defs["navigation"].value == "Monitor"
     assert "marimo-tabs" in defs["navigation"].text
-    assert defs["monitor_trend_range_selector"].value == "1h"
+    assert defs["monitor_range_id"] == "1h"
     assert defs["signal_range_selector"].value == "Live"
     assert defs["get_asset_section"]() == "Overview"
     assert defs["get_investigation_review_filter"]() == "All"

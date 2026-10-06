@@ -870,13 +870,13 @@ with sync_playwright() as p:
     page.goto(url)
     observed_asset_seen = latest_seen = trends_seen = False
     try:
-        page.get_by_text("Observed asset", exact=True).first.wait_for(timeout=30000)
+        page.locator(".mw-asset h1").first.wait_for(timeout=30000)
         observed_asset_seen = True
-        page.get_by_text("Latest stored observations", exact=True).first.wait_for(timeout=30000)
+        page.locator(".mw-reading-value strong").first.wait_for(timeout=30000)
         latest_seen = True
-        page.get_by_text("Recent signal trends", exact=True).first.wait_for(timeout=30000)
+        page.locator(".mw-plot svg").first.wait_for(timeout=30000)
         trends_seen = True
-        page.locator(".phm-signal-value").first.wait_for(timeout=30000)
+        page.locator(".mw-reading-value strong").first.wait_for(timeout=30000)
     except Exception:
         pass
     observation_seconds = time.monotonic() - started
@@ -889,7 +889,7 @@ with sync_playwright() as p:
         except Exception:
             attention_seen = False
     seconds = time.monotonic() - started
-    signal_values = page.locator(".phm-signal-value").all_inner_texts()
+    signal_values = page.locator(".mw-reading-value strong").all_inner_texts()
     system_data_flow_absent = page.get_by_text("System data flow", exact=True).count() == 0
     overflow = page.evaluate(OVERFLOW_JS)
     monitor_ready = (
@@ -931,7 +931,7 @@ with sync_playwright() as p:
     started = time.monotonic()
     page.goto(url)
     try:
-        page.get_by_role("tab", name="Assets", exact=True).click(timeout=5000)
+        page.get_by_role("button", name="Assets", exact=True).click(timeout=5000)
     except Exception:
         page.get_by_text("Assets", exact=True).first.click()
     try:
