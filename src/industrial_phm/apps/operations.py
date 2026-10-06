@@ -3817,10 +3817,11 @@ def _(
             ): item.attention_id
             for index, item in enumerate(_context_attention[:8])
         }
-        attention_selector = mo.ui.radio(
+        attention_selector = mo.ui.dropdown(
             options=list(attention_label_to_id),
             value=next(iter(attention_label_to_id)),
             label="Attention",
+            full_width=True,
         )
         attention_open_button = mo.ui.run_button(
             label="Open evidence",
@@ -3907,6 +3908,7 @@ def _(
     attention_selector,
     mo,
     monitor,
+    monitor_attention_category,
     selected_attention,
     UTC,
 ):
@@ -3929,11 +3931,13 @@ def _(
             else:
                 _relative = f"{_age / 3600:.1f}h ago"
             _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-        _target = "Unavailable" if attention_route is None else attention_route.page
         _asset_label = (
-            asset_names.label(selected_attention.asset_id) if selected_attention.asset_id else "—"
+            asset_names.label(selected_attention.asset_id)
+            if selected_attention.asset_id
+            else "System"
         )
-        _metadata = f"Asset **{_asset_label}** · {_when} · Target **{_target}**"
+        _category = monitor_attention_category(selected_attention)
+        _metadata = f"**{_category}** · {_asset_label} · {_when}"
         _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
         _blocks = [
             mo.md("### Attention"),
