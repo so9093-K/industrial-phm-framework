@@ -11,6 +11,11 @@
 
 ### Changed
 
+- Operations Monitor가 선택한 signal 하나만 상세 표시하던 단계에서 asset 전체의 current stored observation을
+  함께 보여주는 관제 surface로 확장됐습니다. latest observation은 channel마다 반복 query하지 않고 asset 단위의
+  bounded read 한 번으로 가져오며, selected signal과 recorded quality issue를 우선 노출합니다. 의미가 확정된
+  signal은 observed property/scope/unit을 표시하고 raw channel/source/point identity를 그대로 남깁니다.
+
 - Operations Monitor를 workflow/runtime 상태판에서 selected asset의 실제 관측 데이터 중심 화면으로
   재구성했습니다. Monitor는 Assets → Signals와 같은 canonical observation/history read path를 사용해
   asset context, 현재 signal observation, 최근 time-series와 quality/gap evidence를 첫 화면에 두고,
