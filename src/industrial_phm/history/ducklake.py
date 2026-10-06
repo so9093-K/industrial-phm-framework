@@ -1556,6 +1556,93 @@ class DuckLakeAssetHistory:
             )
         return tuple(result)
 
+    def query_latest_asset_measurements(
+        self,
+        asset_id: str,
+        *,
+        limit: int = 1000,
+    ) -> tuple[MeasurementHistoryPoint, ...]:
+        """Latest stored event per source/point/channel for one asset in one bounded read.
+
+        This is the Monitor overview read path. It deliberately avoids issuing one
+        latest query per channel; exact raw metadata is joined only for the bounded
+        latest rows selected from history.
+        """
+        _validate_identifier(asset_id, "asset_id")
+        _validate_positive_int(limit, "limit")
+        if limit > 1000:
+            raise ValueError("latest asset measurement limit must not exceed 1000")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH ranked AS (
+                    SELECT *, row_number() OVER (
+                        PARTITION BY source_id, measurement_point_id, channel_id
+                        ORDER BY event_at DESC, raw_evidence_id
+                    ) observation_rank,
+                    count(DISTINCT value) OVER observation
+                    + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END)
+                        OVER observation > 1 AS has_conflict
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ? AND event_at IS NOT NULL
+                    WINDOW observation AS (
+                        PARTITION BY source_id, measurement_point_id, channel_id, event_at
+                    )
+                ), latest AS (
+                    SELECT * FROM ranked
+                    WHERE observation_rank = 1
+                    ORDER BY channel_id, source_id, measurement_point_id
+                    LIMIT ?
+                ), raw_metadata AS (
+                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json,
+                        f.source_file, f.source_sha256
+                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    INNER JOIN latest l
+                        ON f.raw_evidence_id = l.raw_evidence_id AND l.source_type = 'file'
+                    UNION ALL
+                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                                = o.source_id
+                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                                = o.channel_id
+                        THEN json_object(
+                            'schema', 'opcua-semantic-snapshot',
+                            'semantics', json(o.semantic_binding_json)
+                        )::VARCHAR END AS source_metadata_json,
+                        NULL::VARCHAR AS source_file, NULL::VARCHAR AS source_sha256
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    INNER JOIN latest l
+                        ON o.raw_evidence_id = l.raw_evidence_id AND l.source_type = 'opcua'
+                )
+                SELECT m.raw_evidence_id, m.source_id, m.source_type, m.asset_id,
+                    m.measurement_point_id, m.channel_id, m.event_time_basis, m.event_at,
+                    m.value, m.status_good, m.ingestion_mode, m.has_conflict,
+                    f.source_metadata_json, f.source_file, f.source_sha256
+                FROM latest m LEFT JOIN raw_metadata f
+                    ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
+                ORDER BY m.channel_id, m.source_id, m.measurement_point_id
+                """,
+                [asset_id, limit + 1],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > limit:
+            raise ValueError(
+                "latest asset measurement population exceeds limit; narrow the monitored asset"
+            )
+        return tuple(
+            MeasurementHistoryPoint(
+                _historical_measurement_from_row(row[:11]),
+                _require_bool(row[11], "conflict"),
+                _optional_str(row[12], "source_metadata_json"),
+                _optional_str(row[13], "source_file"),
+                _optional_str(row[14], "source_sha256"),
+            )
+            for row in rows
+        )
+
     def query_latest_measurements(
         self,
         asset_id: str,
