@@ -273,7 +273,7 @@ def render_monitor_asset_context_html(
             css_class=f"phm-status-{view.status.value}",
         )
         + _monitor_fact("Last observation", last_observation)
-        + _monitor_fact("Signals", f"{signal_count} {signal_label}")
+        + _monitor_fact("Stored signals", f"{signal_count} {signal_label}")
         + _monitor_fact("Attention", attention)
         + _monitor_fact("Reviews", reviews)
         + "</div></section>"
