@@ -44,6 +44,7 @@ from industrial_phm.presentation.operations_shell import (
     operations_theme_css,
     render_monitor_asset_context_html,
     render_monitor_assets_html,
+    render_monitor_signal_overview_html,
     render_monitor_flow_html,
     status_label,
 )
@@ -84,6 +85,7 @@ __all__ = [
     "render_maintenance_timeline_html",
     "render_monitor_asset_context_html",
     "render_monitor_assets_html",
+    "render_monitor_signal_overview_html",
     "render_monitor_flow_html",
     "render_setup_signals_html",
     "render_setup_source_detail_html",
