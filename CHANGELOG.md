@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations Monitor에 selected asset의 여러 signal을 같은 event-time window에서 비교하는 synchronized
+  small-multiple trend를 추가했습니다. 최대 6개 signal을 한 번의 bounded multi-channel aggregation query로
+  읽고, 각 signal의 unit/semantic identity를 분리한 채 같은 UTC 시간축을 사용합니다. trend window는 wall-clock
+  now가 아니라 asset의 latest stored event-time에 anchor되어 historical replay에서도 실제 관측 구간을
+  보여줍니다. null/non-good/conflict observation은 min/max/mean에서 제외하고 별도 evidence marker로 남기며,
+  interpolation이나 cross-signal normalization을 수행하지 않습니다.
+
 - Operations Monitor가 선택한 signal 하나만 상세 표시하던 단계에서 asset 전체의 latest stored observation을
   함께 보여주는 관제 surface로 확장됐습니다. latest observation은 channel마다 반복 query하지 않고 asset 단위의
   bounded read 한 번으로 가져오며, selected signal과 recorded quality issue를 우선 노출합니다. 의미가 확정된

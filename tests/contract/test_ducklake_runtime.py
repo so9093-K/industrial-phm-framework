@@ -798,6 +798,19 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
         "unresolved"
     )
 
+    multi_signal = history.query_multi_signal_measurement_aggregation(
+        "pump-01",
+        channel_ids=("va", "ia"),
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=1),
+        bucket_count=2,
+    )
+    assert {bucket.channel_id for bucket in multi_signal.buckets} == {"va", "ia"}
+    assert {
+        (bucket.channel_id, bucket.mean) for bucket in multi_signal.buckets if bucket.usable_count
+    } == {("va", 220.0), ("ia", 10.0)}
+    assert {bucket.bucket_start for bucket in multi_signal.buckets} == {BASE}
+
     def shown(channel):
         latest = history.query_latest_measurements("pump-01", channel_id=channel)
         (row,) = latest_measurement_rows(latest, as_of=BASE + timedelta(minutes=1))
