@@ -14,6 +14,7 @@ from industrial_phm.application.operations_monitor import (
 )
 from industrial_phm.presentation.operations_navigation import (
     resolve_finding_investigation_route,
+    resolve_investigation_route,
     resolve_operations_attention_route,
 )
 
@@ -121,3 +122,20 @@ def test_review_finding_routes_back_to_its_exact_investigation() -> None:
     assert route.investigation_id == "analysis-1:capability-1"
     with pytest.raises(LookupError, match="exactly one investigation"):
         resolve_finding_investigation_route("finding-missing", investigation_queue=_queue())
+
+
+def test_analysis_evidence_routes_to_exact_investigation_without_finding() -> None:
+    route = resolve_investigation_route(
+        "analysis-1:capability-1",
+        investigation_queue=_queue(finding_id="finding-1"),
+    )
+
+    assert route.page == "Investigations"
+    assert route.investigation_group_id == "asset-1:capability-1:open"
+    assert route.investigation_id == "analysis-1:capability-1"
+
+    with pytest.raises(LookupError, match="exactly one queue item"):
+        resolve_investigation_route(
+            "analysis-missing:capability-1",
+            investigation_queue=_queue(),
+        )

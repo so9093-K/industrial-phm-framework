@@ -46,6 +46,8 @@ def _():
         OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
         initial_operations_page,
+        monitor_attention_category,
+        monitor_context_attention,
         monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
@@ -105,6 +107,7 @@ def _():
     )
     from industrial_phm.presentation.operations_navigation import (
         resolve_finding_investigation_route,
+        resolve_investigation_route,
         resolve_operations_attention_route,
     )
     from industrial_phm.presentation.phase_unbalance import (
@@ -184,6 +187,8 @@ def _():
         measurement_history_range_summary,
         measurement_history_rows,
         mo,
+        monitor_attention_category,
+        monitor_context_attention,
         monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
@@ -207,6 +212,7 @@ def _():
         project_review_workflow,
         resolve_asset_display_names,
         resolve_finding_investigation_route,
+        resolve_investigation_route,
         resolve_operations_attention_route,
         render_maintenance_evidence_html,
         render_maintenance_identity_html,
@@ -1706,6 +1712,8 @@ def _(
     OperationsReadError,
     asset_selector,
     history_reader,
+    investigation_capability_label,
+    investigation_queue,
     mo,
     monitor_latest_points,
     monitor_latest_rows,
@@ -1717,6 +1725,9 @@ def _(
     resolve_measurement_range,
     signal_channel_selector,
 ):
+    monitor_trend_start_at = None
+    monitor_trend_end_at = None
+    monitor_window_evidence_items = ()
     if navigation.value != "Monitor" or asset_selector is None or history_reader is None:
         monitor_signal_trends = mo.md("")
     else:
@@ -1746,6 +1757,23 @@ def _(
                 start_at=_anchor_at,
                 end_at=_anchor_at,
             )
+            monitor_trend_start_at = _start_at
+            monitor_trend_end_at = _end_at
+            monitor_window_evidence_items = tuple(
+                item
+                for item in investigation_queue.items
+                if item.asset_id == asset_selector.value
+                and item.observed_end_at >= _start_at
+                and item.observed_start_at <= _end_at
+            )[:6]
+            _evidence_windows = tuple(
+                (
+                    item.observed_start_at,
+                    item.observed_end_at,
+                    investigation_capability_label(item.capability_id),
+                )
+                for item in monitor_window_evidence_items
+            )
             _bucket_count = {
                 "15m": 90,
                 "1h": 120,
@@ -1769,6 +1797,12 @@ def _(
                 )
             else:
                 _window_end = _anchor_at.isoformat()
+                _evidence_count = len(monitor_window_evidence_items)
+                _evidence_note = (
+                    "No analysis evidence overlaps this event-time window."
+                    if _evidence_count == 0
+                    else f"{_evidence_count} analysis evidence window(s) overlap this range."
+                )
                 monitor_signal_trends = mo.vstack(
                     [
                         mo.hstack(
@@ -1786,9 +1820,11 @@ def _(
                             render_multi_signal_measurement_aggregation_svg(
                                 _multi_signal,
                                 selected_channel=_selected_channel,
+                                evidence_windows=_evidence_windows,
                             )
                         ),
                         mo.md(
+                            f"{_evidence_note} "
                             "Each signal keeps its own unit while sharing the same UTC time axis. "
                             "Buckets show stored min/max/mean only; null, non-good and conflicting "
                             "observations are marked as excluded evidence. No interpolation, "
@@ -1797,7 +1833,167 @@ def _(
                     ],
                     gap=0.7,
                 )
-    return (monitor_signal_trends,)
+    return (
+        monitor_signal_trends,
+        monitor_trend_end_at,
+        monitor_trend_start_at,
+        monitor_window_evidence_items,
+    )
+
+
+@app.cell
+def _(
+    UTC,
+    investigation_capability_label,
+    investigation_review_label,
+    mo,
+    monitor_window_evidence_items,
+):
+    if monitor_window_evidence_items:
+        monitor_evidence_label_to_id = {
+            (
+                f"{investigation_capability_label(item.capability_id)} · "
+                f"{item.observed_start_at.astimezone(UTC).strftime('%H:%M:%S')} - "
+                f"{item.observed_end_at.astimezone(UTC).strftime('%H:%M:%S')} UTC · "
+                f"{investigation_review_label(item.review_state)} · {index + 1}"
+            ): item.investigation_id
+            for index, item in enumerate(monitor_window_evidence_items)
+        }
+        monitor_evidence_selector = mo.ui.dropdown(
+            options=list(monitor_evidence_label_to_id),
+            value=next(iter(monitor_evidence_label_to_id)),
+            label="Analysis evidence",
+            full_width=True,
+        )
+        monitor_evidence_open_button = mo.ui.run_button(
+            label="Open investigation",
+        )
+    else:
+        monitor_evidence_label_to_id = {}
+        monitor_evidence_selector = None
+        monitor_evidence_open_button = None
+    return (
+        monitor_evidence_label_to_id,
+        monitor_evidence_open_button,
+        monitor_evidence_selector,
+    )
+
+
+@app.cell
+def _(
+    monitor_evidence_label_to_id,
+    monitor_evidence_selector,
+    monitor_window_evidence_items,
+):
+    selected_monitor_evidence = None
+    if monitor_evidence_selector is not None:
+        _investigation_id = monitor_evidence_label_to_id[monitor_evidence_selector.value]
+        selected_monitor_evidence = next(
+            item
+            for item in monitor_window_evidence_items
+            if item.investigation_id == _investigation_id
+        )
+    return (selected_monitor_evidence,)
+
+
+@app.cell
+def _(
+    investigation_queue,
+    resolve_investigation_route,
+    selected_monitor_evidence,
+):
+    monitor_evidence_route = None
+    monitor_evidence_route_error = ""
+    if selected_monitor_evidence is not None:
+        try:
+            monitor_evidence_route = resolve_investigation_route(
+                selected_monitor_evidence.investigation_id,
+                investigation_queue=investigation_queue,
+            )
+        except LookupError as error:
+            monitor_evidence_route_error = str(error)
+    return monitor_evidence_route, monitor_evidence_route_error
+
+
+@app.cell
+def _(
+    monitor_evidence_open_button,
+    monitor_evidence_route,
+    set_investigation_asset_filter,
+    set_investigation_capability_filter,
+    set_investigation_review_filter,
+    set_investigation_selection,
+    set_navigation_page,
+):
+    if (
+        monitor_evidence_open_button is not None
+        and monitor_evidence_open_button.value
+        and monitor_evidence_route is not None
+    ):
+        set_investigation_review_filter("All")
+        set_investigation_asset_filter("All")
+        set_investigation_capability_filter("All")
+        set_investigation_selection(
+            (
+                monitor_evidence_route.investigation_group_id,
+                monitor_evidence_route.investigation_id,
+            )
+        )
+        set_navigation_page("Investigations")
+    return
+
+
+@app.cell
+def _(
+    UTC,
+    investigation_capability_label,
+    investigation_review_label,
+    mo,
+    monitor_evidence_open_button,
+    monitor_evidence_route_error,
+    monitor_evidence_selector,
+    monitor_window_evidence_items,
+):
+    if not monitor_window_evidence_items:
+        monitor_evidence_view = None
+    else:
+        _rows = [
+            {
+                "Capability": investigation_capability_label(item.capability_id),
+                "Observed start": item.observed_start_at.astimezone(UTC).isoformat(),
+                "Observed end": item.observed_end_at.astimezone(UTC).isoformat(),
+                "Source": item.source_id,
+                "Point": item.measurement_point_id or "—",
+                "Data quality": item.data_quality,
+                "Review": investigation_review_label(item.review_state),
+            }
+            for item in monitor_window_evidence_items
+        ]
+        _blocks = [
+            mo.md(
+                "### Analysis evidence in this window\n\n"
+                "Shaded ranges on the signal charts are persisted analysis observation windows."
+            ),
+            mo.ui.table(_rows, page_size=6, selection=None),
+        ]
+        if monitor_evidence_selector is not None and monitor_evidence_open_button is not None:
+            _blocks.append(
+                mo.hstack(
+                    [monitor_evidence_selector, monitor_evidence_open_button],
+                    widths=[0.72, 0.28],
+                    align="end",
+                )
+            )
+        if monitor_evidence_route_error:
+            _blocks.append(
+                mo.callout(
+                    monitor_evidence_route_error,
+                    kind="danger",
+                    title="Analysis drill-down unavailable",
+                )
+            )
+        monitor_evidence_view = mo.vstack(_blocks, gap=0.6)
+    return (monitor_evidence_view,)
 
 
 @app.cell
@@ -3600,22 +3796,35 @@ def _(
 @app.cell
 def _(
     asset_names,
+    asset_selector,
     mo,
     monitor,
+    monitor_attention_category,
+    monitor_context_attention,
 ):
-    if monitor.attention:
+    if asset_selector is None:
+        _context_attention = ()
+    else:
+        _context_attention = monitor_context_attention(
+            monitor.attention,
+            asset_id=asset_selector.value,
+        )
+    if _context_attention:
         attention_label_to_id = {
-            f"{item.title} · {asset_names.label(item.asset_id) if item.asset_id else 'System'}"
-            f" · {index + 1}": item.attention_id
-            for index, item in enumerate(monitor.attention[:8])
+            (
+                f"{monitor_attention_category(item)} · {item.title} · "
+                f"{asset_names.label(item.asset_id) if item.asset_id else 'System'} · {index + 1}"
+            ): item.attention_id
+            for index, item in enumerate(_context_attention[:8])
         }
-        attention_selector = mo.ui.radio(
+        attention_selector = mo.ui.dropdown(
             options=list(attention_label_to_id),
             value=next(iter(attention_label_to_id)),
-            label="Needs attention",
+            label="Attention",
+            full_width=True,
         )
         attention_open_button = mo.ui.run_button(
-            label="Open selected",
+            label="Open evidence",
             kind="warn",
         )
     else:
@@ -3699,6 +3908,7 @@ def _(
     attention_selector,
     mo,
     monitor,
+    monitor_attention_category,
     selected_attention,
     UTC,
 ):
@@ -3721,14 +3931,16 @@ def _(
             else:
                 _relative = f"{_age / 3600:.1f}h ago"
             _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-        _target = "Unavailable" if attention_route is None else attention_route.page
         _asset_label = (
-            asset_names.label(selected_attention.asset_id) if selected_attention.asset_id else "—"
+            asset_names.label(selected_attention.asset_id)
+            if selected_attention.asset_id
+            else "System"
         )
-        _metadata = f"Asset **{_asset_label}** · {_when} · Target **{_target}**"
+        _category = monitor_attention_category(selected_attention)
+        _metadata = f"**{_category}** · {_asset_label} · {_when}"
         _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
         _blocks = [
-            mo.md("### Needs attention"),
+            mo.md("### Attention"),
             attention_selector,
             mo.md(_metadata),
             mo.callout(
@@ -3767,6 +3979,7 @@ def _(
     maintenance_workspace_css,
     mo,
     monitor,
+    monitor_evidence_view,
     monitor_signal_overview,
     monitor_signal_trends,
     navigation,
@@ -3837,6 +4050,7 @@ def _(
                 ),
                 monitor_signal_overview,
                 monitor_signal_trends,
+                *([] if monitor_evidence_view is None else [monitor_evidence_view]),
                 signal_view,
             ],
             gap=1.0,
