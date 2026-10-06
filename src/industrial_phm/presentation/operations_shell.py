@@ -356,11 +356,7 @@ def monitor_context_attention(
 ) -> tuple[OperationsMonitorAttention, ...]:
     """Keep selected-asset attention plus global System issues in Monitor context."""
 
-    if (
-        not isinstance(asset_id, str)
-        or not asset_id.strip()
-        or asset_id != asset_id.strip()
-    ):
+    if not isinstance(asset_id, str) or not asset_id.strip() or asset_id != asset_id.strip():
         raise ValueError("asset_id must be a non-empty trimmed string")
     values = tuple(attention)
     if any(not isinstance(item, OperationsMonitorAttention) for item in values):
@@ -369,10 +365,7 @@ def monitor_context_attention(
         item
         for item in values
         if item.asset_id == asset_id
-        or (
-            item.asset_id is None
-            and item.destination == OperationsAttentionDestination.SYSTEM
-        )
+        or (item.asset_id is None and item.destination == OperationsAttentionDestination.SYSTEM)
     )
 
 
