@@ -192,6 +192,7 @@ def test_range_summary_does_not_claim_truncated_points_cover_the_request():
     assert empty["returned_end"] is None
     assert empty["returned_points"] == 0
 
+
 def test_monitor_analysis_windows_are_clipped_to_visible_time_range() -> None:
     from industrial_phm.presentation.measurement_history import _render_evidence_windows
 
