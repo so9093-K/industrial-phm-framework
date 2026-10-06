@@ -222,4 +222,3 @@ def test_monitor_analysis_windows_are_clipped_to_visible_time_range() -> None:
             "analysis evidence",
         )
     ]
-
