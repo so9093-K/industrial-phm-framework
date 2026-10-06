@@ -9,6 +9,7 @@ from html import escape
 from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_assets import AssetWorkspaceView
 from industrial_phm.application.operations_monitor import (
+    OperationsAttentionDestination,
     OperationsMonitorAsset,
     OperationsMonitorStage,
     OperationsMonitorStatus,
@@ -288,6 +289,56 @@ body, #root, .marimo {{
   user-select: none;
   margin-bottom: .65rem;
 }}
+.phm-attention-summary {{
+  border-left: 1px solid var(--phm-border);
+  padding-left: .9rem;
+}}
+.phm-attention-heading {{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+}}
+.phm-attention-title {{
+  color: var(--phm-text);
+  font-size: .9rem;
+  font-weight: 700;
+}}
+.phm-attention-count {{
+  color: var(--phm-attention);
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}}
+.phm-attention-categories {{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .35rem;
+  margin-top: .65rem;
+}}
+.phm-attention-category {{
+  border-top: 1px solid var(--phm-border);
+  padding-top: .45rem;
+}}
+.phm-attention-category-label {{
+  color: var(--phm-muted);
+  font-size: .66rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}}
+.phm-attention-category-value {{
+  margin-top: .15rem;
+  color: var(--phm-text);
+  font-size: .92rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}}
+.phm-attention-note {{
+  margin-top: .6rem;
+  color: var(--phm-muted);
+  font-size: .7rem;
+  line-height: 1.35;
+}}
 @media (max-width: 980px) {{
   .phm-flow {{ grid-template-columns: 1fr 1fr; }}
   .phm-monitor-context {{
@@ -366,6 +417,83 @@ def monitor_signal_channels(
         if len(result) == limit:
             break
     return tuple(result)
+
+
+def monitor_attention_category(attention: OperationsMonitorAttention) -> str:
+    """Map current typed attention destinations to factual Monitor categories."""
+
+    if not isinstance(attention, OperationsMonitorAttention):
+        raise ValueError("attention must be an OperationsMonitorAttention")
+    if attention.destination == OperationsAttentionDestination.ASSET_SIGNALS:
+        return "Data"
+    if attention.destination == OperationsAttentionDestination.INVESTIGATIONS:
+        return "Review"
+    if attention.destination == OperationsAttentionDestination.SYSTEM:
+        return "System"
+    raise AssertionError(f"unsupported attention destination: {attention.destination!r}")
+
+
+def monitor_attention_options(
+    attention: Sequence[OperationsMonitorAttention],
+    asset_names: AssetDisplayNames,
+    *,
+    as_of: datetime,
+) -> dict[str, str]:
+    """Build bounded human labels without using title text to infer routing semantics."""
+
+    if not isinstance(asset_names, AssetDisplayNames):
+        raise ValueError("asset_names must be an AssetDisplayNames")
+    if not isinstance(as_of, datetime) or as_of.utcoffset() is None:
+        raise ValueError("as_of must be a timezone-aware datetime")
+    values = tuple(attention)
+    if any(not isinstance(item, OperationsMonitorAttention) for item in values):
+        raise ValueError("attention must contain OperationsMonitorAttention values")
+
+    options: dict[str, str] = {}
+    duplicate_counts: dict[str, int] = {}
+    for item in values[:8]:
+        category = monitor_attention_category(item)
+        entity = asset_names.label(item.asset_id) if item.asset_id else "Platform"
+        base = f"{category} · {item.title} · {entity}"
+        duplicate_counts[base] = duplicate_counts.get(base, 0) + 1
+        suffix = duplicate_counts[base]
+        label = base if suffix == 1 else f"{base} · {suffix}"
+        options[label] = item.attention_id
+    return options
+
+
+def render_monitor_attention_summary_html(
+    attention: Sequence[OperationsMonitorAttention],
+) -> str:
+    """Render compact factual attention counts for the Monitor secondary rail."""
+
+    values = tuple(attention)
+    if any(not isinstance(item, OperationsMonitorAttention) for item in values):
+        raise ValueError("attention must contain OperationsMonitorAttention values")
+    counts = {
+        category: sum(monitor_attention_category(item) == category for item in values)
+        for category in ("Data", "Review", "System")
+    }
+    return (
+        '<section class="phm-shell phm-attention-summary">'
+        '<div class="phm-attention-heading">'
+        '<div class="phm-attention-title">Needs attention</div>'
+        f'<div class="phm-attention-count">{len(values)}</div>'
+        "</div>"
+        '<div class="phm-attention-categories">'
+        + "".join(
+            '<div class="phm-attention-category">'
+            f'<div class="phm-attention-category-label">{escape(category)}</div>'
+            f'<div class="phm-attention-category-value">{count}</div>'
+            "</div>"
+            for category, count in counts.items()
+        )
+        + "</div>"
+        '<div class="phm-attention-note">'
+        "Current operational evidence requiring inspection. "
+        "These counts are not alarm severity or asset-health scores."
+        "</div></section>"
+    )
 
 
 def render_monitor_signal_overview_html(
