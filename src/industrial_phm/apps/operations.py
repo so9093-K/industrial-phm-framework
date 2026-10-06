@@ -46,6 +46,7 @@ def _():
         OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
         initial_operations_page,
+        monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
         render_analysis_quality_markdown,
@@ -67,6 +68,7 @@ def _():
         measurement_history_range_summary,
         measurement_history_rows,
         render_measurement_aggregation_svg,
+        render_multi_signal_measurement_aggregation_svg,
         render_measurement_history_svg,
     )
     from industrial_phm.presentation.operations_assets import (
@@ -123,6 +125,8 @@ def _():
         load_operations_live_observation,
         query_operations_latest_asset_measurements,
         query_operations_latest_measurements,
+        query_operations_multi_signal_measurement_aggregation,
+        query_operations_multi_signal_measurement_aggregation,
         query_operations_measurement_aggregation,
         query_operations_measurement_page,
     )
@@ -181,6 +185,7 @@ def _():
         measurement_history_range_summary,
         measurement_history_rows,
         mo,
+        monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
         phase_unbalance_exclusion_rows,
@@ -209,6 +214,7 @@ def _():
         render_maintenance_timeline_html,
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
+        render_multi_signal_measurement_aggregation_svg,
         render_monitor_asset_context_html,
         render_monitor_signal_overview_html,
         render_phase_unbalance_svg,
