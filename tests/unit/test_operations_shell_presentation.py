@@ -99,6 +99,7 @@ def test_monitor_presenters_use_operator_vocabulary() -> None:
     assert "control-plane" not in flow
     assert "receipt" not in assets
 
+
 def test_monitor_asset_context_prioritizes_observation_facts() -> None:
     workspace = AssetWorkspaceView(
         asset_id="boiler-01",
