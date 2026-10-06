@@ -9,7 +9,9 @@ from html import escape
 from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_assets import AssetWorkspaceView
 from industrial_phm.application.operations_monitor import (
+    OperationsAttentionDestination,
     OperationsMonitorAsset,
+    OperationsMonitorAttention,
     OperationsMonitorStage,
     OperationsMonitorStatus,
     OperationsMonitorView,
@@ -345,6 +347,41 @@ def render_monitor_asset_context_html(
         + _monitor_fact("Reviews", reviews)
         + "</div></section>"
     )
+
+
+def monitor_context_attention(
+    attention: Sequence[OperationsMonitorAttention],
+    *,
+    asset_id: str,
+) -> tuple[OperationsMonitorAttention, ...]:
+    """Keep selected-asset attention plus global System issues in Monitor context."""
+
+    if not isinstance(asset_id, str) or not asset_id.strip() or asset_id != asset_id.strip():
+        raise ValueError("asset_id must be a non-empty trimmed string")
+    values = tuple(attention)
+    if any(not isinstance(item, OperationsMonitorAttention) for item in values):
+        raise ValueError("attention must contain OperationsMonitorAttention values")
+    return tuple(
+        item
+        for item in values
+        if item.asset_id == asset_id
+        or (
+            item.asset_id is None
+            and item.destination == OperationsAttentionDestination.SYSTEM
+        )
+    )
+
+
+def monitor_attention_category(attention: OperationsMonitorAttention) -> str:
+    """Operator-facing factual category, not severity or alarm priority."""
+
+    if not isinstance(attention, OperationsMonitorAttention):
+        raise ValueError("attention must be an OperationsMonitorAttention")
+    return {
+        OperationsAttentionDestination.ASSET_SIGNALS: "Data",
+        OperationsAttentionDestination.INVESTIGATIONS: "Review",
+        OperationsAttentionDestination.SYSTEM: "System",
+    }[attention.destination]
 
 
 def monitor_signal_channels(
