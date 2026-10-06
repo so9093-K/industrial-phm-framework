@@ -422,13 +422,19 @@ def _ordered_monitor_signal_rows(
                 _monitor_row_text(row, "channel") != selected_channel
                 if selected_channel is not None
                 else False,
-                _monitor_row_text(row, "quality") == "no recorded issue",
+                not _monitor_row_has_issue(row),
                 _monitor_row_text(row, "channel"),
                 _monitor_row_text(row, "source"),
                 _monitor_row_text(row, "measurement_point"),
             ),
         )
     )
+
+
+def _monitor_row_has_issue(row: Mapping[str, object]) -> bool:
+    quality = _monitor_row_text(row, "quality")
+    event_state = _monitor_row_text(row, "event_time_state")
+    return quality != "no recorded issue" or event_state not in {"", "recorded"}
 
 
 def _render_monitor_signal_board(
@@ -475,7 +481,7 @@ def _render_monitor_signal_row(
     classes = ["phm-signal-row"]
     if selected_channel == channel:
         classes.append("phm-signal-row-selected")
-    issue = quality != "no recorded issue" or event_state not in {"", "recorded"}
+    issue = _monitor_row_has_issue(row)
     if issue:
         classes.append("phm-signal-row-issue")
     quality_class = "phm-signal-meta-issue" if issue else ""
