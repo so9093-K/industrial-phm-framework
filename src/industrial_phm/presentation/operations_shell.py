@@ -362,8 +362,6 @@ def render_monitor_asset_context_html(
 
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
-    if not isinstance(as_of, datetime) or as_of.utcoffset() is None:
-        raise ValueError("as_of must be a timezone-aware datetime")
 
     name = None if asset_names is None else asset_names.name(view.asset_id)
     title = view.asset_id if name is None else name
@@ -436,8 +434,6 @@ def monitor_attention_category(attention: OperationsMonitorAttention) -> str:
 def monitor_attention_options(
     attention: Sequence[OperationsMonitorAttention],
     asset_names: AssetDisplayNames,
-    *,
-    as_of: datetime,
 ) -> dict[str, str]:
     """Build bounded human labels without using title text to infer routing semantics."""
 
