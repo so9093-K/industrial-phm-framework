@@ -6,6 +6,7 @@ import importlib
 import io
 import json
 from dataclasses import asdict
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -234,11 +235,20 @@ def render_multi_signal_measurement_aggregation_svg(
     result: MultiSignalMeasurementHistoryAggregation,
     *,
     selected_channel: str | None = None,
+    evidence_windows: Sequence[tuple[datetime, datetime, str]] = (),
 ) -> str:
     """Render channel-separated small multiples on one event-time axis."""
 
     if not isinstance(result, MultiSignalMeasurementHistoryAggregation):
         raise ValueError("result must be a MultiSignalMeasurementHistoryAggregation")
+    windows = tuple(evidence_windows)
+    for start_at, end_at, label in windows:
+        if start_at.utcoffset() is None or end_at.utcoffset() is None:
+            raise ValueError("evidence window timestamps must be timezone-aware")
+        if start_at > end_at:
+            raise ValueError("evidence window start must not be after end")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError("evidence window label must be non-empty")
     channels = tuple(dict.fromkeys(bucket.channel_id for bucket in result.buckets))
     if selected_channel in channels:
         channels = (
@@ -264,6 +274,12 @@ def render_multi_signal_measurement_aggregation_svg(
             channel_buckets = tuple(
                 bucket for bucket in result.buckets if bucket.channel_id == channel
             )
+            _render_evidence_windows(
+                axis,
+                windows,
+                start_at=result.start_at,
+                end_at=result.end_at,
+            )
             _render_multi_signal_channel_axis(axis, channel, channel_buckets)
             axis.set_xlim(result.start_at.astimezone(UTC), result.end_at.astimezone(UTC))
             axis.grid(alpha=0.16)
@@ -275,6 +291,27 @@ def render_multi_signal_measurement_aggregation_svg(
     output = io.StringIO()
     figure.savefig(output, format="svg")
     return output.getvalue()
+
+
+def _render_evidence_windows(
+    axis: Any,
+    windows: Sequence[tuple[datetime, datetime, str]],
+    *,
+    start_at: datetime,
+    end_at: datetime,
+) -> None:
+    for index, (window_start, window_end, label) in enumerate(windows):
+        clipped_start = max(window_start, start_at).astimezone(UTC)
+        clipped_end = min(window_end, end_at).astimezone(UTC)
+        if clipped_start > clipped_end:
+            continue
+        axis.axvspan(
+            clipped_start,
+            clipped_end,
+            alpha=0.08,
+            color=f"C{(index + 2) % 10}",
+            label=f"analysis · {label}",
+        )
 
 
 def _render_multi_signal_channel_axis(
