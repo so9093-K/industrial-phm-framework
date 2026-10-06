@@ -290,6 +290,55 @@ body, #root, .marimo {{
   user-select: none;
   margin-bottom: .65rem;
 }}
+.phm-attention-summary {{
+  border-left: 1px solid var(--phm-border);
+  padding-left: .85rem;
+}}
+.phm-attention-summary-head {{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .75rem;
+}}
+.phm-attention-summary-title {{
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--phm-text);
+}}
+.phm-attention-summary-total {{
+  color: var(--phm-attention);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}}
+.phm-attention-summary-grid {{
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .45rem;
+  margin-top: .6rem;
+}}
+.phm-attention-summary-cell {{
+  border-top: 1px solid var(--phm-border);
+  padding-top: .4rem;
+}}
+.phm-attention-summary-label {{
+  color: var(--phm-muted);
+  font-size: .66rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}}
+.phm-attention-summary-value {{
+  margin-top: .12rem;
+  font-size: .88rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}}
+.phm-attention-summary-note {{
+  margin-top: .6rem;
+  color: var(--phm-muted);
+  font-size: .7rem;
+  line-height: 1.35;
+}}
 @media (max-width: 980px) {{
   .phm-flow {{ grid-template-columns: 1fr 1fr; }}
   .phm-monitor-context {{
@@ -379,6 +428,40 @@ def monitor_attention_category(attention: OperationsMonitorAttention) -> str:
         OperationsAttentionDestination.INVESTIGATIONS: "Review",
         OperationsAttentionDestination.SYSTEM: "System",
     }[attention.destination]
+
+
+def render_monitor_attention_summary_html(
+    attention: Sequence[OperationsMonitorAttention],
+) -> str:
+    """Render contextual attention counts without implying severity or asset health."""
+
+    values = tuple(attention)
+    if any(not isinstance(item, OperationsMonitorAttention) for item in values):
+        raise ValueError("attention must contain OperationsMonitorAttention values")
+    counts = {
+        category: sum(monitor_attention_category(item) == category for item in values)
+        for category in ("Data", "Review", "System")
+    }
+    return (
+        '<section class="phm-shell phm-attention-summary">'
+        '<div class="phm-attention-summary-head">'
+        '<div class="phm-attention-summary-title">Attention</div>'
+        f'<div class="phm-attention-summary-total">{len(values)}</div>'
+        "</div>"
+        '<div class="phm-attention-summary-grid">'
+        + "".join(
+            '<div class="phm-attention-summary-cell">'
+            f'<div class="phm-attention-summary-label">{escape(category)}</div>'
+            f'<div class="phm-attention-summary-value">{count}</div>'
+            "</div>"
+            for category, count in counts.items()
+        )
+        + "</div>"
+        '<div class="phm-attention-summary-note">'
+        "Current evidence requiring inspection. Counts are not alarm severity "
+        "or asset-health scores."
+        "</div></section>"
+    )
 
 
 def monitor_signal_channels(
