@@ -1645,7 +1645,7 @@ def _(
         monitor_signal_overview = mo.md("")
     elif history_reader is None:
         monitor_signal_overview = mo.md(
-            "### Current stored observations\n\n"
+            "### Latest stored observations\n\n"
             "No Asset History catalog is available for this workspace."
         )
     else:
