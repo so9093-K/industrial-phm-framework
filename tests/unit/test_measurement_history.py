@@ -191,3 +191,34 @@ def test_range_summary_does_not_claim_truncated_points_cover_the_request():
     assert empty["returned_start"] is None
     assert empty["returned_end"] is None
     assert empty["returned_points"] == 0
+
+def test_monitor_analysis_windows_are_clipped_to_visible_time_range() -> None:
+    from industrial_phm.presentation.measurement_history import _render_evidence_windows
+
+    calls: list[tuple[datetime, datetime, str]] = []
+
+    class _Axis:
+        def axvspan(self, start_at, end_at, **kwargs):
+            calls.append((start_at, end_at, kwargs["label"]))
+
+    _render_evidence_windows(
+        _Axis(),
+        (
+            (
+                NOW - timedelta(hours=2),
+                NOW - timedelta(minutes=15),
+                "phase unbalance",
+            ),
+        ),
+        start_at=NOW - timedelta(hours=1),
+        end_at=NOW,
+    )
+
+    assert calls == [
+        (
+            NOW - timedelta(hours=1),
+            NOW - timedelta(minutes=15),
+            "analysis · phase unbalance",
+        )
+    ]
+
