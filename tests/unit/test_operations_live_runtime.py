@@ -188,3 +188,28 @@ def test_history_read_boundary_wraps_expected_storage_failure_only() -> None:
             _ProgrammerFailureHistory(),
             "boiler-01",
         )
+
+def test_multi_signal_latest_read_uses_one_bounded_asset_query() -> None:
+    point = _point(
+        source_id="live-opcua",
+        source_type=SourceType.OPCUA,
+        event_at=REPLAY_EVENT,
+        value=18.2,
+        ingestion_mode=HistoryIngestionMode.REPLAY,
+    )
+    calls: list[tuple[str, int]] = []
+
+    class _History:
+        def query_latest_asset_measurements(self, asset_id, *, limit):
+            calls.append((asset_id, limit))
+            return (point,)
+
+    result = operations_live.query_operations_latest_asset_measurements(
+        _History(),
+        "boiler-01",
+        limit=32,
+    )
+
+    assert result == (point,)
+    assert calls == [("boiler-01", 32)]
+
