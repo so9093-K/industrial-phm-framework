@@ -11,6 +11,15 @@
 
 ### Changed
 
+- AI-Hub fault harness의 실제 Chromium acceptance를 observation-first Monitor 기준으로 갱신했습니다.
+  Monitor는 더 이상 `System data flow`를 readiness signal로 사용하지 않고 Observed asset, Latest stored
+  observations, Recent signal trends, 실제 signal value와 contextual Attention이 5초 안에 읽히는지를 판정합니다.
+  Assets → Signals browser gate도 `Live observation` 대신 현재 UI의 `Current observation`과 실제 value를
+  요구합니다.
+- browser gate 구현 갱신과 measured support evidence를 분리했습니다. 새 gate 코드는 포함하지만 #417~#422
+  redesign 이후 reference AI-Hub archive + Chromium full verdict를 다시 실행하기 전까지 status는 지원으로
+  승격하지 않습니다.
+
 - Operations Monitor의 시각 계층을 다시 정리했습니다. contextual Attention은 latest stored observation 옆의
   secondary rail에만 두고 synchronized multi-signal trends, analysis evidence, selected-signal detail은
   full-width로 유지합니다. Attention rail은 selected asset + global System evidence의 Data / Review / System
