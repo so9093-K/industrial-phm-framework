@@ -51,6 +51,7 @@ def _series(
     last_received_at: datetime | None = NOW - timedelta(seconds=1),
     last_source_timestamp: datetime | None = EVENT_AT,
     latest_point: MeasurementHistoryPoint | None = None,
+    session_detail: str | None = None,
 ) -> LiveObservationSeries:
     point = _point() if latest_point is None else latest_point
     return LiveObservationSeries(
@@ -64,6 +65,7 @@ def _series(
         average_event_rate_hz=1.0,
         latest_point=point,
         recent_points=() if point is None else (point,),
+        session_detail=session_detail,
     )
 
 
@@ -197,3 +199,19 @@ def test_signals_open_on_confirmed_meaning_and_keep_an_explicit_choice() -> None
         == "R상전류"
     )
     assert initial_signal_channel(("a", "b"), confirmed_channel_ids=set(), selected=None) == "a"
+
+
+def test_session_ended_by_worker_error_is_disconnected_not_stopped() -> None:
+    # ADR-0010: a lost session ends the worker with STOPPED/worker-error. Showing that as
+    # "Stopped" read like an operator stop while the source was unreachable.
+    def label(detail: str | None) -> str:
+        series = _series(
+            session_state=OpcUaPersistentSessionState.STOPPED,
+            last_received_at=NOW - timedelta(seconds=20),
+            session_detail=detail,
+        )
+        return live_source_flow_label(series, sampled_at=NOW, silence_limit_seconds=30.0)
+
+    assert label("worker-error:ConnectionRefusedError") == "Disconnected"
+    assert label("stop-requested") == "Stopped"
+    assert label(None) == "Stopped"

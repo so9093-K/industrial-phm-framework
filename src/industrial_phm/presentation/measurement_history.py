@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import io
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
@@ -23,6 +22,7 @@ from industrial_phm.application.measurement_history import (
     MultiSignalMeasurementHistoryBucket,
     assess_latest_measurement,
 )
+from industrial_phm.presentation.svg_chart import figure_svg
 
 
 def measurement_history_rows(page: MeasurementHistoryPage) -> list[dict[str, object]]:
@@ -193,9 +193,7 @@ def render_measurement_history_svg(
     if page.points:
         axes.legend(fontsize="small")
     figure.autofmt_xdate()
-    output = io.StringIO()
-    figure.savefig(output, format="svg")
-    return output.getvalue()
+    return figure_svg(figure)
 
 
 def measurement_aggregation_summary(result: MeasurementHistoryAggregation) -> dict[str, object]:
@@ -288,9 +286,7 @@ def render_multi_signal_measurement_aggregation_svg(
             axis.tick_params(labelbottom=False)
         figure.autofmt_xdate()
 
-    output = io.StringIO()
-    figure.savefig(output, format="svg")
-    return output.getvalue()
+    return figure_svg(figure)
 
 
 def _render_evidence_windows(
@@ -453,6 +449,4 @@ def render_measurement_aggregation_svg(result: MeasurementHistoryAggregation) ->
         axes.legend(fontsize="small")
     axes.grid(alpha=0.2)
     figure.autofmt_xdate()
-    output = io.StringIO()
-    figure.savefig(output, format="svg")
-    return output.getvalue()
+    return figure_svg(figure)

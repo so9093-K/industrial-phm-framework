@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import io
 from datetime import UTC, datetime
 
 from industrial_phm.application.analysis_input import WindowInputReference
@@ -12,6 +11,7 @@ from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
     UnbalanceSeriesResult,
 )
+from industrial_phm.presentation.svg_chart import figure_svg
 
 _QUANTITY_LABEL = {"voltage": "전압 (상전압 기준)", "current": "전류"}
 
@@ -163,9 +163,7 @@ def render_phase_unbalance_svg(result: PhaseUnbalanceAnalysis) -> str:
     axes_list[-1].set_xlim(reference.start_at.astimezone(UTC), reference.end_at.astimezone(UTC))
     axes_list[-1].set_xlabel("Requested event-time range (UTC)")
     figure.autofmt_xdate()
-    output = io.StringIO()
-    figure.savefig(output, format="svg", transparent=True)
-    return output.getvalue()
+    return figure_svg(figure, transparent=True)
 
 
 def _alignment_label(identity: dict[str, object]) -> str:

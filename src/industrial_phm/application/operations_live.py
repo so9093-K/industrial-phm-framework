@@ -31,6 +31,8 @@ class LiveObservationSeries:
     average_event_rate_hz: float | None
     latest_point: MeasurementHistoryPoint | None
     recent_points: tuple[MeasurementHistoryPoint, ...]
+    # Why the last session stopped ("stop-requested" or "worker-error:..."), if known.
+    session_detail: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.source_id, "source_id")
@@ -218,6 +220,7 @@ def build_live_observation_view(
                 average_event_rate_hz=event_rate,
                 latest_point=source_latest,
                 recent_points=source_recent,
+                session_detail=None if session is None else session.detail,
             )
         )
 
