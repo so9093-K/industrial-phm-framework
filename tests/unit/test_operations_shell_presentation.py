@@ -176,7 +176,7 @@ def test_monitor_signal_overview_prioritizes_selected_and_quality_issue() -> Non
         primary_limit=2,
     )
 
-    assert "Current stored observations" in rendered
+    assert "Latest stored observations" in rendered
     assert "phm-signal-row-selected" in rendered
     assert "phm-signal-row-issue" in rendered
     assert "vibration" in rendered
