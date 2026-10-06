@@ -68,8 +68,8 @@ def _():
         measurement_history_range_summary,
         measurement_history_rows,
         render_measurement_aggregation_svg,
-        render_multi_signal_measurement_aggregation_svg,
         render_measurement_history_svg,
+        render_multi_signal_measurement_aggregation_svg,
     )
     from industrial_phm.presentation.operations_assets import (
         asset_workspace_css,
@@ -1717,9 +1717,11 @@ def _(
     resolve_measurement_range,
     signal_channel_selector,
 ):
-    if navigation.value != "Monitor" or asset_selector is None:
-        monitor_signal_trends = mo.md("")
-    elif history_reader is None:
+    if (
+        navigation.value != "Monitor"
+        or asset_selector is None
+        or history_reader is None
+    ):
         monitor_signal_trends = mo.md("")
     else:
         _event_times = tuple(
