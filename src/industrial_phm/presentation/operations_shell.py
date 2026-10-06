@@ -470,7 +470,6 @@ def _render_monitor_signal_row(
     value_text = value if not unit else f"{value} {unit}"
 
     quality = _monitor_row_text(row, "quality", fallback="unknown")
-    event_state = _monitor_row_text(row, "event_time_state")
     age = _monitor_age(row.get("history_age_seconds"))
     source = _monitor_row_text(row, "source")
     measurement_point = _monitor_row_text(row, "measurement_point")
