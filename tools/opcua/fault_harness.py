@@ -263,21 +263,37 @@ def check_review_workflow(detail: dict[str, object]) -> dict[str, object]:
     )
 
 
+# Monitor states captured in Chromium. Normal receiving and a missing phase have no
+# expected attention: they show whether observations, not workflow, lead the screen.
+MONITOR_RENDER_STATES = (
+    "normal",
+    "missing_phase",
+    "source_stale",
+    "source_unreachable",
+    "collector_down",
+    "analysis_stale",
+)
+_MONITOR_STATES_WITHOUT_ATTENTION = frozenset({"normal", "missing_phase"})
+
+
 def check_first_render(renders: dict[str, dict[str, object]]) -> dict[str, object]:
     """Require the observation-first Monitor surface to be readable within five seconds."""
 
+    missing = [name for name in MONITOR_RENDER_STATES if name not in renders]
     slow = {name: r for name, r in renders.items() if not r.get("within_5s")}
     incomplete = {
         name: r
         for name, r in renders.items()
         if not r.get("monitor_ready")
-        or not r.get("attention_seen")
+        or (name not in _MONITOR_STATES_WITHOUT_ATTENTION and not r.get("attention_seen"))
         or int(r.get("signal_value_count", 0)) < 1
         or not r.get("system_data_flow_absent")
+        or int(r.get("overflow_count", 0)) > 0
     }
     return _check(
-        len(renders) == 4 and not slow and not incomplete,
+        not missing and not slow and not incomplete,
         renders=renders,
+        missing=missing,
         slow=slow,
         incomplete=incomplete,
     )
@@ -305,6 +321,8 @@ def check_live_replay_sequence(states: dict[str, dict[str, object]]) -> dict[str
 
     before = event_at("before_missing")
     before_peer = event_at("before_missing_peer")
+    omitted_raw = states["during_missing"].get("omitted_from")
+    omitted_from = None if omitted_raw is None else datetime.fromisoformat(str(omitted_raw))
     during = event_at("during_missing")
     during_peer = event_at("during_missing_peer")
     recovered = event_at("recovered")
@@ -315,9 +333,16 @@ def check_live_replay_sequence(states: dict[str, dict[str, object]]) -> dict[str
         and before is not None
         and before_peer is not None
         and states["during_missing"].get("source_flow") == "Receiving"
-        and during == before
+        # No value for the omitted channel after the omission started (a value stored
+        # between the "before" snapshot and the replay restart is legitimate), while
+        # its peer keeps arriving.
+        and during is not None
+        and before is not None
+        and omitted_from is not None
+        and before <= during <= omitted_from
         and during_peer is not None
-        and during_peer > before_peer
+        and before_peer is not None
+        and during_peer > max(before_peer, omitted_from)
         and "behind latest source timestamp"
         in str(states["during_missing"].get("channel_event_lag"))
         and states["paused"].get("source_flow") == "No recent source data"
@@ -395,9 +420,11 @@ def check_ui_states(snapshots: dict[str, dict[str, object]]) -> dict[str, object
         name: bool(name in snapshots and expected(snapshots[name]))
         for name, expected in UI_EXPECTED.items()
     }
+    # Only the fault states must differ; normal/missing-phase snapshots are screenshots.
     signatures = {
         name: (snap["sources"], snap["collect"], snap["analyze"], tuple(snap["attention"]))  # type: ignore[arg-type]
         for name, snap in snapshots.items()
+        if name in UI_EXPECTED
     }
     distinct = len(set(signatures.values())) == len(signatures) == len(UI_EXPECTED)
     return _check(
@@ -729,7 +756,7 @@ class Stack:
                 time.sleep(0.5)
         raise RuntimeError("marimo UI server did not start")
 
-    def browser_render(self, name: str, expected_attention: str) -> dict[str, object]:
+    def browser_render(self, name: str, expected_attention: str | None) -> dict[str, object]:
         """Open Monitor in Chromium; time until observation data and attention are readable."""
         assert self.ui_url is not None, "start_ui_server first"
         output = subprocess.run(
@@ -743,7 +770,7 @@ class Stack:
                 "-c",
                 _BROWSER_SCRIPT,
                 self.ui_url,
-                expected_attention,
+                expected_attention or "",
                 str(self.root / f"ui-{name}.png"),
             ],
             cwd=REPO,
@@ -758,7 +785,7 @@ class Stack:
                 render = dict(json.loads(line.removeprefix("BROWSER ")))
                 render["within_5s"] = bool(
                     render.get("monitor_ready")
-                    and render.get("attention_seen")
+                    and (expected_attention is None or render.get("attention_seen"))
                     and float(render["seconds"]) <= 5.0  # type: ignore[arg-type]
                 )
                 return render
@@ -800,11 +827,34 @@ class Stack:
                     render.get("current_observation_seen")
                     and int(render.get("value_count", 0)) >= 1
                     and render.get("matched")
+                    and int(render.get("overflow_count", 0)) == 0
                     and float(render["seconds"]) <= 5.0
                 )
                 return render
         return {"within_5s": False, "error": output.stderr[-1500:]}
 
+
+# Visible elements whose right edge passes the viewport, outside intended horizontal
+# scroll containers. Content clipped by the page is unreadable even when it "renders".
+_OVERFLOW_JS = """() => {
+  const limit = window.innerWidth + 1;
+  const scrolls = (e) => {
+    for (let a = e.parentElement; a; a = a.parentElement) {
+      const x = getComputedStyle(a).overflowX;
+      if ((x === 'auto' || x === 'scroll') && a.getBoundingClientRect().right <= limit) return true;
+    }
+    return false;
+  };
+  const out = [];
+  // Only notebook output: marimo's own off-screen hover panels are not page content.
+  for (const e of document.querySelectorAll('.output-area *')) {
+    const r = e.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0 || r.right <= limit) continue;
+    if (getComputedStyle(e).visibility === 'hidden' || scrolls(e)) continue;
+    out.push(e.tagName + '.' + String(e.className).slice(0, 40) + ':' + Math.round(r.right));
+  }
+  return out;
+}"""
 
 # Opens a fresh page (a fresh marimo session reads current runtime files), waits for
 # the observation-first Monitor surface and the expected attention title, and reports
@@ -830,20 +880,25 @@ with sync_playwright() as p:
     except Exception:
         pass
     observation_seconds = time.monotonic() - started
-    attention_seen = True
-    try:
-        page.get_by_text(attention).first.wait_for(timeout=30000)
-    except Exception:
-        attention_seen = False
+    attention_seen = None
+    if attention:
+        attention_seen = True
+        try:
+            # Exact text: the attention selector's hidden <option> also contains it.
+            page.get_by_text(attention, exact=True).first.wait_for(timeout=30000)
+        except Exception:
+            attention_seen = False
     seconds = time.monotonic() - started
     signal_values = page.locator(".phm-signal-value").all_inner_texts()
     system_data_flow_absent = page.get_by_text("System data flow", exact=True).count() == 0
+    overflow = page.evaluate(OVERFLOW_JS)
     monitor_ready = (
         observed_asset_seen
         and latest_seen
         and trends_seen
         and bool(signal_values)
         and system_data_flow_absent
+        and not overflow
     )
     page.screenshot(path=shot, full_page=True)
     browser.close()
@@ -858,6 +913,8 @@ print("BROWSER " + json.dumps({
     "signal_value_count": len(signal_values),
     "signal_values": [" | ".join(item.split()) for item in signal_values[:8]],
     "system_data_flow_absent": system_data_flow_absent,
+    "overflow_count": len(overflow),
+    "overflow_examples": overflow[:6],
     "monitor_ready": monitor_ready,
 }))
 """
@@ -898,6 +955,7 @@ with sync_playwright() as p:
     seconds = time.monotonic() - started
     states = page.locator(".phm-live-state").all_inner_texts()
     values = page.locator(".phm-live-value").all_inner_texts()
+    overflow = page.evaluate(OVERFLOW_JS)
     page.screenshot(path=shot, full_page=True)
     browser.close()
 print("LIVE-BROWSER " + json.dumps({
@@ -908,8 +966,12 @@ print("LIVE-BROWSER " + json.dumps({
     "value_count": len(values),
     "states": [" | ".join(item.split()) for item in states],
     "values": [" | ".join(item.split()) for item in values],
+    "overflow_count": len(overflow),
+    "overflow_examples": overflow[:6],
 }))
 """
+_BROWSER_SCRIPT = f"OVERFLOW_JS = {_OVERFLOW_JS!r}\n" + _BROWSER_SCRIPT
+_BROWSER_LIVE_SCRIPT = f"OVERFLOW_JS = {_OVERFLOW_JS!r}\n" + _BROWSER_LIVE_SCRIPT
 
 
 # ---------------------------------------------------------------------- scenarios
@@ -953,9 +1015,12 @@ class Harness:
         snapshot = self.stack.ui_snapshot()
         self.ui[name] = snapshot
         if self.browser:
-            titles = list(snapshot["attention"])  # type: ignore[call-overload]
-            wanted = [t for t in _UI_ATTENTION[name] if t in titles]
-            render = self.stack.browser_render(name, (wanted or _UI_ATTENTION[name])[0])
+            expected = None
+            if name in _UI_ATTENTION:
+                titles = list(snapshot["attention"])  # type: ignore[call-overload]
+                wanted = [t for t in _UI_ATTENTION[name] if t in titles]
+                expected = (wanted or _UI_ATTENTION[name])[0]
+            render = self.stack.browser_render(name, expected)
             self.renders[name] = render
             print(f"  {name}: browser {render.get('seconds')}s", flush=True)
 
@@ -1064,6 +1129,8 @@ class Harness:
 
     def missing_phase_and_ui(self) -> None:
         s = self.stack
+        # Normal receiving: the screen an operator sees most of the time.
+        self._observe_ui("normal")
         self._observe_live(
             "before_missing",
             AIHUB_BOILER_2297_OMITTED_CHANNEL,
@@ -1078,7 +1145,9 @@ class Harness:
         s.start_replay("--omit-channel", AIHUB_BOILER_2297_OMITTED_CHANNEL)
         omitted_from = _utc()
         time.sleep(95)
+        self._observe_ui("missing_phase")
         self._observe_live("during_missing", AIHUB_BOILER_2297_OMITTED_CHANNEL)
+        self.live["during_missing"]["omitted_from"] = omitted_from.isoformat()
         self._observe_live("during_missing_peer", AIHUB_BOILER_2297_PEER_CHANNEL)
         self.omission = (omitted_from, _utc())
         s.stop(s.replay)
@@ -1159,19 +1228,14 @@ class Harness:
         """
         before = self.stack.app_probe(
             "from industrial_phm.application import PHASE_UNBALANCE_CAPABILITY_ID as CAP\n"
-            "from industrial_phm.application.finding_review import (\n"
-            "    JsonOperationalFindingRepository, create_human_review_finding)\n"
-            "import os\n"
-            "from pathlib import Path\n"
             "queue = defs['investigation_queue']\n"
             "latest = [g.latest for g in queue.groups() if g.capability_id == CAP\n"
             "          and g.review_state.value == 'not-requested']\n"
             "item = max(latest, key=lambda i: i.completed_at)\n"
             "result = next(r for r in defs['current_analysis_results']\n"
             "              if r.run.analysis_run_id == item.analysis_run_id)\n"
-            "finding = create_human_review_finding(result)\n"
-            "JsonOperationalFindingRepository(\n"
-            "    Path(os.environ['INDUSTRIAL_PHM_OPERATIONS_FINDING_STATE'])).record(finding)\n"
+            "# The workspace-bound action the Investigations button calls.\n"
+            "finding, _ = defs['operations_actions'].request_review(result)\n"
             "out = {'analysis_run_id': item.analysis_run_id, 'finding_id': finding.finding_id,\n"
             "       'observed_end_at': result.run.observed_end_at.isoformat(),\n"
             "       'before_state': item.review_state.value}\n"

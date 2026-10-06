@@ -63,6 +63,44 @@ current one allowed an already-dequeued notification to be dropped when the work
 accepted 5` under forced overflow). The current worker persists before requesting the next notification and
 persists an already-dequeued one at shutdown.
 
+## Observation-first Monitor browser gate after the redesign (#424, 2026-10-06)
+
+The N = 3 result above checked the pre-redesign Monitor (System data flow). After #417–#423 the gate checks
+the observation-first Monitor and also captures **normal receiving** and **missing phase**, which have no
+expected attention. A render fails if any notebook-output element extends past the 1440 px viewport.
+
+`uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-424c --repeat 3 --browser`
+(boiler device 2297 reference archive, Chromium 1440×1100) produced **`"gate": "full"`, verdict PASS, all
+15 checks**: 23 injected faults, all recovered; audit duplicate 0, value/quality mismatch 0, 0 missing
+outside a fault boundary; 32 windows, 32 analyzed, 0 skipped; review request reached an OPEN Maintenance item.
+
+| Surface | State | Readable after opening | Overflow |
+| --- | --- | --- | --- |
+| Monitor | normal / missing phase | 2.65 s / 2.16 s | 0 |
+| Monitor | source stale / unreachable / collector down / analysis stale | 2.18 / 2.18 / 2.15 / 2.18 s (with the state's attention) | 0 |
+| Assets → Signals | receiving / paused / disconnected / recovered | 3.17 / 3.18 / 3.21 / ~3.2 s | 0 |
+
+The first reference run of the updated gate did not finish. Reviewing its screenshots found defects that the
+presence-only gate had passed:
+
+- the Monitor was wider than the viewport at every state: observation values, header facts and the
+  attention rail were cut off (marimo stacks keep `min-width: auto`);
+- the observation board sorted raw names, so unresolved channels filled the first view and the omitted
+  `T상전류` sat in the collapsed list;
+- Korean channel names in charts rendered as empty boxes (matplotlib's default font has no Hangul);
+- an OPC UA worker that ended on an error showed "Stopped", which reads as an operator stop;
+- the harness itself: the review step used an environment variable removed in #371, attention was
+  matched on a hidden `<option>`, and the missing-phase check required the omitted channel's last value to
+  equal the pre-omission snapshot, which fails when a value lands between the snapshot and the restart.
+
+Remaining after the fixes, recorded rather than claimed solved:
+
+- **Missing phase is not a Monitor attention.** The first view shows R/S/T current, but the omitted phase keeps
+  its pre-omission value (e.g. `627 A`, 1.6 min old) next to R/S at `0 A` (1.5 min old). OPC UA DataChange sends
+  no event for unchanged values, so stored history cannot tell "unchanged" from "not arriving"; the omission is
+  recorded only in the analysis window evidence (`missing_channels = T상전류`).
+- Trend charts are a white panel inside the dark surface. Values remain readable.
+
 ## Growth with accumulated state
 
 A fault-free run of the same stack (50 minutes, sampled every 60 s) showed queue high watermark (≤ 53 of

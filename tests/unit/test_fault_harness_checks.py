@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.opcua.fault_harness import (
+    MONITOR_RENDER_STATES,
     OPERATIONS_APP,
     SCENARIOS,
     Fault,
@@ -112,6 +113,9 @@ def test_ui_states_must_match_and_differ():
         },
     }
     assert check_ui_states(snapshots)["passed"]
+    # Screenshot-only states may look like a fault state without breaking distinctness.
+    normal = {**snapshots["analysis_stale"], "analyze": "running", "attention": []}
+    assert check_ui_states({**snapshots, "normal": normal, "missing_phase": normal})["passed"]
     # Collector down shown like a silent source is exactly the Phase 10 bug.
     snapshots["collector_down"] = dict(snapshots["source_stale"])
     assert not check_ui_states(snapshots)["passed"]
@@ -181,10 +185,17 @@ def test_every_ui_state_must_render_within_five_seconds():
         "signal_value_count": 4,
         "system_data_flow_absent": True,
     }
-    names = ("source_stale", "source_unreachable", "collector_down", "analysis_stale")
+    names = MONITOR_RENDER_STATES
     assert check_first_render(dict.fromkeys(names, fast))["passed"]
     assert not check_first_render({**dict.fromkeys(names, fast), "collector_down": {}})["passed"]
     assert not check_first_render({"source_stale": fast})["passed"]
+    # Normal receiving and a missing phase are required screens of their own.
+    without_normal = {name: fast for name in names if name != "normal"}
+    assert check_first_render(without_normal)["missing"] == ["normal"]
+    # They expect no attention; fault states still must show theirs.
+    quiet = {**fast, "attention_seen": None}
+    assert check_first_render({**dict.fromkeys(names, fast), "normal": quiet})["passed"]
+    assert not check_first_render({**dict.fromkeys(names, fast), "source_stale": quiet})["passed"]
 
 
 def test_live_replay_sequence_preserves_missing_gap_and_recovers_history():
@@ -204,6 +215,7 @@ def test_live_replay_sequence_preserves_missing_gap_and_recovers_history():
         "channel_event_at": _t(10).isoformat(),
         "channel_event_lag": "12.0s behind latest source timestamp",
         "history_count": 140,
+        "omitted_from": _t(12).isoformat(),
     }
     during_peer = {
         "source_flow": "Receiving",
@@ -225,6 +237,10 @@ def test_live_replay_sequence_preserves_missing_gap_and_recovers_history():
     }
 
     assert check_live_replay_sequence(states)["passed"]
+    # A value stored after the "before" snapshot but before the omission began is fine.
+    assert check_live_replay_sequence(
+        {**states, "during_missing": {**during, "channel_event_at": _t(11).isoformat()}}
+    )["passed"]
     assert not check_live_replay_sequence(
         {
             **states,
@@ -305,8 +321,7 @@ def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
         "signal_value_count": 3,
         "system_data_flow_absent": True,
     }
-    names = ("source_stale", "source_unreachable", "collector_down", "analysis_stale")
-    renders = dict.fromkeys(names, ready)
+    renders = dict.fromkeys(MONITOR_RENDER_STATES, ready)
 
     assert check_first_render(renders)["passed"]
     assert not check_first_render({**renders, "source_stale": {**ready, "signal_value_count": 0}})[
@@ -315,6 +330,9 @@ def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
     assert not check_first_render(
         {**renders, "source_stale": {**ready, "system_data_flow_absent": False}}
     )["passed"]
+    # Content that runs past the 1440px viewport is unreadable even if it rendered.
+    clipped = {**ready, "overflow_count": 3, "overflow_examples": ["DIV.phm-grid:1622"]}
+    assert not check_first_render({**renders, "normal": clipped})["passed"]
 
 
 def test_live_browser_gate_rejects_state_without_current_value_surface():
