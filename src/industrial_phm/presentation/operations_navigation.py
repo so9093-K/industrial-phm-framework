@@ -71,6 +71,30 @@ def resolve_operations_attention_route(
     return resolve_finding_investigation_route(finding_id, investigation_queue=investigation_queue)
 
 
+def resolve_investigation_route(
+    investigation_id: str,
+    *,
+    investigation_queue: InvestigationQueueView,
+) -> OperationsAttentionRoute:
+    """Route one exact investigation queue item without rebuilding group identity in the UI."""
+
+    if not isinstance(investigation_queue, InvestigationQueueView):
+        raise ValueError("investigation_queue must be an InvestigationQueueView")
+    if not isinstance(investigation_id, str) or not investigation_id.strip():
+        raise ValueError("investigation_id must be a non-empty string")
+    matches = tuple(
+        item for item in investigation_queue.items if item.investigation_id == investigation_id
+    )
+    if len(matches) != 1:
+        raise LookupError(
+            f"investigation must resolve to exactly one queue item: {investigation_id}"
+        )
+    return resolve_investigation_route(
+        matches[0].investigation_id,
+        investigation_queue=investigation_queue,
+    )
+
+
 def resolve_finding_investigation_route(
     finding_id: str,
     *,
