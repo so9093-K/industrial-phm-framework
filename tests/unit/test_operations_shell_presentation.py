@@ -187,6 +187,7 @@ def test_monitor_signal_overview_prioritizes_selected_and_quality_issue() -> Non
     assert "Show 1 more stored observations" in rendered
     assert "asset health" not in rendered.lower()
 
+
 def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
     rows = (
         {"channel": "temperature", "quality": "no recorded issue", "source": "a"},
