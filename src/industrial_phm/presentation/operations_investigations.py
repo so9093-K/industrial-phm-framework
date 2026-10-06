@@ -146,6 +146,11 @@ def investigation_workspace_css() -> str:
 .phm-shell table {
   max-width: 100%;
 }
+/* marimo stacks default to min-width:auto, so the wide evidence table widened every
+   stack around the investigation detail past the viewport; let them shrink instead. */
+div:has(.phm-investigation-heading) {
+  min-width: 0;
+}
 @media (max-width: 1100px) {
   .phm-investigation-heading {
     align-items: flex-start;

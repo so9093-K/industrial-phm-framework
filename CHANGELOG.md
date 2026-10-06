@@ -39,6 +39,11 @@
 
 ### Fixed
 
+- Operations Assets → Signals가 처음 열릴 때 의미가 확정된 signal(예: R상전류)을 선택합니다. 이전에는 이름 순서로
+  unresolved 전력 channel이 먼저 열렸습니다. 사용자가 고른 signal은 Refresh나 asset 전환 후에도 그 asset에 있으면
+  유지됩니다.
+- Investigation 상세가 넓은 evidence 표와 고정 폭 차트 때문에 1440px 화면 밖으로 밀리던 문제를 고쳤습니다.
+
 - Operations Assets → Signals가 collection 실행 중 "oldest_accepted_at must not be after sampled_at" 오류로
   열리지 않던 문제를 고쳤습니다. 화면은 `sampled_at`을 먼저 정하고 history를 읽은 뒤 spool을 읽는데, 그 사이
   collector가 받아들인 event 때문에 spool telemetry snapshot이 자기 불변식을 어겼습니다. Spool snapshot은 이제
