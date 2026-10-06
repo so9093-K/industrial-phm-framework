@@ -184,4 +184,3 @@ def test_monitor_signal_overview_prioritizes_selected_and_quality_issue() -> Non
     assert "phase current · phase T" in rendered
     assert "Show 1 more stored observations" in rendered
     assert "asset health" not in rendered.lower()
-
