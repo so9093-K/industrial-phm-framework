@@ -258,4 +258,3 @@ def test_multi_signal_trend_wrapper_uses_one_aggregation_query() -> None:
             120,
         )
     ]
-
