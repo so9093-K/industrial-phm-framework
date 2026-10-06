@@ -1663,7 +1663,7 @@ def _(
             monitor_signal_overview = mo.callout(
                 str(error),
                 kind="danger",
-                title="Current observations unavailable",
+                title="Latest stored observations unavailable",
             )
         else:
             _selected_channel = (
