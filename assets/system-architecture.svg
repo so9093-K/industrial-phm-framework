@@ -1,230 +1,235 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1233 643" width="1233" height="643" role="img" aria-labelledby="title desc" font-family="Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1737 906" width="1737" height="906" role="img" aria-labelledby="title desc">
   <title id="title">시스템 아키텍처</title>
   <desc id="desc">산업 설비 데이터에서 도메인 어댑터, 공통 엣지비전 코어, 평가 및 분석, 서비스 계층, 생성형 AI를 거쳐 사용자에게 이어지는 시스템 아키텍처</desc>
-
-  <rect width="1233" height="643" fill="#ffffff"/>
-  <text x="28" y="103" font-size="48" font-weight="800" fill="#0f3762">시스템 아키텍처</text>
-
   <defs>
-    <linearGradient id="head" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f1f7ff"/>
-      <stop offset="100%" stop-color="#e3f0fb"/>
+    <linearGradient id="header" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3f8ff"/>
+      <stop offset="1" stop-color="#e5f1fb"/>
     </linearGradient>
-    <linearGradient id="soft" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f3f6fa"/>
-      <stop offset="100%" stop-color="#e8edf3"/>
+    <linearGradient id="chip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3f6f9"/>
+      <stop offset="1" stop-color="#e8edf2"/>
     </linearGradient>
-    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,5 L0,10 z" fill="#aac7e2"/>
-    </marker>
+    <linearGradient id="groupHead" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf4ff"/>
+      <stop offset="1" stop-color="#d9ebfb"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d5e5f3" stop-opacity=".35"/>
+      <stop offset=".5" stop-color="#b5d1e9"/>
+      <stop offset="1" stop-color="#9fc2df"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#8aa6bf" flood-opacity=".10"/>
+    </filter>
+    <style>
+      .kr { font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+      .title { fill:#0b315c; font-size:64px; font-weight:800; letter-spacing:-2px; }
+      .head { fill:#0c315d; font-size:27px; font-weight:800; }
+      .label { fill:#12345c; font-size:22px; font-weight:600; }
+      .small { fill:#12345c; font-size:18px; font-weight:500; }
+      .tiny { fill:#315373; font-size:16px; font-weight:500; }
+      .panel { fill:#fff; stroke:#72a9d8; stroke-width:1.5; }
+      .chip { fill:url(#chip); }
+      .navy { stroke:#0f447b; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .navyFill { fill:#0f447b; }
+    </style>
   </defs>
 
+  <rect width="1737" height="906" fill="#ffffff"/>
+  <text class="kr title" x="36" y="148">시스템 아키텍처</text>
+
   <!-- Column shells -->
-  <g stroke="#7faeda" stroke-width="1.3" fill="#ffffff">
-    <rect x="14" y="156" width="159" height="437" rx="7"/>
-    <rect x="190" y="156" width="142" height="437" rx="7"/>
-    <rect x="349" y="156" width="229" height="437" rx="7"/>
-    <rect x="594" y="156" width="148" height="437" rx="7"/>
-    <rect x="757" y="156" width="144" height="437" rx="7"/>
-    <rect x="917" y="156" width="145" height="437" rx="7"/>
-    <rect x="1077" y="156" width="141" height="437" rx="7"/>
+  <g filter="url(#softShadow)">
+    <rect class="panel" x="20" y="210" width="230" height="628" rx="10"/>
+    <rect class="panel" x="270" y="210" width="208" height="628" rx="10"/>
+    <rect class="panel" x="495" y="210" width="320" height="628" rx="10"/>
+    <rect class="panel" x="832" y="210" width="208" height="628" rx="10"/>
+    <rect class="panel" x="1057" y="210" width="205" height="628" rx="10"/>
+    <rect class="panel" x="1279" y="210" width="210" height="628" rx="10"/>
+    <rect class="panel" x="1506" y="210" width="211" height="628" rx="10"/>
   </g>
 
-  <!-- Header bands -->
-  <g fill="url(#head)">
-    <path d="M15 218V164a7 7 0 0 1 7-7h143a7 7 0 0 1 7 7v54z"/>
-    <path d="M191 218V164a7 7 0 0 1 7-7h126a7 7 0 0 1 7 7v54z"/>
-    <path d="M350 218V164a7 7 0 0 1 7-7h213a7 7 0 0 1 7 7v54z"/>
-    <path d="M595 218V164a7 7 0 0 1 7-7h132a7 7 0 0 1 7 7v54z"/>
-    <path d="M758 218V164a7 7 0 0 1 7-7h128a7 7 0 0 1 7 7v54z"/>
-    <path d="M918 218V164a7 7 0 0 1 7-7h129a7 7 0 0 1 7 7v54z"/>
-    <path d="M1078 218V164a7 7 0 0 1 7-7h125a7 7 0 0 1 7 7v54z"/>
+  <!-- Headers -->
+  <g fill="url(#header)">
+    <path d="M21 300V220a9 9 0 0 1 9-9h210a9 9 0 0 1 9 9v80z"/>
+    <path d="M271 300V220a9 9 0 0 1 9-9h188a9 9 0 0 1 9 9v80z"/>
+    <path d="M496 300V220a9 9 0 0 1 9-9h300a9 9 0 0 1 9 9v80z"/>
+    <path d="M833 300V220a9 9 0 0 1 9-9h188a9 9 0 0 1 9 9v80z"/>
+    <path d="M1058 300V220a9 9 0 0 1 9-9h185a9 9 0 0 1 9 9v80z"/>
+    <path d="M1280 300V220a9 9 0 0 1 9-9h190a9 9 0 0 1 9 9v80z"/>
+    <path d="M1507 300V220a9 9 0 0 1 9-9h191a9 9 0 0 1 9 9v80z"/>
   </g>
 
-  <g fill="#0f3762" font-size="20" font-weight="700" text-anchor="middle">
-    <text x="93.5" y="197">산업 설비 데이터</text>
-    <text x="261" y="197">도메인 어댑터</text>
-    <text x="463.5" y="197">공통 엣지비전 코어</text>
-    <text x="668" y="197">평가 및 분석</text>
-    <text x="829" y="197">서비스 계층</text>
-    <text x="989.5" y="197">생성형 AI</text>
-    <text x="1147.5" y="197">사용자</text>
+  <g class="kr head" text-anchor="middle">
+    <text x="135" y="266">산업 설비 데이터</text>
+    <text x="374" y="266">도메인 어댑터</text>
+    <text x="655" y="266">공통 엣지비전 코어</text>
+    <text x="936" y="266">평가 및 분석</text>
+    <text x="1159" y="266">서비스 계층</text>
+    <text x="1384" y="266">생성형 AI</text>
+    <text x="1611" y="266">사용자</text>
   </g>
 
   <!-- Flow arrows -->
-  <g stroke="#aac7e2" stroke-width="6" fill="none" marker-end="url(#arrowhead)">
-    <line x1="174" y1="347" x2="187" y2="347"/>
-    <line x1="333" y1="347" x2="346" y2="347"/>
-    <line x1="579" y1="347" x2="591" y2="347"/>
-    <line x1="743" y1="347" x2="754" y2="347"/>
-    <line x1="902" y1="347" x2="914" y2="347"/>
-    <line x1="1063" y1="347" x2="1074" y2="347"/>
+  <g fill="url(#arrow)">
+    <path d="M241 464h29v-16l42 27-42 27v-16h-29z"/>
+    <path d="M469 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M806 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M1031 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M1253 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M1480 464h26v-16l42 27-42 27v-16h-26z"/>
   </g>
 
-  <!-- Industrial equipment icons -->
-  <g fill="none" stroke="#1f5487" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Motor -->
-    <g stroke-width="5">
-      <rect x="67" y="253" width="53" height="34" rx="5"/>
-      <line x1="76" y1="247" x2="76" y2="293"/>
-      <line x1="85" y1="247" x2="85" y2="293"/>
-      <line x1="94" y1="247" x2="94" y2="293"/>
-      <line x1="103" y1="247" x2="103" y2="293"/>
-      <line x1="59" y1="261" x2="67" y2="261"/>
-      <line x1="59" y1="278" x2="67" y2="278"/>
-      <line x1="120" y1="261" x2="128" y2="261"/>
-      <line x1="120" y1="278" x2="128" y2="278"/>
-    </g>
-    <!-- Pump -->
-    <g stroke-width="5">
-      <path d="M76 356h41v29H76z"/>
-      <path d="M84 356v-15h25v15"/>
-      <path d="M89 341v-10h15v10"/>
-      <path d="M116 366h13v9h-13"/>
-      <path d="M71 385h51"/>
-    </g>
-    <!-- Robot arm -->
-    <g stroke-width="6">
-      <circle cx="85" cy="472" r="9"/>
-      <circle cx="107" cy="450" r="8"/>
-      <path d="M85 472l22-22 18 13"/>
-      <path d="M125 463l9-11"/>
-      <path d="M76 481l-11 18h52"/>
-      <path d="M133 452l8 3 5-6"/>
-    </g>
+  <!-- Column 1: industrial equipment -->
+  <g class="navy" stroke-width="5">
+    <!-- motor -->
+    <rect x="82" y="342" width="82" height="54" rx="9"/>
+    <line x1="93" y1="342" x2="93" y2="396" stroke-width="3"/>
+    <line x1="106" y1="342" x2="106" y2="396" stroke-width="3"/>
+    <line x1="119" y1="342" x2="119" y2="396" stroke-width="3"/>
+    <line x1="132" y1="342" x2="132" y2="396" stroke-width="3"/>
+    <line x1="145" y1="342" x2="145" y2="396" stroke-width="3"/>
+    <path d="M73 356h9v26h-9M164 356h12v26h-12"/>
+    <!-- pump -->
+    <path d="M83 505h76v51H83z"/>
+    <path d="M96 505v-17h45v17M108 488v-13h21v13"/>
+    <path d="M159 518h12v26h-12M77 556h88"/>
+    <!-- robot -->
+    <circle cx="99" cy="671" r="9"/>
+    <circle cx="132" cy="634" r="8"/>
+    <path d="M99 671l26-31M132 634l28 17M160 651l14-12M160 651l13 13M91 680l-13 30h55"/>
   </g>
-  <g fill="#0f3762" font-size="16" font-weight="500" text-anchor="middle">
-    <text x="94" y="319">설비 A</text>
-    <text x="94" y="418">설비 B</text>
-    <text x="94" y="516">설비 C</text>
+  <g class="kr label" text-anchor="middle">
+    <text x="123" y="429">설비 A</text>
+    <text x="123" y="590">설비 B</text>
+    <text x="123" y="744">설비 C</text>
   </g>
-  <line x1="28" y1="535" x2="160" y2="535" stroke="#d9e5f0"/>
-  <text x="94" y="560" font-size="13" fill="#345d82" text-anchor="middle">진동 · 음향 · 온도 · 압력 ·</text>
-  <text x="94" y="578" font-size="13" fill="#345d82" text-anchor="middle">운전 로그</text>
+  <line x1="39" y1="776" x2="230" y2="776" stroke="#a8bfd2" stroke-width="1.4"/>
+  <text class="kr tiny" x="135" y="809" text-anchor="middle">진동 · 음향 · 온도 · 압력 ·</text>
+  <text class="kr tiny" x="135" y="832" text-anchor="middle">운전 로그</text>
 
-  <!-- Domain adapter icon -->
-  <g fill="none" stroke="#1f5487" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M232 258h39l15 15v46h-54z"/>
-    <path d="M271 258v16h15"/>
-    <line x1="242" y1="284" x2="263" y2="284"/>
-    <line x1="242" y1="296" x2="258" y2="296"/>
-    <circle cx="284" cy="310" r="13" fill="#ffffff"/>
-    <path d="M284 291v7M284 322v7M265 310h7M296 310h7M271 297l5 5M292 318l5 5M271 323l5-5M292 302l5-5"/>
+  <!-- Column 2: adapter -->
+  <g class="navy" stroke-width="5">
+    <path d="M327 348h65l30 31v71h-95z"/>
+    <path d="M392 348v31h30"/>
+    <line x1="344" y1="389" x2="382" y2="389"/>
+    <line x1="344" y1="408" x2="377" y2="408"/>
+    <circle cx="416" cy="438" r="22" fill="#fff"/>
+    <circle cx="416" cy="438" r="7" class="navyFill" stroke="none"/>
+    <path d="M416 407v8M416 461v8M385 438h8M439 438h8M394 416l6 6M432 454l6 6M438 416l-6 6M400 454l-6 6"/>
   </g>
-  <g fill="url(#soft)">
-    <rect x="201" y="358" width="120" height="50" rx="5"/>
-    <rect x="201" y="423" width="120" height="50" rx="5"/>
-    <rect x="201" y="488" width="120" height="50" rx="5"/>
+  <g>
+    <rect class="chip" x="286" y="503" width="176" height="71" rx="8"/>
+    <rect class="chip" x="286" y="590" width="176" height="71" rx="8"/>
+    <rect class="chip" x="286" y="677" width="176" height="71" rx="8"/>
   </g>
-  <g fill="#284d72" font-size="15" font-weight="500" text-anchor="middle">
-    <text x="261" y="389">형식 처리</text>
-    <text x="261" y="454">채널 매핑</text>
-    <text x="261" y="519">공통 시계열 변환</text>
+  <g class="kr label" text-anchor="middle">
+    <text x="374" y="547">형식 처리</text>
+    <text x="374" y="634">채널 매핑</text>
+    <text x="374" y="721">공통 시계열 변환</text>
   </g>
 
-  <!-- Common core panels -->
-  <g stroke="#b9d5ee" stroke-width="1.2">
-    <rect x="361" y="234" width="204" height="104" rx="7" fill="#ffffff"/>
-    <rect x="361" y="351" width="204" height="104" rx="7" fill="#ffffff"/>
-    <rect x="361" y="468" width="204" height="86" rx="7" fill="#ffffff"/>
+  <!-- Column 3: common edge-vision core -->
+  <g>
+    <rect x="515" y="322" width="280" height="151" rx="10" fill="#fff" stroke="#b8d6ee" stroke-width="1.4"/>
+    <path d="M516 372v-40a9 9 0 0 1 9-9h260a9 9 0 0 1 9 9v40z" fill="url(#groupHead)"/>
+    <rect x="515" y="492" width="280" height="151" rx="10" fill="#fff" stroke="#b8d6ee" stroke-width="1.4"/>
+    <path d="M516 542v-40a9 9 0 0 1 9-9h260a9 9 0 0 1 9 9v40z" fill="url(#groupHead)"/>
+    <rect x="515" y="662" width="280" height="122" rx="10" fill="#fff" stroke="#b8d6ee" stroke-width="1.4"/>
+    <path d="M516 712v-40a9 9 0 0 1 9-9h260a9 9 0 0 1 9 9v40z" fill="url(#groupHead)"/>
   </g>
-  <g fill="#dcecff">
-    <path d="M362 273v-31a7 7 0 0 1 7-7h188a7 7 0 0 1 7 7v31z"/>
-    <path d="M362 390v-31a7 7 0 0 1 7-7h188a7 7 0 0 1 7 7v31z"/>
-    <path d="M362 507v-31a7 7 0 0 1 7-7h188a7 7 0 0 1 7 7v31z"/>
+  <g class="kr head" text-anchor="middle">
+    <text x="655" y="357">이상 탐지</text>
+    <text x="655" y="527">건전성 평가</text>
+    <text x="655" y="697">수명 예측</text>
   </g>
-  <g fill="#0f3762" font-size="18" font-weight="700" text-anchor="middle">
-    <text x="463" y="261">이상 탐지</text>
-    <text x="463" y="378">건전성 평가</text>
-    <text x="463" y="495">수명 예측</text>
-  </g>
-  <g fill="#253e59" font-size="15">
-    <text x="380" y="298">• Isolation Forest</text>
-    <text x="380" y="322">• LSTM Autoencoder</text>
-    <text x="380" y="415">• 건전성 지수</text>
-    <text x="380" y="439">• 열화 추세</text>
-    <text x="380" y="532">• 잔여수명 예측(RUL)</text>
+  <g class="kr label">
+    <text x="537" y="411">• Isolation Forest</text>
+    <text x="537" y="449">• LSTM Autoencoder</text>
+    <text x="537" y="582">• 건전성 지수</text>
+    <text x="537" y="621">• 열화 추세</text>
+    <text x="537" y="754">• 잔여수명 예측(RUL)</text>
   </g>
 
-  <!-- Evaluation icon and items -->
-  <g fill="none" stroke="#0f3762" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="651" cy="282" r="19"/>
-    <line x1="638" y1="297" x2="625" y2="311"/>
-    <rect x="673" y="292" width="10" height="27" fill="#0f3762" stroke="none"/>
-    <rect x="690" y="279" width="10" height="40" fill="#0f3762" stroke="none"/>
-    <rect x="707" y="266" width="10" height="53" fill="#0f3762" stroke="none"/>
+  <!-- Column 4: evaluation -->
+  <g class="navy" stroke-width="6">
+    <circle cx="911" cy="390" r="39"/>
+    <line x1="883" y1="418" x2="858" y2="443"/>
+    <rect x="945" y="420" width="21" height="35" fill="#0f447b" stroke="none"/>
+    <rect x="976" y="401" width="21" height="54" fill="#0f447b" stroke="none"/>
+    <rect x="1007" y="374" width="21" height="81" fill="#0f447b" stroke="none"/>
   </g>
-  <g fill="url(#soft)">
-    <rect x="607" y="358" width="122" height="50" rx="5"/>
-    <rect x="607" y="423" width="122" height="50" rx="5"/>
-    <rect x="607" y="488" width="122" height="50" rx="5"/>
+  <g>
+    <rect class="chip" x="850" y="505" width="172" height="72" rx="8"/>
+    <rect class="chip" x="850" y="591" width="172" height="72" rx="8"/>
+    <rect class="chip" x="850" y="677" width="172" height="72" rx="8"/>
   </g>
-  <g fill="#284d72" font-size="15" font-weight="500" text-anchor="middle">
-    <text x="668" y="389">성능 검증</text>
-    <text x="668" y="454">조기 탐지 분석</text>
-    <text x="668" y="519">예측 결과 비교</text>
-  </g>
-
-  <!-- Service cloud -->
-  <g fill="none" stroke="#1f5487" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M796 291c0-15 12-27 27-27 12 0 22 7 26 18 3-1 6-2 9-2 13 0 24 11 24 24 0 14-11 25-25 25h-51c-14 0-25-11-25-25 0-8 4-15 10-20"/>
-    <rect x="804" y="315" width="49" height="13" rx="4"/>
-    <rect x="804" y="332" width="49" height="13" rx="4"/>
-    <rect x="804" y="349" width="49" height="13" rx="4"/>
-    <circle cx="814" cy="321.5" r="2" fill="#1f5487"/>
-    <circle cx="814" cy="338.5" r="2" fill="#1f5487"/>
-    <circle cx="814" cy="355.5" r="2" fill="#1f5487"/>
-  </g>
-  <g fill="url(#soft)">
-    <rect x="770" y="393" width="118" height="50" rx="5"/>
-    <rect x="770" y="458" width="118" height="50" rx="5"/>
-  </g>
-  <g fill="#284d72" font-size="15" font-weight="500" text-anchor="middle">
-    <text x="829" y="424">추론 API</text>
-    <text x="829" y="489">대시보드</text>
+  <g class="kr label" text-anchor="middle">
+    <text x="936" y="550">성능 검증</text>
+    <text x="936" y="636">조기 탐지 분석</text>
+    <text x="936" y="722">예측 결과 비교</text>
   </g>
 
-  <!-- GenAI icon -->
-  <g fill="none" stroke="#0f3762" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M956 323c-9-8-13-20-10-32 4-18 19-30 37-30 7 0 14 2 20 6"/>
-    <path d="M956 323v13h14"/>
-    <ellipse cx="1009" cy="278" rx="23" ry="18"/>
-    <path d="M1025 290l7 12-14-6"/>
-    <circle cx="1001" cy="278" r="2" fill="#0f3762"/>
-    <circle cx="1009" cy="278" r="2" fill="#0f3762"/>
-    <circle cx="1017" cy="278" r="2" fill="#0f3762"/>
+  <!-- Column 5: service -->
+  <g class="navy" stroke-width="5">
+    <path d="M1090 403c0-25 20-45 45-45 18 0 34 10 41 25 5-3 12-5 19-5 24 0 43 19 43 43 0 5-1 10-3 14h-132c-8-8-13-19-13-32z"/>
+    <rect x="1118" y="430" width="80" height="27" rx="5" fill="#fff"/>
+    <rect x="1118" y="466" width="80" height="27" rx="5" fill="#fff"/>
+    <circle cx="1133" cy="444" r="3" class="navyFill" stroke="none"/>
+    <circle cx="1147" cy="444" r="3" class="navyFill" stroke="none"/>
+    <circle cx="1133" cy="480" r="3" class="navyFill" stroke="none"/>
+    <circle cx="1147" cy="480" r="3" class="navyFill" stroke="none"/>
   </g>
-  <g fill="url(#soft)">
-    <rect x="930" y="358" width="119" height="38" rx="5"/>
-    <rect x="930" y="406" width="119" height="38" rx="5"/>
-    <rect x="930" y="454" width="119" height="38" rx="5"/>
-    <rect x="930" y="502" width="119" height="38" rx="5"/>
+  <g>
+    <rect class="chip" x="1075" y="531" width="169" height="73" rx="8"/>
+    <rect class="chip" x="1075" y="622" width="169" height="73" rx="8"/>
   </g>
-  <g fill="#284d72" font-size="15" font-weight="500" text-anchor="middle">
-    <text x="989.5" y="383">상태 해석</text>
-    <text x="989.5" y="431">원인 설명</text>
-    <text x="989.5" y="479">정비 권고</text>
-    <text x="989.5" y="527">보고서 생성</text>
+  <g class="kr label" text-anchor="middle">
+    <text x="1159" y="577">추론 API</text>
+    <text x="1159" y="668">대시보드</text>
   </g>
-  <text x="989.5" y="568" font-size="14" font-weight="600" fill="#345d82" text-anchor="middle">LLM+RAG</text>
 
-  <!-- Users icon -->
-  <g fill="#2f5f8e">
-    <circle cx="1148" cy="270" r="13"/>
-    <path d="M1128 319c0-16 9-27 20-27s20 11 20 27z"/>
-    <circle cx="1118" cy="282" r="10"/>
-    <path d="M1103 319c0-13 7-23 15-23 5 0 9 3 12 8-4 5-6 10-6 15z"/>
-    <circle cx="1178" cy="282" r="10"/>
-    <path d="M1172 304c3-5 7-8 12-8 8 0 15 10 15 23h-21c0-6-2-11-6-15z"/>
+  <!-- Column 6: GenAI -->
+  <g class="navy" stroke-width="5">
+    <path d="M1330 434c-4-10-6-21-6-32 0-35 28-63 63-63 28 0 52 18 60 43"/>
+    <path d="M1330 434l-18 11 20 8v29h43"/>
+    <path d="M1398 361c13-22 42-30 65-17 23 13 30 42 17 65-10 17-29 26-48 22l-21 20 4-28c-21-10-30-38-17-62z"/>
+    <circle cx="1430" cy="383" r="4" class="navyFill" stroke="none"/>
+    <circle cx="1443" cy="383" r="4" class="navyFill" stroke="none"/>
+    <circle cx="1456" cy="383" r="4" class="navyFill" stroke="none"/>
   </g>
-  <g fill="url(#soft)">
-    <rect x="1090" y="358" width="115" height="50" rx="5"/>
-    <rect x="1090" y="423" width="115" height="50" rx="5"/>
-    <rect x="1090" y="488" width="115" height="50" rx="5"/>
+  <g>
+    <rect class="chip" x="1296" y="504" width="176" height="61" rx="8"/>
+    <rect class="chip" x="1296" y="578" width="176" height="61" rx="8"/>
+    <rect class="chip" x="1296" y="652" width="176" height="61" rx="8"/>
+    <rect class="chip" x="1296" y="726" width="176" height="61" rx="8"/>
   </g>
-  <g fill="#284d72" font-size="15" font-weight="500" text-anchor="middle">
-    <text x="1147.5" y="389">설비 관리자</text>
-    <text x="1147.5" y="454">정비 엔지니어</text>
-    <text x="1147.5" y="519">의사결정자</text>
+  <g class="kr label" text-anchor="middle">
+    <text x="1384" y="543">상태 해석</text>
+    <text x="1384" y="617">원인 설명</text>
+    <text x="1384" y="691">정비 권고</text>
+    <text x="1384" y="765">보고서 생성</text>
+  </g>
+  <text class="kr small" x="1384" y="817" text-anchor="middle" font-weight="700">LLM+RAG</text>
+
+  <!-- Column 7: users -->
+  <g class="navyFill">
+    <circle cx="1611" cy="375" r="23"/>
+    <circle cx="1567" cy="391" r="17"/>
+    <circle cx="1655" cy="391" r="17"/>
+    <path d="M1573 465c0-35 17-59 38-59s38 24 38 59z"/>
+    <path d="M1538 455c0-26 12-44 29-44 11 0 20 8 25 20-8 12-12 26-12 42h-42z"/>
+    <path d="M1684 455c0-26-12-44-29-44-11 0-20 8-25 20 8 12 12 26 12 42h42z"/>
+  </g>
+  <g>
+    <rect class="chip" x="1525" y="505" width="173" height="72" rx="8"/>
+    <rect class="chip" x="1525" y="591" width="173" height="72" rx="8"/>
+    <rect class="chip" x="1525" y="677" width="173" height="72" rx="8"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="1611" y="550">설비 관리자</text>
+    <text x="1611" y="636">정비 엔지니어</text>
+    <text x="1611" y="722">의사결정자</text>
   </g>
 </svg>
