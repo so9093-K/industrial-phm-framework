@@ -305,4 +305,3 @@ def test_monitor_attention_summary_is_factual_not_severity_scoring() -> None:
     assert ">3<" in rendered
     assert "alarm severity" in rendered
     assert "asset-health scores" in rendered
-
