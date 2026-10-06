@@ -46,6 +46,7 @@ opcua = [
 operations = [
   "industrial-phm-framework[history,opcua]",
   "marimo>=0.24.2,<0.25",
+  "matplotlib>=3.11.2,<4",
 ]
 aihub = [
     "ijson>=3.4,<4",
