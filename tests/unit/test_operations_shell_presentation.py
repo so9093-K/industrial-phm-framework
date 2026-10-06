@@ -21,6 +21,7 @@ from industrial_phm.presentation.operations_shell import (
     operations_theme_css,
     render_monitor_asset_context_html,
     render_monitor_assets_html,
+    render_monitor_attention_summary_html,
     render_monitor_flow_html,
     render_monitor_signal_overview_html,
 )
@@ -262,3 +263,45 @@ def test_monitor_attention_is_scoped_to_selected_asset_plus_global_system() -> N
     )
     assert monitor_attention_category(contextual[0]) == "Data"
     assert monitor_attention_category(contextual[1]) == "System"
+
+
+def test_monitor_attention_summary_is_factual_not_severity_scoring() -> None:
+    attention = (
+        OperationsMonitorAttention(
+            attention_id="asset-1:data",
+            status=OperationsMonitorStatus.DELAYED,
+            title="Data delayed",
+            detail="No new data.",
+            destination=OperationsAttentionDestination.ASSET_SIGNALS,
+            occurred_at=NOW,
+            asset_id="asset-1",
+        ),
+        OperationsMonitorAttention(
+            attention_id="asset-1:review",
+            status=OperationsMonitorStatus.NEEDS_ATTENTION,
+            title="Review waiting",
+            detail="Review requested.",
+            destination=OperationsAttentionDestination.INVESTIGATIONS,
+            occurred_at=NOW,
+            asset_id="asset-1",
+            finding_id="finding-1",
+        ),
+        OperationsMonitorAttention(
+            attention_id="global:system",
+            status=OperationsMonitorStatus.ERROR,
+            title="System unavailable",
+            detail="State read failed.",
+            destination=OperationsAttentionDestination.SYSTEM,
+            occurred_at=NOW,
+        ),
+    )
+
+    rendered = render_monitor_attention_summary_html(attention)
+
+    assert "Attention" in rendered
+    assert "Data" in rendered
+    assert "Review" in rendered
+    assert "System" in rendered
+    assert ">3<" in rendered
+    assert "alarm severity" in rendered
+    assert "asset-health scores" in rendered

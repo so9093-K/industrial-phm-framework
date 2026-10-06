@@ -53,6 +53,7 @@ def _():
         operations_theme_css,
         render_analysis_quality_markdown,
         render_monitor_asset_context_html,
+        render_monitor_attention_summary_html,
         render_monitor_signal_overview_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
@@ -222,6 +223,7 @@ def _():
         render_measurement_history_svg,
         render_multi_signal_measurement_aggregation_svg,
         render_monitor_asset_context_html,
+        render_monitor_attention_summary_html,
         render_monitor_signal_overview_html,
         render_phase_unbalance_svg,
         render_setup_signals_html,
@@ -3831,7 +3833,13 @@ def _(
         attention_label_to_id = {}
         attention_selector = None
         attention_open_button = None
-    return attention_label_to_id, attention_open_button, attention_selector
+    contextual_attention = _context_attention
+    return (
+        attention_label_to_id,
+        attention_open_button,
+        attention_selector,
+        contextual_attention,
+    )
 
 
 @app.cell
@@ -3906,9 +3914,11 @@ def _(
     attention_route,
     attention_route_error,
     attention_selector,
+    contextual_attention,
     mo,
     monitor,
     monitor_attention_category,
+    render_monitor_attention_summary_html,
     selected_attention,
     UTC,
 ):
@@ -3940,7 +3950,7 @@ def _(
         _metadata = f"**{_category}** · {_asset_label} · {_when}"
         _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
         _blocks = [
-            mo.md("### Attention"),
+            mo.Html(render_monitor_attention_summary_html(contextual_attention)),
             attention_selector,
             mo.md(_metadata),
             mo.callout(
@@ -4038,7 +4048,15 @@ def _(
             gap=1.0,
         )
     else:
-        _observation_view = mo.vstack(
+        _overview_row = monitor_signal_overview
+        if attention_view is not None:
+            _overview_row = mo.hstack(
+                [monitor_signal_overview, attention_view],
+                widths=[0.72, 0.28],
+                align="start",
+                gap=1.2,
+            )
+        monitor_view = mo.vstack(
             [
                 asset_selector,
                 mo.Html(
@@ -4048,22 +4066,13 @@ def _(
                         as_of=monitor.assessed_at,
                     )
                 ),
-                monitor_signal_overview,
+                _overview_row,
                 monitor_signal_trends,
                 *([] if monitor_evidence_view is None else [monitor_evidence_view]),
                 signal_view,
             ],
             gap=1.0,
         )
-        if attention_view is None:
-            monitor_view = _observation_view
-        else:
-            monitor_view = mo.hstack(
-                [_observation_view, attention_view],
-                widths=[0.72, 0.28],
-                align="start",
-                gap=1.2,
-            )
 
     if asset_selector is None:
         asset_view = mo.md(
