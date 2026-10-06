@@ -72,7 +72,7 @@ def render_live_observation_html(
     if not view.series:
         return (
             '<section class="phm-shell">'
-            '<div class="phm-section-title">Live observation</div>'
+            '<div class="phm-section-title">Current observation</div>'
             '<div class="phm-card-detail">'
             "No mapped OPC UA live source is available for this signal."
             "</div></section>"
@@ -89,7 +89,7 @@ def render_live_observation_html(
         '<section class="phm-shell">'
         '<div class="phm-live-heading">'
         "<div>"
-        '<div class="phm-section-title">Live observation</div>'
+        '<div class="phm-section-title">Current observation</div>'
         f'<div class="phm-live-channel">{escape(view.channel_id)}</div>'
         "</div>"
         f'<div class="phm-card-detail">Sampled {_time_label(view.sampled_at)}</div>'
@@ -145,9 +145,11 @@ def live_observation_css() -> str:
 .phm-live-state-error { color: var(--phm-error); }
 .phm-live-state-muted { color: var(--phm-muted); }
 .phm-live-value {
-  font-size: 1.8rem;
-  font-weight: 650;
-  margin: .25rem 0 .55rem 0;
+  font-size: 2.15rem;
+  font-weight: 700;
+  line-height: 1.05;
+  margin: .3rem 0 .8rem 0;
+  font-variant-numeric: tabular-nums;
 }
 .phm-live-facts {
   display: grid;
@@ -161,6 +163,20 @@ def live_observation_css() -> str:
 .phm-live-fact-value {
   font-size: .88rem;
   overflow-wrap: anywhere;
+}
+.phm-live-details {
+  margin-top: .8rem;
+  border-top: 1px solid var(--phm-border);
+  padding-top: .65rem;
+  color: var(--phm-muted);
+}
+.phm-live-details summary {
+  cursor: pointer;
+  font-size: .78rem;
+  user-select: none;
+}
+.phm-live-details .phm-live-facts {
+  margin-top: .7rem;
 }
 @media (max-width: 720px) {
   .phm-live-heading { align-items: start; flex-direction: column; }
@@ -255,7 +271,6 @@ def _render_series(
         + "</div>"
         f'<div class="phm-live-value">{escape(value + unit)}</div>'
         '<div class="phm-live-facts">'
-        + _fact("Session", _session_label(series.session_state))
         + _fact(
             "Last source receipt",
             _relative_time(series.last_received_at, sampled_at=sampled_at),
@@ -264,11 +279,15 @@ def _render_series(
             "Channel event time",
             _time_label(None if latest is None else latest.measurement.event_at),
         )
+        + "</div>"
+        '<details class="phm-live-details"><summary>Source details</summary>'
+        '<div class="phm-live-facts">'
+        + _fact("Session", _session_label(series.session_state))
         + _fact("Latest source timestamp", _time_label(series.last_source_timestamp))
         + _fact("Channel event lag", channel_event_lag_label(series))
         + _fact("Source quality", quality)
         + _fact("Source event rate", _rate_label(series.average_event_rate_hz))
-        + "</div></div>"
+        + "</div></details></div>"
     )
 
 

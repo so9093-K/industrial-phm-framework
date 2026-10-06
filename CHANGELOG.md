@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations Monitor를 workflow/runtime 상태판에서 selected asset의 실제 관측 데이터 중심 화면으로
+  재구성했습니다. Monitor는 Assets → Signals와 같은 canonical observation/history read path를 사용해
+  asset context, 현재 signal observation, 최근 time-series와 quality/gap evidence를 첫 화면에 두고,
+  System data flow와 Recent activity를 primary Monitor에서 제거했습니다. Needs Attention의 기존
+  typed drill-down은 보존하며 source/session 진단 상세는 current observation의 progressive disclosure로
+  내렸습니다.
+
 - Source 등록은 optional `asset_display_name`을 가질 수 있습니다(source registry v5 안의 optional key, 없으면 기존
   JSON과 동일). 같은 asset의 source들이 같은 이름을 선언하면 Monitor·Needs attention·Recent activity·Assets·
   Investigations·Maintenance가 그 이름을 label로 쓰고 `asset_id`는 제목 아래와 provenance에 남깁니다. 이름이 다르면

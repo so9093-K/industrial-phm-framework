@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.asset_display import AssetDisplayNames
+from industrial_phm.application.operations_assets import AssetWorkspaceView
 from industrial_phm.application.operations_monitor import (
     OperationsMonitorAsset,
     OperationsMonitorStage,
@@ -172,11 +173,123 @@ body, #root, .marimo {{
   letter-spacing: .06em;
 }}
 .phm-table tr:last-child td {{ border-bottom: none; }}
+.phm-monitor-context {{
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 1.5rem;
+  padding: .25rem 0 1rem 0;
+  border-bottom: 1px solid var(--phm-border);
+}}
+.phm-monitor-eyebrow {{
+  color: var(--phm-muted);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  margin-bottom: .35rem;
+}}
+.phm-monitor-title {{
+  margin: 0;
+  color: var(--phm-text);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.15;
+}}
+.phm-monitor-id {{
+  margin-top: .32rem;
+  color: var(--phm-muted);
+  font-size: .78rem;
+}}
+.phm-monitor-facts {{
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .65rem 1.1rem;
+}}
+.phm-monitor-fact {{
+  min-width: 92px;
+}}
+.phm-monitor-fact-label {{
+  color: var(--phm-muted);
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}}
+.phm-monitor-fact-value {{
+  margin-top: .2rem;
+  color: var(--phm-text);
+  font-size: .9rem;
+  font-weight: 600;
+}}
 @media (max-width: 980px) {{
   .phm-flow {{ grid-template-columns: 1fr 1fr; }}
+  .phm-monitor-context {{
+    align-items: start;
+    flex-direction: column;
+  }}
+  .phm-monitor-facts {{ justify-content: flex-start; }}
 }}
 </style>
 """
+
+
+def render_monitor_asset_context_html(
+    view: AssetWorkspaceView,
+    asset_names: AssetDisplayNames | None = None,
+    *,
+    as_of: datetime,
+) -> str:
+    """Render selected-asset observation context without inventing asset condition."""
+
+    if not isinstance(view, AssetWorkspaceView):
+        raise ValueError("view must be an AssetWorkspaceView")
+    if not isinstance(as_of, datetime) or as_of.utcoffset() is None:
+        raise ValueError("as_of must be a timezone-aware datetime")
+
+    name = None if asset_names is None else asset_names.name(view.asset_id)
+    title = view.asset_id if name is None else name
+    asset_id = (
+        "" if name is None else (f'<div class="phm-monitor-id">{escape(view.asset_id)}</div>')
+    )
+    data_state = data_status_label(view.status)
+    last_observation = _relative_hint(view.last_data_at, as_of=as_of)
+    signal_count = len(view.history_channels)
+    signal_label = "signal" if signal_count == 1 else "signals"
+    attention = f"{view.attention_count} attention"
+    reviews = f"{view.open_review_count} open reviews"
+
+    return (
+        '<section class="phm-shell phm-monitor-context">'
+        "<div>"
+        '<div class="phm-monitor-eyebrow">Observed asset</div>'
+        f'<h2 class="phm-monitor-title">{escape(title)}</h2>'
+        f"{asset_id}"
+        "</div>"
+        '<div class="phm-monitor-facts">'
+        + _monitor_fact(
+            "Data",
+            data_state,
+            css_class=f"phm-status-{view.status.value}",
+        )
+        + _monitor_fact("Last observation", last_observation)
+        + _monitor_fact("Stored signals", f"{signal_count} {signal_label}")
+        + _monitor_fact("Attention", attention)
+        + _monitor_fact("Reviews", reviews)
+        + "</div></section>"
+    )
+
+
+def _monitor_fact(label: str, value: str, *, css_class: str | None = None) -> str:
+    value_class = "phm-monitor-fact-value"
+    if css_class is not None:
+        value_class += f" {escape(css_class)}"
+    return (
+        '<div class="phm-monitor-fact">'
+        f'<div class="phm-monitor-fact-label">{escape(label)}</div>'
+        f'<div class="{value_class}">{escape(value)}</div>'
+        "</div>"
+    )
 
 
 def render_monitor_flow_html(view: OperationsMonitorView) -> str:

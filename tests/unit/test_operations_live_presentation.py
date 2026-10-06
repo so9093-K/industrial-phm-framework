@@ -82,6 +82,7 @@ def _view(*, series: LiveObservationSeries | None = None) -> LiveObservationView
 def test_live_presenter_separates_source_flow_from_recorded_channel_time() -> None:
     rendered = render_live_observation_html(_view(), silence_limit_seconds=30.0)
 
+    assert "Current observation" in rendered
     assert "18.2" in rendered
     assert "Source flow · Receiving" in rendered
     assert "Last source receipt" in rendered
@@ -89,6 +90,8 @@ def test_live_presenter_separates_source_flow_from_recorded_channel_time() -> No
     assert "Channel event time" in rendered
     assert EVENT_AT.isoformat() in rendered
     assert "Channel quality · good" in rendered
+    assert "<details" in rendered
+    assert "Source details" in rendered
     assert "Healthy" not in rendered
 
 
