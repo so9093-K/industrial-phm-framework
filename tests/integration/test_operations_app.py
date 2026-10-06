@@ -9,39 +9,21 @@ import pytest
 from industrial_phm.application import (
     JsonOperationalFindingRepository,
     JsonSourceRepository,
-    ObservationWindowBuffer,
     OpcUaSourceConfig,
     RegisteredSource,
     SqlitePhaseUnbalanceRepository,
     create_human_review_finding,
 )
-from industrial_phm.application.phase_unbalance import run_phase_unbalance_on_window
 from industrial_phm.apps import operations_app_path
 from industrial_phm.connectors import OpcUaNodeMapping
 from industrial_phm.runtime import OperationsWorkspace
-from tests.support.window_analysis import END, START
-from tests.support.window_analysis import window_event as _event
+from tests.support.window_analysis import END, phase_unbalance_analysis
 
 OPERATIONS_APP = operations_app_path()
 
 
 def _analysis():
-    buffer = ObservationWindowBuffer(
-        window_id="ops-render",
-        source_id="site-opcua",
-        asset_id="motor-7",
-        measurement_point_id="mcc-3",
-        expected_channel_ids=("va", "vb", "vc"),
-        window_start=START,
-        window_end=END,
-        max_buffered_events=32,
-        max_future_skew_seconds=5.0,
-    )
-    for second in range(10, 14):
-        for offset, channel in enumerate(("va", "vb", "vc")):
-            buffer.ingest(_event(channel, second, 220.0 + offset + second, 3 * second + offset))
-    buffer.advance_watermark(END)
-    return run_phase_unbalance_on_window(buffer.finalize(finalized_at=END))
+    return phase_unbalance_analysis()
 
 
 def _distinct_analysis(template, index: int):

@@ -55,7 +55,8 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함. 실행 중 새 결과는 명시적 refresh로 읽음(자동 polling 없음) |
 | Operations 분석 시도/skip 이유 조회 | **조건부 지원** | Operations가 runner와 같은 finalized-window SQLite와 analysis-ledger SQLite를 읽을 때 Asset별 Analyzed/Skipped 시도와 exact skip reason을 표시 |
 | Live runner process lifecycle | **지원** | `operations start <root>`의 supervisor가 collection과 별도 analysis runner process를 함께 소유. analysis health는 runner-owned heartbeat가 authoritative |
-| Investigation / review finding / Maintenance Review | **지원** | AnalysisRun evidence를 사람이 조사·검토하고 review 기록을 남김 |
+| Investigation / review finding / Maintenance Review | **지원** | AnalysisRun evidence를 사람이 조사·검토하고 review 기록을 남김. Maintenance는 review가 참조하는 evidence(관측 구간·data quality·불평형 요약)를 참조로 읽어 표시하고 같은 evidence로 돌아갈 수 있음. 같은 세션의 review action은 Monitor review 수·attention을 snapshot 재조회 없이 갱신 |
+| Operations asset 표시 이름 | **조건부 지원** | source 등록이 선언한 optional `asset_display_name`을 같은 asset의 선언이 모두 일치할 때만 label로 사용. 없거나 불일치하면 `asset_id`(불일치는 System 표시). `asset_id`는 identity·provenance로 유지 |
 
 3상 불평형의 계산·eligibility·alignment 계약은
 [capability 문서](architecture/phase-unbalance-capability.md), live input 결정은
@@ -80,6 +81,8 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | synthetic OPC UA loopback E2E | **지원** | 실제 asyncua server와 별도 collector process를 사용하는 contract test |
 | one-command synthetic Operations demo | **지원** | `industrial-phm demo synthetic`이 전용 workspace에 synthetic 3상 OPC UA source를 등록하고 simulator + collection + analysis + packaged UI를 한 foreground lifecycle로 실행. 물리 설비 측정/고장 진단 evidence가 아님 |
 | AI-Hub boiler recorded replay demo | **조건부 지원** | local AI-Hub 239 boiler archive + `aihub` extra가 있을 때 `industrial-phm demo aihub-boiler`가 검증된 device 2297/member/time-range preset을 replay server + normal Operations runtime으로 실행. recorded provider data replay이며 live endpoint 동작 검증이나 설비 진단이 아님 |
+| AI-Hub 239 공기압축기 recorded replay Operations E2E | **조건부 지원** | local AI-Hub 239 공기압축기 Training/raw archive + `aihub` extra가 있을 때 [reference selection](research/aihub-239-air-compressor-reference-profile.md)(device 1338, local 2020-11-16 04:00–10:00)을 replay → collection → history → finalized window → 3상 불평형 → Monitor/Signals → Investigation → review → Maintenance까지 실행해 확인. recorded provider data replay이며 live endpoint 동작 검증·설비 진단·고장 예측이 아님 |
+| Operations user evidence journey acceptance | **지원** | synthetic workspace에서 packaged app으로 Monitor → Signals → Investigation → review request → Maintenance → Investigation 복귀까지 같은 asset·evidence·표시 이름이 유지되는지 CI에서 검증. live receive/pause/reconnect/recovery는 AI-Hub replay fault gate가 소유 |
 | clean-workspace Operations product acceptance | **지원** | external data 없이 fresh synthetic workspace에서 실제 demo process → runtime ready → finalized window/analysis evidence → stop → 같은 workspace restart/state 보존을 CI에서 검증 |
 | AI-Hub replay repeatable fault gate | **지원** | `tools/opcua/fault_harness.py`: stall·kill/restart·overflow·spool backlog N회 주입, missing-phase evidence, Live receive→pause→reconnect→recover/history continuity, review→Maintenance 연결, Monitor와 Assets→Signals 실제 브라우저 5초 확인을 machine verdict(`full`/`diagnostic`)로 판정. 결과는 `docs/research/live-acquisition-fault-evidence.md` |
 | Local Operations workspace 초기화 | **지원** | `industrial-phm operations init <root>`가 versioned `config.toml`과 managed data/log directory를 만들고 기존 유효 workspace에는 idempotent하게 동작. config 없는 비어 있지 않은 directory는 자동 채택하지 않음 |
