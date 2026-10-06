@@ -17,6 +17,7 @@ from industrial_phm.presentation.operations_shell import (
     initial_operations_page,
     operations_theme_css,
     render_monitor_asset_context_html,
+    monitor_signal_channels,
     render_monitor_assets_html,
     render_monitor_flow_html,
     render_monitor_signal_overview_html,
@@ -185,3 +186,20 @@ def test_monitor_signal_overview_prioritizes_selected_and_quality_issue() -> Non
     assert "phase current · phase T" in rendered
     assert "Show 1 more stored observations" in rendered
     assert "asset health" not in rendered.lower()
+
+def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
+    rows = (
+        {"channel": "temperature", "quality": "no recorded issue", "source": "a"},
+        {"channel": "current-t", "quality": "null", "source": "a"},
+        {"channel": "vibration", "quality": "no recorded issue", "source": "a"},
+        {"channel": "pressure", "quality": "source status non-good", "source": "a"},
+    )
+
+    channels = monitor_signal_channels(
+        rows,
+        selected_channel="vibration",
+        limit=3,
+    )
+
+    assert channels == ("vibration", "current-t", "pressure")
+
