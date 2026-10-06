@@ -68,11 +68,21 @@ def resolve_operations_attention_route(
     finding_id = attention.finding_id
     if finding_id is None:
         raise AssertionError("validated investigations attention is missing finding_id")
+    return resolve_finding_investigation_route(finding_id, investigation_queue=investigation_queue)
+
+
+def resolve_finding_investigation_route(
+    finding_id: str,
+    *,
+    investigation_queue: InvestigationQueueView,
+) -> OperationsAttentionRoute:
+    """Route a review request back to the exact analysis evidence it references."""
+
+    if not isinstance(investigation_queue, InvestigationQueueView):
+        raise ValueError("investigation_queue must be an InvestigationQueueView")
     matches = tuple(item for item in investigation_queue.items if item.finding_id == finding_id)
     if len(matches) != 1:
-        raise LookupError(
-            f"attention finding must resolve to exactly one investigation: {finding_id}"
-        )
+        raise LookupError(f"review finding must resolve to exactly one investigation: {finding_id}")
     item = matches[0]
     group = next(
         (

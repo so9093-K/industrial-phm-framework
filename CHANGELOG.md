@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations review journey가 끝까지 같은 evidence context를 유지합니다. Maintenance review는 저장된 참조
+  (`analysis_run_id`)로 검토 대상 evidence의 관측 구간·source·data quality·3상 불평형 median/P95/Max를 보여주며
+  review record에는 값을 복제하지 않습니다. "Open evidence in Investigations"로 그 evidence에 바로 돌아갈 수
+  있습니다. 같은 세션에서 review를 요청하거나 처리하면 Monitor의 review 수·Needs attention과 Asset의 review 상태가
+  Refresh 없이 갱신됩니다. 이 갱신은 snapshot의 다른 입력을 그대로 쓰고 저장소를 다시 읽지 않으며 polling을
+  추가하지 않습니다.
+
 - AI-Hub 239 새 적재의 기본값을 metadata `aihub-239-history-v5` / `aihub-239-semantics-v3`로 바꿨습니다.
   v3는 전체 archive source/relation profile로 확인한 archive(Training/raw 보일러·압출기·공기압축기 SHA-256)에만
   의미·단위를 부여하고, 그 밖의 archive는 raw 값·timestamp·provenance를 그대로 적재하되 모든 channel을

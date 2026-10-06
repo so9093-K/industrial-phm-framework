@@ -94,11 +94,13 @@ def _():
         maintenance_queue_label,
         maintenance_status_label,
         maintenance_workspace_css,
+        render_maintenance_evidence_html,
         render_maintenance_identity_html,
         render_maintenance_summary_html,
         render_maintenance_timeline_html,
     )
     from industrial_phm.presentation.operations_navigation import (
+        resolve_finding_investigation_route,
         resolve_operations_attention_route,
     )
     from industrial_phm.presentation.phase_unbalance import (
@@ -111,6 +113,7 @@ def _():
         OperationsActionError,
         OperationsDiagnosticKind,
     )
+    from industrial_phm.runtime.operations_app_composition import project_review_workflow
     from industrial_phm.runtime.operations_app_context import load_operations_app_context
     from industrial_phm.runtime.operations_live import (
         OperationsReadError,
@@ -191,7 +194,10 @@ def _():
         render_investigation_evidence_identity_html,
         render_investigation_summary_html,
         render_live_observation_html,
+        project_review_workflow,
+        resolve_finding_investigation_route,
         resolve_operations_attention_route,
+        render_maintenance_evidence_html,
         render_maintenance_identity_html,
         render_maintenance_summary_html,
         render_maintenance_timeline_html,
@@ -242,8 +248,6 @@ def _(load_operations_app_context, refresh_button):
     history_assets = _snapshot.history_assets
     collection_records = _snapshot.collection_records
     skipped_analysis_attempts = _snapshot.skipped_analysis_attempts
-    overview = _snapshot.overview
-    monitor = _snapshot.monitor
     live_flow_timing = _snapshot.live_flow_timing
     system_diagnostics = _snapshot.system_diagnostics
     system_errors = _snapshot.system_errors
@@ -261,10 +265,8 @@ def _(load_operations_app_context, refresh_button):
         history_reader,
         lifecycle_records,
         live_flow_timing,
-        monitor,
         operations_actions,
         operations_context,
-        overview,
         registered_sources,
         review_events,
         skipped_analysis_attempts,
@@ -1332,16 +1334,16 @@ def _(
     asset_selector,
     build_asset_detail,
     build_asset_workspace_view,
-    findings,
     history_assets,
     history_reader,
+    investigation_findings,
     list_operations_history_channels,
     live_flow_timing,
+    maintenance_events,
     monitor,
     navigation,
     overview,
     registered_sources,
-    review_events,
     skipped_analysis_attempts,
 ):
     asset_workspace = None
@@ -1367,8 +1369,8 @@ def _(
             sources=registered_sources,
             overview=overview,
             analysis_runs=tuple(item.run for item in current_analysis_results),
-            findings=findings,
-            review_events=review_events,
+            findings=investigation_findings,
+            review_events=maintenance_events,
         )
         _monitor_asset = next(
             (item for item in monitor.assets if item.asset_id == _selected_asset_id),
@@ -1911,6 +1913,25 @@ def _(
         review_events=maintenance_events,
     )
     return investigation_findings, maintenance_events, investigation_queue
+
+
+@app.cell
+def _(
+    investigation_findings,
+    maintenance_events,
+    operations_context,
+    project_review_workflow,
+):
+    # A review action in this session updates the review-dependent projections
+    # (Monitor counts, attention, asset review state) without reloading other state.
+    _review_projection = project_review_workflow(
+        operations_context.snapshot,
+        findings=investigation_findings,
+        review_events=maintenance_events,
+    )
+    overview = _review_projection.overview
+    monitor = _review_projection.monitor
+    return monitor, overview
 
 
 @app.cell
@@ -2491,6 +2512,88 @@ def _(maintenance_label_to_id, maintenance_queue, maintenance_selector):
 
 
 @app.cell
+def _(
+    OperationalAnalysisPresentationKind,
+    current_analysis_results,
+    investigation_queue,
+    mo,
+    operational_analysis_presentation_kind,
+    phase_unbalance_summary_rows,
+    selected_maintenance,
+):
+    # The review keeps references only; its evidence is read from the analysis result.
+    maintenance_evidence = None
+    maintenance_evidence_metrics = ()
+    maintenance_open_investigation_button = None
+    if selected_maintenance is not None:
+        maintenance_evidence = next(
+            (
+                item
+                for item in investigation_queue.items
+                if item.finding_id == selected_maintenance.finding_id
+            ),
+            None,
+        )
+        _result = next(
+            (
+                item
+                for item in current_analysis_results
+                if item.run.analysis_run_id == selected_maintenance.analysis_run_id
+            ),
+            None,
+        )
+        if (
+            _result is not None
+            and operational_analysis_presentation_kind(selected_maintenance.capability_id)
+            == OperationalAnalysisPresentationKind.PHASE_UNBALANCE
+        ):
+            maintenance_evidence_metrics = tuple(phase_unbalance_summary_rows(_result))
+        if maintenance_evidence is not None:
+            maintenance_open_investigation_button = mo.ui.run_button(
+                label="Open evidence in Investigations"
+            )
+    return (
+        maintenance_evidence,
+        maintenance_evidence_metrics,
+        maintenance_open_investigation_button,
+    )
+
+
+@app.cell
+def _(
+    investigation_queue,
+    maintenance_open_investigation_button,
+    resolve_finding_investigation_route,
+    selected_maintenance,
+    set_investigation_asset_filter,
+    set_investigation_capability_filter,
+    set_investigation_review_filter,
+    set_investigation_selection,
+    set_maintenance_error,
+    set_navigation_page,
+):
+    if (
+        maintenance_open_investigation_button is not None
+        and maintenance_open_investigation_button.value
+        and selected_maintenance is not None
+    ):
+        try:
+            _route = resolve_finding_investigation_route(
+                selected_maintenance.finding_id,
+                investigation_queue=investigation_queue,
+            )
+        except LookupError as error:
+            set_maintenance_error(str(error))
+        else:
+            set_investigation_review_filter("All")
+            set_investigation_asset_filter("All")
+            set_investigation_capability_filter("All")
+            set_investigation_selection((_route.investigation_group_id, _route.investigation_id))
+            set_navigation_page("Investigations")
+    return
+
+
+@app.cell
 def _(FindingReviewStatus, mo, selected_maintenance):
     if selected_maintenance is None or selected_maintenance.status == FindingReviewStatus.CLOSED:
         maintenance_note_input = None
@@ -2595,6 +2698,10 @@ def _(
     maintenance_success,
     maintenance_workspace_css,
     mo,
+    maintenance_evidence,
+    maintenance_evidence_metrics,
+    maintenance_open_investigation_button,
+    render_maintenance_evidence_html,
     render_maintenance_identity_html,
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
@@ -2666,9 +2773,21 @@ def _(
                     "This review is closed. Closed review history is append-locked."
                 )
             )
+        _evidence_blocks = [
+            mo.Html(
+                render_maintenance_evidence_html(
+                    maintenance_evidence,
+                    analysis_run_id=selected_maintenance.analysis_run_id,
+                    metrics=maintenance_evidence_metrics,
+                )
+            )
+        ]
+        if maintenance_open_investigation_button is not None:
+            _evidence_blocks.append(maintenance_open_investigation_button)
         _detail_panel = mo.vstack(
             [
                 mo.Html(render_maintenance_summary_html(selected_maintenance)),
+                *_evidence_blocks,
                 mo.Html(render_maintenance_timeline_html(selected_maintenance)),
                 *_action_blocks,
                 mo.accordion(
