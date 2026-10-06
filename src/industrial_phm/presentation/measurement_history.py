@@ -5,8 +5,8 @@ from __future__ import annotations
 import importlib
 import io
 import json
-from dataclasses import asdict
 from collections.abc import Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Any
 
