@@ -148,3 +148,39 @@ def test_default_comparisons_require_declared_compatible_meaning():
     assert comparison_channels(rows, "r", None) == ("s",)
     assert comparison_channels(rows, "r", ["s", "s", "missing", "r"]) == ("s",)
     assert comparison_channels([{**row, "unit": "unknown"} for row in rows], "r", None) == ()
+
+
+def test_never_observed_registered_comparisons_are_not_dropped():
+    rows = [
+        {
+            "channel": name,
+            "unit": "A",
+            "observed_property": "phase current",
+            "source": "source",
+            "measurement_point": "panel",
+            "value": None,
+        }
+        for name in ("r", "s", "t")
+    ]
+    assert comparison_channels(rows, "r", ["s", "t"]) == ("s", "t")
+    assert comparison_channels(rows, "r", None) == ("s", "t")
+
+
+def test_chart_origins_and_interpretation_versions_remain_visible():
+    original = bucket("r", source="alpha")
+    newer = replace(
+        bucket("r", source="beta"),
+        interpretation_json=json.dumps(
+            {
+                "semantics": {
+                    "version": "site-v2",
+                    "definition": {"observed_property": "phase current", "unit": "A"},
+                }
+            }
+        ),
+    )
+    groups = chart_payload(result(original, newer))["groups"]
+    assert len(groups) == 2
+    assert groups[0]["origin"] == "alpha / panel"
+    assert groups[1]["origin"] == "beta / panel"
+    assert groups[1]["interpretation"] == "site-v2"

@@ -69,21 +69,66 @@ function render({
   let s = model.get('snapshot'),
     query = '',
     cleanChart = () => {},
-    sequence = 0;
+    sequence = 0,
+    disabledControls = new Map(),
+    pendingTimer = null,
+    lastActionError = "";
   const root = $('div', 'mw-shell');
   el.replaceChildren(root);
   const emit = (kind, values = {}) => {
+    if (root.classList.contains('mw-pending')) return;
+    if ((kind === 'focus' && values.channel === s.focus) || (kind === 'range' && values.range === s.range) ||
+      (kind === 'navigate' && values.page === s.page)) return;
+    if (kind === 'asset' && values.id === s.asset_id) {
+      root.querySelector('.mw-overlay')?.remove();
+      root.querySelector('.mw-asset')?.focus();
+      return;
+    }
+
     const active = root.getRootNode().activeElement || doc.activeElement;
     if (active && active.tagName === 'BUTTON') {
       sessionStorage.setItem('phm-monitor-active-control', active.getAttribute('aria-label') || active.textContent.trim());
     }
+    clearTimeout(pendingTimer);
+    root.querySelector('.mw-action-error')?.remove();
+    lastActionError = '';
     root.classList.add('mw-pending');
+    disabledControls = new Map([...root.querySelectorAll('button,input')].map(control => [control, control.disabled]));
+    disabledControls.forEach((_, control) => {
+      control.disabled = true;
+    });
+    pendingTimer = setTimeout(() => showActionError('The view did not finish updating. Refresh to retry.'), 15000);
     model.set('event', {
       kind,
       ...values,
       sequence: ++sequence
     });
     model.save_changes();
+  };
+
+  function showActionError(message) {
+    clearTimeout(pendingTimer);
+    root.classList.remove('mw-pending');
+    disabledControls.forEach((disabled, control) => {
+      control.disabled = disabled;
+    });
+    disabledControls.clear();
+    root.querySelector('.mw-action-error')?.remove();
+    lastActionError = message;
+    if (!message) return;
+    const error = $('div', 'mw-error mw-action-error');
+    error.setAttribute('role', 'alert');
+    error.append($('span', '', message));
+    const retry = $('button', 'mw-text-action', 'Retry refresh');
+    retry.type = 'button';
+    retry.addEventListener('click', () => emit('refresh'));
+    error.append(retry);
+    root.querySelector('.mw-main')?.prepend(error);
+  }
+  const onResponse = () => {
+    const reply = model.get('response');
+    if (reply.sequence !== sequence) return;
+    if (reply.status !== 'ok') showActionError(reply.message || 'The update failed. Refresh to retry.');
   };
   const button = (text, action, cls = 'mw-button') => {
     const b = $('button', cls, text);
@@ -95,6 +140,7 @@ function render({
 
   function draw() {
     cleanChart();
+    clearTimeout(pendingTimer);
     s = model.get('snapshot');
     root.replaceChildren();
     root.classList.remove('mw-pending');
@@ -137,6 +183,9 @@ function render({
     const receipt = $('div', 'mw-receipt');
     receipt.append($('span', 'mw-muted', 'SOURCE RECEIPT'), $('strong', '', age(s.source_at, s.assessed_at)), $('span', 'mw-muted', s.source_at ? `${time(s.source_at,true)} UTC` : 'No receive timestamp'));
     flow.append(receipt);
+    const assessment = $('div', 'mw-assessment', `Status at ${time(s.assessed_at,true)} UTC`);
+    assessment.append($('span', 'mw-muted', 'Manual snapshot · Refresh to reassess'));
+    flow.append(assessment);
     title.append(flow);
     root.append(title);
     const workspace = $('section', 'mw-workspace');
@@ -165,8 +214,19 @@ function render({
       list.replaceChildren();
       const groups = new Map();
       const filtered = s.signals.filter(row => [row.channel, row.observed_property, row.scope, row.source].join(' ').toLowerCase().includes(query.toLowerCase()));
+      const catalog = new Map();
       for (const row of filtered) {
-        const group = row.observed_property && row.observed_property !== 'unresolved' ? row.observed_property : 'Unresolved signals';
+        if (!catalog.has(row.channel)) catalog.set(row.channel, []);
+        catalog.get(row.channel).push(row);
+      }
+      for (const [channel, origins] of catalog) {
+        const row = {
+          ...origins[0],
+          origins
+        };
+        const meanings = new Set(origins.map(item => item.observed_property || 'unresolved'));
+        const group = meanings.size > 1 ? 'Multiple recorded meanings' :
+          row.observed_property && row.observed_property !== 'unresolved' ? row.observed_property : 'Unresolved signals';
         if (!groups.has(group)) groups.set(group, []);
         groups.get(group).push(row);
       }
@@ -185,11 +245,11 @@ function render({
           pick.setAttribute('aria-label', `Inspect ${row.channel}`);
           pick.setAttribute('aria-pressed', String(isFocus));
           const info = $('div', 'mw-signal-info');
-          info.append($('strong', '', row.scope || row.channel), $('span', 'mw-signal-id', (row.scope || (row.observed_property && row.observed_property !== 'unresolved')) ? row.channel : 'Meaning not confirmed'));
+          info.append($('strong', '', row.origins.length > 1 ? row.channel : row.scope || row.channel), $('span', 'mw-signal-id', row.origins.length > 1 ? 'All origins · ' + row.origins.length + ' source/point records' : (row.scope || (row.observed_property && row.observed_property !== 'unresolved')) ? row.channel : 'Meaning not confirmed'));
           const val = $('div', 'mw-signal-reading');
-          val.append($('strong', '', number(row.value)), $('span', '', row.unit === 'unknown' ? '' : row.unit || ''));
+          val.append($('strong', '', row.origins.length > 1 ? row.origins.length + ' origins' : number(row.value)), $('span', '', row.origins.length > 1 ? 'kept separate' : row.unit === 'unknown' ? '' : row.unit || ''));
           pick.append(info, val);
-          pick.title = `${row.source}${row.measurement_point?' / '+row.measurement_point:''}\nEvent: ${row.time||'not recorded'}\nQuality: ${row.source_quality} · ${row.quality}`;
+          pick.title = row.origins.map(origin => `${origin.source}${origin.measurement_point?' / '+origin.measurement_point:''} · Event: ${origin.time||'not recorded'} · Quality: ${origin.source_quality}`).join('\n');
           const compare = button('', () => {
             let channels = [...(s.comparisons || [])];
             if (channels.includes(row.channel)) channels = channels.filter(c => c !== row.channel);
@@ -232,6 +292,7 @@ function render({
     }
     toolbar.append(periods);
     main.append(toolbar);
+    main.append($('div', 'mw-origin-scope', 'Channel scope: all recorded sources/points · origins remain separate'));
     const readings = $('div', 'mw-readings');
     for (const [i, channel] of selected().entries()) {
       const rows = s.signals.filter(row => row.channel === channel);
@@ -257,6 +318,7 @@ function render({
         const meta = $('div', 'mw-reading-meta');
         meta.append($('span', quality === 'good' ? 'mw-good' : '', `Quality · ${quality||'unknown'}`), $('time', '', row.time ? time(Date.parse(row.time), true) + ' UTC' : 'Event time unavailable'));
         meta.title = `Event: ${row.time||'not recorded'}\n${row.source}${row.measurement_point?' / '+row.measurement_point:''}\n${row.event_time_state}`;
+        if (rows.length > 1) meta.prepend($('span', 'mw-origin-label', row.source + (row.measurement_point ? ' / ' + row.measurement_point : '')));
         reading.append(meta);
         readings.append(reading);
       }
@@ -314,6 +376,7 @@ function render({
     if (!(s.attention || []).length) attention.append($('div', 'mw-empty', 'No recorded inspection items for this context.'));
     supporting.append(evidence, attention);
     root.append(supporting);
+    if (lastActionError) showActionError(lastActionError);
     if (s.error) {
       const error = $('div', 'mw-error');
       error.setAttribute('role', 'alert');
@@ -376,10 +439,10 @@ function render({
       }
       if (e.key === 'Tab') {
         const focusables = [...dialog.querySelectorAll('button,input')];
-        if (e.shiftKey && document.activeElement === focusables[0]) {
+        if (e.shiftKey && (root.getRootNode().activeElement || doc.activeElement) === focusables[0]) {
           e.preventDefault();
           focusables.at(-1).focus();
-        } else if (!e.shiftKey && document.activeElement === focusables.at(-1)) {
+        } else if (!e.shiftKey && (root.getRootNode().activeElement || doc.activeElement) === focusables.at(-1)) {
           e.preventDefault();
           focusables[0].focus();
         }
@@ -389,10 +452,13 @@ function render({
     input.focus();
   }
   model.on('change:snapshot', draw);
+  model.on('change:response', onResponse);
   draw();
   return () => {
     cleanChart();
     model.off('change:snapshot', draw);
+    model.off('change:response', onResponse);
+    clearTimeout(pendingTimer);
   };
 }
 
@@ -413,7 +479,7 @@ function drawChart(container, data, windows, onEvidence) {
       H = Math.max(270, data.groups.length * 200),
       left = 54,
       right = 18,
-      top = 30,
+      top = 45,
       bottom = 36;
     const svg = svgEl('svg', {
       viewBox: `0 0 ${W} ${H}`,
@@ -448,9 +514,19 @@ function drawChart(container, data, windows, onEvidence) {
       const y = v => pBottom - (v - low) / (high - low) * (pBottom - pTop);
       svg.append(svgEl('text', {
         x: left,
-        y: pTop - 13,
+        y: pTop - 27,
         class: 'mw-axis-title'
       }, `${group.title} · ${group.unit}`));
+      const originLabel = `${group.origin} · ${group.interpretation}`;
+      const labelBudget = Math.max(20, Math.floor((W - left - right) / 6));
+      const origin = svgEl('text', {
+          x: left,
+          y: pTop - 11,
+          class: 'mw-axis-origin'
+        },
+        originLabel.length > labelBudget ? originLabel.slice(0, labelBudget - 1) + '…' : originLabel);
+      origin.append(svgEl('title', {}, originLabel));
+      svg.append(origin);
       for (let value = low; value <= high + step / 100; value += step) {
         const py = y(value);
         svg.append(svgEl('line', {
@@ -562,7 +638,14 @@ function drawChart(container, data, windows, onEvidence) {
         y: H - 9,
         'text-anchor': i === 0 ? 'start' : i === 4 ? 'end' : 'middle',
         class: 'mw-axis'
-      }, time(t).slice(0, 5)));
+      }, data.end - data.start >= 86400000 ? new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'UTC',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).format(new Date(t)) : time(t).slice(0, 5)));
     }
     const move = e => {
       const rect = svg.getBoundingClientRect(),
@@ -577,7 +660,7 @@ function drawChart(container, data, windows, onEvidence) {
         c.setAttribute('x2', px);
         c.setAttribute('visibility', 'visible');
       });
-      tooltip.replaceChildren($('div', 'mw-tooltip-title', `BUCKET SUMMARY · ${time(at)} UTC`));
+      tooltip.replaceChildren($('div', 'mw-tooltip-title', `BUCKET SUMMARY · UTC`), $('div', 'mw-tooltip-cursor', `Cursor ${time(at,true)}`));
       let hits = 0;
       for (const group of data.groups)
         for (const series of group.series) {
@@ -587,12 +670,15 @@ function drawChart(container, data, windows, onEvidence) {
           row.append($('span', '', series.channel), $('strong', '', b.usable ? `${number(b.mean)} ${group.unit}` : 'No usable value'));
           row.style.setProperty('--series-color', series.color);
           tooltip.append(row);
+          tooltip.append($('div', 'mw-tooltip-window', `${time(b.start,true)} — ${time(b.end,true)} UTC`));
+          tooltip.append($('div', 'mw-tooltip-range', `Min ${number(b.min)} · max ${number(b.max)} · mean ${number(b.mean)}`));
+          tooltip.append($('div', 'mw-tooltip-source', `Observed ${time(b.first,true)} — ${time(b.last,true)} UTC`));
           tooltip.append($('div', 'mw-tooltip-source', `${series.source}${series.point?' / '+series.point:''} · ${b.usable} usable · null ${b.null} · non-good ${b.non_good} · conflict ${b.conflict}`));
           hits++;
         }
       if (!hits) tooltip.append($('div', 'mw-muted', 'No observations in this bucket.'));
       tooltip.hidden = false;
-      tooltip.style.left = Math.max(8, Math.min(container.clientWidth - 300, px + 12)) + 'px';
+      tooltip.style.left = Math.max(8, Math.min(container.clientWidth - 340, px + 12)) + 'px';
       tooltip.style.top = '34px';
     };
     const hide = () => {

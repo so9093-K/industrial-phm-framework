@@ -93,6 +93,18 @@
 
 ### Fixed
 
+- 전용 Monitor의 AI-Hub boiler 2297 full reference gate를 재실행해 장애 3회 반복과 6개 Monitor 상태,
+  수신→중단→재연결→복구 및 review→Maintenance 경로의 15개 검사를 확인했습니다. 이전 화면의 검증
+  이력을 승계한 결과가 아니며, DataChange 기반 missing-phase 판정 한계는 유지합니다.
+
+- Monitor의 미관측 등록 신호를 선택·비교할 수 있도록 catalog와 허용 목록을 일치시켰습니다. channel 선택은
+  모든 recorded source/측정 위치를 포함한다는 범위를 명시하고 중복 선택 버튼·오해를 주는 대표값 표시를
+  제거했습니다. 출처별 값과 plot은 분리하고 source/point·interpretation을 표시합니다.
+- Monitor의 24h/7d 축에 날짜를 표시하고 cursor에 실제 bucket 구간·min/max/mean·관측 범위를 제공합니다.
+  수신 상태의 평가 시각을 상단에 표시하며, 수신 상태와 상대 시간은 현재 live 상태가 아닌 manual snapshot임을
+  명시합니다. view action 실패·거절에는 pending 해제와 재시도를 제공하고, 갱신 중 입력을 보호해 빠른 연속
+  클릭으로 요청이 유실되는 것을 방지합니다.
+
 - Observation-first Monitor를 #424 reference Chromium run(1440px)에서 확인한 결함을 고쳤습니다.
   - marimo stack의 `min-width: auto` 때문에 관측 grid, 헤더 사실값, Attention rail이 화면 밖으로 잘리던 문제(공통 theme에서 `.phm-shell`을 감싼 stack이 줄어들 수 있게 함)
   - 관측 보드가 이름순이라 unresolved raw channel이 첫 화면을 차지하고 빠진 상(T상전류)이 접힌 목록에 숨던 문제(의미가 확정된 signal 우선)

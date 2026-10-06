@@ -345,7 +345,9 @@ jobs:
         run: |
           uv run --locked --extra operations pytest \
             tests/acceptance/test_synthetic_operations_node.py \
-            tests/acceptance/test_operations_evidence_journey.py
+            tests/acceptance/test_operations_evidence_journey.py \
+            tests/unit/test_monitor_workspace.py \
+            tests/unit/test_monitor_widget.py
 
       - name: Validate packaged AI-Hub boiler demo preset
         run: |

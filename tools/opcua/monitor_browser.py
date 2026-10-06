@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -47,6 +48,18 @@ def main() -> None:
                     expect(page.get_by_role("button", name=period, exact=True)).to_have_attribute(
                         "aria-pressed", "true", timeout=30000
                     )
+                    if period in {"24h", "7d"}:
+                        assert (
+                            chart.locator(".mw-axis")
+                            .filter(
+                                has_text=re.compile(
+                                    r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b"
+                                )
+                            )
+                            .count()
+                            > 0
+                        )
+
                 search = page.get_by_role("searchbox", name="Find a signal")
                 search.fill(args.focus)
                 focus = page.get_by_role("button", name=f"Inspect {args.focus}", exact=True)
@@ -69,6 +82,9 @@ def main() -> None:
                 page.mouse.move(box["x"] + box["width"] * 0.85, box["y"] + 80)
                 expect(page.locator(".mw-tooltip")).to_be_visible()
                 expect(page.locator(".mw-tooltip")).to_contain_text("BUCKET SUMMARY")
+                expect(page.locator(".mw-tooltip-window").first).to_contain_text("UTC")
+                expect(page.locator(".mw-tooltip-range").first).to_contain_text("Min")
+                expect(page.locator(".mw-assessment")).to_contain_text("Manual snapshot")
                 page.mouse.move(0, 0)
                 page.get_by_role("button", name="Choose asset").click()
                 expect(page.get_by_role("dialog", name="Choose an asset")).to_be_visible()

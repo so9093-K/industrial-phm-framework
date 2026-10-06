@@ -1691,13 +1691,24 @@ def _(mo):
 
 
 @app.cell
-def _(asset_selector, get_monitor_comparisons, monitor_latest_rows, signal_channel_selector):
-    from industrial_phm.presentation.monitor_workspace import comparison_channels
+def _(
+    asset_selector,
+    get_monitor_comparisons,
+    monitor_latest_rows,
+    registered_sources,
+    signal_channel_selector,
+):
+    from industrial_phm.presentation.monitor_workspace import (
+        comparison_channels,
+    )
+    from industrial_phm.presentation.monitor_workspace import (
+        signal_payload as _signal_payload,
+    )
 
     _focus = None if signal_channel_selector is None else signal_channel_selector.value
     _asset = None if asset_selector is None else asset_selector.value
     monitor_comparison_channels = comparison_channels(
-        monitor_latest_rows,
+        _signal_payload(monitor_latest_rows, registered_sources, _asset),
         _focus,
         get_monitor_comparisons().get(_asset),
     )
@@ -3990,7 +4001,8 @@ def _(
     _focus = None if signal_channel_selector is None else signal_channel_selector.value
     _selected_asset = None if asset_selector is None else asset_selector.value
     _comparisons = list(monitor_comparison_channels)
-    _allowed_channels = {row["channel"] for row in monitor_latest_rows} | (
+    _catalog_rows = signal_payload(monitor_latest_rows, registered_sources, _selected_asset)
+    _allowed_channels = {row["channel"] for row in _catalog_rows} | (
         set() if asset_workspace is None else set(asset_workspace.history_channels)
     )
     _payload = {
@@ -4005,7 +4017,7 @@ def _(
         else data_status_label(asset_workspace.status),
         "source_at": None if asset_workspace is None else utc_millis(asset_workspace.last_data_at),
         "assessed_at": utc_millis(monitor.assessed_at),
-        "signals": signal_payload(monitor_latest_rows, registered_sources, _selected_asset),
+        "signals": _catalog_rows,
         "stored_signal_count": len(monitor_latest_rows),
         "focus": _focus,
         "comparisons": _comparisons,
@@ -4099,12 +4111,17 @@ def _(
                 (item for item in contextual_attention if item.attention_id == event.get("id")),
                 None,
             )
+            if _item is None:
+                return False
             if _item is not None:
                 _navigate_route(
                     resolve_operations_attention_route(
                         _item, investigation_queue=investigation_queue
                     )
                 )
+        else:
+            return False
+        return True
 
     monitor_workspace_ui = mo.ui.anywidget(MonitorWidget(_payload, _handle_monitor_event))
     return (monitor_workspace_ui,)

@@ -1034,3 +1034,80 @@
 :root:has(.mw-shell) .marimo {
   background: #10151c !important
 }
+
+.mw-assessment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #bdcbe0;
+}
+
+.mw-assessment .mw-muted {
+  font-size: 10px;
+}
+
+.mw-origin-scope {
+  font-size: 11px;
+  color: var(--mw-muted);
+  margin: -7px 0 14px;
+}
+
+.mw-origin-label {
+  color: #b5c7dc;
+  overflow-wrap: anywhere;
+}
+
+.mw-axis-origin {
+  font-size: 10px;
+  fill: #94a7be;
+  font-family: inherit;
+}
+
+.mw-tooltip {
+  width: 340px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.mw-tooltip-title,
+.mw-tooltip-source {
+  font-size: 10px;
+}
+
+.mw-tooltip-window,
+.mw-tooltip-range,
+.mw-tooltip-cursor {
+  font-size: 11px;
+  color: #b6c9df;
+  margin-top: 5px;
+}
+
+.mw-tooltip-row {
+  font-size: 12px;
+}
+
+.mw-error.mw-action-error {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+@media(max-width:1100px) {
+  .mw-flow {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .mw-assessment {
+    width: 100%;
+    text-align: right;
+  }
+}
+
+.mw-reading-meta, .mw-axis { font-size:11px; }
+.mw-chart-clock, .mw-chart-caption, .mw-main-bottom, .mw-signal-id { font-size:10px; }
+.mw-signal-info strong { font-size:12px; }
+.mw-tooltip-source { font-size:11px; }

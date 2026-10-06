@@ -347,3 +347,11 @@ canonical history queries, quality, registration, inspection routing and review 
 Charts connect adjacent usable bucket means and break at empty/excluded buckets; cursor values
 are summaries, not same-instant sensor samples. Old recorded meaning is never filled from a newer
 registration. Install the locked Operations extra when updating an existing development environment.
+
+
+A channel choice covers all recorded sources/points of that channel; it is not an implicit pick of
+the first origin. Scalars and charts identify each origin independently. Registered but unobserved
+slots can be selected/compared without manufacturing values or replacing stored semantic snapshots.
+Day/week axes include dates, and cursor details label bucket intervals and actual observed ranges.
+Status/receipt ages are evaluated at the prominently displayed manual snapshot time. Failed or
+rejected view actions acknowledge the request, release pending controls and offer Refresh retry.

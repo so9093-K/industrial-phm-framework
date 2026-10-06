@@ -47,6 +47,11 @@ def chart_payload(
                 {
                     "title": str(prop) if known else channel,
                     "unit": str(unit) if unit not in {None, "", "unknown"} else "unit unknown",
+                    "origin": source + (f" / {point}" if point else ""),
+                    "interpretation": (json.loads(interpretation).get("semantics") or {}).get(
+                        "version"
+                    )
+                    or "unversioned",
                     "series": [],
                 },
             )
@@ -104,6 +109,7 @@ def signal_payload(
                 "event_time_state",
                 "source",
                 "measurement_point",
+                "semantic_version",
             )
         }
         for row in rows

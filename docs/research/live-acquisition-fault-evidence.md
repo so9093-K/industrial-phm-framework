@@ -105,6 +105,45 @@ Remaining after the fixes, recorded rather than claimed solved:
   the two would need source-side evidence, such as a subscription that notifies on source-timestamp change.
 - Trend charts are a white panel inside the dark surface. Values remain readable.
 
+## Dedicated Monitor full reference gate (2026-10-06)
+
+The dedicated JS/CSS Monitor and view-action corrections were exercised with the same boiler 2297
+archive/profile using the full fault protocol, not a duration-based stability run:
+
+```bash
+uv run --locked --extra operations --extra aihub python -m tools.opcua.fault_harness \
+  --root artifacts/monitor-p0/full-gate --repeat 3 --browser \
+  --port 4860 --ui-port 27202
+```
+
+`harness-verdict.json` reports `gate=full`, PASS, all 15 checks. The six recurring fault types
+were injected three times each; including UI-specific faults, 23 injections recovered without a
+permanent wedge. Exact audit found no duplicate keys, unknown events or value/quality mismatches.
+Missing deliveries were contained within the declared loss boundaries; this is not a zero-loss claim.
+There were 32 finalized windows and 32 analyses, with no duplicate or uncovered window. The review
+request reached OPEN Maintenance after the last fault.
+
+| Surface | State | Readable after opening | Overflow |
+| --- | --- | ---: | ---: |
+| Monitor | normal | 2.15 s | 0 |
+| Monitor | missing phase | 1.62 s | 0 |
+| Monitor | source stale / unreachable | 1.67 / 1.61 s | 0 |
+| Monitor | collector down / analysis stale | 1.61 / 1.65 s | 0 |
+| Assets → Signals | receiving / paused | 2.65 / 2.70 s | 0 |
+| Assets → Signals | disconnected / recovered | 2.65 / 2.66 s | 0 |
+
+Chromium used a 1440×1100 viewport. The saved `ui-*.png` artifacts show the actual dedicated Monitor,
+with source receipt and its assessment time separated from per-channel recorded event timestamps.
+In the omission state, R/S held 0 A while T retained 631.25 A at an earlier timestamp; there was no
+invented missing-phase attention or equipment diagnosis. The DataChange ambiguity described above
+still applies. This recorded replay is not field-endpoint or equipment-diagnosis validation.
+
+Separate 1440px/1024px synthetic fixture checks covered unobserved registered selection/comparison,
+two origins sharing a channel name, date-bearing 24h/7d axes, bucket/observed intervals and min/max,
+and keyboard focus return. Frontend error/rejection injection verified pending release and Refresh
+retry. These checks do not replace visual review, which still identified readability work; unrelated
+pages and narrower/mobile layouts are not certified by this reference.
+
 ## Growth with accumulated state
 
 A fault-free run of the same stack (50 minutes, sampled every 60 s) showed queue high watermark (≤ 53 of
