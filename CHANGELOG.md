@@ -44,6 +44,11 @@
 
 ### Fixed
 
+- Asset History FILE backfill의 중복 검사가 batch마다 `raw.file_measurement` 전체를 해시 `raw_evidence_id`로
+  조회해 비용이 저장 행 수 N에 비례했습니다(전체 적재는 O(N²)). 이제 `(source_id, source_sha256,
+  sample_index 범위)`로 범위를 좁혀 같은 결과를 내면서 Parquet 통계로 다른 파일을 건너뜁니다. 이 방식은
+  `raw_evidence_id`가 같으면 세 값도 같다는 FILE raw identity 계약에 기대며, 계약을 문서와 테스트로 고정했습니다.
+
 - `operations` extra에 matplotlib를 추가했습니다. Packaged Operations app은 Assets의 measurement history와
   Investigation의 3상 불평형 차트를 matplotlib로 그리는데, `operations` extra만 설치하면 matplotlib가 없어 해당
   화면이 `ModuleNotFoundError`로 실패했습니다. 이전에는 research group이 함께 설치된 개발 환경에서만 동작했습니다.

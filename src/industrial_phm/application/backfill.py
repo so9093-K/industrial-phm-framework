@@ -26,7 +26,13 @@ from industrial_phm.application.source_registration import (
 
 @dataclass(frozen=True, slots=True)
 class FileBackfillEvent:
-    """One validated FILE cell with explicit source-time provenance."""
+    """One validated FILE cell with explicit source-time provenance.
+
+    ``raw_evidence_id`` is a deterministic identity of the source cell: two events with
+    the same ID must have the same ``source_id``, ``source_sha256`` and
+    ``sample_index``. Built-in producers derive it from those values, and Asset History
+    relies on it to keep the duplicate check bounded by source and sample range.
+    """
 
     raw_evidence_id: str
     source_id: str
