@@ -300,18 +300,28 @@ def _render_evidence_windows(
     start_at: datetime,
     end_at: datetime,
 ) -> None:
-    for index, (window_start, window_end, label) in enumerate(windows):
+    for index, (window_start, window_end, _label) in enumerate(windows):
         clipped_start = max(window_start, start_at).astimezone(UTC)
         clipped_end = min(window_end, end_at).astimezone(UTC)
         if clipped_start > clipped_end:
             continue
-        axis.axvspan(
-            clipped_start,
-            clipped_end,
-            alpha=0.08,
-            color=f"C{(index + 2) % 10}",
-            label=f"analysis · {label}",
-        )
+        legend_label = "analysis evidence" if index == 0 else "_nolegend_"
+        color = f"C{(index + 2) % 10}"
+        if clipped_start == clipped_end:
+            axis.axvline(
+                clipped_start,
+                alpha=0.22,
+                color=color,
+                label=legend_label,
+            )
+        else:
+            axis.axvspan(
+                clipped_start,
+                clipped_end,
+                alpha=0.08,
+                color=color,
+                label=legend_label,
+            )
 
 
 def _render_multi_signal_channel_axis(
