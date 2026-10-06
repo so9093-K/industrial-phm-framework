@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_assets import AssetWorkspaceView
 from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
@@ -15,10 +16,13 @@ from industrial_phm.presentation.operations_shell import (
     OPERATIONS_PAGE_OPTIONS,
     data_status_label,
     initial_operations_page,
+    monitor_attention_category,
+    monitor_attention_options,
     monitor_signal_channels,
     operations_theme_css,
     render_monitor_asset_context_html,
     render_monitor_assets_html,
+    render_monitor_attention_summary_html,
     render_monitor_flow_html,
     render_monitor_signal_overview_html,
 )
@@ -209,3 +213,50 @@ def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
     )
 
     assert channels == ("vibration", "current-t", "pressure", "speed")
+
+def test_monitor_attention_rail_uses_typed_destinations_not_title_text() -> None:
+    names = AssetDisplayNames(names={"boiler-01": "Boiler 01"})
+    data = OperationsMonitorAttention(
+        attention_id="data-1",
+        status=OperationsMonitorStatus.DELAYED,
+        title="Same visible title",
+        detail="No new data.",
+        destination=OperationsAttentionDestination.ASSET_SIGNALS,
+        occurred_at=NOW,
+        asset_id="boiler-01",
+    )
+    review = OperationsMonitorAttention(
+        attention_id="review-1",
+        status=OperationsMonitorStatus.NEEDS_ATTENTION,
+        title="Same visible title",
+        detail="Review evidence.",
+        destination=OperationsAttentionDestination.INVESTIGATIONS,
+        occurred_at=NOW,
+        asset_id="boiler-01",
+        finding_id="finding-1",
+    )
+    system = OperationsMonitorAttention(
+        attention_id="system-1",
+        status=OperationsMonitorStatus.ERROR,
+        title="Same visible title",
+        detail="Runtime evidence.",
+        destination=OperationsAttentionDestination.SYSTEM,
+        occurred_at=NOW,
+    )
+
+    assert monitor_attention_category(data) == "Data"
+    assert monitor_attention_category(review) == "Review"
+    assert monitor_attention_category(system) == "System"
+
+    options = monitor_attention_options((data, review, system), names)
+    assert tuple(options.values()) == ("data-1", "review-1", "system-1")
+    assert "Data · Same visible title · Boiler 01" in options
+    assert "Review · Same visible title · Boiler 01" in options
+    assert "System · Same visible title · Platform" in options
+
+    rendered = render_monitor_attention_summary_html((data, review, system))
+    assert "Needs attention" in rendered
+    assert ">3<" in rendered
+    assert "Data" in rendered and "Review" in rendered and "System" in rendered
+    assert "not alarm severity or asset-health scores" in rendered
+
