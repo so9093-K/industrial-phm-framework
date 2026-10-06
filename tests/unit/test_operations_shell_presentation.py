@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from industrial_phm.application.operations_assets import AssetWorkspaceView
 from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
     OperationsMonitorAsset,
@@ -15,6 +16,7 @@ from industrial_phm.presentation.operations_shell import (
     data_status_label,
     initial_operations_page,
     operations_theme_css,
+    render_monitor_asset_context_html,
     render_monitor_assets_html,
     render_monitor_flow_html,
 )
@@ -96,3 +98,33 @@ def test_monitor_presenters_use_operator_vocabulary() -> None:
     assert data_status_label(OperationsMonitorStatus.RUNNING) == "Receiving"
     assert "control-plane" not in flow
     assert "receipt" not in assets
+
+def test_monitor_asset_context_prioritizes_observation_facts() -> None:
+    workspace = AssetWorkspaceView(
+        asset_id="boiler-01",
+        status=OperationsMonitorStatus.DELAYED,
+        source_count=1,
+        attention_count=1,
+        last_data_at=NOW,
+        history_start_at=NOW,
+        history_end_at=NOW,
+        history_measurement_count=20,
+        history_channels=("current-r", "temperature"),
+        analyses=(),
+        reviews=(),
+        sources=(),
+        events=(),
+    )
+
+    rendered = render_monitor_asset_context_html(workspace, as_of=NOW)
+
+    assert "Observed asset" in rendered
+    assert "boiler-01" in rendered
+    assert "Last observation" in rendered
+    assert "now · 2026-09-30 12:00:00 UTC" in rendered
+    assert "2 signals" in rendered
+    assert "1 attention" in rendered
+    assert "Delayed" in rendered
+    assert "System data flow" not in rendered
+    assert "Recent activity" not in rendered
+
