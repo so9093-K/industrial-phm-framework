@@ -70,6 +70,15 @@ def query_operations_latest_measurements(
     return _history_read(lambda: history.query_latest_measurements(asset_id, channel_id=channel_id))
 
 
+def query_operations_latest_asset_measurements(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    limit: int = 1000,
+) -> tuple[MeasurementHistoryPoint, ...]:
+    return _history_read(lambda: history.query_latest_asset_measurements(asset_id, limit=limit))
+
+
 def query_operations_measurement_page(
     history: DuckLakeAssetHistory,
     asset_id: str,
