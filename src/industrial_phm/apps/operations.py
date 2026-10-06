@@ -1629,21 +1629,13 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
-    monitor_signal_refresh = mo.ui.refresh(default_interval="5s")
-    return (monitor_signal_refresh,)
-
-
-@app.cell
 def _(
     OperationsReadError,
-    UTC,
+    assessed_at,
     asset_selector,
-    datetime,
     history_reader,
     latest_measurement_rows,
     mo,
-    monitor_signal_refresh,
     navigation,
     query_operations_latest_asset_measurements,
     render_monitor_signal_overview_html,
@@ -1659,9 +1651,6 @@ def _(
             "No Asset History catalog is available for this workspace."
         )
     else:
-        _overview_tick = monitor_signal_refresh.value
-        del _overview_tick
-        _overview_sampled_at = datetime.now(UTC)
         try:
             _asset_latest = query_operations_latest_asset_measurements(
                 history_reader,
@@ -1670,7 +1659,7 @@ def _(
             )
             _asset_latest_rows = latest_measurement_rows(
                 _asset_latest,
-                as_of=_overview_sampled_at,
+                as_of=assessed_at,
             )
         except OperationsReadError as error:
             monitor_signal_overview = mo.callout(
@@ -1682,22 +1671,12 @@ def _(
             _selected_channel = (
                 None if signal_channel_selector is None else signal_channel_selector.value
             )
-            monitor_signal_overview = mo.vstack(
-                [
-                    mo.hstack(
-                        [mo.md(""), monitor_signal_refresh],
-                        widths=[0.84, 0.16],
-                        align="end",
-                    ),
-                    mo.Html(
-                        render_monitor_signal_overview_html(
-                            _asset_latest_rows,
-                            selected_channel=_selected_channel,
-                            primary_limit=8,
-                        )
-                    ),
-                ],
-                gap=0.35,
+            monitor_signal_overview = mo.Html(
+                render_monitor_signal_overview_html(
+                    _asset_latest_rows,
+                    selected_channel=_selected_channel,
+                    primary_limit=8,
+                )
             )
     return (monitor_signal_overview,)
 
