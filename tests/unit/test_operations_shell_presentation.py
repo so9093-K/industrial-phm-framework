@@ -209,4 +209,3 @@ def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
     )
 
     assert channels == ("vibration", "current-t", "pressure", "speed")
-
