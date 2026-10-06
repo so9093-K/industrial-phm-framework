@@ -46,6 +46,8 @@ def _():
         OPERATIONS_PAGE_OPTIONS,
         OperationalAnalysisPresentationKind,
         initial_operations_page,
+        monitor_attention_category,
+        monitor_context_attention,
         monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
@@ -105,6 +107,7 @@ def _():
     )
     from industrial_phm.presentation.operations_navigation import (
         resolve_finding_investigation_route,
+        resolve_investigation_route,
         resolve_operations_attention_route,
     )
     from industrial_phm.presentation.phase_unbalance import (
@@ -184,6 +187,8 @@ def _():
         measurement_history_range_summary,
         measurement_history_rows,
         mo,
+        monitor_attention_category,
+        monitor_context_attention,
         monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
@@ -207,6 +212,7 @@ def _():
         project_review_workflow,
         resolve_asset_display_names,
         resolve_finding_investigation_route,
+        resolve_investigation_route,
         resolve_operations_attention_route,
         render_maintenance_evidence_html,
         render_maintenance_identity_html,
