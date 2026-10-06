@@ -122,3 +122,79 @@ The evidence supports the following contract:
 - full-data file/query growth remains a separate physical-maintenance concern and is not hidden with retention.
 
 This does not define a distributed/HA recovery index and does not make the sidecar required evidence.
+
+## FILE duplicate lookup and row/file isolation (2026-10-06)
+
+Local macOS 27.0.1 arm64, Python 3.14.7, DuckDB 1.5.5, base revision `dc32041`
+with the working-tree scoped FILE lookup and `file_append_scaling.py`. Synthetic workload:
+8 sources/assets, 35 channels, 2,000 observations per public batch, approximately 900 bytes of
+repeated JSON metadata. Timings below are local medians, not performance guarantees.
+
+The FILE duplicate lookup now groups events by source and file digest, filters their sample-index
+range, then checks exact raw IDs. This relies on the producer contract that equal raw IDs imply
+equal `(source_id, source_sha256, sample_index)`. Both built-in producers have identity tests;
+external producers must honor the same contract. Range predicates allow unrelated files to be
+pruned; wide or overlapping sample ranges and changed layouts can still increase scanned work.
+
+The earlier public-append preparation measured five query repetitions at each checkpoint:
+
+| Stored FILE rows | Active files | Recent append ms | Scoped duplicate ms | Former lookup ms | Latest ms | Page ms | Full-range aggregate ms |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 250,000 | 250 | 454.32 | 15.98 | 21.25 | 78.24 | 92.92 | 92.16 |
+| 500,000 | 500 | 456.81 | 16.18 | 24.36 | 85.87 | 108.27 | 101.93 |
+| 1,000,000 | 1,000 | 461.13 | 16.15 | 31.67 | 103.24 | 133.90 | 119.75 |
+| 2,000,000 | 2,000 | 466.30 | 16.39 | 43.92 | 140.15 | 187.74 | 174.11 |
+
+That run increased rows, small files, snapshots and the selected asset's time span together.
+It establishes growth, but cannot attribute all query growth to row volume alone.
+
+A revised default prepares rows with bulk SQL and uses the public path only for timed probes.
+Five append probes add 10,000 rows beyond each requested checkpoint; actual counts are below.
+This diagnostic mode creates fewer files/snapshots and bypasses recovery provenance during seeding.
+
+| Actual rows | Active files | Append ms | Scoped duplicate ms | Former lookup ms | Latest ms | Page ms | Full aggregate ms | One-hour aggregate ms |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10,000 | 10 | 439.77 | 15.77 | 17.41 | 72.33 | 72.90 | 77.64 | 76.22 |
+| 260,000 | 29 | 449.44 | 16.24 | 20.43 | 76.20 | 81.49 | 82.51 | 82.11 |
+| 510,000 | 48 | 451.06 | 16.00 | 22.02 | 78.14 | 89.12 | 83.94 | 83.33 |
+| 1,010,000 | 67 | 453.18 | 16.16 | 26.58 | 80.31 | 93.71 | 89.57 | 86.29 |
+| 2,010,000 | 86 | 458.12 | 16.49 | 34.99 | 82.35 | 96.06 | 91.09 | 81.86 |
+
+Reports: `artifacts/file-scaling-review/seeded-n-scale/file-append-scaling.json` and
+`artifacts/file-scaling-review/existing-2m-compaction.json` (generated local artifacts).
+The small-file checkpoint results were preserved as
+`artifacts/file-scaling-review/prior-public-append-scaling.json` from the preceding session;
+its catalog was reused rather than rebuilt.
+
+One bounded merge-only pass on the existing 2,000,000-row state (seven query repetitions):
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Raw / normalized rows | 2,000,000 / 2,000,000 | 2,000,000 / 2,000,000 |
+| Ingestion batches | 1,000 | 1,000 |
+| Active files | 2,000 | 1,552 |
+| Physical files, including older snapshots | 2,000 | 2,064 |
+| Scoped duplicate ms | 15.84 | 16.24 |
+| Latest ms | 140.66 | 136.28 |
+| Page ms | 181.35 | 174.11 |
+| Full-range aggregate ms | 162.94 | 160.27 |
+| One-hour aggregate ms | 115.18 | 107.37 |
+
+The pass used 32 output operations per table, a 1 MiB target and inputs below 256 KiB.
+After those same-row query measurements, eight additional public appends added 16,000 rows;
+their median was 461.44 ms. They are a separate measurement, not part of the same-row comparison.
+A pass on the bulk-prepared state reduced active files from 86 to 44 with little query change.
+No snapshots were expired and no physical files were deleted.
+
+These measurements support removing the global raw-ID scan: scoped lookup remains approximately
+16 ms across the measured states while the former lookup grows. They also support treating small-file
+layout separately from row volume. They do **not** establish constant cost up to 84.7M rows, identify
+all remaining append costs, or prove that a single compaction pass solves query growth. Public-append
+preparation also changes snapshot count, so the cross-layout comparison is suggestive rather than a
+controlled isolation of file count alone. Explicit contended writer-lock timing remains outstanding;
+existing lock contract tests cover exclusion/timeouts, not latency at scale.
+
+Synthetic storage is highly compressible and must not replace the representative importer pilot's
+243 B/observation sizing estimate (about 20.6 GB at 84,685,346 observations, before retained-snapshot
+and maintenance overhead). Restart, exact retry, fingerprint equality, conflicting retry rejection
+and duplicate rejection after merge-only compaction are validated on small states by contract tests.

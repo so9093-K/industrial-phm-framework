@@ -1,10 +1,13 @@
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from importlib.util import find_spec
+from importlib.util import find_spec, module_from_spec, spec_from_file_location
+from pathlib import Path
 
 import pytest
 
 from industrial_phm.application import (
+    FileBackfillEvent,
     FileSourceConfig,
     HistoricalBatchConflictError,
     HistoryIngestionMode,
@@ -928,3 +931,135 @@ def test_semantics_bearing_batch_committed_before_fingerprint_version_recovers(
     )
     with pytest.raises(HistoricalBatchConflictError):
         history.get_opcua_batch_commit(changed, batch_id="versioned")
+
+
+def _file_event(source_id: str, sample_index: int, *, sha: str = "a" * 64) -> FileBackfillEvent:
+    # Mirrors every producer: the raw ID is derived from source, file digest and index.
+    return FileBackfillEvent(
+        raw_evidence_id=f"file:{source_id}:{sha}:{sample_index}",
+        source_id=source_id,
+        asset_id="asset-" + source_id,
+        channel_id="current",
+        source_file="power.zip!/member.json",
+        source_sha256=sha,
+        source_size_bytes=10,
+        sample_index=sample_index,
+        event_at=BASE + timedelta(seconds=sample_index),
+        value=float(sample_index),
+    )
+
+
+def test_file_duplicate_check_is_scoped_by_source_digest_and_sample_range(tmp_path) -> None:
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    history.append_file_batch(
+        tuple(_file_event("device-a", index) for index in range(0, 4)), batch_id="a-0"
+    )
+    # Another source and another file digest with the same sample range are new evidence.
+    history.append_file_batch(
+        tuple(_file_event("device-b", index) for index in range(0, 4)), batch_id="b-0"
+    )
+    history.append_file_batch(
+        tuple(_file_event("device-a", index, sha="b" * 64) for index in range(0, 4)),
+        batch_id="a-other-file",
+    )
+    assert len(history.query_file_events("device-a")) == 8
+
+    # A batch mixing sources still finds the one already stored cell of device-a.
+    mixed = (
+        _file_event("device-b", 10),
+        _file_event("device-a", 3),
+        _file_event("device-a", 11),
+    )
+    with pytest.raises(ValueError, match="historical FILE evidence already exists"):
+        history.append_file_batch(mixed, batch_id="mixed")
+    assert len(history.query_file_events("device-b")) == 4
+
+
+def test_file_retry_and_duplicate_rejection_survive_reopen_and_compaction(tmp_path) -> None:
+    _require_duckdb()
+    config = DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    history = DuckLakeAssetHistory(config)
+    batch = tuple(_file_event("device-a", index) for index in range(4))
+    commit = history.append_file_batch(batch, batch_id="original-file")
+    history.append_file_batch(
+        tuple(_file_event("device-a", index) for index in range(4, 8)), batch_id="next-file"
+    )
+    snapshot = history.inspect_storage().current_snapshot_id
+    fingerprint = history.snapshot_evidence_fingerprint(snapshot)
+    history.compact_adjacent_files(
+        max_compacted_files=32,
+        target_file_size_bytes=1_048_576,
+    )
+    reopened = DuckLakeAssetHistory(config)
+    current = reopened.inspect_storage().current_snapshot_id
+    assert reopened.snapshot_evidence_fingerprint(current) == fingerprint
+    assert reopened.snapshot_evidence_fingerprint(snapshot) == fingerprint
+    assert reopened.append_file_batch(batch, batch_id="original-file") == commit
+    assert len(reopened.query_file_events("device-a")) == 8
+    with pytest.raises(ValueError, match="historical FILE evidence already exists"):
+        reopened.append_file_batch(batch, batch_id="different-batch")
+    changed = (replace(batch[0], value=99.0), *batch[1:])
+    with pytest.raises(HistoricalBatchConflictError):
+        reopened.append_file_batch(changed, batch_id="original-file")
+    assert len(reopened.query_file_events("device-a")) == 8
+
+
+_FILE_SCALING_SPEC = spec_from_file_location(
+    "file_append_scaling", Path(__file__).parents[2] / "tools/history/file_append_scaling.py"
+)
+assert _FILE_SCALING_SPEC is not None and _FILE_SCALING_SPEC.loader is not None
+_FILE_SCALING_TOOL = module_from_spec(_FILE_SCALING_SPEC)
+_FILE_SCALING_SPEC.loader.exec_module(_FILE_SCALING_TOOL)
+
+
+def test_preloaded_rows_match_public_event_projection_and_detect_duplicates(tmp_path) -> None:
+    pytest.importorskip("duckdb")
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    starts = [34, 69]
+    metadata = '{"padding":"test"}'
+    _FILE_SCALING_TOOL._preload(history, starts, 7, metadata, seed_id="seed-7")
+    assert starts == [38, 72]
+    assert history.query_file_events("device-00") == tuple(
+        _FILE_SCALING_TOOL._event(0, index, metadata) for index in range(34, 38)
+    )
+    assert history.query_file_events("device-01") == tuple(
+        _FILE_SCALING_TOOL._event(1, index, metadata) for index in range(69, 72)
+    )
+    points = history.query_measurements(
+        "asset-00",
+        start_at=_FILE_SCALING_TOOL.BASE,
+        end_at=_FILE_SCALING_TOOL.BASE + timedelta(minutes=2),
+    )
+    assert len(points) == 4
+    assert points[0].event_time_basis.value == "source-timestamp"
+    with pytest.raises(ValueError, match="historical FILE evidence already exists"):
+        history.append_file_batch(
+            (_FILE_SCALING_TOOL._event(0, 37, metadata),), batch_id="duplicate"
+        )
+    history.append_file_batch(
+        (_FILE_SCALING_TOOL._event(0, 38, metadata),), batch_id="public-probe"
+    )
+    assert len(history.query_file_events("device-00")) == 5
+
+
+def test_compaction_measurements_keep_the_same_row_count(tmp_path) -> None:
+    pytest.importorskip("duckdb")
+    report = _FILE_SCALING_TOOL.run(
+        tmp_path,
+        checkpoints=[101],
+        sources=2,
+        batch_size=5,
+        metadata_bytes=32,
+        repeats=1,
+        compact_at_end=True,
+    )
+    before, after = report["checkpoints"]
+    assert before["stored_rows"] == after["stored_rows"] == 106
+    assert before["batches"] == after["batches"] == 1
+    assert before["active_parquet_files"] >= after["active_parquet_files"]
+    assert after["physical_parquet_files"] >= after["active_parquet_files"]

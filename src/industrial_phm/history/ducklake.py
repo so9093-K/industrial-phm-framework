@@ -1803,20 +1803,38 @@ class DuckLakeAssetHistory:
         connection: Any,
         events: Sequence[FileBackfillEvent],
     ) -> None:
-        raw_evidence_ids = tuple(event.raw_evidence_id for event in events)
-        with _cache_absent_pandas_import():
-            row = connection.execute(
-                f"""
-                SELECT raw_evidence_id
-                FROM {_CATALOG_NAME}.raw.file_measurement
-                WHERE raw_evidence_id IN (SELECT unnest(?::VARCHAR[]))
-                LIMIT 1
-                """,
-                [list(raw_evidence_ids)],
-            ).fetchone()
-        if row is not None:
-            existing_id = _require_str(row[0], "raw_evidence_id")
-            raise ValueError(f"historical FILE evidence already exists: {existing_id}")
+        # FILE raw identity is a function of (source_id, source_sha256, sample_index,
+        # ...): equal raw_evidence_id implies equal values for those three columns (see
+        # FileBackfillEvent). Scoping the lookup to them returns the same answer, and
+        # their per-file statistics let DuckLake skip unrelated Parquet files. A lookup
+        # by the hash ID alone cannot be pruned and costs O(stored rows) per batch.
+        groups: dict[tuple[str, str], list[FileBackfillEvent]] = {}
+        for event in events:
+            groups.setdefault((event.source_id, event.source_sha256), []).append(event)
+        for (source_id, source_sha256), group in groups.items():
+            sample_indexes = [event.sample_index for event in group]
+            with _cache_absent_pandas_import():
+                row = connection.execute(
+                    f"""
+                    SELECT raw_evidence_id
+                    FROM {_CATALOG_NAME}.raw.file_measurement
+                    WHERE source_id = ?
+                      AND source_sha256 = ?
+                      AND sample_index BETWEEN ? AND ?
+                      AND raw_evidence_id IN (SELECT unnest(?::VARCHAR[]))
+                    LIMIT 1
+                    """,
+                    [
+                        source_id,
+                        source_sha256,
+                        min(sample_indexes),
+                        max(sample_indexes),
+                        [event.raw_evidence_id for event in group],
+                    ],
+                ).fetchone()
+            if row is not None:
+                existing_id = _require_str(row[0], "raw_evidence_id")
+                raise ValueError(f"historical FILE evidence already exists: {existing_id}")
 
     def _last_committed_batch(
         self,

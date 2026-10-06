@@ -91,3 +91,36 @@ uv run --locked --extra history python -m tools.history.append_profile \
 The measured results and interpretation are recorded in
 [`docs/research/history-append-scaling-evidence.md`](../../docs/research/history-append-scaling-evidence.md).
 Metadata-only is a diagnostic isolation mode, not an operational ingestion path.
+
+## FILE backfill cost versus stored rows
+
+`file_append_scaling.py` measures append, duplicate lookup, latest/page/aggregate queries,
+a fixed one-hour aggregate window, and storage at explicit stored-row checkpoints. The default
+uses bulk SQL to prepare row volume, then times repeated public `append_file_batch()` calls.
+Seeded rows are diagnostic state; their ingestion batches have no recovery fingerprint and
+must never be used as importer/recovery evidence. Use a dedicated empty root.
+
+```bash
+uv run --locked --extra history python -m tools.history.file_append_scaling \
+  --root artifacts/file-append-scaling \
+  --checkpoints 0,250000,500000,1000000,2000000 \
+  --compact-at-end
+```
+
+Use `--prepare-via-append` in a separate root to prepare many small files and snapshots through
+public appends. It is a file-layout comparison and costs more than bulk preparation. Compare
+both modes to distinguish row volume from file/snapshot growth; changing all of them together
+cannot establish which variable causes an increase.
+
+Reports include actual `stored_rows`: public probes add `repeats × batch_size` rows after each
+SQL-prepared checkpoint. Active Parquet counts/bytes are separate from physical files retained
+for older snapshots. `--compact-at-end` performs one bounded merge-only pass (32 output operations
+per table, files below 256 KiB toward 1 MiB), then measures queries at the identical row count.
+Append probes after compaction are reported separately with their before/after row counts.
+Compaction changes the persistent target-file-size option in this isolated catalog.
+
+The fixed-window aggregate holds the queried time span constant; the full-range aggregate grows
+with the selected asset's data. Results and limitations are recorded in
+[`history-append-scaling-evidence.md`](../../docs/research/history-append-scaling-evidence.md).
+Do not replace these state comparisons with full-archive or long wall-clock runs. Estimate storage
+using measured bytes per observation × N; synthetic compression is not a production sizing estimate.
