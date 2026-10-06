@@ -39,6 +39,8 @@ from industrial_phm.application.measurement_history import (
     MeasurementHistoryBucket,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
+    MultiSignalMeasurementHistoryAggregation,
+    MultiSignalMeasurementHistoryBucket,
 )
 from industrial_phm.application.measurement_semantics import (
     ChannelSemanticBinding,
@@ -1300,6 +1302,143 @@ class DuckLakeAssetHistory:
             ),
             truncated=len(rows) > point_budget,
             point_budget=point_budget,
+        )
+
+    def query_multi_signal_measurement_aggregation(
+        self,
+        asset_id: str,
+        *,
+        channel_ids: Sequence[str],
+        start_at: datetime,
+        end_at: datetime,
+        bucket_count: int = 120,
+    ) -> MultiSignalMeasurementHistoryAggregation:
+        """Bounded small-multiple buckets for several channels on one event-time axis.
+
+        Channel/source/measurement-point/interpretation identities stay separate.
+        Null, protocol non-good and conflicting observations are counted but excluded
+        from min/max/mean. No interpolation or cross-channel normalization is performed.
+        """
+
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        channels = tuple(dict.fromkeys(channel_ids))
+        if not channels:
+            raise ValueError("channel_ids must not be empty")
+        if len(channels) > 8:
+            raise ValueError("multi-signal trend supports at most 8 channels")
+        for channel_id in channels:
+            _validate_identifier(channel_id, "channel_id")
+        _validate_positive_int(bucket_count, "bucket_count")
+        if bucket_count > 240:
+            raise ValueError("bucket_count must not exceed 240")
+        width = (end_at - start_at).total_seconds() / bucket_count
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH selected AS (
+                    SELECT *,
+                        count(DISTINCT value) OVER identity_window
+                        + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
+                        > 1 AS conflict
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ?
+                        AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND event_at >= ? AND event_at < ?
+                    WINDOW identity_window AS (
+                        PARTITION BY source_id, measurement_point_id, channel_id, event_at
+                    )
+                ), raw_metadata AS (
+                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    INNER JOIN selected s
+                        ON f.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'file'
+                    UNION ALL
+                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                                = o.source_id
+                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                                = o.channel_id
+                        THEN json_object(
+                            'schema', 'opcua-semantic-snapshot',
+                            'semantics', json(o.semantic_binding_json)
+                        )::VARCHAR END AS source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    INNER JOIN selected s
+                        ON o.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'opcua'
+                ), prepared AS (
+                    SELECT m.*,
+                        least(floor(epoch(m.event_at - ?) / ?)::BIGINT, ?) AS bucket_index,
+                        json_object(
+                            'binding', json_extract(f.source_metadata_json, '$.binding'),
+                            'semantics', json_extract(f.source_metadata_json, '$.semantics')
+                        )::VARCHAR AS interpretation,
+                        m.source_type != 'file' AND NOT m.status_good AS non_good,
+                        m.value IS NOT NULL AND NOT m.conflict
+                            AND (m.source_type = 'file' OR m.status_good) AS usable
+                    FROM selected m LEFT JOIN raw_metadata f
+                        ON m.raw_evidence_id = f.raw_evidence_id AND m.source_type = f.source_type
+                )
+                SELECT channel_id, source_id, source_type, measurement_point_id, bucket_index,
+                    min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
+                    count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
+                    count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
+                    max(value) FILTER (WHERE usable), avg(value) FILTER (WHERE usable),
+                    interpretation
+                FROM prepared
+                GROUP BY channel_id, source_id, source_type, measurement_point_id,
+                    bucket_index, interpretation
+                ORDER BY channel_id, bucket_index, source_id, measurement_point_id,
+                    interpretation
+                LIMIT 10001
+                """,
+                [
+                    asset_id,
+                    list(channels),
+                    start_at,
+                    end_at,
+                    start_at,
+                    width,
+                    bucket_count - 1,
+                ],
+            ).fetchall()
+            snapshot = connection.execute(
+                f"SELECT max(snapshot_id) FROM ducklake_snapshots('{_CATALOG_NAME}')"
+            ).fetchone()
+        finally:
+            connection.close()
+        if len(rows) > 10000:
+            raise ValueError(
+                "multi-signal aggregate exceeds 10000 channel/source/point buckets; narrow range"
+            )
+        return MultiSignalMeasurementHistoryAggregation(
+            start_at,
+            end_at,
+            width,
+            int(snapshot[0]),
+            tuple(
+                MultiSignalMeasurementHistoryBucket(
+                    _require_str(r[0], "channel_id"),
+                    _require_str(r[1], "source_id"),
+                    _require_str(r[2], "source_type"),
+                    _optional_str(r[3], "measurement_point_id"),
+                    start_at + timedelta(seconds=int(r[4]) * width),
+                    min(end_at, start_at + timedelta(seconds=(int(r[4]) + 1) * width)),
+                    _require_datetime(r[5], "first_event_at"),
+                    _require_datetime(r[6], "last_event_at"),
+                    int(r[7]),
+                    int(r[8]),
+                    int(r[9]),
+                    int(r[10]),
+                    int(r[11]),
+                    _optional_float(r[12], "minimum"),
+                    _optional_float(r[13], "maximum"),
+                    _optional_float(r[14], "mean"),
+                    _require_str(r[15], "interpretation"),
+                )
+                for r in rows
+            ),
         )
 
     def query_measurement_aggregation(
