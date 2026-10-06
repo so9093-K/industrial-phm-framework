@@ -382,7 +382,7 @@ def render_monitor_signal_overview_html(
     if not ordered:
         return (
             '<section class="phm-shell">'
-            '<div class="phm-section-title">Current stored observations</div>'
+            '<div class="phm-section-title">Latest stored observations</div>'
             '<div class="phm-card-detail">No stored observation is available yet.</div>'
             "</section>"
         )
@@ -399,7 +399,7 @@ def render_monitor_signal_overview_html(
         )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Current stored observations</div>'
+        '<div class="phm-section-title">Latest stored observations</div>'
         + body
         + "</section>"
     )
