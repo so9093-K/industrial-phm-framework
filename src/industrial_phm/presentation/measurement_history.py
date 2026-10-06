@@ -73,6 +73,7 @@ def _measurement_history_row(point: MeasurementHistoryPoint) -> dict[str, object
         "value": m.value,
         "channel": m.channel_id,
         "observed_property": definition.get("observed_property") or "unresolved",
+        "scope": definition.get("scope"),
         "legacy_property_label": definition.get("property_name"),
         "source_quality": m.source_quality.value,
         "value_availability": "null" if m.value is None else "present",
