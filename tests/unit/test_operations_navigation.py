@@ -139,4 +139,3 @@ def test_analysis_evidence_routes_to_exact_investigation_without_finding() -> No
             "analysis-missing:capability-1",
             investigation_queue=_queue(),
         )
-
