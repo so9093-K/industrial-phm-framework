@@ -48,6 +48,10 @@ def test_recent_range_moves_with_each_query_and_custom_range_is_explicit():
     old = NOW - timedelta(days=365)
     start, end = resolve_measurement_range("15m", as_of=NOW, start_at=old, end_at=old)
     assert (start, end) == (NOW - timedelta(minutes=15), NOW)
+    assert resolve_measurement_range("1h", as_of=NOW, start_at=old, end_at=old) == (
+        NOW - timedelta(hours=1),
+        NOW,
+    )
     later = NOW + timedelta(minutes=1)
     assert resolve_measurement_range("24h", as_of=later, start_at=old, end_at=old) == (
         later - timedelta(hours=24),
