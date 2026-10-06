@@ -325,8 +325,8 @@ def _(
     navigation_initial_page,
     set_navigation_page,
 ):
-    navigation = mo.ui.radio(
-        options=list(OPERATIONS_PAGE_OPTIONS),
+    navigation = mo.ui.tabs(
+        tabs={page: mo.md("") for page in OPERATIONS_PAGE_OPTIONS},
         value=navigation_initial_page,
         label="",
         on_change=set_navigation_page,
@@ -1638,10 +1638,10 @@ def _(
 
 @app.cell
 def _(mo):
-    monitor_trend_range_selector = mo.ui.radio(
-        options=["15m", "1h", "24h", "7d"],
+    monitor_trend_range_selector = mo.ui.tabs(
+        tabs={period: mo.md("") for period in ("15m", "1h", "24h", "7d")},
         value="1h",
-        label="Overview range",
+        label="",
     )
     return (monitor_trend_range_selector,)
 
@@ -1703,10 +1703,77 @@ def _(
                 render_monitor_signal_overview_html(
                     monitor_latest_rows,
                     selected_channel=_selected_channel,
-                    primary_limit=8,
+                    primary_limit=1,
                 )
             )
     return monitor_latest_points, monitor_latest_rows, monitor_signal_overview
+
+
+@app.cell
+def _(mo):
+    get_monitor_comparisons, set_monitor_comparisons = mo.state({})
+    return get_monitor_comparisons, set_monitor_comparisons
+
+
+@app.cell
+def _(
+    asset_selector,
+    get_monitor_comparisons,
+    mo,
+    monitor_latest_rows,
+    set_monitor_comparisons,
+    signal_channel_selector,
+):
+    monitor_comparison_selector = None
+    if asset_selector is not None and signal_channel_selector is not None:
+        _asset_id = asset_selector.value
+        _focus = signal_channel_selector.value
+        _options = sorted(
+            {row["channel"] for row in monitor_latest_rows if row["channel"] != _focus}
+        )
+        _saved = get_monitor_comparisons().get(_asset_id)
+        if _saved is None:
+            _focused_row = next(
+                (row for row in monitor_latest_rows if row["channel"] == _focus), {}
+            )
+            _default = [
+                row["channel"]
+                for row in monitor_latest_rows
+                if row["channel"] != _focus
+                and row.get("observed_property") not in {None, "unresolved"}
+                and all(
+                    row.get(key) == _focused_row.get(key)
+                    for key in ("observed_property", "unit", "source", "measurement_point")
+                )
+            ][:2]
+        else:
+            _default = [channel for channel in _saved if channel in _options][:5]
+
+        def _save_comparisons(value):
+            set_monitor_comparisons({**get_monitor_comparisons(), _asset_id: list(value)})
+
+        monitor_comparison_selector = mo.ui.multiselect(
+            options=_options,
+            value=list(dict.fromkeys(_default)),
+            label="Compare signals",
+            max_selections=5,
+            full_width=True,
+            on_change=_save_comparisons,
+        )
+    return (monitor_comparison_selector,)
+
+
+@app.cell
+def _(mo, set_asset_section, set_navigation_page):
+    def _open_signal_details(_):
+        set_asset_section("Signals")
+        set_navigation_page("Assets")
+
+    monitor_signal_details_button = mo.ui.button(
+        label="Open signal details",
+        on_click=_open_signal_details,
+    )
+    return (monitor_signal_details_button,)
 
 
 @app.cell
@@ -1719,7 +1786,8 @@ def _(
     mo,
     monitor_latest_points,
     monitor_latest_rows,
-    monitor_signal_channels,
+    monitor_comparison_selector,
+    monitor_signal_details_button,
     monitor_trend_range_selector,
     navigation,
     query_operations_multi_signal_measurement_aggregation,
@@ -1742,11 +1810,14 @@ def _(
         _selected_channel = (
             None if signal_channel_selector is None else signal_channel_selector.value
         )
-        _channels = monitor_signal_channels(
-            monitor_latest_rows,
-            selected_channel=_selected_channel,
-            limit=6,
+        _comparison_channels = (
+            () if monitor_comparison_selector is None else tuple(monitor_comparison_selector.value)
         )
+        _channels = tuple(
+            dict.fromkeys(
+                (() if _selected_channel is None else (_selected_channel,)) + _comparison_channels
+            )
+        )[:6]
         if not _event_times or not _channels:
             monitor_signal_trends = mo.md(
                 "### Recent signal trends\n\nNo event-time observations are available to compare."
@@ -1810,31 +1881,47 @@ def _(
                     [
                         mo.hstack(
                             [
-                                monitor_trend_range_selector,
-                                mo.md(
-                                    "**Recent signal trends**  \n"
-                                    f"Latest recorded event-time: {_window_end}"
+                                mo.Html(
+                                    '<div class="phm-workspace-heading">'
+                                    "<h2>Recent signal trends</h2></div>"
                                 ),
+                                monitor_trend_range_selector,
                             ],
-                            widths=[0.34, 0.66],
+                            widths=[0.6, 0.4],
+                            align="center",
+                        ),
+                        mo.hstack(
+                            [
+                                signal_channel_selector,
+                                monitor_comparison_selector,
+                                monitor_signal_details_button,
+                            ],
+                            widths=[0.3, 0.5, 0.2],
                             align="end",
+                            gap=0.8,
+                        ),
+                        mo.md(
+                            f"Window ends at **{_window_end}** · latest stored event, "
+                            "not the source receive time."
                         ),
                         mo.Html(
-                            render_multi_signal_measurement_aggregation_svg(
+                            '<div class="phm-chart-workspace" role="img" '
+                            'aria-label="Recorded signal trends">'
+                            + render_multi_signal_measurement_aggregation_svg(
                                 _multi_signal,
                                 selected_channel=_selected_channel,
                                 evidence_windows=_evidence_windows,
                             )
+                            + "</div>"
                         ),
                         mo.md(
-                            f"{_evidence_note} "
-                            "Each signal keeps its own unit while sharing the same UTC time axis. "
-                            "Buckets show stored min/max/mean only; null, non-good and conflicting "
-                            "observations are marked as excluded evidence. No interpolation, "
-                            "cross-signal normalization, asset health or alarm state is inferred."
+                            f"{_evidence_note}  \n"
+                            "Dots: bucket mean · bars: min/max · "
+                            "red marks: excluded quality/conflict. "
+                            "Each panel keeps its recorded unit; empty buckets remain gaps."
                         ),
                     ],
-                    gap=0.7,
+                    gap=0.4,
                 )
     return (
         monitor_signal_trends,
@@ -2034,9 +2121,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation.value not in {"Monitor", "Assets"} or (
-        navigation.value == "Assets" and asset_section.value != "Signals"
-    ):
+    if navigation.value != "Assets" or asset_section.value != "Signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -4019,7 +4104,10 @@ def _(
 
     header = mo.hstack(
         [
-            mo.md("# Operations\n\n설비의 현재 관측값과 시간 변화를 중심으로 확인합니다."),
+            mo.Html(
+                '<div class="phm-product-header"><h1>Operations</h1>'
+                "<p>설비 관측 · 신호 비교 · 분석 근거</p></div>"
+            ),
             refresh_button,
         ],
         widths=[0.82, 0.18],
@@ -4049,14 +4137,11 @@ def _(
             gap=1.0,
         )
     else:
-        _overview_row = monitor_signal_overview
+        _secondary_panels = []
+        if monitor_evidence_view is not None:
+            _secondary_panels.append(monitor_evidence_view)
         if attention_view is not None:
-            _overview_row = mo.hstack(
-                [monitor_signal_overview, attention_view],
-                widths=[0.72, 0.28],
-                align="start",
-                gap=1.2,
-            )
+            _secondary_panels.append(attention_view)
         monitor_view = mo.vstack(
             [
                 asset_selector,
@@ -4067,12 +4152,25 @@ def _(
                         as_of=monitor.assessed_at,
                     )
                 ),
-                _overview_row,
+                monitor_signal_overview,
                 monitor_signal_trends,
-                *([] if monitor_evidence_view is None else [monitor_evidence_view]),
-                signal_view,
+                *(
+                    [
+                        mo.hstack(
+                            [
+                                panel.style({"flex": "1 1 420px", "min-width": "0"})
+                                for panel in _secondary_panels
+                            ],
+                            wrap=True,
+                            align="start",
+                            gap=1.0,
+                        )
+                    ]
+                    if _secondary_panels
+                    else []
+                ),
             ],
-            gap=1.0,
+            gap=0.5,
         )
 
     if asset_selector is None:
@@ -4127,22 +4225,9 @@ def _(
         "Setup": setup_view,
     }
 
-    sidebar = mo.vstack(
-        [
-            mo.md("**INDUSTRIAL PHM**"),
-            navigation,
-        ],
-        gap=1.0,
-    )
-
-    shell = mo.hstack(
-        [
-            sidebar,
-            mo.vstack([header, pages[navigation.value]], gap=1.4),
-        ],
-        widths=[0.18, 0.82],
-        align="start",
-        gap=1.5,
+    shell = mo.vstack(
+        [header, navigation, pages[navigation.value]],
+        gap=0.8,
     )
     mo.vstack([theme, shell], gap=0.0)
     return

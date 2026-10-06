@@ -931,7 +931,7 @@ with sync_playwright() as p:
     started = time.monotonic()
     page.goto(url)
     try:
-        page.get_by_role("radio", name="Assets", exact=True).click(timeout=5000)
+        page.get_by_role("tab", name="Assets", exact=True).click(timeout=5000)
     except Exception:
         page.get_by_text("Assets", exact=True).first.click()
     try:

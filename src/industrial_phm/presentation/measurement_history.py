@@ -253,38 +253,91 @@ def render_multi_signal_measurement_aggregation_svg(
             selected_channel,
             *(channel for channel in channels if channel != selected_channel),
         )
+    # Overlay only signals with the same known property, unit and source/point identity.
+    # Unknown/mixed units and measurement locations get separate axes.
+    groups: dict[tuple[object, ...], list[str]] = {}
+    for channel in channels:
+        channel_buckets = tuple(bucket for bucket in result.buckets if bucket.channel_id == channel)
+        signatures = set()
+        for bucket in channel_buckets:
+            metadata = json.loads(bucket.interpretation_json)
+            definition = (metadata.get("semantics") or {}).get("definition") or {}
+            signatures.add(
+                (
+                    definition.get("observed_property"),
+                    definition.get("unit"),
+                    bucket.source_id,
+                    bucket.measurement_point_id,
+                )
+            )
+        signature = next(iter(signatures)) if len(signatures) == 1 else (None, None, None, None)
+        key = (
+            signature
+            if signature[0] not in {None, "", "unresolved"}
+            and signature[1] not in {None, "", "unknown"}
+            else ("channel", channel)
+        )
+        groups.setdefault(key, []).append(channel)
     figure_module = importlib.import_module("matplotlib.figure")
-    row_count = max(1, len(channels))
+    panel_count = max(1, len(groups))
+    columns = 1 if panel_count == 1 else 2
+    rows = (panel_count + columns - 1) // columns
     figure = figure_module.Figure(
-        figsize=(11, max(3.2, 2.15 * row_count)),
+        figsize=(12, max(3.0, 2.6 * rows)),
         layout="constrained",
+        facecolor="#292827",
     )
-    axes_grid = figure.subplots(nrows=row_count, ncols=1, sharex=True, squeeze=False)
-    axes = [axes_grid[index][0] for index in range(row_count)]
-
-    if not channels:
-        axis = axes[0]
+    axes_grid = figure.subplots(nrows=rows, ncols=columns, sharex=True, squeeze=False)
+    axes = list(axes_grid.flat)
+    for axis in axes:
+        axis.set_facecolor("#292827")
+        axis.tick_params(colors="#aaa7a2", labelsize=11, labelbottom=True)
+        for spine in axis.spines.values():
+            spine.set_color("#55524e")
+        axis.xaxis.label.set_color("#aaa7a2")
+        axis.yaxis.label.set_color("#aaa7a2")
         axis.set_xlim(result.start_at.astimezone(UTC), result.end_at.astimezone(UTC))
-        axis.set_title("No observations in requested event-time window", loc="left")
-        axis.set_xlabel("Event time (UTC)")
+    if not channels:
+        axes[0].set_title(
+            "No observations in requested event-time window", loc="left", color="#f2f1ef"
+        )
+        axes[0].set_xlabel("Event time (UTC)")
     else:
-        for axis, channel in zip(axes, channels, strict=True):
-            channel_buckets = tuple(
-                bucket for bucket in result.buckets if bucket.channel_id == channel
-            )
-            _render_evidence_windows(
-                axis,
-                windows,
-                start_at=result.start_at,
-                end_at=result.end_at,
-            )
-            _render_multi_signal_channel_axis(axis, channel, channel_buckets)
-            axis.set_xlim(result.start_at.astimezone(UTC), result.end_at.astimezone(UTC))
-            axis.grid(alpha=0.16)
-        axes[-1].set_xlabel("Event time (UTC)")
-        for axis in axes[:-1]:
-            axis.tick_params(labelbottom=False)
-        figure.autofmt_xdate()
+        for axis, group in zip(axes, groups.values(), strict=False):
+            _render_evidence_windows(axis, windows, start_at=result.start_at, end_at=result.end_at)
+            for index, channel in enumerate(group):
+                channel_buckets = tuple(
+                    bucket for bucket in result.buckets if bucket.channel_id == channel
+                )
+                _render_multi_signal_channel_axis(
+                    axis,
+                    channel,
+                    channel_buckets,
+                    color_offset=index,
+                    show_channel_label=len(group) > 1,
+                )
+            if len(group) > 1:
+                # Set a concise title from the agreed definition, without interpreting health.
+                definition = (
+                    json.loads(channel_buckets[0].interpretation_json).get("semantics") or {}
+                ).get("definition") or {}
+                axis.set_title(str(definition.get("observed_property")), loc="left")
+            axis.set_title(axis.get_title(loc="left"), loc="left", color="#f2f1ef", fontsize=12)
+            axis.set_xlabel("Event time (UTC)")
+            axis.grid(alpha=0.12, color="#aaa7a2")
+            legend = axis.get_legend()
+            if legend is not None:
+                legend.get_frame().set_facecolor("#323130")
+                legend.get_frame().set_edgecolor("#55524e")
+                for text in legend.get_texts():
+                    text.set_color("#f2f1ef")
+        for axis in axes[len(groups) :]:
+            axis.set_visible(False)
+        dates_module = importlib.import_module("matplotlib.dates")
+        for axis in axes[: len(groups)]:
+            axis.xaxis.set_major_locator(dates_module.AutoDateLocator(minticks=3, maxticks=5))
+            axis.xaxis.set_major_formatter(dates_module.DateFormatter("%m-%d\n%H:%M", tz=UTC))
+            axis.tick_params(labelbottom=True)
 
     return figure_svg(figure)
 
@@ -324,6 +377,9 @@ def _render_multi_signal_channel_axis(
     axis: Any,
     channel: str,
     buckets: tuple[MultiSignalMeasurementHistoryBucket, ...],
+    *,
+    color_offset: int = 0,
+    show_channel_label: bool = False,
 ) -> None:
     groups: dict[
         tuple[str, str | None, str],
@@ -340,7 +396,9 @@ def _render_multi_signal_channel_axis(
         times = [
             bucket.bucket_start + (bucket.bucket_end - bucket.bucket_start) / 2 for bucket in usable
         ]
-        color = f"C{index % 10}"
+        color = ("#8caac5", "#8fbf9a", "#d5aa62", "#c6a0cf", "#d87878", "#7fbfc1")[
+            (index + color_offset) % 6
+        ]
         axis.vlines(
             times,
             [bucket.minimum for bucket in usable],
@@ -353,7 +411,7 @@ def _render_multi_signal_channel_axis(
             [bucket.mean for bucket in usable],
             s=13,
             color=color,
-            label=source + (f" / {point}" if point else ""),
+            label=channel if show_channel_label else source + (f" / {point}" if point else ""),
         )
 
     suspect = [
@@ -379,7 +437,7 @@ def _render_multi_signal_channel_axis(
     axis.set_title(title, loc="left", fontsize="medium", fontweight="semibold")
     axis.set_ylabel(unit)
     if groups:
-        axis.legend(fontsize="x-small", loc="upper left")
+        axis.legend(fontsize=10, loc="upper left")
 
 
 def _multi_signal_channel_label(

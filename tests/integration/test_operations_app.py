@@ -86,6 +86,8 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
 
     assert defs["navigation_initial_page"] == "Monitor"
     assert defs["navigation"].value == "Monitor"
+    assert "marimo-tabs" in defs["navigation"].text
+    assert defs["monitor_trend_range_selector"].value == "1h"
     assert defs["signal_range_selector"].value == "Live"
     assert defs["get_asset_section"]() == "Overview"
     assert defs["get_investigation_review_filter"]() == "All"
@@ -212,3 +214,73 @@ def test_maintenance_review_reads_its_evidence_by_reference(tmp_path, monkeypatc
     # The persisted review keeps references only.
     stored = workspace.finding_state_path.read_text(encoding="utf-8")
     assert "median_percent" not in stored
+
+
+@pytest.mark.parametrize(
+    ("other_unit", "other_source", "expected_panels"),
+    [
+        ("A", "source", 1),
+        ("V", "source", 2),
+        ("A", "another-source", 2),
+        (None, "source", 2),
+        ("unknown", "source", 2),
+    ],
+)
+def test_monitor_chart_overlays_only_known_compatible_measurements(
+    monkeypatch, other_unit, other_source, expected_panels
+):
+    pytest.importorskip("matplotlib")
+    import json
+
+    from industrial_phm.application.measurement_history import (
+        MultiSignalMeasurementHistoryAggregation,
+        MultiSignalMeasurementHistoryBucket,
+    )
+    from industrial_phm.presentation import measurement_history
+
+    at = datetime(2026, 10, 6, tzinfo=UTC)
+
+    def bucket(channel, unit, source):
+        return MultiSignalMeasurementHistoryBucket(
+            channel_id=channel,
+            source_id=source,
+            source_type="opcua",
+            measurement_point_id="point",
+            bucket_start=at,
+            bucket_end=at + timedelta(minutes=1),
+            first_event_at=at,
+            last_event_at=at,
+            observation_count=1,
+            usable_count=1,
+            null_count=0,
+            non_good_count=0,
+            conflict_count=0,
+            minimum=100.0,
+            maximum=100.0,
+            mean=100.0,
+            interpretation_json=json.dumps(
+                {"semantics": {"definition": {"observed_property": "phase current", "unit": unit}}}
+            ),
+        )
+
+    result = MultiSignalMeasurementHistoryAggregation(
+        start_at=at,
+        end_at=at + timedelta(minutes=1),
+        bucket_seconds=60,
+        snapshot_id=1,
+        buckets=(bucket("r", "A", "source"), bucket("s", other_unit, other_source)),
+    )
+    captured = []
+    monkeypatch.setattr(measurement_history, "figure_svg", lambda figure: captured.append(figure))
+    measurement_history.render_multi_signal_measurement_aggregation_svg(result)
+    visible = [axis for axis in captured[0].axes if axis.get_visible()]
+    assert len(visible) == expected_panels
+    assert all(axis.get_xlabel() == "Event time (UTC)" for axis in visible)
+    assert all(axis.get_facecolor()[:3] != (1, 1, 1) for axis in visible)
+    # Values remain in their recorded scale; grouping never normalizes to percentages.
+    for axis in visible:
+        for collection in axis.collections:
+            if collection.get_offsets().shape[0] and collection.get_offsets().shape[1] == 2:
+                offsets = collection.get_offsets()
+                if len(offsets) == 1 and offsets[0, 0] > 1:
+                    assert offsets[0, 1] == 100.0

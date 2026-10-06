@@ -126,10 +126,9 @@ def test_monitor_asset_context_prioritizes_observation_facts() -> None:
 
     assert "Observed asset" in rendered
     assert "boiler-01" in rendered
-    assert "Last observation" in rendered
+    assert "Latest source activity" in rendered
     assert "now · 2026-09-30 12:00:00 UTC" in rendered
     assert "2 signals" in rendered
-    assert "1 attention" in rendered
     assert "Delayed" in rendered
     assert "System data flow" not in rendered
     assert "Recent activity" not in rendered

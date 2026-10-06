@@ -354,6 +354,64 @@ div:has(.phm-shell) {{
   .phm-monitor-facts {{ justify-content: flex-start; }}
   .phm-signal-board {{ grid-template-columns: 1fr; }}
 }}
+
+.phm-product-header h1 {{ font: 650 1.5rem/1.2 system-ui; margin: 0; }}
+.phm-product-header p {{ color: var(--phm-muted); font-size: .8rem; margin: .3rem 0; }}
+.phm-signal-groups {{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .7rem;
+}}
+.phm-signal-group {{
+  border: 1px solid var(--phm-border);
+  border-radius: 8px;
+  padding: .7rem;
+  min-width: 0;
+}}
+.phm-signal-group header {{
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: .2rem;
+  margin-bottom: .45rem;
+}}
+.phm-signal-group header span, .phm-context-note {{ color: var(--phm-muted); font-size: .74rem; }}
+.phm-key-signals > .phm-signal-groups {{ grid-template-columns: 1fr; }}
+.phm-signal-group .phm-signal-board {{
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem;
+}}
+.phm-signal-group .phm-signal-row {{
+  padding: .45rem 0;
+  border: 0;
+  border-radius: 0;
+  border-top: 1px solid var(--phm-border);
+  background: transparent;
+}}
+.phm-signal-group .phm-signal-channel {{ display: none; }}
+.phm-signal-group .phm-signal-name {{ font-size: .8rem; line-height: 1.2; }}
+.phm-signal-group .phm-signal-head {{ line-height: 1.2; }}
+.phm-signal-group .phm-signal-meta {{ margin-top: .15rem; line-height: 1.2; gap: .2rem .5rem; }}
+.phm-signal-group .phm-signal-row {{ padding-top: .3rem; padding-bottom: .3rem; }}
+.phm-signal-group .phm-signal-value {{ font-size: 1.05rem; }}
+.phm-signal-group time {{
+  display: block;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}}
+.phm-context-note {{ margin: .2rem 0 .65rem; }}
+.phm-workspace-heading {{
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}}
+.phm-workspace-heading h2 {{ font-size: 1.2rem; margin: .2rem 0; color: var(--phm-text); }}
+.phm-workspace-heading span {{ font-size: .8rem; color: var(--phm-muted); }}
+.phm-chart-workspace {{ border-top: 1px solid var(--phm-border); padding-top: .7rem; }}
+.phm-chart-workspace svg {{ width: 100%; height: auto; }}
+@media (max-width: 700px) {{
+  .phm-signal-groups, .phm-signal-group .phm-signal-board {{ grid-template-columns: 1fr; }}
+}}
 </style>
 """
 
@@ -380,8 +438,6 @@ def render_monitor_asset_context_html(
     last_observation = _relative_hint(view.last_data_at, as_of=as_of)
     signal_count = len(view.history_channels)
     signal_label = "signal" if signal_count == 1 else "signals"
-    attention = f"{view.attention_count} attention"
-    reviews = f"{view.open_review_count} open reviews"
 
     return (
         '<section class="phm-shell phm-monitor-context">'
@@ -396,11 +452,8 @@ def render_monitor_asset_context_html(
             data_state,
             css_class=f"phm-status-{view.status.value}",
         )
-        + _monitor_fact("Last observation", last_observation)
+        + _monitor_fact("Latest source activity", last_observation)
         + _monitor_fact("Stored signals", f"{signal_count} {signal_label}")
-        # Asset-scoped; global System attention is counted in the attention rail.
-        + _monitor_fact("Asset attention", attention)
-        + _monitor_fact("Reviews", reviews)
         + "</div></section>"
     )
 
@@ -498,7 +551,11 @@ def render_monitor_signal_overview_html(
     selected_channel: str | None = None,
     primary_limit: int = 8,
 ) -> str:
-    """Render factual latest observations across one asset without collapsing identities."""
+    """Group factual latest values by meaning, unit and source/point identity.
+
+    primary_limit bounds visible groups; each group initially shows three prioritized
+    observations. All remaining identities stay accessible in disclosure lists.
+    """
 
     if isinstance(primary_limit, bool) or not isinstance(primary_limit, int) or primary_limit < 1:
         raise ValueError("primary_limit must be a positive integer")
@@ -518,19 +575,46 @@ def render_monitor_signal_overview_html(
             "</section>"
         )
 
-    primary = ordered[:primary_limit]
-    remainder = ordered[primary_limit:]
-    body = _render_monitor_signal_board(primary, selected_channel=selected_channel)
-    if remainder:
+    groups: dict[tuple[str, str, str, str], list[Mapping[str, object]]] = {}
+    for row in ordered:
+        key = (
+            _monitor_row_text(row, "observed_property", fallback="unresolved"),
+            _monitor_row_text(row, "unit", fallback="unknown"),
+            _monitor_row_text(row, "source"),
+            _monitor_row_text(row, "measurement_point"),
+        )
+        groups.setdefault(key, []).append(row)
+    blocks = []
+    for (prop, unit, source, point), group in groups.items():
+        label = "Other recorded signals" if prop == "unresolved" else prop
+        identity = source + (f" / {point}" if point else "")
+        blocks.append(
+            '<section class="phm-signal-group">'
+            f'<header title="{escape(identity, quote=True)}"><strong>{escape(label)}</strong>'
+            f"<span>{len(group)} signals · {escape(unit)}</span></header>"
+            + _render_monitor_signal_board(group[:3], selected_channel=selected_channel)
+            + (
+                "<details><summary>All signals in this group</summary>"
+                + _render_monitor_signal_board(group[3:], selected_channel=selected_channel)
+                + "</details>"
+                if len(group) > 3
+                else ""
+            )
+            + "</section>"
+        )
+    body = '<div class="phm-signal-groups">' + "".join(blocks[:primary_limit]) + "</div>"
+    remainder_count = sum(len(group) for group in list(groups.values())[primary_limit:])
+    if remainder_count:
         body += (
             '<details class="phm-signal-more">'
-            f"<summary>Show {len(remainder)} more stored observations</summary>"
-            + _render_monitor_signal_board(remainder, selected_channel=selected_channel)
-            + "</details>"
+            f"<summary>Show {remainder_count} more stored observations</summary>"
+            '<div class="phm-signal-groups">' + "".join(blocks[primary_limit:]) + "</div></details>"
         )
     return (
-        '<section class="phm-shell">'
-        '<div class="phm-section-title">Latest stored observations</div>' + body + "</section>"
+        '<section class="phm-shell phm-key-signals">'
+        '<div class="phm-section-title">Latest stored observations</div>'
+        '<p class="phm-context-note">Latest values have individual event times; '
+        "they are not a synchronized sample.</p>" + body + "</section>"
     )
 
 
@@ -611,6 +695,18 @@ def _render_monitor_signal_row(
     if issue:
         classes.append("phm-signal-row-issue")
     quality_class = "phm-signal-meta-issue" if issue else ""
+    event_time = _monitor_row_text(row, "time", fallback="Event time unavailable")
+    try:
+        event_label = (
+            datetime.fromisoformat(event_time).astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+        )
+    except ValueError:
+        event_label = event_time
+    protocol_quality = _monitor_row_text(row, "source_quality", fallback="unknown")
+    quality_label = protocol_quality if quality == "no recorded issue" else quality
+    event_state = _monitor_row_text(row, "event_time_state")
+    if event_state not in {"", "recorded"}:
+        quality_label += f" · event time {event_state}"
 
     return (
         f'<div class="{" ".join(classes)}">'
@@ -622,9 +718,10 @@ def _render_monitor_signal_row(
         f'<div class="phm-signal-value">{escape(value_text)}</div>'
         "</div>"
         '<div class="phm-signal-meta">'
-        f'<span class="{quality_class}">{escape(quality)}</span>'
-        f"<span>{escape(age)}</span>"
-        f"<span>{escape(source_point)}</span>"
+        f'<span class="{quality_class}" title="{escape(quality, quote=True)}">'
+        f"Quality · {escape(quality_label)}</span>"
+        f'<time title="{escape(event_time + " · " + age, quote=True)}">'
+        f"Event · {escape(event_label)}</time>"
         "</div></div>"
     )
 

@@ -43,8 +43,8 @@ uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 
 1. Setup → Data Sources: select `demo-opcua`, then **Start collection**. This records the desired
    state; the separately running collector does the collection.
-2. Monitor: the Data Flow row shows Sources/Collect/Store/Analyze separately. Use **Refresh** to
-   re-read runtime state.
+2. Monitor: inspect the selected asset, source activity and stored event-time signals. Use
+   **Refresh** to re-read runtime state; collection/storage/analysis diagnostics remain in System.
 3. Assets: select `demo-power-01` and open **Signals** to query recent history and latest values.
 4. Close the browser, reopen it, and verify that the collector continued writing.
 5. Stop/restart the server and collector separately; refresh Monitor and Signals to check recovery.
@@ -317,3 +317,24 @@ checks concurrent history reads, source restart/reconnect, collector restart wit
 Stop Collection, FILE/live separation, latest-point budgets and unique delivery identities. It needs
 no external server, credentials or AI-Hub payload. On failure, pytest's temporary stack `process.log`
 contains the subprocess output.
+
+
+## Monitor interaction browser gate
+
+For a running Operations UI backed by a populated workspace, test actual Monitor controls:
+
+```bash
+uv run --no-sync --with playwright python -m tools.opcua.monitor_browser \
+  --url http://127.0.0.1:27192 \
+  --output artifacts/monitor-browser \
+  --focus R상전압 \
+  --compare T상전류
+```
+
+The channel arguments must exist in that workspace. Chromium must already be installed
+(`uv run --no-sync --with playwright playwright install chromium` if needed).
+The caller owns the UI server lifecycle. The gate checks 1440px and 1024px viewports, the initial
+chart position, actual chart changes for all four ranges, focus/comparison selection, return from
+Assets signal detail with selection preserved, browser errors, and viewport overflow. It writes
+JSON and screenshots; screenshots still require visual review. This is a stored-data interaction
+gate, not the live fault/reconnect protocol owned by `fault_harness.py`.

@@ -11,6 +11,12 @@
 
 ### Changed
 
+- Operations Monitor를 가로 page 탐색과 신호 비교 작업 영역으로 재구성했습니다. 현재 초점 신호의 의미·단위·
+  source/측정 위치별 overview, 직접 선택하는 비교 신호, 차트 안의 시간 범위 탭을 제공합니다. 기록된 event time과
+  source activity를 구분하고, 같은 의미·단위·source/위치가 확인된 신호만 같은 축에 비교합니다. 그 밖의 신호는
+  별도 패널에 원래 단위로 표시합니다. Attention과 analysis evidence는 차트 아래에 두고 상세 신호 조회는 Assets로
+  연결합니다. 값이 저장돼 있다는 사실로 현재 수신이나 설비 상태를 추론하지 않습니다.
+
 - AI-Hub fault harness의 실제 Chromium acceptance를 observation-first Monitor 기준으로 갱신했습니다.
   Monitor는 더 이상 `System data flow`를 readiness signal로 사용하지 않고 Observed asset, Latest stored
   observations, Recent signal trends, 실제 signal value와 contextual Attention이 5초 안에 읽히는지를 판정합니다.

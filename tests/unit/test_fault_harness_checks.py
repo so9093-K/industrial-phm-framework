@@ -298,7 +298,7 @@ def test_harness_uses_packaged_operations_app_path():
     assert 'get_by_text("System data flow", exact=True).count() == 0' in source
     assert 'get_by_text("Current observation", exact=True)' in source
     assert 'get_by_text("Live observation", exact=True)' not in source
-    assert 'get_by_role("radio", name="Assets", exact=True)' in source
+    assert 'get_by_role("tab", name="Assets", exact=True)' in source
     assert 'get_by_role("radio", name="Signals", exact=True)' in source
 
 
