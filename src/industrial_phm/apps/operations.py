@@ -1853,7 +1853,7 @@ def _(
         monitor_evidence_label_to_id = {
             (
                 f"{investigation_capability_label(item.capability_id)} · "
-                f"{item.observed_start_at.astimezone(UTC).strftime('%H:%M:%S')}–"
+                f"{item.observed_start_at.astimezone(UTC).strftime('%H:%M:%S')} - "
                 f"{item.observed_end_at.astimezone(UTC).strftime('%H:%M:%S')} UTC · "
                 f"{investigation_review_label(item.review_state)} · {index + 1}"
             ): item.investigation_id
