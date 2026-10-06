@@ -5,20 +5,24 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from html import escape
 
+from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_assets import AssetWorkspaceView
-from industrial_phm.presentation.operations_shell import data_status_label
+from industrial_phm.presentation.operations_shell import data_status_label, render_asset_title_html
 
 
-def render_asset_header_html(view: AssetWorkspaceView) -> str:
+def render_asset_header_html(
+    view: AssetWorkspaceView,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
     return (
         '<section class="phm-shell">'
         '<div class="phm-asset-header">'
         "<div>"
-        f'<div class="phm-asset-kicker">Asset</div>'
-        f'<h2 class="phm-asset-title">{escape(view.asset_id)}</h2>'
-        "</div>"
+        '<div class="phm-asset-kicker">Asset</div>'
+        + render_asset_title_html(view.asset_id, asset_names)
+        + "</div>"
         '<div class="phm-asset-facts">'
         + _fact(
             "Data status",
@@ -244,6 +248,12 @@ def asset_workspace_css() -> str:
   margin: .25rem 0 0;
   font-size: 1.75rem;
   font-weight: 650;
+}
+.phm-asset-id {
+  margin-top: .15rem;
+  color: var(--phm-muted);
+  font-size: .78rem;
+  font-family: var(--phm-mono, ui-monospace, monospace);
 }
 .phm-asset-facts {
   display: grid;

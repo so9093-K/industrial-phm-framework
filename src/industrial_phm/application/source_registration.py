@@ -51,10 +51,12 @@ class FileSourceConfig:
     sampling_rate_tolerance_ratio: float | None = None
     minimum_sample_count: int = 1
     delimiter: str = ","
+    asset_display_name: str | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_path, "source_path")
         _validate_identifier(self.asset_id, "asset_id")
+        validate_asset_display_name(self.asset_display_name)
         if self.measurement_point_id is not None:
             _validate_identifier(self.measurement_point_id, "measurement_point_id")
         if not isinstance(self.mode, FileSourceMode):
@@ -94,9 +96,11 @@ class OpcUaSourceConfig:
     measurement_point_id: str | None = None
     timeout_seconds: float = 4.0
     semantic_bindings: Sequence[ChannelSemanticBinding] = ()
+    asset_display_name: str | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.asset_id, "asset_id")
+        validate_asset_display_name(self.asset_display_name)
         if self.measurement_point_id is not None:
             _validate_identifier(self.measurement_point_id, "measurement_point_id")
 
@@ -268,6 +272,25 @@ class InMemorySourceRepository:
 
     def list_sources(self) -> tuple[RegisteredSource, ...]:
         return tuple(sorted(self._sources.values(), key=lambda source: source.source_id))
+
+
+ASSET_DISPLAY_NAME_MAX_LENGTH = 120
+
+
+def validate_asset_display_name(value: str | None) -> None:
+    """A display name is an optional presentation label, never an identity.
+
+    ``asset_id`` stays the stable identity used for history, analysis and provenance.
+    """
+    if value is None:
+        return
+    _validate_identifier(value, "asset_display_name")
+    if len(value) > ASSET_DISPLAY_NAME_MAX_LENGTH:
+        raise ValueError(
+            f"asset_display_name must be at most {ASSET_DISPLAY_NAME_MAX_LENGTH} characters"
+        )
+    if any(not character.isprintable() for character in value):
+        raise ValueError("asset_display_name must not contain control characters")
 
 
 def _validate_identifier(value: str, field_name: str) -> None:

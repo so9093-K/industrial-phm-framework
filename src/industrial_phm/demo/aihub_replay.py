@@ -196,6 +196,7 @@ def build_registered_replay_source(
     *,
     name: str,
     registered_at: datetime,
+    asset_display_name: str | None = None,
 ) -> RegisteredSource:
     """Project a validated manifest into the normal registered-source contract."""
     if registered_at.utcoffset() is None:
@@ -221,6 +222,7 @@ def build_registered_replay_source(
             ),
             timeout_seconds=2.0,
             semantic_bindings=bindings,
+            asset_display_name=asset_display_name,
         ),
         registered_at=registered_at,
     )
@@ -234,6 +236,7 @@ def register_replay_source(
     name: str,
     desired_state: CollectionDesiredState,
     registered_at: datetime,
+    asset_display_name: str | None = None,
 ) -> RegisteredSource:
     """Register one replay source into an already chosen local state root."""
     source = build_registered_replay_source(
@@ -241,6 +244,7 @@ def register_replay_source(
         manifest,
         name=name,
         registered_at=registered_at,
+        asset_display_name=asset_display_name,
     )
     sources = JsonSourceRepository(root / "sources.json")
     sources.register(source)
@@ -269,7 +273,14 @@ def write_replay_manifest(root: Path, manifest: ReplayManifest) -> None:
     )
 
 
-def prepare(root: Path, endpoint: str, selection: ReplaySelection, *, name: str) -> ReplayManifest:
+def prepare(
+    root: Path,
+    endpoint: str,
+    selection: ReplaySelection,
+    *,
+    name: str,
+    asset_display_name: str | None = None,
+) -> ReplayManifest:
     """Development helper: prepare an empty root and leave collection STOPPED."""
     if root.exists() and any(root.iterdir()):
         raise ValueError("replay root must be empty; reuse prepared state instead")
@@ -282,6 +293,7 @@ def prepare(root: Path, endpoint: str, selection: ReplaySelection, *, name: str)
         name=name,
         desired_state=CollectionDesiredState.STOPPED,
         registered_at=prepared_at,
+        asset_display_name=asset_display_name,
     )
     write_replay_manifest(root, manifest)
     return manifest
@@ -454,6 +466,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     prepare_parser.add_argument("--start", type=datetime.fromisoformat, required=True)
     prepare_parser.add_argument("--end", type=datetime.fromisoformat, required=True)
     prepare_parser.add_argument("--name", default="AI-Hub 239 recorded power (OPC UA replay)")
+    prepare_parser.add_argument(
+        "--asset-display-name",
+        help="optional presentation label for the asset; the binding asset_id stays its identity",
+    )
 
     server_parser = commands.add_parser("server", help="publish the prepared selection")
     server_parser.add_argument("--root", type=Path, required=True)
@@ -496,7 +512,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 start_local=args.start,
                 end_local=args.end,
             )
-            manifest = prepare(args.root, args.endpoint, selection, name=args.name)
+            manifest = prepare(
+                args.root,
+                args.endpoint,
+                selection,
+                name=args.name,
+                asset_display_name=args.asset_display_name,
+            )
             print(
                 f"Prepared {args.root}: {_manifest_int(manifest, 'record_count')} records, "
                 f"{len(_manifest_string_list(manifest, 'channels'))} channels "

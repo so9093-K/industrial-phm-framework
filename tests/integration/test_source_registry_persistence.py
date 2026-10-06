@@ -553,3 +553,33 @@ def test_json_source_repository_rejects_invalid_opcua_node_mapping_shape(
 
     with pytest.raises(SourceRegistryFormatError, match="keys do not match schema"):
         JsonSourceRepository(registry).list_sources()
+
+
+def test_v5_admits_display_name_as_a_backward_readable_optional_key(tmp_path: Path) -> None:
+    # v5 is not a frozen key set: an optional key is written only when present, so a
+    # registry without it keeps the original v5 shape and every v5 reader can read it.
+    from dataclasses import replace
+
+    path = tmp_path / "sources.json"
+    repository = JsonSourceRepository(path)
+    plain = _opcua_source()
+    repository.register(plain)
+    # Without a display name the persisted config is unchanged: no new key at all.
+    assert "asset_display_name" not in path.read_text(encoding="utf-8")
+
+    template = _opcua_source(source_id="named-source")
+    named = replace(
+        template,
+        config=replace(template.config, asset_display_name="공기압축기 · reference asset"),
+    )
+    repository.register(named)
+    reopened = {source.source_id: source for source in JsonSourceRepository(path).list_sources()}
+    assert reopened["named-source"].config.asset_display_name == "공기압축기 · reference asset"
+    assert reopened["named-source"].asset_id == plain.asset_id
+    assert reopened[plain.source_id].config.asset_display_name is None
+
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw["sources"][0]["config"]["asset_display_name"] = None
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(SourceRegistryFormatError, match="asset_display_name must be a string"):
+        JsonSourceRepository(path).list_sources()

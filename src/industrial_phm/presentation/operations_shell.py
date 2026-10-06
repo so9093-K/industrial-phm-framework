@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from html import escape
 
+from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_monitor import (
     OperationsMonitorAsset,
     OperationsMonitorStage,
@@ -190,10 +191,26 @@ def render_monitor_flow_html(view: OperationsMonitorView) -> str:
     )
 
 
-def render_monitor_assets_html(view: OperationsMonitorView) -> str:
+def render_asset_title_html(asset_id: str, names: AssetDisplayNames | None = None) -> str:
+    """Display name as the title, the stable asset ID kept underneath for traceability."""
+    name = None if names is None else names.name(asset_id)
+    if name is None:
+        return f'<h2 class="phm-asset-title">{escape(asset_id)}</h2>'
+    return (
+        f'<h2 class="phm-asset-title">{escape(name)}</h2>'
+        f'<div class="phm-asset-id">{escape(asset_id)}</div>'
+    )
+
+
+def render_monitor_assets_html(
+    view: OperationsMonitorView,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
     if not isinstance(view, OperationsMonitorView):
         raise ValueError("view must be an OperationsMonitorView")
-    rows = "".join(_render_asset(asset, as_of=view.assessed_at) for asset in view.assets)
+    rows = "".join(
+        _render_asset(asset, as_of=view.assessed_at, names=asset_names) for asset in view.assets
+    )
     if not rows:
         rows = (
             '<tr><td colspan="6" class="phm-card-detail">'
@@ -236,10 +253,22 @@ def _render_stage(stage: OperationsMonitorStage) -> str:
     )
 
 
-def _render_asset(asset: OperationsMonitorAsset, *, as_of: datetime) -> str:
+def _render_asset(
+    asset: OperationsMonitorAsset,
+    *,
+    as_of: datetime,
+    names: AssetDisplayNames | None,
+) -> str:
+    name = None if names is None else names.name(asset.asset_id)
+    asset_cell = (
+        f"<strong>{escape(asset.asset_id)}</strong>"
+        if name is None
+        else f'<strong>{escape(name)}</strong><div class="phm-asset-id">'
+        f"{escape(asset.asset_id)}</div>"
+    )
     return (
         "<tr>"
-        f"<td><strong>{escape(asset.asset_id)}</strong></td>"
+        f"<td>{asset_cell}</td>"
         f'<td class="phm-status-{asset.status.value}">'
         f"{escape(data_status_label(asset.status))}</td>"
         f"<td>{escape(_relative_hint(asset.last_data_at, as_of=as_of))}</td>"

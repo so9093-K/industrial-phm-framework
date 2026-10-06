@@ -202,3 +202,18 @@ def test_server_publishes_recorded_values_on_the_replay_clock(tmp_path):
     assert len(ledger) == 3 and len({entry["run"] for entry in ledger}) == 1
     assert ledger[-1]["values"]["T상전압"] == 228.0
     assert ledger[-1]["good"]["T상전압"] is True
+
+
+def test_prepare_records_an_optional_asset_display_name_without_changing_identity(tmp_path):
+    root = tmp_path / "replay"
+    aihub_replay.prepare(
+        root,
+        "opc.tcp://127.0.0.1:48555/replay/",
+        _selection(_archive(tmp_path)),
+        name="test",
+        asset_display_name="보일러 · reference asset",
+    )
+
+    (source,) = JsonSourceRepository(root / "sources.json").list_sources()
+    assert source.config.asset_display_name == "보일러 · reference asset"
+    assert source.asset_id == "boiler-asset"

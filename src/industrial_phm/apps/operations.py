@@ -31,6 +31,7 @@ def _():
         build_system_runtime_view,
         discover_file_source,
     )
+    from industrial_phm.application.asset_display import resolve_asset_display_names
     from industrial_phm.application.maintenance_review import (
         FindingReviewAction,
         FindingReviewStatus,
@@ -197,6 +198,7 @@ def _():
         render_investigation_summary_html,
         render_live_observation_html,
         project_review_workflow,
+        resolve_asset_display_names,
         resolve_finding_investigation_route,
         resolve_operations_attention_route,
         render_maintenance_evidence_html,
@@ -275,6 +277,13 @@ def _(load_operations_app_context, refresh_button):
         system_diagnostics,
         system_errors,
     )
+
+
+@app.cell
+def _(registered_sources, resolve_asset_display_names):
+    # Presentation labels only; asset_id stays the identity for every lookup.
+    asset_names = resolve_asset_display_names(registered_sources)
+    return (asset_names,)
 
 
 @app.cell
@@ -1286,6 +1295,7 @@ def _(mo):
 
 @app.cell
 def _(
+    asset_names,
     get_asset_section,
     get_asset_selection,
     history_assets,
@@ -1308,8 +1318,8 @@ def _(
             _requested_asset_id if _requested_asset_id in _asset_ids else _asset_ids[0]
         )
         asset_selector = mo.ui.dropdown(
-            options=list(_asset_ids),
-            value=_selected_asset_id,
+            options={asset_names.option_label(asset_id): asset_id for asset_id in _asset_ids},
+            value=asset_names.option_label(_selected_asset_id),
             label="Asset",
             full_width=True,
             on_change=set_asset_selection,
@@ -1963,6 +1973,7 @@ def _(
 
 @app.cell
 def _(
+    asset_names,
     InvestigationReviewState,
     get_investigation_asset_filter,
     get_investigation_capability_filter,
@@ -1986,11 +1997,21 @@ def _(
         full_width=True,
         on_change=set_investigation_review_filter,
     )
-    _asset_options = ["All", *investigation_queue.asset_ids]
+    _asset_options = {
+        "All": "All",
+        **{
+            asset_names.option_label(asset_id): asset_id
+            for asset_id in investigation_queue.asset_ids
+        },
+    }
     _asset_value = get_investigation_asset_filter()
     investigation_asset_filter = mo.ui.dropdown(
         options=_asset_options,
-        value=_asset_value if _asset_value in _asset_options else "All",
+        value=(
+            asset_names.option_label(_asset_value)
+            if _asset_value in investigation_queue.asset_ids
+            else "All"
+        ),
         label="Asset",
         full_width=True,
         on_change=set_investigation_asset_filter,
@@ -2017,6 +2038,7 @@ def _(
 
 @app.cell
 def _(
+    asset_names,
     InvestigationReviewState,
     investigation_asset_filter,
     investigation_capability_filter,
@@ -2044,7 +2066,7 @@ def _(
         capability_id=_capability_by_label.get(investigation_capability_filter.value),
     )
     _group_label_to_id = {
-        f"{investigation_group_option_label(group)} · {index + 1}": group.group_id
+        f"{investigation_group_option_label(group, asset_names)} · {index + 1}": group.group_id
         for index, group in enumerate(_groups)
     }
     _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
@@ -2100,6 +2122,7 @@ def _(
 
 @app.cell
 def _(
+    asset_names,
     get_investigation_selection,
     investigation_queue_option_label,
     mo,
@@ -2111,7 +2134,9 @@ def _(
         investigation_label_to_id = {}
     else:
         _label_to_id = {
-            f"{investigation_queue_option_label(item)} · {index + 1}": item.investigation_id
+            f"{investigation_queue_option_label(item, asset_names)} · {index + 1}": (
+                item.investigation_id
+            )
             for index, item in enumerate(selected_investigation_group.items)
         }
         _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2221,6 +2246,7 @@ def _(get_review_request_error, get_review_request_success):
 
 @app.cell
 def _(
+    asset_names,
     OperationalAnalysisPresentationKind,
     investigation_asset_filter,
     investigation_capability_filter,
@@ -2302,7 +2328,7 @@ def _(
             selected_investigation.capability_id
         )
         _evidence_blocks = [
-            mo.Html(render_investigation_summary_html(selected_investigation)),
+            mo.Html(render_investigation_summary_html(selected_investigation, asset_names)),
             mo.md(render_analysis_quality_markdown(selected_investigation_result.run)),
         ]
 
@@ -2459,7 +2485,7 @@ def _(
 
 
 @app.cell
-def _(FindingReviewStatus, maintenance_queue, maintenance_status_label, mo):
+def _(FindingReviewStatus, asset_names, maintenance_queue, maintenance_status_label, mo):
     _status_labels = ["All", *[maintenance_status_label(status) for status in FindingReviewStatus]]
     maintenance_status_filter = mo.ui.dropdown(
         options=_status_labels,
@@ -2468,7 +2494,13 @@ def _(FindingReviewStatus, maintenance_queue, maintenance_status_label, mo):
         full_width=True,
     )
     maintenance_asset_filter = mo.ui.dropdown(
-        options=["All", *maintenance_queue.asset_ids],
+        options={
+            "All": "All",
+            **{
+                asset_names.option_label(asset_id): asset_id
+                for asset_id in maintenance_queue.asset_ids
+            },
+        },
         value="All",
         label="Asset",
         full_width=True,
@@ -2479,6 +2511,7 @@ def _(FindingReviewStatus, maintenance_queue, maintenance_status_label, mo):
 @app.cell
 def _(
     FindingReviewStatus,
+    asset_names,
     maintenance_asset_filter,
     maintenance_queue,
     maintenance_queue_label,
@@ -2495,7 +2528,7 @@ def _(
         ),
     )
     _label_to_id = {
-        f"{maintenance_queue_label(item)} · {index + 1}": item.finding_id
+        f"{maintenance_queue_label(item, asset_names)} · {index + 1}": item.finding_id
         for index, item in enumerate(_filtered)
     }
     _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2715,6 +2748,7 @@ def _(get_maintenance_error, get_maintenance_success):
 
 @app.cell
 def _(
+    asset_names,
     FindingReviewStatus,
     maintenance_ack_button,
     maintenance_add_note_button,
@@ -2817,7 +2851,7 @@ def _(
             _evidence_blocks.append(maintenance_open_investigation_button)
         _detail_panel = mo.vstack(
             [
-                mo.Html(render_maintenance_summary_html(selected_maintenance)),
+                mo.Html(render_maintenance_summary_html(selected_maintenance, asset_names)),
                 *_evidence_blocks,
                 mo.Html(render_maintenance_timeline_html(selected_maintenance)),
                 *_action_blocks,
@@ -2870,6 +2904,7 @@ def _(
 
 @app.cell
 def _(
+    asset_names,
     mo,
     render_system_diagnostics_html,
     render_system_errors_html,
@@ -2877,10 +2912,27 @@ def _(
     system_diagnostics,
     system_runtime,
 ):
+    _name_conflicts = []
+    if asset_names.conflicts:
+        _rows = "\n".join(
+            f"- `{asset_id}`: " + ", ".join(f"“{name}”" for name in names)
+            for asset_id, names in asset_names.conflicts.items()
+        )
+        _name_conflicts.append(
+            mo.callout(
+                mo.md(
+                    "Registered sources declare different display names for the same asset, "
+                    "so the asset ID is shown instead:\n\n" + _rows
+                ),
+                kind="warn",
+                title="Asset display name conflict",
+            )
+        )
     system_view = mo.vstack(
         [
             mo.Html(render_system_runtime_html(system_runtime)),
             mo.Html(render_system_errors_html(system_runtime)),
+            *_name_conflicts,
             mo.accordion(
                 {
                     "Advanced diagnostics": mo.Html(
@@ -3370,10 +3422,15 @@ def _(
 
 
 @app.cell
-def _(mo, monitor):
+def _(
+    asset_names,
+    mo,
+    monitor,
+):
     if monitor.attention:
         attention_label_to_id = {
-            f"{item.title} · {item.asset_id or 'System'} · {index + 1}": item.attention_id
+            f"{item.title} · {asset_names.label(item.asset_id) if item.asset_id else 'System'}"
+            f" · {index + 1}": item.attention_id
             for index, item in enumerate(monitor.attention[:8])
         }
         attention_selector = mo.ui.radio(
@@ -3459,7 +3516,7 @@ def _(
 
 @app.cell
 def _(
-    UTC,
+    asset_names,
     attention_open_button,
     attention_route,
     attention_route_error,
@@ -3467,6 +3524,7 @@ def _(
     mo,
     monitor,
     selected_attention,
+    UTC,
 ):
     if selected_attention is None:
         attention_view = None
@@ -3488,7 +3546,9 @@ def _(
                 _relative = f"{_age / 3600:.1f}h ago"
             _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
         _target = "Unavailable" if attention_route is None else attention_route.page
-        _asset_label = selected_attention.asset_id or "—"
+        _asset_label = (
+            asset_names.label(selected_attention.asset_id) if selected_attention.asset_id else "—"
+        )
         _metadata = f"Asset **{_asset_label}** · {_when} · Target **{_target}**"
         _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
         _blocks = [
@@ -3518,6 +3578,7 @@ def _(
 @app.cell
 def _(
     asset_analysis_view,
+    asset_names,
     attention_view,
     asset_section,
     asset_selector,
@@ -3593,7 +3654,7 @@ def _(
         activity_rows = "\n".join(
             (
                 f"| {_time_text(item.occurred_at)} | "
-                f"{_md_cell(item.asset_id)} | "
+                f"{_md_cell(asset_names.label(item.asset_id) if item.asset_id else None)} | "
                 f"{_md_cell(item.title)} |"
             )
             for item in monitor.activities[:8]
@@ -3611,7 +3672,7 @@ def _(
         _monitor_blocks.append(attention_view)
     _monitor_blocks.extend(
         [
-            mo.Html(render_monitor_assets_html(monitor)),
+            mo.Html(render_monitor_assets_html(monitor, asset_names)),
             mo.Html(render_monitor_flow_html(monitor)),
             activity_view,
         ]
@@ -3655,7 +3716,7 @@ def _(
                     widths=[0.46, 0.54],
                     align="start",
                 ),
-                mo.Html(render_asset_header_html(asset_workspace)),
+                mo.Html(render_asset_header_html(asset_workspace, asset_names)),
                 _asset_sections[asset_section.value],
             ],
             gap=1.1,

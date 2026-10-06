@@ -11,6 +11,11 @@
 
 ### Changed
 
+- Source 등록은 optional `asset_display_name`을 가질 수 있습니다(source registry v5 안의 optional key, 없으면 기존
+  JSON과 동일). 같은 asset의 source들이 같은 이름을 선언하면 Monitor·Needs attention·Recent activity·Assets·
+  Investigations·Maintenance가 그 이름을 label로 쓰고 `asset_id`는 제목 아래와 provenance에 남깁니다. 이름이 다르면
+  `asset_id`를 보여주고 System에 충돌을 표시합니다. AI-Hub replay `prepare`는 `--asset-display-name`을 받습니다.
+
 - Operations review journey가 끝까지 같은 evidence context를 유지합니다. Maintenance review는 저장된 참조
   (`analysis_run_id`)로 검토 대상 evidence의 관측 구간·source·data quality·3상 불평형 median/P95/Max를 보여주며
   review record에는 값을 복제하지 않습니다. "Open evidence in Investigations"로 그 evidence에 바로 돌아갈 수

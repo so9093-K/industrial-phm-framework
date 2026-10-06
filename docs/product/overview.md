@@ -805,6 +805,11 @@ asset
   -> review
 ```
 
+사람이 읽는 asset 이름은 identity가 아닙니다. Source 등록은 자신이 채우는 asset의 optional
+`asset_display_name`을 선언할 수 있고, 같은 asset을 선언한 source들이 같은 이름을 줄 때만 화면 label로
+씁니다. 이름이 없거나 서로 다르면 `asset_id`를 그대로 보여주며(충돌은 System에 표시), 제목 아래와
+provenance에는 항상 `asset_id`를 남깁니다. 별도 asset master는 두지 않습니다.
+
 ### Overview와 Attention Queue
 
 Overview의 첫 질문은 "fleet이 몇 점인가?"가 아니라 **"지금 사람이 확인하거나 처리해야 할 사실이 무엇인가?"** 입니다.

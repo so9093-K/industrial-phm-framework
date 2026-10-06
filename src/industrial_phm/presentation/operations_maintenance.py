@@ -6,9 +6,11 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from html import escape
 
+from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.maintenance_review import FindingReviewStatus
 from industrial_phm.application.operations_investigations import InvestigationQueueItem
 from industrial_phm.application.operations_maintenance import MaintenanceQueueItem
+from industrial_phm.presentation.operations_shell import render_asset_title_html
 
 
 def maintenance_status_label(status: FindingReviewStatus) -> str:
@@ -26,21 +28,28 @@ def maintenance_capability_label(capability_id: str) -> str:
     }.get(capability_id, capability_id)
 
 
-def maintenance_queue_label(item: MaintenanceQueueItem) -> str:
+def maintenance_queue_label(
+    item: MaintenanceQueueItem,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
+    asset = item.asset_id if asset_names is None else asset_names.label(item.asset_id)
     return (
-        f"{item.asset_id} · {maintenance_capability_label(item.capability_id)} · "
+        f"{asset} · {maintenance_capability_label(item.capability_id)} · "
         f"{maintenance_status_label(item.status)} · {_time_label(item.requested_at)}"
     )
 
 
-def render_maintenance_summary_html(item: MaintenanceQueueItem) -> str:
+def render_maintenance_summary_html(
+    item: MaintenanceQueueItem,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
     return (
         '<section class="phm-shell">'
         '<div class="phm-investigation-heading">'
         "<div>"
         '<div class="phm-asset-kicker">Maintenance review</div>'
-        f'<h2 class="phm-asset-title">{escape(item.asset_id)}</h2>'
-        f'<div class="phm-card-detail">'
+        + render_asset_title_html(item.asset_id, asset_names)
+        + '<div class="phm-card-detail">'
         f"{escape(maintenance_capability_label(item.capability_id))}</div>"
         "</div>"
         '<div class="phm-investigation-facts">'
