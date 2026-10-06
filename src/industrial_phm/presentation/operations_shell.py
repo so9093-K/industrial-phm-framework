@@ -252,8 +252,8 @@ def render_monitor_asset_context_html(
     asset_id = "" if name is None else (
         f'<div class="phm-monitor-id">{escape(view.asset_id)}</div>'
     )
-    data_state = escape(data_status_label(view.status))
-    last_observation = escape(_relative_hint(view.last_data_at, as_of=as_of))
+    data_state = data_status_label(view.status)
+    last_observation = _relative_hint(view.last_data_at, as_of=as_of)
     signal_count = len(view.history_channels)
     signal_label = "signal" if signal_count == 1 else "signals"
     attention = f"{view.attention_count} attention"
