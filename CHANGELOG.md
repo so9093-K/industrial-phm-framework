@@ -44,6 +44,10 @@
 
 ### Fixed
 
+- `operations` extra에 matplotlib를 추가했습니다. Packaged Operations app은 Assets의 measurement history와
+  Investigation의 3상 불평형 차트를 matplotlib로 그리는데, `operations` extra만 설치하면 matplotlib가 없어 해당
+  화면이 `ModuleNotFoundError`로 실패했습니다. 이전에는 research group이 함께 설치된 개발 환경에서만 동작했습니다.
+
 - Operations Assets → Signals가 처음 열릴 때 의미가 확정된 signal(예: R상전류)을 선택합니다. 이전에는 이름 순서로
   unresolved 전력 channel이 먼저 열렸습니다. 사용자가 고른 signal은 Refresh나 asset 전환 후에도 그 asset에 있으면
   유지됩니다.
