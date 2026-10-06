@@ -3608,34 +3608,34 @@ def _(
     asset_names,
     mo,
     monitor,
+    monitor_attention_options,
 ):
     if monitor.attention:
-        attention_label_to_id = {
-            f"{item.title} · {asset_names.label(item.asset_id) if item.asset_id else 'System'}"
-            f" · {index + 1}": item.attention_id
-            for index, item in enumerate(monitor.attention[:8])
-        }
-        attention_selector = mo.ui.radio(
-            options=list(attention_label_to_id),
-            value=next(iter(attention_label_to_id)),
-            label="Needs attention",
+        _attention_options = monitor_attention_options(
+            monitor.attention,
+            asset_names,
+        )
+        attention_selector = mo.ui.dropdown(
+            options=_attention_options,
+            value=next(iter(_attention_options)),
+            label="Inspect",
+            full_width=True,
         )
         attention_open_button = mo.ui.run_button(
-            label="Open selected",
+            label="Open evidence",
             kind="warn",
         )
     else:
-        attention_label_to_id = {}
         attention_selector = None
         attention_open_button = None
-    return attention_label_to_id, attention_open_button, attention_selector
+    return attention_open_button, attention_selector
 
 
 @app.cell
-def _(attention_label_to_id, attention_selector, monitor):
+def _(attention_selector, monitor):
     selected_attention = None
     if attention_selector is not None:
-        _attention_id = attention_label_to_id[attention_selector.value]
+        _attention_id = attention_selector.value
         selected_attention = next(
             item for item in monitor.attention if item.attention_id == _attention_id
         )
@@ -3700,11 +3700,12 @@ def _(
 def _(
     asset_names,
     attention_open_button,
-    attention_route,
     attention_route_error,
     attention_selector,
     mo,
     monitor,
+    monitor_attention_category,
+    render_monitor_attention_summary_html,
     selected_attention,
     UTC,
 ):
@@ -3727,14 +3728,16 @@ def _(
             else:
                 _relative = f"{_age / 3600:.1f}h ago"
             _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-        _target = "Unavailable" if attention_route is None else attention_route.page
+        _category = monitor_attention_category(selected_attention)
         _asset_label = (
-            asset_names.label(selected_attention.asset_id) if selected_attention.asset_id else "—"
+            asset_names.label(selected_attention.asset_id)
+            if selected_attention.asset_id
+            else "Platform"
         )
-        _metadata = f"Asset **{_asset_label}** · {_when} · Target **{_target}**"
+        _metadata = f"**{_category}** · {_asset_label} · {_when}"
         _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
         _blocks = [
-            mo.md("### Needs attention"),
+            mo.Html(render_monitor_attention_summary_html(monitor.attention)),
             attention_selector,
             mo.md(_metadata),
             mo.callout(
