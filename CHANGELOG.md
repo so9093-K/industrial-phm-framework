@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Operations Monitor의 Attention을 selected asset 문맥으로 좁히고 Data / Review / System으로 구분했습니다.
+  다른 asset의 attention은 현재 관제 화면에 섞이지 않으며 global System issue만 함께 보입니다. 같은 Monitor
+  trend window와 겹치는 persisted analysis observation window는 signal chart에 shaded evidence range로
+  표시하고, capability/data-quality/review 상태를 별도 evidence 표로 보여준 뒤 exact Investigation으로
+  drill-down할 수 있게 했습니다. analysis output을 재계산하거나 공통 anomaly/health/alarm 의미를 만들지
+  않습니다.
+
 - Operations Monitor에 selected asset의 여러 signal을 같은 event-time window에서 비교하는 synchronized
   small-multiple trend를 추가했습니다. 최대 6개 signal을 한 번의 bounded multi-channel aggregation query로
   읽고, 각 signal의 unit/semantic identity를 분리한 채 같은 UTC 시간축을 사용합니다. trend window는 wall-clock
