@@ -15,6 +15,8 @@ from industrial_phm.presentation.operations_shell import (
     OPERATIONS_PAGE_OPTIONS,
     data_status_label,
     initial_operations_page,
+    monitor_attention_category,
+    monitor_context_attention,
     monitor_signal_channels,
     operations_theme_css,
     render_monitor_asset_context_html,
@@ -209,3 +211,54 @@ def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
     )
 
     assert channels == ("vibration", "current-t", "pressure", "speed")
+
+def test_monitor_attention_is_scoped_to_selected_asset_plus_global_system() -> None:
+    attention = (
+        OperationsMonitorAttention(
+            attention_id="asset-1:data",
+            status=OperationsMonitorStatus.DELAYED,
+            title="Data delayed",
+            detail="No new data.",
+            destination=OperationsAttentionDestination.ASSET_SIGNALS,
+            occurred_at=NOW,
+            asset_id="asset-1",
+        ),
+        OperationsMonitorAttention(
+            attention_id="asset-2:review",
+            status=OperationsMonitorStatus.NEEDS_ATTENTION,
+            title="Review waiting",
+            detail="Review requested.",
+            destination=OperationsAttentionDestination.INVESTIGATIONS,
+            occurred_at=NOW,
+            asset_id="asset-2",
+            finding_id="finding-2",
+        ),
+        OperationsMonitorAttention(
+            attention_id="global:system",
+            status=OperationsMonitorStatus.ERROR,
+            title="System unavailable",
+            detail="State read failed.",
+            destination=OperationsAttentionDestination.SYSTEM,
+            occurred_at=NOW,
+        ),
+        OperationsMonitorAttention(
+            attention_id="asset-1:system",
+            status=OperationsMonitorStatus.ERROR,
+            title="History writer failed",
+            detail="Write failed.",
+            destination=OperationsAttentionDestination.SYSTEM,
+            occurred_at=NOW,
+            asset_id="asset-1",
+        ),
+    )
+
+    contextual = monitor_context_attention(attention, asset_id="asset-1")
+
+    assert tuple(item.attention_id for item in contextual) == (
+        "asset-1:data",
+        "global:system",
+        "asset-1:system",
+    )
+    assert monitor_attention_category(contextual[0]) == "Data"
+    assert monitor_attention_category(contextual[1]) == "System"
+
