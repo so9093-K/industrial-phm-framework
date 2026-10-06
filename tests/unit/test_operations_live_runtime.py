@@ -10,6 +10,7 @@ from industrial_phm.application.asset_history import (
 from industrial_phm.application.measurement_history import (
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
+    MultiSignalMeasurementHistoryAggregation,
 )
 from industrial_phm.application.operations_assets import AssetWorkspaceSource
 from industrial_phm.application.operations_monitor import OperationsMonitorStatus
@@ -213,3 +214,47 @@ def test_multi_signal_latest_read_uses_one_bounded_asset_query() -> None:
 
     assert result == (point,)
     assert calls == [("boiler-01", 32)]
+
+def test_multi_signal_trend_wrapper_uses_one_aggregation_query() -> None:
+    expected = MultiSignalMeasurementHistoryAggregation(
+        start_at=NOW - timedelta(hours=1),
+        end_at=NOW,
+        bucket_seconds=30.0,
+        snapshot_id=7,
+        buckets=(),
+    )
+    calls: list[tuple[str, tuple[str, ...], datetime, datetime, int]] = []
+
+    class _History:
+        def query_multi_signal_measurement_aggregation(
+            self,
+            asset_id,
+            *,
+            channel_ids,
+            start_at,
+            end_at,
+            bucket_count,
+        ):
+            calls.append((asset_id, tuple(channel_ids), start_at, end_at, bucket_count))
+            return expected
+
+    result = operations_live.query_operations_multi_signal_measurement_aggregation(
+        _History(),
+        "boiler-01",
+        channel_ids=("current-r", "temperature"),
+        start_at=NOW - timedelta(hours=1),
+        end_at=NOW,
+        bucket_count=120,
+    )
+
+    assert result == expected
+    assert calls == [
+        (
+            "boiler-01",
+            ("current-r", "temperature"),
+            NOW - timedelta(hours=1),
+            NOW,
+            120,
+        )
+    ]
+
