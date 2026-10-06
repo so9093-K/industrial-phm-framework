@@ -74,7 +74,12 @@ def resolve_measurement_range(
     """Resolve relative ranges at query time, not at page initialization."""
     if as_of.utcoffset() is None:
         raise ValueError("as_of must be timezone-aware")
-    durations = {"15m": timedelta(minutes=15), "24h": timedelta(hours=24), "7d": timedelta(days=7)}
+    durations = {
+        "15m": timedelta(minutes=15),
+        "1h": timedelta(hours=1),
+        "24h": timedelta(hours=24),
+        "7d": timedelta(days=7),
+    }
     if preset in durations:
         return as_of - durations[preset], as_of
     if preset != "custom":
@@ -113,3 +118,35 @@ class MeasurementHistoryAggregation:
     bucket_seconds: float
     snapshot_id: int
     buckets: tuple[MeasurementHistoryBucket, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MultiSignalMeasurementHistoryBucket:
+    channel_id: str
+    source_id: str
+    source_type: str
+    measurement_point_id: str | None
+    bucket_start: datetime
+    bucket_end: datetime
+    first_event_at: datetime
+    last_event_at: datetime
+    observation_count: int
+    usable_count: int
+    null_count: int
+    non_good_count: int
+    conflict_count: int
+    minimum: float | None
+    maximum: float | None
+    mean: float | None
+    interpretation_json: str
+
+
+@dataclass(frozen=True, slots=True)
+class MultiSignalMeasurementHistoryAggregation:
+    """Bounded per-channel presentation buckets sharing one requested time axis."""
+
+    start_at: datetime
+    end_at: datetime
+    bucket_seconds: float
+    snapshot_id: int
+    buckets: tuple[MultiSignalMeasurementHistoryBucket, ...]
