@@ -262,4 +262,3 @@ def test_monitor_attention_is_scoped_to_selected_asset_plus_global_system() -> N
     )
     assert monitor_attention_category(contextual[0]) == "Data"
     assert monitor_attention_category(contextual[1]) == "System"
-
