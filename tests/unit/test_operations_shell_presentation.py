@@ -130,6 +130,7 @@ def test_monitor_asset_context_prioritizes_observation_facts() -> None:
     assert "System data flow" not in rendered
     assert "Recent activity" not in rendered
 
+
 def test_monitor_signal_overview_prioritizes_selected_and_quality_issue() -> None:
     rows = [
         {
