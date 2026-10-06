@@ -3770,6 +3770,7 @@ def _(
     mo,
     monitor,
     monitor_signal_overview,
+    monitor_signal_trends,
     navigation,
     operations_theme_css,
     refresh_button,
@@ -3837,6 +3838,7 @@ def _(
                     )
                 ),
                 monitor_signal_overview,
+                monitor_signal_trends,
                 signal_view,
             ],
             gap=1.0,
