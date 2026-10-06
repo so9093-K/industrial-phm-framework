@@ -189,6 +189,7 @@ def test_history_read_boundary_wraps_expected_storage_failure_only() -> None:
             "boiler-01",
         )
 
+
 def test_multi_signal_latest_read_uses_one_bounded_asset_query() -> None:
     point = _point(
         source_id="live-opcua",
