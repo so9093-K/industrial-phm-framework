@@ -128,4 +128,3 @@ def test_monitor_asset_context_prioritizes_observation_facts() -> None:
     assert "Delayed" in rendered
     assert "System data flow" not in rendered
     assert "Recent activity" not in rendered
-
