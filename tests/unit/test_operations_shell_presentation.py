@@ -212,6 +212,7 @@ def test_monitor_signal_channels_use_selected_then_issue_order() -> None:
 
     assert channels == ("vibration", "current-t", "pressure", "speed")
 
+
 def test_monitor_attention_is_scoped_to_selected_asset_plus_global_system() -> None:
     attention = (
         OperationsMonitorAttention(
