@@ -1641,9 +1641,7 @@ def _(
     render_monitor_signal_overview_html,
     signal_channel_selector,
 ):
-    if navigation.value != "Monitor":
-        monitor_signal_overview = mo.md("")
-    elif asset_selector is None:
+    if navigation.value != "Monitor" or asset_selector is None:
         monitor_signal_overview = mo.md("")
     elif history_reader is None:
         monitor_signal_overview = mo.md(
