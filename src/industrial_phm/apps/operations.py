@@ -3640,22 +3640,34 @@ def _(
 @app.cell
 def _(
     asset_names,
+    asset_selector,
     mo,
     monitor,
+    monitor_attention_category,
+    monitor_context_attention,
 ):
-    if monitor.attention:
+    if asset_selector is None:
+        _context_attention = ()
+    else:
+        _context_attention = monitor_context_attention(
+            monitor.attention,
+            asset_id=asset_selector.value,
+        )
+    if _context_attention:
         attention_label_to_id = {
-            f"{item.title} · {asset_names.label(item.asset_id) if item.asset_id else 'System'}"
-            f" · {index + 1}": item.attention_id
-            for index, item in enumerate(monitor.attention[:8])
+            (
+                f"{monitor_attention_category(item)} · {item.title} · "
+                f"{asset_names.label(item.asset_id) if item.asset_id else 'System'} · {index + 1}"
+            ): item.attention_id
+            for index, item in enumerate(_context_attention[:8])
         }
         attention_selector = mo.ui.radio(
             options=list(attention_label_to_id),
             value=next(iter(attention_label_to_id)),
-            label="Needs attention",
+            label="Attention",
         )
         attention_open_button = mo.ui.run_button(
-            label="Open selected",
+            label="Open evidence",
             kind="warn",
         )
     else:
@@ -3768,7 +3780,7 @@ def _(
         _metadata = f"Asset **{_asset_label}** · {_when} · Target **{_target}**"
         _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
         _blocks = [
-            mo.md("### Needs attention"),
+            mo.md("### Attention"),
             attention_selector,
             mo.md(_metadata),
             mo.callout(
