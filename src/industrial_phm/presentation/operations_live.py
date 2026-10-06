@@ -89,7 +89,7 @@ def render_live_observation_html(
         '<section class="phm-shell">'
         '<div class="phm-live-heading">'
         "<div>"
-        '<div class="phm-section-title">Live observation</div>'
+        '<div class="phm-section-title">Current observation</div>'
         f'<div class="phm-live-channel">{escape(view.channel_id)}</div>'
         "</div>"
         f'<div class="phm-card-detail">Sampled {_time_label(view.sampled_at)}</div>'
