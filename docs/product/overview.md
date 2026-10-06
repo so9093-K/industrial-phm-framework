@@ -736,8 +736,9 @@ Primary navigation의 목표 구조는 다음과 같습니다.
 
 ```text
 Operations
-├─ Overview
-│  └─ Attention Queue
+├─ Monitor
+│  ├─ Asset observations / synchronized trends
+│  └─ Contextual Attention
 ├─ Assets
 │  └─ Asset Detail
 │     └─ Evidence Timeline
@@ -810,9 +811,15 @@ asset
 씁니다. 이름이 없거나 서로 다르면 `asset_id`를 그대로 보여주며(충돌은 System에 표시), 제목 아래와
 provenance에는 항상 `asset_id`를 남깁니다. 별도 asset master는 두지 않습니다.
 
-### Overview와 Attention Queue
+### Monitor와 Contextual Attention
 
-Overview의 첫 질문은 "fleet이 몇 점인가?"가 아니라 **"지금 사람이 확인하거나 처리해야 할 사실이 무엇인가?"** 입니다.
+Monitor의 첫 질문은 **"지금 선택한 asset에서 어떤 값이 들어오고 있으며, 최근 어떻게 변하고 있는가?"** 입니다.
+현재값·최근 time-series·data quality와 같은 observation evidence를 primary surface로 두고,
+사람이 확인해야 하는 Attention과 persisted analysis evidence는 그 관측 문맥에 결합된 secondary evidence로 둡니다.
+
+Monitor는 여러 signal을 같은 event-time 문맥에서 비교할 수 있어야 하지만 서로 다른 unit을 하나의 y축이나
+공통 점수로 정규화하지 않습니다. gap/null/non-good/conflict를 정상 데이터처럼 연결하거나 보간하지 않고,
+capability-specific analysis evidence도 관측 구간과 연결하되 asset health/fault/alarm으로 자동 승격하지 않습니다.
 
 Factual attention category는 검증된 evidence 의미 안에서만 정의합니다. 기본 vocabulary는 다음 범위로 제한합니다.
 
@@ -826,7 +833,7 @@ Factual attention category는 검증된 evidence 의미 안에서만 정의합�
 Attention item은 기존 evidence를 projection한 application read model이며 새로운 PHM verdict가 아닙니다. 첫 ordering은 risk score를 만들지 않고
 unhandled/active 상태와 occurrence time 같은 deterministic workflow fact로 정의합니다.
 
-현재 evidence에서 Overview가 표시할 수 있는 예는 다음과 같습니다.
+현재 evidence에서 Monitor의 contextual Attention이 표시할 수 있는 예는 다음과 같습니다.
 
 | 표시 가능 | 현재 표시하지 않음 |
 | --- | --- |
