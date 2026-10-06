@@ -249,8 +249,8 @@ def render_monitor_asset_context_html(
 
     name = None if asset_names is None else asset_names.name(view.asset_id)
     title = view.asset_id if name is None else name
-    asset_id = "" if name is None else (
-        f'<div class="phm-monitor-id">{escape(view.asset_id)}</div>'
+    asset_id = (
+        "" if name is None else (f'<div class="phm-monitor-id">{escape(view.asset_id)}</div>')
     )
     data_state = data_status_label(view.status)
     last_observation = _relative_hint(view.last_data_at, as_of=as_of)
