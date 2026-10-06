@@ -31,13 +31,13 @@ OPC UA collection, durable spool, DuckLake Asset History와 live/backfill의 own
 
 ## 1. 시스템 아키텍처
 
-![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](../../assets/system-architecture.png)
+![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](../../assets/system-architecture.svg)
 
-README와 이 문서는 같은 대표 그림을 사용합니다. 대표 그림은 구현 부품이 아니라 책임 단계를 보여주며,
-SQLite·DuckLake·spool·window coordinator 같은 구성 요소는 아래 상세 runtime에서 설명합니다. 원본은 편집
-가능한 `assets/system-architecture.svg`이고 PNG는 그 렌더링입니다. 그림의 PHM 분석 항목은 책임 단계를
-표현하며 특정 capability의 지원 여부를 주장하지 않습니다. 지원 여부는 [현재 지원 상태](../status.md)를
-따릅니다.
+README와 이 문서는 같은 대표 SVG를 사용합니다. 이 그림은 산업 설비 데이터 → 도메인 어댑터 → 공통 분석 코어 →
+평가·서비스 → 생성형 AI → 사용자로 이어지는 상위 시스템 구성을 설명합니다. SQLite·DuckLake·spool·window
+coordinator 같은 현재 구현 구성 요소와 operational responsibility boundary는 아래 상세 runtime에서 설명합니다.
+그림의 모델·RUL·생성형 AI 항목은 architecture reference이며 특정 capability의 현재 지원 여부를 주장하지 않습니다.
+지원 여부는 [현재 지원 상태](../status.md)를 따릅니다.
 
 - **Data Sources**: OPC UA subscription과 FILE(prepared CSV, AI-Hub raw archive 등). 명시적 source/asset/
   measurement-point binding 없이 설비 identity를 추정하지 않습니다.
@@ -428,5 +428,5 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-`assets/system-architecture.png`(원본 `.svg`)는 대표 책임 구조입니다. 모델 학습·평가와 서비스 아키텍처
+`assets/system-architecture.svg`는 대표 상위 시스템 구조입니다. 모델 학습·평가와 서비스 아키텍처
 PNG는 research path와 service responsibility를 설명하는 reference이며 지원 범위 표로 사용하지 않습니다.

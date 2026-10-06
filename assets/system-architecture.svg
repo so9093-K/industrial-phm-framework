@@ -1,77 +1,235 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" font-family="Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif">
-<rect width="1600" height="900" fill="#ffffff"/>
-<text x="34.0" y="92.0" font-size="46" font-weight="800" fill="#1f2d4d" text-anchor="start">시스템 아키텍처</text>
-<text x="364.0" y="90.0" font-size="20" font-weight="500" fill="#5b6b88" text-anchor="start">설비 관측에서 사람의 운영·정비 판단까지</text>
-<rect x="34.0" y="150.0" width="240.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M35.0,214 v-54 a9,9 0 0 1 9,-9 h220.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
-<text x="154.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">설비 · 데이터 소스</text>
-<rect x="322.0" y="150.0" width="270.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M323.0,214 v-54 a9,9 0 0 1 9,-9 h250.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
-<text x="457.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">수집 · 설비 이력</text>
-<rect x="640.0" y="150.0" width="330.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M641.0,214 v-54 a9,9 0 0 1 9,-9 h310.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
-<text x="805.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">PHM 분석 · 근거</text>
-<rect x="1018.0" y="150.0" width="270.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M1019.0,214 v-54 a9,9 0 0 1 9,-9 h250.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
-<text x="1153.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">운영 · 검토</text>
-<rect x="1336.0" y="150.0" width="230.0" height="560.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M1337.0,214 v-54 a9,9 0 0 1 9,-9 h210.0 a9,9 0 0 1 9,9 v54 z" fill="#e8f0fb"/>
-<text x="1451.0" y="192.0" font-size="22" font-weight="700" fill="#1f2d4d" text-anchor="middle">사람의 판단</text>
-<path d="M284.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
-<path d="M602.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
-<path d="M980.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
-<path d="M1298.0,421.0 h14 v-9 l14,18 l-14,18 v-9 h-14 z" fill="#b3c6e0"/>
-<g fill="none" stroke="#1f2d4d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="110.0" y="265" width="70" height="56" rx="10"/><line x1="124.0" y1="265" x2="124.0" y2="321" stroke-width="3"/><line x1="138.0" y1="265" x2="138.0" y2="321" stroke-width="3"/><line x1="152.0" y1="265" x2="152.0" y2="321" stroke-width="3"/><line x1="166.0" y1="265" x2="166.0" y2="321" stroke-width="3"/><line x1="180.0" y1="293" x2="202.0" y2="293"/><path d="M116.0,321 l-8,16 h78 l-8,-16"/></g>
-<rect x="50.0" y="375.0" width="208.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="154.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">OPC UA 실시간</text>
-<rect x="50.0" y="441.0" width="208.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="154.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">FILE · 과거 데이터</text>
-<rect x="50.0" y="507.0" width="208.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="154.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">설비 · 측정점 매핑</text>
-<text x="154.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">전압 · 전류 · 전력 · 진동 등</text>
-<g fill="none" stroke="#1f2d4d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="457.0" cy="260" rx="44" ry="13"/><path d="M413.0,260 v62 a44,13 0 0 0 88,0 v-62"/><path d="M413.0,290 a44,13 0 0 0 88,0" stroke-width="3.5"/></g>
-<rect x="338.0" y="375.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="457.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">독립 수집 서비스</text>
-<rect x="338.0" y="441.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="457.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">원본 근거 보존</text>
-<rect x="338.0" y="507.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="457.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">설비 이력 (시간·품질·출처)</text>
-<text x="457.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">재시작 · 연결 끊김 복구</text>
-<rect x="654.0" y="234.0" width="302.0" height="144.0" rx="8" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M655.0,276 v-33 a8,8 0 0 1 8,-8 h284.0 a8,8 0 0 1 8,8 v33 z" fill="#e8f0fb"/>
-<text x="805.0" y="263.0" font-size="19" font-weight="700" fill="#1f2d4d" text-anchor="middle">분석 입력</text>
-<text x="684.0" y="312.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  측정 의미 · 단위 확인</text>
-<text x="684.0" y="346.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  품질 · 중복 제외 규칙</text>
-<rect x="654.0" y="392.0" width="302.0" height="144.0" rx="8" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M655.0,434 v-33 a8,8 0 0 1 8,-8 h284.0 a8,8 0 0 1 8,8 v33 z" fill="#e8f0fb"/>
-<text x="805.0" y="421.0" font-size="19" font-weight="700" fill="#1f2d4d" text-anchor="middle">PHM 분석</text>
-<text x="684.0" y="470.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  특징 · 상태 변화</text>
-<text x="684.0" y="504.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  이상 · 열화 · 잔여수명</text>
-<rect x="654.0" y="550.0" width="302.0" height="144.0" rx="8" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5"/>
-<path d="M655.0,592 v-33 a8,8 0 0 1 8,-8 h284.0 a8,8 0 0 1 8,8 v33 z" fill="#e8f0fb"/>
-<text x="805.0" y="579.0" font-size="19" font-weight="700" fill="#1f2d4d" text-anchor="middle">분석 근거</text>
-<text x="684.0" y="628.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  입력 범위 · 버전 · 결과</text>
-<text x="684.0" y="662.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="start">•  같은 입력으로 재현</text>
-<g fill="none" stroke="#1f2d4d" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><rect x="1103.0" y="250" width="100" height="66" rx="6"/><path d="M1141.0,316 l-6,16 h36 l-6,-16"/><polyline points="1117.0,298 1139.0,280 1159.0,290 1187.0,266" stroke-width="4"/></g>
-<rect x="1034.0" y="375.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="1153.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">설비 상세 · 이력 · 품질</text>
-<rect x="1034.0" y="441.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="1153.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">조사 (Investigation)</text>
-<rect x="1034.0" y="507.0" width="238.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="1153.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">검토 · 정비 검토 기록</text>
-<text x="1153.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">근거에서 출발하는 검토</text>
-<circle cx="1415.0" cy="272.4" r="12" fill="#1f2d4d"/><path d="M1395.8,320 a19.200000000000003,20.8 0 0 1 38.400000000000006,0 z" fill="#1f2d4d"/><circle cx="1487.0" cy="272.4" r="12" fill="#1f2d4d"/><path d="M1467.8,320 a19.200000000000003,20.8 0 0 1 38.400000000000006,0 z" fill="#1f2d4d"/><circle cx="1451.0" cy="268.0" r="16" fill="#1f2d4d"/><path d="M1427.0,320 a24.0,26.0 0 0 1 48.0,0 z" fill="#1f2d4d"/>
-<rect x="1352.0" y="375.0" width="198.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="1451.0" y="407.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">운영 담당자</text>
-<rect x="1352.0" y="441.0" width="198.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="1451.0" y="473.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">정비 담당자</text>
-<rect x="1352.0" y="507.0" width="198.0" height="52.0" rx="8" fill="#f1f3f7" stroke="none" stroke-width="1.5"/>
-<text x="1451.0" y="539.0" font-size="17" font-weight="500" fill="#1f2d4d" text-anchor="middle">운영 · 정비 판단</text>
-<text x="1451.0" y="680.0" font-size="15" font-weight="500" fill="#5b6b88" text-anchor="middle">시스템은 근거를 제공</text>
-<rect x="34.0" y="736.0" width="1532.0" height="52.0" rx="10" fill="#e8f0fb" stroke="none" stroke-width="1.5"/>
-<text x="58.0" y="769.0" font-size="18" font-weight="700" fill="#1f2d4d" text-anchor="start">공통 요구사항</text>
-<text x="204.0" y="769.0" font-size="18" font-weight="500" fill="#1f2d4d" text-anchor="start">설비 식별  ·  측정 의미  ·  데이터 품질  ·  출처 · 재현성  ·  수집 신뢰성</text>
-<rect x="34.0" y="806.0" width="1532.0" height="52.0" rx="10" fill="#ffffff" stroke="#b9c8e0" stroke-width="1.5" stroke-dasharray="7 6"/>
-<text x="58.0" y="839.0" font-size="18" font-weight="700" fill="#5b6b88" text-anchor="start">연구 경로</text>
-<text x="204.0" y="839.0" font-size="18" font-weight="500" fill="#5b6b88" text-anchor="start">공개 데이터셋 · 제공자 라벨(annotation) → 모델 개발 · 평가 비교   (운영 분석의 입력이 아님)</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1737 906" width="1737" height="906" role="img" aria-labelledby="title desc">
+  <title id="title">시스템 아키텍처</title>
+  <desc id="desc">산업 설비 데이터에서 도메인 어댑터, 공통 엣지비전 코어, 평가 및 분석, 서비스 계층, 생성형 AI를 거쳐 사용자에게 이어지는 시스템 아키텍처</desc>
+  <defs>
+    <linearGradient id="header" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3f8ff"/>
+      <stop offset="1" stop-color="#e5f1fb"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3f6f9"/>
+      <stop offset="1" stop-color="#e8edf2"/>
+    </linearGradient>
+    <linearGradient id="groupHead" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf4ff"/>
+      <stop offset="1" stop-color="#d9ebfb"/>
+    </linearGradient>
+    <linearGradient id="arrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d5e5f3" stop-opacity=".35"/>
+      <stop offset=".5" stop-color="#b5d1e9"/>
+      <stop offset="1" stop-color="#9fc2df"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#8aa6bf" flood-opacity=".10"/>
+    </filter>
+    <style>
+      .kr { font-family: Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+      .title { fill:#0b315c; font-size:64px; font-weight:800; letter-spacing:-2px; }
+      .head { fill:#0c315d; font-size:27px; font-weight:800; }
+      .label { fill:#12345c; font-size:22px; font-weight:600; }
+      .small { fill:#12345c; font-size:18px; font-weight:500; }
+      .tiny { fill:#315373; font-size:16px; font-weight:500; }
+      .panel { fill:#fff; stroke:#72a9d8; stroke-width:1.5; }
+      .chip { fill:url(#chip); }
+      .navy { stroke:#0f447b; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .navyFill { fill:#0f447b; }
+    </style>
+  </defs>
+
+  <rect width="1737" height="906" fill="#ffffff"/>
+  <text class="kr title" x="36" y="148">시스템 아키텍처</text>
+
+  <!-- Column shells -->
+  <g filter="url(#softShadow)">
+    <rect class="panel" x="20" y="210" width="230" height="628" rx="10"/>
+    <rect class="panel" x="270" y="210" width="208" height="628" rx="10"/>
+    <rect class="panel" x="495" y="210" width="320" height="628" rx="10"/>
+    <rect class="panel" x="832" y="210" width="208" height="628" rx="10"/>
+    <rect class="panel" x="1057" y="210" width="205" height="628" rx="10"/>
+    <rect class="panel" x="1279" y="210" width="210" height="628" rx="10"/>
+    <rect class="panel" x="1506" y="210" width="211" height="628" rx="10"/>
+  </g>
+
+  <!-- Headers -->
+  <g fill="url(#header)">
+    <path d="M21 300V220a9 9 0 0 1 9-9h210a9 9 0 0 1 9 9v80z"/>
+    <path d="M271 300V220a9 9 0 0 1 9-9h188a9 9 0 0 1 9 9v80z"/>
+    <path d="M496 300V220a9 9 0 0 1 9-9h300a9 9 0 0 1 9 9v80z"/>
+    <path d="M833 300V220a9 9 0 0 1 9-9h188a9 9 0 0 1 9 9v80z"/>
+    <path d="M1058 300V220a9 9 0 0 1 9-9h185a9 9 0 0 1 9 9v80z"/>
+    <path d="M1280 300V220a9 9 0 0 1 9-9h190a9 9 0 0 1 9 9v80z"/>
+    <path d="M1507 300V220a9 9 0 0 1 9-9h191a9 9 0 0 1 9 9v80z"/>
+  </g>
+
+  <g class="kr head" text-anchor="middle">
+    <text x="135" y="266">산업 설비 데이터</text>
+    <text x="374" y="266">도메인 어댑터</text>
+    <text x="655" y="266">공통 엣지비전 코어</text>
+    <text x="936" y="266">평가 및 분석</text>
+    <text x="1159" y="266">서비스 계층</text>
+    <text x="1384" y="266">생성형 AI</text>
+    <text x="1611" y="266">사용자</text>
+  </g>
+
+  <!-- Flow arrows -->
+  <g fill="url(#arrow)">
+    <path d="M241 464h29v-16l42 27-42 27v-16h-29z"/>
+    <path d="M469 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M806 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M1031 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M1253 464h26v-16l42 27-42 27v-16h-26z"/>
+    <path d="M1480 464h26v-16l42 27-42 27v-16h-26z"/>
+  </g>
+
+  <!-- Column 1: industrial equipment -->
+  <g class="navy" stroke-width="5">
+    <!-- motor -->
+    <rect x="82" y="342" width="82" height="54" rx="9"/>
+    <line x1="93" y1="342" x2="93" y2="396" stroke-width="3"/>
+    <line x1="106" y1="342" x2="106" y2="396" stroke-width="3"/>
+    <line x1="119" y1="342" x2="119" y2="396" stroke-width="3"/>
+    <line x1="132" y1="342" x2="132" y2="396" stroke-width="3"/>
+    <line x1="145" y1="342" x2="145" y2="396" stroke-width="3"/>
+    <path d="M73 356h9v26h-9M164 356h12v26h-12"/>
+    <!-- pump -->
+    <path d="M83 505h76v51H83z"/>
+    <path d="M96 505v-17h45v17M108 488v-13h21v13"/>
+    <path d="M159 518h12v26h-12M77 556h88"/>
+    <!-- robot -->
+    <circle cx="99" cy="671" r="9"/>
+    <circle cx="132" cy="634" r="8"/>
+    <path d="M99 671l26-31M132 634l28 17M160 651l14-12M160 651l13 13M91 680l-13 30h55"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="123" y="429">설비 A</text>
+    <text x="123" y="590">설비 B</text>
+    <text x="123" y="744">설비 C</text>
+  </g>
+  <line x1="39" y1="776" x2="230" y2="776" stroke="#a8bfd2" stroke-width="1.4"/>
+  <text class="kr tiny" x="135" y="809" text-anchor="middle">진동 · 음향 · 온도 · 압력 ·</text>
+  <text class="kr tiny" x="135" y="832" text-anchor="middle">운전 로그</text>
+
+  <!-- Column 2: adapter -->
+  <g class="navy" stroke-width="5">
+    <path d="M327 348h65l30 31v71h-95z"/>
+    <path d="M392 348v31h30"/>
+    <line x1="344" y1="389" x2="382" y2="389"/>
+    <line x1="344" y1="408" x2="377" y2="408"/>
+    <circle cx="416" cy="438" r="22" fill="#fff"/>
+    <circle cx="416" cy="438" r="7" class="navyFill" stroke="none"/>
+    <path d="M416 407v8M416 461v8M385 438h8M439 438h8M394 416l6 6M432 454l6 6M438 416l-6 6M400 454l-6 6"/>
+  </g>
+  <g>
+    <rect class="chip" x="286" y="503" width="176" height="71" rx="8"/>
+    <rect class="chip" x="286" y="590" width="176" height="71" rx="8"/>
+    <rect class="chip" x="286" y="677" width="176" height="71" rx="8"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="374" y="547">형식 처리</text>
+    <text x="374" y="634">채널 매핑</text>
+    <text x="374" y="721">공통 시계열 변환</text>
+  </g>
+
+  <!-- Column 3: common edge-vision core -->
+  <g>
+    <rect x="515" y="322" width="280" height="151" rx="10" fill="#fff" stroke="#b8d6ee" stroke-width="1.4"/>
+    <path d="M516 372v-40a9 9 0 0 1 9-9h260a9 9 0 0 1 9 9v40z" fill="url(#groupHead)"/>
+    <rect x="515" y="492" width="280" height="151" rx="10" fill="#fff" stroke="#b8d6ee" stroke-width="1.4"/>
+    <path d="M516 542v-40a9 9 0 0 1 9-9h260a9 9 0 0 1 9 9v40z" fill="url(#groupHead)"/>
+    <rect x="515" y="662" width="280" height="122" rx="10" fill="#fff" stroke="#b8d6ee" stroke-width="1.4"/>
+    <path d="M516 712v-40a9 9 0 0 1 9-9h260a9 9 0 0 1 9 9v40z" fill="url(#groupHead)"/>
+  </g>
+  <g class="kr head" text-anchor="middle">
+    <text x="655" y="357">이상 탐지</text>
+    <text x="655" y="527">건전성 평가</text>
+    <text x="655" y="697">수명 예측</text>
+  </g>
+  <g class="kr label">
+    <text x="537" y="411">• Isolation Forest</text>
+    <text x="537" y="449">• LSTM Autoencoder</text>
+    <text x="537" y="582">• 건전성 지수</text>
+    <text x="537" y="621">• 열화 추세</text>
+    <text x="537" y="754">• 잔여수명 예측(RUL)</text>
+  </g>
+
+  <!-- Column 4: evaluation -->
+  <g class="navy" stroke-width="6">
+    <circle cx="911" cy="390" r="39"/>
+    <line x1="883" y1="418" x2="858" y2="443"/>
+    <rect x="945" y="420" width="21" height="35" fill="#0f447b" stroke="none"/>
+    <rect x="976" y="401" width="21" height="54" fill="#0f447b" stroke="none"/>
+    <rect x="1007" y="374" width="21" height="81" fill="#0f447b" stroke="none"/>
+  </g>
+  <g>
+    <rect class="chip" x="850" y="505" width="172" height="72" rx="8"/>
+    <rect class="chip" x="850" y="591" width="172" height="72" rx="8"/>
+    <rect class="chip" x="850" y="677" width="172" height="72" rx="8"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="936" y="550">성능 검증</text>
+    <text x="936" y="636">조기 탐지 분석</text>
+    <text x="936" y="722">예측 결과 비교</text>
+  </g>
+
+  <!-- Column 5: service -->
+  <g class="navy" stroke-width="5">
+    <path d="M1090 403c0-25 20-45 45-45 18 0 34 10 41 25 5-3 12-5 19-5 24 0 43 19 43 43 0 5-1 10-3 14h-132c-8-8-13-19-13-32z"/>
+    <rect x="1118" y="430" width="80" height="27" rx="5" fill="#fff"/>
+    <rect x="1118" y="466" width="80" height="27" rx="5" fill="#fff"/>
+    <circle cx="1133" cy="444" r="3" class="navyFill" stroke="none"/>
+    <circle cx="1147" cy="444" r="3" class="navyFill" stroke="none"/>
+    <circle cx="1133" cy="480" r="3" class="navyFill" stroke="none"/>
+    <circle cx="1147" cy="480" r="3" class="navyFill" stroke="none"/>
+  </g>
+  <g>
+    <rect class="chip" x="1075" y="531" width="169" height="73" rx="8"/>
+    <rect class="chip" x="1075" y="622" width="169" height="73" rx="8"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="1159" y="577">추론 API</text>
+    <text x="1159" y="668">대시보드</text>
+  </g>
+
+  <!-- Column 6: GenAI -->
+  <g class="navy" stroke-width="5">
+    <path d="M1330 434c-4-10-6-21-6-32 0-35 28-63 63-63 28 0 52 18 60 43"/>
+    <path d="M1330 434l-18 11 20 8v29h43"/>
+    <path d="M1398 361c13-22 42-30 65-17 23 13 30 42 17 65-10 17-29 26-48 22l-21 20 4-28c-21-10-30-38-17-62z"/>
+    <circle cx="1430" cy="383" r="4" class="navyFill" stroke="none"/>
+    <circle cx="1443" cy="383" r="4" class="navyFill" stroke="none"/>
+    <circle cx="1456" cy="383" r="4" class="navyFill" stroke="none"/>
+  </g>
+  <g>
+    <rect class="chip" x="1296" y="504" width="176" height="61" rx="8"/>
+    <rect class="chip" x="1296" y="578" width="176" height="61" rx="8"/>
+    <rect class="chip" x="1296" y="652" width="176" height="61" rx="8"/>
+    <rect class="chip" x="1296" y="726" width="176" height="61" rx="8"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="1384" y="543">상태 해석</text>
+    <text x="1384" y="617">원인 설명</text>
+    <text x="1384" y="691">정비 권고</text>
+    <text x="1384" y="765">보고서 생성</text>
+  </g>
+  <text class="kr small" x="1384" y="817" text-anchor="middle" font-weight="700">LLM+RAG</text>
+
+  <!-- Column 7: users -->
+  <g class="navyFill">
+    <circle cx="1611" cy="375" r="23"/>
+    <circle cx="1567" cy="391" r="17"/>
+    <circle cx="1655" cy="391" r="17"/>
+    <path d="M1573 465c0-35 17-59 38-59s38 24 38 59z"/>
+    <path d="M1538 455c0-26 12-44 29-44 11 0 20 8 25 20-8 12-12 26-12 42h-42z"/>
+    <path d="M1684 455c0-26-12-44-29-44-11 0-20 8-25 20 8 12 12 26 12 42h42z"/>
+  </g>
+  <g>
+    <rect class="chip" x="1525" y="505" width="173" height="72" rx="8"/>
+    <rect class="chip" x="1525" y="591" width="173" height="72" rx="8"/>
+    <rect class="chip" x="1525" y="677" width="173" height="72" rx="8"/>
+  </g>
+  <g class="kr label" text-anchor="middle">
+    <text x="1611" y="550">설비 관리자</text>
+    <text x="1611" y="636">정비 엔지니어</text>
+    <text x="1611" y="722">의사결정자</text>
+  </g>
 </svg>
