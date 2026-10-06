@@ -5,9 +5,14 @@ from datetime import UTC, datetime, timedelta
 from industrial_phm.application import (
     ChannelSemanticBinding,
     MeasurementDefinition,
+    ObservationWindowBuffer,
     OpcUaEventTimePolicy,
     RegisteredOpcUaDataChangeEvent,
     project_opcua_persistent_data_change_event,
+)
+from industrial_phm.application.phase_unbalance import (
+    PhaseUnbalanceAnalysis,
+    run_phase_unbalance_on_window,
 )
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
 
@@ -74,3 +79,25 @@ def window_event(
         ingested_at=event_at + timedelta(milliseconds=30),
         event_time_policy=OpcUaEventTimePolicy(allow_server_timestamp_fallback=True),
     )
+
+
+def phase_unbalance_analysis() -> PhaseUnbalanceAnalysis:
+    """One finalized motor-7 window with bound R/S/T phase voltages, analyzed."""
+    buffer = ObservationWindowBuffer(
+        window_id="ops-render",
+        source_id="site-opcua",
+        asset_id="motor-7",
+        measurement_point_id="mcc-3",
+        expected_channel_ids=("va", "vb", "vc"),
+        window_start=START,
+        window_end=END,
+        max_buffered_events=32,
+        max_future_skew_seconds=5.0,
+    )
+    for second in range(10, 14):
+        for offset, channel in enumerate(("va", "vb", "vc")):
+            buffer.ingest(
+                window_event(channel, second, 220.0 + offset + second, 3 * second + offset)
+            )
+    buffer.advance_watermark(END)
+    return run_phase_unbalance_on_window(buffer.finalize(finalized_at=END))

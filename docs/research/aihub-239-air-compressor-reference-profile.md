@@ -134,9 +134,9 @@ device(`SourceData_16`)는
 - 데이터 수신 = 설비 정상 또는 운전 중. 상전류가 0인 동안에도 전압은 기록됩니다.
 - 이 설비의 정비 이력, 고장, 수명(RUL)
 
-## 7. 이후 단계에서 확인할 것
+## 7. Operations에서 확인한 것
 
-- Operations는 asset 표시 이름 개념 없이 `asset_id`를 그대로 보여줍니다. 기본 화면이 기술 ID로 시작하는지는
-  #403의 UX gap 단계에서 이 asset으로 확인합니다.
-- 전압은 계속 들어오고 상전류만 0이 되는 구간에서 Monitor/Signals가 "수신 중"과 "운전 중"을 혼동하지
-  않는지 확인합니다.
+- 표시 이름은 replay `prepare --asset-display-name "공기압축기 · reference asset"`으로 source 등록에 선언합니다.
+  Operations는 이 이름을 label로 쓰고 제목 아래와 provenance에는 `aihub-air-compressor-1338`을 남깁니다.
+- 상전류가 0이고 전압은 계속 들어오는 구간에서 Signals는 `Source flow · Receiving`, `Channel quality · good`,
+  `0 A`만 표시하며 운전·정상 상태를 주장하지 않습니다. Monitor의 `Receiving`은 data status입니다.
