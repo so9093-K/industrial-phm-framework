@@ -125,9 +125,9 @@ def _():
         load_operations_live_observation,
         query_operations_latest_asset_measurements,
         query_operations_latest_measurements,
-        query_operations_multi_signal_measurement_aggregation,
         query_operations_measurement_aggregation,
         query_operations_measurement_page,
+        query_operations_multi_signal_measurement_aggregation,
     )
 
     return (
