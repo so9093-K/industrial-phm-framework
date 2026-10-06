@@ -203,8 +203,12 @@ uv run --no-sync python -m tools.opcua.aihub_replay prepare --root artifacts/aih
   --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
   --member "3.공기압축기/SourceData_16.json" \
   --binding tools/opcua/presets/aihub-air-compressor-1338-replay.json \
-  --start 2020-11-16T04:00:00 --end 2020-11-16T10:00:00
+  --start 2020-11-16T04:00:00 --end 2020-11-16T10:00:00 \
+  --asset-display-name "공기압축기 · reference asset"
 ```
+
+`--asset-display-name` is an optional presentation label stored on the registered source. Operations
+shows it instead of the asset ID and keeps `aihub-air-compressor-1338` underneath and in provenance.
 
 Use the same workspace root for prepare, replay server, collector, analysis runner and Operations.
 For the air-compressor example above:

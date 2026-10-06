@@ -5,11 +5,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from html import escape
 
+from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_investigations import (
     InvestigationQueueGroup,
     InvestigationQueueItem,
     InvestigationReviewState,
 )
+from industrial_phm.presentation.operations_shell import render_asset_title_html
 
 
 def investigation_capability_label(capability_id: str) -> str:
@@ -30,27 +32,38 @@ def investigation_review_label(state: InvestigationReviewState) -> str:
     }[state]
 
 
-def investigation_group_option_label(group: InvestigationQueueGroup) -> str:
+def investigation_group_option_label(
+    group: InvestigationQueueGroup,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
     if not isinstance(group, InvestigationQueueGroup):
         raise ValueError("group must be an InvestigationQueueGroup")
+    asset = group.asset_id if asset_names is None else asset_names.label(group.asset_id)
     return (
-        f"{group.asset_id} · {investigation_capability_label(group.capability_id)} · "
+        f"{asset} · {investigation_capability_label(group.capability_id)} · "
         f"{investigation_review_label(group.review_state)} · {group.run_count} run(s) · "
         f"latest {_time_label(group.latest.completed_at)}"
     )
 
 
-def investigation_queue_option_label(item: InvestigationQueueItem) -> str:
+def investigation_queue_option_label(
+    item: InvestigationQueueItem,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
     if not isinstance(item, InvestigationQueueItem):
         raise ValueError("item must be an InvestigationQueueItem")
     completed = item.completed_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+    asset = item.asset_id if asset_names is None else asset_names.label(item.asset_id)
     return (
-        f"{item.asset_id} · {investigation_capability_label(item.capability_id)} · "
+        f"{asset} · {investigation_capability_label(item.capability_id)} · "
         f"{investigation_review_label(item.review_state)} · {completed}"
     )
 
 
-def render_investigation_summary_html(item: InvestigationQueueItem) -> str:
+def render_investigation_summary_html(
+    item: InvestigationQueueItem,
+    asset_names: AssetDisplayNames | None = None,
+) -> str:
     if not isinstance(item, InvestigationQueueItem):
         raise ValueError("item must be an InvestigationQueueItem")
     return (
@@ -58,8 +71,8 @@ def render_investigation_summary_html(item: InvestigationQueueItem) -> str:
         '<div class="phm-investigation-heading">'
         "<div>"
         '<div class="phm-asset-kicker">Investigation</div>'
-        f'<h2 class="phm-asset-title">{escape(item.asset_id)}</h2>'
-        f'<div class="phm-card-detail">'
+        + render_asset_title_html(item.asset_id, asset_names)
+        + '<div class="phm-card-detail">'
         f"{escape(investigation_capability_label(item.capability_id))}"
         "</div>"
         "</div>"

@@ -60,6 +60,8 @@ _OPCUA_CONFIG_KEYS = frozenset(
     }
 )
 _OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
+# Optional within v5: written only when present, so registries without it are unchanged.
+_CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name"})
 
 
 class SourceRegistryFormatError(ValueError):
@@ -353,6 +355,8 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
         }
     else:
         raise ValueError("unsupported registered source config")
+    if config.asset_display_name is not None:
+        config_payload["asset_display_name"] = config.asset_display_name
 
     return {
         "source_id": source.source_id,
@@ -423,7 +427,7 @@ def _parse_file_source_config(
     config: Mapping[str, object],
     label: str,
 ) -> FileSourceConfig:
-    _require_exact_keys(config, _FILE_CONFIG_KEYS, label)
+    _require_config_keys(config, _FILE_CONFIG_KEYS, label)
     channels_raw = config["channel_columns"]
     if not isinstance(channels_raw, list) or not all(
         isinstance(channel, str) for channel in channels_raw
@@ -456,6 +460,7 @@ def _parse_file_source_config(
             f"{label}.minimum_sample_count",
         ),
         delimiter=_require_string(config["delimiter"], f"{label}.delimiter"),
+        asset_display_name=_optional_display_name(config, label),
     )
 
 
@@ -463,7 +468,7 @@ def _parse_opcua_source_config(
     config: Mapping[str, object],
     label: str,
 ) -> OpcUaSourceConfig:
-    _require_exact_keys(config, _OPCUA_CONFIG_KEYS, label)
+    _require_config_keys(config, _OPCUA_CONFIG_KEYS, label)
     mappings_raw = config["node_mappings"]
     if not isinstance(mappings_raw, list):
         raise SourceRegistryFormatError(f"{label}.node_mappings must be a JSON array")
@@ -494,6 +499,7 @@ def _parse_opcua_source_config(
         node_mappings=tuple(node_mappings),
         timeout_seconds=_require_number(config["timeout_seconds"], f"{label}.timeout_seconds"),
         semantic_bindings=tuple(parse_channel_semantic_binding(value) for value in bindings_raw),
+        asset_display_name=_optional_display_name(config, label),
     )
 
 
@@ -541,6 +547,21 @@ def _require_mapping(value: object, label: str) -> Mapping[str, object]:
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise SourceRegistryFormatError(f"{label} must be a JSON object")
     return cast(dict[str, object], value)
+
+
+def _require_config_keys(
+    value: Mapping[str, object],
+    expected: frozenset[str],
+    label: str,
+) -> None:
+    present_optional = frozenset(value) & _CONFIG_OPTIONAL_KEYS
+    _require_exact_keys(value, expected | present_optional, label)
+
+
+def _optional_display_name(config: Mapping[str, object], label: str) -> str | None:
+    if "asset_display_name" not in config:
+        return None
+    return _require_string(config["asset_display_name"], f"{label}.asset_display_name")
 
 
 def _require_exact_keys(
