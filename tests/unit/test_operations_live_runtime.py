@@ -215,6 +215,7 @@ def test_multi_signal_latest_read_uses_one_bounded_asset_query() -> None:
     assert result == (point,)
     assert calls == [("boiler-01", 32)]
 
+
 def test_multi_signal_trend_wrapper_uses_one_aggregation_query() -> None:
     expected = MultiSignalMeasurementHistoryAggregation(
         start_at=NOW - timedelta(hours=1),
