@@ -3669,6 +3669,7 @@ def _(
     maintenance_workspace_css,
     mo,
     monitor,
+    monitor_signal_overview,
     navigation,
     operations_theme_css,
     refresh_button,
@@ -3735,6 +3736,7 @@ def _(
                         as_of=monitor.assessed_at,
                     )
                 ),
+                monitor_signal_overview,
                 signal_view,
             ],
             gap=1.0,
