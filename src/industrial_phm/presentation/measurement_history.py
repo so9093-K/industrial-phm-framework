@@ -295,8 +295,7 @@ def _render_multi_signal_channel_axis(
     for index, ((source, point, _), grouped) in enumerate(groups.items()):
         usable = [bucket for bucket in grouped if bucket.usable_count and bucket.mean is not None]
         times = [
-            bucket.bucket_start + (bucket.bucket_end - bucket.bucket_start) / 2
-            for bucket in usable
+            bucket.bucket_start + (bucket.bucket_end - bucket.bucket_start) / 2 for bucket in usable
         ]
         color = f"C{index % 10}"
         axis.vlines(
