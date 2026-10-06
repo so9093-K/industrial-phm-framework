@@ -321,6 +321,8 @@ def check_live_replay_sequence(states: dict[str, dict[str, object]]) -> dict[str
 
     before = event_at("before_missing")
     before_peer = event_at("before_missing_peer")
+    omitted_raw = states["during_missing"].get("omitted_from")
+    omitted_from = None if omitted_raw is None else datetime.fromisoformat(str(omitted_raw))
     during = event_at("during_missing")
     during_peer = event_at("during_missing_peer")
     recovered = event_at("recovered")
@@ -331,9 +333,16 @@ def check_live_replay_sequence(states: dict[str, dict[str, object]]) -> dict[str
         and before is not None
         and before_peer is not None
         and states["during_missing"].get("source_flow") == "Receiving"
-        and during == before
+        # No value for the omitted channel after the omission started (a value stored
+        # between the "before" snapshot and the replay restart is legitimate), while
+        # its peer keeps arriving.
+        and during is not None
+        and before is not None
+        and omitted_from is not None
+        and before <= during <= omitted_from
         and during_peer is not None
-        and during_peer > before_peer
+        and before_peer is not None
+        and during_peer > max(before_peer, omitted_from)
         and "behind latest source timestamp"
         in str(states["during_missing"].get("channel_event_lag"))
         and states["paused"].get("source_flow") == "No recent source data"
@@ -837,7 +846,8 @@ _OVERFLOW_JS = """() => {
     return false;
   };
   const out = [];
-  for (const e of document.querySelectorAll('body *')) {
+  // Only notebook output: marimo's own off-screen hover panels are not page content.
+  for (const e of document.querySelectorAll('.output-area *')) {
     const r = e.getBoundingClientRect();
     if (r.width === 0 || r.height === 0 || r.right <= limit) continue;
     if (getComputedStyle(e).visibility === 'hidden' || scrolls(e)) continue;
@@ -1137,6 +1147,7 @@ class Harness:
         time.sleep(95)
         self._observe_ui("missing_phase")
         self._observe_live("during_missing", AIHUB_BOILER_2297_OMITTED_CHANNEL)
+        self.live["during_missing"]["omitted_from"] = omitted_from.isoformat()
         self._observe_live("during_missing_peer", AIHUB_BOILER_2297_PEER_CHANNEL)
         self.omission = (omitted_from, _utc())
         s.stop(s.replay)

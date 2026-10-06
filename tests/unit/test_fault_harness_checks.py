@@ -215,6 +215,7 @@ def test_live_replay_sequence_preserves_missing_gap_and_recovers_history():
         "channel_event_at": _t(10).isoformat(),
         "channel_event_lag": "12.0s behind latest source timestamp",
         "history_count": 140,
+        "omitted_from": _t(12).isoformat(),
     }
     during_peer = {
         "source_flow": "Receiving",
@@ -236,6 +237,10 @@ def test_live_replay_sequence_preserves_missing_gap_and_recovers_history():
     }
 
     assert check_live_replay_sequence(states)["passed"]
+    # A value stored after the "before" snapshot but before the omission began is fine.
+    assert check_live_replay_sequence(
+        {**states, "during_missing": {**during, "channel_event_at": _t(11).isoformat()}}
+    )["passed"]
     assert not check_live_replay_sequence(
         {
             **states,
