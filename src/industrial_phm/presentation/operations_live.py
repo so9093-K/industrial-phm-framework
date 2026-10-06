@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from html import escape
 from math import isfinite
@@ -12,6 +13,26 @@ from industrial_phm.application.measurement_history import MeasurementHistoryPag
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
 from industrial_phm.application.operations_live import LiveObservationSeries, LiveObservationView
 from industrial_phm.presentation.measurement_history import latest_measurement_rows
+
+
+def initial_signal_channel(
+    channel_ids: Sequence[str],
+    *,
+    confirmed_channel_ids: Collection[str],
+    selected: str | None,
+) -> str:
+    """Keep the user's explicit choice; otherwise open on a signal with confirmed meaning.
+
+    Alphabetical order alone opened AI-Hub assets on an unresolved power channel.
+    """
+    if not channel_ids:
+        raise ValueError("channel_ids must not be empty")
+    if selected is not None and selected in channel_ids:
+        return selected
+    return next(
+        (channel for channel in channel_ids if channel in confirmed_channel_ids),
+        channel_ids[0],
+    )
 
 
 def live_observation_recent_page(view: LiveObservationView) -> MeasurementHistoryPage:

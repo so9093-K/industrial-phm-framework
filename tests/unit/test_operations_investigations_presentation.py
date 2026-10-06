@@ -82,3 +82,6 @@ def test_capability_and_review_labels_are_explicit_not_severity() -> None:
     )
     assert investigation_review_label(InvestigationReviewState.NOT_REQUESTED) == "Not requested"
     assert "severity" not in investigation_workspace_css().lower()
+    # marimo stacks default to min-width:auto; without this the wide evidence table
+    # pushed the investigation detail past a 1440px viewport.
+    assert "div:has(.phm-investigation-heading)" in investigation_workspace_css()

@@ -86,6 +86,7 @@ def _():
         render_investigation_summary_html,
     )
     from industrial_phm.presentation.operations_live import (
+        initial_signal_channel,
         live_observation_css,
         live_observation_recent_page,
         render_live_observation_html,
@@ -162,6 +163,7 @@ def _():
         investigation_queue_option_label,
         investigation_review_label,
         initial_operations_page,
+        initial_signal_channel,
         investigation_workspace_css,
         latest_measurement_rows,
         live_observation_css,
@@ -1549,10 +1551,30 @@ def _(
 
 
 @app.cell
-def _(asset_workspace, mo, registered_sources):
+def _(mo):
+    get_signal_channel_choice, set_signal_channel_choice = mo.state(None)
+    return get_signal_channel_choice, set_signal_channel_choice
+
+
+@app.cell
+def _(
+    asset_workspace,
+    get_signal_channel_choice,
+    initial_signal_channel,
+    mo,
+    registered_sources,
+    set_signal_channel_choice,
+):
     if asset_workspace is None:
         signal_channel_selector = None
     else:
+        _confirmed = {
+            binding.channel_id
+            for source in registered_sources
+            if source.asset_id == asset_workspace.asset_id
+            for binding in getattr(source.config, "semantic_bindings", ())
+            if binding.definition.observed_property is not None
+        }
         _channel_ids = tuple(
             sorted(
                 {
@@ -1569,9 +1591,14 @@ def _(asset_workspace, mo, registered_sources):
         if _channel_ids:
             signal_channel_selector = mo.ui.dropdown(
                 options=list(_channel_ids),
-                value=_channel_ids[0],
+                value=initial_signal_channel(
+                    _channel_ids,
+                    confirmed_channel_ids=_confirmed,
+                    selected=get_signal_channel_choice(),
+                ),
                 label="Signal",
                 full_width=True,
+                on_change=set_signal_channel_choice,
             )
         else:
             signal_channel_selector = None
@@ -2287,7 +2314,11 @@ def _(
                         phase_unbalance_summary_rows(selected_investigation_result),
                         selection=None,
                     ),
-                    mo.Html(render_phase_unbalance_svg(selected_investigation_result)),
+                    mo.Html(
+                        '<div class="phm-shell">'
+                        + render_phase_unbalance_svg(selected_investigation_result)
+                        + "</div>"
+                    ),
                     mo.accordion(
                         {
                             "Excluded observations": mo.ui.table(
