@@ -126,7 +126,6 @@ def _():
         query_operations_latest_asset_measurements,
         query_operations_latest_measurements,
         query_operations_multi_signal_measurement_aggregation,
-        query_operations_multi_signal_measurement_aggregation,
         query_operations_measurement_aggregation,
         query_operations_measurement_page,
     )
@@ -193,6 +192,7 @@ def _():
         phase_unbalance_summary_rows,
         query_operations_latest_asset_measurements,
         query_operations_latest_measurements,
+        query_operations_multi_signal_measurement_aggregation,
         query_operations_measurement_aggregation,
         query_operations_measurement_page,
         render_analysis_quality_markdown,
