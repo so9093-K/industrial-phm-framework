@@ -1712,6 +1712,7 @@ def _(
     OperationsReadError,
     asset_selector,
     history_reader,
+    investigation_queue,
     mo,
     monitor_latest_points,
     monitor_latest_rows,
@@ -1723,6 +1724,9 @@ def _(
     resolve_measurement_range,
     signal_channel_selector,
 ):
+    monitor_trend_start_at = None
+    monitor_trend_end_at = None
+    monitor_window_evidence_items = ()
     if navigation.value != "Monitor" or asset_selector is None or history_reader is None:
         monitor_signal_trends = mo.md("")
     else:
@@ -1752,6 +1756,23 @@ def _(
                 start_at=_anchor_at,
                 end_at=_anchor_at,
             )
+            monitor_trend_start_at = _start_at
+            monitor_trend_end_at = _end_at
+            monitor_window_evidence_items = tuple(
+                item
+                for item in investigation_queue.items
+                if item.asset_id == asset_selector.value
+                and item.observed_end_at >= _start_at
+                and item.observed_start_at <= _end_at
+            )[:6]
+            _evidence_windows = tuple(
+                (
+                    item.observed_start_at,
+                    item.observed_end_at,
+                    item.capability_id,
+                )
+                for item in monitor_window_evidence_items
+            )
             _bucket_count = {
                 "15m": 90,
                 "1h": 120,
@@ -1775,6 +1796,12 @@ def _(
                 )
             else:
                 _window_end = _anchor_at.isoformat()
+                _evidence_count = len(monitor_window_evidence_items)
+                _evidence_note = (
+                    "No analysis evidence overlaps this event-time window."
+                    if _evidence_count == 0
+                    else f"{_evidence_count} analysis evidence window(s) overlap this range."
+                )
                 monitor_signal_trends = mo.vstack(
                     [
                         mo.hstack(
@@ -1792,9 +1819,11 @@ def _(
                             render_multi_signal_measurement_aggregation_svg(
                                 _multi_signal,
                                 selected_channel=_selected_channel,
+                                evidence_windows=_evidence_windows,
                             )
                         ),
                         mo.md(
+                            f"{_evidence_note} "
                             "Each signal keeps its own unit while sharing the same UTC time axis. "
                             "Buckets show stored min/max/mean only; null, non-good and conflicting "
                             "observations are marked as excluded evidence. No interpolation, "
@@ -1803,7 +1832,12 @@ def _(
                     ],
                     gap=0.7,
                 )
-    return (monitor_signal_trends,)
+    return (
+        monitor_signal_trends,
+        monitor_trend_end_at,
+        monitor_trend_start_at,
+        monitor_window_evidence_items,
+    )
 
 
 @app.cell
