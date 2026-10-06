@@ -123,6 +123,7 @@ def test_review_finding_routes_back_to_its_exact_investigation() -> None:
     with pytest.raises(LookupError, match="exactly one investigation"):
         resolve_finding_investigation_route("finding-missing", investigation_queue=_queue())
 
+
 def test_analysis_evidence_routes_to_exact_investigation_without_finding() -> None:
     route = resolve_investigation_route(
         "analysis-1:capability-1",
