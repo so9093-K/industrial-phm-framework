@@ -399,9 +399,7 @@ def render_monitor_signal_overview_html(
         )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Latest stored observations</div>'
-        + body
-        + "</section>"
+        '<div class="phm-section-title">Latest stored observations</div>' + body + "</section>"
     )
 
 
