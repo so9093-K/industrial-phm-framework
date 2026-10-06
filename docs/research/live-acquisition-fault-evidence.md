@@ -95,10 +95,14 @@ presence-only gate had passed:
 
 Remaining after the fixes, recorded rather than claimed solved:
 
-- **Missing phase is not a Monitor attention.** The first view shows R/S/T current, but the omitted phase keeps
-  its pre-omission value (e.g. `627 A`, 1.6 min old) next to R/S at `0 A` (1.5 min old). OPC UA DataChange sends
-  no event for unchanged values, so stored history cannot tell "unchanged" from "not arriving"; the omission is
-  recorded only in the analysis window evidence (`missing_channels = T상전류`).
+- **Missing phase is not a Monitor attention, by design.** The first view shows R/S/T current, but the omitted
+  phase keeps its pre-omission value (e.g. `627 A`, 1.6 min old) next to R/S at `0 A` (1.5 min old). OPC UA
+  DataChange sends no event for unchanged values, so stored history cannot tell "unchanged" from "not
+  arriving". Window evidence does not settle it either: in the same run, 10 of 32 finalized windows had no
+  event for **all three** phase currents during normal stopped periods (0 A held), and only the injected
+  omission window lacked T alone. Raising "missing phase" from window absence would alarm during normal
+  stops or infer from a coincidence, so the Monitor shows value and last-change age only. Distinguishing
+  the two would need source-side evidence, such as a subscription that notifies on source-timestamp change.
 - Trend charts are a white panel inside the dark surface. Values remain readable.
 
 ## Growth with accumulated state
