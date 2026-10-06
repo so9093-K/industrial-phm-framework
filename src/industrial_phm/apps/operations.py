@@ -1712,6 +1712,7 @@ def _(
     OperationsReadError,
     asset_selector,
     history_reader,
+    investigation_capability_label,
     investigation_queue,
     mo,
     monitor_latest_points,
@@ -1769,7 +1770,7 @@ def _(
                 (
                     item.observed_start_at,
                     item.observed_end_at,
-                    item.capability_id,
+                    investigation_capability_label(item.capability_id),
                 )
                 for item in monitor_window_evidence_items
             )
@@ -3974,6 +3975,7 @@ def _(
     maintenance_workspace_css,
     mo,
     monitor,
+    monitor_evidence_view,
     monitor_signal_overview,
     monitor_signal_trends,
     navigation,
@@ -4044,6 +4046,7 @@ def _(
                 ),
                 monitor_signal_overview,
                 monitor_signal_trends,
+                *([] if monitor_evidence_view is None else [monitor_evidence_view]),
                 signal_view,
             ],
             gap=1.0,
