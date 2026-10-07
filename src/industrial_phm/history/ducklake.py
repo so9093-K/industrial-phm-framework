@@ -67,6 +67,12 @@ _COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
 # batches) are verified with the legacy fingerprint that excludes semantics.
 _OPCUA_FINGERPRINT_VERSION = "opcua-semantic-v2"
 _BATCH_PROVENANCE_INDEX_SCHEMA = 1
+# Measured expiry cost is about 55 microseconds per snapshot, so a chunk holds the
+# catalog lease for roughly a tenth of a second.
+_EXPIRE_SNAPSHOTS_PER_LEASE = 2_000
+# Measured deletion cost is about 2.7 microseconds per row, so a slice of this many
+# live rows holds the lease for roughly a third of a second.
+_RETENTION_ROWS_PER_LEASE = 100_000
 
 _HISTORY_DATA_TABLES = (
     ("raw", "opcua_data_change"),
@@ -817,12 +823,17 @@ class DuckLakeAssetHistory:
         deleted rows physically, hidden from every retained snapshot. Files are not
         rewritten: DuckLake ``rewrite_data_files`` (extension d8a1881e) was measured
         to change earlier snapshots' values of rows deleted from flushed files, which
-        would break protected evidence. Each step holds the catalog lease only for
-        itself, like compaction, and leaves a valid state if interrupted; a rerun
-        continues. A batch whose live rows were all deleted is forgotten, so a late
-        retry stores it again and the next run deletes it. An exact retry of a batch
-        with rows left whose commit snapshot expired fails explicitly instead of
-        writing a duplicate.
+        would break protected evidence. Deleted catalog-inlined rows are purged by a
+        final flush. Each step holds the catalog lease only for itself, like
+        compaction; an interrupted run leaves a valid state and a rerun continues.
+        Deletion runs in event-time slices of about _RETENTION_ROWS_PER_LEASE rows on
+        whole minutes (a minute holding more is one slice) and expiry in chunks of
+        _EXPIRE_SNAPSHOTS_PER_LEASE snapshots. Slice discovery (one read of the
+        rows before the cutoff), the snapshot listing, cleanup and the flush each
+        still take one lease whose length grows with the state they read. A batch
+        whose live rows were all deleted is forgotten, so a late retry stores it
+        again and the next run deletes it. An exact retry of a batch with rows left
+        whose commit snapshot expired fails explicitly instead of writing a duplicate.
         """
         if not isinstance(cutoff, datetime) or cutoff.utcoffset() is None:
             raise ValueError("cutoff must be timezone-aware")
@@ -831,101 +842,119 @@ class DuckLakeAssetHistory:
         if not isinstance(dry_run, bool):
             raise ValueError("dry_run must be boolean")
 
-        connection = self._connect()
-        try:
-            self._ensure_initialized(connection)
-            storage_before = self._inspect_storage_with_connection(connection)
-            connection.execute(
-                "CREATE TEMP TABLE retention_protected("
-                "source_id VARCHAR, start_at TIMESTAMPTZ, end_at TIMESTAMPTZ)"
-            )
-            if protection.ranges:
-                connection.executemany(
-                    "INSERT INTO retention_protected VALUES (?, ?, ?)",
-                    [(item.source_id, item.start_at, item.end_at) for item in protection.ranges],
+        storage_before = self.inspect_storage()
+        deleted_observations = protected_observations = deleted_measurements = 0
+        event_counts: dict[str, int] = {}
+        deleted_by_batch: dict[str, int] = {}
+        protected_batches: set[str] = set()
+        forgotten: set[str] = set()
+        # Rows are deleted in event-time slices, one lease each, so the delete work
+        # of a backlog is split instead of held under one lease.
+        for timed, low, high in self._retention_slices(cutoff):
+            connection = self._connect()
+            try:
+                self._ensure_initialized(connection)
+                self._create_retention_candidates(
+                    connection, protection, timed=timed, low=low, high=high
                 )
-            connection.execute(
-                f"""
-                CREATE TEMP TABLE retention_candidate AS
-                SELECT o.raw_evidence_id, o.batch_id, EXISTS (
-                    SELECT 1 FROM retention_protected p
-                    WHERE p.source_id = o.source_id
-                        AND coalesce(o.event_at, o.ingested_at) BETWEEN p.start_at AND p.end_at
-                ) AS protected
-                FROM {_CATALOG_NAME}.raw.opcua_data_change o
-                WHERE coalesce(o.event_at, o.ingested_at) < ?
-                """,
-                [cutoff],
-            )
-            counts = connection.execute(
-                f"""
-                SELECT
-                    count(*) FILTER (WHERE NOT c.protected),
-                    count(*) FILTER (WHERE c.protected),
-                    (SELECT count(*) FROM {_CATALOG_NAME}.history.measurement m
-                     WHERE m.source_type = 'opcua' AND m.raw_evidence_id IN (
-                         SELECT raw_evidence_id FROM retention_candidate WHERE NOT protected
-                     )),
-                    (SELECT count(*) FROM (
-                        SELECT batch_id FROM retention_candidate WHERE NOT protected
-                        EXCEPT
-                        SELECT batch_id FROM retention_candidate WHERE protected
-                        EXCEPT
-                        SELECT batch_id FROM {_CATALOG_NAME}.raw.opcua_data_change o
-                        WHERE coalesce(o.event_at, o.ingested_at) >= ?
-                    ))
-                FROM retention_candidate c
-                """,
-                [cutoff],
-            ).fetchone()
-            if counts is None:
-                raise RuntimeError("DuckLake did not report retention candidates")
-            deleted_observations, protected_observations, deleted_measurements, deleted_batches = (
-                _require_int(value, "retention_count") for value in counts
-            )
-            if not dry_run and deleted_observations:
-                connection.execute("BEGIN TRANSACTION")
-                try:
+                counts = connection.execute(
+                    "SELECT count(*) FILTER (WHERE NOT protected), "
+                    "count(*) FILTER (WHERE protected) FROM retention_candidate"
+                ).fetchone()
+                if counts is None:
+                    raise RuntimeError("DuckLake did not report retention candidates")
+                deleted_observations += _require_int(counts[0], "deleted_observation_count")
+                protected_observations += _require_int(counts[1], "protected_observation_count")
+                batches = connection.execute(
+                    "SELECT batch_id, count(*) FILTER (WHERE NOT protected), bool_or(protected) "
+                    "FROM retention_candidate GROUP BY batch_id"
+                ).fetchall()
+                for batch_id, deleted, any_protected in batches:
+                    key = str(batch_id)
+                    deleted_by_batch[key] = deleted_by_batch.get(key, 0) + int(deleted)
+                    if any_protected:
+                        protected_batches.add(key)
+                event_counts.update(
+                    (str(batch_id), int(count))
+                    for batch_id, count in connection.execute(
+                        "SELECT batch_id, event_count "
+                        f"FROM {_CATALOG_NAME}.history.ingestion_batch "
+                        "WHERE batch_id IN (SELECT unnest(?::VARCHAR[]))",
+                        [[str(row[0]) for row in batches]],
+                    ).fetchall()
+                )
+                # A batch whose recorded events are all deleted in this run is forgotten.
+                complete = sorted(
+                    str(row[0])
+                    for row in batches
+                    if str(row[0]) not in protected_batches
+                    and str(row[0]) not in forgotten
+                    and deleted_by_batch[str(row[0])] == event_counts.get(str(row[0]))
+                )
+                deleted_measurements += self._delete_retention_candidates(
+                    connection,
+                    timed=timed,
+                    low=low,
+                    high=high,
+                    forgotten_batches=complete,
+                    dry_run=dry_run,
+                    message=f"live retention before {cutoff.isoformat()}",
+                )
+                forgotten.update(complete)
+            finally:
+                connection.close()
+
+        # Batches that lost rows in an earlier run as well are forgotten once none of
+        # their rows remain; their stored rows are counted once per run.
+        pending = sorted(
+            batch_id
+            for batch_id, deleted in deleted_by_batch.items()
+            if batch_id not in forgotten and batch_id not in protected_batches and deleted
+        )
+        if pending:
+            connection = self._connect()
+            try:
+                self._ensure_initialized(connection)
+                stored = dict(
                     connection.execute(
                         f"""
-                        DELETE FROM {_CATALOG_NAME}.history.measurement
-                        WHERE source_type = 'opcua' AND raw_evidence_id IN (
-                            SELECT raw_evidence_id FROM retention_candidate WHERE NOT protected
+                        SELECT batch_id, count(*)
+                        FROM {_CATALOG_NAME}.raw.opcua_data_change
+                        WHERE batch_id IN (SELECT unnest(?::VARCHAR[]))
+                        GROUP BY batch_id
+                        """,
+                        [pending],
+                    ).fetchall()
+                )
+                emptied = [
+                    batch_id
+                    for batch_id in pending
+                    if int(stored.get(batch_id, 0))
+                    == (deleted_by_batch[batch_id] if dry_run else 0)
+                ]
+                if emptied and not dry_run:
+                    connection.execute("BEGIN TRANSACTION")
+                    try:
+                        connection.execute(
+                            f"DELETE FROM {_CATALOG_NAME}.history.ingestion_batch "
+                            "WHERE batch_id IN (SELECT unnest(?::VARCHAR[]))",
+                            [emptied],
                         )
-                        """
-                    )
-                    connection.execute(
-                        f"""
-                        DELETE FROM {_CATALOG_NAME}.raw.opcua_data_change
-                        WHERE raw_evidence_id IN (
-                            SELECT raw_evidence_id FROM retention_candidate WHERE NOT protected
+                        connection.execute(
+                            f"CALL {_CATALOG_NAME}.set_commit_message("
+                            + _quote_sql_literal(_COMMIT_AUTHOR)
+                            + ", "
+                            + _quote_sql_literal(f"live retention before {cutoff.isoformat()}")
+                            + ")"
                         )
-                        """
-                    )
-                    # A batch is forgotten only when none of its live rows remain.
-                    connection.execute(
-                        f"""
-                        DELETE FROM {_CATALOG_NAME}.history.ingestion_batch
-                        WHERE batch_id IN (
-                            SELECT batch_id FROM retention_candidate WHERE NOT protected
-                        ) AND batch_id NOT IN (
-                            SELECT batch_id FROM {_CATALOG_NAME}.raw.opcua_data_change
-                        )
-                        """
-                    )
-                    connection.execute(
-                        f"CALL {_CATALOG_NAME}.set_commit_message("
-                        + _quote_sql_literal(_COMMIT_AUTHOR)
-                        + ", "
-                        + _quote_sql_literal(f"live retention before {cutoff.isoformat()}")
-                        + ")"
-                    )
-                    connection.execute("COMMIT")
-                except Exception:
-                    connection.execute("ROLLBACK")
-                    raise
-        finally:
-            connection.close()
+                        connection.execute("COMMIT")
+                    except Exception:
+                        connection.execute("ROLLBACK")
+                        raise
+                forgotten.update(emptied)
+            finally:
+                connection.close()
+        deleted_batches = len(forgotten)
 
         connection = self._connect()
         try:
@@ -933,34 +962,50 @@ class DuckLakeAssetHistory:
             snapshots = connection.execute(
                 f"SELECT snapshot_id, snapshot_time FROM {_CATALOG_NAME}.snapshots()"
             ).fetchall()
-            snapshot_times = {
-                _require_int(row[0], "snapshot_id"): _require_datetime(row[1], "snapshot_time")
-                for row in snapshots
-            }
-            current = max(snapshot_times)
-            expire = sorted(
-                snapshot_id
-                for snapshot_id, snapshot_time in snapshot_times.items()
-                if snapshot_time < cutoff
-                and snapshot_id != current
-                and snapshot_id not in protection.snapshot_ids
-            )
-            removed = 0
-            if not dry_run:
-                if expire:
+        finally:
+            connection.close()
+        snapshot_times = {
+            _require_int(row[0], "snapshot_id"): _require_datetime(row[1], "snapshot_time")
+            for row in snapshots
+        }
+        current = max(snapshot_times)
+        expire = sorted(
+            snapshot_id
+            for snapshot_id, snapshot_time in snapshot_times.items()
+            if snapshot_time < cutoff
+            and snapshot_id != current
+            and snapshot_id not in protection.snapshot_ids
+        )
+        removed = 0
+        if not dry_run:
+            # Expiry holds the lease in proportion to the snapshots it expires, so a
+            # backlog is expired in bounded chunks with the lease released between
+            # them; a collector append waits for one chunk, not the whole backlog.
+            for start in range(0, len(expire), _EXPIRE_SNAPSHOTS_PER_LEASE):
+                connection = self._connect()
+                try:
+                    self._ensure_initialized(connection)
                     connection.execute(
                         f"CALL ducklake_expire_snapshots('{_CATALOG_NAME}', "
                         "versions => ?::UBIGINT[])",
-                        [expire],
+                        [expire[start : start + _EXPIRE_SNAPSHOTS_PER_LEASE]],
                     )
+                finally:
+                    connection.close()
+            connection = self._connect()
+            try:
+                self._ensure_initialized(connection)
                 removed = len(
                     connection.execute(
                         f"CALL ducklake_cleanup_old_files('{_CATALOG_NAME}', cleanup_all => true)"
                     ).fetchall()
                 )
-            storage_after = self._inspect_storage_with_connection(connection)
-        finally:
-            connection.close()
+            finally:
+                connection.close()
+            # Deleted catalog-inlined rows stay in the catalog until a flush, which
+            # moves the remaining inlined rows to Parquet and empties those tables.
+            self.flush_inlined_data()
+        storage_after = self.inspect_storage()
 
         return DuckLakeRetentionResult(
             cutoff=cutoff,
@@ -2285,6 +2330,167 @@ class DuckLakeAssetHistory:
             if row is not None:
                 existing_id = _require_str(row[0], "raw_evidence_id")
                 raise ValueError(f"historical FILE evidence already exists: {existing_id}")
+
+    def _retention_slices(self, cutoff: datetime) -> tuple[tuple[bool, datetime, datetime], ...]:
+        """Event-time slices of at most about _RETENTION_ROWS_PER_LEASE live rows.
+
+        Rows with an event time are sliced by it; rows without one by receive time.
+        Each slice is [low, high) on whole minutes and the last one ends at the cutoff.
+        """
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            histograms = (
+                (
+                    True,
+                    connection.execute(
+                        f"""
+                        SELECT date_trunc('minute', event_at) AS minute, count(*)
+                        FROM {_CATALOG_NAME}.raw.opcua_data_change
+                        WHERE event_at < ?
+                        GROUP BY minute ORDER BY minute
+                        """,
+                        [cutoff],
+                    ).fetchall(),
+                ),
+                (
+                    False,
+                    connection.execute(
+                        f"""
+                        SELECT date_trunc('minute', ingested_at) AS minute, count(*)
+                        FROM {_CATALOG_NAME}.raw.opcua_data_change
+                        WHERE event_at IS NULL AND ingested_at < ?
+                        GROUP BY minute ORDER BY minute
+                        """,
+                        [cutoff],
+                    ).fetchall(),
+                ),
+            )
+        finally:
+            connection.close()
+        slices: list[tuple[bool, datetime, datetime]] = []
+        for timed, rows in histograms:
+            low: datetime | None = None
+            rows_in_slice = 0
+            for minute_raw, count_raw in rows:
+                minute = _require_datetime(minute_raw, "retention_minute")
+                count = _require_int(count_raw, "retention_minute_count")
+                if low is None:
+                    low = minute
+                elif rows_in_slice and rows_in_slice + count > _RETENTION_ROWS_PER_LEASE:
+                    slices.append((timed, low, minute))
+                    low, rows_in_slice = minute, 0
+                rows_in_slice += count
+            if low is not None:
+                slices.append((timed, low, cutoff))
+        return tuple(slices)
+
+    def _create_retention_candidates(
+        self,
+        connection: Any,
+        protection: RetentionProtection,
+        *,
+        timed: bool,
+        low: datetime,
+        high: datetime,
+    ) -> None:
+        """``retention_candidate``: live rows of one slice and whether each is protected.
+
+        The slice predicate is on the stored time column itself so file statistics
+        prune it; live files are time ordered.
+        """
+        connection.execute(
+            "CREATE OR REPLACE TEMP TABLE retention_protected("
+            "source_id VARCHAR, start_at TIMESTAMPTZ, end_at TIMESTAMPTZ)"
+        )
+        if protection.ranges:
+            connection.executemany(
+                "INSERT INTO retention_protected VALUES (?, ?, ?)",
+                [(item.source_id, item.start_at, item.end_at) for item in protection.ranges],
+            )
+        where = (
+            "o.event_at >= ? AND o.event_at < ?"
+            if timed
+            else "o.event_at IS NULL AND o.ingested_at >= ? AND o.ingested_at < ?"
+        )
+        connection.execute(
+            f"""
+            CREATE OR REPLACE TEMP TABLE retention_candidate AS
+            SELECT o.raw_evidence_id, o.batch_id, EXISTS (
+                SELECT 1 FROM retention_protected p
+                WHERE p.source_id = o.source_id
+                    AND coalesce(o.event_at, o.ingested_at) BETWEEN p.start_at AND p.end_at
+            ) AS protected
+            FROM {_CATALOG_NAME}.raw.opcua_data_change o
+            WHERE {where}
+            """,
+            [low, high],
+        )
+
+    def _delete_retention_candidates(
+        self,
+        connection: Any,
+        *,
+        timed: bool,
+        low: datetime,
+        high: datetime,
+        forgotten_batches: Sequence[str],
+        dry_run: bool,
+        message: str,
+    ) -> int:
+        """Delete one slice's unprotected candidates; return its measurement row count."""
+        measurement_where = (
+            "source_type = 'opcua' AND event_at >= ? AND event_at < ?"
+            if timed
+            else "source_type = 'opcua' AND event_at IS NULL"
+        )
+        raw_where = (
+            "event_at >= ? AND event_at < ?"
+            if timed
+            else "event_at IS NULL AND ingested_at >= ? AND ingested_at < ?"
+        )
+        candidates = (
+            "raw_evidence_id IN (SELECT raw_evidence_id FROM retention_candidate "
+            "WHERE NOT protected)"
+        )
+        measurement_params = [low, high] if timed else []
+        if dry_run:
+            row = connection.execute(
+                f"SELECT count(*) FROM {_CATALOG_NAME}.history.measurement "
+                f"WHERE {measurement_where} AND {candidates}",
+                measurement_params,
+            ).fetchone()
+            return 0 if row is None else _require_int(row[0], "deleted_measurement_count")
+        connection.execute("BEGIN TRANSACTION")
+        try:
+            row = connection.execute(
+                f"DELETE FROM {_CATALOG_NAME}.history.measurement "
+                f"WHERE {measurement_where} AND {candidates}",
+                measurement_params,
+            ).fetchone()
+            connection.execute(
+                f"DELETE FROM {_CATALOG_NAME}.raw.opcua_data_change "
+                f"WHERE {raw_where} AND {candidates}",
+                [low, high],
+            )
+            if forgotten_batches:
+                connection.execute(
+                    f"DELETE FROM {_CATALOG_NAME}.history.ingestion_batch "
+                    "WHERE batch_id IN (SELECT unnest(?::VARCHAR[]))",
+                    [list(forgotten_batches)],
+                )
+            connection.execute(
+                f"CALL {_CATALOG_NAME}.set_commit_message("
+                + _quote_sql_literal(_COMMIT_AUTHOR)
+                + ", "
+                + _quote_sql_literal(message)
+                + ")"
+            )
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
+        return 0 if row is None else _require_int(row[0], "deleted_measurement_count")
 
     def _latest_event_floor(
         self,

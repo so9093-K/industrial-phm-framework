@@ -64,6 +64,15 @@ older than the period are deleted. A historical analysis whose snapshot has expi
 recomputed. Retention of `telemetry.sqlite`, the SQLite catalog file size (VACUUM) and FILE history
 are not covered.
 
+## Notes
+
+- 2026-10-07: measurement showed a single retention run holding the catalog lease in proportion to
+  the rows it deletes and the snapshots it expires, past the writers' 10-second lease timeout for a
+  large backlog. Deletion now runs in event-time slices and expiry in chunks, each with its own
+  lease, and a final flush purges deleted catalog-inlined rows. Slice discovery, the snapshot
+  listing, cleanup and the flush still each take one state-dependent lease. The decision above is
+  unchanged; see [history retention evidence](../research/history-retention-evidence.md).
+
 ## References
 
 - [ADR-0008](0008-analyze-finalized-window-accepted-events.md)

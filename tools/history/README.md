@@ -149,3 +149,24 @@ The 84.7M-row state uses about 10 GB of synthetic Parquet and takes about two mi
 [`history-append-scaling-evidence.md`](../../docs/research/history-append-scaling-evidence.md).
 Do not replace these state comparisons with full-archive or long wall-clock runs. Estimate storage
 using measured bytes per observation × N; synthetic compression is not a production sizing estimate.
+
+## Live retention cost versus snapshot count
+
+`retention_profile.py` prepares N live commits (`--rows-per-commit` rows each, every
+`--old-every`-th one older than the cutoff), then measures one `apply_live_retention()` run:
+the dry run, every catalog lease hold, snapshots expired, files removed, catalog bytes and
+catalog-inlined rows, and a public append before and after. The cutoff is taken after the last
+prepared commit, so the run expires a backlog of all N snapshots at once. Prepared rows are copied
+from one public batch with the same commit metadata shape; they are diagnostic state.
+
+```bash
+uv run --locked --extra history python -m tools.history.retention_profile \
+  --root artifacts/retention-profile/n20000 --commits 20000
+
+uv run --locked --extra history python -m tools.history.retention_profile \
+  --root artifacts/retention-profile/r90-n8000 --commits 8000 --rows-per-commit 90 --old-every 10
+```
+
+Preparation slows as snapshots accumulate (about 13 ms per commit up to 1,000 and 42 ms on average
+up to 50,000), so 50,000 commits take about 35 minutes. Results are recorded in
+[`history-retention-evidence.md`](../../docs/research/history-retention-evidence.md).
