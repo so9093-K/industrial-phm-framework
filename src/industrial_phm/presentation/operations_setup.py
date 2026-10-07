@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.operations_setup import (
@@ -11,29 +10,47 @@ from industrial_phm.application.operations_setup import (
 )
 from industrial_phm.application.source_lifecycle import SourceLifecycleState
 from industrial_phm.application.source_registration import SourceType
+from industrial_phm.presentation.operations_locale import (
+    DEFAULT_OPERATIONS_LOCALE,
+    OperationsLocale,
+    operations_text,
+)
 
 
-def render_setup_sources_html(view: SetupWorkspaceView) -> str:
+def render_setup_sources_html(
+    view: SetupWorkspaceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, SetupWorkspaceView):
         raise ValueError("view must be a SetupWorkspaceView")
-    rows = "".join(_source_row(item) for item in view.sources)
+    rows = "".join(_source_row(item, locale) for item in view.sources)
     if not rows:
         rows = (
             '<tr><td colspan="7" class="phm-card-detail">'
-            "No data source is configured yet. Connect one below to begin."
+            operations_text("setup.no_sources", locale)
             "</td></tr>"
         )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Data sources</div>'
+        f'<div class="phm-section-title">{escape(operations_text("setup.data_sources", locale))}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Source</th><th>Type</th><th>Asset</th><th>Point</th>"
-        "<th>Use</th><th>Collection request</th><th>Meaning</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.source', locale))}</th>"
+        f"<th>{escape(operations_text('setup.type', locale))}</th>"
+        f"<th>{escape(operations_text('setup.asset', locale))}</th>"
+        f"<th>{escape(operations_text('setup.point', locale))}</th>"
+        f"<th>{escape(operations_text('setup.use', locale))}</th>"
+        f"<th>{escape(operations_text('setup.collection_request', locale))}</th>"
+        f"<th>{escape(operations_text('setup.meaning', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
 
-def render_setup_source_detail_html(source: SetupSourceView) -> str:
+def render_setup_source_detail_html(
+    source: SetupSourceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(source, SetupSourceView):
         raise ValueError("source must be a SetupSourceView")
     defined, total = source.semantic_coverage
@@ -41,32 +58,35 @@ def render_setup_source_detail_html(source: SetupSourceView) -> str:
         '<section class="phm-shell">'
         '<div class="phm-asset-header">'
         "<div>"
-        '<div class="phm-asset-kicker">Data source</div>'
+        f'<div class="phm-asset-kicker">{escape(operations_text("setup.data_source", locale))}</div>'
         f'<h2 class="phm-asset-title">{escape(source.name)}</h2>'
         f'<div class="phm-card-detail">{escape(source.source_id)}</div>'
         "</div>"
         '<div class="phm-asset-facts">'
-        + _fact("Type", _source_type_label(source.source_type))
-        + _fact("Use", _lifecycle_label(source.lifecycle_state))
-        + _fact("Asset", source.asset_id)
-        + _fact("Point", source.measurement_point_id or "—")
-        + _fact("Meaning", f"{defined} / {total}")
+        + _fact(operations_text("setup.type", locale), _source_type_label(source.source_type))
+        + _fact(operations_text("setup.use", locale), _lifecycle_label(source.lifecycle_state, locale))
+        + _fact(operations_text("setup.asset", locale), source.asset_id)
+        + _fact(operations_text("setup.point", locale), source.measurement_point_id or "—")
+        + _fact(operations_text("setup.meaning", locale), f"{defined} / {total}")
         + _fact(
-            "Data age limit",
+            operations_text("setup.data_age_limit", locale),
             (
-                "Not configured"
+                operations_text("common.not_configured", locale)
                 if source.freshness_max_age_seconds is None
                 else f"{source.freshness_max_age_seconds:g} s"
             ),
         )
         + "</div></div>"
-        '<div class="phm-section-title phm-section-space">Connection target</div>'
+        f'<div class="phm-section-title phm-section-space">{escape(operations_text("setup.connection_target", locale))}</div>'
         f'<div class="phm-card-detail">{escape(source.connection_target)}</div>'
         "</section>"
     )
 
 
-def render_setup_signals_html(source: SetupSourceView) -> str:
+def render_setup_signals_html(
+    source: SetupSourceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(source, SetupSourceView):
         raise ValueError("source must be a SetupSourceView")
     rows = "".join(
@@ -74,7 +94,7 @@ def render_setup_signals_html(source: SetupSourceView) -> str:
             "<tr>"
             f"<td><strong>{escape(item.channel_id)}</strong></td>"
             f"<td>{escape(item.source_locator)}</td>"
-            f"<td>{escape(item.observed_property or 'Unresolved')}</td>"
+            f"<td>{escape(item.observed_property or operations_text('common.unresolved', locale))}</td>"
             f"<td>{escape(item.scope or '—')}</td>"
             f"<td>{escape(item.statistic or '—')}</td>"
             f"<td>{escape(item.unit or '—')}</td>"
@@ -84,13 +104,24 @@ def render_setup_signals_html(source: SetupSourceView) -> str:
         for item in source.signals
     )
     if not rows:
-        rows = '<tr><td colspan="7" class="phm-card-detail">No signal mapping recorded.</td></tr>'
+        rows = (
+            '<tr><td colspan="7" class="phm-card-detail">'
+            + escape(operations_text("setup.no_signal_mapping", locale))
+            + "</td></tr>"
+        )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Signal mapping & meaning</div>'
+        f'<div class="phm-section-title">{escape(operations_text("setup.signal_mapping", locale))}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Signal</th><th>Source locator</th><th>Observed property</th>"
-        "<th>Scope</th><th>Statistic</th><th>Unit</th><th>Version</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('setup.signal', locale))}</th>"
+        f"<th>{escape(operations_text('setup.source_locator', locale))}</th>"
+        f"<th>{escape(operations_text('setup.observed_property', locale))}</th>"
+        f"<th>{escape(operations_text('setup.scope', locale))}</th>"
+        f"<th>{escape(operations_text('setup.statistic', locale))}</th>"
+        f"<th>{escape(operations_text('setup.unit', locale))}</th>"
+        f"<th>{escape(operations_text('setup.version', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
@@ -118,24 +149,31 @@ def setup_workspace_css() -> str:
 """
 
 
-def lifecycle_action_label(state: SourceLifecycleState) -> str:
+def lifecycle_action_label(
+    state: SourceLifecycleState,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(state, SourceLifecycleState):
         raise ValueError("state must be a SourceLifecycleState")
-    return {
-        SourceLifecycleState.REGISTERED: "Not enabled",
-        SourceLifecycleState.ACTIVE: "Enabled",
-        SourceLifecycleState.PAUSED: "Paused",
-        SourceLifecycleState.ERROR: "Needs attention",
+    key = {
+        SourceLifecycleState.REGISTERED: "setup.not_enabled",
+        SourceLifecycleState.ACTIVE: "setup.enabled",
+        SourceLifecycleState.PAUSED: "setup.paused",
+        SourceLifecycleState.ERROR: "setup.needs_attention",
     }[state]
+    return operations_text(key, locale)
 
 
-def _source_row(source: SetupSourceView) -> str:
+def _source_row(
+    source: SetupSourceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     defined, total = source.semantic_coverage
     collection = (
-        "Not applicable"
+        operations_text("setup.not_applicable", locale)
         if source.source_type == SourceType.FILE
         else (
-            "Not requested"
+            operations_text("common.not_requested", locale)
             if source.collection_desired_state is None
             else f"Requested: {source.collection_desired_state.value.title()}"
         )
@@ -147,7 +185,7 @@ def _source_row(source: SetupSourceView) -> str:
         f"<td>{escape(_source_type_label(source.source_type))}</td>"
         f"<td>{escape(source.asset_id)}</td>"
         f"<td>{escape(source.measurement_point_id or '—')}</td>"
-        f"<td>{escape(_lifecycle_label(source.lifecycle_state))}</td>"
+        f"<td>{escape(_lifecycle_label(source.lifecycle_state, locale))}</td>"
         f"<td>{escape(collection)}</td>"
         f"<td>{defined} / {total}</td>"
         "</tr>"
@@ -170,13 +208,8 @@ def _source_type_label(source_type: SourceType) -> str:
     }[source_type]
 
 
-def _lifecycle_label(state: SourceLifecycleState) -> str:
-    return lifecycle_action_label(state)
-
-
-def _time_label(value: datetime | None) -> str:
-    if value is None:
-        return "—"
-    if value.utcoffset() is None:
-        return "Time not comparable"
-    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+def _lifecycle_label(
+    state: SourceLifecycleState,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    return lifecycle_action_label(state, locale)
