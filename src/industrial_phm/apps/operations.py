@@ -3492,7 +3492,9 @@ def _(
                 *_action_blocks,
                 mo.accordion(
                     {
-                        "Review identity": mo.Html(
+                        operations_text(
+                            "maintenance.review_identity", operations_locale
+                        ): mo.Html(
                             render_maintenance_identity_html(
                                 selected_maintenance,
                                 operations_locale,
@@ -3501,8 +3503,7 @@ def _(
                     }
                 ),
                 mo.md(
-                    "Acknowledge and Close change only the human review workflow. "
-                    "They do not confirm a fault, repair, asset health, or CMMS work order."
+                    operations_text("maintenance.workflow_semantics", operations_locale)
                 ),
             ],
             gap=0.9,
@@ -3545,6 +3546,7 @@ def _(
     asset_names,
     mo,
     operations_locale,
+    operations_text,
     render_system_diagnostics_html,
     render_system_errors_html,
     render_system_runtime_html,
@@ -3560,11 +3562,15 @@ def _(
         _name_conflicts.append(
             mo.callout(
                 mo.md(
-                    "Registered sources declare different display names for the same asset, "
-                    "so the asset ID is shown instead:\n\n" + _rows
+                    operations_text(
+                        "system.asset_name_conflict_detail",
+                        operations_locale,
+                    )
+                    + "\n\n"
+                    + _rows
                 ),
                 kind="warn",
-                title="Asset display name conflict",
+                title=operations_text("system.asset_name_conflict", operations_locale),
             )
         )
     system_view = mo.vstack(
@@ -3574,16 +3580,15 @@ def _(
             *_name_conflicts,
             mo.accordion(
                 {
-                    "Advanced diagnostics": mo.Html(
+                    operations_text(
+                        "system.advanced_diagnostics",
+                        operations_locale,
+                    ): mo.Html(
                         render_system_diagnostics_html(system_diagnostics, operations_locale)
                     )
                 }
             ),
-            mo.md(
-                "Runtime status is shown only where current evidence exists. "
-                "A missing process heartbeat is displayed as unavailable rather than "
-                "assumed healthy."
-            ),
+            mo.md(operations_text("system.runtime_evidence_help", operations_locale)),
         ],
         gap=1.0,
     )
