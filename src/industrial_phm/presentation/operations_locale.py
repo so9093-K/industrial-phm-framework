@@ -745,6 +745,15 @@ _PRODUCT_COPY: Final = {
         "setup.updated": "Setup updated",
         "setup.diagnostic_failed": "Diagnostic action failed",
         "setup.diagnostic_completed": "Diagnostic action completed",
+        "setup.select_source_for_diagnostic": "Select a data source before running diagnostics.",
+        "setup.diagnostic_cycle_completed": "Diagnostic cycle completed.",
+        "setup.subscription_completed": "Bounded subscription completed.",
+        "setup.refresh_runtime_hint": (
+            " Use Refresh to reload current runtime evidence in Monitor."
+        ),
+        "setup.diagnostic_skipped": "Diagnostic action skipped.",
+        "setup.diagnostic_failed_default": "Diagnostic action failed.",
+        "setup.diagnostic_failure": "{scope} failure · {detail}",
         "setup.add_data_source": "Add data source",
         "setup.connect_first_source": "Connect your first data source",
         "setup.connect_first_source_help": (
@@ -755,8 +764,8 @@ _PRODUCT_COPY: Final = {
             "Choose the prepared file boundary and declare the asset identity before discovery."
         ),
         "setup.file.select_help": (
-            "Keep only discovered columns that belong to this source; column names are identifiers, "
-            "not physical meaning."
+            "Keep only discovered columns that belong to this source; "
+            "column names are identifiers, not physical meaning."
         ),
         "setup.file.meaning_help": (
             "FILE registration preserves column identity. Record measurement meaning explicitly "
@@ -782,7 +791,8 @@ _PRODUCT_COPY: Final = {
             "when meaning is not established."
         ),
         "setup.opcua.review_help": (
-            "Saving registers configuration only. It does not enable the source or start collection."
+            "Saving registers configuration only. It does not enable the source "
+            "or start collection."
         ),
         "setup.connected_source": "Connected source",
         "setup.inspect_signals_title": "Inspect signals",
@@ -934,13 +944,15 @@ _PRODUCT_COPY: Final = {
             "이 설비에서 필요 시 feature 분석에 사용할 등록된 FILE snapshot source가 없습니다."
         ),
         "asset.no_signal": "이 설비에 mapping되거나 저장된 신호가 아직 없습니다.",
-        "asset.no_history_catalog": "이 workspace에서 사용할 수 있는 Asset History catalog가 없습니다.",
+        "asset.no_history_catalog": (
+            "이 workspace에서 사용할 수 있는 Asset History catalog가 없습니다."
+        ),
         "asset.no_recent_persisted": (
             "Live source의 최근 event-time 구간에 저장된 관측값이 아직 없습니다."
         ),
         "asset.live_evidence_help": (
-            "데이터 수신 상태는 collector/session evidence를 사용하고, 선택 채널의 품질과 event time은 "
-            "저장 관측 evidence를 사용합니다. Trend는 보간 없이 raw point를 그리므로 관측되지 않은 "
+            "데이터 수신 상태는 collector/session evidence를 사용하고, 선택 채널의 품질과 "
+            "event time은 저장 관측 evidence를 사용합니다. Trend는 보간 없이 raw point를 "
             "구간은 비워 둡니다. Historical replay timestamp는 과거 시각으로 유지됩니다. 이 화면은 "
             "설비 health, fault, alarm 또는 예상 missing sample을 추론하지 않습니다."
         ),
@@ -1104,6 +1116,15 @@ _PRODUCT_COPY: Final = {
         "setup.updated": "설정 갱신 완료",
         "setup.diagnostic_failed": "진단 작업 실패",
         "setup.diagnostic_completed": "진단 작업 완료",
+        "setup.select_source_for_diagnostic": "진단할 데이터 source를 먼저 선택하세요.",
+        "setup.diagnostic_cycle_completed": "진단 1회를 완료했습니다.",
+        "setup.subscription_completed": "제한된 subscription 수집을 완료했습니다.",
+        "setup.refresh_runtime_hint": (
+            " 관제에서 현재 runtime evidence를 다시 불러오려면 새로고침하세요."
+        ),
+        "setup.diagnostic_skipped": "진단 작업을 실행하지 않았습니다.",
+        "setup.diagnostic_failed_default": "진단 작업에 실패했습니다.",
+        "setup.diagnostic_failure": "{scope} 실패 · {detail}",
         "setup.add_data_source": "데이터 source 추가",
         "setup.connect_first_source": "첫 데이터 source 연결",
         "setup.connect_first_source_help": (
@@ -1114,7 +1135,8 @@ _PRODUCT_COPY: Final = {
             "탐색 전에 준비된 파일 범위를 선택하고 설비 identity를 지정하세요."
         ),
         "setup.file.select_help": (
-            "이 source에 속한 탐색된 열만 유지하세요. 열 이름은 identifier이며 물리적 의미가 아닙니다."
+            "이 source에 속한 탐색된 열만 유지하세요. 열 이름은 identifier이며 "
+            "물리적 의미가 아닙니다."
         ),
         "setup.file.meaning_help": (
             "FILE 등록은 열 identity를 보존합니다. 알고 있는 측정 의미만 명시적으로 기록하세요."
@@ -1122,7 +1144,9 @@ _PRODUCT_COPY: Final = {
         "setup.file.review_help": "Source 등록을 저장하기 전에 파일을 검증합니다.",
         "setup.mapping_invalid": "Explicit mapping이 올바르지 않습니다",
         "setup.no_mapping_selected": "선택된 신호 mapping이 아직 없습니다.",
-        "setup.select_mapping_first": "측정 의미를 정의하기 전에 mapping된 신호를 하나 이상 선택하세요.",
+        "setup.select_mapping_first": (
+            "측정 의미를 정의하기 전에 mapping된 신호를 하나 이상 선택하세요."
+        ),
         "setup.opcua.connect_help": (
             "Endpoint와 설비 identity를 지정한 뒤 제한된 browse를 실행하세요."
         ),
@@ -1149,8 +1173,8 @@ _PRODUCT_COPY: Final = {
         ),
         "setup.verify_flow_title": "데이터 수신 시작 또는 확인",
         "setup.verify_flow_help": (
-            "사용할 준비가 되면 source를 활성화하세요. OPC UA는 persistent collection을 요청합니다. "
-            "연결과 data-contract 확인에는 위의 bounded diagnostic을 사용할 수 있습니다."
+            "사용할 준비가 되면 source를 활성화하세요. OPC UA는 persistent collection을 "
+            "요청합니다. 연결과 data-contract 확인에는 위의 bounded diagnostic을 사용할 수 있습니다."
         ),
         "setup.observe_title": "관제 시작",
         "setup.add_another_source": "다른 데이터 source 추가",
@@ -1225,7 +1249,8 @@ _PRODUCT_COPY: Final = {
         "monitor.open_analysis_evidence": "{label} 분석 근거 열기",
         "monitor.bucket_stats": "최소 {min} · 최대 {max} · 평균 {mean}",
         "monitor.bucket_counts": (
-            "{source} · 사용 가능 {usable} · null {null} · non-good {non_good} · conflict {conflict}"
+            "{source} · 사용 가능 {usable} · null {null} · "
+            "non-good {non_good} · conflict {conflict}"
         ),
     },
 }
