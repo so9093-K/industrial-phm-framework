@@ -252,7 +252,7 @@ def _(OperationsLocale, mo, resolve_environment_operations_locale):
             "한국어": OperationsLocale.KO_KR.value,
             "English": OperationsLocale.EN_US.value,
         },
-        value=_initial_locale.value,
+        value=("한국어" if _initial_locale == OperationsLocale.KO_KR else "English"),
         label="Language / 언어",
     )
     return (locale_selector,)
@@ -2350,9 +2350,7 @@ def _(
     _groups = investigation_queue.groups(
         review_state=_review_state,
         asset_id=(
-            None
-            if investigation_asset_filter.value == "all"
-            else investigation_asset_filter.value
+            None if investigation_asset_filter.value == "all" else investigation_asset_filter.value
         ),
         capability_id=(
             None
@@ -2436,9 +2434,7 @@ def _(
             (
                 f"{investigation_queue_option_label(item, asset_names, operations_locale)} "
                 f"· {index + 1}"
-            ): (
-                item.investigation_id
-            )
+            ): (item.investigation_id)
             for index, item in enumerate(selected_investigation_group.items)
         }
         _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2734,10 +2730,12 @@ def _(
                 mo.md(
                     "### Human review\n\n"
                     "Current workflow state: "
-                    f"**{investigation_review_label(
-                        selected_investigation.review_state,
-                        operations_locale,
-                    )}**"
+                    f"**{
+                        investigation_review_label(
+                            selected_investigation.review_state,
+                            operations_locale,
+                        )
+                    }**"
                 )
             )
 
@@ -2860,8 +2858,7 @@ def _(
     )
     _label_to_id = {
         (
-            f"{maintenance_queue_label(item, asset_names, operations_locale)} "
-            f"· {index + 1}"
+            f"{maintenance_queue_label(item, asset_names, operations_locale)} · {index + 1}"
         ): item.finding_id
         for index, item in enumerate(_filtered)
     }
@@ -2877,9 +2874,7 @@ def _(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
             label=operations_text("common.queue", operations_locale),
-            on_change=lambda value: maintenance_selection.update(
-                finding_id=_label_to_id[value]
-            ),
+            on_change=lambda value: maintenance_selection.update(finding_id=_label_to_id[value]),
         )
     else:
         maintenance_selector = None
@@ -3968,9 +3963,7 @@ def _(
             else data_status_label(asset_workspace.status, operations_locale)
         ),
         "source_at": (
-            None
-            if asset_workspace is None
-            else utc_millis(asset_workspace.last_data_at)
+            None if asset_workspace is None else utc_millis(asset_workspace.last_data_at)
         ),
         "assessed_at": utc_millis(monitor.assessed_at),
         "signals": _catalog_rows,
