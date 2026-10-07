@@ -515,9 +515,7 @@ def _(
     setup_refresh_data_flow_button = (
         None
         if setup_selected_source is None
-        else mo.ui.run_button(
-            label=operations_text("setup.refresh_data_flow", operations_locale)
-        )
+        else mo.ui.run_button(label=operations_text("setup.refresh_data_flow", operations_locale))
     )
     setup_open_monitor_button = (
         None
@@ -3813,11 +3811,7 @@ def _(
                         else operations_text("setup.monitor_locked", operations_locale)
                     )
                 ),
-                *(
-                    [setup_open_monitor_button]
-                    if setup_open_monitor_button is not None
-                    else []
-                ),
+                *([setup_open_monitor_button] if setup_open_monitor_button is not None else []),
                 mo.accordion(
                     {
                         "Add another data source": _source_wizard,
