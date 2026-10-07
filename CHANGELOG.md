@@ -20,6 +20,11 @@
 
 ### Changed
 
+- Operations first-run의 실제 데이터 경로에서 source 등록만으로 Monitor로 넘어가지 않도록
+  handoff를 강화했습니다. 현재 active source에 대해 accepted receipt evidence가 확인된 뒤에만
+  Monitor를 열 수 있고, 그 전에는 top-level navigation도 Setup에 머뭅니다. 기존 configured
+  workspace는 기존처럼 Monitor에서 바로 재개합니다.
+
 - Operations presentation에 `ko-KR` / `en-US` locale resource 계층을 추가하고 page·filter·
   section의 stable ID를 표시 문자열과 분리했습니다. Monitor의 고정 `en` / `en-GB` formatter를
   선택 locale 기반 formatting으로 바꾸고 first-run, Assets, Investigations, Maintenance review,
