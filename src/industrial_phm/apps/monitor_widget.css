@@ -175,7 +175,7 @@
 .mw-context-sub {
   margin-top: 7px;
   color: var(--mw-muted);
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-flow {
@@ -210,7 +210,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-receipt strong {
@@ -278,7 +278,7 @@
   background: transparent;
   color: var(--mw-text);
   width: 100%;
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-search input::placeholder {
@@ -659,7 +659,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-text-action {
@@ -697,7 +697,7 @@
 }
 
 .mw-panel-head>.mw-muted {
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-evidence-row,
@@ -733,7 +733,7 @@
 }
 
 .mw-evidence-row .mw-muted {
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-evidence-mark {
@@ -861,7 +861,7 @@
 
 .mw-asset-option .mw-muted {
   width: 100%;
-  font-size: 13px
+  font-size: 14px
 }
 
 .mw-asset-option:hover {
@@ -1033,7 +1033,7 @@
   }
 
   .mw-chart-clock>span:last-child {
-    font-size: 13px
+    font-size: 14px
   }
 
   .mw-pages {
