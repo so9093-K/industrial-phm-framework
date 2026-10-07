@@ -3150,6 +3150,7 @@ def _(
     mo,
     operational_analysis_presentation_kind,
     operations_locale,
+    operations_text,
     phase_unbalance_summary_rows,
     selected_maintenance,
 ):
@@ -3182,7 +3183,7 @@ def _(
             maintenance_evidence_metrics = tuple(phase_unbalance_summary_rows(_result))
         if maintenance_evidence is not None:
             maintenance_open_investigation_button = mo.ui.run_button(
-                label="Open evidence in Investigations"
+                label=operations_text("maintenance.open_evidence", operations_locale)
             )
     return (
         maintenance_evidence,
@@ -3226,7 +3227,13 @@ def _(
 
 
 @app.cell
-def _(FindingReviewStatus, mo, selected_maintenance):
+def _(
+    FindingReviewStatus,
+    mo,
+    operations_locale,
+    operations_text,
+    selected_maintenance,
+):
     if selected_maintenance is None or selected_maintenance.status == FindingReviewStatus.CLOSED:
         maintenance_note_input = None
         maintenance_add_note_button = None
@@ -3235,18 +3242,26 @@ def _(FindingReviewStatus, mo, selected_maintenance):
     else:
         maintenance_note_input = mo.ui.text_area(
             value="",
-            label="Review note",
+            label=operations_text("maintenance.review_note", operations_locale),
             rows=3,
             full_width=True,
         )
-        maintenance_add_note_button = mo.ui.run_button(label="Add note")
+        maintenance_add_note_button = mo.ui.run_button(
+            label=operations_text("maintenance.add_note", operations_locale)
+        )
         maintenance_ack_button = (
-            mo.ui.run_button(label="Acknowledge", kind="success")
+            mo.ui.run_button(
+                label=operations_text("maintenance.acknowledge", operations_locale),
+                kind="success",
+            )
             if selected_maintenance.status == FindingReviewStatus.OPEN
             else None
         )
         maintenance_close_button = (
-            mo.ui.run_button(label="Close review", kind="warn")
+            mo.ui.run_button(
+                label=operations_text("maintenance.close_review", operations_locale),
+                kind="warn",
+            )
             if selected_maintenance.status == FindingReviewStatus.ACKNOWLEDGED
             else None
         )
@@ -3268,6 +3283,8 @@ def _(
     maintenance_close_button,
     maintenance_note_input,
     operations_actions,
+    operations_locale,
+    operations_text,
     selected_maintenance,
     set_maintenance_error,
     set_maintenance_success,
@@ -3284,7 +3301,9 @@ def _(
     if _action is not None:
         try:
             if selected_maintenance is None:
-                raise ValueError("select a review before recording an action")
+                raise ValueError(
+                    operations_text("maintenance.select_before_action", operations_locale)
+                )
             _finding = next(
                 item
                 for item in investigation_findings
@@ -3303,7 +3322,11 @@ def _(
             _current_findings, _ = get_review_workflow()
             set_review_workflow((_current_findings, _events))
             set_maintenance_error("")
-            set_maintenance_success(f"Review action recorded: {_action.value}.")
+            set_maintenance_success(
+                operations_text("maintenance.action_recorded", operations_locale).format(
+                    action=_action.value
+                )
+            )
     return
 
 
@@ -3331,6 +3354,7 @@ def _(
     maintenance_success,
     mo,
     operations_locale,
+    operations_text,
     maintenance_evidence,
     maintenance_evidence_metrics,
     maintenance_open_investigation_button,
@@ -3341,10 +3365,14 @@ def _(
     selected_maintenance,
 ):
     _counts = mo.md(
-        "### Review workload\n\n"
-        f"**Open {maintenance_queue.count(FindingReviewStatus.OPEN)}** · "
-        f"Acknowledged {maintenance_queue.count(FindingReviewStatus.ACKNOWLEDGED)} · "
-        f"Closed {maintenance_queue.count(FindingReviewStatus.CLOSED)}"
+        "### "
+        + operations_text("maintenance.workload", operations_locale)
+        + "\n\n"
+        + operations_text("maintenance.counts", operations_locale).format(
+            open=maintenance_queue.count(FindingReviewStatus.OPEN),
+            acknowledged=maintenance_queue.count(FindingReviewStatus.ACKNOWLEDGED),
+            closed=maintenance_queue.count(FindingReviewStatus.CLOSED),
+        )
     )
     _filters = mo.hstack(
         [maintenance_status_filter, maintenance_asset_filter],
@@ -3353,7 +3381,11 @@ def _(
     )
     if maintenance_selector is None:
         _queue_panel = mo.vstack(
-            [_counts, _filters, mo.md("No review matches the current filters.")],
+            [
+                _counts,
+                _filters,
+                mo.md(operations_text("maintenance.no_filter_match", operations_locale)),
+            ],
             gap=0.8,
         )
     else:
@@ -3362,8 +3394,13 @@ def _(
                 _counts,
                 _filters,
                 mo.md(
-                    f"### Queue\n\n{maintenance_filtered_count} shown · "
-                    f"{len(maintenance_queue.items)} total"
+                    "### "
+                    + operations_text("common.queue", operations_locale)
+                    + "\n\n"
+                    + operations_text("maintenance.queue_summary", operations_locale).format(
+                        shown=maintenance_filtered_count,
+                        total=len(maintenance_queue.items),
+                    )
                 ),
                 maintenance_selector,
             ],
@@ -3371,16 +3408,29 @@ def _(
         )
 
     if selected_maintenance is None:
-        _detail_panel = mo.md("## Maintenance review\n\nSelect a review from the queue.")
+        _detail_panel = mo.md(
+            "## "
+            + operations_text("maintenance.review_heading", operations_locale)
+            + "\n\n"
+            + operations_text("maintenance.select_review", operations_locale)
+        )
     else:
         _action_blocks = []
         if maintenance_error:
             _action_blocks.append(
-                mo.callout(maintenance_error, kind="danger", title="Review action failed")
+                mo.callout(
+                    maintenance_error,
+                    kind="danger",
+                    title=operations_text("maintenance.action_failed", operations_locale),
+                )
             )
         if maintenance_success:
             _action_blocks.append(
-                mo.callout(maintenance_success, kind="success", title="Review updated")
+                mo.callout(
+                    maintenance_success,
+                    kind="success",
+                    title=operations_text("maintenance.updated", operations_locale),
+                )
             )
         if selected_maintenance.status != FindingReviewStatus.CLOSED:
             _buttons = [
@@ -3394,7 +3444,10 @@ def _(
             ]
             _action_blocks.extend(
                 [
-                    mo.md("### Review actions"),
+                    mo.md(
+                        "### "
+                        + operations_text("maintenance.actions", operations_locale)
+                    ),
                     maintenance_note_input,
                     mo.hstack(_buttons, justify="start", gap=0.6),
                 ]
@@ -3402,8 +3455,10 @@ def _(
         else:
             _action_blocks.append(
                 mo.md(
-                    "### Review actions\n\n"
-                    "This review is closed. Closed review history is append-locked."
+                    "### "
+                    + operations_text("maintenance.actions", operations_locale)
+                    + "\n\n"
+                    + operations_text("maintenance.closed_help", operations_locale)
                 )
             )
         _evidence_blocks = [
