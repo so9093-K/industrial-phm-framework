@@ -20,6 +20,11 @@
 
 ### Changed
 
+- Operations의 남은 사용자-visible action/help/error/empty-state와 주요 table/section label을
+  `ko-KR` / `en-US` resource layer로 이관했습니다. Setup guided flow, Asset Signals/FILE analysis,
+  Investigation·Maintenance review, Monitor의 동적 aria/보조 문구까지 같은 locale 경계에서 표시하며
+  FILE/OPC UA/NodeId와 source·asset·channel·capability·evidence identity는 그대로 유지합니다.
+
 - Operations first-run의 실제 데이터 경로에서 source 등록만으로 Monitor로 넘어가지 않도록
   handoff를 강화했습니다. 현재 active source에 대해 accepted receipt evidence가 확인된 뒤에만
   Monitor를 열 수 있고, 그 전에는 top-level navigation도 Setup에 머뭅니다. 기존 configured
