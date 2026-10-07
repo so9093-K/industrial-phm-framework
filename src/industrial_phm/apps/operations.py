@@ -230,14 +230,13 @@ def _():
 
 @app.cell
 def _(mo):
-    refresh_button = mo.ui.run_button(label="Refresh")
     get_navigation_page, set_navigation_page = mo.state(None)
-    return get_navigation_page, refresh_button, set_navigation_page
+    return get_navigation_page, set_navigation_page
 
 
 @app.cell
-def _(get_monitor_revision, load_operations_app_context, refresh_button):
-    _refresh = (refresh_button.value, get_monitor_revision())
+def _(get_monitor_revision, load_operations_app_context):
+    _refresh = get_monitor_revision()
     del _refresh
 
     operations_context = load_operations_app_context()
@@ -331,8 +330,8 @@ def _(analysis_results, mo):
 
 
 @app.cell
-def _(analysis_results, get_monitor_revision, refresh_button, set_analysis_results):
-    if refresh_button.value or get_monitor_revision():
+def _(analysis_results, get_monitor_revision, set_analysis_results):
+    if get_monitor_revision():
         set_analysis_results(tuple(analysis_results))
     return
 
@@ -414,14 +413,13 @@ def _(
     freshness_policies,
     lifecycle_records,
     get_monitor_revision,
-    refresh_button,
     registered_sources,
     set_pending_semantics,
     set_setup_config,
     set_setup_error,
     set_setup_success,
 ):
-    if refresh_button.value or get_monitor_revision():
+    if get_monitor_revision():
         set_setup_config(
             (
                 tuple(registered_sources),
@@ -2094,13 +2092,12 @@ def _(findings, mo, review_events):
 def _(
     findings,
     get_monitor_revision,
-    refresh_button,
     review_events,
     set_review_request_error,
     set_review_request_success,
     set_review_workflow,
 ):
-    if refresh_button.value or get_monitor_revision():
+    if get_monitor_revision():
         set_review_workflow((findings, review_events))
         set_review_request_error("")
         set_review_request_success("")
