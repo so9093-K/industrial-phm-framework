@@ -4155,7 +4155,11 @@ def _(
                     f'<a href="{first_run_sample.url}" target="_blank" rel="noopener noreferrer">'
                     f"{operations_text('first_run.sample.open', operations_locale)}</a>"
                 ),
-                mo.md(f"Sample workspace: `{first_run_sample.workspace}`"),
+                mo.md(
+                    operations_text("first_run.sample.workspace", operations_locale).format(
+                        workspace=first_run_sample.workspace
+                    )
+                ),
                 mo.hstack(
                     [first_run_stop_sample_button, first_run_real_button],
                     justify="start",
@@ -4467,6 +4471,7 @@ def _(
     monitor_workspace_ui,
     navigation_page,
     operations_locale,
+    operations_text,
     operations_theme_css,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -4490,8 +4495,10 @@ def _(
 
     if asset_selector is None:
         asset_view = mo.md(
-            "## Assets\n\n"
-            "No asset evidence is available yet. Add a source in Setup or load history."
+            "## "
+            + operations_text("asset.title", operations_locale)
+            + "\n\n"
+            + operations_text("asset.no_evidence", operations_locale)
         )
     elif asset_workspace_error:
         asset_view = mo.vstack(
@@ -4500,14 +4507,17 @@ def _(
                 mo.callout(
                     asset_workspace_error,
                     kind="danger",
-                    title="Asset workspace unavailable",
+                    title=operations_text("asset.workspace_unavailable", operations_locale),
                 ),
             ],
             gap=1.0,
         )
     elif asset_workspace is None:
         asset_view = mo.vstack(
-            [asset_selector, mo.md("Select Assets to load this workspace.")],
+            [
+                asset_selector,
+                mo.md(operations_text("asset.load_hint", operations_locale)),
+            ],
             gap=1.0,
         )
     else:
