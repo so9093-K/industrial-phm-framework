@@ -83,8 +83,12 @@ def render_asset_overview_html(
         + _overview_card(
             operations_text("asset.history", locale),
             history_summary,
-            f"{operations_text('asset.channel_count', locale).format(count=len(view.history_channels))} "
-            f"· {history_range}",
+            (
+                operations_text("asset.channel_count", locale).format(
+                    count=len(view.history_channels)
+                )
+                + f" · {history_range}"
+            ),
         )
         + _overview_card(
             operations_text("asset.analysis", locale),
@@ -182,7 +186,8 @@ def render_asset_analysis_html(
         rows = _empty_row(6, operations_text("asset.no_analysis_evidence", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("asset.recent_analysis_attempts", locale))}</div>'
+        '<div class="phm-section-title">'
+        f'{escape(operations_text("asset.recent_analysis_attempts", locale))}</div>'
         '<table class="phm-table">'
         "<thead><tr>"
         f"<th>{escape(operations_text('common.time', locale))}</th>"
@@ -193,7 +198,8 @@ def render_asset_analysis_html(
         f"<th>{escape(operations_text('common.why_no_result', locale))}</th>"
         "</tr></thead>"
         f"<tbody>{attempt_rows}</tbody></table>"
-        f'<div class="phm-section-title phm-section-space">{escape(operations_text("asset.recorded_analysis_evidence", locale))}</div>'
+        '<div class="phm-section-title phm-section-space">'
+        f'{escape(operations_text("asset.recorded_analysis_evidence", locale))}</div>'
         '<table class="phm-table">'
         "<thead><tr>"
         f"<th>{escape(operations_text('common.completed', locale))}</th>"
