@@ -242,6 +242,7 @@ from industrial_phm.application.operations_setup import (
     SetupSourceView,
     SetupWorkspaceView,
     build_setup_workspace,
+    setup_data_flow_confirmed,
 )
 from industrial_phm.application.operations_system import (
     SystemRuntimeError,
@@ -584,6 +585,7 @@ __all__ = [
     "build_operations_overview",
     "build_prepared_csv_observation_summary",
     "build_setup_workspace",
+    "setup_data_flow_confirmed",
     "build_system_runtime_view",
     "collect_registered_opcua_source_subscription",
     "collection_service_issue",
