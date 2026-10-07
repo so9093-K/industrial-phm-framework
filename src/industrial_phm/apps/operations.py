@@ -3911,7 +3911,10 @@ def _(
         elif opcua_candidate_mappings:
             _mapping_view = mo.ui.table(
                 [
-                    {"Signal": item.channel_id, "NodeId": item.node_id}
+                    {
+                        operations_text("common.signal", operations_locale): item.channel_id,
+                        "NodeId": item.node_id,
+                    }
                     for item in opcua_candidate_mappings
                 ],
                 selection=None,
