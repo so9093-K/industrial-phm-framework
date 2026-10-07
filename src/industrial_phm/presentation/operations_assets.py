@@ -187,7 +187,7 @@ def render_asset_analysis_html(
     return (
         '<section class="phm-shell">'
         '<div class="phm-section-title">'
-        f'{escape(operations_text("asset.recent_analysis_attempts", locale))}</div>'
+        f"{escape(operations_text('asset.recent_analysis_attempts', locale))}</div>"
         '<table class="phm-table">'
         "<thead><tr>"
         f"<th>{escape(operations_text('common.time', locale))}</th>"
@@ -199,7 +199,7 @@ def render_asset_analysis_html(
         "</tr></thead>"
         f"<tbody>{attempt_rows}</tbody></table>"
         '<div class="phm-section-title phm-section-space">'
-        f'{escape(operations_text("asset.recorded_analysis_evidence", locale))}</div>'
+        f"{escape(operations_text('asset.recorded_analysis_evidence', locale))}</div>"
         '<table class="phm-table">'
         "<thead><tr>"
         f"<th>{escape(operations_text('common.completed', locale))}</th>"
