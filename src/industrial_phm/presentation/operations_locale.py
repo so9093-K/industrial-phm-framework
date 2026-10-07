@@ -632,7 +632,20 @@ _PRODUCT_COPY: Final = {
         "maintenance.closed_help": (
             "This review is closed. Closed review history is append-locked."
         ),
+        "maintenance.review_identity": "Review identity",
+        "maintenance.workflow_semantics": (
+            "Acknowledge and Close change only the human review workflow. "
+            "They do not confirm a fault, repair, asset health, or CMMS work order."
+        ),
         "system.asset_name_conflict": "Asset display name conflict",
+        "system.asset_name_conflict_detail": (
+            "Registered sources declare different display names for the same asset, "
+            "so the asset ID is shown instead:"
+        ),
+        "system.runtime_evidence_help": (
+            "Runtime status is shown only where current evidence exists. "
+            "A missing process heartbeat is displayed as unavailable rather than assumed healthy."
+        ),
         "setup.maximum_data_age": "Maximum data age (seconds)",
         "setup.save_data_age": "Save data age policy",
         "setup.clear_policy": "Clear policy",
@@ -701,6 +714,11 @@ _PRODUCT_COPY: Final = {
         "setup.diagnostic_failed": "Diagnostic action failed",
         "setup.diagnostic_completed": "Diagnostic action completed",
         "setup.add_data_source": "Add data source",
+        "setup.connect_first_source": "Connect your first data source",
+        "setup.connect_first_source_help": (
+            "Operations needs an observation source before it can show asset state or analysis "
+            "evidence. Choose a prepared FILE source or a live OPC UA source below."
+        ),
         "setup.file.connect_help": (
             "Choose the prepared file boundary and declare the asset identity before discovery."
         ),
@@ -946,7 +964,19 @@ _PRODUCT_COPY: Final = {
         "maintenance.closed_help": (
             "이 검토는 종료되었습니다. 종료된 검토 이력은 추가 기록이 잠겨 있습니다."
         ),
+        "maintenance.review_identity": "검토 식별 정보",
+        "maintenance.workflow_semantics": (
+            "확인과 검토 종료는 사람 검토 workflow만 변경합니다. fault, repair, asset health 또는 "
+            "CMMS work order를 확인하는 동작이 아닙니다."
+        ),
         "system.asset_name_conflict": "설비 표시 이름 충돌",
+        "system.asset_name_conflict_detail": (
+            "등록된 source들이 같은 설비에 서로 다른 표시 이름을 선언해 asset ID를 대신 표시합니다:"
+        ),
+        "system.runtime_evidence_help": (
+            "Runtime 상태는 현재 evidence가 있는 경우에만 표시합니다. Process heartbeat가 없으면 "
+            "정상으로 추정하지 않고 사용 불가로 표시합니다."
+        ),
         "setup.maximum_data_age": "데이터 최대 경과 시간(초)",
         "setup.save_data_age": "데이터 경과 정책 저장",
         "setup.clear_policy": "정책 지우기",
@@ -1011,6 +1041,11 @@ _PRODUCT_COPY: Final = {
         "setup.diagnostic_failed": "진단 작업 실패",
         "setup.diagnostic_completed": "진단 작업 완료",
         "setup.add_data_source": "데이터 source 추가",
+        "setup.connect_first_source": "첫 데이터 source 연결",
+        "setup.connect_first_source_help": (
+            "설비 상태나 분석 evidence를 표시하려면 observation source가 필요합니다. "
+            "준비된 FILE source 또는 실시간 OPC UA source를 아래에서 선택하세요."
+        ),
         "setup.file.connect_help": (
             "탐색 전에 준비된 파일 범위를 선택하고 설비 identity를 지정하세요."
         ),
