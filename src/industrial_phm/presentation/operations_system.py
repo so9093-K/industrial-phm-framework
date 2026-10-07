@@ -308,15 +308,10 @@ def _error_title(
     fallback: str,
     locale: OperationsLocale | str,
 ) -> str:
-    key = (
-        "system.error.live_data"
-        if scope.startswith("live-data:")
-        else _ERROR_TITLE_KEY.get(scope, "system.error.application")
-    )
-    localized = operations_text(key, locale)
-    if localized == "Application state" and scope not in _ERROR_TITLE_KEY:
-        return fallback
-    return localized
+    if scope.startswith("live-data:"):
+        return operations_text("system.error.live_data", locale)
+    key = _ERROR_TITLE_KEY.get(scope)
+    return fallback if key is None else operations_text(key, locale)
 
 
 def _status_label(
