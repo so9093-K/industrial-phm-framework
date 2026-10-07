@@ -314,7 +314,9 @@ def _error_title(
         else _ERROR_TITLE_KEY.get(scope, "system.error.application")
     )
     localized = operations_text(key, locale)
-    return fallback if localized == "Application state" and scope not in _ERROR_TITLE_KEY else localized
+    if localized == "Application state" and scope not in _ERROR_TITLE_KEY:
+        return fallback
+    return localized
 
 
 def _status_label(
