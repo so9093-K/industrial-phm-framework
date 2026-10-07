@@ -775,6 +775,9 @@ _PRODUCT_COPY: Final = {
             "The file is validated before its source registration is saved."
         ),
         "setup.mapping_invalid": "Explicit mapping invalid",
+        "setup.mapping_line_format": (
+            "Mapping line {line_number} must use signal_id,node_id."
+        ),
         "setup.no_mapping_selected": "No signal mapping selected yet.",
         "setup.select_mapping_first": "Select at least one mapped signal before defining meaning.",
         "setup.opcua.connect_help": (
@@ -1143,6 +1146,9 @@ _PRODUCT_COPY: Final = {
         ),
         "setup.file.review_help": "Source 등록을 저장하기 전에 파일을 검증합니다.",
         "setup.mapping_invalid": "Explicit mapping이 올바르지 않습니다",
+        "setup.mapping_line_format": (
+            "Mapping {line_number}번째 줄은 signal_id,node_id 형식이어야 합니다."
+        ),
         "setup.no_mapping_selected": "선택된 신호 mapping이 아직 없습니다.",
         "setup.select_mapping_first": (
             "측정 의미를 정의하기 전에 mapping된 신호를 하나 이상 선택하세요."
