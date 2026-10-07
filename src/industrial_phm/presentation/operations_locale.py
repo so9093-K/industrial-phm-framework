@@ -114,6 +114,67 @@ _TEXT: Final = {
         "common.not_recorded": "Not recorded",
         "common.time_not_comparable": "Time not comparable",
         "common.future_timestamp": "Future timestamp",
+        "monitor.operations_pages": "Operations pages",
+        "monitor.refresh": "Refresh",
+        "monitor.refresh_aria": "Refresh observations",
+        "monitor.eyebrow": "OPERATIONS / MONITOR",
+        "monitor.choose_asset": "Choose an asset",
+        "monitor.choose_asset_aria": "Choose asset",
+        "monitor.no_source_context": "No source context",
+        "monitor.source_flow": "Source flow",
+        "monitor.source_receipt": "SOURCE RECEIPT",
+        "monitor.no_receive_timestamp": "No receive timestamp",
+        "monitor.status_at": "Status at",
+        "monitor.manual_snapshot": "Manual snapshot · Refresh to reassess",
+        "monitor.signal_explorer": "Signal explorer",
+        "monitor.signals": "Signals",
+        "monitor.find_signal": "Find a signal",
+        "monitor.select_signal": "Select a signal to inspect",
+        "monitor.compare_help": "Use + to compare · up to 6 signals",
+        "monitor.no_matching_signals": "No matching signals. Try a channel or measurement name.",
+        "monitor.observation_workspace": "OBSERVATION WORKSPACE",
+        "monitor.signal_comparison": "Signal comparison",
+        "monitor.event_time_range": "Event-time range",
+        "monitor.channel_scope": (
+            "Channel scope: all recorded sources/points · origins remain separate"
+        ),
+        "monitor.unit_unknown": "unit unknown",
+        "monitor.quality": "Quality",
+        "monitor.unknown": "unknown",
+        "monitor.event_time_unavailable": "Event time unavailable",
+        "monitor.stored_event_time": "STORED EVENT TIME · UTC",
+        "monitor.no_event_time_window": "No event-time window",
+        "monitor.recorded_signal_comparison": "Recorded signal comparison",
+        "monitor.chart_caption": (
+            "Mean · min/max · top marks: analysis windows (arrow keys move) · "
+            "amber: exclusions"
+        ),
+        "monitor.bucket_note": "Bucket summaries are not synchronized raw samples",
+        "monitor.snapshot": "Snapshot",
+        "monitor.inspect_signal": "Inspect selected signal",
+        "monitor.analysis_evidence": "Analysis evidence",
+        "monitor.analysis_evidence_region": "Analysis evidence in this window",
+        "monitor.no_analysis_overlap": "No loaded analysis overlaps this window.",
+        "monitor.needs_inspection": "Needs inspection",
+        "monitor.no_inspection_items": "No recorded inspection items for this context.",
+        "monitor.close_asset_picker": "Close asset picker",
+        "monitor.search_assets": "Search assets",
+        "monitor.no_stored_observations": (
+            "No stored observations in this window. Select an available signal or another range."
+        ),
+        "monitor.stored_bucket_summaries": "Stored bucket summaries",
+        "monitor.no_usable_bucket_values": "No usable bucket values",
+        "monitor.no_observations_bucket": "No observations in this bucket.",
+        "monitor.no_usable_value": "No usable value",
+        "monitor.observed": "Observed",
+        "monitor.retry_refresh": "Retry refresh",
+        "monitor.update_timeout": "The view did not finish updating. Refresh to retry.",
+        "monitor.update_failed": "The update failed. Refresh to retry.",
+        "monitor.future_timestamp": "Future timestamp",
+        "monitor.no_receipt_recorded": "No receipt recorded",
+        "monitor.not_recorded": "Not recorded",
+        "monitor.ago": "ago",
+        "monitor.in_future": "in future",
     },
     OperationsLocale.KO_KR: {
         "locale.label": "언어",
@@ -152,6 +213,64 @@ _TEXT: Final = {
         "common.not_recorded": "기록 없음",
         "common.time_not_comparable": "시간 비교 불가",
         "common.future_timestamp": "미래 시각",
+        "monitor.operations_pages": "Operations 페이지",
+        "monitor.refresh": "새로고침",
+        "monitor.refresh_aria": "관측값 새로고침",
+        "monitor.eyebrow": "OPERATIONS / 관제",
+        "monitor.choose_asset": "설비 선택",
+        "monitor.choose_asset_aria": "설비 선택",
+        "monitor.no_source_context": "Source 정보 없음",
+        "monitor.source_flow": "데이터 수신",
+        "monitor.source_receipt": "최근 수신",
+        "monitor.no_receive_timestamp": "수신 시각 기록 없음",
+        "monitor.status_at": "상태 기준 시각",
+        "monitor.manual_snapshot": "수동 snapshot · 새로고침하면 다시 평가합니다",
+        "monitor.signal_explorer": "신호 탐색",
+        "monitor.signals": "신호",
+        "monitor.find_signal": "신호 검색",
+        "monitor.select_signal": "확인할 신호를 선택하세요",
+        "monitor.compare_help": "+로 비교 · 최대 6개 신호",
+        "monitor.no_matching_signals": "일치하는 신호가 없습니다. 채널 또는 측정 이름을 검색하세요.",
+        "monitor.observation_workspace": "관측 WORKSPACE",
+        "monitor.signal_comparison": "신호 비교",
+        "monitor.event_time_range": "이벤트 시각 범위",
+        "monitor.channel_scope": "채널 범위: 기록된 모든 source/point · origin은 분리 유지",
+        "monitor.unit_unknown": "단위 미확인",
+        "monitor.quality": "품질",
+        "monitor.unknown": "미확인",
+        "monitor.event_time_unavailable": "이벤트 시각 없음",
+        "monitor.stored_event_time": "저장 이벤트 시각 · UTC",
+        "monitor.no_event_time_window": "이벤트 시각 구간 없음",
+        "monitor.recorded_signal_comparison": "기록 신호 비교",
+        "monitor.chart_caption": (
+            "평균 · 최소/최대 · 상단 표시: 분석 구간(방향키 이동) · 황색: 제외 구간"
+        ),
+        "monitor.bucket_note": "Bucket 요약은 동기화된 raw sample이 아닙니다",
+        "monitor.snapshot": "Snapshot",
+        "monitor.inspect_signal": "선택 신호 자세히 보기",
+        "monitor.analysis_evidence": "분석 근거",
+        "monitor.analysis_evidence_region": "현재 구간의 분석 근거",
+        "monitor.no_analysis_overlap": "현재 구간과 겹치는 분석 근거가 없습니다.",
+        "monitor.needs_inspection": "확인 필요",
+        "monitor.no_inspection_items": "현재 맥락에 기록된 확인 항목이 없습니다.",
+        "monitor.close_asset_picker": "설비 선택 닫기",
+        "monitor.search_assets": "설비 검색",
+        "monitor.no_stored_observations": (
+            "현재 구간에 저장된 관측값이 없습니다. 사용 가능한 신호나 다른 범위를 선택하세요."
+        ),
+        "monitor.stored_bucket_summaries": "저장 bucket 요약",
+        "monitor.no_usable_bucket_values": "사용 가능한 bucket 값 없음",
+        "monitor.no_observations_bucket": "이 bucket에는 관측값이 없습니다.",
+        "monitor.no_usable_value": "사용 가능한 값 없음",
+        "monitor.observed": "관측",
+        "monitor.retry_refresh": "새로고침 재시도",
+        "monitor.update_timeout": "화면 갱신이 끝나지 않았습니다. 새로고침해 다시 시도하세요.",
+        "monitor.update_failed": "갱신하지 못했습니다. 새로고침해 다시 시도하세요.",
+        "monitor.future_timestamp": "미래 시각",
+        "monitor.no_receipt_recorded": "수신 기록 없음",
+        "monitor.not_recorded": "기록 없음",
+        "monitor.ago": "전",
+        "monitor.in_future": "후",
     },
 }
 
@@ -208,6 +327,14 @@ def operations_status_label(
     if not isinstance(status, OperationsMonitorStatus):
         raise ValueError("status must be an OperationsMonitorStatus")
     return _STATUS_LABELS[_require_locale(locale)][status]
+
+
+def operations_messages(
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> dict[str, str]:
+    """Return a copy safe to pass to the browser presentation boundary."""
+
+    return dict(_TEXT[_require_locale(locale)])
 
 
 def operations_text(
