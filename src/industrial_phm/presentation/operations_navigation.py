@@ -30,7 +30,7 @@ class OperationsAttentionRoute:
         }:
             raise ValueError("unsupported Operations attention route page")
         if self.page == OperationsPageId.ASSETS:
-            if self.asset_id is None or self.asset_section != "Signals":
+            if self.asset_id is None or self.asset_section != "signals":
                 raise ValueError("Assets attention route requires asset Signals context")
         elif self.page == OperationsPageId.INVESTIGATIONS:
             if self.investigation_group_id is None or self.investigation_id is None:
@@ -65,7 +65,7 @@ def resolve_operations_attention_route(
         return OperationsAttentionRoute(
             page=OperationsPageId.ASSETS,
             asset_id=attention.asset_id,
-            asset_section="Signals",
+            asset_section="signals",
         )
     if attention.destination == OperationsAttentionDestination.SYSTEM:
         return OperationsAttentionRoute(page=OperationsPageId.SYSTEM)
