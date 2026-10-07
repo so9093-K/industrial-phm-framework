@@ -53,12 +53,34 @@ def test_operations_empty_workspace_starts_with_first_run_landing(tmp_path, monk
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
-    assert defs["navigation_page"] == "Setup"
-    assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "Setup"
+    assert defs["navigation_page"] == "setup"
+    assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "setup"
+    assert defs["monitor_workspace_ui"].widget.snapshot["page_labels"]["setup"] == "Data connection"
     assert defs["first_run_mode"] == "landing"
     assert defs["first_run_sample_button"] is not None
     assert defs["first_run_real_button"] is not None
     assert "setup_section" not in defs
+
+
+def test_operations_ko_locale_changes_display_without_changing_page_identity(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+    monkeypatch.setenv("INDUSTRIAL_PHM_LOCALE", "ko-KR")
+
+    app = runpy.run_path(str(OPERATIONS_APP))["app"]
+    _, defs = app.run()
+
+    snapshot = defs["monitor_workspace_ui"].widget.snapshot
+    assert defs["operations_locale"].value == "ko-KR"
+    assert defs["navigation_page"] == "setup"
+    assert snapshot["page"] == "setup"
+    assert snapshot["page_labels"]["monitor"] == "관제"
+    assert snapshot["page_labels"]["setup"] == "데이터 연결"
+    assert snapshot["messages"]["monitor.refresh"] == "새로고침"
+    assert defs["operations_text"]("first_run.sample.title", defs["operations_locale"]) == (
+        "샘플 데이터로 둘러보기"
+    )
 
 
 def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
@@ -88,15 +110,16 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
-    assert defs["navigation_page"] == "Monitor"
-    assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "Monitor"
+    assert defs["navigation_page"] == "monitor"
+    assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "monitor"
+    assert defs["monitor_workspace_ui"].widget.snapshot["page_labels"]["monitor"] == "Monitor"
     assert defs["first_run_mode"] == "configured"
     assert "setup_section" not in defs
     assert "navigation" not in defs
     assert defs["monitor_range_id"] == "1h"
     assert defs["signal_range_selector"].value == "Live"
-    assert defs["get_asset_section"]() == "Overview"
-    assert defs["get_investigation_review_filter"]() == "All"
+    assert defs["get_asset_section"]() == "overview"
+    assert defs["get_investigation_review_filter"]() == "all"
 
 
 def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
@@ -120,7 +143,7 @@ def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monke
     route = resolve_operations_attention_route(
         attention, investigation_queue=defs["investigation_queue"]
     )
-    assert route.page == "Investigations"
+    assert route.page == "investigations"
     assert "attention_view" not in defs
     assert "monitor_evidence_view" not in defs
     assert "monitor_signal_trends" not in defs

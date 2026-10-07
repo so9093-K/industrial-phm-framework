@@ -92,6 +92,13 @@ def _():
         live_observation_recent_page,
         render_live_observation_html,
     )
+    from industrial_phm.presentation.operations_locale import (
+        OperationsLocale,
+        operations_messages,
+        operations_page_label,
+        operations_text,
+        resolve_environment_operations_locale,
+    )
     from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
         maintenance_status_label,
@@ -146,6 +153,7 @@ def _():
         OperationsActionError,
         OperationsDiagnosticKind,
         OperationsReadError,
+        OperationsLocale,
         Path,
         RegisteredSource,
         SourceLifecycleState,
@@ -184,6 +192,9 @@ def _():
         monitor_attention_category,
         monitor_context_attention,
         operational_analysis_presentation_kind,
+        operations_messages,
+        operations_page_label,
+        operations_text,
         operations_theme_css,
         phase_unbalance_exclusion_rows,
         phase_unbalance_provenance_rows,
@@ -220,6 +231,7 @@ def _():
         render_system_diagnostics_html,
         render_system_errors_html,
         render_system_runtime_html,
+        resolve_environment_operations_locale,
         resolve_measurement_range,
         setup_workspace_css,
         system_workspace_css,
@@ -230,6 +242,26 @@ def _():
 def _(mo):
     get_navigation_page, set_navigation_page = mo.state(None)
     return get_navigation_page, set_navigation_page
+
+
+@app.cell
+def _(OperationsLocale, mo, resolve_environment_operations_locale):
+    _initial_locale = resolve_environment_operations_locale()
+    locale_selector = mo.ui.dropdown(
+        options={
+            "한국어": OperationsLocale.KO_KR.value,
+            "English": OperationsLocale.EN_US.value,
+        },
+        value=("한국어" if _initial_locale == OperationsLocale.KO_KR else "English"),
+        label="Language / 언어",
+    )
+    return (locale_selector,)
+
+
+@app.cell
+def _(OperationsLocale, locale_selector):
+    operations_locale = OperationsLocale(locale_selector.value)
+    return (operations_locale,)
 
 
 @app.cell
@@ -460,17 +492,24 @@ def _(
 
 
 @app.cell
-def _(mo, setup_selected_source):
+def _(mo, operations_locale, operations_text, setup_selected_source):
     first_run_sample_button = mo.ui.run_button(
-        label="Explore with sample data",
+        label=operations_text("first_run.sample.title", operations_locale),
         kind="success",
     )
-    first_run_real_button = mo.ui.run_button(label="Connect real data")
-    first_run_stop_sample_button = mo.ui.run_button(label="Stop sample")
+    first_run_real_button = mo.ui.run_button(
+        label=operations_text("first_run.real.open", operations_locale)
+    )
+    first_run_stop_sample_button = mo.ui.run_button(
+        label=operations_text("first_run.sample.stop", operations_locale)
+    )
     setup_open_monitor_button = (
         None
         if setup_selected_source is None
-        else mo.ui.run_button(label="Open Monitor", kind="success")
+        else mo.ui.run_button(
+            label=operations_text("setup.open_monitor", operations_locale),
+            kind="success",
+        )
     )
     return (
         first_run_real_button,
@@ -526,7 +565,7 @@ def _(get_first_run_error, get_first_run_mode, get_first_run_sample):
 @app.cell
 def _(set_navigation_page, setup_open_monitor_button):
     if setup_open_monitor_button is not None and setup_open_monitor_button.value:
-        set_navigation_page("Monitor")
+        set_navigation_page("monitor")
     return
 
 
@@ -537,7 +576,7 @@ def _():
 
 
 @app.cell
-def _(mo, setup_selection, setup_workspace):
+def _(mo, operations_locale, operations_text, setup_selection, setup_workspace):
     _setup_source_ids = tuple(item.source_id for item in setup_workspace.sources)
     if _setup_source_ids:
         _selected_source_id = (
@@ -548,7 +587,7 @@ def _(mo, setup_selection, setup_workspace):
         setup_source_selector = mo.ui.dropdown(
             options=list(_setup_source_ids),
             value=_selected_source_id,
-            label="Data source",
+            label=operations_text("setup.source", operations_locale),
             full_width=True,
             on_change=lambda value: setup_selection.update(source_id=value),
         )
@@ -562,27 +601,41 @@ def _(mo, setup_selection, setup_workspace):
 
 
 @app.cell
-def _(SourceLifecycleState, mo, setup_selected_source):
+def _(SourceLifecycleState, mo, operations_locale, operations_text, setup_selected_source):
     setup_enable_button = None
     setup_pause_button = None
     if setup_selected_source is not None:
         if setup_selected_source.lifecycle_state == SourceLifecycleState.ACTIVE:
-            setup_pause_button = mo.ui.run_button(label="Pause source")
+            setup_pause_button = mo.ui.run_button(
+                label=operations_text("setup.pause", operations_locale)
+            )
         else:
-            setup_enable_button = mo.ui.run_button(label="Enable source", kind="success")
+            setup_enable_button = mo.ui.run_button(
+                label=operations_text("setup.enable", operations_locale),
+                kind="success",
+            )
     return setup_enable_button, setup_pause_button
 
 
 @app.cell
-def _(CollectionDesiredState, SourceType, mo, setup_selected_source):
+def _(
+    CollectionDesiredState,
+    SourceType,
+    mo,
+    operations_locale,
+    operations_text,
+    setup_selected_source,
+):
     setup_start_collection_button = None
     setup_stop_collection_button = None
     if setup_selected_source is not None and setup_selected_source.source_type == SourceType.OPCUA:
         if setup_selected_source.collection_desired_state == CollectionDesiredState.RUNNING:
-            setup_stop_collection_button = mo.ui.run_button(label="Stop collection")
+            setup_stop_collection_button = mo.ui.run_button(
+                label=operations_text("setup.stop_collection", operations_locale)
+            )
         else:
             setup_start_collection_button = mo.ui.run_button(
-                label="Start collection",
+                label=operations_text("setup.start_collection", operations_locale),
                 kind="success",
             )
     return setup_start_collection_button, setup_stop_collection_button
@@ -1247,6 +1300,7 @@ def _(
     opcua_endpoint_input,
     opcua_mapping_error,
     opcua_timeout_input,
+    operations_locale,
     pending_semantics,
     register_setup_source_button,
     set_pending_semantics,
@@ -1343,7 +1397,7 @@ def _(
 @app.cell
 def _(mo):
     get_asset_selection, set_asset_selection = mo.state(None)
-    get_asset_section, set_asset_section = mo.state("Overview")
+    get_asset_section, set_asset_section = mo.state("overview")
     return (
         get_asset_section,
         get_asset_selection,
@@ -1360,6 +1414,8 @@ def _(
     history_assets,
     mo,
     monitor,
+    operations_locale,
+    operations_text,
     set_asset_section,
     set_asset_selection,
 ):
@@ -1385,12 +1441,22 @@ def _(
         )
     else:
         asset_selector = None
-    _asset_sections = ["Overview", "Signals", "Analysis", "Events", "Maintenance"]
+    _asset_sections = {
+        operations_text("asset.section.overview", operations_locale): "overview",
+        operations_text("asset.section.signals", operations_locale): "signals",
+        operations_text("asset.section.analysis", operations_locale): "analysis",
+        operations_text("asset.section.events", operations_locale): "events",
+        operations_text("asset.section.maintenance", operations_locale): "maintenance",
+    }
     _requested_section = get_asset_section()
+    _section_label_by_id = {value: label for label, value in _asset_sections.items()}
     asset_section = mo.ui.radio(
         options=_asset_sections,
-        value=_requested_section if _requested_section in _asset_sections else "Overview",
-        label="View",
+        value=_section_label_by_id.get(
+            _requested_section,
+            operations_text("asset.section.overview", operations_locale),
+        ),
+        label=operations_text("asset.view", operations_locale),
         on_change=set_asset_section,
     )
     return asset_section, asset_selector
@@ -1420,7 +1486,7 @@ def _(
     asset_workspace = None
     asset_workspace_error = None
     asset_history_error = None
-    if navigation_page in {"Assets", "Monitor"} and asset_selector is not None:
+    if navigation_page in {"assets", "monitor"} and asset_selector is not None:
         _selected_asset_id = asset_selector.value
         _history_summary = next(
             (item for item in history_assets if item.asset_id == _selected_asset_id),
@@ -1573,12 +1639,13 @@ def _(
     asset_run_file_analysis_button,
     asset_workspace,
     mo,
+    operations_locale,
     render_asset_analysis_html,
 ):
     if asset_workspace is None:
         asset_analysis_view = mo.md("No asset is selected.")
     else:
-        _blocks = [mo.Html(render_asset_analysis_html(asset_workspace))]
+        _blocks = [mo.Html(render_asset_analysis_html(asset_workspace, operations_locale))]
         if asset_analysis_action_error:
             _blocks.append(
                 mo.callout(
@@ -1711,7 +1778,7 @@ def _(
     monitor_latest_points = ()
     monitor_latest_rows = ()
     monitor_latest_error = ""
-    if navigation_page == "Monitor" and asset_selector is not None and history_reader is not None:
+    if navigation_page == "monitor" and asset_selector is not None and history_reader is not None:
         try:
             monitor_latest_points = query_operations_latest_asset_measurements(
                 history_reader,
@@ -1774,7 +1841,7 @@ def _(
     monitor_chart_data = None
     monitor_chart_error = ""
     monitor_window_evidence_items = ()
-    if navigation_page == "Monitor" and asset_selector is not None and history_reader is not None:
+    if navigation_page == "monitor" and asset_selector is not None and history_reader is not None:
         _event_times = tuple(
             point.measurement.event_at
             for point in monitor_latest_points
@@ -1866,7 +1933,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation_page != "Assets" or asset_section.value != "Signals":
+    if navigation_page != "assets" or asset_section.value != "signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -2106,9 +2173,9 @@ def _(
 @app.cell
 def _(mo):
     get_investigation_selection, set_investigation_selection = mo.state((None, None))
-    get_investigation_review_filter, set_investigation_review_filter = mo.state("All")
-    get_investigation_asset_filter, set_investigation_asset_filter = mo.state("All")
-    get_investigation_capability_filter, set_investigation_capability_filter = mo.state("All")
+    get_investigation_review_filter, set_investigation_review_filter = mo.state("all")
+    get_investigation_asset_filter, set_investigation_asset_filter = mo.state("all")
+    get_investigation_capability_filter, set_investigation_capability_filter = mo.state("all")
     return (
         get_investigation_asset_filter,
         get_investigation_capability_filter,
@@ -2197,23 +2264,30 @@ def _(
     investigation_queue,
     investigation_review_label,
     mo,
+    operations_locale,
+    operations_text,
     set_investigation_asset_filter,
     set_investigation_capability_filter,
     set_investigation_review_filter,
 ):
-    _review_options = ["All"] + [
-        investigation_review_label(state) for state in InvestigationReviewState
-    ]
+    _all_label = operations_text("common.all", operations_locale)
+
+    _review_labels = {
+        investigation_review_label(state, operations_locale): state.value
+        for state in InvestigationReviewState
+    }
     _review_value = get_investigation_review_filter()
+    _review_label_by_value = {value: label for label, value in _review_labels.items()}
     investigation_review_filter = mo.ui.dropdown(
-        options=_review_options,
-        value=_review_value if _review_value in _review_options else "All",
-        label="Review",
+        options={_all_label: "all", **_review_labels},
+        value=_review_label_by_value.get(_review_value, _all_label),
+        label=operations_text("common.review", operations_locale),
         full_width=True,
         on_change=set_investigation_review_filter,
     )
+
     _asset_options = {
-        "All": "All",
+        _all_label: "all",
         **{
             asset_names.option_label(asset_id): asset_id
             for asset_id in investigation_queue.asset_ids
@@ -2225,22 +2299,23 @@ def _(
         value=(
             asset_names.option_label(_asset_value)
             if _asset_value in investigation_queue.asset_ids
-            else "All"
+            else _all_label
         ),
-        label="Asset",
+        label=operations_text("common.asset", operations_locale),
         full_width=True,
         on_change=set_investigation_asset_filter,
     )
+
     _capability_labels = {
-        investigation_capability_label(capability_id): capability_id
+        investigation_capability_label(capability_id, operations_locale): capability_id
         for capability_id in investigation_queue.capability_ids
     }
-    _capability_options = ["All", *_capability_labels]
+    _capability_label_by_id = {value: label for label, value in _capability_labels.items()}
     _capability_value = get_investigation_capability_filter()
     investigation_capability_filter = mo.ui.dropdown(
-        options=_capability_options,
-        value=_capability_value if _capability_value in _capability_options else "All",
-        label="Capability",
+        options={_all_label: "all", **_capability_labels},
+        value=_capability_label_by_id.get(_capability_value, _all_label),
+        label=operations_text("common.capability", operations_locale),
         full_width=True,
         on_change=set_investigation_capability_filter,
     )
@@ -2264,24 +2339,30 @@ def _(
     investigation_review_label,
     get_investigation_selection,
     mo,
+    operations_locale,
     set_investigation_selection,
 ):
-    _review_state_by_label = {
-        investigation_review_label(state): state for state in InvestigationReviewState
-    }
-    _capability_by_label = {
-        investigation_capability_label(capability_id): capability_id
-        for capability_id in investigation_queue.capability_ids
-    }
+    _review_state = (
+        None
+        if investigation_review_filter.value == "all"
+        else InvestigationReviewState(investigation_review_filter.value)
+    )
     _groups = investigation_queue.groups(
-        review_state=_review_state_by_label.get(investigation_review_filter.value),
+        review_state=_review_state,
         asset_id=(
-            None if investigation_asset_filter.value == "All" else investigation_asset_filter.value
+            None if investigation_asset_filter.value == "all" else investigation_asset_filter.value
         ),
-        capability_id=_capability_by_label.get(investigation_capability_filter.value),
+        capability_id=(
+            None
+            if investigation_capability_filter.value == "all"
+            else investigation_capability_filter.value
+        ),
     )
     _group_label_to_id = {
-        f"{investigation_group_option_label(group, asset_names)} · {index + 1}": group.group_id
+        (
+            f"{investigation_group_option_label(group, asset_names, operations_locale)} "
+            f"· {index + 1}"
+        ): group.group_id
         for index, group in enumerate(_groups)
     }
     _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
@@ -2341,6 +2422,7 @@ def _(
     get_investigation_selection,
     investigation_queue_option_label,
     mo,
+    operations_locale,
     selected_investigation_group,
     set_investigation_selection,
 ):
@@ -2349,9 +2431,10 @@ def _(
         investigation_label_to_id = {}
     else:
         _label_to_id = {
-            f"{investigation_queue_option_label(item, asset_names)} · {index + 1}": (
-                item.investigation_id
-            )
+            (
+                f"{investigation_queue_option_label(item, asset_names, operations_locale)} "
+                f"· {index + 1}"
+            ): (item.investigation_id)
             for index, item in enumerate(selected_investigation_group.items)
         }
         _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2473,6 +2556,7 @@ def _(
     investigation_selector,
     mo,
     operational_analysis_presentation_kind,
+    operations_locale,
     phase_unbalance_exclusion_rows,
     phase_unbalance_provenance_rows,
     phase_unbalance_summary_rows,
@@ -2543,7 +2627,13 @@ def _(
             selected_investigation.capability_id
         )
         _evidence_blocks = [
-            mo.Html(render_investigation_summary_html(selected_investigation, asset_names)),
+            mo.Html(
+                render_investigation_summary_html(
+                    selected_investigation,
+                    asset_names,
+                    operations_locale,
+                )
+            ),
             mo.md(render_analysis_quality_markdown(selected_investigation_result.run)),
         ]
 
@@ -2640,7 +2730,12 @@ def _(
                 mo.md(
                     "### Human review\n\n"
                     "Current workflow state: "
-                    f"**{investigation_review_label(selected_investigation.review_state)}**"
+                    f"**{
+                        investigation_review_label(
+                            selected_investigation.review_state,
+                            operations_locale,
+                        )
+                    }**"
                 )
             )
 
@@ -2651,7 +2746,10 @@ def _(
                 mo.accordion(
                     {
                         "Evidence identity": mo.Html(
-                            render_investigation_evidence_identity_html(selected_investigation)
+                            render_investigation_evidence_identity_html(
+                                selected_investigation,
+                                operations_locale,
+                            )
                         )
                     }
                 ),
@@ -2700,24 +2798,36 @@ def _(
 
 
 @app.cell
-def _(FindingReviewStatus, asset_names, maintenance_queue, maintenance_status_label, mo):
-    _status_labels = ["All", *[maintenance_status_label(status) for status in FindingReviewStatus]]
+def _(
+    FindingReviewStatus,
+    asset_names,
+    maintenance_queue,
+    maintenance_status_label,
+    mo,
+    operations_locale,
+    operations_text,
+):
+    _all_label = operations_text("common.all", operations_locale)
+    _status_labels = {
+        maintenance_status_label(status, operations_locale): status.value
+        for status in FindingReviewStatus
+    }
     maintenance_status_filter = mo.ui.dropdown(
-        options=_status_labels,
-        value="All",
-        label="Status",
+        options={_all_label: "all", **_status_labels},
+        value=_all_label,
+        label=operations_text("common.status", operations_locale),
         full_width=True,
     )
     maintenance_asset_filter = mo.ui.dropdown(
         options={
-            "All": "All",
+            _all_label: "all",
             **{
                 asset_names.option_label(asset_id): asset_id
                 for asset_id in maintenance_queue.asset_ids
             },
         },
-        value="All",
-        label="Asset",
+        value=_all_label,
+        label=operations_text("common.asset", operations_locale),
         full_width=True,
     )
     return maintenance_asset_filter, maintenance_status_filter
@@ -2732,18 +2842,24 @@ def _(
     maintenance_queue_label,
     maintenance_selection,
     maintenance_status_filter,
-    maintenance_status_label,
     mo,
+    operations_locale,
+    operations_text,
 ):
-    _status_by_label = {maintenance_status_label(status): status for status in FindingReviewStatus}
     _filtered = maintenance_queue.filter(
-        status=_status_by_label.get(maintenance_status_filter.value),
+        status=(
+            None
+            if maintenance_status_filter.value == "all"
+            else FindingReviewStatus(maintenance_status_filter.value)
+        ),
         asset_id=(
-            None if maintenance_asset_filter.value == "All" else maintenance_asset_filter.value
+            None if maintenance_asset_filter.value == "all" else maintenance_asset_filter.value
         ),
     )
     _label_to_id = {
-        f"{maintenance_queue_label(item, asset_names)} · {index + 1}": item.finding_id
+        (
+            f"{maintenance_queue_label(item, asset_names, operations_locale)} · {index + 1}"
+        ): item.finding_id
         for index, item in enumerate(_filtered)
     }
     _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2757,7 +2873,7 @@ def _(
         maintenance_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
-            label="Queue",
+            label=operations_text("common.queue", operations_locale),
             on_change=lambda value: maintenance_selection.update(finding_id=_label_to_id[value]),
         )
     else:
@@ -2797,6 +2913,7 @@ def _(
     investigation_queue,
     mo,
     operational_analysis_presentation_kind,
+    operations_locale,
     phase_unbalance_summary_rows,
     selected_maintenance,
 ):
@@ -2864,11 +2981,11 @@ def _(
         except LookupError as error:
             set_maintenance_error(str(error))
         else:
-            set_investigation_review_filter("All")
-            set_investigation_asset_filter("All")
-            set_investigation_capability_filter("All")
+            set_investigation_review_filter("all")
+            set_investigation_asset_filter("all")
+            set_investigation_capability_filter("all")
             set_investigation_selection((_route.investigation_group_id, _route.investigation_id))
-            set_navigation_page("Investigations")
+            set_navigation_page("investigations")
     return
 
 
@@ -2977,6 +3094,7 @@ def _(
     maintenance_status_filter,
     maintenance_success,
     mo,
+    operations_locale,
     maintenance_evidence,
     maintenance_evidence_metrics,
     maintenance_open_investigation_button,
@@ -3058,6 +3176,7 @@ def _(
                     maintenance_evidence,
                     analysis_run_id=selected_maintenance.analysis_run_id,
                     metrics=maintenance_evidence_metrics,
+                    locale=operations_locale,
                 )
             )
         ]
@@ -3065,14 +3184,28 @@ def _(
             _evidence_blocks.append(maintenance_open_investigation_button)
         _detail_panel = mo.vstack(
             [
-                mo.Html(render_maintenance_summary_html(selected_maintenance, asset_names)),
+                mo.Html(
+                    render_maintenance_summary_html(
+                        selected_maintenance,
+                        asset_names,
+                        operations_locale,
+                    )
+                ),
                 *_evidence_blocks,
-                mo.Html(render_maintenance_timeline_html(selected_maintenance)),
+                mo.Html(
+                    render_maintenance_timeline_html(
+                        selected_maintenance,
+                        operations_locale,
+                    )
+                ),
                 *_action_blocks,
                 mo.accordion(
                     {
                         "Review identity": mo.Html(
-                            render_maintenance_identity_html(selected_maintenance)
+                            render_maintenance_identity_html(
+                                selected_maintenance,
+                                operations_locale,
+                            )
                         )
                     }
                 ),
@@ -3120,6 +3253,7 @@ def _(
 def _(
     asset_names,
     mo,
+    operations_locale,
     render_system_diagnostics_html,
     render_system_errors_html,
     render_system_runtime_html,
@@ -3144,13 +3278,13 @@ def _(
         )
     system_view = mo.vstack(
         [
-            mo.Html(render_system_runtime_html(system_runtime)),
-            mo.Html(render_system_errors_html(system_runtime)),
+            mo.Html(render_system_runtime_html(system_runtime, operations_locale)),
+            mo.Html(render_system_errors_html(system_runtime, operations_locale)),
             *_name_conflicts,
             mo.accordion(
                 {
                     "Advanced diagnostics": mo.Html(
-                        render_system_diagnostics_html(system_diagnostics)
+                        render_system_diagnostics_html(system_diagnostics, operations_locale)
                     )
                 }
             ),
@@ -3190,6 +3324,7 @@ def _(
     opcua_mapping_error,
     opcua_signal_selection,
     opcua_timeout_input,
+    operations_locale,
     pending_semantics,
     register_setup_source_button,
     render_setup_signals_html,
@@ -3257,7 +3392,12 @@ def _(
         _selected_source_panel = mo.vstack(
             [
                 setup_source_selector,
-                mo.Html(render_setup_source_detail_html(setup_selected_source)),
+                mo.Html(
+                    render_setup_source_detail_html(
+                        setup_selected_source,
+                        operations_locale,
+                    )
+                ),
                 mo.hstack(_source_actions, justify="start", gap=0.6),
                 mo.md(
                     "Enable/Pause changes whether a runtime may use the source. "
@@ -3571,13 +3711,23 @@ def _(
         _guided_setup = mo.vstack(
             [
                 mo.md("### 1 · Connected source"),
-                mo.Html(render_setup_sources_html(setup_workspace)),
+                mo.Html(
+                    render_setup_sources_html(
+                        setup_workspace,
+                        operations_locale,
+                    )
+                ),
                 _selected_source_panel,
                 mo.md(
                     "### 2 · Inspect signals\n\n"
                     "Confirm the exact source identity and the signals that were registered."
                 ),
-                mo.Html(render_setup_signals_html(setup_selected_source)),
+                mo.Html(
+                    render_setup_signals_html(
+                        setup_selected_source,
+                        operations_locale,
+                    )
+                ),
                 mo.md(
                     "### 3 · Confirm meaning\n\n"
                     f"Explicit meaning is recorded for **{_defined} / {_total}** signal(s). "
@@ -3629,18 +3779,19 @@ def _(
     first_run_sample_button,
     first_run_stop_sample_button,
     mo,
+    operations_locale,
+    operations_text,
 ):
     if first_run_mode == "sample" and first_run_sample is not None:
         first_run_view = mo.vstack(
             [
                 mo.md(
-                    "## Sample Operations is ready\n\n"
-                    "The sample runs in an isolated workspace and does not write synthetic "
-                    "observations into your real Operations workspace."
+                    f"## {operations_text('first_run.sample.ready', operations_locale)}\n\n"
+                    f"{operations_text('first_run.sample.isolation', operations_locale)}"
                 ),
                 mo.Html(
-                    f'<a href="{first_run_sample.url}" target="_blank" '
-                    'rel="noopener noreferrer">Open sample Monitor</a>'
+                    f'<a href="{first_run_sample.url}" target="_blank" rel="noopener noreferrer">'
+                    f"{operations_text('first_run.sample.open', operations_locale)}</a>"
                 ),
                 mo.md(f"Sample workspace: `{first_run_sample.workspace}`"),
                 mo.hstack(
@@ -3654,9 +3805,8 @@ def _(
     else:
         _blocks = [
             mo.md(
-                "# Industrial PHM\n\n"
-                "Choose how to begin. You can explore the real Operations path without "
-                "learning internal workspace or process commands."
+                f"# {operations_text('first_run.title', operations_locale)}\n\n"
+                f"{operations_text('first_run.intro', operations_locale)}"
             ),
         ]
         if first_run_error:
@@ -3664,7 +3814,7 @@ def _(
                 mo.callout(
                     first_run_error,
                     kind="danger",
-                    title="Sample could not start",
+                    title=operations_text("first_run.sample.error", operations_locale),
                 )
             )
         _blocks.extend(
@@ -3674,9 +3824,16 @@ def _(
                         mo.vstack(
                             [
                                 mo.md(
-                                    "### Explore with sample data\n\n"
-                                    "Start the existing synthetic three-phase demo in a separate "
-                                    "workspace and open its Monitor."
+                                    "### "
+                                    + operations_text(
+                                        "first_run.sample.title",
+                                        operations_locale,
+                                    )
+                                    + "\n\n"
+                                    + operations_text(
+                                        "first_run.sample.detail",
+                                        operations_locale,
+                                    )
                                 ),
                                 first_run_sample_button,
                             ],
@@ -3685,9 +3842,16 @@ def _(
                         mo.vstack(
                             [
                                 mo.md(
-                                    "### Connect real data\n\n"
-                                    "Connect a prepared FILE source or a live OPC UA source, "
-                                    "then verify signals and data flow."
+                                    "### "
+                                    + operations_text(
+                                        "first_run.real.title",
+                                        operations_locale,
+                                    )
+                                    + "\n\n"
+                                    + operations_text(
+                                        "first_run.real.detail",
+                                        operations_locale,
+                                    )
                                 ),
                                 first_run_real_button,
                             ],
@@ -3698,10 +3862,7 @@ def _(
                     align="start",
                     gap=1.0,
                 ),
-                mo.md(
-                    "An existing configured workspace skips this first-run choice and resumes "
-                    "directly in Monitor."
-                ),
+                mo.md(operations_text("first_run.resume", operations_locale)),
             ]
         )
         first_run_view = mo.vstack(_blocks, gap=1.0)
@@ -3744,6 +3905,10 @@ def _(
     monitor_attention_category,
     monitor_window_evidence_items,
     navigation_page,
+    operations_locale,
+    operations_messages,
+    operations_page_label,
+    operations_text,
     registered_sources,
     resolve_investigation_route,
     resolve_operations_attention_route,
@@ -3777,16 +3942,29 @@ def _(
         set() if asset_workspace is None else set(asset_workspace.history_channels)
     )
     _payload = {
-        "page": navigation_page,
+        "page": str(navigation_page),
+        "locale": operations_locale.value,
+        "messages": operations_messages(operations_locale),
         "active_investigation": get_investigation_selection(),
-        "pages": list(OPERATIONS_PAGE_OPTIONS),
+        "pages": [page.value for page in OPERATIONS_PAGE_OPTIONS],
+        "page_labels": {
+            page.value: operations_page_label(page, operations_locale)
+            for page in OPERATIONS_PAGE_OPTIONS
+        },
         "asset_id": _selected_asset,
         "asset_name": None if _selected_asset is None else asset_names.label(_selected_asset),
         "assets": [{"id": asset, "name": asset_names.label(asset)} for asset in _assets],
-        "status": "No source context"
-        if asset_workspace is None
-        else data_status_label(asset_workspace.status),
-        "source_at": None if asset_workspace is None else utc_millis(asset_workspace.last_data_at),
+        "status_id": (
+            "no-source-context" if asset_workspace is None else asset_workspace.status.value
+        ),
+        "status": (
+            operations_text("monitor.no_source_context", operations_locale)
+            if asset_workspace is None
+            else data_status_label(asset_workspace.status, operations_locale)
+        ),
+        "source_at": (
+            None if asset_workspace is None else utc_millis(asset_workspace.last_data_at)
+        ),
         "assessed_at": utc_millis(monitor.assessed_at),
         "signals": _catalog_rows,
         "stored_signal_count": len(monitor_latest_rows),
@@ -3798,10 +3976,16 @@ def _(
         "evidence": [
             {
                 "id": item.investigation_id,
-                "label": investigation_capability_label(item.capability_id),
+                "label": investigation_capability_label(
+                    item.capability_id,
+                    operations_locale,
+                ),
                 "start": utc_millis(item.observed_start_at),
                 "end": utc_millis(item.observed_end_at),
-                "review": investigation_review_label(item.review_state),
+                "review": investigation_review_label(
+                    item.review_state,
+                    operations_locale,
+                ),
             }
             for item in monitor_window_evidence_items
         ],
@@ -3810,20 +3994,20 @@ def _(
                 "id": item.attention_id,
                 "title": item.title,
                 "detail": item.detail,
-                "category": monitor_attention_category(item),
+                "category": monitor_attention_category(item, operations_locale),
             }
             for item in contextual_attention
         ],
     }
 
     def _navigate_route(route):
-        if route.page == "Assets":
+        if route.page == "assets":
             set_asset_selection(route.asset_id)
             set_asset_section(route.asset_section)
-        elif route.page == "Investigations":
-            set_investigation_review_filter("All")
-            set_investigation_asset_filter("All")
-            set_investigation_capability_filter("All")
+        elif route.page == "investigations":
+            set_investigation_review_filter("all")
+            set_investigation_asset_filter("all")
+            set_investigation_capability_filter("all")
             set_investigation_selection((route.investigation_group_id, route.investigation_id))
         set_navigation_page(route.page)
 
@@ -3832,7 +4016,7 @@ def _(
         if (
             _kind == "navigate"
             and isinstance(event.get("page"), str)
-            and event["page"] in OPERATIONS_PAGE_OPTIONS
+            and event["page"] in {page.value for page in OPERATIONS_PAGE_OPTIONS}
         ):
             set_navigation_page(event["page"])
         elif _kind == "asset" and event.get("id") in _assets:
@@ -3861,8 +4045,8 @@ def _(
         ):
             set_monitor_range(event["range"])
         elif _kind == "detail" and _selected_asset is not None:
-            set_asset_section("Signals")
-            set_navigation_page("Assets")
+            set_asset_section("signals")
+            set_navigation_page("assets")
         elif _kind == "refresh":
             set_monitor_revision(get_monitor_revision() + 1)
         elif (
@@ -3907,10 +4091,12 @@ def _(
     first_run_mode,
     first_run_view,
     investigation_workspace_css,
+    locale_selector,
     maintenance_view,
     mo,
     monitor_workspace_ui,
     navigation_page,
+    operations_locale,
     operations_theme_css,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -3956,11 +4142,13 @@ def _(
         )
     else:
         _asset_sections = {
-            "Overview": mo.Html(render_asset_overview_html(asset_workspace)),
-            "Signals": signal_view,
-            "Analysis": asset_analysis_view,
-            "Events": mo.Html(render_asset_events_html(asset_workspace)),
-            "Maintenance": mo.Html(render_asset_maintenance_html(asset_workspace)),
+            "overview": mo.Html(render_asset_overview_html(asset_workspace, operations_locale)),
+            "signals": signal_view,
+            "analysis": asset_analysis_view,
+            "events": mo.Html(render_asset_events_html(asset_workspace, operations_locale)),
+            "maintenance": mo.Html(
+                render_asset_maintenance_html(asset_workspace, operations_locale)
+            ),
         }
         asset_view = mo.vstack(
             [
@@ -3969,7 +4157,7 @@ def _(
                     widths=[0.46, 0.54],
                     align="start",
                 ),
-                mo.Html(render_asset_header_html(asset_workspace, asset_names)),
+                mo.Html(render_asset_header_html(asset_workspace, asset_names, operations_locale)),
                 _asset_sections[asset_section.value],
             ],
             gap=1.1,
@@ -3979,20 +4167,27 @@ def _(
         first_run_view if not setup_workspace.sources and first_run_mode != "real" else setup_view
     )
     pages = {
-        "Monitor": monitor_workspace_ui,
-        "Assets": asset_view,
-        "Investigations": investigation_view,
-        "Maintenance": maintenance_view,
-        "System": system_view,
-        "Setup": _setup_page,
+        "monitor": monitor_workspace_ui,
+        "assets": asset_view,
+        "investigations": investigation_view,
+        "maintenance": maintenance_view,
+        "system": system_view,
+        "setup": _setup_page,
     }
 
     shell = (
         monitor_workspace_ui
-        if navigation_page == "Monitor"
+        if navigation_page == "monitor"
         else mo.vstack([monitor_workspace_ui, pages[navigation_page]], gap=0.8)
     )
-    mo.vstack([theme, shell], gap=0.0)
+    mo.vstack(
+        [
+            theme,
+            mo.hstack([locale_selector], justify="end"),
+            shell,
+        ],
+        gap=0.35,
+    )
     return
 
 

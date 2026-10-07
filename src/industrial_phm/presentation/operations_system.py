@@ -2,67 +2,89 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from html import escape
 
 from industrial_phm.application.operations_monitor import OperationsMonitorStatus
-from industrial_phm.application.operations_system import (
-    SystemRuntimeService,
-    SystemRuntimeView,
+from industrial_phm.application.operations_system import SystemRuntimeService, SystemRuntimeView
+from industrial_phm.presentation.operations_locale import (
+    DEFAULT_OPERATIONS_LOCALE,
+    OperationsLocale,
+    format_operations_utc,
+    operations_text,
 )
 
 
-def render_system_runtime_html(view: SystemRuntimeView) -> str:
+def render_system_runtime_html(
+    view: SystemRuntimeView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, SystemRuntimeView):
         raise ValueError("view must be a SystemRuntimeView")
-    cards = "".join(_service_card(item) for item in view.services)
+    cards = "".join(_service_card(item, locale) for item in view.services)
+    title = escape(operations_text("system.runtime", locale))
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Runtime</div>'
+        f'<div class="phm-section-title">{title}</div>'
         f'<div class="phm-system-grid">{cards}</div>'
         "</section>"
     )
 
 
-def render_system_errors_html(view: SystemRuntimeView) -> str:
+def render_system_errors_html(
+    view: SystemRuntimeView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, SystemRuntimeView):
         raise ValueError("view must be a SystemRuntimeView")
+    title = escape(operations_text("system.errors", locale))
     if not view.errors:
+        detail = escape(operations_text("system.no_errors", locale))
         return (
             '<section class="phm-shell">'
-            '<div class="phm-section-title">Current application errors</div>'
-            '<div class="phm-card-detail">No current state-read error is recorded.</div>'
+            f'<div class="phm-section-title">{title}</div>'
+            f'<div class="phm-card-detail">{detail}</div>'
             "</section>"
         )
     body = "".join(
         "<tr>"
-        f"<td>{escape(_time_label(item.detected_at))}</td>"
+        f"<td>{escape(format_operations_utc(item.detected_at, locale))}</td>"
         f"<td><strong>{escape(item.title)}</strong></td>"
         f"<td>{escape(item.detail)}</td>"
         "</tr>"
         for item in view.errors
     )
+    headers = (
+        operations_text("system.detected", locale),
+        operations_text("system.area", locale),
+        operations_text("system.detail", locale),
+    )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Current application errors</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Detected</th><th>Area</th><th>Detail</th></tr></thead>"
+        f"<thead><tr>{_headers(headers)}</tr></thead>"
         f"<tbody>{body}</tbody></table></section>"
     )
 
 
 def render_system_diagnostics_html(
     diagnostics: tuple[tuple[str, str], ...],
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
     body = "".join(
         f"<tr><td>{escape(label)}</td><td><code>{escape(value)}</code></td></tr>"
         for label, value in diagnostics
     )
+    title = escape(operations_text("system.advanced_diagnostics", locale))
+    headers = (
+        operations_text("system.state", locale),
+        operations_text("system.path", locale),
+    )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Advanced diagnostics</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>State</th><th>Path</th></tr></thead>"
+        f"<thead><tr>{_headers(headers)}</tr></thead>"
         f"<tbody>{body}</tbody></table></section>"
     )
 
@@ -101,7 +123,10 @@ def system_workspace_css() -> str:
 """
 
 
-def _service_card(service: SystemRuntimeService) -> str:
+def _service_card(
+    service: SystemRuntimeService,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     facts = "".join(
         "<div>"
         f'<div class="phm-system-fact-label">{escape(item.label)}</div>'
@@ -113,26 +138,28 @@ def _service_card(service: SystemRuntimeService) -> str:
         '<div class="phm-card">'
         f'<div class="phm-card-title">{escape(service.title)}</div>'
         f'<div class="phm-card-status phm-status-{service.status.value}">'
-        f"{escape(_status_label(service.status))}</div>"
+        f"{escape(_status_label(service.status, locale))}</div>"
         f'<div class="phm-card-detail">{escape(service.summary)}</div>'
         f'<div class="phm-system-facts">{facts}</div>'
         "</div>"
     )
 
 
-def _status_label(status: OperationsMonitorStatus) -> str:
-    return {
-        OperationsMonitorStatus.RUNNING: "Running",
-        OperationsMonitorStatus.WAITING: "Waiting",
-        OperationsMonitorStatus.DELAYED: "Delayed",
-        OperationsMonitorStatus.STOPPED: "Stopped",
-        OperationsMonitorStatus.NEEDS_ATTENTION: "Needs attention",
-        OperationsMonitorStatus.ERROR: "Error",
-        OperationsMonitorStatus.UNAVAILABLE: "Unavailable",
+def _status_label(
+    status: OperationsMonitorStatus,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    key = {
+        OperationsMonitorStatus.RUNNING: "system.status.running",
+        OperationsMonitorStatus.WAITING: "system.status.waiting",
+        OperationsMonitorStatus.DELAYED: "system.status.delayed",
+        OperationsMonitorStatus.STOPPED: "system.status.stopped",
+        OperationsMonitorStatus.NEEDS_ATTENTION: "system.status.needs_attention",
+        OperationsMonitorStatus.ERROR: "system.status.error",
+        OperationsMonitorStatus.UNAVAILABLE: "system.status.unavailable",
     }[status]
+    return operations_text(key, locale)
 
 
-def _time_label(value: datetime) -> str:
-    if value.utcoffset() is None:
-        return "Time not comparable"
-    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+def _headers(labels: tuple[str, ...]) -> str:
+    return "".join(f"<th>{escape(label)}</th>" for label in labels)

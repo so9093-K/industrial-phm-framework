@@ -11,10 +11,13 @@ const svgEl = (tag, attrs = {}, text) => {
   if (text !== undefined) e.textContent = text;
   return e;
 };
-const number = v => v == null ? '—' : new Intl.NumberFormat('en', {
+let activeLocale = 'en-US';
+let activeMessages = {};
+const t = (key, fallback = key) => activeMessages[key] ?? fallback;
+const number = v => v == null ? '—' : new Intl.NumberFormat(activeLocale, {
   maximumSignificantDigits: 5
 }).format(v);
-const time = (v, full = false) => v == null ? 'Not recorded' : new Intl.DateTimeFormat('en-GB', {
+const time = (v, full = false) => v == null ? t('monitor.not_recorded', 'Not recorded') : new Intl.DateTimeFormat(activeLocale, {
   timeZone: 'UTC',
   ...(full ? {
     year: 'numeric',
@@ -26,10 +29,21 @@ const time = (v, full = false) => v == null ? 'Not recorded' : new Intl.DateTime
   second: '2-digit',
   hourCycle: 'h23'
 }).format(new Date(v));
+const shortTime = v => v == null ? t('monitor.not_recorded', 'Not recorded') : new Intl.DateTimeFormat(activeLocale, {
+  timeZone: 'UTC',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+}).format(new Date(v));
 const age = (at, now) => {
-  if (at == null) return 'No receipt recorded';
+  if (at == null) return t('monitor.no_receipt_recorded', 'No receipt recorded');
   const d = (now - at) / 1000;
-  if (d < 0) return 'Future timestamp';
+  if (d < 0) return t('monitor.future_timestamp', 'Future timestamp');
+  if (activeLocale === 'ko-KR') {
+    if (d < 60) return `${Math.round(d)}초 전`;
+    if (d < 3600) return `${Math.floor(d/60)}분 전`;
+    return `${Math.floor(d/3600)}시간 전`;
+  }
   if (d < 60) return `${Math.round(d)}s ago`;
   if (d < 3600) return `${Math.floor(d/60)}m ago`;
   return `${Math.floor(d/3600)}h ago`;
@@ -97,7 +111,7 @@ function render({
     disabledControls.forEach((_, control) => {
       control.disabled = true;
     });
-    pendingTimer = setTimeout(() => showActionError('The view did not finish updating. Refresh to retry.'), 15000);
+    pendingTimer = setTimeout(() => showActionError(t('monitor.update_timeout', 'The view did not finish updating. Refresh to retry.')), 15000);
     model.set('event', {
       kind,
       ...values,
@@ -119,7 +133,7 @@ function render({
     const error = $('div', 'mw-error mw-action-error');
     error.setAttribute('role', 'alert');
     error.append($('span', '', message));
-    const retry = $('button', 'mw-text-action', 'Retry refresh');
+    const retry = $('button', 'mw-text-action', t('monitor.retry_refresh', 'Retry refresh'));
     retry.type = 'button';
     retry.addEventListener('click', () => emit('refresh'));
     error.append(retry);
@@ -128,7 +142,7 @@ function render({
   const onResponse = () => {
     const reply = model.get('response');
     if (reply.sequence !== sequence) return;
-    if (reply.status !== 'ok') showActionError(reply.message || 'The update failed. Refresh to retry.');
+    if (reply.status !== 'ok') showActionError(reply.message || t('monitor.update_failed', 'The update failed. Refresh to retry.'));
   };
   const button = (text, action, cls = 'mw-button') => {
     const b = $('button', cls, text);
@@ -142,6 +156,8 @@ function render({
     cleanChart();
     clearTimeout(pendingTimer);
     s = model.get('snapshot');
+    activeLocale = s.locale || 'en-US';
+    activeMessages = s.messages || {};
     root.replaceChildren();
     root.classList.remove('mw-pending');
     root.dataset.currentInvestigation = s.active_investigation?.[1] || '';
@@ -150,9 +166,9 @@ function render({
     brand.append($('span', 'mw-brand-mark', '∿'), $('span', '', 'INDUSTRIAL'), $('span', 'mw-brand-sub', 'PHM'));
     nav.append(brand);
     const links = $('nav', 'mw-pages');
-    links.setAttribute('aria-label', 'Operations pages');
+    links.setAttribute('aria-label', t('monitor.operations_pages', 'Operations pages'));
     for (const page of s.pages) {
-      const b = button(page, () => emit('navigate', {
+      const b = button(s.page_labels?.[page] || page, () => emit('navigate', {
         page
       }), 'mw-page' + (s.page === page ? ' mw-active' : ''));
       b.setAttribute('aria-current', s.page === page ? 'page' : 'false');
@@ -160,48 +176,54 @@ function render({
     }
     nav.append(links);
     const refresh = button('', () => emit('refresh'), 'mw-refresh');
-    refresh.append(icon('refresh'), $('span', '', 'Refresh'));
-    refresh.setAttribute('aria-label', 'Refresh observations');
+    refresh.append(icon('refresh'), $('span', '', t('monitor.refresh', 'Refresh')));
+    refresh.setAttribute('aria-label', t('monitor.refresh_aria', 'Refresh observations'));
     nav.append(refresh);
     root.append(nav);
-    if (s.page !== 'Monitor') return;
+    if (s.page !== 'monitor') return;
     const title = $('section', 'mw-context');
     const identity = $('div', 'mw-identity');
-    identity.append($('div', 'mw-eyebrow', 'OPERATIONS / MONITOR'));
+    identity.append($('div', 'mw-eyebrow', t('monitor.eyebrow', 'OPERATIONS / MONITOR')));
     const asset = button('', () => openAssets(), 'mw-asset');
-    asset.append($('h1', '', s.asset_name || 'Choose an asset'), icon('chevron'));
-    asset.setAttribute('aria-label', 'Choose asset');
+    asset.append($('h1', '', s.asset_name || t('monitor.choose_asset', 'Choose an asset')), icon('chevron'));
+    asset.setAttribute('aria-label', t('monitor.choose_asset_aria', 'Choose asset'));
     identity.append(asset);
     const subtitle = $('div', 'mw-context-sub');
     subtitle.append($('span', '', s.asset_name !== s.asset_id ? s.asset_id : `${s.stored_signal_count} stored signals · observation snapshot`));
     identity.append(subtitle);
     title.append(identity);
     const flow = $('div', 'mw-flow');
-    const status = $('span', 'mw-status' + (s.status === 'Receiving' ? ' mw-receiving' : ''));
+    const status = $('span', 'mw-status' + (s.status_id === 'running' ? ' mw-receiving' : ''));
     // The badge is source session evidence, named as on Signals.
-    const flowState = !s.status || s.status === 'No source context' ? 'No source context' : `Source flow · ${s.status}`;
+    const flowState = s.status_id === 'no-source-context'
+      ? t('monitor.no_source_context', 'No source context')
+      : `${t('monitor.source_flow', 'Source flow')} · ${s.status}`;
     status.append($('i', ''), $('span', '', flowState));
     flow.append(status);
     const receipt = $('div', 'mw-receipt');
-    receipt.append($('span', 'mw-muted', 'SOURCE RECEIPT'), $('strong', '', age(s.source_at, s.assessed_at)), $('span', 'mw-muted', s.source_at ? `${time(s.source_at,true)} UTC` : 'No receive timestamp'));
+    receipt.append(
+      $('span', 'mw-muted', t('monitor.source_receipt', 'SOURCE RECEIPT')),
+      $('strong', '', age(s.source_at, s.assessed_at)),
+      $('span', 'mw-muted', s.source_at ? `${time(s.source_at,true)} UTC` : t('monitor.no_receive_timestamp', 'No receive timestamp'))
+    );
     flow.append(receipt);
-    const assessment = $('div', 'mw-assessment', `Status at ${time(s.assessed_at,true)} UTC`);
-    assessment.append($('span', 'mw-muted', 'Manual snapshot · Refresh to reassess'));
+    const assessment = $('div', 'mw-assessment', `${t('monitor.status_at', 'Status at')} ${time(s.assessed_at,true)} UTC`);
+    assessment.append($('span', 'mw-muted', t('monitor.manual_snapshot', 'Manual snapshot · Refresh to reassess')));
     flow.append(assessment);
     title.append(flow);
     root.append(title);
     const workspace = $('section', 'mw-workspace');
     const explorer = $('aside', 'mw-explorer');
-    explorer.setAttribute('aria-label', 'Signal explorer');
+    explorer.setAttribute('aria-label', t('monitor.signal_explorer', 'Signal explorer'));
     const explorerHead = $('div', 'mw-explorer-head');
-    explorerHead.append($('h2', '', 'Signals'), $('span', 'mw-count', String(s.signals.length)));
+    explorerHead.append($('h2', '', t('monitor.signals', 'Signals')), $('span', 'mw-count', String(s.signals.length)));
     explorer.append(explorerHead);
     const searchWrap = $('div', 'mw-search');
     searchWrap.append(icon('search'));
     const search = $('input');
     search.type = 'search';
-    search.placeholder = 'Find a signal';
-    search.setAttribute('aria-label', 'Find a signal');
+    search.placeholder = t('monitor.find_signal', 'Find a signal');
+    search.setAttribute('aria-label', t('monitor.find_signal', 'Find a signal'));
     query = sessionStorage.getItem('phm-monitor-search:' + s.asset_id) || '';
     search.value = query;
     searchWrap.append(search);
@@ -209,7 +231,7 @@ function render({
     const list = $('div', 'mw-signal-list');
     explorer.append(list);
     const footer = $('div', 'mw-explorer-foot');
-    footer.append($('span', '', 'Select a signal to inspect'), $('span', 'mw-muted', 'Use + to compare · up to 6 signals'));
+    footer.append($('span', '', t('monitor.select_signal', 'Select a signal to inspect')), $('span', 'mw-muted', t('monitor.compare_help', 'Use + to compare · up to 6 signals')));
     explorer.append(footer);
 
     function listSignals() {
@@ -269,7 +291,7 @@ function render({
         }
         list.append(group);
       }
-      if (!filtered.length) list.append($('div', 'mw-empty', 'No matching signals. Try a channel or measurement name.'));
+      if (!filtered.length) list.append($('div', 'mw-empty', t('monitor.no_matching_signals', 'No matching signals. Try a channel or measurement name.')));
     }
     search.addEventListener('input', () => {
       query = search.value;
@@ -280,11 +302,11 @@ function render({
     const main = $('main', 'mw-main');
     const toolbar = $('div', 'mw-chart-toolbar');
     const label = $('div');
-    label.append($('div', 'mw-eyebrow', 'OBSERVATION WORKSPACE'), $('h2', '', 'Signal comparison'));
+    label.append($('div', 'mw-eyebrow', t('monitor.observation_workspace', 'OBSERVATION WORKSPACE')), $('h2', '', t('monitor.signal_comparison', 'Signal comparison')));
     toolbar.append(label);
     const periods = $('div', 'mw-periods');
     periods.setAttribute('role', 'group');
-    periods.setAttribute('aria-label', 'Event-time range');
+    periods.setAttribute('aria-label', t('monitor.event_time_range', 'Event-time range'));
     for (const period of ['15m', '1h', '24h', '7d']) {
       const b = button(period, () => emit('range', {
         range: period
@@ -294,7 +316,7 @@ function render({
     }
     toolbar.append(periods);
     main.append(toolbar);
-    main.append($('div', 'mw-origin-scope', 'Channel scope: all recorded sources/points · origins remain separate'));
+    main.append($('div', 'mw-origin-scope', t('monitor.channel_scope', 'Channel scope: all recorded sources/points · origins remain separate')));
     const readings = $('div', 'mw-readings');
     for (const [i, channel] of selected().entries()) {
       const rows = s.signals.filter(row => row.channel === channel);
@@ -313,14 +335,14 @@ function render({
         }
         reading.append(head);
         const value = $('div', 'mw-reading-value');
-        value.append($('strong', '', number(row.value)), $('span', '', row.unit === 'unknown' ? 'unit unknown' : row.unit || ''));
+        value.append($('strong', '', number(row.value)), $('span', '', row.unit === 'unknown' ? t('monitor.unit_unknown', 'unit unknown') : row.unit || ''));
         reading.append(value);
         let quality = row.quality === 'no recorded issue' ? row.source_quality : row.quality;
         if (row.event_time_state && row.event_time_state !== 'recorded') quality += ` · event time ${row.event_time_state}`;
         const meta = $('div', 'mw-reading-meta');
         const at = row.time ? Date.parse(row.time) : null;
         const sameDay = at != null && s.chart && new Date(at).toISOString().slice(0, 10) === new Date(s.chart.end).toISOString().slice(0, 10);
-        meta.append($('span', quality === 'good' ? 'mw-good' : '', `Quality · ${quality||'unknown'}`), $('time', '', at == null ? 'Event time unavailable' : `${time(at, !sameDay)} UTC`));
+        meta.append($('span', quality === 'good' ? 'mw-good' : '', `${t('monitor.quality', 'Quality')} · ${quality||t('monitor.unknown', 'unknown')}`), $('time', '', at == null ? t('monitor.event_time_unavailable', 'Event time unavailable') : `${time(at, !sameDay)} UTC`));
         meta.title = `Event: ${row.time||'not recorded'}\n${row.source}${row.measurement_point?' / '+row.measurement_point:''}\n${row.event_time_state}`;
         if (rows.length > 1) meta.prepend($('span', 'mw-origin-label', row.source + (row.measurement_point ? ' / ' + row.measurement_point : '')));
         reading.append(meta);
@@ -329,21 +351,21 @@ function render({
     }
     main.append(readings);
     const clock = $('div', 'mw-chart-clock');
-    clock.append($('span', '', 'STORED EVENT TIME · UTC'), $('span', '', s.chart ? `${time(s.chart.start,true)} — ${time(s.chart.end,true)}` : 'No event-time window'));
+    clock.append($('span', '', t('monitor.stored_event_time', 'STORED EVENT TIME · UTC')), $('span', '', s.chart ? `${time(s.chart.start,true)} — ${time(s.chart.end,true)}` : t('monitor.no_event_time_window', 'No event-time window')));
     main.append(clock);
     const chart = $('div', 'mw-plot');
     chart.setAttribute('role', 'group');
-    chart.setAttribute('aria-label', 'Recorded signal comparison');
+    chart.setAttribute('aria-label', t('monitor.recorded_signal_comparison', 'Recorded signal comparison'));
     main.append(chart);
     cleanChart = drawChart(chart, s.chart, s.evidence || [], id => emit("evidence", {
       id
     }));
     const explanation = $('div', 'mw-chart-caption');
-    explanation.append($('span', '', 'Mean · min/max · top marks: analysis windows (arrow keys move) · amber: exclusions'), $('span', 'mw-muted', 'Bucket summaries are not synchronized raw samples'));
+    explanation.append($('span', '', t('monitor.chart_caption', 'Mean · min/max · top marks: analysis windows (arrow keys move) · amber: exclusions')), $('span', 'mw-muted', t('monitor.bucket_note', 'Bucket summaries are not synchronized raw samples')));
     main.append(explanation);
     const bottom = $('div', 'mw-main-bottom');
-    bottom.append($('span', 'mw-muted', `Snapshot ${time(s.assessed_at)} UTC · use Refresh for new observations`));
-    const detail = button('Inspect selected signal', () => emit('detail'), 'mw-text-action');
+    bottom.append($('span', 'mw-muted', `${t('monitor.snapshot', 'Snapshot')} ${time(s.assessed_at)} UTC`));
+    const detail = button(t('monitor.inspect_signal', 'Inspect selected signal'), () => emit('detail'), 'mw-text-action');
     detail.append(icon('arrow'));
     bottom.append(detail);
     main.append(bottom);
@@ -352,11 +374,11 @@ function render({
     const supporting = $('section', 'mw-support');
     const evidence = $('div', 'mw-evidence');
     const evidenceHead = $('div', 'mw-panel-head');
-    evidenceHead.append($('h2', '', 'Analysis evidence'), $('span', 'mw-muted', `${(s.evidence || []).length} loaded items in this event-time window`));
+    evidenceHead.append($('h2', '', t('monitor.analysis_evidence', 'Analysis evidence')), $('span', 'mw-muted', `${(s.evidence || []).length} loaded items in this event-time window`));
     evidence.append(evidenceHead);
     const evidenceList = $('div', 'mw-evidence-list');
     evidenceList.setAttribute('role', 'region');
-    evidenceList.setAttribute('aria-label', 'Analysis evidence in this window');
+    evidenceList.setAttribute('aria-label', t('monitor.analysis_evidence_region', 'Analysis evidence in this window'));
     evidenceList.tabIndex = 0;
     evidence.append(evidenceList);
     for (const item of s.evidence || []) {
@@ -369,10 +391,10 @@ function render({
       b.append($('span', 'mw-evidence-mark', '↗'), name, $('span', 'mw-review-state', item.review), icon('arrow'));
       evidenceList.append(b);
     }
-    if (!(s.evidence || []).length) evidence.append($('div', 'mw-empty', 'No loaded analysis overlaps this window.'));
+    if (!(s.evidence || []).length) evidence.append($('div', 'mw-empty', t('monitor.no_analysis_overlap', 'No loaded analysis overlaps this window.')));
     const attention = $('div', 'mw-attention');
     const attentionHead = $('div', 'mw-panel-head');
-    attentionHead.append($('h2', '', 'Needs inspection'), $('span', 'mw-count', String((s.attention || []).length)));
+    attentionHead.append($('h2', '', t('monitor.needs_inspection', 'Needs inspection')), $('span', 'mw-count', String((s.attention || []).length)));
     attention.append(attentionHead);
     for (const item of s.attention || []) {
       const b = button('', () => emit('attention', {
@@ -382,7 +404,7 @@ function render({
       b.title = item.detail;
       attention.append(b);
     }
-    if (!(s.attention || []).length) attention.append($('div', 'mw-empty', 'No recorded inspection items for this context.'));
+    if (!(s.attention || []).length) attention.append($('div', 'mw-empty', t('monitor.no_inspection_items', 'No recorded inspection items for this context.')));
     supporting.append(evidence, attention);
     root.append(supporting);
     if (lastActionError) showActionError(lastActionError);
@@ -405,22 +427,22 @@ function render({
     const overlay = $('div', 'mw-overlay');
     const dialog = $('div', 'mw-asset-dialog');
     dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-label', 'Choose an asset');
+    dialog.setAttribute('aria-label', t('monitor.choose_asset', 'Choose an asset'));
     dialog.setAttribute('aria-modal', 'true');
     const head = $('div', 'mw-panel-head');
-    head.append($('h2', '', 'Choose an asset'));
+    head.append($('h2', '', t('monitor.choose_asset', 'Choose an asset')));
     const close = button('', () => {
       overlay.remove();
       root.querySelector('.mw-asset').focus();
     }, 'mw-remove');
     close.append(icon('close'));
-    close.setAttribute('aria-label', 'Close asset picker');
+    close.setAttribute('aria-label', t('monitor.close_asset_picker', 'Close asset picker'));
     head.append(close);
     dialog.append(head);
     const input = $('input', 'mw-asset-search');
     input.type = 'search';
-    input.placeholder = 'Search assets';
-    input.setAttribute('aria-label', 'Search assets');
+    input.placeholder = t('monitor.search_assets', 'Search assets');
+    input.setAttribute('aria-label', t('monitor.search_assets', 'Search assets'));
     dialog.append(input);
     const list = $('div');
     dialog.append(list);
@@ -473,7 +495,7 @@ function render({
 
 function drawChart(container, data, windows, onEvidence) {
   if (!data || !data.groups.length) {
-    container.append($('div', 'mw-chart-empty', 'No stored observations in this window. Select an available signal or another range.'));
+    container.append($('div', 'mw-chart-empty', t('monitor.no_stored_observations', 'No stored observations in this window. Select an available signal or another range.')));
     return () => {};
   }
   const tooltip = $('div', 'mw-tooltip');
@@ -495,7 +517,7 @@ function drawChart(container, data, windows, onEvidence) {
       width: W,
       height: H,
       role: 'group',
-      'aria-label': 'Stored bucket summaries'
+      'aria-label': t('monitor.stored_bucket_summaries', 'Stored bucket summaries')
     });
     container.append(svg);
     const x = t => left + (t - data.start) / (data.end - data.start) * (W - left - right);
@@ -667,7 +689,7 @@ function drawChart(container, data, windows, onEvidence) {
         y: (pTop + pBottom) / 2,
         'text-anchor': 'middle',
         class: 'mw-axis'
-      }, 'No usable bucket values'));
+      }, t('monitor.no_usable_bucket_values', 'No usable bucket values')));
     });
     for (let i = 0; i < 5; i++) {
       const t = data.start + (data.end - data.start) * i / 4;
@@ -676,14 +698,14 @@ function drawChart(container, data, windows, onEvidence) {
         y: H - 9,
         'text-anchor': i === 0 ? 'start' : i === 4 ? 'end' : 'middle',
         class: 'mw-axis'
-      }, data.end - data.start >= 86400000 ? new Intl.DateTimeFormat('en-GB', {
+      }, data.end - data.start >= 86400000 ? new Intl.DateTimeFormat(activeLocale, {
         timeZone: 'UTC',
         month: 'short',
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23'
-      }).format(new Date(t)) : time(t).slice(0, 5)));
+      }).format(new Date(t)) : shortTime(t));
     }
     const move = e => {
       const rect = svg.getBoundingClientRect(),
@@ -705,16 +727,16 @@ function drawChart(container, data, windows, onEvidence) {
           const b = series.buckets.find(b => at >= b.start && at < b.end);
           if (!b) continue;
           const row = $('div', 'mw-tooltip-row');
-          row.append($('span', '', series.channel), $('strong', '', b.usable ? `${number(b.mean)} ${group.unit}` : 'No usable value'));
+          row.append($('span', '', series.channel), $('strong', '', b.usable ? `${number(b.mean)} ${group.unit}` : t('monitor.no_usable_value', 'No usable value')));
           row.style.setProperty('--series-color', series.color);
           tooltip.append(row);
           tooltip.append($('div', 'mw-tooltip-window', `${time(b.start,true)} — ${time(b.end,true)} UTC`));
           tooltip.append($('div', 'mw-tooltip-range', `Min ${number(b.min)} · max ${number(b.max)} · mean ${number(b.mean)}`));
-          tooltip.append($('div', 'mw-tooltip-source', `Observed ${time(b.first,true)} — ${time(b.last,true)} UTC`));
+          tooltip.append($('div', 'mw-tooltip-source', `${t('monitor.observed', 'Observed')} ${time(b.first,true)} — ${time(b.last,true)} UTC`));
           tooltip.append($('div', 'mw-tooltip-source', `${series.source}${series.point?' / '+series.point:''} · ${b.usable} usable · null ${b.null} · non-good ${b.non_good} · conflict ${b.conflict}`));
           hits++;
         }
-      if (!hits) tooltip.append($('div', 'mw-muted', 'No observations in this bucket.'));
+      if (!hits) tooltip.append($('div', 'mw-muted', t('monitor.no_observations_bucket', 'No observations in this bucket.')));
       tooltip.hidden = false;
       tooltip.style.left = Math.max(8, Math.min(container.clientWidth - 340, px + 12)) + 'px';
       tooltip.style.top = '34px';

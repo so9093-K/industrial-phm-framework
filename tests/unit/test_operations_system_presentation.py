@@ -64,3 +64,10 @@ def test_paths_are_only_rendered_by_advanced_diagnostics() -> None:
     assert "catalog.sqlite" in rendered
     assert "source-runtime.json" in rendered
     assert "var(--phm-border)" in system_workspace_css()
+
+
+def test_system_runtime_locale_does_not_relabel_process_running_as_receiving() -> None:
+    rendered = render_system_runtime_html(_view(), "ko-KR")
+
+    assert "실행 중" in rendered
+    assert "수신 중" not in rendered

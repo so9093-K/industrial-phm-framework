@@ -88,7 +88,12 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 workspace는 Monitor를 기본 진입점으로 사용합니다.
 
 Synthetic 체험은 first-run 화면에서 real workspace와 분리된 demo workspace로 실행하며, `make demo`는
-직접 실행 shortcut으로 남습니다. AI-Hub recorded replay, 직접
+직접 실행 shortcut으로 남습니다.
+
+Operations는 **한국어(`ko-KR`)와 영어(`en-US`)**를 위한 locale-aware presentation
+기반을 사용합니다. 화면 언어를 바꿔도 `source_id`, `asset_id`, `channel_id`,
+capability/evidence 식별자와 저장 UTC 의미는 바뀌지 않습니다. 현재 localized surface 범위는
+[지원 상태](docs/status.md)를 기준으로 확인합니다. AI-Hub recorded replay, 직접
 `industrial-phm` CLI, backup/restore, service deployment, 개별 collector/analysis runner 실행은
 [Applications 문서](apps/README.md), [로컬 OPC UA 개발·진단 문서](tools/opcua/README.md),
 [Local Operations deployment](docs/architecture/operations-deployment.md)에서 설명합니다.

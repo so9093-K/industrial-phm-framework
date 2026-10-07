@@ -147,7 +147,7 @@ def test_review_journey_keeps_asset_evidence_and_display_identity(tmp_path, monk
         finding.finding_id,
         investigation_queue=second["investigation_queue"],
     )
-    assert route.page == "Investigations"
+    assert route.page == "investigations"
     assert route.investigation_id == investigation.investigation_id
     (returned,) = (
         item

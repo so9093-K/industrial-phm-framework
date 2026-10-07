@@ -25,6 +25,13 @@ class MonitorWidget(_WidgetBase):  # type: ignore[misc]
     ) -> None:
         super().__init__(snapshot=snapshot)
 
+        def message(key: str, fallback: str) -> str:
+            messages = self.snapshot.get("messages", {})
+            if not isinstance(messages, dict):
+                return fallback
+            value = messages.get(key)
+            return value if isinstance(value, str) and value else fallback
+
         def dispatch(change: dict[str, Any]) -> None:
             event = change["new"]
             try:
@@ -34,15 +41,23 @@ class MonitorWidget(_WidgetBase):  # type: ignore[misc]
                 self.response = {
                     "sequence": event.get("sequence"),
                     "status": "error",
-                    "message": "The view update failed. Refresh and try again.",
+                    "message": message(
+                        "monitor.update_failed",
+                        "The view update failed. Refresh and try again.",
+                    ),
                 }
             else:
                 self.response = {
                     "sequence": event.get("sequence"),
                     "status": "rejected" if accepted is False else "ok",
-                    "message": "This selection is unavailable. Refresh the view."
-                    if accepted is False
-                    else "",
+                    "message": (
+                        message(
+                            "monitor.selection_unavailable",
+                            "This selection is unavailable. Refresh the view.",
+                        )
+                        if accepted is False
+                        else ""
+                    ),
                 }
 
         self.observe(dispatch, names="event")
