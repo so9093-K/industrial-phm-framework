@@ -520,6 +520,21 @@ _PRODUCT_COPY: Final = {
         "common.source_quality": "Source quality",
         "common.time_state": "Time state",
         "common.history_age_seconds": "History age (s)",
+        "common.data": "Data",
+        "common.signals": "Signals",
+        "common.outcome": "Outcome",
+        "common.observed_range": "Observed range",
+        "common.why_no_result": "Why no result",
+        "common.event": "Event",
+        "common.detail": "Detail",
+        "common.requested_from_evidence": "Requested from evidence",
+        "common.last_review_activity": "Last review activity",
+        "common.action": "Action",
+        "common.note": "Note",
+        "common.quantity": "Quantity",
+        "common.median": "Median",
+        "common.p95": "P95",
+        "common.max": "Max",
         "common.analysis_evidence": "Analysis evidence",
         "common.queue_groups": "Queue groups",
         "asset.no_selection": "No asset is selected.",
@@ -563,6 +578,10 @@ _PRODUCT_COPY: Final = {
         "asset.raw_observations": "Raw observations",
         "asset.data_details": "Data details",
         "asset.stored_evidence_help": (
+        "asset.recent_analysis_attempts": "최근 분석 시도",
+        "asset.recorded_analysis_evidence": "기록된 분석 근거",
+        "asset.recent_analysis_attempts": "Recent analysis attempts",
+        "asset.recorded_analysis_evidence": "Recorded analysis evidence",
             "Stored measurements and UI aggregates are observation evidence. "
             "This view does not infer asset health, fault, alarm, or missing samples."
         ),
@@ -634,6 +653,12 @@ _PRODUCT_COPY: Final = {
         ),
         "maintenance.review_identity": "Review identity",
         "maintenance.workflow_semantics": (
+        "maintenance.evidence_not_loaded": (
+            "분석 실행 {analysis_run_id}을 현재 로드된 분석 결과에서 찾을 수 없습니다."
+        ),
+        "maintenance.evidence_not_loaded": (
+            "Analysis run {analysis_run_id} is not in the loaded analysis results."
+        ),
             "Acknowledge and Close change only the human review workflow. "
             "They do not confirm a fault, repair, asset health, or CMMS work order."
         ),
@@ -859,6 +884,21 @@ _PRODUCT_COPY: Final = {
         "common.source_quality": "Source 품질",
         "common.time_state": "시각 상태",
         "common.history_age_seconds": "History 경과(초)",
+        "common.data": "데이터",
+        "common.signals": "신호",
+        "common.outcome": "결과",
+        "common.observed_range": "관측 구간",
+        "common.why_no_result": "결과 없음 사유",
+        "common.event": "이벤트",
+        "common.detail": "상세",
+        "common.requested_from_evidence": "근거 기준 요청",
+        "common.last_review_activity": "최근 검토 활동",
+        "common.action": "작업",
+        "common.note": "메모",
+        "common.quantity": "항목",
+        "common.median": "중앙값",
+        "common.p95": "P95",
+        "common.max": "최대",
         "common.analysis_evidence": "분석 근거",
         "common.queue_groups": "대기열 그룹",
         "asset.no_selection": "선택된 설비가 없습니다.",
