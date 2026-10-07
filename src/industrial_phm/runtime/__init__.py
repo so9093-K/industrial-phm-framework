@@ -82,7 +82,10 @@ from industrial_phm.runtime.operations_supervisor import (
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     OperationsWorkspaceInitialization,
+    OperationsWorkspaceInspection,
+    OperationsWorkspaceState,
     initialize_operations_workspace,
+    inspect_operations_workspace,
 )
 from industrial_phm.runtime.window_coordinator import (
     rebuild_registered_opcua_observation_windows,
@@ -128,6 +131,8 @@ __all__ = [
     "OperationsUiConfig",
     "OperationsWorkspace",
     "OperationsWorkspaceInitialization",
+    "OperationsWorkspaceInspection",
+    "OperationsWorkspaceState",
     "SqliteAcquisitionSpool",
     "SqliteAcquisitionSpoolConfig",
     "SqliteAcquisitionTelemetryRepository",
@@ -137,6 +142,7 @@ __all__ = [
     "create_operations_backup",
     "initialize_operations_workspace",
     "inspect_operations_deployment",
+    "inspect_operations_workspace",
     "inspect_operations_runtime_status",
     "load_operations_runtime_config",
     "rebuild_registered_opcua_observation_windows",

@@ -188,8 +188,7 @@ jobs:
           make help
           FRONT_DOOR_WORKSPACE=/tmp/industrial-phm-front-door
           make --dry-run up WORKSPACE="$FRONT_DOOR_WORKSPACE" | tee /tmp/make-up.txt
-          grep -F "industrial-phm operations init \"$FRONT_DOOR_WORKSPACE\"" /tmp/make-up.txt
-          grep -F "industrial-phm operations start \"$FRONT_DOOR_WORKSPACE\"" /tmp/make-up.txt
+          grep -F "industrial-phm operations up \"$FRONT_DOOR_WORKSPACE\"" /tmp/make-up.txt
           make --dry-run down WORKSPACE="$FRONT_DOOR_WORKSPACE" | grep -F "industrial-phm operations stop \"$FRONT_DOOR_WORKSPACE\""
           make --dry-run status WORKSPACE="$FRONT_DOOR_WORKSPACE" | grep -F "industrial-phm operations status \"$FRONT_DOOR_WORKSPACE\""
           make --dry-run logs WORKSPACE="$FRONT_DOOR_WORKSPACE" | grep -F "industrial-phm operations logs \"$FRONT_DOOR_WORKSPACE\""

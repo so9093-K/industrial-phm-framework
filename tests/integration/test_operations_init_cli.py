@@ -86,6 +86,22 @@ def test_operations_init_refuses_non_empty_uninitialized_directory(
     assert not (root / "config.toml").exists()
 
 
+def test_operations_init_keeps_explicit_adoption_out_of_init(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    root = tmp_path / "legacy"
+    workspace = OperationsWorkspace(root)
+    root.mkdir()
+    workspace.source_runtime_path.write_text("{}\n", encoding="utf-8")
+
+    exit_code = main(["operations", "init", str(root)])
+
+    assert exit_code == 1
+    assert "refusing to initialize a non-empty Operations workspace" in capsys.readouterr().err
+    assert not workspace.config_path.exists()
+
+
 def test_operations_init_rejects_invalid_existing_config(tmp_path: Path, capsys) -> None:
     root = tmp_path / "invalid"
     root.mkdir()

@@ -11,7 +11,7 @@ help:
 	@printf '%s\n' \
 		'Industrial PHM' \
 		'' \
-		'  make up       Start local Operations' \
+		'  make up       Start or resume local Operations' \
 		'  make down     Stop local Operations' \
 		'  make status   Show local Operations status' \
 		'  make logs     Show component logs' \
@@ -32,8 +32,7 @@ _prepare: _require-uv
 	$(UV) sync --locked --extra operations
 
 up: _prepare
-	$(UV) run --no-sync industrial-phm operations init "$(WORKSPACE)"
-	$(UV) run --no-sync industrial-phm operations start "$(WORKSPACE)"
+	$(UV) run --no-sync industrial-phm operations up "$(WORKSPACE)"
 
 down: _require-uv
 	$(UV) run --locked --extra operations industrial-phm operations stop "$(WORKSPACE)"

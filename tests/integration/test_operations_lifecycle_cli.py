@@ -10,6 +10,113 @@ from industrial_phm.runtime import (
 )
 
 
+
+def test_operations_up_creates_fresh_workspace_and_starts_node(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    root = tmp_path / "plant-new"
+    captured = {}
+
+    def fake_run(plan):
+        captured["plan"] = plan
+        return SimpleNamespace(
+            state=SimpleNamespace(
+                failure=None,
+                state=OperationsSupervisorStateKind.STOPPED,
+            ),
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(operations_commands, "run_operations_supervisor", fake_run)
+
+    exit_code = main(["operations", "up", str(root)])
+
+    assert exit_code == 0
+    assert captured["plan"].workspace.root == root
+    assert OperationsWorkspace(root).config_path.is_file()
+    output = capsys.readouterr().out
+    assert f"workspace={root} state=created" in output
+    assert "operations_url=http://127.0.0.1:2718" in output
+
+
+def test_operations_up_reopens_initialized_workspace(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-existing")
+    initialize_operations_workspace(workspace)
+    capsys.readouterr()
+
+    def fake_run(plan):
+        assert plan.workspace == workspace
+        return SimpleNamespace(
+            state=SimpleNamespace(
+                failure=None,
+                state=OperationsSupervisorStateKind.STOPPED,
+            ),
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(operations_commands, "run_operations_supervisor", fake_run)
+
+    exit_code = main(["operations", "up", str(workspace.root)])
+
+    assert exit_code == 0
+    assert f"workspace={workspace.root} state=existing" in capsys.readouterr().out
+
+
+def test_operations_up_adopts_recognized_pre_config_workspace_without_losing_state(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-legacy")
+    workspace.root.mkdir()
+    workspace.source_registry_path.write_text('{"sources": []}\n', encoding="utf-8")
+    before = workspace.source_registry_path.read_bytes()
+
+    def fake_run(plan):
+        assert plan.workspace == workspace
+        return SimpleNamespace(
+            state=SimpleNamespace(
+                failure=None,
+                state=OperationsSupervisorStateKind.STOPPED,
+            ),
+            exit_code=0,
+        )
+
+    monkeypatch.setattr(operations_commands, "run_operations_supervisor", fake_run)
+
+    exit_code = main(["operations", "up", str(workspace.root)])
+
+    assert exit_code == 0
+    assert workspace.config_path.is_file()
+    assert workspace.source_registry_path.read_bytes() == before
+    assert f"workspace={workspace.root} state=adopted-existing" in capsys.readouterr().out
+
+
+def test_operations_up_refuses_unrecognized_directory_with_next_action(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    root = tmp_path / "existing"
+    root.mkdir()
+    unrelated = root / "unrelated.txt"
+    unrelated.write_text("keep", encoding="utf-8")
+
+    exit_code = main(["operations", "up", str(root)])
+
+    assert exit_code == 1
+    assert unrelated.read_text(encoding="utf-8") == "keep"
+    assert not (root / "config.toml").exists()
+    error = capsys.readouterr().err
+    assert "Existing files were found" in error
+    assert "were not changed" in error
+    assert f"industrial-phm operations up {tmp_path / 'existing-new'}" in error
+
 def test_operations_start_runs_full_local_node_from_workspace_config(
     tmp_path: Path,
     monkeypatch,

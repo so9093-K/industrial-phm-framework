@@ -37,8 +37,10 @@ from industrial_phm.runtime import (
     CollectionServicePolicy,
     OperationsComponentKind,
     OperationsProcessEvidence,
+    OperationsRuntimeConfig,
     OperationsSupervisorStateKind,
     OperationsWorkspace,
+    OperationsWorkspaceState,
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
@@ -48,6 +50,7 @@ from industrial_phm.runtime import (
     initialize_operations_workspace,
     inspect_operations_deployment,
     inspect_operations_runtime_status,
+    inspect_operations_workspace,
     load_operations_runtime_config,
     request_operations_supervisor_stop,
     restore_operations_backup,
@@ -57,6 +60,51 @@ from industrial_phm.runtime import (
 )
 from industrial_phm.runtime.operations_retention import apply_operations_retention
 from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
+
+
+def _run_operations_up(args: argparse.Namespace) -> int:
+    """Prepare or reopen one workspace and run the local Operations node."""
+    workspace = OperationsWorkspace(args.workspace)
+    try:
+        inspection = inspect_operations_workspace(workspace)
+        if inspection.state == OperationsWorkspaceState.UNRECOGNIZED:
+            _print_unrecognized_workspace_guidance(workspace)
+            return 1
+        initialization = initialize_operations_workspace(
+            workspace,
+            allow_recognized_legacy=True,
+        )
+    except (OSError, ValueError) as error:
+        print("Operations could not prepare this workspace.", file=sys.stderr)
+        print(f"Reason: {error}", file=sys.stderr)
+        print("The workspace was not started.", file=sys.stderr)
+        return 1
+
+    state = (
+        "created"
+        if initialization.created
+        else "adopted-existing"
+        if initialization.adopted
+        else "existing"
+    )
+    print(f"workspace={workspace.root} state={state}", flush=True)
+    return _start_operations_workspace(workspace, initialization.config)
+
+
+def _print_unrecognized_workspace_guidance(workspace: OperationsWorkspace) -> None:
+    candidate = workspace.root.with_name(f"{workspace.root.name}-new")
+    print("Operations could not start this workspace.", file=sys.stderr)
+    print(f"Existing files were found at: {workspace.root}", file=sys.stderr)
+    print(
+        "They were not changed because this directory is not a recognized "
+        "Operations workspace.",
+        file=sys.stderr,
+    )
+    print(
+        "Next: inspect the existing directory or choose a new workspace, for example:",
+        file=sys.stderr,
+    )
+    print(f"  industrial-phm operations up {candidate}", file=sys.stderr)
 
 
 def _run_operations_init(args: argparse.Namespace) -> int:
@@ -122,11 +170,20 @@ def _run_operations_restore(args: argparse.Namespace) -> int:
 
 
 def _run_operations_start(args: argparse.Namespace) -> int:
-    """Run the workspace-owned local node lifecycle in the foreground."""
+    """Run one already initialized Operations workspace in the foreground."""
     workspace = OperationsWorkspace(args.workspace)
+    return _start_operations_workspace(workspace)
+
+
+def _start_operations_workspace(
+    workspace: OperationsWorkspace,
+    config: OperationsRuntimeConfig | None = None,
+) -> int:
     try:
-        config = load_operations_runtime_config(workspace.config_path)
-        plan = build_operations_runtime_plan(workspace, config)
+        effective_config = (
+            load_operations_runtime_config(workspace.config_path) if config is None else config
+        )
+        plan = build_operations_runtime_plan(workspace, effective_config)
         print(
             f"workspace={workspace.root} operations_url={plan.ui_url} mode=foreground",
             flush=True,
