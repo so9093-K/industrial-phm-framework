@@ -53,8 +53,8 @@ def test_operations_empty_workspace_starts_in_setup(tmp_path, monkeypatch):
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
-    assert defs["navigation_initial_page"] == "Setup"
-    assert defs["navigation"].value == "Setup"
+    assert defs["navigation_page"] == "Setup"
+    assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "Setup"
 
 
 def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
@@ -84,9 +84,9 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
     app = runpy.run_path(str(OPERATIONS_APP))["app"]
     _, defs = app.run()
 
-    assert defs["navigation_initial_page"] == "Monitor"
-    assert defs["navigation"].value == "Monitor"
-    assert "marimo-tabs" in defs["navigation"].text
+    assert defs["navigation_page"] == "Monitor"
+    assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "Monitor"
+    assert "navigation" not in defs
     assert defs["monitor_range_id"] == "1h"
     assert defs["signal_range_selector"].value == "Live"
     assert defs["get_asset_section"]() == "Overview"

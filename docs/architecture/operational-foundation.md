@@ -162,10 +162,12 @@ threshold가 만나는 시각을 사용합니다. Data Quality는 아직 fleet-w
 현재 로드된 observation evidence만 queue에 포함하며 그 coverage를 UI에서 숨기지 않습니다.
 
 Operations presentation은 application read model과 marimo widget 조립 사이에 pure presenter를 둡니다.
-`industrial_phm.presentation`은 Attention Queue, source data-flow, observation, data-quality evidence를
-Markdown representation으로만 변환하며 새로운 operational 의미를 계산하지 않습니다. 이 layer는
-`marimo`를 import하지 않아 core package가 research UI dependency를 요구하지 않게 유지합니다.
-Availability callout, button/state wiring과 interactive layout은 계속 `apps/operations.py`가 소유합니다.
+`industrial_phm.presentation`은 application read model을 HTML/Markdown 및 Monitor snapshot payload로
+변환하며 새로운 operational 의미를 계산하지 않습니다. 이 layer는 `marimo`를 import하지 않아
+core package가 UI dependency를 요구하지 않게 유지합니다. Packaged app의 state wiring과 page composition은
+`src/industrial_phm/apps/operations.py`가 소유하고, Monitor의 interactive layout은 packaged widget의
+JS/CSS가 소유합니다. Acceptance는 실제 composition과 widget snapshot을 검증하며 별도의 구형 화면을
+검증 대상으로 유지하지 않습니다.
 
 Asset Detail은 current registry와 historical AnalysisRun/OperationalFinding을 같은 physical asset identity로
 묶되, source가 registry에서 사라졌다는 이유로 historical asset evidence를 숨기지 않습니다. Asset inventory는

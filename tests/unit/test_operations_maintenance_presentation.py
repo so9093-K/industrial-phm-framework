@@ -12,7 +12,6 @@ from industrial_phm.application.operations_maintenance import (
 from industrial_phm.presentation.operations_maintenance import (
     maintenance_queue_label,
     maintenance_status_label,
-    maintenance_workspace_css,
     render_maintenance_evidence_html,
     render_maintenance_identity_html,
     render_maintenance_summary_html,
@@ -70,7 +69,6 @@ def test_identity_keeps_internal_ids_in_progressive_disclosure() -> None:
 def test_maintenance_status_labels_and_css_are_explicit() -> None:
     assert maintenance_status_label(FindingReviewStatus.OPEN) == "Open"
     assert maintenance_status_label(FindingReviewStatus.CLOSED) == "Closed"
-    assert "severity" not in maintenance_workspace_css().lower()
 
 
 def test_reviewed_evidence_is_read_from_the_referenced_analysis() -> None:

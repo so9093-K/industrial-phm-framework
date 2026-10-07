@@ -139,11 +139,6 @@ def investigation_workspace_css() -> str:
   color: var(--phm-muted);
   font-size: .82rem;
 }
-.phm-queue-help {
-  color: var(--phm-muted);
-  font-size: .78rem;
-  line-height: 1.45;
-}
 .phm-investigation-heading,
 .phm-investigation-scope,
 .phm-shell {

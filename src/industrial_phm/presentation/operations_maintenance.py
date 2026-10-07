@@ -155,24 +155,6 @@ def render_maintenance_identity_html(item: MaintenanceQueueItem) -> str:
     )
 
 
-def maintenance_workspace_css() -> str:
-    return """
-<style>
-.phm-maintenance-counts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .65rem;
-}
-.phm-maintenance-actions {
-  background: var(--phm-surface);
-  border: 1px solid var(--phm-border);
-  border-radius: 10px;
-  padding: 1rem;
-}
-</style>
-"""
-
-
 def _fact(label: str, value: str) -> str:
     return (
         "<div>"

@@ -67,23 +67,23 @@ def _():
 
 @app.cell
 def _(AnalysisViewError, Path, load_analysis_surface, mo, os):
-    artifact_path = Path(
+    _artifact_path = Path(
         os.environ.get(
             "INDUSTRIAL_PHM_ANALYSIS_ARTIFACT",
             "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json",
         )
     )
     mo.stop(
-        not artifact_path.is_file(),
+        not _artifact_path.is_file(),
         mo.callout(
-            f"분석 결과 파일을 찾을 수 없습니다: `{artifact_path}`",
+            f"분석 결과 파일을 찾을 수 없습니다: `{_artifact_path}`",
             kind="warn",
             title="분석 결과를 열 수 없습니다",
         ),
     )
 
     try:
-        initial_surface = load_analysis_surface(artifact_path)
+        initial_surface = load_analysis_surface(_artifact_path)
     except AnalysisViewError as error:
         mo.stop(
             True,
@@ -144,7 +144,7 @@ def _(AnalysisViewError, Path, load_analysis_surface, mo, os):
 
     initial_analysis = initial_surface.analysis
     assert initial_analysis is not None
-    return artifact_path, initial_analysis
+    return (initial_analysis,)
 
 
 @app.cell
