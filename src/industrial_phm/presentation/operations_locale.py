@@ -201,6 +201,17 @@ _TEXT: Final = {
         "setup.collection_request": "Collection request",
         "setup.collection.running": "Requested: Running",
         "setup.collection.stopped": "Requested: Stopped",
+        "setup.data_flow_status": "Data flow confirmation",
+        "setup.data_flow_confirmed": ("Data has been received for the currently enabled source."),
+        "setup.data_flow_waiting": (
+            "No data has been received for the current source yet. Run a bounded FILE "
+            "diagnostic or start OPC UA collection, then refresh this status."
+        ),
+        "setup.refresh_data_flow": "Refresh data flow",
+        "setup.observe_ready": "Data receipt is confirmed. Open Monitor to inspect it.",
+        "setup.monitor_locked": (
+            "Monitor becomes available after data is received for the current source."
+        ),
         "setup.not_enabled": "Not enabled",
         "setup.enabled": "Enabled",
         "setup.paused": "Paused",
@@ -399,6 +410,15 @@ _TEXT: Final = {
         "setup.collection_request": "수집 요청",
         "setup.collection.running": "요청: 수집 실행",
         "setup.collection.stopped": "요청: 수집 중지",
+        "setup.data_flow_status": "데이터 수신 확인",
+        "setup.data_flow_confirmed": "현재 활성화된 source에서 데이터 수신이 확인되었습니다.",
+        "setup.data_flow_waiting": (
+            "현재 source에서 아직 데이터 수신이 확인되지 않았습니다. FILE은 bounded diagnostic을 "
+            "실행하고, OPC UA는 수집을 시작한 뒤 이 상태를 새로고침하세요."
+        ),
+        "setup.refresh_data_flow": "데이터 수신 새로고침",
+        "setup.observe_ready": "데이터 수신이 확인되었습니다. 관제 화면에서 확인하세요.",
+        "setup.monitor_locked": "현재 source에서 데이터가 수신되면 관제 화면을 열 수 있습니다.",
         "setup.not_enabled": "활성화 안 됨",
         "setup.enabled": "활성화됨",
         "setup.paused": "일시 중지",

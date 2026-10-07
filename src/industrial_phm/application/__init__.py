@@ -242,6 +242,7 @@ from industrial_phm.application.operations_setup import (
     SetupSourceView,
     SetupWorkspaceView,
     build_setup_workspace,
+    setup_data_flow_confirmed,
 )
 from industrial_phm.application.operations_system import (
     SystemRuntimeError,
@@ -611,6 +612,7 @@ __all__ = [
     "run_registered_file_source_cycle",
     "run_registered_opcua_source_cycle",
     "run_registered_opcua_subscription_cycle",
+    "setup_data_flow_confirmed",
     "transition_source_lifecycle",
     "validate_asset_history_query",
     "validate_distinct_source_state_paths",

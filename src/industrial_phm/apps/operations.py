@@ -30,6 +30,7 @@ def _():
         build_setup_workspace,
         build_system_runtime_view,
         discover_file_source,
+        setup_data_flow_confirmed,
     )
     from industrial_phm.application.asset_display import resolve_asset_display_names
     from industrial_phm.application.maintenance_review import (
@@ -233,6 +234,7 @@ def _():
         render_system_runtime_html,
         resolve_environment_operations_locale,
         resolve_measurement_range,
+        setup_data_flow_confirmed,
         setup_workspace_css,
         system_workspace_css,
     )
@@ -265,10 +267,8 @@ def _(OperationsLocale, locale_selector):
 
 
 @app.cell
-def _(mo, registered_sources):
-    get_first_run_mode, set_first_run_mode = mo.state(
-        "configured" if registered_sources else "landing"
-    )
+def _(mo):
+    get_first_run_mode, set_first_run_mode = mo.state(None)
     get_first_run_sample, set_first_run_sample = mo.state(None)
     get_first_run_error, set_first_run_error = mo.state("")
     return (
@@ -492,7 +492,14 @@ def _(
 
 
 @app.cell
-def _(mo, operations_locale, operations_text, setup_selected_source):
+def _(
+    first_run_mode,
+    mo,
+    operations_locale,
+    operations_text,
+    setup_receipt_confirmed,
+    setup_selected_source,
+):
     first_run_sample_button = mo.ui.run_button(
         label=operations_text("first_run.sample.title", operations_locale),
         kind="success",
@@ -503,9 +510,15 @@ def _(mo, operations_locale, operations_text, setup_selected_source):
     first_run_stop_sample_button = mo.ui.run_button(
         label=operations_text("first_run.sample.stop", operations_locale)
     )
+    setup_refresh_data_flow_button = (
+        None
+        if setup_selected_source is None
+        else mo.ui.run_button(label=operations_text("setup.refresh_data_flow", operations_locale))
+    )
     setup_open_monitor_button = (
         None
         if setup_selected_source is None
+        or (first_run_mode != "configured" and not setup_receipt_confirmed)
         else mo.ui.run_button(
             label=operations_text("setup.open_monitor", operations_locale),
             kind="success",
@@ -516,6 +529,7 @@ def _(mo, operations_locale, operations_text, setup_selected_source):
         first_run_sample_button,
         first_run_stop_sample_button,
         setup_open_monitor_button,
+        setup_refresh_data_flow_button,
     )
 
 
@@ -555,16 +569,33 @@ def _(
 
 
 @app.cell
-def _(get_first_run_error, get_first_run_mode, get_first_run_sample):
+def _(
+    get_first_run_error,
+    get_first_run_mode,
+    get_first_run_sample,
+    registered_sources,
+    set_first_run_mode,
+):
     first_run_error = get_first_run_error()
     first_run_mode = get_first_run_mode()
+    if first_run_mode is None:
+        first_run_mode = "configured" if registered_sources else "landing"
+        set_first_run_mode(first_run_mode)
     first_run_sample = get_first_run_sample()
     return first_run_error, first_run_mode, first_run_sample
 
 
 @app.cell
-def _(set_navigation_page, setup_open_monitor_button):
-    if setup_open_monitor_button is not None and setup_open_monitor_button.value:
+def _(
+    get_monitor_revision,
+    set_monitor_revision,
+    set_navigation_page,
+    setup_open_monitor_button,
+    setup_refresh_data_flow_button,
+):
+    if setup_refresh_data_flow_button is not None and setup_refresh_data_flow_button.value:
+        set_monitor_revision(get_monitor_revision() + 1)
+    elif setup_open_monitor_button is not None and setup_open_monitor_button.value:
         set_navigation_page("monitor")
     return
 
@@ -598,6 +629,28 @@ def _(mo, operations_locale, operations_text, setup_selection, setup_workspace):
         setup_source_selector = None
         setup_selected_source = None
     return setup_selected_source, setup_source_selector
+
+
+@app.cell
+def _(overview, setup_data_flow_confirmed, setup_selected_source):
+    if setup_selected_source is None:
+        setup_selected_source_health = None
+        setup_receipt_confirmed = False
+    else:
+        setup_selected_source_health = next(
+            (
+                item
+                for item in overview.source_health_assessments
+                if item.source_id == setup_selected_source.source_id
+            ),
+            None,
+        )
+        setup_receipt_confirmed = (
+            False
+            if setup_selected_source_health is None
+            else setup_data_flow_confirmed(setup_selected_source_health)
+        )
+    return setup_receipt_confirmed, setup_selected_source_health
 
 
 @app.cell
@@ -1301,6 +1354,7 @@ def _(
     opcua_mapping_error,
     opcua_timeout_input,
     operations_locale,
+    operations_text,
     pending_semantics,
     register_setup_source_button,
     set_pending_semantics,
@@ -3325,6 +3379,7 @@ def _(
     opcua_signal_selection,
     opcua_timeout_input,
     operations_locale,
+    operations_text,
     pending_semantics,
     register_setup_source_button,
     render_setup_signals_html,
@@ -3348,6 +3403,8 @@ def _(
     setup_run_diagnostic_button,
     setup_save_freshness_button,
     setup_open_monitor_button,
+    setup_receipt_confirmed,
+    setup_refresh_data_flow_button,
     setup_subscription_diagnostic_button,
     setup_selected_source,
     setup_source_selector,
@@ -3739,12 +3796,31 @@ def _(
                     "persistent collection. Bounded diagnostics remain available above for "
                     "connection and data-contract checks."
                 ),
+                mo.callout(
+                    operations_text(
+                        (
+                            "setup.data_flow_confirmed"
+                            if setup_receipt_confirmed
+                            else "setup.data_flow_waiting"
+                        ),
+                        operations_locale,
+                    ),
+                    kind="success" if setup_receipt_confirmed else "info",
+                    title=operations_text("setup.data_flow_status", operations_locale),
+                ),
+                setup_refresh_data_flow_button,
                 mo.md(
                     "### 5 · Observe\n\n"
-                    "Open Monitor after the source is configured. Monitor reports the evidence "
-                    "that is actually available; setup success alone is not asset-health evidence."
+                    + operations_text(
+                        (
+                            "setup.observe_ready"
+                            if setup_receipt_confirmed
+                            else "setup.monitor_locked"
+                        ),
+                        operations_locale,
+                    )
                 ),
-                setup_open_monitor_button,
+                *([setup_open_monitor_button] if setup_open_monitor_button is not None else []),
                 mo.accordion(
                     {
                         "Add another data source": _source_wizard,
@@ -3887,6 +3963,7 @@ def _(
     asset_workspace,
     asset_workspace_error,
     contextual_attention,
+    first_run_mode,
     get_monitor_comparisons,
     get_monitor_revision,
     get_investigation_selection,
@@ -3923,6 +4000,7 @@ def _(
     set_monitor_revision,
     set_navigation_page,
     set_signal_channel_choice,
+    setup_receipt_confirmed,
     signal_channel_selector,
 ):
     from industrial_phm.apps.monitor_widget import MonitorWidget
@@ -3938,6 +4016,12 @@ def _(
     _selected_asset = None if asset_selector is None else asset_selector.value
     _comparisons = list(monitor_comparison_channels)
     _catalog_rows = signal_payload(monitor_latest_rows, registered_sources, _selected_asset)
+    _onboarding_locked = first_run_mode != "configured" and not setup_receipt_confirmed
+    _allowed_pages = [
+        page.value
+        for page in OPERATIONS_PAGE_OPTIONS
+        if not _onboarding_locked or page.value == "setup"
+    ]
     _allowed_channels = {row["channel"] for row in _catalog_rows} | (
         set() if asset_workspace is None else set(asset_workspace.history_channels)
     )
@@ -3946,7 +4030,7 @@ def _(
         "locale": operations_locale.value,
         "messages": operations_messages(operations_locale),
         "active_investigation": get_investigation_selection(),
-        "pages": [page.value for page in OPERATIONS_PAGE_OPTIONS],
+        "pages": _allowed_pages,
         "page_labels": {
             page.value: operations_page_label(page, operations_locale)
             for page in OPERATIONS_PAGE_OPTIONS
@@ -4016,7 +4100,7 @@ def _(
         if (
             _kind == "navigate"
             and isinstance(event.get("page"), str)
-            and event["page"] in {page.value for page in OPERATIONS_PAGE_OPTIONS}
+            and event["page"] in set(_allowed_pages)
         ):
             set_navigation_page(event["page"])
         elif _kind == "asset" and event.get("id") in _assets:

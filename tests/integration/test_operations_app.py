@@ -56,6 +56,7 @@ def test_operations_empty_workspace_starts_with_first_run_landing(tmp_path, monk
     assert defs["navigation_page"] == "setup"
     assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "setup"
     assert defs["monitor_workspace_ui"].widget.snapshot["page_labels"]["setup"] == "Data connection"
+    assert defs["monitor_workspace_ui"].widget.snapshot["pages"] == ["setup"]
     assert defs["first_run_mode"] == "landing"
     assert defs["first_run_sample_button"] is not None
     assert defs["first_run_real_button"] is not None
@@ -114,6 +115,9 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
     assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "monitor"
     assert defs["monitor_workspace_ui"].widget.snapshot["page_labels"]["monitor"] == "Monitor"
     assert defs["first_run_mode"] == "configured"
+    assert defs["setup_receipt_confirmed"] is False
+    assert defs["setup_open_monitor_button"] is not None
+    assert "monitor" in defs["monitor_workspace_ui"].widget.snapshot["pages"]
     assert "setup_section" not in defs
     assert "navigation" not in defs
     assert defs["monitor_range_id"] == "1h"
