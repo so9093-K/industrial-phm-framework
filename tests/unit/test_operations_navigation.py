@@ -74,7 +74,7 @@ def test_asset_attention_routes_to_signals_without_title_matching() -> None:
 
     assert route.page == OperationsPageId.ASSETS
     assert route.asset_id == "asset-1"
-    assert route.asset_section == "Signals"
+    assert route.asset_section == "signals"
 
 
 def test_review_attention_routes_to_exact_investigation() -> None:
