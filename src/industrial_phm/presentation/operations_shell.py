@@ -40,6 +40,7 @@ def operations_theme_css(
     label_transform = "none" if resolved == OperationsLocale.KO_KR else "uppercase"
     label_tracking = "0" if resolved == OperationsLocale.KO_KR else ".06em"
     label_tracking_wide = "0" if resolved == OperationsLocale.KO_KR else ".09em"
+    copy_word_break = "keep-all" if resolved == OperationsLocale.KO_KR else "normal"
     return f"""
 <style>
 /* marimo colours every widget through light-dark() switches keyed on these
@@ -89,6 +90,7 @@ def operations_theme_css(
   --phm-label-transform: {label_transform};
   --phm-label-tracking: {label_tracking};
   --phm-label-tracking-wide: {label_tracking_wide};
+  --phm-copy-word-break: {copy_word_break};
 }}
 body, #root, .marimo {{
   background: var(--phm-bg) !important;
@@ -117,7 +119,7 @@ div:has(.phm-shell) {{
   letter-spacing: var(--phm-label-tracking-wide);
   text-transform: var(--phm-label-transform);
   line-height: 1.4;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
   color: var(--phm-muted);
 }}
 .phm-card {{
@@ -164,6 +166,8 @@ div:has(.phm-shell) {{
   text-align: left;
   border-bottom: 1px solid var(--phm-border);
   font-size: .875rem;
+  vertical-align: top;
+  overflow-wrap: anywhere;
 }}
 .phm-table th {{
   color: var(--phm-muted);
@@ -171,7 +175,7 @@ div:has(.phm-shell) {{
   text-transform: var(--phm-label-transform);
   letter-spacing: var(--phm-label-tracking);
   line-height: 1.4;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
 }}
 .phm-table tr:last-child td {{ border-bottom: none; }}
 .phm-chart-workspace {{ border-top: 1px solid var(--phm-border); padding-top: .7rem; }}
