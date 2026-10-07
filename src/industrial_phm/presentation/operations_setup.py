@@ -136,14 +136,14 @@ def setup_workspace_css() -> str:
   font-size: .9375rem;
   font-weight: 700;
   line-height: 1.45;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
   margin-bottom: .65rem;
 }
 .phm-setup-help {
   color: var(--phm-muted);
   font-size: .875rem;
   line-height: 1.55;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
 }
 </style>
 """
