@@ -11,35 +11,24 @@ from industrial_phm.application.operations_monitor import (
     OperationsMonitorAttention,
     OperationsMonitorStatus,
 )
-
-OPERATIONS_MAIN_BACKGROUND = "#10151c"
-OPERATIONS_PAGE_OPTIONS = (
-    "Monitor",
-    "Assets",
-    "Investigations",
-    "Maintenance",
-    "System",
-    "Setup",
+from industrial_phm.presentation.operations_locale import (
+    DEFAULT_OPERATIONS_LOCALE,
+    OPERATIONS_PAGE_IDS,
+    OperationsLocale,
+    OperationsPageId,
+    operations_status_label,
 )
 
+OPERATIONS_MAIN_BACKGROUND = "#10151c"
+OPERATIONS_PAGE_OPTIONS = OPERATIONS_PAGE_IDS
 
-def initial_operations_page(*, has_registered_sources: bool) -> str:
+
+def initial_operations_page(*, has_registered_sources: bool) -> OperationsPageId:
     """Choose the first Operations page from durable workspace state."""
 
     if not isinstance(has_registered_sources, bool):
         raise ValueError("has_registered_sources must be a bool")
-    return "Monitor" if has_registered_sources else "Setup"
-
-
-_DATA_STATUS_LABEL = {
-    OperationsMonitorStatus.RUNNING: "Receiving",
-    OperationsMonitorStatus.WAITING: "Waiting for data",
-    OperationsMonitorStatus.DELAYED: "Delayed",
-    OperationsMonitorStatus.STOPPED: "Stopped",
-    OperationsMonitorStatus.NEEDS_ATTENTION: "Needs attention",
-    OperationsMonitorStatus.ERROR: "Error",
-    OperationsMonitorStatus.UNAVAILABLE: "Unavailable",
-}
+    return OperationsPageId.MONITOR if has_registered_sources else OperationsPageId.SETUP
 
 
 def operations_theme_css() -> str:
@@ -188,16 +177,28 @@ def monitor_context_attention(
     )
 
 
-def monitor_attention_category(attention: OperationsMonitorAttention) -> str:
+def monitor_attention_category(
+    attention: OperationsMonitorAttention,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     """Operator-facing factual category, not severity or alarm priority."""
 
     if not isinstance(attention, OperationsMonitorAttention):
         raise ValueError("attention must be an OperationsMonitorAttention")
-    return {
-        OperationsAttentionDestination.ASSET_SIGNALS: "Data",
-        OperationsAttentionDestination.INVESTIGATIONS: "Review",
-        OperationsAttentionDestination.SYSTEM: "System",
-    }[attention.destination]
+    labels = {
+        OperationsLocale.EN_US: {
+            OperationsAttentionDestination.ASSET_SIGNALS: "Data",
+            OperationsAttentionDestination.INVESTIGATIONS: "Review",
+            OperationsAttentionDestination.SYSTEM: "System",
+        },
+        OperationsLocale.KO_KR: {
+            OperationsAttentionDestination.ASSET_SIGNALS: "데이터",
+            OperationsAttentionDestination.INVESTIGATIONS: "검토",
+            OperationsAttentionDestination.SYSTEM: "시스템",
+        },
+    }
+    resolved = OperationsLocale(locale)
+    return labels[resolved][attention.destination]
 
 
 def render_asset_title_html(asset_id: str, names: AssetDisplayNames | None = None) -> str:
@@ -211,8 +212,10 @@ def render_asset_title_html(asset_id: str, names: AssetDisplayNames | None = Non
     )
 
 
-def data_status_label(status: OperationsMonitorStatus) -> str:
+def data_status_label(
+    status: OperationsMonitorStatus,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     """Label source/asset data-flow state without implying asset condition."""
-    if not isinstance(status, OperationsMonitorStatus):
-        raise ValueError("status must be an OperationsMonitorStatus")
-    return _DATA_STATUS_LABEL[status]
+
+    return operations_status_label(status, locale)
