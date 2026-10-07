@@ -48,3 +48,10 @@ workspace를 소비하게 합니다.
 
 이 결정은 distributed coordination, HA, container runtime, systemd, backup/retention 정책을 선택하지
 않습니다. 해당 deployment 책임은 #346과 #318에서 이 workspace 계약 위에 추가합니다.
+
+## Notes
+
+- 2026-10-07: repository-local `operations up` front door는 config 도입 전 Operations가 만든 것으로
+  식별 가능한 workspace만 현재 기본 runtime policy를 기록한 config로 명시적으로 adopt합니다. 알려지지 않은 top-level/runtime
+  entry가 있으면 아무것도 변경하지 않고 거부합니다. 이는 path projection 자체에 side effect를 추가하지
+  않고 lifecycle layer가 migration 판단을 소유한다는 이 ADR의 경계를 유지합니다.

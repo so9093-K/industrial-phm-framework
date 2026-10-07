@@ -22,6 +22,7 @@ from industrial_phm.commands.operations import (
     _run_operations_start,
     _run_operations_status,
     _run_operations_stop,
+    _run_operations_up,
     _run_operations_window_analysis,
 )
 
@@ -44,6 +45,13 @@ def _add_operations_commands(
         help="operate one local PHM node without internal storage/process wiring",
     )
     commands = operations.add_subparsers(dest="operations_command", required=True)
+
+    up = commands.add_parser(
+        "up",
+        help="prepare or reopen one local Operations workspace and run it",
+    )
+    up.add_argument("workspace", type=Path, help="local Operations workspace root")
+    up.set_defaults(handler=_run_operations_up)
 
     init = commands.add_parser(
         "init",
