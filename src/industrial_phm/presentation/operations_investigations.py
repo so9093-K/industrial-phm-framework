@@ -173,7 +173,7 @@ def investigation_workspace_css() -> str:
   color: var(--phm-muted);
   font-size: .875rem;
   line-height: 1.5;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
 }
 .phm-investigation-heading,
 .phm-investigation-scope,
