@@ -1554,13 +1554,17 @@ def format_operations_age(
     seconds = (now - value).total_seconds()
     if seconds < 0:
         return operations_text("common.future_timestamp", resolved)
+    if resolved == OperationsLocale.KO_KR:
+        if seconds < 60:
+            return f"{seconds:.0f}초 전"
+        if seconds < 3600:
+            return f"{seconds / 60:.0f}분 전"
+        return f"{seconds / 3600:.0f}시간 전"
     if seconds < 60:
-        amount = f"{seconds:.0f}s"
-    elif seconds < 3600:
-        amount = f"{seconds / 60:.0f}m"
-    else:
-        amount = f"{seconds / 3600:.0f}h"
-    return f"{amount} 전" if resolved == OperationsLocale.KO_KR else f"{amount} ago"
+        return f"{seconds:.0f}s ago"
+    if seconds < 3600:
+        return f"{seconds / 60:.0f}m ago"
+    return f"{seconds / 3600:.0f}h ago"
 
 
 def _require_locale(locale: OperationsLocale | str) -> OperationsLocale:
