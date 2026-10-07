@@ -11,6 +11,11 @@
 
 ### Changed
 
+- Control/spool/telemetry SQLite의 동시 최초 WAL 활성화에서 busy timeout을 기다리지 않고 실패하던 경합을
+  제한된 connection bootstrap 처리로 보정했습니다. 데이터 transaction은 재실행하지 않으며, 최초 schema
+  metadata의 중복 생성 경쟁과 spool initialize의 연결 수명도 정리했습니다. Worker 오류 traceback과 실제
+  DB 경로를 보존하고 cross-process lock 회귀 검증을 CI에 포함합니다.
+
 - 사용되지 않는 구형 Monitor HTML renderer·전용 CSS·presentation export와 분석 결과 refresh/선택 helper를
   제거했습니다. 숨은 navigation tabs를 canonical page 상태로 통합하고 Operations acceptance는 실제 packaged
   Monitor snapshot을 검증합니다. 저장된 이력의

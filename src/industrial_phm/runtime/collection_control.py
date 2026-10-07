@@ -10,6 +10,7 @@ from industrial_phm.application.collection_control import (
     CollectionControlRecord,
     CollectionDesiredState,
 )
+from industrial_phm.runtime._sqlite import connect_wal
 
 _SCHEMA_VERSION = "industrial-phm-collection-control-v1"
 
@@ -166,14 +167,7 @@ class SqliteCollectionControlRepository:
     def _connect(self) -> sqlite3.Connection:
         path = self._path.expanduser().resolve(strict=False)
         path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(
-            path,
-            timeout=self._busy_timeout_ms / 1000,
-        )
-        connection.execute(f"PRAGMA busy_timeout = {self._busy_timeout_ms}")
-        connection.execute("PRAGMA journal_mode = WAL")
-        connection.execute("PRAGMA synchronous = FULL")
-        return connection
+        return connect_wal(path, busy_timeout_ms=self._busy_timeout_ms, foreign_keys=False)
 
     def _ensure_schema(self, connection: sqlite3.Connection) -> None:
         connection.execute(
@@ -187,6 +181,11 @@ class SqliteCollectionControlRepository:
         schema = connection.execute(
             "SELECT value FROM collection_control_metadata WHERE key = 'schema'"
         ).fetchone()
+        if schema is None:
+            connection.execute("BEGIN IMMEDIATE")
+            schema = connection.execute(
+                "SELECT value FROM collection_control_metadata WHERE key = 'schema'"
+            ).fetchone()
         if schema is None:
             connection.execute(
                 """

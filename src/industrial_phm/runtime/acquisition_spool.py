@@ -36,6 +36,7 @@ from industrial_phm.application.opcua_persistent import (
 )
 from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
+from industrial_phm.runtime._sqlite import connect_wal
 
 _SCHEMA_VERSION = "industrial-phm-acquisition-spool-v1"
 
@@ -66,9 +67,12 @@ class SqliteAcquisitionSpool:
         return self._config
 
     def initialize(self) -> None:
-        with self._connect() as connection:
+        connection = self._connect()
+        try:
             self._ensure_schema(connection)
             self._validate_state(connection)
+        finally:
+            connection.close()
 
     def get_last_connection_epoch(self, source_id: str) -> int:
         """Return the durable source epoch baseline across worker process restarts."""
@@ -545,12 +549,7 @@ class SqliteAcquisitionSpool:
     def _connect(self) -> sqlite3.Connection:
         path = self._config.path.expanduser().resolve(strict=False)
         path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(path, timeout=self._config.busy_timeout_ms / 1000)
-        connection.execute(f"PRAGMA busy_timeout = {self._config.busy_timeout_ms}")
-        connection.execute("PRAGMA journal_mode = WAL")
-        connection.execute("PRAGMA synchronous = FULL")
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_wal(path, busy_timeout_ms=self._config.busy_timeout_ms, foreign_keys=True)
 
     def _ensure_schema(self, connection: sqlite3.Connection) -> None:
         connection.execute(
@@ -564,6 +563,11 @@ class SqliteAcquisitionSpool:
         schema = connection.execute(
             "SELECT value FROM spool_metadata WHERE key = 'schema'"
         ).fetchone()
+        if schema is None:
+            connection.execute("BEGIN IMMEDIATE")
+            schema = connection.execute(
+                "SELECT value FROM spool_metadata WHERE key = 'schema'"
+            ).fetchone()
         if schema is None:
             connection.execute(
                 "INSERT INTO spool_metadata (key, value) VALUES ('schema', ?)",
