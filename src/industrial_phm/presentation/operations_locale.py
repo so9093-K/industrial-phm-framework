@@ -291,14 +291,16 @@ _TEXT: Final = {
         ),
         "first_run.real.title": "실제 데이터 연결",
         "first_run.real.detail": (
-            "준비된 FILE 데이터 또는 실시간 OPC UA source를 연결하고 신호와 데이터 수신을 확인합니다."
+            "준비된 FILE 데이터 또는 실시간 OPC UA source를 연결하고 "
+            "신호와 데이터 수신을 확인합니다."
         ),
         "first_run.resume": (
             "이미 설정된 작업공간은 이 첫 실행 화면을 건너뛰고 관제 화면에서 바로 재개합니다."
         ),
         "first_run.sample.ready": "샘플 관제가 준비되었습니다",
         "first_run.sample.isolation": (
-            "샘플은 별도 작업공간에서 실행되며 실제 Operations 작업공간에 synthetic 관측값을 기록하지 않습니다."
+            "샘플은 별도 작업공간에서 실행되며 실제 Operations 작업공간에 "
+            "synthetic 관측값을 기록하지 않습니다."
         ),
         "first_run.sample.open": "샘플 관제 열기",
         "first_run.sample.stop": "샘플 중지",
@@ -418,7 +420,9 @@ _TEXT: Final = {
         "monitor.find_signal": "신호 검색",
         "monitor.select_signal": "확인할 신호를 선택하세요",
         "monitor.compare_help": "+로 비교 · 최대 6개 신호",
-        "monitor.no_matching_signals": "일치하는 신호가 없습니다. 채널 또는 측정 이름을 검색하세요.",
+        "monitor.no_matching_signals": (
+            "일치하는 신호가 없습니다. 채널 또는 측정 이름을 검색하세요."
+        ),
         "monitor.observation_workspace": "관측 WORKSPACE",
         "monitor.signal_comparison": "신호 비교",
         "monitor.event_time_range": "이벤트 시각 범위",
@@ -496,7 +500,11 @@ def resolve_operations_locale(
 
 def resolve_environment_operations_locale() -> OperationsLocale:
     explicit = os.environ.get("INDUSTRIAL_PHM_LOCALE")
-    environment = os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG")
+    environment = (
+        os.environ.get("LC_ALL")
+        or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG")
+    )
     return resolve_operations_locale(preferred=explicit, environment_locale=environment)
 
 
