@@ -20,6 +20,12 @@
 
 ### Changed
 
+- Operations presentation에 `ko-KR` / `en-US` locale resource 계층을 추가하고 page·filter·
+  section의 stable ID를 표시 문자열과 분리했습니다. Monitor의 고정 `en` / `en-GB` formatter를
+  선택 locale 기반 formatting으로 바꾸고 first-run, Assets, Investigations, Maintenance review,
+  Setup, System의 주요 상태·label·empty state를 같은 locale boundary에서 표시합니다. locale 변경은
+  source/asset/channel/capability/evidence identity와 저장 UTC semantics를 변경하지 않습니다.
+
 - 빈 Operations workspace의 첫 화면을 first-run landing으로 바꿨습니다. 사용자는 `make up` 이후
   격리된 synthetic sample을 실행해 Monitor를 둘러보거나 실제 FILE/OPC UA 연결을 선택할 수 있습니다.
   Setup의 Data Sources / Signal Mapping / Measurement Semantics / Analysis Configuration radio navigation은
