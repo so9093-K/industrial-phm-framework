@@ -53,7 +53,13 @@ def investigation_group_option_label(
     capability = investigation_capability_label(group.capability_id, locale)
     review = investigation_review_label(group.review_state, locale)
     completed = format_operations_utc(group.latest.completed_at, locale)
-    return f"{asset} · {capability} · {review} · {group.run_count} run(s) · latest {completed}"
+    return operations_text("investigation.group_option", locale).format(
+        asset=asset,
+        capability=capability,
+        review=review,
+        runs=group.run_count,
+        completed=completed,
+    )
 
 
 def investigation_queue_option_label(
