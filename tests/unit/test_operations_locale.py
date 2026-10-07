@@ -67,7 +67,7 @@ def test_utc_storage_semantics_are_preserved_while_age_copy_is_localized() -> No
     assert format_operations_utc(observed, "ko-KR").endswith(" UTC")
     assert format_operations_utc(observed, "en-US").endswith(" UTC")
     assert format_operations_age(observed, now=now, locale="en-US") == "5m ago"
-    assert format_operations_age(observed, now=now, locale="ko-KR") == "5m 전"
+    assert format_operations_age(observed, now=now, locale="ko-KR") == "5분 전"
 
 
 def test_unknown_resource_or_locale_fails_closed() -> None:
