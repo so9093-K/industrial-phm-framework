@@ -3976,9 +3976,7 @@ def _(
         )
 
     _setup_page = (
-        first_run_view
-        if not setup_workspace.sources and first_run_mode != "real"
-        else setup_view
+        first_run_view if not setup_workspace.sources and first_run_mode != "real" else setup_view
     )
     pages = {
         "Monitor": monitor_workspace_ui,
