@@ -335,8 +335,4 @@ def _overview_card(
 
 
 def _empty_row(columns: int, message: str) -> str:
-    return (
-        f'<tr><td colspan="{columns}" class="phm-card-detail">'
-        f"{escape(message)}"
-        "</td></tr>"
-    )
+    return f'<tr><td colspan="{columns}" class="phm-card-detail">{escape(message)}</td></tr>'
