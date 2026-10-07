@@ -280,7 +280,7 @@ def test_actions_wrap_first_run_sample_launch_failure(tmp_path: Path, monkeypatc
     def fail(_workspace):
         raise RuntimeError("sample port unavailable")
 
-    monkeypatch.setattr(action_module, "launch_first_run_sample_runtime", fail)
+    monkeypatch.setattr(action_module, "launch_first_run_sample", fail)
 
     with pytest.raises(OperationsActionError, match="sample port unavailable"):
         actions.launch_first_run_sample()
