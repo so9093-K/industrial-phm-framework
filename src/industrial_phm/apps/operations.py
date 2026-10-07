@@ -3374,6 +3374,7 @@ def _(
     opcua_signal_selection,
     opcua_timeout_input,
     operations_locale,
+    operations_text,
     pending_semantics,
     register_setup_source_button,
     render_setup_signals_html,
@@ -4030,7 +4031,6 @@ def _(
         "page_labels": {
             page.value: operations_page_label(page, operations_locale)
             for page in OPERATIONS_PAGE_OPTIONS
-            if page.value in _allowed_pages
         },
         "asset_id": _selected_asset,
         "asset_name": None if _selected_asset is None else asset_names.label(_selected_asset),
