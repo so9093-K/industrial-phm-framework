@@ -1302,6 +1302,7 @@ def _(
     opcua_endpoint_input,
     opcua_mapping_error,
     opcua_timeout_input,
+    operations_locale,
     pending_semantics,
     register_setup_source_button,
     set_pending_semantics,
@@ -1628,12 +1629,13 @@ def _(
     asset_run_file_analysis_button,
     asset_workspace,
     mo,
+    operations_locale,
     render_asset_analysis_html,
 ):
     if asset_workspace is None:
         asset_analysis_view = mo.md("No asset is selected.")
     else:
-        _blocks = [mo.Html(render_asset_analysis_html(asset_workspace))]
+        _blocks = [mo.Html(render_asset_analysis_html(asset_workspace, operations_locale))]
         if asset_analysis_action_error:
             _blocks.append(
                 mo.callout(
@@ -2538,6 +2540,7 @@ def _(
     investigation_selector,
     mo,
     operational_analysis_presentation_kind,
+    operations_locale,
     phase_unbalance_exclusion_rows,
     phase_unbalance_provenance_rows,
     phase_unbalance_summary_rows,
@@ -2608,7 +2611,7 @@ def _(
             selected_investigation.capability_id
         )
         _evidence_blocks = [
-            mo.Html(render_investigation_summary_html(selected_investigation, asset_names)),
+            mo.Html(render_investigation_summary_html(selected_investigation, asset_names, operations_locale)),
             mo.md(render_analysis_quality_markdown(selected_investigation_result.run)),
         ]
 
@@ -2705,7 +2708,7 @@ def _(
                 mo.md(
                     "### Human review\n\n"
                     "Current workflow state: "
-                    f"**{investigation_review_label(selected_investigation.review_state)}**"
+                    f"**{investigation_review_label(selected_investigation.review_state, operations_locale)}**"
                 )
             )
 
@@ -2716,7 +2719,7 @@ def _(
                 mo.accordion(
                     {
                         "Evidence identity": mo.Html(
-                            render_investigation_evidence_identity_html(selected_investigation)
+                            render_investigation_evidence_identity_html(selected_investigation, operations_locale)
                         )
                     }
                 ),
@@ -2878,6 +2881,7 @@ def _(
     investigation_queue,
     mo,
     operational_analysis_presentation_kind,
+    operations_locale,
     phase_unbalance_summary_rows,
     selected_maintenance,
 ):
@@ -3139,6 +3143,7 @@ def _(
                     maintenance_evidence,
                     analysis_run_id=selected_maintenance.analysis_run_id,
                     metrics=maintenance_evidence_metrics,
+                    locale=operations_locale,
                 )
             )
         ]
@@ -3146,14 +3151,14 @@ def _(
             _evidence_blocks.append(maintenance_open_investigation_button)
         _detail_panel = mo.vstack(
             [
-                mo.Html(render_maintenance_summary_html(selected_maintenance, asset_names)),
+                mo.Html(render_maintenance_summary_html(selected_maintenance, asset_names, operations_locale)),
                 *_evidence_blocks,
-                mo.Html(render_maintenance_timeline_html(selected_maintenance)),
+                mo.Html(render_maintenance_timeline_html(selected_maintenance, operations_locale)),
                 *_action_blocks,
                 mo.accordion(
                     {
                         "Review identity": mo.Html(
-                            render_maintenance_identity_html(selected_maintenance)
+                            render_maintenance_identity_html(selected_maintenance, operations_locale)
                         )
                     }
                 ),
@@ -3201,6 +3206,7 @@ def _(
 def _(
     asset_names,
     mo,
+    operations_locale,
     render_system_diagnostics_html,
     render_system_errors_html,
     render_system_runtime_html,
@@ -3225,13 +3231,13 @@ def _(
         )
     system_view = mo.vstack(
         [
-            mo.Html(render_system_runtime_html(system_runtime)),
-            mo.Html(render_system_errors_html(system_runtime)),
+            mo.Html(render_system_runtime_html(system_runtime, operations_locale)),
+            mo.Html(render_system_errors_html(system_runtime, operations_locale)),
             *_name_conflicts,
             mo.accordion(
                 {
                     "Advanced diagnostics": mo.Html(
-                        render_system_diagnostics_html(system_diagnostics)
+                        render_system_diagnostics_html(system_diagnostics, operations_locale)
                     )
                 }
             ),
@@ -3338,7 +3344,7 @@ def _(
         _selected_source_panel = mo.vstack(
             [
                 setup_source_selector,
-                mo.Html(render_setup_source_detail_html(setup_selected_source)),
+                mo.Html(render_setup_source_detail_html(setup_selected_source, operations_locale)),
                 mo.hstack(_source_actions, justify="start", gap=0.6),
                 mo.md(
                     "Enable/Pause changes whether a runtime may use the source. "
@@ -3652,13 +3658,13 @@ def _(
         _guided_setup = mo.vstack(
             [
                 mo.md("### 1 · Connected source"),
-                mo.Html(render_setup_sources_html(setup_workspace)),
+                mo.Html(render_setup_sources_html(setup_workspace, operations_locale)),
                 _selected_source_panel,
                 mo.md(
                     "### 2 · Inspect signals\n\n"
                     "Confirm the exact source identity and the signals that were registered."
                 ),
-                mo.Html(render_setup_signals_html(setup_selected_source)),
+                mo.Html(render_setup_signals_html(setup_selected_source, operations_locale)),
                 mo.md(
                     "### 3 · Confirm meaning\n\n"
                     f"Explicit meaning is recorded for **{_defined} / {_total}** signal(s). "
@@ -3888,10 +3894,10 @@ def _(
         "evidence": [
             {
                 "id": item.investigation_id,
-                "label": investigation_capability_label(item.capability_id),
+                "label": investigation_capability_label(item.capability_id, operations_locale),
                 "start": utc_millis(item.observed_start_at),
                 "end": utc_millis(item.observed_end_at),
-                "review": investigation_review_label(item.review_state),
+                "review": investigation_review_label(item.review_state, operations_locale),
             }
             for item in monitor_window_evidence_items
         ],
@@ -4002,6 +4008,7 @@ def _(
     mo,
     monitor_workspace_ui,
     navigation_page,
+    operations_locale,
     operations_theme_css,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -4047,11 +4054,11 @@ def _(
         )
     else:
         _asset_sections = {
-            "Overview": mo.Html(render_asset_overview_html(asset_workspace)),
+            "Overview": mo.Html(render_asset_overview_html(asset_workspace, operations_locale)),
             "Signals": signal_view,
             "Analysis": asset_analysis_view,
-            "Events": mo.Html(render_asset_events_html(asset_workspace)),
-            "Maintenance": mo.Html(render_asset_maintenance_html(asset_workspace)),
+            "Events": mo.Html(render_asset_events_html(asset_workspace, operations_locale)),
+            "Maintenance": mo.Html(render_asset_maintenance_html(asset_workspace, operations_locale)),
         }
         asset_view = mo.vstack(
             [
@@ -4060,7 +4067,7 @@ def _(
                     widths=[0.46, 0.54],
                     align="start",
                 ),
-                mo.Html(render_asset_header_html(asset_workspace, asset_names)),
+                mo.Html(render_asset_header_html(asset_workspace, asset_names, operations_locale)),
                 _asset_sections[asset_section.value],
             ],
             gap=1.1,
