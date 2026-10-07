@@ -201,6 +201,18 @@ _TEXT: Final = {
         "setup.collection_request": "Collection request",
         "setup.collection.running": "Requested: Running",
         "setup.collection.stopped": "Requested: Stopped",
+        "setup.data_flow_status": "Data flow confirmation",
+        "setup.data_flow_confirmed": (
+            "Accepted data receipt is confirmed for the current active source."
+        ),
+        "setup.data_flow_waiting": (
+            "No accepted data receipt is confirmed yet. Run a bounded FILE diagnostic or "
+            "start OPC UA collection, then refresh this status."
+        ),
+        "setup.refresh_data_flow": "Refresh data flow",
+        "setup.monitor_locked": (
+            "Monitor becomes available after accepted data receipt is confirmed."
+        ),
         "setup.not_enabled": "Not enabled",
         "setup.enabled": "Enabled",
         "setup.paused": "Paused",
@@ -399,6 +411,18 @@ _TEXT: Final = {
         "setup.collection_request": "수집 요청",
         "setup.collection.running": "요청: 수집 실행",
         "setup.collection.stopped": "요청: 수집 중지",
+        "setup.data_flow_status": "데이터 수신 확인",
+        "setup.data_flow_confirmed": (
+            "현재 활성 source에서 accepted data receipt가 확인되었습니다."
+        ),
+        "setup.data_flow_waiting": (
+            "아직 accepted data receipt가 확인되지 않았습니다. FILE은 bounded diagnostic을 "
+            "실행하고, OPC UA는 수집을 시작한 뒤 이 상태를 새로고침하세요."
+        ),
+        "setup.refresh_data_flow": "데이터 수신 새로고침",
+        "setup.monitor_locked": (
+            "Accepted data receipt가 확인되면 관제 화면을 열 수 있습니다."
+        ),
         "setup.not_enabled": "활성화 안 됨",
         "setup.enabled": "활성화됨",
         "setup.paused": "일시 중지",
