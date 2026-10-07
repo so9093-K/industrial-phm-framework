@@ -202,9 +202,7 @@ _TEXT: Final = {
         "setup.collection.running": "Requested: Running",
         "setup.collection.stopped": "Requested: Stopped",
         "setup.data_flow_status": "Data flow confirmation",
-        "setup.data_flow_confirmed": (
-            "Data has been received for the currently enabled source."
-        ),
+        "setup.data_flow_confirmed": ("Data has been received for the currently enabled source."),
         "setup.data_flow_waiting": (
             "No data has been received for the current source yet. Run a bounded FILE "
             "diagnostic or start OPC UA collection, then refresh this status."
