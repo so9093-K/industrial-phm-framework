@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from html import escape
 
 from industrial_phm.application.operations_monitor import OperationsMonitorStatus
-from industrial_phm.application.operations_system import (
-    SystemRuntimeService,
-    SystemRuntimeView,
-)
+from industrial_phm.application.operations_system import SystemRuntimeService, SystemRuntimeView
 from industrial_phm.presentation.operations_locale import (
     DEFAULT_OPERATIONS_LOCALE,
     OperationsLocale,
@@ -26,9 +22,10 @@ def render_system_runtime_html(
     if not isinstance(view, SystemRuntimeView):
         raise ValueError("view must be a SystemRuntimeView")
     cards = "".join(_service_card(item, locale) for item in view.services)
+    title = escape(operations_text("system.runtime", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("system.runtime", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         f'<div class="phm-system-grid">{cards}</div>'
         "</section>"
     )
@@ -40,11 +37,13 @@ def render_system_errors_html(
 ) -> str:
     if not isinstance(view, SystemRuntimeView):
         raise ValueError("view must be a SystemRuntimeView")
+    title = escape(operations_text("system.errors", locale))
     if not view.errors:
+        detail = escape(operations_text("system.no_errors", locale))
         return (
             '<section class="phm-shell">'
-            f'<div class="phm-section-title">{escape(operations_text("system.errors", locale))}</div>'
-            f'<div class="phm-card-detail">{escape(operations_text("system.no_errors", locale))}</div>'
+            f'<div class="phm-section-title">{title}</div>'
+            f'<div class="phm-card-detail">{detail}</div>'
             "</section>"
         )
     body = "".join(
@@ -55,15 +54,16 @@ def render_system_errors_html(
         "</tr>"
         for item in view.errors
     )
+    headers = (
+        operations_text("system.detected", locale),
+        operations_text("system.area", locale),
+        operations_text("system.detail", locale),
+    )
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("system.errors", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
-        "<thead><tr>"
-        f"<th>{escape(operations_text('system.detected', locale))}</th>"
-        f"<th>{escape(operations_text('system.area', locale))}</th>"
-        f"<th>{escape(operations_text('system.detail', locale))}</th>"
-        "</tr></thead>"
+        f"<thead><tr>{_headers(headers)}</tr></thead>"
         f"<tbody>{body}</tbody></table></section>"
     )
 
@@ -76,14 +76,16 @@ def render_system_diagnostics_html(
         f"<tr><td>{escape(label)}</td><td><code>{escape(value)}</code></td></tr>"
         for label, value in diagnostics
     )
+    title = escape(operations_text("system.advanced_diagnostics", locale))
+    headers = (
+        operations_text("system.state", locale),
+        operations_text("system.path", locale),
+    )
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("system.advanced_diagnostics", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
-        "<thead><tr>"
-        f"<th>{escape(operations_text('system.state', locale))}</th>"
-        f"<th>{escape(operations_text('system.path', locale))}</th>"
-        "</tr></thead>"
+        f"<thead><tr>{_headers(headers)}</tr></thead>"
         f"<tbody>{body}</tbody></table></section>"
     )
 
@@ -149,3 +151,7 @@ def _status_label(
     locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
     return operations_status_label(status, locale)
+
+
+def _headers(labels: tuple[str, ...]) -> str:
+    return "".join(f"<th>{escape(label)}</th>" for label in labels)
