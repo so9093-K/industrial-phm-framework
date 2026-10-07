@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -65,6 +66,44 @@ class SqliteWindowAnalysisLedger:
             )
             for row in rows
         )
+
+    def analyzed_through(self) -> tuple[datetime, str] | None:
+        """The (window_end, window_id) every recorded analysis policy has passed.
+
+        None when no policy has a cursor: no window may be treated as analyzed.
+        """
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT window_end, window_id FROM analysis_cursor"
+            ).fetchall()
+        finally:
+            connection.close()
+        if not rows:
+            return None
+        return min((datetime.fromisoformat(row[0]), row[1]) for row in rows)
+
+    def delete_skipped(self, window_ids: Sequence[str]) -> int:
+        """Forget skipped outcomes of windows that are no longer stored."""
+        ids = tuple(dict.fromkeys(window_ids))
+        for item in ids:
+            _validate_identifier(item, "window_id")
+        if not ids:
+            return 0
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            deleted = connection.executemany(
+                "DELETE FROM skipped_outcome WHERE window_id = ?",
+                [(item,) for item in ids],
+            ).rowcount
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+        return int(deleted)
 
     def load_cursor(
         self,

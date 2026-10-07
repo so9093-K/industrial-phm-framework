@@ -81,23 +81,39 @@ def window_event(
     )
 
 
-def phase_unbalance_analysis() -> PhaseUnbalanceAnalysis:
-    """One finalized motor-7 window with bound R/S/T phase voltages, analyzed."""
+def finalized_window(window_id: str = "ops-render", start: datetime = START):
+    """One finalized one-minute motor-7 window with bound R/S/T phase voltages.
+
+    Event indexes follow the event time, so windows at different starts keep
+    distinct delivery identities.
+    """
+    end = start + timedelta(minutes=1)
     buffer = ObservationWindowBuffer(
-        window_id="ops-render",
+        window_id=window_id,
         source_id="site-opcua",
         asset_id="motor-7",
         measurement_point_id="mcc-3",
         expected_channel_ids=("va", "vb", "vc"),
-        window_start=START,
-        window_end=END,
+        window_start=start,
+        window_end=end,
         max_buffered_events=32,
         max_future_skew_seconds=5.0,
     )
+    base = int((start - START).total_seconds())
     for second in range(10, 14):
         for offset, channel in enumerate(("va", "vb", "vc")):
             buffer.ingest(
-                window_event(channel, second, 220.0 + offset + second, 3 * second + offset)
+                window_event(
+                    channel,
+                    base + second,
+                    220.0 + offset + second,
+                    3 * (base + second) + offset,
+                )
             )
-    buffer.advance_watermark(END)
-    return run_phase_unbalance_on_window(buffer.finalize(finalized_at=END))
+    buffer.advance_watermark(end)
+    return buffer.finalize(finalized_at=end)
+
+
+def phase_unbalance_analysis() -> PhaseUnbalanceAnalysis:
+    """One finalized motor-7 window with bound R/S/T phase voltages, analyzed."""
+    return run_phase_unbalance_on_window(finalized_window())

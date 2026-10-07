@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from industrial_phm.application.history_retention import DEFAULT_LIVE_RETENTION
 from industrial_phm.commands.operations import (
     _run_operations_backfill_source,
     _run_operations_backup,
@@ -17,6 +18,7 @@ from industrial_phm.commands.operations import (
     _run_operations_preflight,
     _run_operations_request_collection,
     _run_operations_restore,
+    _run_operations_retain_history,
     _run_operations_start,
     _run_operations_status,
     _run_operations_stop,
@@ -241,6 +243,31 @@ def _add_maintenance_commands(
         help="optional maximum active data-file size eligible for compaction",
     )
     compact.set_defaults(handler=_run_operations_compact_history)
+
+    retain = history_commands.add_parser(
+        "retain",
+        help=(
+            "delete live OPC UA evidence and finalized windows older than the retention "
+            "period, except open-review evidence, and reclaim their storage"
+        ),
+    )
+    retain.add_argument(
+        "workspace",
+        type=Path,
+        help="initialized local Operations workspace root",
+    )
+    retain.add_argument(
+        "--retention-days",
+        type=int,
+        default=DEFAULT_LIVE_RETENTION.days,
+        help="keep live evidence whose event time is within this many days (default: %(default)s)",
+    )
+    retain.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what would be deleted without changing anything",
+    )
+    retain.set_defaults(handler=_run_operations_retain_history)
 
 
 def _add_validate_commands(

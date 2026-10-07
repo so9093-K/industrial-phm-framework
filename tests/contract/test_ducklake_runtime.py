@@ -1106,6 +1106,150 @@ def test_latest_and_monitor_reads_bound_by_time_keep_stale_channels_and_conflict
     }
 
 
+def test_live_retention_deletes_old_live_rows_and_keeps_file_and_protected_evidence(
+    tmp_path,
+) -> None:
+    from industrial_phm.application.history_retention import (
+        ProtectedEvidenceRange,
+        RetentionProtection,
+    )
+
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    # Every commit below is made now, so a "now" eight days ahead puts all of
+    # them before the seven-day cutoff while event times stay explicit.
+    now = datetime.now(UTC) + timedelta(days=8)
+    cutoff = now - timedelta(days=7)
+    old = tuple(
+        _event(channel_id=channel, event_at=now - timedelta(days=10), event_index=index)
+        for index, channel in enumerate(("va", "vb"))
+    )
+    protected = (_event(channel_id="va", event_at=now - timedelta(days=9), event_index=2),)
+    recent = (_event(channel_id="va", event_at=now - timedelta(days=1), event_index=3),)
+    history.append_opcua_batch(old, batch_id="old")
+    protected_commit = history.append_opcua_batch(protected, batch_id="protected")
+    recent_commit = history.append_opcua_batch(recent, batch_id="recent")
+    history.append_file_batch(
+        tuple(_file_event("device-a", index) for index in range(3)), batch_id="file"
+    )
+    # Flushed rows are where DuckLake rewrite_data_files corrupted earlier snapshots.
+    history.flush_inlined_data()
+    protected_fingerprint = history.snapshot_evidence_fingerprint(protected_commit.snapshot_id)
+    current = history.current_snapshot_id()
+    protection = RetentionProtection(
+        ranges=(
+            ProtectedEvidenceRange(
+                "source-a", now - timedelta(days=9, minutes=1), now - timedelta(days=9)
+            ),
+        ),
+        snapshot_ids=frozenset({protected_commit.snapshot_id, 999_999}),
+    )
+
+    preview = history.apply_live_retention(cutoff=cutoff, protection=protection, dry_run=True)
+    assert (
+        preview.deleted_observation_count,
+        preview.deleted_measurement_count,
+        preview.deleted_batch_count,
+        preview.protected_observation_count,
+    ) == (2, 2, 1, 1)
+    assert preview.expired_snapshot_count > 0
+    assert history.current_snapshot_id() == current
+    assert len(history.query_opcua_events("source-a")) == 4
+
+    result = history.apply_live_retention(cutoff=cutoff, protection=protection)
+    assert result.deleted_observation_count == 2
+    assert result.kept_protected_snapshot_ids == (protected_commit.snapshot_id,)
+    assert result.missing_protected_snapshot_ids == (999_999,)
+    assert history.query_opcua_events("source-a") == (*protected, *recent)
+    assert len(history.query_file_events("device-a")) == 3
+    measured = history.query_measurements("pump-01", start_at=now - timedelta(days=11), end_at=now)
+    assert {item.event_at for item in measured} == {
+        now - timedelta(days=9),
+        now - timedelta(days=1),
+    }
+    # The protected snapshot still reproduces exactly; others before the cutoff are gone.
+    assert (
+        history.snapshot_evidence_fingerprint(protected_commit.snapshot_id) == protected_fingerprint
+    )
+    with pytest.raises(ValueError, match="does not exist"):
+        history.snapshot_evidence_fingerprint(recent_commit.snapshot_id)
+
+    # A batch with live rows left but an expired commit snapshot fails explicitly
+    # instead of writing a duplicate; a protected commit still recovers.
+    with pytest.raises(HistoricalBatchConflictError, match="provenance is unavailable"):
+        history.append_opcua_batch(recent, batch_id="recent")
+    assert history.append_opcua_batch(protected, batch_id="protected") == protected_commit
+    # A batch whose rows were all deleted is forgotten; a retry stores it again and
+    # the next run deletes it again.
+    history.append_opcua_batch(old, batch_id="old")
+    again = history.apply_live_retention(cutoff=cutoff, protection=protection)
+    assert again.deleted_observation_count == 2
+    assert history.query_opcua_events("source-a") == (*protected, *recent)
+
+    # Once the review closes, its evidence goes too.
+    released = history.apply_live_retention(cutoff=cutoff, protection=RetentionProtection())
+    assert released.deleted_observation_count == 1
+    assert history.query_opcua_events("source-a") == recent
+    assert len(history.query_file_events("device-a")) == 3
+
+
+def test_live_retention_reclaims_live_files_once_every_row_has_passed_the_cutoff(
+    tmp_path,
+) -> None:
+    from industrial_phm.application.history_retention import RetentionProtection
+
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    now = datetime.now(UTC) + timedelta(days=8)
+
+    def batch(first_index, count, start, step):
+        return tuple(
+            _event(
+                channel_id=f"c{index % 35}",
+                event_at=start + index * step,
+                event_index=first_index + index,
+            )
+            for index in range(count)
+        )
+
+    # Live commits of this size are Parquet files, not catalog-inlined rows. The
+    # first commit's rows span ten to eight days ago, so its file passes the cutoff
+    # over two runs.
+    spanning = history.append_opcua_batch(
+        batch(0, 288, now - timedelta(days=10), timedelta(minutes=10)), batch_id="span"
+    )
+    fingerprint = history.snapshot_evidence_fingerprint(spanning.snapshot_id)
+    history.append_opcua_batch(
+        batch(1000, 100, now - timedelta(hours=1), timedelta(seconds=1)), batch_id="recent"
+    )
+    pinned = RetentionProtection(snapshot_ids=frozenset({spanning.snapshot_id}))
+
+    partial = history.apply_live_retention(cutoff=now - timedelta(days=9), protection=pinned)
+    assert partial.deleted_observation_count == 144
+    assert partial.removed_file_count == 0
+    rest = history.apply_live_retention(cutoff=now - timedelta(days=7), protection=pinned)
+    assert rest.deleted_observation_count == 144
+    # The pinned snapshot still reads the spanning file, unchanged.
+    assert rest.removed_file_count == 0
+    assert history.snapshot_evidence_fingerprint(spanning.snapshot_id) == fingerprint
+    assert len(history.query_opcua_events("source-a")) == 100
+
+    released = history.apply_live_retention(
+        cutoff=now - timedelta(days=7), protection=RetentionProtection()
+    )
+    assert released.removed_file_count > 0
+    assert (
+        released.storage_after.physical_parquet_file_count
+        < released.storage_before.physical_parquet_file_count
+    )
+    assert released.storage_after.scheduled_for_deletion_count == 0
+    assert len(history.query_opcua_events("source-a")) == 100
+
+
 _FILE_SCALING_SPEC = spec_from_file_location(
     "file_append_scaling", Path(__file__).parents[2] / "tools/history/file_append_scaling.py"
 )

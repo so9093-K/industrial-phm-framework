@@ -55,6 +55,7 @@ from industrial_phm.runtime import (
     run_operations_supervisor,
     tail_operations_component_log,
 )
+from industrial_phm.runtime.operations_retention import apply_operations_retention
 from industrial_phm.runtime.pipeline_metrics import PipelineMetrics
 
 
@@ -333,6 +334,60 @@ def _run_operations_backfill_source(args: argparse.Namespace) -> int:
         f"input_start={result.input_reference.start_at.isoformat()} "
         f"input_end={result.input_reference.end_at.isoformat()}"
     )
+    return 0
+
+
+def _run_operations_retain_history(args: argparse.Namespace) -> int:
+    """Apply the live-evidence retention policy to one workspace."""
+    workspace = OperationsWorkspace(args.workspace)
+    if isinstance(args.retention_days, bool) or args.retention_days < 1:
+        print("history retention failed: --retention-days must be at least 1", file=sys.stderr)
+        return 1
+    try:
+        result = apply_operations_retention(
+            workspace,
+            now=datetime.now(UTC),
+            retention=timedelta(days=args.retention_days),
+            dry_run=args.dry_run,
+        )
+    except (OSError, RuntimeError, TimeoutError, ValueError) as error:
+        print(f"history retention failed: {error}", file=sys.stderr)
+        return 1
+
+    protection = result.protection
+    print(
+        f"workspace={workspace.root} cutoff={result.cutoff.isoformat()} "
+        f"dry_run={'yes' if result.dry_run else 'no'} "
+        f"protected_ranges={len(protection.ranges)} "
+        f"protected_windows={len(protection.window_ids)} "
+        f"protected_snapshots={len(protection.snapshot_ids)}"
+    )
+    windows = result.windows
+    if windows is not None:
+        print(
+            f"windows_deleted={windows.deleted_window_count} "
+            f"skipped_outcomes_deleted={windows.deleted_skipped_outcome_count} "
+            f"windows_kept_protected={windows.protected_window_count} "
+            f"windows_kept_unanalyzed={windows.unanalyzed_window_count}"
+        )
+    history = result.history
+    if history is not None:
+        before, after = history.storage_before, history.storage_after
+        print(
+            f"observations_deleted={history.deleted_observation_count} "
+            f"measurements_deleted={history.deleted_measurement_count} "
+            f"batches_deleted={history.deleted_batch_count} "
+            f"observations_kept_protected={history.protected_observation_count} "
+            f"snapshots_expired={history.expired_snapshot_count} "
+            f"protected_snapshots_missing={len(history.missing_protected_snapshot_ids)} "
+            f"files_removed={history.removed_file_count}"
+        )
+        print(
+            f"physical_files_before={before.physical_parquet_file_count} "
+            f"physical_files_after={after.physical_parquet_file_count} "
+            f"physical_bytes_before={before.physical_parquet_bytes} "
+            f"physical_bytes_after={after.physical_parquet_bytes}"
+        )
     return 0
 
 

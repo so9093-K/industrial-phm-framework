@@ -123,6 +123,47 @@ class SqliteObservationWindowRepository:
             for index, row in enumerate(rows)
         )
 
+    def list_window_bounds(self) -> tuple[tuple[str, str, datetime, datetime], ...]:
+        """(window_id, source_id, window_start, window_end) of every stored window."""
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                """
+                SELECT window_id, source_id, window_start, window_end
+                FROM finalized_window
+                ORDER BY window_end, window_id
+                """
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(
+            (row[0], row[1], datetime.fromisoformat(row[2]), datetime.fromisoformat(row[3]))
+            for row in rows
+        )
+
+    def delete_windows(self, window_ids: Sequence[str]) -> int:
+        """Delete finalized windows and their delivery identities; return the count."""
+        ids = tuple(dict.fromkeys(window_ids))
+        if any(not isinstance(item, str) or not item.strip() for item in ids):
+            raise ValueError("window_ids must contain non-empty strings")
+        if not ids:
+            return 0
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            # delivery_identity rows cascade with their window.
+            deleted = connection.executemany(
+                "DELETE FROM finalized_window WHERE window_id = ?",
+                [(item,) for item in ids],
+            ).rowcount
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+        return int(deleted)
+
     def recent_windows_for_source(
         self,
         source_id: str,

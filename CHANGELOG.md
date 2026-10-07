@@ -9,6 +9,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- `maintenance history retain <workspace>`로 live evidence 보존 정책을 실행합니다(기본 7일, `--dry-run`).
+  OPC UA live 관측과 finalized window를 event time 기준으로 삭제하고, cutoff 이전 DuckLake snapshot을
+  만료한 뒤 참조되지 않는 file을 제거합니다. FILE history와 닫히지 않은 review 요청의 관측 범위·window·
+  snapshot은 보존하며, review 결과를 찾을 수 없으면 아무것도 지우지 않습니다. 분석 cursor가 지나지 않은
+  window는 남깁니다. DuckLake `rewrite_data_files`가 이전 snapshot 값을 바꾸는 결함이 재현되어 file
+  rewrite는 사용하지 않습니다([ADR-0023](docs/adr/0023-retain-live-evidence-for-a-bounded-period.md)).
+
 ### Changed
 
 - Monitor 최신값과 multi-signal 차트 조회가 다른 asset까지 포함한 전체 raw 행을 hash ID join으로 읽고, 최신값은
