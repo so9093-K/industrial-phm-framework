@@ -49,6 +49,8 @@ def _():
         monitor_attention_category,
         monitor_context_attention,
         operational_analysis_presentation_kind,
+        operations_page_label,
+        operations_text,
         operations_theme_css,
         render_analysis_quality_markdown,
         render_setup_signals_html,
@@ -59,6 +61,13 @@ def _():
         render_system_runtime_html,
         setup_workspace_css,
         system_workspace_css,
+    )
+    from industrial_phm.presentation.operations_locale import (
+        OperationsLocale,
+        OperationsPageId,
+        operations_page_label,
+        operations_text,
+        resolve_environment_operations_locale,
     )
     from industrial_phm.presentation.measurement_history import (
         latest_measurement_rows,
@@ -146,6 +155,8 @@ def _():
         OperationsActionError,
         OperationsDiagnosticKind,
         OperationsReadError,
+        OperationsLocale,
+        OperationsPageId,
         Path,
         RegisteredSource,
         SourceLifecycleState,
@@ -220,6 +231,7 @@ def _():
         render_system_diagnostics_html,
         render_system_errors_html,
         render_system_runtime_html,
+        resolve_environment_operations_locale,
         resolve_measurement_range,
         setup_workspace_css,
         system_workspace_css,
@@ -230,6 +242,26 @@ def _():
 def _(mo):
     get_navigation_page, set_navigation_page = mo.state(None)
     return get_navigation_page, set_navigation_page
+
+
+@app.cell
+def _(OperationsLocale, mo, resolve_environment_operations_locale):
+    _initial_locale = resolve_environment_operations_locale()
+    locale_selector = mo.ui.dropdown(
+        options={
+            "한국어": OperationsLocale.KO_KR.value,
+            "English": OperationsLocale.EN_US.value,
+        },
+        value=_initial_locale.value,
+        label="Language / 언어",
+    )
+    return (locale_selector,)
+
+
+@app.cell
+def _(OperationsLocale, locale_selector):
+    operations_locale = OperationsLocale(locale_selector.value)
+    return (operations_locale,)
 
 
 @app.cell
