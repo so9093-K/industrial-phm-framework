@@ -50,7 +50,6 @@ def _():
         monitor_context_attention,
         operational_analysis_presentation_kind,
         operations_messages,
-        operations_messages,
         operations_page_label,
         operations_text,
         operations_theme_css,
@@ -66,7 +65,7 @@ def _():
     )
     from industrial_phm.presentation.operations_locale import (
         OperationsLocale,
-        OperationsPageId,
+        operations_messages,
         operations_page_label,
         operations_text,
         resolve_environment_operations_locale,
@@ -158,7 +157,6 @@ def _():
         OperationsDiagnosticKind,
         OperationsReadError,
         OperationsLocale,
-        OperationsPageId,
         Path,
         RegisteredSource,
         SourceLifecycleState,
