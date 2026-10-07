@@ -38,9 +38,11 @@ observation/interpretation 경계는 [docs/product/overview.md](../docs/product/
 
 ### Display locale
 
-Operations presentation은 `ko-KR`과 `en-US`를 지원합니다. 앱 상단의 language selector에서 즉시
+Operations는 `ko-KR`과 `en-US` locale resource를 사용합니다. 앱 상단의 language selector에서
 전환할 수 있으며, 초기값은 `INDUSTRIAL_PHM_LOCALE`을 먼저 보고 그다음 `LC_ALL`,
-`LC_MESSAGES`, `LANG`을 해석합니다. 지원하지 않는 값은 `en-US`로 fallback합니다.
+`LC_MESSAGES`, `LANG`을 해석합니다. 지원하지 않는 값은 `en-US`로 fallback합니다. 현재
+localized coverage는 first-run, top-level navigation, Monitor와 주요 workspace status/label부터
+적용하며 세부 action/help copy는 [현재 지원 상태](../docs/status.md)의 경계를 따릅니다.
 
 Locale은 presentation concern입니다. `source_id`, `asset_id`, `measurement_point_id`,
 `channel_id`, `capability_id`, `analysis_run_id`, `evidence_id`, `finding_id`와 저장된 UTC
