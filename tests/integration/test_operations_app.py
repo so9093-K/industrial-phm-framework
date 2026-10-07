@@ -62,9 +62,7 @@ def test_operations_empty_workspace_starts_with_first_run_landing(tmp_path, monk
     assert "setup_section" not in defs
 
 
-def test_operations_ko_locale_changes_display_without_changing_page_identity(
-    tmp_path, monkeypatch
-):
+def test_operations_ko_locale_changes_display_without_changing_page_identity(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     workspace = OperationsWorkspace(tmp_path / "workspace")
     monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
