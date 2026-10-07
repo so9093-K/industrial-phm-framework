@@ -292,13 +292,13 @@ def test_harness_uses_packaged_operations_app_path():
         Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
     )
     assert "apps/operations_v2.py" not in source
-    assert 'get_by_text("Observed asset", exact=True)' in source
-    assert 'get_by_text("Latest stored observations", exact=True)' in source
-    assert 'get_by_text("Recent signal trends", exact=True)' in source
+    assert 'locator(".mw-asset h1")' in source
+    assert 'locator(".mw-reading-value strong")' in source
+    assert 'locator(".mw-plot svg")' in source
     assert 'get_by_text("System data flow", exact=True).count() == 0' in source
     assert 'get_by_text("Current observation", exact=True)' in source
     assert 'get_by_text("Live observation", exact=True)' not in source
-    assert 'get_by_role("radio", name="Assets", exact=True)' in source
+    assert 'get_by_role("button", name="Assets", exact=True)' in source
     assert 'get_by_role("radio", name="Signals", exact=True)' in source
 
 

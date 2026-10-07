@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import importlib
 import json
-from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
-from typing import Any
 
 from industrial_phm.application.asset_history import (
     HistoryIngestionMode,
@@ -18,8 +16,6 @@ from industrial_phm.application.measurement_history import (
     MeasurementHistoryBucket,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
-    MultiSignalMeasurementHistoryAggregation,
-    MultiSignalMeasurementHistoryBucket,
     assess_latest_measurement,
 )
 from industrial_phm.presentation.svg_chart import figure_svg
@@ -227,185 +223,6 @@ def measurement_aggregation_rows(
         row["snapshot_id"] = result.snapshot_id
         rows.append(row)
     return rows
-
-
-def render_multi_signal_measurement_aggregation_svg(
-    result: MultiSignalMeasurementHistoryAggregation,
-    *,
-    selected_channel: str | None = None,
-    evidence_windows: Sequence[tuple[datetime, datetime, str]] = (),
-) -> str:
-    """Render channel-separated small multiples on one event-time axis."""
-
-    if not isinstance(result, MultiSignalMeasurementHistoryAggregation):
-        raise ValueError("result must be a MultiSignalMeasurementHistoryAggregation")
-    windows = tuple(evidence_windows)
-    for start_at, end_at, label in windows:
-        if start_at.utcoffset() is None or end_at.utcoffset() is None:
-            raise ValueError("evidence window timestamps must be timezone-aware")
-        if start_at > end_at:
-            raise ValueError("evidence window start must not be after end")
-        if not isinstance(label, str) or not label.strip():
-            raise ValueError("evidence window label must be non-empty")
-    channels = tuple(dict.fromkeys(bucket.channel_id for bucket in result.buckets))
-    if selected_channel in channels:
-        channels = (
-            selected_channel,
-            *(channel for channel in channels if channel != selected_channel),
-        )
-    figure_module = importlib.import_module("matplotlib.figure")
-    row_count = max(1, len(channels))
-    figure = figure_module.Figure(
-        figsize=(11, max(3.2, 2.15 * row_count)),
-        layout="constrained",
-    )
-    axes_grid = figure.subplots(nrows=row_count, ncols=1, sharex=True, squeeze=False)
-    axes = [axes_grid[index][0] for index in range(row_count)]
-
-    if not channels:
-        axis = axes[0]
-        axis.set_xlim(result.start_at.astimezone(UTC), result.end_at.astimezone(UTC))
-        axis.set_title("No observations in requested event-time window", loc="left")
-        axis.set_xlabel("Event time (UTC)")
-    else:
-        for axis, channel in zip(axes, channels, strict=True):
-            channel_buckets = tuple(
-                bucket for bucket in result.buckets if bucket.channel_id == channel
-            )
-            _render_evidence_windows(
-                axis,
-                windows,
-                start_at=result.start_at,
-                end_at=result.end_at,
-            )
-            _render_multi_signal_channel_axis(axis, channel, channel_buckets)
-            axis.set_xlim(result.start_at.astimezone(UTC), result.end_at.astimezone(UTC))
-            axis.grid(alpha=0.16)
-        axes[-1].set_xlabel("Event time (UTC)")
-        for axis in axes[:-1]:
-            axis.tick_params(labelbottom=False)
-        figure.autofmt_xdate()
-
-    return figure_svg(figure)
-
-
-def _render_evidence_windows(
-    axis: Any,
-    windows: Sequence[tuple[datetime, datetime, str]],
-    *,
-    start_at: datetime,
-    end_at: datetime,
-) -> None:
-    for index, (window_start, window_end, _label) in enumerate(windows):
-        clipped_start = max(window_start, start_at).astimezone(UTC)
-        clipped_end = min(window_end, end_at).astimezone(UTC)
-        if clipped_start > clipped_end:
-            continue
-        legend_label = "analysis evidence" if index == 0 else "_nolegend_"
-        color = f"C{(index + 2) % 10}"
-        if clipped_start == clipped_end:
-            axis.axvline(
-                clipped_start,
-                alpha=0.22,
-                color=color,
-                label=legend_label,
-            )
-        else:
-            axis.axvspan(
-                clipped_start,
-                clipped_end,
-                alpha=0.08,
-                color=color,
-                label=legend_label,
-            )
-
-
-def _render_multi_signal_channel_axis(
-    axis: Any,
-    channel: str,
-    buckets: tuple[MultiSignalMeasurementHistoryBucket, ...],
-) -> None:
-    groups: dict[
-        tuple[str, str | None, str],
-        list[MultiSignalMeasurementHistoryBucket],
-    ] = {}
-    for bucket in buckets:
-        groups.setdefault(
-            (bucket.source_id, bucket.measurement_point_id, bucket.interpretation_json),
-            [],
-        ).append(bucket)
-
-    for index, ((source, point, _), grouped) in enumerate(groups.items()):
-        usable = [bucket for bucket in grouped if bucket.usable_count and bucket.mean is not None]
-        times = [
-            bucket.bucket_start + (bucket.bucket_end - bucket.bucket_start) / 2 for bucket in usable
-        ]
-        color = f"C{index % 10}"
-        axis.vlines(
-            times,
-            [bucket.minimum for bucket in usable],
-            [bucket.maximum for bucket in usable],
-            color=color,
-            alpha=0.35,
-        )
-        axis.scatter(
-            times,
-            [bucket.mean for bucket in usable],
-            s=13,
-            color=color,
-            label=source + (f" / {point}" if point else ""),
-        )
-
-    suspect = [
-        bucket
-        for bucket in buckets
-        if bucket.null_count or bucket.non_good_count or bucket.conflict_count
-    ]
-    if suspect:
-        axis.plot(
-            [
-                bucket.bucket_start + (bucket.bucket_end - bucket.bucket_start) / 2
-                for bucket in suspect
-            ],
-            [0.04] * len(suspect),
-            transform=axis.get_xaxis_transform(),
-            linestyle="none",
-            marker="|",
-            color="red",
-            label="quality/conflict excluded",
-        )
-
-    title, unit = _multi_signal_channel_label(channel, buckets)
-    axis.set_title(title, loc="left", fontsize="medium", fontweight="semibold")
-    axis.set_ylabel(unit)
-    if groups:
-        axis.legend(fontsize="x-small", loc="upper left")
-
-
-def _multi_signal_channel_label(
-    channel: str,
-    buckets: tuple[MultiSignalMeasurementHistoryBucket, ...],
-) -> tuple[str, str]:
-    definitions = []
-    for bucket in buckets:
-        metadata = json.loads(bucket.interpretation_json)
-        semantics = metadata.get("semantics") or {}
-        definition = semantics.get("definition") or {}
-        definitions.append(
-            (
-                definition.get("observed_property"),
-                definition.get("scope"),
-                definition.get("unit"),
-            )
-        )
-    confirmed = {definition for definition in definitions if definition[0]}
-    if len(confirmed) != 1:
-        return channel, "mixed / unknown"
-    observed_property, scope, unit = next(iter(confirmed))
-    label = str(observed_property)
-    if scope:
-        label += f" · {scope}"
-    return f"{label}  ·  {channel}", str(unit or "unknown")
 
 
 def render_measurement_aggregation_svg(result: MeasurementHistoryAggregation) -> str:

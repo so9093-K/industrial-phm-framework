@@ -75,8 +75,8 @@ def _view() -> OperationsMonitorView:
 
 
 def test_operations_theme_uses_fixed_main_background() -> None:
-    assert OPERATIONS_MAIN_BACKGROUND == "#292827"
-    assert "#292827" in operations_theme_css()
+    assert OPERATIONS_MAIN_BACKGROUND == "#10151c"
+    assert "#10151c" in operations_theme_css()
 
 
 def test_operations_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() -> None:
@@ -85,7 +85,7 @@ def test_operations_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() 
     css = operations_theme_css()
     assert "--lightningcss-light: ;" in css
     assert "--lightningcss-dark: initial;" in css
-    assert "--background: #292827;" in css
+    assert "--background: #10151c;" in css
     assert "--tw-prose-headings: #f2f1ef;" in css
 
 
@@ -126,10 +126,9 @@ def test_monitor_asset_context_prioritizes_observation_facts() -> None:
 
     assert "Observed asset" in rendered
     assert "boiler-01" in rendered
-    assert "Last observation" in rendered
+    assert "Latest source activity" in rendered
     assert "now · 2026-09-30 12:00:00 UTC" in rendered
     assert "2 signals" in rendered
-    assert "1 attention" in rendered
     assert "Delayed" in rendered
     assert "System data flow" not in rendered
     assert "Recent activity" not in rendered

@@ -86,6 +86,8 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
 
     assert defs["navigation_initial_page"] == "Monitor"
     assert defs["navigation"].value == "Monitor"
+    assert "marimo-tabs" in defs["navigation"].text
+    assert defs["monitor_range_id"] == "1h"
     assert defs["signal_range_selector"].value == "Live"
     assert defs["get_asset_section"]() == "Overview"
     assert defs["get_investigation_review_filter"]() == "All"
@@ -106,10 +108,16 @@ def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monke
 
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
-    assert defs["selected_attention"] is not None
-    assert defs["selected_attention"].finding_id is not None
-    assert defs["attention_route"].page == "Investigations"
-    assert defs["attention_open_button"] is not None
+    from industrial_phm.presentation.operations_navigation import resolve_operations_attention_route
+
+    attention = next(item for item in defs["contextual_attention"] if item.finding_id)
+    route = resolve_operations_attention_route(
+        attention, investigation_queue=defs["investigation_queue"]
+    )
+    assert route.page == "Investigations"
+    assert "attention_view" not in defs
+    assert "monitor_evidence_view" not in defs
+    assert "monitor_signal_trends" not in defs
 
 
 def test_operations_uses_single_workspace_environment(tmp_path, monkeypatch):
@@ -212,3 +220,122 @@ def test_maintenance_review_reads_its_evidence_by_reference(tmp_path, monkeypatc
     # The persisted review keeps references only.
     stored = workspace.finding_state_path.read_text(encoding="utf-8")
     assert "median_percent" not in stored
+
+
+@pytest.mark.parametrize(
+    ("other_unit", "other_source", "expected_panels"),
+    [
+        ("A", "source", 1),
+        ("V", "source", 2),
+        ("A", "another-source", 2),
+        (None, "source", 2),
+        ("unknown", "source", 2),
+    ],
+)
+def test_monitor_chart_overlays_only_known_compatible_measurements(
+    other_unit, other_source, expected_panels
+):
+    import json
+
+    from industrial_phm.application.measurement_history import (
+        MultiSignalMeasurementHistoryAggregation,
+        MultiSignalMeasurementHistoryBucket,
+    )
+    from industrial_phm.presentation.monitor_workspace import chart_payload
+
+    at = datetime(2026, 10, 6, tzinfo=UTC)
+
+    def bucket(channel, unit, source):
+        return MultiSignalMeasurementHistoryBucket(
+            channel_id=channel,
+            source_id=source,
+            source_type="opcua",
+            measurement_point_id="point",
+            bucket_start=at,
+            bucket_end=at + timedelta(minutes=1),
+            first_event_at=at,
+            last_event_at=at,
+            observation_count=1,
+            usable_count=1,
+            null_count=0,
+            non_good_count=0,
+            conflict_count=0,
+            minimum=100.0,
+            maximum=100.0,
+            mean=100.0,
+            interpretation_json=json.dumps(
+                {"semantics": {"definition": {"observed_property": "phase current", "unit": unit}}}
+            ),
+        )
+
+    result = MultiSignalMeasurementHistoryAggregation(
+        start_at=at,
+        end_at=at + timedelta(minutes=1),
+        bucket_seconds=60,
+        snapshot_id=1,
+        buckets=(bucket("r", "A", "source"), bucket("s", other_unit, other_source)),
+    )
+    payload = chart_payload(result)
+    assert payload is not None
+    assert len(payload["groups"]) == expected_panels
+    assert all(
+        bucket["mean"] == 100.0
+        for group in payload["groups"]
+        for series in group["series"]
+        for bucket in series["buckets"]
+    )
+
+
+def test_monitor_keeps_every_overlapping_evidence_and_routes_last_item(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    from industrial_phm.application.backfill import FileBackfillEvent
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+    from industrial_phm.presentation.operations_navigation import resolve_investigation_route
+
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="fixture",
+            name="Evidence fixture",
+            registered_at=END,
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840",
+                asset_id="motor-7",
+                node_mappings=(OpcUaNodeMapping(channel_id="va", node_id="ns=2;s=va"),),
+            ),
+        )
+    )
+    repository = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
+    for index in range(14):
+        repository.record(_distinct_analysis(_analysis(), index))
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        (
+            FileBackfillEvent(
+                raw_evidence_id="monitor-evidence-fixture",
+                source_id="fixture",
+                asset_id="motor-7",
+                measurement_point_id="mcc-3",
+                channel_id="va",
+                source_file="fixture.csv",
+                source_sha256="1" * 64,
+                source_size_bytes=100,
+                sample_index=0,
+                event_at=END,
+                value=220.0,
+                source_metadata_json="{}",
+            ),
+        ),
+        batch_id="monitor-evidence-fixture",
+    )
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+    _, defs = runpy.run_path(str(OPERATIONS_APP))["app"].run()
+    items = defs["monitor_window_evidence_items"]
+    assert len(items) == 14
+    snapshot = defs["monitor_workspace_ui"].widget.snapshot
+    assert len(snapshot["evidence"]) == 14
+    last_id = snapshot["evidence"][-1]["id"]
+    route = resolve_investigation_route(last_id, investigation_queue=defs["investigation_queue"])
+    assert route.investigation_id == last_id

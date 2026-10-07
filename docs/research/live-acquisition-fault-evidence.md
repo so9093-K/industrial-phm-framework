@@ -105,6 +105,80 @@ Remaining after the fixes, recorded rather than claimed solved:
   the two would need source-side evidence, such as a subscription that notifies on source-timestamp change.
 - Trend charts are a white panel inside the dark surface. Values remain readable.
 
+## Dedicated Monitor full reference gate (2026-10-06)
+
+The dedicated JS/CSS Monitor and view-action corrections were exercised with the same boiler 2297
+archive/profile using the full fault protocol, not a duration-based stability run:
+
+```bash
+uv run --locked --extra operations --extra aihub python -m tools.opcua.fault_harness \
+  --root artifacts/monitor-p0/full-gate --repeat 3 --browser \
+  --port 4860 --ui-port 27202
+```
+
+`harness-verdict.json` reports `gate=full`, PASS, all 15 checks. The six recurring fault types
+were injected three times each; including UI-specific faults, 23 injections recovered without a
+permanent wedge. Exact audit found no duplicate keys, unknown events or value/quality mismatches.
+Missing deliveries were contained within the declared loss boundaries; this is not a zero-loss claim.
+There were 32 finalized windows and 32 analyses, with no duplicate or uncovered window. The review
+request reached OPEN Maintenance after the last fault.
+
+| Surface | State | Readable after opening | Overflow |
+| --- | --- | ---: | ---: |
+| Monitor | normal | 2.15 s | 0 |
+| Monitor | missing phase | 1.62 s | 0 |
+| Monitor | source stale / unreachable | 1.67 / 1.61 s | 0 |
+| Monitor | collector down / analysis stale | 1.61 / 1.65 s | 0 |
+| Assets → Signals | receiving / paused | 2.65 / 2.70 s | 0 |
+| Assets → Signals | disconnected / recovered | 2.65 / 2.66 s | 0 |
+
+Chromium used a 1440×1100 viewport. The saved `ui-*.png` artifacts show the actual dedicated Monitor,
+with source receipt and its assessment time separated from per-channel recorded event timestamps.
+In the omission state, R/S held 0 A while T retained 631.25 A at an earlier timestamp; there was no
+invented missing-phase attention or equipment diagnosis. The DataChange ambiguity described above
+still applies. This recorded replay is not field-endpoint or equipment-diagnosis validation.
+
+Separate 1440px/1024px synthetic fixture checks covered unobserved registered selection/comparison,
+two origins sharing a channel name, date-bearing 24h/7d axes, bucket/observed intervals and min/max,
+and keyboard focus return. Frontend error/rejection injection verified pending release and Refresh
+retry. These checks do not replace visual review, which still identified readability work; unrelated
+pages and narrower/mobile layouts are not certified by this reference.
+
+## Monitor review corrections and navigation coverage (2026-10-07)
+
+The stored boiler 2297 reference above was reopened after the review corrections; this is a
+stored-data interaction check, not another live fault/recovery run. The Monitor passes every
+loaded overlapping evidence item to the frontend, names the loaded item count, and keeps the
+list scrollable by pointer and keyboard. It does not claim to query all persisted analyses;
+the existing bounded Investigation queue read remains the upstream boundary.
+
+Chromium at widths 1440 and 1024 verified all six destinations (Monitor, Assets, Investigations,
+Maintenance, System, Setup), their actual content, and shell/content overflow: zero overflow and
+zero page errors. The 32 loaded overlapping analyses were present, and the last item routed to
+its exact Investigation. A 14-item application regression guards against the former six-item cap.
+Evidence shading remains within the chart bounds. The chart container and SVG expose named groups,
+so interactive analysis-window buttons remain visible in the Chromium accessibility tree.
+At both widths, real Tab navigation from the range controls followed by Enter and Space opened
+the exact Investigation referenced by the focused window. This is keyboard/ARIA browser evidence,
+not certification with a specific screen-reader product. Main auxiliary text is now 13px; chart ticks
+are 12px. The obsolete Monitor reactive presentation and multi-signal Matplotlib renderer were
+removed; Assets retains its responsive single-signal Matplotlib charts.
+
+Review captures below show the full Monitor surface, including the bounded scrollable evidence
+list. The interaction viewport height was 1000px; capture height was expanded at the same width
+to include the entire surface because Marimo scrolls its app viewport internally. These PNGs are
+human-review representations (each below 1 MiB), not canonical numerical evidence.
+
+- [1440px full Monitor](results/monitor-workspace-1440.png)
+- [1024px full Monitor](results/monitor-workspace-1024.png)
+
+This covers navigation integration for the opened default/current sections at these two widths;
+it does not certify every page submode, mobile layout, or field endpoint. Screenshots support
+independent visual review; browser assertions alone do not establish finished UX quality.
+The intermittent Runtime CI SQLite lock is tracked separately in
+[#429](https://github.com/so9093-K/industrial-phm-framework/issues/429); rerun success did not resolve
+its cause.
+
 ## Growth with accumulated state
 
 A fault-free run of the same stack (50 minutes, sampled every 60 s) showed queue high watermark (≤ 53 of

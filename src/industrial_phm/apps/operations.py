@@ -48,13 +48,9 @@ def _():
         initial_operations_page,
         monitor_attention_category,
         monitor_context_attention,
-        monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
         render_analysis_quality_markdown,
-        render_monitor_asset_context_html,
-        render_monitor_attention_summary_html,
-        render_monitor_signal_overview_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
         render_setup_sources_html,
@@ -72,7 +68,6 @@ def _():
         measurement_history_rows,
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
-        render_multi_signal_measurement_aggregation_svg,
     )
     from industrial_phm.presentation.operations_assets import (
         asset_workspace_css,
@@ -190,7 +185,6 @@ def _():
         mo,
         monitor_attention_category,
         monitor_context_attention,
-        monitor_signal_channels,
         operational_analysis_presentation_kind,
         operations_theme_css,
         phase_unbalance_exclusion_rows,
@@ -221,10 +215,6 @@ def _():
         render_maintenance_timeline_html,
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
-        render_multi_signal_measurement_aggregation_svg,
-        render_monitor_asset_context_html,
-        render_monitor_attention_summary_html,
-        render_monitor_signal_overview_html,
         render_phase_unbalance_svg,
         render_setup_signals_html,
         render_setup_source_detail_html,
@@ -240,14 +230,13 @@ def _():
 
 @app.cell
 def _(mo):
-    refresh_button = mo.ui.run_button(label="Refresh")
     get_navigation_page, set_navigation_page = mo.state(None)
-    return get_navigation_page, refresh_button, set_navigation_page
+    return get_navigation_page, set_navigation_page
 
 
 @app.cell
-def _(load_operations_app_context, refresh_button):
-    _refresh = refresh_button.value
+def _(get_monitor_revision, load_operations_app_context):
+    _refresh = get_monitor_revision()
     del _refresh
 
     operations_context = load_operations_app_context()
@@ -325,8 +314,8 @@ def _(
     navigation_initial_page,
     set_navigation_page,
 ):
-    navigation = mo.ui.radio(
-        options=list(OPERATIONS_PAGE_OPTIONS),
+    navigation = mo.ui.tabs(
+        tabs={page: mo.md("") for page in OPERATIONS_PAGE_OPTIONS},
         value=navigation_initial_page,
         label="",
         on_change=set_navigation_page,
@@ -341,8 +330,8 @@ def _(analysis_results, mo):
 
 
 @app.cell
-def _(analysis_results, refresh_button, set_analysis_results):
-    if refresh_button.value:
+def _(analysis_results, get_monitor_revision, set_analysis_results):
+    if get_monitor_revision():
         set_analysis_results(tuple(analysis_results))
     return
 
@@ -423,14 +412,14 @@ def _(
     collection_records,
     freshness_policies,
     lifecycle_records,
-    refresh_button,
+    get_monitor_revision,
     registered_sources,
     set_pending_semantics,
     set_setup_config,
     set_setup_error,
     set_setup_success,
 ):
-    if refresh_button.value:
+    if get_monitor_revision():
         set_setup_config(
             (
                 tuple(registered_sources),
@@ -1638,12 +1627,15 @@ def _(
 
 @app.cell
 def _(mo):
-    monitor_trend_range_selector = mo.ui.radio(
-        options=["15m", "1h", "24h", "7d"],
-        value="1h",
-        label="Overview range",
-    )
-    return (monitor_trend_range_selector,)
+    get_monitor_range, set_monitor_range = mo.state("1h")
+    get_monitor_revision, set_monitor_revision = mo.state(0)
+    return get_monitor_range, set_monitor_range, get_monitor_revision, set_monitor_revision
+
+
+@app.cell
+def _(get_monitor_range):
+    monitor_range_id = get_monitor_range()
+    return (monitor_range_id,)
 
 
 @app.cell
@@ -1659,22 +1651,13 @@ def _(
     asset_selector,
     history_reader,
     latest_measurement_rows,
-    mo,
     navigation,
     query_operations_latest_asset_measurements,
-    render_monitor_signal_overview_html,
-    signal_channel_selector,
 ):
     monitor_latest_points = ()
     monitor_latest_rows = ()
-    if navigation.value != "Monitor" or asset_selector is None:
-        monitor_signal_overview = mo.md("")
-    elif history_reader is None:
-        monitor_signal_overview = mo.md(
-            "### Latest stored observations\n\n"
-            "No Asset History catalog is available for this workspace."
-        )
-    else:
+    monitor_latest_error = ""
+    if navigation.value == "Monitor" and asset_selector is not None and history_reader is not None:
         try:
             monitor_latest_points = query_operations_latest_asset_measurements(
                 history_reader,
@@ -1682,31 +1665,42 @@ def _(
                 limit=1000,
             )
             monitor_latest_rows = tuple(
-                latest_measurement_rows(
-                    monitor_latest_points,
-                    as_of=assessed_at,
-                )
+                latest_measurement_rows(monitor_latest_points, as_of=assessed_at)
             )
         except OperationsReadError as error:
-            monitor_latest_points = ()
-            monitor_latest_rows = ()
-            monitor_signal_overview = mo.callout(
-                str(error),
-                kind="danger",
-                title="Latest stored observations unavailable",
-            )
-        else:
-            _selected_channel = (
-                None if signal_channel_selector is None else signal_channel_selector.value
-            )
-            monitor_signal_overview = mo.Html(
-                render_monitor_signal_overview_html(
-                    monitor_latest_rows,
-                    selected_channel=_selected_channel,
-                    primary_limit=8,
-                )
-            )
-    return monitor_latest_points, monitor_latest_rows, monitor_signal_overview
+            monitor_latest_error = str(error)
+    return monitor_latest_points, monitor_latest_rows, monitor_latest_error
+
+
+@app.cell
+def _(mo):
+    get_monitor_comparisons, set_monitor_comparisons = mo.state({})
+    return get_monitor_comparisons, set_monitor_comparisons
+
+
+@app.cell
+def _(
+    asset_selector,
+    get_monitor_comparisons,
+    monitor_latest_rows,
+    registered_sources,
+    signal_channel_selector,
+):
+    from industrial_phm.presentation.monitor_workspace import (
+        comparison_channels,
+    )
+    from industrial_phm.presentation.monitor_workspace import (
+        signal_payload as _signal_payload,
+    )
+
+    _focus = None if signal_channel_selector is None else signal_channel_selector.value
+    _asset = None if asset_selector is None else asset_selector.value
+    monitor_comparison_channels = comparison_channels(
+        _signal_payload(monitor_latest_rows, registered_sources, _asset),
+        _focus,
+        get_monitor_comparisons().get(_asset),
+    )
+    return (monitor_comparison_channels,)
 
 
 @app.cell
@@ -1714,26 +1708,21 @@ def _(
     OperationsReadError,
     asset_selector,
     history_reader,
-    investigation_capability_label,
     investigation_queue,
-    mo,
     monitor_latest_points,
-    monitor_latest_rows,
-    monitor_signal_channels,
-    monitor_trend_range_selector,
+    monitor_comparison_channels,
+    monitor_range_id,
     navigation,
     query_operations_multi_signal_measurement_aggregation,
-    render_multi_signal_measurement_aggregation_svg,
     resolve_measurement_range,
     signal_channel_selector,
-    UTC,
 ):
+    monitor_chart_data = None
+    monitor_chart_error = ""
     monitor_trend_start_at = None
     monitor_trend_end_at = None
     monitor_window_evidence_items = ()
-    if navigation.value != "Monitor" or asset_selector is None or history_reader is None:
-        monitor_signal_trends = mo.md("")
-    else:
+    if navigation.value == "Monitor" and asset_selector is not None and history_reader is not None:
         _event_times = tuple(
             point.measurement.event_at
             for point in monitor_latest_points
@@ -1742,18 +1731,15 @@ def _(
         _selected_channel = (
             None if signal_channel_selector is None else signal_channel_selector.value
         )
-        _channels = monitor_signal_channels(
-            monitor_latest_rows,
-            selected_channel=_selected_channel,
-            limit=6,
-        )
-        if not _event_times or not _channels:
-            monitor_signal_trends = mo.md(
-                "### Recent signal trends\n\nNo event-time observations are available to compare."
+        _comparison_channels = monitor_comparison_channels
+        _channels = tuple(
+            dict.fromkeys(
+                (() if _selected_channel is None else (_selected_channel,)) + _comparison_channels
             )
-        else:
+        )[:6]
+        if _event_times and _channels:
             _anchor_at = max(_event_times)
-            _range_id = monitor_trend_range_selector.value
+            _range_id = monitor_range_id
             _start_at, _end_at = resolve_measurement_range(
                 _range_id,
                 as_of=_anchor_at,
@@ -1768,14 +1754,6 @@ def _(
                 if item.asset_id == asset_selector.value
                 and item.observed_end_at >= _start_at
                 and item.observed_start_at <= _end_at
-            )[:6]
-            _evidence_windows = tuple(
-                (
-                    item.observed_start_at,
-                    item.observed_end_at,
-                    investigation_capability_label(item.capability_id),
-                )
-                for item in monitor_window_evidence_items
             )
             _bucket_count = {
                 "15m": 90,
@@ -1793,210 +1771,16 @@ def _(
                     bucket_count=_bucket_count,
                 )
             except OperationsReadError as error:
-                monitor_signal_trends = mo.callout(
-                    str(error),
-                    kind="danger",
-                    title="Signal trends unavailable",
-                )
+                monitor_chart_error = str(error)
             else:
-                _window_end = _anchor_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-                _evidence_count = len(monitor_window_evidence_items)
-                _evidence_note = (
-                    "No analysis evidence overlaps this event-time window."
-                    if _evidence_count == 0
-                    else f"{_evidence_count} analysis evidence window(s) overlap this range."
-                )
-                monitor_signal_trends = mo.vstack(
-                    [
-                        mo.hstack(
-                            [
-                                monitor_trend_range_selector,
-                                mo.md(
-                                    "**Recent signal trends**  \n"
-                                    f"Latest recorded event-time: {_window_end}"
-                                ),
-                            ],
-                            widths=[0.34, 0.66],
-                            align="end",
-                        ),
-                        mo.Html(
-                            render_multi_signal_measurement_aggregation_svg(
-                                _multi_signal,
-                                selected_channel=_selected_channel,
-                                evidence_windows=_evidence_windows,
-                            )
-                        ),
-                        mo.md(
-                            f"{_evidence_note} "
-                            "Each signal keeps its own unit while sharing the same UTC time axis. "
-                            "Buckets show stored min/max/mean only; null, non-good and conflicting "
-                            "observations are marked as excluded evidence. No interpolation, "
-                            "cross-signal normalization, asset health or alarm state is inferred."
-                        ),
-                    ],
-                    gap=0.7,
-                )
+                monitor_chart_data = _multi_signal
     return (
-        monitor_signal_trends,
+        monitor_chart_data,
+        monitor_chart_error,
         monitor_trend_end_at,
         monitor_trend_start_at,
         monitor_window_evidence_items,
     )
-
-
-@app.cell
-def _(
-    UTC,
-    investigation_capability_label,
-    investigation_review_label,
-    mo,
-    monitor_window_evidence_items,
-):
-    if monitor_window_evidence_items:
-        monitor_evidence_label_to_id = {
-            (
-                f"{investigation_capability_label(item.capability_id)} · "
-                f"{item.observed_start_at.astimezone(UTC).strftime('%H:%M:%S')} - "
-                f"{item.observed_end_at.astimezone(UTC).strftime('%H:%M:%S')} UTC · "
-                f"{investigation_review_label(item.review_state)} · {index + 1}"
-            ): item.investigation_id
-            for index, item in enumerate(monitor_window_evidence_items)
-        }
-        monitor_evidence_selector = mo.ui.dropdown(
-            options=list(monitor_evidence_label_to_id),
-            value=next(iter(monitor_evidence_label_to_id)),
-            label="Analysis evidence",
-            full_width=True,
-        )
-        monitor_evidence_open_button = mo.ui.run_button(
-            label="Open investigation",
-        )
-    else:
-        monitor_evidence_label_to_id = {}
-        monitor_evidence_selector = None
-        monitor_evidence_open_button = None
-    return (
-        monitor_evidence_label_to_id,
-        monitor_evidence_open_button,
-        monitor_evidence_selector,
-    )
-
-
-@app.cell
-def _(
-    monitor_evidence_label_to_id,
-    monitor_evidence_selector,
-    monitor_window_evidence_items,
-):
-    selected_monitor_evidence = None
-    if monitor_evidence_selector is not None:
-        _investigation_id = monitor_evidence_label_to_id[monitor_evidence_selector.value]
-        selected_monitor_evidence = next(
-            item
-            for item in monitor_window_evidence_items
-            if item.investigation_id == _investigation_id
-        )
-    return (selected_monitor_evidence,)
-
-
-@app.cell
-def _(
-    investigation_queue,
-    resolve_investigation_route,
-    selected_monitor_evidence,
-):
-    monitor_evidence_route = None
-    monitor_evidence_route_error = ""
-    if selected_monitor_evidence is not None:
-        try:
-            monitor_evidence_route = resolve_investigation_route(
-                selected_monitor_evidence.investigation_id,
-                investigation_queue=investigation_queue,
-            )
-        except LookupError as error:
-            monitor_evidence_route_error = str(error)
-    return monitor_evidence_route, monitor_evidence_route_error
-
-
-@app.cell
-def _(
-    monitor_evidence_open_button,
-    monitor_evidence_route,
-    set_investigation_asset_filter,
-    set_investigation_capability_filter,
-    set_investigation_review_filter,
-    set_investigation_selection,
-    set_navigation_page,
-):
-    if (
-        monitor_evidence_open_button is not None
-        and monitor_evidence_open_button.value
-        and monitor_evidence_route is not None
-    ):
-        set_investigation_review_filter("All")
-        set_investigation_asset_filter("All")
-        set_investigation_capability_filter("All")
-        set_investigation_selection(
-            (
-                monitor_evidence_route.investigation_group_id,
-                monitor_evidence_route.investigation_id,
-            )
-        )
-        set_navigation_page("Investigations")
-    return
-
-
-@app.cell
-def _(
-    UTC,
-    investigation_capability_label,
-    investigation_review_label,
-    mo,
-    monitor_evidence_open_button,
-    monitor_evidence_route_error,
-    monitor_evidence_selector,
-    monitor_window_evidence_items,
-):
-    if not monitor_window_evidence_items:
-        monitor_evidence_view = None
-    else:
-        _rows = [
-            {
-                "Capability": investigation_capability_label(item.capability_id),
-                "Observed start": item.observed_start_at.astimezone(UTC).isoformat(),
-                "Observed end": item.observed_end_at.astimezone(UTC).isoformat(),
-                "Source": item.source_id,
-                "Point": item.measurement_point_id or "—",
-                "Data quality": item.data_quality,
-                "Review": investigation_review_label(item.review_state),
-            }
-            for item in monitor_window_evidence_items
-        ]
-        _blocks = [
-            mo.md(
-                "### Analysis evidence in this window\n\n"
-                "Shaded ranges on the signal charts are persisted analysis observation windows."
-            ),
-            mo.ui.table(_rows, page_size=6, selection=None),
-        ]
-        if monitor_evidence_selector is not None and monitor_evidence_open_button is not None:
-            _blocks.append(
-                mo.hstack(
-                    [monitor_evidence_selector, monitor_evidence_open_button],
-                    widths=[0.72, 0.28],
-                    align="end",
-                )
-            )
-        if monitor_evidence_route_error:
-            _blocks.append(
-                mo.callout(
-                    monitor_evidence_route_error,
-                    kind="danger",
-                    title="Analysis drill-down unavailable",
-                )
-            )
-        monitor_evidence_view = mo.vstack(_blocks, gap=0.6)
-    return (monitor_evidence_view,)
 
 
 @app.cell
@@ -2034,9 +1818,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation.value not in {"Monitor", "Assets"} or (
-        navigation.value == "Assets" and asset_section.value != "Signals"
-    ):
+    if navigation.value != "Assets" or asset_section.value != "Signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -2091,7 +1873,11 @@ def _(
                 if _live_page.points:
                     _live_blocks.extend(
                         [
-                            mo.Html(render_measurement_history_svg(_live_page)),
+                            mo.Html(
+                                '<div class="phm-chart-workspace">'
+                                + render_measurement_history_svg(_live_page)
+                                + "</div>"
+                            ),
                             mo.accordion(
                                 {
                                     "Raw observations": mo.ui.table(
@@ -2177,7 +1963,11 @@ def _(
                     )
                     _trend_view = mo.vstack(
                         [
-                            mo.Html(render_measurement_aggregation_svg(_aggregation)),
+                            mo.Html(
+                                '<div class="phm-chart-workspace">'
+                                + render_measurement_aggregation_svg(_aggregation)
+                                + "</div>"
+                            ),
                             mo.ui.table(
                                 [measurement_aggregation_summary(_aggregation)],
                                 selection=None,
@@ -2218,11 +2008,13 @@ def _(
                     if _page.points:
                         _trend_blocks.append(
                             mo.Html(
-                                render_measurement_history_svg(
+                                '<div class="phm-chart-workspace">'
+                                + render_measurement_history_svg(
                                     _page,
                                     start_at=_start_at,
                                     end_at=_end_at,
                                 )
+                                + "</div>"
                             )
                         )
                         _trend_blocks.append(
@@ -2299,13 +2091,13 @@ def _(findings, mo, review_events):
 @app.cell
 def _(
     findings,
-    refresh_button,
+    get_monitor_revision,
     review_events,
     set_review_request_error,
     set_review_request_success,
     set_review_workflow,
 ):
-    if refresh_button.value:
+    if get_monitor_revision():
         set_review_workflow((findings, review_events))
         set_review_request_error("")
         set_review_request_success("")
@@ -3797,188 +3589,198 @@ def _(
 
 
 @app.cell
+def _(asset_selector, monitor, monitor_context_attention):
+    contextual_attention = (
+        ()
+        if asset_selector is None
+        else monitor_context_attention(monitor.attention, asset_id=asset_selector.value)
+    )
+    return (contextual_attention,)
+
+
+@app.cell
 def _(
+    OPERATIONS_PAGE_OPTIONS,
     asset_names,
     asset_selector,
+    asset_workspace,
+    asset_workspace_error,
+    contextual_attention,
+    get_monitor_comparisons,
+    get_monitor_revision,
+    get_investigation_selection,
+    history_assets,
+    investigation_capability_label,
+    investigation_queue,
+    investigation_review_label,
     mo,
     monitor,
-    monitor_attention_category,
-    monitor_context_attention,
-):
-    if asset_selector is None:
-        _context_attention = ()
-    else:
-        _context_attention = monitor_context_attention(
-            monitor.attention,
-            asset_id=asset_selector.value,
-        )
-    if _context_attention:
-        attention_label_to_id = {
-            (
-                f"{monitor_attention_category(item)} · {item.title} · "
-                f"{asset_names.label(item.asset_id) if item.asset_id else 'System'} · {index + 1}"
-            ): item.attention_id
-            for index, item in enumerate(_context_attention[:8])
-        }
-        attention_selector = mo.ui.dropdown(
-            options=list(attention_label_to_id),
-            value=next(iter(attention_label_to_id)),
-            label="Attention",
-            full_width=True,
-        )
-        attention_open_button = mo.ui.run_button(
-            label="Open evidence",
-            kind="warn",
-        )
-    else:
-        attention_label_to_id = {}
-        attention_selector = None
-        attention_open_button = None
-    contextual_attention = _context_attention
-    return (
-        attention_label_to_id,
-        attention_open_button,
-        attention_selector,
-        contextual_attention,
-    )
-
-
-@app.cell
-def _(attention_label_to_id, attention_selector, monitor):
-    selected_attention = None
-    if attention_selector is not None:
-        _attention_id = attention_label_to_id[attention_selector.value]
-        selected_attention = next(
-            item for item in monitor.attention if item.attention_id == _attention_id
-        )
-    return (selected_attention,)
-
-
-@app.cell
-def _(
-    investigation_queue,
+    monitor_chart_data,
+    monitor_chart_error,
+    monitor_latest_rows,
+    monitor_latest_error,
+    monitor_comparison_channels,
+    monitor_range_id,
+    monitor_window_evidence_items,
+    navigation,
+    registered_sources,
+    resolve_investigation_route,
     resolve_operations_attention_route,
-    selected_attention,
-):
-    attention_route = None
-    attention_route_error = ""
-    if selected_attention is not None:
-        try:
-            attention_route = resolve_operations_attention_route(
-                selected_attention,
-                investigation_queue=investigation_queue,
-            )
-        except LookupError as error:
-            attention_route_error = str(error)
-    return attention_route, attention_route_error
-
-
-@app.cell
-def _(
-    attention_open_button,
-    attention_route,
     set_asset_section,
     set_asset_selection,
     set_investigation_asset_filter,
     set_investigation_capability_filter,
     set_investigation_review_filter,
     set_investigation_selection,
+    set_monitor_comparisons,
+    set_monitor_range,
+    set_monitor_revision,
     set_navigation_page,
+    set_signal_channel_choice,
+    signal_channel_selector,
 ):
-    if attention_open_button is not None and attention_open_button.value:
-        if attention_route is None:
-            pass
-        elif attention_route.page == "Assets":
-            set_asset_selection(attention_route.asset_id)
-            set_asset_section(attention_route.asset_section)
-            set_navigation_page("Assets")
-        elif attention_route.page == "Investigations":
+    from industrial_phm.apps.monitor_widget import MonitorWidget
+    from industrial_phm.presentation.monitor_workspace import (
+        chart_payload,
+        signal_payload,
+        utc_millis,
+    )
+    from industrial_phm.presentation.operations_shell import data_status_label
+
+    _assets = sorted({item.asset_id for item in (*monitor.assets, *history_assets)})
+    _focus = None if signal_channel_selector is None else signal_channel_selector.value
+    _selected_asset = None if asset_selector is None else asset_selector.value
+    _comparisons = list(monitor_comparison_channels)
+    _catalog_rows = signal_payload(monitor_latest_rows, registered_sources, _selected_asset)
+    _allowed_channels = {row["channel"] for row in _catalog_rows} | (
+        set() if asset_workspace is None else set(asset_workspace.history_channels)
+    )
+    _payload = {
+        "page": navigation.value,
+        "active_investigation": get_investigation_selection(),
+        "pages": list(OPERATIONS_PAGE_OPTIONS),
+        "asset_id": _selected_asset,
+        "asset_name": None if _selected_asset is None else asset_names.label(_selected_asset),
+        "assets": [{"id": asset, "name": asset_names.label(asset)} for asset in _assets],
+        "status": "No source context"
+        if asset_workspace is None
+        else data_status_label(asset_workspace.status),
+        "source_at": None if asset_workspace is None else utc_millis(asset_workspace.last_data_at),
+        "assessed_at": utc_millis(monitor.assessed_at),
+        "signals": _catalog_rows,
+        "stored_signal_count": len(monitor_latest_rows),
+        "focus": _focus,
+        "comparisons": _comparisons,
+        "range": monitor_range_id,
+        "chart": chart_payload(monitor_chart_data, [_focus, *_comparisons]),
+        "error": asset_workspace_error or monitor_latest_error or monitor_chart_error,
+        "evidence": [
+            {
+                "id": item.investigation_id,
+                "label": investigation_capability_label(item.capability_id),
+                "start": utc_millis(item.observed_start_at),
+                "end": utc_millis(item.observed_end_at),
+                "review": investigation_review_label(item.review_state),
+            }
+            for item in monitor_window_evidence_items
+        ],
+        "attention": [
+            {
+                "id": item.attention_id,
+                "title": item.title,
+                "detail": item.detail,
+                "category": "Review"
+                if item.finding_id
+                else "Data"
+                if item.destination.value == "asset-signals"
+                else "System",
+            }
+            for item in contextual_attention
+        ],
+    }
+
+    def _navigate_route(route):
+        if route.page == "Assets":
+            set_asset_selection(route.asset_id)
+            set_asset_section(route.asset_section)
+        elif route.page == "Investigations":
             set_investigation_review_filter("All")
             set_investigation_asset_filter("All")
             set_investigation_capability_filter("All")
-            set_investigation_selection(
-                (
-                    attention_route.investigation_group_id,
-                    attention_route.investigation_id,
-                )
-            )
-            set_navigation_page("Investigations")
-        else:
-            set_navigation_page("System")
-    return
+            set_investigation_selection((route.investigation_group_id, route.investigation_id))
+        set_navigation_page(route.page)
 
-
-@app.cell
-def _(
-    asset_names,
-    attention_open_button,
-    attention_route,
-    attention_route_error,
-    attention_selector,
-    contextual_attention,
-    mo,
-    monitor,
-    monitor_attention_category,
-    render_monitor_attention_summary_html,
-    selected_attention,
-    UTC,
-):
-    if selected_attention is None:
-        attention_view = None
-    else:
-        _at = selected_attention.occurred_at
-        if _at is None or _at.utcoffset() is None:
-            _when = "Time unavailable"
-        else:
-            _age = (monitor.assessed_at - _at).total_seconds()
-            if _age < -1:
-                _relative = f"{abs(_age):.0f}s in future"
-            elif _age < 1:
-                _relative = "now"
-            elif _age < 60:
-                _relative = f"{_age:.0f}s ago"
-            elif _age < 3600:
-                _relative = f"{_age / 60:.1f}m ago"
-            else:
-                _relative = f"{_age / 3600:.1f}h ago"
-            _when = f"{_relative} · {_at.astimezone(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')}"
-        _asset_label = (
-            asset_names.label(selected_attention.asset_id)
-            if selected_attention.asset_id
-            else "System"
-        )
-        _category = monitor_attention_category(selected_attention)
-        _metadata = f"**{_category}** · {_asset_label} · {_when}"
-        _attention_kind = "danger" if selected_attention.status.value == "error" else "warn"
-        _blocks = [
-            mo.Html(render_monitor_attention_summary_html(contextual_attention)),
-            attention_selector,
-            mo.md(_metadata),
-            mo.callout(
-                selected_attention.detail,
-                kind=_attention_kind,
-                title=selected_attention.title,
-            ),
-        ]
-        if attention_route_error:
-            _blocks.append(
-                mo.callout(
-                    attention_route_error,
-                    kind="danger",
-                    title="Drill-down unavailable",
+    def _handle_monitor_event(event):
+        _kind = event.get("kind")
+        if (
+            _kind == "navigate"
+            and isinstance(event.get("page"), str)
+            and event["page"] in OPERATIONS_PAGE_OPTIONS
+        ):
+            set_navigation_page(event["page"])
+        elif _kind == "asset" and event.get("id") in _assets:
+            set_asset_selection(event["id"])
+        elif (
+            _kind == "focus"
+            and isinstance(event.get("channel"), str)
+            and event["channel"] in _allowed_channels
+        ):
+            set_signal_channel_choice(event["channel"])
+        elif _kind == "compare" and isinstance(event.get("channels"), list):
+            _valid = list(
+                dict.fromkeys(
+                    channel
+                    for channel in event["channels"]
+                    if isinstance(channel, str)
+                    and channel in _allowed_channels
+                    and channel != _focus
                 )
+            )[:5]
+            set_monitor_comparisons({**get_monitor_comparisons(), _selected_asset: _valid})
+        elif (
+            _kind == "range"
+            and isinstance(event.get("range"), str)
+            and event["range"] in {"15m", "1h", "24h", "7d"}
+        ):
+            set_monitor_range(event["range"])
+        elif _kind == "detail" and _selected_asset is not None:
+            set_asset_section("Signals")
+            set_navigation_page("Assets")
+        elif _kind == "refresh":
+            set_monitor_revision(get_monitor_revision() + 1)
+        elif (
+            _kind == "evidence"
+            and isinstance(event.get("id"), str)
+            and event["id"] in {item.investigation_id for item in monitor_window_evidence_items}
+        ):
+            _navigate_route(
+                resolve_investigation_route(event["id"], investigation_queue=investigation_queue)
             )
-        elif attention_open_button is not None:
-            _blocks.append(attention_open_button)
-        attention_view = mo.vstack(_blocks, gap=0.65)
-    return (attention_view,)
+        elif _kind == "attention":
+            _item = next(
+                (item for item in contextual_attention if item.attention_id == event.get("id")),
+                None,
+            )
+            if _item is None:
+                return False
+            if _item is not None:
+                _navigate_route(
+                    resolve_operations_attention_route(
+                        _item, investigation_queue=investigation_queue
+                    )
+                )
+        else:
+            return False
+        return True
+
+    monitor_workspace_ui = mo.ui.anywidget(MonitorWidget(_payload, _handle_monitor_event))
+    return (monitor_workspace_ui,)
 
 
 @app.cell
 def _(
     asset_analysis_view,
     asset_names,
-    attention_view,
     asset_section,
     asset_selector,
     asset_workspace,
@@ -3989,19 +3791,14 @@ def _(
     maintenance_view,
     maintenance_workspace_css,
     mo,
-    monitor,
-    monitor_evidence_view,
-    monitor_signal_overview,
-    monitor_signal_trends,
+    monitor_workspace_ui,
     navigation,
     operations_theme_css,
-    refresh_button,
     render_asset_analysis_html,
     render_asset_events_html,
     render_asset_header_html,
     render_asset_maintenance_html,
     render_asset_overview_html,
-    render_monitor_asset_context_html,
     setup_view,
     setup_workspace_css,
     signal_view,
@@ -4016,64 +3813,6 @@ def _(
         + system_workspace_css()
         + setup_workspace_css()
     )
-
-    header = mo.hstack(
-        [
-            mo.md("# Operations\n\n설비의 현재 관측값과 시간 변화를 중심으로 확인합니다."),
-            refresh_button,
-        ],
-        widths=[0.82, 0.18],
-        align="start",
-    )
-
-    if asset_selector is None:
-        monitor_view = mo.md(
-            "## Monitor\n\n"
-            "No asset evidence is available yet. Add a source in Setup or load history."
-        )
-    elif asset_workspace_error:
-        monitor_view = mo.vstack(
-            [
-                asset_selector,
-                mo.callout(
-                    asset_workspace_error,
-                    kind="danger",
-                    title="Asset observation unavailable",
-                ),
-            ],
-            gap=1.0,
-        )
-    elif asset_workspace is None:
-        monitor_view = mo.vstack(
-            [asset_selector, mo.md("Select an asset to observe its signals.")],
-            gap=1.0,
-        )
-    else:
-        _overview_row = monitor_signal_overview
-        if attention_view is not None:
-            _overview_row = mo.hstack(
-                [monitor_signal_overview, attention_view],
-                widths=[0.72, 0.28],
-                align="start",
-                gap=1.2,
-            )
-        monitor_view = mo.vstack(
-            [
-                asset_selector,
-                mo.Html(
-                    render_monitor_asset_context_html(
-                        asset_workspace,
-                        asset_names,
-                        as_of=monitor.assessed_at,
-                    )
-                ),
-                _overview_row,
-                monitor_signal_trends,
-                *([] if monitor_evidence_view is None else [monitor_evidence_view]),
-                signal_view,
-            ],
-            gap=1.0,
-        )
 
     if asset_selector is None:
         asset_view = mo.md(
@@ -4119,7 +3858,7 @@ def _(
         )
 
     pages = {
-        "Monitor": monitor_view,
+        "Monitor": monitor_workspace_ui,
         "Assets": asset_view,
         "Investigations": investigation_view,
         "Maintenance": maintenance_view,
@@ -4127,22 +3866,10 @@ def _(
         "Setup": setup_view,
     }
 
-    sidebar = mo.vstack(
-        [
-            mo.md("**INDUSTRIAL PHM**"),
-            navigation,
-        ],
-        gap=1.0,
-    )
-
-    shell = mo.hstack(
-        [
-            sidebar,
-            mo.vstack([header, pages[navigation.value]], gap=1.4),
-        ],
-        widths=[0.18, 0.82],
-        align="start",
-        gap=1.5,
+    shell = (
+        monitor_workspace_ui
+        if navigation.value == "Monitor"
+        else mo.vstack([monitor_workspace_ui, pages[navigation.value]], gap=0.8)
     )
     mo.vstack([theme, shell], gap=0.0)
     return

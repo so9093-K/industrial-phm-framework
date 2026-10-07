@@ -11,6 +11,14 @@
 
 ### Changed
 
+- Operations Monitor를 전용 browser UI로 재구축했습니다. 검색 가능한 신호 탐색 목록, Asset 선택창, 초점·비교
+  신호의 값/단위/품질/개별 event 시각, 큰 시계열 작업 영역과 시간 범위 버튼을 연결합니다. 기본 dropdown과 반복
+  카드 배열을 Monitor에서 제거하고, 구간별 cursor summary와 exact analysis/attention 이동을 제공합니다.
+  서로 다른 unit·source·측정 위치·의미 snapshot은 분리하며, quality 제외와 빈 구간을 보존합니다. 등록 정보는
+  아직 관측되지 않은 slot만 채우고 저장된 의미를 덮어쓰지 않습니다. `operations` extra는 전용 UI bridge의
+  `anywidget`를 포함하며 JS/CSS assets도 wheel에 함께 배포합니다. 차트의 분석 구간 버튼은 group 의미
+  아래에서 접근성 트리에 노출하고 Tab 진입 후 Enter/Space로 정확한 Investigation을 엽니다.
+
 - AI-Hub fault harness의 실제 Chromium acceptance를 observation-first Monitor 기준으로 갱신했습니다.
   Monitor는 더 이상 `System data flow`를 readiness signal로 사용하지 않고 Observed asset, Latest stored
   observations, Recent signal trends, 실제 signal value와 contextual Attention이 5초 안에 읽히는지를 판정합니다.
@@ -85,6 +93,18 @@
   service/diagnostic CLI의 explicit path flags는 독립 검증 경계로 유지합니다(ADR-0021).
 
 ### Fixed
+
+- 전용 Monitor의 AI-Hub boiler 2297 full reference gate를 재실행해 장애 3회 반복과 6개 Monitor 상태,
+  수신→중단→재연결→복구 및 review→Maintenance 경로의 15개 검사를 확인했습니다. 이전 화면의 검증
+  이력을 승계한 결과가 아니며, DataChange 기반 missing-phase 판정 한계는 유지합니다.
+
+- Monitor의 미관측 등록 신호를 선택·비교할 수 있도록 catalog와 허용 목록을 일치시켰습니다. channel 선택은
+  모든 recorded source/측정 위치를 포함한다는 범위를 명시하고 중복 선택 버튼·오해를 주는 대표값 표시를
+  제거했습니다. 출처별 값과 plot은 분리하고 source/point·interpretation을 표시합니다.
+- Monitor의 24h/7d 축에 날짜를 표시하고 cursor에 실제 bucket 구간·min/max/mean·관측 범위를 제공합니다.
+  수신 상태의 평가 시각을 상단에 표시하며, 수신 상태와 상대 시간은 현재 live 상태가 아닌 manual snapshot임을
+  명시합니다. view action 실패·거절에는 pending 해제와 재시도를 제공하고, 갱신 중 입력을 보호해 빠른 연속
+  클릭으로 요청이 유실되는 것을 방지합니다.
 
 - Observation-first Monitor를 #424 reference Chromium run(1440px)에서 확인한 결함을 고쳤습니다.
   - marimo stack의 `min-width: auto` 때문에 관측 grid, 헤더 사실값, Attention rail이 화면 밖으로 잘리던 문제(공통 theme에서 `.phm-shell`을 감싼 stack이 줄어들 수 있게 함)

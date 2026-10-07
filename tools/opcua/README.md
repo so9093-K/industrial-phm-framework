@@ -43,8 +43,8 @@ uv run --no-sync marimo run src/industrial_phm/apps/operations.py
 
 1. Setup → Data Sources: select `demo-opcua`, then **Start collection**. This records the desired
    state; the separately running collector does the collection.
-2. Monitor: the Data Flow row shows Sources/Collect/Store/Analyze separately. Use **Refresh** to
-   re-read runtime state.
+2. Monitor: inspect the selected asset, source activity and stored event-time signals. Use
+   **Refresh** to re-read runtime state; collection/storage/analysis diagnostics remain in System.
 3. Assets: select `demo-power-01` and open **Signals** to query recent history and latest values.
 4. Close the browser, reopen it, and verify that the collector continued writing.
 5. Stop/restart the server and collector separately; refresh Monitor and Signals to check recovery.
@@ -317,3 +317,41 @@ checks concurrent history reads, source restart/reconnect, collector restart wit
 Stop Collection, FILE/live separation, latest-point budgets and unique delivery identities. It needs
 no external server, credentials or AI-Hub payload. On failure, pytest's temporary stack `process.log`
 contains the subprocess output.
+
+
+## Monitor interaction browser gate
+
+For a running Operations UI backed by a populated workspace, test actual Monitor controls:
+
+```bash
+uv run --no-sync --with playwright python -m tools.opcua.monitor_browser \
+  --url http://127.0.0.1:27192 \
+  --output artifacts/monitor-browser \
+  --focus R상전압 \
+  --compare T상전류
+```
+
+The channel arguments must exist in that workspace. Chromium must already be installed
+(`uv run --no-sync --with playwright playwright install chromium` if needed).
+The caller owns the UI server lifecycle. The gate checks 1440px and 1024px viewports, the initial
+chart position, actual chart changes for all four ranges, signal search and focus/comparison selection, Asset picker, cursor bucket summaries, exact analysis
+evidence routing, and return from Assets signal detail with selection preserved. It also checks that
+Monitor contains no native selects, reports browser errors, and detects viewport overflow. It writes
+JSON and screenshots; screenshots still require visual review. This is a stored-data interaction
+gate, not the live fault/reconnect protocol owned by `fault_harness.py`.
+
+
+The Monitor renderer is packaged in `industrial_phm/apps/monitor_widget.js` and `.css`, connected
+through the optional Operations `anywidget` bridge. It owns presentation and transient selection;
+canonical history queries, quality, registration, inspection routing and review remain in Python.
+Charts connect adjacent usable bucket means and break at empty/excluded buckets; cursor values
+are summaries, not same-instant sensor samples. Old recorded meaning is never filled from a newer
+registration. Install the locked Operations extra when updating an existing development environment.
+
+
+A channel choice covers all recorded sources/points of that channel; it is not an implicit pick of
+the first origin. Scalars and charts identify each origin independently. Registered but unobserved
+slots can be selected/compared without manufacturing values or replacing stored semantic snapshots.
+Day/week axes include dates, and cursor details label bucket intervals and actual observed ranges.
+Status/receipt ages are evaluated at the prominently displayed manual snapshot time. Failed or
+rejected view actions acknowledge the request, release pending controls and offer Refresh retry.
