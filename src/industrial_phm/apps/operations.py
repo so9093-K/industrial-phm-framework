@@ -3936,9 +3936,7 @@ def _(
 
         _source_wizard = mo.vstack(
             [
-                mo.md(
-                    "### " + operations_text("setup.add_data_source", operations_locale)
-                ),
+                mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
                 _setup_step("setup.step.connect", "setup.opcua.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
