@@ -492,17 +492,24 @@ def _(
 
 
 @app.cell
-def _(mo, setup_selected_source):
+def _(mo, operations_locale, operations_text, setup_selected_source):
     first_run_sample_button = mo.ui.run_button(
-        label="Explore with sample data",
+        label=operations_text("first_run.sample.title", operations_locale),
         kind="success",
     )
-    first_run_real_button = mo.ui.run_button(label="Connect real data")
-    first_run_stop_sample_button = mo.ui.run_button(label="Stop sample")
+    first_run_real_button = mo.ui.run_button(
+        label=operations_text("first_run.real.open", operations_locale)
+    )
+    first_run_stop_sample_button = mo.ui.run_button(
+        label=operations_text("first_run.sample.stop", operations_locale)
+    )
     setup_open_monitor_button = (
         None
         if setup_selected_source is None
-        else mo.ui.run_button(label="Open Monitor", kind="success")
+        else mo.ui.run_button(
+            label=operations_text("setup.open_monitor", operations_locale),
+            kind="success",
+        )
     )
     return (
         first_run_real_button,
@@ -558,7 +565,7 @@ def _(get_first_run_error, get_first_run_mode, get_first_run_sample):
 @app.cell
 def _(set_navigation_page, setup_open_monitor_button):
     if setup_open_monitor_button is not None and setup_open_monitor_button.value:
-        set_navigation_page("Monitor")
+        set_navigation_page("monitor")
     return
 
 
@@ -569,7 +576,7 @@ def _():
 
 
 @app.cell
-def _(mo, setup_selection, setup_workspace):
+def _(mo, operations_locale, operations_text, setup_selection, setup_workspace):
     _setup_source_ids = tuple(item.source_id for item in setup_workspace.sources)
     if _setup_source_ids:
         _selected_source_id = (
@@ -580,7 +587,7 @@ def _(mo, setup_selection, setup_workspace):
         setup_source_selector = mo.ui.dropdown(
             options=list(_setup_source_ids),
             value=_selected_source_id,
-            label="Data source",
+            label=operations_text("setup.source", operations_locale),
             full_width=True,
             on_change=lambda value: setup_selection.update(source_id=value),
         )
@@ -594,27 +601,41 @@ def _(mo, setup_selection, setup_workspace):
 
 
 @app.cell
-def _(SourceLifecycleState, mo, setup_selected_source):
+def _(SourceLifecycleState, mo, operations_locale, operations_text, setup_selected_source):
     setup_enable_button = None
     setup_pause_button = None
     if setup_selected_source is not None:
         if setup_selected_source.lifecycle_state == SourceLifecycleState.ACTIVE:
-            setup_pause_button = mo.ui.run_button(label="Pause source")
+            setup_pause_button = mo.ui.run_button(
+                label=operations_text("setup.pause", operations_locale)
+            )
         else:
-            setup_enable_button = mo.ui.run_button(label="Enable source", kind="success")
+            setup_enable_button = mo.ui.run_button(
+                label=operations_text("setup.enable", operations_locale),
+                kind="success",
+            )
     return setup_enable_button, setup_pause_button
 
 
 @app.cell
-def _(CollectionDesiredState, SourceType, mo, setup_selected_source):
+def _(
+    CollectionDesiredState,
+    SourceType,
+    mo,
+    operations_locale,
+    operations_text,
+    setup_selected_source,
+):
     setup_start_collection_button = None
     setup_stop_collection_button = None
     if setup_selected_source is not None and setup_selected_source.source_type == SourceType.OPCUA:
         if setup_selected_source.collection_desired_state == CollectionDesiredState.RUNNING:
-            setup_stop_collection_button = mo.ui.run_button(label="Stop collection")
+            setup_stop_collection_button = mo.ui.run_button(
+                label=operations_text("setup.stop_collection", operations_locale)
+            )
         else:
             setup_start_collection_button = mo.ui.run_button(
-                label="Start collection",
+                label=operations_text("setup.start_collection", operations_locale),
                 kind="success",
             )
     return setup_start_collection_button, setup_stop_collection_button
@@ -1452,7 +1473,7 @@ def _(
     asset_workspace = None
     asset_workspace_error = None
     asset_history_error = None
-    if navigation_page in {"Assets", "Monitor"} and asset_selector is not None:
+    if navigation_page in {"assets", "monitor"} and asset_selector is not None:
         _selected_asset_id = asset_selector.value
         _history_summary = next(
             (item for item in history_assets if item.asset_id == _selected_asset_id),
@@ -1743,7 +1764,7 @@ def _(
     monitor_latest_points = ()
     monitor_latest_rows = ()
     monitor_latest_error = ""
-    if navigation_page == "Monitor" and asset_selector is not None and history_reader is not None:
+    if navigation_page == "monitor" and asset_selector is not None and history_reader is not None:
         try:
             monitor_latest_points = query_operations_latest_asset_measurements(
                 history_reader,
@@ -1806,7 +1827,7 @@ def _(
     monitor_chart_data = None
     monitor_chart_error = ""
     monitor_window_evidence_items = ()
-    if navigation_page == "Monitor" and asset_selector is not None and history_reader is not None:
+    if navigation_page == "monitor" and asset_selector is not None and history_reader is not None:
         _event_times = tuple(
             point.measurement.event_at
             for point in monitor_latest_points
@@ -1898,7 +1919,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation_page != "Assets" or asset_section.value != "Signals":
+    if navigation_page != "assets" or asset_section.value != "Signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -2900,7 +2921,7 @@ def _(
             set_investigation_asset_filter("All")
             set_investigation_capability_filter("All")
             set_investigation_selection((_route.investigation_group_id, _route.investigation_id))
-            set_navigation_page("Investigations")
+            set_navigation_page("investigations")
     return
 
 
@@ -3661,18 +3682,19 @@ def _(
     first_run_sample_button,
     first_run_stop_sample_button,
     mo,
+    operations_locale,
+    operations_text,
 ):
     if first_run_mode == "sample" and first_run_sample is not None:
         first_run_view = mo.vstack(
             [
                 mo.md(
-                    "## Sample Operations is ready\n\n"
-                    "The sample runs in an isolated workspace and does not write synthetic "
-                    "observations into your real Operations workspace."
+                    f"## {operations_text('first_run.sample.ready', operations_locale)}\n\n"
+                    f"{operations_text('first_run.sample.isolation', operations_locale)}"
                 ),
                 mo.Html(
-                    f'<a href="{first_run_sample.url}" target="_blank" '
-                    'rel="noopener noreferrer">Open sample Monitor</a>'
+                    f'<a href="{first_run_sample.url}" target="_blank" rel="noopener noreferrer">'
+                    f"{operations_text('first_run.sample.open', operations_locale)}</a>"
                 ),
                 mo.md(f"Sample workspace: `{first_run_sample.workspace}`"),
                 mo.hstack(
@@ -3686,9 +3708,8 @@ def _(
     else:
         _blocks = [
             mo.md(
-                "# Industrial PHM\n\n"
-                "Choose how to begin. You can explore the real Operations path without "
-                "learning internal workspace or process commands."
+                f"# {operations_text('first_run.title', operations_locale)}\n\n"
+                f"{operations_text('first_run.intro', operations_locale)}"
             ),
         ]
         if first_run_error:
@@ -3696,7 +3717,7 @@ def _(
                 mo.callout(
                     first_run_error,
                     kind="danger",
-                    title="Sample could not start",
+                    title=operations_text("first_run.sample.error", operations_locale),
                 )
             )
         _blocks.extend(
@@ -3706,9 +3727,8 @@ def _(
                         mo.vstack(
                             [
                                 mo.md(
-                                    "### Explore with sample data\n\n"
-                                    "Start the existing synthetic three-phase demo in a separate "
-                                    "workspace and open its Monitor."
+                                    f"### {operations_text('first_run.sample.title', operations_locale)}\n\n"
+                                    f"{operations_text('first_run.sample.detail', operations_locale)}"
                                 ),
                                 first_run_sample_button,
                             ],
@@ -3717,9 +3737,8 @@ def _(
                         mo.vstack(
                             [
                                 mo.md(
-                                    "### Connect real data\n\n"
-                                    "Connect a prepared FILE source or a live OPC UA source, "
-                                    "then verify signals and data flow."
+                                    f"### {operations_text('first_run.real.title', operations_locale)}\n\n"
+                                    f"{operations_text('first_run.real.detail', operations_locale)}"
                                 ),
                                 first_run_real_button,
                             ],
@@ -3730,10 +3749,7 @@ def _(
                     align="start",
                     gap=1.0,
                 ),
-                mo.md(
-                    "An existing configured workspace skips this first-run choice and resumes "
-                    "directly in Monitor."
-                ),
+                mo.md(operations_text("first_run.resume", operations_locale)),
             ]
         )
         first_run_view = mo.vstack(_blocks, gap=1.0)
@@ -3776,6 +3792,8 @@ def _(
     monitor_attention_category,
     monitor_window_evidence_items,
     navigation_page,
+    operations_locale,
+    operations_page_label,
     registered_sources,
     resolve_investigation_route,
     resolve_operations_attention_route,
@@ -3809,15 +3827,20 @@ def _(
         set() if asset_workspace is None else set(asset_workspace.history_channels)
     )
     _payload = {
-        "page": navigation_page,
+        "page": str(navigation_page),
+        "locale": operations_locale.value,
         "active_investigation": get_investigation_selection(),
-        "pages": list(OPERATIONS_PAGE_OPTIONS),
+        "pages": [page.value for page in OPERATIONS_PAGE_OPTIONS],
+        "page_labels": {
+            page.value: operations_page_label(page, operations_locale)
+            for page in OPERATIONS_PAGE_OPTIONS
+        },
         "asset_id": _selected_asset,
         "asset_name": None if _selected_asset is None else asset_names.label(_selected_asset),
         "assets": [{"id": asset, "name": asset_names.label(asset)} for asset in _assets],
         "status": "No source context"
         if asset_workspace is None
-        else data_status_label(asset_workspace.status),
+        else data_status_label(asset_workspace.status, operations_locale),
         "source_at": None if asset_workspace is None else utc_millis(asset_workspace.last_data_at),
         "assessed_at": utc_millis(monitor.assessed_at),
         "signals": _catalog_rows,
@@ -3842,17 +3865,17 @@ def _(
                 "id": item.attention_id,
                 "title": item.title,
                 "detail": item.detail,
-                "category": monitor_attention_category(item),
+                "category": monitor_attention_category(item, operations_locale),
             }
             for item in contextual_attention
         ],
     }
 
     def _navigate_route(route):
-        if route.page == "Assets":
+        if route.page == "assets":
             set_asset_selection(route.asset_id)
             set_asset_section(route.asset_section)
-        elif route.page == "Investigations":
+        elif route.page == "investigations":
             set_investigation_review_filter("All")
             set_investigation_asset_filter("All")
             set_investigation_capability_filter("All")
@@ -3864,7 +3887,7 @@ def _(
         if (
             _kind == "navigate"
             and isinstance(event.get("page"), str)
-            and event["page"] in OPERATIONS_PAGE_OPTIONS
+            and event["page"] in {page.value for page in OPERATIONS_PAGE_OPTIONS}
         ):
             set_navigation_page(event["page"])
         elif _kind == "asset" and event.get("id") in _assets:
@@ -3894,7 +3917,7 @@ def _(
             set_monitor_range(event["range"])
         elif _kind == "detail" and _selected_asset is not None:
             set_asset_section("Signals")
-            set_navigation_page("Assets")
+            set_navigation_page("assets")
         elif _kind == "refresh":
             set_monitor_revision(get_monitor_revision() + 1)
         elif (
@@ -3939,6 +3962,7 @@ def _(
     first_run_mode,
     first_run_view,
     investigation_workspace_css,
+    locale_selector,
     maintenance_view,
     mo,
     monitor_workspace_ui,
@@ -4011,20 +4035,27 @@ def _(
         first_run_view if not setup_workspace.sources and first_run_mode != "real" else setup_view
     )
     pages = {
-        "Monitor": monitor_workspace_ui,
-        "Assets": asset_view,
-        "Investigations": investigation_view,
-        "Maintenance": maintenance_view,
-        "System": system_view,
-        "Setup": _setup_page,
+        "monitor": monitor_workspace_ui,
+        "assets": asset_view,
+        "investigations": investigation_view,
+        "maintenance": maintenance_view,
+        "system": system_view,
+        "setup": _setup_page,
     }
 
     shell = (
         monitor_workspace_ui
-        if navigation_page == "Monitor"
+        if navigation_page == "monitor"
         else mo.vstack([monitor_workspace_ui, pages[navigation_page]], gap=0.8)
     )
-    mo.vstack([theme, shell], gap=0.0)
+    mo.vstack(
+        [
+            theme,
+            mo.hstack([locale_selector], justify="end"),
+            shell,
+        ],
+        gap=0.35,
+    )
     return
 
 
