@@ -267,10 +267,8 @@ def _(OperationsLocale, locale_selector):
 
 
 @app.cell
-def _(mo, registered_sources):
-    get_first_run_mode, set_first_run_mode = mo.state(
-        "configured" if registered_sources else "landing"
-    )
+def _(mo):
+    get_first_run_mode, set_first_run_mode = mo.state(None)
     get_first_run_sample, set_first_run_sample = mo.state(None)
     get_first_run_error, set_first_run_error = mo.state("")
     return (
@@ -571,9 +569,18 @@ def _(
 
 
 @app.cell
-def _(get_first_run_error, get_first_run_mode, get_first_run_sample):
+def _(
+    get_first_run_error,
+    get_first_run_mode,
+    get_first_run_sample,
+    registered_sources,
+    set_first_run_mode,
+):
     first_run_error = get_first_run_error()
     first_run_mode = get_first_run_mode()
+    if first_run_mode is None:
+        first_run_mode = "configured" if registered_sources else "landing"
+        set_first_run_mode(first_run_mode)
     first_run_sample = get_first_run_sample()
     return first_run_error, first_run_mode, first_run_sample
 
