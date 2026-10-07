@@ -526,6 +526,9 @@ _PRODUCT_COPY: Final = {
         "asset.analyze_prepared_file": "Analyze prepared FILE snapshot",
         "asset.load_hint": "Select Assets to load this workspace.",
         "asset.workspace_unavailable": "Asset workspace unavailable",
+        "asset.no_evidence": (
+            "No asset evidence is available yet. Add a source in Data connection or load history."
+        ),
         "investigation.request_review": "Request review",
         "investigation.no_filter_match": "No saved analysis result matches the current filters.",
         "investigation.evidence_summary": "Evidence summary",
@@ -534,6 +537,7 @@ _PRODUCT_COPY: Final = {
         "investigation.review_request_failed": "Review request failed",
         "investigation.review_requested": "Review requested",
         "investigation.human_review": "Human review",
+        "investigation.queue": "Queue",
         "maintenance.open_evidence": "Open evidence in Investigations",
         "maintenance.review_note": "Review note",
         "maintenance.add_note": "Add note",
@@ -544,6 +548,7 @@ _PRODUCT_COPY: Final = {
         "maintenance.action_failed": "Review action failed",
         "maintenance.updated": "Review updated",
         "maintenance.actions": "Review actions",
+        "maintenance.counts": "Open {open} · Acknowledged {acknowledged} · Closed {closed}",
         "system.asset_name_conflict": "Asset display name conflict",
         "setup.maximum_data_age": "Maximum data age (seconds)",
         "setup.save_data_age": "Save data age policy",
@@ -578,6 +583,29 @@ _PRODUCT_COPY: Final = {
         "setup.keep_unresolved": "Keep unresolved",
         "setup.review_save_source": "Review & save source",
         "setup.source_saved": "Source saved: {source_id}. Enable it when ready to use.",
+        "setup.select_source_for_age": "Select a data source before changing its data age policy.",
+        "setup.age_input_unavailable": "Data age policy input is unavailable.",
+        "setup.maximum_age_required": "Maximum data age is required.",
+        "setup.collection_saved": (
+            "Collection request saved: {source_id} → {state}. "
+            "The browser does not start or supervise the collector process."
+        ),
+        "setup.file_discovery_completed": (
+            "File discovery completed. Select the signals to keep."
+        ),
+        "setup.browse_completed_identity": (
+            "Browse completed. This bounded session discovered signal identity only."
+        ),
+        "setup.meaning_saved": "Meaning saved for {channel_id}.",
+        "setup.remain_unresolved": "{channel_id} will remain unresolved.",
+        "setup.discover_before_save": "Discover the file source before saving.",
+        "setup.select_file_signal": "Select at least one file signal.",
+        "setup.timestamp_not_discovered": (
+            "Timestamp column was not discovered in every CSV file."
+        ),
+        "setup.select_opcua_signal": (
+            "Connect and select signals, or provide explicit advanced mapping."
+        ),
         "setup.action_failed": "Setup action failed",
         "setup.updated": "Setup updated",
         "setup.diagnostic_failed": "Diagnostic action failed",
@@ -635,6 +663,62 @@ _PRODUCT_COPY: Final = {
         "setup.observe_title": "Observe",
         "setup.add_another_source": "Add another data source",
         "setup.analysis_configuration": "Analysis configuration",
+        "setup.source_controls_help": (
+            "Enable/Pause changes whether a runtime may use the source. Start/Stop collection "
+            "writes desired collection state for OPC UA; it does not prove the collector "
+            "process is running or connected."
+        ),
+        "setup.data_age_policy": "Data age policy",
+        "setup.data_age_help": (
+            "This policy compares the latest comparable observation time with the current "
+            "assessment time. It does not prove connection health or asset health."
+        ),
+        "setup.advanced_diagnostics": "Advanced diagnostics",
+        "setup.diagnostics_help": (
+            "These bounded actions are for connection/data-contract diagnostics. They do not "
+            "start the persistent collection service, and a successful attempt is not current "
+            "connection health."
+        ),
+        "setup.discovered_file_summary": (
+            "Discovered **{files}** file(s), **{columns}** common column(s)."
+        ),
+        "setup.run_discovery_help": (
+            "Run discovery after choosing a file or history directory. "
+            "No column meaning is inferred during discovery."
+        ),
+        "setup.step.source": "1 · Source",
+        "setup.step.select_signals": "2 · Select signals",
+        "setup.step.time_sampling": "3 · Define time & sampling",
+        "setup.step.review_save": "4 · Review & save",
+        "setup.step.connect": "1 · Connect",
+        "setup.step.define_meaning": "3 · Define meaning",
+        "setup.browse_summary": (
+            "Browse completed: **{variables}** variable candidate(s), "
+            "visited **{nodes}** node(s){truncated}."
+        ),
+        "setup.result_truncated": " · result truncated",
+        "setup.browse_help": (
+            "Connect & browse uses one bounded anonymous session to discover variable identity. "
+            "It does not read signal values or prove ongoing connection health."
+        ),
+        "setup.semantic_empty": (
+            "No explicit measurement meaning has been added. "
+            "Unmapped meaning remains **Unresolved**."
+        ),
+        "setup.analysis_policy_help": (
+            "Operational analysis policies are versioned outside this Data connection workspace "
+            "today. The live three-phase runner and FILE analysis preserve their policy/version "
+            "in evidence; this screen does not expose controls that the application contract "
+            "cannot persist safely."
+        ),
+        "setup.analysis_navigation_help": (
+            "Use **System** to verify analysis-service runtime status and **Investigations** "
+            "to inspect the exact policy/evidence of completed analyses."
+        ),
+        "setup.connect_data_title": "Connect data",
+        "setup.connect_data_help": (
+            "Choose FILE for prepared local observations or OPC UA for a live source."
+        ),
         "setup.title": "Data connection",
         "setup.intro": (
             "Connect data, inspect signal identity, record only known measurement meaning, "
@@ -675,6 +759,9 @@ _PRODUCT_COPY: Final = {
         "asset.analyze_prepared_file": "준비된 FILE snapshot 분석",
         "asset.load_hint": "설비 페이지를 선택하면 이 workspace를 불러옵니다.",
         "asset.workspace_unavailable": "설비 workspace를 불러올 수 없습니다",
+        "asset.no_evidence": (
+            "아직 설비 근거가 없습니다. 데이터 연결에서 source를 추가하거나 history를 불러오세요."
+        ),
         "investigation.request_review": "검토 요청",
         "investigation.no_filter_match": "현재 필터와 일치하는 저장 분석 결과가 없습니다.",
         "investigation.evidence_summary": "근거 요약",
@@ -683,6 +770,7 @@ _PRODUCT_COPY: Final = {
         "investigation.review_request_failed": "검토 요청 실패",
         "investigation.review_requested": "검토 요청 완료",
         "investigation.human_review": "사람 검토",
+        "investigation.queue": "대기열",
         "maintenance.open_evidence": "분석 근거에서 열기",
         "maintenance.review_note": "검토 메모",
         "maintenance.add_note": "메모 추가",
@@ -693,6 +781,7 @@ _PRODUCT_COPY: Final = {
         "maintenance.action_failed": "검토 작업 실패",
         "maintenance.updated": "검토 갱신 완료",
         "maintenance.actions": "검토 작업",
+        "maintenance.counts": "열림 {open} · 확인됨 {acknowledged} · 종료됨 {closed}",
         "system.asset_name_conflict": "설비 표시 이름 충돌",
         "setup.maximum_data_age": "데이터 최대 경과 시간(초)",
         "setup.save_data_age": "데이터 경과 정책 저장",
@@ -727,6 +816,27 @@ _PRODUCT_COPY: Final = {
         "setup.keep_unresolved": "미확인으로 유지",
         "setup.review_save_source": "검토 후 source 저장",
         "setup.source_saved": "Source 저장 완료: {source_id}. 사용할 준비가 되면 활성화하세요.",
+        "setup.select_source_for_age": "데이터 경과 정책을 변경할 source를 먼저 선택하세요.",
+        "setup.age_input_unavailable": "데이터 경과 정책 입력을 사용할 수 없습니다.",
+        "setup.maximum_age_required": "데이터 최대 경과 시간을 입력하세요.",
+        "setup.collection_saved": (
+            "수집 요청 저장: {source_id} → {state}. "
+            "브라우저는 collector process를 시작하거나 감독하지 않습니다."
+        ),
+        "setup.file_discovery_completed": "파일 탐색 완료. 유지할 신호를 선택하세요.",
+        "setup.browse_completed_identity": (
+            "Browse 완료. 이 제한된 session에서는 신호 identity만 확인했습니다."
+        ),
+        "setup.meaning_saved": "{channel_id}의 측정 의미를 저장했습니다.",
+        "setup.remain_unresolved": "{channel_id}는 미확인 상태로 유지합니다.",
+        "setup.discover_before_save": "저장하기 전에 FILE source를 탐색하세요.",
+        "setup.select_file_signal": "FILE 신호를 하나 이상 선택하세요.",
+        "setup.timestamp_not_discovered": (
+            "모든 CSV 파일에서 timestamp 열을 확인하지 못했습니다."
+        ),
+        "setup.select_opcua_signal": (
+            "연결 후 신호를 선택하거나 고급 explicit mapping을 입력하세요."
+        ),
         "setup.action_failed": "설정 작업 실패",
         "setup.updated": "설정 갱신 완료",
         "setup.diagnostic_failed": "진단 작업 실패",
@@ -777,6 +887,59 @@ _PRODUCT_COPY: Final = {
         "setup.observe_title": "관제 시작",
         "setup.add_another_source": "다른 데이터 source 추가",
         "setup.analysis_configuration": "분석 설정",
+        "setup.source_controls_help": (
+            "활성화/일시 중지는 runtime이 source를 사용할 수 있는지를 바꿉니다. "
+            "수집 시작/중지는 OPC UA의 desired collection state를 기록할 뿐, "
+            "collector process의 실행이나 연결 상태를 증명하지 않습니다."
+        ),
+        "setup.data_age_policy": "데이터 경과 정책",
+        "setup.data_age_help": (
+            "이 정책은 비교 가능한 최근 관측 시각과 현재 평가 시각을 비교합니다. "
+            "연결 상태나 설비 상태를 증명하지 않습니다."
+        ),
+        "setup.advanced_diagnostics": "고급 진단",
+        "setup.diagnostics_help": (
+            "이 제한된 작업은 연결/data-contract 진단용입니다. Persistent collection service를 "
+            "시작하지 않으며, 성공한 시도 하나가 현재 연결 상태를 뜻하지 않습니다."
+        ),
+        "setup.discovered_file_summary": (
+            "파일 **{files}**개, 공통 열 **{columns}**개를 확인했습니다."
+        ),
+        "setup.run_discovery_help": (
+            "파일 또는 history directory를 선택한 뒤 탐색을 실행하세요. "
+            "탐색 과정에서 열의 측정 의미를 추론하지 않습니다."
+        ),
+        "setup.step.source": "1 · Source",
+        "setup.step.select_signals": "2 · 신호 선택",
+        "setup.step.time_sampling": "3 · 시간 및 sampling 정의",
+        "setup.step.review_save": "4 · 검토 후 저장",
+        "setup.step.connect": "1 · 연결",
+        "setup.step.define_meaning": "3 · 측정 의미 정의",
+        "setup.browse_summary": (
+            "Browse 완료: variable 후보 **{variables}**개, node **{nodes}**개 방문{truncated}."
+        ),
+        "setup.result_truncated": " · 결과 일부만 표시",
+        "setup.browse_help": (
+            "연결 및 browse는 variable identity 확인을 위한 제한된 anonymous session을 사용합니다. "
+            "신호 값을 읽거나 지속적인 연결 상태를 증명하지 않습니다."
+        ),
+        "setup.semantic_empty": (
+            "명시적인 측정 의미가 아직 추가되지 않았습니다. "
+            "Mapping되지 않은 의미는 **미확인**으로 유지합니다."
+        ),
+        "setup.analysis_policy_help": (
+            "Operational analysis policy는 현재 데이터 연결 화면 밖에서 versioned됩니다. "
+            "Live 3상 runner와 FILE 분석은 policy/version을 evidence에 보존하며, "
+            "이 화면은 안전하게 저장할 수 없는 제어를 제공하지 않습니다."
+        ),
+        "setup.analysis_navigation_help": (
+            "분석 service runtime 상태는 **시스템**에서 확인하고, 완료된 분석의 정확한 "
+            "policy/evidence는 **분석 근거**에서 확인하세요."
+        ),
+        "setup.connect_data_title": "데이터 연결",
+        "setup.connect_data_help": (
+            "준비된 로컬 관측값은 FILE, 실시간 source는 OPC UA를 선택하세요."
+        ),
         "setup.title": "데이터 연결",
         "setup.intro": (
             "데이터를 연결하고 신호 identity를 확인한 뒤, 알고 있는 측정 의미만 기록하고 "
