@@ -9,25 +9,30 @@ from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
     OperationsMonitorAttention,
 )
+from industrial_phm.presentation.operations_locale import OperationsPageId
 
 
 @dataclass(frozen=True, slots=True)
 class OperationsAttentionRoute:
     """Concrete UI destination resolved from one typed monitor attention."""
 
-    page: str
+    page: OperationsPageId
     asset_id: str | None = None
     asset_section: str | None = None
     investigation_group_id: str | None = None
     investigation_id: str | None = None
 
     def __post_init__(self) -> None:
-        if self.page not in {"Assets", "Investigations", "System"}:
+        if self.page not in {
+            OperationsPageId.ASSETS,
+            OperationsPageId.INVESTIGATIONS,
+            OperationsPageId.SYSTEM,
+        }:
             raise ValueError("unsupported Operations attention route page")
-        if self.page == "Assets":
+        if self.page == OperationsPageId.ASSETS:
             if self.asset_id is None or self.asset_section != "Signals":
                 raise ValueError("Assets attention route requires asset Signals context")
-        elif self.page == "Investigations":
+        elif self.page == OperationsPageId.INVESTIGATIONS:
             if self.investigation_group_id is None or self.investigation_id is None:
                 raise ValueError("Investigations route requires exact queue selection")
         elif any(
@@ -58,12 +63,12 @@ def resolve_operations_attention_route(
         if attention.asset_id is None:
             raise AssertionError("validated asset-signals attention is missing asset_id")
         return OperationsAttentionRoute(
-            page="Assets",
+            page=OperationsPageId.ASSETS,
             asset_id=attention.asset_id,
             asset_section="Signals",
         )
     if attention.destination == OperationsAttentionDestination.SYSTEM:
-        return OperationsAttentionRoute(page="System")
+        return OperationsAttentionRoute(page=OperationsPageId.SYSTEM)
 
     finding_id = attention.finding_id
     if finding_id is None:
@@ -101,7 +106,7 @@ def resolve_investigation_route(
     if group is None:
         raise LookupError(f"investigation group is unavailable: {item.investigation_id}")
     return OperationsAttentionRoute(
-        page="Investigations",
+        page=OperationsPageId.INVESTIGATIONS,
         investigation_group_id=group.group_id,
         investigation_id=item.investigation_id,
     )
