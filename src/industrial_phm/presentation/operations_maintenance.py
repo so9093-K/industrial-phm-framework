@@ -97,12 +97,14 @@ def render_maintenance_evidence_html(
 
     title = escape(operations_text("maintenance.reviewed_evidence", locale))
     if evidence is None:
+        detail = operations_text("maintenance.evidence_not_loaded", locale).format(
+            analysis_run_id=analysis_run_id
+        )
         return (
             '<section class="phm-shell">'
             f'<div class="phm-section-title">{title}</div>'
-            '<div class="phm-card-detail">'
-            f"Analysis run {escape(analysis_run_id)} is not in the loaded analysis results."
-            "</div></section>"
+            f'<div class="phm-card-detail">{escape(detail)}</div>'
+            "</section>"
         )
     metric_table = ""
     if metrics:
@@ -117,7 +119,12 @@ def render_maintenance_evidence_html(
         )
         metric_table = (
             '<table class="phm-table">'
-            "<thead><tr><th>Quantity</th><th>Median</th><th>P95</th><th>Max</th></tr></thead>"
+            "<thead><tr>"
+            f"<th>{escape(operations_text('common.quantity', locale))}</th>"
+            f"<th>{escape(operations_text('common.median', locale))}</th>"
+            f"<th>{escape(operations_text('common.p95', locale))}</th>"
+            f"<th>{escape(operations_text('common.max', locale))}</th>"
+            "</tr></thead>"
             f"<tbody>{body}</tbody></table>"
         )
     observed = operations_text("common.observed", locale)
@@ -126,11 +133,11 @@ def render_maintenance_evidence_html(
         f'<div class="phm-section-title">{title}</div>'
         '<div class="phm-investigation-facts">'
         + _fact(
-            f"{observed} · from",
+            f"{observed} · {operations_text('common.from', locale)}",
             format_operations_utc(evidence.observed_start_at, locale),
         )
         + _fact(
-            f"{observed} · to",
+            f"{observed} · {operations_text('common.to', locale)}",
             format_operations_utc(evidence.observed_end_at, locale),
         )
         + _fact(operations_text("common.source", locale), evidence.source_id)
@@ -154,7 +161,9 @@ def render_maintenance_timeline_html(
         body = "".join(
             "<tr>"
             f"<td>{escape(format_operations_utc(event.recorded_at, locale))}</td>"
-            f"<td>{escape(event.action.value.title())}</td>"
+            "<td>"
+            f"{escape(operations_text(f'maintenance.action.{event.action.value}', locale))}"
+            "</td>"
             f"<td>{escape(event.note or '—')}</td>"
             "</tr>"
             for event in item.timeline
@@ -164,7 +173,11 @@ def render_maintenance_timeline_html(
         '<section class="phm-shell">'
         f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Time</th><th>Action</th><th>Note</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.time', locale))}</th>"
+        f"<th>{escape(operations_text('common.action', locale))}</th>"
+        f"<th>{escape(operations_text('common.note', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{body}</tbody></table></section>"
     )
 

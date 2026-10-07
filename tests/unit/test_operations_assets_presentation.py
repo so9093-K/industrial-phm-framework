@@ -140,3 +140,20 @@ def test_asset_css_uses_existing_v2_tokens() -> None:
 
     assert "var(--phm-border)" in css
     assert "var(--phm-muted)" in css
+
+
+def test_asset_workspace_presenters_localize_labels_without_changing_identity() -> None:
+    view = _view()
+
+    overview = render_asset_overview_html(view, "ko-KR")
+    analysis = render_asset_analysis_html(view, "ko-KR")
+    maintenance = render_asset_maintenance_html(view, "ko-KR")
+
+    assert "저장 측정값 1,200개" in overview
+    assert "채널 2개" in overview
+    assert "최근 분석 시도" in analysis
+    assert "건너뜀" in analysis
+    assert "three-phase-unbalance-v1" in analysis
+    assert "source-a" in analysis
+    assert "확인됨" in maintenance
+    assert "finding-1" in maintenance

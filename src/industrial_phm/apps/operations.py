@@ -372,7 +372,7 @@ def _(get_analysis_results):
 
 
 @app.cell
-def _(OpcUaNodeMapping, operations_actions):
+def _(OpcUaNodeMapping, operations_actions, operations_locale, operations_text):
     def parse_opcua_mapping_lines(value: str):
         mappings = []
         for line_number, raw_line in enumerate(value.splitlines(), start=1):
@@ -380,7 +380,11 @@ def _(OpcUaNodeMapping, operations_actions):
             if not _line:
                 continue
             if "," not in _line:
-                raise ValueError(f"Mapping line {line_number} must use signal_id,node_id")
+                raise ValueError(
+                    operations_text("setup.mapping_line_format", operations_locale).format(
+                        line_number=line_number
+                    )
+                )
             _channel_id, _node_id = _line.split(",", 1)
             mappings.append(
                 OpcUaNodeMapping(
@@ -695,7 +699,7 @@ def _(
 
 
 @app.cell
-def _(mo, setup_selected_source):
+def _(mo, operations_locale, operations_text, setup_selected_source):
     if setup_selected_source is None:
         setup_freshness_age_input = None
         setup_save_freshness_button = None
@@ -708,14 +712,16 @@ def _(mo, setup_selected_source):
         )
         setup_freshness_age_input = mo.ui.text(
             value=_freshness_value,
-            label="Maximum data age (seconds)",
+            label=operations_text("setup.maximum_data_age", operations_locale),
             full_width=True,
         )
-        setup_save_freshness_button = mo.ui.run_button(label="Save data age policy")
+        setup_save_freshness_button = mo.ui.run_button(
+            label=operations_text("setup.save_data_age", operations_locale)
+        )
         setup_clear_freshness_button = (
             None
             if setup_selected_source.freshness_max_age_seconds is None
-            else mo.ui.run_button(label="Clear policy")
+            else mo.ui.run_button(label=operations_text("setup.clear_policy", operations_locale))
         )
     return (
         setup_clear_freshness_button,
@@ -729,6 +735,8 @@ def _(
     datetime,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -746,14 +754,18 @@ def _(
     if _freshness_action is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select a data source before changing its data age policy")
+                raise ValueError(operations_text("setup.select_source_for_age", operations_locale))
             _source_id = setup_selected_source.source_id
             if _freshness_action == "save":
                 if setup_freshness_age_input is None:
-                    raise ValueError("data age policy input is unavailable")
+                    raise ValueError(
+                        operations_text("setup.age_input_unavailable", operations_locale)
+                    )
                 _raw_value = setup_freshness_age_input.value.strip()
                 if not _raw_value:
-                    raise ValueError("maximum data age is required")
+                    raise ValueError(
+                        operations_text("setup.maximum_age_required", operations_locale)
+                    )
                 _policy, _state = operations_actions.set_freshness_policy(
                     _source_id,
                     max_observation_age_seconds=float(_raw_value),
@@ -761,9 +773,12 @@ def _(
                 )
                 if _policy is None:
                     raise AssertionError("saved freshness policy unexpectedly missing")
-                _message = (
-                    f"Data age policy saved: {_source_id} · "
-                    f"{_policy.max_observation_age_seconds:g} s."
+                _message = operations_text(
+                    "setup.data_age_saved",
+                    operations_locale,
+                ).format(
+                    source_id=_source_id,
+                    seconds=_policy.max_observation_age_seconds,
                 )
             else:
                 _, _state = operations_actions.set_freshness_policy(
@@ -771,7 +786,10 @@ def _(
                     max_observation_age_seconds=None,
                     changed_at=datetime.now().astimezone(),
                 )
-                _message = f"Data age policy cleared: {_source_id}."
+                _message = operations_text(
+                    "setup.data_age_cleared",
+                    operations_locale,
+                ).format(source_id=_source_id)
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
@@ -786,14 +804,16 @@ def _(
 
 
 @app.cell
-def _(SourceType, mo, setup_selected_source):
+def _(SourceType, mo, operations_locale, operations_text, setup_selected_source):
     if setup_selected_source is None:
         setup_run_diagnostic_button = None
         setup_subscription_diagnostic_button = None
     else:
-        setup_run_diagnostic_button = mo.ui.run_button(label="Run one diagnostic cycle")
+        setup_run_diagnostic_button = mo.ui.run_button(
+            label=operations_text("setup.run_diagnostic", operations_locale)
+        )
         setup_subscription_diagnostic_button = (
-            mo.ui.run_button(label="Collect bounded subscription")
+            mo.ui.run_button(label=operations_text("setup.collect_bounded", operations_locale))
             if setup_selected_source.source_type == SourceType.OPCUA
             else None
         )
@@ -818,6 +838,8 @@ def _(
     SourceRuntimeCycleState,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_diagnostic_error,
     set_setup_diagnostic_success,
@@ -837,7 +859,9 @@ def _(
     if _diagnostic_kind is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select a data source before running diagnostics")
+                raise ValueError(
+                    operations_text("setup.select_source_for_diagnostic", operations_locale)
+                )
             _result, _state = operations_actions.run_diagnostic(
                 setup_selected_source.source_id,
                 kind=_diagnostic_kind,
@@ -849,23 +873,38 @@ def _(
             _, _, _collection, _freshness = get_setup_config()
             set_setup_config((_state.sources, _state.lifecycles, _collection, _freshness))
             if _result.state == SourceRuntimeCycleState.SUCCEEDED:
-                _message = (
-                    "Diagnostic cycle completed."
-                    if _diagnostic_kind == OperationsDiagnosticKind.CYCLE
-                    else "Bounded subscription completed."
+                _message = operations_text(
+                    (
+                        "setup.diagnostic_cycle_completed"
+                        if _diagnostic_kind == OperationsDiagnosticKind.CYCLE
+                        else "setup.subscription_completed"
+                    ),
+                    operations_locale,
                 )
                 set_setup_diagnostic_error("")
                 set_setup_diagnostic_success(
-                    _message + " Use Refresh to reload current runtime evidence in Monitor."
+                    _message + operations_text("setup.refresh_runtime_hint", operations_locale)
                 )
             elif _result.state == SourceRuntimeCycleState.SKIPPED:
                 set_setup_diagnostic_success("")
-                set_setup_diagnostic_error(_result.message or "diagnostic action skipped")
+                set_setup_diagnostic_error(
+                    _result.message
+                    or operations_text("setup.diagnostic_skipped", operations_locale)
+                )
             else:
                 _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
                 set_setup_diagnostic_success("")
                 set_setup_diagnostic_error(
-                    f"{_scope} failure · {_result.message or 'diagnostic action failed'}"
+                    operations_text("setup.diagnostic_failure", operations_locale).format(
+                        scope=_scope,
+                        detail=(
+                            _result.message
+                            or operations_text(
+                                "setup.diagnostic_failed_default",
+                                operations_locale,
+                            )
+                        ),
+                    )
                 )
     return
 
@@ -883,6 +922,8 @@ def _(
     datetime,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -899,7 +940,7 @@ def _(
     if _setup_lifecycle_target is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select a data source before changing its use state")
+                raise ValueError(operations_text("setup.select_source_for_use", operations_locale))
             _record, _state = operations_actions.transition_source(
                 setup_selected_source.source_id,
                 _setup_lifecycle_target,
@@ -914,7 +955,12 @@ def _(
                 (_state.sources, _state.lifecycles, _current_collection, _current_freshness)
             )
             set_setup_error("")
-            set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
+            set_setup_success(
+                operations_text("setup.source_use_changed", operations_locale).format(
+                    source_id=_record.source_id,
+                    state=_record.state.value,
+                )
+            )
     return
 
 
@@ -924,6 +970,8 @@ def _(
     datetime,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -940,7 +988,9 @@ def _(
     if _setup_collection_target is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select an OPC UA source before changing collection")
+                raise ValueError(
+                    operations_text("setup.select_opcua_for_collection", operations_locale)
+                )
             _record, _records = operations_actions.request_collection(
                 setup_selected_source.source_id,
                 _setup_collection_target,
@@ -959,56 +1009,76 @@ def _(
             set_setup_config((_current_sources, _current_lifecycles, _records, _current_freshness))
             set_setup_error("")
             set_setup_success(
-                "Collection request saved: "
-                f"{_record.source_id} → {_record.desired_state.value}. "
-                "The browser does not start or supervise the collector process."
+                operations_text("setup.collection_saved", operations_locale).format(
+                    source_id=_record.source_id,
+                    state=_record.desired_state.value,
+                )
             )
     return
 
 
 @app.cell
-def _(SourceType, mo):
+def _(SourceType, mo, operations_locale, operations_text):
     add_source_type = mo.ui.radio(
         options=["File", "OPC UA"],
         value="OPC UA",
-        label="Source type",
+        label=operations_text("setup.source_type", operations_locale),
     )
-    add_source_id = mo.ui.text(label="Source ID", full_width=True)
-    add_source_name = mo.ui.text(label="Name", full_width=True)
-    add_asset_id = mo.ui.text(label="Asset", full_width=True)
-    add_point_id = mo.ui.text(label="Measurement point (optional)", full_width=True)
+    add_source_id = mo.ui.text(
+        label=operations_text("setup.source_id", operations_locale),
+        full_width=True,
+    )
+    add_source_name = mo.ui.text(
+        label=operations_text("setup.name", operations_locale),
+        full_width=True,
+    )
+    add_asset_id = mo.ui.text(
+        label=operations_text("common.asset", operations_locale),
+        full_width=True,
+    )
+    add_point_id = mo.ui.text(
+        label=operations_text("setup.measurement_point_optional", operations_locale),
+        full_width=True,
+    )
 
     file_path_input = mo.ui.text(
-        label="File or directory path",
+        label=operations_text("setup.file_path", operations_locale),
         full_width=True,
     )
     file_mode_input = mo.ui.radio(
         options=["Snapshot", "History directory"],
         value="Snapshot",
-        label="File shape",
+        label=operations_text("setup.file_shape", operations_locale),
     )
-    file_discover_button = mo.ui.run_button(label="Discover file")
+    file_discover_button = mo.ui.run_button(
+        label=operations_text("setup.discover_file", operations_locale)
+    )
     file_timestamp_input = mo.ui.text(
         value="timestamp",
-        label="Timestamp column (optional for snapshot)",
+        label=operations_text("setup.timestamp_column_optional", operations_locale),
         full_width=True,
     )
     file_sampling_rate_input = mo.ui.text(
         value="",
-        label="Sampling rate Hz (optional)",
+        label=operations_text("setup.sampling_rate_optional", operations_locale),
         full_width=True,
     )
 
     opcua_endpoint_input = mo.ui.text(
-        label="Endpoint",
+        label=operations_text("setup.endpoint", operations_locale),
         placeholder="opc.tcp://host:4840",
         full_width=True,
     )
-    opcua_timeout_input = mo.ui.text(value="4", label="Timeout seconds")
-    opcua_browse_button = mo.ui.run_button(label="Connect & browse signals")
+    opcua_timeout_input = mo.ui.text(
+        value="4",
+        label=operations_text("setup.timeout_seconds", operations_locale),
+    )
+    opcua_browse_button = mo.ui.run_button(
+        label=operations_text("setup.connect_browse", operations_locale)
+    )
     opcua_explicit_mapping_input = mo.ui.text_area(
         value="",
-        label="Advanced explicit mapping (signal_id,node_id)",
+        label=operations_text("setup.advanced_mapping", operations_locale),
         rows=4,
         full_width=True,
     )
@@ -1038,6 +1108,8 @@ def _(
     file_discover_button,
     file_mode_input,
     file_path_input,
+    operations_locale,
+    operations_text,
     set_file_discovery,
     set_file_discovery_signature,
     set_setup_error,
@@ -1061,7 +1133,7 @@ def _(
             set_file_discovery(_discovery)
             set_file_discovery_signature((file_mode_input.value, _path))
             set_setup_error("")
-            set_setup_success("File discovery completed. Select the signals to keep.")
+            set_setup_success(operations_text("setup.file_discovery_completed", operations_locale))
     return
 
 
@@ -1072,6 +1144,8 @@ def _(
     file_mode_input,
     file_path_input,
     mo,
+    operations_locale,
+    operations_text,
 ):
     file_discovery = get_file_discovery()
     file_discovery_signature = get_file_discovery_signature()
@@ -1083,7 +1157,7 @@ def _(
         file_signal_selection = mo.ui.multiselect(
             options=list(file_discovery.common_columns),
             value=[],
-            label="Signals to keep",
+            label=operations_text("setup.signals_to_keep", operations_locale),
         )
     else:
         file_signal_selection = None
@@ -1096,6 +1170,8 @@ def _(
     opcua_browse_button,
     opcua_endpoint_input,
     opcua_timeout_input,
+    operations_locale,
+    operations_text,
     run_setup_opcua_browse,
     set_opcua_browse,
     set_opcua_browse_signature,
@@ -1119,9 +1195,7 @@ def _(
             set_opcua_browse(_result)
             set_opcua_browse_signature((_endpoint, _timeout))
             set_setup_error("")
-            set_setup_success(
-                "Browse completed. This bounded session discovered signal identity only."
-            )
+            set_setup_success(operations_text("setup.browse_completed_identity", operations_locale))
     return
 
 
@@ -1131,6 +1205,8 @@ def _(
     get_opcua_browse_signature,
     mo,
     opcua_endpoint_input,
+    operations_locale,
+    operations_text,
     opcua_timeout_input,
 ):
     opcua_browse = get_opcua_browse()
@@ -1148,7 +1224,7 @@ def _(
         opcua_signal_selection = mo.ui.multiselect(
             options=list(opcua_browse_by_label),
             value=[],
-            label="Signals to keep",
+            label=operations_text("setup.signals_to_keep", operations_locale),
             full_width=True,
         )
     else:
@@ -1186,36 +1262,49 @@ def _(
 
 
 @app.cell
-def _(mo, opcua_candidate_mappings):
+def _(mo, opcua_candidate_mappings, operations_locale, operations_text):
     _semantic_channels = [item.channel_id for item in opcua_candidate_mappings]
     if _semantic_channels:
         semantic_channel_input = mo.ui.dropdown(
             options=_semantic_channels,
             value=_semantic_channels[0],
-            label="Signal",
+            label=operations_text("common.signal", operations_locale),
             full_width=True,
         )
         semantic_observed_property_input = mo.ui.text(
-            label="Observed property",
+            label=operations_text("setup.observed_property", operations_locale),
             full_width=True,
         )
-        semantic_scope_input = mo.ui.text(label="Scope (optional)", full_width=True)
+        semantic_scope_input = mo.ui.text(
+            label=operations_text("setup.scope_optional", operations_locale),
+            full_width=True,
+        )
         semantic_statistic_input = mo.ui.text(
-            label="Statistic (optional)",
+            label=operations_text("setup.statistic_optional", operations_locale),
             full_width=True,
         )
-        semantic_unit_input = mo.ui.text(label="Unit (optional)", full_width=True)
+        semantic_unit_input = mo.ui.text(
+            label=operations_text("setup.unit_optional", operations_locale),
+            full_width=True,
+        )
         semantic_unit_evidence_input = mo.ui.text(
-            label="Unit evidence (required when unit is known)",
+            label=operations_text("setup.unit_evidence", operations_locale),
             full_width=True,
         )
-        semantic_version_input = mo.ui.text(label="Semantic version", full_width=True)
+        semantic_version_input = mo.ui.text(
+            label=operations_text("setup.semantic_version", operations_locale),
+            full_width=True,
+        )
         semantic_evidence_input = mo.ui.text(
-            label="Interpretation evidence",
+            label=operations_text("setup.interpretation_evidence", operations_locale),
             full_width=True,
         )
-        semantic_save_button = mo.ui.run_button(label="Add / update meaning")
-        semantic_clear_button = mo.ui.run_button(label="Keep unresolved")
+        semantic_save_button = mo.ui.run_button(
+            label=operations_text("setup.save_meaning", operations_locale)
+        )
+        semantic_clear_button = mo.ui.run_button(
+            label=operations_text("setup.keep_unresolved", operations_locale)
+        )
     else:
         semantic_channel_input = None
         semantic_observed_property_input = None
@@ -1247,6 +1336,8 @@ def _(
     MeasurementDefinition,
     add_source_id,
     get_pending_semantics,
+    operations_locale,
+    operations_text,
     semantic_channel_input,
     semantic_clear_button,
     semantic_evidence_input,
@@ -1264,7 +1355,7 @@ def _(
     if semantic_save_button is not None and semantic_save_button.value:
         try:
             if semantic_channel_input is None:
-                raise ValueError("select a mapped signal before defining meaning")
+                raise ValueError(operations_text("setup.select_mapping_first", operations_locale))
             _source_id = add_source_id.value.strip()
             _channel_id = semantic_channel_input.value
             _definition = MeasurementDefinition(
@@ -1282,7 +1373,9 @@ def _(
                     _definition.unit,
                 )
             ):
-                raise ValueError("provide explicit measurement meaning or choose Keep unresolved")
+                raise ValueError(
+                    operations_text("setup.explicit_meaning_required", operations_locale)
+                )
             _binding = ChannelSemanticBinding(
                 source_id=_source_id,
                 channel_id=_channel_id,
@@ -1298,7 +1391,11 @@ def _(
             _current[_channel_id] = _binding
             set_pending_semantics(_current)
             set_setup_error("")
-            set_setup_success(f"Meaning saved for {_channel_id}.")
+            set_setup_success(
+                operations_text("setup.meaning_saved", operations_locale).format(
+                    channel_id=_channel_id
+                )
+            )
     elif (
         semantic_clear_button is not None
         and semantic_clear_button.value
@@ -1308,7 +1405,11 @@ def _(
         _current.pop(semantic_channel_input.value, None)
         set_pending_semantics(_current)
         set_setup_error("")
-        set_setup_success(f"{semantic_channel_input.value} will remain unresolved.")
+        set_setup_success(
+            operations_text("setup.remain_unresolved", operations_locale).format(
+                channel_id=semantic_channel_input.value
+            )
+        )
     return
 
 
@@ -1319,9 +1420,9 @@ def _(get_pending_semantics):
 
 
 @app.cell
-def _(mo):
+def _(mo, operations_locale, operations_text):
     register_setup_source_button = mo.ui.run_button(
-        label="Review & save source",
+        label=operations_text("setup.review_save_source", operations_locale),
         kind="success",
     )
     return (register_setup_source_button,)
@@ -1367,16 +1468,20 @@ def _(
             _source_id = add_source_id.value.strip()
             if add_source_type.value == "File":
                 if not file_discovery_current or file_discovery is None:
-                    raise ValueError("discover the file source before saving")
+                    raise ValueError(
+                        operations_text("setup.discover_before_save", operations_locale)
+                    )
                 _signals = tuple(
                     () if file_signal_selection is None else file_signal_selection.value
                 )
                 if not _signals:
-                    raise ValueError("select at least one file signal")
+                    raise ValueError(operations_text("setup.select_file_signal", operations_locale))
                 _common = set(file_discovery.common_columns)
                 _timestamp = file_timestamp_input.value.strip() or None
                 if _timestamp is not None and _timestamp not in _common:
-                    raise ValueError("timestamp column was not discovered in every CSV file")
+                    raise ValueError(
+                        operations_text("setup.timestamp_not_discovered", operations_locale)
+                    )
                 _rate_text = file_sampling_rate_input.value.strip()
                 _candidate = RegisteredSource(
                     source_id=_source_id,
@@ -1401,7 +1506,7 @@ def _(
                     raise ValueError(opcua_mapping_error)
                 if not opcua_candidate_mappings:
                     raise ValueError(
-                        "connect and select signals, or provide explicit advanced mapping"
+                        operations_text("setup.select_opcua_signal", operations_locale)
                     )
                 _binding_by_channel = {
                     channel: binding
@@ -1444,7 +1549,11 @@ def _(
             )
             set_pending_semantics({})
             set_setup_error("")
-            set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
+            set_setup_success(
+                operations_text("setup.source_saved", operations_locale).format(
+                    source_id=_candidate.source_id
+                )
+            )
     return
 
 
@@ -1489,7 +1598,7 @@ def _(
         asset_selector = mo.ui.dropdown(
             options={asset_names.option_label(asset_id): asset_id for asset_id in _asset_ids},
             value=asset_names.option_label(_selected_asset_id),
-            label="Asset",
+            label=operations_text("common.asset", operations_locale),
             full_width=True,
             on_change=set_asset_selection,
         )
@@ -1586,7 +1695,15 @@ def _(
 
 
 @app.cell
-def _(FileSourceConfig, FileSourceMode, asset_workspace, mo, registered_sources):
+def _(
+    FileSourceConfig,
+    FileSourceMode,
+    asset_workspace,
+    mo,
+    operations_locale,
+    operations_text,
+    registered_sources,
+):
     if asset_workspace is None:
         asset_file_analysis_source = None
         asset_run_file_analysis_button = None
@@ -1606,11 +1723,11 @@ def _(FileSourceConfig, FileSourceMode, asset_workspace, mo, registered_sources)
             asset_file_analysis_source = mo.ui.dropdown(
                 options=list(_options),
                 value=next(iter(_options)),
-                label="FILE snapshot source",
+                label=operations_text("asset.file_snapshot_source", operations_locale),
                 full_width=True,
             )
             asset_run_file_analysis_button = mo.ui.run_button(
-                label="Analyze FILE snapshot",
+                label=operations_text("asset.analyze_file_snapshot", operations_locale),
                 kind="success",
             )
         else:
@@ -1638,6 +1755,8 @@ def _(
     asset_run_file_analysis_button,
     get_analysis_results,
     operations_actions,
+    operations_locale,
+    operations_text,
     registered_sources,
     set_analysis_results,
     set_asset_analysis_action_error,
@@ -1646,7 +1765,9 @@ def _(
     if asset_run_file_analysis_button is not None and asset_run_file_analysis_button.value:
         try:
             if asset_file_analysis_source is None:
-                raise ValueError("select a FILE snapshot source before analysis")
+                raise ValueError(
+                    operations_text("asset.select_file_before_analysis", operations_locale)
+                )
             _selected_label = asset_file_analysis_source.value
             _source_id = _selected_label.rsplit(" · ", 1)[-1]
             _source = next(
@@ -1671,9 +1792,7 @@ def _(
             set_analysis_results(_updated_results)
             set_asset_analysis_action_error("")
             set_asset_analysis_action_success(
-                "FILE snapshot analysis recorded. Assets and Investigations now use the "
-                "persisted evidence. This does not create anomaly, fault, health, or "
-                "maintenance meaning."
+                operations_text("asset.file_analysis_success", operations_locale)
             )
     return
 
@@ -1694,10 +1813,11 @@ def _(
     asset_workspace,
     mo,
     operations_locale,
+    operations_text,
     render_asset_analysis_html,
 ):
     if asset_workspace is None:
-        asset_analysis_view = mo.md("No asset is selected.")
+        asset_analysis_view = mo.md(operations_text("asset.no_selection", operations_locale))
     else:
         _blocks = [mo.Html(render_asset_analysis_html(asset_workspace, operations_locale))]
         if asset_analysis_action_error:
@@ -1705,7 +1825,7 @@ def _(
                 mo.callout(
                     asset_analysis_action_error,
                     kind="danger",
-                    title="FILE analysis failed",
+                    title=operations_text("asset.file_analysis_failed", operations_locale),
                 )
             )
         if asset_analysis_action_success:
@@ -1713,29 +1833,22 @@ def _(
                 mo.callout(
                     asset_analysis_action_success,
                     kind="success",
-                    title="Analysis recorded",
+                    title=operations_text("asset.analysis_recorded", operations_locale),
                 )
             )
         if asset_file_analysis_source is not None and asset_run_file_analysis_button is not None:
             _blocks.extend(
                 [
-                    mo.md("### Analyze prepared FILE snapshot"),
+                    mo.md(
+                        "### " + operations_text("asset.analyze_prepared_file", operations_locale)
+                    ),
                     asset_file_analysis_source,
                     asset_run_file_analysis_button,
-                    mo.md(
-                        "This action computes and stores versioned vibration statistical "
-                        "feature evidence from the exact registered snapshot. It does not "
-                        "declare anomaly, fault, health state, or maintenance need."
-                    ),
+                    mo.md(operations_text("asset.file_analysis_help", operations_locale)),
                 ]
             )
         else:
-            _blocks.append(
-                mo.md(
-                    "No registered FILE snapshot source is available for on-demand "
-                    "feature analysis on this asset."
-                )
-            )
+            _blocks.append(mo.md(operations_text("asset.no_file_snapshot", operations_locale)))
         asset_analysis_view = mo.vstack(_blocks, gap=0.8)
     return (asset_analysis_view,)
 
@@ -1752,6 +1865,8 @@ def _(
     get_signal_channel_choice,
     initial_signal_channel,
     mo,
+    operations_locale,
+    operations_text,
     registered_sources,
     set_signal_channel_choice,
 ):
@@ -1786,7 +1901,7 @@ def _(
                     confirmed_channel_ids=_confirmed,
                     selected=get_signal_channel_choice(),
                 ),
-                label="Signal",
+                label=operations_text("common.signal", operations_locale),
                 full_width=True,
                 on_change=set_signal_channel_choice,
             )
@@ -1795,7 +1910,7 @@ def _(
     signal_range_selector = mo.ui.radio(
         options=["Live", "15m", "24h", "7d"],
         value="Live",
-        label="Time range",
+        label=operations_text("common.time_range", operations_locale),
     )
     return signal_channel_selector, signal_range_selector
 
@@ -1976,6 +2091,8 @@ def _(
     mo,
     navigation_page,
     operations_context,
+    operations_locale,
+    operations_text,
     query_operations_latest_measurements,
     query_operations_measurement_aggregation,
     query_operations_measurement_page,
@@ -1990,19 +2107,27 @@ def _(
     if navigation_page != "assets" or asset_section.value != "signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
-        signal_view = mo.md("No asset is selected.")
+        signal_view = mo.md(operations_text("asset.no_selection", operations_locale))
     elif asset_history_error:
         signal_view = mo.callout(
             asset_history_error,
             kind="danger",
-            title="Asset History unavailable",
+            title=operations_text("asset.history_unavailable", operations_locale),
         )
     elif signal_channel_selector is None:
         signal_view = mo.md(
-            "### Signals\n\nNo mapped or stored signal is available for this asset yet."
+            "### "
+            + operations_text("asset.section.signals", operations_locale)
+            + "\n\n"
+            + operations_text("asset.no_signal", operations_locale)
         )
     elif asset_selector is None:
-        signal_view = mo.md("### Signals\n\nNo asset is selected.")
+        signal_view = mo.md(
+            "### "
+            + operations_text("asset.section.signals", operations_locale)
+            + "\n\n"
+            + operations_text("asset.no_selection", operations_locale)
+        )
     else:
         try:
             _channel_id = signal_channel_selector.value
@@ -2037,7 +2162,9 @@ def _(
                             silence_limit_seconds=live_flow_timing.max_silence.total_seconds(),
                         )
                     ),
-                    mo.md("#### Recent stored event-time points"),
+                    mo.md(
+                        "#### " + operations_text("asset.recent_event_points", operations_locale)
+                    ),
                 ]
                 if _live_page.points:
                     _live_blocks.extend(
@@ -2049,7 +2176,9 @@ def _(
                             ),
                             mo.accordion(
                                 {
-                                    "Raw observations": mo.ui.table(
+                                    operations_text(
+                                        "asset.raw_observations", operations_locale
+                                    ): mo.ui.table(
                                         measurement_history_rows(_live_page),
                                         page_size=10,
                                     )
@@ -2059,25 +2188,18 @@ def _(
                     )
                 else:
                     _live_blocks.append(
-                        mo.md(
-                            "No persisted observation is available in the live source's "
-                            "recent event-time window yet."
-                        )
+                        mo.md(operations_text("asset.no_recent_persisted", operations_locale))
                     )
                 _live_blocks.append(
-                    mo.md(
-                        "Source flow uses collector/session evidence; selected-channel "
-                        "quality and event time use stored observation evidence. "
-                        "The trend draws raw points "
-                        "without interpolation, so unobserved intervals remain visually unfilled. "
-                        "Historical replay timestamps remain historical. This view does not infer "
-                        "asset health, fault, alarm, or expected missing samples."
-                    )
+                    mo.md(operations_text("asset.live_evidence_help", operations_locale))
                 )
                 signal_view = mo.vstack(_live_blocks, gap=1.0)
             elif history_reader is None:
                 signal_view = mo.md(
-                    "### Signals\n\nNo Asset History catalog is available for this workspace."
+                    "### "
+                    + operations_text("asset.section.signals", operations_locale)
+                    + "\n\n"
+                    + operations_text("asset.no_history_catalog", operations_locale)
                 )
             else:
                 _start_at, _end_at = resolve_measurement_range(
@@ -2099,19 +2221,36 @@ def _(
                 )
                 _latest_view = mo.vstack(
                     [
-                        mo.md("#### Latest stored value"),
+                        mo.md(
+                            "#### "
+                            + operations_text("asset.latest_stored_value", operations_locale)
+                        ),
                         mo.ui.table(
                             [
                                 {
-                                    "Source": row["source"],
-                                    "Point": row["measurement_point"],
-                                    "Time": row["time"],
-                                    "Value": row["value"],
-                                    "Unit": row["unit"],
-                                    "Quality": row["quality"],
-                                    "Source quality": row["source_quality"],
-                                    "Time state": row["event_time_state"],
-                                    "History age (s)": row["history_age_seconds"],
+                                    operations_text("common.source", operations_locale): row[
+                                        "source"
+                                    ],
+                                    operations_text("common.point", operations_locale): row[
+                                        "measurement_point"
+                                    ],
+                                    operations_text("common.time", operations_locale): row["time"],
+                                    operations_text("common.value", operations_locale): row[
+                                        "value"
+                                    ],
+                                    operations_text("common.unit", operations_locale): row["unit"],
+                                    operations_text("common.quality", operations_locale): row[
+                                        "quality"
+                                    ],
+                                    operations_text(
+                                        "common.source_quality", operations_locale
+                                    ): row["source_quality"],
+                                    operations_text("common.time_state", operations_locale): row[
+                                        "event_time_state"
+                                    ],
+                                    operations_text(
+                                        "common.history_age_seconds", operations_locale
+                                    ): row["history_age_seconds"],
                                 }
                                 for row in _latest_rows
                             ],
@@ -2143,7 +2282,9 @@ def _(
                             ),
                             mo.accordion(
                                 {
-                                    "Data details": mo.ui.table(
+                                    operations_text(
+                                        "asset.data_details", operations_locale
+                                    ): mo.ui.table(
                                         measurement_aggregation_rows(_aggregation),
                                         page_size=10,
                                     )
@@ -2189,7 +2330,9 @@ def _(
                         _trend_blocks.append(
                             mo.accordion(
                                 {
-                                    "Raw observations": mo.ui.table(
+                                    operations_text(
+                                        "asset.raw_observations", operations_locale
+                                    ): mo.ui.table(
                                         measurement_history_rows(_page),
                                         page_size=10,
                                     )
@@ -2198,7 +2341,7 @@ def _(
                         )
                     else:
                         _trend_blocks.append(
-                            mo.md("No stored observation falls inside the selected time range.")
+                            mo.md(operations_text("asset.no_observation_range", operations_locale))
                         )
                     _trend_view = mo.vstack(_trend_blocks, gap=0.8)
 
@@ -2207,11 +2350,7 @@ def _(
                         _controls,
                         _latest_view,
                         _trend_view,
-                        mo.md(
-                            "Stored measurements and UI aggregates are observation evidence. "
-                            "This view does not infer asset health, fault, alarm, "
-                            "or missing samples."
-                        ),
+                        mo.md(operations_text("asset.stored_evidence_help", operations_locale)),
                     ],
                     gap=1.0,
                 )
@@ -2219,7 +2358,7 @@ def _(
             signal_view = mo.callout(
                 str(error),
                 kind="danger",
-                title="Signals unavailable",
+                title=operations_text("asset.signals_unavailable", operations_locale),
             )
     return (signal_view,)
 
@@ -2394,6 +2533,7 @@ def _(
     get_investigation_selection,
     mo,
     operations_locale,
+    operations_text,
     set_investigation_selection,
 ):
     _review_state = (
@@ -2430,7 +2570,7 @@ def _(
         investigation_group_selector = mo.ui.radio(
             options=list(_group_label_to_id),
             value=_group_id_to_label[_selected_group_id],
-            label="Queue groups",
+            label=operations_text("common.queue_groups", operations_locale),
             on_change=lambda value: set_investigation_selection(
                 (_group_label_to_id[value], None),
             ),
@@ -2477,6 +2617,7 @@ def _(
     investigation_queue_option_label,
     mo,
     operations_locale,
+    operations_text,
     selected_investigation_group,
     set_investigation_selection,
 ):
@@ -2501,7 +2642,7 @@ def _(
         investigation_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
-            label="Analysis evidence",
+            label=operations_text("common.analysis_evidence", operations_locale),
             on_change=lambda value: set_investigation_selection(
                 (selected_investigation_group.group_id, _label_to_id[value])
             ),
@@ -2547,13 +2688,19 @@ def _(
 
 
 @app.cell
-def _(InvestigationReviewState, mo, selected_investigation):
+def _(
+    InvestigationReviewState,
+    mo,
+    operations_locale,
+    operations_text,
+    selected_investigation,
+):
     if (
         selected_investigation is not None
         and selected_investigation.review_state == InvestigationReviewState.NOT_REQUESTED
     ):
         request_review_button = mo.ui.run_button(
-            label="Request review",
+            label=operations_text("investigation.request_review", operations_locale),
             kind="warn",
         )
     else:
@@ -2565,6 +2712,8 @@ def _(InvestigationReviewState, mo, selected_investigation):
 def _(
     get_review_workflow,
     operations_actions,
+    operations_locale,
+    operations_text,
     request_review_button,
     selected_investigation_result,
     set_review_request_error,
@@ -2574,7 +2723,9 @@ def _(
     if request_review_button is not None and request_review_button.value:
         try:
             if selected_investigation_result is None:
-                raise ValueError("select an analysis result before requesting review")
+                raise ValueError(
+                    operations_text("investigation.select_result_for_review", operations_locale)
+                )
             _, _updated_findings = operations_actions.request_review(selected_investigation_result)
         except (OSError, ValueError) as error:
             set_review_request_error(str(error))
@@ -2584,7 +2735,7 @@ def _(
             set_review_workflow((_updated_findings, _current_events))
             set_review_request_error("")
             set_review_request_success(
-                "Review requested. The analysis evidence itself was not reinterpreted."
+                operations_text("investigation.review_requested_detail", operations_locale)
             )
     return
 
@@ -2611,6 +2762,7 @@ def _(
     mo,
     operational_analysis_presentation_kind,
     operations_locale,
+    operations_text,
     phase_unbalance_exclusion_rows,
     phase_unbalance_provenance_rows,
     phase_unbalance_summary_rows,
@@ -2639,7 +2791,12 @@ def _(
         _queue_panel = mo.vstack(
             [
                 _filters,
-                mo.md("### Queue\n\nNo saved analysis result matches the current filters."),
+                mo.md(
+                    "### "
+                    + operations_text("investigation.queue", operations_locale)
+                    + "\n\n"
+                    + operations_text("investigation.no_filter_match", operations_locale)
+                ),
             ],
             gap=0.8,
         )
@@ -2647,9 +2804,13 @@ def _(
         _queue_blocks = [
             _filters,
             mo.md(
-                f"### Queue\n\n"
-                f"{investigation_group_count} group(s) · "
-                f"{len(investigation_queue.items)} saved analyses"
+                "### "
+                + operations_text("investigation.queue", operations_locale)
+                + "\n\n"
+                + operations_text("investigation.queue_summary", operations_locale).format(
+                    groups=investigation_group_count,
+                    analyses=len(investigation_queue.items),
+                )
             ),
             investigation_group_selector,
         ]
@@ -2657,24 +2818,31 @@ def _(
             _queue_blocks.extend(
                 [
                     mo.md(
-                        f"#### Analysis evidence\n\n"
-                        f"{selected_investigation_group.run_count} run(s) in this group"
+                        "#### "
+                        + operations_text(
+                            "investigation.evidence_heading",
+                            operations_locale,
+                        )
+                        + "\n\n"
+                        + operations_text(
+                            "investigation.group_run_count",
+                            operations_locale,
+                        ).format(runs=selected_investigation_group.run_count)
                     ),
                     investigation_selector,
                 ]
             )
         _queue_blocks.append(
-            mo.md(
-                "Groups combine the same asset, capability, and human-review state. "
-                "Exact analysis evidence remains selectable inside each group. "
-                "Order is newest evidence first, not severity."
-            )
+            mo.md(operations_text("investigation.grouping_help", operations_locale))
         )
         _queue_panel = mo.vstack(_queue_blocks, gap=0.8)
 
     if selected_investigation is None or selected_investigation_result is None:
         _detail_panel = mo.md(
-            "## Investigation detail\n\nSelect an analysis result from the queue."
+            "## "
+            + operations_text("investigation.title", operations_locale)
+            + "\n\n"
+            + operations_text("investigation.select_detail", operations_locale)
         )
     else:
         _presentation_kind = operational_analysis_presentation_kind(
@@ -2694,7 +2862,10 @@ def _(
         if _presentation_kind == OperationalAnalysisPresentationKind.PHASE_UNBALANCE:
             _evidence_blocks.extend(
                 [
-                    mo.md("### Evidence summary"),
+                    mo.md(
+                        "### "
+                        + operations_text("investigation.evidence_summary", operations_locale)
+                    ),
                     mo.ui.table(
                         phase_unbalance_summary_rows(selected_investigation_result),
                         selection=None,
@@ -2706,12 +2877,18 @@ def _(
                     ),
                     mo.accordion(
                         {
-                            "Excluded observations": mo.ui.table(
+                            operations_text(
+                                "investigation.excluded_observations",
+                                operations_locale,
+                            ): mo.ui.table(
                                 phase_unbalance_exclusion_rows(selected_investigation_result),
                                 selection=None,
                                 page_size=12,
                             ),
-                            "Evidence & provenance": mo.ui.table(
+                            operations_text(
+                                "investigation.evidence_provenance",
+                                operations_locale,
+                            ): mo.ui.table(
                                 phase_unbalance_provenance_rows(selected_investigation_result),
                                 selection=None,
                                 page_size=20,
@@ -2723,7 +2900,10 @@ def _(
         elif _presentation_kind == OperationalAnalysisPresentationKind.VIBRATION_FEATURES:
             _evidence = selected_investigation_result.evidence
             _feature_rows = [
-                {"Feature": name, "Value": value}
+                {
+                    operations_text("investigation.feature", operations_locale): name,
+                    operations_text("investigation.value", operations_locale): value,
+                }
                 for name, value in zip(
                     _evidence.feature_names,
                     _evidence.values,
@@ -2732,22 +2912,26 @@ def _(
             ]
             _evidence_blocks.extend(
                 [
-                    mo.md("### Vibration feature evidence"),
-                    mo.ui.table(_feature_rows, selection=None),
                     mo.md(
-                        "These values are waveform statistics from one exact FILE snapshot. "
-                        "No threshold or state policy interprets them here as anomaly, fault, "
-                        "health, alert, or maintenance need."
+                        "### "
+                        + operations_text(
+                            "investigation.vibration_evidence",
+                            operations_locale,
+                        )
                     ),
+                    mo.ui.table(_feature_rows, selection=None),
+                    mo.md(operations_text("investigation.vibration_help", operations_locale)),
                 ]
             )
         else:
             _evidence_blocks.append(
                 mo.callout(
-                    "This capability has persisted evidence but no explicit Operations "
-                    "renderer. The evidence is not reinterpreted as another capability.",
+                    operations_text("investigation.renderer_detail", operations_locale),
                     kind="neutral",
-                    title="Evidence renderer unavailable",
+                    title=operations_text(
+                        "investigation.renderer_unavailable",
+                        operations_locale,
+                    ),
                 )
             )
 
@@ -2757,7 +2941,10 @@ def _(
                 mo.callout(
                     review_request_error,
                     kind="danger",
-                    title="Review request failed",
+                    title=operations_text(
+                        "investigation.review_request_failed",
+                        operations_locale,
+                    ),
                 )
             )
         if review_request_success:
@@ -2765,31 +2952,34 @@ def _(
                 mo.callout(
                     review_request_success,
                     kind="success",
-                    title="Review requested",
+                    title=operations_text("investigation.review_requested", operations_locale),
                 )
             )
         if request_review_button is not None:
             _review_blocks.extend(
                 [
-                    mo.md("### Human review"),
-                    request_review_button,
                     mo.md(
-                        "Requesting review records a workflow item linked to this evidence. "
-                        "It does not declare a fault, alarm, health state, or maintenance need."
+                        "### " + operations_text("investigation.human_review", operations_locale)
                     ),
+                    request_review_button,
+                    mo.md(operations_text("investigation.review_help", operations_locale)),
                 ]
             )
         else:
             _review_blocks.append(
                 mo.md(
-                    "### Human review\n\n"
-                    "Current workflow state: "
-                    f"**{
-                        investigation_review_label(
+                    "### "
+                    + operations_text("investigation.human_review", operations_locale)
+                    + "\n\n"
+                    + operations_text(
+                        "investigation.current_review_state",
+                        operations_locale,
+                    ).format(
+                        state=investigation_review_label(
                             selected_investigation.review_state,
                             operations_locale,
                         )
-                    }**"
+                    )
                 )
             )
 
@@ -2799,7 +2989,10 @@ def _(
                 *_review_blocks,
                 mo.accordion(
                     {
-                        "Evidence identity": mo.Html(
+                        operations_text(
+                            "investigation.evidence_identity",
+                            operations_locale,
+                        ): mo.Html(
                             render_investigation_evidence_identity_html(
                                 selected_investigation,
                                 operations_locale,
@@ -2968,6 +3161,7 @@ def _(
     mo,
     operational_analysis_presentation_kind,
     operations_locale,
+    operations_text,
     phase_unbalance_summary_rows,
     selected_maintenance,
 ):
@@ -3000,7 +3194,7 @@ def _(
             maintenance_evidence_metrics = tuple(phase_unbalance_summary_rows(_result))
         if maintenance_evidence is not None:
             maintenance_open_investigation_button = mo.ui.run_button(
-                label="Open evidence in Investigations"
+                label=operations_text("maintenance.open_evidence", operations_locale)
             )
     return (
         maintenance_evidence,
@@ -3044,7 +3238,13 @@ def _(
 
 
 @app.cell
-def _(FindingReviewStatus, mo, selected_maintenance):
+def _(
+    FindingReviewStatus,
+    mo,
+    operations_locale,
+    operations_text,
+    selected_maintenance,
+):
     if selected_maintenance is None or selected_maintenance.status == FindingReviewStatus.CLOSED:
         maintenance_note_input = None
         maintenance_add_note_button = None
@@ -3053,18 +3253,26 @@ def _(FindingReviewStatus, mo, selected_maintenance):
     else:
         maintenance_note_input = mo.ui.text_area(
             value="",
-            label="Review note",
+            label=operations_text("maintenance.review_note", operations_locale),
             rows=3,
             full_width=True,
         )
-        maintenance_add_note_button = mo.ui.run_button(label="Add note")
+        maintenance_add_note_button = mo.ui.run_button(
+            label=operations_text("maintenance.add_note", operations_locale)
+        )
         maintenance_ack_button = (
-            mo.ui.run_button(label="Acknowledge", kind="success")
+            mo.ui.run_button(
+                label=operations_text("maintenance.acknowledge", operations_locale),
+                kind="success",
+            )
             if selected_maintenance.status == FindingReviewStatus.OPEN
             else None
         )
         maintenance_close_button = (
-            mo.ui.run_button(label="Close review", kind="warn")
+            mo.ui.run_button(
+                label=operations_text("maintenance.close_review", operations_locale),
+                kind="warn",
+            )
             if selected_maintenance.status == FindingReviewStatus.ACKNOWLEDGED
             else None
         )
@@ -3086,6 +3294,8 @@ def _(
     maintenance_close_button,
     maintenance_note_input,
     operations_actions,
+    operations_locale,
+    operations_text,
     selected_maintenance,
     set_maintenance_error,
     set_maintenance_success,
@@ -3102,7 +3312,9 @@ def _(
     if _action is not None:
         try:
             if selected_maintenance is None:
-                raise ValueError("select a review before recording an action")
+                raise ValueError(
+                    operations_text("maintenance.select_before_action", operations_locale)
+                )
             _finding = next(
                 item
                 for item in investigation_findings
@@ -3121,7 +3333,11 @@ def _(
             _current_findings, _ = get_review_workflow()
             set_review_workflow((_current_findings, _events))
             set_maintenance_error("")
-            set_maintenance_success(f"Review action recorded: {_action.value}.")
+            set_maintenance_success(
+                operations_text("maintenance.action_recorded", operations_locale).format(
+                    action=_action.value
+                )
+            )
     return
 
 
@@ -3149,6 +3365,7 @@ def _(
     maintenance_success,
     mo,
     operations_locale,
+    operations_text,
     maintenance_evidence,
     maintenance_evidence_metrics,
     maintenance_open_investigation_button,
@@ -3159,10 +3376,14 @@ def _(
     selected_maintenance,
 ):
     _counts = mo.md(
-        "### Review workload\n\n"
-        f"**Open {maintenance_queue.count(FindingReviewStatus.OPEN)}** · "
-        f"Acknowledged {maintenance_queue.count(FindingReviewStatus.ACKNOWLEDGED)} · "
-        f"Closed {maintenance_queue.count(FindingReviewStatus.CLOSED)}"
+        "### "
+        + operations_text("maintenance.workload", operations_locale)
+        + "\n\n"
+        + operations_text("maintenance.counts", operations_locale).format(
+            open=maintenance_queue.count(FindingReviewStatus.OPEN),
+            acknowledged=maintenance_queue.count(FindingReviewStatus.ACKNOWLEDGED),
+            closed=maintenance_queue.count(FindingReviewStatus.CLOSED),
+        )
     )
     _filters = mo.hstack(
         [maintenance_status_filter, maintenance_asset_filter],
@@ -3171,7 +3392,11 @@ def _(
     )
     if maintenance_selector is None:
         _queue_panel = mo.vstack(
-            [_counts, _filters, mo.md("No review matches the current filters.")],
+            [
+                _counts,
+                _filters,
+                mo.md(operations_text("maintenance.no_filter_match", operations_locale)),
+            ],
             gap=0.8,
         )
     else:
@@ -3180,8 +3405,13 @@ def _(
                 _counts,
                 _filters,
                 mo.md(
-                    f"### Queue\n\n{maintenance_filtered_count} shown · "
-                    f"{len(maintenance_queue.items)} total"
+                    "### "
+                    + operations_text("common.queue", operations_locale)
+                    + "\n\n"
+                    + operations_text("maintenance.queue_summary", operations_locale).format(
+                        shown=maintenance_filtered_count,
+                        total=len(maintenance_queue.items),
+                    )
                 ),
                 maintenance_selector,
             ],
@@ -3189,16 +3419,29 @@ def _(
         )
 
     if selected_maintenance is None:
-        _detail_panel = mo.md("## Maintenance review\n\nSelect a review from the queue.")
+        _detail_panel = mo.md(
+            "## "
+            + operations_text("maintenance.review_heading", operations_locale)
+            + "\n\n"
+            + operations_text("maintenance.select_review", operations_locale)
+        )
     else:
         _action_blocks = []
         if maintenance_error:
             _action_blocks.append(
-                mo.callout(maintenance_error, kind="danger", title="Review action failed")
+                mo.callout(
+                    maintenance_error,
+                    kind="danger",
+                    title=operations_text("maintenance.action_failed", operations_locale),
+                )
             )
         if maintenance_success:
             _action_blocks.append(
-                mo.callout(maintenance_success, kind="success", title="Review updated")
+                mo.callout(
+                    maintenance_success,
+                    kind="success",
+                    title=operations_text("maintenance.updated", operations_locale),
+                )
             )
         if selected_maintenance.status != FindingReviewStatus.CLOSED:
             _buttons = [
@@ -3212,7 +3455,7 @@ def _(
             ]
             _action_blocks.extend(
                 [
-                    mo.md("### Review actions"),
+                    mo.md("### " + operations_text("maintenance.actions", operations_locale)),
                     maintenance_note_input,
                     mo.hstack(_buttons, justify="start", gap=0.6),
                 ]
@@ -3220,8 +3463,10 @@ def _(
         else:
             _action_blocks.append(
                 mo.md(
-                    "### Review actions\n\n"
-                    "This review is closed. Closed review history is append-locked."
+                    "### "
+                    + operations_text("maintenance.actions", operations_locale)
+                    + "\n\n"
+                    + operations_text("maintenance.closed_help", operations_locale)
                 )
             )
         _evidence_blocks = [
@@ -3255,7 +3500,7 @@ def _(
                 *_action_blocks,
                 mo.accordion(
                     {
-                        "Review identity": mo.Html(
+                        operations_text("maintenance.review_identity", operations_locale): mo.Html(
                             render_maintenance_identity_html(
                                 selected_maintenance,
                                 operations_locale,
@@ -3263,10 +3508,7 @@ def _(
                         )
                     }
                 ),
-                mo.md(
-                    "Acknowledge and Close change only the human review workflow. "
-                    "They do not confirm a fault, repair, asset health, or CMMS work order."
-                ),
+                mo.md(operations_text("maintenance.workflow_semantics", operations_locale)),
             ],
             gap=0.9,
         )
@@ -3308,6 +3550,7 @@ def _(
     asset_names,
     mo,
     operations_locale,
+    operations_text,
     render_system_diagnostics_html,
     render_system_errors_html,
     render_system_runtime_html,
@@ -3323,11 +3566,15 @@ def _(
         _name_conflicts.append(
             mo.callout(
                 mo.md(
-                    "Registered sources declare different display names for the same asset, "
-                    "so the asset ID is shown instead:\n\n" + _rows
+                    operations_text(
+                        "system.asset_name_conflict_detail",
+                        operations_locale,
+                    )
+                    + "\n\n"
+                    + _rows
                 ),
                 kind="warn",
-                title="Asset display name conflict",
+                title=operations_text("system.asset_name_conflict", operations_locale),
             )
         )
     system_view = mo.vstack(
@@ -3337,16 +3584,15 @@ def _(
             *_name_conflicts,
             mo.accordion(
                 {
-                    "Advanced diagnostics": mo.Html(
+                    operations_text(
+                        "system.advanced_diagnostics",
+                        operations_locale,
+                    ): mo.Html(
                         render_system_diagnostics_html(system_diagnostics, operations_locale)
                     )
                 }
             ),
-            mo.md(
-                "Runtime status is shown only where current evidence exists. "
-                "A missing process heartbeat is displayed as unavailable rather than "
-                "assumed healthy."
-            ),
+            mo.md(operations_text("system.runtime_evidence_help", operations_locale)),
         ],
         gap=1.0,
     )
@@ -3415,17 +3661,40 @@ def _(
     setup_diagnostic_success,
     setup_workspace,
 ):
+    def _setup_step(title_key, help_key):
+        title = operations_text(title_key, operations_locale)
+        detail = operations_text(help_key, operations_locale)
+        return mo.Html(
+            '<div class="phm-setup-step">'
+            f'<div class="phm-setup-step-title">{title}</div>'
+            f'<div class="phm-setup-help">{detail}</div>'
+            "</div>"
+        )
+
     _message_blocks = []
     if setup_error:
-        _message_blocks.append(mo.callout(setup_error, kind="danger", title="Setup action failed"))
+        _message_blocks.append(
+            mo.callout(
+                setup_error,
+                kind="danger",
+                title=operations_text("setup.action_failed", operations_locale),
+            )
+        )
     if setup_success:
-        _message_blocks.append(mo.callout(setup_success, kind="success", title="Setup updated"))
+        _message_blocks.append(
+            mo.callout(
+                setup_success,
+                kind="success",
+                title=operations_text("setup.updated", operations_locale),
+            )
+        )
 
     if setup_selected_source is None:
         _selected_source_panel = mo.md(
-            "### Connect your first data source\n\n"
-            "Operations needs an observation source before it can show asset state or "
-            "analysis evidence. Choose a prepared FILE source or a live OPC UA source below."
+            "### "
+            + operations_text("setup.connect_first_source", operations_locale)
+            + "\n\n"
+            + operations_text("setup.connect_first_source_help", operations_locale)
         )
     else:
         _source_actions = [
@@ -3456,14 +3725,10 @@ def _(
                     )
                 ),
                 mo.hstack(_source_actions, justify="start", gap=0.6),
-                mo.md(
-                    "Enable/Pause changes whether a runtime may use the source. "
-                    "Start/Stop collection writes desired collection state for OPC UA; "
-                    "it does not prove the collector process is running or connected."
-                ),
+                mo.md(operations_text("setup.source_controls_help", operations_locale)),
                 mo.accordion(
                     {
-                        "Data age policy": mo.vstack(
+                        operations_text("setup.data_age_policy", operations_locale): mo.vstack(
                             [
                                 setup_freshness_age_input,
                                 mo.hstack(
@@ -3471,11 +3736,7 @@ def _(
                                     justify="start",
                                     gap=0.6,
                                 ),
-                                mo.md(
-                                    "This policy compares the latest comparable observation "
-                                    "time with the current assessment time. It does not prove "
-                                    "connection health or asset health."
-                                ),
+                                mo.md(operations_text("setup.data_age_help", operations_locale)),
                             ],
                             gap=0.6,
                         )
@@ -3483,14 +3744,17 @@ def _(
                 ),
                 mo.accordion(
                     {
-                        "Advanced diagnostics": mo.vstack(
+                        operations_text("setup.advanced_diagnostics", operations_locale): mo.vstack(
                             [
                                 *(
                                     [
                                         mo.callout(
                                             setup_diagnostic_error,
                                             kind="danger",
-                                            title="Diagnostic action failed",
+                                            title=operations_text(
+                                                "setup.diagnostic_failed",
+                                                operations_locale,
+                                            ),
                                         )
                                     ]
                                     if setup_diagnostic_error
@@ -3501,7 +3765,10 @@ def _(
                                         mo.callout(
                                             setup_diagnostic_success,
                                             kind="success",
-                                            title="Diagnostic action completed",
+                                            title=operations_text(
+                                                "setup.diagnostic_completed",
+                                                operations_locale,
+                                            ),
                                         )
                                     ]
                                     if setup_diagnostic_success
@@ -3519,12 +3786,7 @@ def _(
                                     justify="start",
                                     gap=0.6,
                                 ),
-                                mo.md(
-                                    "These bounded actions are for connection/data-contract "
-                                    "diagnostics. They do not start the persistent collection "
-                                    "service, and a successful attempt is not current connection "
-                                    "health."
-                                ),
+                                mo.md(operations_text("setup.diagnostics_help", operations_locale)),
                             ],
                             gap=0.6,
                         )
@@ -3543,8 +3805,13 @@ def _(
             _file_discovery_view = mo.vstack(
                 [
                     mo.md(
-                        f"Discovered **{file_discovery.file_count}** file(s), "
-                        f"**{len(file_discovery.common_columns)}** common column(s)."
+                        operations_text(
+                            "setup.discovered_file_summary",
+                            operations_locale,
+                        ).format(
+                            files=file_discovery.file_count,
+                            columns=len(file_discovery.common_columns),
+                        )
                     ),
                     mo.ui.table(_preview_rows, selection=None),
                     file_signal_selection,
@@ -3553,52 +3820,27 @@ def _(
             )
         else:
             _file_discovery_view = mo.md(
-                "Run discovery after choosing a file or history directory. "
-                "No column meaning is inferred during discovery."
+                operations_text("setup.run_discovery_help", operations_locale)
             )
 
         _source_wizard = mo.vstack(
             [
-                mo.md("### Add data source"),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">1 · Source</div>'
-                    '<div class="phm-setup-help">Choose the prepared file boundary '
-                    "and declare asset identity.</div>"
-                    "</div>"
-                ),
+                mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
+                _setup_step("setup.step.source", "setup.file.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
                 mo.hstack([add_asset_id, add_point_id], widths="equal"),
                 file_mode_input,
                 file_path_input,
                 file_discover_button,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">2 · Select signals</div>'
-                    '<div class="phm-setup-help">Keep only discovered columns that '
-                    "belong to this source mapping.</div>"
-                    "</div>"
-                ),
+                _setup_step("setup.step.select_signals", "setup.file.select_help"),
                 _file_discovery_view,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">3 · Define time & sampling</div>'
-                    '<div class="phm-setup-help">FILE registration preserves column '
-                    "identity; it does not infer physical measurement semantics.</div>"
-                    "</div>"
-                ),
+                _setup_step("setup.step.time_sampling", "setup.file.meaning_help"),
                 mo.hstack(
                     [file_timestamp_input, file_sampling_rate_input],
                     widths="equal",
                 ),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">4 · Review & save</div>'
-                    '<div class="phm-setup-help">The file is validated before its '
-                    "registration is persisted.</div>"
-                    "</div>"
-                ),
+                _setup_step("setup.step.review_save", "setup.file.review_help"),
                 register_setup_source_button,
             ],
             gap=0.75,
@@ -3606,44 +3848,55 @@ def _(
     else:
         if opcua_browse_current and opcua_browse is not None:
             _browse_status = mo.md(
-                f"Browse completed: **{len(opcua_browse.variables)}** variable candidate(s), "
-                f"visited **{opcua_browse.visited_node_count}** node(s)"
-                + (" · result truncated" if opcua_browse.truncated else "")
-                + "."
+                operations_text("setup.browse_summary", operations_locale).format(
+                    variables=len(opcua_browse.variables),
+                    nodes=opcua_browse.visited_node_count,
+                    truncated=(
+                        operations_text("setup.result_truncated", operations_locale)
+                        if opcua_browse.truncated
+                        else ""
+                    ),
+                )
             )
         else:
-            _browse_status = mo.md(
-                "Connect & browse uses one bounded anonymous session to discover "
-                "variable identity. "
-                "It does not read signal values or prove ongoing connection health."
-            )
+            _browse_status = mo.md(operations_text("setup.browse_help", operations_locale))
 
         if opcua_mapping_error:
             _mapping_view = mo.callout(
                 opcua_mapping_error,
                 kind="danger",
-                title="Explicit mapping invalid",
+                title=operations_text("setup.mapping_invalid", operations_locale),
             )
         elif opcua_candidate_mappings:
             _mapping_view = mo.ui.table(
                 [
-                    {"Signal": item.channel_id, "NodeId": item.node_id}
+                    {
+                        operations_text("common.signal", operations_locale): item.channel_id,
+                        "NodeId": item.node_id,
+                    }
                     for item in opcua_candidate_mappings
                 ],
                 selection=None,
             )
         else:
-            _mapping_view = mo.md("No signal mapping selected yet.")
+            _mapping_view = mo.md(operations_text("setup.no_mapping_selected", operations_locale))
 
         _semantic_rows = [
             {
-                "Signal": channel_id,
-                "Observed property": binding.definition.observed_property or "Unresolved",
-                "Scope": binding.definition.scope or "—",
-                "Statistic": binding.definition.statistic or "—",
-                "Unit": binding.definition.unit or "—",
-                "Version": binding.version,
-                "Evidence": binding.interpretation_evidence,
+                operations_text("common.signal", operations_locale): channel_id,
+                operations_text("setup.observed_property", operations_locale): (
+                    binding.definition.observed_property
+                    or operations_text("common.unresolved", operations_locale)
+                ),
+                operations_text("setup.scope", operations_locale): binding.definition.scope or "—",
+                operations_text("setup.statistic", operations_locale): (
+                    binding.definition.statistic or "—"
+                ),
+                operations_text("setup.unit", operations_locale): binding.definition.unit or "—",
+                operations_text("setup.version", operations_locale): binding.version,
+                operations_text("common.evidence", operations_locale): (
+                    binding.interpretation_evidence
+                ),
             }
             for channel_id, binding in sorted(pending_semantics.items())
         ]
@@ -3672,65 +3925,43 @@ def _(
                     (
                         mo.ui.table(_semantic_rows, selection=None)
                         if _semantic_rows
-                        else mo.md(
-                            "No explicit measurement meaning has been added. "
-                            "Unmapped meaning remains **Unresolved**."
-                        )
+                        else mo.md(operations_text("setup.semantic_empty", operations_locale))
                     ),
                 ],
                 gap=0.6,
             )
             if semantic_channel_input is not None
-            else mo.md("Select at least one mapped signal before defining meaning.")
+            else mo.md(operations_text("setup.select_mapping_first", operations_locale))
         )
 
         _source_wizard = mo.vstack(
             [
-                mo.md("### Add data source"),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">1 · Connect</div>'
-                    '<div class="phm-setup-help">Declare endpoint and asset identity, '
-                    "then run a bounded browse.</div>"
-                    "</div>"
-                ),
+                mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
+                _setup_step("setup.step.connect", "setup.opcua.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
                 mo.hstack([add_asset_id, add_point_id], widths="equal"),
                 mo.hstack([opcua_endpoint_input, opcua_timeout_input], widths=[0.75, 0.25]),
                 opcua_browse_button,
                 _browse_status,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">2 · Select signals</div>'
-                    '<div class="phm-setup-help">Browse selection defines explicit '
-                    "NodeId mapping. NodeId and BrowseName do not establish physical "
-                    "meaning.</div>"
-                    "</div>"
-                ),
+                _setup_step("setup.step.select_signals", "setup.opcua.select_help"),
                 (
                     opcua_signal_selection
                     if opcua_signal_selection is not None
-                    else mo.md("No current browse result.")
+                    else mo.md(operations_text("setup.no_browse_result", operations_locale))
                 ),
                 _mapping_view,
-                mo.accordion({"Advanced explicit NodeId mapping": opcua_explicit_mapping_input}),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">3 · Define meaning</div>'
-                    '<div class="phm-setup-help">Meaning is explicit, versioned, and '
-                    "evidence-backed. Leave channels unresolved when meaning is not "
-                    "established.</div>"
-                    "</div>"
+                mo.accordion(
+                    {
+                        operations_text(
+                            "setup.advanced_nodeid_mapping",
+                            operations_locale,
+                        ): opcua_explicit_mapping_input
+                    }
                 ),
+                _setup_step("setup.step.define_meaning", "setup.opcua.meaning_help"),
                 _semantic_editor,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">4 · Review & save</div>'
-                    '<div class="phm-setup-help">Saving registers configuration only. '
-                    "It does not enable the source or start collection.</div>"
-                    "</div>"
-                ),
+                _setup_step("setup.step.review_save", "setup.opcua.review_help"),
                 register_setup_source_button,
             ],
             gap=0.75,
@@ -3738,16 +3969,8 @@ def _(
 
     _analysis_configuration_view = mo.vstack(
         [
-            mo.md(
-                "Operational analysis policies are versioned outside this Setup workspace today. "
-                "The live three-phase runner and FILE analysis preserve their policy/version "
-                "in evidence; this screen does not expose controls that the application contract "
-                "cannot persist safely."
-            ),
-            mo.md(
-                "Use **System** to verify analysis-service runtime status and **Investigations** "
-                "to inspect the exact policy/evidence of completed analyses."
-            ),
+            mo.md(operations_text("setup.analysis_policy_help", operations_locale)),
+            mo.md(operations_text("setup.analysis_navigation_help", operations_locale)),
         ],
         gap=0.8,
     )
@@ -3756,8 +3979,10 @@ def _(
         _guided_setup = mo.vstack(
             [
                 mo.md(
-                    "### 1 · Connect data\n\n"
-                    "Choose FILE for prepared local observations or OPC UA for a live source."
+                    "### 1 · "
+                    + operations_text("setup.connect_data_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.connect_data_help", operations_locale)
                 ),
                 _source_wizard,
             ],
@@ -3767,7 +3992,7 @@ def _(
         _defined, _total = setup_selected_source.semantic_coverage
         _guided_setup = mo.vstack(
             [
-                mo.md("### 1 · Connected source"),
+                mo.md("### 1 · " + operations_text("setup.connected_source", operations_locale)),
                 mo.Html(
                     render_setup_sources_html(
                         setup_workspace,
@@ -3776,8 +4001,10 @@ def _(
                 ),
                 _selected_source_panel,
                 mo.md(
-                    "### 2 · Inspect signals\n\n"
-                    "Confirm the exact source identity and the signals that were registered."
+                    "### 2 · "
+                    + operations_text("setup.inspect_signals_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.inspect_signals_help", operations_locale)
                 ),
                 mo.Html(
                     render_setup_signals_html(
@@ -3786,15 +4013,19 @@ def _(
                     )
                 ),
                 mo.md(
-                    "### 3 · Confirm meaning\n\n"
-                    f"Explicit meaning is recorded for **{_defined} / {_total}** signal(s). "
-                    "Unresolved channels remain unresolved rather than being inferred from names."
+                    "### 3 · "
+                    + operations_text("setup.confirm_meaning_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.confirm_meaning_help", operations_locale).format(
+                        defined=_defined,
+                        total=_total,
+                    )
                 ),
                 mo.md(
-                    "### 4 · Start or verify data flow\n\n"
-                    "Enable the source when it is ready to be used. For OPC UA, request "
-                    "persistent collection. Bounded diagnostics remain available above for "
-                    "connection and data-contract checks."
+                    "### 4 · "
+                    + operations_text("setup.verify_flow_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.verify_flow_help", operations_locale)
                 ),
                 mo.callout(
                     operations_text(
@@ -3810,7 +4041,9 @@ def _(
                 ),
                 setup_refresh_data_flow_button,
                 mo.md(
-                    "### 5 · Observe\n\n"
+                    "### 5 · "
+                    + operations_text("setup.observe_title", operations_locale)
+                    + "\n\n"
                     + operations_text(
                         (
                             "setup.observe_ready"
@@ -3823,8 +4056,12 @@ def _(
                 *([setup_open_monitor_button] if setup_open_monitor_button is not None else []),
                 mo.accordion(
                     {
-                        "Add another data source": _source_wizard,
-                        "Analysis configuration": _analysis_configuration_view,
+                        operations_text(
+                            "setup.add_another_source", operations_locale
+                        ): _source_wizard,
+                        operations_text(
+                            "setup.analysis_configuration", operations_locale
+                        ): _analysis_configuration_view,
                     }
                 ),
             ],
@@ -3834,9 +4071,10 @@ def _(
     setup_view = mo.vstack(
         [
             mo.md(
-                "## Setup\n\n"
-                "Connect data, inspect signal identity, record only known measurement meaning, "
-                "then verify data flow before moving to Monitor."
+                "## "
+                + operations_text("setup.title", operations_locale)
+                + "\n\n"
+                + operations_text("setup.intro", operations_locale)
             ),
             *_message_blocks,
             _guided_setup,
@@ -3869,7 +4107,11 @@ def _(
                     f'<a href="{first_run_sample.url}" target="_blank" rel="noopener noreferrer">'
                     f"{operations_text('first_run.sample.open', operations_locale)}</a>"
                 ),
-                mo.md(f"Sample workspace: `{first_run_sample.workspace}`"),
+                mo.md(
+                    operations_text("first_run.sample.workspace", operations_locale).format(
+                        workspace=first_run_sample.workspace
+                    )
+                ),
                 mo.hstack(
                     [first_run_stop_sample_button, first_run_real_button],
                     justify="start",
@@ -4181,6 +4423,7 @@ def _(
     monitor_workspace_ui,
     navigation_page,
     operations_locale,
+    operations_text,
     operations_theme_css,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -4204,8 +4447,10 @@ def _(
 
     if asset_selector is None:
         asset_view = mo.md(
-            "## Assets\n\n"
-            "No asset evidence is available yet. Add a source in Setup or load history."
+            "## "
+            + operations_text("asset.title", operations_locale)
+            + "\n\n"
+            + operations_text("asset.no_evidence", operations_locale)
         )
     elif asset_workspace_error:
         asset_view = mo.vstack(
@@ -4214,14 +4459,17 @@ def _(
                 mo.callout(
                     asset_workspace_error,
                     kind="danger",
-                    title="Asset workspace unavailable",
+                    title=operations_text("asset.workspace_unavailable", operations_locale),
                 ),
             ],
             gap=1.0,
         )
     elif asset_workspace is None:
         asset_view = mo.vstack(
-            [asset_selector, mo.md("Select Assets to load this workspace.")],
+            [
+                asset_selector,
+                mo.md(operations_text("asset.load_hint", operations_locale)),
+            ],
             gap=1.0,
         )
     else:

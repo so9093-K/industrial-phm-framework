@@ -189,7 +189,10 @@ function render({
     asset.setAttribute('aria-label', t('monitor.choose_asset_aria', 'Choose asset'));
     identity.append(asset);
     const subtitle = $('div', 'mw-context-sub');
-    subtitle.append($('span', '', s.asset_name !== s.asset_id ? s.asset_id : `${s.stored_signal_count} stored signals · observation snapshot`));
+    subtitle.append($('span', '', s.asset_name !== s.asset_id
+      ? s.asset_id
+      : t('monitor.stored_signals_snapshot', '{count} stored signals · observation snapshot')
+          .replace('{count}', String(s.stored_signal_count))));
     identity.append(subtitle);
     title.append(identity);
     const flow = $('div', 'mw-flow');
@@ -255,7 +258,11 @@ function render({
         groups.get(group).push(row);
       }
       const focusGroup = s.signals.find(row => row.channel === s.focus)?.observed_property;
-      const orderedGroups = [...groups].sort(([a], [b]) => (a === focusGroup ? -1 : b === focusGroup ? 1 : 0) || (a === 'Unresolved signals' ? 1 : b === 'Unresolved signals' ? -1 : a.localeCompare(b)));
+      const unresolvedGroup = t('monitor.group_unresolved', 'Unresolved signals');
+    const orderedGroups = [...groups].sort(([a], [b]) =>
+      (a === focusGroup ? -1 : b === focusGroup ? 1 : 0)
+      || (a === unresolvedGroup ? 1 : b === unresolvedGroup ? -1 : a.localeCompare(b))
+    );
       for (const [name, rows] of orderedGroups) {
         const group = $('section', 'mw-signal-group');
         group.append($('h3', '', name), $('span', 'mw-group-count', String(rows.length)));
@@ -266,14 +273,42 @@ function render({
           const pick = button('', () => emit('focus', {
             channel: row.channel
           }), 'mw-signal-pick');
-          pick.setAttribute('aria-label', `Inspect ${row.channel}`);
+          pick.setAttribute(
+      'aria-label',
+      t('monitor.inspect_channel', 'Inspect {channel}').replace('{channel}', row.channel)
+    );
           pick.setAttribute('aria-pressed', String(isFocus));
           const info = $('div', 'mw-signal-info');
-          info.append($('strong', '', row.origins.length > 1 ? row.channel : row.scope || row.channel), $('span', 'mw-signal-id', row.origins.length > 1 ? 'All origins · ' + row.origins.length + ' source/point records' : (row.scope || (row.observed_property && row.observed_property !== 'unresolved')) ? row.channel : 'Meaning not confirmed'));
+          info.append(
+      $('strong', '', row.origins.length > 1 ? row.channel : row.scope || row.channel),
+      $('span', 'mw-signal-id',
+        row.origins.length > 1
+          ? t('monitor.all_origins', 'All origins · {count} source/point records')
+              .replace('{count}', String(row.origins.length))
+          : (row.scope || (row.observed_property && row.observed_property !== 'unresolved'))
+            ? row.channel
+            : t('monitor.meaning_not_confirmed', 'Meaning not confirmed')
+      )
+    );
           const val = $('div', 'mw-signal-reading');
-          val.append($('strong', '', row.origins.length > 1 ? row.origins.length + ' origins' : number(row.value)), $('span', '', row.origins.length > 1 ? 'kept separate' : row.unit === 'unknown' ? '' : row.unit || ''));
+          val.append(
+      $('strong', '',
+        row.origins.length > 1
+          ? t('monitor.origins', '{count} origins').replace('{count}', String(row.origins.length))
+          : number(row.value)
+      ),
+      $('span', '',
+        row.origins.length > 1
+          ? t('monitor.kept_separate', 'kept separate')
+          : row.unit === 'unknown' ? '' : row.unit || ''
+      )
+    );
           pick.append(info, val);
-          pick.title = row.origins.map(origin => `${origin.source}${origin.measurement_point?' / '+origin.measurement_point:''} · Event: ${origin.time||'not recorded'} · Quality: ${origin.source_quality}`).join('\n');
+          pick.title = row.origins.map(origin =>
+      `${origin.source}${origin.measurement_point ? ' / ' + origin.measurement_point : ''} · `
+      + `${t('monitor.event', 'Event')}: ${origin.time || t('monitor.not_recorded', 'Not recorded')} · `
+      + `${t('monitor.quality', 'Quality')}: ${origin.source_quality}`
+    ).join('\n');
           const compare = button('', () => {
             let channels = [...(s.comparisons || [])];
             if (channels.includes(row.channel)) channels = channels.filter(c => c !== row.channel);
@@ -284,7 +319,10 @@ function render({
           }, 'mw-compare');
           compare.append(icon(isSelected ? 'check' : 'plus'));
           compare.disabled = isFocus || (!isSelected && (s.comparisons || []).length >= 5);
-          compare.setAttribute('aria-label', `Compare ${row.channel}`);
+          compare.setAttribute(
+      'aria-label',
+      t('monitor.compare_channel', 'Compare {channel}').replace('{channel}', row.channel)
+    );
           compare.setAttribute('aria-pressed', String(isSelected));
           item.append(pick, compare);
           group.append(item);
@@ -330,7 +368,10 @@ function render({
             channels: (s.comparisons || []).filter(c => c !== channel)
           }), 'mw-remove');
           remove.append(icon('close'));
-          remove.setAttribute('aria-label', `Remove ${channel}`);
+          remove.setAttribute(
+      'aria-label',
+      t('monitor.remove_channel', 'Remove {channel}').replace('{channel}', channel)
+    );
           head.append(remove);
         }
         reading.append(head);
@@ -338,12 +379,17 @@ function render({
         value.append($('strong', '', number(row.value)), $('span', '', row.unit === 'unknown' ? t('monitor.unit_unknown', 'unit unknown') : row.unit || ''));
         reading.append(value);
         let quality = row.quality === 'no recorded issue' ? row.source_quality : row.quality;
-        if (row.event_time_state && row.event_time_state !== 'recorded') quality += ` · event time ${row.event_time_state}`;
+        if (row.event_time_state && row.event_time_state !== 'recorded') {
+      quality += ` · ${t('monitor.event_time', 'event time')} ${row.event_time_state}`;
+    }
         const meta = $('div', 'mw-reading-meta');
         const at = row.time ? Date.parse(row.time) : null;
         const sameDay = at != null && s.chart && new Date(at).toISOString().slice(0, 10) === new Date(s.chart.end).toISOString().slice(0, 10);
         meta.append($('span', quality === 'good' ? 'mw-good' : '', `${t('monitor.quality', 'Quality')} · ${quality||t('monitor.unknown', 'unknown')}`), $('time', '', at == null ? t('monitor.event_time_unavailable', 'Event time unavailable') : `${time(at, !sameDay)} UTC`));
-        meta.title = `Event: ${row.time||'not recorded'}\n${row.source}${row.measurement_point?' / '+row.measurement_point:''}\n${row.event_time_state}`;
+        meta.title =
+      `${t('monitor.event', 'Event')}: ${row.time || t('monitor.not_recorded', 'Not recorded')}\n`
+      + `${row.source}${row.measurement_point ? ' / ' + row.measurement_point : ''}\n`
+      + `${t('monitor.event_time', 'event time')}: ${row.event_time_state}`;
         if (rows.length > 1) meta.prepend($('span', 'mw-origin-label', row.source + (row.measurement_point ? ' / ' + row.measurement_point : '')));
         reading.append(meta);
         readings.append(reading);
@@ -374,7 +420,13 @@ function render({
     const supporting = $('section', 'mw-support');
     const evidence = $('div', 'mw-evidence');
     const evidenceHead = $('div', 'mw-panel-head');
-    evidenceHead.append($('h2', '', t('monitor.analysis_evidence', 'Analysis evidence')), $('span', 'mw-muted', `${(s.evidence || []).length} loaded items in this event-time window`));
+    evidenceHead.append(
+      $('h2', '', t('monitor.analysis_evidence', 'Analysis evidence')),
+      $('span', 'mw-muted',
+        t('monitor.loaded_evidence_count', '{count} loaded items in this event-time window')
+          .replace('{count}', String((s.evidence || []).length))
+      )
+    );
     evidence.append(evidenceHead);
     const evidenceList = $('div', 'mw-evidence-list');
     evidenceList.setAttribute('role', 'region');
@@ -600,7 +652,8 @@ function drawChart(container, data, windows, onEvidence) {
           role: 'button',
           'data-evidence-id': window.id,
           tabindex: targets.length ? -1 : 0,
-          'aria-label': `Open ${window.label} analysis evidence`
+          'aria-label': t('monitor.open_analysis_evidence', 'Open {label} analysis evidence')
+          .replace('{label}', window.label)
         });
         target.append(svgEl('title', {}, `${window.label} · ${time(window.start)} — ${time(window.end)} UTC`));
         target.addEventListener('click', () => onEvidence(window.id));
@@ -720,7 +773,12 @@ function drawChart(container, data, windows, onEvidence) {
         c.setAttribute('x2', px);
         c.setAttribute('visibility', 'visible');
       });
-      tooltip.replaceChildren($('div', 'mw-tooltip-title', `BUCKET SUMMARY · UTC`), $('div', 'mw-tooltip-cursor', `Cursor ${time(at,true)}`));
+      tooltip.replaceChildren(
+      $('div', 'mw-tooltip-title', t('monitor.bucket_summary', 'BUCKET SUMMARY · UTC')),
+      $('div', 'mw-tooltip-cursor',
+        t('monitor.cursor', 'Cursor {time}').replace('{time}', time(at, true))
+      )
+    );
       let hits = 0;
       for (const group of data.groups)
         for (const series of group.series) {
@@ -731,9 +789,28 @@ function drawChart(container, data, windows, onEvidence) {
           row.style.setProperty('--series-color', series.color);
           tooltip.append(row);
           tooltip.append($('div', 'mw-tooltip-window', `${time(b.start,true)} — ${time(b.end,true)} UTC`));
-          tooltip.append($('div', 'mw-tooltip-range', `Min ${number(b.min)} · max ${number(b.max)} · mean ${number(b.mean)}`));
+          tooltip.append(
+      $('div', 'mw-tooltip-range',
+        t('monitor.bucket_stats', 'Min {min} · max {max} · mean {mean}')
+          .replace('{min}', number(b.min))
+          .replace('{max}', number(b.max))
+          .replace('{mean}', number(b.mean))
+      )
+    );
           tooltip.append($('div', 'mw-tooltip-source', `${t('monitor.observed', 'Observed')} ${time(b.first,true)} — ${time(b.last,true)} UTC`));
-          tooltip.append($('div', 'mw-tooltip-source', `${series.source}${series.point?' / '+series.point:''} · ${b.usable} usable · null ${b.null} · non-good ${b.non_good} · conflict ${b.conflict}`));
+          tooltip.append(
+      $('div', 'mw-tooltip-source',
+        t(
+          'monitor.bucket_counts',
+          '{source} · {usable} usable · null {null} · non-good {non_good} · conflict {conflict}'
+        )
+          .replace('{source}', `${series.source}${series.point ? ' / ' + series.point : ''}`)
+          .replace('{usable}', String(b.usable))
+          .replace('{null}', String(b.null))
+          .replace('{non_good}', String(b.non_good))
+          .replace('{conflict}', String(b.conflict))
+      )
+    );
           hits++;
         }
       if (!hits) tooltip.append($('div', 'mw-muted', t('monitor.no_observations_bucket', 'No observations in this bucket.')));

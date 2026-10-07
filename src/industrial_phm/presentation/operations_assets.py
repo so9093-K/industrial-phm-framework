@@ -60,7 +60,9 @@ def render_asset_overview_html(
     history_summary = (
         operations_text("asset.no_history", locale)
         if view.history_measurement_count == 0
-        else f"{view.history_measurement_count:,} stored measurements"
+        else operations_text("asset.stored_measurements", locale).format(
+            count=f"{view.history_measurement_count:,}"
+        )
     )
     history_range = (
         "—"
@@ -81,18 +83,23 @@ def render_asset_overview_html(
         + _overview_card(
             operations_text("asset.history", locale),
             history_summary,
-            f"{len(view.history_channels)} channel(s) · {history_range}",
+            (
+                operations_text("asset.channel_count", locale).format(
+                    count=len(view.history_channels)
+                )
+                + f" · {history_range}"
+            ),
         )
         + _overview_card(
             operations_text("asset.analysis", locale),
-            f"{len(view.analyses)} recorded run(s)",
+            operations_text("asset.recorded_runs", locale).format(count=len(view.analyses)),
             f"{operations_text('asset.latest_analysis', locale)} "
             f"{format_operations_utc(view.latest_analysis_at, locale)}",
         )
         + _overview_card(
             operations_text("asset.reviews", locale),
-            f"{view.open_review_count} open",
-            f"{view.attention_count} item(s) need attention",
+            operations_text("asset.open_count", locale).format(count=view.open_review_count),
+            operations_text("asset.attention_count", locale).format(count=view.attention_count),
         )
     )
     source_rows = "".join(
@@ -120,8 +127,14 @@ def render_asset_overview_html(
         "</div>"
         f'<div class="phm-section-title phm-section-space">{section_title}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Source</th><th>Type</th><th>Data</th>"
-        "<th>Last data</th><th>Point</th><th>Signals</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.source', locale))}</th>"
+        f"<th>{escape(operations_text('common.type', locale))}</th>"
+        f"<th>{escape(operations_text('common.data', locale))}</th>"
+        f"<th>{escape(operations_text('asset.last_data', locale))}</th>"
+        f"<th>{escape(operations_text('common.point', locale))}</th>"
+        f"<th>{escape(operations_text('common.signals', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{source_rows}</tbody></table></section>"
     )
 
@@ -137,7 +150,7 @@ def render_asset_analysis_html(
         (
             "<tr>"
             f"<td>{escape(format_operations_utc(item.recorded_at, locale))}</td>"
-            f"<td>{escape(item.state.value.title())}</td>"
+            f"<td>{escape(operations_text(f'asset.attempt.{item.state.value}', locale))}</td>"
             "<td><strong>"
             f"{escape(operations_capability_label(item.capability_id, locale))}"
             "</strong></td>"
@@ -173,15 +186,29 @@ def render_asset_analysis_html(
         rows = _empty_row(6, operations_text("asset.no_analysis_evidence", locale))
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Recent analysis attempts</div>'
+        '<div class="phm-section-title">'
+        f"{escape(operations_text('asset.recent_analysis_attempts', locale))}</div>"
         '<table class="phm-table">'
-        "<thead><tr><th>Time</th><th>Outcome</th><th>Capability</th><th>Source</th>"
-        "<th>Observed range</th><th>Why no result</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.time', locale))}</th>"
+        f"<th>{escape(operations_text('common.outcome', locale))}</th>"
+        f"<th>{escape(operations_text('common.capability', locale))}</th>"
+        f"<th>{escape(operations_text('common.source', locale))}</th>"
+        f"<th>{escape(operations_text('common.observed_range', locale))}</th>"
+        f"<th>{escape(operations_text('common.why_no_result', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{attempt_rows}</tbody></table>"
-        '<div class="phm-section-title phm-section-space">Recorded analysis evidence</div>'
+        '<div class="phm-section-title phm-section-space">'
+        f"{escape(operations_text('asset.recorded_analysis_evidence', locale))}</div>"
         '<table class="phm-table">'
-        "<thead><tr><th>Completed</th><th>Capability</th><th>Source</th>"
-        "<th>Point</th><th>Data quality</th><th>Observed range</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.completed', locale))}</th>"
+        f"<th>{escape(operations_text('common.capability', locale))}</th>"
+        f"<th>{escape(operations_text('common.source', locale))}</th>"
+        f"<th>{escape(operations_text('common.point', locale))}</th>"
+        f"<th>{escape(operations_text('common.data_quality', locale))}</th>"
+        f"<th>{escape(operations_text('common.observed_range', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
@@ -209,7 +236,11 @@ def render_asset_events_html(
         '<section class="phm-shell">'
         f'<div class="phm-section-title">{section_title}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.time', locale))}</th>"
+        f"<th>{escape(operations_text('common.event', locale))}</th>"
+        f"<th>{escape(operations_text('common.detail', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
@@ -227,7 +258,7 @@ def render_asset_maintenance_html(
             f"{escape(operations_capability_label(item.capability_id, locale))}"
             "</strong><br>"
             f'<span class="phm-card-detail">{escape(item.finding_id)}</span></td>'
-            f"<td>{escape(item.status.value.title())}</td>"
+            f"<td>{escape(operations_text(f'common.{item.status.value}', locale))}</td>"
             f"<td>{escape(format_operations_utc(item.observed_at, locale))}</td>"
             f"<td>{escape(format_operations_utc(item.latest_event_at, locale))}</td>"
             "</tr>"
@@ -241,8 +272,12 @@ def render_asset_maintenance_html(
         '<section class="phm-shell">'
         f'<div class="phm-section-title">{section_title}</div>'
         '<table class="phm-table">'
-        "<thead><tr><th>Review</th><th>Status</th>"
-        "<th>Requested from evidence</th><th>Last review activity</th></tr></thead>"
+        "<thead><tr>"
+        f"<th>{escape(operations_text('common.review', locale))}</th>"
+        f"<th>{escape(operations_text('common.status', locale))}</th>"
+        f"<th>{escape(operations_text('common.requested_from_evidence', locale))}</th>"
+        f"<th>{escape(operations_text('common.last_review_activity', locale))}</th>"
+        "</tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
