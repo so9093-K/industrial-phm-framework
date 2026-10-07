@@ -102,7 +102,6 @@ def _view() -> AssetWorkspaceView:
         ),
     )
 
-
 def test_asset_workspace_presenters_keep_operator_language() -> None:
     view = _view()
 
@@ -156,4 +155,3 @@ def test_asset_workspace_presenters_localize_labels_without_changing_identity() 
     assert "source-a" in analysis
     assert "확인됨" in maintenance
     assert "finding-1" in maintenance
-
