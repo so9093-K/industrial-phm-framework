@@ -72,13 +72,6 @@ def _():
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
     )
-    from industrial_phm.presentation.operations_locale import (
-        OperationsLocale,
-        operations_messages,
-        operations_page_label,
-        operations_text,
-        resolve_environment_operations_locale,
-    )
     from industrial_phm.presentation.operations_assets import (
         asset_workspace_css,
         render_asset_analysis_html,
@@ -101,6 +94,13 @@ def _():
         live_observation_css,
         live_observation_recent_page,
         render_live_observation_html,
+    )
+    from industrial_phm.presentation.operations_locale import (
+        OperationsLocale,
+        operations_messages,
+        operations_page_label,
+        operations_text,
+        resolve_environment_operations_locale,
     )
     from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
