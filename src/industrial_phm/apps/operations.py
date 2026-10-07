@@ -372,7 +372,7 @@ def _(get_analysis_results):
 
 
 @app.cell
-def _(OpcUaNodeMapping, operations_actions):
+def _(OpcUaNodeMapping, operations_actions, operations_locale, operations_text):
     def parse_opcua_mapping_lines(value: str):
         mappings = []
         for line_number, raw_line in enumerate(value.splitlines(), start=1):
@@ -380,7 +380,11 @@ def _(OpcUaNodeMapping, operations_actions):
             if not _line:
                 continue
             if "," not in _line:
-                raise ValueError(f"Mapping line {line_number} must use signal_id,node_id")
+                raise ValueError(
+                    operations_text("setup.mapping_line_format", operations_locale).format(
+                        line_number=line_number
+                    )
+                )
             _channel_id, _node_id = _line.split(",", 1)
             mappings.append(
                 OpcUaNodeMapping(
