@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from html import escape
 
 from industrial_phm.application.asset_display import AssetDisplayNames
@@ -51,11 +50,10 @@ def investigation_group_option_label(
     if not isinstance(group, InvestigationQueueGroup):
         raise ValueError("group must be an InvestigationQueueGroup")
     asset = group.asset_id if asset_names is None else asset_names.label(group.asset_id)
-    return (
-        f"{asset} · {investigation_capability_label(group.capability_id, locale)} · "
-        f"{investigation_review_label(group.review_state, locale)} · {group.run_count} run(s) · "
-        f"latest {format_operations_utc(group.latest.completed_at, locale)}"
-    )
+    capability = investigation_capability_label(group.capability_id, locale)
+    review = investigation_review_label(group.review_state, locale)
+    completed = format_operations_utc(group.latest.completed_at, locale)
+    return f"{asset} · {capability} · {review} · {group.run_count} run(s) · latest {completed}"
 
 
 def investigation_queue_option_label(
@@ -67,10 +65,9 @@ def investigation_queue_option_label(
         raise ValueError("item must be an InvestigationQueueItem")
     completed = format_operations_utc(item.completed_at, locale)
     asset = item.asset_id if asset_names is None else asset_names.label(item.asset_id)
-    return (
-        f"{asset} · {investigation_capability_label(item.capability_id, locale)} · "
-        f"{investigation_review_label(item.review_state, locale)} · {completed}"
-    )
+    capability = investigation_capability_label(item.capability_id, locale)
+    review = investigation_review_label(item.review_state, locale)
+    return f"{asset} · {capability} · {review} · {completed}"
 
 
 def render_investigation_summary_html(
@@ -80,15 +77,17 @@ def render_investigation_summary_html(
 ) -> str:
     if not isinstance(item, InvestigationQueueItem):
         raise ValueError("item must be an InvestigationQueueItem")
+    kicker = escape(operations_text("investigation.title", locale))
+    capability = escape(investigation_capability_label(item.capability_id, locale))
+    observed = escape(operations_text("common.observed", locale))
+    point = escape(operations_text("common.point", locale))
     return (
         '<section class="phm-shell">'
         '<div class="phm-investigation-heading">'
         "<div>"
-        f'<div class="phm-asset-kicker">{escape(operations_text("investigation.title", locale))}</div>'
+        f'<div class="phm-asset-kicker">{kicker}</div>'
         + render_asset_title_html(item.asset_id, asset_names)
-        + '<div class="phm-card-detail">'
-        f"{escape(investigation_capability_label(item.capability_id, locale))}"
-        "</div>"
+        + f'<div class="phm-card-detail">{capability}</div>'
         "</div>"
         '<div class="phm-investigation-facts">'
         + _fact(
@@ -104,11 +103,10 @@ def render_investigation_summary_html(
         + "</div>"
         "</div>"
         '<div class="phm-investigation-scope">'
-        f"<strong>{escape(operations_text('common.observed', locale))}</strong> "
+        f"<strong>{observed}</strong> "
         f"{format_operations_utc(item.observed_start_at, locale)} → "
         f"{format_operations_utc(item.observed_end_at, locale)}"
-        f" &nbsp; <strong>{escape(operations_text('common.point', locale))}</strong> "
-        f"{escape(item.measurement_point_id or '—')}"
+        f" &nbsp; <strong>{point}</strong> {escape(item.measurement_point_id or '—')}"
         "</div>"
         "</section>"
     )
@@ -135,11 +133,13 @@ def render_investigation_evidence_identity_html(
         ),
     )
     rendered = "".join(
-        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>" for label, value in rows
+        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>"
+        for label, value in rows
     )
+    title = escape(operations_text("investigation.evidence_identity", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("investigation.evidence_identity", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
         f"<tbody>{rendered}</tbody>"
         "</table>"
@@ -204,5 +204,3 @@ def _fact(label: str, value: str) -> str:
         f'<div class="phm-fact-value">{escape(value)}</div>'
         "</div>"
     )
-
-
