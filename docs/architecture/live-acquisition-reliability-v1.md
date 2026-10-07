@@ -14,6 +14,18 @@ spool writer의 기존 retry 정책을 따릅니다. Connection 생성/attach �
 복수 collector leader election을 포함하지 않습니다. 대용량 query가 writer를 지연시킬 수 있으므로
 장기 운영의 처리량/retention/downsampling 검증은 별도 요구사항입니다.
 
+SQLite control/spool/telemetry는 최초 WAL 활성화 경쟁을 별도의 connection bootstrap 경계에서 처리합니다.
+`PRAGMA journal_mode=WAL`은 다른 초기 writer가 RESERVED lock을 소유하면 SQLite busy handler를 거치지
+않고 즉시 `SQLITE_BUSY`를 반환할 수 있습니다. 이미 WAL인 DB에는 mode-changing statement를 실행하지
+않으며, bootstrap의 BUSY에만 실패 연결을 닫고 기존 `busy_timeout_ms` 예산 안에서 다시 연결합니다.
+예산 초과와 다른 오류는 실제 DB 경로를 포함한 note로 실패합니다. 데이터 transaction은 replay하지 않고,
+각 write의 `BEGIN IMMEDIATE`, stable identity conflict 및 timeout의 fail-fast 계약을 유지합니다.
+빈 schema metadata를 처음 읽은 initializer는 writer를 예약한 뒤 다시 읽어, 동시 최초 접근의 중복 INSERT를
+막습니다. 정상 WAL reader는 진행 중인 writer transaction을 기다리지 않습니다. Spool initialize도 연결을
+명시적으로 닫습니다. Worker 실패 로그는 exception traceback을 보존해 이후 SQLite 경로/호출 지점을 확인합니다.
+이 경계는 `tests/integration/test_sqlite_bootstrap.py`의 실제 다른 프로세스 lock, 동시 metadata 생성,
+예산 소진 및 WAL reader 검증으로 고정합니다. DB schema/version/identity와 내구성 설정은 변경하지 않습니다.
+
 참고: [DuckLake catalog 선택](https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database).
 
 이 문서는 failure/restart/soak 검증 범위와 v1 runtime이 주장하는 신뢰성 경계를 고정합니다.

@@ -294,6 +294,7 @@ jobs:
       - name: Validate independent live collection and history queries
         run: |
           uv run --locked --extra history --extra opcua pytest \
+            tests/integration/test_sqlite_bootstrap.py \
             tests/contract/test_live_measurement_stack.py \
             tests/contract/test_live_window_analysis_stack.py
 

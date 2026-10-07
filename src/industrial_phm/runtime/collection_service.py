@@ -312,6 +312,7 @@ async def run_collection_service(
                             "backoff",
                             source_id,
                             runtime.worker_task.exception(),
+                            exc_info=runtime.worker_task.exception(),
                         )
                     ran_for = time.monotonic() - runtime.worker_started
                     await _stop_source(source_id)
