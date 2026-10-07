@@ -695,7 +695,7 @@ def _(
 
 
 @app.cell
-def _(mo, setup_selected_source):
+def _(mo, operations_locale, operations_text, setup_selected_source):
     if setup_selected_source is None:
         setup_freshness_age_input = None
         setup_save_freshness_button = None
@@ -708,14 +708,16 @@ def _(mo, setup_selected_source):
         )
         setup_freshness_age_input = mo.ui.text(
             value=_freshness_value,
-            label="Maximum data age (seconds)",
+            label=operations_text("setup.maximum_data_age", operations_locale),
             full_width=True,
         )
-        setup_save_freshness_button = mo.ui.run_button(label="Save data age policy")
+        setup_save_freshness_button = mo.ui.run_button(
+            label=operations_text("setup.save_data_age", operations_locale)
+        )
         setup_clear_freshness_button = (
             None
             if setup_selected_source.freshness_max_age_seconds is None
-            else mo.ui.run_button(label="Clear policy")
+            else mo.ui.run_button(label=operations_text("setup.clear_policy", operations_locale))
         )
     return (
         setup_clear_freshness_button,
@@ -729,6 +731,8 @@ def _(
     datetime,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -746,14 +750,14 @@ def _(
     if _freshness_action is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select a data source before changing its data age policy")
+                raise ValueError(operations_text("setup.select_source_for_age", operations_locale))
             _source_id = setup_selected_source.source_id
             if _freshness_action == "save":
                 if setup_freshness_age_input is None:
-                    raise ValueError("data age policy input is unavailable")
+                    raise ValueError(operations_text("setup.age_input_unavailable", operations_locale))
                 _raw_value = setup_freshness_age_input.value.strip()
                 if not _raw_value:
-                    raise ValueError("maximum data age is required")
+                    raise ValueError(operations_text("setup.maximum_age_required", operations_locale))
                 _policy, _state = operations_actions.set_freshness_policy(
                     _source_id,
                     max_observation_age_seconds=float(_raw_value),
@@ -761,9 +765,12 @@ def _(
                 )
                 if _policy is None:
                     raise AssertionError("saved freshness policy unexpectedly missing")
-                _message = (
-                    f"Data age policy saved: {_source_id} · "
-                    f"{_policy.max_observation_age_seconds:g} s."
+                _message = operations_text(
+                    "setup.data_age_saved",
+                    operations_locale,
+                ).format(
+                    source_id=_source_id,
+                    seconds=_policy.max_observation_age_seconds,
                 )
             else:
                 _, _state = operations_actions.set_freshness_policy(
@@ -771,7 +778,10 @@ def _(
                     max_observation_age_seconds=None,
                     changed_at=datetime.now().astimezone(),
                 )
-                _message = f"Data age policy cleared: {_source_id}."
+                _message = operations_text(
+                    "setup.data_age_cleared",
+                    operations_locale,
+                ).format(source_id=_source_id)
         except (LookupError, OSError, ValueError) as error:
             set_setup_success("")
             set_setup_error(str(error))
@@ -786,14 +796,18 @@ def _(
 
 
 @app.cell
-def _(SourceType, mo, setup_selected_source):
+def _(SourceType, mo, operations_locale, operations_text, setup_selected_source):
     if setup_selected_source is None:
         setup_run_diagnostic_button = None
         setup_subscription_diagnostic_button = None
     else:
-        setup_run_diagnostic_button = mo.ui.run_button(label="Run one diagnostic cycle")
+        setup_run_diagnostic_button = mo.ui.run_button(
+            label=operations_text("setup.run_diagnostic", operations_locale)
+        )
         setup_subscription_diagnostic_button = (
-            mo.ui.run_button(label="Collect bounded subscription")
+            mo.ui.run_button(
+                label=operations_text("setup.collect_bounded", operations_locale)
+            )
             if setup_selected_source.source_type == SourceType.OPCUA
             else None
         )
@@ -967,48 +981,67 @@ def _(
 
 
 @app.cell
-def _(SourceType, mo):
+def _(SourceType, mo, operations_locale, operations_text):
     add_source_type = mo.ui.radio(
         options=["File", "OPC UA"],
         value="OPC UA",
-        label="Source type",
+        label=operations_text("setup.source_type", operations_locale),
     )
-    add_source_id = mo.ui.text(label="Source ID", full_width=True)
-    add_source_name = mo.ui.text(label="Name", full_width=True)
-    add_asset_id = mo.ui.text(label="Asset", full_width=True)
-    add_point_id = mo.ui.text(label="Measurement point (optional)", full_width=True)
+    add_source_id = mo.ui.text(
+        label=operations_text("setup.source_id", operations_locale),
+        full_width=True,
+    )
+    add_source_name = mo.ui.text(
+        label=operations_text("setup.name", operations_locale),
+        full_width=True,
+    )
+    add_asset_id = mo.ui.text(
+        label=operations_text("common.asset", operations_locale),
+        full_width=True,
+    )
+    add_point_id = mo.ui.text(
+        label=operations_text("setup.measurement_point_optional", operations_locale),
+        full_width=True,
+    )
 
     file_path_input = mo.ui.text(
-        label="File or directory path",
+        label=operations_text("setup.file_path", operations_locale),
         full_width=True,
     )
     file_mode_input = mo.ui.radio(
         options=["Snapshot", "History directory"],
         value="Snapshot",
-        label="File shape",
+        label=operations_text("setup.file_shape", operations_locale),
     )
-    file_discover_button = mo.ui.run_button(label="Discover file")
+    file_discover_button = mo.ui.run_button(
+        label=operations_text("setup.discover_file", operations_locale)
+    )
     file_timestamp_input = mo.ui.text(
         value="timestamp",
-        label="Timestamp column (optional for snapshot)",
+        label=operations_text("setup.timestamp_column_optional", operations_locale),
         full_width=True,
     )
     file_sampling_rate_input = mo.ui.text(
         value="",
-        label="Sampling rate Hz (optional)",
+        label=operations_text("setup.sampling_rate_optional", operations_locale),
         full_width=True,
     )
 
     opcua_endpoint_input = mo.ui.text(
-        label="Endpoint",
+        label=operations_text("setup.endpoint", operations_locale),
         placeholder="opc.tcp://host:4840",
         full_width=True,
     )
-    opcua_timeout_input = mo.ui.text(value="4", label="Timeout seconds")
-    opcua_browse_button = mo.ui.run_button(label="Connect & browse signals")
+    opcua_timeout_input = mo.ui.text(
+        value="4",
+        label=operations_text("setup.timeout_seconds", operations_locale),
+    )
+    opcua_browse_button = mo.ui.run_button(
+        label=operations_text("setup.connect_browse", operations_locale)
+    )
     opcua_explicit_mapping_input = mo.ui.text_area(
         value="",
-        label="Advanced explicit mapping (signal_id,node_id)",
+        label=operations_text("setup.advanced_mapping", operations_locale),
         rows=4,
         full_width=True,
     )
@@ -1038,6 +1071,8 @@ def _(
     file_discover_button,
     file_mode_input,
     file_path_input,
+    operations_locale,
+    operations_text,
     set_file_discovery,
     set_file_discovery_signature,
     set_setup_error,
@@ -1061,7 +1096,9 @@ def _(
             set_file_discovery(_discovery)
             set_file_discovery_signature((file_mode_input.value, _path))
             set_setup_error("")
-            set_setup_success("File discovery completed. Select the signals to keep.")
+            set_setup_success(
+                operations_text("setup.file_discovery_completed", operations_locale)
+            )
     return
 
 
@@ -1072,6 +1109,8 @@ def _(
     file_mode_input,
     file_path_input,
     mo,
+    operations_locale,
+    operations_text,
 ):
     file_discovery = get_file_discovery()
     file_discovery_signature = get_file_discovery_signature()
@@ -1083,7 +1122,7 @@ def _(
         file_signal_selection = mo.ui.multiselect(
             options=list(file_discovery.common_columns),
             value=[],
-            label="Signals to keep",
+            label=operations_text("setup.signals_to_keep", operations_locale),
         )
     else:
         file_signal_selection = None
@@ -1096,6 +1135,8 @@ def _(
     opcua_browse_button,
     opcua_endpoint_input,
     opcua_timeout_input,
+    operations_locale,
+    operations_text,
     run_setup_opcua_browse,
     set_opcua_browse,
     set_opcua_browse_signature,
@@ -1120,7 +1161,7 @@ def _(
             set_opcua_browse_signature((_endpoint, _timeout))
             set_setup_error("")
             set_setup_success(
-                "Browse completed. This bounded session discovered signal identity only."
+                operations_text("setup.browse_completed_identity", operations_locale)
             )
     return
 
@@ -1131,6 +1172,8 @@ def _(
     get_opcua_browse_signature,
     mo,
     opcua_endpoint_input,
+    operations_locale,
+    operations_text,
     opcua_timeout_input,
 ):
     opcua_browse = get_opcua_browse()
@@ -1148,7 +1191,7 @@ def _(
         opcua_signal_selection = mo.ui.multiselect(
             options=list(opcua_browse_by_label),
             value=[],
-            label="Signals to keep",
+            label=operations_text("setup.signals_to_keep", operations_locale),
             full_width=True,
         )
     else:
@@ -1186,36 +1229,49 @@ def _(
 
 
 @app.cell
-def _(mo, opcua_candidate_mappings):
+def _(mo, opcua_candidate_mappings, operations_locale, operations_text):
     _semantic_channels = [item.channel_id for item in opcua_candidate_mappings]
     if _semantic_channels:
         semantic_channel_input = mo.ui.dropdown(
             options=_semantic_channels,
             value=_semantic_channels[0],
-            label="Signal",
+            label=operations_text("common.signal", operations_locale),
             full_width=True,
         )
         semantic_observed_property_input = mo.ui.text(
-            label="Observed property",
+            label=operations_text("setup.observed_property", operations_locale),
             full_width=True,
         )
-        semantic_scope_input = mo.ui.text(label="Scope (optional)", full_width=True)
+        semantic_scope_input = mo.ui.text(
+            label=operations_text("setup.scope_optional", operations_locale),
+            full_width=True,
+        )
         semantic_statistic_input = mo.ui.text(
-            label="Statistic (optional)",
+            label=operations_text("setup.statistic_optional", operations_locale),
             full_width=True,
         )
-        semantic_unit_input = mo.ui.text(label="Unit (optional)", full_width=True)
+        semantic_unit_input = mo.ui.text(
+            label=operations_text("setup.unit_optional", operations_locale),
+            full_width=True,
+        )
         semantic_unit_evidence_input = mo.ui.text(
-            label="Unit evidence (required when unit is known)",
+            label=operations_text("setup.unit_evidence", operations_locale),
             full_width=True,
         )
-        semantic_version_input = mo.ui.text(label="Semantic version", full_width=True)
+        semantic_version_input = mo.ui.text(
+            label=operations_text("setup.semantic_version", operations_locale),
+            full_width=True,
+        )
         semantic_evidence_input = mo.ui.text(
-            label="Interpretation evidence",
+            label=operations_text("setup.interpretation_evidence", operations_locale),
             full_width=True,
         )
-        semantic_save_button = mo.ui.run_button(label="Add / update meaning")
-        semantic_clear_button = mo.ui.run_button(label="Keep unresolved")
+        semantic_save_button = mo.ui.run_button(
+            label=operations_text("setup.save_meaning", operations_locale)
+        )
+        semantic_clear_button = mo.ui.run_button(
+            label=operations_text("setup.keep_unresolved", operations_locale)
+        )
     else:
         semantic_channel_input = None
         semantic_observed_property_input = None
