@@ -29,6 +29,12 @@ const time = (v, full = false) => v == null ? t('monitor.not_recorded', 'Not rec
   second: '2-digit',
   hourCycle: 'h23'
 }).format(new Date(v));
+const shortTime = v => v == null ? t('monitor.not_recorded', 'Not recorded') : new Intl.DateTimeFormat(activeLocale, {
+  timeZone: 'UTC',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+}).format(new Date(v));
 const age = (at, now) => {
   if (at == null) return t('monitor.no_receipt_recorded', 'No receipt recorded');
   const d = (now - at) / 1000;
@@ -699,7 +705,7 @@ function drawChart(container, data, windows, onEvidence) {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23'
-      }).format(new Date(t)) : time(t).slice(0, 5)));
+      }).format(new Date(t)) : shortTime(t));
     }
     const move = e => {
       const rect = svg.getBoundingClientRect(),
