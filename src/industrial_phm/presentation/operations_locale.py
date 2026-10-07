@@ -116,6 +116,7 @@ _TEXT: Final = {
         "first_run.sample.stop": "Stop sample",
         "first_run.real.open": "Connect real data",
         "first_run.sample.error": "Sample could not start",
+        "first_run.sample.workspace": "Sample workspace: `{workspace}`",
         "setup.open_monitor": "Open Monitor",
         "setup.source": "Data source",
         "setup.enable": "Enable source",
@@ -325,6 +326,7 @@ _TEXT: Final = {
         "first_run.sample.stop": "샘플 중지",
         "first_run.real.open": "실제 데이터 연결",
         "first_run.sample.error": "샘플을 시작하지 못했습니다",
+        "first_run.sample.workspace": "샘플 workspace: `{workspace}`",
         "setup.open_monitor": "관제 열기",
         "setup.source": "데이터 source",
         "setup.enable": "Source 활성화",
@@ -524,6 +526,35 @@ _PRODUCT_COPY: Final = {
         "asset.file_analysis_failed": "FILE analysis failed",
         "asset.analysis_recorded": "Analysis recorded",
         "asset.analyze_prepared_file": "Analyze prepared FILE snapshot",
+        "asset.select_file_before_analysis": "Select a FILE snapshot source before analysis.",
+        "asset.file_analysis_success": (
+            "FILE snapshot analysis recorded. Assets and Investigations now use the persisted "
+            "evidence. This does not create anomaly, fault, health, or maintenance meaning."
+        ),
+        "asset.file_analysis_help": (
+            "This action computes and stores versioned vibration statistical feature evidence "
+            "from the exact registered snapshot. It does not declare anomaly, fault, health "
+            "state, or maintenance need."
+        ),
+        "asset.no_file_snapshot": (
+            "No registered FILE snapshot source is available for on-demand feature analysis "
+            "on this asset."
+        ),
+        "asset.no_signal": "No mapped or stored signal is available for this asset yet.",
+        "asset.no_history_catalog": "No Asset History catalog is available for this workspace.",
+        "asset.no_recent_persisted": (
+            "No persisted observation is available in the live source's recent event-time "
+            "window yet."
+        ),
+        "asset.live_evidence_help": (
+            "Source flow uses collector/session evidence; selected-channel quality and event "
+            "time use stored observation evidence. The trend draws raw points without "
+            "interpolation, so unobserved intervals remain visually unfilled. Historical replay "
+            "timestamps remain historical. This view does not infer asset health, fault, alarm, "
+            "or expected missing samples."
+        ),
+        "asset.raw_observations": "Raw observations",
+        "asset.data_details": "Data details",
         "asset.load_hint": "Select Assets to load this workspace.",
         "asset.workspace_unavailable": "Asset workspace unavailable",
         "asset.no_evidence": (
@@ -538,6 +569,7 @@ _PRODUCT_COPY: Final = {
         "investigation.review_requested": "Review requested",
         "investigation.human_review": "Human review",
         "investigation.queue": "Queue",
+        "investigation.evidence_heading": "Analysis evidence",
         "maintenance.open_evidence": "Open evidence in Investigations",
         "maintenance.review_note": "Review note",
         "maintenance.add_note": "Add note",
@@ -549,6 +581,7 @@ _PRODUCT_COPY: Final = {
         "maintenance.updated": "Review updated",
         "maintenance.actions": "Review actions",
         "maintenance.counts": "Open {open} · Acknowledged {acknowledged} · Closed {closed}",
+        "maintenance.review_heading": "Maintenance review",
         "system.asset_name_conflict": "Asset display name conflict",
         "setup.maximum_data_age": "Maximum data age (seconds)",
         "setup.save_data_age": "Save data age policy",
@@ -584,6 +617,13 @@ _PRODUCT_COPY: Final = {
         "setup.review_save_source": "Review & save source",
         "setup.source_saved": "Source saved: {source_id}. Enable it when ready to use.",
         "setup.select_source_for_age": "Select a data source before changing its data age policy.",
+        "setup.select_source_for_use": "Select a data source before changing its use state.",
+        "setup.select_opcua_for_collection": (
+            "Select an OPC UA source before changing collection."
+        ),
+        "setup.explicit_meaning_required": (
+            "Provide explicit measurement meaning or choose Keep unresolved."
+        ),
         "setup.age_input_unavailable": "Data age policy input is unavailable.",
         "setup.maximum_age_required": "Maximum data age is required.",
         "setup.collection_saved": (
@@ -757,6 +797,31 @@ _PRODUCT_COPY: Final = {
         "asset.file_analysis_failed": "FILE 분석 실패",
         "asset.analysis_recorded": "분석 기록 완료",
         "asset.analyze_prepared_file": "준비된 FILE snapshot 분석",
+        "asset.select_file_before_analysis": "분석할 FILE snapshot source를 먼저 선택하세요.",
+        "asset.file_analysis_success": (
+            "FILE snapshot 분석을 기록했습니다. 설비와 분석 근거 화면은 이제 저장된 evidence를 "
+            "사용합니다. 이 결과만으로 anomaly, fault, health, maintenance 의미를 만들지 않습니다."
+        ),
+        "asset.file_analysis_help": (
+            "이 작업은 정확히 등록된 snapshot에서 versioned 진동 통계 feature evidence를 계산해 "
+            "저장합니다. anomaly, fault, health state 또는 maintenance 필요성을 선언하지 않습니다."
+        ),
+        "asset.no_file_snapshot": (
+            "이 설비에서 필요 시 feature 분석에 사용할 등록된 FILE snapshot source가 없습니다."
+        ),
+        "asset.no_signal": "이 설비에 mapping되거나 저장된 신호가 아직 없습니다.",
+        "asset.no_history_catalog": "이 workspace에서 사용할 수 있는 Asset History catalog가 없습니다.",
+        "asset.no_recent_persisted": (
+            "Live source의 최근 event-time 구간에 저장된 관측값이 아직 없습니다."
+        ),
+        "asset.live_evidence_help": (
+            "데이터 수신 상태는 collector/session evidence를 사용하고, 선택 채널의 품질과 event time은 "
+            "저장 관측 evidence를 사용합니다. Trend는 보간 없이 raw point를 그리므로 관측되지 않은 "
+            "구간은 비워 둡니다. Historical replay timestamp는 과거 시각으로 유지됩니다. 이 화면은 "
+            "설비 health, fault, alarm 또는 예상 missing sample을 추론하지 않습니다."
+        ),
+        "asset.raw_observations": "Raw 관측값",
+        "asset.data_details": "데이터 상세",
         "asset.load_hint": "설비 페이지를 선택하면 이 workspace를 불러옵니다.",
         "asset.workspace_unavailable": "설비 workspace를 불러올 수 없습니다",
         "asset.no_evidence": (
@@ -771,6 +836,7 @@ _PRODUCT_COPY: Final = {
         "investigation.review_requested": "검토 요청 완료",
         "investigation.human_review": "사람 검토",
         "investigation.queue": "대기열",
+        "investigation.evidence_heading": "분석 근거",
         "maintenance.open_evidence": "분석 근거에서 열기",
         "maintenance.review_note": "검토 메모",
         "maintenance.add_note": "메모 추가",
@@ -782,6 +848,7 @@ _PRODUCT_COPY: Final = {
         "maintenance.updated": "검토 갱신 완료",
         "maintenance.actions": "검토 작업",
         "maintenance.counts": "열림 {open} · 확인됨 {acknowledged} · 종료됨 {closed}",
+        "maintenance.review_heading": "정비 검토",
         "system.asset_name_conflict": "설비 표시 이름 충돌",
         "setup.maximum_data_age": "데이터 최대 경과 시간(초)",
         "setup.save_data_age": "데이터 경과 정책 저장",
@@ -817,6 +884,11 @@ _PRODUCT_COPY: Final = {
         "setup.review_save_source": "검토 후 source 저장",
         "setup.source_saved": "Source 저장 완료: {source_id}. 사용할 준비가 되면 활성화하세요.",
         "setup.select_source_for_age": "데이터 경과 정책을 변경할 source를 먼저 선택하세요.",
+        "setup.select_source_for_use": "사용 상태를 변경할 데이터 source를 먼저 선택하세요.",
+        "setup.select_opcua_for_collection": "수집 상태를 변경할 OPC UA source를 먼저 선택하세요.",
+        "setup.explicit_meaning_required": (
+            "명시적인 측정 의미를 입력하거나 미확인으로 유지를 선택하세요."
+        ),
         "setup.age_input_unavailable": "데이터 경과 정책 입력을 사용할 수 없습니다.",
         "setup.maximum_age_required": "데이터 최대 경과 시간을 입력하세요.",
         "setup.collection_saved": (
