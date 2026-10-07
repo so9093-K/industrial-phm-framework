@@ -348,8 +348,13 @@ function render({
     const supporting = $('section', 'mw-support');
     const evidence = $('div', 'mw-evidence');
     const evidenceHead = $('div', 'mw-panel-head');
-    evidenceHead.append($('h2', '', 'Analysis evidence'), $('span', 'mw-muted', 'In this event-time window'));
+    evidenceHead.append($('h2', '', 'Analysis evidence'), $('span', 'mw-muted', `${(s.evidence || []).length} loaded items in this event-time window`));
     evidence.append(evidenceHead);
+    const evidenceList = $('div', 'mw-evidence-list');
+    evidenceList.setAttribute('role', 'region');
+    evidenceList.setAttribute('aria-label', 'Analysis evidence in this window');
+    evidenceList.tabIndex = 0;
+    evidence.append(evidenceList);
     for (const item of s.evidence || []) {
       const b = button('', () => emit('evidence', {
         id: item.id
@@ -358,9 +363,9 @@ function render({
       const name = $('div');
       name.append($('strong', '', item.label), $('span', 'mw-muted', `${time(item.start)} — ${time(item.end)} UTC`));
       b.append($('span', 'mw-evidence-mark', '↗'), name, $('span', 'mw-review-state', item.review), icon('arrow'));
-      evidence.append(b);
+      evidenceList.append(b);
     }
-    if (!(s.evidence || []).length) evidence.append($('div', 'mw-empty', 'No persisted analysis overlaps this window.'));
+    if (!(s.evidence || []).length) evidence.append($('div', 'mw-empty', 'No loaded analysis overlaps this window.'));
     const attention = $('div', 'mw-attention');
     const attentionHead = $('div', 'mw-panel-head');
     attentionHead.append($('h2', '', 'Needs inspection'), $('span', 'mw-count', String((s.attention || []).length)));
@@ -518,7 +523,7 @@ function drawChart(container, data, windows, onEvidence) {
         class: 'mw-axis-title'
       }, `${group.title} · ${group.unit}`));
       const originLabel = `${group.origin} · ${group.interpretation}`;
-      const labelBudget = Math.max(20, Math.floor((W - left - right) / 6));
+      const labelBudget = Math.max(20, Math.floor((W - left - right) / 7));
       const origin = svgEl('text', {
           x: left,
           y: pTop - 11,

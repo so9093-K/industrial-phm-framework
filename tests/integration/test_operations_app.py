@@ -108,10 +108,16 @@ def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monke
 
     assert defs["investigation_selected_id"] is not None
     assert defs["maintenance_selected_id"] is not None
-    assert defs["selected_attention"] is not None
-    assert defs["selected_attention"].finding_id is not None
-    assert defs["attention_route"].page == "Investigations"
-    assert defs["attention_open_button"] is not None
+    from industrial_phm.presentation.operations_navigation import resolve_operations_attention_route
+
+    attention = next(item for item in defs["contextual_attention"] if item.finding_id)
+    route = resolve_operations_attention_route(
+        attention, investigation_queue=defs["investigation_queue"]
+    )
+    assert route.page == "Investigations"
+    assert "attention_view" not in defs
+    assert "monitor_evidence_view" not in defs
+    assert "monitor_signal_trends" not in defs
 
 
 def test_operations_uses_single_workspace_environment(tmp_path, monkeypatch):
@@ -227,16 +233,15 @@ def test_maintenance_review_reads_its_evidence_by_reference(tmp_path, monkeypatc
     ],
 )
 def test_monitor_chart_overlays_only_known_compatible_measurements(
-    monkeypatch, other_unit, other_source, expected_panels
+    other_unit, other_source, expected_panels
 ):
-    pytest.importorskip("matplotlib")
     import json
 
     from industrial_phm.application.measurement_history import (
         MultiSignalMeasurementHistoryAggregation,
         MultiSignalMeasurementHistoryBucket,
     )
-    from industrial_phm.presentation import measurement_history
+    from industrial_phm.presentation.monitor_workspace import chart_payload
 
     at = datetime(2026, 10, 6, tzinfo=UTC)
 
@@ -270,17 +275,67 @@ def test_monitor_chart_overlays_only_known_compatible_measurements(
         snapshot_id=1,
         buckets=(bucket("r", "A", "source"), bucket("s", other_unit, other_source)),
     )
-    captured = []
-    monkeypatch.setattr(measurement_history, "figure_svg", lambda figure: captured.append(figure))
-    measurement_history.render_multi_signal_measurement_aggregation_svg(result)
-    visible = [axis for axis in captured[0].axes if axis.get_visible()]
-    assert len(visible) == expected_panels
-    assert all(axis.get_xlabel() == "Event time (UTC)" for axis in visible)
-    assert all(axis.get_facecolor()[:3] != (1, 1, 1) for axis in visible)
-    # Values remain in their recorded scale; grouping never normalizes to percentages.
-    for axis in visible:
-        for collection in axis.collections:
-            if collection.get_offsets().shape[0] and collection.get_offsets().shape[1] == 2:
-                offsets = collection.get_offsets()
-                if len(offsets) == 1 and offsets[0, 0] > 1:
-                    assert offsets[0, 1] == 100.0
+    payload = chart_payload(result)
+    assert payload is not None
+    assert len(payload["groups"]) == expected_panels
+    assert all(
+        bucket["mean"] == 100.0
+        for group in payload["groups"]
+        for series in group["series"]
+        for bucket in series["buckets"]
+    )
+
+
+def test_monitor_keeps_every_overlapping_evidence_and_routes_last_item(tmp_path, monkeypatch):
+    pytest.importorskip("marimo")
+    from industrial_phm.application.backfill import FileBackfillEvent
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+    from industrial_phm.presentation.operations_navigation import resolve_investigation_route
+
+    workspace = OperationsWorkspace(tmp_path / "workspace")
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="fixture",
+            name="Evidence fixture",
+            registered_at=END,
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840",
+                asset_id="motor-7",
+                node_mappings=(OpcUaNodeMapping(channel_id="va", node_id="ns=2;s=va"),),
+            ),
+        )
+    )
+    repository = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
+    for index in range(14):
+        repository.record(_distinct_analysis(_analysis(), index))
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        (
+            FileBackfillEvent(
+                raw_evidence_id="monitor-evidence-fixture",
+                source_id="fixture",
+                asset_id="motor-7",
+                measurement_point_id="mcc-3",
+                channel_id="va",
+                source_file="fixture.csv",
+                source_sha256="1" * 64,
+                source_size_bytes=100,
+                sample_index=0,
+                event_at=END,
+                value=220.0,
+                source_metadata_json="{}",
+            ),
+        ),
+        batch_id="monitor-evidence-fixture",
+    )
+    monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
+    _, defs = runpy.run_path(str(OPERATIONS_APP))["app"].run()
+    items = defs["monitor_window_evidence_items"]
+    assert len(items) == 14
+    snapshot = defs["monitor_workspace_ui"].widget.snapshot
+    assert len(snapshot["evidence"]) == 14
+    last_id = snapshot["evidence"][-1]["id"]
+    route = resolve_investigation_route(last_id, investigation_queue=defs["investigation_queue"])
+    assert route.investigation_id == last_id

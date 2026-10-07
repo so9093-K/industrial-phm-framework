@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from pathlib import Path
 
@@ -43,6 +44,13 @@ def main() -> None:
                 assert page.locator(".mw-shell select").count() == 0
                 assert chart.locator("circle").count() > 0
                 page.screenshot(path=str(args.output / f"monitor-{width}-fold.png"))
+                assert chart.locator('rect[role="button"]').evaluate_all("""rects =>
+                    rects.every(rect => {
+                        const svg = rect.ownerSVGElement;
+                        const x = Number(rect.getAttribute('x'));
+                        const width = Number(rect.getAttribute('width'));
+                        return x >= 54 && x + width <= svg.viewBox.baseVal.width - 16;
+                    })""")
                 for period in ("15m", "24h", "7d", "1h"):
                     page.get_by_role("button", name=period, exact=True).click()
                     expect(page.get_by_role("button", name=period, exact=True)).to_have_attribute(
@@ -106,10 +114,11 @@ def main() -> None:
                     "aria-pressed", "true"
                 )
                 evidence_rows = page.locator(".mw-evidence-row")
+                evidence_count = evidence_rows.count()
                 evidence_routing = None
                 if evidence_rows.count():
-                    expected_id = evidence_rows.first.get_attribute("data-evidence-id")
-                    evidence_rows.first.click()
+                    expected_id = evidence_rows.last.get_attribute("data-evidence-id")
+                    evidence_rows.last.click()
                     expect(
                         page.get_by_role("button", name="Investigations", exact=True)
                     ).to_have_attribute("aria-current", "page", timeout=30000)
@@ -123,9 +132,44 @@ def main() -> None:
                 expect(page.locator(".mw-shell")).not_to_have_class(
                     "mw-shell mw-pending", timeout=30000
                 )
-                overflow = page.evaluate("""() => [...document.querySelectorAll('.output-area *')]
+                navigation_checks = []
+                for destination in (
+                    "Assets",
+                    "Investigations",
+                    "Maintenance",
+                    "System",
+                    "Setup",
+                    "Monitor",
+                ):
+                    page.get_by_role("button", name=destination, exact=True).click()
+                    expect(
+                        page.get_by_role("button", name=destination, exact=True)
+                    ).to_have_attribute("aria-current", "page", timeout=30000)
+                    expect(page.locator(".mw-shell")).not_to_have_class(
+                        "mw-shell mw-pending", timeout=30000
+                    )
+                    if destination != "Monitor":
+                        expect(
+                            page.get_by_role(
+                                "heading",
+                                name={
+                                    "Assets": initial_asset,
+                                    "Investigations": "Analysis evidence",
+                                    "Maintenance": "Review workload",
+                                    "System": "Advanced diagnostics",
+                                    "Setup": "Setup",
+                                }[destination],
+                                exact=True,
+                            ).first
+                        ).to_be_visible(timeout=30000)
+                    overflow = page.locator(".mw-shell").evaluate("""shell =>
+                        [...document.querySelectorAll('.output-area *'),
+                         ...shell.querySelectorAll('*')]
                     .filter(e => { const r = e.getBoundingClientRect();
                         if (!r.width || r.right <= innerWidth + 1) return false;
+                        const svg = e.ownerSVGElement;
+                        if (svg && svg.getBoundingClientRect().right <= innerWidth + 1)
+                            return false;
                         for (let a=e.parentElement; a; a=a.parentElement) {
                             if (['auto','scroll'].includes(getComputedStyle(a).overflowX)
                                 && a.getBoundingClientRect().right <= innerWidth + 1)
@@ -133,7 +177,18 @@ def main() -> None:
                         }
                         return getComputedStyle(e).visibility !== 'hidden';
                     }).map(e => e.tagName + '.' + String(e.className).slice(0,40))""")
-                assert not overflow, overflow
+                    assert not overflow, (destination, overflow)
+                    navigation_checks.append({"page": destination, "overflow": overflow})
+                shell_bounds = page.locator(".mw-shell").bounding_box()
+                assert shell_bounds is not None
+                # Marimo scrolls its app viewport internally. Expand the capture height
+                # so an element screenshot cannot silently contain a clipped lower half.
+                page.set_viewport_size(
+                    {"width": width, "height": math.ceil(shell_bounds["height"]) + 150}
+                )
+                expect(page.locator(".mw-evidence-list")).to_be_in_viewport()
+                page.screenshot(path=str(args.output / f"monitor-{width}-full.png"), full_page=True)
+                page.set_viewport_size({"width": width, "height": 1000})
                 assert not errors, errors
                 chart.screenshot(path=str(args.output / f"monitor-{width}-chart.png"))
                 report["viewports"].append(
@@ -150,6 +205,8 @@ def main() -> None:
                         "asset_picker": True,
                         "native_select_count": 0,
                         "exact_evidence_routing": evidence_routing,
+                        "evidence_count": evidence_count,
+                        "navigation_pages": navigation_checks,
                     }
                 )
                 page.close()

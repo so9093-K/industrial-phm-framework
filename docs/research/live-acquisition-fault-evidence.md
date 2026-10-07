@@ -144,6 +144,37 @@ and keyboard focus return. Frontend error/rejection injection verified pending r
 retry. These checks do not replace visual review, which still identified readability work; unrelated
 pages and narrower/mobile layouts are not certified by this reference.
 
+## Monitor review corrections and navigation coverage (2026-10-07)
+
+The stored boiler 2297 reference above was reopened after the review corrections; this is a
+stored-data interaction check, not another live fault/recovery run. The Monitor passes every
+loaded overlapping evidence item to the frontend, names the loaded item count, and keeps the
+list scrollable by pointer and keyboard. It does not claim to query all persisted analyses;
+the existing bounded Investigation queue read remains the upstream boundary.
+
+Chromium at widths 1440 and 1024 verified all six destinations (Monitor, Assets, Investigations,
+Maintenance, System, Setup), their actual content, and shell/content overflow: zero overflow and
+zero page errors. The 32 loaded overlapping analyses were present, and the last item routed to
+its exact Investigation. A 14-item application regression guards against the former six-item cap.
+Evidence shading remains within the chart bounds. Main auxiliary text is now 13px; chart ticks
+are 12px. The obsolete Monitor reactive presentation and multi-signal Matplotlib renderer were
+removed; Assets retains its responsive single-signal Matplotlib charts.
+
+Review captures below show the full Monitor surface, including the bounded scrollable evidence
+list. The interaction viewport height was 1000px; capture height was expanded at the same width
+to include the entire surface because Marimo scrolls its app viewport internally. These PNGs are
+human-review representations (each below 1 MiB), not canonical numerical evidence.
+
+- [1440px full Monitor](results/monitor-workspace-1440.png)
+- [1024px full Monitor](results/monitor-workspace-1024.png)
+
+This covers navigation integration for the opened default/current sections at these two widths;
+it does not certify every page submode, mobile layout, or field endpoint. Screenshots support
+independent visual review; browser assertions alone do not establish finished UX quality.
+The intermittent Runtime CI SQLite lock is tracked separately in
+[#429](https://github.com/so9093-K/industrial-phm-framework/issues/429); rerun success did not resolve
+its cause.
+
 ## Growth with accumulated state
 
 A fault-free run of the same stack (50 minutes, sampled every 60 s) showed queue high watermark (≤ 53 of
