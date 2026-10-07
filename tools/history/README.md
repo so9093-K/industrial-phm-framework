@@ -120,7 +120,32 @@ Append probes after compaction are reported separately with their before/after r
 Compaction changes the persistent target-file-size option in this isolated catalog.
 
 The fixed-window aggregate holds the queried time span constant; the full-range aggregate grows
-with the selected asset's data. Results and limitations are recorded in
+with the selected asset's data.
+
+Each checkpoint also measures the Monitor reads (asset latest, a six-signal one-hour chart and
+asset discovery), bare connect/attach cost, and the catalog lock: how long one Monitor read and
+one append hold it, and how long an append's connect takes while a Monitor read holds it. Those
+contention appends are counted in `stored_rows` before the row count is recorded.
+
+Two axes separate the stored-row variables. Total N with the queried asset held fixed at the
+representative member size (72 devices, as in the air-compressor Training/raw archive):
+
+```bash
+uv run --locked --extra history python -m tools.history.file_append_scaling \
+  --root artifacts/316-n-scale/unrelated-assets \
+  --sources 72 --queried-asset-rows 1509725 \
+  --checkpoints 1509725,10000000,40000000,84685346
+```
+
+The queried asset's own history (all rows in one asset):
+
+```bash
+uv run --locked --extra history python -m tools.history.file_append_scaling \
+  --root artifacts/316-n-scale/queried-asset \
+  --sources 1 --checkpoints 250000,1509725,6000000,24000000
+```
+
+The 84.7M-row state uses about 10 GB of synthetic Parquet and takes about two minutes to prepare. Results and limitations are recorded in
 [`history-append-scaling-evidence.md`](../../docs/research/history-append-scaling-evidence.md).
 Do not replace these state comparisons with full-archive or long wall-clock runs. Estimate storage
 using measured bytes per observation × N; synthetic compression is not a production sizing estimate.
