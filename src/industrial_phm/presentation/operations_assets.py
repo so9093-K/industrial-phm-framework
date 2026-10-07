@@ -299,7 +299,7 @@ def asset_workspace_css() -> str:
   text-transform: var(--phm-label-transform);
   letter-spacing: var(--phm-label-tracking-wide);
   line-height: 1.4;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
 }
 .phm-asset-title {
   margin: .25rem 0 0;
@@ -324,7 +324,7 @@ def asset_workspace_css() -> str:
   text-transform: var(--phm-label-transform);
   letter-spacing: var(--phm-label-tracking);
   line-height: 1.4;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
 }
 .phm-fact-value {
   margin-top: .2rem;
