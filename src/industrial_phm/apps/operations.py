@@ -3212,6 +3212,7 @@ def _(
     setup_pause_button,
     setup_run_diagnostic_button,
     setup_save_freshness_button,
+    setup_open_monitor_button,
     setup_subscription_diagnostic_button,
     setup_selected_source,
     setup_source_selector,
