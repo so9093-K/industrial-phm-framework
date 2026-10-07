@@ -161,7 +161,9 @@ def render_maintenance_timeline_html(
         body = "".join(
             "<tr>"
             f"<td>{escape(format_operations_utc(event.recorded_at, locale))}</td>"
-            f"<td>{escape(operations_text(f'maintenance.action.{event.action.value}', locale))}</td>"
+            "<td>"
+            f"{escape(operations_text(f'maintenance.action.{event.action.value}', locale))}"
+            "</td>"
             f"<td>{escape(event.note or '—')}</td>"
             "</tr>"
             for event in item.timeline
