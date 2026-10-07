@@ -420,9 +420,7 @@ _TEXT: Final = {
             "실행하고, OPC UA는 수집을 시작한 뒤 이 상태를 새로고침하세요."
         ),
         "setup.refresh_data_flow": "데이터 수신 새로고침",
-        "setup.monitor_locked": (
-            "Accepted data receipt가 확인되면 관제 화면을 열 수 있습니다."
-        ),
+        "setup.monitor_locked": ("Accepted data receipt가 확인되면 관제 화면을 열 수 있습니다."),
         "setup.not_enabled": "활성화 안 됨",
         "setup.enabled": "활성화됨",
         "setup.paused": "일시 중지",
