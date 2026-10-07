@@ -1180,7 +1180,8 @@ _PRODUCT_COPY: Final = {
         "setup.verify_flow_title": "데이터 수신 시작 또는 확인",
         "setup.verify_flow_help": (
             "사용할 준비가 되면 source를 활성화하세요. OPC UA는 persistent collection을 "
-            "요청합니다. 연결과 data-contract 확인에는 위의 bounded diagnostic을 사용할 수 있습니다."
+            "요청합니다. 연결과 data-contract 확인에는 위의 bounded diagnostic을 "
+            "사용할 수 있습니다."
         ),
         "setup.observe_title": "관제 시작",
         "setup.add_another_source": "다른 데이터 source 추가",
