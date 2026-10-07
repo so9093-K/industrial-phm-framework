@@ -3659,15 +3659,28 @@ def _(
 ):
     _message_blocks = []
     if setup_error:
-        _message_blocks.append(mo.callout(setup_error, kind="danger", title="Setup action failed"))
+        _message_blocks.append(
+            mo.callout(
+                setup_error,
+                kind="danger",
+                title=operations_text("setup.action_failed", operations_locale),
+            )
+        )
     if setup_success:
-        _message_blocks.append(mo.callout(setup_success, kind="success", title="Setup updated"))
+        _message_blocks.append(
+            mo.callout(
+                setup_success,
+                kind="success",
+                title=operations_text("setup.updated", operations_locale),
+            )
+        )
 
     if setup_selected_source is None:
         _selected_source_panel = mo.md(
-            "### Connect your first data source\n\n"
-            "Operations needs an observation source before it can show asset state or "
-            "analysis evidence. Choose a prepared FILE source or a live OPC UA source below."
+            "### "
+            + operations_text("setup.connect_first_source", operations_locale)
+            + "\n\n"
+            + operations_text("setup.connect_first_source_help", operations_locale)
         )
     else:
         _source_actions = [
@@ -3698,14 +3711,10 @@ def _(
                     )
                 ),
                 mo.hstack(_source_actions, justify="start", gap=0.6),
-                mo.md(
-                    "Enable/Pause changes whether a runtime may use the source. "
-                    "Start/Stop collection writes desired collection state for OPC UA; "
-                    "it does not prove the collector process is running or connected."
-                ),
+                mo.md(operations_text("setup.source_controls_help", operations_locale)),
                 mo.accordion(
                     {
-                        "Data age policy": mo.vstack(
+                        operations_text("setup.data_age_policy", operations_locale): mo.vstack(
                             [
                                 setup_freshness_age_input,
                                 mo.hstack(
@@ -3714,9 +3723,7 @@ def _(
                                     gap=0.6,
                                 ),
                                 mo.md(
-                                    "This policy compares the latest comparable observation "
-                                    "time with the current assessment time. It does not prove "
-                                    "connection health or asset health."
+                                    operations_text("setup.data_age_help", operations_locale)
                                 ),
                             ],
                             gap=0.6,
@@ -3725,14 +3732,17 @@ def _(
                 ),
                 mo.accordion(
                     {
-                        "Advanced diagnostics": mo.vstack(
+                        operations_text("setup.advanced_diagnostics", operations_locale): mo.vstack(
                             [
                                 *(
                                     [
                                         mo.callout(
                                             setup_diagnostic_error,
                                             kind="danger",
-                                            title="Diagnostic action failed",
+                                            title=operations_text(
+                                                "setup.diagnostic_failed",
+                                                operations_locale,
+                                            ),
                                         )
                                     ]
                                     if setup_diagnostic_error
@@ -3743,7 +3753,10 @@ def _(
                                         mo.callout(
                                             setup_diagnostic_success,
                                             kind="success",
-                                            title="Diagnostic action completed",
+                                            title=operations_text(
+                                                "setup.diagnostic_completed",
+                                                operations_locale,
+                                            ),
                                         )
                                     ]
                                     if setup_diagnostic_success
@@ -3762,10 +3775,7 @@ def _(
                                     gap=0.6,
                                 ),
                                 mo.md(
-                                    "These bounded actions are for connection/data-contract "
-                                    "diagnostics. They do not start the persistent collection "
-                                    "service, and a successful attempt is not current connection "
-                                    "health."
+                                    operations_text("setup.diagnostics_help", operations_locale)
                                 ),
                             ],
                             gap=0.6,
@@ -3785,8 +3795,13 @@ def _(
             _file_discovery_view = mo.vstack(
                 [
                     mo.md(
-                        f"Discovered **{file_discovery.file_count}** file(s), "
-                        f"**{len(file_discovery.common_columns)}** common column(s)."
+                        operations_text(
+                            "setup.discovered_file_summary",
+                            operations_locale,
+                        ).format(
+                            files=file_discovery.file_count,
+                            columns=len(file_discovery.common_columns),
+                        )
                     ),
                     mo.ui.table(_preview_rows, selection=None),
                     file_signal_selection,
@@ -3795,18 +3810,18 @@ def _(
             )
         else:
             _file_discovery_view = mo.md(
-                "Run discovery after choosing a file or history directory. "
-                "No column meaning is inferred during discovery."
+                operations_text("setup.run_discovery_help", operations_locale)
             )
 
         _source_wizard = mo.vstack(
             [
-                mo.md("### Add data source"),
+                mo.md(
+                    "### " + operations_text("setup.add_data_source", operations_locale)
+                ),
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">1 · Source</div>'
-                    '<div class="phm-setup-help">Choose the prepared file boundary '
-                    "and declare asset identity.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.source", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.file.connect_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 add_source_type,
@@ -3817,17 +3832,15 @@ def _(
                 file_discover_button,
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">2 · Select signals</div>'
-                    '<div class="phm-setup-help">Keep only discovered columns that '
-                    "belong to this source mapping.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.select_signals", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.file.select_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 _file_discovery_view,
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">3 · Define time & sampling</div>'
-                    '<div class="phm-setup-help">FILE registration preserves column '
-                    "identity; it does not infer physical measurement semantics.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.time_sampling", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.file.meaning_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 mo.hstack(
@@ -3836,9 +3849,8 @@ def _(
                 ),
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">4 · Review & save</div>'
-                    '<div class="phm-setup-help">The file is validated before its '
-                    "registration is persisted.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.review_save", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.file.review_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 register_setup_source_button,
@@ -3848,23 +3860,26 @@ def _(
     else:
         if opcua_browse_current and opcua_browse is not None:
             _browse_status = mo.md(
-                f"Browse completed: **{len(opcua_browse.variables)}** variable candidate(s), "
-                f"visited **{opcua_browse.visited_node_count}** node(s)"
-                + (" · result truncated" if opcua_browse.truncated else "")
-                + "."
+                operations_text("setup.browse_summary", operations_locale).format(
+                    variables=len(opcua_browse.variables),
+                    nodes=opcua_browse.visited_node_count,
+                    truncated=(
+                        operations_text("setup.result_truncated", operations_locale)
+                        if opcua_browse.truncated
+                        else ""
+                    ),
+                )
             )
         else:
             _browse_status = mo.md(
-                "Connect & browse uses one bounded anonymous session to discover "
-                "variable identity. "
-                "It does not read signal values or prove ongoing connection health."
+                operations_text("setup.browse_help", operations_locale)
             )
 
         if opcua_mapping_error:
             _mapping_view = mo.callout(
                 opcua_mapping_error,
                 kind="danger",
-                title="Explicit mapping invalid",
+                title=operations_text("setup.mapping_invalid", operations_locale),
             )
         elif opcua_candidate_mappings:
             _mapping_view = mo.ui.table(
@@ -3875,17 +3890,28 @@ def _(
                 selection=None,
             )
         else:
-            _mapping_view = mo.md("No signal mapping selected yet.")
+            _mapping_view = mo.md(
+                operations_text("setup.no_mapping_selected", operations_locale)
+            )
 
         _semantic_rows = [
             {
-                "Signal": channel_id,
-                "Observed property": binding.definition.observed_property or "Unresolved",
-                "Scope": binding.definition.scope or "—",
-                "Statistic": binding.definition.statistic or "—",
-                "Unit": binding.definition.unit or "—",
-                "Version": binding.version,
-                "Evidence": binding.interpretation_evidence,
+                operations_text("common.signal", operations_locale): channel_id,
+                operations_text("setup.observed_property", operations_locale): (
+                    binding.definition.observed_property
+                    or operations_text("common.unresolved", operations_locale)
+                ),
+                operations_text("setup.scope", operations_locale): binding.definition.scope
+                or "—",
+                operations_text("setup.statistic", operations_locale): (
+                    binding.definition.statistic or "—"
+                ),
+                operations_text("setup.unit", operations_locale): binding.definition.unit
+                or "—",
+                operations_text("setup.version", operations_locale): binding.version,
+                operations_text("common.evidence", operations_locale): (
+                    binding.interpretation_evidence
+                ),
             }
             for channel_id, binding in sorted(pending_semantics.items())
         ]
@@ -3915,25 +3941,27 @@ def _(
                         mo.ui.table(_semantic_rows, selection=None)
                         if _semantic_rows
                         else mo.md(
-                            "No explicit measurement meaning has been added. "
-                            "Unmapped meaning remains **Unresolved**."
+                            operations_text("setup.semantic_empty", operations_locale)
                         )
                     ),
                 ],
                 gap=0.6,
             )
             if semantic_channel_input is not None
-            else mo.md("Select at least one mapped signal before defining meaning.")
+            else mo.md(
+                operations_text("setup.select_mapping_first", operations_locale)
+            )
         )
 
         _source_wizard = mo.vstack(
             [
-                mo.md("### Add data source"),
+                mo.md(
+                    "### " + operations_text("setup.add_data_source", operations_locale)
+                ),
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">1 · Connect</div>'
-                    '<div class="phm-setup-help">Declare endpoint and asset identity, '
-                    "then run a bounded browse.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.connect", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.opcua.connect_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 add_source_type,
@@ -3944,33 +3972,37 @@ def _(
                 _browse_status,
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">2 · Select signals</div>'
-                    '<div class="phm-setup-help">Browse selection defines explicit '
-                    "NodeId mapping. NodeId and BrowseName do not establish physical "
-                    "meaning.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.select_signals", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.opcua.select_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 (
                     opcua_signal_selection
                     if opcua_signal_selection is not None
-                    else mo.md("No current browse result.")
+                    else mo.md(
+                        operations_text("setup.no_browse_result", operations_locale)
+                    )
                 ),
                 _mapping_view,
-                mo.accordion({"Advanced explicit NodeId mapping": opcua_explicit_mapping_input}),
+                mo.accordion(
+                    {
+                        operations_text(
+                            "setup.advanced_nodeid_mapping",
+                            operations_locale,
+                        ): opcua_explicit_mapping_input
+                    }
+                ),
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">3 · Define meaning</div>'
-                    '<div class="phm-setup-help">Meaning is explicit, versioned, and '
-                    "evidence-backed. Leave channels unresolved when meaning is not "
-                    "established.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.define_meaning", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.opcua.meaning_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 _semantic_editor,
                 mo.Html(
                     '<div class="phm-setup-step">'
-                    '<div class="phm-setup-step-title">4 · Review & save</div>'
-                    '<div class="phm-setup-help">Saving registers configuration only. '
-                    "It does not enable the source or start collection.</div>"
+                    f'<div class="phm-setup-step-title">{operations_text("setup.step.review_save", operations_locale)}</div>'
+                    f'<div class="phm-setup-help">{operations_text("setup.opcua.review_help", operations_locale)}</div>'
                     "</div>"
                 ),
                 register_setup_source_button,
@@ -3980,15 +4012,9 @@ def _(
 
     _analysis_configuration_view = mo.vstack(
         [
+            mo.md(operations_text("setup.analysis_policy_help", operations_locale)),
             mo.md(
-                "Operational analysis policies are versioned outside this Setup workspace today. "
-                "The live three-phase runner and FILE analysis preserve their policy/version "
-                "in evidence; this screen does not expose controls that the application contract "
-                "cannot persist safely."
-            ),
-            mo.md(
-                "Use **System** to verify analysis-service runtime status and **Investigations** "
-                "to inspect the exact policy/evidence of completed analyses."
+                operations_text("setup.analysis_navigation_help", operations_locale)
             ),
         ],
         gap=0.8,
@@ -3998,8 +4024,10 @@ def _(
         _guided_setup = mo.vstack(
             [
                 mo.md(
-                    "### 1 · Connect data\n\n"
-                    "Choose FILE for prepared local observations or OPC UA for a live source."
+                    "### 1 · "
+                    + operations_text("setup.connect_data_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.connect_data_help", operations_locale)
                 ),
                 _source_wizard,
             ],
@@ -4009,7 +4037,10 @@ def _(
         _defined, _total = setup_selected_source.semantic_coverage
         _guided_setup = mo.vstack(
             [
-                mo.md("### 1 · Connected source"),
+                mo.md(
+                    "### 1 · "
+                    + operations_text("setup.connected_source", operations_locale)
+                ),
                 mo.Html(
                     render_setup_sources_html(
                         setup_workspace,
@@ -4018,8 +4049,10 @@ def _(
                 ),
                 _selected_source_panel,
                 mo.md(
-                    "### 2 · Inspect signals\n\n"
-                    "Confirm the exact source identity and the signals that were registered."
+                    "### 2 · "
+                    + operations_text("setup.inspect_signals_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.inspect_signals_help", operations_locale)
                 ),
                 mo.Html(
                     render_setup_signals_html(
@@ -4028,15 +4061,19 @@ def _(
                     )
                 ),
                 mo.md(
-                    "### 3 · Confirm meaning\n\n"
-                    f"Explicit meaning is recorded for **{_defined} / {_total}** signal(s). "
-                    "Unresolved channels remain unresolved rather than being inferred from names."
+                    "### 3 · "
+                    + operations_text("setup.confirm_meaning_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.confirm_meaning_help", operations_locale).format(
+                        defined=_defined,
+                        total=_total,
+                    )
                 ),
                 mo.md(
-                    "### 4 · Start or verify data flow\n\n"
-                    "Enable the source when it is ready to be used. For OPC UA, request "
-                    "persistent collection. Bounded diagnostics remain available above for "
-                    "connection and data-contract checks."
+                    "### 4 · "
+                    + operations_text("setup.verify_flow_title", operations_locale)
+                    + "\n\n"
+                    + operations_text("setup.verify_flow_help", operations_locale)
                 ),
                 mo.callout(
                     operations_text(
@@ -4052,7 +4089,9 @@ def _(
                 ),
                 setup_refresh_data_flow_button,
                 mo.md(
-                    "### 5 · Observe\n\n"
+                    "### 5 · "
+                    + operations_text("setup.observe_title", operations_locale)
+                    + "\n\n"
                     + operations_text(
                         (
                             "setup.observe_ready"
@@ -4065,8 +4104,12 @@ def _(
                 *([setup_open_monitor_button] if setup_open_monitor_button is not None else []),
                 mo.accordion(
                     {
-                        "Add another data source": _source_wizard,
-                        "Analysis configuration": _analysis_configuration_view,
+                        operations_text(
+                            "setup.add_another_source", operations_locale
+                        ): _source_wizard,
+                        operations_text(
+                            "setup.analysis_configuration", operations_locale
+                        ): _analysis_configuration_view,
                     }
                 ),
             ],
@@ -4076,9 +4119,10 @@ def _(
     setup_view = mo.vstack(
         [
             mo.md(
-                "## Setup\n\n"
-                "Connect data, inspect signal identity, record only known measurement meaning, "
-                "then verify data flow before moving to Monitor."
+                "## "
+                + operations_text("setup.title", operations_locale)
+                + "\n\n"
+                + operations_text("setup.intro", operations_locale)
             ),
             *_message_blocks,
             _guided_setup,
