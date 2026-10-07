@@ -71,3 +71,8 @@ def test_system_runtime_locale_does_not_relabel_process_running_as_receiving() -
 
     assert "실행 중" in rendered
     assert "수신 중" not in rendered
+    assert "실시간 수집" in rendered
+    assert "이력 저장" in rendered
+    assert "분석 service" in rendered
+    assert "최근 갱신" in rendered
+    assert "2026-09-30T12:00:00+00:00" in rendered
