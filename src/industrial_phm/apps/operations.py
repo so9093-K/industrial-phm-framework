@@ -233,6 +233,23 @@ def _(mo):
 
 
 @app.cell
+def _(mo, registered_sources):
+    get_first_run_mode, set_first_run_mode = mo.state(
+        "configured" if registered_sources else "landing"
+    )
+    get_first_run_sample, set_first_run_sample = mo.state(None)
+    get_first_run_error, set_first_run_error = mo.state("")
+    return (
+        get_first_run_error,
+        get_first_run_mode,
+        get_first_run_sample,
+        set_first_run_error,
+        set_first_run_mode,
+        set_first_run_sample,
+    )
+
+
+@app.cell
 def _(get_monitor_revision, load_operations_app_context):
     _refresh = get_monitor_revision()
     del _refresh
@@ -443,6 +460,77 @@ def _(
 
 
 @app.cell
+def _(mo, setup_selected_source):
+    first_run_sample_button = mo.ui.run_button(
+        label="Explore with sample data",
+        kind="success",
+    )
+    first_run_real_button = mo.ui.run_button(label="Connect real data")
+    first_run_stop_sample_button = mo.ui.run_button(label="Stop sample")
+    setup_open_monitor_button = (
+        None
+        if setup_selected_source is None
+        else mo.ui.run_button(label="Open Monitor", kind="success")
+    )
+    return (
+        first_run_real_button,
+        first_run_sample_button,
+        first_run_stop_sample_button,
+        setup_open_monitor_button,
+    )
+
+
+@app.cell
+def _(
+    OperationsActionError,
+    first_run_real_button,
+    first_run_sample_button,
+    first_run_stop_sample_button,
+    operations_actions,
+    set_first_run_error,
+    set_first_run_mode,
+    set_first_run_sample,
+):
+    if first_run_stop_sample_button.value:
+        operations_actions.stop_first_run_sample()
+        set_first_run_sample(None)
+        set_first_run_error("")
+        set_first_run_mode("landing")
+    elif first_run_real_button.value:
+        operations_actions.stop_first_run_sample()
+        set_first_run_sample(None)
+        set_first_run_error("")
+        set_first_run_mode("real")
+    elif first_run_sample_button.value:
+        try:
+            _launch = operations_actions.launch_first_run_sample()
+        except OperationsActionError as error:
+            set_first_run_sample(None)
+            set_first_run_error(str(error))
+            set_first_run_mode("landing")
+        else:
+            set_first_run_sample(_launch)
+            set_first_run_error("")
+            set_first_run_mode("sample")
+    return
+
+
+@app.cell
+def _(get_first_run_error, get_first_run_mode, get_first_run_sample):
+    first_run_error = get_first_run_error()
+    first_run_mode = get_first_run_mode()
+    first_run_sample = get_first_run_sample()
+    return first_run_error, first_run_mode, first_run_sample
+
+
+@app.cell
+def _(set_navigation_page, setup_open_monitor_button):
+    if setup_open_monitor_button is not None and setup_open_monitor_button.value:
+        set_navigation_page("Monitor")
+    return
+
+
+@app.cell
 def _():
     setup_selection = {"source_id": None}
     return (setup_selection,)
@@ -470,17 +558,7 @@ def _(mo, setup_selection, setup_workspace):
     else:
         setup_source_selector = None
         setup_selected_source = None
-    setup_section = mo.ui.radio(
-        options=[
-            "Data Sources",
-            "Signal Mapping",
-            "Measurement Semantics",
-            "Analysis Configuration",
-        ],
-        value="Data Sources",
-        label="Setup area",
-    )
-    return setup_section, setup_selected_source, setup_source_selector
+    return setup_selected_source, setup_source_selector
 
 
 @app.cell
@@ -3134,7 +3212,7 @@ def _(
     setup_pause_button,
     setup_run_diagnostic_button,
     setup_save_freshness_button,
-    setup_section,
+    setup_open_monitor_button,
     setup_subscription_diagnostic_button,
     setup_selected_source,
     setup_source_selector,
@@ -3461,64 +3539,12 @@ def _(
             gap=0.75,
         )
 
-    _add_source_surface = (
-        _source_wizard
-        if setup_selected_source is None
-        else mo.accordion({"Add data source": _source_wizard})
-    )
-    _data_sources_view = mo.vstack(
-        [
-            mo.Html(render_setup_sources_html(setup_workspace)),
-            _selected_source_panel,
-            _add_source_surface,
-        ],
-        gap=1.0,
-    )
-
-    if setup_selected_source is None:
-        _signal_mapping_view = mo.md("## Signal Mapping\n\nSelect or add a data source first.")
-        _semantics_view = mo.md("## Measurement Semantics\n\nSelect or add a data source first.")
-    else:
-        _signal_mapping_view = mo.vstack(
-            [
-                setup_source_selector,
-                mo.Html(render_setup_signals_html(setup_selected_source)),
-                mo.md(
-                    "Signal identity comes from declared FILE columns or explicit "
-                    "OPC UA NodeId mapping. "
-                    "This page does not infer component hierarchy or physical meaning from names."
-                ),
-            ],
-            gap=0.8,
-        )
-        _defined, _total = setup_selected_source.semantic_coverage
-        _semantics_view = mo.vstack(
-            [
-                setup_source_selector,
-                mo.md(
-                    f"### Measurement Semantics\n\n"
-                    f"Explicit meaning coverage: **{_defined} / {_total}** signal(s)."
-                ),
-                mo.Html(render_setup_signals_html(setup_selected_source)),
-                mo.md(
-                    "Existing registrations are immutable evidence in the current "
-                    "registry contract. "
-                    "Measurement meaning is defined during registration; unresolved "
-                    "channels stay unresolved "
-                    "instead of being inferred from signal names."
-                ),
-            ],
-            gap=0.8,
-        )
-
     _analysis_configuration_view = mo.vstack(
         [
             mo.md(
-                "## Analysis Configuration\n\n"
                 "Operational analysis policies are versioned outside this Setup workspace today. "
-                "The live three-phase runner and FILE analysis preserve their "
-                "policy/version in evidence; "
-                "this screen does not expose controls that the application contract "
+                "The live three-phase runner and FILE analysis preserve their policy/version "
+                "in evidence; this screen does not expose controls that the application contract "
                 "cannot persist safely."
             ),
             mo.md(
@@ -3529,32 +3555,157 @@ def _(
         gap=0.8,
     )
 
-    _setup_sections = {
-        "Data Sources": _data_sources_view,
-        "Signal Mapping": _signal_mapping_view,
-        "Measurement Semantics": _semantics_view,
-        "Analysis Configuration": _analysis_configuration_view,
-    }
+    if setup_selected_source is None:
+        _guided_setup = mo.vstack(
+            [
+                mo.md(
+                    "### 1 · Connect data\n\n"
+                    "Choose FILE for prepared local observations or OPC UA for a live source."
+                ),
+                _source_wizard,
+            ],
+            gap=0.9,
+        )
+    else:
+        _defined, _total = setup_selected_source.semantic_coverage
+        _guided_setup = mo.vstack(
+            [
+                mo.md("### 1 · Connected source"),
+                mo.Html(render_setup_sources_html(setup_workspace)),
+                _selected_source_panel,
+                mo.md(
+                    "### 2 · Inspect signals\n\n"
+                    "Confirm the exact source identity and the signals that were registered."
+                ),
+                mo.Html(render_setup_signals_html(setup_selected_source)),
+                mo.md(
+                    "### 3 · Confirm meaning\n\n"
+                    f"Explicit meaning is recorded for **{_defined} / {_total}** signal(s). "
+                    "Unresolved channels remain unresolved rather than being inferred from names."
+                ),
+                mo.md(
+                    "### 4 · Start or verify data flow\n\n"
+                    "Enable the source when it is ready to be used. For OPC UA, request "
+                    "persistent collection. Bounded diagnostics remain available above for "
+                    "connection and data-contract checks."
+                ),
+                mo.md(
+                    "### 5 · Observe\n\n"
+                    "Open Monitor after the source is configured. Monitor reports the evidence "
+                    "that is actually available; setup success alone is not asset-health evidence."
+                ),
+                setup_open_monitor_button,
+                mo.accordion(
+                    {
+                        "Add another data source": _source_wizard,
+                        "Analysis configuration": _analysis_configuration_view,
+                    }
+                ),
+            ],
+            gap=0.9,
+        )
+
     setup_view = mo.vstack(
         [
-            mo.hstack(
-                [
-                    mo.md(
-                        "## Setup\n\n"
-                        "Connect data sources, map signals, and record explicit "
-                        "measurement meaning."
-                    ),
-                    setup_section,
-                ],
-                widths=[0.42, 0.58],
-                align="start",
+            mo.md(
+                "## Setup\n\n"
+                "Connect data, inspect signal identity, record only known measurement meaning, "
+                "then verify data flow before moving to Monitor."
             ),
             *_message_blocks,
-            _setup_sections[setup_section.value],
+            _guided_setup,
         ],
         gap=1.0,
     )
     return (setup_view,)
+
+
+@app.cell
+def _(
+    first_run_error,
+    first_run_mode,
+    first_run_real_button,
+    first_run_sample,
+    first_run_sample_button,
+    first_run_stop_sample_button,
+    mo,
+):
+    if first_run_mode == "sample" and first_run_sample is not None:
+        first_run_view = mo.vstack(
+            [
+                mo.md(
+                    "## Sample Operations is ready\n\n"
+                    "The sample runs in an isolated workspace and does not write synthetic "
+                    "observations into your real Operations workspace."
+                ),
+                mo.Html(
+                    f'<a href="{first_run_sample.url}" target="_blank" '
+                    'rel="noopener noreferrer">Open sample Monitor</a>'
+                ),
+                mo.md(f"Sample workspace: `{first_run_sample.workspace}`"),
+                mo.hstack(
+                    [first_run_stop_sample_button, first_run_real_button],
+                    justify="start",
+                    gap=0.6,
+                ),
+            ],
+            gap=1.0,
+        )
+    else:
+        _blocks = [
+            mo.md(
+                "# Industrial PHM\n\n"
+                "Choose how to begin. You can explore the real Operations path without "
+                "learning internal workspace or process commands."
+            ),
+        ]
+        if first_run_error:
+            _blocks.append(
+                mo.callout(
+                    first_run_error,
+                    kind="danger",
+                    title="Sample could not start",
+                )
+            )
+        _blocks.extend(
+            [
+                mo.hstack(
+                    [
+                        mo.vstack(
+                            [
+                                mo.md(
+                                    "### Explore with sample data\n\n"
+                                    "Start the existing synthetic three-phase demo in a separate "
+                                    "workspace and open its Monitor."
+                                ),
+                                first_run_sample_button,
+                            ],
+                            gap=0.6,
+                        ),
+                        mo.vstack(
+                            [
+                                mo.md(
+                                    "### Connect real data\n\n"
+                                    "Connect a prepared FILE source or a live OPC UA source, "
+                                    "then verify signals and data flow."
+                                ),
+                                first_run_real_button,
+                            ],
+                            gap=0.6,
+                        ),
+                    ],
+                    widths="equal",
+                    align="start",
+                    gap=1.0,
+                ),
+                mo.md(
+                    "An existing configured workspace skips this first-run choice and resumes "
+                    "directly in Monitor."
+                ),
+            ]
+        )
+        first_run_view = mo.vstack(_blocks, gap=1.0)
+    return (first_run_view,)
 
 
 @app.cell
@@ -3753,6 +3904,8 @@ def _(
     asset_workspace_css,
     asset_workspace_error,
     investigation_view,
+    first_run_mode,
+    first_run_view,
     investigation_workspace_css,
     maintenance_view,
     mo,
@@ -3765,6 +3918,7 @@ def _(
     render_asset_maintenance_html,
     render_asset_overview_html,
     setup_view,
+    setup_workspace,
     setup_workspace_css,
     signal_view,
     system_view,
@@ -3821,13 +3975,16 @@ def _(
             gap=1.1,
         )
 
+    _setup_page = (
+        first_run_view if not setup_workspace.sources and first_run_mode != "real" else setup_view
+    )
     pages = {
         "Monitor": monitor_workspace_ui,
         "Assets": asset_view,
         "Investigations": investigation_view,
         "Maintenance": maintenance_view,
         "System": system_view,
-        "Setup": setup_view,
+        "Setup": _setup_page,
     }
 
     shell = (

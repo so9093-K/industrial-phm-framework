@@ -241,3 +241,46 @@ def test_actions_persist_review_request_and_review_event(tmp_path: Path) -> None
     assert event.finding_id == finding.finding_id
     assert event.action == FindingReviewAction.ACKNOWLEDGE
     assert event.note == "accepted for review"
+
+
+def test_actions_launch_and_stop_first_run_sample(tmp_path: Path, monkeypatch) -> None:
+    import industrial_phm.runtime.operations_app_actions as action_module
+    from industrial_phm.runtime.operations_sample import FirstRunSampleLaunch
+
+    actions = _actions(tmp_path)
+    expected = FirstRunSampleLaunch(
+        workspace=tmp_path / "demo",
+        url="http://127.0.0.1:2719",
+        opcua_port=4842,
+        ui_port=2719,
+    )
+    stopped = []
+
+    monkeypatch.setattr(
+        action_module,
+        "launch_first_run_sample",
+        lambda workspace: expected,
+    )
+    monkeypatch.setattr(
+        action_module,
+        "stop_first_run_sample",
+        lambda: stopped.append(True),
+    )
+
+    assert actions.launch_first_run_sample() == expected
+    actions.stop_first_run_sample()
+    assert stopped == [True]
+
+
+def test_actions_wrap_first_run_sample_launch_failure(tmp_path: Path, monkeypatch) -> None:
+    import industrial_phm.runtime.operations_app_actions as action_module
+
+    actions = _actions(tmp_path)
+
+    def fail(_workspace):
+        raise RuntimeError("sample port unavailable")
+
+    monkeypatch.setattr(action_module, "launch_first_run_sample", fail)
+
+    with pytest.raises(OperationsActionError, match="sample port unavailable"):
+        actions.launch_first_run_sample()

@@ -28,11 +28,9 @@ make down
 make up WORKSPACE=artifacts/site-a
 ```
 
-Synthetic product demo는 다음을 사용합니다.
-
-```bash
-make demo
-```
+빈 workspace의 `make up`은 first-run 화면에서 synthetic sample과 실제 데이터 연결을 선택하게 합니다.
+sample은 real workspace와 분리된 demo workspace에서 기존 synthetic product demo를 실행합니다.
+`make demo`는 first-run UI를 거치지 않고 같은 demo를 직접 실행하는 개발·진단 shortcut입니다.
 
 현재 Operations가 지원하는 Monitor / Assets / Investigations / Maintenance / System / Setup의
 정확한 범위는 [docs/status.md](../docs/status.md)를 참조합니다. Live observation과

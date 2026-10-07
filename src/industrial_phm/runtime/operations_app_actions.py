@@ -57,6 +57,11 @@ from industrial_phm.runtime.operations_app_wiring import (
     operations_source_registry_state,
     run_async_in_worker,
 )
+from industrial_phm.runtime.operations_sample import (
+    FirstRunSampleLaunch,
+    launch_first_run_sample,
+    stop_first_run_sample,
+)
 
 
 class OperationsActionError(RuntimeError):
@@ -95,6 +100,20 @@ class OperationsAppActions:
             )
             repository.set_freshness_policy(policy)
         return policy, operations_source_registry_state(repository)
+
+    def launch_first_run_sample(self) -> FirstRunSampleLaunch:
+        """Start the isolated synthetic demo used by the first-run landing."""
+
+        try:
+            return launch_first_run_sample(self.paths.workspace)
+        except (OSError, RuntimeError, ValueError) as error:
+            detail = str(error).strip() or type(error).__name__
+            raise OperationsActionError(detail) from error
+
+    def stop_first_run_sample(self) -> None:
+        """Stop a sample demo started by this UI process."""
+
+        stop_first_run_sample()
 
     def browse_opcua(
         self,

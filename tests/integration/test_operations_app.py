@@ -45,7 +45,7 @@ def _distinct_analysis(template, index: int):
     )
 
 
-def test_operations_empty_workspace_starts_in_setup(tmp_path, monkeypatch):
+def test_operations_empty_workspace_starts_with_first_run_landing(tmp_path, monkeypatch):
     pytest.importorskip("marimo")
     workspace = OperationsWorkspace(tmp_path / "workspace")
     monkeypatch.setenv("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE", str(workspace.root))
@@ -55,6 +55,10 @@ def test_operations_empty_workspace_starts_in_setup(tmp_path, monkeypatch):
 
     assert defs["navigation_page"] == "Setup"
     assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "Setup"
+    assert defs["first_run_mode"] == "landing"
+    assert defs["first_run_sample_button"] is not None
+    assert defs["first_run_real_button"] is not None
+    assert "setup_section" not in defs
 
 
 def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
@@ -86,6 +90,8 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
 
     assert defs["navigation_page"] == "Monitor"
     assert defs["monitor_workspace_ui"].widget.snapshot["page"] == "Monitor"
+    assert defs["first_run_mode"] == "configured"
+    assert "setup_section" not in defs
     assert "navigation" not in defs
     assert defs["monitor_range_id"] == "1h"
     assert defs["signal_range_selector"].value == "Live"

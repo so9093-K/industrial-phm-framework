@@ -28,9 +28,11 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 현재 기본 runtime policy를 기록한 config를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
-터미널에 출력되는 `operations_url`을 브라우저에서 엽니다. 처음 만든 빈 workspace는 **Setup**에서
-시작해 첫 FILE 또는 OPC UA source를 연결하도록 안내하고, source가 있는 workspace는 **Monitor**에서
-시작합니다.
+터미널에 출력되는 `operations_url`을 브라우저에서 엽니다. 처음 만든 빈 workspace는 first-run
+화면에서 **샘플 데이터로 둘러보기** 또는 **실제 데이터 연결**을 선택합니다. 샘플은 real workspace와
+분리된 synthetic demo workspace에서 실행되며, 실제 데이터 경로는 FILE 또는 OPC UA 연결 → 신호 확인 →
+명시적 measurement meaning → 수집/데이터 흐름 확인 → Monitor 순서의 Setup으로 이어집니다. source가
+이미 있는 workspace는 onboarding을 반복하지 않고 **Monitor**에서 재개합니다.
 
 ```bash
 make status
@@ -46,11 +48,8 @@ make status WORKSPACE=/var/lib/industrial-phm/plant-a
 make down WORKSPACE=/var/lib/industrial-phm/plant-a
 ```
 
-외부 데이터 없이 동작하는 synthetic node를 체험하려면 normal workspace와 분리된 demo를 사용합니다.
-
-```bash
-make demo
-```
+외부 데이터 없이 둘러보는 일반 사용자 경로도 `make up`의 first-run 화면에서 시작합니다.
+`make demo`는 동일한 synthetic demo를 직접 실행하려는 개발·진단용 shortcut으로 유지합니다.
 
 직접 CLI, UI-only 실행, replay, backup/restore, deployment, 연구 앱 실행은
 [Applications 문서](apps/README.md)와 각 개발·운영 문서에서 다룹니다.
@@ -82,11 +81,14 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 - **System** — 수집·저장·분석 runtime과 state-read 상태
 - **Setup** — FILE/OPC UA 연결, signal mapping, measurement meaning과 collection intent
 
-빈 workspace에서는 Setup이 first-run 진입점입니다. source 등록, Enable/Pause, OPC UA collection 요청은
-각각 별도 의미를 유지하며 UI가 사용자의 판단 없이 자동 실행하지 않습니다. source가 준비된 workspace는
-Monitor를 기본 진입점으로 사용합니다.
+빈 workspace에서는 first-run 화면이 샘플 체험과 실제 데이터 연결을 먼저 구분합니다. 실제 데이터
+경로의 Setup은 domain taxonomy를 navigation으로 노출하지 않고 연결 → 신호 확인 → 의미 확인 →
+수집/데이터 흐름 확인 → Monitor의 작업 순서를 안내합니다. source 등록, Enable/Pause, OPC UA collection
+요청은 각각 별도 의미를 유지하며 UI가 사용자의 판단 없이 자동 실행하지 않습니다. source가 준비된
+workspace는 Monitor를 기본 진입점으로 사용합니다.
 
-Synthetic 체험은 `make demo`로 normal workspace와 분리합니다. AI-Hub recorded replay, 직접
+Synthetic 체험은 first-run 화면에서 real workspace와 분리된 demo workspace로 실행하며, `make demo`는
+직접 실행 shortcut으로 남습니다. AI-Hub recorded replay, 직접
 `industrial-phm` CLI, backup/restore, service deployment, 개별 collector/analysis runner 실행은
 [Applications 문서](apps/README.md), [로컬 OPC UA 개발·진단 문서](tools/opcua/README.md),
 [Local Operations deployment](docs/architecture/operations-deployment.md)에서 설명합니다.
