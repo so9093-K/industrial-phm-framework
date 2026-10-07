@@ -711,7 +711,9 @@ _PRODUCT_COPY: Final = {
         "system.summary.reconnecting": "{count} live source session(s) reconnecting{connected}",
         "system.summary.connected_clause": " · {count} connected",
         "system.summary.connected": "{count} live source session(s) connected",
-        "system.summary.collection_waiting": "Collection enabled; waiting for live session evidence",
+        "system.summary.collection_waiting": (
+            "Collection enabled; waiting for live session evidence"
+        ),
         "system.summary.collection_disabled": "Collection is not enabled",
         "system.summary.storage_unavailable": "No live storage telemetry available",
         "system.summary.history_failures": "{count} history writer failure(s)",
