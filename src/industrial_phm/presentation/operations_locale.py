@@ -245,8 +245,7 @@ _TEXT: Final = {
         "monitor.no_event_time_window": "No event-time window",
         "monitor.recorded_signal_comparison": "Recorded signal comparison",
         "monitor.chart_caption": (
-            "Mean · min/max · top marks: analysis windows (arrow keys move) · "
-            "amber: exclusions"
+            "Mean · min/max · top marks: analysis windows (arrow keys move) · amber: exclusions"
         ),
         "monitor.bucket_note": "Bucket summaries are not synchronized raw samples",
         "monitor.snapshot": "Snapshot",
@@ -501,9 +500,7 @@ def resolve_operations_locale(
 def resolve_environment_operations_locale() -> OperationsLocale:
     explicit = os.environ.get("INDUSTRIAL_PHM_LOCALE")
     environment = (
-        os.environ.get("LC_ALL")
-        or os.environ.get("LC_MESSAGES")
-        or os.environ.get("LANG")
+        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG")
     )
     return resolve_operations_locale(preferred=explicit, environment_locale=environment)
 
