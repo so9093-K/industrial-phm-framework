@@ -3842,9 +3842,14 @@ def _(
         "asset_id": _selected_asset,
         "asset_name": None if _selected_asset is None else asset_names.label(_selected_asset),
         "assets": [{"id": asset, "name": asset_names.label(asset)} for asset in _assets],
-        "status": "No source context"
-        if asset_workspace is None
-        else data_status_label(asset_workspace.status, operations_locale),
+        "status_id": (
+            "no-source-context" if asset_workspace is None else asset_workspace.status.value
+        ),
+        "status": (
+            operations_text("monitor.no_source_context", operations_locale)
+            if asset_workspace is None
+            else data_status_label(asset_workspace.status, operations_locale)
+        ),
         "source_at": None if asset_workspace is None else utc_millis(asset_workspace.last_data_at),
         "assessed_at": utc_millis(monitor.assessed_at),
         "signals": _catalog_rows,
