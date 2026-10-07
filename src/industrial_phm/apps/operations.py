@@ -754,9 +754,7 @@ def _(
     if _freshness_action is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError(
-                    operations_text("setup.select_source_for_age", operations_locale)
-                )
+                raise ValueError(operations_text("setup.select_source_for_age", operations_locale))
             _source_id = setup_selected_source.source_id
             if _freshness_action == "save":
                 if setup_freshness_age_input is None:
@@ -815,9 +813,7 @@ def _(SourceType, mo, operations_locale, operations_text, setup_selected_source)
             label=operations_text("setup.run_diagnostic", operations_locale)
         )
         setup_subscription_diagnostic_button = (
-            mo.ui.run_button(
-                label=operations_text("setup.collect_bounded", operations_locale)
-            )
+            mo.ui.run_button(label=operations_text("setup.collect_bounded", operations_locale))
             if setup_selected_source.source_type == SourceType.OPCUA
             else None
         )
@@ -887,8 +883,7 @@ def _(
                 )
                 set_setup_diagnostic_error("")
                 set_setup_diagnostic_success(
-                    _message
-                    + operations_text("setup.refresh_runtime_hint", operations_locale)
+                    _message + operations_text("setup.refresh_runtime_hint", operations_locale)
                 )
             elif _result.state == SourceRuntimeCycleState.SKIPPED:
                 set_setup_diagnostic_success("")
@@ -945,9 +940,7 @@ def _(
     if _setup_lifecycle_target is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError(
-                    operations_text("setup.select_source_for_use", operations_locale)
-                )
+                raise ValueError(operations_text("setup.select_source_for_use", operations_locale))
             _record, _state = operations_actions.transition_source(
                 setup_selected_source.source_id,
                 _setup_lifecycle_target,
@@ -1140,9 +1133,7 @@ def _(
             set_file_discovery(_discovery)
             set_file_discovery_signature((file_mode_input.value, _path))
             set_setup_error("")
-            set_setup_success(
-                operations_text("setup.file_discovery_completed", operations_locale)
-            )
+            set_setup_success(operations_text("setup.file_discovery_completed", operations_locale))
     return
 
 
@@ -1204,9 +1195,7 @@ def _(
             set_opcua_browse(_result)
             set_opcua_browse_signature((_endpoint, _timeout))
             set_setup_error("")
-            set_setup_success(
-                operations_text("setup.browse_completed_identity", operations_locale)
-            )
+            set_setup_success(operations_text("setup.browse_completed_identity", operations_locale))
     return
 
 
@@ -1366,9 +1355,7 @@ def _(
     if semantic_save_button is not None and semantic_save_button.value:
         try:
             if semantic_channel_input is None:
-                raise ValueError(
-                    operations_text("setup.select_mapping_first", operations_locale)
-                )
+                raise ValueError(operations_text("setup.select_mapping_first", operations_locale))
             _source_id = add_source_id.value.strip()
             _channel_id = semantic_channel_input.value
             _definition = MeasurementDefinition(
@@ -1488,9 +1475,7 @@ def _(
                     () if file_signal_selection is None else file_signal_selection.value
                 )
                 if not _signals:
-                    raise ValueError(
-                        operations_text("setup.select_file_signal", operations_locale)
-                    )
+                    raise ValueError(operations_text("setup.select_file_signal", operations_locale))
                 _common = set(file_discovery.common_columns)
                 _timestamp = file_timestamp_input.value.strip() or None
                 if _timestamp is not None and _timestamp not in _common:
@@ -1855,8 +1840,7 @@ def _(
             _blocks.extend(
                 [
                     mo.md(
-                        "### "
-                        + operations_text("asset.analyze_prepared_file", operations_locale)
+                        "### " + operations_text("asset.analyze_prepared_file", operations_locale)
                     ),
                     asset_file_analysis_source,
                     asset_run_file_analysis_button,
@@ -1864,9 +1848,7 @@ def _(
                 ]
             )
         else:
-            _blocks.append(
-                mo.md(operations_text("asset.no_file_snapshot", operations_locale))
-            )
+            _blocks.append(mo.md(operations_text("asset.no_file_snapshot", operations_locale)))
         asset_analysis_view = mo.vstack(_blocks, gap=0.8)
     return (asset_analysis_view,)
 
@@ -2181,8 +2163,7 @@ def _(
                         )
                     ),
                     mo.md(
-                        "#### "
-                        + operations_text("asset.recent_event_points", operations_locale)
+                        "#### " + operations_text("asset.recent_event_points", operations_locale)
                     ),
                 ]
                 if _live_page.points:
@@ -2264,9 +2245,9 @@ def _(
                                     operations_text(
                                         "common.source_quality", operations_locale
                                     ): row["source_quality"],
-                                    operations_text(
-                                        "common.time_state", operations_locale
-                                    ): row["event_time_state"],
+                                    operations_text("common.time_state", operations_locale): row[
+                                        "event_time_state"
+                                    ],
                                     operations_text(
                                         "common.history_age_seconds", operations_locale
                                     ): row["history_age_seconds"],
@@ -2360,9 +2341,7 @@ def _(
                         )
                     else:
                         _trend_blocks.append(
-                            mo.md(
-                                operations_text("asset.no_observation_range", operations_locale)
-                            )
+                            mo.md(operations_text("asset.no_observation_range", operations_locale))
                         )
                     _trend_view = mo.vstack(_trend_blocks, gap=0.8)
 
@@ -2854,9 +2833,7 @@ def _(
                 ]
             )
         _queue_blocks.append(
-            mo.md(
-                operations_text("investigation.grouping_help", operations_locale)
-            )
+            mo.md(operations_text("investigation.grouping_help", operations_locale))
         )
         _queue_panel = mo.vstack(_queue_blocks, gap=0.8)
 
@@ -2943,9 +2920,7 @@ def _(
                         )
                     ),
                     mo.ui.table(_feature_rows, selection=None),
-                    mo.md(
-                        operations_text("investigation.vibration_help", operations_locale)
-                    ),
+                    mo.md(operations_text("investigation.vibration_help", operations_locale)),
                 ]
             )
         else:
@@ -2984,8 +2959,7 @@ def _(
             _review_blocks.extend(
                 [
                     mo.md(
-                        "### "
-                        + operations_text("investigation.human_review", operations_locale)
+                        "### " + operations_text("investigation.human_review", operations_locale)
                     ),
                     request_review_button,
                     mo.md(operations_text("investigation.review_help", operations_locale)),
@@ -3481,10 +3455,7 @@ def _(
             ]
             _action_blocks.extend(
                 [
-                    mo.md(
-                        "### "
-                        + operations_text("maintenance.actions", operations_locale)
-                    ),
+                    mo.md("### " + operations_text("maintenance.actions", operations_locale)),
                     maintenance_note_input,
                     mo.hstack(_buttons, justify="start", gap=0.6),
                 ]
@@ -3529,9 +3500,7 @@ def _(
                 *_action_blocks,
                 mo.accordion(
                     {
-                        operations_text(
-                            "maintenance.review_identity", operations_locale
-                        ): mo.Html(
+                        operations_text("maintenance.review_identity", operations_locale): mo.Html(
                             render_maintenance_identity_html(
                                 selected_maintenance,
                                 operations_locale,
@@ -3539,9 +3508,7 @@ def _(
                         )
                     }
                 ),
-                mo.md(
-                    operations_text("maintenance.workflow_semantics", operations_locale)
-                ),
+                mo.md(operations_text("maintenance.workflow_semantics", operations_locale)),
             ],
             gap=0.9,
         )
@@ -3769,9 +3736,7 @@ def _(
                                     justify="start",
                                     gap=0.6,
                                 ),
-                                mo.md(
-                                    operations_text("setup.data_age_help", operations_locale)
-                                ),
+                                mo.md(operations_text("setup.data_age_help", operations_locale)),
                             ],
                             gap=0.6,
                         )
@@ -3821,9 +3786,7 @@ def _(
                                     justify="start",
                                     gap=0.6,
                                 ),
-                                mo.md(
-                                    operations_text("setup.diagnostics_help", operations_locale)
-                                ),
+                                mo.md(operations_text("setup.diagnostics_help", operations_locale)),
                             ],
                             gap=0.6,
                         )
@@ -3862,9 +3825,7 @@ def _(
 
         _source_wizard = mo.vstack(
             [
-                mo.md(
-                    "### " + operations_text("setup.add_data_source", operations_locale)
-                ),
+                mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
                 _setup_step("setup.step.source", "setup.file.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
@@ -3898,9 +3859,7 @@ def _(
                 )
             )
         else:
-            _browse_status = mo.md(
-                operations_text("setup.browse_help", operations_locale)
-            )
+            _browse_status = mo.md(operations_text("setup.browse_help", operations_locale))
 
         if opcua_mapping_error:
             _mapping_view = mo.callout(
@@ -3920,9 +3879,7 @@ def _(
                 selection=None,
             )
         else:
-            _mapping_view = mo.md(
-                operations_text("setup.no_mapping_selected", operations_locale)
-            )
+            _mapping_view = mo.md(operations_text("setup.no_mapping_selected", operations_locale))
 
         _semantic_rows = [
             {
@@ -3931,13 +3888,11 @@ def _(
                     binding.definition.observed_property
                     or operations_text("common.unresolved", operations_locale)
                 ),
-                operations_text("setup.scope", operations_locale): binding.definition.scope
-                or "—",
+                operations_text("setup.scope", operations_locale): binding.definition.scope or "—",
                 operations_text("setup.statistic", operations_locale): (
                     binding.definition.statistic or "—"
                 ),
-                operations_text("setup.unit", operations_locale): binding.definition.unit
-                or "—",
+                operations_text("setup.unit", operations_locale): binding.definition.unit or "—",
                 operations_text("setup.version", operations_locale): binding.version,
                 operations_text("common.evidence", operations_locale): (
                     binding.interpretation_evidence
@@ -3970,17 +3925,13 @@ def _(
                     (
                         mo.ui.table(_semantic_rows, selection=None)
                         if _semantic_rows
-                        else mo.md(
-                            operations_text("setup.semantic_empty", operations_locale)
-                        )
+                        else mo.md(operations_text("setup.semantic_empty", operations_locale))
                     ),
                 ],
                 gap=0.6,
             )
             if semantic_channel_input is not None
-            else mo.md(
-                operations_text("setup.select_mapping_first", operations_locale)
-            )
+            else mo.md(operations_text("setup.select_mapping_first", operations_locale))
         )
 
         _source_wizard = mo.vstack(
@@ -3999,9 +3950,7 @@ def _(
                 (
                     opcua_signal_selection
                     if opcua_signal_selection is not None
-                    else mo.md(
-                        operations_text("setup.no_browse_result", operations_locale)
-                    )
+                    else mo.md(operations_text("setup.no_browse_result", operations_locale))
                 ),
                 _mapping_view,
                 mo.accordion(
@@ -4023,9 +3972,7 @@ def _(
     _analysis_configuration_view = mo.vstack(
         [
             mo.md(operations_text("setup.analysis_policy_help", operations_locale)),
-            mo.md(
-                operations_text("setup.analysis_navigation_help", operations_locale)
-            ),
+            mo.md(operations_text("setup.analysis_navigation_help", operations_locale)),
         ],
         gap=0.8,
     )
@@ -4047,10 +3994,7 @@ def _(
         _defined, _total = setup_selected_source.semantic_coverage
         _guided_setup = mo.vstack(
             [
-                mo.md(
-                    "### 1 · "
-                    + operations_text("setup.connected_source", operations_locale)
-                ),
+                mo.md("### 1 · " + operations_text("setup.connected_source", operations_locale)),
                 mo.Html(
                     render_setup_sources_html(
                         setup_workspace,
