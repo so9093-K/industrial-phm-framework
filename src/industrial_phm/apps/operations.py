@@ -2520,6 +2520,7 @@ def _(
     get_investigation_selection,
     mo,
     operations_locale,
+    operations_text,
     set_investigation_selection,
 ):
     _review_state = (
@@ -2556,7 +2557,7 @@ def _(
         investigation_group_selector = mo.ui.radio(
             options=list(_group_label_to_id),
             value=_group_id_to_label[_selected_group_id],
-            label="Queue groups",
+            label=operations_text("common.queue_groups", operations_locale),
             on_change=lambda value: set_investigation_selection(
                 (_group_label_to_id[value], None),
             ),
@@ -2603,6 +2604,7 @@ def _(
     investigation_queue_option_label,
     mo,
     operations_locale,
+    operations_text,
     selected_investigation_group,
     set_investigation_selection,
 ):
@@ -2627,7 +2629,7 @@ def _(
         investigation_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
-            label="Analysis evidence",
+            label=operations_text("common.analysis_evidence", operations_locale),
             on_change=lambda value: set_investigation_selection(
                 (selected_investigation_group.group_id, _label_to_id[value])
             ),
@@ -2673,13 +2675,19 @@ def _(
 
 
 @app.cell
-def _(InvestigationReviewState, mo, selected_investigation):
+def _(
+    InvestigationReviewState,
+    mo,
+    operations_locale,
+    operations_text,
+    selected_investigation,
+):
     if (
         selected_investigation is not None
         and selected_investigation.review_state == InvestigationReviewState.NOT_REQUESTED
     ):
         request_review_button = mo.ui.run_button(
-            label="Request review",
+            label=operations_text("investigation.request_review", operations_locale),
             kind="warn",
         )
     else:
@@ -2691,6 +2699,8 @@ def _(InvestigationReviewState, mo, selected_investigation):
 def _(
     get_review_workflow,
     operations_actions,
+    operations_locale,
+    operations_text,
     request_review_button,
     selected_investigation_result,
     set_review_request_error,
@@ -2700,7 +2710,9 @@ def _(
     if request_review_button is not None and request_review_button.value:
         try:
             if selected_investigation_result is None:
-                raise ValueError("select an analysis result before requesting review")
+                raise ValueError(
+                    operations_text("investigation.select_result_for_review", operations_locale)
+                )
             _, _updated_findings = operations_actions.request_review(selected_investigation_result)
         except (OSError, ValueError) as error:
             set_review_request_error(str(error))
@@ -2710,7 +2722,7 @@ def _(
             set_review_workflow((_updated_findings, _current_events))
             set_review_request_error("")
             set_review_request_success(
-                "Review requested. The analysis evidence itself was not reinterpreted."
+                operations_text("investigation.review_requested_detail", operations_locale)
             )
     return
 
@@ -2737,6 +2749,7 @@ def _(
     mo,
     operational_analysis_presentation_kind,
     operations_locale,
+    operations_text,
     phase_unbalance_exclusion_rows,
     phase_unbalance_provenance_rows,
     phase_unbalance_summary_rows,
@@ -2765,7 +2778,12 @@ def _(
         _queue_panel = mo.vstack(
             [
                 _filters,
-                mo.md("### Queue\n\nNo saved analysis result matches the current filters."),
+                mo.md(
+                    "### "
+                    + operations_text("investigation.queue", operations_locale)
+                    + "\n\n"
+                    + operations_text("investigation.no_filter_match", operations_locale)
+                ),
             ],
             gap=0.8,
         )
@@ -2773,9 +2791,13 @@ def _(
         _queue_blocks = [
             _filters,
             mo.md(
-                f"### Queue\n\n"
-                f"{investigation_group_count} group(s) · "
-                f"{len(investigation_queue.items)} saved analyses"
+                "### "
+                + operations_text("investigation.queue", operations_locale)
+                + "\n\n"
+                + operations_text("investigation.queue_summary", operations_locale).format(
+                    groups=investigation_group_count,
+                    analyses=len(investigation_queue.items),
+                )
             ),
             investigation_group_selector,
         ]
@@ -2783,24 +2805,33 @@ def _(
             _queue_blocks.extend(
                 [
                     mo.md(
-                        f"#### Analysis evidence\n\n"
-                        f"{selected_investigation_group.run_count} run(s) in this group"
+                        "#### "
+                        + operations_text(
+                            "investigation.evidence_heading",
+                            operations_locale,
+                        )
+                        + "\n\n"
+                        + operations_text(
+                            "investigation.group_run_count",
+                            operations_locale,
+                        ).format(runs=selected_investigation_group.run_count)
                     ),
                     investigation_selector,
                 ]
             )
         _queue_blocks.append(
             mo.md(
-                "Groups combine the same asset, capability, and human-review state. "
-                "Exact analysis evidence remains selectable inside each group. "
-                "Order is newest evidence first, not severity."
+                operations_text("investigation.grouping_help", operations_locale)
             )
         )
         _queue_panel = mo.vstack(_queue_blocks, gap=0.8)
 
     if selected_investigation is None or selected_investigation_result is None:
         _detail_panel = mo.md(
-            "## Investigation detail\n\nSelect an analysis result from the queue."
+            "## "
+            + operations_text("investigation.title", operations_locale)
+            + "\n\n"
+            + operations_text("investigation.select_detail", operations_locale)
         )
     else:
         _presentation_kind = operational_analysis_presentation_kind(
@@ -2820,7 +2851,10 @@ def _(
         if _presentation_kind == OperationalAnalysisPresentationKind.PHASE_UNBALANCE:
             _evidence_blocks.extend(
                 [
-                    mo.md("### Evidence summary"),
+                    mo.md(
+                        "### "
+                        + operations_text("investigation.evidence_summary", operations_locale)
+                    ),
                     mo.ui.table(
                         phase_unbalance_summary_rows(selected_investigation_result),
                         selection=None,
@@ -2832,12 +2866,18 @@ def _(
                     ),
                     mo.accordion(
                         {
-                            "Excluded observations": mo.ui.table(
+                            operations_text(
+                                "investigation.excluded_observations",
+                                operations_locale,
+                            ): mo.ui.table(
                                 phase_unbalance_exclusion_rows(selected_investigation_result),
                                 selection=None,
                                 page_size=12,
                             ),
-                            "Evidence & provenance": mo.ui.table(
+                            operations_text(
+                                "investigation.evidence_provenance",
+                                operations_locale,
+                            ): mo.ui.table(
                                 phase_unbalance_provenance_rows(selected_investigation_result),
                                 selection=None,
                                 page_size=20,
@@ -2849,7 +2889,10 @@ def _(
         elif _presentation_kind == OperationalAnalysisPresentationKind.VIBRATION_FEATURES:
             _evidence = selected_investigation_result.evidence
             _feature_rows = [
-                {"Feature": name, "Value": value}
+                {
+                    operations_text("investigation.feature", operations_locale): name,
+                    operations_text("investigation.value", operations_locale): value,
+                }
                 for name, value in zip(
                     _evidence.feature_names,
                     _evidence.values,
@@ -2858,22 +2901,28 @@ def _(
             ]
             _evidence_blocks.extend(
                 [
-                    mo.md("### Vibration feature evidence"),
+                    mo.md(
+                        "### "
+                        + operations_text(
+                            "investigation.vibration_evidence",
+                            operations_locale,
+                        )
+                    ),
                     mo.ui.table(_feature_rows, selection=None),
                     mo.md(
-                        "These values are waveform statistics from one exact FILE snapshot. "
-                        "No threshold or state policy interprets them here as anomaly, fault, "
-                        "health, alert, or maintenance need."
+                        operations_text("investigation.vibration_help", operations_locale)
                     ),
                 ]
             )
         else:
             _evidence_blocks.append(
                 mo.callout(
-                    "This capability has persisted evidence but no explicit Operations "
-                    "renderer. The evidence is not reinterpreted as another capability.",
+                    operations_text("investigation.renderer_detail", operations_locale),
                     kind="neutral",
-                    title="Evidence renderer unavailable",
+                    title=operations_text(
+                        "investigation.renderer_unavailable",
+                        operations_locale,
+                    ),
                 )
             )
 
@@ -2883,7 +2932,10 @@ def _(
                 mo.callout(
                     review_request_error,
                     kind="danger",
-                    title="Review request failed",
+                    title=operations_text(
+                        "investigation.review_request_failed",
+                        operations_locale,
+                    ),
                 )
             )
         if review_request_success:
@@ -2891,31 +2943,35 @@ def _(
                 mo.callout(
                     review_request_success,
                     kind="success",
-                    title="Review requested",
+                    title=operations_text("investigation.review_requested", operations_locale),
                 )
             )
         if request_review_button is not None:
             _review_blocks.extend(
                 [
-                    mo.md("### Human review"),
-                    request_review_button,
                     mo.md(
-                        "Requesting review records a workflow item linked to this evidence. "
-                        "It does not declare a fault, alarm, health state, or maintenance need."
+                        "### "
+                        + operations_text("investigation.human_review", operations_locale)
                     ),
+                    request_review_button,
+                    mo.md(operations_text("investigation.review_help", operations_locale)),
                 ]
             )
         else:
             _review_blocks.append(
                 mo.md(
-                    "### Human review\n\n"
-                    "Current workflow state: "
-                    f"**{
-                        investigation_review_label(
+                    "### "
+                    + operations_text("investigation.human_review", operations_locale)
+                    + "\n\n"
+                    + operations_text(
+                        "investigation.current_review_state",
+                        operations_locale,
+                    ).format(
+                        state=investigation_review_label(
                             selected_investigation.review_state,
                             operations_locale,
                         )
-                    }**"
+                    )
                 )
             )
 
