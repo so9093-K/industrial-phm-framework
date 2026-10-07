@@ -63,13 +63,6 @@ def _():
         setup_workspace_css,
         system_workspace_css,
     )
-    from industrial_phm.presentation.operations_locale import (
-        OperationsLocale,
-        operations_messages,
-        operations_page_label,
-        operations_text,
-        resolve_environment_operations_locale,
-    )
     from industrial_phm.presentation.measurement_history import (
         latest_measurement_rows,
         measurement_aggregation_rows,
@@ -78,6 +71,13 @@ def _():
         measurement_history_rows,
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
+    )
+    from industrial_phm.presentation.operations_locale import (
+        OperationsLocale,
+        operations_messages,
+        operations_page_label,
+        operations_text,
+        resolve_environment_operations_locale,
     )
     from industrial_phm.presentation.operations_assets import (
         asset_workspace_css,
@@ -3830,9 +3830,15 @@ def _(
                             [
                                 mo.md(
                                     "### "
-                                    f"{operations_text('first_run.sample.title', operations_locale)}"
-                                    "\n\n"
-                                    f"{operations_text('first_run.sample.detail', operations_locale)}"
+                                    + operations_text(
+                                        "first_run.sample.title",
+                                        operations_locale,
+                                    )
+                                    + "\n\n"
+                                    + operations_text(
+                                        "first_run.sample.detail",
+                                        operations_locale,
+                                    )
                                 ),
                                 first_run_sample_button,
                             ],
@@ -3842,12 +3848,15 @@ def _(
                             [
                                 mo.md(
                                     "### "
-                                    f"{operations_text('first_run.real.title', operations_locale)}"
-                                    "\n\n"
-                                    f"{operations_text(
-                                        'first_run.real.detail',
+                                    + operations_text(
+                                        "first_run.real.title",
                                         operations_locale,
-                                    )}"
+                                    )
+                                    + "\n\n"
+                                    + operations_text(
+                                        "first_run.real.detail",
+                                        operations_locale,
+                                    )
                                 ),
                                 first_run_real_button,
                             ],
