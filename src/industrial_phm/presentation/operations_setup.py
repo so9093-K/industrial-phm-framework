@@ -171,7 +171,10 @@ def _source_row(
     elif source.collection_desired_state is None:
         collection = operations_text("common.not_requested", locale)
     else:
-        collection = source.collection_desired_state.value
+        collection = operations_text(
+            f"setup.collection.{source.collection_desired_state.value}",
+            locale,
+        )
     return (
         "<tr>"
         f"<td><strong>{escape(source.name)}</strong><br>"
