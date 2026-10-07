@@ -578,13 +578,11 @@ _PRODUCT_COPY: Final = {
         "asset.raw_observations": "Raw observations",
         "asset.data_details": "Data details",
         "asset.stored_evidence_help": (
-        "asset.recent_analysis_attempts": "최근 분석 시도",
-        "asset.recorded_analysis_evidence": "기록된 분석 근거",
-        "asset.recent_analysis_attempts": "Recent analysis attempts",
-        "asset.recorded_analysis_evidence": "Recorded analysis evidence",
             "Stored measurements and UI aggregates are observation evidence. "
             "This view does not infer asset health, fault, alarm, or missing samples."
         ),
+        "asset.recent_analysis_attempts": "Recent analysis attempts",
+        "asset.recorded_analysis_evidence": "Recorded analysis evidence",
         "asset.load_hint": "Select Assets to load this workspace.",
         "asset.workspace_unavailable": "Asset workspace unavailable",
         "asset.no_evidence": (
@@ -653,14 +651,11 @@ _PRODUCT_COPY: Final = {
         ),
         "maintenance.review_identity": "Review identity",
         "maintenance.workflow_semantics": (
-        "maintenance.evidence_not_loaded": (
-            "분석 실행 {analysis_run_id}을 현재 로드된 분석 결과에서 찾을 수 없습니다."
+            "Acknowledge and Close change only the human review workflow. "
+            "They do not confirm a fault, repair, asset health, or CMMS work order."
         ),
         "maintenance.evidence_not_loaded": (
             "Analysis run {analysis_run_id} is not in the loaded analysis results."
-        ),
-            "Acknowledge and Close change only the human review workflow. "
-            "They do not confirm a fault, repair, asset health, or CMMS work order."
         ),
         "system.asset_name_conflict": "Asset display name conflict",
         "system.asset_name_conflict_detail": (
@@ -941,6 +936,8 @@ _PRODUCT_COPY: Final = {
             "저장 측정값과 UI 집계값은 관측 evidence입니다. 이 화면은 설비 health, fault, alarm "
             "또는 missing sample을 추론하지 않습니다."
         ),
+        "asset.recent_analysis_attempts": "최근 분석 시도",
+        "asset.recorded_analysis_evidence": "기록된 분석 근거",
         "asset.load_hint": "설비 페이지를 선택하면 이 workspace를 불러옵니다.",
         "asset.workspace_unavailable": "설비 workspace를 불러올 수 없습니다",
         "asset.no_evidence": (
@@ -1008,6 +1005,9 @@ _PRODUCT_COPY: Final = {
         "maintenance.workflow_semantics": (
             "확인과 검토 종료는 사람 검토 workflow만 변경합니다. fault, repair, asset health 또는 "
             "CMMS work order를 확인하는 동작이 아닙니다."
+        ),
+        "maintenance.evidence_not_loaded": (
+            "분석 실행 {analysis_run_id}을 현재 로드된 분석 결과에서 찾을 수 없습니다."
         ),
         "system.asset_name_conflict": "설비 표시 이름 충돌",
         "system.asset_name_conflict_detail": (
