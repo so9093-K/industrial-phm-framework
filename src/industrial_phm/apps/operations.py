@@ -2161,9 +2161,9 @@ def _(
 @app.cell
 def _(mo):
     get_investigation_selection, set_investigation_selection = mo.state((None, None))
-    get_investigation_review_filter, set_investigation_review_filter = mo.state("All")
-    get_investigation_asset_filter, set_investigation_asset_filter = mo.state("All")
-    get_investigation_capability_filter, set_investigation_capability_filter = mo.state("All")
+    get_investigation_review_filter, set_investigation_review_filter = mo.state("all")
+    get_investigation_asset_filter, set_investigation_asset_filter = mo.state("all")
+    get_investigation_capability_filter, set_investigation_capability_filter = mo.state("all")
     return (
         get_investigation_asset_filter,
         get_investigation_capability_filter,
@@ -2252,23 +2252,30 @@ def _(
     investigation_queue,
     investigation_review_label,
     mo,
+    operations_locale,
+    operations_text,
     set_investigation_asset_filter,
     set_investigation_capability_filter,
     set_investigation_review_filter,
 ):
-    _review_options = ["All"] + [
-        investigation_review_label(state) for state in InvestigationReviewState
-    ]
+    _all_label = operations_text("common.all", operations_locale)
+
+    _review_labels = {
+        investigation_review_label(state, operations_locale): state.value
+        for state in InvestigationReviewState
+    }
     _review_value = get_investigation_review_filter()
+    _review_label_by_value = {value: label for label, value in _review_labels.items()}
     investigation_review_filter = mo.ui.dropdown(
-        options=_review_options,
-        value=_review_value if _review_value in _review_options else "All",
-        label="Review",
+        options={_all_label: "all", **_review_labels},
+        value=_review_label_by_value.get(_review_value, _all_label),
+        label=operations_text("common.review", operations_locale),
         full_width=True,
         on_change=set_investigation_review_filter,
     )
+
     _asset_options = {
-        "All": "All",
+        _all_label: "all",
         **{
             asset_names.option_label(asset_id): asset_id
             for asset_id in investigation_queue.asset_ids
@@ -2280,22 +2287,23 @@ def _(
         value=(
             asset_names.option_label(_asset_value)
             if _asset_value in investigation_queue.asset_ids
-            else "All"
+            else _all_label
         ),
-        label="Asset",
+        label=operations_text("common.asset", operations_locale),
         full_width=True,
         on_change=set_investigation_asset_filter,
     )
+
     _capability_labels = {
-        investigation_capability_label(capability_id): capability_id
+        investigation_capability_label(capability_id, operations_locale): capability_id
         for capability_id in investigation_queue.capability_ids
     }
-    _capability_options = ["All", *_capability_labels]
+    _capability_label_by_id = {value: label for label, value in _capability_labels.items()}
     _capability_value = get_investigation_capability_filter()
     investigation_capability_filter = mo.ui.dropdown(
-        options=_capability_options,
-        value=_capability_value if _capability_value in _capability_options else "All",
-        label="Capability",
+        options={_all_label: "all", **_capability_labels},
+        value=_capability_label_by_id.get(_capability_value, _all_label),
+        label=operations_text("common.capability", operations_locale),
         full_width=True,
         on_change=set_investigation_capability_filter,
     )
@@ -2319,24 +2327,25 @@ def _(
     investigation_review_label,
     get_investigation_selection,
     mo,
+    operations_locale,
     set_investigation_selection,
 ):
-    _review_state_by_label = {
-        investigation_review_label(state): state for state in InvestigationReviewState
-    }
-    _capability_by_label = {
-        investigation_capability_label(capability_id): capability_id
-        for capability_id in investigation_queue.capability_ids
-    }
+    _review_state = (
+        None
+        if investigation_review_filter.value == "all"
+        else InvestigationReviewState(investigation_review_filter.value)
+    )
     _groups = investigation_queue.groups(
-        review_state=_review_state_by_label.get(investigation_review_filter.value),
-        asset_id=(
-            None if investigation_asset_filter.value == "All" else investigation_asset_filter.value
+        review_state=_review_state,
+        asset_id=None if investigation_asset_filter.value == "all" else investigation_asset_filter.value,
+        capability_id=(
+            None
+            if investigation_capability_filter.value == "all"
+            else investigation_capability_filter.value
         ),
-        capability_id=_capability_by_label.get(investigation_capability_filter.value),
     )
     _group_label_to_id = {
-        f"{investigation_group_option_label(group, asset_names)} · {index + 1}": group.group_id
+        f"{investigation_group_option_label(group, asset_names, operations_locale)} · {index + 1}": group.group_id
         for index, group in enumerate(_groups)
     }
     _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
@@ -2396,6 +2405,7 @@ def _(
     get_investigation_selection,
     investigation_queue_option_label,
     mo,
+    operations_locale,
     selected_investigation_group,
     set_investigation_selection,
 ):
@@ -2404,7 +2414,7 @@ def _(
         investigation_label_to_id = {}
     else:
         _label_to_id = {
-            f"{investigation_queue_option_label(item, asset_names)} · {index + 1}": (
+            f"{investigation_queue_option_label(item, asset_names, operations_locale)} · {index + 1}": (
                 item.investigation_id
             )
             for index, item in enumerate(selected_investigation_group.items)
@@ -2919,9 +2929,9 @@ def _(
         except LookupError as error:
             set_maintenance_error(str(error))
         else:
-            set_investigation_review_filter("All")
-            set_investigation_asset_filter("All")
-            set_investigation_capability_filter("All")
+            set_investigation_review_filter("all")
+            set_investigation_asset_filter("all")
+            set_investigation_capability_filter("all")
             set_investigation_selection((_route.investigation_group_id, _route.investigation_id))
             set_navigation_page("investigations")
     return
@@ -3885,9 +3895,9 @@ def _(
             set_asset_selection(route.asset_id)
             set_asset_section(route.asset_section)
         elif route.page == "investigations":
-            set_investigation_review_filter("All")
-            set_investigation_asset_filter("All")
-            set_investigation_capability_filter("All")
+            set_investigation_review_filter("all")
+            set_investigation_asset_filter("all")
+            set_investigation_capability_filter("all")
             set_investigation_selection((route.investigation_group_id, route.investigation_id))
         set_navigation_page(route.page)
 
