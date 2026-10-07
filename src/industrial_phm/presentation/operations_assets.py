@@ -295,9 +295,11 @@ def asset_workspace_css() -> str:
 }
 .phm-asset-kicker {
   color: var(--phm-muted);
-  font-size: .72rem;
-  text-transform: uppercase;
-  letter-spacing: .08em;
+  font-size: .8125rem;
+  text-transform: var(--phm-label-transform);
+  letter-spacing: var(--phm-label-tracking-wide);
+  line-height: 1.4;
+  word-break: var(--phm-copy-word-break);
 }
 .phm-asset-title {
   margin: .25rem 0 0;
@@ -307,8 +309,9 @@ def asset_workspace_css() -> str:
 .phm-asset-id {
   margin-top: .15rem;
   color: var(--phm-muted);
-  font-size: .78rem;
+  font-size: .8125rem;
   font-family: var(--phm-mono, ui-monospace, monospace);
+  overflow-wrap: anywhere;
 }
 .phm-asset-facts {
   display: grid;
@@ -317,14 +320,17 @@ def asset_workspace_css() -> str:
 }
 .phm-fact-label {
   color: var(--phm-muted);
-  font-size: .7rem;
-  text-transform: uppercase;
-  letter-spacing: .05em;
+  font-size: .8125rem;
+  text-transform: var(--phm-label-transform);
+  letter-spacing: var(--phm-label-tracking);
+  line-height: 1.4;
+  word-break: var(--phm-copy-word-break);
 }
 .phm-fact-value {
   margin-top: .2rem;
-  font-size: .86rem;
+  font-size: .9375rem;
   font-weight: 600;
+  line-height: 1.45;
 }
 .phm-overview-grid {
   display: grid;

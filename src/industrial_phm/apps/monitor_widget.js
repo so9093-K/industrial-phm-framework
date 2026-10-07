@@ -158,6 +158,8 @@ function render({
     s = model.get('snapshot');
     activeLocale = s.locale || 'en-US';
     activeMessages = s.messages || {};
+    root.lang = activeLocale;
+    root.dataset.locale = activeLocale;
     root.replaceChildren();
     root.classList.remove('mw-pending');
     root.dataset.currentInvestigation = s.active_investigation?.[1] || '';

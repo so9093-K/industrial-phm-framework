@@ -31,9 +31,16 @@ def initial_operations_page(*, has_registered_sources: bool) -> OperationsPageId
     return OperationsPageId.MONITOR if has_registered_sources else OperationsPageId.SETUP
 
 
-def operations_theme_css() -> str:
-    """Return the Operations dark shell tokens without depending on a UI framework."""
+def operations_theme_css(
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    """Return locale-aware Operations shell typography and dark-theme tokens."""
 
+    resolved = locale if isinstance(locale, OperationsLocale) else OperationsLocale(locale)
+    label_transform = "none" if resolved == OperationsLocale.KO_KR else "uppercase"
+    label_tracking = "0" if resolved == OperationsLocale.KO_KR else ".06em"
+    label_tracking_wide = "0" if resolved == OperationsLocale.KO_KR else ".09em"
+    copy_word_break = "keep-all" if resolved == OperationsLocale.KO_KR else "normal"
     return f"""
 <style>
 /* marimo colours every widget through light-dark() switches keyed on these
@@ -78,10 +85,22 @@ def operations_theme_css() -> str:
   --phm-attention: #d5aa62;
   --phm-error: #d87878;
   --phm-info: #8caac5;
+  --phm-font-ui: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic",
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --phm-label-transform: {label_transform};
+  --phm-label-tracking: {label_tracking};
+  --phm-label-tracking-wide: {label_tracking_wide};
+  --phm-copy-word-break: {copy_word_break};
 }}
 body, #root, .marimo {{
   background: var(--phm-bg) !important;
   color: var(--phm-text) !important;
+  font-family: var(--phm-font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}}
+.markdown.prose, .phm-shell {{
+  font-family: var(--phm-font-ui);
 }}
 /* marimo stacks default to min-width:auto, so the widest content inside (a fact row,
    a wide table, a fixed-width chart) widened every enclosing stack past the viewport.
@@ -95,10 +114,12 @@ div:has(.phm-shell) {{
 }}
 .phm-section-title {{
   margin: 0 0 .8rem 0;
-  font-size: .78rem;
+  font-size: .875rem;
   font-weight: 700;
-  letter-spacing: .09em;
-  text-transform: uppercase;
+  letter-spacing: var(--phm-label-tracking-wide);
+  text-transform: var(--phm-label-transform);
+  line-height: 1.4;
+  word-break: var(--phm-copy-word-break);
   color: var(--phm-muted);
 }}
 .phm-card {{
@@ -110,18 +131,20 @@ div:has(.phm-shell) {{
 }}
 .phm-card-title {{
   color: var(--phm-muted);
-  font-size: .78rem;
+  font-size: .875rem;
+  line-height: 1.45;
   margin-bottom: .55rem;
 }}
 .phm-card-status {{
-  font-size: 1.05rem;
+  font-size: 1.0625rem;
   font-weight: 650;
   margin-bottom: .35rem;
 }}
 .phm-card-detail {{
   color: var(--phm-muted);
-  font-size: .82rem;
-  line-height: 1.35;
+  font-size: .875rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
 }}
 .phm-status-running {{ color: var(--phm-running); }}
 .phm-status-needs-attention,
@@ -142,13 +165,17 @@ div:has(.phm-shell) {{
   padding: .72rem .85rem;
   text-align: left;
   border-bottom: 1px solid var(--phm-border);
-  font-size: .84rem;
+  font-size: .875rem;
+  vertical-align: top;
+  overflow-wrap: anywhere;
 }}
 .phm-table th {{
   color: var(--phm-muted);
-  font-size: .73rem;
-  text-transform: uppercase;
-  letter-spacing: .06em;
+  font-size: .8125rem;
+  text-transform: var(--phm-label-transform);
+  letter-spacing: var(--phm-label-tracking);
+  line-height: 1.4;
+  word-break: var(--phm-copy-word-break);
 }}
 .phm-table tr:last-child td {{ border-bottom: none; }}
 .phm-chart-workspace {{ border-top: 1px solid var(--phm-border); padding-top: .7rem; }}

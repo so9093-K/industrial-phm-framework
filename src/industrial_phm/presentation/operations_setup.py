@@ -133,14 +133,17 @@ def setup_workspace_css() -> str:
   padding: 1rem;
 }
 .phm-setup-step-title {
-  font-size: .82rem;
+  font-size: .9375rem;
   font-weight: 700;
+  line-height: 1.45;
+  word-break: var(--phm-copy-word-break);
   margin-bottom: .65rem;
 }
 .phm-setup-help {
   color: var(--phm-muted);
-  font-size: .78rem;
-  line-height: 1.45;
+  font-size: .875rem;
+  line-height: 1.55;
+  word-break: var(--phm-copy-word-break);
 }
 </style>
 """

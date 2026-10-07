@@ -43,7 +43,8 @@ Operations는 `ko-KR`과 `en-US` locale resource를 사용합니다. 앱 상단�
 `LC_MESSAGES`, `LANG`을 해석합니다. 지원하지 않는 값은 `en-US`로 fallback합니다. 현재
 localized coverage는 first-run, top-level navigation, Monitor와 주요 workspace의
 status/label/action/help/error/empty-state 및 주요 table/section label까지 적용합니다. 한국어
-typography와 error/content 구조, browser acceptance의 완료 범위는
+화면은 Korean fallback font stack, 15px 중심 base scale, locale-aware tracking/uppercase와 keep-all
+wrapping을 사용합니다. error/content 구조와 browser acceptance의 완료 범위는
 [현재 지원 상태](../docs/status.md)의 경계를 따릅니다.
 
 Locale은 presentation concern입니다. `source_id`, `asset_id`, `measurement_point_id`,

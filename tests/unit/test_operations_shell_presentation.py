@@ -42,6 +42,23 @@ def test_operations_theme_pins_marimo_dark_palette_regardless_of_marimo_theme() 
     assert "--tw-prose-headings: #f2f1ef;" in css
 
 
+def test_operations_theme_adapts_korean_typography_without_changing_english_labels() -> None:
+    korean = operations_theme_css("ko-KR")
+    english = operations_theme_css("en-US")
+
+    assert '"Noto Sans KR"' in korean
+    assert '"Apple SD Gothic Neo"' in korean
+    assert '"Malgun Gothic"' in korean
+    assert "font-size: 15px;" in korean
+    assert "--phm-label-transform: none;" in korean
+    assert "--phm-label-tracking: 0;" in korean
+    assert "--phm-copy-word-break: keep-all;" in korean
+
+    assert "--phm-label-transform: uppercase;" in english
+    assert "--phm-label-tracking: .06em;" in english
+    assert "--phm-copy-word-break: normal;" in english
+
+
 def test_monitor_attention_is_scoped_to_selected_asset_plus_global_system() -> None:
     attention = (
         OperationsMonitorAttention(
