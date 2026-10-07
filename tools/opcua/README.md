@@ -83,8 +83,23 @@ uv run --no-sync industrial-phm maintenance history compact \
 ```
 
 `flush` means catalog-inline rows → Parquet. `compact` means active small Parquet → fewer active
-Parquet files. Snapshot expiration, old-file cleanup, catalog VACUUM and CHECKPOINT are deliberately
-outside this command and require a separate storage-lifecycle policy.
+Parquet files. Neither expires snapshots or deletes files.
+
+Live retention is a separate explicit command on a workspace. It deletes OPC UA observations and
+finalized windows whose event time is older than the period (default 7 days), expires snapshots taken
+before the cutoff and removes files no snapshot references. FILE history and the evidence of review
+requests that are not closed are kept, and windows the analysis runner has not passed are kept.
+Run it with `--dry-run` first to see what would be deleted:
+
+```bash
+uv run --no-sync industrial-phm maintenance history retain <workspace> --dry-run
+uv run --no-sync industrial-phm maintenance history retain <workspace> --retention-days 7
+```
+
+It takes the shared catalog lease step by step, so the collector can keep running. Catalog VACUUM,
+CHECKPOINT and automatic scheduling are not part of it; see
+[ADR-0023](../../docs/adr/0023-retain-live-evidence-for-a-bounded-period.md) for what is reclaimed
+physically and what is only hidden.
 
 ## Three-phase live analysis profile
 

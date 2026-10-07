@@ -33,6 +33,7 @@ from industrial_phm.application.asset_history import (
     validate_asset_history_query,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
+from industrial_phm.application.history_retention import RetentionProtection
 from industrial_phm.application.measurement_history import (
     HistoryAssetSummary,
     MeasurementHistoryAggregation,
@@ -161,6 +162,29 @@ class DuckLakeCompactionResult:
     @property
     def files_created(self) -> int:
         return sum(table.files_created for table in self.tables)
+
+
+@dataclass(frozen=True, slots=True)
+class DuckLakeRetentionResult:
+    """Live retention outcome: deleted live rows, expired snapshots and removed files.
+
+    FILE rows are never deleted. Snapshots at or after the cutoff, the current
+    snapshot and protected snapshots stay queryable. In a dry run nothing changes
+    and the counts describe what would be deleted.
+    """
+
+    cutoff: datetime
+    dry_run: bool
+    deleted_observation_count: int
+    deleted_measurement_count: int
+    deleted_batch_count: int
+    protected_observation_count: int
+    expired_snapshot_count: int
+    kept_protected_snapshot_ids: tuple[int, ...]
+    missing_protected_snapshot_ids: tuple[int, ...]
+    removed_file_count: int
+    storage_before: DuckLakeStorageInspection
+    storage_after: DuckLakeStorageInspection
 
 
 @dataclass(frozen=True, slots=True)
@@ -771,6 +795,188 @@ class DuckLakeAssetHistory:
             duration_seconds=duration_seconds,
             target_file_size_bytes=target_file_size_bytes,
             tables=tables,
+            storage_before=storage_before,
+            storage_after=storage_after,
+        )
+
+    def apply_live_retention(
+        self,
+        *,
+        cutoff: datetime,
+        protection: RetentionProtection,
+        dry_run: bool = False,
+    ) -> DuckLakeRetentionResult:
+        """Delete live OPC UA evidence older than cutoff, then reclaim its storage.
+
+        Live rows are selected by event time (receive time when the event time is
+        unknown); rows in a protected source range are kept. FILE rows are never
+        deleted. Then snapshots taken before the cutoff are expired except the
+        current and protected ones, and files no snapshot references are removed.
+        Live files are written in time order, so a file is removed once every row in
+        it has passed the cutoff; a file that also holds newer or FILE rows keeps its
+        deleted rows physically, hidden from every retained snapshot. Files are not
+        rewritten: DuckLake ``rewrite_data_files`` (extension d8a1881e) was measured
+        to change earlier snapshots' values of rows deleted from flushed files, which
+        would break protected evidence. Each step holds the catalog lease only for
+        itself, like compaction, and leaves a valid state if interrupted; a rerun
+        continues. A batch whose live rows were all deleted is forgotten, so a late
+        retry stores it again and the next run deletes it. An exact retry of a batch
+        with rows left whose commit snapshot expired fails explicitly instead of
+        writing a duplicate.
+        """
+        if not isinstance(cutoff, datetime) or cutoff.utcoffset() is None:
+            raise ValueError("cutoff must be timezone-aware")
+        if not isinstance(protection, RetentionProtection):
+            raise ValueError("protection must be RetentionProtection")
+        if not isinstance(dry_run, bool):
+            raise ValueError("dry_run must be boolean")
+
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            storage_before = self._inspect_storage_with_connection(connection)
+            connection.execute(
+                "CREATE TEMP TABLE retention_protected("
+                "source_id VARCHAR, start_at TIMESTAMPTZ, end_at TIMESTAMPTZ)"
+            )
+            if protection.ranges:
+                connection.executemany(
+                    "INSERT INTO retention_protected VALUES (?, ?, ?)",
+                    [(item.source_id, item.start_at, item.end_at) for item in protection.ranges],
+                )
+            connection.execute(
+                f"""
+                CREATE TEMP TABLE retention_candidate AS
+                SELECT o.raw_evidence_id, o.batch_id, EXISTS (
+                    SELECT 1 FROM retention_protected p
+                    WHERE p.source_id = o.source_id
+                        AND coalesce(o.event_at, o.ingested_at) BETWEEN p.start_at AND p.end_at
+                ) AS protected
+                FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                WHERE coalesce(o.event_at, o.ingested_at) < ?
+                """,
+                [cutoff],
+            )
+            counts = connection.execute(
+                f"""
+                SELECT
+                    count(*) FILTER (WHERE NOT c.protected),
+                    count(*) FILTER (WHERE c.protected),
+                    (SELECT count(*) FROM {_CATALOG_NAME}.history.measurement m
+                     WHERE m.source_type = 'opcua' AND m.raw_evidence_id IN (
+                         SELECT raw_evidence_id FROM retention_candidate WHERE NOT protected
+                     )),
+                    (SELECT count(*) FROM (
+                        SELECT batch_id FROM retention_candidate WHERE NOT protected
+                        EXCEPT
+                        SELECT batch_id FROM retention_candidate WHERE protected
+                        EXCEPT
+                        SELECT batch_id FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                        WHERE coalesce(o.event_at, o.ingested_at) >= ?
+                    ))
+                FROM retention_candidate c
+                """,
+                [cutoff],
+            ).fetchone()
+            if counts is None:
+                raise RuntimeError("DuckLake did not report retention candidates")
+            deleted_observations, protected_observations, deleted_measurements, deleted_batches = (
+                _require_int(value, "retention_count") for value in counts
+            )
+            if not dry_run and deleted_observations:
+                connection.execute("BEGIN TRANSACTION")
+                try:
+                    connection.execute(
+                        f"""
+                        DELETE FROM {_CATALOG_NAME}.history.measurement
+                        WHERE source_type = 'opcua' AND raw_evidence_id IN (
+                            SELECT raw_evidence_id FROM retention_candidate WHERE NOT protected
+                        )
+                        """
+                    )
+                    connection.execute(
+                        f"""
+                        DELETE FROM {_CATALOG_NAME}.raw.opcua_data_change
+                        WHERE raw_evidence_id IN (
+                            SELECT raw_evidence_id FROM retention_candidate WHERE NOT protected
+                        )
+                        """
+                    )
+                    # A batch is forgotten only when none of its live rows remain.
+                    connection.execute(
+                        f"""
+                        DELETE FROM {_CATALOG_NAME}.history.ingestion_batch
+                        WHERE batch_id IN (
+                            SELECT batch_id FROM retention_candidate WHERE NOT protected
+                        ) AND batch_id NOT IN (
+                            SELECT batch_id FROM {_CATALOG_NAME}.raw.opcua_data_change
+                        )
+                        """
+                    )
+                    connection.execute(
+                        f"CALL {_CATALOG_NAME}.set_commit_message("
+                        + _quote_sql_literal(_COMMIT_AUTHOR)
+                        + ", "
+                        + _quote_sql_literal(f"live retention before {cutoff.isoformat()}")
+                        + ")"
+                    )
+                    connection.execute("COMMIT")
+                except Exception:
+                    connection.execute("ROLLBACK")
+                    raise
+        finally:
+            connection.close()
+
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            snapshots = connection.execute(
+                f"SELECT snapshot_id, snapshot_time FROM {_CATALOG_NAME}.snapshots()"
+            ).fetchall()
+            snapshot_times = {
+                _require_int(row[0], "snapshot_id"): _require_datetime(row[1], "snapshot_time")
+                for row in snapshots
+            }
+            current = max(snapshot_times)
+            expire = sorted(
+                snapshot_id
+                for snapshot_id, snapshot_time in snapshot_times.items()
+                if snapshot_time < cutoff
+                and snapshot_id != current
+                and snapshot_id not in protection.snapshot_ids
+            )
+            removed = 0
+            if not dry_run:
+                if expire:
+                    connection.execute(
+                        f"CALL ducklake_expire_snapshots('{_CATALOG_NAME}', "
+                        "versions => ?::UBIGINT[])",
+                        [expire],
+                    )
+                removed = len(
+                    connection.execute(
+                        f"CALL ducklake_cleanup_old_files('{_CATALOG_NAME}', cleanup_all => true)"
+                    ).fetchall()
+                )
+            storage_after = self._inspect_storage_with_connection(connection)
+        finally:
+            connection.close()
+
+        return DuckLakeRetentionResult(
+            cutoff=cutoff,
+            dry_run=dry_run,
+            deleted_observation_count=deleted_observations,
+            deleted_measurement_count=deleted_measurements,
+            deleted_batch_count=deleted_batches,
+            protected_observation_count=protected_observations,
+            expired_snapshot_count=len(expire),
+            kept_protected_snapshot_ids=tuple(
+                sorted(item for item in protection.snapshot_ids if item in snapshot_times)
+            ),
+            missing_protected_snapshot_ids=tuple(
+                sorted(item for item in protection.snapshot_ids if item not in snapshot_times)
+            ),
+            removed_file_count=removed,
             storage_before=storage_before,
             storage_after=storage_after,
         )
