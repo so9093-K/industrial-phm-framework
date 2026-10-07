@@ -891,6 +891,15 @@ _PRODUCT_COPY: Final = {
         "monitor.bucket_counts": (
             "{source} · {usable} usable · null {null} · non-good {non_good} · conflict {conflict}"
         ),
+        "monitor.group_multiple_meanings": "Multiple recorded meanings",
+        "monitor.group_unresolved": "Unresolved signals",
+        "monitor.event": "Event",
+        "monitor.event_time": "event time",
+        "monitor.bucket_summary": "BUCKET SUMMARY · UTC",
+        "monitor.cursor": "Cursor {time}",
+        "investigation.group_option": (
+            "{asset} · {capability} · {review} · {runs} run(s) · latest {completed}"
+        ),
     },
     OperationsLocale.KO_KR: {
         "common.name": "이름",
@@ -1258,6 +1267,15 @@ _PRODUCT_COPY: Final = {
         "monitor.bucket_counts": (
             "{source} · 사용 가능 {usable} · null {null} · "
             "non-good {non_good} · conflict {conflict}"
+        ),
+        "monitor.group_multiple_meanings": "기록된 측정 의미 여러 개",
+        "monitor.group_unresolved": "미확인 신호",
+        "monitor.event": "이벤트",
+        "monitor.event_time": "event time",
+        "monitor.bucket_summary": "BUCKET 요약 · UTC",
+        "monitor.cursor": "커서 {time}",
+        "investigation.group_option": (
+            "{asset} · {capability} · {review} · 실행 {runs}개 · 최근 {completed}"
         ),
     },
 }
