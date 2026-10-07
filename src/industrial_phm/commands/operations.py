@@ -96,8 +96,7 @@ def _print_unrecognized_workspace_guidance(workspace: OperationsWorkspace) -> No
     print("Operations could not start this workspace.", file=sys.stderr)
     print(f"Existing files were found at: {workspace.root}", file=sys.stderr)
     print(
-        "They were not changed because this directory is not a recognized "
-        "Operations workspace.",
+        "They were not changed because this directory is not a recognized Operations workspace.",
         file=sys.stderr,
     )
     print(
