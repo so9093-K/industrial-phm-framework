@@ -22,7 +22,7 @@
 
 - repository-local `make up`이 이제 별도 `init → start` 조합 대신 `operations up` front door를
   사용합니다. 새 workspace는 생성하고 유효한 workspace는 재개하며, config 도입 전 Operations state로
-  식별 가능한 workspace는 기존 state를 보존한 채 현재 config marker를 추가합니다. 알 수 없는 파일이
+  식별 가능한 workspace는 기존 state를 보존한 채 현재 기본 runtime policy를 기록한 config를 추가합니다. 알 수 없는 파일이
   섞인 directory는 변경하지 않고 다른 workspace를 선택하도록 안내합니다.
 
 - `maintenance history retain`의 삭제와 snapshot 만료를 나눠 실행합니다. 삭제는 file 통계로 prune되는 시간

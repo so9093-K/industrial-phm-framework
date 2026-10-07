@@ -25,7 +25,7 @@ make up
 `artifacts/operations`를 열고 collection + analysis + Operations UI를 하나의 foreground
 supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유효한 기존 workspace는 그대로 다시 엽니다.
 현재 config가 생기기 전 Operations가 만든 것으로 식별 가능한 workspace는 기존 state를 보존한 채
-현재 workspace marker를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
+현재 기본 runtime policy를 기록한 config를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
 터미널에 출력되는 `operations_url`을 브라우저에서 엽니다. 처음 만든 빈 workspace는 **Setup**에서

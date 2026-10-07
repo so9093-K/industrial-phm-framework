@@ -10,7 +10,6 @@ from industrial_phm.runtime import (
 )
 
 
-
 def test_operations_up_creates_fresh_workspace_and_starts_node(
     tmp_path: Path,
     monkeypatch,
@@ -116,6 +115,7 @@ def test_operations_up_refuses_unrecognized_directory_with_next_action(
     assert "Existing files were found" in error
     assert "were not changed" in error
     assert f"industrial-phm operations up {tmp_path / 'existing-new'}" in error
+
 
 def test_operations_start_runs_full_local_node_from_workspace_config(
     tmp_path: Path,
