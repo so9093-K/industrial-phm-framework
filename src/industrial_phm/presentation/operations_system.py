@@ -10,7 +10,6 @@ from industrial_phm.presentation.operations_locale import (
     DEFAULT_OPERATIONS_LOCALE,
     OperationsLocale,
     format_operations_utc,
-    operations_status_label,
     operations_text,
 )
 
@@ -150,7 +149,16 @@ def _status_label(
     status: OperationsMonitorStatus,
     locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
-    return operations_status_label(status, locale)
+    key = {
+        OperationsMonitorStatus.RUNNING: "system.status.running",
+        OperationsMonitorStatus.WAITING: "system.status.waiting",
+        OperationsMonitorStatus.DELAYED: "system.status.delayed",
+        OperationsMonitorStatus.STOPPED: "system.status.stopped",
+        OperationsMonitorStatus.NEEDS_ATTENTION: "system.status.needs_attention",
+        OperationsMonitorStatus.ERROR: "system.status.error",
+        OperationsMonitorStatus.UNAVAILABLE: "system.status.unavailable",
+    }[status]
+    return operations_text(key, locale)
 
 
 def _headers(labels: tuple[str, ...]) -> str:
