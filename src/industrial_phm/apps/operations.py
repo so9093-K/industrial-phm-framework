@@ -2075,6 +2075,8 @@ def _(
     mo,
     navigation_page,
     operations_context,
+    operations_locale,
+    operations_text,
     query_operations_latest_measurements,
     query_operations_measurement_aggregation,
     query_operations_measurement_page,
@@ -2089,19 +2091,27 @@ def _(
     if navigation_page != "assets" or asset_section.value != "signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
-        signal_view = mo.md("No asset is selected.")
+        signal_view = mo.md(operations_text("asset.no_selection", operations_locale))
     elif asset_history_error:
         signal_view = mo.callout(
             asset_history_error,
             kind="danger",
-            title="Asset History unavailable",
+            title=operations_text("asset.history_unavailable", operations_locale),
         )
     elif signal_channel_selector is None:
         signal_view = mo.md(
-            "### Signals\n\nNo mapped or stored signal is available for this asset yet."
+            "### "
+            + operations_text("asset.section.signals", operations_locale)
+            + "\n\n"
+            + operations_text("asset.no_signal", operations_locale)
         )
     elif asset_selector is None:
-        signal_view = mo.md("### Signals\n\nNo asset is selected.")
+        signal_view = mo.md(
+            "### "
+            + operations_text("asset.section.signals", operations_locale)
+            + "\n\n"
+            + operations_text("asset.no_selection", operations_locale)
+        )
     else:
         try:
             _channel_id = signal_channel_selector.value
@@ -2136,7 +2146,10 @@ def _(
                             silence_limit_seconds=live_flow_timing.max_silence.total_seconds(),
                         )
                     ),
-                    mo.md("#### Recent stored event-time points"),
+                    mo.md(
+                        "#### "
+                        + operations_text("asset.recent_event_points", operations_locale)
+                    ),
                 ]
                 if _live_page.points:
                     _live_blocks.extend(
@@ -2148,7 +2161,9 @@ def _(
                             ),
                             mo.accordion(
                                 {
-                                    "Raw observations": mo.ui.table(
+                                    operations_text(
+                                        "asset.raw_observations", operations_locale
+                                    ): mo.ui.table(
                                         measurement_history_rows(_live_page),
                                         page_size=10,
                                     )
@@ -2158,25 +2173,18 @@ def _(
                     )
                 else:
                     _live_blocks.append(
-                        mo.md(
-                            "No persisted observation is available in the live source's "
-                            "recent event-time window yet."
-                        )
+                        mo.md(operations_text("asset.no_recent_persisted", operations_locale))
                     )
                 _live_blocks.append(
-                    mo.md(
-                        "Source flow uses collector/session evidence; selected-channel "
-                        "quality and event time use stored observation evidence. "
-                        "The trend draws raw points "
-                        "without interpolation, so unobserved intervals remain visually unfilled. "
-                        "Historical replay timestamps remain historical. This view does not infer "
-                        "asset health, fault, alarm, or expected missing samples."
-                    )
+                    mo.md(operations_text("asset.live_evidence_help", operations_locale))
                 )
                 signal_view = mo.vstack(_live_blocks, gap=1.0)
             elif history_reader is None:
                 signal_view = mo.md(
-                    "### Signals\n\nNo Asset History catalog is available for this workspace."
+                    "### "
+                    + operations_text("asset.section.signals", operations_locale)
+                    + "\n\n"
+                    + operations_text("asset.no_history_catalog", operations_locale)
                 )
             else:
                 _start_at, _end_at = resolve_measurement_range(
@@ -2198,19 +2206,36 @@ def _(
                 )
                 _latest_view = mo.vstack(
                     [
-                        mo.md("#### Latest stored value"),
+                        mo.md(
+                            "#### "
+                            + operations_text("asset.latest_stored_value", operations_locale)
+                        ),
                         mo.ui.table(
                             [
                                 {
-                                    "Source": row["source"],
-                                    "Point": row["measurement_point"],
-                                    "Time": row["time"],
-                                    "Value": row["value"],
-                                    "Unit": row["unit"],
-                                    "Quality": row["quality"],
-                                    "Source quality": row["source_quality"],
-                                    "Time state": row["event_time_state"],
-                                    "History age (s)": row["history_age_seconds"],
+                                    operations_text("common.source", operations_locale): row[
+                                        "source"
+                                    ],
+                                    operations_text("common.point", operations_locale): row[
+                                        "measurement_point"
+                                    ],
+                                    operations_text("common.time", operations_locale): row["time"],
+                                    operations_text("common.value", operations_locale): row[
+                                        "value"
+                                    ],
+                                    operations_text("common.unit", operations_locale): row["unit"],
+                                    operations_text("common.quality", operations_locale): row[
+                                        "quality"
+                                    ],
+                                    operations_text(
+                                        "common.source_quality", operations_locale
+                                    ): row["source_quality"],
+                                    operations_text(
+                                        "common.time_state", operations_locale
+                                    ): row["event_time_state"],
+                                    operations_text(
+                                        "common.history_age_seconds", operations_locale
+                                    ): row["history_age_seconds"],
                                 }
                                 for row in _latest_rows
                             ],
@@ -2242,7 +2267,9 @@ def _(
                             ),
                             mo.accordion(
                                 {
-                                    "Data details": mo.ui.table(
+                                    operations_text(
+                                        "asset.data_details", operations_locale
+                                    ): mo.ui.table(
                                         measurement_aggregation_rows(_aggregation),
                                         page_size=10,
                                     )
@@ -2288,7 +2315,9 @@ def _(
                         _trend_blocks.append(
                             mo.accordion(
                                 {
-                                    "Raw observations": mo.ui.table(
+                                    operations_text(
+                                        "asset.raw_observations", operations_locale
+                                    ): mo.ui.table(
                                         measurement_history_rows(_page),
                                         page_size=10,
                                     )
@@ -2297,7 +2326,9 @@ def _(
                         )
                     else:
                         _trend_blocks.append(
-                            mo.md("No stored observation falls inside the selected time range.")
+                            mo.md(
+                                operations_text("asset.no_observation_range", operations_locale)
+                            )
                         )
                     _trend_view = mo.vstack(_trend_blocks, gap=0.8)
 
@@ -2306,11 +2337,7 @@ def _(
                         _controls,
                         _latest_view,
                         _trend_view,
-                        mo.md(
-                            "Stored measurements and UI aggregates are observation evidence. "
-                            "This view does not infer asset health, fault, alarm, "
-                            "or missing samples."
-                        ),
+                        mo.md(operations_text("asset.stored_evidence_help", operations_locale)),
                     ],
                     gap=1.0,
                 )
@@ -2318,7 +2345,7 @@ def _(
             signal_view = mo.callout(
                 str(error),
                 kind="danger",
-                title="Signals unavailable",
+                title=operations_text("asset.signals_unavailable", operations_locale),
             )
     return (signal_view,)
 
