@@ -109,3 +109,19 @@ def test_reviewed_evidence_is_read_from_the_referenced_analysis() -> None:
     missing = render_maintenance_evidence_html(None, analysis_run_id="run-gone")
     assert "run-gone" in missing
     assert "not in the loaded analysis results" in missing
+
+def test_maintenance_presenters_localize_review_copy_without_changing_ids() -> None:
+    item = _item()
+    timeline = render_maintenance_timeline_html(item, "ko-KR")
+    missing = render_maintenance_evidence_html(
+        None,
+        analysis_run_id="run-gone",
+        locale="ko-KR",
+    )
+
+    assert "검토 이력" in timeline
+    assert "메모" in timeline
+    assert "현장 점검 예정" in timeline
+    assert "run-gone" in missing
+    assert "현재 로드된 분석 결과에서 찾을 수 없습니다" in missing
+
