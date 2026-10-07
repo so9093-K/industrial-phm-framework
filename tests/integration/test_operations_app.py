@@ -78,7 +78,9 @@ def test_operations_ko_locale_changes_display_without_changing_page_identity(tmp
     assert snapshot["page_labels"]["monitor"] == "관제"
     assert snapshot["page_labels"]["setup"] == "데이터 연결"
     assert snapshot["messages"]["monitor.refresh"] == "새로고침"
-    assert defs["first_run_sample_button"].label == "샘플 데이터로 둘러보기"
+    assert defs["operations_text"]("first_run.sample.title", defs["operations_locale"]) == (
+        "샘플 데이터로 둘러보기"
+    )
 
 
 def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
