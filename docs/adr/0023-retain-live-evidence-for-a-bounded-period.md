@@ -39,7 +39,7 @@ Three facts constrain what may be deleted:
   explicitly rather than writing a duplicate.
 - Retention is an explicit maintenance command, `maintenance history retain <workspace>`, with a
   dry run. It uses the same catalog lease as writers, one step at a time. Automatic scheduling is a
-  deployment concern (#318).
+  separate deployment decision.
 - Files are not rewritten. DuckLake `ducklake_rewrite_data_files` (extension `d8a1881e`, DuckDB
   1.5.5) was observed to change the values that earlier snapshots return for rows deleted from
   flushed files (BIGINT `event_index`/`collection_index` 0 → 256), which would corrupt protected

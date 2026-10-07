@@ -1043,9 +1043,11 @@ class DuckLakeAssetHistory:
     def flush_inlined_data(self) -> DuckLakeInlinedDataFlush:
         """Move rows DuckLake inlined into the SQLite catalog to Parquet.
 
-        Every append is otherwise kept as catalog rows (about 2.4 KB per AI-Hub
-        observation measured), which does not scale to full archives. The flush
-        holds the same local catalog lease as writers and readers.
+        DuckLake keeps a commit's rows for one table in the catalog when there are
+        at most 10 of them (its default inlining limit); larger commits are written
+        as Parquet. Small live commits and every ingestion-batch row therefore
+        accumulate as catalog rows until flushed. The flush holds the same local
+        catalog lease as writers and readers.
         """
         connection = self._connect()
         try:

@@ -58,8 +58,11 @@ distributed locking, high-throughput concurrent writers, or collector leader ele
 for a given control/spool configuration. Source disconnect telemetry and uncommitted spool backlog
 must not be read as machine failure.
 
-Live and FILE backfill history stays inlined in the SQLite catalog until flushed. After a long run,
-move it to Parquet with the same catalog/data paths (it waits for the shared catalog lease):
+DuckLake keeps a commit's rows for one table in the SQLite catalog when there are at most 10 of
+them (its default inlining limit); larger live commits and backfill batches are written as Parquet.
+Small live commits and the one ingestion-batch row of every commit therefore stay in the catalog
+until flushed. Move them to Parquet with the same catalog/data paths (it waits for the shared
+catalog lease):
 
 ```bash
 uv run --no-sync industrial-phm maintenance history flush \
