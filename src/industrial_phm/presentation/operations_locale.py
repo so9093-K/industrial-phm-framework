@@ -795,9 +795,7 @@ _PRODUCT_COPY: Final = {
             "Collection request saved: {source_id} → {state}. "
             "The browser does not start or supervise the collector process."
         ),
-        "setup.file_discovery_completed": (
-            "File discovery completed. Select the signals to keep."
-        ),
+        "setup.file_discovery_completed": ("File discovery completed. Select the signals to keep."),
         "setup.browse_completed_identity": (
             "Browse completed. This bounded session discovered signal identity only."
         ),
@@ -845,9 +843,7 @@ _PRODUCT_COPY: Final = {
             "The file is validated before its source registration is saved."
         ),
         "setup.mapping_invalid": "Explicit mapping invalid",
-        "setup.mapping_line_format": (
-            "Mapping line {line_number} must use signal_id,node_id."
-        ),
+        "setup.mapping_line_format": ("Mapping line {line_number} must use signal_id,node_id."),
         "setup.no_mapping_selected": "No signal mapping selected yet.",
         "setup.select_mapping_first": "Select at least one mapped signal before defining meaning.",
         "setup.opcua.connect_help": (
@@ -1256,9 +1252,7 @@ _PRODUCT_COPY: Final = {
         "setup.remain_unresolved": "{channel_id}는 미확인 상태로 유지합니다.",
         "setup.discover_before_save": "저장하기 전에 FILE source를 탐색하세요.",
         "setup.select_file_signal": "FILE 신호를 하나 이상 선택하세요.",
-        "setup.timestamp_not_discovered": (
-            "모든 CSV 파일에서 timestamp 열을 확인하지 못했습니다."
-        ),
+        "setup.timestamp_not_discovered": ("모든 CSV 파일에서 timestamp 열을 확인하지 못했습니다."),
         "setup.select_opcua_signal": (
             "연결 후 신호를 선택하거나 고급 explicit mapping을 입력하세요."
         ),
