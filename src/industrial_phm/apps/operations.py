@@ -832,6 +832,8 @@ def _(
     SourceRuntimeCycleState,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_diagnostic_error,
     set_setup_diagnostic_success,
@@ -928,7 +930,12 @@ def _(
                 (_state.sources, _state.lifecycles, _current_collection, _current_freshness)
             )
             set_setup_error("")
-            set_setup_success(f"Source use changed: {_record.source_id} → {_record.state.value}.")
+            set_setup_success(
+                operations_text("setup.source_use_changed", operations_locale).format(
+                    source_id=_record.source_id,
+                    state=_record.state.value,
+                )
+            )
     return
 
 
@@ -938,6 +945,8 @@ def _(
     datetime,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -973,9 +982,10 @@ def _(
             set_setup_config((_current_sources, _current_lifecycles, _records, _current_freshness))
             set_setup_error("")
             set_setup_success(
-                "Collection request saved: "
-                f"{_record.source_id} → {_record.desired_state.value}. "
-                "The browser does not start or supervise the collector process."
+                operations_text("setup.collection_saved", operations_locale).format(
+                    source_id=_record.source_id,
+                    state=_record.desired_state.value,
+                )
             )
     return
 
@@ -1303,6 +1313,8 @@ def _(
     MeasurementDefinition,
     add_source_id,
     get_pending_semantics,
+    operations_locale,
+    operations_text,
     semantic_channel_input,
     semantic_clear_button,
     semantic_evidence_input,
@@ -1320,7 +1332,9 @@ def _(
     if semantic_save_button is not None and semantic_save_button.value:
         try:
             if semantic_channel_input is None:
-                raise ValueError("select a mapped signal before defining meaning")
+                raise ValueError(
+                    operations_text("setup.select_mapping_first", operations_locale)
+                )
             _source_id = add_source_id.value.strip()
             _channel_id = semantic_channel_input.value
             _definition = MeasurementDefinition(
@@ -1338,7 +1352,9 @@ def _(
                     _definition.unit,
                 )
             ):
-                raise ValueError("provide explicit measurement meaning or choose Keep unresolved")
+                raise ValueError(
+                    "provide explicit measurement meaning or choose Keep unresolved"
+                )
             _binding = ChannelSemanticBinding(
                 source_id=_source_id,
                 channel_id=_channel_id,
@@ -1354,7 +1370,11 @@ def _(
             _current[_channel_id] = _binding
             set_pending_semantics(_current)
             set_setup_error("")
-            set_setup_success(f"Meaning saved for {_channel_id}.")
+            set_setup_success(
+                operations_text("setup.meaning_saved", operations_locale).format(
+                    channel_id=_channel_id
+                )
+            )
     elif (
         semantic_clear_button is not None
         and semantic_clear_button.value
@@ -1364,7 +1384,11 @@ def _(
         _current.pop(semantic_channel_input.value, None)
         set_pending_semantics(_current)
         set_setup_error("")
-        set_setup_success(f"{semantic_channel_input.value} will remain unresolved.")
+        set_setup_success(
+            operations_text("setup.remain_unresolved", operations_locale).format(
+                channel_id=semantic_channel_input.value
+            )
+        )
     return
 
 
@@ -1375,9 +1399,9 @@ def _(get_pending_semantics):
 
 
 @app.cell
-def _(mo):
+def _(mo, operations_locale, operations_text):
     register_setup_source_button = mo.ui.run_button(
-        label="Review & save source",
+        label=operations_text("setup.review_save_source", operations_locale),
         kind="success",
     )
     return (register_setup_source_button,)
@@ -1423,16 +1447,22 @@ def _(
             _source_id = add_source_id.value.strip()
             if add_source_type.value == "File":
                 if not file_discovery_current or file_discovery is None:
-                    raise ValueError("discover the file source before saving")
+                    raise ValueError(
+                        operations_text("setup.discover_before_save", operations_locale)
+                    )
                 _signals = tuple(
                     () if file_signal_selection is None else file_signal_selection.value
                 )
                 if not _signals:
-                    raise ValueError("select at least one file signal")
+                    raise ValueError(
+                        operations_text("setup.select_file_signal", operations_locale)
+                    )
                 _common = set(file_discovery.common_columns)
                 _timestamp = file_timestamp_input.value.strip() or None
                 if _timestamp is not None and _timestamp not in _common:
-                    raise ValueError("timestamp column was not discovered in every CSV file")
+                    raise ValueError(
+                        operations_text("setup.timestamp_not_discovered", operations_locale)
+                    )
                 _rate_text = file_sampling_rate_input.value.strip()
                 _candidate = RegisteredSource(
                     source_id=_source_id,
@@ -1457,7 +1487,7 @@ def _(
                     raise ValueError(opcua_mapping_error)
                 if not opcua_candidate_mappings:
                     raise ValueError(
-                        "connect and select signals, or provide explicit advanced mapping"
+                        operations_text("setup.select_opcua_signal", operations_locale)
                     )
                 _binding_by_channel = {
                     channel: binding
@@ -1500,7 +1530,11 @@ def _(
             )
             set_pending_semantics({})
             set_setup_error("")
-            set_setup_success(f"Source saved: {_candidate.source_id}. Enable it when ready to use.")
+            set_setup_success(
+                operations_text("setup.source_saved", operations_locale).format(
+                    source_id=_candidate.source_id
+                )
+            )
     return
 
 
