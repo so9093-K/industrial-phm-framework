@@ -328,7 +328,7 @@ function render({
     clock.append($('span', '', 'STORED EVENT TIME · UTC'), $('span', '', s.chart ? `${time(s.chart.start,true)} — ${time(s.chart.end,true)}` : 'No event-time window'));
     main.append(clock);
     const chart = $('div', 'mw-plot');
-    chart.setAttribute('role', 'img');
+    chart.setAttribute('role', 'group');
     chart.setAttribute('aria-label', 'Recorded signal comparison');
     main.append(chart);
     cleanChart = drawChart(chart, s.chart, s.evidence || [], id => emit("evidence", {
@@ -490,6 +490,7 @@ function drawChart(container, data, windows, onEvidence) {
       viewBox: `0 0 ${W} ${H}`,
       width: W,
       height: H,
+      role: 'group',
       'aria-label': 'Stored bucket summaries'
     });
     container.append(svg);
@@ -559,6 +560,7 @@ function drawChart(container, data, windows, onEvidence) {
           fill: '#82b6ff',
           'fill-opacity': .07,
           role: 'button',
+          'data-evidence-id': window.id,
           tabindex: 0,
           'aria-label': `Open ${window.label} analysis evidence`
         });

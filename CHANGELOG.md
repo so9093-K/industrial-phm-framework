@@ -16,7 +16,8 @@
   카드 배열을 Monitor에서 제거하고, 구간별 cursor summary와 exact analysis/attention 이동을 제공합니다.
   서로 다른 unit·source·측정 위치·의미 snapshot은 분리하며, quality 제외와 빈 구간을 보존합니다. 등록 정보는
   아직 관측되지 않은 slot만 채우고 저장된 의미를 덮어쓰지 않습니다. `operations` extra는 전용 UI bridge의
-  `anywidget`를 포함하며 JS/CSS assets도 wheel에 함께 배포합니다.
+  `anywidget`를 포함하며 JS/CSS assets도 wheel에 함께 배포합니다. 차트의 분석 구간 버튼은 group 의미
+  아래에서 접근성 트리에 노출하고 Tab 진입 후 Enter/Space로 정확한 Investigation을 엽니다.
 
 - AI-Hub fault harness의 실제 Chromium acceptance를 observation-first Monitor 기준으로 갱신했습니다.
   Monitor는 더 이상 `System data flow`를 readiness signal로 사용하지 않고 Observed asset, Latest stored

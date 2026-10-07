@@ -156,7 +156,11 @@ Chromium at widths 1440 and 1024 verified all six destinations (Monitor, Assets,
 Maintenance, System, Setup), their actual content, and shell/content overflow: zero overflow and
 zero page errors. The 32 loaded overlapping analyses were present, and the last item routed to
 its exact Investigation. A 14-item application regression guards against the former six-item cap.
-Evidence shading remains within the chart bounds. Main auxiliary text is now 13px; chart ticks
+Evidence shading remains within the chart bounds. The chart container and SVG expose named groups,
+so interactive analysis-window buttons remain visible in the Chromium accessibility tree.
+At both widths, real Tab navigation from the range controls followed by Enter and Space opened
+the exact Investigation referenced by the focused window. This is keyboard/ARIA browser evidence,
+not certification with a specific screen-reader product. Main auxiliary text is now 13px; chart ticks
 are 12px. The obsolete Monitor reactive presentation and multi-signal Matplotlib renderer were
 removed; Assets retains its responsive single-signal Matplotlib charts.
 

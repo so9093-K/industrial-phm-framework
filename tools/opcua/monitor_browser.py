@@ -128,6 +128,43 @@ def main() -> None:
                     page.get_by_role("button", name="Monitor", exact=True).click()
                     expect(page.locator(".mw-plot svg")).to_be_visible(timeout=30000)
                     evidence_routing = expected_id
+                keyboard_routes = []
+                if evidence_count:
+                    for activation in ("Enter", "Space"):
+                        comparison_group = page.get_by_role(
+                            "group", name="Recorded signal comparison", exact=True
+                        )
+                        expect(comparison_group).to_be_visible()
+                        summaries = comparison_group.get_by_role(
+                            "group", name="Stored bucket summaries", exact=True
+                        )
+                        window_button = summaries.get_by_role(
+                            "button", name=re.compile(r"^Open .+ analysis evidence$")
+                        ).first
+                        expect(window_button).to_be_visible()
+                        assert 'button "Open ' in summaries.aria_snapshot()
+                        expected_window_id = window_button.get_attribute("data-evidence-id")
+                        assert expected_window_id is not None
+                        # Enter the chart from a real preceding control using Tab,
+                        # rather than programmatically focusing the SVG rectangle.
+                        page.get_by_role("button", name="7d", exact=True).focus()
+                        for _ in range(20):
+                            page.keyboard.press("Tab")
+                            if window_button.evaluate(
+                                "el => el.getRootNode().activeElement === el"
+                            ):
+                                break
+                        expect(window_button).to_be_focused()
+                        page.keyboard.press(activation)
+                        expect(
+                            page.get_by_role("button", name="Investigations", exact=True)
+                        ).to_have_attribute("aria-current", "page", timeout=30000)
+                        expect(page.locator(".mw-shell")).to_have_attribute(
+                            "data-current-investigation", expected_window_id
+                        )
+                        keyboard_routes.append({"key": activation, "id": expected_window_id})
+                        page.get_by_role("button", name="Monitor", exact=True).click()
+                        expect(page.locator(".mw-plot svg")).to_be_visible(timeout=30000)
                 page.get_by_role("button", name="Refresh observations").click()
                 expect(page.locator(".mw-shell")).not_to_have_class(
                     "mw-shell mw-pending", timeout=30000
@@ -206,6 +243,7 @@ def main() -> None:
                         "native_select_count": 0,
                         "exact_evidence_routing": evidence_routing,
                         "evidence_count": evidence_count,
+                        "keyboard_evidence_routes": keyboard_routes,
                         "navigation_pages": navigation_checks,
                     }
                 )
