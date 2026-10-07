@@ -116,7 +116,7 @@ def system_workspace_css() -> str:
   text-transform: var(--phm-label-transform);
   letter-spacing: var(--phm-label-tracking);
   line-height: 1.4;
-  word-break: keep-all;
+  word-break: var(--phm-copy-word-break);
 }
 .phm-system-fact-value {
   margin-top: .15rem;
@@ -124,7 +124,7 @@ def system_workspace_css() -> str:
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
-@media (max-width: 980px) {
+@media (max-width: 1100px) {
   .phm-system-grid { grid-template-columns: 1fr; }
 }
 </style>
