@@ -581,6 +581,38 @@ _PRODUCT_COPY: Final = {
         "investigation.human_review": "Human review",
         "investigation.queue": "Queue",
         "investigation.evidence_heading": "Analysis evidence",
+        "investigation.select_result_for_review": (
+            "Select an analysis result before requesting review."
+        ),
+        "investigation.review_requested_detail": (
+            "Review requested. The analysis evidence itself was not reinterpreted."
+        ),
+        "investigation.queue_summary": "{groups} group(s) · {analyses} saved analyses",
+        "investigation.group_run_count": "{runs} run(s) in this group",
+        "investigation.grouping_help": (
+            "Groups combine the same asset, capability, and human-review state. "
+            "Exact analysis evidence remains selectable inside each group. "
+            "Order is newest evidence first, not severity."
+        ),
+        "investigation.select_detail": "Select an analysis result from the queue.",
+        "investigation.excluded_observations": "Excluded observations",
+        "investigation.evidence_provenance": "Evidence & provenance",
+        "investigation.feature": "Feature",
+        "investigation.value": "Value",
+        "investigation.vibration_help": (
+            "These values are waveform statistics from one exact FILE snapshot. "
+            "No threshold or state policy interprets them here as anomaly, fault, "
+            "health, alert, or maintenance need."
+        ),
+        "investigation.renderer_detail": (
+            "This capability has persisted evidence but no explicit Operations renderer. "
+            "The evidence is not reinterpreted as another capability."
+        ),
+        "investigation.review_help": (
+            "Requesting review records a workflow item linked to this evidence. "
+            "It does not declare a fault, alarm, health state, or maintenance need."
+        ),
+        "investigation.current_review_state": "Current workflow state: **{state}**",
         "maintenance.open_evidence": "Open evidence in Investigations",
         "maintenance.review_note": "Review note",
         "maintenance.add_note": "Add note",
@@ -593,6 +625,13 @@ _PRODUCT_COPY: Final = {
         "maintenance.actions": "Review actions",
         "maintenance.counts": "Open {open} · Acknowledged {acknowledged} · Closed {closed}",
         "maintenance.review_heading": "Maintenance review",
+        "maintenance.select_before_action": "Select a review before recording an action.",
+        "maintenance.action_recorded": "Review action recorded: {action}.",
+        "maintenance.workload": "Review workload",
+        "maintenance.queue_summary": "{shown} shown · {total} total",
+        "maintenance.closed_help": (
+            "This review is closed. Closed review history is append-locked."
+        ),
         "system.asset_name_conflict": "Asset display name conflict",
         "setup.maximum_data_age": "Maximum data age (seconds)",
         "setup.save_data_age": "Save data age policy",
@@ -859,6 +898,35 @@ _PRODUCT_COPY: Final = {
         "investigation.human_review": "사람 검토",
         "investigation.queue": "대기열",
         "investigation.evidence_heading": "분석 근거",
+        "investigation.select_result_for_review": "검토를 요청할 분석 결과를 먼저 선택하세요.",
+        "investigation.review_requested_detail": (
+            "검토를 요청했습니다. 분석 evidence 자체를 다시 해석하지 않았습니다."
+        ),
+        "investigation.queue_summary": "그룹 {groups}개 · 저장 분석 {analyses}개",
+        "investigation.group_run_count": "이 그룹의 실행 {runs}개",
+        "investigation.grouping_help": (
+            "그룹은 같은 설비, capability, 사람 검토 상태를 묶습니다. 그룹 안에서 정확한 분석 "
+            "evidence를 선택할 수 있습니다. 순서는 severity가 아니라 최신 evidence 우선입니다."
+        ),
+        "investigation.select_detail": "대기열에서 분석 결과를 선택하세요.",
+        "investigation.excluded_observations": "제외된 관측값",
+        "investigation.evidence_provenance": "Evidence 및 provenance",
+        "investigation.feature": "Feature",
+        "investigation.value": "값",
+        "investigation.vibration_help": (
+            "이 값은 하나의 정확한 FILE snapshot에서 계산한 waveform 통계입니다. "
+            "여기서는 threshold나 state policy로 anomaly, fault, health, alert 또는 "
+            "maintenance 필요성을 해석하지 않습니다."
+        ),
+        "investigation.renderer_detail": (
+            "이 capability에는 저장된 evidence가 있지만 명시적인 Operations renderer가 없습니다. "
+            "다른 capability로 다시 해석하지 않습니다."
+        ),
+        "investigation.review_help": (
+            "검토 요청은 이 evidence에 연결된 workflow item을 기록합니다. "
+            "fault, alarm, health state 또는 maintenance 필요성을 선언하지 않습니다."
+        ),
+        "investigation.current_review_state": "현재 workflow 상태: **{state}**",
         "maintenance.open_evidence": "분석 근거에서 열기",
         "maintenance.review_note": "검토 메모",
         "maintenance.add_note": "메모 추가",
@@ -871,6 +939,13 @@ _PRODUCT_COPY: Final = {
         "maintenance.actions": "검토 작업",
         "maintenance.counts": "열림 {open} · 확인됨 {acknowledged} · 종료됨 {closed}",
         "maintenance.review_heading": "정비 검토",
+        "maintenance.select_before_action": "작업을 기록할 검토 항목을 먼저 선택하세요.",
+        "maintenance.action_recorded": "검토 작업 기록: {action}.",
+        "maintenance.workload": "검토 현황",
+        "maintenance.queue_summary": "{shown}개 표시 · 전체 {total}개",
+        "maintenance.closed_help": (
+            "이 검토는 종료되었습니다. 종료된 검토 이력은 추가 기록이 잠겨 있습니다."
+        ),
         "system.asset_name_conflict": "설비 표시 이름 충돌",
         "setup.maximum_data_age": "데이터 최대 경과 시간(초)",
         "setup.save_data_age": "데이터 경과 정책 저장",
