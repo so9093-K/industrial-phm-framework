@@ -112,13 +112,16 @@ def system_workspace_css() -> str:
 }
 .phm-system-fact-label {
   color: var(--phm-muted);
-  font-size: .69rem;
-  text-transform: uppercase;
-  letter-spacing: .04em;
+  font-size: .8125rem;
+  text-transform: var(--phm-label-transform);
+  letter-spacing: var(--phm-label-tracking);
+  line-height: 1.4;
+  word-break: keep-all;
 }
 .phm-system-fact-value {
   margin-top: .15rem;
-  font-size: .8rem;
+  font-size: .875rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 @media (max-width: 980px) {
