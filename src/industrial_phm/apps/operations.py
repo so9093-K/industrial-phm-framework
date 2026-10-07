@@ -49,6 +49,8 @@ def _():
         monitor_attention_category,
         monitor_context_attention,
         operational_analysis_presentation_kind,
+        operations_messages,
+        operations_messages,
         operations_page_label,
         operations_text,
         operations_theme_css,
@@ -3793,6 +3795,7 @@ def _(
     monitor_window_evidence_items,
     navigation_page,
     operations_locale,
+    operations_messages,
     operations_page_label,
     registered_sources,
     resolve_investigation_route,
@@ -3829,6 +3832,7 @@ def _(
     _payload = {
         "page": str(navigation_page),
         "locale": operations_locale.value,
+        "messages": operations_messages(operations_locale),
         "active_investigation": get_investigation_selection(),
         "pages": [page.value for page in OPERATIONS_PAGE_OPTIONS],
         "page_labels": {
