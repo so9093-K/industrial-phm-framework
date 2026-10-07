@@ -258,12 +258,12 @@ def test_actions_launch_and_stop_first_run_sample(tmp_path: Path, monkeypatch) -
 
     monkeypatch.setattr(
         action_module,
-        "launch_first_run_sample_runtime",
+        "launch_first_run_sample",
         lambda workspace: expected,
     )
     monkeypatch.setattr(
         action_module,
-        "stop_first_run_sample_runtime",
+        "stop_first_run_sample",
         lambda: stopped.append(True),
     )
 
