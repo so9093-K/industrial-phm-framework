@@ -505,6 +505,301 @@ _TEXT: Final = {
 }
 
 
+_PRODUCT_COPY: Final = {
+    OperationsLocale.EN_US: {
+        "common.name": "Name",
+        "common.type": "Type",
+        "common.signal": "Signal",
+        "common.time_range": "Time range",
+        "common.analysis_evidence": "Analysis evidence",
+        "common.queue_groups": "Queue groups",
+        "asset.no_selection": "No asset is selected.",
+        "asset.history_unavailable": "Asset History unavailable",
+        "asset.signals_unavailable": "Signals unavailable",
+        "asset.recent_event_points": "Recent stored event-time points",
+        "asset.latest_stored_value": "Latest stored value",
+        "asset.no_observation_range": "No stored observation falls inside the selected time range.",
+        "asset.file_snapshot_source": "FILE snapshot source",
+        "asset.analyze_file_snapshot": "Analyze FILE snapshot",
+        "asset.file_analysis_failed": "FILE analysis failed",
+        "asset.analysis_recorded": "Analysis recorded",
+        "asset.analyze_prepared_file": "Analyze prepared FILE snapshot",
+        "asset.load_hint": "Select Assets to load this workspace.",
+        "asset.workspace_unavailable": "Asset workspace unavailable",
+        "investigation.request_review": "Request review",
+        "investigation.no_filter_match": "No saved analysis result matches the current filters.",
+        "investigation.evidence_summary": "Evidence summary",
+        "investigation.vibration_evidence": "Vibration feature evidence",
+        "investigation.renderer_unavailable": "Evidence renderer unavailable",
+        "investigation.review_request_failed": "Review request failed",
+        "investigation.review_requested": "Review requested",
+        "investigation.human_review": "Human review",
+        "maintenance.open_evidence": "Open evidence in Investigations",
+        "maintenance.review_note": "Review note",
+        "maintenance.add_note": "Add note",
+        "maintenance.acknowledge": "Acknowledge",
+        "maintenance.close_review": "Close review",
+        "maintenance.no_filter_match": "No review matches the current filters.",
+        "maintenance.select_review": "Select a review from the queue.",
+        "maintenance.action_failed": "Review action failed",
+        "maintenance.updated": "Review updated",
+        "maintenance.actions": "Review actions",
+        "system.asset_name_conflict": "Asset display name conflict",
+        "setup.maximum_data_age": "Maximum data age (seconds)",
+        "setup.save_data_age": "Save data age policy",
+        "setup.clear_policy": "Clear policy",
+        "setup.data_age_saved": "Data age policy saved: {source_id} · {seconds:g} s.",
+        "setup.data_age_cleared": "Data age policy cleared: {source_id}.",
+        "setup.run_diagnostic": "Run one diagnostic cycle",
+        "setup.collect_bounded": "Collect bounded subscription",
+        "setup.source_use_changed": "Source use changed: {source_id} → {state}.",
+        "setup.source_type": "Source type",
+        "setup.source_id": "Source ID",
+        "setup.name": "Name",
+        "setup.measurement_point_optional": "Measurement point (optional)",
+        "setup.file_path": "File or directory path",
+        "setup.file_shape": "File shape",
+        "setup.discover_file": "Discover file",
+        "setup.timestamp_column_optional": "Timestamp column (optional for snapshot)",
+        "setup.sampling_rate_optional": "Sampling rate Hz (optional)",
+        "setup.endpoint": "Endpoint",
+        "setup.timeout_seconds": "Timeout seconds",
+        "setup.connect_browse": "Connect & browse signals",
+        "setup.advanced_mapping": "Advanced explicit mapping (signal_id,node_id)",
+        "setup.signals_to_keep": "Signals to keep",
+        "setup.observed_property": "Observed property",
+        "setup.scope_optional": "Scope (optional)",
+        "setup.statistic_optional": "Statistic (optional)",
+        "setup.unit_optional": "Unit (optional)",
+        "setup.unit_evidence": "Unit evidence (required when unit is known)",
+        "setup.semantic_version": "Semantic version",
+        "setup.interpretation_evidence": "Interpretation evidence",
+        "setup.save_meaning": "Add / update meaning",
+        "setup.keep_unresolved": "Keep unresolved",
+        "setup.review_save_source": "Review & save source",
+        "setup.source_saved": "Source saved: {source_id}. Enable it when ready to use.",
+        "setup.action_failed": "Setup action failed",
+        "setup.updated": "Setup updated",
+        "setup.diagnostic_failed": "Diagnostic action failed",
+        "setup.diagnostic_completed": "Diagnostic action completed",
+        "setup.add_data_source": "Add data source",
+        "setup.file.connect_help": (
+            "Choose the prepared file boundary and declare the asset identity before discovery."
+        ),
+        "setup.file.select_help": (
+            "Keep only discovered columns that belong to this source; column names are identifiers, "
+            "not physical meaning."
+        ),
+        "setup.file.meaning_help": (
+            "FILE registration preserves column identity. Record measurement meaning explicitly "
+            "when it is known."
+        ),
+        "setup.file.review_help": (
+            "The file is validated before its source registration is saved."
+        ),
+        "setup.mapping_invalid": "Explicit mapping invalid",
+        "setup.no_mapping_selected": "No signal mapping selected yet.",
+        "setup.select_mapping_first": "Select at least one mapped signal before defining meaning.",
+        "setup.opcua.connect_help": (
+            "Declare endpoint and asset identity, then run a bounded browse."
+        ),
+        "setup.opcua.select_help": (
+            "Browse selection defines explicit NodeId mapping. NodeId and BrowseName do not "
+            "establish physical meaning."
+        ),
+        "setup.no_browse_result": "No current browse result.",
+        "setup.advanced_nodeid_mapping": "Advanced explicit NodeId mapping",
+        "setup.opcua.meaning_help": (
+            "Meaning is explicit, versioned, and evidence-backed. Leave channels unresolved "
+            "when meaning is not established."
+        ),
+        "setup.opcua.review_help": (
+            "Saving registers configuration only. It does not enable the source or start collection."
+        ),
+        "setup.connected_source": "Connected source",
+        "setup.inspect_signals_title": "Inspect signals",
+        "setup.inspect_signals_help": (
+            "Confirm the exact source identity and the signals that were registered."
+        ),
+        "setup.confirm_meaning_title": "Confirm meaning",
+        "setup.confirm_meaning_help": (
+            "Explicit meaning is recorded for **{defined} / {total}** signal(s). "
+            "Unresolved channels remain unresolved rather than being inferred from names."
+        ),
+        "setup.verify_flow_title": "Start or verify data flow",
+        "setup.verify_flow_help": (
+            "Enable the source when it is ready to be used. For OPC UA, request persistent "
+            "collection. Bounded diagnostics remain available above for connection and "
+            "data-contract checks."
+        ),
+        "setup.observe_title": "Observe",
+        "setup.add_another_source": "Add another data source",
+        "setup.analysis_configuration": "Analysis configuration",
+        "setup.title": "Data connection",
+        "setup.intro": (
+            "Connect data, inspect signal identity, record only known measurement meaning, "
+            "then verify data flow before moving to Monitor."
+        ),
+        "monitor.stored_signals_snapshot": "{count} stored signals · observation snapshot",
+        "monitor.inspect_channel": "Inspect {channel}",
+        "monitor.all_origins": "All origins · {count} source/point records",
+        "monitor.meaning_not_confirmed": "Meaning not confirmed",
+        "monitor.origins": "{count} origins",
+        "monitor.kept_separate": "kept separate",
+        "monitor.compare_channel": "Compare {channel}",
+        "monitor.remove_channel": "Remove {channel}",
+        "monitor.loaded_evidence_count": "{count} loaded items in this event-time window",
+        "monitor.open_analysis_evidence": "Open {label} analysis evidence",
+        "monitor.bucket_stats": "Min {min} · max {max} · mean {mean}",
+        "monitor.bucket_counts": (
+            "{source} · {usable} usable · null {null} · non-good {non_good} · conflict {conflict}"
+        ),
+    },
+    OperationsLocale.KO_KR: {
+        "common.name": "이름",
+        "common.type": "유형",
+        "common.signal": "신호",
+        "common.time_range": "시간 범위",
+        "common.analysis_evidence": "분석 근거",
+        "common.queue_groups": "대기열 그룹",
+        "asset.no_selection": "선택된 설비가 없습니다.",
+        "asset.history_unavailable": "설비 이력을 불러올 수 없습니다",
+        "asset.signals_unavailable": "신호를 불러올 수 없습니다",
+        "asset.recent_event_points": "최근 저장 event-time 관측값",
+        "asset.latest_stored_value": "최근 저장값",
+        "asset.no_observation_range": "선택한 시간 범위에 저장된 관측값이 없습니다.",
+        "asset.file_snapshot_source": "FILE snapshot source",
+        "asset.analyze_file_snapshot": "FILE snapshot 분석",
+        "asset.file_analysis_failed": "FILE 분석 실패",
+        "asset.analysis_recorded": "분석 기록 완료",
+        "asset.analyze_prepared_file": "준비된 FILE snapshot 분석",
+        "asset.load_hint": "설비 페이지를 선택하면 이 workspace를 불러옵니다.",
+        "asset.workspace_unavailable": "설비 workspace를 불러올 수 없습니다",
+        "investigation.request_review": "검토 요청",
+        "investigation.no_filter_match": "현재 필터와 일치하는 저장 분석 결과가 없습니다.",
+        "investigation.evidence_summary": "근거 요약",
+        "investigation.vibration_evidence": "진동 feature 근거",
+        "investigation.renderer_unavailable": "근거 화면을 표시할 수 없습니다",
+        "investigation.review_request_failed": "검토 요청 실패",
+        "investigation.review_requested": "검토 요청 완료",
+        "investigation.human_review": "사람 검토",
+        "maintenance.open_evidence": "분석 근거에서 열기",
+        "maintenance.review_note": "검토 메모",
+        "maintenance.add_note": "메모 추가",
+        "maintenance.acknowledge": "확인",
+        "maintenance.close_review": "검토 종료",
+        "maintenance.no_filter_match": "현재 필터와 일치하는 검토가 없습니다.",
+        "maintenance.select_review": "대기열에서 검토 항목을 선택하세요.",
+        "maintenance.action_failed": "검토 작업 실패",
+        "maintenance.updated": "검토 갱신 완료",
+        "maintenance.actions": "검토 작업",
+        "system.asset_name_conflict": "설비 표시 이름 충돌",
+        "setup.maximum_data_age": "데이터 최대 경과 시간(초)",
+        "setup.save_data_age": "데이터 경과 정책 저장",
+        "setup.clear_policy": "정책 지우기",
+        "setup.data_age_saved": "데이터 경과 정책 저장: {source_id} · {seconds:g}초.",
+        "setup.data_age_cleared": "데이터 경과 정책 삭제: {source_id}.",
+        "setup.run_diagnostic": "진단 1회 실행",
+        "setup.collect_bounded": "제한된 subscription 수집",
+        "setup.source_use_changed": "Source 사용 상태 변경: {source_id} → {state}.",
+        "setup.source_type": "Source 유형",
+        "setup.source_id": "Source ID",
+        "setup.name": "이름",
+        "setup.measurement_point_optional": "측정 지점(선택)",
+        "setup.file_path": "파일 또는 디렉터리 경로",
+        "setup.file_shape": "FILE 형태",
+        "setup.discover_file": "파일 탐색",
+        "setup.timestamp_column_optional": "Timestamp 열(snapshot은 선택)",
+        "setup.sampling_rate_optional": "Sampling rate Hz(선택)",
+        "setup.endpoint": "Endpoint",
+        "setup.timeout_seconds": "Timeout(초)",
+        "setup.connect_browse": "연결 후 신호 탐색",
+        "setup.advanced_mapping": "고급 explicit mapping (signal_id,node_id)",
+        "setup.signals_to_keep": "유지할 신호",
+        "setup.observed_property": "관측 속성",
+        "setup.scope_optional": "범위(선택)",
+        "setup.statistic_optional": "통계량(선택)",
+        "setup.unit_optional": "단위(선택)",
+        "setup.unit_evidence": "단위 근거(단위를 알 때 필수)",
+        "setup.semantic_version": "Semantic version",
+        "setup.interpretation_evidence": "해석 근거",
+        "setup.save_meaning": "측정 의미 추가 / 갱신",
+        "setup.keep_unresolved": "미확인으로 유지",
+        "setup.review_save_source": "검토 후 source 저장",
+        "setup.source_saved": "Source 저장 완료: {source_id}. 사용할 준비가 되면 활성화하세요.",
+        "setup.action_failed": "설정 작업 실패",
+        "setup.updated": "설정 갱신 완료",
+        "setup.diagnostic_failed": "진단 작업 실패",
+        "setup.diagnostic_completed": "진단 작업 완료",
+        "setup.add_data_source": "데이터 source 추가",
+        "setup.file.connect_help": (
+            "탐색 전에 준비된 파일 범위를 선택하고 설비 identity를 지정하세요."
+        ),
+        "setup.file.select_help": (
+            "이 source에 속한 탐색된 열만 유지하세요. 열 이름은 identifier이며 물리적 의미가 아닙니다."
+        ),
+        "setup.file.meaning_help": (
+            "FILE 등록은 열 identity를 보존합니다. 알고 있는 측정 의미만 명시적으로 기록하세요."
+        ),
+        "setup.file.review_help": "Source 등록을 저장하기 전에 파일을 검증합니다.",
+        "setup.mapping_invalid": "Explicit mapping이 올바르지 않습니다",
+        "setup.no_mapping_selected": "선택된 신호 mapping이 아직 없습니다.",
+        "setup.select_mapping_first": "측정 의미를 정의하기 전에 mapping된 신호를 하나 이상 선택하세요.",
+        "setup.opcua.connect_help": (
+            "Endpoint와 설비 identity를 지정한 뒤 제한된 browse를 실행하세요."
+        ),
+        "setup.opcua.select_help": (
+            "Browse 선택은 explicit NodeId mapping을 정의합니다. NodeId와 BrowseName만으로 "
+            "물리적 의미를 정하지 않습니다."
+        ),
+        "setup.no_browse_result": "현재 browse 결과가 없습니다.",
+        "setup.advanced_nodeid_mapping": "고급 explicit NodeId mapping",
+        "setup.opcua.meaning_help": (
+            "측정 의미는 명시적이고 versioned이며 근거를 가져야 합니다. 의미가 확립되지 않은 "
+            "채널은 미확인 상태로 두세요."
+        ),
+        "setup.opcua.review_help": (
+            "저장은 구성만 등록합니다. Source를 활성화하거나 수집을 시작하지 않습니다."
+        ),
+        "setup.connected_source": "연결된 source",
+        "setup.inspect_signals_title": "신호 확인",
+        "setup.inspect_signals_help": "정확한 source identity와 등록된 신호를 확인하세요.",
+        "setup.confirm_meaning_title": "측정 의미 확인",
+        "setup.confirm_meaning_help": (
+            "**{defined} / {total}**개 신호에 explicit meaning이 기록되어 있습니다. "
+            "미확인 채널은 이름으로 추론하지 않고 그대로 유지합니다."
+        ),
+        "setup.verify_flow_title": "데이터 수신 시작 또는 확인",
+        "setup.verify_flow_help": (
+            "사용할 준비가 되면 source를 활성화하세요. OPC UA는 persistent collection을 요청합니다. "
+            "연결과 data-contract 확인에는 위의 bounded diagnostic을 사용할 수 있습니다."
+        ),
+        "setup.observe_title": "관제 시작",
+        "setup.add_another_source": "다른 데이터 source 추가",
+        "setup.analysis_configuration": "분석 설정",
+        "setup.title": "데이터 연결",
+        "setup.intro": (
+            "데이터를 연결하고 신호 identity를 확인한 뒤, 알고 있는 측정 의미만 기록하고 "
+            "데이터 수신을 확인한 후 관제로 이동하세요."
+        ),
+        "monitor.stored_signals_snapshot": "저장 신호 {count}개 · 관측 snapshot",
+        "monitor.inspect_channel": "{channel} 확인",
+        "monitor.all_origins": "전체 origin · source/point 기록 {count}개",
+        "monitor.meaning_not_confirmed": "측정 의미 미확인",
+        "monitor.origins": "origin {count}개",
+        "monitor.kept_separate": "분리 유지",
+        "monitor.compare_channel": "{channel} 비교",
+        "monitor.remove_channel": "{channel} 제거",
+        "monitor.loaded_evidence_count": "현재 event-time 구간에 근거 {count}개 로드됨",
+        "monitor.open_analysis_evidence": "{label} 분석 근거 열기",
+        "monitor.bucket_stats": "최소 {min} · 최대 {max} · 평균 {mean}",
+        "monitor.bucket_counts": (
+            "{source} · 사용 가능 {usable} · null {null} · non-good {non_good} · conflict {conflict}"
+        ),
+    },
+}
+
+
 def normalize_operations_locale(value: str | OperationsLocale | None) -> OperationsLocale | None:
     if value is None:
         return None
@@ -576,7 +871,8 @@ def operations_messages(
 ) -> dict[str, str]:
     """Return a copy safe to pass to the browser presentation boundary."""
 
-    return dict(_TEXT[_require_locale(locale)])
+    resolved = _require_locale(locale)
+    return {**_TEXT[resolved], **_PRODUCT_COPY[resolved]}
 
 
 def operations_text(
@@ -588,8 +884,11 @@ def operations_text(
     resolved = _require_locale(locale)
     try:
         return _TEXT[resolved][key]
-    except KeyError as error:
-        raise KeyError(f"unknown Operations text key: {key}") from error
+    except KeyError:
+        try:
+            return _PRODUCT_COPY[resolved][key]
+        except KeyError as error:
+            raise KeyError(f"unknown Operations text key: {key}") from error
 
 
 def format_operations_number(
