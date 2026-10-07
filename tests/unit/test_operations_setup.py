@@ -184,6 +184,7 @@ def test_setup_workspace_rejects_freshness_policy_for_unknown_source() -> None:
             freshness_policies=(freshness,),
         )
 
+
 def test_setup_data_flow_requires_receipt_for_current_active_source() -> None:
     lifecycle = SourceLifecycleRecord(
         source_id="opc-a",
