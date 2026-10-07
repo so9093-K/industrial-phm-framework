@@ -4438,7 +4438,7 @@ def _(
     system_workspace_css,
 ):
     theme = mo.Html(
-        operations_theme_css()
+        operations_theme_css(operations_locale)
         + asset_workspace_css()
         + investigation_workspace_css()
         + system_workspace_css()
