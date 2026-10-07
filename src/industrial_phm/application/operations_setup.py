@@ -16,6 +16,7 @@ from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleState,
 )
+from industrial_phm.application.source_health import SourceDataFlowState, SourceHealthAssessment
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     OpcUaSourceConfig,
@@ -121,6 +122,23 @@ class SetupSourceView:
     @property
     def semantic_coverage(self) -> tuple[int, int]:
         return sum(item.meaning_defined for item in self.signals), len(self.signals)
+
+
+def setup_data_flow_confirmed(assessment: SourceHealthAssessment) -> bool:
+    """Whether the current active source has accepted receipt evidence.
+
+    This deliberately reuses SourceHealthAssessment rather than inferring readiness
+    from registration, desired collection state, or a successful connection attempt.
+    """
+
+    if not isinstance(assessment, SourceHealthAssessment):
+        raise ValueError("assessment must be a SourceHealthAssessment")
+    return assessment.data_flow_state in {
+        SourceDataFlowState.FRESHNESS_NOT_CONFIGURED,
+        SourceDataFlowState.FRESH,
+        SourceDataFlowState.STALE,
+        SourceDataFlowState.TIMING_UNAVAILABLE,
+    }
 
 
 @dataclass(frozen=True, slots=True)
