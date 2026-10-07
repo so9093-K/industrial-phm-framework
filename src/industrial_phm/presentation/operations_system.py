@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from html import escape
 import re
+from html import escape
 
 from industrial_phm.application.operations_monitor import OperationsMonitorStatus
 from industrial_phm.application.operations_system import (
