@@ -32,6 +32,7 @@
 - [Live Acquisition Queue-pressure and Fault/Recovery Evidence](live-acquisition-fault-evidence.md)
 - [History Append Scaling Evidence](history-append-scaling-evidence.md)
 - [DuckLake Non-destructive Compaction Evidence](history-compaction-evidence.md)
+- [History Live Retention Evidence](history-retention-evidence.md)
 
 Measured evidence documents preserve environment, workload, method, result, interpretation and limitations.
 They are not release notes or completion reports for a particular Issue/PR.

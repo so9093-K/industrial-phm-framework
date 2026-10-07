@@ -1195,6 +1195,114 @@ def test_live_retention_deletes_old_live_rows_and_keeps_file_and_protected_evide
     assert len(history.query_file_events("device-a")) == 3
 
 
+def test_live_retention_expires_in_chunks_and_purges_inlined_rows(tmp_path, monkeypatch) -> None:
+    from industrial_phm.application.history_retention import RetentionProtection
+    from industrial_phm.history import ducklake as ducklake_module
+
+    _require_duckdb()
+    monkeypatch.setattr(ducklake_module, "_EXPIRE_SNAPSHOTS_PER_LEASE", 2)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    now = datetime.now(UTC) + timedelta(days=8)
+    for commit in range(6):
+        # Commits of a few rows stay inlined in the catalog.
+        event_at = now - timedelta(days=10 if commit % 2 else 1)
+        history.append_opcua_batch(
+            (_event(channel_id="va", event_at=event_at, event_index=commit),),
+            batch_id=f"small-{commit}",
+        )
+    before = history.inspect_storage().snapshot_count
+
+    result = history.apply_live_retention(
+        cutoff=now - timedelta(days=7), protection=RetentionProtection()
+    )
+    assert result.deleted_observation_count == 3
+    assert result.deleted_batch_count == 3
+    # Every prepared snapshot expires over several chunks; the run's own deletion
+    # commit is the current snapshot.
+    assert result.expired_snapshot_count == before
+    assert len(history.query_opcua_events("source-a")) == 3
+    with sqlite3.connect(tmp_path / "catalog.sqlite") as catalog:
+        inlined_tables = [
+            row[0]
+            for row in catalog.execute(
+                "SELECT name FROM sqlite_master WHERE name LIKE 'ducklake_inlined_data_%' "
+                "AND name != 'ducklake_inlined_data_tables'"
+            )
+        ]
+        inlined = sum(
+            catalog.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
+            for table in inlined_tables
+        )
+    # The final flush purges deleted inlined rows; the rest moved to Parquet.
+    assert inlined == 0
+
+
+def test_live_retention_deletes_in_bounded_slices_across_a_split_batch(
+    tmp_path, monkeypatch
+) -> None:
+    from industrial_phm.application.history_retention import RetentionProtection
+    from industrial_phm.history import ducklake as ducklake_module
+
+    _require_duckdb()
+    monkeypatch.setattr(ducklake_module, "_RETENTION_ROWS_PER_LEASE", 2)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    now = datetime.now(UTC) + timedelta(days=8)
+    # One batch with rows in four different minutes is split over slices.
+    split = tuple(
+        _event(
+            channel_id="va", event_at=now - timedelta(days=10, minutes=minute), event_index=minute
+        )
+        for minute in range(4)
+    )
+    history.append_opcua_batch(split, batch_id="split")
+    recent = (_event(channel_id="va", event_at=now - timedelta(days=1), event_index=9),)
+    history.append_opcua_batch(recent, batch_id="recent")
+
+    preview = history.apply_live_retention(
+        cutoff=now - timedelta(days=7), protection=RetentionProtection(), dry_run=True
+    )
+    assert (preview.deleted_observation_count, preview.deleted_batch_count) == (4, 1)
+    assert len(history._retention_slices(now - timedelta(days=7))) == 2
+    result = history.apply_live_retention(
+        cutoff=now - timedelta(days=7), protection=RetentionProtection()
+    )
+    assert (result.deleted_observation_count, result.deleted_measurement_count) == (4, 4)
+    assert result.deleted_batch_count == 1
+    assert history.query_opcua_events("source-a") == recent
+
+
+def test_live_retention_forgets_a_batch_once_its_rows_pass_the_cutoff_over_two_runs(
+    tmp_path,
+) -> None:
+    from industrial_phm.application.history_retention import RetentionProtection
+
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+    now = datetime.now(UTC) + timedelta(days=8)
+    crossing = (
+        _event(channel_id="va", event_at=now - timedelta(days=10), event_index=0),
+        _event(channel_id="vb", event_at=now - timedelta(days=1), event_index=1),
+    )
+    history.append_opcua_batch(crossing, batch_id="crossing")
+
+    first = history.apply_live_retention(
+        cutoff=now - timedelta(days=7), protection=RetentionProtection()
+    )
+    assert (first.deleted_observation_count, first.deleted_batch_count) == (1, 0)
+    assert history.query_opcua_events("source-a") == crossing[1:]
+
+    second = history.apply_live_retention(cutoff=now, protection=RetentionProtection())
+    # Only one of the batch's two recorded events is left, so its stored rows decide.
+    assert (second.deleted_observation_count, second.deleted_batch_count) == (1, 1)
+    assert history.query_opcua_events("source-a") == ()
+
+
 def test_live_retention_reclaims_live_files_once_every_row_has_passed_the_cutoff(
     tmp_path,
 ) -> None:
@@ -1341,3 +1449,25 @@ def test_fixed_queried_asset_grows_only_unrelated_assets(tmp_path) -> None:
             repeats=1,
             queried_asset_rows=70,
         )
+
+
+_RETENTION_PROFILE_SPEC = spec_from_file_location(
+    "retention_profile", Path(__file__).parents[2] / "tools/history/retention_profile.py"
+)
+assert _RETENTION_PROFILE_SPEC is not None and _RETENTION_PROFILE_SPEC.loader is not None
+_RETENTION_PROFILE_TOOL = module_from_spec(_RETENTION_PROFILE_SPEC)
+_RETENTION_PROFILE_SPEC.loader.exec_module(_RETENTION_PROFILE_TOOL)
+
+
+def test_retention_profile_deletes_the_old_fraction_and_expires_every_prepared_snapshot(
+    tmp_path,
+) -> None:
+    pytest.importorskip("duckdb")
+    report = _RETENTION_PROFILE_TOOL.run(tmp_path, commits=6, rows_per_commit=12, old_every=3)
+    assert report["dry_run_deleted_observations"] == report["deleted_observations"] == 24
+    assert report["deleted_batches"] == 2
+    # The template, six prepared commits and the probe all precede the cutoff.
+    assert report["expired_snapshots"] >= 8
+    assert report["removed_files"] > 0
+    assert report["after_retention"]["catalog_inlined_rows"] == 0
+    assert report["retention_max_lease_hold_ms"] == max(report["retention_lease_holds_ms"])

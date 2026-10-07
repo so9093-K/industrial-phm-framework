@@ -20,6 +20,12 @@
 
 ### Changed
 
+- `maintenance history retain`의 삭제와 snapshot 만료를 나눠 실행합니다. 삭제는 file 통계로 prune되는 시간
+  조건과 약 10만 행의 분 단위 event-time slice(1분이 더 많으면 그 1분)로, snapshot 만료는 2,000개 chunk로
+  나눠 각각 lease를 잡고, 마지막 flush로 삭제된 catalog-inline 행을 비웁니다. slice 탐색·snapshot 목록·
+  cleanup·flush는 여전히 상태 크기에 따라 길어지는 lease 하나씩입니다. 측정한 72만 행 상태에서 최장 lease
+  점유가 2,059ms에서 604ms로 줄었습니다([retention evidence](docs/research/history-retention-evidence.md)).
+
 - Monitor 가독성을 보정했습니다. 분석 구간은 데이터를 덮던 반투명 음영 대신 차트 위쪽의 얇은 표시로 그리고,
   hover·focus한 구간만 강조합니다. 구간 버튼은 panel마다 Tab 정지점 하나로 묶고 방향키·Home/End로 이동합니다.
   상태 배지는 Signals와 같은 `Source flow · …` 이름을 쓰고, 신호 카드의 event 시각은 차트 시간 범위와 같은
