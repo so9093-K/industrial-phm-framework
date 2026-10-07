@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
 from html import escape
 
 from industrial_phm.application.asset_display import AssetDisplayNames
@@ -57,14 +56,15 @@ def render_maintenance_summary_html(
     asset_names: AssetDisplayNames | None = None,
     locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
+    kicker = escape(operations_text("maintenance.title", locale))
+    capability = escape(maintenance_capability_label(item.capability_id, locale))
     return (
         '<section class="phm-shell">'
         '<div class="phm-investigation-heading">'
         "<div>"
-        f'<div class="phm-asset-kicker">{escape(operations_text("maintenance.title", locale))}</div>'
+        f'<div class="phm-asset-kicker">{kicker}</div>'
         + render_asset_title_html(item.asset_id, asset_names)
-        + '<div class="phm-card-detail">'
-        f"{escape(maintenance_capability_label(item.capability_id, locale))}</div>"
+        + f'<div class="phm-card-detail">{capability}</div>'
         "</div>"
         '<div class="phm-investigation-facts">'
         + _fact(
@@ -93,15 +93,13 @@ def render_maintenance_evidence_html(
     metrics: Sequence[Mapping[str, object]] = (),
     locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
-    """Show the analysis evidence a review references, read from the evidence itself.
+    """Show the analysis evidence referenced by one review workflow item."""
 
-    The review record keeps only references; observed range, quality and values are
-    taken from the loaded analysis result so they cannot drift from the evidence.
-    """
+    title = escape(operations_text("maintenance.reviewed_evidence", locale))
     if evidence is None:
         return (
             '<section class="phm-shell">'
-            f'<div class="phm-section-title">{escape(operations_text("maintenance.reviewed_evidence", locale))}</div>'
+            f'<div class="phm-section-title">{title}</div>'
             '<div class="phm-card-detail">'
             f"Analysis run {escape(analysis_run_id)} is not in the loaded analysis results."
             "</div></section>"
@@ -122,16 +120,17 @@ def render_maintenance_evidence_html(
             "<thead><tr><th>Quantity</th><th>Median</th><th>P95</th><th>Max</th></tr></thead>"
             f"<tbody>{body}</tbody></table>"
         )
+    observed = operations_text("common.observed", locale)
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("maintenance.reviewed_evidence", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<div class="phm-investigation-facts">'
         + _fact(
-            f"{operations_text('common.observed', locale)} · from",
+            f"{observed} · from",
             format_operations_utc(evidence.observed_start_at, locale),
         )
         + _fact(
-            f"{operations_text('common.observed', locale)} · to",
+            f"{observed} · to",
             format_operations_utc(evidence.observed_end_at, locale),
         )
         + _fact(operations_text("common.source", locale), evidence.source_id)
@@ -147,10 +146,9 @@ def render_maintenance_timeline_html(
     locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
     if not item.timeline:
-        body = (
-            '<tr><td colspan="3" class="phm-card-detail">'
-            operations_text("maintenance.no_review_activity", locale)
-            "</td></tr>"
+        body = _empty_row(
+            3,
+            operations_text("maintenance.no_review_activity", locale),
         )
     else:
         body = "".join(
@@ -161,9 +159,10 @@ def render_maintenance_timeline_html(
             "</tr>"
             for event in item.timeline
         )
+    title = escape(operations_text("maintenance.review_timeline", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("maintenance.review_timeline", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Time</th><th>Action</th><th>Note</th></tr></thead>"
         f"<tbody>{body}</tbody></table></section>"
@@ -184,11 +183,13 @@ def render_maintenance_identity_html(
         ),
     )
     body = "".join(
-        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>" for label, value in rows
+        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>"
+        for label, value in rows
     )
+    title = escape(operations_text("maintenance.review_identity", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("maintenance.review_identity", locale))}</div>'
+        f'<div class="phm-section-title">{title}</div>'
         f'<table class="phm-table"><tbody>{body}</tbody></table>'
         "</section>"
     )
@@ -203,9 +204,15 @@ def _fact(label: str, value: str) -> str:
     )
 
 
+def _empty_row(columns: int, message: str) -> str:
+    return (
+        f'<tr><td colspan="{columns}" class="phm-card-detail">'
+        f"{escape(message)}"
+        "</td></tr>"
+    )
+
+
 def _percent(value: object) -> str:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return f"{value:.2f}%"
     return "—"
-
-
