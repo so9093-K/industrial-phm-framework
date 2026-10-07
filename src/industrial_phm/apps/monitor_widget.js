@@ -258,7 +258,11 @@ function render({
         groups.get(group).push(row);
       }
       const focusGroup = s.signals.find(row => row.channel === s.focus)?.observed_property;
-      const orderedGroups = [...groups].sort(([a], [b]) => (a === focusGroup ? -1 : b === focusGroup ? 1 : 0) || (a === 'Unresolved signals' ? 1 : b === 'Unresolved signals' ? -1 : a.localeCompare(b)));
+      const unresolvedGroup = t('monitor.group_unresolved', 'Unresolved signals');
+    const orderedGroups = [...groups].sort(([a], [b]) =>
+      (a === focusGroup ? -1 : b === focusGroup ? 1 : 0)
+      || (a === unresolvedGroup ? 1 : b === unresolvedGroup ? -1 : a.localeCompare(b))
+    );
       for (const [name, rows] of orderedGroups) {
         const group = $('section', 'mw-signal-group');
         group.append($('h3', '', name), $('span', 'mw-group-count', String(rows.length)));
@@ -300,7 +304,11 @@ function render({
       )
     );
           pick.append(info, val);
-          pick.title = row.origins.map(origin => `${origin.source}${origin.measurement_point?' / '+origin.measurement_point:''} · Event: ${origin.time||'not recorded'} · Quality: ${origin.source_quality}`).join('\n');
+          pick.title = row.origins.map(origin =>
+      `${origin.source}${origin.measurement_point ? ' / ' + origin.measurement_point : ''} · `
+      + `${t('monitor.event', 'Event')}: ${origin.time || t('monitor.not_recorded', 'Not recorded')} · `
+      + `${t('monitor.quality', 'Quality')}: ${origin.source_quality}`
+    ).join('\n');
           const compare = button('', () => {
             let channels = [...(s.comparisons || [])];
             if (channels.includes(row.channel)) channels = channels.filter(c => c !== row.channel);
@@ -371,12 +379,17 @@ function render({
         value.append($('strong', '', number(row.value)), $('span', '', row.unit === 'unknown' ? t('monitor.unit_unknown', 'unit unknown') : row.unit || ''));
         reading.append(value);
         let quality = row.quality === 'no recorded issue' ? row.source_quality : row.quality;
-        if (row.event_time_state && row.event_time_state !== 'recorded') quality += ` · event time ${row.event_time_state}`;
+        if (row.event_time_state && row.event_time_state !== 'recorded') {
+      quality += ` · ${t('monitor.event_time', 'event time')} ${row.event_time_state}`;
+    }
         const meta = $('div', 'mw-reading-meta');
         const at = row.time ? Date.parse(row.time) : null;
         const sameDay = at != null && s.chart && new Date(at).toISOString().slice(0, 10) === new Date(s.chart.end).toISOString().slice(0, 10);
         meta.append($('span', quality === 'good' ? 'mw-good' : '', `${t('monitor.quality', 'Quality')} · ${quality||t('monitor.unknown', 'unknown')}`), $('time', '', at == null ? t('monitor.event_time_unavailable', 'Event time unavailable') : `${time(at, !sameDay)} UTC`));
-        meta.title = `Event: ${row.time||'not recorded'}\n${row.source}${row.measurement_point?' / '+row.measurement_point:''}\n${row.event_time_state}`;
+        meta.title =
+      `${t('monitor.event', 'Event')}: ${row.time || t('monitor.not_recorded', 'Not recorded')}\n`
+      + `${row.source}${row.measurement_point ? ' / ' + row.measurement_point : ''}\n`
+      + `${t('monitor.event_time', 'event time')}: ${row.event_time_state}`;
         if (rows.length > 1) meta.prepend($('span', 'mw-origin-label', row.source + (row.measurement_point ? ' / ' + row.measurement_point : '')));
         reading.append(meta);
         readings.append(reading);
@@ -760,7 +773,12 @@ function drawChart(container, data, windows, onEvidence) {
         c.setAttribute('x2', px);
         c.setAttribute('visibility', 'visible');
       });
-      tooltip.replaceChildren($('div', 'mw-tooltip-title', `BUCKET SUMMARY · UTC`), $('div', 'mw-tooltip-cursor', `Cursor ${time(at,true)}`));
+      tooltip.replaceChildren(
+      $('div', 'mw-tooltip-title', t('monitor.bucket_summary', 'BUCKET SUMMARY · UTC')),
+      $('div', 'mw-tooltip-cursor',
+        t('monitor.cursor', 'Cursor {time}').replace('{time}', time(at, true))
+      )
+    );
       let hits = 0;
       for (const group of data.groups)
         for (const series of group.series) {
