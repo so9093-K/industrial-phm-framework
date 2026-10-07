@@ -35,7 +35,9 @@ def test_locale_resource_keys_match_across_supported_locales() -> None:
 
 
 def test_supplemental_product_copy_is_localized_with_stable_placeholders() -> None:
-    assert operations_text("setup.connect_first_source", "en-US") == "Connect your first data source"
+    assert operations_text("setup.connect_first_source", "en-US") == (
+        "Connect your first data source"
+    )
     assert operations_text("setup.connect_first_source", "ko-KR") == "첫 데이터 source 연결"
     assert operations_text("monitor.inspect_channel", "ko-KR").format(channel="vibration_x") == (
         "vibration_x 확인"
