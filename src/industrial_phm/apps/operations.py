@@ -750,14 +750,20 @@ def _(
     if _freshness_action is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError(operations_text("setup.select_source_for_age", operations_locale))
+                raise ValueError(
+                    operations_text("setup.select_source_for_age", operations_locale)
+                )
             _source_id = setup_selected_source.source_id
             if _freshness_action == "save":
                 if setup_freshness_age_input is None:
-                    raise ValueError(operations_text("setup.age_input_unavailable", operations_locale))
+                    raise ValueError(
+                        operations_text("setup.age_input_unavailable", operations_locale)
+                    )
                 _raw_value = setup_freshness_age_input.value.strip()
                 if not _raw_value:
-                    raise ValueError(operations_text("setup.maximum_age_required", operations_locale))
+                    raise ValueError(
+                        operations_text("setup.maximum_age_required", operations_locale)
+                    )
                 _policy, _state = operations_actions.set_freshness_policy(
                     _source_id,
                     max_observation_age_seconds=float(_raw_value),
@@ -853,7 +859,9 @@ def _(
     if _diagnostic_kind is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select a data source before running diagnostics")
+                raise ValueError(
+                    operations_text("setup.select_source_for_diagnostic", operations_locale)
+                )
             _result, _state = operations_actions.run_diagnostic(
                 setup_selected_source.source_id,
                 kind=_diagnostic_kind,
@@ -865,23 +873,39 @@ def _(
             _, _, _collection, _freshness = get_setup_config()
             set_setup_config((_state.sources, _state.lifecycles, _collection, _freshness))
             if _result.state == SourceRuntimeCycleState.SUCCEEDED:
-                _message = (
-                    "Diagnostic cycle completed."
-                    if _diagnostic_kind == OperationsDiagnosticKind.CYCLE
-                    else "Bounded subscription completed."
+                _message = operations_text(
+                    (
+                        "setup.diagnostic_cycle_completed"
+                        if _diagnostic_kind == OperationsDiagnosticKind.CYCLE
+                        else "setup.subscription_completed"
+                    ),
+                    operations_locale,
                 )
                 set_setup_diagnostic_error("")
                 set_setup_diagnostic_success(
-                    _message + " Use Refresh to reload current runtime evidence in Monitor."
+                    _message
+                    + operations_text("setup.refresh_runtime_hint", operations_locale)
                 )
             elif _result.state == SourceRuntimeCycleState.SKIPPED:
                 set_setup_diagnostic_success("")
-                set_setup_diagnostic_error(_result.message or "diagnostic action skipped")
+                set_setup_diagnostic_error(
+                    _result.message
+                    or operations_text("setup.diagnostic_skipped", operations_locale)
+                )
             else:
                 _scope = "unknown" if _result.failure_scope is None else _result.failure_scope.value
                 set_setup_diagnostic_success("")
                 set_setup_diagnostic_error(
-                    f"{_scope} failure · {_result.message or 'diagnostic action failed'}"
+                    operations_text("setup.diagnostic_failure", operations_locale).format(
+                        scope=_scope,
+                        detail=(
+                            _result.message
+                            or operations_text(
+                                "setup.diagnostic_failed_default",
+                                operations_locale,
+                            )
+                        ),
+                    )
                 )
     return
 
@@ -899,6 +923,8 @@ def _(
     datetime,
     get_setup_config,
     operations_actions,
+    operations_locale,
+    operations_text,
     set_setup_config,
     set_setup_error,
     set_setup_success,
@@ -915,7 +941,9 @@ def _(
     if _setup_lifecycle_target is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select a data source before changing its use state")
+                raise ValueError(
+                    operations_text("setup.select_source_for_use", operations_locale)
+                )
             _record, _state = operations_actions.transition_source(
                 setup_selected_source.source_id,
                 _setup_lifecycle_target,
@@ -963,7 +991,9 @@ def _(
     if _setup_collection_target is not None:
         try:
             if setup_selected_source is None:
-                raise ValueError("select an OPC UA source before changing collection")
+                raise ValueError(
+                    operations_text("setup.select_opcua_for_collection", operations_locale)
+                )
             _record, _records = operations_actions.request_collection(
                 setup_selected_source.source_id,
                 _setup_collection_target,
@@ -1353,7 +1383,7 @@ def _(
                 )
             ):
                 raise ValueError(
-                    "provide explicit measurement meaning or choose Keep unresolved"
+                    operations_text("setup.explicit_meaning_required", operations_locale)
                 )
             _binding = ChannelSemanticBinding(
                 source_id=_source_id,
@@ -2981,7 +3011,10 @@ def _(
                 *_review_blocks,
                 mo.accordion(
                     {
-                        "Evidence identity": mo.Html(
+                        operations_text(
+                            "investigation.evidence_identity",
+                            operations_locale,
+                        ): mo.Html(
                             render_investigation_evidence_identity_html(
                                 selected_investigation,
                                 operations_locale,
@@ -3657,6 +3690,16 @@ def _(
     setup_diagnostic_success,
     setup_workspace,
 ):
+    def _setup_step(title_key, help_key):
+        title = operations_text(title_key, operations_locale)
+        detail = operations_text(help_key, operations_locale)
+        return mo.Html(
+            '<div class="phm-setup-step">'
+            f'<div class="phm-setup-step-title">{title}</div>'
+            f'<div class="phm-setup-help">{detail}</div>'
+            "</div>"
+        )
+
     _message_blocks = []
     if setup_error:
         _message_blocks.append(
@@ -3818,41 +3861,21 @@ def _(
                 mo.md(
                     "### " + operations_text("setup.add_data_source", operations_locale)
                 ),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.source", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.file.connect_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.source", "setup.file.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
                 mo.hstack([add_asset_id, add_point_id], widths="equal"),
                 file_mode_input,
                 file_path_input,
                 file_discover_button,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.select_signals", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.file.select_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.select_signals", "setup.file.select_help"),
                 _file_discovery_view,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.time_sampling", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.file.meaning_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.time_sampling", "setup.file.meaning_help"),
                 mo.hstack(
                     [file_timestamp_input, file_sampling_rate_input],
                     widths="equal",
                 ),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.review_save", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.file.review_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.review_save", "setup.file.review_help"),
                 register_setup_source_button,
             ],
             gap=0.75,
@@ -3958,24 +3981,14 @@ def _(
                 mo.md(
                     "### " + operations_text("setup.add_data_source", operations_locale)
                 ),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.connect", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.opcua.connect_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.connect", "setup.opcua.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
                 mo.hstack([add_asset_id, add_point_id], widths="equal"),
                 mo.hstack([opcua_endpoint_input, opcua_timeout_input], widths=[0.75, 0.25]),
                 opcua_browse_button,
                 _browse_status,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.select_signals", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.opcua.select_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.select_signals", "setup.opcua.select_help"),
                 (
                     opcua_signal_selection
                     if opcua_signal_selection is not None
@@ -3992,19 +4005,9 @@ def _(
                         ): opcua_explicit_mapping_input
                     }
                 ),
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.define_meaning", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.opcua.meaning_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.define_meaning", "setup.opcua.meaning_help"),
                 _semantic_editor,
-                mo.Html(
-                    '<div class="phm-setup-step">'
-                    f'<div class="phm-setup-step-title">{operations_text("setup.step.review_save", operations_locale)}</div>'
-                    f'<div class="phm-setup-help">{operations_text("setup.opcua.review_help", operations_locale)}</div>'
-                    "</div>"
-                ),
+                _setup_step("setup.step.review_save", "setup.opcua.review_help"),
                 register_setup_source_button,
             ],
             gap=0.75,
