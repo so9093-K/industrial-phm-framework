@@ -183,8 +183,7 @@ def render_maintenance_identity_html(
         ),
     )
     body = "".join(
-        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>"
-        for label, value in rows
+        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>" for label, value in rows
     )
     title = escape(operations_text("maintenance.review_identity", locale))
     return (
@@ -205,11 +204,7 @@ def _fact(label: str, value: str) -> str:
 
 
 def _empty_row(columns: int, message: str) -> str:
-    return (
-        f'<tr><td colspan="{columns}" class="phm-card-detail">'
-        f"{escape(message)}"
-        "</td></tr>"
-    )
+    return f'<tr><td colspan="{columns}" class="phm-card-detail">{escape(message)}</td></tr>'
 
 
 def _percent(value: object) -> str:
