@@ -59,8 +59,8 @@ from industrial_phm.runtime.operations_app_wiring import (
 )
 from industrial_phm.runtime.operations_sample import (
     FirstRunSampleLaunch,
-    launch_first_run_sample as launch_first_run_sample_runtime,
-    stop_first_run_sample as stop_first_run_sample_runtime,
+    launch_first_run_sample,
+    stop_first_run_sample,
 )
 
 
@@ -105,7 +105,7 @@ class OperationsAppActions:
         """Start the isolated synthetic demo used by the first-run landing."""
 
         try:
-            return launch_first_run_sample_runtime(self.paths.workspace)
+            return launch_first_run_sample(self.paths.workspace)
         except (OSError, RuntimeError, ValueError) as error:
             detail = str(error).strip() or type(error).__name__
             raise OperationsActionError(detail) from error
@@ -113,7 +113,7 @@ class OperationsAppActions:
     def stop_first_run_sample(self) -> None:
         """Stop a sample demo started by this UI process."""
 
-        stop_first_run_sample_runtime()
+        stop_first_run_sample()
 
     def browse_opcua(
         self,
