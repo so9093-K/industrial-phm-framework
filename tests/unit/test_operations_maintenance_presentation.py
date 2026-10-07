@@ -42,6 +42,7 @@ def _item() -> MaintenanceQueueItem:
         ),
     )
 
+
 def test_maintenance_presenters_keep_workflow_language_primary() -> None:
     item = _item()
 
@@ -108,6 +109,7 @@ def test_reviewed_evidence_is_read_from_the_referenced_analysis() -> None:
     missing = render_maintenance_evidence_html(None, analysis_run_id="run-gone")
     assert "run-gone" in missing
     assert "not in the loaded analysis results" in missing
+
 
 def test_maintenance_presenters_localize_review_copy_without_changing_ids() -> None:
     item = _item()
