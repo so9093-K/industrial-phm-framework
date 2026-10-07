@@ -8,6 +8,7 @@ from industrial_phm.presentation.operations_locale import (
     OperationsPageId,
     format_operations_age,
     format_operations_utc,
+    operations_messages,
     operations_page_label,
     operations_status_label,
     operations_text,
@@ -27,6 +28,10 @@ def test_locale_resolver_prefers_explicit_locale_and_normalizes_language_tags() 
     assert resolve_operations_locale(browser_locale="ko") == OperationsLocale.KO_KR
     assert resolve_operations_locale(environment_locale="en_GB.UTF-8") == OperationsLocale.EN_US
     assert resolve_operations_locale(browser_locale="fr-FR") == OperationsLocale.EN_US
+
+
+def test_locale_resource_keys_match_across_supported_locales() -> None:
+    assert operations_messages("en-US").keys() == operations_messages("ko-KR").keys()
 
 
 def test_page_identity_is_locale_neutral_while_display_label_changes() -> None:
