@@ -118,8 +118,8 @@ def test_operations_registered_source_starts_in_monitor(tmp_path, monkeypatch):
     assert "navigation" not in defs
     assert defs["monitor_range_id"] == "1h"
     assert defs["signal_range_selector"].value == "Live"
-    assert defs["get_asset_section"]() == "Overview"
-    assert defs["get_investigation_review_filter"]() == "All"
+    assert defs["get_asset_section"]() == "overview"
+    assert defs["get_investigation_review_filter"]() == "all"
 
 
 def test_operations_renders_investigation_and_maintenance_queues(tmp_path, monkeypatch):
