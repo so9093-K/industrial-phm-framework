@@ -360,3 +360,35 @@ timestamp 동작은 우리가 설정한 것이며 다른 source의 runtime behav
 사용하지 않습니다. 필요한 경우 `provider-recorded data`, `prepared FILE source`, `replay source`,
 `live source`, `target operational source`처럼 획득 방식과 validation 역할을 직접 씁니다.
 
+## 9. Operations display locale terminology
+
+Operations의 locale은 **표현 계층(display/presentation)** 에만 적용합니다. 현재 지원 locale은
+`en-US`와 `ko-KR`입니다. 같은 workspace를 다른 locale로 열어도 domain identity, evidence,
+workflow state, 저장 timestamp 의미는 같아야 합니다.
+
+다음 값은 stable technical identity이므로 번역하지 않습니다.
+
+- `source_id`
+- `asset_id`
+- `measurement_point_id`
+- `channel_id`
+- `capability_id`
+- `analysis_run_id`
+- `evidence_id`
+- `finding_id`
+
+Operations의 top-level page identity도 표시 문자열과 분리합니다.
+
+| Stable page ID | en-US display | ko-KR display |
+| --- | --- | --- |
+| `monitor` | Monitor | 관제 |
+| `assets` | Assets | 설비 |
+| `investigations` | Investigations | 분석 근거 |
+| `maintenance` | Maintenance review | 정비 검토 |
+| `system` | System | 시스템 |
+| `setup` | Data connection | 데이터 연결 |
+
+FILE, OPC UA, source, capability, evidence, snapshot처럼 데이터 계약이나 provenance를 특정하는
+technical token은 한국어 문장 안에서도 필요한 경우 그대로 유지합니다. 번역으로 기술적 identity나
+관측/해석 경계를 흐리는 표현은 만들지 않습니다.
+
