@@ -102,6 +102,7 @@ def _view() -> AssetWorkspaceView:
         ),
     )
 
+
 def test_asset_workspace_presenters_keep_operator_language() -> None:
     view = _view()
 
@@ -139,6 +140,7 @@ def test_asset_css_uses_existing_v2_tokens() -> None:
 
     assert "var(--phm-border)" in css
     assert "var(--phm-muted)" in css
+
 
 def test_asset_workspace_presenters_localize_labels_without_changing_identity() -> None:
     view = _view()
