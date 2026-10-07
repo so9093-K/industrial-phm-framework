@@ -235,7 +235,8 @@ def initialize_operations_workspace(
     if inspection.state == OperationsWorkspaceState.RECOGNIZED_LEGACY:
         if not allow_recognized_legacy:
             raise ValueError(
-                f"refusing to initialize a non-empty Operations workspace without config.toml: {root}"
+                "refusing to initialize a non-empty Operations workspace "
+                f"without config.toml: {root}"
             )
         config = OperationsRuntimeConfig()
         write_operations_runtime_config(workspace.config_path, config)
