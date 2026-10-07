@@ -20,6 +20,11 @@
 
 ### Changed
 
+- Operations 한국어 화면의 typography를 정리했습니다. 공통 shell과 Monitor에 한국어 지원
+  fallback font stack을 명시하고 base UI를 15px, secondary text를 13–14px 중심으로 조정했습니다.
+  `ko-KR`에서는 Latin용 uppercase/tracking을 제거하고 keep-all wrapping을 적용하며, Assets/Setup/
+  Investigations/System의 label scale과 1024px 부근 responsive breakpoint도 같은 기준으로 맞췄습니다.
+
 - Operations의 남은 사용자-visible action/help/error/empty-state와 주요 table/section label을
   `ko-KR` / `en-US` resource layer로 이관했습니다. Setup guided flow, Asset Signals/FILE analysis,
   Investigation·Maintenance review, Monitor의 동적 aria/보조 문구까지 같은 locale 경계에서 표시하며
