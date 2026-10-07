@@ -2765,24 +2765,36 @@ def _(
 
 
 @app.cell
-def _(FindingReviewStatus, asset_names, maintenance_queue, maintenance_status_label, mo):
-    _status_labels = ["All", *[maintenance_status_label(status) for status in FindingReviewStatus]]
+def _(
+    FindingReviewStatus,
+    asset_names,
+    maintenance_queue,
+    maintenance_status_label,
+    mo,
+    operations_locale,
+    operations_text,
+):
+    _all_label = operations_text("common.all", operations_locale)
+    _status_labels = {
+        maintenance_status_label(status, operations_locale): status.value
+        for status in FindingReviewStatus
+    }
     maintenance_status_filter = mo.ui.dropdown(
-        options=_status_labels,
-        value="All",
-        label="Status",
+        options={_all_label: "all", **_status_labels},
+        value=_all_label,
+        label=operations_text("common.status", operations_locale),
         full_width=True,
     )
     maintenance_asset_filter = mo.ui.dropdown(
         options={
-            "All": "All",
+            _all_label: "all",
             **{
                 asset_names.option_label(asset_id): asset_id
                 for asset_id in maintenance_queue.asset_ids
             },
         },
-        value="All",
-        label="Asset",
+        value=_all_label,
+        label=operations_text("common.asset", operations_locale),
         full_width=True,
     )
     return maintenance_asset_filter, maintenance_status_filter
@@ -2797,18 +2809,22 @@ def _(
     maintenance_queue_label,
     maintenance_selection,
     maintenance_status_filter,
-    maintenance_status_label,
     mo,
+    operations_locale,
+    operations_text,
 ):
-    _status_by_label = {maintenance_status_label(status): status for status in FindingReviewStatus}
     _filtered = maintenance_queue.filter(
-        status=_status_by_label.get(maintenance_status_filter.value),
+        status=(
+            None
+            if maintenance_status_filter.value == "all"
+            else FindingReviewStatus(maintenance_status_filter.value)
+        ),
         asset_id=(
-            None if maintenance_asset_filter.value == "All" else maintenance_asset_filter.value
+            None if maintenance_asset_filter.value == "all" else maintenance_asset_filter.value
         ),
     )
     _label_to_id = {
-        f"{maintenance_queue_label(item, asset_names)} · {index + 1}": item.finding_id
+        f"{maintenance_queue_label(item, asset_names, operations_locale)} · {index + 1}": item.finding_id
         for index, item in enumerate(_filtered)
     }
     _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2822,7 +2838,7 @@ def _(
         maintenance_selector = mo.ui.radio(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
-            label="Queue",
+            label=operations_text("common.queue", operations_locale),
             on_change=lambda value: maintenance_selection.update(finding_id=_label_to_id[value]),
         )
     else:
