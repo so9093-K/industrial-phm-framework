@@ -42,7 +42,6 @@ def _item() -> MaintenanceQueueItem:
         ),
     )
 
-
 def test_maintenance_presenters_keep_workflow_language_primary() -> None:
     item = _item()
 
@@ -124,4 +123,3 @@ def test_maintenance_presenters_localize_review_copy_without_changing_ids() -> N
     assert "현장 점검 예정" in timeline
     assert "run-gone" in missing
     assert "현재 로드된 분석 결과에서 찾을 수 없습니다" in missing
-
