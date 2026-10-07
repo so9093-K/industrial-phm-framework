@@ -12,6 +12,7 @@ from industrial_phm.application.operations_monitor import (
     OperationsMonitorAttention,
     OperationsMonitorStatus,
 )
+from industrial_phm.presentation.operations_locale import OperationsPageId
 from industrial_phm.presentation.operations_navigation import (
     resolve_finding_investigation_route,
     resolve_investigation_route,
@@ -71,7 +72,7 @@ def test_asset_attention_routes_to_signals_without_title_matching() -> None:
         investigation_queue=_queue(),
     )
 
-    assert route.page == "Assets"
+    assert route.page == OperationsPageId.ASSETS
     assert route.asset_id == "asset-1"
     assert route.asset_section == "Signals"
 
@@ -86,7 +87,7 @@ def test_review_attention_routes_to_exact_investigation() -> None:
         investigation_queue=_queue(),
     )
 
-    assert route.page == "Investigations"
+    assert route.page == OperationsPageId.INVESTIGATIONS
     assert route.investigation_group_id == "asset-1:capability-1:open"
     assert route.investigation_id == "analysis-1:capability-1"
 
@@ -97,7 +98,7 @@ def test_system_attention_routes_without_entity_context() -> None:
         investigation_queue=_queue(),
     )
 
-    assert route.page == "System"
+    assert route.page == OperationsPageId.SYSTEM
     assert route.asset_id is None
     assert route.investigation_id is None
 
@@ -117,7 +118,7 @@ def test_review_attention_fails_closed_when_finding_is_not_in_queue() -> None:
 def test_review_finding_routes_back_to_its_exact_investigation() -> None:
     route = resolve_finding_investigation_route("finding-1", investigation_queue=_queue())
 
-    assert route.page == "Investigations"
+    assert route.page == OperationsPageId.INVESTIGATIONS
     assert route.investigation_group_id == "asset-1:capability-1:open"
     assert route.investigation_id == "analysis-1:capability-1"
     with pytest.raises(LookupError, match="exactly one investigation"):
@@ -130,7 +131,7 @@ def test_analysis_evidence_routes_to_exact_investigation_without_finding() -> No
         investigation_queue=_queue(finding_id="finding-1"),
     )
 
-    assert route.page == "Investigations"
+    assert route.page == OperationsPageId.INVESTIGATIONS
     assert route.investigation_group_id == "asset-1:capability-1:open"
     assert route.investigation_id == "analysis-1:capability-1"
 
