@@ -1579,7 +1579,7 @@ def _(
         asset_selector = mo.ui.dropdown(
             options={asset_names.option_label(asset_id): asset_id for asset_id in _asset_ids},
             value=asset_names.option_label(_selected_asset_id),
-            label="Asset",
+            label=operations_text("common.asset", operations_locale),
             full_width=True,
             on_change=set_asset_selection,
         )
@@ -1676,7 +1676,15 @@ def _(
 
 
 @app.cell
-def _(FileSourceConfig, FileSourceMode, asset_workspace, mo, registered_sources):
+def _(
+    FileSourceConfig,
+    FileSourceMode,
+    asset_workspace,
+    mo,
+    operations_locale,
+    operations_text,
+    registered_sources,
+):
     if asset_workspace is None:
         asset_file_analysis_source = None
         asset_run_file_analysis_button = None
@@ -1696,11 +1704,11 @@ def _(FileSourceConfig, FileSourceMode, asset_workspace, mo, registered_sources)
             asset_file_analysis_source = mo.ui.dropdown(
                 options=list(_options),
                 value=next(iter(_options)),
-                label="FILE snapshot source",
+                label=operations_text("asset.file_snapshot_source", operations_locale),
                 full_width=True,
             )
             asset_run_file_analysis_button = mo.ui.run_button(
-                label="Analyze FILE snapshot",
+                label=operations_text("asset.analyze_file_snapshot", operations_locale),
                 kind="success",
             )
         else:
@@ -1728,6 +1736,8 @@ def _(
     asset_run_file_analysis_button,
     get_analysis_results,
     operations_actions,
+    operations_locale,
+    operations_text,
     registered_sources,
     set_analysis_results,
     set_asset_analysis_action_error,
@@ -1736,7 +1746,9 @@ def _(
     if asset_run_file_analysis_button is not None and asset_run_file_analysis_button.value:
         try:
             if asset_file_analysis_source is None:
-                raise ValueError("select a FILE snapshot source before analysis")
+                raise ValueError(
+                    operations_text("asset.select_file_before_analysis", operations_locale)
+                )
             _selected_label = asset_file_analysis_source.value
             _source_id = _selected_label.rsplit(" · ", 1)[-1]
             _source = next(
@@ -1761,9 +1773,7 @@ def _(
             set_analysis_results(_updated_results)
             set_asset_analysis_action_error("")
             set_asset_analysis_action_success(
-                "FILE snapshot analysis recorded. Assets and Investigations now use the "
-                "persisted evidence. This does not create anomaly, fault, health, or "
-                "maintenance meaning."
+                operations_text("asset.file_analysis_success", operations_locale)
             )
     return
 
@@ -1784,10 +1794,11 @@ def _(
     asset_workspace,
     mo,
     operations_locale,
+    operations_text,
     render_asset_analysis_html,
 ):
     if asset_workspace is None:
-        asset_analysis_view = mo.md("No asset is selected.")
+        asset_analysis_view = mo.md(operations_text("asset.no_selection", operations_locale))
     else:
         _blocks = [mo.Html(render_asset_analysis_html(asset_workspace, operations_locale))]
         if asset_analysis_action_error:
@@ -1795,7 +1806,7 @@ def _(
                 mo.callout(
                     asset_analysis_action_error,
                     kind="danger",
-                    title="FILE analysis failed",
+                    title=operations_text("asset.file_analysis_failed", operations_locale),
                 )
             )
         if asset_analysis_action_success:
@@ -1803,28 +1814,24 @@ def _(
                 mo.callout(
                     asset_analysis_action_success,
                     kind="success",
-                    title="Analysis recorded",
+                    title=operations_text("asset.analysis_recorded", operations_locale),
                 )
             )
         if asset_file_analysis_source is not None and asset_run_file_analysis_button is not None:
             _blocks.extend(
                 [
-                    mo.md("### Analyze prepared FILE snapshot"),
+                    mo.md(
+                        "### "
+                        + operations_text("asset.analyze_prepared_file", operations_locale)
+                    ),
                     asset_file_analysis_source,
                     asset_run_file_analysis_button,
-                    mo.md(
-                        "This action computes and stores versioned vibration statistical "
-                        "feature evidence from the exact registered snapshot. It does not "
-                        "declare anomaly, fault, health state, or maintenance need."
-                    ),
+                    mo.md(operations_text("asset.file_analysis_help", operations_locale)),
                 ]
             )
         else:
             _blocks.append(
-                mo.md(
-                    "No registered FILE snapshot source is available for on-demand "
-                    "feature analysis on this asset."
-                )
+                mo.md(operations_text("asset.no_file_snapshot", operations_locale))
             )
         asset_analysis_view = mo.vstack(_blocks, gap=0.8)
     return (asset_analysis_view,)
@@ -1842,6 +1849,8 @@ def _(
     get_signal_channel_choice,
     initial_signal_channel,
     mo,
+    operations_locale,
+    operations_text,
     registered_sources,
     set_signal_channel_choice,
 ):
@@ -1876,7 +1885,7 @@ def _(
                     confirmed_channel_ids=_confirmed,
                     selected=get_signal_channel_choice(),
                 ),
-                label="Signal",
+                label=operations_text("common.signal", operations_locale),
                 full_width=True,
                 on_change=set_signal_channel_choice,
             )
@@ -1885,7 +1894,7 @@ def _(
     signal_range_selector = mo.ui.radio(
         options=["Live", "15m", "24h", "7d"],
         value="Live",
-        label="Time range",
+        label=operations_text("common.time_range", operations_locale),
     )
     return signal_channel_selector, signal_range_selector
 
