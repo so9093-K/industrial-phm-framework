@@ -133,8 +133,7 @@ def render_investigation_evidence_identity_html(
         ),
     )
     rendered = "".join(
-        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>"
-        for label, value in rows
+        f"<tr><td>{escape(label)}</td><td>{escape(value)}</td></tr>" for label, value in rows
     )
     title = escape(operations_text("investigation.evidence_identity", locale))
     return (
