@@ -20,6 +20,12 @@
 
 ### Changed
 
+- Monitor 가독성을 보정했습니다. 분석 구간은 데이터를 덮던 반투명 음영 대신 차트 위쪽의 얇은 표시로 그리고,
+  hover·focus한 구간만 강조합니다. 구간 버튼은 panel마다 Tab 정지점 하나로 묶고 방향키·Home/End로 이동합니다.
+  상태 배지는 Signals와 같은 `Source flow · …` 이름을 쓰고, 신호 카드의 event 시각은 차트 시간 범위와 같은
+  날이면 시각만 표시해 1024px에서도 카드가 한 줄에 놓입니다. Needs inspection panel은 evidence 목록 높이를
+  따라 늘어나지 않습니다.
+
 - Monitor 최신값과 multi-signal 차트 조회가 다른 asset까지 포함한 전체 raw 행을 hash ID join으로 읽고, 최신값은
   asset의 전체 이력을 window로 정렬하던 문제를 고쳤습니다. raw metadata join에 이미 성립하는 asset·channel·시간
   조건을 명시하고, 최신값은 source/point/channel별 최신 시각 중 가장 오래된 시각 이후만 읽습니다. 결과는 같고,

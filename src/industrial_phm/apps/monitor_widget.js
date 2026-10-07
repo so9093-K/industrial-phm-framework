@@ -178,7 +178,9 @@ function render({
     title.append(identity);
     const flow = $('div', 'mw-flow');
     const status = $('span', 'mw-status' + (s.status === 'Receiving' ? ' mw-receiving' : ''));
-    status.append($('i', ''), $('span', '', s.status || 'No source context'));
+    // The badge is source session evidence, named as on Signals.
+    const flowState = !s.status || s.status === 'No source context' ? 'No source context' : `Source flow · ${s.status}`;
+    status.append($('i', ''), $('span', '', flowState));
     flow.append(status);
     const receipt = $('div', 'mw-receipt');
     receipt.append($('span', 'mw-muted', 'SOURCE RECEIPT'), $('strong', '', age(s.source_at, s.assessed_at)), $('span', 'mw-muted', s.source_at ? `${time(s.source_at,true)} UTC` : 'No receive timestamp'));
@@ -316,7 +318,9 @@ function render({
         let quality = row.quality === 'no recorded issue' ? row.source_quality : row.quality;
         if (row.event_time_state && row.event_time_state !== 'recorded') quality += ` · event time ${row.event_time_state}`;
         const meta = $('div', 'mw-reading-meta');
-        meta.append($('span', quality === 'good' ? 'mw-good' : '', `Quality · ${quality||'unknown'}`), $('time', '', row.time ? time(Date.parse(row.time), true) + ' UTC' : 'Event time unavailable'));
+        const at = row.time ? Date.parse(row.time) : null;
+        const sameDay = at != null && s.chart && new Date(at).toISOString().slice(0, 10) === new Date(s.chart.end).toISOString().slice(0, 10);
+        meta.append($('span', quality === 'good' ? 'mw-good' : '', `Quality · ${quality||'unknown'}`), $('time', '', at == null ? 'Event time unavailable' : `${time(at, !sameDay)} UTC`));
         meta.title = `Event: ${row.time||'not recorded'}\n${row.source}${row.measurement_point?' / '+row.measurement_point:''}\n${row.event_time_state}`;
         if (rows.length > 1) meta.prepend($('span', 'mw-origin-label', row.source + (row.measurement_point ? ' / ' + row.measurement_point : '')));
         reading.append(meta);
@@ -335,7 +339,7 @@ function render({
       id
     }));
     const explanation = $('div', 'mw-chart-caption');
-    explanation.append($('span', '', 'Mean · min/max · shading: analysis window · amber: exclusions'), $('span', 'mw-muted', 'Bucket summaries are not synchronized raw samples'));
+    explanation.append($('span', '', 'Mean · min/max · top marks: analysis windows (arrow keys move) · amber: exclusions'), $('span', 'mw-muted', 'Bucket summaries are not synchronized raw samples'));
     main.append(explanation);
     const bottom = $('div', 'mw-main-bottom');
     bottom.append($('span', 'mw-muted', `Snapshot ${time(s.assessed_at)} UTC · use Refresh for new observations`));
@@ -548,31 +552,58 @@ function drawChart(container, data, windows, onEvidence) {
           class: 'mw-axis'
         }, number(value)));
       }
+      // Full-height targets stay transparent so many windows do not darken the data;
+      // a thin mark shows each window and the hovered/focused one is highlighted.
+      // One tab stop per panel; arrow keys move between its windows.
+      const targets = [];
       for (const window of windows) {
         const begin = Math.max(data.start, window.start),
           end = Math.min(data.end, window.end);
         if (end < begin) continue;
-        const shade = svgEl('rect', {
-          x: x(begin),
+        const wx = x(begin),
+          ww = Math.max(2, x(end) - x(begin));
+        svg.append(svgEl('rect', {
+          x: wx,
           y: pTop,
-          width: Math.max(2, x(end) - x(begin)),
+          width: ww,
+          height: 4,
+          class: 'mw-window-mark'
+        }));
+        const target = svgEl('rect', {
+          x: wx,
+          y: pTop,
+          width: ww,
           height: pBottom - pTop,
-          fill: '#82b6ff',
-          'fill-opacity': .07,
+          class: 'mw-window',
           role: 'button',
           'data-evidence-id': window.id,
-          tabindex: 0,
+          tabindex: targets.length ? -1 : 0,
           'aria-label': `Open ${window.label} analysis evidence`
         });
-        shade.append(svgEl('title', {}, `${window.label} · ${time(window.start)} — ${time(window.end)} UTC`));
-        shade.addEventListener('click', () => onEvidence(window.id));
-        shade.addEventListener('keydown', e => {
+        target.append(svgEl('title', {}, `${window.label} · ${time(window.start)} — ${time(window.end)} UTC`));
+        target.addEventListener('click', () => onEvidence(window.id));
+        target.addEventListener('keydown', e => {
+          const at = targets.indexOf(target);
+          const next = {
+            ArrowRight: at + 1,
+            ArrowDown: at + 1,
+            ArrowLeft: at - 1,
+            ArrowUp: at - 1,
+            Home: 0,
+            End: targets.length - 1
+          }[e.key];
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onEvidence(window.id);
+          } else if (next !== undefined && targets[next]) {
+            e.preventDefault();
+            target.setAttribute('tabindex', -1);
+            targets[next].setAttribute('tabindex', 0);
+            targets[next].focus();
           }
         });
-        svg.append(shade);
+        targets.push(target);
+        svg.append(target);
       }
       for (const series of group.series) {
         let path = '',
