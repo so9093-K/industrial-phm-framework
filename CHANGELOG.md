@@ -20,6 +20,12 @@
 
 ### Changed
 
+- 빈 Operations workspace의 첫 화면을 first-run landing으로 바꿨습니다. 사용자는 `make up` 이후
+  격리된 synthetic sample을 실행해 Monitor를 둘러보거나 실제 FILE/OPC UA 연결을 선택할 수 있습니다.
+  Setup의 Data Sources / Signal Mapping / Measurement Semantics / Analysis Configuration radio navigation은
+  제거하고 연결 → 신호 확인 → 의미 확인 → 수집·데이터 흐름 확인 → Monitor 순서의 guided flow로
+  재구성했습니다. 기존 configured workspace는 onboarding을 반복하지 않고 Monitor에서 재개합니다.
+
 - repository-local `make up`이 이제 별도 `init → start` 조합 대신 `operations up` front door를
   사용합니다. 새 workspace는 생성하고 유효한 workspace는 재개하며, config 도입 전 Operations state로
   식별 가능한 workspace는 기존 state를 보존한 채 현재 기본 runtime policy를 기록한 config를 추가합니다. 알 수 없는 파일이
