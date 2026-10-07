@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from html import escape
 
 from industrial_phm.application.asset_display import AssetDisplayNames
@@ -24,11 +23,12 @@ def render_asset_header_html(
 ) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
+    kicker = escape(operations_text("asset.title", locale))
     return (
         '<section class="phm-shell">'
         '<div class="phm-asset-header">'
         "<div>"
-        f'<div class="phm-asset-kicker">{escape(operations_text("asset.title", locale))}</div>'
+        f'<div class="phm-asset-kicker">{kicker}</div>'
         + render_asset_title_html(view.asset_id, asset_names)
         + "</div>"
         '<div class="phm-asset-facts">'
@@ -111,17 +111,14 @@ def render_asset_overview_html(
         for source in view.sources
     )
     if not source_rows:
-        source_rows = (
-            '<tr><td colspan="6" class="phm-card-detail">'
-            operations_text("asset.no_source_mapping", locale)
-            "</td></tr>"
-        )
+        source_rows = _empty_row(6, operations_text("asset.no_source_mapping", locale))
+    section_title = escape(operations_text("asset.sources", locale))
     return (
         '<section class="phm-shell">'
         '<div class="phm-overview-grid">'
         f"{cards}"
         "</div>"
-        f'<div class="phm-section-title phm-section-space">{escape(operations_text("asset.sources", locale))}</div>'
+        f'<div class="phm-section-title phm-section-space">{section_title}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Source</th><th>Type</th><th>Data</th>"
         "<th>Last data</th><th>Point</th><th>Signals</th></tr></thead>"
@@ -141,7 +138,9 @@ def render_asset_analysis_html(
             "<tr>"
             f"<td>{escape(format_operations_utc(item.recorded_at, locale))}</td>"
             f"<td>{escape(item.state.value.title())}</td>"
-            f"<td><strong>{escape(operations_capability_label(item.capability_id, locale))}</strong></td>"
+            "<td><strong>"
+            f"{escape(operations_capability_label(item.capability_id, locale))}"
+            "</strong></td>"
             f"<td>{escape(item.source_id)}</td>"
             f"<td>{escape(format_operations_utc(item.observed_start_at, locale))} → "
             f"{escape(format_operations_utc(item.observed_end_at, locale))}</td>"
@@ -151,17 +150,15 @@ def render_asset_analysis_html(
         for item in view.analysis_attempts[:50]
     )
     if not attempt_rows:
-        attempt_rows = (
-            '<tr><td colspan="6" class="phm-card-detail">'
-            operations_text("asset.no_analysis_attempt", locale)
-            "</td></tr>"
-        )
+        attempt_rows = _empty_row(6, operations_text("asset.no_analysis_attempt", locale))
 
     rows = "".join(
         (
             "<tr>"
             f"<td>{escape(format_operations_utc(item.completed_at, locale))}</td>"
-            f"<td><strong>{escape(_capability_label(item.capability_id))}</strong><br>"
+            "<td><strong>"
+            f"{escape(operations_capability_label(item.capability_id, locale))}"
+            "</strong><br>"
             f'<span class="phm-card-detail">{escape(item.capability_id)}</span></td>'
             f"<td>{escape(item.source_id)}</td>"
             f"<td>{escape(item.measurement_point_id or '—')}</td>"
@@ -173,11 +170,7 @@ def render_asset_analysis_html(
         for item in view.analyses
     )
     if not rows:
-        rows = (
-            '<tr><td colspan="6" class="phm-card-detail">'
-            operations_text("asset.no_analysis_evidence", locale)
-            "</td></tr>"
-        )
+        rows = _empty_row(6, operations_text("asset.no_analysis_evidence", locale))
     return (
         '<section class="phm-shell">'
         '<div class="phm-section-title">Recent analysis attempts</div>'
@@ -210,14 +203,11 @@ def render_asset_events_html(
         for item in view.events
     )
     if not rows:
-        rows = (
-            '<tr><td colspan="3" class="phm-card-detail">'
-            operations_text("asset.no_event", locale)
-            "</td></tr>"
-        )
+        rows = _empty_row(3, operations_text("asset.no_event", locale))
+    section_title = escape(operations_text("asset.events", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("asset.events", locale))}</div>'
+        f'<div class="phm-section-title">{section_title}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
@@ -233,7 +223,9 @@ def render_asset_maintenance_html(
     rows = "".join(
         (
             "<tr>"
-            f"<td><strong>{escape(_capability_label(item.capability_id))}</strong><br>"
+            "<td><strong>"
+            f"{escape(operations_capability_label(item.capability_id, locale))}"
+            "</strong><br>"
             f'<span class="phm-card-detail">{escape(item.finding_id)}</span></td>'
             f"<td>{escape(item.status.value.title())}</td>"
             f"<td>{escape(format_operations_utc(item.observed_at, locale))}</td>"
@@ -243,14 +235,11 @@ def render_asset_maintenance_html(
         for item in view.reviews
     )
     if not rows:
-        rows = (
-            '<tr><td colspan="4" class="phm-card-detail">'
-            operations_text("asset.no_maintenance_review", locale)
-            "</td></tr>"
-        )
+        rows = _empty_row(4, operations_text("asset.no_maintenance_review", locale))
+    section_title = escape(operations_text("asset.maintenance", locale))
     return (
         '<section class="phm-shell">'
-        f'<div class="phm-section-title">{escape(operations_text("asset.maintenance", locale))}</div>'
+        f'<div class="phm-section-title">{section_title}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Review</th><th>Status</th>"
         "<th>Requested from evidence</th><th>Last review activity</th></tr></thead>"
@@ -345,3 +334,9 @@ def _overview_card(
     )
 
 
+def _empty_row(columns: int, message: str) -> str:
+    return (
+        f'<tr><td colspan="{columns}" class="phm-card-detail">'
+        f"{escape(message)}"
+        "</td></tr>"
+    )
