@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from html import escape
 
 from industrial_phm.application.asset_display import AssetDisplayNames
 from industrial_phm.application.operations_assets import AssetWorkspaceView
+from industrial_phm.presentation.operations_locale import (
+    DEFAULT_OPERATIONS_LOCALE,
+    OperationsLocale,
+    format_operations_utc,
+    operations_capability_label,
+    operations_text,
+)
 from industrial_phm.presentation.operations_shell import data_status_label, render_asset_title_html
 
 
 def render_asset_header_html(
     view: AssetWorkspaceView,
     asset_names: AssetDisplayNames | None = None,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
 ) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
@@ -20,55 +28,69 @@ def render_asset_header_html(
         '<section class="phm-shell">'
         '<div class="phm-asset-header">'
         "<div>"
-        '<div class="phm-asset-kicker">Asset</div>'
+        f'<div class="phm-asset-kicker">{escape(operations_text("asset.title", locale))}</div>'
         + render_asset_title_html(view.asset_id, asset_names)
         + "</div>"
         '<div class="phm-asset-facts">'
         + _fact(
-            "Data status",
-            data_status_label(view.status),
+            operations_text("asset.data_status", locale),
+            data_status_label(view.status, locale),
             f"phm-status-{view.status.value}",
         )
-        + _fact("Last data", _time_label(view.last_data_at))
-        + _fact("Sources", str(view.source_count))
-        + _fact("Latest analysis", _time_label(view.latest_analysis_at))
-        + _fact("Open reviews", str(view.open_review_count))
+        + _fact(
+            operations_text("asset.last_data", locale),
+            format_operations_utc(view.last_data_at, locale),
+        )
+        + _fact(operations_text("asset.sources", locale), str(view.source_count))
+        + _fact(
+            operations_text("asset.latest_analysis", locale),
+            format_operations_utc(view.latest_analysis_at, locale),
+        )
+        + _fact(operations_text("asset.open_reviews", locale), str(view.open_review_count))
         + "</div></div></section>"
     )
 
 
-def render_asset_overview_html(view: AssetWorkspaceView) -> str:
+def render_asset_overview_html(
+    view: AssetWorkspaceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
     history_summary = (
-        "No stored history"
+        operations_text("asset.no_history", locale)
         if view.history_measurement_count == 0
         else f"{view.history_measurement_count:,} stored measurements"
     )
     history_range = (
         "—"
         if view.history_start_at is None or view.history_end_at is None
-        else f"{_time_label(view.history_start_at)} → {_time_label(view.history_end_at)}"
+        else (
+            f"{format_operations_utc(view.history_start_at, locale)} → "
+            f"{format_operations_utc(view.history_end_at, locale)}"
+        )
     )
     cards = (
         _overview_card(
-            "Data",
-            data_status_label(view.status),
-            f"Last data {_time_label(view.last_data_at)}",
+            operations_text("asset.data_status", locale),
+            data_status_label(view.status, locale),
+            f"{operations_text('asset.last_data', locale)} "
+            f"{format_operations_utc(view.last_data_at, locale)}",
             view.status.value,
         )
         + _overview_card(
-            "History",
+            operations_text("asset.history", locale),
             history_summary,
             f"{len(view.history_channels)} channel(s) · {history_range}",
         )
         + _overview_card(
-            "Analysis",
+            operations_text("asset.analysis", locale),
             f"{len(view.analyses)} recorded run(s)",
-            f"Latest {_time_label(view.latest_analysis_at)}",
+            f"{operations_text('asset.latest_analysis', locale)} "
+            f"{format_operations_utc(view.latest_analysis_at, locale)}",
         )
         + _overview_card(
-            "Reviews",
+            operations_text("asset.reviews", locale),
             f"{view.open_review_count} open",
             f"{view.attention_count} item(s) need attention",
         )
@@ -80,8 +102,8 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
             f'<span class="phm-card-detail">{escape(source.source_id)}</span></td>'
             f"<td>{escape(source.source_type.value.upper())}</td>"
             f'<td class="phm-status-{source.status.value}">'
-            f"{escape(data_status_label(source.status))}</td>"
-            f"<td>{escape(_time_label(source.last_data_at))}</td>"
+            f"{escape(data_status_label(source.status, locale))}</td>"
+            f"<td>{escape(format_operations_utc(source.last_data_at, locale))}</td>"
             f"<td>{escape(source.measurement_point_id or '—')}</td>"
             f"<td>{source.channel_count}</td>"
             "</tr>"
@@ -91,7 +113,7 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
     if not source_rows:
         source_rows = (
             '<tr><td colspan="6" class="phm-card-detail">'
-            "No active source mapping is recorded for this asset."
+            operations_text("asset.no_source_mapping", locale)
             "</td></tr>"
         )
     return (
@@ -99,7 +121,7 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
         '<div class="phm-overview-grid">'
         f"{cards}"
         "</div>"
-        '<div class="phm-section-title phm-section-space">Sources</div>'
+        f'<div class="phm-section-title phm-section-space">{escape(operations_text("asset.sources", locale))}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Source</th><th>Type</th><th>Data</th>"
         "<th>Last data</th><th>Point</th><th>Signals</th></tr></thead>"
@@ -107,19 +129,22 @@ def render_asset_overview_html(view: AssetWorkspaceView) -> str:
     )
 
 
-def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
+def render_asset_analysis_html(
+    view: AssetWorkspaceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
 
     attempt_rows = "".join(
         (
             "<tr>"
-            f"<td>{escape(_time_label(item.recorded_at))}</td>"
+            f"<td>{escape(format_operations_utc(item.recorded_at, locale))}</td>"
             f"<td>{escape(item.state.value.title())}</td>"
-            f"<td><strong>{escape(_capability_label(item.capability_id))}</strong></td>"
+            f"<td><strong>{escape(operations_capability_label(item.capability_id, locale))}</strong></td>"
             f"<td>{escape(item.source_id)}</td>"
-            f"<td>{escape(_time_label(item.observed_start_at))} → "
-            f"{escape(_time_label(item.observed_end_at))}</td>"
+            f"<td>{escape(format_operations_utc(item.observed_start_at, locale))} → "
+            f"{escape(format_operations_utc(item.observed_end_at, locale))}</td>"
             f"<td>{escape(item.reason or '—')}</td>"
             "</tr>"
         )
@@ -128,21 +153,21 @@ def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
     if not attempt_rows:
         attempt_rows = (
             '<tr><td colspan="6" class="phm-card-detail">'
-            "No analysis attempt has been recorded for this asset yet."
+            operations_text("asset.no_analysis_attempt", locale)
             "</td></tr>"
         )
 
     rows = "".join(
         (
             "<tr>"
-            f"<td>{escape(_time_label(item.completed_at))}</td>"
+            f"<td>{escape(format_operations_utc(item.completed_at, locale))}</td>"
             f"<td><strong>{escape(_capability_label(item.capability_id))}</strong><br>"
             f'<span class="phm-card-detail">{escape(item.capability_id)}</span></td>'
             f"<td>{escape(item.source_id)}</td>"
             f"<td>{escape(item.measurement_point_id or '—')}</td>"
             f"<td>{escape(item.data_quality.upper())}</td>"
-            f"<td>{escape(_time_label(item.observed_start_at))} → "
-            f"{escape(_time_label(item.observed_end_at))}</td>"
+            f"<td>{escape(format_operations_utc(item.observed_start_at, locale))} → "
+            f"{escape(format_operations_utc(item.observed_end_at, locale))}</td>"
             "</tr>"
         )
         for item in view.analyses
@@ -150,7 +175,7 @@ def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
     if not rows:
         rows = (
             '<tr><td colspan="6" class="phm-card-detail">'
-            "No analysis evidence has been recorded for this asset yet."
+            operations_text("asset.no_analysis_evidence", locale)
             "</td></tr>"
         )
     return (
@@ -168,13 +193,16 @@ def render_asset_analysis_html(view: AssetWorkspaceView) -> str:
     )
 
 
-def render_asset_events_html(view: AssetWorkspaceView) -> str:
+def render_asset_events_html(
+    view: AssetWorkspaceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
     rows = "".join(
         (
             "<tr>"
-            f"<td>{escape(_event_time_label(item.occurred_at))}</td>"
+            f"<td>{escape(format_operations_utc(item.occurred_at, locale))}</td>"
             f"<td><strong>{escape(item.title)}</strong></td>"
             f"<td>{escape(item.detail or '—')}</td>"
             "</tr>"
@@ -184,19 +212,22 @@ def render_asset_events_html(view: AssetWorkspaceView) -> str:
     if not rows:
         rows = (
             '<tr><td colspan="3" class="phm-card-detail">'
-            "No operational event is recorded for this asset."
+            operations_text("asset.no_event", locale)
             "</td></tr>"
         )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Events</div>'
+        f'<div class="phm-section-title">{escape(operations_text("asset.events", locale))}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>"
         f"<tbody>{rows}</tbody></table></section>"
     )
 
 
-def render_asset_maintenance_html(view: AssetWorkspaceView) -> str:
+def render_asset_maintenance_html(
+    view: AssetWorkspaceView,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
     if not isinstance(view, AssetWorkspaceView):
         raise ValueError("view must be an AssetWorkspaceView")
     rows = "".join(
@@ -205,8 +236,8 @@ def render_asset_maintenance_html(view: AssetWorkspaceView) -> str:
             f"<td><strong>{escape(_capability_label(item.capability_id))}</strong><br>"
             f'<span class="phm-card-detail">{escape(item.finding_id)}</span></td>'
             f"<td>{escape(item.status.value.title())}</td>"
-            f"<td>{escape(_time_label(item.observed_at))}</td>"
-            f"<td>{escape(_time_label(item.latest_event_at))}</td>"
+            f"<td>{escape(format_operations_utc(item.observed_at, locale))}</td>"
+            f"<td>{escape(format_operations_utc(item.latest_event_at, locale))}</td>"
             "</tr>"
         )
         for item in view.reviews
@@ -214,12 +245,12 @@ def render_asset_maintenance_html(view: AssetWorkspaceView) -> str:
     if not rows:
         rows = (
             '<tr><td colspan="4" class="phm-card-detail">'
-            "No maintenance review is recorded for this asset."
+            operations_text("asset.no_maintenance_review", locale)
             "</td></tr>"
         )
     return (
         '<section class="phm-shell">'
-        '<div class="phm-section-title">Maintenance</div>'
+        f'<div class="phm-section-title">{escape(operations_text("asset.maintenance", locale))}</div>'
         '<table class="phm-table">'
         "<thead><tr><th>Review</th><th>Status</th>"
         "<th>Requested from evidence</th><th>Last review activity</th></tr></thead>"
@@ -288,13 +319,6 @@ def asset_workspace_css() -> str:
 """
 
 
-def _capability_label(capability_id: str) -> str:
-    return {
-        "three-phase-unbalance-v1": "Three-phase unbalance",
-        "field-vibration-statistical-features-v1": "Vibration features",
-    }.get(capability_id, capability_id)
-
-
 def _fact(label: str, value: str, class_name: str = "") -> str:
     classes = "phm-fact-value" + (f" {class_name}" if class_name else "")
     return (
@@ -321,15 +345,3 @@ def _overview_card(
     )
 
 
-def _time_label(value: datetime | None) -> str:
-    if value is None:
-        return "—"
-    if value.utcoffset() is None:
-        return "Time not comparable"
-    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def _event_time_label(value: datetime | None) -> str:
-    if value is None or value.utcoffset() is None:
-        return "Time not comparable"
-    return value.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
