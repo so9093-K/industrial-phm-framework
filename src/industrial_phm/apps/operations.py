@@ -95,7 +95,6 @@ def _():
     from industrial_phm.presentation.operations_maintenance import (
         maintenance_queue_label,
         maintenance_status_label,
-        maintenance_workspace_css,
         render_maintenance_evidence_html,
         render_maintenance_identity_html,
         render_maintenance_summary_html,
@@ -177,7 +176,6 @@ def _():
         load_operations_live_observation,
         maintenance_queue_label,
         maintenance_status_label,
-        maintenance_workspace_css,
         measurement_aggregation_rows,
         measurement_aggregation_summary,
         measurement_history_range_summary,
@@ -298,29 +296,11 @@ def _(
     registered_sources,
     set_navigation_page,
 ):
-    navigation_initial_page = get_navigation_page()
-    if navigation_initial_page is None:
-        navigation_initial_page = initial_operations_page(
-            has_registered_sources=bool(registered_sources)
-        )
-        set_navigation_page(navigation_initial_page)
-    return (navigation_initial_page,)
-
-
-@app.cell
-def _(
-    OPERATIONS_PAGE_OPTIONS,
-    mo,
-    navigation_initial_page,
-    set_navigation_page,
-):
-    navigation = mo.ui.tabs(
-        tabs={page: mo.md("") for page in OPERATIONS_PAGE_OPTIONS},
-        value=navigation_initial_page,
-        label="",
-        on_change=set_navigation_page,
-    )
-    return (navigation,)
+    navigation_page = get_navigation_page()
+    if navigation_page is None:
+        navigation_page = initial_operations_page(has_registered_sources=bool(registered_sources))
+        set_navigation_page(navigation_page)
+    return (navigation_page,)
 
 
 @app.cell
@@ -442,25 +422,21 @@ def _(
     get_setup_success,
 ):
     (
-        setup_sources,
-        setup_lifecycles,
-        setup_collection,
-        setup_freshness,
+        _setup_sources,
+        _setup_lifecycles,
+        _setup_collection,
+        _setup_freshness,
     ) = get_setup_config()
     setup_error = get_setup_error()
     setup_success = get_setup_success()
     setup_workspace = build_setup_workspace(
-        sources=setup_sources,
-        lifecycle_records=setup_lifecycles,
-        collection_records=setup_collection,
-        freshness_policies=setup_freshness,
+        sources=_setup_sources,
+        lifecycle_records=_setup_lifecycles,
+        collection_records=_setup_collection,
+        freshness_policies=_setup_freshness,
     )
     return (
-        setup_collection,
         setup_error,
-        setup_freshness,
-        setup_lifecycles,
-        setup_sources,
         setup_success,
         setup_workspace,
     )
@@ -1358,7 +1334,7 @@ def _(
     live_flow_timing,
     maintenance_events,
     monitor,
-    navigation,
+    navigation_page,
     overview,
     registered_sources,
     skipped_analysis_attempts,
@@ -1366,7 +1342,7 @@ def _(
     asset_workspace = None
     asset_workspace_error = None
     asset_history_error = None
-    if navigation.value in {"Assets", "Monitor"} and asset_selector is not None:
+    if navigation_page in {"Assets", "Monitor"} and asset_selector is not None:
         _selected_asset_id = asset_selector.value
         _history_summary = next(
             (item for item in history_assets if item.asset_id == _selected_asset_id),
@@ -1651,13 +1627,13 @@ def _(
     asset_selector,
     history_reader,
     latest_measurement_rows,
-    navigation,
+    navigation_page,
     query_operations_latest_asset_measurements,
 ):
     monitor_latest_points = ()
     monitor_latest_rows = ()
     monitor_latest_error = ""
-    if navigation.value == "Monitor" and asset_selector is not None and history_reader is not None:
+    if navigation_page == "Monitor" and asset_selector is not None and history_reader is not None:
         try:
             monitor_latest_points = query_operations_latest_asset_measurements(
                 history_reader,
@@ -1712,17 +1688,15 @@ def _(
     monitor_latest_points,
     monitor_comparison_channels,
     monitor_range_id,
-    navigation,
+    navigation_page,
     query_operations_multi_signal_measurement_aggregation,
     resolve_measurement_range,
     signal_channel_selector,
 ):
     monitor_chart_data = None
     monitor_chart_error = ""
-    monitor_trend_start_at = None
-    monitor_trend_end_at = None
     monitor_window_evidence_items = ()
-    if navigation.value == "Monitor" and asset_selector is not None and history_reader is not None:
+    if navigation_page == "Monitor" and asset_selector is not None and history_reader is not None:
         _event_times = tuple(
             point.measurement.event_at
             for point in monitor_latest_points
@@ -1746,8 +1720,6 @@ def _(
                 start_at=_anchor_at,
                 end_at=_anchor_at,
             )
-            monitor_trend_start_at = _start_at
-            monitor_trend_end_at = _end_at
             monitor_window_evidence_items = tuple(
                 item
                 for item in investigation_queue.items
@@ -1777,8 +1749,6 @@ def _(
     return (
         monitor_chart_data,
         monitor_chart_error,
-        monitor_trend_end_at,
-        monitor_trend_start_at,
         monitor_window_evidence_items,
     )
 
@@ -1805,7 +1775,7 @@ def _(
     measurement_history_range_summary,
     measurement_history_rows,
     mo,
-    navigation,
+    navigation_page,
     operations_context,
     query_operations_latest_measurements,
     query_operations_measurement_aggregation,
@@ -1818,7 +1788,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation.value != "Assets" or asset_section.value != "Signals":
+    if navigation_page != "Assets" or asset_section.value != "Signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -2928,7 +2898,6 @@ def _(
     maintenance_selector,
     maintenance_status_filter,
     maintenance_success,
-    maintenance_workspace_css,
     mo,
     maintenance_evidence,
     maintenance_evidence_metrics,
@@ -3621,8 +3590,9 @@ def _(
     monitor_latest_error,
     monitor_comparison_channels,
     monitor_range_id,
+    monitor_attention_category,
     monitor_window_evidence_items,
-    navigation,
+    navigation_page,
     registered_sources,
     resolve_investigation_route,
     resolve_operations_attention_route,
@@ -3656,7 +3626,7 @@ def _(
         set() if asset_workspace is None else set(asset_workspace.history_channels)
     )
     _payload = {
-        "page": navigation.value,
+        "page": navigation_page,
         "active_investigation": get_investigation_selection(),
         "pages": list(OPERATIONS_PAGE_OPTIONS),
         "asset_id": _selected_asset,
@@ -3689,11 +3659,7 @@ def _(
                 "id": item.attention_id,
                 "title": item.title,
                 "detail": item.detail,
-                "category": "Review"
-                if item.finding_id
-                else "Data"
-                if item.destination.value == "asset-signals"
-                else "System",
+                "category": monitor_attention_category(item),
             }
             for item in contextual_attention
         ],
@@ -3789,10 +3755,9 @@ def _(
     investigation_view,
     investigation_workspace_css,
     maintenance_view,
-    maintenance_workspace_css,
     mo,
     monitor_workspace_ui,
-    navigation,
+    navigation_page,
     operations_theme_css,
     render_asset_analysis_html,
     render_asset_events_html,
@@ -3809,7 +3774,6 @@ def _(
         operations_theme_css()
         + asset_workspace_css()
         + investigation_workspace_css()
-        + maintenance_workspace_css()
         + system_workspace_css()
         + setup_workspace_css()
     )
@@ -3868,8 +3832,8 @@ def _(
 
     shell = (
         monitor_workspace_ui
-        if navigation.value == "Monitor"
-        else mo.vstack([monitor_workspace_ui, pages[navigation.value]], gap=0.8)
+        if navigation_page == "Monitor"
+        else mo.vstack([monitor_workspace_ui, pages[navigation_page]], gap=0.8)
     )
     mo.vstack([theme, shell], gap=0.0)
     return

@@ -8,7 +8,7 @@ Protocol ID: `xjtu-lstm-autoencoder-fold-1-development-v1`
 population, sequence construction, reconstruction score와 evidence 해석을 구현 및 numerical result보다 먼저
 고정합니다. Dataset split과 일반 leakage 규칙은
 [`xjtu-experiment-protocol.md`](xjtu-experiment-protocol.md), pipeline 표시 의미는
-[`xjtu-ims-pipeline-transparency-review.md`](xjtu-ims-pipeline-transparency-review.md)가 소유합니다.
+[서비스 아키텍처와 artifact inspection 경계](../architecture/overview.md#3-서비스-아키텍처)가 소유합니다.
 
 ## 1. Research question and evidence class
 

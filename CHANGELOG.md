@@ -11,6 +11,11 @@
 
 ### Changed
 
+- 사용되지 않는 구형 Monitor HTML renderer·전용 CSS·presentation export와 분석 결과 refresh/선택 helper를
+  제거했습니다. 숨은 navigation tabs를 canonical page 상태로 통합하고 Operations acceptance는 실제 packaged
+  Monitor snapshot을 검증합니다. 저장된 이력의
+  schema·fingerprint 및 오프라인 JSON 분석 결과 읽기 계약은 유지합니다.
+
 - Operations Monitor를 전용 browser UI로 재구축했습니다. 검색 가능한 신호 탐색 목록, Asset 선택창, 초점·비교
   신호의 값/단위/품질/개별 event 시각, 큰 시계열 작업 영역과 시간 범위 버튼을 연결합니다. 기본 dropdown과 반복
   카드 배열을 Monitor에서 제거하고, 구간별 cursor summary와 exact analysis/attention 이동을 제공합니다.

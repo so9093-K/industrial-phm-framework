@@ -31,7 +31,6 @@ from industrial_phm.presentation.operations_maintenance import (
     render_maintenance_summary_html,
 )
 from industrial_phm.presentation.operations_navigation import resolve_finding_investigation_route
-from industrial_phm.presentation.operations_shell import render_monitor_asset_context_html
 from industrial_phm.runtime import OperationsWorkspace
 from tests.support.window_analysis import phase_unbalance_analysis
 
@@ -97,14 +96,12 @@ def test_review_journey_keeps_asset_evidence_and_display_identity(tmp_path, monk
     assert names.label(ASSET_ID) == DISPLAY_NAME
     (monitor_asset,) = (item for item in first["monitor"].assets if item.asset_id == ASSET_ID)
     assert monitor_asset.pending_review_count == 0
-    monitor_html = render_monitor_asset_context_html(
-        first["asset_workspace"],
-        names,
-        as_of=first["monitor"].assessed_at,
-    )
-    assert DISPLAY_NAME in monitor_html and ASSET_ID in monitor_html
-    assert "Latest source activity" in monitor_html
-    assert "System data flow" not in monitor_html
+    snapshot = first["monitor_workspace_ui"].widget.snapshot
+    assert snapshot["asset_name"] == DISPLAY_NAME
+    assert snapshot["asset_id"] == ASSET_ID
+    assert {"id": ASSET_ID, "name": DISPLAY_NAME} in snapshot["assets"]
+    # No observations were imported: the actual UI must not invent source receipt.
+    assert snapshot["source_at"] is None
 
     # Signals: the same asset opens on a channel with confirmed meaning, not the
     # alphabetically first unresolved one.

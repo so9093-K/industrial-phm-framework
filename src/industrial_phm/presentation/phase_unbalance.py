@@ -26,23 +26,6 @@ def _round(value: float | None) -> float | None:
     return None if value is None else round(value, 3)
 
 
-def phase_unbalance_run_options(
-    results: tuple[PhaseUnbalanceAnalysis, ...], asset_id: str
-) -> dict[str, str]:
-    """Newest first; label shows completion time, source and analysed range."""
-    options = {}
-    for result in sorted(results, key=lambda r: r.run.completed_at, reverse=True):
-        if result.run.asset_id != asset_id:
-            continue
-        reference = result.evidence.input_reference
-        label = (
-            f"{_utc(result.run.completed_at)} · {result.run.source_id} · "
-            f"{_utc(reference.start_at)} / {_utc(reference.end_at)}"
-        )
-        options[label] = result.run.analysis_run_id
-    return options
-
-
 def phase_unbalance_summary_rows(result: PhaseUnbalanceAnalysis) -> list[dict[str, object]]:
     return [
         {
