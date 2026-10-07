@@ -1031,6 +1031,81 @@ def test_file_retry_and_duplicate_rejection_survive_reopen_and_compaction(tmp_pa
     assert len(reopened.query_file_events("device-a")) == 8
 
 
+def test_latest_and_monitor_reads_bound_by_time_keep_stale_channels_and_conflicts(
+    tmp_path,
+) -> None:
+    _require_duckdb()
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
+    )
+
+    def event(source_id, index, asset_id, channel_id, seconds, value):
+        return replace(
+            _file_event(source_id, index),
+            asset_id=asset_id,
+            channel_id=channel_id,
+            event_at=BASE + timedelta(seconds=seconds),
+            value=value,
+            source_metadata_json=f'{{"binding":{{"channel":"{channel_id}"}}}}',
+        )
+
+    history.append_file_batch(
+        (
+            # The stale channel's latest is far older than the other channel's.
+            event("device-a", 0, "pump-01", "current", 0, 10.0),
+            event("device-a", 1, "pump-01", "voltage", 0, 220.0),
+            event("device-a", 2, "pump-01", "voltage", 600, 221.0),
+            # A second value at the latest voltage time is a conflict, not a resolution.
+            event("device-a", 3, "pump-01", "voltage", 600, 230.0),
+            # Another asset's newer rows must not move or leak into pump-01 reads.
+            event("device-b", 0, "pump-02", "voltage", 1200, 999.0),
+        ),
+        batch_id="latest-bounds",
+    )
+
+    latest = history.query_latest_asset_measurements("pump-01")
+    assert [
+        (
+            point.measurement.channel_id,
+            point.measurement.event_at,
+            point.conflicting_duplicate,
+            point.source_file,
+            point.source_metadata_json,
+        )
+        for point in latest
+    ] == [
+        ("current", BASE, False, "power.zip!/member.json", '{"binding":{"channel":"current"}}'),
+        (
+            "voltage",
+            BASE + timedelta(seconds=600),
+            True,
+            "power.zip!/member.json",
+            '{"binding":{"channel":"voltage"}}',
+        ),
+    ]
+    (stale,) = history.query_latest_measurements("pump-01", channel_id="current")
+    assert (stale.measurement.event_at, stale.measurement.value) == (BASE, 10.0)
+    assert stale.source_metadata_json == '{"binding":{"channel":"current"}}'
+    assert history.query_latest_asset_measurements("pump-03") == ()
+    assert history.query_latest_measurements("pump-01", channel_id="absent") == ()
+
+    chart = history.query_multi_signal_measurement_aggregation(
+        "pump-01",
+        channel_ids=("voltage", "current"),
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=30),
+        bucket_count=3,
+    )
+    assert {
+        (bucket.channel_id, bucket.maximum, bucket.conflict_count, bucket.interpretation_json)
+        for bucket in chart.buckets
+    } == {
+        ("current", 10.0, 0, '{"binding":{"channel":"current"},"semantics":null}'),
+        ("voltage", 220.0, 0, '{"binding":{"channel":"voltage"},"semantics":null}'),
+        ("voltage", None, 2, '{"binding":{"channel":"voltage"},"semantics":null}'),
+    }
+
+
 _FILE_SCALING_SPEC = spec_from_file_location(
     "file_append_scaling", Path(__file__).parents[2] / "tools/history/file_append_scaling.py"
 )
@@ -1083,7 +1158,42 @@ def test_compaction_measurements_keep_the_same_row_count(tmp_path) -> None:
         compact_at_end=True,
     )
     before, after = report["checkpoints"]
-    assert before["stored_rows"] == after["stored_rows"] == 106
-    assert before["batches"] == after["batches"] == 1
+    # One timed probe plus one uncontended and one contended lock-contention append.
+    assert before["stored_rows"] == after["stored_rows"] == 116
+    assert before["batches"] == after["batches"] == 3
     assert before["active_parquet_files"] >= after["active_parquet_files"]
     assert after["physical_parquet_files"] >= after["active_parquet_files"]
+    assert set(before["lock"]) == {
+        "monitor_read_lock_hold_ms",
+        "append_lock_hold_ms",
+        "append_connect_uncontended_ms",
+        "append_connect_behind_monitor_read_ms",
+    }
+    assert after["lock"] is None
+
+
+def test_fixed_queried_asset_grows_only_unrelated_assets(tmp_path) -> None:
+    pytest.importorskip("duckdb")
+    report = _FILE_SCALING_TOOL.run(
+        tmp_path,
+        checkpoints=[0, 200],
+        sources=3,
+        batch_size=5,
+        metadata_bytes=32,
+        repeats=1,
+        queried_asset_rows=70,
+    )
+    first, second = report["checkpoints"]
+    assert first["queried_asset_rows"] == second["queried_asset_rows"] == 70
+    assert second["stored_rows"] == 215
+    assert report["workload"]["queried_asset_rows"] == 70
+    with pytest.raises(ValueError, match="fixed queried asset"):
+        _FILE_SCALING_TOOL.run(
+            tmp_path / "invalid",
+            checkpoints=[0],
+            sources=1,
+            batch_size=5,
+            metadata_bytes=32,
+            repeats=1,
+            queried_asset_rows=70,
+        )

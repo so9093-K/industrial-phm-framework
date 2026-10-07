@@ -11,6 +11,13 @@
 
 ### Changed
 
+- Monitor 최신값과 multi-signal 차트 조회가 다른 asset까지 포함한 전체 raw 행을 hash ID join으로 읽고, 최신값은
+  asset의 전체 이력을 window로 정렬하던 문제를 고쳤습니다. raw metadata join에 이미 성립하는 asset·channel·시간
+  조건을 명시하고, 최신값은 source/point/channel별 최신 시각 중 가장 오래된 시각 이후만 읽습니다. 결과는 같고,
+  84.7M행 대표 크기 상태에서 Monitor 최신값은 974→91ms, 1h 차트는 651→87ms입니다. FILE scaling benchmark는
+  조회 asset 고정 축, Monitor 읽기, catalog lock 점유·대기 측정을 포함하며 결과와 한계를
+  [scaling evidence](docs/research/history-append-scaling-evidence.md)에 기록했습니다.
+
 - Control/spool/telemetry SQLite의 동시 최초 WAL 활성화에서 busy timeout을 기다리지 않고 실패하던 경합을
   제한된 connection bootstrap 처리로 보정했습니다. 데이터 transaction은 재실행하지 않으며, 최초 schema
   metadata의 중복 생성 경쟁과 spool initialize의 연결 수명도 정리했습니다. Worker 오류 traceback과 실제
