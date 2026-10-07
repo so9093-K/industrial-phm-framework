@@ -465,7 +465,7 @@
 
 .mw-readings {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   gap: 12px;
   margin-bottom: 18px
 }
@@ -1118,3 +1118,16 @@
 .mw-panel-head { flex-wrap: wrap; gap: 8px; }
 
 .mw-axis { font-size: 12px; }
+
+/* Analysis windows: thin marks; the hovered or focused window is highlighted. */
+.mw-window-mark { fill: #82b6ff; fill-opacity: .55; pointer-events: none; }
+.mw-window { fill: #82b6ff; fill-opacity: 0; cursor: pointer; outline: none; }
+.mw-window:hover { fill-opacity: .10; }
+.mw-window:focus-visible { fill-opacity: .16; stroke: var(--mw-blue); stroke-width: 1.5; }
+
+/* Inspection items keep their own height instead of matching the evidence list. */
+.mw-attention { align-self: start; }
+
+/* The asset title keeps its width; the source status area wraps instead. */
+.mw-identity { flex: 0 0 auto; max-width: 55%; }
+@media(max-width:850px) { .mw-identity { max-width: none; } }
