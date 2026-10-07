@@ -229,4 +229,3 @@ def test_setup_data_flow_does_not_accept_receipt_from_before_current_activation(
     )
 
     assert setup_data_flow_confirmed(assessment) is False
-
