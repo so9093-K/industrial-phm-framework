@@ -513,6 +513,13 @@ _PRODUCT_COPY: Final = {
         "common.type": "Type",
         "common.signal": "Signal",
         "common.time_range": "Time range",
+        "common.time": "Time",
+        "common.value": "Value",
+        "common.unit": "Unit",
+        "common.quality": "Quality",
+        "common.source_quality": "Source quality",
+        "common.time_state": "Time state",
+        "common.history_age_seconds": "History age (s)",
         "common.analysis_evidence": "Analysis evidence",
         "common.queue_groups": "Queue groups",
         "asset.no_selection": "No asset is selected.",
@@ -555,6 +562,10 @@ _PRODUCT_COPY: Final = {
         ),
         "asset.raw_observations": "Raw observations",
         "asset.data_details": "Data details",
+        "asset.stored_evidence_help": (
+            "Stored measurements and UI aggregates are observation evidence. "
+            "This view does not infer asset health, fault, alarm, or missing samples."
+        ),
         "asset.load_hint": "Select Assets to load this workspace.",
         "asset.workspace_unavailable": "Asset workspace unavailable",
         "asset.no_evidence": (
@@ -784,6 +795,13 @@ _PRODUCT_COPY: Final = {
         "common.type": "유형",
         "common.signal": "신호",
         "common.time_range": "시간 범위",
+        "common.time": "시각",
+        "common.value": "값",
+        "common.unit": "단위",
+        "common.quality": "품질",
+        "common.source_quality": "Source 품질",
+        "common.time_state": "시각 상태",
+        "common.history_age_seconds": "History 경과(초)",
         "common.analysis_evidence": "분석 근거",
         "common.queue_groups": "대기열 그룹",
         "asset.no_selection": "선택된 설비가 없습니다.",
@@ -822,6 +840,10 @@ _PRODUCT_COPY: Final = {
         ),
         "asset.raw_observations": "Raw 관측값",
         "asset.data_details": "데이터 상세",
+        "asset.stored_evidence_help": (
+            "저장 측정값과 UI 집계값은 관측 evidence입니다. 이 화면은 설비 health, fault, alarm "
+            "또는 missing sample을 추론하지 않습니다."
+        ),
         "asset.load_hint": "설비 페이지를 선택하면 이 workspace를 불러옵니다.",
         "asset.workspace_unavailable": "설비 workspace를 불러올 수 없습니다",
         "asset.no_evidence": (
