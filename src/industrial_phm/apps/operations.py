@@ -2349,7 +2349,11 @@ def _(
     )
     _groups = investigation_queue.groups(
         review_state=_review_state,
-        asset_id=None if investigation_asset_filter.value == "all" else investigation_asset_filter.value,
+        asset_id=(
+            None
+            if investigation_asset_filter.value == "all"
+            else investigation_asset_filter.value
+        ),
         capability_id=(
             None
             if investigation_capability_filter.value == "all"
@@ -2357,7 +2361,10 @@ def _(
         ),
     )
     _group_label_to_id = {
-        f"{investigation_group_option_label(group, asset_names, operations_locale)} · {index + 1}": group.group_id
+        (
+            f"{investigation_group_option_label(group, asset_names, operations_locale)} "
+            f"· {index + 1}"
+        ): group.group_id
         for index, group in enumerate(_groups)
     }
     _group_id_to_label = {value: key for key, value in _group_label_to_id.items()}
@@ -2426,7 +2433,10 @@ def _(
         investigation_label_to_id = {}
     else:
         _label_to_id = {
-            f"{investigation_queue_option_label(item, asset_names, operations_locale)} · {index + 1}": (
+            (
+                f"{investigation_queue_option_label(item, asset_names, operations_locale)} "
+                f"· {index + 1}"
+            ): (
                 item.investigation_id
             )
             for index, item in enumerate(selected_investigation_group.items)
@@ -2621,7 +2631,13 @@ def _(
             selected_investigation.capability_id
         )
         _evidence_blocks = [
-            mo.Html(render_investigation_summary_html(selected_investigation, asset_names, operations_locale)),
+            mo.Html(
+                render_investigation_summary_html(
+                    selected_investigation,
+                    asset_names,
+                    operations_locale,
+                )
+            ),
             mo.md(render_analysis_quality_markdown(selected_investigation_result.run)),
         ]
 
@@ -2718,7 +2734,10 @@ def _(
                 mo.md(
                     "### Human review\n\n"
                     "Current workflow state: "
-                    f"**{investigation_review_label(selected_investigation.review_state, operations_locale)}**"
+                    f"**{investigation_review_label(
+                        selected_investigation.review_state,
+                        operations_locale,
+                    )}**"
                 )
             )
 
@@ -2729,7 +2748,10 @@ def _(
                 mo.accordion(
                     {
                         "Evidence identity": mo.Html(
-                            render_investigation_evidence_identity_html(selected_investigation, operations_locale)
+                            render_investigation_evidence_identity_html(
+                                selected_investigation,
+                                operations_locale,
+                            )
                         )
                     }
                 ),
@@ -2837,7 +2859,10 @@ def _(
         ),
     )
     _label_to_id = {
-        f"{maintenance_queue_label(item, asset_names, operations_locale)} · {index + 1}": item.finding_id
+        (
+            f"{maintenance_queue_label(item, asset_names, operations_locale)} "
+            f"· {index + 1}"
+        ): item.finding_id
         for index, item in enumerate(_filtered)
     }
     _id_to_label = {value: key for key, value in _label_to_id.items()}
@@ -2852,7 +2877,9 @@ def _(
             options=list(_label_to_id),
             value=_id_to_label[_selected_id],
             label=operations_text("common.queue", operations_locale),
-            on_change=lambda value: maintenance_selection.update(finding_id=_label_to_id[value]),
+            on_change=lambda value: maintenance_selection.update(
+                finding_id=_label_to_id[value]
+            ),
         )
     else:
         maintenance_selector = None
@@ -3072,6 +3099,7 @@ def _(
     maintenance_status_filter,
     maintenance_success,
     mo,
+    operations_locale,
     maintenance_evidence,
     maintenance_evidence_metrics,
     maintenance_open_investigation_button,
@@ -3161,14 +3189,28 @@ def _(
             _evidence_blocks.append(maintenance_open_investigation_button)
         _detail_panel = mo.vstack(
             [
-                mo.Html(render_maintenance_summary_html(selected_maintenance, asset_names, operations_locale)),
+                mo.Html(
+                    render_maintenance_summary_html(
+                        selected_maintenance,
+                        asset_names,
+                        operations_locale,
+                    )
+                ),
                 *_evidence_blocks,
-                mo.Html(render_maintenance_timeline_html(selected_maintenance, operations_locale)),
+                mo.Html(
+                    render_maintenance_timeline_html(
+                        selected_maintenance,
+                        operations_locale,
+                    )
+                ),
                 *_action_blocks,
                 mo.accordion(
                     {
                         "Review identity": mo.Html(
-                            render_maintenance_identity_html(selected_maintenance, operations_locale)
+                            render_maintenance_identity_html(
+                                selected_maintenance,
+                                operations_locale,
+                            )
                         )
                     }
                 ),
@@ -3287,6 +3329,7 @@ def _(
     opcua_mapping_error,
     opcua_signal_selection,
     opcua_timeout_input,
+    operations_locale,
     pending_semantics,
     register_setup_source_button,
     render_setup_signals_html,
@@ -3354,7 +3397,12 @@ def _(
         _selected_source_panel = mo.vstack(
             [
                 setup_source_selector,
-                mo.Html(render_setup_source_detail_html(setup_selected_source, operations_locale)),
+                mo.Html(
+                    render_setup_source_detail_html(
+                        setup_selected_source,
+                        operations_locale,
+                    )
+                ),
                 mo.hstack(_source_actions, justify="start", gap=0.6),
                 mo.md(
                     "Enable/Pause changes whether a runtime may use the source. "
@@ -3668,13 +3716,23 @@ def _(
         _guided_setup = mo.vstack(
             [
                 mo.md("### 1 · Connected source"),
-                mo.Html(render_setup_sources_html(setup_workspace, operations_locale)),
+                mo.Html(
+                    render_setup_sources_html(
+                        setup_workspace,
+                        operations_locale,
+                    )
+                ),
                 _selected_source_panel,
                 mo.md(
                     "### 2 · Inspect signals\n\n"
                     "Confirm the exact source identity and the signals that were registered."
                 ),
-                mo.Html(render_setup_signals_html(setup_selected_source, operations_locale)),
+                mo.Html(
+                    render_setup_signals_html(
+                        setup_selected_source,
+                        operations_locale,
+                    )
+                ),
                 mo.md(
                     "### 3 · Confirm meaning\n\n"
                     f"Explicit meaning is recorded for **{_defined} / {_total}** signal(s). "
@@ -3771,7 +3829,9 @@ def _(
                         mo.vstack(
                             [
                                 mo.md(
-                                    f"### {operations_text('first_run.sample.title', operations_locale)}\n\n"
+                                    "### "
+                                    f"{operations_text('first_run.sample.title', operations_locale)}"
+                                    "\n\n"
                                     f"{operations_text('first_run.sample.detail', operations_locale)}"
                                 ),
                                 first_run_sample_button,
@@ -3781,8 +3841,13 @@ def _(
                         mo.vstack(
                             [
                                 mo.md(
-                                    f"### {operations_text('first_run.real.title', operations_locale)}\n\n"
-                                    f"{operations_text('first_run.real.detail', operations_locale)}"
+                                    "### "
+                                    f"{operations_text('first_run.real.title', operations_locale)}"
+                                    "\n\n"
+                                    f"{operations_text(
+                                        'first_run.real.detail',
+                                        operations_locale,
+                                    )}"
                                 ),
                                 first_run_real_button,
                             ],
@@ -3839,6 +3904,7 @@ def _(
     operations_locale,
     operations_messages,
     operations_page_label,
+    operations_text,
     registered_sources,
     resolve_investigation_route,
     resolve_operations_attention_route,
@@ -3892,7 +3958,11 @@ def _(
             if asset_workspace is None
             else data_status_label(asset_workspace.status, operations_locale)
         ),
-        "source_at": None if asset_workspace is None else utc_millis(asset_workspace.last_data_at),
+        "source_at": (
+            None
+            if asset_workspace is None
+            else utc_millis(asset_workspace.last_data_at)
+        ),
         "assessed_at": utc_millis(monitor.assessed_at),
         "signals": _catalog_rows,
         "stored_signal_count": len(monitor_latest_rows),
@@ -3904,10 +3974,16 @@ def _(
         "evidence": [
             {
                 "id": item.investigation_id,
-                "label": investigation_capability_label(item.capability_id, operations_locale),
+                "label": investigation_capability_label(
+                    item.capability_id,
+                    operations_locale,
+                ),
                 "start": utc_millis(item.observed_start_at),
                 "end": utc_millis(item.observed_end_at),
-                "review": investigation_review_label(item.review_state, operations_locale),
+                "review": investigation_review_label(
+                    item.review_state,
+                    operations_locale,
+                ),
             }
             for item in monitor_window_evidence_items
         ],
