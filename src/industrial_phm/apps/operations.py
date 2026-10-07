@@ -495,6 +495,7 @@ def _(
 
 @app.cell
 def _(
+    first_run_mode,
     mo,
     operations_locale,
     operations_text,
@@ -520,7 +521,8 @@ def _(
     )
     setup_open_monitor_button = (
         None
-        if setup_selected_source is None or not setup_receipt_confirmed
+        if setup_selected_source is None
+        or (first_run_mode != "configured" and not setup_receipt_confirmed)
         else mo.ui.run_button(
             label=operations_text("setup.open_monitor", operations_locale),
             kind="success",
