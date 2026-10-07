@@ -1399,7 +1399,7 @@ def _(
 @app.cell
 def _(mo):
     get_asset_selection, set_asset_selection = mo.state(None)
-    get_asset_section, set_asset_section = mo.state("Overview")
+    get_asset_section, set_asset_section = mo.state("overview")
     return (
         get_asset_section,
         get_asset_selection,
@@ -1416,6 +1416,8 @@ def _(
     history_assets,
     mo,
     monitor,
+    operations_locale,
+    operations_text,
     set_asset_section,
     set_asset_selection,
 ):
@@ -1441,12 +1443,22 @@ def _(
         )
     else:
         asset_selector = None
-    _asset_sections = ["Overview", "Signals", "Analysis", "Events", "Maintenance"]
+    _asset_sections = {
+        operations_text("asset.section.overview", operations_locale): "overview",
+        operations_text("asset.section.signals", operations_locale): "signals",
+        operations_text("asset.section.analysis", operations_locale): "analysis",
+        operations_text("asset.section.events", operations_locale): "events",
+        operations_text("asset.section.maintenance", operations_locale): "maintenance",
+    }
     _requested_section = get_asset_section()
+    _section_label_by_id = {value: label for label, value in _asset_sections.items()}
     asset_section = mo.ui.radio(
         options=_asset_sections,
-        value=_requested_section if _requested_section in _asset_sections else "Overview",
-        label="View",
+        value=_section_label_by_id.get(
+            _requested_section,
+            operations_text("asset.section.overview", operations_locale),
+        ),
+        label=operations_text("asset.view", operations_locale),
         on_change=set_asset_section,
     )
     return asset_section, asset_selector
@@ -1923,7 +1935,7 @@ def _(
     signal_channel_selector,
     signal_range_selector,
 ):
-    if navigation_page != "assets" or asset_section.value != "Signals":
+    if navigation_page != "assets" or asset_section.value != "signals":
         signal_view = mo.md("")
     elif asset_workspace is None:
         signal_view = mo.md("No asset is selected.")
@@ -3957,7 +3969,7 @@ def _(
         ):
             set_monitor_range(event["range"])
         elif _kind == "detail" and _selected_asset is not None:
-            set_asset_section("Signals")
+            set_asset_section("signals")
             set_navigation_page("assets")
         elif _kind == "refresh":
             set_monitor_revision(get_monitor_revision() + 1)
@@ -4054,11 +4066,13 @@ def _(
         )
     else:
         _asset_sections = {
-            "Overview": mo.Html(render_asset_overview_html(asset_workspace, operations_locale)),
-            "Signals": signal_view,
-            "Analysis": asset_analysis_view,
-            "Events": mo.Html(render_asset_events_html(asset_workspace, operations_locale)),
-            "Maintenance": mo.Html(render_asset_maintenance_html(asset_workspace, operations_locale)),
+            "overview": mo.Html(render_asset_overview_html(asset_workspace, operations_locale)),
+            "signals": signal_view,
+            "analysis": asset_analysis_view,
+            "events": mo.Html(render_asset_events_html(asset_workspace, operations_locale)),
+            "maintenance": mo.Html(
+                render_asset_maintenance_html(asset_workspace, operations_locale)
+            ),
         }
         asset_view = mo.vstack(
             [
