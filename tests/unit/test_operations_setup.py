@@ -10,12 +10,17 @@ from industrial_phm.application.measurement_semantics import (
     ChannelSemanticBinding,
     MeasurementDefinition,
 )
-from industrial_phm.application.operations_setup import build_setup_workspace
+from industrial_phm.application.operations_setup import (
+    build_setup_workspace,
+    setup_data_flow_confirmed,
+)
 from industrial_phm.application.source_freshness import SourceFreshnessPolicy
+from industrial_phm.application.source_health import assess_source_health
 from industrial_phm.application.source_lifecycle import (
     SourceLifecycleRecord,
     SourceLifecycleState,
 )
+from industrial_phm.application.source_receipt import SourceReceiptEvidence
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     OpcUaSourceConfig,
@@ -178,3 +183,50 @@ def test_setup_workspace_rejects_freshness_policy_for_unknown_source() -> None:
             lifecycle_records=(lifecycle,),
             freshness_policies=(freshness,),
         )
+
+def test_setup_data_flow_requires_receipt_for_current_active_source() -> None:
+    lifecycle = SourceLifecycleRecord(
+        source_id="opc-a",
+        state=SourceLifecycleState.ACTIVE,
+        changed_at=NOW,
+    )
+    waiting = assess_source_health(
+        lifecycle,
+        None,
+        None,
+        as_of=NOW + timedelta(seconds=10),
+    )
+    assert setup_data_flow_confirmed(waiting) is False
+
+    confirmed = assess_source_health(
+        lifecycle,
+        SourceReceiptEvidence(
+            source_id="opc-a",
+            received_at=NOW + timedelta(seconds=5),
+            observed_at=NOW + timedelta(seconds=4),
+        ),
+        None,
+        as_of=NOW + timedelta(seconds=10),
+    )
+    assert setup_data_flow_confirmed(confirmed) is True
+
+
+def test_setup_data_flow_does_not_accept_receipt_from_before_current_activation() -> None:
+    lifecycle = SourceLifecycleRecord(
+        source_id="opc-a",
+        state=SourceLifecycleState.ACTIVE,
+        changed_at=NOW,
+    )
+    assessment = assess_source_health(
+        lifecycle,
+        SourceReceiptEvidence(
+            source_id="opc-a",
+            received_at=NOW - timedelta(seconds=1),
+            observed_at=NOW - timedelta(seconds=2),
+        ),
+        None,
+        as_of=NOW + timedelta(seconds=10),
+    )
+
+    assert setup_data_flow_confirmed(assessment) is False
+
