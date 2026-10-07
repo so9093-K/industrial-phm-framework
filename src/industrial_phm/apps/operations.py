@@ -3811,11 +3811,13 @@ def _(
                 setup_refresh_data_flow_button,
                 mo.md(
                     "### 5 · Observe\n\n"
-                    + (
-                        "Accepted data receipt is confirmed. Open Monitor to inspect the "
-                        "evidence that is actually available."
-                        if setup_receipt_confirmed
-                        else operations_text("setup.monitor_locked", operations_locale)
+                    + operations_text(
+                        (
+                            "setup.observe_ready"
+                            if setup_receipt_confirmed
+                            else "setup.monitor_locked"
+                        ),
+                        operations_locale,
                     )
                 ),
                 *([setup_open_monitor_button] if setup_open_monitor_button is not None else []),
