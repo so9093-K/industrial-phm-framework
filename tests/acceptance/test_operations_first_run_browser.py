@@ -147,7 +147,8 @@ def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> 
     A test must not assume that get_by_role('textbox', name=label) resolves it.
     """
     field_label = page.get_by_text(label, exact=True).last
-    assert field_label.is_visible(), f"missing visible field label: {label}"
+    # The Setup heading may appear before its reactive form controls finish mounting.
+    field_label.wait_for(state="visible", timeout=30_000)
     field = field_label.locator(f"xpath=following::{tag}[1]")
     field.fill(value)
 
