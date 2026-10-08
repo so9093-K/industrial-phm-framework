@@ -350,6 +350,9 @@ jobs:
       - name: Validate Monitor widget JavaScript syntax
         run: node --check --input-type=module < src/industrial_phm/apps/monitor_widget.js
 
+      - name: Validate read-only Web monitor JavaScript syntax
+        run: node --check --input-type=module < src/industrial_phm/apps/web/app.js
+
       - name: Validate clean-workspace Operations product acceptance
         run: |
           uv run --locked --extra operations pytest \
@@ -367,7 +370,8 @@ jobs:
           PHM_FIRST_RUN_SCREENSHOTS: ${{ runner.temp }}/first-run-evidence
         run: |
           uv run --locked --extra operations --with playwright pytest \
-            tests/acceptance/test_operations_first_run_browser.py
+            tests/acceptance/test_operations_first_run_browser.py \
+            tests/acceptance/test_operations_web_monitor_browser.py
 
       - name: Upload first-run browser evidence
         if: always()
@@ -417,6 +421,9 @@ jobs:
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/xjtu-sy.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/monitor_widget.js'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/monitor_widget.css'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/index.html'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/app.js'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/styles.css'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ai4i-2020.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ims-bearings.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-condition-stratified-5fold-v1.toml'
