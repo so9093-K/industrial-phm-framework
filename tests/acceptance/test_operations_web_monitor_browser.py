@@ -178,9 +178,10 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             sync_api.expect(page.locator("#source-list")).to_contain_text("수신 근거 미확인")
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 0개")
             sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
-            assert JsonSourceRepository(workspace.source_registry_path).get(
-                "web-file-01"
-            ).asset_id == "pump-01"
+            assert (
+                JsonSourceRepository(workspace.source_registry_path).get("web-file-01").asset_id
+                == "pump-01"
+            )
             assert not page.locator("#last-values .latest-item").count()
             assert not errors, errors
             width_info = page.evaluate(
