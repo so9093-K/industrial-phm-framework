@@ -301,6 +301,9 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             sync_api.expect(page.locator("#source-list")).to_contain_text(
                 "FILE 검증 수신 근거 있음"
             )
+            sync_api.expect(page.locator("#onboarding-state")).to_contain_text(
+                "저장된 시계열은 별도로 확인해야 합니다"
+            )
             assert (
                 JsonSourceRuntimeRepository(workspace.source_runtime_path).get_latest_receipt(
                     "file-receipt"

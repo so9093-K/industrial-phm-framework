@@ -351,7 +351,7 @@ async function loadSources() {
     } else {
       state.textContent = "등록된 소스 " + data.sources.total + "개 · accepted receipt 확인 " + received + "개 (표시 범위 기준)";
       byId("onboarding-state").textContent = received
-        ? "등록된 소스 " + data.sources.total + "개 · 수신 확인 " + received + "개 — 신호 이력에서 실측값을 확인하세요."
+        ? "등록된 소스 " + data.sources.total + "개 · 수신 근거 " + received + "개 — 저장된 시계열은 별도로 확인해야 합니다."
         : "등록 " + data.sources.total + "개 · 수신 확인 0개 — 등록은 연결 성공이나 실제 관측이 아닙니다.";
     }
     byId("onboarding-state").className = "";
