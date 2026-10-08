@@ -196,3 +196,55 @@ def test_history_http_exposes_actual_bounded_file_observations(tmp_path: Path) -
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
+    tmp_path: Path,
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "web-surface")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def request(path: str, *, host: str | None = None, origin: str | None = None):
+        connection = HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+        headers = {"Host": host or f"127.0.0.1:{server.server_port}"}
+        if origin is not None:
+            headers["Origin"] = origin
+        try:
+            connection.request("GET", path, headers=headers)
+            response = connection.getresponse()
+            return response.status, dict(response.getheaders()), response.read()
+        finally:
+            connection.close()
+
+    try:
+        for path, mime, marker in (
+            ("/web/", "text/html", b"Industrial PHM"),
+            ("/web/app.js", "text/javascript", b"/api/v1/monitor"),
+            ("/web/styles.css", "text/css", b"focus-visible"),
+        ):
+            status, headers, data = request(path)
+            assert status == 200
+            assert headers["Content-Type"].startswith(mime)
+            assert headers["Content-Length"] == str(len(data))
+            assert headers["Cache-Control"] == "no-store"
+            assert headers["X-Content-Type-Options"] == "nosniff"
+            assert "Access-Control-Allow-Origin" not in headers
+            assert marker in data
+
+        _, headers, html = request("/web/")
+        assert "script-src 'self'" in headers["Content-Security-Policy"]
+        assert "connect-src 'self'" in headers["Content-Security-Policy"]
+        assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+        assert b'src="/web/app.js"' in html
+        assert request("/web/../config.toml")[0] == 404
+        assert request("/web/index.html")[0] == 404
+        assert request("/web/app.js?debug=1")[0] == 404
+        assert request("/web/", host="remote.example")[0] == 403
+        assert request("/web/", origin="https://remote.example")[0] == 403
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
