@@ -195,9 +195,7 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 sample.wait_for_load_state("domcontentloaded", timeout=30_000)
                 try:
                     expect(sample.locator(".mw-plot svg")).to_be_visible(timeout=40_000)
-                    expect(sample.locator(".mw-plot circle").first).to_be_attached(
-                        timeout=40_000
-                    )
+                    expect(sample.locator(".mw-plot circle").first).to_be_attached(timeout=40_000)
                 except AssertionError as error:
                     _screenshot(sample, locale=locale, stage="sample-failure", tmp_path=tmp_path)
                     sample_body = sample.locator("body").inner_text(timeout=5_000)
