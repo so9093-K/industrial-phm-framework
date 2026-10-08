@@ -16,7 +16,8 @@ production UI or supervise collection/analysis.
   **Only** `/web/`, `/web/app.js`, and `/web/styles.css` serve packaged static
   assets from the installed Python wheel. No arbitrary file path may be requested.
   Only `POST /api/v1/sources/file`, `POST /api/v1/sources/file/receive`,
-  `POST /api/v1/sources/lifecycle`, and `POST /api/v1/sources/collection` are allowed
+  `POST /api/v1/sources/file/backfill`, `POST /api/v1/sources/lifecycle`,
+  and `POST /api/v1/sources/collection` are allowed
   under the protected write contract;
   other mutations return 405. There is no arbitrary mutation command, Node runtime,
   dev server, repository file proxy, or remote exposure.
@@ -150,6 +151,35 @@ registration and the collection desired state. The browser never turns an
 accepted FILE receipt into an assertion that DuckLake signal history is stored.
 The current JSON source/runtime repositories are single-writer only; legacy
 and new Web source actions must not write the same workspace concurrently.
+
+## Explicit FILE DuckLake history backfill (opt-in preview only)
+
+`POST /api/v1/sources/file/backfill` accepts only `{"source_id":"..."}` under
+the same exact Host/Origin/Sec-Fetch-Site, CSRF, JSON body, and single-process
+mutation lock as registration/receipt. Only an ACTIVE registered FILE snapshot
+CSV within the workspace is eligible; its canonical path, symlink boundary,
+file type, size and max 12 channels are checked again. A source must have a
+**separately persisted accepted receipt** and an explicit timestamp column.
+The first browser iteration limits backfill input to **1 MiB** to bound
+synchronous event materialization; larger prepared FILE history requires an
+existing non-Web workflow. Times must be timezone-aware; invalid input does
+not imply that any history was accepted.
+
+The command delegates to the existing `backfill_registered_file_source` and
+`DuckLakeAssetHistory`. It returns actual `event_count`,
+`segment_count`, `recovered_segment_count`, and
+`history_snapshot_id` with meaning
+`persisted-file-history-not-live-collection-or-analysis`. Repeating the
+unchanged CSV recovers its existing content-addressed batch rather than
+duplicating events. A changed CSV can produce new history with a new batch
+identity; a prior FILE receipt does not prove that it covered the same bytes.
+Check `GET /api/v1/history/channels` and `/trend` to verify the stored
+measurement evidence. The response contains no CSV path or raw exceptions.
+This is historical import, **not** a collector, an analysis run, or a claim
+about machine condition. Failed/partial imports are not treated as success;
+the next explicit import may recover already committed segments.
+The JSON source/runtime state and DuckLake catalog have distinct writer
+constraints; legacy and Web writers must not mutate the workspace concurrently.
 
 ## Web source control requests (opt-in preview only)
 

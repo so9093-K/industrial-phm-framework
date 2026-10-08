@@ -26,6 +26,7 @@ from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
+    backfill_workspace_file_history,
     change_web_source_control,
     project_web_source_setup,
     receive_workspace_file_source,
@@ -200,7 +201,7 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": "file-registration-source-control-and-file-receipt",
+                        "write_scope": "file-registration-source-control-receipt-and-backfill",
                     },
                 )
                 return
@@ -238,6 +239,7 @@ def create_operations_web_read_server(
             if self.path not in {
                 "/api/v1/sources/file",
                 "/api/v1/sources/file/receive",
+                "/api/v1/sources/file/backfill",
                 *control_routes,
             }:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
@@ -275,6 +277,8 @@ def create_operations_web_read_server(
                         result = register_workspace_csv_source(root, body)
                     elif self.path == "/api/v1/sources/file/receive":
                         result = receive_workspace_file_source(root, body)
+                    elif self.path == "/api/v1/sources/file/backfill":
+                        result = backfill_workspace_file_history(root, body)
                     else:
                         result = change_web_source_control(root, control_routes[self.path], body)
             except SourceAlreadyRegisteredError:
@@ -289,7 +293,7 @@ def create_operations_web_read_server(
             except ValueError, TypeError, UnicodeError, FileNotFoundError, NotADirectoryError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_source_action")
                 return
-            except OSError:
+            except OSError, RuntimeError:
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE, "source_state_unavailable")
                 return
             self._send_json(

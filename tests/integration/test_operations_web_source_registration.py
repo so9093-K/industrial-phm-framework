@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from http.client import HTTPConnection
 from pathlib import Path
@@ -382,3 +382,130 @@ def test_web_file_receipt_rejects_swapped_outside_symlink(tmp_path: Path) -> Non
     with pytest.raises(SourceControlConflict):
         receive_workspace_file_source(workspace.root.resolve(), {"source_id": "registered-file-01"})
     assert not workspace.source_runtime_path.exists()
+
+
+def test_web_file_backfill_commits_real_history_and_recovers_same_batch(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "file-history")
+    initialize_operations_workspace(workspace)
+    folder = workspace.root / "inputs"
+    folder.mkdir()
+    observed = datetime.now(UTC) - timedelta(minutes=2)
+    (folder / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        f"{observed.isoformat()},220.5,219.0,221.0\n"
+        f"{(observed + timedelta(seconds=1)).isoformat()},220.7,219.2,221.1\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        _, session = _request(port, "GET", "/api/v1/session")
+        csrf = session["csrf_token"]
+
+        def action(route: str, payload: dict[str, object], *, token: str | None = csrf):
+            return _request(
+                port,
+                "POST",
+                "/api/v1/sources/" + route,
+                body=json.dumps(payload).encode(),
+                origin=origin,
+                fetch_site="same-origin",
+                csrf=token,
+            )
+
+        identity = {"source_id": "registered-file-01"}
+        assert action("file", _payload())[0] == 201
+        assert action("file/backfill", identity)[0] == 409
+        assert action("file/backfill", identity, token=None)[0] == 403
+        assert action("file/backfill", {"source_id": "unknown"})[0] == 404
+        assert action("file/backfill", {"source_id": "registered-file-01", "extra": "x"})[0] == 400
+        assert action("lifecycle", {**identity, "target_state": "active"})[0] == 200
+        assert action("file/backfill", identity)[0] == 409  # receipt missing
+        assert action("file/receive", identity)[0] == 200
+        assert not workspace.history_catalog_path.exists()
+        status, first = action("file/backfill", identity)
+        assert status == 200
+        assert first["meaning"] == "persisted-file-history-not-live-collection-or-analysis"
+        assert first["event_count"] == 6
+        assert first["segment_count"] == 1
+        assert first["recovered_segment_count"] == 0
+        assert isinstance(first["history_snapshot_id"], int)
+        assert workspace.history_catalog_path.exists()
+        assert "phases.csv" not in str(first)
+        status, repeated = action("file/backfill", identity)
+        assert status == 200
+        assert repeated["event_count"] == 6
+        assert repeated["recovered_segment_count"] == 1
+        assert repeated["history_snapshot_id"] == first["history_snapshot_id"]
+        status, trend = _request(
+            port,
+            "GET",
+            "/api/v1/history/trend?asset_id=pump-01&channel_id=phase-R&range=1h&buckets=60",
+        )
+        assert status == 200
+        assert trend["meaning"] == "stored-history-not-live-reading-or-asset-health"
+        assert any(value["value"] == 220.7 for value in trend["latest_stored"])
+        assert not workspace.phase_unbalance_state_path.exists()
+        # A later path substitution is rejected without changing stored history.
+        outside = tmp_path / "outside.csv"
+        outside.write_text("timestamp,phase-R\n", encoding="utf-8")
+        (folder / "phases.csv").unlink()
+        (folder / "phases.csv").symlink_to(outside)
+        assert action("file/backfill", identity)[0] == 409
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_web_file_backfill_rejects_missing_explicit_timestamps(tmp_path: Path) -> None:
+    from industrial_phm.application import FileSourceConfig, RegisteredSource
+    from industrial_phm.runtime.operations_web_setup import (
+        SourceControlConflict,
+        backfill_workspace_file_history,
+        change_web_source_control,
+        receive_workspace_file_source,
+    )
+
+    workspace = OperationsWorkspace(tmp_path / "no-source-time")
+    initialize_operations_workspace(workspace)
+    folder = workspace.root / "inputs"
+    folder.mkdir()
+    (folder / "phases.csv").write_text(
+        "phase-R,phase-S,phase-T\n220.5,219.0,221.0\n",
+        encoding="utf-8",
+    )
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="registered-file-01",
+            name="sampled FILE without absolute timestamps",
+            config=FileSourceConfig(
+                source_path=str((folder / "phases.csv").resolve()),
+                asset_id="pump-01",
+                channel_columns=("phase-R", "phase-S", "phase-T"),
+                sampling_rate_hz=1.0,
+            ),
+            registered_at=datetime.now(UTC),
+        )
+    )
+    change_web_source_control(
+        workspace.root.resolve(),
+        "lifecycle",
+        {"source_id": "registered-file-01", "target_state": "active"},
+    )
+    assert (
+        receive_workspace_file_source(
+            workspace.root.resolve(), {"source_id": "registered-file-01"}
+        )["accepted_new_receipt"]
+        is True
+    )
+    with pytest.raises(SourceControlConflict):
+        backfill_workspace_file_history(
+            workspace.root.resolve(), {"source_id": "registered-file-01"}
+        )
+    assert not workspace.history_catalog_path.exists()

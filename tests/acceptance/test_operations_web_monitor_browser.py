@@ -317,3 +317,67 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+@pytest.mark.parametrize("width", [1024, 1440])
+def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, width: int) -> None:
+    sync_api = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "file-web-history")
+    initialize_operations_workspace(workspace)
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    observed = datetime.now(UTC) - timedelta(minutes=2)
+    (inputs / "phase.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        f"{observed.isoformat()},220.5,219.0,221.0\n"
+        f"{(observed + timedelta(seconds=1)).isoformat()},220.7,219.2,221.1\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with sync_api.sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": width, "height": 900})
+            errors: list[str] = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            page.locator('input[name="source_id"]').fill("web-history-01")
+            page.locator('input[name="name"]').fill("FILE history")
+            page.locator('input[name="asset_id"]').fill("pump-01")
+            page.locator('input[name="file_path"]').fill("inputs/phase.csv")
+            page.locator('input[name="channel_columns"]').fill("phase-R,phase-S,phase-T")
+            page.locator('input[name="timestamp_column"]').fill("timestamp")
+            page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
+            listing = page.locator("#source-list")
+            sync_api.expect(listing).to_contain_text("web-history-01")
+            page.on("dialog", lambda dialog: dialog.accept())
+            listing.get_by_role("button", name="소스 활성화").click()
+            sync_api.expect(listing).to_contain_text("관리 상태: active")
+            page.locator("#source-list").get_by_role("button", name="FILE 수신 확인").click()
+            sync_api.expect(listing).to_contain_text("FILE 검증 수신 근거 있음")
+            assert not workspace.history_catalog_path.exists()
+            listing.get_by_role("button", name="FILE 이력 적재").click()
+            sync_api.expect(page.locator("#source-control-result")).to_contain_text(
+                "DuckLake 이력 적재 완료"
+            )
+            sync_api.expect(page.locator("#source-control-result")).to_contain_text("6개 이벤트")
+            sync_api.expect(page.locator("#last-values")).to_contain_text("220.7")
+            assert workspace.history_catalog_path.exists()
+            listing.get_by_role("button", name="FILE 이력 적재").click()
+            sync_api.expect(page.locator("#source-control-result")).to_contain_text(
+                "재사용 배치 1개"
+            )
+            assert not errors, errors
+            geometry = page.evaluate(
+                "() => ({width: innerWidth, scroll: document.documentElement.scrollWidth})"
+            )
+            assert geometry["scroll"] <= geometry["width"] + 2
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)

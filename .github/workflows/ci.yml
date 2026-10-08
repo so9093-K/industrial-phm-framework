@@ -276,6 +276,7 @@ jobs:
         run: |
           uv run --locked --extra history pytest \
             tests/integration/test_operations_web_http.py \
+            tests/integration/test_operations_web_source_registration.py \
             tests/unit/test_operations_web_signals.py
 
       - name: Validate live acquisition reliability profile
