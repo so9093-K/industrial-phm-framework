@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Industrial PHM — Operations 웹 UX 검토 시안</title>
+<style>
+  /* Prototype-only design tokens. Not the shipping design system. */
+  :root {
+    --canvas:#f5f7fa; --surface:#fff; --subtle:#f8fafc; --ink:#182537;
+    --muted:#526177; --faint:#708096; --line:#dae2ea; --line-strong:#bdc9d6;
+    --brand:#126c6c; --brand-dark:#095453; --brand-soft:#e9f5f2;
+    --info:#245c89; --info-soft:#edf5fc; --warn:#8a5a06; --warn-soft:#fff6e3;
+    --danger:#ab3740; --danger-soft:#fff0f0; --good:#236c4e;
+    --radius:12px; --radius-lg:18px; --shadow:0 10px 36px rgba(16,37,54,.055);
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+    --space-5:20px; --space-6:24px; --space-8:32px;
+    font-family: "Pretendard", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    font-size:15px; color:var(--ink); background:var(--canvas);
+  }
+  * { box-sizing:border-box }
+  html { scroll-behavior:smooth }
+  body { margin:0; min-width:320px; }
+  button, input, select { font:inherit; }
+  button { cursor:pointer }
+  button:disabled { cursor:not-allowed; opacity:.48 }
+  :focus-visible { outline:3px solid #34938c; outline-offset:3px }
+  h1,h2,h3,p { margin:0 }
+  a { color:var(--brand); text-decoration:underline; text-underline-offset:3px }
+  p { line-height:1.65 }
+  .app { min-height:100vh; display:grid; grid-template-columns:232px minmax(0,1fr) }
+  .side { background:#f9fbfc; border-right:1px solid var(--line); padding:25px 16px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; gap:28px }
+  .brand { display:flex; align-items:center; gap:11px; padding:2px 8px }
+  .brand-mark { display:grid; place-items:center; width:37px; height:37px; color:#fff; background:var(--brand); font-weight:800; border-radius:11px; letter-spacing:-1px; font-size:15px }
+  .brand-name { font-size:15px; font-weight:800; letter-spacing:-.02em }
+  .brand-sub { color:var(--faint); font-size:11px; margin-top:4px }
+  .side-label { font-weight:800; font-size:10px; letter-spacing:.13em; color:var(--faint); text-transform:uppercase; padding:0 11px; margin-bottom:10px }
+  .side-list { display:flex; flex-direction:column; gap:5px }
+  .side-link { border:0; color:#41536a; display:flex; justify-content:space-between; align-items:center; padding:12px 13px; gap:8px; text-align:left; background:none; border-radius:10px; font-weight:650; width:100% }
+  .side-link:hover:not(:disabled) { background:#edf4f5 }
+  .side-link[aria-current="page"] { background:var(--brand-soft); color:var(--brand-dark); box-shadow:inset 3px 0 0 var(--brand); }
+  .side-link .number { font-size:11px; font-weight:700; opacity:.65 }
+  .side-note { margin-top:auto; border-top:1px solid var(--line); padding:19px 9px 0; color:var(--muted); font-size:12px; line-height:1.7 }
+  .sidebar-mini { font-weight:750; font-size:12px; color:var(--ink); margin-bottom:6px }
+  .main { min-width:0 }
+  .toolbar { min-height:76px; padding:16px clamp(22px,3vw,46px); background:var(--surface); border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:16px; align-items:center }
+  .toolbar-heading { font-size:13px; color:var(--muted); font-weight:650 }
+  .toolbar-heading strong { color:var(--ink) }
+  .toolbar-tools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .tag { display:inline-flex; align-items:center; gap:6px; background:var(--subtle); color:#506174; border:1px solid var(--line); border-radius:99px; padding:6px 10px; font-size:11px; font-weight:750; white-space:nowrap }
+  .tag::before { content:""; width:6px; height:6px; background:var(--info); border-radius:50%; }
+  .control-label { color:var(--muted); font-size:12px; font-weight:650 }
+  .scenario-control { padding:9px 29px 9px 10px; border:1px solid var(--line-strong); border-radius:9px; background:#fff; color:var(--ink); max-width:230px }
+  .content { max-width:1490px; margin:0 auto; padding:36px clamp(24px,3.3vw,52px) 78px; }
+  .breadcrumb { font-size:12px; color:var(--faint); font-weight:650; margin-bottom:11px }
+  .page-heading { display:flex; justify-content:space-between; align-items:end; gap:18px; margin-bottom:25px }
+  .page-heading h1 { font-size:clamp(26px,2.3vw,35px); line-height:1.3; letter-spacing:-.06em; font-weight:820 }
+  .page-heading p { margin-top:10px; font-size:14px; color:var(--muted); max-width:750px }
+  .button { min-height:42px; padding:10px 17px; display:inline-flex; gap:8px; align-items:center; justify-content:center; border-radius:9px; border:1px solid var(--line-strong); background:#fff; font-weight:740; font-size:13px; color:var(--ink); text-align:center; text-decoration:none }
+  .button:hover:not(:disabled) { border-color:var(--brand); color:var(--brand) }
+  .button.primary { background:var(--brand); color:#fff; border-color:var(--brand) }
+  .button.primary:hover:not(:disabled) { background:var(--brand-dark); }
+  .button.ghost { border-color:transparent; background:transparent; color:var(--brand) }
+  .button.small { min-height:35px; font-size:12px; padding:7px 12px }
+  .panel { border:1px solid var(--line); background:var(--surface); border-radius:var(--radius-lg); padding:24px; box-shadow:var(--shadow); min-width:0 }
+  .panel + .panel { margin-top:16px }
+  .panel-title { font-size:17px; letter-spacing:-.035em; font-weight:810; }
+  .panel-description { font-size:13px; color:var(--muted); margin-top:7px }
+  .eyebrow { font-size:11px; color:var(--brand); font-weight:820; letter-spacing:.10em; text-transform:uppercase }
+  .muted { color:var(--muted) }
+  .small { font-size:12px }
+  .micro { font-size:11px; color:var(--faint) }
+  .space-between { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap }
+  .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px }
+  .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px }
+  .choice { text-align:left; padding:25px; border:1px solid var(--line); background:var(--surface); border-radius:var(--radius-lg); display:flex; flex-direction:column; align-items:flex-start; min-height:283px; gap:15px; box-shadow:var(--shadow) }
+  .choice:hover { border-color:#74aca8; transform:translateY(-2px); box-shadow:0 16px 40px rgba(16,37,54,.09) }
+  .choice .glyph { display:grid; place-items:center; width:46px; height:46px; background:var(--brand-soft); color:var(--brand); border-radius:12px; font-size:22px }
+  .choice h2 { font-size:20px; letter-spacing:-.04em }
+  .choice p { color:var(--muted); font-size:13px }
+  .choice .tail { margin-top:auto; color:var(--brand); font-weight:800; font-size:13px }
+  .soft-panel { background:var(--subtle); border-radius:13px; padding:20px; border:1px solid var(--line); }
+  .notice { display:flex; gap:13px; padding:16px 18px; border:1px solid #c6dfe1; background:#eff7f8; border-radius:12px; color:#28595d; align-items:flex-start; font-size:13px; line-height:1.6; }
+  .notice.warn { border-color:#ebd8ae; background:var(--warn-soft); color:#795314 }
+  .notice.danger { border-color:#ebc4c6; background:var(--danger-soft); color:#943137 }
+  .notice svg { flex-shrink:0; margin-top:2px }
+  .notice b { display:block; font-size:13px; margin-bottom:3px }
+  .pill { font-size:11px; border-radius:99px; padding:5px 9px; font-weight:750; background:#eaf0f4; color:#526276; white-space:nowrap; }
+  .pill.good { color:#226a4e; background:#e8f6ef }
+  .pill.warn { color:#825800; background:#fff1d7 }
+  .pill.danger { color:#9e313c; background:#ffedef }
+  .divider { height:1px; background:var(--line); margin:20px 0 }
+  .summary-card { border:1px solid var(--line); border-radius:12px; padding:16px; background:#fff; min-width:0 }
+  .summary-card .value { font-weight:800; font-size:18px; letter-spacing:-.02em; margin-top:8px; overflow-wrap:anywhere }
+  .summary-card .label { font-size:12px; color:var(--muted) }
+  .summary-card .note { font-size:11px; color:var(--faint); margin-top:8px; line-height:1.5 }
+  .split { display:grid; grid-template-columns: minmax(238px,.85fr) minmax(0,2fr); gap:18px; align-items:start; }
+  .asset-picker { width:100%; border:1px solid var(--line-strong); border-radius:9px; padding:12px; background:#fff; font-weight:690; color:var(--ink) }
+  .field { display:flex; flex-direction:column; gap:8px; min-width:0 }
+  .field > label { font-size:12px; font-weight:750; color:#36495b }
+  .field input, .field select { width:100%; background:#fff; border:1px solid var(--line-strong); min-height:43px; border-radius:9px; padding:11px; outline-offset:2px; color:var(--ink) }
+  .field small { color:var(--muted); line-height:1.55; font-size:11px }
+  .field .field-error { color:var(--danger); font-weight:690 }
+  .steps { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px; margin-bottom:20px }
+  .step { display:flex; align-items:center; gap:7px; color:var(--faint); font-size:11px; font-weight:700; padding:10px; border-bottom:2px solid var(--line) }
+  .step strong { display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:#e9eef2; font-size:10px; flex-shrink:0; }
+  .step.active { color:var(--brand); border-bottom-color:var(--brand) }
+  .step.active strong { background:var(--brand); color:#fff }
+  .step.complete { color:var(--good); border-bottom-color:#a0c8ae }
+  .field-stack { display:grid; gap:19px; margin-top:19px }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px }
+  .source-types { display:flex; gap:10px; flex-wrap:wrap }
+  .source-types label { display:flex; align-items:center; gap:8px; padding:11px 15px; border-radius:9px; border:1px solid var(--line-strong); cursor:pointer; font-size:13px; font-weight:690 }
+  .source-types label:has(input:checked) { border-color:var(--brand); background:var(--brand-soft); }
+  .source-types input { accent-color:var(--brand) }
+  .record { border:1px solid var(--line); background:var(--subtle); border-radius:10px; padding:12px 14px; margin-top:8px; line-height:1.6; }
+  .record .record-title { font-size:13px; font-weight:800; }
+  .record .record-meta { font-size:11px; color:var(--muted); margin-top:5px; }
+  .tabs { display:flex; gap:5px; flex-wrap:wrap; }
+  .tabs button { border:0; border-radius:8px; padding:8px 12px; color:var(--muted); background:transparent; font-size:12px; font-weight:700 }
+  .tabs button[aria-pressed="true"] { color:var(--brand-dark); background:var(--brand-soft) }
+  .chart { width:100%; display:block; overflow:visible; }
+  .chart-area { margin-top:14px; background:#fff; padding:0 6px 0 1px }
+  .signal-row { padding:12px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px }
+  .signal-row strong { font-size:13px }
+  .signal-row:last-child { border-bottom:0 }
+  .signal-row .units { color:var(--faint); font-size:11px; margin-top:4px }
+  .footer-note { margin-top:30px; padding-top:19px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); line-height:1.65 }
+  .legend { display:flex; gap:13px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin-top:8px }
+  .legend b { display:inline-block; height:3px; width:19px; background:#1a797c; vertical-align:middle; margin-right:5px }
+  .legend .missing b { background:repeating-linear-gradient(90deg,#be8c3b 0 5px,transparent 5px 9px) }
+  .subtle-link { border:0; background:none; color:var(--brand); text-decoration:underline; text-underline-offset:3px; padding:0; font-size:12px; font-weight:680 }
+  .sr-only { position:absolute; left:-10000px; height:1px; width:1px; overflow:hidden }
+  #main-content { min-width:0 }
+  @media(max-width:1180px) {
+    .app { grid-template-columns:206px minmax(0,1fr) }
+    .side { padding:22px 11px }
+    .content { padding:26px 24px 66px }
+    .toolbar { padding:16px 24px }
+    .split { grid-template-columns:minmax(205px,.85fr) minmax(0,2fr); gap:14px }
+    .panel { padding:20px }
+    .step { font-size:10px; padding:9px 5px; gap:4px }
+    .step strong { width:18px; height:18px }
+  }
+  @media(max-width:800px) {
+    .app { display:block }
+    .side { position:static; height:auto; padding:13px 18px; gap:12px; border-bottom:1px solid var(--line) }
+    .brand { padding:0 }
+    .side-list { flex-direction:row; flex-wrap:wrap }
+    .side-label,.side-note,.nav-disabled { display:none }
+    .side-link { width:auto; padding:9px 11px; font-size:12px }
+    .content { padding:24px 17px 60px }
+    .toolbar { min-height:66px; padding:12px 17px; flex-wrap:wrap }
+    .grid2,.grid3,.split,.form-grid { grid-template-columns:1fr }
+    .page-heading { align-items:start }
+    .steps { grid-template-columns:repeat(3,minmax(0,1fr)) }
+    .choice { min-height:215px }
+  }
+  @media(prefers-reduced-motion:reduce) { *,*:before,*:after { animation:none!important; scroll-behavior:auto!important; transition:none!important } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" aria-label="UX 시안 내비게이션">
+    <div class="brand"><div class="brand-mark" aria-hidden="true">PHM</div><div><div class="brand-name">Industrial PHM</div><div class="brand-sub">Operations · UX study</div></div></div>
+    <nav aria-label="시안 화면 선택">
+      <div class="side-label">검토 화면</div>
+      <div class="side-list">
+        <button type="button" class="side-link" data-route="welcome"><span>첫 실행</span><span class="number">01</span></button>
+        <button type="button" class="side-link" data-route="monitor"><span>관측 현황</span><span class="number">02</span></button>
+        <button type="button" class="side-link" data-route="connect"><span>데이터 연결</span><span class="number">03</span></button>
+      </div>
+    </nav>
+    <div class="nav-disabled"><div class="side-label">후속 화면</div><div class="side-list">
+      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">설비·신호 상세</button>
+      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">분석 기록</button>
+      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">정비 검토</button>
+      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">시스템 상태</button>
+    </div></div>
+    <div class="side-note"><div class="sidebar-mini">검토용 시안 · 실제 시스템 아님</div>모든 측정값과 연결 상태는 가상 예시입니다. 파일을 열어도 수집·저장·분석은 실행되지 않습니다.</div>
+  </aside>
+  <div class="main">
+    <header class="toolbar"><div class="toolbar-heading">운영 화면 <span aria-hidden="true">/</span> <strong id="crumb">첫 실행</strong></div>
+      <div class="toolbar-tools"><span class="tag">가상 데이터 · UX 시안</span><label class="control-label" for="scenario">예시 상태</label>
+        <select class="scenario-control" id="scenario" aria-label="화면에 표시할 예시 상태">
+          <option value="sample">샘플 관측 기록</option>
+          <option value="empty">데이터 없음 / 수신 전</option>
+          <option value="stale">마지막 관측 지연</option>
+          <option value="error">조회 실패</option>
+          <option value="confirmed">수신 확인됨</option>
+        </select>
+      </div>
+    </header>
+    <main id="main-content" tabindex="-1" aria-live="polite"></main>
+  </div>
+</div>
+<script>
+/* This is intentionally a standalone fake-data wireframe, not production code. */
+(() => {
+  'use strict';
+  const routeTitles = { welcome: '첫 실행', monitor: '관측 현황', connect: '데이터 연결' };
+  const states = new Set(['sample','empty','stale','error','confirmed']);
+  const routes = new Set(Object.keys(routeTitles));
+  const initial = location.hash.match(/^#(welcome|monitor|connect)(?:\?state=(sample|empty|stale|error|confirmed))?$/);
+  let route = initial ? initial[1] : 'welcome';
+  let scenario = initial?.[2] || 'sample';
+  let sourceType = 'opcua';
+  let step = 1;
+  let showValidation = false;
+  const main = document.getElementById('main-content');
+  const selector = document.getElementById('scenario');
+
+  function box(type, title, desc, action = '') {
+    return `<div class="notice ${type}" role="status"><span aria-hidden="true">${type === 'danger' ? '!' : type === 'warn' ? '◷' : 'ⓘ'}</span><div><b>${title}</b><div>${desc}</div>${action}</div></div>`;
+  }
+  function pageTitle(kicker, title, description, right = '') {
+    return `<div class="breadcrumb">Operations / ${kicker}</div><div class="page-heading"><div><h1>${title}</h1><p>${description}</p></div>${right}</div>`;
+  }
+  function stateInfo() {
+    if (scenario === 'error') return {value:'확인 실패', pill:'danger', tip:'수신 여부를 확인할 수 없습니다', at:'조회할 수 없음', context:'시스템 상태 보기'};
+    if (scenario === 'empty') return {value:'수신 기록 없음', pill:'warn', tip:'소스를 등록해도 첫 수신 전에는 측정값이 없습니다', at:'—', context:'데이터 연결 확인'};
+    if (scenario === 'stale') return {value:'마지막 값이 오래됨', pill:'warn', tip:'이전 관측을 현재값으로 표시하지 않습니다', at:'10:19:23 UTC', context:'수신 상태 확인'};
+    return {value:'관측 기록 있음', pill:'good', tip:'샘플 기록 · 설비 건강 판정이 아닙니다', at:'10:35:00 UTC', context:'출처 확인'};
+  }
+  function welcome() {
+    const intro = pageTitle('시작하기','설비 데이터를 확인해 보세요','먼저 샘플로 화면을 살펴보거나 실제 FILE·OPC UA 데이터를 연결할 수 있습니다.');
+    const error = scenario === 'error' ? box('danger','예시: 샘플을 시작할 수 없습니다','가상의 실패 상태입니다. 실제 제품에서는 이유와 재시도 방법을 확인할 수 있어야 합니다.') : '';
+    const selected = scenario === 'confirmed' ? box('','기존 데이터 연결 예시','이미 수신된 데이터가 있다는 시나리오입니다. 실제 서비스에서는 등록된 작업공간을 반복 설정하지 않습니다.', '<div style="margin-top:10px"><button class="button small" data-route="monitor">관측 현황으로 이동 →</button></div>') : '';
+    return `<div class="content">${intro}${error}${selected}<div class="grid2" style="margin-top:17px">
+    <button class="choice" type="button" data-action="sample"><span class="glyph" aria-hidden="true">◫</span><div><h2>샘플 데이터로 살펴보기</h2><p style="margin-top:8px">준비된 예시로 측정값과 시간별 변화를 확인합니다. 실제 설비를 연결하지 않아도 됩니다.</p></div><span class="pill">실제 데이터와 분리</span><span class="tail">샘플 화면 보기 →</span></button>
+    <button class="choice" type="button" data-action="real"><span class="glyph" aria-hidden="true">⌁</span><div><h2>실제 데이터 연결하기</h2><p style="margin-top:8px">FILE 또는 OPC UA로 연결하고, 신호를 선택한 뒤 실제 데이터 수신 여부를 확인합니다.</p></div><span class="pill">연결·수신 상태를 단계별 확인</span><span class="tail">데이터 연결 시작 →</span></button></div>
+    <div class="soft-panel" style="margin-top:20px"><h3 class="panel-title" style="font-size:14px">시작하기 전에 알아둘 점</h3><p class="small muted" style="margin-top:8px">샘플 데이터와 실제 작업공간은 분리됩니다. 화면의 <b>데이터 수신</b>은 설비가 정상이라고 판단한 결과가 아닙니다. 분석과 정비 판단은 별도의 근거·검토 단계에서 진행됩니다.</p></div>
+    ${footer()}</div>`;
+  }
+  function chart(isStale = false) {
+    const afterGap = isStale ? `<path d="M443 127 L473 145" fill="none" stroke="#147c7d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M443 127 L473 145 L511 126 L544 139 L581 119 L617 135 L655 105 L691 127 L740 102" fill="none" stroke="#147c7d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    return `<div class="chart-area"><svg class="chart" viewBox="0 0 770 300" role="img" aria-label="가상 진동 신호 시계열. 중간에 측정 공백이 있으며 선으로 연결하지 않습니다">
+      <rect x="50" y="17" width="695" height="228" fill="#fbfdfe" rx="7"></rect>
+      <g stroke="#e3e9ef" stroke-width="1"><line x1="50" y1="42" x2="745" y2="42"/><line x1="50" y1="99" x2="745" y2="99"/><line x1="50" y1="156" x2="745" y2="156"/><line x1="50" y1="213" x2="745" y2="213"/></g>
+      <rect x="373" y="17" width="67" height="228" fill="#fff4df" opacity=".94"/>
+      <g fill="#7a8c9d" font-size="12"><text x="7" y="46">2.4</text><text x="7" y="103">1.8</text><text x="7" y="160">1.2</text><text x="7" y="217">0.6</text><text x="53" y="273">09:35</text><text x="194" y="273">09:50</text><text x="343" y="273">10:05</text><text x="486" y="273">10:20</text><text x="673" y="273">10:35 UTC</text></g>
+      <path d="M54 172 L93 159 L133 163 L171 143 L207 146 L243 135 L276 151 L313 127 L350 141 L372 130" fill="none" stroke="#147c7d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      ${afterGap}
+      <path d="M405 17 V245" stroke="#bd872c" stroke-dasharray="5 6" stroke-width="1.6"/>
+      <rect x="375" y="25" width="62" height="25" rx="6" fill="#fff0d0"/><text x="383" y="42" fill="#765417" font-size="11" font-weight="700">자료 공백</text>
+    </svg></div><div class="legend"><span><b></b>예시 원본 관측값</span><span class="missing"><b></b>측정 기록 없는 구간</span><span>시간과 값은 실제 설비 데이터가 아닙니다</span></div>`;
+  }
+  function monitor() {
+    const info=stateInfo();
+    const refresh='<button class="button small" data-action="refresh" aria-label="예시 관측 다시 불러오기">↻ &nbsp;새로고침</button>';
+    let attention='';
+    if(scenario==='empty')attention=box('warn','아직 수신된 측정값이 없습니다','소스를 등록하거나 수집을 요청한 상태만으로 수신을 확인할 수 없습니다.','<div style="margin-top:10px"><button class="button small" data-route="connect">수신 상태 확인하기 →</button></div>');
+    if(scenario==='stale')attention=box('warn','마지막 관측 이후 새로운 값이 없습니다','마지막 관측은 10:19:23 UTC입니다. 지연 이유는 source/collection 증거에서 확인해야 합니다.','<div style="margin-top:10px"><button class="button small" data-route="connect">수신 상태 확인하기 →</button></div>');
+    if(scenario==='error')attention=box('danger','관측값을 불러오지 못했습니다','저장소 또는 조회 요청 오류 예시입니다. 기록이 0건이라고 판단할 수 없습니다.','<div style="margin-top:10px"><button class="button small" data-action="refresh">다시 불러오기</button> &nbsp; <button class="button small" disabled>시스템 상태 보기 (범위 밖)</button></div>');
+    return `<div class="content">${pageTitle('관측 현황','관측 현황','선택한 설비에서 어떤 신호가 언제 측정됐고, 최근 어떻게 변했는지 확인합니다.',refresh)}
+      ${attention ? `<div style="margin-bottom:18px">${attention}</div>`:''}
+      <div class="grid3" style="margin-bottom:16px">
+        <div class="summary-card"><div class="label">현재 보는 설비</div><div class="value">A라인 펌프 P-101</div><div class="note">asset_id: line-a-pump-101 · 가상 예시</div></div>
+        <div class="summary-card"><div class="label">데이터 수신 기록</div><div class="value"><span class="pill ${info.pill}" style="font-size:13px">${info.value}</span></div><div class="note">${info.tip}</div></div>
+        <div class="summary-card"><div class="label">마지막 측정 시각</div><div class="value">${info.at}</div><div class="note">조회 기준: 10:35:10 UTC · 가상 시각</div></div>
+      </div>
+      <div class="split">
+        <section class="panel" aria-labelledby="signal-title"><h2 class="panel-title" id="signal-title">설비·신호 선택</h2><p class="panel-description">현재 보고 싶은 설비와 측정 신호를 선택합니다.</p>
+        <div class="field" style="margin-top:18px"><label for="asset">설비</label><select id="asset"><option>A라인 펌프 P-101</option><option disabled>B라인 모터 M-202 (다음 시안)</option></select></div>
+        <div class="field" style="margin-top:18px"><label for="signal-search">신호 검색</label><input id="signal-search" placeholder="예: 진동, 온도" autocomplete="off" /></div>
+        <div id="signals"><div class="signal-row"><span><strong>진동 RMS</strong><div class="units">channel_id: vibration-rms</div></span><span class="pill good">선택됨</span></div>
+          <div class="signal-row"><span><strong>베어링 온도</strong><div class="units">channel_id: temperature</div></span><span class="pill">비교 대상</span></div>
+          <div class="signal-row"><span><strong>모터 전류</strong><div class="units">channel_id: current-a</div></span><span class="pill">비교 대상</span></div></div>
+        <p class="micro" style="margin-top:14px">단위가 다른 신호는 동일한 값 축에 합치지 않습니다. 비교 기능은 후속 UX 검증 대상입니다.</p>
+        </section>
+        <section class="panel" aria-labelledby="chart-title"><div class="space-between"><div><h2 class="panel-title" id="chart-title">진동 RMS 변화</h2><p class="panel-description">측정 지점: 펌프 베어링 · 단위: mm/s (예시)</p></div><span class="pill">원본 품질: Good ≠ 설비 정상</span></div>
+          <div class="space-between" style="margin-top:18px"><div class="tabs" role="group" aria-label="관측 시간 범위"><button type="button" aria-pressed="false" data-range="15m">15분</button><button type="button" aria-pressed="true" data-range="1h">1시간</button><button type="button" aria-pressed="false" data-range="24h">24시간</button><button type="button" aria-pressed="false" data-range="7d">7일</button></div><span class="micro" id="range-help">시각 표시: UTC</span></div>
+          ${scenario==='empty'?'<div class="soft-panel" style="min-height:270px;display:grid;place-items:center;text-align:center;margin-top:15px"><div><b>표시할 측정값이 없습니다</b><p class="small muted" style="margin-top:10px">연결/수신 상태를 확인하거나 다른 설비·기간을 선택해 보세요.</p></div></div>':scenario==='error'?'<div class="soft-panel" style="min-height:270px;display:grid;place-items:center;text-align:center;margin-top:15px"><div><b>관측 데이터를 확인할 수 없습니다</b><p class="small muted" style="margin-top:10px">이 화면의 정보가 없다는 뜻이 아닙니다. 다시 불러오세요.</p></div></div>':scenario==='stale'?`<div style="margin-top:13px">${box('warn','시계열의 마지막 값은 과거 관측입니다','최근 수신 전까지 그래프 선을 미래로 연장하지 않습니다.')}</div>${chart(true)}`:chart()}
+          <div class="divider"></div><div class="space-between"><div class="small muted">관련 분석 기록과 검토</div><button class="button small" type="button" disabled>분석 근거 보기 · 다음 시안</button></div>
+          <div class="record"><div class="record-title">예시: 현재 시간 범위에 연결된 분석 근거</div><div class="record-meta">AnalysisRun/근거가 있을 때만 표시합니다. 이 목업은 결과를 만들거나 설비 이상 판정을 하지 않습니다.</div></div>
+        </section>
+      </div>${footer()}</div>`;
+  }
+  function connection() {
+    const s=stateInfo();
+    const steps=['연결 방식','대상 지정','신호 탐색','측정 정보','연결 요청','수신 확인'];
+    const line=steps.map((x,i)=>`<div class="step ${i+1===step?'active':i+1<step?'complete':''}"><strong>${i+1}</strong><span>${x}</span></div>`).join('');
+    const sourceEntry = sourceType==='opcua' ? `<div class="field"><label for="endpoint">OPC UA 서버 주소 <span aria-hidden="true">*</span></label><input id="endpoint" type="text" placeholder="opc.tcp://localhost:4840" value="" aria-required="true" ${showValidation?'aria-invalid="true" aria-describedby="endpoint-error"':''}><small ${showValidation?'id="endpoint-error" class="field-error"':''}>${showValidation?'연결할 OPC UA 서버 주소를 입력해 주세요.':'실제 연결 시 서버 주소와 접근 권한을 확인하세요.'}</small></div>` : `<div class="field"><label for="file-path">데이터 파일 경로 <span aria-hidden="true">*</span></label><input id="file-path" type="text" placeholder="/data/measurements.csv" ${showValidation?'aria-invalid="true" aria-describedby="file-error"':''}><small ${showValidation?'id="file-error" class="field-error"':''}>${showValidation?'CSV 파일 경로를 입력해 주세요.':'서버 작업공간에서 접근할 수 있는 파일을 선택합니다.'}</small></div>`;
+    const stepSummaries = [
+      '데이터 연결 방식을 선택하고 서버 주소 또는 파일 경로를 확인합니다.',
+      '설비 ID와 measurement point를 지정합니다. Source와 Asset은 다른 식별자입니다.',
+      'FILE 컬럼 또는 OPC UA 변수를 탐색하고 사용할 신호를 선택합니다.',
+      'observed property, 단위, 해석 근거를 확인합니다. 알 수 없는 값은 추정하지 않습니다.',
+      '등록 및 수집 요청은 실제 수신 성공과 다릅니다. 서버 검증을 통과한 뒤 요청됩니다.',
+      'accepted receipt와 측정·수신 시각을 확인합니다. 확인 전에는 실제 Monitor 진입이 잠깁니다.'
+    ];
+    const status = scenario==='confirmed' ? box('','가상 예시: 데이터 수신이 확인됐습니다','accepted receipt가 있는 경우에만 관측 화면으로 이동할 수 있습니다.','<div style="margin-top:10px"><button class="button small" type="button" data-route="monitor">관측 현황 보기 →</button></div>') : scenario==='error'?box('danger','가상 예시: 수신 상태 조회 실패','연결 등록 여부와 무관하게 데이터를 받았는지 확인할 수 없습니다.','<div style="margin-top:10px"><button type="button" class="button small" data-action="refresh">다시 확인하기</button></div>') : scenario==='stale'?box('warn','마지막 수신 이후 새 기록이 없습니다','과거 receipt만으로 새로운 데이터가 들어오고 있다고 표시하지 않습니다.') : box('warn','아직 수신을 확인하지 못했습니다','등록이나 수집 요청만으로 관측 현황을 열 수 없습니다. 연결 상태와 실제 receipt를 확인해야 합니다.');
+    return `<div class="content">${pageTitle('운영 관리 / 데이터 연결','데이터 연결','연결 방식을 선택하고 신호·측정 의미를 확인한 뒤 실제 수신 여부를 확인합니다.')}
+      <div class="grid2" style="grid-template-columns:minmax(0,1.75fr) minmax(240px,.85fr);align-items:start" id="connection-grid">
+        <section class="panel" aria-label="연결 단계 미리보기"><div class="space-between"><h2 class="panel-title">새 연결 설정</h2><span class="pill">인터랙션 시안 · 저장 안 됨</span></div>
+        <div class="steps" style="margin-top:21px" aria-label="연결 과정">${line}</div>
+        <div class="field-stack"><div><h3 style="font-size:15px">${step}. ${step === 1 ? '어떤 방식으로 데이터를 연결하나요?' : steps[step-1]}</h3><p class="small muted" style="margin-top:7px">${stepSummaries[step-1]}</p></div>
+          ${step===1?`<div class="source-types"` role="radiogroup" aria-label="데이터 연결 방식">
+            <label><input type="radio" name="source-type" value="opcua" ${sourceType==='opcua'?'checked':''}> OPC UA</label>
+            <label><input type="radio" name="source-type" value="file" ${sourceType==='file'?'checked':''}> FILE (CSV)</label>
+          </div>
+          ${sourceEntry}
+          <div class="form-grid"><div class="field"><label for="source-name">연결 이름</label><input id="source-name" placeholder="예: A라인 펌프 연결"></div><div class="field"><label for="source-id">연결 ID</label><input id="source-id" placeholder="예: line-a-source-01"><small>시스템 식별자. 이름과 별도로 보존합니다.</small></div></div>`:
+            `<div class="soft-panel"><b>${steps[step-1]} · UX 단계 시연</b><p class="small muted" style="margin-top:9px">${stepSummaries[step-1]}</p><div class="record"><div class="record-title">가상 예시 · 데이터는 저장되지 않습니다</div><div class="record-meta">실제 등록·탐색·검증·수집 요청 동작은 Python API 수직 구현 단계에서 연결하고 테스트합니다.</div></div></div>`}
+          <div class="soft-panel"><h3 class="small">단계별 확인 내용</h3><p class="small muted" style="margin-top:8px">설비 ID·측정 지점 연결 → 신호 목록 탐색 → 측정 정보/단위 확인 → 등록·수집 요청 → accepted receipt 증거 확인</p><button type="button" class="button small" data-action="next-step" style="margin-top:13px">다음 단계 미리보기 →</button><span class="small muted" style="margin-left:12px">현재 단계: <b id="step-value">${step}/6</b></span></div>
+          <div class="space-between">${step===1?'<button type="button" class="button primary" data-action="validate">연결 정보 확인하기</button>':'<button type="button" class="button primary" data-action="next-step">다음 단계 보기 →</button>'}<button type="button" class="button ghost" data-action="reset">처음 단계로</button></div>
+          <p class="micro">현재 화면은 입력 정보의 UX만 보여 줍니다. 파일을 읽거나 OPC UA 서버에 연결·등록하지 않습니다.</p>
+        </div></section>
+        <aside class="panel" aria-label="수신 확인 예시"><h2 class="panel-title">수신 확인</h2><p class="panel-description">실제 관측 데이터를 받았는지 별도로 확인합니다.</p><div class="divider"></div>
+        <div class="summary-card"><div class="label">현재 시나리오</div><div class="value" style="font-size:15px">${s.value}</div><div class="note">${s.tip}</div></div>
+        <div style="margin-top:14px">${status}</div><div class="divider"></div><h3 class="small">기존 연결 관리</h3>
+        <div class="record"><div class="record-title">source_id · 수집 요청 상태</div><div class="record-meta">연결 활성화·일시정지, freshness 설정, 제한적 진단은 기존 연결의 상세 화면에서 제공합니다.</div></div>
+        <button type="button" class="button small" data-action="confirmed" style="margin-top:14px">수신 확인됨 상태 보기</button><p class="micro" style="margin-top:9px">시나리오 전환용. 실제 수집 성공 동작이 아닙니다.</p>
+        </aside>
+      </div>${footer()}</div>`;
+  }
+  function footer() { return '<p class="footer-note"><b>시안 검토 안내</b> · 사용자 문장, 정보 순서, 상태 분리, 폼 레이블, 1024/1440px의 가독성을 검토하기 위한 예시입니다. 실제 데이터·API·설비 연결·검증된 진단 기능은 제공하지 않습니다. 화면의 모든 측정값·시간·설비명은 가상이며 이후 사용자 테스트에서 수정될 수 있습니다.</p>'; }
+  function syncHash() { const target=`#${route}?state=${scenario}`; if(location.hash!==target) history.pushState(null,'',target); }
+  function render(push = true) {
+    if(!routes.has(route)) route='welcome'; if(!states.has(scenario)) scenario='sample';
+    selector.value=scenario;
+    document.querySelectorAll('[data-route]').forEach(el=>{
+      if(el.classList.contains('side-link')) { if(el.dataset.route===route) el.setAttribute('aria-current','page');else el.removeAttribute('aria-current'); }
+    });
+    document.getElementById('crumb').textContent=routeTitles[route];
+    main.innerHTML=route==='monitor'?monitor():route==='connect'?connection():welcome();
+    document.title=`${routeTitles[route]} — Industrial PHM UX 시안`;
+    if(push) syncHash();
+  }
+  function change(next, state) { route=next; if(state) scenario=state; showValidation=false;step=1;render();main.focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'}); }
+  document.addEventListener('click',e=>{
+    const el=e.target.closest('button');if(!el||el.disabled)return;
+    if(el.dataset.route){change(el.dataset.route);return;}
+    if(el.dataset.range){document.querySelectorAll('[data-range]').forEach(b=>b.setAttribute('aria-pressed',String(b===el))); document.getElementById('range-help').textContent='시각 표시: UTC · 시간 범위 버튼은 시안용'; return;}
+    switch(el.dataset.action){
+      case 'sample':change('monitor','sample');break;
+      case 'real':change('connect','empty');break;
+      case 'confirmed':scenario='confirmed';render();break;
+      case 'refresh':render();break;
+      case 'validate':showValidation=true; render();break;
+      case 'next-step':step=step===6?1:step+1;render();break;
+      case 'reset':sourceType='opcua';step=1;showValidation=false;render();break;
+    }
+  });
+  document.addEventListener('change',e=>{if(e.target.name==='source-type'){sourceType=e.target.value;showValidation=false;render();}});
+  selector.addEventListener('change',e=>{scenario=e.target.value;showValidation=false;render();});
+  addEventListener('popstate',()=>{const m=location.hash.match(/^#(welcome|monitor|connect)(?:\?state=(sample|empty|stale|error|confirmed))?$/);if(m){route=m[1];scenario=m[2]||'sample';render(false);}});
+  addEventListener('hashchange',()=>{const m=location.hash.match(/^#(welcome|monitor|connect)(?:\?state=(sample|empty|stale|error|confirmed))?$/);if(m&&(m[1]!==route||m[2]!==scenario)){route=m[1];scenario=m[2]||'sample';render(false);}});
+  render(false);
+})();
+</script>
+</body>
+</html>
