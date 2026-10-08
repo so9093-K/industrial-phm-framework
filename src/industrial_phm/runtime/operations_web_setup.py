@@ -17,6 +17,7 @@ from industrial_phm.application import (
     JsonSourceRepository,
     RegisteredSource,
     SourceLifecycleState,
+    SourceRuntimeCycleResult,
     SourceRuntimeCycleState,
 )
 from industrial_phm.runtime.operations_app_actions import (
@@ -254,6 +255,7 @@ def receive_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
     outcome, _ = OperationsAppActions(paths).run_diagnostic(
         source_id, kind=OperationsDiagnosticKind.CYCLE
     )
+    assert isinstance(outcome, SourceRuntimeCycleResult)
     receipt = None
     if outcome.state == SourceRuntimeCycleState.SUCCEEDED:
         assert outcome.received is not None
