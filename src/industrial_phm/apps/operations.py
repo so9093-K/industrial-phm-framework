@@ -4158,7 +4158,9 @@ def _(
             _blocks.append(
                 mo.Html(
                     render_operations_recovery_html(
-                        "first_run.sample", technical_detail=first_run_error, locale=operations_locale
+                        "first_run.sample",
+                        technical_detail=first_run_error,
+                        locale=operations_locale,
                     )
                 )
             )
