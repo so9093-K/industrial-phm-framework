@@ -235,7 +235,11 @@ def create_operations_web_read_server(
                 "/api/v1/sources/lifecycle": "lifecycle",
                 "/api/v1/sources/collection": "collection",
             }
-            if self.path not in {"/api/v1/sources/file", "/api/v1/sources/file/receive", *control_routes}:
+            if self.path not in {
+                "/api/v1/sources/file",
+                "/api/v1/sources/file/receive",
+                *control_routes,
+            }:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
                 return
             if not self._allowed():
