@@ -387,6 +387,22 @@ async function loadSources() {
         actions.append(collection);
       }
       card.append(actions);
+      if (item.lifecycle_state === "registered" || item.lifecycle_state === "paused" || item.lifecycle_state === "active") {
+        const lifecycle = create("button", "source-action", item.lifecycle_state === "active" ? "소스 일시정지" : "소스 활성화");
+        lifecycle.type = "button";
+        lifecycle.addEventListener("click", () => sourceAction(item.source_id, "lifecycle", item.lifecycle_state === "active" ? "paused" : "active", lifecycle));
+        card.append(lifecycle);
+      }
+      if (item.continuous_collection_supported) {
+        const collecting = item.collection_desired_state === "running";
+        card.append(create("span", null, "연속 수집 요청: " + (item.collection_desired_state || "없음") + " (실행/수신 확정 아님)"));
+        const control = create("button", "source-action", collecting ? "수집 중지 요청" : "수집 시작 요청");
+        control.type = "button";
+        control.addEventListener("click", () => sourceAction(item.source_id, "collection", collecting ? "stopped" : "running", control));
+        card.append(control);
+      } else {
+        card.append(create("span", null, "FILE: 연속 수집 명령 미지원 · 기존 파일 로드 경로 사용"));
+      }
       list.append(card);
     });
     if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다. 전체 수신 상태를 뜻하지 않습니다."));
@@ -444,6 +460,37 @@ async function controlSource(sourceId, action, target, button) {
   }
 }
 
+async function sourceAction(sourceId, action, target, button) {
+  const feedback = byId("source-status");
+  button.disabled = true;
+  feedback.textContent = "관리 요청을 기록하는 중입니다. 수집 실행이나 실제 수신 여부는 별도로 확인해야 합니다.";
+  try {
+    const session = await getJSON("/api/v1/session");
+    const response = await fetch("/api/v1/sources/" + action, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type":"application/json", "X-CSRF-Token":session.csrf_token},
+      body: JSON.stringify({source_id:sourceId, target_state:target}),
+    });
+    if (!response.ok) {
+      if (response.status === 409) throw new Error("control-conflict");
+      if (response.status === 404) throw new Error("source-missing");
+      throw new Error("http-" + response.status);
+    }
+    const result = await response.json();
+    if (result.schema_version !== 1 || result.source_id !== sourceId) throw new Error("schema-mismatch");
+    await loadSources();
+    feedback.textContent = action === "lifecycle"
+      ? "소스 관리 상태 변경 기록 완료. 연결·수신 성공은 아닙니다."
+      : "수집 희망 상태 요청 기록 완료. 수집기 실행·데이터 수신 여부는 별도로 확인하세요.";
+  } catch (error) {
+    button.disabled = false;
+    feedback.className = "state error";
+    feedback.textContent = error.message === "control-conflict"
+      ? "요청 불가: 활성화 상태·소스 유형 또는 전환 조건을 확인하세요."
+      : error.message === "source-missing" ? "해당 소스를 찾을 수 없습니다."
+      : presentError(error);
+  }
+}
 async function registerFile(event) {
   event.preventDefault();
   const button = byId("register-file"), feedback = byId("register-result");
