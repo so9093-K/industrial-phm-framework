@@ -191,7 +191,11 @@ def create_operations_web_read_server(
             if self.path == "/api/v1/session":
                 self._send_json(
                     HTTPStatus.OK,
-                    {"schema_version": 1, "csrf_token": csrf_token, "write_scope": "file-registration"},
+                    {
+                        "schema_version": 1,
+                        "csrf_token": csrf_token,
+                        "write_scope": "file-registration",
+                    },
                 )
                 return
             try:
