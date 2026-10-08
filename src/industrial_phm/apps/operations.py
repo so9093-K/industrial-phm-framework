@@ -1023,30 +1023,65 @@ def _(
 
 @app.cell
 def _(SourceType, mo, operations_locale, operations_text):
+
+    from html import escape
+
+    class _AccessibleSetupText(mo.ui.text):
+        """Retain the live input and expose its visible caption as a native label."""
+
+        def __init__(self, *, accessible_label, **kwargs):
+            self._accessible_label = accessible_label
+            super().__init__(label="", **kwargs)
+
+        @property
+        def text(self):
+            caption = escape(self._accessible_label)
+            return (
+                '<label class="phm-setup-accessible-field">'
+                f'<span class="phm-setup-accessible-field-label">{caption}</span>'
+                f"{super().text}</label>"
+            )
+
+    class _AccessibleSetupTextArea(mo.ui.text_area):
+        """Apply the same native label association to the OPC UA mapping editor."""
+
+        def __init__(self, *, accessible_label, **kwargs):
+            self._accessible_label = accessible_label
+            super().__init__(label="", **kwargs)
+
+        @property
+        def text(self):
+            caption = escape(self._accessible_label)
+            return (
+                '<label class="phm-setup-accessible-field">'
+                f'<span class="phm-setup-accessible-field-label">{caption}</span>'
+                f"{super().text}</label>"
+            )
+
     add_source_type = mo.ui.radio(
         options=["File", "OPC UA"],
         value="OPC UA",
         label=operations_text("setup.source_type", operations_locale),
     )
-    add_source_id = mo.ui.text(
-        label="",  # Native <label> in Setup wraps the actual input.
+    add_source_id = _AccessibleSetupText(
+        accessible_label=operations_text("setup.source_id", operations_locale),
         full_width=True,
     )
-    add_source_name = mo.ui.text(
-        label="",  # Native <label> in Setup wraps the actual input.
+    add_source_name = _AccessibleSetupText(
+        accessible_label=operations_text("setup.name", operations_locale),
         full_width=True,
     )
-    add_asset_id = mo.ui.text(
-        label="",  # Native <label> in Setup wraps the actual input.
+    add_asset_id = _AccessibleSetupText(
+        accessible_label=operations_text("common.asset", operations_locale),
         full_width=True,
     )
-    add_point_id = mo.ui.text(
-        label="",  # Native <label> in Setup wraps the actual input.
+    add_point_id = _AccessibleSetupText(
+        accessible_label=operations_text("setup.measurement_point_optional", operations_locale),
         full_width=True,
     )
 
-    file_path_input = mo.ui.text(
-        label="",  # Native <label> in Setup wraps the actual input.
+    file_path_input = _AccessibleSetupText(
+        accessible_label=operations_text("setup.file_path", operations_locale),
         full_width=True,
     )
     file_mode_input = mo.ui.radio(
@@ -1057,32 +1092,32 @@ def _(SourceType, mo, operations_locale, operations_text):
     file_discover_button = mo.ui.run_button(
         label=operations_text("setup.discover_file", operations_locale)
     )
-    file_timestamp_input = mo.ui.text(
+    file_timestamp_input = _AccessibleSetupText(
         value="timestamp",
-        label="",  # Native <label> in Setup wraps the actual input.
+        accessible_label=operations_text("setup.timestamp_column_optional", operations_locale),
         full_width=True,
     )
-    file_sampling_rate_input = mo.ui.text(
+    file_sampling_rate_input = _AccessibleSetupText(
         value="",
-        label="",  # Native <label> in Setup wraps the actual input.
+        accessible_label=operations_text("setup.sampling_rate_optional", operations_locale),
         full_width=True,
     )
 
-    opcua_endpoint_input = mo.ui.text(
-        label="",  # Native <label> in Setup wraps the actual input.
+    opcua_endpoint_input = _AccessibleSetupText(
+        accessible_label=operations_text("setup.endpoint", operations_locale),
         placeholder="opc.tcp://host:4840",
         full_width=True,
     )
-    opcua_timeout_input = mo.ui.text(
+    opcua_timeout_input = _AccessibleSetupText(
         value="4",
-        label="",  # Native <label> in Setup wraps the actual input.
+        accessible_label=operations_text("setup.timeout_seconds", operations_locale),
     )
     opcua_browse_button = mo.ui.run_button(
         label=operations_text("setup.connect_browse", operations_locale)
     )
-    opcua_explicit_mapping_input = mo.ui.text_area(
+    opcua_explicit_mapping_input = _AccessibleSetupTextArea(
         value="",
-        label="",  # Native <label> in Setup wraps the actual input.
+        accessible_label=operations_text("setup.advanced_mapping", operations_locale),
         rows=4,
         full_width=True,
     )
@@ -3686,17 +3721,6 @@ def _(
     setup_workspace,
     render_operations_recovery_html,
 ):
-    from html import escape
-
-    def _labeled_setup_field(key, widget):
-        """Give a marimo input a native HTML label wrapping its real control."""
-        caption = escape(operations_text(key, operations_locale))
-        return mo.Html(
-            '<label class="phm-setup-accessible-field">'
-            f'<span class="phm-setup-accessible-field-label">{caption}</span>'
-            f"{widget}</label>"
-        )
-
     def _setup_step(title_key, help_key):
         title = operations_text(title_key, operations_locale)
         detail = operations_text(help_key, operations_locale)
@@ -3864,35 +3888,16 @@ def _(
                 *(_message_blocks if setup_selected_source is None else []),
                 _setup_step("setup.step.source", "setup.file.connect_help"),
                 add_source_type,
-                mo.hstack(
-                    [
-                        _labeled_setup_field("setup.source_id", add_source_id),
-                        _labeled_setup_field("setup.name", add_source_name),
-                    ],
-                    widths="equal",
-                ),
-                mo.hstack(
-                    [
-                        _labeled_setup_field("common.asset", add_asset_id),
-                        _labeled_setup_field("setup.measurement_point_optional", add_point_id),
-                    ],
-                    widths="equal",
-                ),
+                mo.hstack([add_source_id, add_source_name], widths="equal"),
+                mo.hstack([add_asset_id, add_point_id], widths="equal"),
                 file_mode_input,
-                _labeled_setup_field("setup.file_path", file_path_input),
+                file_path_input,
                 file_discover_button,
                 _setup_step("setup.step.select_signals", "setup.file.select_help"),
                 _file_discovery_view,
                 _setup_step("setup.step.time_sampling", "setup.file.meaning_help"),
                 mo.hstack(
-                    [
-                        _labeled_setup_field(
-                            "setup.timestamp_column_optional", file_timestamp_input
-                        ),
-                        _labeled_setup_field(
-                            "setup.sampling_rate_optional", file_sampling_rate_input
-                        ),
-                    ],
+                    [file_timestamp_input, file_sampling_rate_input],
                     widths="equal",
                 ),
                 _setup_step("setup.step.review_save", "setup.file.review_help"),
@@ -3997,27 +4002,9 @@ def _(
                 *(_message_blocks if setup_selected_source is None else []),
                 _setup_step("setup.step.connect", "setup.opcua.connect_help"),
                 add_source_type,
-                mo.hstack(
-                    [
-                        _labeled_setup_field("setup.source_id", add_source_id),
-                        _labeled_setup_field("setup.name", add_source_name),
-                    ],
-                    widths="equal",
-                ),
-                mo.hstack(
-                    [
-                        _labeled_setup_field("common.asset", add_asset_id),
-                        _labeled_setup_field("setup.measurement_point_optional", add_point_id),
-                    ],
-                    widths="equal",
-                ),
-                mo.hstack(
-                    [
-                        _labeled_setup_field("setup.endpoint", opcua_endpoint_input),
-                        _labeled_setup_field("setup.timeout_seconds", opcua_timeout_input),
-                    ],
-                    widths=[0.75, 0.25],
-                ),
+                mo.hstack([add_source_id, add_source_name], widths="equal"),
+                mo.hstack([add_asset_id, add_point_id], widths="equal"),
+                mo.hstack([opcua_endpoint_input, opcua_timeout_input], widths=[0.75, 0.25]),
                 opcua_browse_button,
                 _browse_status,
                 _setup_step("setup.step.select_signals", "setup.opcua.select_help"),
@@ -4032,9 +4019,7 @@ def _(
                         operations_text(
                             "setup.advanced_nodeid_mapping",
                             operations_locale,
-                        ): _labeled_setup_field(
-                            "setup.advanced_mapping", opcua_explicit_mapping_input
-                        )
+                        ): opcua_explicit_mapping_input
                     }
                 ),
                 _setup_step("setup.step.define_meaning", "setup.opcua.meaning_help"),
