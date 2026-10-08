@@ -279,7 +279,7 @@ def create_operations_web_read_server(
             except UnknownRegisteredSourceError:
                 self._error(HTTPStatus.NOT_FOUND, "source_not_found")
                 return
-            except ValueError, TypeError, UnicodeError:
+            except ValueError, TypeError, UnicodeError, FileNotFoundError, NotADirectoryError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_source_action")
                 return
             except OSError:
