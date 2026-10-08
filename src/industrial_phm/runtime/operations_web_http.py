@@ -11,6 +11,7 @@ import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import cast
 
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
@@ -52,7 +53,7 @@ def create_operations_web_read_server(
             self._send_json(status, {"error": {"code": code}})
 
         def _allowed(self) -> bool:
-            port_value = self.server.server_address[1]
+            port_value = cast(ThreadingHTTPServer, self.server).server_port
             host = self.headers.get("Host", "")
             permitted = {
                 f"127.0.0.1:{port_value}",
