@@ -1084,6 +1084,7 @@ def _(SourceType, mo, operations_locale, operations_text):
         value="4",
         label=operations_text("setup.timeout_seconds", operations_locale),
         placeholder=operations_text("setup.timeout_seconds", operations_locale),
+        full_width=True,
     )
     opcua_browse_button = mo.ui.run_button(
         label=operations_text("setup.connect_browse", operations_locale)
@@ -3979,7 +3980,7 @@ def _(
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
                 mo.hstack([add_asset_id, add_point_id], widths="equal"),
                 mo.hstack([opcua_endpoint_input, opcua_timeout_input], widths=[0.75, 0.25]),
-                mo.md(operations_text("setup.opcua.connect_help", operations_locale)),
+                mo.md(operations_text("setup.endpoint_example", operations_locale)),
                 opcua_browse_button,
                 _browse_status,
                 _setup_step("setup.step.select_signals", "setup.opcua.select_help"),
