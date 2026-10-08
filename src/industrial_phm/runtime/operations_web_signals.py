@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 from industrial_phm.application.asset_history import MeasurementSourceQuality
 from industrial_phm.application.measurement_history import MultiSignalMeasurementHistoryBucket
+from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_live import (
     OperationsReadError,
@@ -41,7 +42,7 @@ def _time(value: datetime | None) -> str | None:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _history(snapshot: OperationsAppSnapshot):
+def _history(snapshot: OperationsAppSnapshot) -> DuckLakeAssetHistory:
     if snapshot.history_reader is None:
         raise OperationsReadError("Asset History not initialized or unavailable")
     return snapshot.history_reader
