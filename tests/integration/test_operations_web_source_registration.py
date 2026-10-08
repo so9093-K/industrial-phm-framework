@@ -135,6 +135,21 @@ def test_workspace_file_registration_protected_and_not_mistaken_for_receipt(
         assert sources["sources"]["items"][0]["receipt_confirmed"] is False
         assert sources["sources"]["items"][0]["last_accepted_received_at"] is None
         assert "phases.csv" not in str(sources)
+        file_collection = json.dumps(
+            {"source_id": "registered-file-01", "target_state": "running"}
+        ).encode()
+        assert (
+            _request(
+                port,
+                "POST",
+                "/api/v1/sources/collection",
+                body=file_collection,
+                origin=origin,
+                fetch_site="same-origin",
+                csrf=csrf,
+            )[0]
+            == HTTPStatus.CONFLICT
+        )
         assert _request(port, "POST", "/api/v1/monitor", body=source_body)[0] == 405
     finally:
         server.shutdown()
@@ -206,18 +221,28 @@ def test_web_source_controls_durable_request_not_receipt(tmp_path: Path) -> None
         _, session = _request(port, "GET", "/api/v1/session")
         csrf = session["csrf_token"]
 
-        def action(route: str, target: str, *, token: str | None = csrf):
+        def action(
+            route: str,
+            target: str,
+            *,
+            token: str | None = csrf,
+            source_id: str = "opcua-1",
+            from_origin: str = origin,
+        ) -> tuple[int, dict[str, object]]:
             return _request(
                 port,
                 "POST",
                 "/api/v1/sources/" + route,
-                body=json.dumps({"source_id": "opcua-1", "target_state": target}).encode(),
-                origin=origin,
+                body=json.dumps({"source_id": source_id, "target_state": target}).encode(),
+                origin=from_origin,
                 fetch_site="same-origin",
                 csrf=token,
             )
 
         assert action("collection", "running")[0] == 409
+        assert action("lifecycle", "active", source_id="unknown")[0] == 404
+        assert action("collection", "running", source_id="unknown")[0] == 404
+        assert action("lifecycle", "active", from_origin="https://evil.example")[0] == 403
         assert action("lifecycle", "active", token=None)[0] == 403
         assert action("lifecycle", "active")[0] == 200
         assert action("lifecycle", "active")[0] == 409
