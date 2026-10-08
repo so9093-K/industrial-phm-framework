@@ -238,7 +238,7 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
         assert "script-src 'self'" in headers["Content-Security-Policy"]
         assert "connect-src 'self'" in headers["Content-Security-Policy"]
         assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
-        assert b"src=\"/web/app.js\"" in html
+        assert b'src="/web/app.js"' in html
         assert request("/web/../config.toml")[0] == 404
         assert request("/web/index.html")[0] == 404
         assert request("/web/app.js?debug=1")[0] == 404
