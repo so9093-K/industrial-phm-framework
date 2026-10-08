@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Industrial PHM · 설비 모니터링</title>
+  <link rel="stylesheet" href="/web/styles.css">
+  <script type="module" src="/web/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+  <div class="app">
+    <aside class="sidebar" aria-label="제품 정보">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">PHM</span><span>Industrial PHM<small>Operations / Read-only</small></span></div>
+      <nav aria-label="주요 화면">
+        <a href="#monitor" aria-current="page">설비 모니터링</a>
+        <a href="#signals">설비 · 신호</a>
+        <a href="#evidence">분석 근거</a>
+        <a href="#review">정비 검토</a>
+      </nav>
+      <p class="sidebar-note">관측 사실을 확인하고 분석 근거와 사람의 검토 기록으로 이동합니다. 이 화면은 명령을 실행하지 않습니다.</p>
+    </aside>
+    <main id="main">
+      <header class="topbar">
+        <div><p class="eyebrow">OPERATIONS / OBSERVATION</p><h1>설비 모니터링</h1><p class="muted">측정된 사실부터 분석 근거까지, 하나의 설비 맥락에서 확인합니다.</p></div>
+        <div class="top-actions"><span class="pill">읽기 전용</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
+      </header>
+      <section class="notice hidden" id="notice" role="status" aria-live="polite"></section>
+      <section class="kpis" id="monitor" aria-label="관측 요약">
+        <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>
+        <div class="kpi"><span>기록된 3상 분석</span><strong id="analysis-count">—</strong><small>실제 저장된 AnalysisRun</small></div>
+        <div class="kpi"><span>검토 요청 기록</span><strong id="review-count">—</strong><small>정비 수행과 구별</small></div>
+        <div class="kpi"><span>데이터 평가 시각</span><strong id="assessed-at" class="time">—</strong><small>UTC 기준 · 수동 새로고침</small></div>
+      </section>
+      <section class="layout">
+        <div class="panel asset-panel">
+          <div class="panel-header"><div><h2>설비 선택</h2><p class="muted">관측 대상과 수신 상태</p></div></div>
+          <label for="asset-select">설비 ID</label><select id="asset-select" disabled><option>설비 조회 중</option></select>
+          <div id="asset-facts" class="facts" aria-live="polite"><p class="muted">저장된 관측 정보를 조회합니다.</p></div>
+          <p class="hint">데이터가 수신 중이더라도 설비가 정상이라는 뜻은 아닙니다.</p>
+        </div>
+        <div class="panel trend-panel" id="signals">
+          <div class="panel-header"><div><h2>저장된 측정 신호</h2><p class="muted">신호별 원본 관측 · 출처와 측정 의미를 분리</p></div><span class="tag">원본 이력</span></div>
+          <div class="filters">
+            <fieldset class="channel-fieldset" id="channel-options"><legend>비교할 신호 (최대 6개)</legend><p class="muted">설비를 선택하면 신호 목록을 불러옵니다.</p></fieldset>
+            <div class="range"><label for="range-select">관측 기간</label><select id="range-select"><option value="15m">15분</option><option value="1h" selected>1시간</option><option value="24h">24시간</option><option value="7d">7일</option></select></div>
+            <button id="show-trend" type="button" disabled>신호 이력 확인</button>
+          </div>
+          <div id="trend-state" class="state" role="status" aria-live="polite">신호를 선택하면 실제 저장된 측정값을 조회합니다.</div>
+          <div id="trend-results" aria-label="신호별 관측 추세"></div>
+          <div id="last-values" class="latest" aria-label="마지막 저장된 측정값"></div>
+          <p class="hint">빈 버킷은 0이 아닙니다. 그래프의 점을 연결하지 않으며, 다른 단위·출처를 한 신호로 합치지 않습니다.</p>
+        </div>
+      </section>
+      <section class="below">
+        <div class="panel" id="evidence"><div class="panel-header"><div><h2>3상 불평형 분석 근거</h2><p class="muted">실제로 저장된 분석만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
+        <div class="panel" id="review"><div class="panel-header"><div><h2>사람의 정비 검토</h2><p class="muted">검토 요청과 연결된 분석 기록</p></div></div><div id="review-results"><p class="muted">검토 이력을 조회 중입니다.</p></div></div>
+      </section>
+      <footer>Industrial PHM · 읽기 전용 검증 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>
+    </main>
+  </div>
+</body>
+</html>
