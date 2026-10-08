@@ -27,7 +27,7 @@ pytest.importorskip("duckdb")
 pytest.importorskip("marimo")
 
 from industrial_phm.application import JsonSourceRepository
-from industrial_phm.presentation.operations_locale import operations_text
+from industrial_phm.presentation.operations_locale import operations_page_label, operations_text
 from industrial_phm.runtime import (
     OperationsRuntimeConfig,
     OperationsUiConfig,
@@ -415,6 +415,33 @@ def test_first_run_browser_sample_real_and_resume(
                     page, locale=locale, stage="configured-resume", tmp_path=tmp_path
                 )
                 _screenshot(page, locale=locale, stage="configured-resume", tmp_path=tmp_path)
+
+                # With an already registered source, every Operations page is
+                # reachable through the same keyboard-accessible navigation.
+                for destination in (
+                    "assets",
+                    "investigations",
+                    "maintenance",
+                    "system",
+                    "setup",
+                    "monitor",
+                ):
+                    page_label = operations_page_label(destination, locale)
+                    navigation_button = page.locator(".mw-pages").get_by_role(
+                        "button", name=page_label, exact=True
+                    )
+                    navigation_button.focus()
+                    expect(navigation_button).to_be_focused()
+                    navigation_button.press("Enter")
+                    expect(
+                        page.locator('.mw-pages button[aria-current="page"]')
+                    ).to_have_text(page_label, timeout=_BROWSER_TIMEOUT_MS)
+                    _check_browser_layout(
+                        page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
+                    )
+                    _screenshot(
+                        page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
+                    )
             finally:
                 browser.close()
     except Exception as error:
