@@ -126,26 +126,6 @@ def render_setup_signals_html(
 def setup_workspace_css() -> str:
     return """
 <style>
-/* Native label containment binds keyboard/screen-reader names to marimo inputs. */
-.phm-setup-accessible-field {
-  display: flex;
-  flex-direction: column;
-  gap: .35rem;
-  min-width: 0;
-  width: 100%;
-  cursor: text;
-}
-.phm-setup-accessible-field-label {
-  display: block;
-  color: var(--phm-text);
-  font-size: .875rem;
-  font-weight: 600;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-.phm-setup-accessible-field > * {
-  min-width: 0;
-}
 .phm-setup-step {
   background: var(--phm-surface);
   border: 1px solid var(--phm-border);
