@@ -1,8 +1,9 @@
 # Operations Web Read API v1 (initial slice)
 
 This document owns the new **read-only API transport contract**. The installed Operations
-product **still launches marimo**; this API server is a programmatic opt-in read boundary
-and is not yet the production user interface or a completed dashboard.
+product **still launches marimo**. An explicitly started, same-origin **Web monitor
+preview** now uses this API to read actual saved evidence; the preview does not yet replace
+the production UI, supervise collection/analysis, or offer mutations.
 
 ## Endpoint and lifecycle
 
@@ -11,8 +12,10 @@ and is not yet the production user interface or a completed dashboard.
   and `server_close()`.
 - The listener **always binds 127.0.0.1**. Read routes are `GET /api/v1/monitor`,
   `GET /api/v1/history/channels`, and `GET /api/v1/history/trend`.
-  POST/PUT/DELETE/OPTIONS are rejected (405). There is no static UI, mutation command,
-  node-server dependency, repository file proxy, or remote exposure.
+  **Only** `/web/`, `/web/app.js`, and `/web/styles.css` serve packaged static
+  assets from the installed Python wheel. No arbitrary file path may be requested.
+  POST/PUT/DELETE/OPTIONS are rejected (405). There is no mutation command, Node runtime
+  or dev server, repository file proxy, or remote exposure.
 - Host must be `127.0.0.1:<bound-port>` or `localhost:<bound-port>`. Optional
   `Origin` must be the same allowed HTTP origin, and `Sec-Fetch-Site: cross-site`
   is rejected. No wildcard CORS headers are emitted. This is the **initial GET-only**
@@ -24,6 +27,49 @@ and is not yet the production user interface or a completed dashboard.
 - Caller must pass one existing workspace directory. Read composition uses only
   `INDUSTRIAL_PHM_OPERATIONS_WORKSPACE` and does not honor granular repository
   environment overrides. The API does not supervise collection/analysis.
+
+## Explicit opt-in Web monitor preview
+
+For an initialized, existing Operations workspace, start the **read-only preview
+as a separate foreground process**, for example:
+
+```bash
+uv run --locked --extra history python -m industrial_phm.runtime.operations_web_preview \
+  artifacts/operations --port 8765
+```
+
+Open `http://127.0.0.1:8765/web/`. Press Ctrl+C to stop. The same process
+serves both static frontend assets and API data, so **no CORS, Node, bundled npm
+dependencies, or separate browser auth exception** is required. A nonstandard
+port may be selected with `--port` (`0` selects an ephemeral local port);
+a nonexistent workspace is rejected. It does not run or stop collection,
+analysis, or the existing supervised marimo child. Existing `make up` and
+`industrial-phm operations up` retain their current behavior.
+
+The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
+shipped with the **Python wheel**, and use the same-origin, explicit
+`GET /api/v1/monitor`, `GET /api/v1/history/channels`, and
+`GET /api/v1/history/trend` endpoints. Browser requests are **manual
+refresh/selection**, never a live subscription. The HTML uses native form
+labels, semantic controls, keyboard focus and responsive layout. Dynamic
+IDs, evidence and source fields are assigned via `textContent`, never
+`innerHTML`; browser content security policy only allows self-hosted
+scripts/styles/connections, denies framing and form actions.
+
+The first screen provides **per-asset observed data-flow context**, up to
+six selected stored signals with bounded, **unconnected time-bucket dots**
+(no interpolated gaps), per-source last stored values and quality/conflict
+flags, persisted phase-unbalance numeric evidence and persisted review
+requests. All counts and timestamps come from current API responses.
+There are **no fallback demo numbers, prognostic predictions, fault
+alarms or local browser-only review mutations**. When the history store
+is not initialized, the Web preview displays a distinct read failure
+rather than inventing zero-valued measurements.
+
+This is **not** a completed production web cutover: first-run/source setup,
+write-side CSRF/origin hardening, URL/deep-linked evidence screens,
+locale switching, accessibility audit, independent supervision, and
+full operational lifecycle/browser acceptance remain in [Issue #449](https://github.com/so9093-K/industrial-phm-framework/issues/449).
 
 ## GET /api/v1/monitor response
 
