@@ -21,6 +21,7 @@ let monitor = null;
 let selectedAsset = "";
 let selectedChannels = [];
 let generation = 0;
+let trendSequence = 0;
 function setNotice(message, error = false) {
   const notice = byId("notice");
   notice.textContent = message;
@@ -234,16 +235,17 @@ function showTrend(data) {
 }
 async function loadTrend(token = generation) {
   if (!selectedAsset || !selectedChannels.length) return;
+  const request = ++trendSequence;
   trendState("실제 측정 이력을 읽는 중입니다.");
   clear(byId("trend-results"));clear(byId("last-values"));
   const params = new URLSearchParams({asset_id:selectedAsset,range:byId("range-select").value,buckets:"60"});
   selectedChannels.forEach((channel) => params.append("channel_id",channel));
   try {
     const data = await getJSON("/api/v1/history/trend?" + params.toString());
-    if (token !== generation) return;
+    if (token !== generation || request !== trendSequence) return;
     showTrend(data);
   } catch (error) {
-    if (token !== generation) return;
+    if (token !== generation || request !== trendSequence) return;
     trendState(presentError(error),true);
   }
 }
@@ -260,6 +262,12 @@ async function selectAsset() {
 }
 async function refresh() {
   const token = ++generation;
+  trendSequence += 1;
+  selectedChannels = [];
+  byId("show-trend").disabled = true;
+  clear(byId("trend-results"));
+  clear(byId("last-values"));
+  trendState("현재 설비의 측정 이력을 다시 확인합니다.");
   byId("refresh").disabled = true;
   setNotice("저장된 관측 현황을 불러오는 중입니다.");
   try {
@@ -315,6 +323,7 @@ async function refresh() {
 byId("refresh").addEventListener("click",refresh);
 byId("asset-select").addEventListener("change",selectAsset);
 byId("show-trend").addEventListener("click",() => loadTrend());
+byId("range-select").addEventListener("change",() => loadTrend());
 window.addEventListener("hashchange",setActiveSection);
 setActiveSection();
 refresh();
