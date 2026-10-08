@@ -320,9 +320,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize("width", [1024, 1440])
-def test_web_file_backfill_browser_shows_actual_stored_history(
-    tmp_path: Path, width: int
-) -> None:
+def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, width: int) -> None:
     sync_api = pytest.importorskip("playwright.sync_api")
     pytest.importorskip("duckdb")
     pytest.importorskip("filelock")
@@ -346,9 +344,7 @@ def test_web_file_backfill_browser_shows_actual_stored_history(
             page = browser.new_page(viewport={"width": width, "height": 900})
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(
-                f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle"
-            )
+            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
             page.locator('input[name="source_id"]').fill("web-history-01")
             page.locator('input[name="name"]').fill("FILE history")
             page.locator('input[name="asset_id"]').fill("pump-01")
@@ -368,9 +364,7 @@ def test_web_file_backfill_browser_shows_actual_stored_history(
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(
                 "DuckLake 이력 적재 완료"
             )
-            sync_api.expect(page.locator("#source-control-result")).to_contain_text(
-                "6개 이벤트"
-            )
+            sync_api.expect(page.locator("#source-control-result")).to_contain_text("6개 이벤트")
             sync_api.expect(page.locator("#last-values")).to_contain_text("220.7")
             assert workspace.history_catalog_path.exists()
             listing.get_by_role("button", name="FILE 이력 적재").click()

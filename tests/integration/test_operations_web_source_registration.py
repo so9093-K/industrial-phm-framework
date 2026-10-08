@@ -424,9 +424,7 @@ def test_web_file_backfill_commits_real_history_and_recovers_same_batch(tmp_path
         assert action("file/backfill", identity, token=None)[0] == 403
         assert action("file/backfill", {"source_id": "unknown"})[0] == 404
         assert action("file/backfill", {"source_id": "registered-file-01", "extra": "x"})[0] == 400
-        assert (
-            action("lifecycle", {**identity, "target_state": "active"})[0] == 200
-        )
+        assert action("lifecycle", {**identity, "target_state": "active"})[0] == 200
         assert action("file/backfill", identity)[0] == 409  # receipt missing
         assert action("file/receive", identity)[0] == 200
         assert not workspace.history_catalog_path.exists()
@@ -490,9 +488,12 @@ def test_web_file_backfill_rejects_missing_explicit_timestamps(tmp_path: Path) -
         "lifecycle",
         {"source_id": "registered-file-01", "target_state": "active"},
     )
-    assert receive_workspace_file_source(
-        workspace.root.resolve(), {"source_id": "registered-file-01"}
-    )["accepted_new_receipt"] is True
+    assert (
+        receive_workspace_file_source(
+            workspace.root.resolve(), {"source_id": "registered-file-01"}
+        )["accepted_new_receipt"]
+        is True
+    )
     with pytest.raises(SourceControlConflict):
         backfill_workspace_file_history(
             workspace.root.resolve(), {"source_id": "registered-file-01"}
