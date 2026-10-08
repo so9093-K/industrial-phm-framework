@@ -543,16 +543,16 @@ _PRODUCT_COPY: Final = {
         "error.safety": "Known state",
         "error.next_action": "Next action",
         "error.technical_detail": "Technical detail",
-        "first_run.sample.failure.what": "The sample environment could not be started.",
+        "first_run.sample.failure.what": "A sample launch error was reported.",
         "first_run.sample.failure.safety": (
             "A failed launch does not confirm whether the sample process stopped. "
             "Sample readings must not be treated as operational evidence."
         ),
         "first_run.sample.failure.next": (
-            "Try the sample again, or choose Connect real data. If it repeats, open the "
-            "technical detail and check the sample runtime."
+            "Check whether the sample process is still running and stop it if necessary. Then "
+            "retry the sample or choose Connect real data; inspect technical detail if it repeats."
         ),
-        "setup.failure.what": "The requested data-connection change was not completed.",
+        "setup.failure.what": "A data-connection action reported an error.",
         "setup.failure.safety": (
             "The saved source or collector state may require checking before retrying."
         ),
@@ -568,7 +568,9 @@ _PRODUCT_COPY: Final = {
             "the diagnostic again."
         ),
         "setup.mapping.failure.what": "The explicit OPC UA mapping could not be read.",
-        "setup.mapping.failure.safety": "Invalid mapping input does not confirm any source configuration change.",
+        "setup.mapping.failure.safety": (
+            "Invalid mapping input does not confirm any source configuration change."
+        ),
         "setup.mapping.failure.next": (
             "Use one signal_id,node_id pair per line, correct the invalid line, then retry."
         ),
@@ -580,7 +582,7 @@ _PRODUCT_COPY: Final = {
             "Refresh the view. If it persists, inspect System and Data connection for source "
             "or history-read errors."
         ),
-        "asset.analysis.failure.what": "The FILE snapshot analysis did not complete.",
+        "asset.analysis.failure.what": "The FILE snapshot analysis action reported an error.",
         "asset.analysis.failure.safety": (
             "A reported analysis failure does not establish whether prior results were saved or "
             "reviewed."
@@ -588,14 +590,17 @@ _PRODUCT_COPY: Final = {
         "asset.analysis.failure.next": (
             "Check the selected FILE source and technical detail, then retry the analysis."
         ),
-        "investigation.review.failure.what": "The review request was not recorded.",
-        "investigation.review.failure.safety": "An error message does not establish the saved review state or asset health.",
+        "investigation.review.failure.what": "The review request reported an error.",
+        "investigation.review.failure.safety": (
+            "An error message does not establish the saved review state or asset health."
+        ),
         "investigation.review.failure.next": (
             "Reload the selected evidence, confirm its review state, then request review again."
         ),
-        "maintenance.failure.what": "The review action was not recorded.",
+        "maintenance.failure.what": "The review action reported an error.",
         "maintenance.failure.safety": (
-            "The persisted review state may differ from the displayed error; verify it before retrying."
+            "The persisted review state may differ from the displayed error; "
+            "verify it before retrying."
         ),
         "maintenance.failure.next": (
             "Reload the review item, confirm its current state, then retry the appropriate action."
@@ -1070,15 +1075,15 @@ _PRODUCT_COPY: Final = {
         "error.safety": "확인된 상태",
         "error.next_action": "다음 행동",
         "error.technical_detail": "기술 상세",
-        "first_run.sample.failure.what": "샘플 환경을 시작하지 못했습니다.",
+        "first_run.sample.failure.what": "샘플 시작 과정에서 오류가 보고됐습니다.",
         "first_run.sample.failure.safety": (
             "샘플 시작 실패만으로 자식 프로세스 종료 여부는 확인되지 않습니다. 샘플 관측값은 운영 근거가 아닙니다."
         ),
         "first_run.sample.failure.next": (
-            "샘플을 다시 시도하거나 실제 데이터 연결을 선택하세요. 반복되면 기술 상세를 열어 "
-            "샘플 runtime 상태를 확인하세요."
+            "샘플 프로세스가 실행 중인지 확인하고 필요하면 먼저 종료하세요. 그런 다음 샘플을 "
+            "재시도하거나 실제 데이터 연결을 선택하세요. 반복되면 기술 상세를 확인하세요."
         ),
-        "setup.failure.what": "요청한 데이터 연결 변경을 완료하지 못했습니다.",
+        "setup.failure.what": "데이터 연결 작업에서 오류가 보고됐습니다.",
         "setup.failure.safety": (
             "재시도 전에 저장된 source와 수집 요청 상태를 확인해야 합니다."
         ),
@@ -1105,19 +1110,19 @@ _PRODUCT_COPY: Final = {
             "화면을 새로고침하세요. 계속되면 시스템과 데이터 연결에서 source 또는 history 읽기 "
             "오류를 확인하세요."
         ),
-        "asset.analysis.failure.what": "FILE snapshot 분석을 완료하지 못했습니다.",
+        "asset.analysis.failure.what": "FILE snapshot 분석 작업에서 오류가 보고됐습니다.",
         "asset.analysis.failure.safety": (
             "분석 실패 메시지만으로 기존 결과의 저장 여부나 설비 상태를 판단할 수 없습니다."
         ),
         "asset.analysis.failure.next": (
             "선택한 FILE source와 기술 상세를 확인한 뒤 분석을 다시 실행하세요."
         ),
-        "investigation.review.failure.what": "검토 요청을 기록하지 못했습니다.",
+        "investigation.review.failure.what": "검토 요청 과정에서 오류가 보고됐습니다.",
         "investigation.review.failure.safety": "오류 메시지만으로 저장된 검토 상태나 설비 상태를 판단할 수 없습니다.",
         "investigation.review.failure.next": (
             "선택한 evidence를 다시 불러와 현재 검토 상태를 확인한 뒤 다시 요청하세요."
         ),
-        "maintenance.failure.what": "검토 작업을 기록하지 못했습니다.",
+        "maintenance.failure.what": "검토 작업에서 오류가 보고됐습니다.",
         "maintenance.failure.safety": (
             "표시된 오류와 저장된 검토 상태가 다를 수 있으니 재시도 전에 확인하세요."
         ),
