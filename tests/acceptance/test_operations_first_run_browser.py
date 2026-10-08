@@ -235,7 +235,7 @@ def _capture_setup_accessibility(page, *, locale: str, tmp_path: Path) -> None:
 
 
 def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> None:
-    """Find the text input by its visible, programmatically associated label."""
+    """Find the input by its localized Chromium accessible-name fallback."""
     # The Setup heading may appear before its reactive form controls finish mounting.
     field = page.get_by_role("textbox", name=label, exact=True)
     field.wait_for(state="visible", timeout=30_000)
@@ -468,6 +468,18 @@ def test_first_run_browser_sample_real_and_resume(
                 )
                 _screenshot(page, locale=locale, stage="configured-resume", tmp_path=tmp_path)
 
+                # A real Tab moves focus to the next page; this is separate from
+                # programmatic focus and Enter activation exercised below.
+                assets_button = page.locator(".mw-pages").get_by_role(
+                    "button", name=operations_page_label("assets", locale), exact=True
+                )
+                investigations_button = page.locator(".mw-pages").get_by_role(
+                    "button", name=operations_page_label("investigations", locale), exact=True
+                )
+                assets_button.focus()
+                page.keyboard.press("Tab")
+                expect(investigations_button).to_be_focused()
+
                 # With an already registered source, every Operations page is
                 # reachable through the same keyboard-accessible navigation.
                 for destination in (
@@ -484,7 +496,8 @@ def test_first_run_browser_sample_real_and_resume(
                     )
                     navigation_button.focus()
                     expect(navigation_button).to_be_focused()
-                    navigation_button.press("Enter")
+                    # Also protect Space activation on a native page button.
+                    navigation_button.press("Space" if destination == "maintenance" else "Enter")
                     expect(page.locator('.mw-pages button[aria-current="page"]')).to_have_text(
                         page_label, timeout=_BROWSER_TIMEOUT_MS
                     )
