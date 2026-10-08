@@ -91,48 +91,44 @@ def test_workspace_file_registration_protected_and_not_mistaken_for_receipt(
         source_body = json.dumps(_payload()).encode("utf-8")
         route = "/api/v1/sources/file"
 
-        assert _request(port, "POST", route, body=source_body)[0] == 403
-        assert _request(
-            port, "POST", route, body=source_body, origin=origin, fetch_site="same-origin"
-        )[0] == 403
-        assert _request(
-            port, "POST", route, body=source_body, origin="https://evil.example",
-            fetch_site="same-origin", csrf=csrf
-        )[0] == 403
-        assert _request(
-            port, "POST", route, body=source_body, origin=origin,
-            fetch_site="cross-site", csrf=csrf
-        )[0] == 403
-        assert _request(
-            port, "POST", route, body=source_body, origin=origin,
-            fetch_site="same-origin", csrf="fake"
-        )[0] == 403
-        assert _request(
-            port, "POST", route, body=b"x" * 5000, origin=origin,
-            fetch_site="same-origin", csrf=csrf
-        )[0] == 400
-        for path in ("../outside.csv", "/tmp/outside.csv", "inputs/../../outside.csv"):
-            bad = json.dumps(_payload(path)).encode("utf-8")
-            assert _request(
-                port, "POST", route, body=bad, origin=origin,
-                fetch_site="same-origin", csrf=csrf
-            )[0] == 400
+        def post(
+            *,
+            data: bytes = source_body,
+            from_origin: str | None = origin,
+            site: str | None = "same-origin",
+            token: str | None = csrf,
+        ) -> tuple[int, dict[str, object]]:
+            return _request(
+                port,
+                "POST",
+                route,
+                body=data,
+                origin=from_origin,
+                fetch_site=site,
+                csrf=token,
+            )
 
-        status, created = _request(
-            port, "POST", route, body=source_body, origin=origin,
-            fetch_site="same-origin", csrf=csrf,
-        )
+        assert post(from_origin=None, site=None, token=None)[0] == 403
+        assert post(token=None)[0] == 403
+        assert post(from_origin="https://evil.example")[0] == 403
+        assert post(site="cross-site")[0] == 403
+        assert post(token="fake")[0] == 403
+        assert post(data=b"x" * 5000)[0] == 400
+        for path in ("../outside.csv", "/tmp/outside.csv", "inputs/../../outside.csv"):
+            assert post(data=json.dumps(_payload(path)).encode("utf-8"))[0] == 400
+        outside = tmp_path / "outside.csv"
+        outside.write_text("timestamp,phase-R\\n", encoding="utf-8")
+        (folder / "linked.csv").symlink_to(outside)
+        assert post(data=json.dumps(_payload("inputs/linked.csv")).encode("utf-8"))[0] == 400
+
+        status, created = post()
         assert status == HTTPStatus.CREATED
         assert created["registration_state"] == "registered"
         assert created["receipt_confirmed"] is False
         assert "phases.csv" not in str(created)
-        assert JsonSourceRepository(workspace.source_registry_path).get(
-            "registered-file-01"
-        ).asset_id == "pump-01"
-        assert _request(
-            port, "POST", route, body=source_body, origin=origin,
-            fetch_site="same-origin", csrf=csrf,
-        )[0] == HTTPStatus.CONFLICT
+        stored = JsonSourceRepository(workspace.source_registry_path).get("registered-file-01")
+        assert stored.asset_id == "pump-01"
+        assert post()[0] == HTTPStatus.CONFLICT
         status, sources = _request(port, "GET", "/api/v1/sources")
         assert status == 200
         assert sources["sources"]["total"] == 1
