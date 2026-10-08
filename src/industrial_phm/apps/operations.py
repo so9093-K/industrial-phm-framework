@@ -50,8 +50,10 @@ def _():
         monitor_attention_category,
         monitor_context_attention,
         operational_analysis_presentation_kind,
+        operations_error_css,
         operations_theme_css,
         render_analysis_quality_markdown,
+        render_operations_recovery_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
         render_setup_sources_html,
@@ -193,6 +195,7 @@ def _():
         monitor_attention_category,
         monitor_context_attention,
         operational_analysis_presentation_kind,
+        operations_error_css,
         operations_messages,
         operations_page_label,
         operations_text,
@@ -226,6 +229,7 @@ def _():
         render_measurement_aggregation_svg,
         render_measurement_history_svg,
         render_phase_unbalance_svg,
+        render_operations_recovery_html,
         render_setup_signals_html,
         render_setup_source_detail_html,
         render_setup_sources_html,
@@ -1829,6 +1833,7 @@ def _(
     operations_locale,
     operations_text,
     render_asset_analysis_html,
+    render_operations_recovery_html,
 ):
     if asset_workspace is None:
         asset_analysis_view = mo.md(operations_text("asset.no_selection", operations_locale))
@@ -1836,10 +1841,12 @@ def _(
         _blocks = [mo.Html(render_asset_analysis_html(asset_workspace, operations_locale))]
         if asset_analysis_action_error:
             _blocks.append(
-                mo.callout(
-                    asset_analysis_action_error,
-                    kind="danger",
-                    title=operations_text("asset.file_analysis_failed", operations_locale),
+                mo.Html(
+                    render_operations_recovery_html(
+                        "asset.analysis",
+                        technical_detail=asset_analysis_action_error,
+                        locale=operations_locale,
+                    )
                 )
             )
         if asset_analysis_action_success:
@@ -2790,6 +2797,7 @@ def _(
     selected_investigation,
     selected_investigation_group,
     selected_investigation_result,
+    render_operations_recovery_html,
 ):
     _filters = mo.hstack(
         [
@@ -2952,13 +2960,12 @@ def _(
         _review_blocks = []
         if review_request_error:
             _review_blocks.append(
-                mo.callout(
-                    review_request_error,
-                    kind="danger",
-                    title=operations_text(
-                        "investigation.review_request_failed",
-                        operations_locale,
-                    ),
+                mo.Html(
+                    render_operations_recovery_html(
+                        "investigation.review",
+                        technical_detail=review_request_error,
+                        locale=operations_locale,
+                    )
                 )
             )
         if review_request_success:
@@ -3388,6 +3395,7 @@ def _(
     render_maintenance_summary_html,
     render_maintenance_timeline_html,
     selected_maintenance,
+    render_operations_recovery_html,
 ):
     _counts = mo.md(
         "### "
@@ -3443,10 +3451,12 @@ def _(
         _action_blocks = []
         if maintenance_error:
             _action_blocks.append(
-                mo.callout(
-                    maintenance_error,
-                    kind="danger",
-                    title=operations_text("maintenance.action_failed", operations_locale),
+                mo.Html(
+                    render_operations_recovery_html(
+                        "maintenance",
+                        technical_detail=maintenance_error,
+                        locale=operations_locale,
+                    )
                 )
             )
         if maintenance_success:
@@ -3674,6 +3684,7 @@ def _(
     setup_diagnostic_error,
     setup_diagnostic_success,
     setup_workspace,
+    render_operations_recovery_html,
 ):
     def _setup_step(title_key, help_key):
         title = operations_text(title_key, operations_locale)
@@ -3688,10 +3699,10 @@ def _(
     _message_blocks = []
     if setup_error:
         _message_blocks.append(
-            mo.callout(
-                setup_error,
-                kind="danger",
-                title=operations_text("setup.action_failed", operations_locale),
+            mo.Html(
+                render_operations_recovery_html(
+                    "setup", technical_detail=setup_error, locale=operations_locale
+                )
             )
         )
     if setup_success:
@@ -3762,13 +3773,12 @@ def _(
                             [
                                 *(
                                     [
-                                        mo.callout(
-                                            setup_diagnostic_error,
-                                            kind="danger",
-                                            title=operations_text(
-                                                "setup.diagnostic_failed",
-                                                operations_locale,
-                                            ),
+                                        mo.Html(
+                                            render_operations_recovery_html(
+                                                "setup.diagnostic",
+                                                technical_detail=setup_diagnostic_error,
+                                                locale=operations_locale,
+                                            )
                                         )
                                     ]
                                     if setup_diagnostic_error
@@ -3840,6 +3850,7 @@ def _(
         _source_wizard = mo.vstack(
             [
                 mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
+                *(_message_blocks if setup_selected_source is None else []),
                 _setup_step("setup.step.source", "setup.file.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
@@ -3876,10 +3887,12 @@ def _(
             _browse_status = mo.md(operations_text("setup.browse_help", operations_locale))
 
         if opcua_mapping_error:
-            _mapping_view = mo.callout(
-                opcua_mapping_error,
-                kind="danger",
-                title=operations_text("setup.mapping_invalid", operations_locale),
+            _mapping_view = mo.Html(
+                render_operations_recovery_html(
+                    "setup.mapping",
+                    technical_detail=opcua_mapping_error,
+                    locale=operations_locale,
+                )
             )
         elif opcua_candidate_mappings:
             _mapping_view = mo.ui.table(
@@ -3951,6 +3964,7 @@ def _(
         _source_wizard = mo.vstack(
             [
                 mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
+                *(_message_blocks if setup_selected_source is None else []),
                 _setup_step("setup.step.connect", "setup.opcua.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
@@ -4090,7 +4104,7 @@ def _(
                 + "\n\n"
                 + operations_text("setup.intro", operations_locale)
             ),
-            *_message_blocks,
+            *(_message_blocks if setup_selected_source is not None else []),
             _guided_setup,
         ],
         gap=1.0,
@@ -4109,6 +4123,7 @@ def _(
     mo,
     operations_locale,
     operations_text,
+    render_operations_recovery_html,
 ):
     if first_run_mode == "sample" and first_run_sample is not None:
         first_run_view = mo.vstack(
@@ -4143,10 +4158,12 @@ def _(
         ]
         if first_run_error:
             _blocks.append(
-                mo.callout(
-                    first_run_error,
-                    kind="danger",
-                    title=operations_text("first_run.sample.error", operations_locale),
+                mo.Html(
+                    render_operations_recovery_html(
+                        "first_run.sample",
+                        technical_detail=first_run_error,
+                        locale=operations_locale,
+                    )
                 )
             )
         _blocks.extend(
@@ -4450,6 +4467,8 @@ def _(
     signal_view,
     system_view,
     system_workspace_css,
+    render_operations_recovery_html,
+    operations_error_css,
 ):
     theme = mo.Html(
         operations_theme_css(operations_locale)
@@ -4457,6 +4476,7 @@ def _(
         + investigation_workspace_css()
         + system_workspace_css()
         + setup_workspace_css()
+        + operations_error_css()
     )
 
     if asset_selector is None:
@@ -4470,10 +4490,12 @@ def _(
         asset_view = mo.vstack(
             [
                 asset_selector,
-                mo.callout(
-                    asset_workspace_error,
-                    kind="danger",
-                    title=operations_text("asset.workspace_unavailable", operations_locale),
+                mo.Html(
+                    render_operations_recovery_html(
+                        "asset.workspace",
+                        technical_detail=asset_workspace_error,
+                        locale=operations_locale,
+                    )
                 ),
             ],
             gap=1.0,
