@@ -237,9 +237,7 @@ def create_operations_web_read_server(
             if (
                 self.headers.get("Origin") != f"http://{host}"
                 or self.headers.get("Sec-Fetch-Site") != "same-origin"
-                or not secrets.compare_digest(
-                    self.headers.get("X-CSRF-Token", ""), csrf_token
-                )
+                or not secrets.compare_digest(self.headers.get("X-CSRF-Token", ""), csrf_token)
             ):
                 self._error(HTTPStatus.FORBIDDEN, "write_not_authorized")
                 return
@@ -251,24 +249,19 @@ def create_operations_web_read_server(
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
                 return
             length = int(lengths[0])
-            if (
-                not 1 <= length <= 4096
-                or self.headers.get("Content-Type") != "application/json"
-            ):
+            if not 1 <= length <= 4096 or self.headers.get("Content-Type") != "application/json":
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
                 return
             try:
                 body = json.loads(self.rfile.read(length))
-                if not isinstance(body, dict) or any(
-                    not isinstance(key, str) for key in body
-                ):
+                if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
                 with mutation_lock:
                     result = register_workspace_csv_source(root, body)
             except SourceAlreadyRegisteredError:
                 self._error(HTTPStatus.CONFLICT, "source_id_exists")
                 return
-            except (OSError, ValueError, TypeError, UnicodeError):
+            except OSError, ValueError, TypeError, UnicodeError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_source_registration")
                 return
             self._send_json(HTTPStatus.CREATED, result)
