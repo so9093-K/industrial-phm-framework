@@ -351,7 +351,7 @@ async function loadSources() {
     } else {
       state.textContent = "등록된 소스 " + data.sources.total + "개 · accepted receipt 확인 " + received + "개 (표시 범위 기준)";
       byId("onboarding-state").textContent = received
-        ? "등록된 소스 " + data.sources.total + "개 · 수신 확인 " + received + "개 — 신호 이력에서 실측값을 확인하세요."
+        ? "등록된 소스 " + data.sources.total + "개 · 수신 근거 " + received + "개 — 저장된 시계열은 별도로 확인해야 합니다."
         : "등록 " + data.sources.total + "개 · 수신 확인 0개 — 등록은 연결 성공이나 실제 관측이 아닙니다.";
     }
     byId("onboarding-state").className = "";
@@ -361,7 +361,9 @@ async function loadSources() {
       card.append(create("span", null, "설비: " + item.asset_id + " · 유형: " + item.source_type));
       card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + " (접속 상태 아님)"));
       const receipt = create("span", item.receipt_confirmed ? "receipt-confirmed" : "receipt-missing",
-        item.receipt_confirmed ? "실제 수신 근거 있음" : "수신 근거 미확인");
+        item.receipt_confirmed
+          ? (item.source_type === "file" ? "FILE 검증 수신 근거 있음 · 이력 적재는 별도" : "실제 수신 근거 있음")
+          : "수신 근거 미확인");
       card.append(receipt);
       card.append(create("span", null, "마지막 수신 · UTC: " + utc(item.last_accepted_received_at)));
       card.append(create("span", null, "원본 관측 · UTC: " + utc(item.last_accepted_observed_at)));
@@ -378,6 +380,12 @@ async function loadSources() {
         lifecycle.type = "button";
         lifecycle.addEventListener("click", () => controlSource(item.source_id, "lifecycle", next, lifecycle));
         actions.append(lifecycle);
+      }
+      if (item.source_type === "file" && item.lifecycle_state === "active") {
+        const receive = create("button", null, "FILE 수신 확인");
+        receive.type = "button";
+        receive.addEventListener("click", () => receiveFile(item.source_id, receive));
+        actions.append(receive);
       }
       if (item.continuous_collection_supported && item.lifecycle_state === "active") {
         const target = item.collection_desired_state === "running" ? "stopped" : "running";
@@ -446,6 +454,51 @@ async function controlSource(sourceId, action, target, button) {
     // A failed follow-up read cannot undo a successfully persisted control request.
     await Promise.allSettled([loadSources(), refresh()]);
   }
+}
+
+async function receiveFile(sourceId, button) {
+  const result = byId("source-control-result");
+  if (!window.confirm(sourceId + " · 준비된 FILE을 다시 검증하고 수신 근거를 기록합니다.\n이력 적재·연속 수집·분석은 실행하지 않습니다.")) return;
+  button.disabled = true;
+  result.className = "";
+  result.textContent = sourceId + " · FILE 검증 수신 요청 중";
+  let accepted = false;
+  try {
+    const session = await getJSON("/api/v1/session");
+    const response = await fetch("/api/v1/sources/file/receive", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify({source_id: sourceId}),
+    });
+    if (!response.ok) {
+      if (response.status === 409) throw new Error("control-conflict");
+      if (response.status === 404) throw new Error("source-missing");
+      if (response.status === 400) throw new Error("control-invalid");
+      throw new Error("http-" + response.status);
+    }
+    const outcome = await response.json();
+    if (outcome.schema_version !== 1 || outcome.source_id !== sourceId
+        || !["succeeded", "failed", "skipped"].includes(outcome.cycle_state)) {
+      throw new Error("schema-mismatch");
+    }
+    accepted = outcome.cycle_state === "succeeded" && outcome.accepted_new_receipt === true;
+    result.className = accepted ? "" : "error";
+    result.textContent = accepted
+      ? sourceId + " · FILE 검증 수신 근거 기록 완료 · 이력 적재는 별도"
+      : sourceId + " · FILE 검증 수신 실패 (" + fmt(outcome.failure_scope) + ") · 저장된 수신 근거를 다시 확인하세요.";
+  } catch (error) {
+    result.className = "error";
+    if (error.message === "control-conflict") {
+      result.textContent = "FILE 수신 불가 · ACTIVE 상태, 소스 유형 및 작업공간 내부 CSV 경로를 확인하세요.";
+    } else if (error.message === "source-missing") {
+      result.textContent = "등록되지 않은 소스입니다. 목록을 다시 조회하세요.";
+    } else {
+      result.textContent = presentError(error);
+    }
+  } finally {
+    button.disabled = false;
+  }
+  await Promise.allSettled([loadSources(), refresh()]);
 }
 
 async function registerFile(event) {
