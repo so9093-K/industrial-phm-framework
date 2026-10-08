@@ -3874,9 +3874,7 @@ def _(
                 mo.hstack(
                     [
                         _labeled_setup_field("common.asset", add_asset_id),
-                        _labeled_setup_field(
-                            "setup.measurement_point_optional", add_point_id
-                        ),
+                        _labeled_setup_field("setup.measurement_point_optional", add_point_id),
                     ],
                     widths="equal",
                 ),
@@ -4009,9 +4007,7 @@ def _(
                 mo.hstack(
                     [
                         _labeled_setup_field("common.asset", add_asset_id),
-                        _labeled_setup_field(
-                            "setup.measurement_point_optional", add_point_id
-                        ),
+                        _labeled_setup_field("setup.measurement_point_optional", add_point_id),
                     ],
                     widths="equal",
                 ),
