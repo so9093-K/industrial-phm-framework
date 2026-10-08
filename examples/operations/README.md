@@ -49,3 +49,27 @@ does not start a background analysis process.
 
 The workflow demonstrates registration, persisted analysis evidence, investigation and
 human-review persistence only. It is not a predictive-maintenance model validation demo.
+
+## Web UX wireframe (design review only)
+
+[Open the standalone Operations Web UX wireframe](web-ux-wireframe.html) in a local browser.
+No Python environment, network connection, dataset download, or server is required.
+The file includes its own CSS and JavaScript, so it can also be reviewed before the Web API
+and frontend runtime are built.
+
+This artifact is **not** the current Operations app and has no backend integration.
+It never reads source files, connects to OPC UA, starts collection, creates an analysis,
+saves a review, or produces a health/fault verdict. All example identities, timestamps,
+values, receipt states, and chart points are illustrative.
+
+The top-left navigation switches among **첫 실행 / 관측 현황 / 데이터 연결**.
+The **예시 상태** selector switches between **샘플 관측 기록 / 데이터 없음 / 마지막 관측
+지연 / 조회 실패 / 수신 확인됨**. Change the window width to compare 1024px and
+1440px; check the native input labels, visible keyboard focus, field-level validation,
+separated receive/quality/asset semantics, and non-connected chart gap.
+
+For an authoritative **current implementation** use the above marimo demo. Product
+behavior/UX requirements live in [the Product and UX Baseline](../../docs/product/overview.md),
+and the proposed Web UI architecture is [ADR-0024](../../docs/adr/0024-separate-operations-web-ui-from-marimo.md).
+The conceptual HTML file is retained only as a review example and should be replaced or
+retired when an accepted Web frontend prototype has equivalent coverage.
