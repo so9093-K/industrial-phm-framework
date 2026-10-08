@@ -38,3 +38,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0021: Remove pre-release Operations compatibility surfaces](0021-remove-pre-release-operations-compatibility-surfaces.md)
 - [ADR-0022: Retire pre-release persisted migration paths](0022-retire-pre-release-persisted-migration-paths.md)
 - [ADR-0023: Retain live evidence for a bounded period, except open-review evidence](0023-retain-live-evidence-for-a-bounded-period.md)
+- [ADR-0024: Separate the Operations web product from marimo](0024-separate-operations-web-ui-from-marimo.md)
