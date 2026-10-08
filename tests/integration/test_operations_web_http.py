@@ -110,13 +110,15 @@ def test_history_http_query_validation_and_uninitialized_storage(tmp_path: Path)
         assert _request(port, "GET", valid + "&asset_id=pump-02")[0] == 400
         assert _request(port, "GET", "/api/v1/history/trend?asset_id=pump-01")[0] == 400
         assert (
-            _request(port, "GET", "/api/v1/history/trend?asset_id=pump-01&channel_id=R"
-                     "&buckets=9999")[0]
+            _request(
+                port, "GET", "/api/v1/history/trend?asset_id=pump-01&channel_id=R&buckets=9999"
+            )[0]
             == 400
         )
         assert (
-            _request(port, "GET", "/api/v1/history/trend?asset_id=pump-01&channel_id=R"
-                     "&channel_id=R")[0]
+            _request(
+                port, "GET", "/api/v1/history/trend?asset_id=pump-01&channel_id=R&channel_id=R"
+            )[0]
             == 400
         )
         assert _request(port, "POST", valid)[0] == 405
@@ -166,9 +168,7 @@ def test_history_http_exposes_actual_bounded_file_observations(tmp_path: Path) -
     thread.start()
     try:
         port = server.server_port
-        status, _, channels = _request(
-            port, "GET", "/api/v1/history/channels?asset_id=pump-01"
-        )
+        status, _, channels = _request(port, "GET", "/api/v1/history/channels?asset_id=pump-01")
         assert status == 200
         assert channels["channels"]["items"] == ["voltage-R", "voltage-S"]
         status, _, trend = _request(
@@ -181,9 +181,7 @@ def test_history_http_exposes_actual_bounded_file_observations(tmp_path: Path) -
         assert trend["snapshot_id"] >= 1
         assert trend["asset_id"] == "pump-01"
         assert trend["channel_ids"] == ["voltage-R", "voltage-S"]
-        assert {p["channel_id"] for p in trend["latest_stored"]} == {
-            "voltage-R", "voltage-S"
-        }
+        assert {p["channel_id"] for p in trend["latest_stored"]} == {"voltage-R", "voltage-S"}
         assert {row["source_type"] for row in trend["latest_stored"]} == {"file"}
         assert all(row["source_quality"] == "unknown" for row in trend["latest_stored"])
         assert all(row["usable_for_display"] for row in trend["latest_stored"])
