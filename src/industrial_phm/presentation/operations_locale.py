@@ -1077,7 +1077,8 @@ _PRODUCT_COPY: Final = {
         "error.technical_detail": "기술 상세",
         "first_run.sample.failure.what": "샘플 시작 과정에서 오류가 보고됐습니다.",
         "first_run.sample.failure.safety": (
-            "샘플 시작 실패만으로 자식 프로세스 종료 여부는 확인되지 않습니다. 샘플 관측값은 운영 근거가 아닙니다."
+            "샘플 시작 실패만으로 자식 프로세스 종료 여부는 확인되지 않습니다. "
+            "샘플 관측값은 운영 근거가 아닙니다."
         ),
         "first_run.sample.failure.next": (
             "샘플 프로세스가 실행 중인지 확인하고 필요하면 먼저 종료하세요. 그런 다음 샘플을 "
@@ -1088,7 +1089,8 @@ _PRODUCT_COPY: Final = {
             "재시도 전에 저장된 source와 수집 요청 상태를 확인해야 합니다."
         ),
         "setup.failure.next": (
-            "중복 등록을 피하도록 저장된 source와 입력값을 확인하고 필요한 경우에만 다시 시도하세요."
+            "중복 등록을 피하도록 저장된 source와 입력값을 확인하고 "
+            "필요한 경우에만 다시 시도하세요."
         ),
         "setup.diagnostic.failure.what": "제한된 진단을 정상적으로 완료하지 못했습니다.",
         "setup.diagnostic.failure.safety": (
@@ -1098,7 +1100,9 @@ _PRODUCT_COPY: Final = {
             "Source endpoint 또는 FILE 설정과 runtime 연결 상태를 확인한 뒤 진단을 다시 실행하세요."
         ),
         "setup.mapping.failure.what": "명시적인 OPC UA mapping을 읽지 못했습니다.",
-        "setup.mapping.failure.safety": "잘못된 mapping 입력만으로 source 설정 변경 여부를 판단하지 마세요.",
+        "setup.mapping.failure.safety": (
+            "잘못된 mapping 입력만으로 source 설정 변경 여부를 판단하지 마세요."
+        ),
         "setup.mapping.failure.next": (
             "각 줄을 signal_id,node_id 한 쌍으로 작성하고 잘못된 줄을 수정한 뒤 다시 시도하세요."
         ),
@@ -1118,7 +1122,9 @@ _PRODUCT_COPY: Final = {
             "선택한 FILE source와 기술 상세를 확인한 뒤 분석을 다시 실행하세요."
         ),
         "investigation.review.failure.what": "검토 요청 과정에서 오류가 보고됐습니다.",
-        "investigation.review.failure.safety": "오류 메시지만으로 저장된 검토 상태나 설비 상태를 판단할 수 없습니다.",
+        "investigation.review.failure.safety": (
+            "오류 메시지만으로 저장된 검토 상태나 설비 상태를 판단할 수 없습니다."
+        ),
         "investigation.review.failure.next": (
             "선택한 evidence를 다시 불러와 현재 검토 상태를 확인한 뒤 다시 요청하세요."
         ),
