@@ -167,7 +167,7 @@ def _capture_setup_accessibility(page, *, locale: str, tmp_path: Path) -> None:
         label = operations_text(key, locale)
         visible_label = page.get_by_text(label, exact=True).last
         visible_label.wait_for(state="visible", timeout=30_000)
-        field = visible_label.locator("xpath=following::input[1]")
+        field = visible_label.locator("xpath=ancestor::label[1]//input")
         fields[key] = {
             "visible_label": visible_label.evaluate("(node) => node.outerHTML.slice(0, 750)"),
             "control": field.evaluate(
@@ -317,8 +317,8 @@ def test_first_run_browser_sample_real_and_resume(
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
                 _check_browser_layout(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
-                _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
+                _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
 
                 # Exercise a real validation error before the successful retry.
                 page.get_by_role(
