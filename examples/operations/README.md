@@ -62,11 +62,27 @@ It never reads source files, connects to OPC UA, starts collection, creates an a
 saves a review, or produces a health/fault verdict. All example identities, timestamps,
 values, receipt states, and chart points are illustrative.
 
-The top-left navigation switches among **첫 실행 / 관측 현황 / 데이터 연결**.
-The **예시 상태** selector switches between **샘플 관측 기록 / 데이터 없음 / 마지막 관측
-지연 / 조회 실패 / 수신 확인됨**. Change the window width to compare 1024px and
-1440px; check the native input labels, visible keyboard focus, field-level validation,
-separated receive/quality/asset semantics, and non-connected chart gap.
+The prototype opens on **설비 모니터링**, with **설비·신호 → 분석 근거 →
+정비 검토** as one connected, entirely fictional workflow. It also retains **데이터
+연결 / 첫 실행** for setup and onboarding review. The **예시 상태** selector switches
+between **샘플 관측 기록 / 데이터 없음 / 마지막 관측 지연 / 조회 실패 / 수신 확인됨**.
+Use the 1024px and 1440px widths to review reflow, keyboard focus, native form labels,
+error/empty messages and explicit observation gaps.
+
+Review the main journey with the sample state:
+1. Open **설비 모니터링**, inspect the R/S/T phase-voltage trend and observation time.
+2. Open **설비·신호**, select an individual phase and inspect its fake source/quality identity.
+3. Open **분석 근거**, inspect the illustrative unbalance median/p95, accepted/excluded
+   sample counts, exclusion reasons and separate SKIPPED analysis attempt.
+4. Select **검토 요청** to visit **정비 검토**, acknowledge and close the simulated review,
+   then navigate back to the exact analysis evidence. The review activity exists
+   **only in the browser's transient memory** and resets on reload.
+
+The numeric values, example IDs, analysis summary and human-review state are all fabricated
+UX data, *not* outputs of the real three-phase analysis implementation. The actual analysis
+contract is [three-phase unbalance](../../docs/architecture/phase-unbalance-capability.md).
+Neither the graph nor the review interaction diagnoses faults, raises operational alarms,
+predicts remaining useful life, or changes a maintenance record.
 
 For an authoritative **current implementation** use the above marimo demo. Product
 behavior/UX requirements live in [the Product and UX Baseline](../../docs/product/overview.md),

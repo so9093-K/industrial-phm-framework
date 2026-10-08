@@ -158,6 +158,41 @@
     .choice { min-height:215px }
   }
   @media(prefers-reduced-motion:reduce) { *,*:before,*:after { animation:none!important; scroll-behavior:auto!important; transition:none!important } }
+
+  /* Monitoring-first hypothesis: all figures are synthetic display examples. */
+  .monitor-headline { background:linear-gradient(117deg,#123d49,#174e52); color:#fff; border-radius:17px; padding:25px 28px; display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:18px }
+  .monitor-headline h2 {font-size:21px;line-height:1.35;margin-top:5px}
+  .monitor-headline p {font-size:13px;color:#d7e9eb;margin-top:8px;max-width:580px}
+  .monitor-headline .eyebrow {color:#addde0}
+  .monitor-headline .button {color:#163f44;border-color:transparent;white-space:nowrap}
+  .workspace-grid {display:grid;grid-template-columns:minmax(270px,.8fr) minmax(0,1.5fr);gap:17px;align-items:start}
+  .evidence-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:17px}
+  .evidence-card {background:#fff;border:1px solid var(--line);border-radius:13px;padding:19px;min-width:0}
+  .evidence-card h3 {font-size:15px;line-height:1.5;margin:0 0 7px}
+  .evidence-card p {font-size:12px;color:var(--muted)}
+  .evidence-metric {font-size:26px;line-height:1.3;letter-spacing:-.04em;font-weight:820;margin:12px 0 5px}
+  .statstrip {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin-bottom:17px}
+  .stat {padding:16px;background:#fff;border:1px solid var(--line);border-radius:11px;min-width:0}
+  .stat .name {font-size:11px;color:var(--muted);font-weight:700}
+  .stat .val {font-size:18px;font-weight:820;margin-top:10px;overflow-wrap:anywhere}
+  .stat .explain {font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
+  .asset-row {border:1px solid var(--line);background:#fff;padding:14px;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;width:100%;margin-top:9px}
+  .asset-row:hover {border-color:var(--brand)}
+  .asset-row b {display:block;font-size:13px;margin-bottom:4px}
+  .asset-row small {font-size:11px;color:var(--muted);line-height:1.5}
+  .metric-table {width:100%;border-collapse:collapse;font-size:12px}
+  .metric-table th,.metric-table td {padding:11px 9px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  .metric-table th {font-size:11px;color:var(--muted);font-weight:750;background:#f8fafc}
+  .journey-actions {display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}
+  .trace {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:16px 0 20px}
+  .trace span {font-size:11px;border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px;line-height:1.55}
+  .trace strong {display:block;color:var(--brand);margin-bottom:4px}
+  .history-log {margin:10px 0 0;padding-left:21px;color:var(--muted);font-size:12px;line-height:1.8}
+  .visually-discernible {font-size:12px;color:var(--muted);line-height:1.6}
+  @media(max-width:1180px) {.statstrip {grid-template-columns:repeat(2,minmax(0,1fr))} .workspace-grid {grid-template-columns:minmax(210px,.8fr) minmax(0,1.5fr)}}
+  @media(max-width:950px) {.workspace-grid,.evidence-grid {grid-template-columns:1fr} .monitor-headline {align-items:flex-start;flex-direction:column} }
+  @media(max-width:800px) {.trace {grid-template-columns:repeat(2,minmax(0,1fr))} .monitor-headline {padding:20px} }
+  @media(max-width:420px) {.statstrip {grid-template-columns:1fr} .trace {grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -167,21 +202,18 @@
     <nav aria-label="시안 화면 선택">
       <div class="side-label">검토 화면</div>
       <div class="side-list">
-        <button type="button" class="side-link" data-route="welcome"><span>첫 실행</span><span class="number">01</span></button>
-        <button type="button" class="side-link" data-route="monitor"><span>관측 현황</span><span class="number">02</span></button>
-        <button type="button" class="side-link" data-route="connect"><span>데이터 연결</span><span class="number">03</span></button>
+        <button type="button" class="side-link" data-route="monitor"><span>설비 모니터링</span><span class="number">01</span></button>
+        <button type="button" class="side-link" data-route="assets"><span>설비·신호</span><span class="number">02</span></button>
+        <button type="button" class="side-link" data-route="investigations"><span>분석 근거</span><span class="number">03</span></button>
+        <button type="button" class="side-link" data-route="maintenance"><span>정비 검토</span><span class="number">04</span></button>
+        <button type="button" class="side-link" data-route="connect"><span>데이터 연결</span><span class="number">05</span></button>
+        <button type="button" class="side-link" data-route="welcome"><span>첫 실행</span><span class="number">06</span></button>
       </div>
     </nav>
-    <div class="nav-disabled"><div class="side-label">후속 화면</div><div class="side-list">
-      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">설비·신호 상세</button>
-      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">분석 기록</button>
-      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">정비 검토</button>
-      <button type="button" class="side-link" disabled title="이번 시안 범위 밖입니다">시스템 상태</button>
-    </div></div>
     <div class="side-note"><div class="sidebar-mini">검토용 시안 · 실제 시스템 아님</div>모든 측정값과 연결 상태는 가상 예시입니다. 파일을 열어도 수집·저장·분석은 실행되지 않습니다.</div>
   </aside>
   <div class="main">
-    <header class="toolbar"><div class="toolbar-heading">운영 화면 <span aria-hidden="true">/</span> <strong id="crumb">첫 실행</strong></div>
+    <header class="toolbar"><div class="toolbar-heading">운영 화면 <span aria-hidden="true">/</span> <strong id="crumb">설비 모니터링</strong></div>
       <div class="toolbar-tools"><span class="tag">가상 데이터 · UX 시안</span><label class="control-label" for="scenario">예시 상태</label>
         <select class="scenario-control" id="scenario" aria-label="화면에 표시할 예시 상태">
           <option value="sample">샘플 관측 기록</option>
@@ -199,15 +231,18 @@
 /* This is intentionally a standalone fake-data wireframe, not production code. */
 (() => {
   'use strict';
-  const routeTitles = { welcome: '첫 실행', monitor: '관측 현황', connect: '데이터 연결' };
+  const routeTitles = { monitor:'설비 모니터링', assets:'설비·신호', investigations:'분석 근거', maintenance:'정비 검토', connect:'데이터 연결', welcome:'첫 실행' };
   const states = new Set(['sample','empty','stale','error','confirmed']);
   const routes = new Set(Object.keys(routeTitles));
-  const initial = location.hash.match(/^#(welcome|monitor|connect)(?:\?state=(sample|empty|stale|error|confirmed))?$/);
-  let route = initial ? initial[1] : 'welcome';
+  const initial = location.hash.match(/^#(monitor|assets|investigations|maintenance|connect|welcome)(?:\?state=(sample|empty|stale|error|confirmed))?$/);
+  let route = initial ? initial[1] : 'monitor';
   let scenario = initial?.[2] || 'sample';
   let sourceType = 'opcua';
   let step = 1;
   let showValidation = false;
+  let reviewState = 'not-requested';
+  let reviewHistory = [];
+  let selectedSignal = 'voltage-r';
   const main = document.getElementById('main-content');
   const selector = document.getElementById('scenario');
 
@@ -234,48 +269,61 @@
     ${footer()}</div>`;
   }
   function chart(isStale = false) {
-    const afterGap = isStale ? `<path d="M443 127 L473 145" fill="none" stroke="#147c7d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` : `<path d="M443 127 L473 145 L511 126 L544 139 L581 119 L617 135 L655 105 L691 127 L740 102" fill="none" stroke="#147c7d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
-    return `<div class="chart-area"><svg class="chart" viewBox="0 0 770 300" role="img" aria-label="가상 진동 신호 시계열. 중간에 측정 공백이 있으며 선으로 연결하지 않습니다">
-      <rect x="50" y="17" width="695" height="228" fill="#fbfdfe" rx="7"></rect>
-      <g stroke="#e3e9ef" stroke-width="1"><line x1="50" y1="42" x2="745" y2="42"/><line x1="50" y1="99" x2="745" y2="99"/><line x1="50" y1="156" x2="745" y2="156"/><line x1="50" y1="213" x2="745" y2="213"/></g>
-      <rect x="373" y="17" width="67" height="228" fill="#fff4df" opacity=".94"/>
-      <g fill="#7a8c9d" font-size="12"><text x="7" y="46">2.4</text><text x="7" y="103">1.8</text><text x="7" y="160">1.2</text><text x="7" y="217">0.6</text><text x="53" y="273">09:35</text><text x="194" y="273">09:50</text><text x="343" y="273">10:05</text><text x="486" y="273">10:20</text><text x="673" y="273">10:35 UTC</text></g>
-      <path d="M54 172 L93 159 L133 163 L171 143 L207 146 L243 135 L276 151 L313 127 L350 141 L372 130" fill="none" stroke="#147c7d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      ${afterGap}
-      <path d="M405 17 V245" stroke="#bd872c" stroke-dasharray="5 6" stroke-width="1.6"/>
-      <rect x="375" y="25" width="62" height="25" rx="6" fill="#fff0d0"/><text x="383" y="42" fill="#765417" font-size="11" font-weight="700">자료 공백</text>
-    </svg></div><div class="legend"><span><b></b>예시 원본 관측값</span><span class="missing"><b></b>측정 기록 없는 구간</span><span>시간과 값은 실제 설비 데이터가 아닙니다</span></div>`;
+    const full = !isStale;
+    const lines = [
+      {color:'#167b79',start:'M53 106 L91 100 L130 108 L170 96 L210 102 L251 98 L292 113 L333 105 L371 108',end:'M444 103 L481 106 L521 99 L559 110 L598 104 L637 113 L681 105 L739 108'},
+      {color:'#5276af',start:'M53 126 L91 120 L130 130 L170 122 L210 128 L251 122 L292 131 L333 124 L371 130',end:'M444 128 L481 121 L521 132 L559 126 L598 121 L637 125 L681 130 L739 123'},
+      {color:'#be8236',start:'M53 147 L91 140 L130 151 L170 142 L210 151 L251 145 L292 154 L333 140 L371 148',end:'M444 149 L481 156 L521 143 L559 150 L598 155 L637 144 L681 149 L739 153'}
+    ];
+    const traces=lines.map((line,i)=>`<path d="${line.start}" fill="none" stroke="${line.color}" stroke-width="2.7" stroke-linejoin="round"/><path d="${full?line.end:'M444 146 L481 151'}" fill="none" stroke="${line.color}" stroke-width="2.7" stroke-linejoin="round"/>`).join('');
+    return `<div class="chart-area"><svg class="chart" viewBox="0 0 770 275" role="img" aria-label="가상 R·S·T 상전압 관측 추세. 세 상의 단위는 V이고 중간 자료 공백을 선으로 연결하지 않습니다">
+      <rect x="47" y="16" width="700" height="218" rx="8" fill="#fbfdfe"/>
+      <g stroke="#e3e9ef" stroke-width="1"><line x1="47" y1="46" x2="747" y2="46"/><line x1="47" y1="96" x2="747" y2="96"/><line x1="47" y1="146" x2="747" y2="146"/><line x1="47" y1="196" x2="747" y2="196"/></g>
+      <rect x="373" y="16" width="67" height="218" fill="#fff3d9" opacity=".88"/>
+      <g fill="#6d8092" font-size="12"><text x="8" y="50">238</text><text x="8" y="100">232</text><text x="8" y="150">226</text><text x="8" y="200">220</text><text x="51" y="259">09:35</text><text x="210" y="259">09:50</text><text x="357" y="259">10:05</text><text x="523" y="259">10:20</text><text x="679" y="259">10:35 UTC</text></g>
+      ${traces}<text x="379" y="31" font-size="11" fill="#805917" font-weight="700">자료 공백</text>
+    </svg></div><div class="legend"><span><b style="background:#167b79"></b> R상 전압</span><span><b style="background:#5276af"></b> S상 전압</span><span><b style="background:#be8236"></b> T상 전압</span><span class="missing"><b></b>측정 공백</span><span>가상 측정값 · 단위 V · UTC</span></div>`;
   }
   function monitor() {
-    const info=stateInfo();
-    const refresh='<button class="button small" data-action="refresh" aria-label="예시 관측 다시 불러오기">↻ &nbsp;새로고침</button>';
-    let attention='';
-    if(scenario==='empty')attention=box('warn','아직 수신된 측정값이 없습니다','소스를 등록하거나 수집을 요청한 상태만으로 수신을 확인할 수 없습니다.','<div style="margin-top:10px"><button class="button small" data-route="connect">수신 상태 확인하기 →</button></div>');
-    if(scenario==='stale')attention=box('warn','마지막 관측 이후 새로운 값이 없습니다','마지막 관측은 10:19:23 UTC입니다. 지연 이유는 source/collection 증거에서 확인해야 합니다.','<div style="margin-top:10px"><button class="button small" data-route="connect">수신 상태 확인하기 →</button></div>');
-    if(scenario==='error')attention=box('danger','관측값을 불러오지 못했습니다','저장소 또는 조회 요청 오류 예시입니다. 기록이 0건이라고 판단할 수 없습니다.','<div style="margin-top:10px"><button class="button small" data-action="refresh">다시 불러오기</button> &nbsp; <button class="button small" disabled>시스템 상태 보기 (범위 밖)</button></div>');
-    return `<div class="content">${pageTitle('관측 현황','관측 현황','선택한 설비에서 어떤 신호가 언제 측정됐고, 최근 어떻게 변했는지 확인합니다.',refresh)}
-      ${attention ? `<div style="margin-bottom:18px">${attention}</div>`:''}
-      <div class="grid3" style="margin-bottom:16px">
-        <div class="summary-card"><div class="label">현재 보는 설비</div><div class="value">A라인 펌프 P-101</div><div class="note">asset_id: line-a-pump-101 · 가상 예시</div></div>
-        <div class="summary-card"><div class="label">데이터 수신 기록</div><div class="value"><span class="pill ${info.pill}" style="font-size:13px">${info.value}</span></div><div class="note">${info.tip}</div></div>
-        <div class="summary-card"><div class="label">마지막 측정 시각</div><div class="value">${info.at}</div><div class="note">조회 기준: 10:35:10 UTC · 가상 시각</div></div>
-      </div>
-      <div class="split">
-        <section class="panel" aria-labelledby="signal-title"><h2 class="panel-title" id="signal-title">설비·신호 선택</h2><p class="panel-description">현재 보고 싶은 설비와 측정 신호를 선택합니다.</p>
-        <div class="field" style="margin-top:18px"><label for="asset">설비</label><select id="asset"><option>A라인 펌프 P-101</option><option disabled>B라인 모터 M-202 (다음 시안)</option></select></div>
-        <div class="field" style="margin-top:18px"><label for="signal-search">신호 검색</label><input id="signal-search" placeholder="예: 진동, 온도" autocomplete="off" /></div>
-        <div id="signals"><div class="signal-row"><span><strong>진동 RMS</strong><div class="units">channel_id: vibration-rms</div></span><span class="pill good">선택됨</span></div>
-          <div class="signal-row"><span><strong>베어링 온도</strong><div class="units">channel_id: temperature</div></span><span class="pill">비교 대상</span></div>
-          <div class="signal-row"><span><strong>모터 전류</strong><div class="units">channel_id: current-a</div></span><span class="pill">비교 대상</span></div></div>
-        <p class="micro" style="margin-top:14px">단위가 다른 신호는 동일한 값 축에 합치지 않습니다. 비교 기능은 후속 UX 검증 대상입니다.</p>
-        </section>
-        <section class="panel" aria-labelledby="chart-title"><div class="space-between"><div><h2 class="panel-title" id="chart-title">진동 RMS 변화</h2><p class="panel-description">측정 지점: 펌프 베어링 · 단위: mm/s (예시)</p></div><span class="pill">원본 품질: Good ≠ 설비 정상</span></div>
-          <div class="space-between" style="margin-top:18px"><div class="tabs" role="group" aria-label="관측 시간 범위"><button type="button" aria-pressed="false" data-range="15m">15분</button><button type="button" aria-pressed="true" data-range="1h">1시간</button><button type="button" aria-pressed="false" data-range="24h">24시간</button><button type="button" aria-pressed="false" data-range="7d">7일</button></div><span class="micro" id="range-help">시각 표시: UTC</span></div>
-          ${scenario==='empty'?'<div class="soft-panel" style="min-height:270px;display:grid;place-items:center;text-align:center;margin-top:15px"><div><b>표시할 측정값이 없습니다</b><p class="small muted" style="margin-top:10px">연결/수신 상태를 확인하거나 다른 설비·기간을 선택해 보세요.</p></div></div>':scenario==='error'?'<div class="soft-panel" style="min-height:270px;display:grid;place-items:center;text-align:center;margin-top:15px"><div><b>관측 데이터를 확인할 수 없습니다</b><p class="small muted" style="margin-top:10px">이 화면의 정보가 없다는 뜻이 아닙니다. 다시 불러오세요.</p></div></div>':scenario==='stale'?`<div style="margin-top:13px">${box('warn','시계열의 마지막 값은 과거 관측입니다','최근 수신 전까지 그래프 선을 미래로 연장하지 않습니다.')}</div>${chart(true)}`:chart()}
-          <div class="divider"></div><div class="space-between"><div class="small muted">관련 분석 기록과 검토</div><button class="button small" type="button" disabled>분석 근거 보기 · 다음 시안</button></div>
-          <div class="record"><div class="record-title">예시: 현재 시간 범위에 연결된 분석 근거</div><div class="record-meta">AnalysisRun/근거가 있을 때만 표시합니다. 이 목업은 결과를 만들거나 설비 이상 판정을 하지 않습니다.</div></div>
-        </section>
-      </div>${footer()}</div>`;
+    const available=scenario==='sample'||scenario==='confirmed'||scenario==='stale';
+    const current=scenario==='sample'||scenario==='confirmed';
+    const stat=stateInfo();
+    const headline=`<section class="monitor-headline"><div><div class="eyebrow">OBSERVATION → ANALYSIS → HUMAN REVIEW</div><h2>설비 데이터에서 검토할 근거까지</h2><p>측정값의 변화, 분석 범위와 제외 이유, 사람이 남긴 검토 이력을 하나의 설비 맥락으로 이어서 확인합니다.</p></div><button class="button" type="button" data-route="investigations" ${!available?'disabled':''}>3상 분석 근거 살펴보기 →</button></section>`;
+    let notice='';
+    if(scenario==='empty') notice=box('warn','아직 수신된 관측값이 없습니다','소스 등록이나 수집 요청은 수신 증거가 아닙니다. 데이터 연결에서 accepted receipt를 확인하세요.','<div style="margin-top:9px"><button class="button small" data-route="connect">연결·수신 확인하기 →</button></div>');
+    if(scenario==='stale') notice=box('warn','최근 관측이 갱신되지 않았습니다','마지막 유효한 관측은 10:19:23 UTC의 과거 데이터입니다. 과거 분석 기록이 있더라도 현재 설비 상태를 뜻하지 않습니다.','<div style="margin-top:9px"><button class="button small" data-route="connect">수신 원인 확인하기 →</button></div>');
+    if(scenario==='error') notice=box('danger','관측 근거 조회에 실패했습니다','저장된 데이터가 0건이라는 뜻이 아닙니다. 이 화면에서는 측정값·분석 결과·검토 수를 판단하지 않습니다.','<div style="margin-top:9px"><button class="button small" data-action="refresh">다시 불러오기</button></div>');
+    const observation=available?`<div class="stat"><div class="name">마지막 관측 · UTC</div><div class="val">${stat.at}</div><div class="explain">수신 상태 ${current?'예시 확인':'이전 기록만 존재'} · 평가 10:35:10</div></div>`:`<div class="stat"><div class="name">마지막 관측</div><div class="val">${scenario==='error'?'조회 실패':'기록 없음'}</div><div class="explain">실제 수신 근거가 필요합니다</div></div>`;
+    const summary=`<div class="statstrip"><div class="stat"><div class="name">연결된 설비 · 예시</div><div class="val">2대</div><div class="explain">asset identity 기준, 정상/고장 수가 아님</div></div>${observation}<div class="stat"><div class="name">분석 기록 · 선택 설비</div><div class="val">${available?'1건':scenario==='error'?'확인 불가':'0건'}</div><div class="explain">3상 불평형 · 결과는 설비 판정이 아님</div></div><div class="stat"><div class="name">사람의 검토 기록</div><div class="val">${available&&reviewState!=='not-requested'?'예시 1건':scenario==='error'?'확인 불가':'기록 없음'}</div><div class="explain">가상 브라우저 메모리 · 저장 안 됨</div></div></div>`;
+    const assetList=`<section class="panel"><div class="space-between"><h2 class="panel-title">설비별 관측</h2><span class="pill">가상 작업공간</span></div><p class="panel-description">먼저 어떤 설비의 데이터를 확인해야 할지 선택합니다.</p><button class="asset-row" type="button" data-route="assets"><span><b>공기압축기 A-01</b><small>asset_id: example-compressor-01<br>R/S/T 상전압 · ${stat.value}</small></span><span aria-hidden="true">→</span></button><button class="asset-row" type="button" data-route="connect"><span><b>모터 B-02</b><small>asset_id: example-motor-02<br>마지막 receipt 없음 · 연결 정보 확인</small></span><span class="pill warn">미수신</span></button><p class="visually-discernible" style="margin-top:15px">설비 표시 이름은 탐색용입니다. 측정/분석에는 원본 asset, source, 측정 지점 ID를 사용합니다.</p></section>`;
+    const chartBlock=available?`${scenario==='stale'?box('warn','이전 시계열입니다','마지막 측정 뒤 구간을 새로운 측정처럼 이어 그리지 않습니다.'):''}${chart(scenario==='stale')}`:`<div class="soft-panel" style="min-height:265px;display:grid;place-items:center;text-align:center"><div><b>${scenario==='error'?'측정값을 확인할 수 없습니다':'관측된 상전압 데이터가 없습니다'}</b><p class="small muted" style="margin-top:9px">${scenario==='error'?'조회 실패가 실제 데이터 부재는 아닙니다.':'연결과 수신 상태를 먼저 확인하세요.'}</p></div></div>`;
+    const observationPanel=`<section class="panel"><div class="space-between"><div><h2 class="panel-title">3상 상전압 관측</h2><p class="panel-description">공기압축기 A-01 · point: main-power · 출처: example-opcua-01</p></div><span class="pill">원본 품질: Good ≠ 설비 정상</span></div><div class="space-between" style="margin-top:17px"><div class="tabs" role="group" aria-label="관측 기간"><button data-range="15m" aria-pressed="false">15분</button><button data-range="1h" aria-pressed="true">1시간</button><button data-range="24h" aria-pressed="false">24시간</button><button data-range="7d" aria-pressed="false">7일</button></div><span class="micro" id="range-help">UTC 기준 · 가상 예시</span></div>${chartBlock}<div class="journey-actions"><button type="button" class="button small" data-route="assets">신호·원본 이력 보기 →</button><button type="button" class="button small" data-route="connect">수신 상태 확인</button></div></section>`;
+    const evidencePanel=available?`<section class="evidence-grid"><div class="evidence-card"><div class="space-between"><h3>3상 불평형 분석 근거</h3><span class="pill">가상 결과</span></div><div class="evidence-metric">2.6<span style="font-size:15px">%</span></div><p>전압 불평형률 중앙값 · 예시 입력 구간 09:35–10:35 UTC<br>유효 표본 56 · 제외 표본 4 (이유 추적 가능)</p><div class="journey-actions"><button type="button" class="button primary small" data-route="investigations">계산 근거와 제외 이유 확인 →</button></div></div><div class="evidence-card"><div class="space-between"><h3>검토할 기록</h3><span class="pill ${reviewState==='closed'?'good':'warn'}">${reviewState==='not-requested'?'요청 전':reviewState==='closed'?'검토 종료':'검토 진행 중'}</span></div><div class="evidence-metric" style="font-size:18px">${reviewState==='not-requested'?'분석 근거를 검토할 수 있습니다':reviewState==='acknowledged'?'담당자 확인됨':reviewState==='closed'?'검토 기록 종료':'검토 요청됨'}</div><p>분석 결과를 설비 고장으로 단정하지 않습니다. 검토 요청과 기록은 사람이 남깁니다.</p><div class="journey-actions"><button type="button" class="button small" data-route="maintenance">검토 기록 보기 →</button></div></div></section>`:`<section class="evidence-grid"><div class="evidence-card"><h3>분석 기록</h3><p>${scenario==='error'?'조회 실패로 결과를 확인할 수 없습니다.':'현재 선택한 범위에서 분석 근거가 제공되지 않습니다.'}</p></div><div class="evidence-card"><h3>검토 기록</h3><p>분석 결과나 저장된 검토를 확인하기 전에는 상태를 추정하지 않습니다.</p></div></section>`;
+    return `<div class="content">${pageTitle('설비 모니터링','설비 모니터링','지금 들어온 데이터와 확인할 분석·검토 근거를 연결합니다. 설비 건강 점수나 자동 경보 화면이 아닙니다.','<button class="button small" data-action="refresh">↻ 예시 새로고침</button>')}${headline}${notice?`<div style="margin-bottom:16px">${notice}</div>`:''}${summary}<div class="workspace-grid">${assetList}${observationPanel}</div>${evidencePanel}<div class="soft-panel" style="margin-top:17px"><div class="space-between"><div><h3 class="panel-title" style="font-size:15px">프로젝트의 PHM 업무 흐름</h3><p class="panel-description">연결된 증거를 따라가 보세요. 단계는 모두 가상이며 실제 저장은 없습니다.</p></div><button class="button small" data-route="investigations" ${!available?'disabled':''}>분석부터 살펴보기 →</button></div><div class="trace"><span><strong>01 관측</strong>원본 시각·품질·값</span><span><strong>02 분석</strong>불평형률·입력/제외</span><span><strong>03 근거 확인</strong>snapshot·channel·version</span><span><strong>04 사람의 검토</strong>요청·확인·기록</span></div></div>${footer()}</div>`;
+  }
+  function evidenceAvailable() { return ['sample','confirmed','stale'].includes(scenario); }
+  function evidenceBadge() { return scenario==='stale'?'<span class="pill warn">과거 근거 · 현재 상태 아님</span>':'<span class="pill">가상 분석 기록</span>'; }
+  function assets() {
+    const data=evidenceAvailable();
+    const noData=scenario==='error'?box('danger','설비 이력을 불러오지 못했습니다','조회 실패는 저장된 데이터가 없다는 뜻이 아닙니다.') : box('warn','선택 설비의 관측이 없습니다','수신 확인 후 다시 시도하거나 데이터 연결을 점검하세요.');
+    return `<div class="content">${pageTitle('설비·신호','설비·신호 상세','선택한 설비·측정 지점·신호의 실제 값, 원본 품질과 기록된 이력을 같은 맥락에서 살펴봅니다.')}
+    <section class="panel"><div class="space-between"><div><h2 class="panel-title">공기압축기 A-01</h2><p class="panel-description">asset_id: example-compressor-01 · source_id: example-opcua-01 · measurement_point_id: main-power</p></div><button class="button small" data-route="monitor">← 모니터링으로</button></div>
+    <div class="divider"></div>${data?`<h3 class="panel-title" style="font-size:15px">선택한 측정 신호</h3><div class="field" style="max-width:270px;margin:14px 0"><label for="asset-signal">신호 선택</label><select id="asset-signal"><option value="voltage-r" ${selectedSignal==='voltage-r'?'selected':''}>R상 전압</option><option value="voltage-s" ${selectedSignal==='voltage-s'?'selected':''}>S상 전압</option><option value="voltage-t" ${selectedSignal==='voltage-t'?'selected':''}>T상 전압</option></select></div><div class="grid3"><div class="summary-card"><div class="label">마지막 측정값 · 예시</div><div class="value">${({ 'voltage-r':'230.2', 'voltage-s':'227.6', 'voltage-t':'224.4' })[selectedSignal]} V</div><div class="note">과거 값이며 자동 상태 판정이 아닙니다</div></div><div class="summary-card"><div class="label">마지막 측정 시각 · UTC</div><div class="value">${stateInfo().at}</div><div class="note">수신 시각/평가 시각과 구분</div></div><div class="summary-card"><div class="label">원본 OPC UA 품질</div><div class="value">Good</div><div class="note">프로토콜 품질 · 설비 건강 상태가 아님</div></div></div><div style="margin-top:17px">${scenario==='stale'?box('warn','과거 이력만 확인됩니다','최근 수신이 지연되어 마지막 저장값을 현재값으로 취급하지 않습니다.'):''}${chart(scenario==='stale')}</div><div class="journey-actions"><button class="button primary small" data-route="investigations">이 구간의 분석 근거 확인 →</button></div>`:noData}
+    </section>${footer()}</div>`;
+  }
+  function investigations() {
+    const has=evidenceAvailable();
+    const empty=scenario==='error'?box('danger','분석 저장소를 읽지 못했습니다','분석 결과 0건이라고 단정하지 마세요. 다시 불러오거나 시스템 진단을 확인해야 합니다.') : box('warn','현재 확인 가능한 분석 기록이 없습니다','입력 데이터, 측정 의미, 3상 신호 매핑과 분석 시도/제외 사유를 확인해 주세요.');
+    return `<div class="content">${pageTitle('분석 근거','3상 불평형 분석 근거','측정값과 분석 결과가 어떤 입력·정렬·제외 규칙에서 나왔는지 확인합니다. 분석 결과는 고장 진단이 아닙니다.')}<div class="trace"><span><strong>관측</strong>Asset History</span><span><strong>분석</strong>3상 상전압 입력</span><span><strong>근거</strong>표본·제외 사유</span><span><strong>검토</strong>사람의 판단 기록</span></div>${has?`
+    ${scenario==='stale'?`<div style="margin-bottom:15px">${box('warn','최근 관측이 중단된 상태입니다','아래 분석 근거는 과거 입력 구간에 관한 기록이며 현재 설비 상태를 대신하지 않습니다.')}</div>`:''}
+    <div class="grid2"><section class="panel"><div class="space-between"><h2 class="panel-title">전압 불평형률 · 가상 AnalysisRun</h2>${evidenceBadge()}</div><p class="panel-description">capability_id: three-phase-unbalance-v1 · 같은 시간 구간의 R/S/T 상전압</p><div class="grid2" style="margin-top:17px"><div class="summary-card"><div class="label">중앙값 (median)</div><div class="value">2.6%</div><div class="note">가상 결과 · 임계치 또는 위험 수준 아님</div></div><div class="summary-card"><div class="label">95백분위 (p95)</div><div class="value">3.1%</div><div class="note">가상 분포 요약 · fault verdict 아님</div></div></div><div class="record"><div class="record-title">분석 구간 / 버전</div><div class="record-meta">2026-10-08 09:35–10:35 UTC · algorithm: phase-unbalance-max-deviation-v2<br>analysis_run_id: example-analysis-01 · snapshot_id: example-snapshot-01<br>source: example-opcua-01 · point: main-power · channels: phase-voltage-r/s/t</div></div></section><section class="panel"><h2 class="panel-title">입력 표본과 제외 이유</h2><p class="panel-description">포함·제외는 분석 eligibility와 원본 품질 사유를 나눕니다.</p><div class="grid2" style="margin-top:17px"><div class="summary-card"><div class="label">유효한 입력 시각</div><div class="value">56개</div><div class="note">세 상이 조건에 맞는 예시</div></div><div class="summary-card"><div class="label">제외된 입력 시각</div><div class="value">4개</div><div class="note">고장 발생 건수가 아님</div></div></div><table class="metric-table" style="margin-top:12px"><thead><tr><th>제외 이유</th><th>예시 개수</th><th>의미</th></tr></thead><tbody><tr><td>incomplete-phases</td><td>2</td><td>같은 시각의 상 신호 불충분</td></tr><tr><td>non-good-source-quality</td><td>1</td><td>원본 품질이 Good이 아님</td></tr><tr><td>null-value</td><td>1</td><td>측정값이 null</td></tr></tbody></table></section></div>
+    <section class="panel" style="margin-top:17px"><div class="space-between"><div><h2 class="panel-title">시도·검토 맥락</h2><p class="panel-description">성공한 AnalysisRun뿐 아니라 분석할 수 없었던 시도와 사유를 구별합니다.</p></div><span class="pill">검토 상태 · 예시</span></div><div class="record"><div class="record-title">다른 분석 시도: SKIPPED · 가상 ledger</div><div class="record-meta">example-analysis-attempt-02 · no-recent-phase-value · 채널 시각이 허용된 최대 age를 넘어 입력 조건을 충족하지 않음. 해당 시도에는 불평형 수치를 생성하지 않습니다.</div></div><div class="journey-actions"><button class="button primary" type="button" data-action="request-review" ${reviewState!=='not-requested'?'disabled':''}>${reviewState==='not-requested'?'이 근거 검토 요청하기':'검토 요청됨 (가상)'}</button><button class="button" data-route="maintenance">검토 기록 보기 →</button><button class="button small" data-route="assets">← 원본 신호 확인</button></div><p class="micro" style="margin-top:11px">시안 내 가상 검토 요청입니다. 실제 저장·기록·정비 작업을 하지 않습니다.</p></section>`:empty}${footer()}</div>`;
+  }
+  function maintenance() {
+    const has=evidenceAvailable();
+    const label=reviewState==='not-requested'?'검토 요청 전':reviewState==='requested'?'검토 요청됨':reviewState==='acknowledged'?'검토 확인됨':'검토 종료됨';
+    const log=reviewHistory.length?`<ol class="history-log">${reviewHistory.map(x=>`<li>${x}</li>`).join('')}</ol>`:'<p class="visually-discernible" style="margin-top:9px">아직 이 시안에서 기록한 검토 행동이 없습니다.</p>';
+    return `<div class="content">${pageTitle('정비 검토','검토 기록','운영·정비 담당자가 분석 근거를 확인하고 판단을 남기는 단계입니다. 자동 정비 지시를 생성하지 않습니다.')}${has?`<div class="grid2"><section class="panel"><div class="space-between"><h2 class="panel-title">분석 근거 연결</h2><span class="pill">가상 검토</span></div><p class="panel-description">공기압축기 A-01 · three-phase-unbalance-v1</p><div class="record"><div class="record-title">analysis_run_id: example-analysis-01</div><div class="record-meta">예시 전압 불평형률 중앙값 2.6% · 유효 56개 · 제외 4개 · 입력 구간 09:35–10:35 UTC. 이 기록만으로 설비의 고장 또는 정비 필요를 판정하지 않습니다.</div></div><button type="button" class="button small" style="margin-top:15px" data-route="investigations">← 정확한 분석 근거로 돌아가기</button></section><section class="panel"><h2 class="panel-title">사람의 검토 단계</h2><p class="panel-description">변경되는 상태는 브라우저 메모리에만 보관됩니다.</p><div class="summary-card" style="margin-top:15px"><div class="label">현재 가상 검토 상태</div><div class="value">${label}</div><div class="note">확인/종료는 자동 고장 진단·정비 완료가 아님</div></div><div class="journey-actions"><button type="button" class="button primary" data-action="request-review" ${reviewState!=='not-requested'?'disabled':''}>검토 요청</button><button type="button" class="button" data-action="ack-review" ${reviewState!=='requested'?'disabled':''}>검토 확인</button><button type="button" class="button" data-action="close-review" ${reviewState!=='acknowledged'?'disabled':''}>검토 종료</button></div><div style="margin-top:17px"><h3 style="font-size:13px">가상 활동 기록</h3>${log}</div><button type="button" class="subtle-link" data-action="reset-review" style="margin-top:12px">가상 검토 초기화</button></section></div>`:(scenario==='error'?box('danger','검토 기록 확인 실패','데이터가 없다는 뜻이 아닙니다.'):box('warn','이 시나리오에 분석 근거가 없습니다','관측·분석 근거가 확인되기 전에는 review item을 생성하지 않습니다.'))}${footer()}</div>`;
   }
   function connection() {
     const s=stateInfo();
@@ -296,7 +344,7 @@
         <section class="panel" aria-label="연결 단계 미리보기"><div class="space-between"><h2 class="panel-title">새 연결 설정</h2><span class="pill">인터랙션 시안 · 저장 안 됨</span></div>
         <div class="steps" style="margin-top:21px" aria-label="연결 과정">${line}</div>
         <div class="field-stack"><div><h3 style="font-size:15px">${step}. ${step === 1 ? '어떤 방식으로 데이터를 연결하나요?' : steps[step-1]}</h3><p class="small muted" style="margin-top:7px">${stepSummaries[step-1]}</p></div>
-          ${step===1?`<div class="source-types"` role="radiogroup" aria-label="데이터 연결 방식">
+          ${step===1?`<div class="source-types" role="radiogroup" aria-label="데이터 연결 방식">
             <label><input type="radio" name="source-type" value="opcua" ${sourceType==='opcua'?'checked':''}> OPC UA</label>
             <label><input type="radio" name="source-type" value="file" ${sourceType==='file'?'checked':''}> FILE (CSV)</label>
           </div>
@@ -315,16 +363,16 @@
         </aside>
       </div>${footer()}</div>`;
   }
-  function footer() { return '<p class="footer-note"><b>시안 검토 안내</b> · 사용자 문장, 정보 순서, 상태 분리, 폼 레이블, 1024/1440px의 가독성을 검토하기 위한 예시입니다. 실제 데이터·API·설비 연결·검증된 진단 기능은 제공하지 않습니다. 화면의 모든 측정값·시간·설비명은 가상이며 이후 사용자 테스트에서 수정될 수 있습니다.</p>'; }
+  function footer() { return '<p class="footer-note"><b>검토용 가상 시나리오</b> · 모든 시간·측정값·분석 수치·분석 ID·검토 이력은 이해를 돕기 위한 고정 예시입니다. 연결·분석·판단·저장·API 호출은 전혀 발생하지 않습니다. 3상 불평형률은 고장 진단/알람/RUL이 아닙니다. 해당 기능의 실제 지원 범위는 docs/status.md를 따릅니다.</p>'; }
   function syncHash() { const target=`#${route}?state=${scenario}`; if(location.hash!==target) history.pushState(null,'',target); }
   function render(push = true) {
-    if(!routes.has(route)) route='welcome'; if(!states.has(scenario)) scenario='sample';
+    if(!routes.has(route)) route='monitor'; if(!states.has(scenario)) scenario='sample';
     selector.value=scenario;
     document.querySelectorAll('[data-route]').forEach(el=>{
       if(el.classList.contains('side-link')) { if(el.dataset.route===route) el.setAttribute('aria-current','page');else el.removeAttribute('aria-current'); }
     });
     document.getElementById('crumb').textContent=routeTitles[route];
-    main.innerHTML=route==='monitor'?monitor():route==='connect'?connection():welcome();
+    main.innerHTML=({monitor,assets,investigations,maintenance,connect:connection,welcome})[route]();
     document.title=`${routeTitles[route]} — Industrial PHM UX 시안`;
     if(push) syncHash();
   }
@@ -341,12 +389,16 @@
       case 'validate':showValidation=true; render();break;
       case 'next-step':step=step===6?1:step+1;render();break;
       case 'reset':sourceType='opcua';step=1;showValidation=false;render();break;
+      case 'request-review': if(evidenceAvailable()&&reviewState==='not-requested'){reviewState='requested';reviewHistory.push('검토 요청 · 예시 · example-analysis-01');change('maintenance');} break;
+      case 'ack-review': if(reviewState==='requested'){reviewState='acknowledged';reviewHistory.push('검토 확인 · 예시');render();} break;
+      case 'close-review': if(reviewState==='acknowledged'){reviewState='closed';reviewHistory.push('검토 종료 · 예시 (정비 완료 아님)');render();} break;
+      case 'reset-review':reviewState='not-requested';reviewHistory=[];render();break;
     }
   });
-  document.addEventListener('change',e=>{if(e.target.name==='source-type'){sourceType=e.target.value;showValidation=false;render();}});
+  document.addEventListener('change',e=>{if(e.target.name==='source-type'){sourceType=e.target.value;showValidation=false;render();}else if(e.target.id==='asset-signal'){selectedSignal=e.target.value;render();}});
   selector.addEventListener('change',e=>{scenario=e.target.value;showValidation=false;render();});
-  addEventListener('popstate',()=>{const m=location.hash.match(/^#(welcome|monitor|connect)(?:\?state=(sample|empty|stale|error|confirmed))?$/);if(m){route=m[1];scenario=m[2]||'sample';render(false);}});
-  addEventListener('hashchange',()=>{const m=location.hash.match(/^#(welcome|monitor|connect)(?:\?state=(sample|empty|stale|error|confirmed))?$/);if(m&&(m[1]!==route||m[2]!==scenario)){route=m[1];scenario=m[2]||'sample';render(false);}});
+  addEventListener('popstate',()=>{const m=location.hash.match(/^#(monitor|assets|investigations|maintenance|connect|welcome)(?:\?state=(sample|empty|stale|error|confirmed))?$/);if(m){route=m[1];scenario=m[2]||'sample';render(false);}});
+  addEventListener('hashchange',()=>{const m=location.hash.match(/^#(monitor|assets|investigations|maintenance|connect|welcome)(?:\?state=(sample|empty|stale|error|confirmed))?$/);if(m&&(m[1]!==route||m[2]!==scenario)){route=m[1];scenario=m[2]||'sample';render(false);}});
   render(false);
 })();
 </script>
