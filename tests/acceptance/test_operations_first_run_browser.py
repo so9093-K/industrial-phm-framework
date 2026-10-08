@@ -188,18 +188,22 @@ def _capture_setup_accessibility(page, *, locale: str, tmp_path: Path) -> None:
     (target / f"{locale}-{width}-setup-accessibility.json").write_text(
         json.dumps(fields, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    for key, result in fields.items():
+        label = operations_text(key, locale)
+        assert result["accessible_role_and_name_count"] == 1, (
+            f"{locale}: input {key} has no unique accessible name: {result}"
+        )
+        assert result["control"]["associatedLabels"] == [label], (
+            f"{locale}: input {key} lacks a native label association: {result}"
+        )
 
 
 def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> None:
-    """Find marimo's visible field label and its immediately following control.
-
-    marimo renders this visible label separately from the input's accessible name.
-    A test must not assume that get_by_role('textbox', name=label) resolves it.
-    """
-    field_label = page.get_by_text(label, exact=True).last
+    """Find the text input by its visible, programmatically associated label."""
     # The Setup heading may appear before its reactive form controls finish mounting.
-    field_label.wait_for(state="visible", timeout=30_000)
-    field = field_label.locator(f"xpath=following::{tag}[1]")
+    field = page.get_by_role("textbox", name=label, exact=True)
+    field.wait_for(state="visible", timeout=30_000)
+    assert field.evaluate("(node) => node.tagName.toLowerCase()") == tag
     field.fill(value)
 
 
@@ -433,15 +437,13 @@ def test_first_run_browser_sample_real_and_resume(
                     navigation_button.focus()
                     expect(navigation_button).to_be_focused()
                     navigation_button.press("Enter")
-                    expect(
-                        page.locator('.mw-pages button[aria-current="page"]')
-                    ).to_have_text(page_label, timeout=_BROWSER_TIMEOUT_MS)
+                    expect(page.locator('.mw-pages button[aria-current="page"]')).to_have_text(
+                        page_label, timeout=_BROWSER_TIMEOUT_MS
+                    )
                     _check_browser_layout(
                         page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
                     )
-                    _screenshot(
-                        page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
-                    )
+                    _screenshot(page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path)
             finally:
                 browser.close()
     except Exception as error:
