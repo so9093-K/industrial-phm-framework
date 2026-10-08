@@ -10,6 +10,7 @@ The ordinary base pytest suite skips this test when Playwright is unavailable.
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -137,7 +138,56 @@ def _wait_port_closed(port: int, *, timeout: float = 20.0) -> None:
 def _screenshot(page, *, locale: str, stage: str, tmp_path: Path) -> None:
     target = Path(os.environ.get("PHM_FIRST_RUN_SCREENSHOTS", str(tmp_path / "screenshots")))
     target.mkdir(parents=True, exist_ok=True)
-    page.screenshot(path=str(target / f"{locale}-{stage}.png"), full_page=True)
+    width = page.viewport_size["width"]
+    page.screenshot(path=str(target / f"{locale}-{width}-{stage}.png"), full_page=True)
+
+
+def _check_browser_layout(page, *, locale: str, stage: str, tmp_path: Path) -> None:
+    """Reject document-level horizontal clipping at both supported widths."""
+
+    metrics = page.evaluate(
+        """() => ({
+            viewport: window.innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            bodyWidth: document.body.scrollWidth,
+        })"""
+    )
+    if metrics["documentWidth"] > metrics["viewport"] + 2:
+        _screenshot(page, locale=locale, stage=f"{stage}-overflow", tmp_path=tmp_path)
+    assert metrics["documentWidth"] <= metrics["viewport"] + 2, (
+        f"{locale} {stage}: unintended horizontal overflow: {metrics}"
+    )
+
+
+def _capture_setup_accessibility(page, *, locale: str, tmp_path: Path) -> None:
+    """Preserve marimo control/label semantics for tracked accessibility issue #444."""
+
+    fields = {}
+    for key in ("setup.source_id", "setup.name", "common.asset", "setup.endpoint"):
+        label = operations_text(key, locale)
+        visible_label = page.get_by_text(label, exact=True).last
+        visible_label.wait_for(state="visible", timeout=30_000)
+        field = visible_label.locator("xpath=following::input[1]")
+        fields[key] = {
+            "visible_label": visible_label.evaluate("(node) => node.outerHTML.slice(0, 750)"),
+            "control": field.evaluate(
+                """(node) => ({
+                    html: node.outerHTML.slice(0, 900),
+                    ariaLabel: node.getAttribute('aria-label'),
+                    ariaLabelledby: node.getAttribute('aria-labelledby'),
+                    associatedLabels: [...(node.labels || [])].map(e => e.textContent.trim()),
+                })"""
+            ),
+            "accessible_role_and_name_count": page.get_by_role(
+                "textbox", name=label, exact=True
+            ).count(),
+        }
+    target = Path(os.environ.get("PHM_FIRST_RUN_SCREENSHOTS", str(tmp_path / "screenshots")))
+    target.mkdir(parents=True, exist_ok=True)
+    width = page.viewport_size["width"]
+    (target / f"{locale}-{width}-setup-accessibility.json").write_text(
+        json.dumps(fields, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> None:
@@ -154,7 +204,10 @@ def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> 
 
 
 @pytest.mark.parametrize("locale", ["en-US", "ko-KR"])
-def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -> None:
+@pytest.mark.parametrize("viewport_width", [1024, 1440])
+def test_first_run_browser_sample_real_and_resume(
+    tmp_path: Path, locale: str, viewport_width: int
+) -> None:
     playwright = pytest.importorskip("playwright.sync_api")
     expect = playwright.expect
     workspace = OperationsWorkspace(tmp_path / "real-operations")
@@ -168,7 +221,7 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
         with playwright.sync_playwright() as runtime:
             browser = runtime.chromium.launch()
             try:
-                context = browser.new_context(viewport={"width": 1024, "height": 900})
+                context = browser.new_context(viewport={"width": viewport_width, "height": 900})
                 page = context.new_page()
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
@@ -182,12 +235,16 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                     )
                 ).to_be_visible()
                 assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
+                _check_browser_layout(page, locale=locale, stage="fresh", tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="fresh", tmp_path=tmp_path)
 
-                # A browser click starts the existing packaged demo in an isolated workspace.
-                page.get_by_role(
+                # Verify keyboard activation, not only pointer-based demo launch.
+                sample_start_button = page.get_by_role(
                     "button", name=operations_text("first_run.sample.title", locale)
-                ).click()
+                )
+                sample_start_button.focus()
+                expect(sample_start_button).to_be_focused()
+                sample_start_button.press("Enter")
                 expect(
                     page.get_by_role(
                         "heading", name=operations_text("first_run.sample.ready", locale)
@@ -232,6 +289,9 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                         f"browser errors: {errors[-8:]}; "
                         f"sample child log: {_logs(workspace.logs_path / 'first-run-sample.log')}"
                     ) from error
+                _check_browser_layout(
+                    sample, locale=locale, stage="sample-observations", tmp_path=tmp_path
+                )
                 _screenshot(sample, locale=locale, stage="sample-observations", tmp_path=tmp_path)
                 sample.close()
 
@@ -252,6 +312,8 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 expect(
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
+                _check_browser_layout(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
+                _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
 
                 # Exercise a real validation error before the successful retry.
@@ -266,7 +328,16 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 expect(recovery_panel).to_contain_text(
                     operations_text("setup.failure.next", locale)
                 )
+                detail_summary = page.locator(".phm-error-technical summary")
+                detail_summary.focus()
+                expect(detail_summary).to_be_focused()
+                detail_summary.press("Enter")
+                expect(page.locator(".phm-error-technical code")).to_be_visible()
+                detail_summary.press("Enter")
                 expect(page.locator(".phm-error-technical code")).to_be_hidden()
+                _check_browser_layout(
+                    page, locale=locale, stage="real-validation-error", tmp_path=tmp_path
+                )
                 assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
                 _screenshot(page, locale=locale, stage="real-validation-error", tmp_path=tmp_path)
 
@@ -319,6 +390,9 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                     ).count()
                     == 0
                 )
+                _check_browser_layout(
+                    page, locale=locale, stage="real-awaiting-receipt", tmp_path=tmp_path
+                )
                 _screenshot(page, locale=locale, stage="real-awaiting-receipt", tmp_path=tmp_path)
                 assert not errors, errors
             finally:
@@ -330,13 +404,16 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
         with playwright.sync_playwright() as runtime:
             browser = runtime.chromium.launch()
             try:
-                page = browser.new_page(viewport={"width": 1024, "height": 900})
+                page = browser.new_page(viewport={"width": viewport_width, "height": 900})
                 page.goto(url)
                 expect(page.locator(".mw-shell")).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
                 expect(page.locator(".mw-asset h1")).to_contain_text(
                     "acceptance-motor-01", timeout=_BROWSER_TIMEOUT_MS
                 )
                 assert page.get_by_role("heading", name="Industrial PHM").count() == 0
+                _check_browser_layout(
+                    page, locale=locale, stage="configured-resume", tmp_path=tmp_path
+                )
                 _screenshot(page, locale=locale, stage="configured-resume", tmp_path=tmp_path)
             finally:
                 browser.close()
