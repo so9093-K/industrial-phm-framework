@@ -272,8 +272,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
     inputs = workspace.root / "inputs"
     inputs.mkdir()
     (inputs / "phase.csv").write_text(
-        "timestamp,phase-R,phase-S,phase-T\n"
-        "2026-10-08T12:00:00+00:00,220,219,221\n",
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-08T12:00:00+00:00,220,219,221\n",
         encoding="utf-8",
     )
     server = create_operations_web_read_server(workspace.root)
@@ -303,8 +302,9 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
                 "FILE 검증 수신 근거 있음"
             )
             assert (
-                JsonSourceRuntimeRepository(workspace.source_runtime_path)
-                .get_latest_receipt("file-receipt")
+                JsonSourceRuntimeRepository(workspace.source_runtime_path).get_latest_receipt(
+                    "file-receipt"
+                )
                 is not None
             )
             assert not workspace.history_catalog_path.exists()

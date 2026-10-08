@@ -315,10 +315,7 @@ def test_web_file_receipt_requires_active_and_persists_only_acceptance(tmp_path:
         assert command("file/receive", receive)[0] == 409
         assert command("file/receive", receive, token=None)[0] == 403
         assert command("file/receive", {"source_id": "unknown"})[0] == 404
-        assert (
-            command("file/receive", {"source_id": "registered-file-01", "extra": "x"})[0]
-            == 400
-        )
+        assert command("file/receive", {"source_id": "registered-file-01", "extra": "x"})[0] == 400
         assert (
             command("lifecycle", {"source_id": "registered-file-01", "target_state": "active"})[0]
             == 200
@@ -361,8 +358,7 @@ def test_web_file_receipt_rejects_swapped_outside_symlink(tmp_path: Path) -> Non
     folder.mkdir()
     file_path = folder / "phase.csv"
     file_path.write_text(
-        "timestamp,phase-R,phase-S,phase-T\n"
-        "2026-10-08T12:00:00+00:00,220,219,221\n",
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-08T12:00:00+00:00,220,219,221\n",
         encoding="utf-8",
     )
     from industrial_phm.runtime.operations_web_setup import (
@@ -384,7 +380,5 @@ def test_web_file_receipt_rejects_swapped_outside_symlink(tmp_path: Path) -> Non
     file_path.symlink_to(outside)
 
     with pytest.raises(SourceControlConflict):
-        receive_workspace_file_source(
-            workspace.root.resolve(), {"source_id": "registered-file-01"}
-        )
+        receive_workspace_file_source(workspace.root.resolve(), {"source_id": "registered-file-01"})
     assert not workspace.source_runtime_path.exists()
