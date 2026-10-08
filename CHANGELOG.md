@@ -20,6 +20,11 @@
 
 ### Changed
 
+- Operations first-run, Setup, Asset FILE 분석, Investigation 및 Maintenance 오류에 한국어·영어
+  공통 복구 안내를 적용했습니다. 발생 상황, 확인된 상태, 다음 행동을 기본으로 표시하고 오류의
+  기술 상세는 명시적으로 펼쳐 확인합니다. 오류만으로 설비 안전·저장 성공 또는 실패를 추론하지
+  않으며, 실제 browser에서 유효성 오류 → 수정 → 저장 성공 경로를 검증합니다.
+
 - Operations 한국어 화면의 typography를 정리했습니다. 공통 shell과 Monitor에 한국어 지원
   fallback font stack을 명시하고 base UI를 15px, secondary text를 13–14px 중심으로 조정했습니다.
   `ko-KR`에서는 Latin용 uppercase/tracking을 제거하고 keep-all wrapping을 적용하며, Assets/Setup/
