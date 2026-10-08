@@ -116,8 +116,10 @@ def project_signal_history(
     bucket_count: int = 60,
 ) -> dict[str, object]:
     """Read one bounded multi-signal time window plus stored per-source last points."""
-    if not channel_ids or len(channel_ids) > MAX_CHANNELS or len(set(channel_ids)) != len(
-        channel_ids
+    if (
+        not channel_ids
+        or len(channel_ids) > MAX_CHANNELS
+        or len(set(channel_ids)) != len(channel_ids)
     ):
         raise ValueError("channel_ids must be 1 to 6 distinct identifiers")
     if range_preset not in RANGE_DURATIONS:
