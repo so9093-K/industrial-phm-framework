@@ -254,7 +254,10 @@ def receive_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
     outcome, _ = OperationsAppActions(paths).run_diagnostic(
         source_id, kind=OperationsDiagnosticKind.CYCLE
     )
-    receipt = outcome.received.receipt if outcome.state == SourceRuntimeCycleState.SUCCEEDED else None
+    receipt = None
+    if outcome.state == SourceRuntimeCycleState.SUCCEEDED:
+        assert outcome.received is not None
+        receipt = outcome.received.receipt
     return {
         "schema_version": 1,
         "source_id": source_id,
