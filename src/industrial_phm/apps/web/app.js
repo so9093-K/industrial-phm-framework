@@ -1,5 +1,5 @@
-// Read-only Operations frontend. All server strings enter the DOM as text, never HTML.
-// The user explicitly refreshes data; there is no polling, mutation or fallback sample.
+// Opt-in Operations Web preview. All server strings enter the DOM as text, never HTML.
+// Source mutations are explicit and protected; there is no polling or fallback sample.
 const byId = (id) => document.getElementById(id);
 const create = (tag, className, content) => {
   const element = document.createElement(tag);
@@ -408,6 +408,7 @@ async function controlSource(sourceId, action, target, button) {
   button.disabled = true;
   result.className = "";
   result.textContent = "소스 " + sourceId + " · " + verb + "을(를) 저장 중입니다.";
+  let savedState = false;
   try {
     const session = await getJSON("/api/v1/session");
     const url = action === "collection" ? "/api/v1/sources/collection" : "/api/v1/sources/lifecycle";
@@ -424,10 +425,9 @@ async function controlSource(sourceId, action, target, button) {
     }
     const saved = await response.json();
     if (saved.schema_version !== 1 || saved.source_id !== sourceId) throw new Error("schema-mismatch");
+    savedState = true;
     result.textContent = sourceId + " · " + verb + " 저장됨 · "
       + (action === "collection" ? "수집 요청만 기록됨 · 실제 수신 미확인" : "관리 상태 변경됨 · 연결 확인 아님");
-    await loadSources();
-    await refresh();
   } catch (error) {
     result.className = "error";
     if (error.message === "control-conflict") {
@@ -441,6 +441,10 @@ async function controlSource(sourceId, action, target, button) {
     }
   } finally {
     button.disabled = false;
+  }
+  if (savedState) {
+    // A failed follow-up read cannot undo a successfully persisted control request.
+    await Promise.allSettled([loadSources(), refresh()]);
   }
 }
 
