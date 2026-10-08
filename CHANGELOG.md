@@ -20,6 +20,12 @@
 
 ### Changed
 
+- Operations 첫 실행과 주요 화면의 한국어·영어 1024/1440px 브라우저 수용 검증을 완료하고,
+  1024px의 상단 메뉴·Refresh 내부 잘림을 수정했습니다. 키보드로 첫 실행·오류 기술 상세·페이지 메뉴를
+  조작하고 화면 밖으로 컨트롤이 잘리지 않는지를 회귀 검사합니다. Setup text input은 표시 라벨과 같은
+  현지화된 placeholder로 Chromium 접근성 이름을 제공하며, marimo의 native label/input 연결과
+  동등하지 않다는 제약을 유지합니다.
+
 - Operations first-run, Setup, Asset FILE 분석, Investigation 및 Maintenance 오류에 한국어·영어
   공통 복구 안내를 적용했습니다. 발생 상황, 확인된 상태, 다음 행동을 기본으로 표시하고 오류의
   기술 상세는 명시적으로 펼쳐 확인합니다. 오류만으로 설비 안전·저장 성공 또는 실패를 추론하지
