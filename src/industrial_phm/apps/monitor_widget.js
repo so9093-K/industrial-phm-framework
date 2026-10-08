@@ -760,7 +760,7 @@ function drawChart(container, data, windows, onEvidence) {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23'
-      }).format(new Date(t)) : shortTime(t));
+      }).format(new Date(t)) : shortTime(t)));
     }
     const move = e => {
       const rect = svg.getBoundingClientRect(),

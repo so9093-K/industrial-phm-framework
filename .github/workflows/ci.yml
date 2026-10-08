@@ -302,7 +302,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.operations == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -341,6 +341,9 @@ jobs:
           uv run --locked --extra operations industrial-phm operations init "$DEPLOY_ROOT/plant-a"
           uv run --locked --extra operations industrial-phm validate deployment "$DEPLOY_ROOT/plant-a"
 
+      - name: Validate Monitor widget JavaScript syntax
+        run: node --check --input-type=module < src/industrial_phm/apps/monitor_widget.js
+
       - name: Validate clean-workspace Operations product acceptance
         run: |
           uv run --locked --extra operations pytest \
@@ -349,6 +352,24 @@ jobs:
             tests/integration/test_operations_app.py \
             tests/unit/test_monitor_workspace.py \
             tests/unit/test_monitor_widget.py
+
+      - name: Install Chromium for first-run acceptance
+        run: uv run --locked --extra operations --with playwright python -m playwright install --with-deps chromium
+
+      - name: Validate first-run browser journey
+        env:
+          PHM_FIRST_RUN_SCREENSHOTS: ${{ runner.temp }}/first-run-evidence
+        run: |
+          uv run --locked --extra operations --with playwright pytest \
+            tests/acceptance/test_operations_first_run_browser.py
+
+      - name: Upload first-run browser evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: first-run-browser-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/first-run-evidence
+          if-no-files-found: warn
 
       - name: Validate packaged AI-Hub boiler demo preset
         run: |

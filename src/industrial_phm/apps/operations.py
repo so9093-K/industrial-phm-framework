@@ -1429,6 +1429,14 @@ def _(mo, operations_locale, operations_text):
 
 
 @app.cell
+def _(mo):
+    # A run button can remain truthy during reactive state updates after a click.
+    # Consume its click once so a successful registration is not retried.
+    get_setup_source_click_consumed, set_setup_source_click_consumed = mo.state(False)
+    return get_setup_source_click_consumed, set_setup_source_click_consumed
+
+
+@app.cell
 def _(
     ChannelSemanticBinding,
     FileSourceConfig,
@@ -1449,6 +1457,7 @@ def _(
     file_signal_selection,
     file_timestamp_input,
     get_setup_config,
+    get_setup_source_click_consumed,
     operations_actions,
     opcua_candidate_mappings,
     opcua_endpoint_input,
@@ -1461,9 +1470,14 @@ def _(
     set_pending_semantics,
     set_setup_config,
     set_setup_error,
+    set_setup_source_click_consumed,
     set_setup_success,
 ):
-    if register_setup_source_button.value:
+    if not register_setup_source_button.value:
+        if get_setup_source_click_consumed():
+            set_setup_source_click_consumed(False)
+    elif not get_setup_source_click_consumed():
+        set_setup_source_click_consumed(True)
         try:
             _source_id = add_source_id.value.strip()
             if add_source_type.value == "File":
