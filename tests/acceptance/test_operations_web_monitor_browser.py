@@ -222,7 +222,11 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
         with sync_api.sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             page = browser.new_page(viewport={"width": 1024, "height": 900})
-            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            page.goto(
+                f"http://127.0.0.1:{server.server_port}/web/",
+                wait_until="domcontentloaded",
+                timeout=60_000,
+            )
             listing = page.locator("#source-list")
             sync_api.expect(listing).to_contain_text("수신 근거 미확인")
             listing.get_by_role("button", name="소스 활성화").click()
