@@ -13,6 +13,11 @@ from industrial_phm.presentation.operations_assets import (
     render_asset_maintenance_html,
     render_asset_overview_html,
 )
+from industrial_phm.presentation.operations_content import (
+    operations_error_css,
+    render_operations_error_html,
+    render_operations_recovery_html,
+)
 from industrial_phm.presentation.operations_investigations import (
     investigation_capability_label,
     investigation_queue_option_label,
@@ -70,6 +75,9 @@ __all__ = [
     "operational_analysis_presentation_kind",
     "operations_theme_css",
     "render_analysis_quality_markdown",
+    "render_operations_error_html",
+    "render_operations_recovery_html",
+    "operations_error_css",
     "render_asset_analysis_html",
     "render_asset_events_html",
     "render_asset_header_html",
