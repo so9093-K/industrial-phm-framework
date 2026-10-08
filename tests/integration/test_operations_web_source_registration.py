@@ -167,9 +167,7 @@ def test_source_setup_projects_real_receipt_separately(tmp_path: Path) -> None:
     "filename",
     ["../escape.csv", "absolute.csv"],
 )
-def test_file_registration_does_not_register_missing_paths(
-    tmp_path: Path, filename: str
-) -> None:
+def test_file_registration_does_not_register_missing_paths(tmp_path: Path, filename: str) -> None:
     from industrial_phm.runtime.operations_web_setup import register_workspace_csv_source
 
     workspace = OperationsWorkspace(tmp_path / "plant")
