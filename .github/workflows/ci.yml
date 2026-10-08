@@ -341,6 +341,9 @@ jobs:
           uv run --locked --extra operations industrial-phm operations init "$DEPLOY_ROOT/plant-a"
           uv run --locked --extra operations industrial-phm validate deployment "$DEPLOY_ROOT/plant-a"
 
+      - name: Validate Monitor widget JavaScript syntax
+        run: node --check --input-type=module < src/industrial_phm/apps/monitor_widget.js
+
       - name: Validate clean-workspace Operations product acceptance
         run: |
           uv run --locked --extra operations pytest \
