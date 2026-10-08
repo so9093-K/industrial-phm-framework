@@ -119,6 +119,37 @@ writes are **not included** in this first FILE registration slice.
 The default marimo Operations remains the production onboarding owner
 until the staged Web transition acceptance gates pass.
 
+## Web source control requests (opt-in preview only)
+
+The source inventory adds `continuous_collection_supported`,
+`collection_desired_state`, `collection_request_generation`, and
+`collection_requested_at`. These expose **persisted requested control state**,
+not collection service readiness or accepted measurements. FILE sources have
+`continuous_collection_supported: false`; current continuous collection only
+supports OPC UA sources.
+
+- `POST /api/v1/sources/lifecycle` with `{"source_id":"...","target_state":"active"}`
+  or `"paused"` transitions via the existing `OperationsAppActions.transition_source`
+  facade. Only legal lifecycle transitions are accepted; 409 means rejected
+  transition. `active` is administrative permission, **not a live connection**.
+- `POST /api/v1/sources/collection` with `target_state: "running"` or
+  `"stopped"` requests the existing durable collection-control desired state.
+  `running` requires an OPC UA source whose lifecycle is `active`. The
+  collector service must already be running separately. A successful
+  `200` records the request, **not** that data has been accepted or that
+  a session is connected.
+- Both actions require the same exact Host/Origin/Sec-Fetch-Site + per-process
+  CSRF token and bounded JSON body as FILE registration. Missing sources
+  return 404; forbidden transitions and unsupported source types return
+  409; unknown target values/malformed input 400; unauthorized requests 403.
+  Raw exception messages and source credentials never leave the server.
+
+A successful control response does **not** alter `receipt_confirmed`. Operators
+must verify accepted receipt and current stored history independently before
+claiming working monitoring. No diagnostic connector cycle is launched by these
+routes. Old marimo Operations/supervisor processes and research notebooks
+remain the default product.
+
 ## GET /api/v1/monitor response
 
 The response is a **versioned projection** of one
