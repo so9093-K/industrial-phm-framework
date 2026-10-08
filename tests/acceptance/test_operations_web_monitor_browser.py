@@ -232,8 +232,24 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
             page.on("dialog", lambda dialog: dialog.accept())
             listing.get_by_role("button", name="소스 활성화").click()
             sync_api.expect(listing).to_contain_text("관리 상태: active")
+            # A failed monitor refresh must not turn a persisted control request
+            # into a reported mutation failure.
+            page.route(
+                "**/api/v1/monitor",
+                lambda route: route.fulfill(
+                    status=503,
+                    content_type="application/json",
+                    body='{"error":{"code":"history_or_snapshot_unavailable"}}',
+                ),
+            )
             listing.get_by_role("button", name="수집 시작 요청").click()
             sync_api.expect(listing).to_contain_text("연속 수집 요청: running")
+            sync_api.expect(page.locator("#source-control-result")).to_contain_text(
+                "수집 상태 요청 저장됨"
+            )
+            sync_api.expect(page.locator("#notice")).to_contain_text(
+                "이력 저장소를 확인할 수 없습니다"
+            )
             sync_api.expect(listing).to_contain_text("수신 근거 미확인")
             stored = SqliteCollectionControlRepository(workspace.collection_control_path).get(
                 "web-opcua"
