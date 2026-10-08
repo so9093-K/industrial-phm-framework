@@ -140,6 +140,18 @@ def _screenshot(page, *, locale: str, stage: str, tmp_path: Path) -> None:
     page.screenshot(path=str(target / f"{locale}-{stage}.png"), full_page=True)
 
 
+def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> None:
+    """Find marimo's visible field label and its immediately following control.
+
+    marimo renders this visible label separately from the input's accessible name.
+    A test must not assume that get_by_role('textbox', name=label) resolves it.
+    """
+    field_label = page.get_by_text(label, exact=True).last
+    assert field_label.is_visible(), f"missing visible field label: {label}"
+    field = field_label.locator(f"xpath=following::{tag}[1]")
+    field.fill(value)
+
+
 @pytest.mark.parametrize("locale", ["en-US", "ko-KR"])
 def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -> None:
     playwright = pytest.importorskip("playwright.sync_api")
@@ -225,36 +237,33 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
-                source_field = page.get_by_role(
-                    "textbox", name=operations_text("setup.source_id", locale)
+                _fill_labeled_field(
+                    page, label=operations_text("setup.source_id", locale), value=source_id
                 )
-                try:
-                    expect(source_field).to_be_visible(timeout=10_000)
-                except AssertionError as error:
-                    inputs = page.locator("input, textarea").evaluate_all(
-                        "(nodes) => nodes.map(n => n.outerHTML.slice(0, 400))"
-                    )
-                    raise AssertionError(
-                        f"Setup source ID is not accessible; locale={locale}; "
-                        f"body={page.locator('body').inner_text()[:3500]}; "
-                        f"inputs={inputs}"
-                    ) from error
-                source_field.fill(source_id)
-                page.get_by_role("textbox", name=operations_text("setup.name", locale)).fill(
-                    "First-run acceptance source"
+                _fill_labeled_field(
+                    page,
+                    label=operations_text("setup.name", locale),
+                    value="First-run acceptance source",
                 )
-                page.get_by_role("textbox", name=operations_text("common.asset", locale)).fill(
-                    "acceptance-motor-01"
+                _fill_labeled_field(
+                    page,
+                    label=operations_text("common.asset", locale),
+                    value="acceptance-motor-01",
                 )
-                page.get_by_role("textbox", name=operations_text("setup.endpoint", locale)).fill(
-                    "opc.tcp://127.0.0.1:65530"
+                _fill_labeled_field(
+                    page,
+                    label=operations_text("setup.endpoint", locale),
+                    value="opc.tcp://127.0.0.1:65530",
                 )
                 page.get_by_text(
                     operations_text("setup.advanced_nodeid_mapping", locale), exact=True
                 ).click()
-                page.get_by_role(
-                    "textbox", name=operations_text("setup.advanced_mapping", locale)
-                ).fill("Current_L1,ns=2;s=Current_L1")
+                _fill_labeled_field(
+                    page,
+                    label=operations_text("setup.advanced_mapping", locale),
+                    value="Current_L1,ns=2;s=Current_L1",
+                    tag="textarea",
+                )
                 page.get_by_role(
                     "button", name=operations_text("setup.review_save_source", locale)
                 ).click()
