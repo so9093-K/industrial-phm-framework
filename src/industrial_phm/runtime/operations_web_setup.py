@@ -102,7 +102,12 @@ def register_workspace_csv_source(
     channels = payload["channel_columns"]
     if not isinstance(channels, list) or not 1 <= len(channels) <= 12:
         raise ValueError("invalid channel count")
-    channel_ids = [_text({"channel": value}, "channel") for value in channels]
+    channel_ids: list[str] = []
+    for value in channels:
+        channel = _text({"channel": value}, "channel")
+        if channel is None:
+            raise ValueError("invalid channel")
+        channel_ids.append(channel)
     if len(set(channel_ids)) != len(channel_ids):
         raise ValueError("duplicate channels")
     assert isinstance(source_id, str)
