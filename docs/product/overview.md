@@ -732,7 +732,7 @@ Evidence·provenance·재현성·품질은 그 판단을 신뢰할 수 있게 �
 
 ### Operations information architecture
 
-Primary navigation의 목표 구조는 다음과 같습니다.
+아래 구조는 화면 메뉴 이름을 고정하는 것이 아니라 **분리되어야 할 사용자 업무와 증거 영역**을 나타냅니다.
 
 ```text
 Operations
@@ -764,6 +764,146 @@ Information architecture는 다음 원칙을 적용합니다.
 - `Maintenance Review`는 `Maintenance` 아래의 review queue로 정리합니다.
 - `Operational State`는 일반 운영자의 PHM 기능이 아니라 `System` 영역의 runtime/storage 관측 surface로 분리합니다.
 - AI 설명은 독립적인 numerical source of truth가 아니라 현재 사용자가 보고 있는 evidence context를 설명하는 optional surface로 둡니다.
+
+### 한국어 중심 Operations Web UX 계약
+
+이 절은 독립된 Operations 웹 제품이 충족해야 하는 **목표 사용자 경험**을 정의합니다.
+현재 marimo UI의 구현·지원 상태를 설명하거나 화면 이름을 확정했다는 뜻은 아닙니다.
+제품이 쓰는 관측·분석·검토 의미는 위 영역 및
+[Project Terminology](../terminology.md#9-operations-display-locale-terminology)와 동일합니다.
+새 웹 제품은 이 기준을 대표적인 빈/오류/실데이터 예시로 검증하고 한국어 사용자 리뷰를 거쳐
+표현과 상세 레이아웃을 조정합니다.
+
+#### 사용자가 먼저 해결해야 하는 질문
+
+| 사용자 상황 | 첫 질문 | 주된 결과 | 근거로 이동할 경로 |
+| --- | --- | --- | --- |
+| 처음 시작 | 무엇부터 연결하거나 살펴볼까? | 샘플 체험 또는 실제 연결 경로 선택 | first-run → source 등록/샘플 Monitor |
+| 운영 관측 | 어떤 설비 데이터가 언제 들어왔나? | 측정값, 마지막 시각, 품질, 최근 변화 | Monitor → Asset Signal/History |
+| 데이터 확인 | 왜 원하는 값이 보이지 않는가? | source/measurement point/channel 매핑 및 수신 상태 확인 | Asset → Source/Data Flow |
+| 분석 검토 | 어떤 관측 범위와 근거에서 결과가 나왔나? | capability-specific evidence, 적용 한계, 기록 | Asset/Monitor → Investigation |
+| 정비 검토 | 무엇을 누가 어떤 근거로 검토했나? | review 상태·기록·정확한 원본 evidence | Investigation → Maintenance → Evidence |
+| 관리·복구 | 수집기/분석/저장소 중 어디에서 실패했나? | 독립된 process/runtime 진단 및 복구 안내 | System → Data connection |
+
+#### 화면 구성과 이동 원칙
+
+초기 한국어 **상단 업무 메뉴 후보**는 `관측 현황`, `설비·신호`,
+`분석 기록`, `정비 검토`, `운영 관리`다.
+`데이터 연결`과 `시스템 상태`는 관리 영역의 명시적인 하위 진입점으로 두되,
+첫 실행·수신 불가 상태에서는 `데이터 연결`을 바로 열 수 있어야 한다.
+이는 화면 위치/정보 계층의 설계 후보이며, `monitor`, `assets`,
+`investigations`, `maintenance`, `setup`, `system` 같은 stable route/page ID를
+변경하거나 source와 asset의 도메인 구분을 지우지 않는다. URL·메뉴 결합 방식은
+브라우저 back/forward 및 deep link 검증 후 결정한다.
+
+- 전 화면에서 같은 제품 헤더, 현재 위치, 용도에 맞는 1차 행동, 시간/출처,
+  로딩·빈 상태·실패 표현을 공유한다. 연구 notebook cell, 내부 `workspace`
+  명령, runtime class 이름이 사용자 기본 화면의 제목이 되지 않도록 한다.
+- 사용자 기본 흐름은 `현재 관측 → 특정 설비·신호 → 원본 이력 → 분석 기록 →
+  검토 기록`이다. 기존 typed investigation/attention route와 선택한 asset/channel/
+  time window 맥락을 앞뒤 이동에서도 잃지 않아야 한다.
+- 내부 서비스 상태는 일반 관측 KPI와 분리한다. 연결됨/수집 요청됨/프로세스 실행 중은
+  측정값 수신 완료나 설비 정상으로 표현하지 않는다.
+- 원본 `source_id`/`asset_id`/`channel_id`, evidence/run/finding ID와 UTC
+  시간은 보존한다. 사람이 읽는 명칭과 원본 ID를 함께 보여 주되 표시 이름은
+  정확한 identity의 대체 수단이 아니다.
+- 한국어를 기준으로 짧고 구체적인 레이블, 동사형 버튼, 원인에 맞는 오류/복구
+  문구를 작성한다. `en-US`는 별도 검수하되 두 locale은 같은 domain state와
+  동일한 요청·결과를 사용한다.
+
+#### 세 핵심 화면의 저충실도 구조
+
+이 도식은 고정된 디자인 시안이 아니라 **정보 순서와 사용자 행동 계약**이다.
+화면 구성의 우선순위는 1440px 한 화면의 장식보다 1024px에서도 주요 행동·
+내용이 사라지지 않는 것이다.
+
+**첫 실행 — 목표: 시작 방식과 데이터 격리를 이해하고 실행**
+
+```text
+[Industrial PHM]                                    [한국어 / English]
+설비 데이터를 확인해 보세요
+[샘플 데이터로 살펴보기]          [실제 데이터 연결하기]
+  준비된 예제로 관측 확인           FILE 또는 OPC UA 선택
+  실제 작업공간에 섞이지 않음        등록 → 측정 의미 확인 → 수신 확인
+[샘플 실행 후] 별도 샘플 화면 열기 / 샘플 종료 / 실제 연결로 이동
+```
+
+- 빈 workspace는 두 선택지를 동일한 위계의 카드/행동으로 제공한다.
+  샘플은 격리된 workspace에서 실행·종료하고, 기존 configured workspace는
+  반복 onboarding 없이 관측 화면으로 재개한다.
+- 버튼 클릭만으로 가동 또는 수신을 성공했다고 표시하지 않는다.
+  오류 시 `샘플을 시작하지 못했습니다`와 재시도·실제 연결 경로를 구분한다.
+
+**관측 현황 — 목표: 선택한 설비의 실측/저장 근거 파악**
+
+```text
+[관측 현황]       [snapshot 평가 시각] [새로고침]
+[설비 선택]       [수신 상태 · 마지막 관측 시각]  [확인할 기록]
+[신호 찾기/선택]  [신호명 · 값 · 단위 · 원본 품질]
+                 [15분 / 1시간 / 24시간 / 7일]
+                 [시계열 / 데이터 공백·불확실성 그대로 표시]
+[신호 상세 / 저장 이력]  [관련 분석 기록]  [검토할 항목]
+```
+
+- 실제 읽기 시각과 측정/수신 시각을 구분하며 `새로고침` 후 평가 근거를 갱신한다.
+  UI 표시만으로 연속 수집 또는 live connection 성공을 주장하지 않는다.
+- 여러 신호는 선택한 asset과 시간 맥락 안에서 비교한다. unit/meaning이
+  불일치할 때 공통 축에 합치지 않고 non-good/null/gap/future timestamp를
+  선으로 잇거나 현재 측정값으로 오인시키지 않는다.
+- 관련 analysis는 해당 관측 구간과 확인된 evidence만 연결한다.
+  자세한 결과와 사람의 판단은 별도 화면에서 검토한다.
+
+**데이터 연결 — 목표: 필요한 정보를 등록하고 실제 수신을 확인**
+
+```text
+[데이터 연결]                       [등록된 연결 목록 / 상세]
+1 연결 방식    FILE / OPC UA
+2 대상 지정    source 이름·ID / asset / measurement point
+3 신호 탐색    FILE 컬럼 탐색 또는 OPC UA 변수 탐색
+4 측정 의미    observed property / unit / scope / 근거, 미확인 허용
+5 등록/수집    기존 도메인 validation → 수집 상태 요청
+6 수신 확인    accepted receipt / 마지막 관측 → 관측 화면 이동
+[오류 위치별 설명] [다시 확인] [기존 연결 관리]
+```
+
+- 위 번호는 **사용자에게 보여줄 순서**이지 새 데이터 수명주기나
+  단일 원자 트랜잭션을 뜻하지 않는다. 이미 등록한 source의 일시정지/재개,
+  수집 제어, freshness policy, bounded diagnostic은 연결 상세에서 찾을 수 있어야 한다.
+- 등록 완료, 활성화 요청, source session, accepted receipt, 저장 이력은 별도 단계다.
+  first-run의 실제 연결에서는 현재 활성 source의 accepted receipt를 확인하기
+  전까지 Monitor 진입을 허용하지 않는다.
+- 타임스탬프/단위/신호 의미를 임의 추론하거나 필수 증거를 빈 기본값으로
+  대체하지 않는다. 기술적 NodeId·CSV 컬럼·source ID는 고급 상세에서 추적할 수 있어야 한다.
+
+#### 빈 상태·복구 메시지 계약
+
+| 증거 상황 | 설명해야 할 사실 | 기본 다음 행동 |
+| --- | --- | --- |
+| source 미등록 | 연결된 데이터 소스가 없음 | `데이터 연결하기` / 샘플로 보기 |
+| source 등록, receipt 없음 | 소스 등록과 실제 수신은 다름 | `수신 상태 확인하기` |
+| 선택 설비에 신호 없음 | 그 asset/time context에서 관측 없음 | `다른 설비 선택` / source 매핑 확인 |
+| 결측/원본 품질 불량 | 표시할 신뢰 가능한 관측 근거 부족 | 원본 품질/시간·출처 확인 |
+| 마지막 값이 오래됨 | 마지막 관측이 현재 값이 아님 | `수신 상태 확인하기` |
+| 분석 기록 없음 | 해당 범위에 로드된 분석 증거 없음 | 기간/대상 확인; 분석 실행 지원 여부 명시 |
+| 검토 기록 없음 | review가 기록되지 않음 | `분석 기록 확인하기`; 해결/안전으로 단정 금지 |
+| 저장소·API 읽기 실패 | 확인 실패와 실제 데이터 부재는 다름 | `다시 불러오기` / `시스템 상태 보기` |
+
+오류 문장은 사용자 행동에 맞게 `무슨 일이 일어났는지 → 영향받은 사실 →
+해결을 위한 다음 행동` 순으로 작성하고, 해당 입력 필드의 validation은
+필드 가까이 표시한다. 원본 exception, internal path, stack trace는 기본 복구
+문장이 되지 않는다. 실패·중복·기존 상태 보존을 실제로 확인하지 않은 채
+`안전`, `정상`, `저장됨`을 약속하지 않는다.
+
+#### 사용자 수용 기준
+
+- 대표 사용자에게 첫 실행/샘플 종료/실제 연결/수신 확인, 특정 설비 신호와
+  최근 이력 찾기, 분석 근거→검토 기록 왕복, 데이터 미수신 원인 확인이라는
+  작업을 제공하고 **찾기 쉬움, 성공 여부, 오해, 복구 가능성**을 관찰한다.
+- `ko-KR`/`en-US` × 1024/1440px은 자동화의 최소 매트릭스이고,
+  네이티브 label/control 연결, 키보드·focus, 줌·빈 상태·오류·long ID와
+  실제 보조공학 확인은 별도의 검증 근거로 기록한다.
+- 해당 사용성 과제를 완료하거나 충분한 실제 관측 근거를 얻기 전에는
+  새 웹 제품의 UX 완료 또는 접근성 적합성을 선언하지 않는다.
 
 ### Source와 Asset의 제품 의미
 
