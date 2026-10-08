@@ -272,6 +272,12 @@ jobs:
             tests/contract/test_spool_ducklake_writer.py \
             tests/contract/test_window_coordinator_ducklake.py
 
+      - name: Validate Operations Web Asset History read with DuckLake
+        run: |
+          uv run --locked --extra history pytest \
+            tests/integration/test_operations_web_http.py \
+            tests/unit/test_operations_web_signals.py
+
       - name: Validate live acquisition reliability profile
         run: |
           uv run --locked --extra history pytest \
