@@ -253,6 +253,23 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
+
+                # Exercise a real validation error before the successful retry.
+                page.get_by_role(
+                    "button", name=operations_text("setup.review_save_source", locale)
+                ).click()
+                recovery_panel = page.locator(".phm-error-content[role='alert']")
+                expect(recovery_panel).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
+                expect(recovery_panel).to_contain_text(
+                    operations_text("setup.failure.what", locale)
+                )
+                expect(recovery_panel).to_contain_text(
+                    operations_text("setup.failure.next", locale)
+                )
+                expect(page.locator(".phm-error-technical code")).to_be_hidden()
+                assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
+                _screenshot(page, locale=locale, stage="real-validation-error", tmp_path=tmp_path)
+
                 _fill_labeled_field(
                     page, label=operations_text("setup.source_id", locale), value=source_id
                 )
@@ -288,6 +305,7 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                         operations_text("setup.source_saved", locale).format(source_id=source_id)
                     )
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
+                expect(recovery_panel).to_have_count(0)
                 assert tuple(
                     item.source_id
                     for item in JsonSourceRepository(workspace.source_registry_path).list_sources()
