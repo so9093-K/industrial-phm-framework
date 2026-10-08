@@ -150,6 +150,10 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
     }
 
 
+class SourceControlConflict(ValueError):
+    """Existing source state forbids this transition or collection request."""
+
+
 def change_web_source_control(
     root: Path, action: str, payload: dict[str, object]
 ) -> dict[str, object]:
@@ -170,9 +174,12 @@ def change_web_source_control(
     if action == "lifecycle":
         if target not in {"active", "paused"}:
             raise ValueError("unsupported source lifecycle target")
-        record, _ = facade.transition_source(
-            source_id, SourceLifecycleState(target), changed_at=at
-        )
+        try:
+            record, _ = facade.transition_source(
+                source_id, SourceLifecycleState(target), changed_at=at
+            )
+        except ValueError as error:
+            raise SourceControlConflict("lifecycle transition rejected") from error
         return {
             "schema_version": 1,
             "source_id": record.source_id,
@@ -183,9 +190,12 @@ def change_web_source_control(
     if action == "collection":
         if target not in {"running", "stopped"}:
             raise ValueError("unsupported collection target")
-        record, _ = facade.request_collection(
-            source_id, CollectionDesiredState(target), requested_at=at
-        )
+        try:
+            record, _ = facade.request_collection(
+                source_id, CollectionDesiredState(target), requested_at=at
+            )
+        except ValueError as error:
+            raise SourceControlConflict("collection request rejected") from error
         return {
             "schema_version": 1,
             "source_id": record.source_id,
