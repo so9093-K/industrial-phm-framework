@@ -1085,9 +1085,7 @@ _PRODUCT_COPY: Final = {
             "재시도하거나 실제 데이터 연결을 선택하세요. 반복되면 기술 상세를 확인하세요."
         ),
         "setup.failure.what": "데이터 연결 작업에서 오류가 보고됐습니다.",
-        "setup.failure.safety": (
-            "재시도 전에 저장된 source와 수집 요청 상태를 확인해야 합니다."
-        ),
+        "setup.failure.safety": ("재시도 전에 저장된 source와 수집 요청 상태를 확인해야 합니다."),
         "setup.failure.next": (
             "중복 등록을 피하도록 저장된 source와 입력값을 확인하고 "
             "필요한 경우에만 다시 시도하세요."
