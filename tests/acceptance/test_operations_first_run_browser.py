@@ -159,9 +159,7 @@ def _check_browser_layout(page, *, locale: str, stage: str, tmp_path: Path) -> N
     )
 
 
-def _check_navigation_not_clipped(
-    page, *, locale: str, stage: str, tmp_path: Path
-) -> None:
+def _check_navigation_not_clipped(page, *, locale: str, stage: str, tmp_path: Path) -> None:
     """Catch controls clipped inside the shell even without document overflow."""
 
     bounds = page.locator(".mw-shell").evaluate(
@@ -186,8 +184,7 @@ def _check_navigation_not_clipped(
     clipped = [
         item
         for item in bounds
-        if item["left"] < item["shellLeft"] - 1
-        or item["right"] > item["shellRight"] + 1
+        if item["left"] < item["shellLeft"] - 1 or item["right"] > item["shellRight"] + 1
     ]
     if clipped:
         _screenshot(page, locale=locale, stage=f"{stage}-nav-clipped", tmp_path=tmp_path)
@@ -363,9 +360,7 @@ def test_first_run_browser_sample_real_and_resume(
                 try:
                     _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
                 except Exception:
-                    _screenshot(
-                        page, locale=locale, stage="real-entry-failure", tmp_path=tmp_path
-                    )
+                    _screenshot(page, locale=locale, stage="real-entry-failure", tmp_path=tmp_path)
                     raise
                 _check_browser_layout(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
