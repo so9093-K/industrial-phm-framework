@@ -48,12 +48,8 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 "measurement_point_id": source.measurement_point_id,
                 "channel_ids": [identity.channel_id for identity in source.channel_identities][:24],
                 "lifecycle_state": None if record is None else record.state.value,
-                "last_accepted_received_at": None
-                if receipt is None
-                else _utc(receipt.received_at),
-                "last_accepted_observed_at": None
-                if receipt is None
-                else _utc(receipt.observed_at),
+                "last_accepted_received_at": None if receipt is None else _utc(receipt.received_at),
+                "last_accepted_observed_at": None if receipt is None else _utc(receipt.observed_at),
                 "receipt_confirmed": receipt is not None,
             }
         )
@@ -87,9 +83,7 @@ def _text(payload: dict[str, object], key: str, *, optional: bool = False) -> st
     return value
 
 
-def register_workspace_csv_source(
-    root: Path, payload: dict[str, object]
-) -> dict[str, object]:
+def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
     """Validate one bounded, workspace-owned CSV, then call the existing write facade."""
     if set(payload) != _FIELDS:
         raise ValueError("unexpected registration fields")
@@ -121,9 +115,7 @@ def register_workspace_csv_source(
         raise ValueError("CSV must be located inside workspace")
     if not target.is_file() or not 0 < target.stat().st_size <= _MAX_INPUT_BYTES:
         raise ValueError("CSV size outside registration limits")
-    paths = resolve_operations_app_paths(
-        {"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)}
-    )
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
     source = RegisteredSource(
         source_id=source_id,
         name=name,
