@@ -10,6 +10,7 @@ The ordinary base pytest suite skips this test when Playwright is unavailable.
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -26,7 +27,7 @@ pytest.importorskip("duckdb")
 pytest.importorskip("marimo")
 
 from industrial_phm.application import JsonSourceRepository
-from industrial_phm.presentation.operations_locale import operations_text
+from industrial_phm.presentation.operations_locale import operations_page_label, operations_text
 from industrial_phm.runtime import (
     OperationsRuntimeConfig,
     OperationsUiConfig,
@@ -137,24 +138,116 @@ def _wait_port_closed(port: int, *, timeout: float = 20.0) -> None:
 def _screenshot(page, *, locale: str, stage: str, tmp_path: Path) -> None:
     target = Path(os.environ.get("PHM_FIRST_RUN_SCREENSHOTS", str(tmp_path / "screenshots")))
     target.mkdir(parents=True, exist_ok=True)
-    page.screenshot(path=str(target / f"{locale}-{stage}.png"), full_page=True)
+    width = page.viewport_size["width"]
+    page.screenshot(path=str(target / f"{locale}-{width}-{stage}.png"), full_page=True)
+
+
+def _check_browser_layout(page, *, locale: str, stage: str, tmp_path: Path) -> None:
+    """Reject document-level horizontal clipping at both supported widths."""
+
+    metrics = page.evaluate(
+        """() => ({
+            viewport: window.innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            bodyWidth: document.body.scrollWidth,
+        })"""
+    )
+    if metrics["documentWidth"] > metrics["viewport"] + 2:
+        _screenshot(page, locale=locale, stage=f"{stage}-overflow", tmp_path=tmp_path)
+    assert metrics["documentWidth"] <= metrics["viewport"] + 2, (
+        f"{locale} {stage}: unintended horizontal overflow: {metrics}"
+    )
+
+
+def _check_navigation_not_clipped(page, *, locale: str, stage: str, tmp_path: Path) -> None:
+    """Catch controls clipped inside the shell even without document overflow."""
+
+    bounds = page.locator(".mw-shell").evaluate(
+        """(shell) => {
+            const outer = shell.getBoundingClientRect();
+            const nav = shell.querySelector(".mw-pages");
+            const items = [...nav.querySelectorAll("button")];
+            const refresh = shell.querySelector(".mw-refresh");
+            if (refresh) items.push(refresh);
+            return items.map((item) => {
+                const rect = item.getBoundingClientRect();
+                return {
+                    label: item.textContent.trim(),
+                    left: rect.left,
+                    right: rect.right,
+                    shellLeft: outer.left,
+                    shellRight: outer.right,
+                };
+            });
+        }"""
+    )
+    clipped = [
+        item
+        for item in bounds
+        if item["left"] < item["shellLeft"] - 1 or item["right"] > item["shellRight"] + 1
+    ]
+    if clipped:
+        _screenshot(page, locale=locale, stage=f"{stage}-nav-clipped", tmp_path=tmp_path)
+    assert bounds and not clipped, f"{locale} {stage}: clipped navigation: {clipped}"
+
+
+def _capture_setup_accessibility(page, *, locale: str, tmp_path: Path) -> None:
+    """Preserve marimo control/label semantics for tracked accessibility issue #444."""
+
+    fields = {}
+    for key in ("setup.source_id", "setup.name", "common.asset", "setup.endpoint"):
+        label = operations_text(key, locale)
+        visible_label = page.get_by_text(label, exact=True).last
+        visible_label.wait_for(state="visible", timeout=30_000)
+        # marimo 0.24.2 renders a visible label without an input id/for link.
+        # Matching placeholder supplies Chromium's accessible-name fallback.
+        field = page.get_by_role("textbox", name=label, exact=True)
+        field.wait_for(state="visible", timeout=30_000)
+        fields[key] = {
+            "visible_label": visible_label.evaluate("(node) => node.outerHTML.slice(0, 750)"),
+            "control": field.evaluate(
+                """(node) => ({
+                    html: node.outerHTML.slice(0, 900),
+                    ariaLabel: node.getAttribute('aria-label'),
+                    ariaLabelledby: node.getAttribute('aria-labelledby'),
+                    placeholder: node.getAttribute('placeholder'),
+                    associatedLabels: [...(node.labels || [])].map(e => e.textContent.trim()),
+                })"""
+            ),
+            "accessible_role_and_name_count": page.get_by_role(
+                "textbox", name=label, exact=True
+            ).count(),
+        }
+    target = Path(os.environ.get("PHM_FIRST_RUN_SCREENSHOTS", str(tmp_path / "screenshots")))
+    target.mkdir(parents=True, exist_ok=True)
+    width = page.viewport_size["width"]
+    (target / f"{locale}-{width}-setup-accessibility.json").write_text(
+        json.dumps(fields, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    for key, result in fields.items():
+        label = operations_text(key, locale)
+        assert result["accessible_role_and_name_count"] == 1, (
+            f"{locale}: input {key} has no unique accessible name: {result}"
+        )
+        assert result["control"]["placeholder"] == label, (
+            f"{locale}: input {key} has no localized accessible-name fallback: {result}"
+        )
 
 
 def _fill_labeled_field(page, *, label: str, value: str, tag: str = "input") -> None:
-    """Find marimo's visible field label and its immediately following control.
-
-    marimo renders this visible label separately from the input's accessible name.
-    A test must not assume that get_by_role('textbox', name=label) resolves it.
-    """
-    field_label = page.get_by_text(label, exact=True).last
+    """Find the text input by its visible, programmatically associated label."""
     # The Setup heading may appear before its reactive form controls finish mounting.
-    field_label.wait_for(state="visible", timeout=30_000)
-    field = field_label.locator(f"xpath=following::{tag}[1]")
+    field = page.get_by_role("textbox", name=label, exact=True)
+    field.wait_for(state="visible", timeout=30_000)
+    assert field.evaluate("(node) => node.tagName.toLowerCase()") == tag
     field.fill(value)
 
 
 @pytest.mark.parametrize("locale", ["en-US", "ko-KR"])
-def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -> None:
+@pytest.mark.parametrize("viewport_width", [1024, 1440])
+def test_first_run_browser_sample_real_and_resume(
+    tmp_path: Path, locale: str, viewport_width: int
+) -> None:
     playwright = pytest.importorskip("playwright.sync_api")
     expect = playwright.expect
     workspace = OperationsWorkspace(tmp_path / "real-operations")
@@ -168,7 +261,7 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
         with playwright.sync_playwright() as runtime:
             browser = runtime.chromium.launch()
             try:
-                context = browser.new_context(viewport={"width": 1024, "height": 900})
+                context = browser.new_context(viewport={"width": viewport_width, "height": 900})
                 page = context.new_page()
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
@@ -182,12 +275,16 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                     )
                 ).to_be_visible()
                 assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
+                _check_browser_layout(page, locale=locale, stage="fresh", tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="fresh", tmp_path=tmp_path)
 
-                # A browser click starts the existing packaged demo in an isolated workspace.
-                page.get_by_role(
+                # Verify keyboard activation, not only pointer-based demo launch.
+                sample_start_button = page.get_by_role(
                     "button", name=operations_text("first_run.sample.title", locale)
-                ).click()
+                )
+                sample_start_button.focus()
+                expect(sample_start_button).to_be_focused()
+                sample_start_button.press("Enter")
                 expect(
                     page.get_by_role(
                         "heading", name=operations_text("first_run.sample.ready", locale)
@@ -232,6 +329,12 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                         f"browser errors: {errors[-8:]}; "
                         f"sample child log: {_logs(workspace.logs_path / 'first-run-sample.log')}"
                     ) from error
+                _check_browser_layout(
+                    sample, locale=locale, stage="sample-observations", tmp_path=tmp_path
+                )
+                _check_navigation_not_clipped(
+                    sample, locale=locale, stage="sample-observations", tmp_path=tmp_path
+                )
                 _screenshot(sample, locale=locale, stage="sample-observations", tmp_path=tmp_path)
                 sample.close()
 
@@ -252,6 +355,14 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 expect(
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
+                # Wait for the actual Setup inputs; a route heading can appear
+                # before the reactive form settles, especially at 1440 px.
+                try:
+                    _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
+                except Exception:
+                    _screenshot(page, locale=locale, stage="real-entry-failure", tmp_path=tmp_path)
+                    raise
+                _check_browser_layout(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
 
                 # Exercise a real validation error before the successful retry.
@@ -266,7 +377,16 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 expect(recovery_panel).to_contain_text(
                     operations_text("setup.failure.next", locale)
                 )
+                detail_summary = page.locator(".phm-error-technical summary")
+                detail_summary.focus()
+                expect(detail_summary).to_be_focused()
+                detail_summary.press("Enter")
+                expect(page.locator(".phm-error-technical code")).to_be_visible()
+                detail_summary.press("Enter")
                 expect(page.locator(".phm-error-technical code")).to_be_hidden()
+                _check_browser_layout(
+                    page, locale=locale, stage="real-validation-error", tmp_path=tmp_path
+                )
                 assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
                 _screenshot(page, locale=locale, stage="real-validation-error", tmp_path=tmp_path)
 
@@ -319,6 +439,9 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                     ).count()
                     == 0
                 )
+                _check_browser_layout(
+                    page, locale=locale, stage="real-awaiting-receipt", tmp_path=tmp_path
+                )
                 _screenshot(page, locale=locale, stage="real-awaiting-receipt", tmp_path=tmp_path)
                 assert not errors, errors
             finally:
@@ -330,14 +453,48 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
         with playwright.sync_playwright() as runtime:
             browser = runtime.chromium.launch()
             try:
-                page = browser.new_page(viewport={"width": 1024, "height": 900})
+                page = browser.new_page(viewport={"width": viewport_width, "height": 900})
                 page.goto(url)
                 expect(page.locator(".mw-shell")).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
                 expect(page.locator(".mw-asset h1")).to_contain_text(
                     "acceptance-motor-01", timeout=_BROWSER_TIMEOUT_MS
                 )
                 assert page.get_by_role("heading", name="Industrial PHM").count() == 0
+                _check_browser_layout(
+                    page, locale=locale, stage="configured-resume", tmp_path=tmp_path
+                )
+                _check_navigation_not_clipped(
+                    page, locale=locale, stage="configured-resume", tmp_path=tmp_path
+                )
                 _screenshot(page, locale=locale, stage="configured-resume", tmp_path=tmp_path)
+
+                # With an already registered source, every Operations page is
+                # reachable through the same keyboard-accessible navigation.
+                for destination in (
+                    "assets",
+                    "investigations",
+                    "maintenance",
+                    "system",
+                    "setup",
+                    "monitor",
+                ):
+                    page_label = operations_page_label(destination, locale)
+                    navigation_button = page.locator(".mw-pages").get_by_role(
+                        "button", name=page_label, exact=True
+                    )
+                    navigation_button.focus()
+                    expect(navigation_button).to_be_focused()
+                    navigation_button.press("Enter")
+                    expect(page.locator('.mw-pages button[aria-current="page"]')).to_have_text(
+                        page_label, timeout=_BROWSER_TIMEOUT_MS
+                    )
+                    _check_browser_layout(
+                        page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
+                    )
+                    _check_navigation_not_clipped(
+                        page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
+                    )
+                    _screenshot(page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path)
             finally:
                 browser.close()
     except Exception as error:
