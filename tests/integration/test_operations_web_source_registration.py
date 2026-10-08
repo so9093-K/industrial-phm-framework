@@ -1,0 +1,179 @@
+"""FILE Web registration security and receipt semantics against real workspace files."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import replace
+from datetime import UTC, datetime
+from http import HTTPStatus
+from http.client import HTTPConnection
+from pathlib import Path
+from threading import Thread
+
+import pytest
+
+from industrial_phm.application import (
+    JsonSourceRepository,
+    SourceReceiptEvidence,
+)
+from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
+from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
+from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from industrial_phm.runtime.operations_web_setup import project_web_source_setup
+
+
+def _request(
+    port: int,
+    method: str,
+    route: str,
+    *,
+    body: bytes | None = None,
+    origin: str | None = None,
+    csrf: str | None = None,
+    content_type: str = "application/json",
+    fetch_site: str | None = None,
+) -> tuple[int, dict[str, object]]:
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    headers = {"Host": f"127.0.0.1:{port}"}
+    if origin is not None:
+        headers["Origin"] = origin
+    if csrf is not None:
+        headers["X-CSRF-Token"] = csrf
+    if fetch_site is not None:
+        headers["Sec-Fetch-Site"] = fetch_site
+    if body is not None:
+        headers["Content-Type"] = content_type
+    try:
+        connection.request(method, route, body=body, headers=headers)
+        response = connection.getresponse()
+        result = json.loads(response.read())
+        assert isinstance(result, dict)
+        return response.status, result
+    finally:
+        connection.close()
+
+
+def _payload(path: str = "inputs/phases.csv") -> dict[str, object]:
+    return {
+        "source_id": "registered-file-01",
+        "name": "Three phase file",
+        "asset_id": "pump-01",
+        "file_path": path,
+        "channel_columns": ["phase-R", "phase-S", "phase-T"],
+        "measurement_point_id": "panel",
+        "timestamp_column": "timestamp",
+    }
+
+
+def test_workspace_file_registration_protected_and_not_mistaken_for_receipt(
+    tmp_path: Path,
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant")
+    initialize_operations_workspace(workspace)
+    folder = workspace.root / "inputs"
+    folder.mkdir()
+    (folder / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        "2026-10-08T12:00:00+00:00,220.5,219.0,221.0\n"
+        "2026-10-08T12:00:01+00:00,220.6,219.1,221.1\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        status, session = _request(port, "GET", "/api/v1/session")
+        assert status == HTTPStatus.OK
+        csrf = session["csrf_token"]
+        assert isinstance(csrf, str) and len(csrf) > 32
+        source_body = json.dumps(_payload()).encode("utf-8")
+        route = "/api/v1/sources/file"
+
+        assert _request(port, "POST", route, body=source_body)[0] == 403
+        assert _request(
+            port, "POST", route, body=source_body, origin=origin, fetch_site="same-origin"
+        )[0] == 403
+        assert _request(
+            port, "POST", route, body=source_body, origin="https://evil.example",
+            fetch_site="same-origin", csrf=csrf
+        )[0] == 403
+        assert _request(
+            port, "POST", route, body=source_body, origin=origin,
+            fetch_site="cross-site", csrf=csrf
+        )[0] == 403
+        assert _request(
+            port, "POST", route, body=source_body, origin=origin,
+            fetch_site="same-origin", csrf="fake"
+        )[0] == 403
+        assert _request(
+            port, "POST", route, body=b"x" * 5000, origin=origin,
+            fetch_site="same-origin", csrf=csrf
+        )[0] == 400
+        for path in ("../outside.csv", "/tmp/outside.csv", "inputs/../../outside.csv"):
+            bad = json.dumps(_payload(path)).encode("utf-8")
+            assert _request(
+                port, "POST", route, body=bad, origin=origin,
+                fetch_site="same-origin", csrf=csrf
+            )[0] == 400
+
+        status, created = _request(
+            port, "POST", route, body=source_body, origin=origin,
+            fetch_site="same-origin", csrf=csrf,
+        )
+        assert status == HTTPStatus.CREATED
+        assert created["registration_state"] == "registered"
+        assert created["receipt_confirmed"] is False
+        assert "phases.csv" not in str(created)
+        assert JsonSourceRepository(workspace.source_registry_path).get(
+            "registered-file-01"
+        ).asset_id == "pump-01"
+        assert _request(
+            port, "POST", route, body=source_body, origin=origin,
+            fetch_site="same-origin", csrf=csrf,
+        )[0] == HTTPStatus.CONFLICT
+        status, sources = _request(port, "GET", "/api/v1/sources")
+        assert status == 200
+        assert sources["sources"]["total"] == 1
+        assert sources["sources"]["items"][0]["receipt_confirmed"] is False
+        assert sources["sources"]["items"][0]["last_accepted_received_at"] is None
+        assert "phases.csv" not in str(sources)
+        assert _request(port, "POST", "/api/v1/monitor", body=source_body)[0] == 405
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_source_setup_projects_real_receipt_separately(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant")
+    initialize_operations_workspace(workspace)
+    snapshot = load_operations_app_snapshot(
+        environ={"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(workspace.root)}
+    )
+    assert project_web_source_setup(snapshot)["sources"]["total"] == 0
+    receipt = SourceReceiptEvidence(
+        source_id="unregistered-test",
+        received_at=datetime(2026, 10, 8, 11, 30, tzinfo=UTC),
+        observed_at=datetime(2026, 10, 8, 11, 28, tzinfo=UTC),
+    )
+    # An orphan receipt cannot be counted as a configured data source.
+    orphan = project_web_source_setup(replace(snapshot, receipts=(receipt,)))
+    assert orphan["sources"]["total"] == 0
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["../escape.csv", "absolute.csv"],
+)
+def test_file_registration_does_not_register_missing_paths(
+    tmp_path: Path, filename: str
+) -> None:
+    from industrial_phm.runtime.operations_web_setup import register_workspace_csv_source
+
+    workspace = OperationsWorkspace(tmp_path / "plant")
+    initialize_operations_workspace(workspace)
+    with pytest.raises((OSError, ValueError)):
+        register_workspace_csv_source(workspace.root.resolve(), _payload(filename))
+    assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
