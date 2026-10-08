@@ -133,9 +133,9 @@ def test_history_http_exposes_actual_bounded_file_observations(tmp_path: Path) -
     source_path = tmp_path / "phase-voltage.csv"
     event_at = datetime.now(UTC) - timedelta(minutes=2)
     source_path.write_text(
-        "timestamp,voltage-R,voltage-S\\n"
-        f"{event_at.isoformat()},220.5,219.2\\n"
-        f"{(event_at + timedelta(seconds=1)).isoformat()},221.0,219.7\\n",
+        "timestamp,voltage-R,voltage-S\n"
+        f"{event_at.isoformat()},220.5,219.2\n"
+        f"{(event_at + timedelta(seconds=1)).isoformat()},221.0,219.7\n",
         encoding="utf-8",
     )
     sources = InMemorySourceRepository()
