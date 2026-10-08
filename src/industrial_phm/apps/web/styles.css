@@ -7,3 +7,23 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 @media(max-width:850px){.app{display:block}.sidebar{padding:15px;gap:14px}.sidebar nav{display:flex;overflow-x:auto}.sidebar nav a{flex-shrink:0}.sidebar-note{display:none}main{padding:20px 15px}.layout,.below{grid-template-columns:1fr}.topbar{flex-direction:column}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:450px){.kpis{grid-template-columns:1fr}.panel{padding:15px}.filters{align-items:stretch}.top-actions{width:100%;justify-content:space-between}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+.onboarding{margin-bottom:16px;background:#f4fcfa;border-color:#b5dcd7}
+.onboarding .hint{margin:7px 0}
+.onboarding a{display:inline-block;margin-top:8px;font-weight:720}
+.connection-panel{margin:18px 0}
+.connection-panel h3{font-size:1rem;margin:22px 0 6px}
+.connection-panel .hint{margin:8px 0 14px}
+.source-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.source-record{border:1px solid #cfdee4;border-radius:10px;padding:13px;background:#f8fbfc}
+.source-record strong{display:block;overflow-wrap:anywhere;font-size:.9rem}
+.source-record span{display:block;font-size:.78rem;color:#5b7180;margin-top:4px;overflow-wrap:anywhere}
+.source-record .receipt-confirmed{color:#195d57;font-weight:740}
+.source-record .receipt-missing{color:#8c612a;font-weight:740}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 16px;margin-bottom:18px}
+.form-grid label{font-size:.82rem;display:grid;gap:6px}
+.form-grid label.wide{grid-column:1/-1}
+.form-grid input{width:100%;min-width:0;padding:10px;border:1px solid #b5c9d2;border-radius:7px;background:#fff;color:#162b38}
+#register-result{min-height:1.4rem;margin:8px 0;font-size:.83rem;color:#365b69}
+#register-result.error{color:#9b3333}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}.form-grid label.wide{grid-column:auto}}
