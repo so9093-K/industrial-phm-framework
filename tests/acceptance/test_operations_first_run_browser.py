@@ -224,9 +224,22 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 expect(
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
-                page.get_by_role("textbox", name=operations_text("setup.source_id", locale)).fill(
-                    source_id
+                _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
+                source_field = page.get_by_role(
+                    "textbox", name=operations_text("setup.source_id", locale)
                 )
+                try:
+                    expect(source_field).to_be_visible(timeout=10_000)
+                except AssertionError as error:
+                    inputs = page.locator("input, textarea").evaluate_all(
+                        "(nodes) => nodes.map(n => n.outerHTML.slice(0, 400))"
+                    )
+                    raise AssertionError(
+                        f"Setup source ID is not accessible; locale={locale}; "
+                        f"body={page.locator('body').inner_text()[:3500]}; "
+                        f"inputs={inputs}"
+                    ) from error
+                source_field.fill(source_id)
                 page.get_by_role("textbox", name=operations_text("setup.name", locale)).fill(
                     "First-run acceptance source"
                 )
