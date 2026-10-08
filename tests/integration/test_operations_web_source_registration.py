@@ -208,9 +208,13 @@ def test_web_source_controls_durable_request_not_receipt(tmp_path: Path) -> None
 
         def action(route: str, target: str, *, token: str | None = csrf):
             return _request(
-                port, "POST", "/api/v1/sources/" + route,
+                port,
+                "POST",
+                "/api/v1/sources/" + route,
                 body=json.dumps({"source_id": "opcua-1", "target_state": target}).encode(),
-                origin=origin, fetch_site="same-origin", csrf=token,
+                origin=origin,
+                fetch_site="same-origin",
+                csrf=token,
             )
 
         assert action("collection", "running")[0] == 409
