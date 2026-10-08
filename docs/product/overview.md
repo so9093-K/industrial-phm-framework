@@ -905,6 +905,42 @@ Information architecture는 다음 원칙을 적용합니다.
 - 해당 사용성 과제를 완료하거나 충분한 실제 관측 근거를 얻기 전에는
   새 웹 제품의 UX 완료 또는 접근성 적합성을 선언하지 않는다.
 
+#### 공통 시각·상호작용 디자인 계약
+
+Operations의 공통 디자인은 화려한 산업용 경보판보다 **측정 사실, 시간, 다음 행동을
+빠르게 구분하는 데이터 제품**을 우선한다. 구현 프레임워크의 기본 widget 스타일을
+제품 디자인 결정으로 삼지 않고, 공통 component/token 계층을 소유한다.
+[독립형 검토 시안](../../examples/operations/web-ux-wireframe.html)은 이 원칙을
+바탕으로 만든 **비운영용 정적 UX 예시**이며 실제 연결·저장·조회·진단을 구현하지 않는다.
+시안의 색상/숫자/레이아웃은 사용자·접근성 검증 이전의 가설이므로 production
+design token이나 지원 capability의 확정 선언이 아니다.
+
+| 공통 요소 | 제품 계약 | 시안에서 검토할 질문 |
+| --- | --- | --- |
+| Layout/navigation | 한 shell 안에서 화면 제목, 현재 위치, 주 동작·상태를 같은 위치에 둠 | 1024/1440px에서 핵심 행동이 숨겨지지 않는가? |
+| Typography/spacing | 한국어 15px 중심의 읽기 쉬운 본문, 분명한 제목 위계, 일관된 간격·행 높이 | technical ID·UTC와 도움말이 작아도 읽을 수 있는가? |
+| Color/status | 중립 색을 기본으로 정보/주의/실패·원본 품질은 색+텍스트 병기 | 데이터 품질을 설비 건강·알람으로 오해하지 않는가? |
+| Buttons/fields | 행동의 결과가 드러나는 동사형 주 CTA, native label, 필드별 validation | 마우스 없이 label·오류·다음 행동을 찾을 수 있는가? |
+| Cards/table/detail | 요약 → 확인할 사실 → 원본 증거/고급 진단 순서 | 사용자가 먼저 이해할 정보가 무엇인가? |
+| Time-series | 단위·측정 시간·원본 품질·gap/bucket/범위 명시, 측정하지 않은 값을 보간하지 않음 | empty/stale/error/quality 상태가 분명히 다른가? |
+| Responsive/reduced motion | 너비 변화에도 읽는 순서·focus·상태를 보존하고 animation을 필수로 쓰지 않음 | 1024px·1440px와 키보드·zoom에서 레이아웃이 유효한가? |
+
+- 컴포넌트는 `PageHeading`, `EvidenceSummary`, `StatusNotice`,
+  `SourceOrAssetPicker`, `FieldWithError`, `ObservationChart`,
+  `EmptyOrFailureState`, `EvidenceLink`처럼 **사용자 행동과 의미**로 나눈다.
+  이 이름들은 설계 설명용이지 프런트엔드 public API로 확정한 명칭이 아니다.
+- 디자인 토큰은 canvas/surface/ink/muted/border, primary action,
+  success/information/warning/failure, spacing/typography/radius처럼
+  **역할 기반**으로 묶는다. 상태 표현은 색만으로 구분하지 않으며 badge의
+  `Good`은 원본 데이터 품질을 뜻할 뿐 설비 상태가 아니다.
+- 화면별 새 데이터 상태는 `loading`, `empty`, `stale`,
+  `read failed`, `loaded`를 구분한다. 일부 저장소만 실패한 경우
+  다른 출처까지 모두 0건으로 표시하지 않는다.
+- 웹 구현에서는 원본 HTML의 native `label for`/input ID 관계,
+  Enter/Space/Tab, visible focus, 고대비, zoom, screen-reader
+  상태 알림, 브라우저 뒤로가기/URL 문맥 보존을 수용 계약으로 테스트한다.
+  자동화 결과만으로 WCAG 2.2 AA 준수를 인증하지 않는다.
+
 ### Source와 Asset의 제품 의미
 
 Operations는 다음 identity 경계를 명시적으로 유지합니다.
