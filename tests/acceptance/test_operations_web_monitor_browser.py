@@ -193,3 +193,50 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -> None:
+    sync_api = pytest.importorskip("playwright.sync_api")
+    from industrial_phm.application import OpcUaSourceConfig
+    from industrial_phm.connectors import OpcUaNodeMapping
+    from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
+
+    workspace = OperationsWorkspace(tmp_path / "control-ui")
+    initialize_operations_workspace(workspace)
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="web-opcua",
+            name="Web OPC UA control",
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840",
+                asset_id="motor-01",
+                node_mappings=(OpcUaNodeMapping(channel_id="v-r", node_id="ns=2;s=V_R"),),
+            ),
+            registered_at=datetime.now(UTC),
+        )
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with sync_api.sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1024, "height": 900})
+            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            listing = page.locator("#source-list")
+            sync_api.expect(listing).to_contain_text("수신 근거 미확인")
+            listing.get_by_role("button", name="소스 활성화").click()
+            sync_api.expect(listing).to_contain_text("관리 상태: active")
+            listing.get_by_role("button", name="수집 시작 요청").click()
+            sync_api.expect(listing).to_contain_text("연속 수집 요청: running")
+            sync_api.expect(listing).to_contain_text("수신 근거 미확인")
+            stored = SqliteCollectionControlRepository(workspace.collection_control_path).get(
+                "web-opcua"
+            )
+            assert stored is not None and stored.desired_state.value == "running"
+            assert not page.locator("#last-values .latest-item").count()
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
