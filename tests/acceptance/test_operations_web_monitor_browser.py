@@ -57,9 +57,12 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             data_path=workspace.history_data_path,
         )
     )
-    assert backfill_registered_file_source(
-        JsonSourceRepository(workspace.source_registry_path), repository, source.source_id
-    ).event_count == 6
+    assert (
+        backfill_registered_file_source(
+            JsonSourceRepository(workspace.source_registry_path), repository, source.source_id
+        ).event_count
+        == 6
+    )
 
     server = create_operations_web_read_server(workspace.root)
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -73,9 +76,11 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.on(
                 "request",
-                lambda req: external.append(req.url)
-                if not req.url.startswith(f"http://127.0.0.1:{server.server_port}/")
-                else None,
+                lambda req: (
+                    external.append(req.url)
+                    if not req.url.startswith(f"http://127.0.0.1:{server.server_port}/")
+                    else None
+                ),
             )
             page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
             sync_api.expect(page.get_by_role("heading", name="설비 모니터링")).to_be_visible()
@@ -94,9 +99,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             sync_api.expect(page.locator("#evidence-results")).to_contain_text(
                 "분석 기록이 없습니다"
             )
-            sync_api.expect(page.locator("#review-results")).to_contain_text(
-                "검토 요청이 없습니다"
-            )
+            sync_api.expect(page.locator("#review-results")).to_contain_text("검토 요청이 없습니다")
             assert not errors, errors
             assert not external, external
             metrics = page.evaluate(
