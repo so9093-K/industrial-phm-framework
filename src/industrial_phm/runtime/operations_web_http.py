@@ -8,9 +8,9 @@ unchanged until packaged static UI and browser acceptance are ready.
 from __future__ import annotations
 
 import json
-from importlib.resources import files
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from importlib.resources import files
 from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
