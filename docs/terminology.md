@@ -378,8 +378,11 @@ workflow state, 저장 timestamp 의미는 같아야 합니다.
 - `finding_id`
 
 Operations의 top-level page identity도 표시 문자열과 분리합니다.
+아래 표의 en-US/ko-KR display는 **현재 marimo 구현의 레이블**이며, 전용 Web UI의
+최종 사용자용 메뉴 문구를 확정하지 않습니다. Web UX의 목표 정보 계층과 사용자 작업은
+[Product and UX Baseline](product/overview.md#한국어-중심-operations-web-ux-계약)을 따릅니다.
 
-| Stable page ID | en-US display | ko-KR display |
+| Stable page ID | 현행 en-US display | 현행 ko-KR display |
 | --- | --- | --- |
 | `monitor` | Monitor | 관제 |
 | `assets` | Assets | 설비 |
@@ -391,4 +394,45 @@ Operations의 top-level page identity도 표시 문자열과 분리합니다.
 FILE, OPC UA, source, capability, evidence, snapshot처럼 데이터 계약이나 provenance를 특정하는
 technical token은 한국어 문장 안에서도 필요한 경우 그대로 유지합니다. 번역으로 기술적 identity나
 관측/해석 경계를 흐리는 표현은 만들지 않습니다.
+
+### 한국어 사용자 화면의 용어 선택
+
+전용 웹 제품의 메뉴·상태·오류·버튼 표현은 아래 **목표 표현 후보와 의미 구분**을
+먼저 적용해 검토합니다. 개발 클래스·DB 필드·API wire name을 바꾸자는 뜻이 아니며,
+최종 화면 레이블은 사용자 테스트와 도메인 의미 리뷰를 거쳐 확정합니다.
+
+| 기술 개념 / 기존 표현 | 한국어 목표 표현 후보 | 의미상 주의 |
+| --- | --- | --- |
+| Monitor / 관제 | **관측 현황** | 설비 제어·검증된 경보를 암시하지 않음 |
+| Assets | **설비·신호** | source와 asset은 서로 다른 identity |
+| Investigations / 분석 근거 | **분석 기록** | 상세 안에서는 근거·적용 범위·한계 유지 |
+| Maintenance review | **정비 검토** | 정비 지시·자동 작업 완료와 다름 |
+| Setup / Data connection | **데이터 연결** | 등록, 활성화 요청, 실제 receipt를 구별 |
+| System / Runtime | **시스템 상태** | 프로세스 실행 중과 데이터 수신·설비 상태 구별 |
+| Observation / Event time | **측정값 / 측정 시각** | received time·저장 시각과 혼동 금지 |
+| Receipt / Source flow | **데이터 수신 확인 / 수신 상태** | 연결 성공이 receipt 증거가 아님 |
+| No observation / Stale | **측정값 없음 / 마지막 수신 후 경과** | 마지막 값을 현재값처럼 표시 금지 |
+| Quality: Good / Bad | **원본 데이터 품질: Good / Bad** | 설비 정상/고장 판정이 아님; 원본 코드는 보존 |
+| Unresolved signal meaning | **측정 정보 미확인** | 원본 관측의 부재 또는 고장을 뜻하지 않음 |
+| Evidence / Provenance | **분석 근거 / 출처·처리 이력** | ID·UTC·원본 technical metadata는 별도 표시 |
+
+### 사용자 문장 및 행동 규칙
+
+- 메뉴·버튼에는 `확인하기`, `데이터 연결하기`, `수신 상태 확인하기`,
+  `분석 기록 보기`처럼 **대상과 행동을 명확히** 표현한다.
+  `Run`, `Open`, `Refresh`의 직역을 모든 문맥에 동일하게 사용하지 않는다.
+- 안내 문장은 `사용자가 무엇을 볼 수 있고 다음에 무엇을 할 수 있는가`를 먼저
+  설명한다. 내부 처리 루프, `workspace` 또는 `synthetic` 같은 기술 개념은
+  필요할 때만 보조 설명 또는 펼쳐보기에서 제공한다.
+- 데이터 없음, 아직 받지 못함, 읽기 실패, 품질 문제, 분석 미지원은 서로 다른
+  사실이므로 하나의 `정상`/`오류` 배지로 합치지 않는다.
+- 기술 토큰 (`OPC UA`, `NodeId`, source/asset/channel ID, UTC, 원본 quality
+  code)은 **조작하거나 번역하지 않는다**. 사람이 읽는 레이블 아래에서
+  원본을 확인할 수 있어야 한다.
+- 입력 실패는 해당 필드와 올바른 수정을 연결한다. 예를 들어 비어 있는
+  연결 ID에는 `연결 ID를 입력해 주세요`라고 안내한다.
+  실제 원인을 모를 때 기존 연결·저장 안전성·전송 성공을 지어내지 않는다.
+- 영어는 한국어 단어 수를 맞춘 번역이 아니라 동일한 사실·행동·제약을
+  자연스럽게 전달하는 별도 locale copy로 작성한다.
+
 
