@@ -171,3 +171,77 @@ def test_file_registration_does_not_register_missing_paths(tmp_path: Path, filen
     with pytest.raises((OSError, ValueError)):
         register_workspace_csv_source(workspace.root.resolve(), _payload(filename))
     assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+
+
+def test_web_source_controls_durable_request_not_receipt(tmp_path: Path) -> None:
+    from industrial_phm.application import (
+        CollectionDesiredState,
+        JsonSourceRepository,
+        OpcUaSourceConfig,
+        RegisteredSource,
+    )
+    from industrial_phm.connectors import OpcUaNodeMapping
+    from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
+
+    workspace = OperationsWorkspace(tmp_path / "controls")
+    initialize_operations_workspace(workspace)
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="opcua-1",
+            name="OPC UA source",
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840",
+                asset_id="motor-01",
+                node_mappings=(OpcUaNodeMapping(channel_id="v-r", node_id="ns=2;s=V_R"),),
+            ),
+            registered_at=datetime(2026, 10, 8, 11, 0, tzinfo=UTC),
+        )
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        _, session = _request(port, "GET", "/api/v1/session")
+        csrf = session["csrf_token"]
+
+        def action(route: str, target: str, *, token: str | None = csrf):
+            return _request(
+                port, "POST", "/api/v1/sources/" + route,
+                body=json.dumps({"source_id": "opcua-1", "target_state": target}).encode(),
+                origin=origin, fetch_site="same-origin", csrf=token,
+            )
+
+        assert action("collection", "running")[0] == 409
+        assert action("lifecycle", "active", token=None)[0] == 403
+        assert action("lifecycle", "active")[0] == 200
+        assert action("lifecycle", "active")[0] == 409
+        assert action("collection", "running")[0] == 200
+        assert action("collection", "running")[1]["meaning"] == (
+            "desired-state-only-not-running-or-received"
+        )
+        assert (
+            SqliteCollectionControlRepository(workspace.collection_control_path)
+            .get("opcua-1")
+            .desired_state
+            == CollectionDesiredState.RUNNING
+        )
+        _, sources = _request(port, "GET", "/api/v1/sources")
+        row = sources["sources"]["items"][0]
+        assert row["lifecycle_state"] == "active"
+        assert row["collection_desired_state"] == "running"
+        assert row["collection_request_generation"] == 1
+        assert row["receipt_confirmed"] is False
+        assert row["last_accepted_received_at"] is None
+        assert "opc.tcp" not in str(sources)
+        assert action("lifecycle", "paused")[0] == 200
+        assert action("collection", "stopped")[0] == 200
+        assert action("collection", "running")[0] == 409
+        assert action("collection", "bogus")[0] == 400
+        assert action("lifecycle", "bogus")[0] == 400
+        assert action("collection", "running", token="bogus")[0] == 403
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
