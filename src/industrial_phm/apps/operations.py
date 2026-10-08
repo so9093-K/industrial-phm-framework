@@ -3850,6 +3850,7 @@ def _(
         _source_wizard = mo.vstack(
             [
                 mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
+                *(_message_blocks if setup_selected_source is None else []),
                 _setup_step("setup.step.source", "setup.file.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
@@ -3963,6 +3964,7 @@ def _(
         _source_wizard = mo.vstack(
             [
                 mo.md("### " + operations_text("setup.add_data_source", operations_locale)),
+                *(_message_blocks if setup_selected_source is None else []),
                 _setup_step("setup.step.connect", "setup.opcua.connect_help"),
                 add_source_type,
                 mo.hstack([add_source_id, add_source_name], widths="equal"),
@@ -4102,7 +4104,7 @@ def _(
                 + "\n\n"
                 + operations_text("setup.intro", operations_locale)
             ),
-            *_message_blocks,
+            *(_message_blocks if setup_selected_source is not None else []),
             _guided_setup,
         ],
         gap=1.0,
