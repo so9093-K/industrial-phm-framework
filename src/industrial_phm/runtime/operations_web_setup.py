@@ -193,17 +193,17 @@ def change_web_source_control(
         if target not in {"running", "stopped"}:
             raise ValueError("unsupported collection target")
         try:
-            record, _ = facade.request_collection(
+            control_record, _ = facade.request_collection(
                 source_id, CollectionDesiredState(target), requested_at=at
             )
         except ValueError as error:
             raise SourceControlConflict("collection request rejected") from error
         return {
             "schema_version": 1,
-            "source_id": record.source_id,
-            "desired_state": record.desired_state.value,
-            "request_generation": record.generation,
-            "requested_at": _utc(record.requested_at),
+            "source_id": control_record.source_id,
+            "desired_state": control_record.desired_state.value,
+            "request_generation": control_record.generation,
+            "requested_at": _utc(control_record.requested_at),
             "meaning": "desired-state-only-not-running-or-received",
         }
     raise ValueError("unknown source action")
