@@ -9,8 +9,15 @@ from industrial_phm.runtime import OperationsWorkspace, initialize_operations_wo
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 
 
-def _request(port: int, method: str, path: str, *, host: str | None = None,
-             origin: str | None = None, site: str | None = None):
+def _request(
+    port: int,
+    method: str,
+    path: str,
+    *,
+    host: str | None = None,
+    origin: str | None = None,
+    site: str | None = None,
+):
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     headers = {"Host": host if host is not None else f"127.0.0.1:{port}"}
     if origin is not None:
@@ -51,13 +58,16 @@ def test_local_operations_web_read_http_is_bounded_and_origin_checked(
         assert _request(port, "GET", "/api/v1/monitor?path=extra")[0] == 404
         assert _request(port, "POST", "/api/v1/monitor")[0] == 405
         assert _request(port, "OPTIONS", "/api/v1/monitor")[0] == 405
-        assert _request(
-            port,
-            "GET",
-            "/api/v1/monitor",
-            origin=f"http://127.0.0.1:{port}",
-            site="same-origin",
-        )[0] == 200
+        assert (
+            _request(
+                port,
+                "GET",
+                "/api/v1/monitor",
+                origin=f"http://127.0.0.1:{port}",
+                site="same-origin",
+            )[0]
+            == 200
+        )
     finally:
         server.shutdown()
         server.server_close()
