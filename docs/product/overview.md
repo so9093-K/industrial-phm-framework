@@ -905,6 +905,42 @@ Information architecture는 다음 원칙을 적용합니다.
 - 해당 사용성 과제를 완료하거나 충분한 실제 관측 근거를 얻기 전에는
   새 웹 제품의 UX 완료 또는 접근성 적합성을 선언하지 않는다.
 
+#### 모니터링 중심 PHM 업무 진입 계약
+
+전용 Operations 첫 화면은 source 설정용 폼이나 전역 기술 진단이 아니라 **설비를
+선택해 관측하고, 기록된 분석 근거와 사람의 검토까지 이동할 수 있는 업무 진입점**을
+목표로 한다. 같은 화면에서 모든 세부 정보를 완전히 출력하기보다
+`관측 현황 → 선택 설비/신호 → capability-specific 분석 근거 → human review`
+순서로 사용자 맥락을 유지한다.
+
+- **설비별 관측 요약**은 최신 event/source/receive time과 평가 시각,
+  단위·원본 품질을 나타낸다. 집계된 수신 설비 수는 정상 설비 수와 다르며,
+  source 미수신과 API read failure를 동일한 0건으로 표시하지 않는다.
+- **현장 측정 신호**는 asset/point/source/channel을 보존하고, 같은
+  단위·의미일 때만 함께 비교한다. gap/old value를 연결하거나
+  `Connected`를 새로운 관측값처럼 표시하지 않는다.
+- **실제로 생성된 분석 결과**만 capability와 관측 구간에 귀속해
+  중앙값/p95/max 같은 그 capability가 제공하는 숫자를 제시한다.
+  3상 불평형은 해당 입력/정렬 정책에서 계산한 서술적 전력 품질 지표이며
+  설비 고장·안전·정비 우선순위 또는 자동 alarm으로 변환하지 않는다.
+- **계산 근거**에는 저장 snapshot/window, measured quantity, 분석
+  시각·버전·선택 신호, 포함/제외 표본과 exact exclusion reason을
+  연결한다. `ANALYZED`와 `SKIPPED`는 구분하며 제외된 시도에
+  가상의 분석 수치를 보여주지 않는다.
+- **정비 검토**는 검증된 evidence ID를 따라 사람이 생성·검토하는
+  별도 workflow다. 요청/ACK/종료 기록은 자동 정비 수행이나 검증된
+  진단과 다르다. Review에서 해당 분석/관측 범위로 정확히 돌아갈 수
+  있어야 한다.
+- **First-run과 연결 관리**는 이 관측·검토 업무를 가능하게 하는
+  지원 작업으로 제공하되, accepted receipt 이전에는 실제 data-ready로
+  표현하지 않는다.
+
+[검토 전용 웹 시안](../../examples/operations/web-ux-wireframe.html)은 위
+순서를 가상 상전압·불평형 결과·임시 review 상태로 보여주는 user-flow
+hypothesis다. 사용자 리뷰나 production API contract를 통과한 것으로
+취급하지 않으며, 현재 지원·미지원 내용은 `docs/status.md`에서
+확인한다.
+
 #### 공통 시각·상호작용 디자인 계약
 
 Operations의 공통 디자인은 화려한 산업용 경보판보다 **측정 사실, 시간, 다음 행동을
