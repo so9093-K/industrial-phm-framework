@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from industrial_phm.application.asset_history import HistoricalInputReference
+from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
     PhaseUnbalanceConfig,
@@ -12,7 +13,6 @@ from industrial_phm.application.phase_unbalance import (
     UnbalanceQuantity,
     UnbalanceSeriesResult,
 )
-from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.contracts import DataQualityAssessment
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
