@@ -8,16 +8,23 @@ unchanged until packaged static UI and browser acceptance are ready.
 from __future__ import annotations
 
 import json
+import secrets
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
+from threading import Lock
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
+from industrial_phm.application import SourceAlreadyRegisteredError
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
+from industrial_phm.runtime.operations_web_setup import (
+    project_web_source_setup,
+    register_workspace_csv_source,
+)
 from industrial_phm.runtime.operations_web_signals import (
     RANGE_DURATIONS,
     project_history_channels,
@@ -38,6 +45,8 @@ def create_operations_web_read_server(
     if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535:
         raise ValueError("port must be an integer between 0 and 65535")
     root = workspace_root.resolve()
+    csrf_token = secrets.token_urlsafe(32)
+    mutation_lock = Lock()
 
     class ReadHandler(BaseHTTPRequestHandler):
         def _send_json(self, status: HTTPStatus, payload: dict[str, object]) -> None:
@@ -168,7 +177,7 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[self.path])
                 return
             parts = urlsplit(self.path)
-            if self.path == "/api/v1/monitor":
+            if self.path in {"/api/v1/monitor", "/api/v1/sources", "/api/v1/session"}:
                 query: dict[str, object] = {}
             elif parts.path in {"/api/v1/history/channels", "/api/v1/history/trend"}:
                 try:
@@ -179,12 +188,24 @@ def create_operations_web_read_server(
             else:
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
                 return
+            if self.path == "/api/v1/session":
+                self._send_json(
+                    HTTPStatus.OK,
+                    {
+                        "schema_version": 1,
+                        "csrf_token": csrf_token,
+                        "write_scope": "file-registration",
+                    },
+                )
+                return
             try:
                 snapshot = load_operations_app_snapshot(
                     environ={"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)}
                 )
                 if self.path == "/api/v1/monitor":
                     payload = project_operations_monitor(snapshot)
+                elif self.path == "/api/v1/sources":
+                    payload = project_web_source_setup(snapshot)
                 elif parts.path == "/api/v1/history/channels":
                     payload = project_history_channels(
                         snapshot, asset_id=cast(str, query["asset_id"])
@@ -204,7 +225,46 @@ def create_operations_web_read_server(
             self._send_json(HTTPStatus.OK, payload)
 
         def do_POST(self) -> None:
-            self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
+            if self.path != "/api/v1/sources/file":
+                self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
+                return
+            if not self._allowed():
+                self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
+                return
+            host = self.headers.get("Host", "")
+            # Mutations require a complete same-origin browser request and
+            # a per-server unpredictable token. No wildcard CORS or cookie auth.
+            if (
+                self.headers.get("Origin") != f"http://{host}"
+                or self.headers.get("Sec-Fetch-Site") != "same-origin"
+                or not secrets.compare_digest(self.headers.get("X-CSRF-Token", ""), csrf_token)
+            ):
+                self._error(HTTPStatus.FORBIDDEN, "write_not_authorized")
+                return
+            if self.headers.get("Transfer-Encoding") is not None:
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
+                return
+            lengths = self.headers.get_all("Content-Length", ())
+            if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdigit():
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
+                return
+            length = int(lengths[0])
+            if not 1 <= length <= 4096 or self.headers.get("Content-Type") != "application/json":
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
+                return
+            try:
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
+                    raise ValueError("invalid JSON shape")
+                with mutation_lock:
+                    result = register_workspace_csv_source(root, body)
+            except SourceAlreadyRegisteredError:
+                self._error(HTTPStatus.CONFLICT, "source_id_exists")
+                return
+            except OSError, ValueError, TypeError, UnicodeError:
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_source_registration")
+                return
+            self._send_json(HTTPStatus.CREATED, result)
 
         def do_PUT(self) -> None:
             self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")

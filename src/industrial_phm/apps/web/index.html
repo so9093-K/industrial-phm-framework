@@ -12,21 +12,28 @@
   <a class="skip-link" href="#main">본문으로 건너뛰기</a>
   <div class="app">
     <aside class="sidebar" aria-label="제품 정보">
-      <div class="brand"><span class="brand-mark" aria-hidden="true">PHM</span><span>Industrial PHM<small>Operations / Read-only</small></span></div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true">PHM</span><span>Industrial PHM<small>Operations / Local preview</small></span></div>
       <nav aria-label="주요 화면">
         <a href="#monitor" aria-current="page">설비 모니터링</a>
+        <a href="#connect">데이터 연결</a>
         <a href="#signals">설비 · 신호</a>
         <a href="#evidence">분석 근거</a>
         <a href="#review">정비 검토</a>
       </nav>
-      <p class="sidebar-note">관측 사실을 확인하고 분석 근거와 사람의 검토 기록으로 이동합니다. 이 화면은 명령을 실행하지 않습니다.</p>
+      <p class="sidebar-note">측정 근거를 읽고 로컬 작업공간의 CSV를 등록합니다. 등록은 수집 시작이나 연결 성공이 아닙니다.</p>
     </aside>
     <main id="main">
       <header class="topbar">
         <div><p class="eyebrow">OPERATIONS / OBSERVATION</p><h1>설비 모니터링</h1><p class="muted">측정된 사실부터 분석 근거까지, 하나의 설비 맥락에서 확인합니다.</p></div>
-        <div class="top-actions"><span class="pill">읽기 전용</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
+        <div class="top-actions"><span class="pill">조회 · FILE 등록</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
       </header>
       <section class="notice hidden" id="notice" role="status" aria-live="polite"></section>
+      <section class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
+        <div class="panel-header"><div><h2 id="onboarding-title">처음 사용하는 작업공간</h2><p class="muted">소스 등록 → 수집기 동작 → 실제 수신 근거 → 모니터링</p></div></div>
+        <p id="onboarding-state" role="status" aria-live="polite">등록된 데이터 소스와 수신 근거를 확인합니다.</p>
+        <p class="hint">등록만으로 데이터가 수신되지 않습니다. 수집 실행은 기존 Operations 명령 또는 운영 화면에서 별도로 수행합니다.</p>
+        <a href="#connect">데이터 소스 확인 및 CSV 등록하기</a>
+      </section>
       <section class="kpis" id="monitor" aria-label="관측 요약">
         <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>
         <div class="kpi"><span>기록된 3상 분석</span><strong id="analysis-count">—</strong><small>실제 저장된 AnalysisRun</small></div>
@@ -57,7 +64,28 @@
         <div class="panel" id="evidence"><div class="panel-header"><div><h2>3상 불평형 분석 근거</h2><p class="muted">실제로 저장된 분석만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
         <div class="panel" id="review"><div class="panel-header"><div><h2>사람의 정비 검토</h2><p class="muted">검토 요청과 연결된 분석 기록</p></div></div><div id="review-results"><p class="muted">검토 이력을 조회 중입니다.</p></div></div>
       </section>
-      <footer>Industrial PHM · 읽기 전용 검증 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>
+      <section class="panel connection-panel" id="connect" aria-labelledby="connect-title">
+        <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">설정 등록과 실제 수신 근거를 분리합니다. OPC UA 설정 변경은 기존 운영 화면을 사용하세요.</p></div></div>
+        <div id="source-status" class="state" role="status" aria-live="polite">소스 등록 현황을 조회합니다.</div>
+        <div id="source-list" class="source-list" aria-label="등록된 데이터 소스"></div>
+        <h3>작업공간 CSV 소스 등록</h3>
+        <p class="hint">로컬 작업공간 안에 준비된 UTF-8 CSV 파일만 등록합니다. 경로는 작업공간을 기준으로 입력하며, 브라우저가 파일을 업로드하지 않습니다.</p>
+        <form id="file-form">
+          <div class="form-grid">
+            <label>소스 ID<input name="source_id" required maxlength="128" placeholder="file-phase-01" autocomplete="off"></label>
+            <label>소스 이름<input name="name" required maxlength="128" placeholder="상전압 기록" autocomplete="off"></label>
+            <label>설비 ID<input name="asset_id" required maxlength="128" placeholder="pump-01" autocomplete="off"></label>
+            <label>측정 지점 (선택)<input name="measurement_point_id" maxlength="128" placeholder="panel-main" autocomplete="off"></label>
+            <label class="wide">작업공간 상대 CSV 경로<input name="file_path" required maxlength="128" placeholder="inputs/phase-voltage.csv" autocomplete="off"></label>
+            <label>신호 컬럼 (쉼표로 구분)<input name="channel_columns" required maxlength="700" placeholder="phase-R,phase-S,phase-T" autocomplete="off"></label>
+            <label>시간 컬럼 (선택)<input name="timestamp_column" maxlength="128" placeholder="timestamp" autocomplete="off"></label>
+          </div>
+          <button id="register-file" type="submit">CSV 확인 후 소스 등록</button>
+          <p id="register-result" role="status" aria-live="polite"></p>
+        </form>
+        <p class="hint">등록 후에도 accepted receipt가 확인되기 전에는 모니터링의 관측 데이터가 준비됐다고 표시하지 않습니다. 등록·수집·분석은 서로 다른 단계입니다.</p>
+      </section>
+      <footer>Industrial PHM · 로컬 검증 웹 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>
     </main>
   </div>
 </body>

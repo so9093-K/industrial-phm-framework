@@ -320,10 +320,116 @@ async function refresh() {
     byId("refresh").disabled = false;
   }
 }
-byId("refresh").addEventListener("click",refresh);
+byId("refresh").addEventListener("click",() => {refresh();loadSources();});
 byId("asset-select").addEventListener("change",selectAsset);
 byId("show-trend").addEventListener("click",() => loadTrend());
 byId("range-select").addEventListener("change",() => loadTrend());
 window.addEventListener("hashchange",setActiveSection);
 setActiveSection();
 refresh();
+
+async function loadSources() {
+  const state = byId("source-status"), list = byId("source-list");
+  state.textContent = "저장된 등록 상태를 조회 중입니다.";
+  clear(list);
+  try {
+    const data = await getJSON("/api/v1/sources");
+    const items = rows(data, "sources");
+    if (data.read_error_scopes && data.read_error_scopes.length) {
+      state.textContent = "일부 소스 저장소를 읽지 못했습니다. 등록 상태와 수신 근거를 확정할 수 없습니다.";
+      state.className = "state error";
+      byId("onboarding-state").textContent = "조회 실패 · 등록이나 수신이 없다고 단정할 수 없습니다.";
+      byId("onboarding-state").className = "notice error";
+      return;
+    }
+    state.className = "state";
+    const received = items.filter((item) => item.receipt_confirmed).length;
+    if (!items.length) {
+      state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV를 준비하거나 기존 운영 화면에서 OPC UA를 등록하세요.";
+      empty(list, "데이터 수신을 확인할 등록 소스가 없습니다.");
+      byId("onboarding-state").textContent = "1단계 · 소스 미등록 — FILE CSV를 등록하거나 기존 Operations에서 연결하세요.";
+    } else {
+      state.textContent = "등록된 소스 " + data.sources.total + "개 · accepted receipt 확인 " + received + "개 (표시 범위 기준)";
+      byId("onboarding-state").textContent = received
+        ? "등록된 소스 " + data.sources.total + "개 · 수신 확인 " + received + "개 — 신호 이력에서 실측값을 확인하세요."
+        : "등록 " + data.sources.total + "개 · 수신 확인 0개 — 등록은 연결 성공이나 실제 관측이 아닙니다.";
+    }
+    byId("onboarding-state").className = "";
+    items.forEach((item) => {
+      const card = create("article", "source-record");
+      card.append(create("strong", null, item.name + " · " + item.source_id));
+      card.append(create("span", null, "설비: " + item.asset_id + " · 유형: " + item.source_type));
+      card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + " (접속 상태 아님)"));
+      const receipt = create("span", item.receipt_confirmed ? "receipt-confirmed" : "receipt-missing",
+        item.receipt_confirmed ? "실제 수신 근거 있음" : "수신 근거 미확인");
+      card.append(receipt);
+      card.append(create("span", null, "마지막 수신 · UTC: " + utc(item.last_accepted_received_at)));
+      card.append(create("span", null, "원본 관측 · UTC: " + utc(item.last_accepted_observed_at)));
+      list.append(card);
+    });
+    if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다. 전체 수신 상태를 뜻하지 않습니다."));
+  } catch (error) {
+    state.textContent = presentError(error);
+    state.className = "state error";
+    byId("onboarding-state").textContent = "소스 조회 실패 — 등록 여부와 수신 근거를 확인할 수 없습니다.";
+    byId("onboarding-state").className = "notice error";
+  }
+}
+async function registerFile(event) {
+  event.preventDefault();
+  const button = byId("register-file"), feedback = byId("register-result");
+  const form = byId("file-form");
+  const values = new FormData(form);
+  const channels = String(values.get("channel_columns") || "").split(",").map((x) => x.trim());
+  if (channels.some((x) => !x) || channels.length > 12 || new Set(channels).size !== channels.length) {
+    feedback.className = "error";
+    feedback.textContent = "중복되지 않는 신호 컬럼 1~12개를 쉼표로 입력하세요.";
+    return;
+  }
+  const payload = {
+    source_id: String(values.get("source_id") || "").trim(),
+    name: String(values.get("name") || "").trim(),
+    asset_id: String(values.get("asset_id") || "").trim(),
+    measurement_point_id: String(values.get("measurement_point_id") || "").trim(),
+    file_path: String(values.get("file_path") || "").trim(),
+    channel_columns: channels,
+    timestamp_column: String(values.get("timestamp_column") || "").trim(),
+  };
+  button.disabled = true;
+  feedback.className = "";
+  feedback.textContent = "CSV 형식과 등록 조건을 검증합니다. 이 단계에서 수집은 시작하지 않습니다.";
+  try {
+    const session = await getJSON("/api/v1/session");
+    const response = await fetch("/api/v1/sources/file", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      if (response.status === 409) throw new Error("duplicate-source");
+      if (response.status === 400) throw new Error("invalid-csv");
+      throw new Error("http-" + response.status);
+    }
+    const result = await response.json();
+    if (result.schema_version !== 1 || result.registration_state !== "registered") {
+      throw new Error("schema-mismatch");
+    }
+    feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 수집은 기존 Operations에서 별도 실행하세요.";
+    form.reset();
+    await loadSources();
+    await refresh();
+  } catch (error) {
+    feedback.className = "error";
+    if (error.message === "duplicate-source") {
+      feedback.textContent = "이미 등록된 소스 ID입니다. 다른 ID를 사용하세요.";
+    } else if (error.message === "invalid-csv") {
+      feedback.textContent = "등록 실패: CSV 경로·헤더·신호 컬럼과 작업공간 내부 경로 여부를 확인하세요.";
+    } else {
+      feedback.textContent = presentError(error);
+    }
+  } finally {
+    button.disabled = false;
+  }
+}
+byId("file-form").addEventListener("submit", registerFile);
+loadSources();

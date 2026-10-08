@@ -11,10 +11,12 @@ the production UI, supervise collection/analysis, or offer mutations.
   unstarted `ThreadingHTTPServer`. The caller owns `serve_forever()`, `shutdown()`
   and `server_close()`.
 - The listener **always binds 127.0.0.1**. Read routes are `GET /api/v1/monitor`,
-  `GET /api/v1/history/channels`, and `GET /api/v1/history/trend`.
+  `GET /api/v1/history/channels`, `GET /api/v1/history/trend`,
+  `GET /api/v1/sources` and `GET /api/v1/session`.
   **Only** `/web/`, `/web/app.js`, and `/web/styles.css` serve packaged static
   assets from the installed Python wheel. No arbitrary file path may be requested.
-  POST/PUT/DELETE/OPTIONS are rejected (405). There is no mutation command, Node runtime
+  All mutations **except** the protected workspace FILE registration
+  `POST /api/v1/sources/file` are rejected (405). There is no arbitrary mutation command, Node runtime
   or dev server, repository file proxy, or remote exposure.
 - Host must be `127.0.0.1:<bound-port>` or `localhost:<bound-port>`. Optional
   `Origin` must be the same allowed HTTP origin, and `Sec-Fetch-Site: cross-site`
@@ -70,6 +72,52 @@ This is **not** a completed production web cutover: first-run/source setup,
 write-side CSRF/origin hardening, URL/deep-linked evidence screens,
 locale switching, accessibility audit, independent supervision, and
 full operational lifecycle/browser acceptance remain in [Issue #449](https://github.com/so9093-K/industrial-phm-framework/issues/449).
+
+## First-run source inventory and workspace FILE registration
+
+The opt-in Web preview now has a first-run/source panel. It uses durable source
+registry state, source lifecycle and **accepted receipt** evidence. Its source list
+does **not** expose configured FILE paths, OPC UA endpoint URLs, credentials or
+raw connector errors.
+
+- `GET /api/v1/sources` returns `schema_version: 1`, UTC assessed time,
+  `sources.items` (max 100) and `sources.total/truncated`, and bounded
+  `read_error_scopes`. Each row includes source/asset/point/channel IDs, source
+  family, lifecycle, `receipt_confirmed` and the last accepted observed/received
+  timestamps. `registered` or `active` is **not** real-time connection status.
+  A missing receipt is not displayed as accepted data.
+- `GET /api/v1/session` returns a **per-preview-process unpredictable CSRF
+  token** for same-origin UI requests. The token must be sent as
+  `X-CSRF-Token` on registration; it is never included in source inventory.
+  The local preview remains a **single-user loopback** capability; it is not
+  multi-user authentication or a general-purpose remote API.
+- `POST /api/v1/sources/file` registers **one prepared CSV already located
+  inside the active workspace** using the existing
+  `OperationsAppActions.register_source` facade. The browser requires a
+  same-origin `Origin`, `Sec-Fetch-Site: same-origin`, an exact session
+  CSRF token, JSON content type, and `Content-Length` 1–4096 bytes.
+  There is no CORS exception, credential-bearing remote write path, path
+  proxy or browser-based file upload. Unknown JSON keys, nested/absolute/
+  escaping paths, symlink escapes, duplicate channels and more than 12
+  channels are rejected. CSV must be no larger than 20 MiB, be UTF-8,
+  and pass the existing prepared-FILE parser/registration validation.
+  A duplicate source ID returns 409; malformed input 400; denied writes
+  403. Error JSON carries **stable codes only**, never the filesystem
+  path or source bytes.
+- A successful registration returns HTTP **201** with
+  `registration_state: registered`, `receipt_confirmed: false` and
+  explicit `validated-registration-only-not-collected` meaning.
+  This neither activates a source, requests collection, creates an
+  accepted receipt, backfills DuckLake, nor runs PHM analysis.
+  Operators must use the existing Operations runtime and collector to
+  obtain actual data; then refresh this preview to see accepted receipts
+  and stored signal history.
+
+OPC UA browse, credential handling, FILE uploads, source lifecycle/collection
+requests, an isolated first-run synthetic sample and protected human-review
+writes are **not included** in this first FILE registration slice.
+The default marimo Operations remains the production onboarding owner
+until the staged Web transition acceptance gates pass.
 
 ## GET /api/v1/monitor response
 

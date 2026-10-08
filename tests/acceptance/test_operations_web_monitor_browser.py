@@ -135,3 +135,61 @@ def test_web_monitor_empty_workspace_has_no_fake_equipment(tmp_path: Path) -> No
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+@pytest.mark.parametrize("width", [1024, 1440])
+def test_first_run_registers_prepared_file_without_faking_receipt(
+    tmp_path: Path, width: int
+) -> None:
+    sync_api = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "first-run")
+    initialize_operations_workspace(workspace)
+    input_dir = workspace.root / "inputs"
+    input_dir.mkdir()
+    (input_dir / "phase.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        "2026-10-08T11:50:00+00:00,221.0,219.5,220.6\n"
+        "2026-10-08T11:50:01+00:00,221.1,219.6,220.7\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with sync_api.sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": width, "height": 900})
+            errors: list[str] = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            sync_api.expect(page.locator("#onboarding-state")).to_contain_text("소스 미등록")
+            page.locator('input[name="source_id"]').fill("web-file-01")
+            page.locator('input[name="name"]').fill("웹 등록 CSV")
+            page.locator('input[name="asset_id"]').fill("pump-01")
+            page.locator('input[name="measurement_point_id"]').fill("panel")
+            page.locator('input[name="file_path"]').fill("inputs/phase.csv")
+            page.locator('input[name="channel_columns"]').fill("phase-R,phase-S,phase-T")
+            page.locator('input[name="timestamp_column"]').fill("timestamp")
+            page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
+            sync_api.expect(page.locator("#register-result")).to_contain_text(
+                "등록 완료 · 수신 근거 미확인"
+            )
+            sync_api.expect(page.locator("#source-list")).to_contain_text("web-file-01")
+            sync_api.expect(page.locator("#source-list")).to_contain_text("수신 근거 미확인")
+            sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 0개")
+            sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
+            assert (
+                JsonSourceRepository(workspace.source_registry_path).get("web-file-01").asset_id
+                == "pump-01"
+            )
+            assert not page.locator("#last-values .latest-item").count()
+            assert not errors, errors
+            width_info = page.evaluate(
+                "() => ({viewport: innerWidth, scroll: document.documentElement.scrollWidth})"
+            )
+            assert width_info["scroll"] <= width_info["viewport"] + 2
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
