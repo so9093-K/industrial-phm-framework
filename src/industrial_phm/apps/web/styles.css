@@ -27,3 +27,8 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 #register-result{min-height:1.4rem;margin:8px 0;font-size:.83rem;color:#365b69}
 #register-result.error{color:#9b3333}
 @media(max-width:600px){.form-grid{grid-template-columns:1fr}.form-grid label.wide{grid-column:auto}}
+
+.source-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.source-actions button{font-size:.8rem;padding:7px 10px}
+#source-control-result{font-size:.83rem;color:#365b69;min-height:1.4rem}
+#source-control-result.error{color:#9b3333}
