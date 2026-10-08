@@ -193,9 +193,7 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 sample = popup_info.value
                 sample.on("pageerror", lambda error: errors.append(str(error)))
                 expect(sample.locator(".mw-plot svg")).to_be_visible(timeout=75_000)
-                expect(sample.locator(".mw-plot circle").first).to_be_attached(
-                    timeout=75_000
-                )
+                expect(sample.locator(".mw-plot circle").first).to_be_attached(timeout=75_000)
                 _screenshot(sample, locale=locale, stage="sample-observations", tmp_path=tmp_path)
                 sample.close()
 
@@ -216,18 +214,18 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 expect(
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
-                page.get_by_role(
-                    "textbox", name=operations_text("setup.source_id", locale)
-                ).fill(source_id)
-                page.get_by_role(
-                    "textbox", name=operations_text("setup.name", locale)
-                ).fill("First-run acceptance source")
-                page.get_by_role(
-                    "textbox", name=operations_text("common.asset", locale)
-                ).fill("acceptance-motor-01")
-                page.get_by_role(
-                    "textbox", name=operations_text("setup.endpoint", locale)
-                ).fill("opc.tcp://127.0.0.1:65530")
+                page.get_by_role("textbox", name=operations_text("setup.source_id", locale)).fill(
+                    source_id
+                )
+                page.get_by_role("textbox", name=operations_text("setup.name", locale)).fill(
+                    "First-run acceptance source"
+                )
+                page.get_by_role("textbox", name=operations_text("common.asset", locale)).fill(
+                    "acceptance-motor-01"
+                )
+                page.get_by_role("textbox", name=operations_text("setup.endpoint", locale)).fill(
+                    "opc.tcp://127.0.0.1:65530"
+                )
                 page.get_by_text(
                     operations_text("setup.advanced_nodeid_mapping", locale), exact=True
                 ).click()
