@@ -59,7 +59,9 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 "last_accepted_observed_at": None if receipt is None else _utc(receipt.observed_at),
                 "receipt_confirmed": receipt is not None,
                 "continuous_collection_supported": source.source_type.value == "opcua",
-                "collection_desired_state": None if request is None else request.desired_state.value,
+                "collection_desired_state": (
+                    None if request is None else request.desired_state.value
+                ),
                 "collection_request_generation": None if request is None else request.generation,
                 "collection_requested_at": None if request is None else _utc(request.requested_at),
             }
