@@ -539,6 +539,74 @@ _PRODUCT_COPY: Final = {
         "common.to": "to",
         "common.analysis_evidence": "Analysis evidence",
         "common.queue_groups": "Queue groups",
+        "error.what_happened": "What happened",
+        "error.safety": "Known state",
+        "error.next_action": "Next action",
+        "error.technical_detail": "Technical detail",
+        "first_run.sample.failure.what": "The sample environment could not be started.",
+        "first_run.sample.failure.safety": (
+            "A failed launch does not confirm whether the sample process stopped. "
+            "Sample readings must not be treated as operational evidence."
+        ),
+        "first_run.sample.failure.next": (
+            "Try the sample again, or choose Connect real data. If it repeats, open the "
+            "technical detail and check the sample runtime."
+        ),
+        "setup.failure.what": "The requested data-connection change was not completed.",
+        "setup.failure.safety": (
+            "The saved source or collector state may require checking before retrying."
+        ),
+        "setup.failure.next": (
+            "Check saved sources and input values to avoid duplicates, then retry only if needed."
+        ),
+        "setup.diagnostic.failure.what": "The bounded diagnostic did not complete successfully.",
+        "setup.diagnostic.failure.safety": (
+            "A failed diagnostic does not enable a source and is not asset-health evidence."
+        ),
+        "setup.diagnostic.failure.next": (
+            "Check the source endpoint or FILE settings and runtime connectivity, then run "
+            "the diagnostic again."
+        ),
+        "setup.mapping.failure.what": "The explicit OPC UA mapping could not be read.",
+        "setup.mapping.failure.safety": "Invalid mapping input does not confirm any source configuration change.",
+        "setup.mapping.failure.next": (
+            "Use one signal_id,node_id pair per line, correct the invalid line, then retry."
+        ),
+        "asset.workspace.failure.what": "Asset evidence could not be loaded.",
+        "asset.workspace.failure.safety": (
+            "Unavailable evidence is not interpreted as asset health, fault, or alarm state."
+        ),
+        "asset.workspace.failure.next": (
+            "Refresh the view. If it persists, inspect System and Data connection for source "
+            "or history-read errors."
+        ),
+        "asset.analysis.failure.what": "The FILE snapshot analysis did not complete.",
+        "asset.analysis.failure.safety": (
+            "A reported analysis failure does not establish whether prior results were saved or "
+            "reviewed."
+        ),
+        "asset.analysis.failure.next": (
+            "Check the selected FILE source and technical detail, then retry the analysis."
+        ),
+        "investigation.review.failure.what": "The review request was not recorded.",
+        "investigation.review.failure.safety": "An error message does not establish the saved review state or asset health.",
+        "investigation.review.failure.next": (
+            "Reload the selected evidence, confirm its review state, then request review again."
+        ),
+        "maintenance.failure.what": "The review action was not recorded.",
+        "maintenance.failure.safety": (
+            "The persisted review state may differ from the displayed error; verify it before retrying."
+        ),
+        "maintenance.failure.next": (
+            "Reload the review item, confirm its current state, then retry the appropriate action."
+        ),
+        "monitor.action_error.safety": (
+            "Do not infer a data or asset-state change from this view update error."
+        ),
+        "monitor.action_error.next": (
+            "Refresh the view. If the same error returns, inspect System or Data connection "
+            "before retrying."
+        ),
         "asset.no_selection": "No asset is selected.",
         "asset.history_unavailable": "Asset History unavailable",
         "asset.signals_unavailable": "Signals unavailable",
@@ -998,6 +1066,71 @@ _PRODUCT_COPY: Final = {
         "common.to": "종료",
         "common.analysis_evidence": "분석 근거",
         "common.queue_groups": "대기열 그룹",
+        "error.what_happened": "발생 상황",
+        "error.safety": "확인된 상태",
+        "error.next_action": "다음 행동",
+        "error.technical_detail": "기술 상세",
+        "first_run.sample.failure.what": "샘플 환경을 시작하지 못했습니다.",
+        "first_run.sample.failure.safety": (
+            "샘플 시작 실패만으로 자식 프로세스 종료 여부는 확인되지 않습니다. 샘플 관측값은 운영 근거가 아닙니다."
+        ),
+        "first_run.sample.failure.next": (
+            "샘플을 다시 시도하거나 실제 데이터 연결을 선택하세요. 반복되면 기술 상세를 열어 "
+            "샘플 runtime 상태를 확인하세요."
+        ),
+        "setup.failure.what": "요청한 데이터 연결 변경을 완료하지 못했습니다.",
+        "setup.failure.safety": (
+            "재시도 전에 저장된 source와 수집 요청 상태를 확인해야 합니다."
+        ),
+        "setup.failure.next": (
+            "중복 등록을 피하도록 저장된 source와 입력값을 확인하고 필요한 경우에만 다시 시도하세요."
+        ),
+        "setup.diagnostic.failure.what": "제한된 진단을 정상적으로 완료하지 못했습니다.",
+        "setup.diagnostic.failure.safety": (
+            "진단 실패만으로 source가 활성화되지 않으며 설비 상태 근거로 사용하지 않습니다."
+        ),
+        "setup.diagnostic.failure.next": (
+            "Source endpoint 또는 FILE 설정과 runtime 연결 상태를 확인한 뒤 진단을 다시 실행하세요."
+        ),
+        "setup.mapping.failure.what": "명시적인 OPC UA mapping을 읽지 못했습니다.",
+        "setup.mapping.failure.safety": "잘못된 mapping 입력만으로 source 설정 변경 여부를 판단하지 마세요.",
+        "setup.mapping.failure.next": (
+            "각 줄을 signal_id,node_id 한 쌍으로 작성하고 잘못된 줄을 수정한 뒤 다시 시도하세요."
+        ),
+        "asset.workspace.failure.what": "설비 evidence를 불러오지 못했습니다.",
+        "asset.workspace.failure.safety": (
+            "불러오지 못한 evidence를 설비 health, fault 또는 alarm 상태로 해석하지 않습니다."
+        ),
+        "asset.workspace.failure.next": (
+            "화면을 새로고침하세요. 계속되면 시스템과 데이터 연결에서 source 또는 history 읽기 "
+            "오류를 확인하세요."
+        ),
+        "asset.analysis.failure.what": "FILE snapshot 분석을 완료하지 못했습니다.",
+        "asset.analysis.failure.safety": (
+            "분석 실패 메시지만으로 기존 결과의 저장 여부나 설비 상태를 판단할 수 없습니다."
+        ),
+        "asset.analysis.failure.next": (
+            "선택한 FILE source와 기술 상세를 확인한 뒤 분석을 다시 실행하세요."
+        ),
+        "investigation.review.failure.what": "검토 요청을 기록하지 못했습니다.",
+        "investigation.review.failure.safety": "오류 메시지만으로 저장된 검토 상태나 설비 상태를 판단할 수 없습니다.",
+        "investigation.review.failure.next": (
+            "선택한 evidence를 다시 불러와 현재 검토 상태를 확인한 뒤 다시 요청하세요."
+        ),
+        "maintenance.failure.what": "검토 작업을 기록하지 못했습니다.",
+        "maintenance.failure.safety": (
+            "표시된 오류와 저장된 검토 상태가 다를 수 있으니 재시도 전에 확인하세요."
+        ),
+        "maintenance.failure.next": (
+            "검토 항목을 다시 불러와 현재 상태를 확인한 뒤 가능한 작업을 다시 시도하세요."
+        ),
+        "monitor.action_error.safety": (
+            "이 화면 갱신 오류만으로 데이터나 설비 상태가 바뀌었다고 판단하지 마세요."
+        ),
+        "monitor.action_error.next": (
+            "화면을 새로고침하세요. 같은 오류가 반복되면 시스템 또는 데이터 연결 상태를 "
+            "확인한 뒤 다시 시도하세요."
+        ),
         "asset.no_selection": "선택된 설비가 없습니다.",
         "asset.history_unavailable": "설비 이력을 불러올 수 없습니다",
         "asset.signals_unavailable": "신호를 불러올 수 없습니다",
