@@ -150,9 +150,17 @@ def create_operations_web_read_server(
                 if self.path == "/api/v1/monitor":
                     payload = project_operations_monitor(snapshot)
                 elif parts.path == "/api/v1/history/channels":
-                    payload = project_history_channels(snapshot, **query)
+                    payload = project_history_channels(
+                        snapshot, asset_id=cast(str, query["asset_id"])
+                    )
                 else:
-                    payload = project_signal_history(snapshot, **query)
+                    payload = project_signal_history(
+                        snapshot,
+                        asset_id=cast(str, query["asset_id"]),
+                        channel_ids=cast(tuple[str, ...], query["channel_ids"]),
+                        range_preset=cast(str, query["range_preset"]),
+                        bucket_count=cast(int, query["bucket_count"]),
+                    )
             except (OperationsReadError, OSError, ValueError, TypeError):
                 # No workspace paths, raw exceptions or tracebacks in responses.
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE, "history_or_snapshot_unavailable")
