@@ -25,7 +25,7 @@
     <main id="main">
       <header class="topbar">
         <div><p class="eyebrow">OPERATIONS / OBSERVATION</p><h1>설비 모니터링</h1><p class="muted">측정된 사실부터 분석 근거까지, 하나의 설비 맥락에서 확인합니다.</p></div>
-        <div class="top-actions"><span class="pill">조회 · FILE 등록</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
+        <div class="top-actions"><span class="pill">조회 · 소스 등록·제어</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
       </header>
       <section class="notice hidden" id="notice" role="status" aria-live="polite"></section>
       <section class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
@@ -67,7 +67,10 @@
       <section class="panel connection-panel" id="connect" aria-labelledby="connect-title">
         <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">설정 등록과 실제 수신 근거를 분리합니다. OPC UA 설정 변경은 기존 운영 화면을 사용하세요.</p></div></div>
         <div id="source-status" class="state" role="status" aria-live="polite">소스 등록 현황을 조회합니다.</div>
+        <p class="hint">OPC UA는 활성화 후 수집 시작을 요청할 수 있습니다. 시작·중지 요청은 실제 접속·수신 성공을 뜻하지 않습니다. FILE은 연속 수집 요청을 지원하지 않습니다.</p>
+        <p class="hint">이 화면은 로컬 시험용입니다. 같은 작업공간에서 기존 Operations 화면과 웹 화면의 소스 등록·상태 변경을 동시에 실행하지 마세요. 프로세스 간 동시 쓰기는 지원되지 않습니다.</p>
         <div id="source-list" class="source-list" aria-label="등록된 데이터 소스"></div>
+        <p id="source-control-result" role="status" aria-live="polite"></p>
         <h3>작업공간 CSV 소스 등록</h3>
         <p class="hint">로컬 작업공간 안에 준비된 UTF-8 CSV 파일만 등록합니다. 경로는 작업공간을 기준으로 입력하며, 브라우저가 파일을 업로드하지 않습니다.</p>
         <form id="file-form">

@@ -1,5 +1,5 @@
-// Read-only Operations frontend. All server strings enter the DOM as text, never HTML.
-// The user explicitly refreshes data; there is no polling, mutation or fallback sample.
+// Opt-in Operations Web preview. All server strings enter the DOM as text, never HTML.
+// Source mutations are explicit and protected; there is no polling or fallback sample.
 const byId = (id) => document.getElementById(id);
 const create = (tag, className, content) => {
   const element = document.createElement(tag);
@@ -365,6 +365,28 @@ async function loadSources() {
       card.append(receipt);
       card.append(create("span", null, "마지막 수신 · UTC: " + utc(item.last_accepted_received_at)));
       card.append(create("span", null, "원본 관측 · UTC: " + utc(item.last_accepted_observed_at)));
+      if (item.continuous_collection_supported) {
+        card.append(create("span", null, "연속 수집 요청: " + fmt(item.collection_desired_state || "미요청") + " (실제 수집 상태 아님)"));
+        card.append(create("span", null, "요청 세대: " + fmt(item.collection_request_generation) + " · UTC " + utc(item.collection_requested_at)));
+      } else {
+        card.append(create("span", null, "FILE 소스 · 연속 수집 시작 요청 미지원. 기존 FILE 처리 경로를 사용하세요."));
+      }
+      const actions = create("div", "source-actions");
+      if (item.lifecycle_state) {
+        const next = item.lifecycle_state === "active" ? "paused" : "active";
+        const lifecycle = create("button", null, next === "active" ? "소스 활성화" : "소스 일시정지");
+        lifecycle.type = "button";
+        lifecycle.addEventListener("click", () => controlSource(item.source_id, "lifecycle", next, lifecycle));
+        actions.append(lifecycle);
+      }
+      if (item.continuous_collection_supported && item.lifecycle_state === "active") {
+        const target = item.collection_desired_state === "running" ? "stopped" : "running";
+        const collection = create("button", null, target === "running" ? "수집 시작 요청" : "수집 중지 요청");
+        collection.type = "button";
+        collection.addEventListener("click", () => controlSource(item.source_id, "collection", target, collection));
+        actions.append(collection);
+      }
+      card.append(actions);
       list.append(card);
     });
     if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다. 전체 수신 상태를 뜻하지 않습니다."));
@@ -375,6 +397,57 @@ async function loadSources() {
     byId("onboarding-state").className = "notice error";
   }
 }
+
+async function controlSource(sourceId, action, target, button) {
+  const result = byId("source-control-result");
+  const verb = action === "collection" ? "수집 상태 요청" : "관리 상태 변경";
+  const confirmation = action === "collection"
+    ? "이 요청은 기존 수집 서비스에 원하는 상태를 기록합니다. 실제 수집 성공이나 측정값 수신을 확인하는 동작이 아닙니다."
+    : "이 변경은 소스의 관리 상태만 바꾸며 연결·수집 성공을 보장하지 않습니다.";
+  if (!window.confirm(sourceId + " · " + verb + " (" + target + ")\n" + confirmation)) return;
+  button.disabled = true;
+  result.className = "";
+  result.textContent = "소스 " + sourceId + " · " + verb + "을(를) 저장 중입니다.";
+  let savedState = false;
+  try {
+    const session = await getJSON("/api/v1/session");
+    const url = action === "collection" ? "/api/v1/sources/collection" : "/api/v1/sources/lifecycle";
+    const response = await fetch(url, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify({source_id: sourceId, target_state: target}),
+    });
+    if (!response.ok) {
+      if (response.status === 409) throw new Error("control-conflict");
+      if (response.status === 404) throw new Error("source-missing");
+      if (response.status === 400) throw new Error("control-invalid");
+      throw new Error("http-" + response.status);
+    }
+    const saved = await response.json();
+    if (saved.schema_version !== 1 || saved.source_id !== sourceId) throw new Error("schema-mismatch");
+    savedState = true;
+    result.textContent = sourceId + " · " + verb + " 저장됨 · "
+      + (action === "collection" ? "수집 요청만 기록됨 · 실제 수신 미확인" : "관리 상태 변경됨 · 연결 확인 아님");
+  } catch (error) {
+    result.className = "error";
+    if (error.message === "control-conflict") {
+      result.textContent = "상태 변경 불가 · 관리 상태와 소스 유형을 확인하고 다시 조회하세요.";
+    } else if (error.message === "source-missing") {
+      result.textContent = "등록되지 않은 소스입니다. 목록을 다시 조회하세요.";
+    } else if (error.message === "control-invalid") {
+      result.textContent = "잘못된 상태 요청입니다. 목록을 새로 불러오세요.";
+    } else {
+      result.textContent = presentError(error);
+    }
+  } finally {
+    button.disabled = false;
+  }
+  if (savedState) {
+    // A failed follow-up read cannot undo a successfully persisted control request.
+    await Promise.allSettled([loadSources(), refresh()]);
+  }
+}
+
 async function registerFile(event) {
   event.preventDefault();
   const button = byId("register-file"), feedback = byId("register-result");

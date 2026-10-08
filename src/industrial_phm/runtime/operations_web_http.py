@@ -1,8 +1,8 @@
-"""Loopback-only, GET-only transport for the initial Operations Web read contract.
+"""Loopback-only Operations Web preview with narrowly scoped protected actions.
 
-Not yet the production UI entry point. No CORS, mutation routes, authentication
-bypass, or file-serving endpoint is exposed. The existing marimo supervisor is
-unchanged until packaged static UI and browser acceptance are ready.
+This is not the production UI entry point. Mutations require exact same-origin
+browser evidence and a process CSRF token; collection requests do not start
+the supervisor or prove ingestion. The existing marimo UI remains unchanged.
 """
 
 from __future__ import annotations
@@ -17,11 +17,16 @@ from threading import Lock
 from typing import cast
 from urllib.parse import parse_qs, urlsplit
 
-from industrial_phm.application import SourceAlreadyRegisteredError
+from industrial_phm.application import (
+    SourceAlreadyRegisteredError,
+    UnknownRegisteredSourceError,
+)
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
 from industrial_phm.runtime.operations_web_setup import (
+    SourceControlConflict,
+    change_web_source_control,
     project_web_source_setup,
     register_workspace_csv_source,
 )
@@ -194,7 +199,7 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": "file-registration",
+                        "write_scope": "file-registration-and-source-control",
                     },
                 )
                 return
@@ -225,7 +230,11 @@ def create_operations_web_read_server(
             self._send_json(HTTPStatus.OK, payload)
 
         def do_POST(self) -> None:
-            if self.path != "/api/v1/sources/file":
+            control_routes = {
+                "/api/v1/sources/lifecycle": "lifecycle",
+                "/api/v1/sources/collection": "collection",
+            }
+            if self.path not in {"/api/v1/sources/file", *control_routes}:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
                 return
             if not self._allowed():
@@ -257,14 +266,29 @@ def create_operations_web_read_server(
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
                 with mutation_lock:
-                    result = register_workspace_csv_source(root, body)
+                    if self.path == "/api/v1/sources/file":
+                        result = register_workspace_csv_source(root, body)
+                    else:
+                        result = change_web_source_control(root, control_routes[self.path], body)
             except SourceAlreadyRegisteredError:
                 self._error(HTTPStatus.CONFLICT, "source_id_exists")
                 return
-            except OSError, ValueError, TypeError, UnicodeError:
-                self._error(HTTPStatus.BAD_REQUEST, "invalid_source_registration")
+            except SourceControlConflict:
+                self._error(HTTPStatus.CONFLICT, "source_control_conflict")
                 return
-            self._send_json(HTTPStatus.CREATED, result)
+            except UnknownRegisteredSourceError:
+                self._error(HTTPStatus.NOT_FOUND, "source_not_found")
+                return
+            except ValueError, TypeError, UnicodeError, FileNotFoundError, NotADirectoryError:
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_source_action")
+                return
+            except OSError:
+                self._error(HTTPStatus.SERVICE_UNAVAILABLE, "source_state_unavailable")
+                return
+            self._send_json(
+                HTTPStatus.CREATED if self.path == "/api/v1/sources/file" else HTTPStatus.OK,
+                result,
+            )
 
         def do_PUT(self) -> None:
             self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")

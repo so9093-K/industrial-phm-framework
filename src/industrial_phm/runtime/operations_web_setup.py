@@ -10,7 +10,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from industrial_phm.application import FileSourceConfig, RegisteredSource
+from industrial_phm.application import (
+    CollectionDesiredState,
+    FileSourceConfig,
+    RegisteredSource,
+    SourceLifecycleState,
+)
 from industrial_phm.runtime.operations_app_actions import OperationsAppActions
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
@@ -35,10 +40,12 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
     """Represent registration and durable accepted receipt as separate facts."""
     lifecycle = {record.source_id: record for record in snapshot.lifecycle_records}
     receipts = {receipt.source_id: receipt for receipt in snapshot.receipts}
+    requests = {record.source_id: record for record in snapshot.collection_records}
     sources: list[dict[str, object]] = []
     for source in snapshot.registered_sources:
         record = lifecycle.get(source.source_id)
         receipt = receipts.get(source.source_id)
+        request = requests.get(source.source_id)
         sources.append(
             {
                 "source_id": source.source_id,
@@ -51,6 +58,12 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 "last_accepted_received_at": None if receipt is None else _utc(receipt.received_at),
                 "last_accepted_observed_at": None if receipt is None else _utc(receipt.observed_at),
                 "receipt_confirmed": receipt is not None,
+                "continuous_collection_supported": source.source_type.value == "opcua",
+                "collection_desired_state": (
+                    None if request is None else request.desired_state.value
+                ),
+                "collection_request_generation": None if request is None else request.generation,
+                "collection_requested_at": None if request is None else _utc(request.requested_at),
             }
         )
     return {
@@ -66,7 +79,7 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
             {
                 item.scope
                 for item in snapshot.system_errors
-                if item.scope in {"source-settings", "source-runtime"}
+                if item.scope in {"source-settings", "source-runtime", "collection-control"}
             }
         ),
     }
@@ -137,3 +150,60 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
         "receipt_confirmed": False,
         "meaning": "validated-registration-only-not-collected",
     }
+
+
+class SourceControlConflict(ValueError):
+    """Existing source state forbids this transition or collection request."""
+
+
+def change_web_source_control(
+    root: Path, action: str, payload: dict[str, object]
+) -> dict[str, object]:
+    """Request one durable control-plane change, never a confirmed live connection.
+
+    The existing application facade validates lifecycle transitions, source type
+    and collection start prerequisites. Web transport owns only bounded input.
+    """
+    if set(payload) != {"source_id", "target_state"}:
+        raise ValueError("unexpected source action fields")
+    source_id = _text(payload, "source_id")
+    target = _text(payload, "target_state")
+    if source_id is None or target is None:
+        raise ValueError("source action needs identity and target state")
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
+    facade = OperationsAppActions(paths)
+    at = datetime.now(UTC)
+    if action == "lifecycle":
+        if target not in {"active", "paused"}:
+            raise ValueError("unsupported source lifecycle target")
+        try:
+            record, _ = facade.transition_source(
+                source_id, SourceLifecycleState(target), changed_at=at
+            )
+        except ValueError as error:
+            raise SourceControlConflict("lifecycle transition rejected") from error
+        return {
+            "schema_version": 1,
+            "source_id": record.source_id,
+            "lifecycle_state": record.state.value,
+            "changed_at": _utc(record.changed_at),
+            "meaning": "administrative-state-not-connected-or-received",
+        }
+    if action == "collection":
+        if target not in {"running", "stopped"}:
+            raise ValueError("unsupported collection target")
+        try:
+            control_record, _ = facade.request_collection(
+                source_id, CollectionDesiredState(target), requested_at=at
+            )
+        except ValueError as error:
+            raise SourceControlConflict("collection request rejected") from error
+        return {
+            "schema_version": 1,
+            "source_id": control_record.source_id,
+            "desired_state": control_record.desired_state.value,
+            "request_generation": control_record.generation,
+            "requested_at": _utc(control_record.requested_at),
+            "meaning": "desired-state-only-not-running-or-received",
+        }
+    raise ValueError("unknown source action")
