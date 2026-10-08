@@ -320,9 +320,17 @@ def test_first_run_browser_sample_real_and_resume(
                 expect(
                     page.get_by_role("heading", name=operations_text("setup.title", locale))
                 ).to_be_visible(timeout=_BROWSER_TIMEOUT_MS)
+                # Wait for the actual Setup inputs; a route heading can appear
+                # before the reactive form settles, especially at 1440 px.
+                try:
+                    _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
+                except Exception:
+                    _screenshot(
+                        page, locale=locale, stage="real-entry-failure", tmp_path=tmp_path
+                    )
+                    raise
                 _check_browser_layout(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
                 _screenshot(page, locale=locale, stage="real-entry", tmp_path=tmp_path)
-                _capture_setup_accessibility(page, locale=locale, tmp_path=tmp_path)
 
                 # Exercise a real validation error before the successful retry.
                 page.get_by_role(
