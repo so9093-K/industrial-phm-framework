@@ -15,7 +15,6 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import BinaryIO
@@ -90,7 +89,7 @@ def _start_node(
             with urllib.request.urlopen(url, timeout=1) as response:
                 if response.status == 200:
                     return process, log
-        except (OSError, urllib.error.URLError):
+        except OSError:
             pass
         time.sleep(0.25)
     _stop_node(process, workspace, log)
@@ -277,7 +276,7 @@ def test_first_run_browser_sample_real_and_resume(tmp_path: Path, locale: str) -
                 _screenshot(page, locale=locale, stage="configured-resume", tmp_path=tmp_path)
             finally:
                 browser.close()
-    except BaseException as error:
+    except Exception as error:
         raise AssertionError(
             f"first-run browser acceptance failed for {locale}: {error}\n"
             f"Operations process log:\n{_logs(log_path)}"
