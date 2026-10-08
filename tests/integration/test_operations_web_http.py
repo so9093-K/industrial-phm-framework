@@ -1,10 +1,20 @@
 """Local-only read API contract and browser-origin protections."""
 
 import json
+from datetime import UTC, datetime, timedelta
 from http.client import HTTPConnection
 from pathlib import Path
 from threading import Thread
 
+import pytest
+
+from industrial_phm.application import (
+    FileSourceConfig,
+    InMemorySourceRepository,
+    RegisteredSource,
+    backfill_registered_file_source,
+)
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 
@@ -82,3 +92,109 @@ def test_web_read_server_rejects_unknown_workspace(tmp_path: Path) -> None:
         assert "workspace_root" in str(error)
     else:
         raise AssertionError("server accepted unknown workspace")
+
+
+def test_history_http_query_validation_and_uninitialized_storage(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "plant-b")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        valid = "/api/v1/history/channels?asset_id=pump-01"
+        assert _request(port, "GET", valid)[0] == 503
+        assert _request(port, "GET", valid, host="rebind.example")[0] == 403
+        assert _request(port, "GET", valid, site="cross-site")[0] == 403
+        assert _request(port, "GET", valid + "&unexpected=x")[0] == 400
+        assert _request(port, "GET", valid + "&asset_id=pump-02")[0] == 400
+        assert _request(port, "GET", "/api/v1/history/trend?asset_id=pump-01")[0] == 400
+        assert (
+            _request(port, "GET", "/api/v1/history/trend?asset_id=pump-01&channel_id=R"
+                     "&buckets=9999")[0]
+            == 400
+        )
+        assert (
+            _request(port, "GET", "/api/v1/history/trend?asset_id=pump-01&channel_id=R"
+                     "&channel_id=R")[0]
+            == 400
+        )
+        assert _request(port, "POST", valid)[0] == 405
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_history_http_exposes_actual_bounded_file_observations(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    workspace = OperationsWorkspace(tmp_path / "plant-c")
+    initialize_operations_workspace(workspace)
+    source_path = tmp_path / "phase-voltage.csv"
+    event_at = datetime.now(UTC) - timedelta(minutes=2)
+    source_path.write_text(
+        "timestamp,voltage-R,voltage-S\\n"
+        f"{event_at.isoformat()},220.5,219.2\\n"
+        f"{(event_at + timedelta(seconds=1)).isoformat()},221.0,219.7\\n",
+        encoding="utf-8",
+    )
+    sources = InMemorySourceRepository()
+    sources.register(
+        RegisteredSource(
+            source_id="file-01",
+            name="Phase voltage import",
+            config=FileSourceConfig(
+                source_path=str(source_path),
+                asset_id="pump-01",
+                measurement_point_id="panel-main",
+                channel_columns=("voltage-R", "voltage-S"),
+                timestamp_column="timestamp",
+            ),
+            registered_at=event_at - timedelta(minutes=1),
+        )
+    )
+    repository = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(
+            catalog_path=workspace.history_catalog_path,
+            data_path=workspace.history_data_path,
+        )
+    )
+    result = backfill_registered_file_source(sources, repository, "file-01")
+    assert result.event_count == 4
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        status, _, channels = _request(
+            port, "GET", "/api/v1/history/channels?asset_id=pump-01"
+        )
+        assert status == 200
+        assert channels["channels"]["items"] == ["voltage-R", "voltage-S"]
+        status, _, trend = _request(
+            port,
+            "GET",
+            "/api/v1/history/trend?asset_id=pump-01&channel_id=voltage-R"
+            "&channel_id=voltage-S&range=15m&buckets=15",
+        )
+        assert status == 200
+        assert trend["snapshot_id"] >= 1
+        assert trend["asset_id"] == "pump-01"
+        assert trend["channel_ids"] == ["voltage-R", "voltage-S"]
+        assert {p["channel_id"] for p in trend["latest_stored"]} == {
+            "voltage-R", "voltage-S"
+        }
+        assert {row["source_type"] for row in trend["latest_stored"]} == {"file"}
+        assert all(row["source_quality"] == "unknown" for row in trend["latest_stored"])
+        assert all(row["usable_for_display"] for row in trend["latest_stored"])
+        assert all(row["event_at"].endswith("Z") for row in trend["latest_stored"])
+        assert trend["buckets"]
+        assert sum(bucket["usable_count"] for bucket in trend["buckets"]) == 4
+        assert all(bucket["conflict_count"] == 0 for bucket in trend["buckets"])
+        assert str(source_path) not in str(trend)
+        assert "phase-voltage.csv" not in str(trend)
+        assert "opc.tcp" not in str(trend)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
