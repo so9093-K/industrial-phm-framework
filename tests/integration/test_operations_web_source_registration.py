@@ -464,12 +464,12 @@ def test_web_file_backfill_commits_real_history_and_recovers_same_batch(tmp_path
 
 
 def test_web_file_backfill_rejects_missing_explicit_timestamps(tmp_path: Path) -> None:
+    from industrial_phm.application import FileSourceConfig, RegisteredSource
     from industrial_phm.runtime.operations_web_setup import (
         SourceControlConflict,
         backfill_workspace_file_history,
         change_web_source_control,
         receive_workspace_file_source,
-        register_workspace_csv_source,
     )
 
     workspace = OperationsWorkspace(tmp_path / "no-source-time")
@@ -480,9 +480,19 @@ def test_web_file_backfill_rejects_missing_explicit_timestamps(tmp_path: Path) -
         "phase-R,phase-S,phase-T\n220.5,219.0,221.0\n",
         encoding="utf-8",
     )
-    payload = _payload()
-    payload["timestamp_column"] = ""
-    register_workspace_csv_source(workspace.root.resolve(), payload)
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="registered-file-01",
+            name="sampled FILE without absolute timestamps",
+            config=FileSourceConfig(
+                source_path=str((folder / "phases.csv").resolve()),
+                asset_id="pump-01",
+                channel_columns=("phase-R", "phase-S", "phase-T"),
+                sampling_rate_hz=1.0,
+            ),
+            registered_at=datetime.now(UTC),
+        )
+    )
     change_web_source_control(
         workspace.root.resolve(),
         "lifecycle",
