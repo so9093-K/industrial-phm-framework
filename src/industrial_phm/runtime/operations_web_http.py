@@ -79,9 +79,7 @@ def create_operations_web_read_server(
             if len(self.path) > 1600:
                 raise ValueError("query too long")
             parts = urlsplit(self.path)
-            allowed = {"asset_id"} if channels else {
-                "asset_id", "channel_id", "range", "buckets"
-            }
+            allowed = {"asset_id"} if channels else {"asset_id", "channel_id", "range", "buckets"}
             params = parse_qs(
                 parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=12
             )
@@ -134,9 +132,7 @@ def create_operations_web_read_server(
                 query: dict[str, object] = {}
             elif parts.path in {"/api/v1/history/channels", "/api/v1/history/trend"}:
                 try:
-                    query = self._history_query(
-                        channels=parts.path == "/api/v1/history/channels"
-                    )
+                    query = self._history_query(channels=parts.path == "/api/v1/history/channels")
                 except ValueError:
                     self._error(HTTPStatus.BAD_REQUEST, "invalid_history_query")
                     return
@@ -161,7 +157,7 @@ def create_operations_web_read_server(
                         range_preset=cast(str, query["range_preset"]),
                         bucket_count=cast(int, query["bucket_count"]),
                     )
-            except (OperationsReadError, OSError, ValueError, TypeError):
+            except OperationsReadError, OSError, ValueError, TypeError:
                 # No workspace paths, raw exceptions or tracebacks in responses.
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE, "history_or_snapshot_unavailable")
                 return
