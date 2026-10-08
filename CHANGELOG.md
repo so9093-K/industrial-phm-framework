@@ -164,6 +164,11 @@
 
 ### Fixed
 
+- first-run 실제 Chromium 테스트에서 발견한 Monitor JavaScript 구문 오류를 수정했습니다.
+  날짜/시간 축 라벨의 `svg.append(svgEl(...))` 호출에 닫는 괄호가 하나 빠져
+  `missing ) after argument list` 오류로 Monitor widget이 렌더링되지 않았습니다.
+  브라우저 first-run 여정과 Node.js 기반 ESM 구문 검사를 CI에 추가해 회귀를 막습니다.
+
 - 전용 Monitor의 AI-Hub boiler 2297 full reference gate를 재실행해 장애 3회 반복과 6개 Monitor 상태,
   수신→중단→재연결→복구 및 review→Maintenance 경로의 15개 검사를 확인했습니다. 이전 화면의 검증
   이력을 승계한 결과가 아니며, DataChange 기반 missing-phase 판정 한계는 유지합니다.
