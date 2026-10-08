@@ -79,7 +79,7 @@ def create_operations_web_read_server(
                     environ={"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)}
                 )
                 payload = project_operations_monitor(snapshot)
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 # Never return workspace paths, raw exceptions or tracebacks.
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE, "snapshot_unavailable")
                 return
