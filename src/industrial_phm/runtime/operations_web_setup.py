@@ -13,10 +13,16 @@ from pathlib import Path
 from industrial_phm.application import (
     CollectionDesiredState,
     FileSourceConfig,
+    FileSourceMode,
+    JsonSourceRepository,
     RegisteredSource,
     SourceLifecycleState,
+    SourceRuntimeCycleState,
 )
-from industrial_phm.runtime.operations_app_actions import OperationsAppActions
+from industrial_phm.runtime.operations_app_actions import (
+    OperationsAppActions,
+    OperationsDiagnosticKind,
+)
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
 from industrial_phm.runtime.operations_web_read import _utc
@@ -207,3 +213,55 @@ def change_web_source_control(
             "meaning": "desired-state-only-not-running-or-received",
         }
     raise ValueError("unknown source action")
+
+
+def receive_workspace_file_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Run one existing FILE diagnostic; accepted receipt is not historical backfill.
+
+    Only an ACTIVE, workspace-owned prepared snapshot CSV can be read by this
+    preview. Re-check the registered path before every explicit invocation,
+    rather than trusting a file registration made earlier.
+    """
+    if set(payload) != {"source_id"}:
+        raise ValueError("unexpected FILE receipt fields")
+    source_id = _text(payload, "source_id")
+    assert isinstance(source_id, str)
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
+    registry = JsonSourceRepository(paths.registry)
+    source = registry.get(source_id)
+    if not isinstance(source.config, FileSourceConfig):
+        raise SourceControlConflict("FILE receipt only supports FILE sources")
+    if source.config.mode != FileSourceMode.SNAPSHOT:
+        raise SourceControlConflict("FILE receipt only supports snapshot CSV")
+    if registry.get_lifecycle(source_id).state != SourceLifecycleState.ACTIVE:
+        raise SourceControlConflict("FILE receipt requires ACTIVE source")
+
+    registered_path = Path(source.config.source_path)
+    try:
+        resolved = registered_path.resolve(strict=True)
+        if (
+            not registered_path.is_absolute()
+            or resolved != registered_path
+            or not resolved.is_relative_to(root)
+            or resolved.suffix.lower() != ".csv"
+            or not resolved.is_file()
+            or not 0 < resolved.stat().st_size <= _MAX_INPUT_BYTES
+        ):
+            raise SourceControlConflict("FILE source path is outside Web receipt scope")
+    except (OSError, RuntimeError) as error:
+        raise SourceControlConflict("FILE source path is unavailable") from error
+
+    outcome, _ = OperationsAppActions(paths).run_diagnostic(
+        source_id, kind=OperationsDiagnosticKind.CYCLE
+    )
+    receipt = outcome.received.receipt if outcome.state == SourceRuntimeCycleState.SUCCEEDED else None
+    return {
+        "schema_version": 1,
+        "source_id": source_id,
+        "cycle_state": outcome.state.value,
+        "accepted_new_receipt": receipt is not None,
+        "accepted_received_at": None if receipt is None else _utc(receipt.received_at),
+        "accepted_observed_at": None if receipt is None else _utc(receipt.observed_at),
+        "failure_scope": None if outcome.failure_scope is None else outcome.failure_scope.value,
+        "meaning": "file-receipt-only-not-history-backfill",
+    }

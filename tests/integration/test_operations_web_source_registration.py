@@ -274,3 +274,99 @@ def test_web_source_controls_durable_request_not_receipt(tmp_path: Path) -> None
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_web_file_receipt_requires_active_and_persists_only_acceptance(tmp_path: Path) -> None:
+    from industrial_phm.application import JsonSourceRuntimeRepository
+
+    workspace = OperationsWorkspace(tmp_path / "file-receipt")
+    initialize_operations_workspace(workspace)
+    folder = workspace.root / "inputs"
+    folder.mkdir()
+    file_path = folder / "phase.csv"
+    file_path.write_text(
+        "timestamp,phase-R,phase-S,phase-T\\n"
+        "2026-10-08T12:00:00+00:00,220.5,219.0,221.0\\n"
+        "2026-10-08T12:00:01+00:00,220.6,219.1,221.1\\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        _, session = _request(port, "GET", "/api/v1/session")
+        csrf = session["csrf_token"]
+
+        def command(route: str, payload: dict[str, object], *, token: str | None = csrf):
+            return _request(
+                port, "POST", "/api/v1/sources/" + route,
+                body=json.dumps(payload).encode(),
+                origin=origin, fetch_site="same-origin", csrf=token,
+            )
+
+        assert command("file", _payload("inputs/phase.csv"))[0] == 201
+        receive = {"source_id": "registered-file-01"}
+        assert command("file/receive", receive)[0] == 409
+        assert command("file/receive", receive, token=None)[0] == 403
+        assert command("file/receive", {"source_id": "unknown"})[0] == 404
+        assert command("file/receive", {"source_id": "registered-file-01", "extra": "x"})[0] == 400
+        assert command("lifecycle", {"source_id": "registered-file-01", "target_state": "active"})[0] == 200
+
+        status, accepted = command("file/receive", receive)
+        assert status == 200
+        assert accepted["cycle_state"] == "succeeded"
+        assert accepted["accepted_new_receipt"] is True
+        assert accepted["meaning"] == "file-receipt-only-not-history-backfill"
+        assert accepted["accepted_received_at"] is not None
+        stored = JsonSourceRuntimeRepository(workspace.source_runtime_path).get_latest_receipt(
+            "registered-file-01"
+        )
+        assert stored is not None
+        assert accepted["accepted_received_at"] == stored.received_at.isoformat().replace("+00:00", "Z")
+        status, sources = _request(port, "GET", "/api/v1/sources")
+        assert status == 200
+        assert sources["sources"]["items"][0]["receipt_confirmed"] is True
+        assert "phase.csv" not in str(sources)
+        # Receipt acceptance does not initialize historical DuckLake storage.
+        assert not workspace.history_catalog_path.exists()
+        assert command("lifecycle", {"source_id": "registered-file-01", "target_state": "paused"})[0] == 200
+        assert command("file/receive", receive)[0] == 409
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_web_file_receipt_rejects_swapped_outside_symlink(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "swapped")
+    initialize_operations_workspace(workspace)
+    folder = workspace.root / "inputs"
+    folder.mkdir()
+    file_path = folder / "phase.csv"
+    file_path.write_text(
+        "timestamp,phase-R,phase-S,phase-T\\n"
+        "2026-10-08T12:00:00+00:00,220,219,221\\n",
+        encoding="utf-8",
+    )
+    from industrial_phm.runtime.operations_web_setup import (
+        change_web_source_control,
+        receive_workspace_file_source,
+        register_workspace_csv_source,
+    )
+
+    register_workspace_csv_source(workspace.root.resolve(), _payload("inputs/phase.csv"))
+    change_web_source_control(
+        workspace.root.resolve(), "lifecycle",
+        {"source_id": "registered-file-01", "target_state": "active"},
+    )
+    outside = tmp_path / "outside.csv"
+    outside.write_text("timestamp,phase-R\\n", encoding="utf-8")
+    file_path.unlink()
+    file_path.symlink_to(outside)
+    from industrial_phm.runtime.operations_web_setup import SourceControlConflict
+
+    with pytest.raises(SourceControlConflict):
+        receive_workspace_file_source(workspace.root.resolve(), {"source_id": "registered-file-01"})
+    assert not workspace.source_runtime_path.exists()

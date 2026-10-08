@@ -28,6 +28,7 @@ from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
     change_web_source_control,
     project_web_source_setup,
+    receive_workspace_file_source,
     register_workspace_csv_source,
 )
 from industrial_phm.runtime.operations_web_signals import (
@@ -199,7 +200,7 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": "file-registration-and-source-control",
+                        "write_scope": "file-registration-source-control-and-file-receipt",
                     },
                 )
                 return
@@ -234,7 +235,7 @@ def create_operations_web_read_server(
                 "/api/v1/sources/lifecycle": "lifecycle",
                 "/api/v1/sources/collection": "collection",
             }
-            if self.path not in {"/api/v1/sources/file", *control_routes}:
+            if self.path not in {"/api/v1/sources/file", "/api/v1/sources/file/receive", *control_routes}:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
                 return
             if not self._allowed():
@@ -268,6 +269,8 @@ def create_operations_web_read_server(
                 with mutation_lock:
                     if self.path == "/api/v1/sources/file":
                         result = register_workspace_csv_source(root, body)
+                    elif self.path == "/api/v1/sources/file/receive":
+                        result = receive_workspace_file_source(root, body)
                     else:
                         result = change_web_source_control(root, control_routes[self.path], body)
             except SourceAlreadyRegisteredError:

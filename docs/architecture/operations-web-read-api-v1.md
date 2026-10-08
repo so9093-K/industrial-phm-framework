@@ -15,8 +15,9 @@ production UI or supervise collection/analysis.
   `GET /api/v1/sources` and `GET /api/v1/session`.
   **Only** `/web/`, `/web/app.js`, and `/web/styles.css` serve packaged static
   assets from the installed Python wheel. No arbitrary file path may be requested.
-  Only `POST /api/v1/sources/file`, `POST /api/v1/sources/lifecycle`, and
-  `POST /api/v1/sources/collection` are allowed under the protected write contract;
+  Only `POST /api/v1/sources/file`, `POST /api/v1/sources/file/receive`,
+  `POST /api/v1/sources/lifecycle`, and `POST /api/v1/sources/collection` are allowed
+  under the protected write contract;
   other mutations return 405. There is no arbitrary mutation command, Node runtime,
   dev server, repository file proxy, or remote exposure.
 - Host must be `127.0.0.1:<bound-port>` or `localhost:<bound-port>`. Optional
@@ -126,6 +127,29 @@ Source lifecycle and OPC UA collection desired-state requests are described belo
 those requests do not start a collector or prove actual receipt.
 The default marimo Operations remains the production onboarding owner
 until the staged Web transition acceptance gates pass.
+
+## Explicit FILE validated receipt (opt-in preview only)
+
+`POST /api/v1/sources/file/receive` accepts only `{"source_id":"..."}` and
+uses the same bounded same-origin, CSRF-protected JSON request as the other
+write routes. It accepts only an ACTIVE, registered FILE snapshot CSV that is
+currently located inside the workspace, unchanged as an absolute canonical
+path, and at most 20 MiB. A missing, escaped, replaced-by-symlink, oversized,
+inactive, or non-FILE source is rejected. This is a single explicit iteration
+through the existing `OperationsAppActions.run_diagnostic(kind=CYCLE)` and
+`JsonSourceRuntimeRepository`, **not** a scheduler, historical DuckLake
+backfill, FILE upload, live stream, analysis run, or sensor-transport proof.
+
+A successful one-shot cycle returns `cycle_state: succeeded`,
+`accepted_new_receipt: true`, and persisted accepted/observed UTC timestamps.
+A source/runtime failure returns `cycle_state: failed` with a bounded
+`failure_scope` and no new accepted receipt; any older receipt remains
+historical evidence. Raw filesystem paths and error details are not exposed.
+`GET /api/v1/sources` projects the persisted receipt separately from source
+registration and the collection desired state. The browser never turns an
+accepted FILE receipt into an assertion that DuckLake signal history is stored.
+The current JSON source/runtime repositories are single-writer only; legacy
+and new Web source actions must not write the same workspace concurrently.
 
 ## Web source control requests (opt-in preview only)
 

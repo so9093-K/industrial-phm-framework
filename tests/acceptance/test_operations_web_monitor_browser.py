@@ -261,3 +261,56 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None:
+    sync_api = pytest.importorskip("playwright.sync_api")
+    from industrial_phm.application import JsonSourceRuntimeRepository
+
+    workspace = OperationsWorkspace(tmp_path / "file-receipt-browser")
+    initialize_operations_workspace(workspace)
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    (inputs / "phase.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\\n"
+        "2026-10-08T12:00:00+00:00,220,219,221\\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with sync_api.sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1024, "height": 900})
+            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            page.locator('input[name="source_id"]').fill("file-receipt")
+            page.locator('input[name="name"]').fill("FILE receipt")
+            page.locator('input[name="asset_id"]').fill("pump-01")
+            page.locator('input[name="file_path"]').fill("inputs/phase.csv")
+            page.locator('input[name="channel_columns"]').fill("phase-R,phase-S,phase-T")
+            page.locator('input[name="timestamp_column"]').fill("timestamp")
+            page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
+            sync_api.expect(page.locator("#source-list")).to_contain_text("수신 근거 미확인")
+            page.on("dialog", lambda dialog: dialog.accept())
+            page.locator("#source-list").get_by_role("button", name="소스 활성화").click()
+            sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: active")
+            page.locator("#source-list").get_by_role("button", name="FILE 수신 확인").click()
+            sync_api.expect(page.locator("#source-control-result")).to_contain_text(
+                "FILE 검증 수신 근거 기록 완료"
+            )
+            sync_api.expect(page.locator("#source-list")).to_contain_text(
+                "FILE 검증 수신 근거 있음"
+            )
+            assert (
+                JsonSourceRuntimeRepository(workspace.source_runtime_path)
+                .get_latest_receipt("file-receipt")
+                is not None
+            )
+            assert not workspace.history_catalog_path.exists()
+            assert not page.locator("#last-values .latest-item").count()
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
