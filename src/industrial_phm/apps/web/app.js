@@ -293,8 +293,13 @@ async function refresh() {
       assetDetails();evidenceViews();
       await loadChannels(selectedAsset, token);
     }
-    if (!data.system_error_scopes || !data.system_error_scopes.length) setNotice("");
-    if (data.assets && data.assets.truncated) setNotice("설비 목록이 100건으로 제한되었습니다. 추가 설비 조회는 후속 페이지 API가 필요합니다.");
+    if (data.system_error_scopes && data.system_error_scopes.length) {
+      setNotice("일부 저장소를 읽지 못했습니다 (" + data.system_error_scopes.join(", ") + "). 표시되지 않은 근거가 있을 수 있습니다.", true);
+    } else if (data.assets && data.assets.truncated) {
+      setNotice("설비 목록이 100건으로 제한되었습니다. 추가 설비 조회는 후속 페이지 API가 필요합니다.");
+    } else {
+      setNotice("");
+    }
   } catch (error) {
     if (token !== generation) return;
     monitor = null;setNotice(presentError(error),true);
