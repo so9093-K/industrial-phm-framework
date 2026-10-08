@@ -15,21 +15,29 @@ from industrial_phm.application import (
     FileSourceConfig,
     FileSourceMode,
     JsonSourceRepository,
+    JsonSourceRuntimeRepository,
     RegisteredSource,
     SourceLifecycleState,
     SourceRuntimeCycleResult,
     SourceRuntimeCycleState,
+    backfill_registered_file_source,
 )
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_app_actions import (
     OperationsAppActions,
     OperationsDiagnosticKind,
 )
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
-from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
+from industrial_phm.runtime.operations_app_wiring import (
+    OperationsAppPaths,
+    resolve_operations_app_paths,
+)
 from industrial_phm.runtime.operations_web_read import _utc
 
 _MAX_SOURCES = 100
 _MAX_INPUT_BYTES = 20 * 1024 * 1024
+# Conservative bound for synchronous browser history writes; registration may accept larger files.
+_MAX_WEB_HISTORY_BYTES = 1024 * 1024
 _FIELDS = frozenset(
     {
         "source_id",
@@ -227,30 +235,7 @@ def receive_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
         raise ValueError("unexpected FILE receipt fields")
     source_id = _text(payload, "source_id")
     assert isinstance(source_id, str)
-    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
-    registry = JsonSourceRepository(paths.registry)
-    source = registry.get(source_id)
-    if not isinstance(source.config, FileSourceConfig):
-        raise SourceControlConflict("FILE receipt only supports FILE sources")
-    if source.config.mode != FileSourceMode.SNAPSHOT:
-        raise SourceControlConflict("FILE receipt only supports snapshot CSV")
-    if registry.get_lifecycle(source_id).state != SourceLifecycleState.ACTIVE:
-        raise SourceControlConflict("FILE receipt requires ACTIVE source")
-
-    registered_path = Path(source.config.source_path)
-    try:
-        resolved = registered_path.resolve(strict=True)
-        if (
-            not registered_path.is_absolute()
-            or resolved != registered_path
-            or not resolved.is_relative_to(root)
-            or resolved.suffix.lower() != ".csv"
-            or not resolved.is_file()
-            or not 0 < resolved.stat().st_size <= _MAX_INPUT_BYTES
-        ):
-            raise SourceControlConflict("FILE source path is outside Web receipt scope")
-    except (OSError, RuntimeError) as error:
-        raise SourceControlConflict("FILE source path is unavailable") from error
+    paths, _, _ = _checked_workspace_file(root, source_id)
 
     outcome, _ = OperationsAppActions(paths).run_diagnostic(
         source_id, kind=OperationsDiagnosticKind.CYCLE
@@ -269,4 +254,74 @@ def receive_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
         "accepted_observed_at": None if receipt is None else _utc(receipt.observed_at),
         "failure_scope": None if outcome.failure_scope is None else outcome.failure_scope.value,
         "meaning": "file-receipt-only-not-history-backfill",
+    }
+
+
+def _checked_workspace_file(
+    root: Path, source_id: str
+) -> tuple[OperationsAppPaths, JsonSourceRepository, RegisteredSource]:
+    """Recheck single-writer Web scope before each explicit FILE mutation."""
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
+    registry = JsonSourceRepository(paths.registry)
+    source = registry.get(source_id)
+    if not isinstance(source.config, FileSourceConfig):
+        raise SourceControlConflict("Web FILE action requires a FILE source")
+    if source.config.mode != FileSourceMode.SNAPSHOT:
+        raise SourceControlConflict("Web FILE action only supports snapshot CSV")
+    if registry.get_lifecycle(source_id).state != SourceLifecycleState.ACTIVE:
+        raise SourceControlConflict("Web FILE action requires ACTIVE source")
+
+    registered_path = Path(source.config.source_path)
+    try:
+        resolved = registered_path.resolve(strict=True)
+        if (
+            not registered_path.is_absolute()
+            or resolved != registered_path
+            or not resolved.is_relative_to(root)
+            or resolved.suffix.lower() != ".csv"
+            or not resolved.is_file()
+            or not 0 < resolved.stat().st_size <= _MAX_INPUT_BYTES
+            or len(source.config.channel_columns) > 12
+        ):
+            raise SourceControlConflict("FILE source outside bounded Web scope")
+    except (OSError, RuntimeError) as error:
+        raise SourceControlConflict("FILE source file unavailable") from error
+    return paths, registry, source
+
+
+def backfill_workspace_file_history(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Append or recover one existing FILE batch; never claim live receipt/analysis.
+
+    The only supported Web path is an ACTIVE, small prepared snapshot CSV with
+    timezone-aware source timestamps and an independently persisted receipt.
+    """
+    if set(payload) != {"source_id"}:
+        raise ValueError("unexpected FILE history fields")
+    source_id = _text(payload, "source_id")
+    assert isinstance(source_id, str)
+    paths, registry, source = _checked_workspace_file(root, source_id)
+    assert isinstance(source.config, FileSourceConfig)
+    if source.config.timestamp_column is None:
+        raise SourceControlConflict("historical FILE backfill needs explicit timestamps")
+    if Path(source.config.source_path).stat().st_size > _MAX_WEB_HISTORY_BYTES:
+        raise SourceControlConflict("FILE too large for synchronous Web backfill")
+    if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
+        raise SourceControlConflict("validate FILE receipt before history backfill")
+
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(
+            catalog_path=paths.history_catalog,
+            data_path=paths.history_data,
+        )
+    )
+    result = backfill_registered_file_source(registry, history, source_id)
+    return {
+        "schema_version": 1,
+        "source_id": result.source_id,
+        "asset_id": result.asset_id,
+        "event_count": result.event_count,
+        "segment_count": len(result.segments),
+        "recovered_segment_count": result.recovered_segment_count,
+        "history_snapshot_id": result.history_snapshot_id,
+        "meaning": "persisted-file-history-not-live-collection-or-analysis",
     }

@@ -386,6 +386,12 @@ async function loadSources() {
         receive.type = "button";
         receive.addEventListener("click", () => receiveFile(item.source_id, receive));
         actions.append(receive);
+        if (item.receipt_confirmed) {
+          const backfill = create("button", null, "FILE 이력 적재");
+          backfill.type = "button";
+          backfill.addEventListener("click", () => backfillFile(item.source_id, backfill));
+          actions.append(backfill);
+        }
       }
       if (item.continuous_collection_supported && item.lifecycle_state === "active") {
         const target = item.collection_desired_state === "running" ? "stopped" : "running";
@@ -499,6 +505,53 @@ async function receiveFile(sourceId, button) {
     button.disabled = false;
   }
   await Promise.allSettled([loadSources(), refresh()]);
+}
+
+async function backfillFile(sourceId, button) {
+  const output = byId("source-control-result");
+  if (!window.confirm(sourceId + " · CSV의 타임스탬프를 사용해 DuckLake에 실제 이력을 적재합니다.\n같은 파일의 재시도는 기존 배치 커밋을 재사용합니다. 수집·분석은 시작하지 않습니다.")) return;
+  button.disabled = true;
+  output.className = "";
+  output.textContent = sourceId + " · FILE 이력 적재 요청 중";
+  let saved = false;
+  try {
+    const session = await getJSON("/api/v1/session");
+    const response = await fetch("/api/v1/sources/file/backfill", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify({source_id: sourceId}),
+    });
+    if (!response.ok) {
+      if (response.status === 409) throw new Error("control-conflict");
+      if (response.status === 404) throw new Error("source-missing");
+      if (response.status === 400) throw new Error("control-invalid");
+      throw new Error("http-" + response.status);
+    }
+    const result = await response.json();
+    if (result.schema_version !== 1 || result.source_id !== sourceId
+        || result.meaning !== "persisted-file-history-not-live-collection-or-analysis"
+        || !Number.isSafeInteger(result.history_snapshot_id)
+        || !Number.isSafeInteger(result.event_count)
+        || !Number.isSafeInteger(result.recovered_segment_count)) {
+      throw new Error("schema-mismatch");
+    }
+    saved = true;
+    output.textContent = sourceId + " · DuckLake 이력 적재 완료 · "
+      + result.event_count + "개 이벤트 · snapshot #" + result.history_snapshot_id
+      + " · 재사용 배치 " + result.recovered_segment_count + "개 · 분석·실시간 수집 아님";
+  } catch (error) {
+    output.className = "error";
+    if (error.message === "control-conflict") {
+      output.textContent = "적재 불가 · ACTIVE FILE, 검증 receipt, 시간 컬럼, CSV 크기(1MiB 이하) 및 작업공간 경계를 확인하세요.";
+    } else if (error.message === "source-missing") {
+      output.textContent = "등록되지 않은 소스입니다.";
+    } else {
+      output.textContent = presentError(error);
+    }
+  } finally {
+    button.disabled = false;
+  }
+  if (saved) await Promise.allSettled([loadSources(), refresh()]);
 }
 
 async function registerFile(event) {
