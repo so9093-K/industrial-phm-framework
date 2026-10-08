@@ -1,9 +1,9 @@
 # Operations Web Read API v1 (initial slice)
 
-This document owns the new **read-only API transport contract**. The installed Operations
-product **still launches marimo**. An explicitly started, same-origin **Web monitor
-preview** now uses this API to read actual saved evidence; the preview does not yet replace
-the production UI, supervise collection/analysis, or offer mutations.
+This document owns the opt-in, loopback-only **Operations Web API v1 contract**. The installed
+Operations product **still launches marimo**. The Web preview reads saved evidence and
+permits only explicitly listed, protected source mutations. It does not replace the
+production UI or supervise collection/analysis.
 
 ## Endpoint and lifecycle
 
@@ -15,13 +15,15 @@ the production UI, supervise collection/analysis, or offer mutations.
   `GET /api/v1/sources` and `GET /api/v1/session`.
   **Only** `/web/`, `/web/app.js`, and `/web/styles.css` serve packaged static
   assets from the installed Python wheel. No arbitrary file path may be requested.
-  All mutations **except** the protected workspace FILE registration
-  `POST /api/v1/sources/file` are rejected (405). There is no arbitrary mutation command, Node runtime
-  or dev server, repository file proxy, or remote exposure.
+  Only `POST /api/v1/sources/file`, `POST /api/v1/sources/lifecycle`, and
+  `POST /api/v1/sources/collection` are allowed under the protected write contract;
+  other mutations return 405. There is no arbitrary mutation command, Node runtime,
+  dev server, repository file proxy, or remote exposure.
 - Host must be `127.0.0.1:<bound-port>` or `localhost:<bound-port>`. Optional
   `Origin` must be the same allowed HTTP origin, and `Sec-Fetch-Site: cross-site`
-  is rejected. No wildcard CORS headers are emitted. This is the **initial GET-only**
-  security boundary, not final write-side CSRF/authentication readiness.
+  is rejected. No wildcard CORS headers are emitted. Mutations require an exact
+  browser same-origin request, bounded JSON, and a per-process CSRF token; this is
+  **not** remote or multi-user authentication.
 - Replies use `application/json`, `Cache-Control: no-store`, `nosniff`,
   anti-frame and restrictive content security headers; 403/404/405/503 errors carry
   **coded, path-free** JSON, not exception detail or repository paths. Invalid
@@ -32,7 +34,7 @@ the production UI, supervise collection/analysis, or offer mutations.
 
 ## Explicit opt-in Web monitor preview
 
-For an initialized, existing Operations workspace, start the **read-only preview
+For an initialized, existing Operations workspace, start the **opt-in preview
 as a separate foreground process**, for example:
 
 ```bash
@@ -46,7 +48,12 @@ dependencies, or separate browser auth exception** is required. A nonstandard
 port may be selected with `--port` (`0` selects an ephemeral local port);
 a nonexistent workspace is rejected. It does not run or stop collection,
 analysis, or the existing supervised marimo child. Existing `make up` and
-`industrial-phm operations up` retain their current behavior.
+`industrial-phm operations up` retain their current behavior. The preview is a
+single-user local tool, **not a second concurrent writer** for a workspace being
+mutated by the legacy Operations UI. The HTTP mutation lock serializes requests
+within one preview server only; the JSON source registry does not provide
+cross-process write coordination. Do not perform legacy and Web source mutations
+against the same workspace simultaneously.
 
 The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
 shipped with the **Python wheel**, and use the same-origin, explicit
@@ -68,8 +75,8 @@ alarms or local browser-only review mutations**. When the history store
 is not initialized, the Web preview displays a distinct read failure
 rather than inventing zero-valued measurements.
 
-This is **not** a completed production web cutover: first-run/source setup,
-write-side CSRF/origin hardening, URL/deep-linked evidence screens,
+This is **not** a completed production web cutover: isolated first-run sample,
+complete OPC UA setup/diagnostics, URL/deep-linked evidence screens,
 locale switching, accessibility audit, independent supervision, and
 full operational lifecycle/browser acceptance remain in [Issue #449](https://github.com/so9093-K/industrial-phm-framework/issues/449).
 
@@ -113,9 +120,10 @@ raw connector errors.
   obtain actual data; then refresh this preview to see accepted receipts
   and stored signal history.
 
-OPC UA browse, credential handling, FILE uploads, source lifecycle/collection
-requests, an isolated first-run synthetic sample and protected human-review
-writes are **not included** in this first FILE registration slice.
+OPC UA browse, credential handling, FILE uploads, an isolated first-run
+synthetic sample and protected human-review writes remain **out of scope**.
+Source lifecycle and OPC UA collection desired-state requests are described below;
+those requests do not start a collector or prove actual receipt.
 The default marimo Operations remains the production onboarding owner
 until the staged Web transition acceptance gates pass.
 
