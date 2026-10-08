@@ -8,6 +8,7 @@ unchanged until packaged static UI and browser acceptance are ready.
 from __future__ import annotations
 
 import json
+from importlib.resources import files
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -52,6 +53,37 @@ def create_operations_web_read_server(
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header(
                 "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
+            )
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_asset(self, asset_name: str) -> None:
+            """Serve only package-owned frontend files at exact allowlisted routes."""
+            mime = {
+                "index.html": "text/html; charset=utf-8",
+                "app.js": "text/javascript; charset=utf-8",
+                "styles.css": "text/css; charset=utf-8",
+            }
+            if asset_name not in mime:
+                self._error(HTTPStatus.NOT_FOUND, "not_found")
+                return
+            try:
+                body = files("industrial_phm.apps").joinpath("web", asset_name).read_bytes()
+            except OSError:
+                self._error(HTTPStatus.SERVICE_UNAVAILABLE, "web_asset_unavailable")
+                return
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", mime[asset_name])
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'none'; base-uri 'none'; script-src 'self'; "
+                "style-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
+                "form-action 'none'; object-src 'none'",
             )
             self.end_headers()
             self.wfile.write(body)
@@ -127,6 +159,14 @@ def create_operations_web_read_server(
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
                 return
+            static_paths = {
+                "/web/": "index.html",
+                "/web/app.js": "app.js",
+                "/web/styles.css": "styles.css",
+            }
+            if self.path in static_paths:
+                self._send_asset(static_paths[self.path])
+                return
             parts = urlsplit(self.path)
             if self.path == "/api/v1/monitor":
                 query: dict[str, object] = {}
@@ -173,6 +213,9 @@ def create_operations_web_read_server(
             self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
 
         def do_OPTIONS(self) -> None:
+            self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
+
+        def do_HEAD(self) -> None:
             self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
 
         def log_message(self, format: str, *args: object) -> None:
