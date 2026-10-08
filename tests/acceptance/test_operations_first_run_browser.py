@@ -159,6 +159,41 @@ def _check_browser_layout(page, *, locale: str, stage: str, tmp_path: Path) -> N
     )
 
 
+def _check_navigation_not_clipped(
+    page, *, locale: str, stage: str, tmp_path: Path
+) -> None:
+    """Catch controls clipped inside the shell even without document overflow."""
+
+    bounds = page.locator(".mw-shell").evaluate(
+        """(shell) => {
+            const outer = shell.getBoundingClientRect();
+            const nav = shell.querySelector(".mw-pages");
+            const items = [...nav.querySelectorAll("button")];
+            const refresh = shell.querySelector(".mw-refresh");
+            if (refresh) items.push(refresh);
+            return items.map((item) => {
+                const rect = item.getBoundingClientRect();
+                return {
+                    label: item.textContent.trim(),
+                    left: rect.left,
+                    right: rect.right,
+                    shellLeft: outer.left,
+                    shellRight: outer.right,
+                };
+            });
+        }"""
+    )
+    clipped = [
+        item
+        for item in bounds
+        if item["left"] < item["shellLeft"] - 1
+        or item["right"] > item["shellRight"] + 1
+    ]
+    if clipped:
+        _screenshot(page, locale=locale, stage=f"{stage}-nav-clipped", tmp_path=tmp_path)
+    assert bounds and not clipped, f"{locale} {stage}: clipped navigation: {clipped}"
+
+
 def _capture_setup_accessibility(page, *, locale: str, tmp_path: Path) -> None:
     """Preserve marimo control/label semantics for tracked accessibility issue #444."""
 
@@ -300,6 +335,9 @@ def test_first_run_browser_sample_real_and_resume(
                 _check_browser_layout(
                     sample, locale=locale, stage="sample-observations", tmp_path=tmp_path
                 )
+                _check_navigation_not_clipped(
+                    sample, locale=locale, stage="sample-observations", tmp_path=tmp_path
+                )
                 _screenshot(sample, locale=locale, stage="sample-observations", tmp_path=tmp_path)
                 sample.close()
 
@@ -430,6 +468,9 @@ def test_first_run_browser_sample_real_and_resume(
                 _check_browser_layout(
                     page, locale=locale, stage="configured-resume", tmp_path=tmp_path
                 )
+                _check_navigation_not_clipped(
+                    page, locale=locale, stage="configured-resume", tmp_path=tmp_path
+                )
                 _screenshot(page, locale=locale, stage="configured-resume", tmp_path=tmp_path)
 
                 # With an already registered source, every Operations page is
@@ -453,6 +494,9 @@ def test_first_run_browser_sample_real_and_resume(
                         page_label, timeout=_BROWSER_TIMEOUT_MS
                     )
                     _check_browser_layout(
+                        page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
+                    )
+                    _check_navigation_not_clipped(
                         page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path
                     )
                     _screenshot(page, locale=locale, stage=f"nav-{destination}", tmp_path=tmp_path)
