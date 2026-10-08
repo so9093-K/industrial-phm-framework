@@ -1359,3 +1359,354 @@ _PRODUCT_COPY: Final = {
         "setup.discover_file": "파일 탐색",
         "setup.timestamp_column_optional": "Timestamp 열(snapshot은 선택)",
         "setup.sampling_rate_optional": "Sampling rate Hz(선택)",
+        "setup.endpoint": "Endpoint",
+        "setup.endpoint_example": "예시: `opc.tcp://host:4840`",
+        "setup.timeout_seconds": "Timeout(초)",
+        "setup.connect_browse": "연결 후 신호 탐색",
+        "setup.advanced_mapping": "고급 explicit mapping (signal_id,node_id)",
+        "setup.signals_to_keep": "유지할 신호",
+        "setup.observed_property": "관측 속성",
+        "setup.scope_optional": "범위(선택)",
+        "setup.statistic_optional": "통계량(선택)",
+        "setup.unit_optional": "단위(선택)",
+        "setup.unit_evidence": "단위 근거(단위를 알 때 필수)",
+        "setup.semantic_version": "Semantic version",
+        "setup.interpretation_evidence": "해석 근거",
+        "setup.save_meaning": "측정 의미 추가 / 갱신",
+        "setup.keep_unresolved": "미확인으로 유지",
+        "setup.review_save_source": "검토 후 source 저장",
+        "setup.source_saved": "Source 저장 완료: {source_id}. 사용할 준비가 되면 활성화하세요.",
+        "setup.select_source_for_age": "데이터 경과 정책을 변경할 source를 먼저 선택하세요.",
+        "setup.select_source_for_use": "사용 상태를 변경할 데이터 source를 먼저 선택하세요.",
+        "setup.select_opcua_for_collection": "수집 상태를 변경할 OPC UA source를 먼저 선택하세요.",
+        "setup.explicit_meaning_required": (
+            "명시적인 측정 의미를 입력하거나 미확인으로 유지를 선택하세요."
+        ),
+        "setup.age_input_unavailable": "데이터 경과 정책 입력을 사용할 수 없습니다.",
+        "setup.maximum_age_required": "데이터 최대 경과 시간을 입력하세요.",
+        "setup.collection_saved": (
+            "수집 요청 저장: {source_id} → {state}. "
+            "브라우저는 collector process를 시작하거나 감독하지 않습니다."
+        ),
+        "setup.file_discovery_completed": "파일 탐색 완료. 유지할 신호를 선택하세요.",
+        "setup.browse_completed_identity": (
+            "Browse 완료. 이 제한된 session에서는 신호 identity만 확인했습니다."
+        ),
+        "setup.meaning_saved": "{channel_id}의 측정 의미를 저장했습니다.",
+        "setup.remain_unresolved": "{channel_id}는 미확인 상태로 유지합니다.",
+        "setup.discover_before_save": "저장하기 전에 FILE source를 탐색하세요.",
+        "setup.select_file_signal": "FILE 신호를 하나 이상 선택하세요.",
+        "setup.timestamp_not_discovered": ("모든 CSV 파일에서 timestamp 열을 확인하지 못했습니다."),
+        "setup.select_opcua_signal": (
+            "연결 후 신호를 선택하거나 고급 explicit mapping을 입력하세요."
+        ),
+        "setup.action_failed": "설정 작업 실패",
+        "setup.updated": "설정 갱신 완료",
+        "setup.diagnostic_failed": "진단 작업 실패",
+        "setup.diagnostic_completed": "진단 작업 완료",
+        "setup.select_source_for_diagnostic": "진단할 데이터 source를 먼저 선택하세요.",
+        "setup.diagnostic_cycle_completed": "진단 1회를 완료했습니다.",
+        "setup.subscription_completed": "제한된 subscription 수집을 완료했습니다.",
+        "setup.refresh_runtime_hint": (
+            " 관제에서 현재 runtime evidence를 다시 불러오려면 새로고침하세요."
+        ),
+        "setup.diagnostic_skipped": "진단 작업을 실행하지 않았습니다.",
+        "setup.diagnostic_failed_default": "진단 작업에 실패했습니다.",
+        "setup.diagnostic_failure": "{scope} 실패 · {detail}",
+        "setup.add_data_source": "데이터 source 추가",
+        "setup.connect_first_source": "첫 데이터 source 연결",
+        "setup.connect_first_source_help": (
+            "설비 상태나 분석 evidence를 표시하려면 observation source가 필요합니다. "
+            "준비된 FILE source 또는 실시간 OPC UA source를 아래에서 선택하세요."
+        ),
+        "setup.file.connect_help": (
+            "탐색 전에 준비된 파일 범위를 선택하고 설비 identity를 지정하세요."
+        ),
+        "setup.file.select_help": (
+            "이 source에 속한 탐색된 열만 유지하세요. 열 이름은 identifier이며 "
+            "물리적 의미가 아닙니다."
+        ),
+        "setup.file.meaning_help": (
+            "FILE 등록은 열 identity를 보존합니다. 알고 있는 측정 의미만 명시적으로 기록하세요."
+        ),
+        "setup.file.review_help": "Source 등록을 저장하기 전에 파일을 검증합니다.",
+        "setup.mapping_invalid": "Explicit mapping이 올바르지 않습니다",
+        "setup.mapping_line_format": (
+            "Mapping {line_number}번째 줄은 signal_id,node_id 형식이어야 합니다."
+        ),
+        "setup.no_mapping_selected": "선택된 신호 mapping이 아직 없습니다.",
+        "setup.select_mapping_first": (
+            "측정 의미를 정의하기 전에 mapping된 신호를 하나 이상 선택하세요."
+        ),
+        "setup.opcua.connect_help": (
+            "Endpoint와 설비 identity를 지정한 뒤 제한된 browse를 실행하세요."
+        ),
+        "setup.opcua.select_help": (
+            "Browse 선택은 explicit NodeId mapping을 정의합니다. NodeId와 BrowseName만으로 "
+            "물리적 의미를 정하지 않습니다."
+        ),
+        "setup.no_browse_result": "현재 browse 결과가 없습니다.",
+        "setup.advanced_nodeid_mapping": "고급 explicit NodeId mapping",
+        "setup.opcua.meaning_help": (
+            "측정 의미는 명시적이고 versioned이며 근거를 가져야 합니다. 의미가 확립되지 않은 "
+            "채널은 미확인 상태로 두세요."
+        ),
+        "setup.opcua.review_help": (
+            "저장은 구성만 등록합니다. Source를 활성화하거나 수집을 시작하지 않습니다."
+        ),
+        "setup.connected_source": "연결된 source",
+        "setup.inspect_signals_title": "신호 확인",
+        "setup.inspect_signals_help": "정확한 source identity와 등록된 신호를 확인하세요.",
+        "setup.confirm_meaning_title": "측정 의미 확인",
+        "setup.confirm_meaning_help": (
+            "**{defined} / {total}**개 신호에 explicit meaning이 기록되어 있습니다. "
+            "미확인 채널은 이름으로 추론하지 않고 그대로 유지합니다."
+        ),
+        "setup.verify_flow_title": "데이터 수신 시작 또는 확인",
+        "setup.verify_flow_help": (
+            "사용할 준비가 되면 source를 활성화하세요. OPC UA는 persistent collection을 "
+            "요청합니다. 연결과 data-contract 확인에는 위의 bounded diagnostic을 "
+            "사용할 수 있습니다."
+        ),
+        "setup.observe_title": "관제 시작",
+        "setup.add_another_source": "다른 데이터 source 추가",
+        "setup.analysis_configuration": "분석 설정",
+        "setup.source_controls_help": (
+            "활성화/일시 중지는 runtime이 source를 사용할 수 있는지를 바꿉니다. "
+            "수집 시작/중지는 OPC UA의 desired collection state를 기록할 뿐, "
+            "collector process의 실행이나 연결 상태를 증명하지 않습니다."
+        ),
+        "setup.data_age_policy": "데이터 경과 정책",
+        "setup.data_age_help": (
+            "이 정책은 비교 가능한 최근 관측 시각과 현재 평가 시각을 비교합니다. "
+            "연결 상태나 설비 상태를 증명하지 않습니다."
+        ),
+        "setup.advanced_diagnostics": "고급 진단",
+        "setup.diagnostics_help": (
+            "이 제한된 작업은 연결/data-contract 진단용입니다. Persistent collection service를 "
+            "시작하지 않으며, 성공한 시도 하나가 현재 연결 상태를 뜻하지 않습니다."
+        ),
+        "setup.discovered_file_summary": (
+            "파일 **{files}**개, 공통 열 **{columns}**개를 확인했습니다."
+        ),
+        "setup.run_discovery_help": (
+            "파일 또는 history directory를 선택한 뒤 탐색을 실행하세요. "
+            "탐색 과정에서 열의 측정 의미를 추론하지 않습니다."
+        ),
+        "setup.step.source": "1 · Source",
+        "setup.step.select_signals": "2 · 신호 선택",
+        "setup.step.time_sampling": "3 · 시간 및 sampling 정의",
+        "setup.step.review_save": "4 · 검토 후 저장",
+        "setup.step.connect": "1 · 연결",
+        "setup.step.define_meaning": "3 · 측정 의미 정의",
+        "setup.browse_summary": (
+            "Browse 완료: variable 후보 **{variables}**개, node **{nodes}**개 방문{truncated}."
+        ),
+        "setup.result_truncated": " · 결과 일부만 표시",
+        "setup.browse_help": (
+            "연결 및 browse는 variable identity 확인을 위한 제한된 anonymous session을 사용합니다. "
+            "신호 값을 읽거나 지속적인 연결 상태를 증명하지 않습니다."
+        ),
+        "setup.semantic_empty": (
+            "명시적인 측정 의미가 아직 추가되지 않았습니다. "
+            "Mapping되지 않은 의미는 **미확인**으로 유지합니다."
+        ),
+        "setup.analysis_policy_help": (
+            "Operational analysis policy는 현재 데이터 연결 화면 밖에서 versioned됩니다. "
+            "Live 3상 runner와 FILE 분석은 policy/version을 evidence에 보존하며, "
+            "이 화면은 안전하게 저장할 수 없는 제어를 제공하지 않습니다."
+        ),
+        "setup.analysis_navigation_help": (
+            "분석 service runtime 상태는 **시스템**에서 확인하고, 완료된 분석의 정확한 "
+            "policy/evidence는 **분석 근거**에서 확인하세요."
+        ),
+        "setup.connect_data_title": "데이터 연결",
+        "setup.connect_data_help": (
+            "준비된 로컬 관측값은 FILE, 실시간 source는 OPC UA를 선택하세요."
+        ),
+        "setup.title": "데이터 연결",
+        "setup.intro": (
+            "데이터를 연결하고 신호 identity를 확인한 뒤, 알고 있는 측정 의미만 기록하고 "
+            "데이터 수신을 확인한 후 관제로 이동하세요."
+        ),
+        "monitor.stored_signals_snapshot": "저장 신호 {count}개 · 관측 snapshot",
+        "monitor.inspect_channel": "{channel} 확인",
+        "monitor.all_origins": "전체 origin · source/point 기록 {count}개",
+        "monitor.meaning_not_confirmed": "측정 의미 미확인",
+        "monitor.origins": "origin {count}개",
+        "monitor.kept_separate": "분리 유지",
+        "monitor.compare_channel": "{channel} 비교",
+        "monitor.remove_channel": "{channel} 제거",
+        "monitor.loaded_evidence_count": "현재 event-time 구간에 근거 {count}개 로드됨",
+        "monitor.open_analysis_evidence": "{label} 분석 근거 열기",
+        "monitor.bucket_stats": "최소 {min} · 최대 {max} · 평균 {mean}",
+        "monitor.bucket_counts": (
+            "{source} · 사용 가능 {usable} · null {null} · "
+            "non-good {non_good} · conflict {conflict}"
+        ),
+        "monitor.group_multiple_meanings": "기록된 측정 의미 여러 개",
+        "monitor.group_unresolved": "미확인 신호",
+        "monitor.event": "이벤트",
+        "monitor.event_time": "event time",
+        "monitor.bucket_summary": "BUCKET 요약 · UTC",
+        "monitor.cursor": "커서 {time}",
+        "investigation.group_option": (
+            "{asset} · {capability} · {review} · 실행 {runs}개 · 최근 {completed}"
+        ),
+    },
+}
+
+
+def normalize_operations_locale(value: str | OperationsLocale | None) -> OperationsLocale | None:
+    if value is None:
+        return None
+    if isinstance(value, OperationsLocale):
+        return value
+    if not isinstance(value, str):
+        raise ValueError("locale must be a string or OperationsLocale")
+    normalized = value.strip().replace("_", "-").lower()
+    if normalized == "ko" or normalized.startswith("ko-"):
+        return OperationsLocale.KO_KR
+    if normalized == "en" or normalized.startswith("en-"):
+        return OperationsLocale.EN_US
+    return None
+
+
+def resolve_operations_locale(
+    *,
+    preferred: str | OperationsLocale | None = None,
+    browser_locale: str | None = None,
+    environment_locale: str | None = None,
+) -> OperationsLocale:
+    """Resolve product locale without changing any stored identity or timestamp semantics."""
+
+    for candidate in (preferred, browser_locale, environment_locale):
+        resolved = normalize_operations_locale(candidate)
+        if resolved is not None:
+            return resolved
+    return DEFAULT_OPERATIONS_LOCALE
+
+
+def resolve_environment_operations_locale() -> OperationsLocale:
+    explicit = os.environ.get("INDUSTRIAL_PHM_LOCALE")
+    environment = (
+        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG")
+    )
+    return resolve_operations_locale(preferred=explicit, environment_locale=environment)
+
+
+def operations_page_label(
+    page: OperationsPageId | str,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    page_id = OperationsPageId(page)
+    resolved = _require_locale(locale)
+    return _PAGE_LABELS[resolved][page_id]
+
+
+def operations_status_label(
+    status: OperationsMonitorStatus,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    if not isinstance(status, OperationsMonitorStatus):
+        raise ValueError("status must be an OperationsMonitorStatus")
+    return _STATUS_LABELS[_require_locale(locale)][status]
+
+
+def operations_capability_label(
+    capability_id: str,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    if not isinstance(capability_id, str) or not capability_id:
+        raise ValueError("capability_id must be a non-empty string")
+    resolved = _require_locale(locale)
+    return _CAPABILITY_LABELS[resolved].get(capability_id, capability_id)
+
+
+def operations_messages(
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> dict[str, str]:
+    """Return a copy safe to pass to the browser presentation boundary."""
+
+    resolved = _require_locale(locale)
+    return {**_TEXT[resolved], **_PRODUCT_COPY[resolved]}
+
+
+def operations_text(
+    key: str,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    if not isinstance(key, str) or not key:
+        raise ValueError("key must be a non-empty string")
+    resolved = _require_locale(locale)
+    try:
+        return _TEXT[resolved][key]
+    except KeyError:
+        try:
+            return _PRODUCT_COPY[resolved][key]
+        except KeyError as error:
+            raise KeyError(f"unknown Operations text key: {key}") from error
+
+
+def format_operations_number(
+    value: Real,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError("value must be a real number")
+    resolved = _require_locale(locale)
+    rendered = f"{value:,.5g}"
+    if resolved == OperationsLocale.KO_KR:
+        return rendered
+    return rendered
+
+
+def format_operations_utc(
+    value: datetime | None,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    if value is None:
+        return "—"
+    resolved = _require_locale(locale)
+    if value.utcoffset() is None:
+        return operations_text("common.time_not_comparable", resolved)
+    utc_value = value.astimezone(UTC)
+    if resolved == OperationsLocale.KO_KR:
+        return utc_value.strftime("%Y. %m. %d. %H:%M:%S UTC")
+    return utc_value.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def format_operations_age(
+    value: datetime | None,
+    *,
+    now: datetime,
+    locale: OperationsLocale | str = DEFAULT_OPERATIONS_LOCALE,
+) -> str:
+    resolved = _require_locale(locale)
+    if now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+    if value is None:
+        return operations_text("common.not_recorded", resolved)
+    if value.utcoffset() is None:
+        return operations_text("common.time_not_comparable", resolved)
+    seconds = (now - value).total_seconds()
+    if seconds < 0:
+        return operations_text("common.future_timestamp", resolved)
+    if resolved == OperationsLocale.KO_KR:
+        if seconds < 60:
+            return f"{seconds:.0f}초 전"
+        if seconds < 3600:
+            return f"{seconds / 60:.0f}분 전"
+        return f"{seconds / 3600:.0f}시간 전"
+    if seconds < 60:
+        return f"{seconds:.0f}s ago"
+    if seconds < 3600:
+        return f"{seconds / 60:.0f}m ago"
+    return f"{seconds / 3600:.0f}h ago"
+
+
+def _require_locale(locale: OperationsLocale | str) -> OperationsLocale:
+    resolved = normalize_operations_locale(locale)
+    if resolved is None:
+        raise ValueError(f"unsupported Operations locale: {locale}")
+    return resolved
