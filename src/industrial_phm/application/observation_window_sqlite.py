@@ -7,7 +7,9 @@ import sqlite3
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
+from industrial_phm._sqlite import connect_wal
 from industrial_phm.application.observation_window import (
     DurableObservationWindow,
     ObservationWindowBufferSnapshot,
@@ -37,6 +39,8 @@ class SqliteObservationWindowRepository:
         if not isinstance(path, Path):
             raise ValueError("path must be pathlib.Path")
         self._path = path
+        self._schema_lock = Lock()
+        self._schema_initialized = False
         if path.exists() and path.is_file():
             with path.open("rb") as stream:
                 header = stream.read(16)
@@ -338,11 +342,33 @@ class SqliteObservationWindowRepository:
         )
 
     def _connect(self) -> sqlite3.Connection:
+        """Serialize schema creation, without a writer lock on later read connections.
+
+        The collection coordinator, analysis runner and Operations status reader
+        may all open a fresh workspace at the same time. Schema visibility and
+        schema_version insertion must commit in one transaction: a separate
+        SELECT followed by INSERT races against competing first openers.
+        """
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(self._path, timeout=30.0)
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA synchronous=FULL")
-        connection.execute("PRAGMA foreign_keys=ON")
+        connection = connect_wal(self._path, busy_timeout_ms=30_000, foreign_keys=True)
+        try:
+            with self._schema_lock:
+                if not self._schema_initialized:
+                    connection.execute("BEGIN IMMEDIATE")
+                    try:
+                        self._ensure_schema(connection)
+                        connection.commit()
+                    except BaseException:
+                        connection.rollback()
+                        raise
+                    self._schema_initialized = True
+            return connection
+        except BaseException:
+            connection.close()
+            raise
+
+    @staticmethod
+    def _ensure_schema(connection: sqlite3.Connection) -> None:
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS repository_meta(
@@ -360,7 +386,6 @@ class SqliteObservationWindowRepository:
                 [str(_SCHEMA_VERSION)],
             )
         elif current[0] != str(_SCHEMA_VERSION):
-            connection.close()
             raise ObservationWindowFormatError(
                 f"unsupported SQLite observation-window schema: {current[0]!r}"
             )
@@ -400,8 +425,6 @@ class SqliteObservationWindowRepository:
             )
             """
         )
-        connection.commit()
-        return connection
 
     @staticmethod
     def _parse_payload(payload: str, *, context: str) -> DurableObservationWindow:

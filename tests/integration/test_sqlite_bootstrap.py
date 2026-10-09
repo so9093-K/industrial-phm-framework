@@ -9,6 +9,7 @@ from threading import Barrier, Event
 
 import pytest
 
+from industrial_phm.application import SqliteObservationWindowRepository
 from industrial_phm.runtime import (
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
@@ -210,3 +211,65 @@ def test_spool_initialize_closes_its_connection(tmp_path, monkeypatch):
     monkeypatch.setattr(sqlite3, "connect", connect)
     _repository("spool", tmp_path / "spool.sqlite").initialize()
     assert connections and all(connection.closed for connection in connections)
+
+
+def test_window_first_open_waits_for_competing_process_writer(tmp_path):
+    """A cold-start Operations reader waits instead of failing during WAL activation."""
+    path = tmp_path / "windows.sqlite"
+    process = _holder(path)
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(SqliteObservationWindowRepository(path).list_windows)
+            _release(process)
+            assert future.result(timeout=10) == ()
+        with closing(sqlite3.connect(path)) as connection:
+            assert connection.execute("PRAGMA journal_mode").fetchone() == ("wal",)
+            assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+            assert connection.execute(
+                "SELECT value FROM repository_meta WHERE key='schema_version'"
+            ).fetchone() == ("1",)
+    finally:
+        _release(process)
+
+
+def test_window_schema_check_happens_after_writer_reservation(tmp_path, monkeypatch):
+    """A metadata read must be protected from another first opener's commit."""
+    path = tmp_path / "windows.sqlite"
+    original_connect = sqlite3.connect
+    reads = []
+
+    class VerifiedConnection(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if sql.startswith("SELECT value FROM repository_meta"):
+                reads.append(self.in_transaction)
+                assert self.in_transaction, "metadata read without schema writer reservation"
+            return super().execute(sql, parameters)
+
+    def checked_connect(*args, **kwargs):
+        return original_connect(*args, **kwargs, factory=VerifiedConnection)
+
+    monkeypatch.setattr(sqlite3, "connect", checked_connect)
+    assert SqliteObservationWindowRepository(path).list_windows() == ()
+    assert reads == [True]
+
+
+def test_concurrent_window_first_open_is_idempotent(tmp_path):
+    """Multiple coordinator/reader instances share one complete committed schema."""
+    path = tmp_path / "windows.sqlite"
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(
+            pool.map(
+                lambda _: SqliteObservationWindowRepository(path).list_windows(),
+                range(16),
+            )
+        )
+    assert results == [()] * 16
+    with closing(sqlite3.connect(path)) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM repository_meta WHERE key='schema_version'"
+        ).fetchone() == (1,)
+        assert connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND "
+            "name IN ('finalized_window', 'coordinator_state', 'delivery_identity')"
+        ).fetchone() == (3,)
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
