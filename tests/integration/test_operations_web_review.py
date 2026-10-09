@@ -100,6 +100,15 @@ def test_web_review_events_preserve_status_and_forbid_invalid_transitions(
         action("acknowledge")
     closed = action("close", "Reviewed evidence, not physical maintenance")
     assert closed["status"] == "closed"
+    replay = request_web_analysis_review(
+        workspace.root,
+        {
+            "analysis_run_id": analysis.run.analysis_run_id,
+            "evidence_id": analysis.evidence.evidence_id,
+        },
+    )
+    assert replay["finding_id"] == identity
+    assert replay["status"] == "closed"
     with pytest.raises(WebReviewConflict):
         action("note", "after close")
     events = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
