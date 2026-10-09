@@ -693,10 +693,13 @@ def test_web_human_review_survives_backup_restore_and_two_supervised_starts(
     )
     finding_id = request["finding_id"]
     assert isinstance(finding_id, str)
-    assert record_web_review_action(
-        workspace.root,
-        {"finding_id": finding_id, "action": "acknowledge", "note": ""},
-    )["status"] == "acknowledged"
+    assert (
+        record_web_review_action(
+            workspace.root,
+            {"finding_id": finding_id, "action": "acknowledge", "note": ""},
+        )["status"]
+        == "acknowledged"
+    )
     assert not workspace.supervisor_state_path.exists()
 
     backup_path = tmp_path / "backup"
@@ -707,9 +710,10 @@ def test_web_human_review_survives_backup_restore_and_two_supervised_starts(
     assert restored.returncode == 0, restored.stderr
     restored_workspace = OperationsWorkspace(restored_root)
     assert not restored_workspace.supervisor_state_path.exists()
-    assert len(
-        JsonOperationalFindingRepository(restored_workspace.finding_state_path).list_findings()
-    ) == 1
+    assert (
+        len(JsonOperationalFindingRepository(restored_workspace.finding_state_path).list_findings())
+        == 1
+    )
     assert (
         JsonFindingReviewRepository(restored_workspace.maintenance_review_state_path)
         .status_for(finding_id)
