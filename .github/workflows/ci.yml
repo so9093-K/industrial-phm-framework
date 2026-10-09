@@ -550,6 +550,45 @@ jobs:
             "$GITHUB_WORKSPACE/tools/operations_wheel_rollback.py" \
             --stage rolled-back --wheel "$PREVIOUS_WHEEL" --workspace "$ROLLBACK_ROOT"
 
+  systemd:
+    name: systemd Operations service
+    needs: classify
+    if: needs.classify.outputs.package == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Build and install isolated Operations wheel
+        run: |
+          uv build --wheel
+          WHEEL="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$WHEEL"
+          ISOLATED_VENV="$RUNNER_TEMP/phm-systemd-wheel"
+          uv venv --python 3.14 "$ISOLATED_VENV"
+          uv pip install --python "$ISOLATED_VENV/bin/python" "${WHEEL}[operations]"
+
+      - name: Verify real systemd service restart contract
+        run: |
+          cd "$RUNNER_TEMP"
+          env -u PYTHONPATH -u VIRTUAL_ENV -u UV_PROJECT_ENVIRONMENT \
+            "$RUNNER_TEMP/phm-systemd-wheel/bin/python" \
+            "$GITHUB_WORKSPACE/tools/operations_systemd_smoke.py" \
+            --template "$GITHUB_WORKSPACE/deploy/systemd/industrial-phm-operations.service.example"
+
   required:
     name: Required validation
     if: always()
@@ -560,6 +599,7 @@ jobs:
       - runtime-contracts
       - operations
       - package
+      - systemd
     runs-on: ubuntu-latest
     timeout-minutes: 2
 
@@ -577,6 +617,8 @@ jobs:
           OPERATIONS_RESULT: ${{ needs.operations.result }}
           PACKAGE_SELECTED: ${{ needs.classify.outputs.package }}
           PACKAGE_RESULT: ${{ needs.package.result }}
+          SYSTEMD_SELECTED: ${{ needs.classify.outputs.package }}
+          SYSTEMD_RESULT: ${{ needs.systemd.result }}
         run: |
           test "$CLASSIFY_RESULT" = "success"
 
@@ -607,3 +649,4 @@ jobs:
           require_result runtime "$RUNTIME_SELECTED" "$RUNTIME_RESULT"
           require_result operations "$OPERATIONS_SELECTED" "$OPERATIONS_RESULT"
           require_result package "$PACKAGE_SELECTED" "$PACKAGE_RESULT"
+          require_result systemd "$SYSTEMD_SELECTED" "$SYSTEMD_RESULT"
