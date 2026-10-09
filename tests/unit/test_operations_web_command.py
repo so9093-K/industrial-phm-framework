@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
+import socket
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Barrier, Event
+from threading import Event
 
 import pytest
 
@@ -203,12 +204,12 @@ def test_lost_ipc_reply_does_not_automatically_repeat_completed_command(
         original_reply = broker._reply
         drop_first = True
 
-        def lose_one_reply(connection: object, response: dict[str, object]) -> None:
+        def lose_one_reply(connection: socket.socket, response: dict[str, object]) -> None:
             nonlocal drop_first
             if drop_first:
                 drop_first = False
                 return
-            original_reply(connection, response)  # type: ignore[arg-type]
+            original_reply(connection, response)
 
         monkeypatch.setattr(broker, "_reply", lose_one_reply)
         route = "/api/v1/sources/lifecycle"
