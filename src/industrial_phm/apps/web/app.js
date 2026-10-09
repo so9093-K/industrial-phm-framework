@@ -146,11 +146,19 @@ function evidenceViews() {
   const reviews = rows(monitor, "review_requests").filter((r) => r.asset_id === selectedAsset);
   const evidence = byId("evidence-results");
   const review = byId("review-results");
+  // Match both persisted identifiers within the selected asset. A Run ID alone
+  // cannot establish that a review refers to the evidence currently displayed.
+  const evidenceTargets = new Map();
   clear(evidence); clear(review);
   if (!analyses.length && !attempts.length) empty(evidence, "이 설비의 저장된 3상 분석 기록이 없습니다. 분석 결과 없음은 정상 상태를 의미하지 않습니다.");
   analyses.forEach((run) => {
     const metrics = Array.isArray(run.quantities) ? run.quantities : [];
-    const article = create("article", "record");
+    const article = create("article", "record evidence-target");
+    article.tabIndex = -1;
+    if (typeof run.analysis_run_id === "string" && typeof run.evidence_id === "string"
+        && run.analysis_run_id && run.evidence_id) {
+      evidenceTargets.set(JSON.stringify([run.analysis_run_id, run.evidence_id]), article);
+    }
     article.append(create("h3", null, "분석 근거 · " + fmt(run.analysis_run_id)));
     const lines = [
       ["Capability", run.capability_id],
@@ -196,6 +204,27 @@ function evidenceViews() {
     };
     if (Object.hasOwn(meanings, reviewItem.status)) {
       article.append(create("p", "review-meaning", meanings[reviewItem.status]));
+    }
+    const linkedIds = Array.isArray(reviewItem.evidence_ids) ? reviewItem.evidence_ids : [];
+    const links = linkedIds.map((id) => [id,
+      evidenceTargets.get(JSON.stringify([reviewItem.analysis_run_id, id]))]
+    ).filter(([, target]) => target);
+    if (links.length) {
+      links.forEach(([id, target]) => {
+        const button = create("button", "evidence-link", "연결된 분석 근거 확인");
+        button.type = "button";
+        button.setAttribute("aria-label", "연결된 분석 근거 확인 · " + id);
+        button.addEventListener("click", () => {
+          location.hash = "#evidence";
+          target.focus({preventScroll: true});
+          target.scrollIntoView({block: "center"});
+        });
+        article.append(button);
+      });
+    } else {
+      article.append(create("p", "review-evidence-unavailable",
+        "이번 조회에 Run ID와 Evidence ID가 모두 일치하는 분석 근거가 표시되지 않았습니다. "
+        + "다른 분석으로 대체하지 않습니다. 설비·조회 범위와 저장소 오류를 확인하세요."));
     }
     if (!reviewWritesAllowed || reviewItem.status === "closed") return;
     const form = create("form", "review-form");

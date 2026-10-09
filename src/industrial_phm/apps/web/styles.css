@@ -52,3 +52,8 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .operator-reference p{margin:5px 0 10px}
 .operator-reference ul{padding-left:1.3rem;margin:8px 0}
 .operator-reference li{margin:6px 0;overflow-wrap:anywhere}
+
+/* Return from a review only to an exact persisted Run/Evidence within this asset. */
+.record.evidence-target:focus{outline:3px solid #237c88;outline-offset:4px;border-radius:5px}
+.record .evidence-link{font-size:.8rem;max-width:100%;overflow-wrap:anywhere;margin:8px 0}
+.review-evidence-unavailable{color:#735522;border-left:3px solid #ac9156;padding:6px 10px;font-size:.82rem}

@@ -210,6 +210,19 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "검토 기록 종료됨 · 실제 정비 완료, "
                     "고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
                 )
+                # A closed review still links only to the exact persisted Run/Evidence.
+                evidence_link = page.locator("#review-results").get_by_role(
+                    "button",
+                    name=f"연결된 분석 근거 확인 · {analysis.evidence.evidence_id}",
+                )
+                evidence_link.click()
+                target = page.locator("#evidence-results .evidence-target")
+                pw.expect(target).to_be_focused()
+                pw.expect(target).to_contain_text(analysis.run.analysis_run_id)
+                pw.expect(target).to_contain_text(analysis.evidence.evidence_id)
+                pw.expect(page.locator('nav a[href="#evidence"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
                 _no_overflow(page, width)
                 assert not errors, errors
                 assert not external, external
@@ -242,6 +255,14 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     page.get_by_role("button", name="이 근거에 사람 검토 요청")
                 ).to_have_count(0)
                 pw.expect(page.get_by_role("button", name="검토 기록 종료")).to_have_count(0)
+                page.locator("#review-results").get_by_role(
+                    "button",
+                    name=f"연결된 분석 근거 확인 · {analysis.evidence.evidence_id}",
+                ).click()
+                target = page.locator("#evidence-results .evidence-target")
+                pw.expect(target).to_be_focused()
+                pw.expect(target).to_contain_text(analysis.run.analysis_run_id)
+                pw.expect(target).to_contain_text(analysis.evidence.evidence_id)
                 _no_overflow(page, width)
             finally:
                 browser.close()
