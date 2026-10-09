@@ -83,9 +83,10 @@ to stop the temporary unit and removes it from `/run`.
 The CI gate tests a genuine systemd service on the GitHub Ubuntu runner.
 It does **not** install a permanent production service, certify all Linux
 distributions, prove host reboot persistence, or grant an authenticated
-remote/multi-user UI. The reference unit still launches marimo by default;
-the opt-in Web mode is added **only to the rendered test copy**, not to the
-reference file or normal `make up` default.
+remote/multi-user UI. The local single-user reference unit launches supervised Web by default;
+the test explicitly selects the same Web mode on its rendered copy.
+The legacy Operations UI remains available via `operations start <root> --ui marimo`.
+This does not certify remote/multi-user or field-tested deployment.
 
 ## Filesystem and permissions
 
@@ -123,7 +124,8 @@ backup captures durable Operations-managed state; it does **not** claim
 to capture user-managed external FILE input. This gate tests a local
 Linux wheel installation only. It does not exercise systemd service
 restarts, production equipment, a previous wheel version or rollback.
-Those remain independent gates before the default Web UI can change.
+Those remain independent checks for expansion beyond the owner-approved local Web pilot;
+the Web default does not extend the installed-wheel gate's actual test scope.
 
 ## Previous known-good wheel rollback acceptance
 
