@@ -19,6 +19,7 @@
         <a href="#signals">설비 · 신호</a>
         <a href="#evidence">분석 근거</a>
         <a href="#review">정비 검토</a>
+        <a href="#system">시스템 근거</a>
       </nav>
       <p class="sidebar-note">측정 근거를 읽고 로컬 작업공간의 CSV를 등록합니다. 등록은 수집 시작이나 연결 성공이 아닙니다.</p>
     </aside>
@@ -103,6 +104,12 @@
           <p id="opcua-register-result" role="status" aria-live="polite"></p>
         </form>
         <p class="hint">등록 후에도 accepted receipt가 확인되기 전에는 모니터링의 관측 데이터가 준비됐다고 표시하지 않습니다. 등록·수집·분석은 서로 다른 단계입니다.</p>
+      </section>
+      <section class="panel system-panel" id="system" aria-labelledby="system-title">
+        <div class="panel-header"><div><h2 id="system-title">시스템 조회 근거</h2><p class="muted">이번 조회에서 확인된 저장소 근거 · 정상 운전 판정 아님</p></div></div>
+        <p id="system-status" class="state" role="status" aria-live="polite">시스템 조회 근거를 확인하는 중입니다.</p>
+        <div id="system-facts" class="facts" aria-label="조회 시점과 저장소 오류 범위"></div>
+        <p class="hint">이 화면은 로컬 저장소 조회 진단입니다. 수집기의 현재 PID·heartbeat, Web readiness 및 로그는 <code>industrial-phm operations status &lt;workspace&gt;</code>와 <code>industrial-phm operations logs &lt;workspace&gt;</code>에서 각각 확인하세요. 조회 오류가 없다는 사실은 수집·연결·설비 정상의 증거가 아닙니다.</p>
       </section>
       <footer>Industrial PHM · 로컬 검증 웹 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>
     </main>
