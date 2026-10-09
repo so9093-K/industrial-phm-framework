@@ -75,6 +75,28 @@ Do not make the workspace world-writable. Preflight reports that condition as a 
 OPC UA certificates are not part of the non-secret workspace and must be provisioned separately once a
 connected source requires an OPC UA security profile and that profile is implemented.
 
+## Isolated installed-wheel acceptance gate
+
+The Package CI builds the wheel and installs `wheel[operations]` into a **fresh virtual
+environment outside the repository checkout**, then runs
+`tools/operations_wheel_smoke.py` with that environment's Python interpreter.
+The smoke runner asserts that `industrial_phm` imports from the installed
+environment and invokes the installed `industrial-phm` console script rather
+than a development checkout. It verifies deployment preflight and two real
+supervisor-managed `--ui web-controlled` starts, packaged Web HTML/JS/CSS,
+session/Monitor/source inventory reads, clean shutdown and offline
+backup into a **different** restored root. In the restored workspace it
+checks a CSRF-rejected source mutation, an accepted FILE registration,
+a duplicate-registration conflict, and the distinction between
+registration and an actual data receipt.
+
+The sample FILE is deliberately created **after** restore. A workspace
+backup captures durable Operations-managed state; it does **not** claim
+to capture user-managed external FILE input. This gate tests a local
+Linux wheel installation only. It does not exercise systemd service
+restarts, production equipment, a previous wheel version or rollback.
+Those remain independent gates before the default Web UI can change.
+
 ## Restart, backup, and retention
 
 The application does not implement an internal infinite restart loop for the full node. Component/session
