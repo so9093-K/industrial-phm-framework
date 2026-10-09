@@ -6,6 +6,7 @@ import os
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier, Event
 
 import pytest
 
@@ -137,3 +138,113 @@ def test_failing_facade_returns_bounded_code_without_exception_details(
             client.execute("/api/v1/sources/collection", {})
         assert error.value.code == "source_state_unavailable"
         assert "/secrets/" not in str(error.value)
+
+
+def test_parallel_same_request_id_replays_once_and_detects_payload_collision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Contending callers share one result; conflicting reuse cannot mutate twice."""
+    entered = Event()
+    release = Event()
+    calls: list[dict[str, object]] = []
+
+    def execute(_root: Path, _route: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        entered.set()
+        assert release.wait(timeout=4), "test failed to release pending command"
+        return {"executions": len(calls)}
+
+    monkeypatch.setattr(command, "execute_web_source_action", execute)
+    route = "/api/v1/sources/lifecycle"
+    request_id = "c" * 32
+    payload: dict[str, object] = {"source_id": "a"}
+    with command.open_supervisor_web_command_broker(tmp_path) as broker:
+        broker.bind_child(os.getpid())
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+
+        def replay(body: dict[str, object]) -> tuple[str, object]:
+            try:
+                return ("ok", client.execute(route, body, request_id=request_id))
+            except command.WebCommandRejected as error:
+                return ("rejected", error.code)
+
+        with ThreadPoolExecutor(max_workers=12) as executor:
+            first = executor.submit(client.execute, route, payload, request_id=request_id)
+            try:
+                assert entered.wait(timeout=3), "first IPC dispatch did not begin"
+                same = [executor.submit(replay, payload) for _ in range(7)]
+                changed = [executor.submit(replay, {"source_id": "b"}) for _ in range(4)]
+            finally:
+                release.set()
+            assert first.result(timeout=6) == {"executions": 1}
+            assert [future.result(timeout=6) for future in same] == [
+                ("ok", {"executions": 1})
+            ] * 7
+            assert [future.result(timeout=6) for future in changed] == [
+                ("rejected", "command_request_conflict")
+            ] * 4
+    assert calls == [payload]
+
+
+def test_lost_ipc_reply_does_not_automatically_repeat_completed_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed reply cannot be interpreted as a failed write."""
+    calls: list[dict[str, object]] = []
+
+    def execute(_root: Path, _route: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        return {"executions": len(calls)}
+
+    monkeypatch.setattr(command, "execute_web_source_action", execute)
+    with command.open_supervisor_web_command_broker(tmp_path) as broker:
+        broker.bind_child(os.getpid())
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+        original_reply = broker._reply
+        drop_first = True
+
+        def lose_one_reply(connection: object, response: dict[str, object]) -> None:
+            nonlocal drop_first
+            if drop_first:
+                drop_first = False
+                return
+            original_reply(connection, response)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(broker, "_reply", lose_one_reply)
+        route = "/api/v1/sources/lifecycle"
+        body: dict[str, object] = {"source_id": "a"}
+        request_id = "d" * 32
+        with pytest.raises(command.WebCommandOutcomeUnknown):
+            client.execute(route, body, request_id=request_id)
+        assert calls == [body]
+        # Only an explicit, same-generation, same-ID replay can read the cached result.
+        assert client.execute(route, body, request_id=request_id) == {"executions": 1}
+        assert calls == [body]
+
+
+def test_command_replay_cache_reaches_bounded_capacity_without_eviction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Do not silently evict completed IDs and accidentally re-execute them."""
+    monkeypatch.setattr(command, "_MAX_REQUESTS_PER_GENERATION", 2)
+    calls: list[dict[str, object]] = []
+
+    def execute(_root: Path, _route: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        return {"executions": len(calls)}
+
+    monkeypatch.setattr(command, "execute_web_source_action", execute)
+    with command.open_supervisor_web_command_broker(tmp_path) as broker:
+        broker.bind_child(os.getpid())
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+        route = "/api/v1/sources/lifecycle"
+        first: dict[str, object] = {"source_id": "a"}
+        second: dict[str, object] = {"source_id": "b"}
+        assert client.execute(route, first, request_id="a" * 32) == {"executions": 1}
+        assert client.execute(route, second, request_id="b" * 32) == {"executions": 2}
+        with pytest.raises(command.WebCommandRejected, match="command_capacity_exceeded"):
+            client.execute(route, {"source_id": "c"}, request_id="c" * 32)
+        assert client.execute(route, first, request_id="a" * 32) == {"executions": 1}
+        with pytest.raises(command.WebCommandRejected, match="command_request_conflict"):
+            client.execute(route, second, request_id="a" * 32)
+    assert calls == [first, second]
