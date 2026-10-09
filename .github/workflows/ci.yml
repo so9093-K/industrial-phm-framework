@@ -85,6 +85,10 @@ jobs:
           force_all = any_path(".github/workflows/") or any_exact("pyproject.toml", "uv.lock")
 
           runtime = force_all or any_path(
+              # Operations CLI entry points change runtime lifecycle and must run
+              # the runtime integration gates even when runtime/ is untouched.
+              "src/industrial_phm/cli.py",
+              "src/industrial_phm/commands/",
               "src/industrial_phm/runtime/",
               "src/industrial_phm/connectors/",
               "src/industrial_phm/history/",
@@ -104,6 +108,9 @@ jobs:
               "tools/opcua/",
           )
           operations = force_all or any_path(
+              # CLI changes can alter the product front door without touching UI code.
+              "src/industrial_phm/cli.py",
+              "src/industrial_phm/commands/",
               "src/industrial_phm/apps/",
               "src/industrial_phm/presentation/",
               "src/industrial_phm/runtime/",
@@ -501,19 +508,43 @@ jobs:
       - name: Require selected validation domains
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
+          DOCS_ONLY: ${{ needs.classify.outputs.docs_only }}
           CORE_RESULT: ${{ needs.core.result }}
+          RESEARCH_SELECTED: ${{ needs.classify.outputs.research }}
           RESEARCH_RESULT: ${{ needs.research.result }}
+          RUNTIME_SELECTED: ${{ needs.classify.outputs.runtime }}
           RUNTIME_RESULT: ${{ needs.runtime-contracts.result }}
+          OPERATIONS_SELECTED: ${{ needs.classify.outputs.operations }}
           OPERATIONS_RESULT: ${{ needs.operations.result }}
+          PACKAGE_SELECTED: ${{ needs.classify.outputs.package }}
           PACKAGE_RESULT: ${{ needs.package.result }}
         run: |
           test "$CLASSIFY_RESULT" = "success"
-          for result in "$CORE_RESULT" "$RESEARCH_RESULT" "$RUNTIME_RESULT" "$OPERATIONS_RESULT" "$PACKAGE_RESULT"; do
-            case "$result" in
-              success|skipped) ;;
+
+          # A skipped job is only valid when classify explicitly excluded it.
+          # This must not turn an accidentally skipped required domain green.
+          require_result() {
+            label="$1"
+            selected="$2"
+            actual="$3"
+            case "$selected:$actual" in
+              true:success|false:skipped) ;;
               *)
-                echo "::error::validation domain finished with $result"
+                echo "::error::$label selected=$selected, result=$actual"
                 exit 1
                 ;;
             esac
-          done
+          }
+
+          case "$DOCS_ONLY" in
+            true) require_result core false "$CORE_RESULT" ;;
+            false) require_result core true "$CORE_RESULT" ;;
+            *)
+              echo "::error::invalid docs_only classifier output: $DOCS_ONLY"
+              exit 1
+              ;;
+          esac
+          require_result research "$RESEARCH_SELECTED" "$RESEARCH_RESULT"
+          require_result runtime "$RUNTIME_SELECTED" "$RUNTIME_RESULT"
+          require_result operations "$OPERATIONS_SELECTED" "$OPERATIONS_RESULT"
+          require_result package "$PACKAGE_SELECTED" "$PACKAGE_RESULT"
