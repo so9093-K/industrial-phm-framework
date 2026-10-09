@@ -51,6 +51,12 @@ def _add_operations_commands(
         help="prepare or reopen one local Operations workspace and run it",
     )
     up.add_argument("workspace", type=Path, help="local Operations workspace root")
+    up.add_argument(
+        "--ui",
+        choices=("web-controlled", "marimo", "web-preview"),
+        default="web-controlled",
+        help="UI: supervised local Web default, marimo explicit fallback, preview read-only",
+    )
     up.set_defaults(handler=_run_operations_up)
 
     init = commands.add_parser(
@@ -72,8 +78,8 @@ def _add_operations_commands(
     start.add_argument(
         "--ui",
         choices=("marimo", "web-preview", "web-controlled"),
-        default="marimo",
-        help="UI: marimo default, web-preview read-only, web-controlled IPC pilot",
+        default="web-controlled",
+        help="UI: supervised local Web default, marimo explicit fallback, preview read-only",
     )
     start.set_defaults(handler=_run_operations_start)
 
