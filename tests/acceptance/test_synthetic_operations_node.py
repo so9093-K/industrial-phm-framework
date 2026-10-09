@@ -16,6 +16,8 @@ pytest.importorskip("duckdb")
 pytest.importorskip("marimo")
 
 from industrial_phm.application import (
+    JsonFindingReviewRepository,
+    JsonOperationalFindingRepository,
     JsonSourceRepository,
     SqliteObservationWindowRepository,
     SqlitePhaseUnbalanceRepository,
@@ -29,6 +31,11 @@ from industrial_phm.runtime import (
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from industrial_phm.runtime.operations_web_review import (
+    record_web_review_action,
+    request_web_analysis_review,
+)
+from tests.support.window_analysis import phase_unbalance_analysis
 
 _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
 
