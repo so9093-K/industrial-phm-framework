@@ -219,6 +219,12 @@ def test_web_browse_and_diagnostic_persist_real_opcua_receipt(tmp_path: Path) ->
         row = sources["sources"]["items"][0]
         assert row["receipt_confirmed"] is True
         assert row["collection_desired_state"] is None
+        assert row["collection_service_state"] is None
+        assert row["collection_service_heartbeat_fresh"] is False
+        assert row["opcua_session_last_state"] is None
+        assert row["recent_connected_evidence"] is False
+        assert row["last_live_received_at"] is None
+        assert row["last_live_history_committed_at"] is None
         assert "opc.tcp://" not in str(sources)
         assert not workspace.history_catalog_path.exists()
 

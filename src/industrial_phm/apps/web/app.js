@@ -350,17 +350,24 @@ async function loadSources() {
       byId("onboarding-state").className = "notice error";
       return;
     }
-    state.className = "state";
+    const evidenceReadError = Array.isArray(data.live_evidence_error_scopes)
+      && data.live_evidence_error_scopes.length > 0;
+    state.className = evidenceReadError ? "state error" : "state";
     const received = items.filter((item) => item.receipt_confirmed).length;
+    const liveReceived = items.filter((item) => item.source_type === "opcua"
+      && item.last_live_received_at).length;
+    const summary = "1회 검증 수신 확인 " + received + "개 · OPC UA 연속 live 수신 기록 "
+      + liveReceived + "개 (표시 범위 기준; 서로 다른 근거)";
     if (!items.length) {
       state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV 또는 이 화면에서 로컬 OPC UA 소스를 등록하세요.";
       empty(list, "데이터 수신을 확인할 등록 소스가 없습니다.");
       byId("onboarding-state").textContent = "1단계 · 소스 미등록 — FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
     } else {
-      state.textContent = "등록된 소스 " + data.sources.total + "개 · accepted receipt 확인 " + received + "개 (표시 범위 기준)";
-      byId("onboarding-state").textContent = received
-        ? "등록된 소스 " + data.sources.total + "개 · 수신 근거 " + received + "개 — 저장된 시계열은 별도로 확인해야 합니다."
-        : "등록 " + data.sources.total + "개 · 수신 확인 0개 — 등록은 연결 성공이나 실제 관측이 아닙니다.";
+      state.textContent = "등록된 소스 " + data.sources.total + "개 · " + summary
+        + (evidenceReadError ? " · 일부 live 근거 조회 실패" : "");
+      byId("onboarding-state").textContent = "등록 " + data.sources.total + "개 · "
+        + summary + " · 저장된 시계열은 별도로 확인해야 합니다."
+        + (evidenceReadError ? " · live 근거 일부 미확인" : "");
     }
     byId("onboarding-state").className = "";
     items.forEach((item) => {
@@ -378,6 +385,24 @@ async function loadSources() {
       if (item.continuous_collection_supported) {
         card.append(create("span", null, "연속 수집 요청: " + fmt(item.collection_desired_state || "미요청") + " (실제 수집 상태 아님)"));
         card.append(create("span", null, "요청 세대: " + fmt(item.collection_request_generation) + " · UTC " + utc(item.collection_requested_at)));
+        card.append(create("span", null, "수집 서비스 마지막 기록: " + fmt(item.collection_service_state)
+          + " · heartbeat UTC " + utc(item.collection_service_heartbeat_at)
+          + (item.collection_service_heartbeat_fresh ? " · 최근 확인" : " · 실행 미확인/오래됨")));
+        card.append(create("span", null, "OPC UA 세션 마지막 기록: " + fmt(item.opcua_session_last_state)
+          + " · 변경 UTC " + utc(item.opcua_session_state_changed_at)
+          + (item.recent_connected_evidence ? " · 최근 연결 근거 있음" : " · 현재 연결 미확인")));
+        card.append(create("span", null, "live 이벤트 마지막 수신: UTC " + utc(item.last_live_received_at)
+          + " · " + (item.last_live_receive_fresh
+            ? "30초 이내 수신 근거 있음" : "최근 수신 근거 미확인")
+          + " (1회 읽기 receipt와 별개)"));
+        card.append(create("span", null, "OPC UA DuckLake 커밋: UTC "
+          + utc(item.last_live_history_committed_at)
+          + " · snapshot " + fmt(item.last_live_history_snapshot_id)
+          + " · 소스 이벤트 " + fmt(item.last_live_history_batch_event_count)
+          + " (live 배치 이력; live 수신과 별개)"));
+        if (item.live_telemetry_read_error) {
+          card.append(create("span", "error", "live 수집 근거 저장소 조회 실패 · 값이 없다고 판단할 수 없습니다."));
+        }
       } else {
         card.append(create("span", null, "FILE 소스 · 연속 수집 시작 요청 미지원. 기존 FILE 처리 경로를 사용하세요."));
       }
