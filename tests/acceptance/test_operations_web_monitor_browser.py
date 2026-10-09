@@ -93,6 +93,17 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             )
             page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
             sync_api.expect(page.get_by_role("heading", name="설비 모니터링")).to_be_visible()
+            # The first keyboard stop on a new page is the visible skip link.
+            page.keyboard.press("Tab")
+            sync_api.expect(page.locator(".skip-link")).to_be_focused()
+            page.keyboard.press("Enter")
+            sync_api.expect(page.locator("#main")).to_be_focused()
+            assert page.evaluate("location.hash") == "#main"
+            # Keyboard activation, not a mouse click, must update current navigation.
+            page.get_by_role("link", name="시스템 근거").focus()
+            page.keyboard.press("Enter")
+            assert page.evaluate("location.hash") == "#system"
+            sync_api.expect(page.get_by_role("combobox", name="설비 ID")).to_be_visible()
             page.get_by_role("link", name="시스템 근거").click()
             sync_api.expect(page.locator('nav a[href="#system"]')).to_have_attribute(
                 "aria-current", "page"
