@@ -70,7 +70,7 @@ running systemd service manager; it must **fail**, not silently skip, if the
 runner cannot execute real `systemctl` operations.
 
 The gate checks `systemd-analyze verify`, `ExecStartPre` and first start
-of the opt-in `--ui web-controlled` supervisor; rejects cross-site/invalid
+of the supervised `web-controlled` UI (now the local CLI default); rejects cross-site/invalid
 CSRF source registration while persisting a valid FILE source. It then checks
 a manual systemd restart, persistence of the source registration, kills the
 actual supervised Web UI child to force supervisor non-zero exit, and waits
