@@ -554,7 +554,7 @@ def test_web_mutations_respect_active_workspace_supervisor_lease(tmp_path: Path)
                 assert _request(port, "GET", "/api/v1/sources")[0] == HTTPStatus.OK
                 status, reply = post()
                 assert status == HTTPStatus.CONFLICT
-                assert reply["error"]["code"] == "source_control_conflict"
+                assert reply["error"]["code"] == "workspace_writer_busy"
                 assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
             finally:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
@@ -572,14 +572,16 @@ def test_web_mutations_respect_active_workspace_supervisor_lease(tmp_path: Path)
 def test_two_web_process_leases_do_not_overlap(tmp_path: Path) -> None:
     """Two independent Web writers cannot both hold the supervisor lock."""
     fcntl = pytest.importorskip("fcntl")
-    from industrial_phm.runtime.operations_web_setup import SourceControlConflict
-    from industrial_phm.runtime.operations_web_writer import web_workspace_writer
+    from industrial_phm.runtime.operations_web_writer import (
+        WorkspaceWriterBusy,
+        web_workspace_writer,
+    )
 
     workspace = OperationsWorkspace(tmp_path / "two-web-writers")
     initialize_operations_workspace(workspace)
     with (
         web_workspace_writer(workspace.root),
-        pytest.raises(SourceControlConflict, match="another writer"),
+        pytest.raises(WorkspaceWriterBusy, match="another writer"),
         web_workspace_writer(workspace.root),
     ):
         pytest.fail("a second mutation unexpectedly obtained the lease")

@@ -42,7 +42,7 @@ from industrial_phm.runtime.operations_web_signals import (
     project_history_channels,
     project_signal_history,
 )
-from industrial_phm.runtime.operations_web_writer import web_workspace_writer
+from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 
 
 def create_operations_web_read_server(
@@ -296,6 +296,9 @@ def create_operations_web_read_server(
                         result = diagnose_local_opcua(root, body)
                     else:
                         result = change_web_source_control(root, control_routes[self.path], body)
+            except WorkspaceWriterBusy:
+                self._error(HTTPStatus.CONFLICT, "workspace_writer_busy")
+                return
             except SourceAlreadyRegisteredError:
                 self._error(HTTPStatus.CONFLICT, "source_id_exists")
                 return
