@@ -38,6 +38,9 @@
 
 ### Changed
 
+- 제품 책임자 승인에 따라 로컬 단일 사용자 `make up`·`operations up/start`의 기본 Operations UI를 supervised `web-controlled`로 선택합니다. `--ui marimo` 및 `make up UI=marimo` 복귀를 유지하고 동일 workspace의 동시 쓰기 및 기존 SQLite/DuckLake 포맷 변경은 허용하지 않습니다. 새 Web은 한국어 중심의 한정 파일럿으로, 기존 marimo First-run/Investigation/Maintenance/System 전체, en-US/스크린리더 전체 또는 다른 산업 운영자 현장 시험의 완료를 주장하지 않습니다. 설비 안전·고장 판정·물리 정비 완료 판단은 미지원입니다.
+
+
 - Operations 첫 실행과 주요 화면의 한국어·영어 1024/1440px 브라우저 수용 검증을 완료하고,
   1024px의 상단 메뉴·Refresh 내부 잘림을 수정했습니다. 키보드로 첫 실행·오류 기술 상세·페이지 메뉴를
   조작하고 화면 밖으로 컨트롤이 잘리지 않는지를 회귀 검사합니다. Setup text input은 표시 라벨과 같은
