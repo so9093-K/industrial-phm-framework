@@ -106,9 +106,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             guide.locator("summary").focus()
             page.keyboard.press("Enter")
             sync_api.expect(guide).to_have_attribute("open", "")
-            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text(
-                "Registered / active:"
-            )
+            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text("Registered / active:")
             sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text(
                 "Review acknowledged / closed:"
             )
