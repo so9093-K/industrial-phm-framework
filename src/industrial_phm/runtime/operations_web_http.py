@@ -326,7 +326,8 @@ def create_operations_web_read_server(
             self._send_json(
                 (
                     HTTPStatus.CREATED
-                    if self.path in {
+                    if self.path
+                    in {
                         "/api/v1/sources/file",
                         "/api/v1/sources/opcua",
                         "/api/v1/reviews/request",
