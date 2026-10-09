@@ -667,3 +667,127 @@ def test_supervised_web_controlled_mode_persists_but_external_preview_cannot_wri
                 process.kill()
                 process.wait(timeout=10)
         handle.close()
+
+
+def test_web_human_review_survives_backup_restore_and_two_supervised_starts(
+    tmp_path: Path,
+) -> None:
+    """Restored Web retains exact evidence and a human review disposition."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required for supervised commands")
+    workspace = OperationsWorkspace(tmp_path / "original")
+    initialized = initialize_operations_workspace(workspace)
+    port = _free_loopback_port()
+    write_operations_runtime_config(
+        workspace.config_path,
+        replace(initialized.config, ui=OperationsUiConfig(port=port)),
+    )
+    phase = phase_unbalance_analysis()
+    SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).record(phase)
+    request = request_web_analysis_review(
+        workspace.root,
+        {
+            "analysis_run_id": phase.run.analysis_run_id,
+            "evidence_id": phase.evidence.evidence_id,
+        },
+    )
+    finding_id = request["finding_id"]
+    assert isinstance(finding_id, str)
+    assert record_web_review_action(
+        workspace.root,
+        {"finding_id": finding_id, "action": "acknowledge", "note": ""},
+    )["status"] == "acknowledged"
+    assert not workspace.supervisor_state_path.exists()
+
+    backup_path = tmp_path / "backup"
+    backup = _run_cli("maintenance", "backup", str(workspace.root), str(backup_path))
+    assert backup.returncode == 0, backup.stderr
+    restored_root = tmp_path / "restored"
+    restored = _run_cli("maintenance", "restore", str(backup_path), str(restored_root))
+    assert restored.returncode == 0, restored.stderr
+    restored_workspace = OperationsWorkspace(restored_root)
+    assert not restored_workspace.supervisor_state_path.exists()
+    assert len(
+        JsonOperationalFindingRepository(restored_workspace.finding_state_path).list_findings()
+    ) == 1
+    assert (
+        JsonFindingReviewRepository(restored_workspace.maintenance_review_state_path)
+        .status_for(finding_id)
+        .value
+        == "acknowledged"
+    )
+    results = SqlitePhaseUnbalanceRepository(
+        restored_workspace.phase_unbalance_state_path
+    ).find_results({phase.run.analysis_run_id})
+    assert len(results) == 1
+    assert results[0].evidence.evidence_id == phase.evidence.evidence_id
+
+    def get(path: str) -> tuple[int, dict[str, object]]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=12)
+        try:
+            connection.request("GET", path, headers={"Host": f"127.0.0.1:{port}"})
+            response = connection.getresponse()
+            payload = json.loads(response.read())
+            assert isinstance(payload, dict)
+            return response.status, payload
+        finally:
+            connection.close()
+
+    # A new supervisor generation must not rewrite or lose stored review state.
+    for generation in range(2):
+        log_path = tmp_path / f"restored-supervisor-{generation}.log"
+        handle = log_path.open("ab", buffering=0)
+        process = subprocess.Popen(
+            _cli_argv("operations", "start", str(restored_root), "--ui", "web-controlled"),
+            stdin=subprocess.DEVNULL,
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+        )
+        try:
+            deadline = time.monotonic() + 50
+            while True:
+                if process.poll() is not None:
+                    pytest.fail("restored Web exited before ready:\n" + _process_log(log_path))
+                try:
+                    status, session = get("/api/v1/session")
+                    if status == 200:
+                        break
+                except OSError:
+                    pass
+                if time.monotonic() >= deadline:
+                    pytest.fail("restored Web not ready:\n" + _process_log(log_path))
+                time.sleep(0.2)
+            assert session["write_scope"] == "supervisor-owned-source-control"
+            status, monitor = get("/api/v1/monitor")
+            assert status == 200
+            reviews = monitor["review_requests"]
+            assert isinstance(reviews, dict)
+            items = reviews["items"]
+            assert isinstance(items, list)
+            matched = [entry for entry in items if entry["finding_id"] == finding_id]
+            assert len(matched) == 1
+            assert matched[0]["analysis_run_id"] == phase.run.analysis_run_id
+            assert matched[0]["evidence_ids"] == [phase.evidence.evidence_id]
+            assert matched[0]["status"] == "acknowledged"
+            stopped = _run_cli("operations", "stop", str(restored_root))
+            assert stopped.returncode == 0, stopped.stderr
+            assert process.wait(timeout=20) == 0, _process_log(log_path)
+        finally:
+            if process.poll() is None:
+                _run_cli("operations", "stop", str(restored_root), timeout=10)
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=10)
+            handle.close()
+    events = JsonFindingReviewRepository(
+        restored_workspace.maintenance_review_state_path
+    ).list_events()
+    assert len(events) == 1
+    assert (
+        JsonFindingReviewRepository(workspace.maintenance_review_state_path)
+        .status_for(finding_id)
+        .value
+        == "acknowledged"
+    )
