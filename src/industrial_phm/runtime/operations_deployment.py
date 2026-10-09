@@ -386,6 +386,10 @@ def _history_lock_check(workspace: OperationsWorkspace) -> OperationsDeploymentC
 def _ui_port_check(port: int) -> OperationsDeploymentCheck:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            # Match HTTPServer.allow_reuse_address. A stopped local Web child can
+            # leave TCP TIME_WAIT sockets, but an active listener must still
+            # prevent a second supervisor from binding this port.
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind((OPERATIONS_UI_HOST, port))
     except OSError as error:
         return OperationsDeploymentCheck(
