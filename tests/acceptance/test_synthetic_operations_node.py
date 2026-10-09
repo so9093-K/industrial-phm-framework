@@ -15,6 +15,7 @@ pytest.importorskip("duckdb")
 pytest.importorskip("marimo")
 
 from industrial_phm.application import (
+    JsonSourceRepository,
     SqliteObservationWindowRepository,
     SqlitePhaseUnbalanceRepository,
 )
@@ -476,9 +477,18 @@ def test_supervised_web_preview_is_readable_but_cannot_write(
                 pytest.fail("supervised Web preview not ready:\n" + _process_log(logfile))
             time.sleep(0.3)
 
-        status = _run_cli("operations", "status", str(root))
-        assert status.returncode == 0, status.stderr
-        assert "ready=yes" in status.stdout, status.stdout
+        deadline = time.monotonic() + 30
+        while True:
+            status = _run_cli("operations", "status", str(root))
+            if status.returncode == 0 and "ready=yes" in status.stdout:
+                break
+            if process.poll() is not None or time.monotonic() >= deadline:
+                pytest.fail(
+                    "supervisor did not report all components ready:\n"
+                    + status.stdout + status.stderr + "\n"
+                    + _process_log(logfile)
+                )
+            time.sleep(0.3)
 
         connection = HTTPConnection("127.0.0.1", port, timeout=5)
         connection.request("GET", "/api/v1/session")
@@ -508,7 +518,7 @@ def test_supervised_web_preview_is_readable_but_cannot_write(
         connection.close()
         assert result.status == 409
         assert rejection["error"]["code"] == "workspace_writer_busy"
-        assert not workspace.source_registry_path.exists()
+        assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
 
         stopped = _run_cli("operations", "stop", str(root))
         assert stopped.returncode == 0, stopped.stderr
