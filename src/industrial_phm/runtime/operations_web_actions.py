@@ -14,6 +14,10 @@ from industrial_phm.runtime.operations_web_opcua import (
     diagnose_local_opcua,
     register_local_opcua,
 )
+from industrial_phm.runtime.operations_web_review import (
+    record_web_review_action,
+    request_web_analysis_review,
+)
 from industrial_phm.runtime.operations_web_setup import (
     backfill_workspace_file_history,
     change_web_source_control,
@@ -31,6 +35,8 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/sources/opcua/browse",
         "/api/v1/sources/opcua",
         "/api/v1/sources/opcua/diagnose",
+        "/api/v1/reviews/request",
+        "/api/v1/reviews/action",
     }
 )
 
@@ -55,4 +61,8 @@ def execute_web_source_action(
         return diagnose_local_opcua(root, payload)
     if route == "/api/v1/sources/lifecycle":
         return change_web_source_control(root, "lifecycle", payload)
-    return change_web_source_control(root, "collection", payload)
+    if route == "/api/v1/sources/collection":
+        return change_web_source_control(root, "collection", payload)
+    if route == "/api/v1/reviews/request":
+        return request_web_analysis_review(root, payload)
+    return record_web_review_action(root, payload)

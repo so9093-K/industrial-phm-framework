@@ -11,6 +11,12 @@
 
 ### Added
 
+- Operations Web에 `/api/v1/reviews/request`, `/api/v1/reviews/action`을 추가했습니다.
+  첫 요청은 실제 저장된 3상 분석 Run·Evidence ID가 정확히 일치해야 하며 동일 근거 요청은
+  기존 finding을 재사용합니다. 검토 기록은 note → acknowledge → close의 기존 사람 검토
+  상태 전이를 따르고 조회·명령 접근은 기존 loopback CSRF 및 supervisor writer 계약을
+  유지합니다. 이력은 진단·설비 정상 판정 또는 물리적 정비 수행을 뜻하지 않습니다.
+
 - Linux 로컬 engineering pilot에서 `industrial-phm operations start <root> --ui web-controlled`로
   supervisor-owned Web source 명령을 선택할 수 있습니다. 브라우저의 same-origin/CSRF POST는
   supervisor의 PID·UID·일회성 token 검증 Unix 소켓으로 전달되어 기존 FILE/OPC UA source action을

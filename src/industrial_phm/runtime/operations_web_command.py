@@ -28,6 +28,7 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
     execute_web_source_action,
 )
+from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 
 _MAX_MESSAGE_BYTES = 8192
@@ -186,6 +187,10 @@ class SupervisorWebCommandBroker:
             return {"ok": False, "code": "source_id_exists"}
         except SourceControlConflict:
             return {"ok": False, "code": "source_control_conflict"}
+        except WebReviewConflict:
+            return {"ok": False, "code": "review_state_conflict"}
+        except WebReviewNotFound:
+            return {"ok": False, "code": "review_evidence_not_found"}
         except UnknownRegisteredSourceError:
             return {"ok": False, "code": "source_not_found"}
         except ValueError, TypeError, UnicodeError, FileNotFoundError, NotADirectoryError:

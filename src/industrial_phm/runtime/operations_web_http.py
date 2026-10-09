@@ -33,6 +33,7 @@ from industrial_phm.runtime.operations_web_command import (
     WebCommandRejected,
 )
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
+from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
     project_web_source_setup,
@@ -290,6 +291,8 @@ def create_operations_web_read_server(
                     "command_request_conflict": HTTPStatus.CONFLICT,
                     "command_capacity_exceeded": HTTPStatus.SERVICE_UNAVAILABLE,
                     "source_not_found": HTTPStatus.NOT_FOUND,
+                    "review_evidence_not_found": HTTPStatus.NOT_FOUND,
+                    "review_state_conflict": HTTPStatus.CONFLICT,
                     "invalid_source_action": HTTPStatus.BAD_REQUEST,
                 }
                 self._error(
@@ -305,6 +308,12 @@ def create_operations_web_read_server(
             except SourceControlConflict:
                 self._error(HTTPStatus.CONFLICT, "source_control_conflict")
                 return
+            except WebReviewConflict:
+                self._error(HTTPStatus.CONFLICT, "review_state_conflict")
+                return
+            except WebReviewNotFound:
+                self._error(HTTPStatus.NOT_FOUND, "review_evidence_not_found")
+                return
             except UnknownRegisteredSourceError:
                 self._error(HTTPStatus.NOT_FOUND, "source_not_found")
                 return
@@ -317,7 +326,12 @@ def create_operations_web_read_server(
             self._send_json(
                 (
                     HTTPStatus.CREATED
-                    if self.path in {"/api/v1/sources/file", "/api/v1/sources/opcua"}
+                    if self.path
+                    in {
+                        "/api/v1/sources/file",
+                        "/api/v1/sources/opcua",
+                        "/api/v1/reviews/request",
+                    }
                     else HTTPStatus.OK
                 ),
                 result,

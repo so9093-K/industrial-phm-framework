@@ -20,6 +20,8 @@ from industrial_phm.runtime import operations_web_actions as actions
         ("/api/v1/sources/opcua/diagnose", "diagnose_local_opcua", None),
         ("/api/v1/sources/lifecycle", "change_web_source_control", "lifecycle"),
         ("/api/v1/sources/collection", "change_web_source_control", "collection"),
+        ("/api/v1/reviews/request", "request_web_analysis_review", None),
+        ("/api/v1/reviews/action", "record_web_review_action", None),
     ],
 )
 def test_allowlisted_web_route_dispatches_to_exact_existing_action(
