@@ -52,11 +52,17 @@ port may be selected with `--port` (`0` selects an ephemeral local port);
 a nonexistent workspace is rejected. It does not run or stop collection,
 analysis, or the existing supervised marimo child. Existing `make up` and
 `industrial-phm operations up` retain their current behavior. The preview is a
-single-user local tool, **not a second concurrent writer** for a workspace being
-mutated by the legacy Operations UI. The HTTP mutation lock serializes requests
-within one preview server only; the JSON source registry does not provide
-cross-process write coordination. Do not perform legacy and Web source mutations
-against the same workspace simultaneously.
+single-user local tool. The HTTP process mutex serializes its own requests, and
+each authorized Web mutation additionally acquires the same nonblocking POSIX
+`supervisor.lock` file lease held by the supported `make up` supervisor.
+While the supervisor owns a workspace, the preview **remains readable** but all
+Web POST routes return a path-free HTTP 409 conflict without mutation. Concurrent
+Web preview processes also cannot mutate that workspace at the same time.
+The lease is held until each accepted mutation completes, never used to
+rewrite/truncate the supervisor PID marker, and then released. This is an
+interlock only for cooperating Web previews and the normal supervisor; direct
+file edits or an unsupported manually launched marimo process remain outside
+this contract. The preview does not become the collector/analysis lifecycle owner.
 
 The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
 shipped with the **Python wheel**, and use the same-origin, explicit
