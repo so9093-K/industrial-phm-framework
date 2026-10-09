@@ -80,9 +80,7 @@ def _start(root: Path, port: int, log: Path) -> subprocess.Popen[bytes]:
 
 
 def _no_overflow(page, width: int) -> None:
-    measured = page.evaluate(
-        "() => [window.innerWidth, document.documentElement.scrollWidth]"
-    )
+    measured = page.evaluate("() => [window.innerWidth, document.documentElement.scrollWidth]")
     assert measured[0] == width and measured[1] <= width + 2, measured
 
 
@@ -121,8 +119,14 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
             errors: list[str] = []
             external: list[str] = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            page.on("request", lambda r: external.append(r.url)
-                    if not r.url.startswith(f"http://127.0.0.1:{port}/") else None)
+            page.on(
+                "request",
+                lambda r: (
+                    external.append(r.url)
+                    if not r.url.startswith(f"http://127.0.0.1:{port}/")
+                    else None
+                ),
+            )
             page.on("dialog", lambda dialog: dialog.accept())
             try:
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
@@ -164,9 +168,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "6개 이벤트", timeout=30000
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text(
-                    "220.7", timeout=30000
-                )
+                pw.expect(page.locator("#last-values")).to_contain_text("220.7", timeout=30000)
                 assert workspace.history_catalog_path.exists()
                 page.get_by_role("link", name="분석 근거").click()
                 pw.expect(page.locator("#evidence-results")).to_contain_text(
@@ -195,7 +197,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
     assert JsonSourceRepository(workspace.source_registry_path).get("journey-file")
     repository = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
     assert [event.action.value for event in repository.list_events()] == [
-        "note", "acknowledge", "close"
+        "note",
+        "acknowledge",
+        "close",
     ]
 
     proc = _start(workspace.root, port, log)
@@ -205,12 +209,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                pw.expect(page.locator("#review-results")).to_contain_text(
-                    "closed", timeout=30000
-                )
-                pw.expect(page.locator("#last-values")).to_contain_text(
-                    "220.7", timeout=30000
-                )
+                pw.expect(page.locator("#review-results")).to_contain_text("closed", timeout=30000)
+                pw.expect(page.locator("#last-values")).to_contain_text("220.7", timeout=30000)
                 pw.expect(
                     page.get_by_role("button", name="이 근거에 사람 검토 요청")
                 ).to_have_count(0)
