@@ -43,3 +43,12 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .operator-meaning h2{font-size:.97rem;margin:0 0 5px}
 .operator-meaning p{font-size:.84rem;color:#384f5c;margin:5px 0;line-height:1.55}
 .source-record .source-meaning,.record .review-meaning{color:#254c62;background:#ebf2f6;border-left:3px solid #517f96;border-radius:4px;padding:8px 10px;margin:9px 0;line-height:1.5;font-size:.83rem}
+
+/* Supplementary English reference: never presented as full UI localization. */
+.operator-reference{border:1px solid #c8dbe2;background:#fff;border-radius:12px;padding:11px 17px;margin:-4px 0 16px}
+.operator-reference summary{color:#254c62;font-size:.85rem;font-weight:680;cursor:pointer;overflow-wrap:anywhere}
+.operator-reference [lang="en"]{font-size:.83rem;color:#384f5c;line-height:1.55;padding:9px 2px 0}
+.operator-reference h2{font-size:.94rem;margin:4px 0 7px}
+.operator-reference p{margin:5px 0 10px}
+.operator-reference ul{padding-left:1.3rem;margin:8px 0}
+.operator-reference li{margin:6px 0;overflow-wrap:anywhere}
