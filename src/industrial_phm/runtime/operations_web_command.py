@@ -120,7 +120,7 @@ class SupervisorWebCommandBroker:
                 socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
             )
             pid, uid, _gid = struct.unpack("3i", credentials)
-        except (OSError, ValueError, struct.error):
+        except OSError, ValueError, struct.error:
             return False
         return pid == self._child_pid and uid == os.geteuid()
 
@@ -164,7 +164,8 @@ class SupervisorWebCommandBroker:
                 cached = self._seen.get(identifier)
                 if cached is not None:
                     response = (
-                        cached[1] if cached[0] == identity
+                        cached[1]
+                        if cached[0] == identity
                         else {"ok": False, "code": "command_request_conflict"}
                     )
                 elif len(self._seen) >= _MAX_REQUESTS_PER_GENERATION:
@@ -172,9 +173,9 @@ class SupervisorWebCommandBroker:
                 else:
                     response = self._execute(route, cast(dict[str, object], payload))
                     self._seen[identifier] = (identity, response)
-        except (ValueError, TypeError, UnicodeError, json.JSONDecodeError):
+        except ValueError, TypeError, UnicodeError, json.JSONDecodeError:
             response = {"ok": False, "code": "invalid_source_action"}
-        except (OSError, TimeoutError):
+        except OSError, TimeoutError:
             response = {"ok": False, "code": "source_state_unavailable"}
         self._reply(connection, response)
 
@@ -187,9 +188,9 @@ class SupervisorWebCommandBroker:
             return {"ok": False, "code": "source_control_conflict"}
         except UnknownRegisteredSourceError:
             return {"ok": False, "code": "source_not_found"}
-        except (ValueError, TypeError, UnicodeError, FileNotFoundError, NotADirectoryError):
+        except ValueError, TypeError, UnicodeError, FileNotFoundError, NotADirectoryError:
             return {"ok": False, "code": "invalid_source_action"}
-        except (OSError, RuntimeError):
+        except OSError, RuntimeError:
             return {"ok": False, "code": "source_state_unavailable"}
 
     @staticmethod
@@ -199,7 +200,7 @@ class SupervisorWebCommandBroker:
             if len(payload) > _MAX_MESSAGE_BYTES:
                 payload = b'{"ok":false,"code":"source_state_unavailable"}\n'
             connection.sendall(payload)
-        except (OSError, TimeoutError):
+        except OSError, TimeoutError:
             # The caller observes outcome_unknown; never reissue its command here.
             pass
 
