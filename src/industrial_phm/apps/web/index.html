@@ -34,6 +34,21 @@
         <p>소스 <strong>등록·활성화</strong>는 연결·수신을 보장하지 않습니다. <strong>수신 근거</strong>는 DuckLake 이력 저장 또는 분석 성공을 뜻하지 않습니다.</p>
         <p>최근 데이터 수신은 <strong>설비 정상·고장 진단</strong>이 아닙니다. <strong>검토 기록 종료</strong>도 실제 정비 완료나 설비 안전 확인이 아닙니다.</p>
       </section>
+      <details id="operator-reference-en" class="operator-reference">
+        <summary lang="en">English evidence guide · status controls remain in Korean</summary>
+        <div lang="en" aria-label="English guide to interpreting industrial evidence">
+          <h2>What the evidence does and does not establish</h2>
+          <p>This is an English reference, <strong>not an English-language operations interface</strong>. Live controls, errors and confirmations remain in Korean. Do not use an untranslated control if its meaning is unclear.</p>
+          <ul>
+            <li><strong>Registered / active:</strong> Configuration or requested lifecycle only. Neither proves a connection nor confirms data receipt.</li>
+            <li><strong>Accepted receipt:</strong> Evidence of an accepted read. It is not a DuckLake history commit, continuous live collection or a successful analysis.</li>
+            <li><strong>Stored history:</strong> Historical observations with their own UTC time and quality. They are not current equipment measurements or an assessment of asset health.</li>
+            <li><strong>AnalysisRun / evidence:</strong> A persisted analysis result, not a definitive fault diagnosis, alarm, prediction of remaining useful life or proof of safety. No analysis result does not mean a healthy asset.</li>
+            <li><strong>Review acknowledged / closed:</strong> Administrative human-review records, not evidence of physical maintenance, fault resolution or safe operation.</li>
+            <li><strong>Missing values / read errors:</strong> Unknown is not zero; a failed read does not establish an empty repository. Verify provenance and retry without assuming an unknown command outcome can be repeated safely.</li>
+          </ul>
+        </div>
+      </details>
 
       <section class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
         <div class="panel-header"><div><h2 id="onboarding-title">처음 사용하는 작업공간</h2><p class="muted">소스 등록 → 수집기 동작 → 실제 수신 근거 → 모니터링</p></div></div>
