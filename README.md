@@ -28,7 +28,9 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 현재 기본 runtime policy를 기록한 config를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
-터미널에 출력되는 `operations_url`을 브라우저에서 엽니다. 처음 만든 빈 workspace는 first-run
+터미널에 출력되는 `operations_url`(`http://127.0.0.1:<port>/web/`)을 브라우저에서 엽니다.
+현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 격리된 샘플 체험/Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더·제3자 현장 시험은 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
+처음 만든 빈 workspace는 first-run
 화면에서 **샘플 데이터로 둘러보기** 또는 **실제 데이터 연결**을 선택합니다. 샘플은 real workspace와
 분리된 synthetic demo workspace에서 실행되며, 실제 데이터 경로는 FILE 또는 OPC UA 연결 → 신호 확인 →
 명시적 measurement meaning → 수집/데이터 흐름 확인 → Monitor 순서의 Setup으로 이어집니다. source가
@@ -38,6 +40,14 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 make status
 make logs
 make down
+```
+
+기존 marimo 작업 화면이 필요한 경우, 동일 workspace의 Web을 **종료한 뒤** 명시적으로 선택할 수 있습니다. 두 UI로 같은 workspace를 동시에 수정하지 않습니다.
+
+```bash
+make down
+make up UI=marimo
+# CLI: industrial-phm operations up <workspace> --ui marimo
 ```
 
 다른 workspace를 사용하려면 모든 lifecycle target에 같은 값을 전달합니다.
