@@ -206,7 +206,9 @@ class SupervisorWebCommandBroker:
 
 
 class _UnixWebServer(socketserver.ThreadingUnixStreamServer):
-    daemon_threads = True
+    # In-flight writes must finish before the supervisor releases its lifetime lock.
+    daemon_threads = False
+    block_on_close = True
     # Many parallel browser actions must reach the bounded serialized dispatcher.
     request_queue_size = 128
 
