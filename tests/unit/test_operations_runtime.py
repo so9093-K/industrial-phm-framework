@@ -114,9 +114,7 @@ def test_web_preview_plan_is_opt_in_and_keeps_supervisor_topology(tmp_path: Path
     workspace = OperationsWorkspace(tmp_path / "readonly-pilot")
     config = OperationsRuntimeConfig(ui=OperationsUiConfig(port=4876))
 
-    plan = build_operations_runtime_plan(
-        workspace, config, ui_mode=OperationsUiMode.WEB_PREVIEW
-    )
+    plan = build_operations_runtime_plan(workspace, config, ui_mode=OperationsUiMode.WEB_PREVIEW)
     collection, analysis, ui = plan.components
     assert collection.kind == OperationsComponentKind.COLLECTION
     assert analysis.kind == OperationsComponentKind.ANALYSIS
@@ -140,8 +138,6 @@ def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
 
     workspace = str(tmp_path / "site")
     default = build_parser().parse_args(["operations", "start", workspace])
-    opt_in = build_parser().parse_args(
-        ["operations", "start", workspace, "--ui", "web-preview"]
-    )
+    opt_in = build_parser().parse_args(["operations", "start", workspace, "--ui", "web-preview"])
     assert default.ui == "marimo"
     assert opt_in.ui == "web-preview"

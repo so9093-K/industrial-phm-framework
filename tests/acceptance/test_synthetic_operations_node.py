@@ -485,7 +485,9 @@ def test_supervised_web_preview_is_readable_but_cannot_write(
             if process.poll() is not None or time.monotonic() >= deadline:
                 pytest.fail(
                     "supervisor did not report all components ready:\n"
-                    + status.stdout + status.stderr + "\n"
+                    + status.stdout
+                    + status.stderr
+                    + "\n"
                     + _process_log(logfile)
                 )
             time.sleep(0.3)
