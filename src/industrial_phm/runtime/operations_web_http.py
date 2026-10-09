@@ -206,7 +206,7 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": "file-registration-source-control-receipt-backfill-and-local-opcua",
+                        "write_scope": "local-source-control-and-opcua-preview",
                     },
                 )
                 return
