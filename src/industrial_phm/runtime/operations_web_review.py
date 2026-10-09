@@ -52,13 +52,15 @@ def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[
     if len(results) != 1 or results[0].evidence.evidence_id != evidence_id:
         raise WebReviewNotFound("exact analysis evidence unavailable")
     finding, _ = OperationsAppActions(paths).request_review(results[0])
+    # The finding is idempotent, but its human disposition may have advanced.
+    status = JsonFindingReviewRepository(paths.review).status_for(finding.finding_id)
     return {
         "schema_version": 1,
         "finding_id": finding.finding_id,
         "analysis_run_id": finding.analysis_run_id,
         "asset_id": finding.asset_id,
         "evidence_ids": list(finding.evidence_refs),
-        "status": FindingReviewStatus.OPEN.value,
+        "status": status.value,
         "meaning": "human-review-request-not-maintenance-completion-or-diagnosis",
     }
 
