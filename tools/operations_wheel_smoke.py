@@ -82,7 +82,10 @@ def _web(binary: Path, workspace: Path, *, port: int, cwd: Path, mutate: bool) -
     with log_path.open("wb") as log:
         supervisor = subprocess.Popen(
             [str(binary), "operations", "start", str(workspace), "--ui", "web-controlled"],
-            cwd=cwd, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
         )
     try:
         deadline = time.monotonic() + 55
@@ -95,7 +98,7 @@ def _web(binary: Path, workspace: Path, *, port: int, cwd: Path, mutate: bool) -
                 if status == 200:
                     session = result
                     break
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 pass
             time.sleep(0.2)
         assert session is not None, f"wheel Web not ready:\n{log_path.read_text()[-5000:]}"
@@ -127,9 +130,7 @@ def _web(binary: Path, workspace: Path, *, port: int, cwd: Path, mutate: bool) -
                 "timestamp_column": "timestamp",
             }
             assert _json(port, "/api/v1/sources/file", payload=source, csrf="wrong")[0] == 403
-            status, result = _json(
-                port, "/api/v1/sources/file", payload=source, csrf=csrf
-            )
+            status, result = _json(port, "/api/v1/sources/file", payload=source, csrf=csrf)
             assert status == 201 and result["registration_state"] == "registered"
             assert result["receipt_confirmed"] is False
             assert _json(port, "/api/v1/sources/file", payload=source, csrf=csrf)[0] == 409
@@ -148,7 +149,10 @@ def _web(binary: Path, workspace: Path, *, port: int, cwd: Path, mutate: bool) -
         if supervisor.poll() is None:
             subprocess.run(
                 [str(binary), "operations", "stop", str(workspace)],
-                cwd=cwd, capture_output=True, timeout=15, check=False
+                cwd=cwd,
+                capture_output=True,
+                timeout=15,
+                check=False,
             )
             try:
                 supervisor.wait(timeout=15)
