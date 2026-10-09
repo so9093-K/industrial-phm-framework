@@ -117,3 +117,26 @@ def test_deployment_preflight_rejects_occupied_ui_port(
     assert report.ready is False
     by_name = {item.name: item for item in report.checks}
     assert by_name["ui-port"].state == OperationsDeploymentCheckState.FAIL
+
+
+def test_deployment_preflight_reuses_recently_closed_web_port() -> None:
+    """TIME_WAIT must not fail restart preflight, but a live listener must."""
+    import industrial_phm.runtime.operations_deployment as deployment_module
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = int(listener.getsockname()[1])
+        # A currently listening HTTPServer-style socket must still win the port.
+        assert deployment_module._ui_port_check(port).state == OperationsDeploymentCheckState.FAIL
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
+            accepted, _ = listener.accept()
+            with accepted:
+                accepted.sendall(b"ok")
+                accepted.shutdown(socket.SHUT_WR)
+            assert client.recv(2) == b"ok"
+            assert client.recv(1) == b""
+    # The listener exited while the server side held the last TIME_WAIT.
+    # HTTPServer sets SO_REUSEADDR; its deployment probe must do the same.
+    assert deployment_module._ui_port_check(port).state == OperationsDeploymentCheckState.PASS
