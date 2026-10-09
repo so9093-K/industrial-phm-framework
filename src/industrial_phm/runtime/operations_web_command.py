@@ -207,6 +207,8 @@ class SupervisorWebCommandBroker:
 
 class _UnixWebServer(socketserver.ThreadingUnixStreamServer):
     daemon_threads = True
+    # Many parallel browser actions must reach the bounded serialized dispatcher.
+    request_queue_size = 128
 
 
 @contextmanager
