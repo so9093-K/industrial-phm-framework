@@ -129,9 +129,7 @@ def test_deployment_preflight_reuses_recently_closed_web_port() -> None:
         listener.listen(1)
         port = int(listener.getsockname()[1])
         # A currently listening HTTPServer-style socket must still win the port.
-        assert (
-            deployment_module._ui_port_check(port).state == OperationsDeploymentCheckState.FAIL
-        )
+        assert deployment_module._ui_port_check(port).state == OperationsDeploymentCheckState.FAIL
         with socket.create_connection(("127.0.0.1", port), timeout=3) as client:
             accepted, _ = listener.accept()
             with accepted:
