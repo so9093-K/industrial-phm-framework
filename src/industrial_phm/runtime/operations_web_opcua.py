@@ -62,9 +62,7 @@ def browse_local_opcua(root: Path, payload: dict[str, object]) -> dict[str, obje
         raise ValueError("unexpected OPC UA browse fields")
     endpoint = _loopback_endpoint(payload["endpoint_url"])
     paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
-    result = OperationsAppActions(paths).browse_opcua(
-        endpoint_url=endpoint, timeout_seconds=2.0
-    )
+    result = OperationsAppActions(paths).browse_opcua(endpoint_url=endpoint, timeout_seconds=2.0)
     variables = [
         {
             "node_id": row.node_id[:128],

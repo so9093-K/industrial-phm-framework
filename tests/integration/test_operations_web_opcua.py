@@ -152,10 +152,15 @@ def test_opcua_web_denies_remote_urls_and_requires_auth(tmp_path: Path) -> None:
         ):
             assert _post(port, route, _registration(rejected), token)[0] == 400
         assert _post(port, route, {**mapping, "extra": 1}, token)[0] == 400
-        assert _post(
-            port, "/api/v1/sources/opcua/browse",
-            {"endpoint_url": "opc.tcp://example.com:4840/"}, token
-        )[0] == 400
+        assert (
+            _post(
+                port,
+                "/api/v1/sources/opcua/browse",
+                {"endpoint_url": "opc.tcp://example.com:4840/"},
+                token,
+            )[0]
+            == 400
+        )
         assert _post(port, diagnostic, {"source_id": "unknown"}, token)[0] == 404
         assert _post(port, route, mapping, token)[0] == 201
         assert _post(port, route, mapping, token)[0] == 409
@@ -187,12 +192,15 @@ def test_web_browse_and_diagnostic_persist_real_opcua_receipt(tmp_path: Path) ->
         status, sources = _http(port, "/api/v1/sources")
         assert status == 200
         assert sources["sources"]["items"][0]["receipt_confirmed"] is False
-        assert _post(
-            port,
-            "/api/v1/sources/lifecycle",
-            {"source_id": "web-opcua-1", "target_state": "active"},
-            token,
-        )[0] == 200
+        assert (
+            _post(
+                port,
+                "/api/v1/sources/lifecycle",
+                {"source_id": "web-opcua-1", "target_state": "active"},
+                token,
+            )[0]
+            == 200
+        )
         status, diagnosed = _post(
             port, "/api/v1/sources/opcua/diagnose", {"source_id": "web-opcua-1"}, token
         )
@@ -237,9 +245,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
         page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")
         page.locator('#opcua-form input[name="asset_id"]').fill("pump-01")
-        page.locator('#opcua-form textarea[name="node_mappings"]').fill(
-            "vibration_x=" + node_id
-        )
+        page.locator('#opcua-form textarea[name="node_mappings"]').fill("vibration_x=" + node_id)
         page.get_by_role("button", name="OPC UA 매핑 등록").click()
         listing = page.locator("#source-list")
         sync_api.expect(listing).to_contain_text("web-opcua-1")
