@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Sequence
-from threading import Lock
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
 from industrial_phm._sqlite import connect_wal
 from industrial_phm.application.observation_window import (
