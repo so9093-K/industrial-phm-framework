@@ -350,17 +350,24 @@ async function loadSources() {
       byId("onboarding-state").className = "notice error";
       return;
     }
-    state.className = "state";
+    const evidenceReadError = Array.isArray(data.live_evidence_error_scopes)
+      && data.live_evidence_error_scopes.length > 0;
+    state.className = evidenceReadError ? "state error" : "state";
     const received = items.filter((item) => item.receipt_confirmed).length;
+    const liveReceived = items.filter((item) => item.source_type === "opcua"
+      && item.last_live_received_at).length;
+    const summary = "검증 receipt " + received + "개 · OPC UA live 수신 기록 "
+      + liveReceived + "개 (표시 범위 기준; 서로 다른 근거)";
     if (!items.length) {
       state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV 또는 이 화면에서 로컬 OPC UA 소스를 등록하세요.";
       empty(list, "데이터 수신을 확인할 등록 소스가 없습니다.");
       byId("onboarding-state").textContent = "1단계 · 소스 미등록 — FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
     } else {
-      state.textContent = "등록된 소스 " + data.sources.total + "개 · accepted receipt 확인 " + received + "개 (표시 범위 기준)";
-      byId("onboarding-state").textContent = received
-        ? "등록된 소스 " + data.sources.total + "개 · 수신 근거 " + received + "개 — 저장된 시계열은 별도로 확인해야 합니다."
-        : "등록 " + data.sources.total + "개 · 수신 확인 0개 — 등록은 연결 성공이나 실제 관측이 아닙니다.";
+      state.textContent = "등록된 소스 " + data.sources.total + "개 · " + summary
+        + (evidenceReadError ? " · 일부 live 근거 조회 실패" : "");
+      byId("onboarding-state").textContent = "등록 " + data.sources.total + "개 · "
+        + summary + " · DuckLake 저장은 별도로 확인하세요."
+        + (evidenceReadError ? " · live 근거 일부 미확인" : "");
     }
     byId("onboarding-state").className = "";
     items.forEach((item) => {
