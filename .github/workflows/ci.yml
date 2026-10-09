@@ -403,13 +403,14 @@ jobs:
     needs: classify
     if: needs.classify.outputs.package == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -502,6 +503,52 @@ jobs:
           env -u PYTHONPATH -u VIRTUAL_ENV -u UV_PROJECT_ENVIRONMENT \
             "$ISOLATED_VENV/bin/python" \
             "$GITHUB_WORKSPACE/tools/operations_wheel_smoke.py"
+
+      - name: Verify last-green wheel rollback on one durable workspace
+        env:
+          LAST_GREEN_SHA: b3f9d1076fe3d286e304e30d9f503d4ebb6c718c
+        run: |
+          set -euo pipefail
+          # Green main CI: https://github.com/so9093-K/industrial-phm-framework/actions/runs/37911770483
+          git merge-base --is-ancestor "$LAST_GREEN_SHA" HEAD
+          PREVIOUS_SRC="$RUNNER_TEMP/industrial-phm-previous-green"
+          PREVIOUS_DIST="$RUNNER_TEMP/industrial-phm-previous-wheel"
+          git worktree add --detach "$PREVIOUS_SRC" "$LAST_GREEN_SHA"
+          mkdir -p "$PREVIOUS_DIST"
+          uv build --wheel "$PREVIOUS_SRC" --out-dir "$PREVIOUS_DIST"
+
+          PREVIOUS_WHEEL="$(find "$PREVIOUS_DIST" -maxdepth 1 -name '*.whl' -print -quit)"
+          CURRENT_WHEEL="$(find "$GITHUB_WORKSPACE/dist" -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$PREVIOUS_WHEEL" && test -n "$CURRENT_WHEEL"
+          PREVIOUS_HASH="$(unzip -p "$PREVIOUS_WHEEL" industrial_phm/runtime/operations_deployment.py | sha256sum | cut -d' ' -f1)"
+          CURRENT_HASH="$(unzip -p "$CURRENT_WHEEL" industrial_phm/runtime/operations_deployment.py | sha256sum | cut -d' ' -f1)"
+          test "$PREVIOUS_HASH" != "$CURRENT_HASH"
+
+          ROLLBACK_VENV="$RUNNER_TEMP/industrial-phm-rollback-venv"
+          ROLLBACK_ROOT="$RUNNER_TEMP/industrial-phm-rollback-workspace"
+          uv venv --python 3.14 "$ROLLBACK_VENV"
+          cd "$RUNNER_TEMP"
+
+          uv pip install --python "$ROLLBACK_VENV/bin/python" "${PREVIOUS_WHEEL}[operations]"
+          env -u PYTHONPATH -u VIRTUAL_ENV -u UV_PROJECT_ENVIRONMENT \
+            "$ROLLBACK_VENV/bin/python" \
+            "$GITHUB_WORKSPACE/tools/operations_wheel_rollback.py" \
+            --stage previous --wheel "$PREVIOUS_WHEEL" --workspace "$ROLLBACK_ROOT"
+
+          # Both wheels declare 0.0.1, so force replacement and verify module bytes.
+          uv pip install --python "$ROLLBACK_VENV/bin/python" \
+            --reinstall-package industrial-phm-framework "${CURRENT_WHEEL}[operations]"
+          env -u PYTHONPATH -u VIRTUAL_ENV -u UV_PROJECT_ENVIRONMENT \
+            "$ROLLBACK_VENV/bin/python" \
+            "$GITHUB_WORKSPACE/tools/operations_wheel_rollback.py" \
+            --stage upgraded --wheel "$CURRENT_WHEEL" --workspace "$ROLLBACK_ROOT"
+
+          uv pip install --python "$ROLLBACK_VENV/bin/python" \
+            --reinstall-package industrial-phm-framework "${PREVIOUS_WHEEL}[operations]"
+          env -u PYTHONPATH -u VIRTUAL_ENV -u UV_PROJECT_ENVIRONMENT \
+            "$ROLLBACK_VENV/bin/python" \
+            "$GITHUB_WORKSPACE/tools/operations_wheel_rollback.py" \
+            --stage rolled-back --wheel "$PREVIOUS_WHEEL" --workspace "$ROLLBACK_ROOT"
 
   required:
     name: Required validation
