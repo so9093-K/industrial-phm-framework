@@ -139,9 +139,7 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 "last_live_history_committed_at": (
                     None if history is None else _utc(history.committed_at)
                 ),
-                "last_live_history_snapshot_id": (
-                    None if history is None else history.snapshot_id
-                ),
+                "last_live_history_snapshot_id": (None if history is None else history.snapshot_id),
                 "last_live_history_batch_event_count": (
                     None if history is None else history.source_event_count
                 ),
@@ -166,13 +164,14 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
             {
                 item.scope
                 for item in snapshot.system_errors
-                if item.scope in {
-                    "source-settings",
-                    "source-runtime",
-                    "collection-control",
-                    "live-data",
-                    "asset-history",
-                }
+                if item.scope in {"source-settings", "source-runtime", "collection-control"}
+            }
+        ),
+        "live_evidence_error_scopes": sorted(
+            {
+                item.scope
+                for item in snapshot.system_errors
+                if item.scope in {"live-data", "asset-history"}
                 or item.scope.startswith("live-data:")
             }
         ),

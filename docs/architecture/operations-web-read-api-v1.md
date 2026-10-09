@@ -189,10 +189,11 @@ and new Web source actions must not write the same workspace concurrently.
   batch is not confirmation of current source activity. FILE backfill is
   deliberately not inferred from this field: use history channels/trend
   reads to confirm actual stored FILE events.
-- `live_telemetry_read_error` and `read_error_scopes` preserve corrupt or
-  inaccessible telemetry as an **unknown read**, not "never received".
-  Empty fields are explicitly unknown, not connected/disconnected/healthy
-  classifications.
+- `live_telemetry_read_error` and `live_evidence_error_scopes` preserve corrupt
+  or inaccessible telemetry as an **unknown read**, not "never received".
+  `read_error_scopes` remains limited to source/control repositories: a broken
+  optional telemetry or history store must not hide otherwise readable source
+  registrations. Empty live facts do not establish health or connectivity.
 
 The Web displays these facts on manual refresh, without continuously supervising
 collectors, starting subscriptions, or inventing a fleet-wide green health status.

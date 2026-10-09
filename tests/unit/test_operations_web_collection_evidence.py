@@ -182,7 +182,8 @@ def test_no_live_telemetry_and_store_error_remain_unverified(tmp_path: Path) -> 
         ),
     )
     result = project_web_source_setup(unavailable)
-    assert result["read_error_scopes"] == [f"live-data:{_SOURCE}"]
+    assert result["read_error_scopes"] == []
+    assert result["live_evidence_error_scopes"] == [f"live-data:{_SOURCE}"]
     row = _source(unavailable)
     assert row["live_telemetry_read_error"] is True
     assert row["collection_service_state"] is None
