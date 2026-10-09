@@ -186,9 +186,7 @@ def _wait_for_analysis_evidence(
     raise AssertionError(
         "synthetic demo produced no finalized-window/analysis evidence "
         f"within {timeout:g}s: windows={latest[0]} results={latest[1]}\n"
-        + _pipeline_failure_evidence(
-            workspace, process=process, process_log_path=process_log_path
-        )
+        + _pipeline_failure_evidence(workspace, process=process, process_log_path=process_log_path)
     )
 
 
