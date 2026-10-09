@@ -381,6 +381,7 @@ jobs:
           uv run --locked --extra operations --with playwright pytest \
             tests/acceptance/test_operations_first_run_browser.py \
             tests/acceptance/test_operations_web_monitor_browser.py \
+            tests/acceptance/test_operations_web_controlled_journey_browser.py \
             tests/integration/test_operations_web_opcua.py
 
       - name: Upload first-run browser evidence
