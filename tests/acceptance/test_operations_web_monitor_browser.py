@@ -430,7 +430,16 @@ def test_web_review_buttons_follow_persisted_evidence_in_browser(
                 browser = playwright.chromium.launch(headless=True)
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 errors: list[str] = []
+                external: list[str] = []
                 page.on("pageerror", lambda exc: errors.append(str(exc)))
+                page.on(
+                    "request",
+                    lambda request: (
+                        external.append(request.url)
+                        if not request.url.startswith(f"http://127.0.0.1:{server.server_port}/")
+                        else None
+                    ),
+                )
                 page.on("dialog", lambda dialog: dialog.accept())
                 # The browser starts concurrent evidence/source fetches. Waiting
                 # for global networkidle conflates page navigation with live data
@@ -464,6 +473,7 @@ def test_web_review_buttons_follow_persisted_evidence_in_browser(
                 sync_api.expect(page.locator("#review-results")).to_contain_text("closed")
                 sync_api.expect(page.get_by_role("button", name="검토 기록 종료")).to_have_count(0)
                 assert not errors, errors
+                assert not external, external
                 browser.close()
         finally:
             server.shutdown()
