@@ -142,6 +142,30 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "분석 기록이 없습니다"
             )
             sync_api.expect(page.locator("#review-results")).to_contain_text("검토 요청이 없습니다")
+            # Fail the real monitor HTTP request after a populated read. The browser
+            # must discard stale facts rather than present them as current evidence.
+            page.route("**/api/v1/monitor", lambda route: route.abort("failed"))
+            page.get_by_role("button", name="데이터 다시 불러오기").click()
+            sync_api.expect(page.locator("#system-status")).to_contain_text(
+                "시스템 조회 실패 · 정상 상태로 판단할 수 없습니다"
+            )
+            sync_api.expect(page.locator("#system-facts .fact")).to_have_count(0)
+            sync_api.expect(page.locator("#asset-count")).to_have_text("—")
+            sync_api.expect(page.locator("#asset-select")).to_be_disabled()
+            sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(0)
+            sync_api.expect(page.locator("#review-results")).to_contain_text(
+                "조회 실패 · 이전 데이터를 현재 상태로 표시하지 않습니다"
+            )
+            # Recover the transport, then require a new server-backed snapshot.
+            page.unroute("**/api/v1/monitor")
+            sync_api.expect(page.get_by_role("button", name="데이터 다시 불러오기")).to_be_enabled()
+            page.get_by_role("button", name="데이터 다시 불러오기").click()
+            sync_api.expect(page.locator("#system-status")).to_contain_text(
+                "저장소 오류 범위가 보고되지 않았습니다"
+            )
+            sync_api.expect(page.locator("#system-facts")).to_contain_text("조회된 설비 수")
+            sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
+            sync_api.expect(page.locator("#last-values")).to_contain_text("220.7")
             assert not errors, errors
             assert not external, external
             metrics = page.evaluate(
