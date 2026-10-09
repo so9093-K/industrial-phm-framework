@@ -138,6 +138,13 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 assert page.locator(".skip-link").get_attribute("href") == "#main"
                 assert page.locator("html").get_attribute("lang") == "ko"
+                pw.expect(page.get_by_role("heading", name="화면 상태 해석 기준")).to_be_visible()
+                pw.expect(page.locator("#operator-meaning")).to_contain_text(
+                    "최근 데이터 수신은 설비 정상·고장 진단이 아닙니다"
+                )
+                pw.expect(page.locator("#operator-meaning")).to_contain_text(
+                    "검토 기록 종료도 실제 정비 완료"
+                )
                 assert page.locator("#last-values .latest-item").count() == 0
                 page.get_by_role("link", name="데이터 연결").click()
                 pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
@@ -158,11 +165,17 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 listing = page.locator("#source-list")
                 pw.expect(listing).to_contain_text("journey-file", timeout=30000)
                 pw.expect(listing).to_contain_text("수신 근거 미확인")
+                pw.expect(listing.locator(".source-meaning")).to_contain_text(
+                    "소스 등록 정보만 확인"
+                )
                 assert not workspace.history_catalog_path.exists()
                 listing.get_by_role("button", name="소스 활성화").click()
                 pw.expect(listing).to_contain_text("관리 상태: active")
                 listing.get_by_role("button", name="FILE 수신 확인").click()
                 pw.expect(listing).to_contain_text("FILE 검증 수신 근거 있음")
+                pw.expect(listing.locator(".source-meaning")).to_contain_text(
+                    "이력 저장·연속 수집·분석 성공 여부는 별도 확인"
+                )
                 assert not workspace.history_catalog_path.exists()
                 listing.get_by_role("button", name="FILE 이력 적재").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
@@ -186,6 +199,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#review-results")).to_contain_text("acknowledged")
                 page.get_by_role("button", name="검토 기록 종료").click()
                 pw.expect(page.locator("#review-results")).to_contain_text("closed")
+                pw.expect(page.locator("#review-results .review-meaning")).to_contain_text(
+                    "검토 기록 종료됨 · 실제 정비 완료, "
+                    "고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
+                )
                 _no_overflow(page, width)
                 assert not errors, errors
                 assert not external, external
@@ -210,6 +227,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
                 pw.expect(page.locator("#review-results")).to_contain_text("closed", timeout=30000)
+                pw.expect(page.locator("#review-results .review-meaning")).to_contain_text(
+                    "실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
+                )
                 pw.expect(page.locator("#last-values")).to_contain_text("220.7", timeout=30000)
                 pw.expect(
                     page.get_by_role("button", name="이 근거에 사람 검토 요청")

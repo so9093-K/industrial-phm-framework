@@ -189,6 +189,14 @@ function evidenceViews() {
       ["분석 Run", reviewItem.analysis_run_id],
       ["근거 ID", (reviewItem.evidence_ids || []).join(", ")],
     ]);
+    const meanings = {
+      open: "검토 요청이 기록됐습니다. 아직 사람이 검토를 완료했다는 뜻이 아닙니다.",
+      acknowledged: "검토 확인이 기록됐습니다. 실제 정비 수행이나 설비 정상 확인은 아닙니다.",
+      closed: "검토 기록 종료됨 · 실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다.",
+    };
+    if (Object.hasOwn(meanings, reviewItem.status)) {
+      article.append(create("p", "review-meaning", meanings[reviewItem.status]));
+    }
     if (!reviewWritesAllowed || reviewItem.status === "closed") return;
     const form = create("form", "review-form");
     const label = create("label", null, "검토 메모 (물리 정비 완료 기록 아님)");
@@ -492,6 +500,12 @@ async function loadSources() {
       card.append(create("strong", null, item.name + " · " + item.source_id));
       card.append(create("span", null, "설비: " + item.asset_id + " · 유형: " + item.source_type));
       card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + " (접속 상태 아님)"));
+      const evidenceMeaning = !item.receipt_confirmed
+        ? "현재 확인된 단계: 소스 등록 정보만 확인. 활성화는 실제 연결·수신·이력 저장의 근거가 아닙니다."
+        : item.source_type === "file"
+        ? "현재 확인된 단계: FILE 검증 수신 근거 확인. 이력 저장·연속 수집·분석 성공 여부는 별도 확인이 필요합니다."
+        : "현재 확인된 단계: 수신 근거 확인. 현재 연결·최근 live 수신·이력 저장 여부는 각각 별도로 확인하세요.";
+      card.append(create("p", "source-meaning", evidenceMeaning));
       const receipt = create("span", item.receipt_confirmed ? "receipt-confirmed" : "receipt-missing",
         item.receipt_confirmed
           ? (item.source_type === "file" ? "FILE 검증 수신 근거 있음 · 이력 적재는 별도" : "실제 수신 근거 있음")
