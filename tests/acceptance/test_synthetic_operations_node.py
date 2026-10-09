@@ -1,7 +1,10 @@
+import json
 import socket
 import subprocess
 import sys
 import time
+from dataclasses import replace
+from http.client import HTTPConnection
 from pathlib import Path
 from typing import BinaryIO
 
@@ -17,7 +20,12 @@ from industrial_phm.application import (
 )
 from industrial_phm.demo import SYNTHETIC_DEMO_SOURCE_ID
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-from industrial_phm.runtime import OperationsWorkspace
+from industrial_phm.runtime import (
+    OperationsUiConfig,
+    OperationsWorkspace,
+    initialize_operations_workspace,
+)
+from industrial_phm.runtime.operations_config import write_operations_runtime_config
 
 _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
 
@@ -427,3 +435,90 @@ def test_synthetic_ci_log_tail_is_bounded(tmp_path: Path) -> None:
     assert tail.startswith("<earlier 9002 bytes omitted>\n")
     assert "SOURCE_CONNECTION_FAILED" in tail
     assert len(tail) < 1150
+
+
+def test_supervised_web_preview_is_readable_but_cannot_write(
+    tmp_path: Path,
+) -> None:
+    """Real supervised UI process must keep the owner's lifetime writer lease."""
+    root = tmp_path / "web-readonly-supervisor"
+    workspace = OperationsWorkspace(root)
+    initialization = initialize_operations_workspace(workspace)
+    port = _free_loopback_port()
+    write_operations_runtime_config(
+        workspace.config_path,
+        replace(initialization.config, ui=OperationsUiConfig(port=port)),
+    )
+    logfile = tmp_path / "readonly-supervisor.log"
+    handle = logfile.open("ab", buffering=0)
+    process = subprocess.Popen(
+        _cli_argv("operations", "start", str(root), "--ui", "web-preview"),
+        stdin=subprocess.DEVNULL,
+        stdout=handle,
+        stderr=subprocess.STDOUT,
+    )
+    try:
+        deadline = time.monotonic() + 45
+        while True:
+            if process.poll() is not None:
+                pytest.fail("supervised Web preview exited before ready:\n" + _process_log(logfile))
+            try:
+                connection = HTTPConnection("127.0.0.1", port, timeout=3)
+                connection.request("GET", "/web/")
+                response = connection.getresponse()
+                html = response.read()
+                connection.close()
+                if response.status == 200 and b"Operations" in html:
+                    break
+            except OSError:
+                pass
+            if time.monotonic() >= deadline:
+                pytest.fail("supervised Web preview not ready:\n" + _process_log(logfile))
+            time.sleep(0.3)
+
+        status = _run_cli("operations", "status", str(root))
+        assert status.returncode == 0, status.stderr
+        assert "ready=yes" in status.stdout, status.stdout
+
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", "/api/v1/session")
+        response = connection.getresponse()
+        payload = json.loads(response.read())
+        connection.close()
+        assert response.status == 200
+        token = payload["csrf_token"]
+        assert isinstance(token, str)
+
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        body = b"{}"
+        connection.request(
+            "POST",
+            "/api/v1/sources/file",
+            body=body,
+            headers={
+                "Host": f"127.0.0.1:{port}",
+                "Origin": f"http://127.0.0.1:{port}",
+                "Sec-Fetch-Site": "same-origin",
+                "X-CSRF-Token": token,
+                "Content-Type": "application/json",
+            },
+        )
+        result = connection.getresponse()
+        rejection = json.loads(result.read())
+        connection.close()
+        assert result.status == 409
+        assert rejection["error"]["code"] == "workspace_writer_busy"
+        assert not workspace.source_registry_path.exists()
+
+        stopped = _run_cli("operations", "stop", str(root))
+        assert stopped.returncode == 0, stopped.stderr
+        assert process.wait(timeout=20) == 0, _process_log(logfile)
+    finally:
+        if process.poll() is None:
+            _run_cli("operations", "stop", str(root), timeout=10)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)
+        handle.close()
