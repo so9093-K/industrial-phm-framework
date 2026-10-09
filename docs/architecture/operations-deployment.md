@@ -97,6 +97,37 @@ Linux wheel installation only. It does not exercise systemd service
 restarts, production equipment, a previous wheel version or rollback.
 Those remain independent gates before the default Web UI can change.
 
+## Previous known-good wheel rollback acceptance
+
+The Package CI also verifies a **real Python installation rollback**, not just
+workspace snapshot restoration. It builds a wheel from verified green main
+commit `b3f9d1076fe3d286e304e30d9f503d4ebb6c718c` (green CI run
+`37911770483`) in a detached temporary Git worktree and compares it to
+the current wheel. The test installs each wheel sequentially in one isolated
+venv and uses one durable, stopped-between-stages workspace:
+
+1. Install the previous green wheel, start supervised `web-controlled`, persist
+   FILE registration A, verify same-origin/CSRF and stop cleanly.
+2. Force-reinstall the current candidate wheel, reopen the **same** workspace
+   with a fresh loopback port, confirm A and persist registration B; stop.
+3. Force-reinstall the previous wheel, reopen the same workspace, confirm
+   A and B and persist registration C; stop.
+4. At every stage compare the **actual installed module bytes** to the
+   corresponding built wheel and assert source identity, inventory counts,
+   no fabricated data receipt, and duplicate-registration rejection.
+
+The package version is currently `0.0.1` for both builds, so checking
+`--version` or allowing an installer to skip an equal-version install would
+not prove rollback. The check explicitly forces package reinstalls and
+verifies wheel module contents differ before starting.
+
+This acceptance covers only the known-good commit above, the unchanged
+workspace schema and local Linux source-control flows; it is **not** a
+promise that arbitrary future versions can read newer workspace schemas.
+New irreversible migrations must block rollback or provide a separately
+proven restore path. It does not exercise systemd, remote service management,
+or connected industrial hardware; those are independent P2 gates.
+
 ## Restart, backup, and retention
 
 The application does not implement an internal infinite restart loop for the full node. Component/session
