@@ -509,3 +509,86 @@ def test_web_file_backfill_rejects_missing_explicit_timestamps(tmp_path: Path) -
             workspace.root.resolve(), {"source_id": "registered-file-01"}
         )
     assert not workspace.history_catalog_path.exists()
+
+
+def test_web_mutations_respect_active_workspace_supervisor_lease(tmp_path: Path) -> None:
+    """Even a valid same-origin POST may not mutate an active supervisor workspace."""
+    fcntl = pytest.importorskip("fcntl")
+    workspace = OperationsWorkspace(tmp_path / "writer-lease")
+    initialize_operations_workspace(workspace)
+    folder = workspace.root / "inputs"
+    folder.mkdir()
+    (folder / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-08T12:00:00+00:00,220.5,219.0,221.0\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        _, session = _request(port, "GET", "/api/v1/session")
+        token = session["csrf_token"]
+        assert isinstance(token, str)
+        body = json.dumps(_payload()).encode("utf-8")
+
+        def post() -> tuple[int, dict[str, object]]:
+            return _request(
+                port,
+                "POST",
+                "/api/v1/sources/file",
+                body=body,
+                origin=origin,
+                csrf=token,
+                fetch_site="same-origin",
+            )
+
+        lease = workspace.supervisor_lock_path
+        lease.parent.mkdir(parents=True, exist_ok=True)
+        with lease.open("a+") as handle:
+            handle.write("sentinel-supervisor\n")
+            handle.flush()
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                assert _request(port, "GET", "/api/v1/sources")[0] == HTTPStatus.OK
+                status, reply = post()
+                assert status == HTTPStatus.CONFLICT
+                assert reply["error"]["code"] == "workspace_writer_busy"
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        assert lease.read_text(encoding="utf-8") == "sentinel-supervisor\n"
+        status, accepted = post()
+        assert status == HTTPStatus.CREATED
+        assert accepted["source_id"] == "registered-file-01"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()
+
+
+def test_two_web_process_leases_do_not_overlap(tmp_path: Path) -> None:
+    """Two independent Web writers cannot both hold the supervisor lock."""
+    fcntl = pytest.importorskip("fcntl")
+    from industrial_phm.runtime.operations_web_writer import (
+        WorkspaceWriterBusy,
+        web_workspace_writer,
+    )
+
+    workspace = OperationsWorkspace(tmp_path / "two-web-writers")
+    initialize_operations_workspace(workspace)
+    with (
+        web_workspace_writer(workspace.root),
+        pytest.raises(WorkspaceWriterBusy, match="another writer"),
+        web_workspace_writer(workspace.root),
+    ):
+        pytest.fail("a second mutation unexpectedly obtained the lease")
+
+    lease_path = workspace.supervisor_lock_path
+    with lease_path.open("a+") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    with web_workspace_writer(workspace.root):
+        pass

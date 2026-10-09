@@ -42,6 +42,7 @@ from industrial_phm.runtime.operations_web_signals import (
     project_history_channels,
     project_signal_history,
 )
+from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 
 
 def create_operations_web_read_server(
@@ -280,7 +281,7 @@ def create_operations_web_read_server(
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
-                with mutation_lock:
+                with mutation_lock, web_workspace_writer(root):
                     if self.path == "/api/v1/sources/file":
                         result = register_workspace_csv_source(root, body)
                     elif self.path == "/api/v1/sources/file/receive":
@@ -295,6 +296,9 @@ def create_operations_web_read_server(
                         result = diagnose_local_opcua(root, body)
                     else:
                         result = change_web_source_control(root, control_routes[self.path], body)
+            except WorkspaceWriterBusy:
+                self._error(HTTPStatus.CONFLICT, "workspace_writer_busy")
+                return
             except SourceAlreadyRegisteredError:
                 self._error(HTTPStatus.CONFLICT, "source_id_exists")
                 return

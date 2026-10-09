@@ -55,9 +55,17 @@ async function getJSON(url) {
   return value;
 }
 function presentError(error) {
+  if (error.message === "workspace-writer-busy") return "다른 Operations 또는 Web 작업이 현재 작업공간을 사용 중입니다. 변경 작업이 끝난 뒤 다시 시도하세요. 조회는 계속 가능합니다.";
   if (error.message === "http-503") return "이력 저장소를 확인할 수 없습니다. 시스템과 데이터 연결 상태를 확인하세요.";
   if (error.message === "schema-mismatch") return "지원되지 않는 API 응답입니다. 서버 버전을 확인하세요.";
   return "조회에 실패했습니다. 네트워크와 로컬 서버 상태를 확인하고 다시 시도하세요.";
+}
+async function checkWorkspaceWriterConflict(response) {
+  if (response.status !== 409) return;
+  const payload = await response.json().catch(() => null);
+  if (payload && payload.error && payload.error.code === "workspace_writer_busy") {
+    throw new Error("workspace-writer-busy");
+  }
 }
 function assetDetails() {
   const item = rows(monitor, "assets").find((row) => row.asset_id === selectedAsset);
@@ -438,6 +446,7 @@ async function controlSource(sourceId, action, target, button) {
       body: JSON.stringify({source_id: sourceId, target_state: target}),
     });
     if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
       if (response.status === 409) throw new Error("control-conflict");
       if (response.status === 404) throw new Error("source-missing");
       if (response.status === 400) throw new Error("control-invalid");
@@ -483,6 +492,7 @@ async function receiveFile(sourceId, button) {
       body: JSON.stringify({source_id: sourceId}),
     });
     if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
       if (response.status === 409) throw new Error("control-conflict");
       if (response.status === 404) throw new Error("source-missing");
       if (response.status === 400) throw new Error("control-invalid");
@@ -528,6 +538,7 @@ async function backfillFile(sourceId, button) {
       body: JSON.stringify({source_id: sourceId}),
     });
     if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
       if (response.status === 409) throw new Error("control-conflict");
       if (response.status === 404) throw new Error("source-missing");
       if (response.status === 400) throw new Error("control-invalid");
@@ -591,6 +602,7 @@ async function registerFile(event) {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
       if (response.status === 409) throw new Error("duplicate-source");
       if (response.status === 400) throw new Error("invalid-csv");
       throw new Error("http-" + response.status);
@@ -624,7 +636,10 @@ async function opcuaPost(path, payload) {
     headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error("http-" + response.status);
+  if (!response.ok) {
+    await checkWorkspaceWriterConflict(response);
+    throw new Error("http-" + response.status);
+  }
   const result = await response.json();
   if (result.schema_version !== 1) throw new Error("schema-mismatch");
   return result;
@@ -654,6 +669,8 @@ async function browseOpcua() {
     clear(resultNode);
     resultNode.append(create("p", "error", error.message === "http-400"
       ? "로컬 127.0.0.1 OPC UA 주소만 허용됩니다."
+      : error.message === "workspace-writer-busy"
+      ? presentError(error)
       : "탐색 실패 · 로컬 OPC UA 서버 실행 및 접속을 확인하세요. 수신 근거는 없습니다."));
   } finally {button.disabled = false;}
 }
@@ -695,7 +712,9 @@ async function registerOpcua(event) {
     form.reset();
   } catch (error) {
     resultNode.className = "error";
-    resultNode.textContent = error.message === "http-409"
+    resultNode.textContent = error.message === "workspace-writer-busy"
+      ? presentError(error)
+      : error.message === "http-409"
       ? "이미 등록된 소스 ID입니다."
       : "등록 실패 · 로컬 OPC UA 주소·NodeId·신호 매핑을 확인하세요.";
   } finally {button.disabled = false;}
@@ -724,7 +743,9 @@ async function diagnoseOpcua(sourceId, button) {
     }
   } catch (error) {
     output.className = "error";
-    output.textContent = error.message === "http-409"
+    output.textContent = error.message === "workspace-writer-busy"
+      ? presentError(error)
+      : error.message === "http-409"
       ? "진단 불가 · ACTIVE OPC UA 소스 및 로컬 서버 주소를 확인하세요."
       : "진단 호출 실패 · 접속 상태와 작업공간을 확인하세요.";
   } finally {button.disabled = false;}
