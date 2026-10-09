@@ -37,3 +37,9 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .review-form{display:grid;gap:8px;margin:12px 0}.review-form label{display:grid;gap:5px}
 .review-form textarea{width:100%;min-width:0;min-height:68px;resize:vertical;border:1px solid #b9cad5;border-radius:9px;padding:10px;background:#fff;color:#162b38}
 .review-form button,.record>button{justify-self:start;margin-top:4px}
+
+/* Keep operational facts distinct from operator interpretation, without alarm colors. */
+.operator-meaning{background:#f7fafb;border:1px solid #c8dbe2;border-radius:12px;padding:14px 18px;margin:0 0 16px}
+.operator-meaning h2{font-size:.97rem;margin:0 0 5px}
+.operator-meaning p{font-size:.84rem;color:#384f5c;margin:5px 0;line-height:1.55}
+.source-record .source-meaning,.record .review-meaning{color:#254c62;background:#ebf2f6;border-left:3px solid #517f96;border-radius:4px;padding:8px 10px;margin:9px 0;line-height:1.5;font-size:.83rem}
