@@ -156,7 +156,6 @@ def test_operations_start_runs_full_local_node_from_workspace_config(
     assert "mode=foreground" in output
 
 
-
 def test_operations_up_explicit_marimo_fallback_preserves_workspace(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
