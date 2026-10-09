@@ -39,6 +39,7 @@ from industrial_phm.runtime import (
     OperationsProcessEvidence,
     OperationsRuntimeConfig,
     OperationsSupervisorStateKind,
+    OperationsUiMode,
     OperationsWorkspace,
     OperationsWorkspaceState,
     SqliteAcquisitionSpool,
@@ -171,22 +172,30 @@ def _run_operations_restore(args: argparse.Namespace) -> int:
 def _run_operations_start(args: argparse.Namespace) -> int:
     """Run one already initialized Operations workspace in the foreground."""
     workspace = OperationsWorkspace(args.workspace)
-    return _start_operations_workspace(workspace)
+    return _start_operations_workspace(workspace, ui_mode=OperationsUiMode(args.ui))
 
 
 def _start_operations_workspace(
     workspace: OperationsWorkspace,
     config: OperationsRuntimeConfig | None = None,
+    *,
+    ui_mode: OperationsUiMode = OperationsUiMode.MARIMO,
 ) -> int:
     try:
         effective_config = (
             load_operations_runtime_config(workspace.config_path) if config is None else config
         )
-        plan = build_operations_runtime_plan(workspace, effective_config)
+        plan = build_operations_runtime_plan(workspace, effective_config, ui_mode=ui_mode)
         print(
             f"workspace={workspace.root} operations_url={plan.ui_url} mode=foreground",
             flush=True,
         )
+        if ui_mode == OperationsUiMode.WEB_PREVIEW:
+            print(
+                "ui=web-preview writes=blocked supervisor_owned=yes "
+                "(read-only pilot; default make up remains marimo)",
+                flush=True,
+            )
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)

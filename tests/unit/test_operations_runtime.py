@@ -13,6 +13,7 @@ from industrial_phm.runtime.operations_runtime import (
     OPERATIONS_UI_HOST,
     OPERATIONS_WORKSPACE_ENV,
     OperationsComponentKind,
+    OperationsUiMode,
     build_operations_runtime_plan,
 )
 
@@ -107,3 +108,40 @@ def test_operations_runtime_plan_preserves_bounded_previous_provenance(tmp_path:
         "--alignment-basis",
         "device update contract",
     )
+
+
+def test_web_preview_plan_is_opt_in_and_keeps_supervisor_topology(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "readonly-pilot")
+    config = OperationsRuntimeConfig(ui=OperationsUiConfig(port=4876))
+
+    plan = build_operations_runtime_plan(
+        workspace, config, ui_mode=OperationsUiMode.WEB_PREVIEW
+    )
+    collection, analysis, ui = plan.components
+    assert collection.kind == OperationsComponentKind.COLLECTION
+    assert analysis.kind == OperationsComponentKind.ANALYSIS
+    assert ui.kind == OperationsComponentKind.UI
+    assert ui.argv == (
+        sys.executable,
+        "-m",
+        "industrial_phm.runtime.operations_web_preview",
+        str(workspace.root),
+        "--port",
+        "4876",
+    )
+    assert ui.env_overrides == ((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),)
+    assert plan.ui_url == "http://127.0.0.1:4876/web/"
+    assert ui.log_path == workspace.logs_path / "ui.log"
+    assert build_operations_runtime_plan(workspace, config).ui_mode == OperationsUiMode.MARIMO
+
+
+def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
+    from industrial_phm.cli import build_parser
+
+    workspace = str(tmp_path / "site")
+    default = build_parser().parse_args(["operations", "start", workspace])
+    opt_in = build_parser().parse_args(
+        ["operations", "start", workspace, "--ui", "web-preview"]
+    )
+    assert default.ui == "marimo"
+    assert opt_in.ui == "web-preview"

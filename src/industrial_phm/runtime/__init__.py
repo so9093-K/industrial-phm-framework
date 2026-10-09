@@ -58,6 +58,7 @@ from industrial_phm.runtime.operations_runtime import (
     OperationsComponentKind,
     OperationsComponentLaunch,
     OperationsRuntimePlan,
+    OperationsUiMode,
     build_operations_runtime_plan,
 )
 from industrial_phm.runtime.operations_status import (
@@ -123,6 +124,7 @@ __all__ = [
     "OperationsRuntimeConfig",
     "OperationsRuntimePlan",
     "OperationsRuntimeStatus",
+    "OperationsUiMode",
     "OperationsSupervisorResult",
     "OperationsSupervisorState",
     "OperationsSupervisorStateKind",
