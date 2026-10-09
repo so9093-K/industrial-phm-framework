@@ -106,7 +106,7 @@ def _reference(template: Path, binary: Path, workspace: Path) -> str:
         (
             "ExecStart=/opt/industrial-phm/.venv/bin/industrial-phm "
             "operations start /var/lib/industrial-phm/plant-a"
-        ): f"ExecStart={binary} operations start {workspace} --ui web-controlled",
+        ): f"ExecStart={binary} operations start {workspace}",
     }
     for old, new in changes.items():
         assert text.count(old) == 1, old

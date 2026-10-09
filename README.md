@@ -28,16 +28,24 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 현재 기본 runtime policy를 기록한 config를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
-터미널에 출력되는 `operations_url`을 브라우저에서 엽니다. 처음 만든 빈 workspace는 first-run
-화면에서 **샘플 데이터로 둘러보기** 또는 **실제 데이터 연결**을 선택합니다. 샘플은 real workspace와
-분리된 synthetic demo workspace에서 실행되며, 실제 데이터 경로는 FILE 또는 OPC UA 연결 → 신호 확인 →
-명시적 measurement meaning → 수집/데이터 흐름 확인 → Monitor 순서의 Setup으로 이어집니다. source가
-이미 있는 workspace는 onboarding을 반복하지 않고 **Monitor**에서 재개합니다.
+터미널에 출력되는 `operations_url`(`http://127.0.0.1:<port>/web/`)을 브라우저에서 엽니다.
+현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 격리된 샘플 체험/Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더는 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
+빈 작업공간의 Web 파일럿은 FILE CSV 또는 로컬 OPC UA 소스 등록을 안내합니다. 소스 등록·ACTIVE·검증 수신·DuckLake 이력 저장·분석 근거는 별개의 사실이므로 각 단계의 근거를 확인해야 합니다.
+기존 marimo의 **격리 synthetic 샘플 시작·종료 및 전체 guided Setup**은 아직 새 Web UI에서 제공하지 않으며,
+현재 바로 사용하려면 `make up UI=marimo`를 선택하세요. 기존 소스가 있는 workspace는 새 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
 
 ```bash
 make status
 make logs
 make down
+```
+
+기존 marimo 작업 화면이 필요한 경우, 동일 workspace의 Web을 **종료한 뒤** 명시적으로 선택할 수 있습니다. 두 UI로 같은 workspace를 동시에 수정하지 않습니다.
+
+```bash
+make down
+make up UI=marimo
+# CLI: industrial-phm operations up <workspace> --ui marimo
 ```
 
 다른 workspace를 사용하려면 모든 lifecycle target에 같은 값을 전달합니다.
@@ -48,8 +56,8 @@ make status WORKSPACE=/var/lib/industrial-phm/plant-a
 make down WORKSPACE=/var/lib/industrial-phm/plant-a
 ```
 
-외부 데이터 없이 둘러보는 일반 사용자 경로도 `make up`의 first-run 화면에서 시작합니다.
-`make demo`는 동일한 synthetic demo를 직접 실행하려는 개발·진단용 shortcut으로 유지합니다.
+외부 데이터가 없어 실행 흐름을 확인할 때는 별도 synthetic workspace를 쓰는 `make demo`를 활용할 수 있습니다.
+새 Web의 기본 first-run UI에서 자동으로 demo를 시작한다고 주장하지 않습니다.
 
 직접 CLI, UI-only 실행, replay, backup/restore, deployment, 연구 앱 실행은
 [Applications 문서](apps/README.md)와 각 개발·운영 문서에서 다룹니다.
@@ -71,8 +79,9 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 
 ### Operations
 
-설비 관측 데이터와 PHM 근거를 다루는 운영 UI입니다. Canonical application은 wheel에 포함되는
-`industrial_phm.apps.operations`이며, 정상 repository-local 실행은 위의 `make up`을 사용합니다.
+설비 관측 데이터와 PHM 근거를 다루는 운영 UI입니다. 기존 marimo 레퍼런스는 wheel에 남아 있는
+`industrial_phm.apps.operations`이고, 기본 사용자 진입점은 이제 supervisor-owned Web의 정적 화면입니다.
+정상 repository-local 실행은 위의 `make up`을 사용합니다.
 
 - **Monitor** — 수집·저장·분석·검토 흐름과 지금 확인할 항목
 - **Assets** — 설비별 현재 데이터, Signals, Analysis, Events, Maintenance
@@ -81,17 +90,16 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 - **System** — 수집·저장·분석 runtime과 state-read 상태
 - **Setup** — FILE/OPC UA 연결, signal mapping, measurement meaning과 collection intent
 
-빈 workspace에서는 first-run 화면이 샘플 체험과 실제 데이터 연결을 먼저 구분합니다. 실제 데이터
-경로의 Setup은 domain taxonomy를 navigation으로 노출하지 않고 연결 → 신호 확인 → 의미 확인 →
-수집/데이터 흐름 확인 → Monitor의 작업 순서를 안내합니다. source 등록, Enable/Pause, OPC UA collection
+아래 전체 guided Setup과 샘플 체험은 **기존 marimo UI에서 검증한 기능**입니다. 기본 Web 파일럿은
+현재 FILE/OPC UA 등록·수신 및 일부 조회/검토 경로만 지원하고, 해당 업무의 완전한 이전은 진행 중입니다. source 등록, Enable/Pause, OPC UA collection
 요청은 각각 별도 의미를 유지하며 UI가 사용자의 판단 없이 자동 실행하지 않습니다. source가 준비된
 workspace는 Monitor를 기본 진입점으로 사용합니다.
 
-Synthetic 체험은 first-run 화면에서 real workspace와 분리된 demo workspace로 실행하며, `make demo`는
+기존 marimo의 Synthetic 체험은 first-run 화면에서 real workspace와 분리된 demo workspace로 실행하며, `make demo`는
 직접 실행 shortcut으로 남습니다.
 
-Operations는 **한국어(`ko-KR`)와 영어(`en-US`)**를 위한 locale-aware presentation
-기반을 사용합니다. 화면 언어를 바꿔도 `source_id`, `asset_id`, `channel_id`,
+**기존 marimo Operations**는 한국어(`ko-KR`)와 영어(`en-US`)의 locale-aware presentation 기반을 사용합니다.
+현재 기본 Web은 한국어 중심 파일럿이며 영어 근거 참고문만 제공합니다. 전체 영어 UI는 아직 미완료입니다. 화면 언어를 바꿔도 `source_id`, `asset_id`, `channel_id`,
 capability/evidence 식별자와 저장 UTC 의미는 바뀌지 않습니다. 현재 localized surface 범위는
 [지원 상태](docs/status.md)를 기준으로 확인합니다. AI-Hub recorded replay, 직접
 `industrial-phm` CLI, backup/restore, service deployment, 개별 collector/analysis runner 실행은

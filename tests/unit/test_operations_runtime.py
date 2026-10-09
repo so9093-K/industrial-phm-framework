@@ -139,5 +139,9 @@ def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
     workspace = str(tmp_path / "site")
     default = build_parser().parse_args(["operations", "start", workspace])
     opt_in = build_parser().parse_args(["operations", "start", workspace, "--ui", "web-preview"])
-    assert default.ui == "marimo"
+    assert default.ui == "web-controlled"
     assert opt_in.ui == "web-preview"
+    up_default = build_parser().parse_args(["operations", "up", workspace])
+    up_fallback = build_parser().parse_args(["operations", "up", workspace, "--ui", "marimo"])
+    assert up_default.ui == "web-controlled"
+    assert up_fallback.ui == "marimo"

@@ -71,7 +71,7 @@ def _start_node(
     log = log_path.open("ab", buffering=0)
     environment = {**os.environ, "INDUSTRIAL_PHM_LOCALE": locale}
     process = subprocess.Popen(
-        _cli("operations", "up", str(workspace.root)),
+        _cli("operations", "up", str(workspace.root), "--ui", "marimo"),
         stdin=subprocess.DEVNULL,
         stdout=log,
         stderr=subprocess.STDOUT,

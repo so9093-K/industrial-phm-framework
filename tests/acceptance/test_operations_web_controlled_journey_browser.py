@@ -1,4 +1,4 @@
-"""Real Chromium first-run → persisted history → human review on supervised Web."""
+"""Real Chromium first-run → persisted history → review via default supervised Web."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def _stop(proc: subprocess.Popen[bytes], root: Path) -> None:
 def _start(root: Path, port: int, log: Path) -> subprocess.Popen[bytes]:
     with log.open("wb") as output:
         proc = subprocess.Popen(
-            _cmd("operations", "start", str(root), "--ui", "web-controlled"),
+            _cmd("operations", "start", str(root)),
             stdin=subprocess.DEVNULL,
             stdout=output,
             stderr=subprocess.STDOUT,

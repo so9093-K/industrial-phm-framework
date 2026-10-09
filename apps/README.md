@@ -9,8 +9,8 @@
 
 ## Operations
 
-wheel에 포함되는 canonical operational application은
-`src/industrial_phm/apps/operations.py`입니다.
+현재 기본 사용자 Operations 화면은 supervisor가 실행하는 **wheel 내장 Web**입니다.
+기존 marimo 레퍼런스 `src/industrial_phm/apps/operations.py`는 `--ui marimo` 명시적 복귀를 위해 유지합니다.
 
 정상 local lifecycle은 저장소 root의 한 front door를 사용합니다.
 
@@ -28,8 +28,8 @@ make down
 make up WORKSPACE=artifacts/site-a
 ```
 
-빈 workspace의 `make up`은 first-run 화면에서 synthetic sample과 실제 데이터 연결을 선택하게 합니다.
-sample은 real workspace와 분리된 demo workspace에서 기존 synthetic product demo를 실행합니다.
+빈 workspace의 기본 Web은 FILE/로컬 OPC UA 연결을 안내하지만, 기존 marimo의 샘플 시작·종료 버튼은 아직 이전되지 않았습니다.
+격리 synthetic sample과 기존 전체 guided Setup이 필요하면 `make up UI=marimo`로 기존 UI를 시작하세요.
 `make demo`는 first-run UI를 거치지 않고 같은 demo를 직접 실행하는 개발·진단 shortcut입니다.
 
 현재 Operations가 지원하는 Monitor / Assets / Investigations / Maintenance / System / Setup의
@@ -38,9 +38,9 @@ observation/interpretation 경계는 [docs/product/overview.md](../docs/product/
 
 ### Display locale
 
-Operations는 `ko-KR`과 `en-US` locale resource를 사용합니다. 앱 상단의 language selector에서
+**기존 marimo Operations**는 `ko-KR`과 `en-US` locale resource를 사용합니다. 기존 앱 상단의 language selector에서
 전환할 수 있으며, 초기값은 `INDUSTRIAL_PHM_LOCALE`을 먼저 보고 그다음 `LC_ALL`,
-`LC_MESSAGES`, `LANG`을 해석합니다. 지원하지 않는 값은 `en-US`로 fallback합니다. 현재
+`LC_MESSAGES`, `LANG`을 해석합니다. 지원하지 않는 값은 `en-US`로 fallback합니다. 기존 marimo의
 localized coverage는 first-run, top-level navigation, Monitor와 주요 workspace의
 status/label/action/help/error/empty-state 및 주요 table/section label까지 적용합니다. 한국어
 화면은 Korean fallback font stack, 15px 중심 base scale, locale-aware tracking/uppercase와 keep-all
@@ -60,6 +60,8 @@ timestamp는 번역하거나 locale별로 다시 기록하지 않습니다.
 uv sync --locked --extra operations
 uv run --no-sync industrial-phm operations init artifacts/live
 uv run --no-sync industrial-phm operations start artifacts/live
+# 기존 marimo 화면이 필요한 경우, 현재 프로세스 종료 후:
+uv run --no-sync industrial-phm operations up artifacts/live --ui marimo
 ```
 
 UI만 개발용으로 실행할 때도 동일한 workspace root를 사용합니다.
