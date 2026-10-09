@@ -74,6 +74,7 @@ def test_web_review_events_preserve_status_and_forbid_invalid_transitions(
     )
     identity = request["finding_id"]
     assert isinstance(identity, str)
+
     def action(name: str, note: str = "") -> dict[str, object]:
         return record_web_review_action(
             workspace.root, {"finding_id": identity, "action": name, "note": note}
@@ -153,8 +154,12 @@ def test_review_request_http_requires_origin_csrf_and_persists_evidence(tmp_path
         }
         assert query("POST", "/api/v1/reviews/request", body=request)[0] == HTTPStatus.FORBIDDEN
         assert (
-            query("POST", "/api/v1/reviews/request", body={**request, "evidence_id": "bad"},
-                  token=token)[0]
+            query(
+                "POST",
+                "/api/v1/reviews/request",
+                body={**request, "evidence_id": "bad"},
+                token=token,
+            )[0]
             == HTTPStatus.NOT_FOUND
         )
         assert JsonOperationalFindingRepository(workspace.finding_state_path).list_findings() == ()
@@ -171,10 +176,15 @@ def test_review_request_http_requires_origin_csrf_and_persists_evidence(tmp_path
         )
         assert status == HTTPStatus.OK
         assert acknowledgement["status"] == "acknowledged"
-        assert query(
-            "POST", "/api/v1/reviews/action",
-            body={"finding_id": found, "action": "acknowledge", "note": ""}, token=token
-        )[0] == HTTPStatus.CONFLICT
+        assert (
+            query(
+                "POST",
+                "/api/v1/reviews/action",
+                body={"finding_id": found, "action": "acknowledge", "note": ""},
+                token=token,
+            )[0]
+            == HTTPStatus.CONFLICT
+        )
         status, monitor = query("GET", "/api/v1/monitor")
         assert status == HTTPStatus.OK
         assert monitor["review_requests"]["total"] == 1
