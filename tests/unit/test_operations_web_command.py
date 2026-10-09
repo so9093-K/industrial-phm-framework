@@ -178,9 +178,7 @@ def test_parallel_same_request_id_replays_once_and_detects_payload_collision(
             finally:
                 release.set()
             assert first.result(timeout=6) == {"executions": 1}
-            assert [future.result(timeout=6) for future in same] == [
-                ("ok", {"executions": 1})
-            ] * 7
+            assert [future.result(timeout=6) for future in same] == [("ok", {"executions": 1})] * 7
             assert [future.result(timeout=6) for future in changed] == [
                 ("rejected", "command_request_conflict")
             ] * 4
