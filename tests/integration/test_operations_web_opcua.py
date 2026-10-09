@@ -220,36 +220,39 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
     pytest.importorskip("asyncua")
     workspace = OperationsWorkspace(tmp_path / "opcua-browser")
     initialize_operations_workspace(workspace)
-    with _opc_server() as (endpoint, node_id), _web(workspace) as port:
-        with sync_api.sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": 1024, "height": 900})
-            errors: list[str] = []
-            page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
-            page.locator("#opcua-endpoint").fill(endpoint)
-            page.get_by_role("button", name="로컬 변수 탐색").click()
-            sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(node_id)
-            sync_api.expect(page.locator("#source-list")).to_contain_text("등록 소스가 없습니다")
-            page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
-            page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")
-            page.locator('#opcua-form input[name="asset_id"]').fill("pump-01")
-            page.locator('#opcua-form textarea[name="node_mappings"]').fill(
-                "vibration_x=" + node_id
-            )
-            page.get_by_role("button", name="OPC UA 매핑 등록").click()
-            listing = page.locator("#source-list")
-            sync_api.expect(listing).to_contain_text("web-opcua-1")
-            sync_api.expect(listing).to_contain_text("수신 근거 미확인")
-            page.on("dialog", lambda dialog: dialog.accept())
-            listing.get_by_role("button", name="소스 활성화").click()
-            sync_api.expect(listing).to_contain_text("관리 상태: active")
-            listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
-            sync_api.expect(page.locator("#source-control-result")).to_contain_text(
-                "수신 근거 기록 완료"
-            )
-            sync_api.expect(listing).to_contain_text("실제 수신 근거 있음")
-            assert not page.locator("#last-values .latest-item").count()
-            assert not workspace.history_catalog_path.exists()
-            assert not errors, errors
-            browser.close()
+    with (
+        _opc_server() as (endpoint, node_id),
+        _web(workspace) as port,
+        sync_api.sync_playwright() as playwright,
+    ):
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1024, "height": 900})
+        errors: list[str] = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
+        page.locator("#opcua-endpoint").fill(endpoint)
+        page.get_by_role("button", name="로컬 변수 탐색").click()
+        sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(node_id)
+        sync_api.expect(page.locator("#source-list")).to_contain_text("등록 소스가 없습니다")
+        page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
+        page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")
+        page.locator('#opcua-form input[name="asset_id"]').fill("pump-01")
+        page.locator('#opcua-form textarea[name="node_mappings"]').fill(
+            "vibration_x=" + node_id
+        )
+        page.get_by_role("button", name="OPC UA 매핑 등록").click()
+        listing = page.locator("#source-list")
+        sync_api.expect(listing).to_contain_text("web-opcua-1")
+        sync_api.expect(listing).to_contain_text("수신 근거 미확인")
+        page.on("dialog", lambda dialog: dialog.accept())
+        listing.get_by_role("button", name="소스 활성화").click()
+        sync_api.expect(listing).to_contain_text("관리 상태: active")
+        listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
+        sync_api.expect(page.locator("#source-control-result")).to_contain_text(
+            "수신 근거 기록 완료"
+        )
+        sync_api.expect(listing).to_contain_text("실제 수신 근거 있음")
+        assert not page.locator("#last-values .latest-item").count()
+        assert not workspace.history_catalog_path.exists()
+        assert not errors, errors
+        browser.close()
