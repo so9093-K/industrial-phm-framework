@@ -356,7 +356,7 @@ async function loadSources() {
     const received = items.filter((item) => item.receipt_confirmed).length;
     const liveReceived = items.filter((item) => item.source_type === "opcua"
       && item.last_live_received_at).length;
-    const summary = "검증 receipt " + received + "개 · OPC UA live 수신 기록 "
+    const summary = "1회 검증 수신 확인 " + received + "개 · OPC UA 연속 live 수신 기록 "
       + liveReceived + "개 (표시 범위 기준; 서로 다른 근거)";
     if (!items.length) {
       state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV 또는 이 화면에서 로컬 OPC UA 소스를 등록하세요.";
@@ -366,7 +366,7 @@ async function loadSources() {
       state.textContent = "등록된 소스 " + data.sources.total + "개 · " + summary
         + (evidenceReadError ? " · 일부 live 근거 조회 실패" : "");
       byId("onboarding-state").textContent = "등록 " + data.sources.total + "개 · "
-        + summary + " · DuckLake 저장은 별도로 확인하세요."
+        + summary + " · 저장된 시계열은 별도로 확인해야 합니다."
         + (evidenceReadError ? " · live 근거 일부 미확인" : "");
     }
     byId("onboarding-state").className = "";
