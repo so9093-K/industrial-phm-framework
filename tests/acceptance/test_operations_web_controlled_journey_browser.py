@@ -141,9 +141,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 guide = page.locator("#operator-reference-en")
                 pw.expect(guide.locator("summary")).to_have_attribute("lang", "en")
                 guide.locator("summary").click()
-                pw.expect(guide.locator('div[lang="en"]')).to_contain_text(
-                    "Accepted receipt:"
-                )
+                pw.expect(guide.locator('div[lang="en"]')).to_contain_text("Accepted receipt:")
                 pw.expect(guide.locator('div[lang="en"]')).to_contain_text(
                     "not evidence of physical maintenance"
                 )
