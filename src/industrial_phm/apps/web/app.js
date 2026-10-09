@@ -345,9 +345,9 @@ async function loadSources() {
     state.className = "state";
     const received = items.filter((item) => item.receipt_confirmed).length;
     if (!items.length) {
-      state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV를 준비하거나 기존 운영 화면에서 OPC UA를 등록하세요.";
+      state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV 또는 이 화면에서 로컬 OPC UA 소스를 등록하세요.";
       empty(list, "데이터 수신을 확인할 등록 소스가 없습니다.");
-      byId("onboarding-state").textContent = "1단계 · 소스 미등록 — FILE CSV를 등록하거나 기존 Operations에서 연결하세요.";
+      byId("onboarding-state").textContent = "1단계 · 소스 미등록 — FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
     } else {
       state.textContent = "등록된 소스 " + data.sources.total + "개 · accepted receipt 확인 " + received + "개 (표시 범위 기준)";
       byId("onboarding-state").textContent = received

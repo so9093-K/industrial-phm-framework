@@ -67,7 +67,9 @@ def _http(
         conn.close()
 
 
-def _post(port: int, route: str, payload: dict[str, object], csrf: str) -> tuple[int, dict[str, object]]:
+def _post(
+    port: int, route: str, payload: dict[str, object], csrf: str
+) -> tuple[int, dict[str, object]]:
     return _http(
         port,
         route,
@@ -139,18 +141,27 @@ def test_opcua_web_denies_remote_urls_and_requires_auth(tmp_path: Path) -> None:
         token = session["csrf_token"]
         assert isinstance(token, str)
         endpoint = "opc.tcp://127.0.0.1:4840/"
+        route = "/api/v1/sources/opcua"
+        diagnostic = "/api/v1/sources/opcua/diagnose"
         mapping = _registration(endpoint)
-        assert _http(port, "/api/v1/sources/opcua", mapping)[0] == 403
-        assert _post(port, "/api/v1/sources/opcua", _registration("opc.tcp://example.com:4840/"), token)[0] == 400
-        assert _post(port, "/api/v1/sources/opcua", _registration("opc.tcp://127.0.0.2:4840/"), token)[0] == 400
-        assert _post(port, "/api/v1/sources/opcua", _registration("opc.tcp://admin:pw@127.0.0.1:4840/"), token)[0] == 400
-        assert _post(port, "/api/v1/sources/opcua", {**mapping, "extra": 1}, token)[0] == 400
-        assert _post(port, "/api/v1/sources/opcua/browse", {"endpoint_url": "opc.tcp://example.com:4840/"}, token)[0] == 400
-        assert _post(port, "/api/v1/sources/opcua/diagnose", {"source_id": "unknown"}, token)[0] == 404
-        assert _post(port, "/api/v1/sources/opcua", mapping, token)[0] == 201
-        assert _post(port, "/api/v1/sources/opcua", mapping, token)[0] == 409
-        assert _post(port, "/api/v1/sources/opcua/diagnose", {"source_id": "web-opcua-1"}, token)[0] == 409
-        assert JsonSourceRuntimeRepository(workspace.source_runtime_path).get_latest_receipt("web-opcua-1") is None
+        assert _http(port, route, mapping)[0] == 403
+        for rejected in (
+            "opc.tcp://example.com:4840/",
+            "opc.tcp://127.0.0.2:4840/",
+            "opc.tcp://admin:pw@127.0.0.1:4840/",
+        ):
+            assert _post(port, route, _registration(rejected), token)[0] == 400
+        assert _post(port, route, {**mapping, "extra": 1}, token)[0] == 400
+        assert _post(
+            port, "/api/v1/sources/opcua/browse",
+            {"endpoint_url": "opc.tcp://example.com:4840/"}, token
+        )[0] == 400
+        assert _post(port, diagnostic, {"source_id": "unknown"}, token)[0] == 404
+        assert _post(port, route, mapping, token)[0] == 201
+        assert _post(port, route, mapping, token)[0] == 409
+        assert _post(port, diagnostic, {"source_id": "web-opcua-1"}, token)[0] == 409
+        runtime = JsonSourceRuntimeRepository(workspace.source_runtime_path)
+        assert runtime.get_latest_receipt("web-opcua-1") is None
         assert not workspace.history_catalog_path.exists()
 
 
@@ -161,14 +172,18 @@ def test_web_browse_and_diagnostic_persist_real_opcua_receipt(tmp_path: Path) ->
     with _opc_server() as (endpoint, node_id), _web(workspace) as port:
         _, session = _http(port, "/api/v1/session")
         token = session["csrf_token"]
-        status, browse = _post(port, "/api/v1/sources/opcua/browse", {"endpoint_url": endpoint}, token)
+        status, browse = _post(
+            port, "/api/v1/sources/opcua/browse", {"endpoint_url": endpoint}, token
+        )
         assert status == 200
         assert browse["meaning"] == "address-space-candidates-not-received-or-registered"
         assert any(v["node_id"] == node_id for v in browse["variables"])
         assert not workspace.source_runtime_path.exists()
 
-        assert _post(port, "/api/v1/sources/opcua", _registration(endpoint, node_id), token)[0] == 201
-        assert JsonSourceRepository(workspace.source_registry_path).get("web-opcua-1").asset_id == "pump-01"
+        registration = _registration(endpoint, node_id)
+        assert _post(port, "/api/v1/sources/opcua", registration, token)[0] == 201
+        registry = JsonSourceRepository(workspace.source_registry_path)
+        assert registry.get("web-opcua-1").asset_id == "pump-01"
         status, sources = _http(port, "/api/v1/sources")
         assert status == 200
         assert sources["sources"]["items"][0]["receipt_confirmed"] is False
@@ -215,7 +230,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
             page.locator("#opcua-endpoint").fill(endpoint)
             page.get_by_role("button", name="로컬 변수 탐색").click()
             sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(node_id)
-            sync_api.expect(page.locator("#source-list")).to_contain_text("등록된 소스가 없습니다")
+            sync_api.expect(page.locator("#source-list")).to_contain_text("등록 소스가 없습니다")
             page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
             page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")
             page.locator('#opcua-form input[name="asset_id"]').fill("pump-01")
