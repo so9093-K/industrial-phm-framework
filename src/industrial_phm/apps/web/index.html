@@ -86,6 +86,22 @@
           <button id="register-file" type="submit">CSV 확인 후 소스 등록</button>
           <p id="register-result" role="status" aria-live="polite"></p>
         </form>
+        <h3>로컬 OPC UA 소스 등록·탐색</h3>
+        <p class="hint">이 미리보기는 127.0.0.1 익명 OPC UA 서버만 허용합니다. 탐색은 변수 후보를 찾을 뿐 실제 수신을 뜻하지 않습니다. 원격 서버·계정·인증서 설정은 아직 지원하지 않습니다.</p>
+        <form id="opcua-form">
+          <div class="form-grid">
+            <label>OPC UA 소스 ID<input name="source_id" required maxlength="128" placeholder="opcua-pump-01" autocomplete="off"></label>
+            <label>소스 이름<input name="name" required maxlength="128" placeholder="펌프 OPC UA" autocomplete="off"></label>
+            <label>설비 ID<input name="asset_id" required maxlength="128" placeholder="pump-01" autocomplete="off"></label>
+            <label>측정 지점 (선택)<input name="measurement_point_id" maxlength="128" autocomplete="off"></label>
+            <label class="wide">로컬 OPC UA 서버 URL<input id="opcua-endpoint" name="endpoint_url" required maxlength="128" placeholder="opc.tcp://127.0.0.1:4840/" autocomplete="off"></label>
+            <label class="wide">채널 매핑 (channel_id=NodeId, 한 줄에 하나)<textarea name="node_mappings" required maxlength="1700" rows="3" placeholder="vibration_x=ns=2;i=1"></textarea></label>
+          </div>
+          <button id="browse-opcua" type="button">로컬 변수 탐색</button>
+          <button id="register-opcua" type="submit">OPC UA 매핑 등록</button>
+          <div id="opcua-browse-result" role="status" aria-live="polite"></div>
+          <p id="opcua-register-result" role="status" aria-live="polite"></p>
+        </form>
         <p class="hint">등록 후에도 accepted receipt가 확인되기 전에는 모니터링의 관측 데이터가 준비됐다고 표시하지 않습니다. 등록·수집·분석은 서로 다른 단계입니다.</p>
       </section>
       <footer>Industrial PHM · 로컬 검증 웹 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>

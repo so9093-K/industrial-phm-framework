@@ -17,7 +17,8 @@ production UI or supervise collection/analysis.
   assets from the installed Python wheel. No arbitrary file path may be requested.
   Only `POST /api/v1/sources/file`, `POST /api/v1/sources/file/receive`,
   `POST /api/v1/sources/file/backfill`, `POST /api/v1/sources/lifecycle`,
-  and `POST /api/v1/sources/collection` are allowed
+  `POST /api/v1/sources/opcua/browse`, `POST /api/v1/sources/opcua`,
+  `POST /api/v1/sources/opcua/diagnose`, and `POST /api/v1/sources/collection` are allowed
   under the protected write contract;
   other mutations return 405. There is no arbitrary mutation command, Node runtime,
   dev server, repository file proxy, or remote exposure.
@@ -122,8 +123,10 @@ raw connector errors.
   obtain actual data; then refresh this preview to see accepted receipts
   and stored signal history.
 
-OPC UA browse, credential handling, FILE uploads, an isolated first-run
-synthetic sample and protected human-review writes remain **out of scope**.
+Remote OPC UA browse/configuration, credential/certificate handling, FILE uploads,
+an isolated first-run synthetic sample and protected human-review writes remain
+**out of scope**. Local anonymous OPC UA browse and one-shot diagnostics are
+specified separately below; neither operation constitutes a live collector.
 Source lifecycle and OPC UA collection desired-state requests are described below;
 those requests do not start a collector or prove actual receipt.
 The default marimo Operations remains the production onboarding owner
@@ -180,6 +183,42 @@ about machine condition. Failed/partial imports are not treated as success;
 the next explicit import may recover already committed segments.
 The JSON source/runtime state and DuckLake catalog have distinct writer
 constraints; legacy and Web writers must not mutate the workspace concurrently.
+
+## Local anonymous OPC UA first-run diagnostics (opt-in preview only)
+
+The first OPC UA Web setup slice **only accepts literal `127.0.0.1` endpoints**
+such as `opc.tcp://127.0.0.1:4840/`. URL credentials, remote DNS, IPv6 aliases,
+queries, and fragments are rejected before any outbound network connection.
+This is intentionally local-first; it is **not** a safe/complete remote asset
+connector, certificate negotiation, authentication, credential storage, or
+unbounded discovery UI.
+
+- `POST /api/v1/sources/opcua/browse` with `{"endpoint_url":"..."}` runs
+  the existing anonymous bounded Objects browse (2-second client timeout;
+  connector maximum of 256 visited nodes), returning up to 24 safe candidate
+  variable names and NodeIds. Browse connectivity is **not accepted source
+  receipt**, registration, or continuous session readiness.
+- `POST /api/v1/sources/opcua` with exactly `source_id`, `name`,
+  `asset_id`, `measurement_point_id`, `endpoint_url`, and `node_mappings`
+  (1–12 explicit `{"channel_id","node_id"}` entries) delegates to the existing
+  `OperationsAppActions.register_source` and `OpcUaSourceConfig` validation.
+  A `201` response means persisted mapping only. It never connects or records
+  observations. There is no arbitrary browse start node or remote address.
+- After explicitly activating the source, `POST /api/v1/sources/opcua/diagnose`
+  with only `source_id` performs one existing `OperationsDiagnosticKind.CYCLE`
+  snapshot read. The Web boundary rechecks the source's local URL, type, mapping
+  bound, and ACTIVE lifecycle on every request. A successful cycle persists
+  existing connection-attempt and accepted receipt evidence with exact UTC
+  timestamps; an unsuccessful cycle reports a narrow failure scope and
+  `accepted_new_receipt:false`. Older receipts remain historical evidence
+  and must never be represented as the result of a failed attempt.
+
+All three POSTs share exact Host/Origin/Sec-Fetch-Site, CSRF, bounded JSON,
+and single-process mutation serialization. Responses contain no original URL,
+credentials, raw connector exceptions, data values, live health classification,
+or implicit DuckLake history writes. OPC UA desired-state `running` still
+requires a separately running collector; a successful one-shot diagnostic
+does **not** prove continuous subscription or collection supervision.
 
 ## Web source control requests (opt-in preview only)
 
