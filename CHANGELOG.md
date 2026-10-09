@@ -11,6 +11,12 @@
 
 ### Added
 
+- Linux 로컬 engineering pilot에서 `industrial-phm operations start <root> --ui web-controlled`로
+  supervisor-owned Web source 명령을 선택할 수 있습니다. 브라우저의 same-origin/CSRF POST는
+  supervisor의 PID·UID·일회성 token 검증 Unix 소켓으로 전달되어 기존 FILE/OPC UA source action을
+  실행합니다. 독립 preview 및 기존 `--ui web-preview`의 감독 중 쓰기 차단과 기본 marimo 진입은
+  유지합니다. 세대 내 요청 ID 캐시는 crash/restart 이후 영속 중복 방지를 보장하지 않습니다.
+
 - `maintenance history retain <workspace>`로 live evidence 보존 정책을 실행합니다(기본 7일, `--dry-run`).
   OPC UA live 관측과 finalized window를 event time 기준으로 삭제하고, cutoff 이전 DuckLake snapshot을
   만료한 뒤 참조되지 않는 file을 제거합니다. FILE history와 닫히지 않은 review 요청의 관측 범위·window·

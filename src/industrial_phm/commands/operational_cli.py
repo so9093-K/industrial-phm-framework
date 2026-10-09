@@ -71,9 +71,9 @@ def _add_operations_commands(
     )
     start.add_argument(
         "--ui",
-        choices=("marimo", "web-preview"),
+        choices=("marimo", "web-preview", "web-controlled"),
         default="marimo",
-        help="supervised UI child (web-preview is read-only while supervisor owns workspace)",
+        help="UI: marimo default, web-preview read-only, web-controlled IPC pilot",
     )
     start.set_defaults(handler=_run_operations_start)
 

@@ -2,6 +2,7 @@ import json
 import socket
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import replace
 from http.client import HTTPConnection
@@ -27,6 +28,7 @@ from industrial_phm.runtime import (
     initialize_operations_workspace,
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
+from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 
 _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
 
@@ -521,6 +523,130 @@ def test_supervised_web_preview_is_readable_but_cannot_write(
         assert result.status == 409
         assert rejection["error"]["code"] == "workspace_writer_busy"
         assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+
+        stopped = _run_cli("operations", "stop", str(root))
+        assert stopped.returncode == 0, stopped.stderr
+        assert process.wait(timeout=20) == 0, _process_log(logfile)
+    finally:
+        if process.poll() is None:
+            _run_cli("operations", "stop", str(root), timeout=10)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=10)
+        handle.close()
+
+
+def test_supervised_web_controlled_mode_persists_but_external_preview_cannot_write(
+    tmp_path: Path,
+) -> None:
+    """Real HTTP mutation must execute in supervisor; a separate preview stays read-only."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required for supervised actions")
+    root = tmp_path / "web-controlled"
+    workspace = OperationsWorkspace(root)
+    initialization = initialize_operations_workspace(workspace)
+    input_dir = root / "inputs"
+    input_dir.mkdir()
+    (input_dir / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        "2026-10-08T12:00:00+00:00,220.5,219.0,221.0\n"
+        "2026-10-08T12:00:01+00:00,220.6,219.1,221.1\n",
+        encoding="utf-8",
+    )
+    port = _free_loopback_port()
+    write_operations_runtime_config(
+        workspace.config_path,
+        replace(initialization.config, ui=OperationsUiConfig(port=port)),
+    )
+    logfile = tmp_path / "controlled-supervisor.log"
+    handle = logfile.open("ab", buffering=0)
+    process = subprocess.Popen(
+        _cli_argv("operations", "start", str(root), "--ui", "web-controlled"),
+        stdin=subprocess.DEVNULL,
+        stdout=handle,
+        stderr=subprocess.STDOUT,
+    )
+
+    def request(
+        on_port: int,
+        method: str,
+        route: str,
+        *,
+        body: dict[str, object] | None = None,
+        token: str | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        conn = HTTPConnection("127.0.0.1", on_port, timeout=7)
+        headers = {"Host": f"127.0.0.1:{on_port}"}
+        raw = None
+        if body is not None:
+            raw = json.dumps(body).encode()
+            headers.update(
+                {
+                    "Origin": f"http://127.0.0.1:{on_port}",
+                    "Sec-Fetch-Site": "same-origin",
+                    "X-CSRF-Token": token or "",
+                    "Content-Type": "application/json",
+                }
+            )
+        try:
+            conn.request(method, route, body=raw, headers=headers)
+            response = conn.getresponse()
+            parsed = json.loads(response.read())
+            assert isinstance(parsed, dict)
+            return response.status, parsed
+        finally:
+            conn.close()
+
+    try:
+        deadline = time.monotonic() + 50
+        while True:
+            if process.poll() is not None:
+                pytest.fail("controlled Web exited before ready:\n" + _process_log(logfile))
+            try:
+                status, session = request(port, "GET", "/api/v1/session")
+                if status == 200:
+                    break
+            except OSError:
+                pass
+            if time.monotonic() >= deadline:
+                pytest.fail("controlled Web not ready:\n" + _process_log(logfile))
+            time.sleep(0.2)
+        assert session["write_scope"] == "supervisor-owned-source-control"
+        csrf = session["csrf_token"]
+        assert isinstance(csrf, str)
+        source: dict[str, object] = {
+            "source_id": "supervised-file",
+            "name": "Prepared three phase CSV",
+            "asset_id": "pump-01",
+            "file_path": "inputs/phases.csv",
+            "channel_columns": ["phase-R", "phase-S", "phase-T"],
+            "measurement_point_id": "panel",
+            "timestamp_column": "timestamp",
+        }
+        assert request(port, "POST", "/api/v1/sources/file", body=source, token="bad")[0] == 403
+        assert request(port, "POST", "/api/v1/sources/file", body=source, token=csrf)[0] == 201
+        assert JsonSourceRepository(workspace.source_registry_path).get("supervised-file")
+        assert request(port, "POST", "/api/v1/sources/file", body=source, token=csrf)[0] == 409
+        assert request(port, "GET", "/api/v1/sources")[1]["sources"]["total"] == 1
+
+        external = create_operations_web_read_server(workspace.root)
+        external_thread = threading.Thread(target=external.serve_forever, daemon=True)
+        external_thread.start()
+        try:
+            outside_port = external.server_port
+            csrf_outside = request(outside_port, "GET", "/api/v1/session")[1]["csrf_token"]
+            assert isinstance(csrf_outside, str)
+            result = request(
+                outside_port, "POST", "/api/v1/sources/file", body=source, token=csrf_outside
+            )
+            assert result[0] == 409
+            assert result[1]["error"]["code"] == "workspace_writer_busy"
+        finally:
+            external.shutdown()
+            external.server_close()
+            external_thread.join(timeout=5)
 
         stopped = _run_cli("operations", "stop", str(root))
         assert stopped.returncode == 0, stopped.stderr

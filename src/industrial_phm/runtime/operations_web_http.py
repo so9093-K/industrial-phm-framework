@@ -27,6 +27,11 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
     execute_web_source_action,
 )
+from industrial_phm.runtime.operations_web_command import (
+    WebCommandClient,
+    WebCommandOutcomeUnknown,
+    WebCommandRejected,
+)
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
@@ -41,7 +46,7 @@ from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, we
 
 
 def create_operations_web_read_server(
-    workspace_root: Path, *, port: int = 0
+    workspace_root: Path, *, port: int = 0, command_client: WebCommandClient | None = None
 ) -> ThreadingHTTPServer:
     """Construct a single-workspace server on 127.0.0.1 without starting a thread.
 
@@ -202,7 +207,11 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": "local-source-control-and-opcua-preview",
+                        "write_scope": (
+                            "supervisor-owned-source-control"
+                            if command_client is not None
+                            else "local-source-control-and-opcua-preview"
+                        ),
                     },
                 )
                 return
@@ -264,10 +273,31 @@ def create_operations_web_read_server(
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
-                with mutation_lock, web_workspace_writer(root):
-                    result = execute_web_source_action(root, self.path, body)
+                with mutation_lock:
+                    if command_client is None:
+                        with web_workspace_writer(root):
+                            result = execute_web_source_action(root, self.path, body)
+                    else:
+                        result = command_client.execute(self.path, body)
             except WorkspaceWriterBusy:
                 self._error(HTTPStatus.CONFLICT, "workspace_writer_busy")
+                return
+            except WebCommandRejected as error:
+                status_by_code = {
+                    "write_not_authorized": HTTPStatus.FORBIDDEN,
+                    "source_id_exists": HTTPStatus.CONFLICT,
+                    "source_control_conflict": HTTPStatus.CONFLICT,
+                    "command_request_conflict": HTTPStatus.CONFLICT,
+                    "command_capacity_exceeded": HTTPStatus.SERVICE_UNAVAILABLE,
+                    "source_not_found": HTTPStatus.NOT_FOUND,
+                    "invalid_source_action": HTTPStatus.BAD_REQUEST,
+                }
+                self._error(
+                    status_by_code.get(error.code, HTTPStatus.SERVICE_UNAVAILABLE), error.code
+                )
+                return
+            except WebCommandOutcomeUnknown:
+                self._error(HTTPStatus.SERVICE_UNAVAILABLE, "command_outcome_unknown")
                 return
             except SourceAlreadyRegisteredError:
                 self._error(HTTPStatus.CONFLICT, "source_id_exists")

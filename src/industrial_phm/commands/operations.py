@@ -196,6 +196,12 @@ def _start_operations_workspace(
                 "(read-only pilot; default make up remains marimo)",
                 flush=True,
             )
+        elif ui_mode == OperationsUiMode.WEB_CONTROLLED:
+            print(
+                "ui=web-controlled writes=supervisor-command-broker "
+                "(opt-in pilot; default make up remains marimo)",
+                flush=True,
+            )
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)
