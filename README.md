@@ -29,7 +29,7 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
 터미널에 출력되는 `operations_url`(`http://127.0.0.1:<port>/web/`)을 브라우저에서 엽니다.
-현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 격리된 샘플 체험/Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더·제3자 현장 시험은 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
+현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 격리된 샘플 체험/Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더는 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
 빈 작업공간의 Web 파일럿은 FILE CSV 또는 로컬 OPC UA 소스 등록을 안내합니다. 소스 등록·ACTIVE·검증 수신·DuckLake 이력 저장·분석 근거는 별개의 사실이므로 각 단계의 근거를 확인해야 합니다.
 기존 marimo의 **격리 synthetic 샘플 시작·종료 및 전체 guided Setup**은 아직 새 Web UI에서 제공하지 않으며,
 현재 바로 사용하려면 `make up UI=marimo`를 선택하세요. 기존 소스가 있는 workspace는 새 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
