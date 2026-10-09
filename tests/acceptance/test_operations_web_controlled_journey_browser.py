@@ -138,6 +138,13 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 assert page.locator(".skip-link").get_attribute("href") == "#main"
                 assert page.locator("html").get_attribute("lang") == "ko"
+                guide = page.locator("#operator-reference-en")
+                pw.expect(guide.locator("summary")).to_have_attribute("lang", "en")
+                guide.locator("summary").click()
+                pw.expect(guide.locator('div[lang="en"]')).to_contain_text("Accepted receipt:")
+                pw.expect(guide.locator('div[lang="en"]')).to_contain_text(
+                    "not evidence of physical maintenance"
+                )
                 pw.expect(page.get_by_role("heading", name="화면 상태 해석 기준")).to_be_visible()
                 pw.expect(page.locator("#operator-meaning")).to_contain_text(
                     "최근 데이터 수신은 설비 정상·고장 진단이 아닙니다"

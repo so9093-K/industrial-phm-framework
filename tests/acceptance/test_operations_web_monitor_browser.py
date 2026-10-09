@@ -99,6 +99,20 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             page.keyboard.press("Enter")
             sync_api.expect(page.locator("#main")).to_be_focused()
             assert page.evaluate("location.hash") == "#main"
+            # English guidance is a separate language-tagged reference, not an English UI.
+            guide = page.locator("#operator-reference-en")
+            sync_api.expect(guide.locator("summary")).to_have_attribute("lang", "en")
+            assert page.locator("html").get_attribute("lang") == "ko"
+            guide.locator("summary").focus()
+            page.keyboard.press("Enter")
+            sync_api.expect(guide).to_have_attribute("open", "")
+            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text("Registered / active:")
+            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text(
+                "Review acknowledged / closed:"
+            )
+            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text(
+                "not an English-language operations interface"
+            )
             # Keyboard activation, not a mouse click, must update current navigation.
             page.get_by_role("link", name="시스템 근거").focus()
             page.keyboard.press("Enter")
