@@ -75,7 +75,51 @@ def _start_demo(
 def _process_log(path: Path) -> str:
     if not path.is_file():
         return "<process log unavailable>"
-    return path.read_text(encoding="utf-8", errors="replace")
+    return _tail_log(path)
+
+
+def _tail_log(path: Path, *, limit_bytes: int = 8192) -> str:
+    """Capture bounded child evidence when CI fails, without reading whole logs."""
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            skipped = max(0, size - limit_bytes)
+            handle.seek(skipped)
+            body = handle.read(limit_bytes).decode("utf-8", errors="replace")
+    except FileNotFoundError:
+        return "<log not created>"
+    return (f"<earlier {skipped} bytes omitted>\\n" if skipped else "") + body
+
+
+def _pipeline_failure_evidence(
+    workspace: OperationsWorkspace,
+    *,
+    process: subprocess.Popen[bytes],
+    process_log_path: Path,
+) -> str:
+    """Surface the exact pipeline boundary that failed instead of just a timeout."""
+    lines = [f"demo process returncode: {process.poll()}"]
+    try:
+        status = _run_cli("operations", "status", str(workspace), timeout=10.0)
+        lines.append(
+            f"operations status exit={status.returncode}\\n"
+            f"stdout:\\n{status.stdout[-8192:]}\\nstderr:\\n{status.stderr[-4096:]}"
+        )
+    except subprocess.TimeoutExpired:
+        lines.append("operations status command timed out after 10s")
+
+    lines.append(f"demo launcher:\\n{_process_log(process_log_path)}")
+    for filename in ("synthetic-opcua.log", "collection.log", "analysis.log", "ui.log"):
+        lines.append(f"{filename}:\\n{_tail_log(workspace.logs_path / filename)}")
+    for label, path in (
+        ("history catalog", workspace.history_catalog_path),
+        ("spool", workspace.acquisition_spool_path),
+        ("window SQLite", workspace.window_state_path),
+        ("analysis SQLite", workspace.phase_unbalance_state_path),
+    ):
+        lines.append(f"{label} exists={path.is_file()}")
+    return "\\n".join(lines)
 
 
 def _wait_until_ready(
@@ -112,20 +156,39 @@ def _wait_until_ready(
 def _wait_for_analysis_evidence(
     workspace: OperationsWorkspace,
     *,
-    timeout: float = 35.0,
+    process: subprocess.Popen[bytes],
+    process_log_path: Path,
+    timeout: float = 60.0,
 ) -> tuple[int, int]:
+    """Require persisted results after a real 10s event window + 2s lateness.
+
+    CI workers run several heavyweight Python/OPC UA/DuckLake jobs in parallel:
+    the prior blind 35s deadline sometimes expired even though a retry passed.
+    Keep an absolute bound; distinguish early child death and emit bounded
+    per-component evidence if the data pipeline never completes.
+    """
     windows = SqliteObservationWindowRepository(workspace.window_state_path)
     analysis = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
     deadline = time.monotonic() + timeout
     latest = (0, 0)
     while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise AssertionError(
+                "synthetic demo process exited before finalized-window/analysis evidence\\n"
+                + _pipeline_failure_evidence(
+                    workspace, process=process, process_log_path=process_log_path
+                )
+            )
         latest = (len(windows.list_windows()), analysis.count_results())
         if latest[0] > 0 and latest[1] > 0:
             return latest
         time.sleep(0.25)
     raise AssertionError(
         "synthetic demo produced no finalized-window/analysis evidence "
-        f"within {timeout:g}s: windows={latest[0]} results={latest[1]}"
+        f"within {timeout:g}s: windows={latest[0]} results={latest[1]}\\n"
+        + _pipeline_failure_evidence(
+            workspace, process=process, process_log_path=process_log_path
+        )
     )
 
 
@@ -175,7 +238,9 @@ def test_clean_workspace_synthetic_node_reaches_evidence_and_restarts(tmp_path: 
     )
     try:
         _wait_until_ready(first, root, process_log_path=first_log)
-        first_windows, first_results = _wait_for_analysis_evidence(workspace)
+        first_windows, first_results = _wait_for_analysis_evidence(
+            workspace, process=first, process_log_path=first_log
+        )
         logs = _run_cli(
             "operations",
             "logs",
@@ -264,7 +329,9 @@ def test_stopped_workspace_backup_restores_and_restarts_as_new_node(tmp_path: Pa
     )
     try:
         _wait_until_ready(original, root, process_log_path=original_log)
-        original_windows, original_results = _wait_for_analysis_evidence(workspace)
+        original_windows, original_results = _wait_for_analysis_evidence(
+            workspace, process=original, process_log_path=original_log
+        )
         _stop_demo(
             original,
             root,
@@ -352,3 +419,13 @@ def test_stopped_workspace_backup_restores_and_restarts_as_new_node(tmp_path: Pa
     assert len(original_history.query_opcua_events(SYNTHETIC_DEMO_SOURCE_ID)) == (
         original_event_count
     )
+
+
+def test_synthetic_ci_log_tail_is_bounded(tmp_path: Path) -> None:
+    log = tmp_path / "collector.log"
+    assert _tail_log(log) == "<log not created>"
+    log.write_bytes(b"x" * 10000 + b"\\nSOURCE_CONNECTION_FAILED\\n")
+    tail = _tail_log(log, limit_bytes=1024)
+    assert tail.startswith("<earlier 9002 bytes omitted>\\n")
+    assert "SOURCE_CONNECTION_FAILED" in tail
+    assert len(tail) < 1150
