@@ -73,18 +73,18 @@ jobs:
           def classify_changed_paths(changed: tuple[str, ...]) -> dict[str, bool]:
               def any_path(*prefixes: str) -> bool:
                   return any(path.startswith(prefixes) for path in changed)
-    
+
               def any_exact(*names: str) -> bool:
                   return any(path in names for path in changed)
-    
+
               def documentation_only(path: str) -> bool:
                   if path.endswith(".md"):
                       return True
                   return path.startswith("docs/") and path.endswith((".md", ".rst", ".txt"))
-    
+
               docs_only = bool(changed) and all(documentation_only(path) for path in changed)
               force_all = any_path(".github/workflows/") or any_exact("pyproject.toml", "uv.lock")
-    
+
               runtime = force_all or any_path(
                   # Operations CLI entry points change runtime lifecycle and must run
                   # the runtime integration gates even when runtime/ is untouched.
@@ -139,12 +139,14 @@ jobs:
                   "tests/unit/test_ims_",
                   "tests/unit/test_mimii_",
               )
-              package = force_all or any_path("src/", "deploy/systemd/", "tools/operations_") or any_exact(
+              package = force_all or any_path(
+                  "src/", "deploy/systemd/", "tools/operations_"
+              ) or any_exact(
                   "pyproject.toml",
                   "uv.lock",
                   "LICENSE",
               )
-    
+
               values = {
                   "docs_only": docs_only,
                   "runtime": runtime and not docs_only,
