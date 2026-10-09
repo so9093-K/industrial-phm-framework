@@ -122,7 +122,7 @@ class SupervisorWebCommandBroker:
             pid, uid, _gid = struct.unpack("3i", credentials)
         except OSError, ValueError, struct.error:
             return False
-        return pid == self._child_pid and uid == os.geteuid()
+        return bool(pid == self._child_pid and uid == os.geteuid())
 
     def handle(self, connection: socket.socket) -> None:
         connection.settimeout(_TIMEOUT_SECONDS)
