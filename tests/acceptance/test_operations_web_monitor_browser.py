@@ -93,6 +93,14 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             )
             page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
             sync_api.expect(page.get_by_role("heading", name="설비 모니터링")).to_be_visible()
+            page.get_by_role("link", name="시스템 근거").click()
+            sync_api.expect(page.locator('nav a[href="#system"]')).to_have_attribute(
+                "aria-current", "page"
+            )
+            sync_api.expect(page.locator("#system-status")).to_contain_text(
+                "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
+            )
+            sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 평가 시각 · UTC")
             sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
             sync_api.expect(page.locator("#channel-options input:checked")).to_have_count(1)
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(1)
@@ -136,6 +144,10 @@ def test_web_monitor_empty_workspace_has_no_fake_equipment(tmp_path: Path) -> No
             page = browser.new_page(viewport={"width": 1024, "height": 800})
             page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
             sync_api.expect(page.locator("#asset-select")).to_be_disabled()
+            sync_api.expect(page.locator("#system-status")).to_contain_text(
+                "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
+            )
+            sync_api.expect(page.locator("#system-facts")).to_contain_text("조회된 설비 수")
             sync_api.expect(page.locator("#asset-facts")).to_contain_text("설비가 없습니다")
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(0)
             assert "현재 설비 정상" not in page.locator("body").inner_text()
