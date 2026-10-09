@@ -205,9 +205,7 @@ jobs:
         run: uv run --locked ruff check .
 
       - name: Format check
-        run: |
-          uv run --locked ruff format --diff tools/operations_systemd_smoke.py
-          uv run --locked ruff format --check .
+        run: uv run --locked ruff format --check .
 
       - name: Type check
         run: uv run --locked mypy
