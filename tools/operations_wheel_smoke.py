@@ -81,7 +81,7 @@ def _web(binary: Path, workspace: Path, *, port: int, cwd: Path, mutate: bool) -
     log_path = cwd / ("restored.log" if mutate else "original.log")
     with log_path.open("wb") as log:
         supervisor = subprocess.Popen(
-            [str(binary), "operations", "start", str(workspace), "--ui", "web-controlled"],
+            [str(binary), "operations", "start", str(workspace)],
             cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=log,
