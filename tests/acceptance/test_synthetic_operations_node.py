@@ -101,7 +101,7 @@ def _pipeline_failure_evidence(
     """Surface the exact pipeline boundary that failed instead of just a timeout."""
     lines = [f"demo process returncode: {process.poll()}"]
     try:
-        status = _run_cli("operations", "status", str(workspace), timeout=10.0)
+        status = _run_cli("operations", "status", str(workspace.root), timeout=10.0)
         lines.append(
             f"operations status exit={status.returncode}\n"
             f"stdout:\n{status.stdout[-8192:]}\nstderr:\n{status.stderr[-4096:]}"
