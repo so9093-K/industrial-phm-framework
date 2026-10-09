@@ -161,6 +161,44 @@ accepted FILE receipt into an assertion that DuckLake signal history is stored.
 The current JSON source/runtime repositories are single-writer only; legacy
 and new Web source actions must not write the same workspace concurrently.
 
+## Web collection evidence (read-only; opt-in preview)
+
+`GET /api/v1/sources` includes **independent** evidence for each OPC UA source:
+
+- `collection_desired_state`: saved intent only; never interpreted as collector started.
+- `collection_service_state`, `collection_service_heartbeat_at`, and
+  `collection_service_heartbeat_fresh`: last durable process-level collection
+  telemetry. A `running` row with heartbeat older than 20 seconds is stale,
+  not a current live service. The heartbeat is **not per-source** and cannot
+  establish that any particular source is connected.
+- `opcua_session_last_state` and `opcua_session_state_changed_at`: the
+  worker's last stored session transition (which may be historical).
+  `recent_connected_evidence` can only be true when the process heartbeat
+  is recent, its state is `running`, and a `CONNECTED` session transition
+  belongs to the current service start generation. It is evidence at the
+  assessment time, **not** a guaranteed live network socket.
+- `last_live_received_at`, `last_live_receive_age_seconds`,
+  `last_live_receive_fresh`: callback receipt facts persisted from the
+  continuous worker, with a 30-second freshness reference. Absence or stale
+  time never proves the source is unhealthy; clocks in the future are treated
+  as unverified. This is separate from `receipt_confirmed`, which reflects
+  the separately persisted one-shot source diagnostic receipt.
+- `last_live_history_committed_at`, `last_live_history_snapshot_id`,
+  `last_live_history_batch_event_count`: the last durable OPC UA spool
+  history batch per source. It may lag a newer receive; an old committed
+  batch is not confirmation of current source activity. FILE backfill is
+  deliberately not inferred from this field: use history channels/trend
+  reads to confirm actual stored FILE events.
+- `live_telemetry_read_error` and `read_error_scopes` preserve corrupt or
+  inaccessible telemetry as an **unknown read**, not "never received".
+  Empty fields are explicitly unknown, not connected/disconnected/healthy
+  classifications.
+
+The Web displays these facts on manual refresh, without continuously supervising
+collectors, starting subscriptions, or inventing a fleet-wide green health status.
+The existing source lifecycle, backend telemetry and accepted history semantics
+are unchanged.
+
 ## Explicit FILE DuckLake history backfill (opt-in preview only)
 
 `POST /api/v1/sources/file/backfill` accepts only `{"source_id":"..."}` under

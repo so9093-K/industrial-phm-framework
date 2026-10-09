@@ -7,7 +7,7 @@ validation, durable source registry and accepted receipt evidence.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from industrial_phm.application import (
@@ -35,6 +35,9 @@ from industrial_phm.runtime.operations_app_wiring import (
 from industrial_phm.runtime.operations_web_read import _utc
 
 _MAX_SOURCES = 100
+# Reuse the Operations monitor's existing heartbeat and receive-silence budgets.
+_COLLECTION_HEARTBEAT_TIMEOUT = timedelta(seconds=20)
+_LIVE_RECEIVE_TIMEOUT = timedelta(seconds=30)
 _MAX_INPUT_BYTES = 20 * 1024 * 1024
 # Conservative bound for synchronous browser history writes; registration may accept larger files.
 _MAX_WEB_HISTORY_BYTES = 1024 * 1024
@@ -51,16 +54,50 @@ _FIELDS = frozenset(
 )
 
 
+def _age_seconds(at: datetime | None, assessed_at: datetime) -> int | None:
+    """Negative durations are invalid observations, not proof of freshness."""
+    if at is None:
+        return None
+    age = (assessed_at - at).total_seconds()
+    if age < 0:
+        return None
+    return int(age)
+
+
 def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, object]:
-    """Represent registration and durable accepted receipt as separate facts."""
+    """Keep desired state, one-shot receipts, live telemetry and stored batches apart."""
     lifecycle = {record.source_id: record for record in snapshot.lifecycle_records}
     receipts = {receipt.source_id: receipt for receipt in snapshot.receipts}
     requests = {record.source_id: record for record in snapshot.collection_records}
+    live = {item.source.source_id: item.source for item in snapshot.acquisition_surfaces}
+    service = snapshot.collection_service
+    heartbeat_age = _age_seconds(
+        None if service is None else service.heartbeat_at, snapshot.assessed_at
+    )
+    service_fresh = (
+        service is not None
+        and service.state.value == "running"
+        and heartbeat_age is not None
+        and heartbeat_age <= int(_COLLECTION_HEARTBEAT_TIMEOUT.total_seconds())
+    )
     sources: list[dict[str, object]] = []
     for source in snapshot.registered_sources:
         record = lifecycle.get(source.source_id)
         receipt = receipts.get(source.source_id)
         request = requests.get(source.source_id)
+        live_source = live.get(source.source_id) if source.source_type.value == "opcua" else None
+        session = None if live_source is None else live_source.session
+        history = None if live_source is None else live_source.history
+        received_at = None if live_source is None else live_source.last_received_at
+        receive_age = _age_seconds(received_at, snapshot.assessed_at)
+        # A persisted CONNECTED session can outlive its worker or service. Only
+        # report recent connection *evidence* from this service generation.
+        connected_evidence = (
+            service_fresh
+            and session is not None
+            and session.state.value == "CONNECTED"
+            and session.state_changed_at >= service.started_at
+        )
         sources.append(
             {
                 "source_id": source.source_id,
@@ -79,6 +116,41 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 ),
                 "collection_request_generation": None if request is None else request.generation,
                 "collection_requested_at": None if request is None else _utc(request.requested_at),
+                # Process-level heartbeat is NOT a per-source collector ready flag.
+                "collection_service_state": None if service is None else service.state.value,
+                "collection_service_heartbeat_at": (
+                    None if service is None else _utc(service.heartbeat_at)
+                ),
+                "collection_service_heartbeat_fresh": service_fresh,
+                "opcua_session_last_state": None if session is None else session.state.value,
+                "opcua_session_state_changed_at": (
+                    None if session is None else _utc(session.state_changed_at)
+                ),
+                "recent_connected_evidence": connected_evidence,
+                # Live callback/receipt evidence is distinct from a one-shot diagnostic.
+                "last_live_received_at": _utc(received_at),
+                "last_live_receive_age_seconds": receive_age,
+                "last_live_receive_fresh": (
+                    receive_age is not None
+                    and receive_age <= int(_LIVE_RECEIVE_TIMEOUT.total_seconds())
+                ),
+                # Only committed OPC UA spool history is projected here. FILE
+                # backfill is verified separately with history channels/trend.
+                "last_live_history_committed_at": (
+                    None if history is None else _utc(history.committed_at)
+                ),
+                "last_live_history_snapshot_id": (
+                    None if history is None else history.snapshot_id
+                ),
+                "last_live_history_batch_event_count": (
+                    None if history is None else history.source_event_count
+                ),
+                "live_telemetry_read_error": (
+                    any(
+                        error.scope in {"live-data", f"live-data:{source.source_id}"}
+                        for error in snapshot.system_errors
+                    )
+                ),
             }
         )
     return {
@@ -94,7 +166,14 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
             {
                 item.scope
                 for item in snapshot.system_errors
-                if item.scope in {"source-settings", "source-runtime", "collection-control"}
+                if item.scope in {
+                    "source-settings",
+                    "source-runtime",
+                    "collection-control",
+                    "live-data",
+                    "asset-history",
+                }
+                or item.scope.startswith("live-data:")
             }
         ),
     }

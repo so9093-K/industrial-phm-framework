@@ -378,6 +378,24 @@ async function loadSources() {
       if (item.continuous_collection_supported) {
         card.append(create("span", null, "연속 수집 요청: " + fmt(item.collection_desired_state || "미요청") + " (실제 수집 상태 아님)"));
         card.append(create("span", null, "요청 세대: " + fmt(item.collection_request_generation) + " · UTC " + utc(item.collection_requested_at)));
+        card.append(create("span", null, "수집 서비스 마지막 기록: " + fmt(item.collection_service_state)
+          + " · heartbeat UTC " + utc(item.collection_service_heartbeat_at)
+          + (item.collection_service_heartbeat_fresh ? " · 최근 확인" : " · 실행 미확인/오래됨")));
+        card.append(create("span", null, "OPC UA 세션 마지막 기록: " + fmt(item.opcua_session_last_state)
+          + " · 변경 UTC " + utc(item.opcua_session_state_changed_at)
+          + (item.recent_connected_evidence ? " · 최근 연결 근거 있음" : " · 현재 연결 미확인")));
+        card.append(create("span", null, "live 이벤트 마지막 수신: UTC " + utc(item.last_live_received_at)
+          + " · " + (item.last_live_receive_fresh
+            ? "30초 이내 수신 근거 있음" : "최근 수신 근거 미확인")
+          + " (1회 읽기 receipt와 별개)"));
+        card.append(create("span", null, "OPC UA DuckLake 커밋: UTC "
+          + utc(item.last_live_history_committed_at)
+          + " · snapshot " + fmt(item.last_live_history_snapshot_id)
+          + " · 소스 이벤트 " + fmt(item.last_live_history_batch_event_count)
+          + " (live 배치 이력; live 수신과 별개)"));
+        if (item.live_telemetry_read_error) {
+          card.append(create("span", "error", "live 수집 근거 저장소 조회 실패 · 값이 없다고 판단할 수 없습니다."));
+        }
       } else {
         card.append(create("span", null, "FILE 소스 · 연속 수집 시작 요청 미지원. 기존 FILE 처리 경로를 사용하세요."));
       }
