@@ -76,7 +76,7 @@ def _ready(unit: str, port: int, previous_pid: int = 0) -> tuple[int, str]:
                     token = session["csrf_token"]
                     assert isinstance(token, str)
                     return pid, token
-            except (OSError, ValueError):
+            except OSError, ValueError:
                 pass
         time.sleep(0.25)
     raise AssertionError(f"systemd service did not become Web-ready: {unit}")
@@ -130,9 +130,7 @@ def _main() -> None:
     if checkout:
         assert not binary.is_relative_to(Path(checkout).resolve())
 
-    with tempfile.TemporaryDirectory(
-        prefix="phm-systemd-", dir=os.getenv("RUNNER_TEMP")
-    ) as name:
+    with tempfile.TemporaryDirectory(prefix="phm-systemd-", dir=os.getenv("RUNNER_TEMP")) as name:
         work = Path(name).resolve()
         workspace = OperationsWorkspace(work / "plant")
         _run(str(binary), "operations", "init", str(workspace.root))
@@ -207,8 +205,10 @@ def _main() -> None:
             time.sleep(7)  # More than RestartSec=5s: clean stop must not restart.
             assert _show(unit, "ActiveState") == "inactive"
             assert int(_show(unit, "NRestarts")) == stopped_restarts
-            print("systemd-web=passed start=1 manual-restart=1 "
-                  "child-failure-restart=1 clean-stop=1", flush=True)
+            print(
+                "systemd-web=passed start=1 manual-restart=1 child-failure-restart=1 clean-stop=1",
+                flush=True,
+            )
         finally:
             if installed:
                 for command in (
@@ -217,9 +217,7 @@ def _main() -> None:
                     ("rm", "-f", str(target)),
                     ("systemctl", "daemon-reload"),
                 ):
-                    subprocess.run(
-                        ("sudo", *command), capture_output=True, check=False, timeout=75
-                    )
+                    subprocess.run(("sudo", *command), capture_output=True, check=False, timeout=75)
 
 
 if __name__ == "__main__":
