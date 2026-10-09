@@ -123,8 +123,10 @@ raw connector errors.
   obtain actual data; then refresh this preview to see accepted receipts
   and stored signal history.
 
-OPC UA browse, credential handling, FILE uploads, an isolated first-run
-synthetic sample and protected human-review writes remain **out of scope**.
+Remote OPC UA browse/configuration, credential/certificate handling, FILE uploads,
+an isolated first-run synthetic sample and protected human-review writes remain
+**out of scope**. Local anonymous OPC UA browse and one-shot diagnostics are
+specified separately below; neither operation constitutes a live collector.
 Source lifecycle and OPC UA collection desired-state requests are described below;
 those requests do not start a collector or prove actual receipt.
 The default marimo Operations remains the production onboarding owner
