@@ -98,6 +98,7 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
         # report recent connection *evidence* from this service generation.
         connected_evidence = (
             service_fresh
+            and service is not None
             and request is not None
             and request.desired_state.value == "running"
             and session is not None
