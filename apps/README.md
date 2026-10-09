@@ -60,6 +60,8 @@ timestamp는 번역하거나 locale별로 다시 기록하지 않습니다.
 uv sync --locked --extra operations
 uv run --no-sync industrial-phm operations init artifacts/live
 uv run --no-sync industrial-phm operations start artifacts/live
+# 기존 marimo 화면이 필요한 경우, 현재 프로세스 종료 후:
+uv run --no-sync industrial-phm operations up artifacts/live --ui marimo
 ```
 
 UI만 개발용으로 실행할 때도 동일한 workspace root를 사용합니다.
