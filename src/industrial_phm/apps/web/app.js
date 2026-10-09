@@ -22,6 +22,7 @@ let selectedAsset = "";
 let selectedChannels = [];
 let generation = 0;
 let trendSequence = 0;
+let reviewWritesAllowed = false;
 function setNotice(message, error = false) {
   const notice = byId("notice");
   notice.textContent = message;
@@ -89,6 +90,55 @@ function record(target, heading, details) {
     section.append(line);
   });
   target.append(section);
+  return section;
+}
+async function postReview(route, payload, button) {
+  button.disabled = true;
+  try {
+    const session = await getJSON("/api/v1/session");
+    if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
+    const response = await fetch(route, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
+      const errorBody = await response.json().catch(() => null);
+      const code = errorBody && errorBody.error && errorBody.error.code;
+      if (code === "command_outcome_unknown") throw new Error("outcome-unknown");
+      if (response.status === 409) throw new Error("review-conflict");
+      if (response.status === 404) throw new Error("review-not-found");
+      throw new Error("http-" + response.status);
+    }
+    const outcome = await response.json();
+    if (outcome.schema_version !== 1) throw new Error("schema-mismatch");
+    if (route === "/api/v1/reviews/request") {
+      if (outcome.analysis_run_id !== payload.analysis_run_id
+          || !Array.isArray(outcome.evidence_ids)
+          || !outcome.evidence_ids.includes(payload.evidence_id)
+          || !outcome.finding_id) throw new Error("schema-mismatch");
+    } else if (outcome.finding_id !== payload.finding_id
+        || outcome.action !== payload.action
+        || !["open", "acknowledged", "closed"].includes(outcome.status)) {
+      throw new Error("schema-mismatch");
+    }
+    setNotice("사람의 검토 기록이 저장됐습니다. 물리 정비 수행 또는 설비 진단을 뜻하지 않습니다.");
+    await refresh();
+  } catch (error) {
+    const explanation = error.message === "outcome-unknown"
+      ? "명령 응답을 확인하지 못했습니다. 중복 전송하지 말고 기록을 새로 조회하세요."
+      : error.message === "review-conflict"
+      ? "검토 상태가 이미 변경됐습니다. 기록을 새로 조회한 뒤 다시 선택하세요."
+      : error.message === "review-not-found"
+      ? "선택한 분석 근거나 검토 기록이 저장소에 없습니다. 화면을 새로 조회하세요."
+      : error.message === "read-only"
+      ? "감독형 Web 제어 모드에서만 사람의 검토 기록을 변경할 수 있습니다."
+      : presentError(error);
+    setNotice(explanation, true);
+  } finally {
+    button.disabled = false;
+  }
 }
 function evidenceViews() {
   const analyses = rows(monitor, "phase_unbalance_analyses").filter((r) => r.asset_id === selectedAsset);
@@ -117,6 +167,15 @@ function evidenceViews() {
       article.append(p);
       article.append(create("p", null, "평가 표본 " + fmt(m.evaluated_samples) + " · 제외 " + (counts || "없음")));
     });
+    if (reviewWritesAllowed && !reviews.some((item) => item.analysis_run_id === run.analysis_run_id)) {
+      const button = create("button", null, "이 근거에 사람 검토 요청");
+      button.type = "button";
+      button.addEventListener("click", () => postReview("/api/v1/reviews/request", {
+        analysis_run_id: run.analysis_run_id,
+        evidence_id: run.evidence_id,
+      }, button));
+      article.append(button);
+    }
     evidence.append(article);
   });
   attempts.forEach((run) => record(evidence, "미수행 분석 · " + fmt(run.capability_id), [
@@ -124,11 +183,39 @@ function evidenceViews() {
     ["관측 기간 · UTC", utc(run.observed_start_at) + " → " + utc(run.observed_end_at)],
   ]));
   if (!reviews.length) empty(review, "이 설비에 기록된 검토 요청이 없습니다. 검토 없음은 정비 완료를 뜻하지 않습니다.");
-  reviews.forEach((reviewItem) => record(review, "검토 요청 · " + fmt(reviewItem.finding_id), [
-    ["검토 상태", reviewItem.status],
-    ["분석 Run", reviewItem.analysis_run_id],
-    ["근거 ID", (reviewItem.evidence_ids || []).join(", ")],
-  ]));
+  reviews.forEach((reviewItem) => {
+    const article = record(review, "검토 요청 · " + fmt(reviewItem.finding_id), [
+      ["검토 상태", reviewItem.status],
+      ["분석 Run", reviewItem.analysis_run_id],
+      ["근거 ID", (reviewItem.evidence_ids || []).join(", ")],
+    ]);
+    if (!reviewWritesAllowed || reviewItem.status === "closed") return;
+    const form = create("form", "review-form");
+    const label = create("label", null, "검토 메모 (물리 정비 완료 기록 아님)");
+    const field = create("textarea");
+    field.rows = 2; field.maxLength = 1000; field.required = true;
+    label.append(field);
+    const save = create("button", null, "메모 기록");
+    save.type = "submit";
+    form.append(label, save);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (field.value.trim()) postReview("/api/v1/reviews/action", {
+        finding_id: reviewItem.finding_id, action: "note", note: field.value.trim(),
+      }, save);
+    });
+    article.append(form);
+    const next = reviewItem.status === "open" ? "acknowledge" : "close";
+    const button = create("button", null, next === "close" ? "검토 기록 종료" : "확인됨으로 표시");
+    button.type = "button";
+    button.addEventListener("click", () => {
+      if (next === "close" && !window.confirm("검토 기록만 종료합니다. 물리 정비 완료나 정상 상태를 의미하지 않습니다. 계속할까요?")) return;
+      postReview("/api/v1/reviews/action", {
+        finding_id: reviewItem.finding_id, action: next, note: "",
+      }, button);
+    });
+    article.append(button);
+  });
   if (monitor.system_error_scopes && monitor.system_error_scopes.length) {
     setNotice("일부 저장소를 읽지 못했습니다 (" + monitor.system_error_scopes.join(", ") + "). 표시되지 않은 근거가 있을 수 있습니다.", true);
   }
@@ -334,7 +421,16 @@ byId("show-trend").addEventListener("click",() => loadTrend());
 byId("range-select").addEventListener("change",() => loadTrend());
 window.addEventListener("hashchange",setActiveSection);
 setActiveSection();
-refresh();
+async function initializeReviewAccess() {
+  try {
+    const session = await getJSON("/api/v1/session");
+    reviewWritesAllowed = session.write_scope === "supervisor-owned-source-control";
+  } catch (_) {
+    reviewWritesAllowed = false;
+  }
+  await refresh();
+}
+initializeReviewAccess();
 
 async function loadSources() {
   const state = byId("source-status"), list = byId("source-list");

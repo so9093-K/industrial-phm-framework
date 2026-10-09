@@ -11,6 +11,12 @@
 
 ### Added
 
+- 감독형 Operations Web의 실제 저장된 분석 근거 항목에 사람 검토 요청 버튼을 연결하고,
+  Review 영역에서 note/acknowledge/close를 입력하도록 했습니다. 해당 명령은 기존 HTTP
+  Origin/CSRF와 supervisor-owned IPC만 사용하고, read-only preview에서는 쓰기 컨트롤을
+  보여주지 않습니다. 응답 불명 때 자동 재전송하지 않고 조회를 요청하며 종료는 실제 정비 완료
+  또는 설비 진단이 아닙니다.
+
 - Operations Web에 `/api/v1/reviews/request`, `/api/v1/reviews/action`을 추가했습니다.
   첫 요청은 실제 저장된 3상 분석 Run·Evidence ID가 정확히 일치해야 하며 동일 근거 요청은
   기존 finding을 재사용합니다. 검토 기록은 note → acknowledge → close의 기존 사람 검토
