@@ -116,6 +116,41 @@ only a subsequent reviewed and tested implementation may enable supervised Web
 writes. The pilot does not independently start a collector, provide user auth,
 or authorize shared/remote access.
 
+## Explicit supervised Web command pilot (opt-in)
+
+A separate `web-controlled` UI choice is available **only** from the existing
+Operations supervisor:
+
+```bash
+industrial-phm operations start /var/lib/industrial-phm/plant-a --ui web-controlled
+```
+
+The supervisor keeps the lifetime `supervisor.lock` and starts a bounded
+local Unix command server in a private ephemeral directory (0700; socket
+0600). It issues a fresh unpredictable per-generation token only to its
+launched Web child, and checks the caller's Linux peer PID/UID against
+that child process. Browser requests still require exact same-origin
+Host/Origin, Fetch-Site and CSRF evidence. Validated POSTs delegate to the
+supervisor, which serializes the exact existing eight source-action routes
+through the established `OperationsAppActions` facade. The Web HTTP
+child does not independently acquire or bypass the workspace lifetime lease.
+
+A standalone Web preview still runs with its original lease-based POST
+authorization: while another supervisor owns the workspace, GET remains
+available and POST returns `409 workspace_writer_busy`. Explicit supervised
+`--ui web-preview` remains read-only. Default `make up`, `operations
+up`, and unflagged `operations start` continue to launch marimo.
+
+The IPC reply body has a strict size/time bound and never returns raw
+paths, stack traces or credentials. Within one supervisor generation, a
+request ID can replay its stored response without re-executing the action,
+but the bounded in-memory replay map is **not persistent across supervisor
+crashes**. A lost command response is `command_outcome_unknown` and the
+client does not automatically retry it. This is a **local single-user
+Linux engineering pilot**, not an HA, remote, authenticated multi-user or
+fully accepted production Web migration. Review actions, First-run and
+full Operations screen parity remain separate acceptance work.
+
 ## First-run source inventory and workspace FILE registration
 
 The opt-in Web preview now has a first-run/source panel. It uses durable source

@@ -25,10 +25,11 @@ class OperationsComponentKind(StrEnum):
 
 
 class OperationsUiMode(StrEnum):
-    """Local supervisor child choice; Web preview does not own mutations."""
+    """Explicit local UI mode; controlled Web commands are supervisor-owned."""
 
     MARIMO = "marimo"
     WEB_PREVIEW = "web-preview"
+    WEB_CONTROLLED = "web-controlled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,7 @@ class OperationsRuntimePlan:
     @property
     def ui_url(self) -> str:
         url = f"http://{OPERATIONS_UI_HOST}:{self.config.ui.port}"
-        return url + "/web/" if self.ui_mode == OperationsUiMode.WEB_PREVIEW else url
+        return url + "/web/" if self.ui_mode != OperationsUiMode.MARIMO else url
 
 
 def build_operations_runtime_plan(
@@ -145,9 +146,9 @@ def build_operations_runtime_plan(
         )
 
     ui_argv: tuple[str, ...]
-    if ui_mode == OperationsUiMode.WEB_PREVIEW:
-        # The supervisor still owns the workspace lifetime lock. The Web
-        # preview therefore denies all POST mutations while the node runs.
+    if ui_mode in {OperationsUiMode.WEB_PREVIEW, OperationsUiMode.WEB_CONTROLLED}:
+        # Plain web-preview remains read-only under the supervisor's writer lease.
+        # Explicit web-controlled delegates every mutation to the supervisor IPC.
         ui_argv = (
             sys.executable,
             "-m",
@@ -155,7 +156,7 @@ def build_operations_runtime_plan(
             str(workspace.root),
             "--port",
             str(config.ui.port),
-        )
+        ) + (("--supervised-actions",) if ui_mode == OperationsUiMode.WEB_CONTROLLED else ())
     else:
         ui_argv = (
             sys.executable,

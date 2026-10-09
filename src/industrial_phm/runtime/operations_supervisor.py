@@ -15,7 +15,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 try:
     import fcntl
@@ -26,8 +26,12 @@ from industrial_phm.runtime.operations_runtime import (
     OperationsComponentKind,
     OperationsComponentLaunch,
     OperationsRuntimePlan,
+    OperationsUiMode,
 )
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+
+if TYPE_CHECKING:
+    from industrial_phm.runtime.operations_web_command import SupervisorWebCommandBroker
 
 _SUPERVISOR_SCHEMA = "industrial-phm-operations-supervisor-v1"
 
@@ -311,13 +315,29 @@ def run_operations_supervisor(
     )
     effective_now: Callable[[], datetime] = (lambda: datetime.now(UTC)) if now is None else now
 
-    with _supervisor_lock(plan), _supervisor_stop_signal() as signal_stop_requested:
+    with (
+        _supervisor_lock(plan),
+        _supervisor_stop_signal() as signal_stop_requested,
+        _supervisor_web_command_scope(plan) as command_broker,
+    ):
         started_at = effective_now()
         _require_aware(started_at, "started_at")
         children: list[tuple[OperationsComponentLaunch, ManagedOperationsProcess]] = []
         try:
             for launch in plan.components:
-                children.append((launch, effective_launcher(launch)))
+                if command_broker is not None and launch.kind == OperationsComponentKind.UI:
+                    launch = replace(
+                        launch,
+                        env_overrides=(
+                            *launch.env_overrides,
+                            ("INDUSTRIAL_PHM_WEB_COMMAND_SOCKET", command_broker.socket_path),
+                            ("INDUSTRIAL_PHM_WEB_COMMAND_TOKEN", command_broker.token),
+                        ),
+                    )
+                child = effective_launcher(launch)
+                children.append((launch, child))
+                if command_broker is not None and launch.kind == OperationsComponentKind.UI:
+                    command_broker.bind_child(child.pid)
         except OSError as error:
             _stop_children(
                 children,
@@ -424,6 +444,22 @@ def run_operations_supervisor(
                 terminate_timeout_seconds=terminate_timeout_seconds,
             )
             raise
+
+
+@contextmanager
+def _supervisor_web_command_scope(
+    plan: OperationsRuntimePlan,
+) -> Iterator[SupervisorWebCommandBroker | None]:
+    """Keep the Web broker inside the supervisor lifetime writer lease."""
+    if plan.ui_mode == OperationsUiMode.WEB_CONTROLLED:
+        # Import only in explicit controlled mode: eager import cycles through
+        # OperationsAppActions and the public runtime package during startup.
+        from industrial_phm.runtime.operations_web_command import open_supervisor_web_command_broker
+
+        with open_supervisor_web_command_broker(plan.workspace.root) as broker:
+            yield broker
+    else:
+        yield None
 
 
 @contextmanager
