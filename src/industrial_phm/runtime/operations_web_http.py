@@ -23,6 +23,11 @@ from industrial_phm.application import (
 )
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
 from industrial_phm.runtime.operations_live import OperationsReadError
+from industrial_phm.runtime.operations_web_opcua import (
+    browse_local_opcua,
+    diagnose_local_opcua,
+    register_local_opcua,
+)
 from industrial_phm.runtime.operations_web_read import project_operations_monitor
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
@@ -201,7 +206,7 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": "file-registration-source-control-receipt-and-backfill",
+                        "write_scope": "file-registration-source-control-receipt-backfill-and-local-opcua",
                     },
                 )
                 return
@@ -240,6 +245,9 @@ def create_operations_web_read_server(
                 "/api/v1/sources/file",
                 "/api/v1/sources/file/receive",
                 "/api/v1/sources/file/backfill",
+                "/api/v1/sources/opcua/browse",
+                "/api/v1/sources/opcua",
+                "/api/v1/sources/opcua/diagnose",
                 *control_routes,
             }:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
@@ -279,6 +287,12 @@ def create_operations_web_read_server(
                         result = receive_workspace_file_source(root, body)
                     elif self.path == "/api/v1/sources/file/backfill":
                         result = backfill_workspace_file_history(root, body)
+                    elif self.path == "/api/v1/sources/opcua/browse":
+                        result = browse_local_opcua(root, body)
+                    elif self.path == "/api/v1/sources/opcua":
+                        result = register_local_opcua(root, body)
+                    elif self.path == "/api/v1/sources/opcua/diagnose":
+                        result = diagnose_local_opcua(root, body)
                     else:
                         result = change_web_source_control(root, control_routes[self.path], body)
             except SourceAlreadyRegisteredError:
@@ -297,7 +311,11 @@ def create_operations_web_read_server(
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE, "source_state_unavailable")
                 return
             self._send_json(
-                HTTPStatus.CREATED if self.path == "/api/v1/sources/file" else HTTPStatus.OK,
+                (
+                    HTTPStatus.CREATED
+                    if self.path in {"/api/v1/sources/file", "/api/v1/sources/opcua"}
+                    else HTTPStatus.OK
+                ),
                 result,
             )
 

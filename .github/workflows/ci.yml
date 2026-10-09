@@ -263,7 +263,8 @@ jobs:
         run: |
           uv run --locked --extra opcua pytest \
             tests/contract/test_opcua_runtime.py \
-            tests/contract/test_opcua_persistent_runtime.py
+            tests/contract/test_opcua_persistent_runtime.py \
+            tests/integration/test_operations_web_opcua.py
 
       - name: Validate DuckLake history runtime contract
         run: |
