@@ -203,3 +203,26 @@ def test_future_dated_heartbeat_and_receipt_are_not_fresh(tmp_path: Path) -> Non
     assert row["last_live_receive_age_seconds"] is None
     assert row["last_live_receive_fresh"] is False
     assert row["recent_connected_evidence"] is False
+
+
+def test_freshness_cutoffs_are_not_rounded_into_a_false_positive(tmp_path: Path) -> None:
+    from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
+
+    snapshot = _payload(tmp_path)
+    assert isinstance(snapshot, OperationsAppSnapshot)
+    just_over_receive_cutoff = replace(
+        snapshot, assessed_at=_AT + timedelta(seconds=22, milliseconds=500)
+    )
+    row = _source(just_over_receive_cutoff)
+    # Last receipt was eight seconds before _AT: 30.5s is no longer recent.
+    assert row["last_live_receive_age_seconds"] == 30
+    assert row["last_live_receive_fresh"] is False
+    assert row["collection_service_heartbeat_fresh"] is False
+
+    stopped = replace(
+        snapshot,
+        collection_records=(
+            replace(snapshot.collection_records[0], desired_state=CollectionDesiredState.STOPPED),
+        ),
+    )
+    assert _source(stopped)["recent_connected_evidence"] is False

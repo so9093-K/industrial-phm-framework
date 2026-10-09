@@ -64,6 +64,14 @@ def _age_seconds(at: datetime | None, assessed_at: datetime) -> int | None:
     return int(age)
 
 
+def _recent(at: datetime | None, assessed_at: datetime, budget: timedelta) -> bool:
+    """Use full precision at the freshness boundary; do not round age up to fresh."""
+    if at is None:
+        return False
+    age = assessed_at - at
+    return timedelta(0) <= age <= budget
+
+
 def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, object]:
     """Keep desired state, one-shot receipts, live telemetry and stored batches apart."""
     lifecycle = {record.source_id: record for record in snapshot.lifecycle_records}
@@ -71,14 +79,10 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
     requests = {record.source_id: record for record in snapshot.collection_records}
     live = {item.source.source_id: item.source for item in snapshot.acquisition_surfaces}
     service = snapshot.collection_service
-    heartbeat_age = _age_seconds(
-        None if service is None else service.heartbeat_at, snapshot.assessed_at
-    )
     service_fresh = (
         service is not None
         and service.state.value == "running"
-        and heartbeat_age is not None
-        and heartbeat_age <= int(_COLLECTION_HEARTBEAT_TIMEOUT.total_seconds())
+        and _recent(service.heartbeat_at, snapshot.assessed_at, _COLLECTION_HEARTBEAT_TIMEOUT)
     )
     sources: list[dict[str, object]] = []
     for source in snapshot.registered_sources:
@@ -94,6 +98,8 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
         # report recent connection *evidence* from this service generation.
         connected_evidence = (
             service_fresh
+            and request is not None
+            and request.desired_state.value == "running"
             and session is not None
             and session.state.value == "CONNECTED"
             and session.state_changed_at >= service.started_at
@@ -130,9 +136,8 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 # Live callback/receipt evidence is distinct from a one-shot diagnostic.
                 "last_live_received_at": _utc(received_at),
                 "last_live_receive_age_seconds": receive_age,
-                "last_live_receive_fresh": (
-                    receive_age is not None
-                    and receive_age <= int(_LIVE_RECEIVE_TIMEOUT.total_seconds())
+                "last_live_receive_fresh": _recent(
+                    received_at, snapshot.assessed_at, _LIVE_RECEIVE_TIMEOUT
                 ),
                 # Only committed OPC UA spool history is projected here. FILE
                 # backfill is verified separately with history channels/trend.
