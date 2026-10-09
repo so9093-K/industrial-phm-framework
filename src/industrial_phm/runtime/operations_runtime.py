@@ -24,6 +24,13 @@ class OperationsComponentKind(StrEnum):
     UI = "ui"
 
 
+class OperationsUiMode(StrEnum):
+    """Local supervisor child choice; Web preview does not own mutations."""
+
+    MARIMO = "marimo"
+    WEB_PREVIEW = "web-preview"
+
+
 @dataclass(frozen=True, slots=True)
 class OperationsComponentLaunch:
     """One child-process command, environment projection and log destination."""
@@ -63,12 +70,15 @@ class OperationsRuntimePlan:
     workspace: OperationsWorkspace
     config: OperationsRuntimeConfig
     components: tuple[OperationsComponentLaunch, ...]
+    ui_mode: OperationsUiMode = OperationsUiMode.MARIMO
 
     def __post_init__(self) -> None:
         if not isinstance(self.workspace, OperationsWorkspace):
             raise ValueError("workspace must be OperationsWorkspace")
         if not isinstance(self.config, OperationsRuntimeConfig):
             raise ValueError("config must be OperationsRuntimeConfig")
+        if not isinstance(self.ui_mode, OperationsUiMode):
+            raise ValueError("ui_mode must be OperationsUiMode")
         kinds = tuple(component.kind for component in self.components)
         if kinds != tuple(OperationsComponentKind):
             raise ValueError(
@@ -77,14 +87,19 @@ class OperationsRuntimePlan:
 
     @property
     def ui_url(self) -> str:
-        return f"http://{OPERATIONS_UI_HOST}:{self.config.ui.port}"
+        url = f"http://{OPERATIONS_UI_HOST}:{self.config.ui.port}"
+        return url + "/web/" if self.ui_mode == OperationsUiMode.WEB_PREVIEW else url
 
 
 def build_operations_runtime_plan(
     workspace: OperationsWorkspace,
     config: OperationsRuntimeConfig,
+    *,
+    ui_mode: OperationsUiMode = OperationsUiMode.MARIMO,
 ) -> OperationsRuntimePlan:
     """Build the local process set from one authoritative workspace config."""
+    if not isinstance(ui_mode, OperationsUiMode):
+        raise ValueError("unsupported Operations UI mode")
     collection = config.collection
     analysis = config.analysis
 
@@ -129,23 +144,37 @@ def build_operations_runtime_plan(
             )
         )
 
-    ui_argv = (
-        sys.executable,
-        "-m",
-        "marimo",
-        "run",
-        str(operations_app_path()),
-        "--headless",
-        "--no-token",
-        "--host",
-        OPERATIONS_UI_HOST,
-        "--port",
-        str(config.ui.port),
-    )
+    ui_argv: tuple[str, ...]
+    if ui_mode == OperationsUiMode.WEB_PREVIEW:
+        # The supervisor still owns the workspace lifetime lock. The Web
+        # preview therefore denies all POST mutations while the node runs.
+        ui_argv = (
+            sys.executable,
+            "-m",
+            "industrial_phm.runtime.operations_web_preview",
+            str(workspace.root),
+            "--port",
+            str(config.ui.port),
+        )
+    else:
+        ui_argv = (
+            sys.executable,
+            "-m",
+            "marimo",
+            "run",
+            str(operations_app_path()),
+            "--headless",
+            "--no-token",
+            "--host",
+            OPERATIONS_UI_HOST,
+            "--port",
+            str(config.ui.port),
+        )
 
     return OperationsRuntimePlan(
         workspace=workspace,
         config=config,
+        ui_mode=ui_mode,
         components=(
             OperationsComponentLaunch(
                 OperationsComponentKind.COLLECTION,

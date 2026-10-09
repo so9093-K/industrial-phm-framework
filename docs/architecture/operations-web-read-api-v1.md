@@ -89,6 +89,33 @@ complete OPC UA setup/diagnostics, URL/deep-linked evidence screens,
 locale switching, accessibility audit, independent supervision, and
 full operational lifecycle/browser acceptance remain in [Issue #449](https://github.com/so9093-K/industrial-phm-framework/issues/449).
 
+## Supervised Web preview pilot (read-only, opt-in)
+
+The **default** `make up`, `operations up`, and `operations start` still
+launch the packaged marimo Operations UI. For local engineering acceptance only,
+an initialized workspace can opt into the existing Web static client under the
+same collection/analysis/UI supervisor:
+
+```bash
+industrial-phm operations init /var/lib/industrial-phm/plant-a
+industrial-phm operations start /var/lib/industrial-phm/plant-a --ui web-preview
+```
+
+The printed `operations_url` ends with `/web/`. The Web preview becomes the
+supervised UI **process** (loopback, readiness, stop order, log target), but the
+normal supervisor owns the lifetime `supervisor.lock` and all Web POST
+mutations **continue to return 409 `workspace_writer_busy`**. This is a
+strictly **read-only pilot**, not a usable replacement for registration or
+review editing. The unchanged default marimo path remains the writer
+through the old UI. Never bypass this boundary by disabling the lock or using
+an environment variable as write authorization.
+
+The supervisor-owned mutation command bridge is tracked in
+[Issue #465](https://github.com/so9093-K/industrial-phm-framework/issues/465);
+only a subsequent reviewed and tested implementation may enable supervised Web
+writes. The pilot does not independently start a collector, provide user auth,
+or authorize shared/remote access.
+
 ## First-run source inventory and workspace FILE registration
 
 The opt-in Web preview now has a first-run/source panel. It uses durable source

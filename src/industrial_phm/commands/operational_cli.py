@@ -69,6 +69,12 @@ def _add_operations_commands(
         type=Path,
         help="initialized local Operations workspace root",
     )
+    start.add_argument(
+        "--ui",
+        choices=("marimo", "web-preview"),
+        default="marimo",
+        help="supervised UI child (web-preview is read-only while supervisor owns workspace)",
+    )
     start.set_defaults(handler=_run_operations_start)
 
     status = commands.add_parser(
