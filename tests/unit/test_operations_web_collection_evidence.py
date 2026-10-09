@@ -130,7 +130,7 @@ def test_web_distinguishes_requested_running_live_events_and_history(tmp_path: P
     assert row["collection_service_heartbeat_fresh"] is True
     assert row["opcua_session_last_state"] == "CONNECTED"
     assert row["recent_connected_evidence"] is True
-    assert row["last_live_received_at"] == (_AT - timedelta(seconds=8)).isoformat()
+    assert row["last_live_received_at"] == "2026-10-09T03:59:52Z"
     assert row["last_live_receive_age_seconds"] == 8
     assert row["last_live_receive_fresh"] is True
     assert row["last_live_history_snapshot_id"] == 7
