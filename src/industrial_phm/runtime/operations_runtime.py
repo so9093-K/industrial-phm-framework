@@ -144,6 +144,7 @@ def build_operations_runtime_plan(
             )
         )
 
+    ui_argv: tuple[str, ...]
     if ui_mode == OperationsUiMode.WEB_PREVIEW:
         # The supervisor still owns the workspace lifetime lock. The Web
         # preview therefore denies all POST mutations while the node runs.
