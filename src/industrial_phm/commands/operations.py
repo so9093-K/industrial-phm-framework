@@ -89,7 +89,9 @@ def _run_operations_up(args: argparse.Namespace) -> int:
         else "existing"
     )
     print(f"workspace={workspace.root} state={state}", flush=True)
-    return _start_operations_workspace(workspace, initialization.config)
+    return _start_operations_workspace(
+        workspace, initialization.config, ui_mode=OperationsUiMode(args.ui)
+    )
 
 
 def _print_unrecognized_workspace_guidance(workspace: OperationsWorkspace) -> None:
@@ -179,7 +181,7 @@ def _start_operations_workspace(
     workspace: OperationsWorkspace,
     config: OperationsRuntimeConfig | None = None,
     *,
-    ui_mode: OperationsUiMode = OperationsUiMode.MARIMO,
+    ui_mode: OperationsUiMode = OperationsUiMode.WEB_CONTROLLED,
 ) -> int:
     try:
         effective_config = (
@@ -193,15 +195,17 @@ def _start_operations_workspace(
         if ui_mode == OperationsUiMode.WEB_PREVIEW:
             print(
                 "ui=web-preview writes=blocked supervisor_owned=yes "
-                "(read-only pilot; default make up remains marimo)",
+                "(read-only diagnostics; writing blocked)",
                 flush=True,
             )
         elif ui_mode == OperationsUiMode.WEB_CONTROLLED:
             print(
                 "ui=web-controlled writes=supervisor-command-broker "
-                "(opt-in pilot; default make up remains marimo)",
+                "(default local single-user pilot; use --ui marimo to revert)",
                 flush=True,
             )
+        elif ui_mode == OperationsUiMode.MARIMO:
+            print("ui=marimo legacy-local-fallback (no simultaneous Web writer)", flush=True)
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)
