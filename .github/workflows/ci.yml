@@ -70,87 +70,111 @@ jobs:
           for path in changed:
               print(f"  {path}")
 
-          def any_path(*prefixes: str) -> bool:
-              return any(path.startswith(prefixes) for path in changed)
+          def classify_changed_paths(changed: tuple[str, ...]) -> dict[str, bool]:
+              def any_path(*prefixes: str) -> bool:
+                  return any(path.startswith(prefixes) for path in changed)
 
-          def any_exact(*names: str) -> bool:
-              return any(path in names for path in changed)
+              def any_exact(*names: str) -> bool:
+                  return any(path in names for path in changed)
 
-          def documentation_only(path: str) -> bool:
-              if path == "LICENSE" or path.endswith(".md"):
-                  return True
-              return path.startswith("docs/") and path.endswith((".md", ".rst", ".txt"))
+              def documentation_only(path: str) -> bool:
+                  if path.endswith(".md"):
+                      return True
+                  return path.startswith("docs/") and path.endswith((".md", ".rst", ".txt"))
 
-          docs_only = bool(changed) and all(documentation_only(path) for path in changed)
-          force_all = any_path(".github/workflows/") or any_exact("pyproject.toml", "uv.lock")
+              docs_only = bool(changed) and all(documentation_only(path) for path in changed)
+              force_all = any_path(".github/workflows/") or any_exact("pyproject.toml", "uv.lock")
 
-          runtime = force_all or any_path(
-              # Operations CLI entry points change runtime lifecycle and must run
-              # the runtime integration gates even when runtime/ is untouched.
-              "src/industrial_phm/cli.py",
-              "src/industrial_phm/commands/",
-              "src/industrial_phm/runtime/",
-              "src/industrial_phm/connectors/",
-              "src/industrial_phm/history/",
-              "src/industrial_phm/application/",
-              "tests/contract/test_opcua",
-              "tests/contract/test_ducklake",
-              "tests/contract/test_spool",
-              "tests/contract/test_window_",
-              "tests/contract/test_live_",
-              "tests/integration/test_acquisition_",
-              "tests/integration/test_aihub_",
-              "tests/integration/test_phase_unbalance_history.py",
-              "tests/support/aihub.py",
-              "src/industrial_phm/adapters/aihub_",
-              "src/industrial_phm/demo/aihub_",
-              "tools/aihub/",
-              "tools/opcua/",
-          )
-          operations = force_all or any_path(
-              # CLI changes can alter the product front door without touching UI code.
-              "src/industrial_phm/cli.py",
-              "src/industrial_phm/commands/",
-              "src/industrial_phm/apps/",
-              "src/industrial_phm/presentation/",
-              "src/industrial_phm/runtime/",
-              "src/industrial_phm/application/",
-              "tests/acceptance/",
-              "tests/support/",
-              "tests/integration/test_operations",
-              "tests/unit/test_operations",
-          ) or any_exact("Makefile")
-          research = force_all or any_path(
-              "notebooks/",
-              "apps/",
-              "src/industrial_phm/adapters/",
-              "src/industrial_phm/contracts/",
-              "src/industrial_phm/experiments/",
-              "src/industrial_phm/features/",
-              "src/industrial_phm/genai/",
-              "src/industrial_phm/models/",
-              "tests/contract/test_deep_learning",
-              "tests/contract/test_lstm_",
-              "tests/contract/test_xjtu_",
-              "tests/contract/test_ims_",
-              "tests/contract/test_mimii_",
-              "tests/unit/test_xjtu_",
-              "tests/unit/test_ims_",
-              "tests/unit/test_mimii_",
-          )
-          package = force_all or any_path("src/") or any_exact(
-              "pyproject.toml",
-              "uv.lock",
-              "LICENSE",
-          )
+              runtime = force_all or any_path(
+                  # Operations CLI entry points change runtime lifecycle and must run
+                  # the runtime integration gates even when runtime/ is untouched.
+                  "src/industrial_phm/cli.py",
+                  "src/industrial_phm/commands/",
+                  "src/industrial_phm/runtime/",
+                  "src/industrial_phm/connectors/",
+                  "src/industrial_phm/history/",
+                  "src/industrial_phm/application/",
+                  "tests/contract/test_opcua",
+                  "tests/contract/test_ducklake",
+                  "tests/contract/test_spool",
+                  "tests/contract/test_window_",
+                  "tests/contract/test_live_",
+                  "tests/integration/test_acquisition_",
+                  "tests/integration/test_aihub_",
+                  "tests/integration/test_phase_unbalance_history.py",
+                  "tests/support/aihub.py",
+                  "src/industrial_phm/adapters/aihub_",
+                  "src/industrial_phm/demo/aihub_",
+                  "tools/aihub/",
+                  "tools/opcua/",
+              )
+              operations = force_all or any_path(
+                  # CLI changes can alter the product front door without touching UI code.
+                  "src/industrial_phm/cli.py",
+                  "src/industrial_phm/commands/",
+                  "src/industrial_phm/apps/",
+                  "src/industrial_phm/presentation/",
+                  "src/industrial_phm/runtime/",
+                  "src/industrial_phm/application/",
+                  "tests/acceptance/",
+                  "tests/support/",
+                  "tests/integration/test_operations",
+                  "tests/unit/test_operations",
+              ) or any_path("tools/operations_") or any_exact("Makefile")
+              research = force_all or any_path(
+                  "notebooks/",
+                  "apps/",
+                  "src/industrial_phm/adapters/",
+                  "src/industrial_phm/contracts/",
+                  "src/industrial_phm/experiments/",
+                  "src/industrial_phm/features/",
+                  "src/industrial_phm/genai/",
+                  "src/industrial_phm/models/",
+                  "tests/contract/test_deep_learning",
+                  "tests/contract/test_lstm_",
+                  "tests/contract/test_xjtu_",
+                  "tests/contract/test_ims_",
+                  "tests/contract/test_mimii_",
+                  "tests/unit/test_xjtu_",
+                  "tests/unit/test_ims_",
+                  "tests/unit/test_mimii_",
+              )
+              package = force_all or any_path(
+                  "src/", "deploy/systemd/", "tools/operations_"
+              ) or any_exact(
+                  "pyproject.toml",
+                  "uv.lock",
+                  "LICENSE",
+              )
 
-          values = {
-              "docs_only": docs_only,
-              "runtime": runtime and not docs_only,
-              "operations": operations and not docs_only,
-              "research": research and not docs_only,
-              "package": package and not docs_only,
+              values = {
+                  "docs_only": docs_only,
+                  "runtime": runtime and not docs_only,
+                  "operations": operations and not docs_only,
+                  "research": research and not docs_only,
+                  "package": package and not docs_only,
+              }
+              return values
+
+          # Regression-check the classifier using real deployment and UI-only paths.
+          # A skipped required domain must not silently become a green cutover.
+          cases = {
+              "LICENSE": {"docs_only": False, "package": True},
+              "docs/architecture/overview.md": {"docs_only": True, "package": False},
+              "deploy/systemd/industrial-phm-operations.service.example": {"package": True},
+              "tools/operations_systemd_smoke.py": {"operations": True, "package": True},
+              "tools/operations_wheel_smoke.py": {"operations": True, "package": True},
+              "tools/operations_wheel_rollback.py": {"operations": True, "package": True},
+              "src/industrial_phm/cli.py": {"runtime": True, "operations": True, "package": True},
+              "src/industrial_phm/apps/web/app.js": {"operations": True, "package": True},
+              ".github/workflows/ci.yml": {"runtime": True, "operations": True, "research": True, "package": True},
           }
+          for path, expected in cases.items():
+              actual = classify_changed_paths((path,))
+              for domain, required in expected.items():
+                  assert actual[domain] is required, (path, domain, actual)
+
+          values = classify_changed_paths(changed)
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               for name, value in values.items():
                   output.write(f"{name}={'true' if value else 'false'}\n")
