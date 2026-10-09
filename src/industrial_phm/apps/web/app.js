@@ -355,6 +355,23 @@ async function selectAsset() {
   trendState("설비의 저장된 신호 목록을 확인합니다.");
   if (selectedAsset) await loadChannels(selectedAsset, generation);
 }
+function systemViews(snapshot) {
+  const status = byId("system-status");
+  const details = byId("system-facts");
+  clear(details);
+  const scopes = Array.isArray(snapshot.system_error_scopes) ? snapshot.system_error_scopes : [];
+  status.className = scopes.length ? "state error" : "state";
+  status.textContent = scopes.length
+    ? "일부 저장소 조회 범위에 오류가 있습니다. 표시되지 않은 관측·분석·검토 근거가 있을 수 있습니다."
+    : "이번 조회에서 저장소 오류 범위가 보고되지 않았습니다. 수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다.";
+  details.append(
+    withText("조회 평가 시각 · UTC", utc(snapshot.assessed_at)),
+    withText("조회된 설비 수", snapshot.assets && snapshot.assets.total),
+    withText("조회된 분석 기록 수", snapshot.phase_unbalance_analyses && snapshot.phase_unbalance_analyses.total),
+    withText("조회된 검토 요청 수", snapshot.review_requests && snapshot.review_requests.total),
+  );
+  if (scopes.length) details.append(withText("확인되지 않은 저장소 범위", scopes.join(", ")));
+}
 async function refresh() {
   const token = ++generation;
   trendSequence += 1;
@@ -369,6 +386,7 @@ async function refresh() {
     const data = await getJSON("/api/v1/monitor");
     if (token !== generation) return;
     monitor = data;
+    systemViews(data);
     byId("asset-count").textContent = fmt(data.assets && data.assets.total);
     byId("analysis-count").textContent = fmt(data.phase_unbalance_analyses && data.phase_unbalance_analyses.total);
     byId("review-count").textContent = fmt(data.review_requests && data.review_requests.total);
@@ -406,6 +424,9 @@ async function refresh() {
   } catch (error) {
     if (token !== generation) return;
     monitor = null;setNotice(presentError(error),true);
+    byId("system-status").className = "state error";
+    byId("system-status").textContent = "시스템 조회 실패 · 정상 상태로 판단할 수 없습니다.";
+    clear(byId("system-facts"));
     for (const id of ["asset-facts","evidence-results","review-results"]) empty(byId(id),"조회 실패 · 이전 데이터를 현재 상태로 표시하지 않습니다.");
     for (const id of ["asset-count","analysis-count","review-count","assessed-at"]) byId(id).textContent = "—";
     clear(byId("asset-select"));byId("asset-select").disabled = true;selectedAsset = "";selectedChannels = [];
