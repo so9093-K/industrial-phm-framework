@@ -59,6 +59,34 @@ systemd documents `Restart=on-failure` as the recommended restart mode for long-
 forced kill for the remaining service processes. These semantics match the Operations supervisor's
 ownership boundary.
 
+## Real systemd lifecycle acceptance
+
+On Linux GitHub Actions, the `systemd Operations service` CI job builds and
+**installs** the Operations wheel in an isolated virtual environment, renders
+the exact reference unit `deploy/systemd/industrial-phm-operations.service.example`
+with the CI service user's account and temporary workspace, then installs
+that temporary unit into `/run/systemd/system`. It explicitly requires a
+running systemd service manager; it must **fail**, not silently skip, if the
+runner cannot execute real `systemctl` operations.
+
+The gate checks `systemd-analyze verify`, `ExecStartPre` and first start
+of the opt-in `--ui web-controlled` supervisor; rejects cross-site/invalid
+CSRF source registration while persisting a valid FILE source. It then checks
+a manual systemd restart, persistence of the source registration, kills the
+actual supervised Web UI child to force supervisor non-zero exit, and waits
+for `Restart=on-failure` to create a **different** supervisor PID. The saved
+source identity must still be readable after recovery. Finally a
+`systemctl stop` must leave the service inactive for longer than the
+unit's `RestartSec`, with no unexpected restart. The script always attempts
+to stop the temporary unit and removes it from `/run`.
+
+The CI gate tests a genuine systemd service on the GitHub Ubuntu runner.
+It does **not** install a permanent production service, certify all Linux
+distributions, prove host reboot persistence, or grant an authenticated
+remote/multi-user UI. The reference unit still launches marimo by default;
+the opt-in Web mode is added **only to the rendered test copy**, not to the
+reference file or normal `make up` default.
+
 ## Filesystem and permissions
 
 The reference deployment uses:
