@@ -18,6 +18,7 @@ from industrial_phm.runtime.operations_web_review import (
     record_web_review_action,
     request_web_analysis_review,
 )
+from industrial_phm.runtime.operations_web_sample import execute_web_sample_action
 from industrial_phm.runtime.operations_web_setup import (
     backfill_workspace_file_history,
     change_web_source_control,
@@ -37,6 +38,19 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/sources/opcua/diagnose",
         "/api/v1/reviews/request",
         "/api/v1/reviews/action",
+        "/api/v1/demo/synthetic/start",
+        "/api/v1/demo/synthetic/stop",
+        "/api/v1/demo/synthetic/status",
+    }
+)
+
+# These may spawn or stop an entire process tree. The standalone Web
+# preview must never acquire this capability through its local writer path.
+WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
+    {
+        "/api/v1/demo/synthetic/start",
+        "/api/v1/demo/synthetic/stop",
+        "/api/v1/demo/synthetic/status",
     }
 )
 
@@ -47,6 +61,8 @@ def execute_web_source_action(
     """Dispatch an explicitly authorized command through existing action facades."""
     if route not in WEB_SOURCE_ACTION_ROUTES:
         raise ValueError("unknown Web source action")
+    if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
+        return execute_web_sample_action(root, route, payload)
     if route == "/api/v1/sources/file":
         return register_workspace_csv_source(root, payload)
     if route == "/api/v1/sources/file/receive":
