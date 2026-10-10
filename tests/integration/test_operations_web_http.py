@@ -264,8 +264,11 @@ def test_standalone_web_never_controls_synthetic_processes(tmp_path: Path) -> No
             "/api/v1/demo/synthetic/status",
         ):
             status, _, payload = _request(
-                port, "POST", route,
-                origin=f"http://127.0.0.1:{port}", site="same-origin",
+                port,
+                "POST",
+                route,
+                origin=f"http://127.0.0.1:{port}",
+                site="same-origin",
             )
             assert status == 403
             assert payload == {"error": {"code": "supervisor_required"}}
