@@ -17,7 +17,9 @@ from industrial_phm.runtime.operations_sample import (
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
-def execute_web_sample_action(root: Path, route: str, payload: dict[str, object]) -> dict[str, object]:
+def execute_web_sample_action(
+    root: Path, route: str, payload: dict[str, object]
+) -> dict[str, object]:
     """Run only fixed, empty-payload sample actions in the supervisor process."""
     if payload:
         raise ValueError("synthetic sample actions do not accept user-supplied paths or ports")
