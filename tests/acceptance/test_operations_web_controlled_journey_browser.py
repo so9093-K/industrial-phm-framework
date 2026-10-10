@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import socket
 import subprocess
 import sys
@@ -311,3 +312,195 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
     assert len(repository.list_events()) == 3
+
+
+def test_supervised_web_serializes_separate_http_processes_and_recovers(tmp_path: Path) -> None:
+    """Real HTTP subprocesses must share one supervisor writer, even across restart."""
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+
+    workspace = OperationsWorkspace(tmp_path / "web")
+    init = initialize_operations_workspace(workspace)
+    port = _port()
+    write_operations_runtime_config(
+        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+    )
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    (inputs / "phase.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        "2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n"
+        "2026-10-01T00:00:01+00:00,220.7,219.2,221.1\n",
+        encoding="utf-8",
+    )
+    registration = {
+        "source_id": "race-file",
+        "name": "Concurrent FILE",
+        "asset_id": "motor-01",
+        "measurement_point_id": "panel",
+        "file_path": "inputs/phase.csv",
+        "channel_columns": ["phase-R", "phase-S", "phase-T"],
+        "timestamp_column": "timestamp",
+    }
+
+    def request(
+        method: str, path: str, *, token: str = "", payload: dict[str, object] | None = None,
+        origin: str | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=10)
+        headers = {"Host": f"127.0.0.1:{port}"}
+        body = None
+        if payload is not None:
+            body = json.dumps(payload)
+            headers.update(
+                {
+                    "Content-Type": "application/json",
+                    "Origin": origin if origin is not None else f"http://127.0.0.1:{port}",
+                    "Sec-Fetch-Site": "same-origin",
+                    "X-CSRF-Token": token,
+                }
+            )
+        try:
+            connection.request(method, path, body=body, headers=headers)
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+
+    # Python's independent HTTP clients do not have the supervisor's IPC token
+    # or PID. Only the authenticated Web child may forward their browser requests.
+    client_code = """
+import json
+import sys
+import time
+from http.client import HTTPConnection
+from pathlib import Path
+
+port, token, client_id, ready_dir, release, payload = sys.argv[1:]
+Path(ready_dir, client_id).touch()
+deadline = time.monotonic() + 25
+while not Path(release).exists():
+    if time.monotonic() > deadline:
+        raise TimeoutError("HTTP client release gate was not opened")
+    time.sleep(0.01)
+connection = HTTPConnection("127.0.0.1", int(port), timeout=15)
+try:
+    connection.request(
+        "POST", "/api/v1/sources/file", body=payload,
+        headers={
+            "Host": f"127.0.0.1:{port}",
+            "Origin": f"http://127.0.0.1:{port}",
+            "Sec-Fetch-Site": "same-origin",
+            "X-CSRF-Token": token,
+            "Content-Type": "application/json",
+        },
+    )
+    response = connection.getresponse()
+    print(json.dumps({"status": response.status, "body": json.loads(response.read())}))
+finally:
+    connection.close()
+"""
+    log = tmp_path / "supervisor.log"
+    processes: list[subprocess.Popen[bytes]] = []
+    proc = _start(workspace.root, port, log)
+    try:
+        status, session = request("GET", "/api/v1/session")
+        assert status == 200
+        assert session["write_scope"] == "supervisor-owned-source-control"
+        token = session["csrf_token"]
+        assert isinstance(token, str)
+
+        # Different OS processes race through real HTTP -> Web child -> PID-bound
+        # IPC -> one durable source repository. A thread-only broker test cannot
+        # detect failures in this public request boundary.
+        ready_dir = tmp_path / "ready"
+        ready_dir.mkdir()
+        release = tmp_path / "release"
+        for index in range(6):
+            processes.append(
+                subprocess.Popen(
+                    [
+                        sys.executable, "-c", client_code, str(port), token,
+                        str(index), str(ready_dir), str(release),
+                        json.dumps(registration),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            )
+        deadline = time.monotonic() + 25
+        while len(list(ready_dir.iterdir())) != len(processes):
+            if any(child.poll() is not None for child in processes):
+                pytest.fail("an HTTP client exited before the release gate")
+            if time.monotonic() > deadline:
+                pytest.fail("separate HTTP clients did not reach the release gate")
+            time.sleep(0.02)
+        release.touch()
+        results = []
+        for child in processes:
+            stdout, stderr = child.communicate(timeout=30)
+            assert child.returncode == 0, stderr.decode(errors="replace")
+            results.append(json.loads(stdout))
+        assert sorted(item["status"] for item in results) == [201, 409, 409, 409, 409, 409]
+        assert all(
+            item["body"]["error"]["code"] == "source_id_exists"
+            for item in results if item["status"] == 409
+        )
+        assert JsonSourceRepository(workspace.source_registry_path).get("race-file")
+        assert not workspace.history_catalog_path.exists()
+        status, sources = request("GET", "/api/v1/sources")
+        assert status == 200
+        assert sources["sources"]["total"] == 1
+        assert sources["sources"]["items"][0]["receipt_confirmed"] is False
+
+        # Neither a forged origin nor a missing/incorrect CSRF token may cause
+        # another mutation, even though both requests reach a live HTTP listener.
+        for bad_token, bad_origin in (
+            ("invalid", None),
+            (token, "https://untrusted.example"),
+        ):
+            status, error = request(
+                "POST", "/api/v1/sources/file",
+                token=bad_token, payload={**registration, "source_id": "unauthorized"},
+                origin=bad_origin,
+            )
+            assert status == 403, error
+        assert JsonSourceRepository(workspace.source_registry_path).get("race-file")
+    finally:
+        for child in processes:
+            if child.poll() is None:
+                child.kill()
+                child.communicate(timeout=10)
+        _stop(proc, workspace.root)
+
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
+    assert JsonSourceRepository(workspace.source_registry_path).get("race-file")
+
+    # A restarted supervisor must preserve committed data, but its Web CSRF
+    # capability is new. Replay of an old mutation is not durable exactly-once.
+    proc = _start(workspace.root, port, log)
+    try:
+        status, new_session = request("GET", "/api/v1/session")
+        assert status == 200
+        new_token = new_session["csrf_token"]
+        assert isinstance(new_token, str) and new_token != token
+        status, error = request(
+            "POST", "/api/v1/sources/file", token=token,
+            payload={**registration, "source_id": "stale-session"},
+        )
+        assert status == 403, error
+        status, duplicate = request(
+            "POST", "/api/v1/sources/file", token=new_token, payload=registration,
+        )
+        assert status == 409
+        assert duplicate["error"]["code"] == "source_id_exists"
+        status, sources = request("GET", "/api/v1/sources")
+        assert status == 200
+        assert sources["sources"]["total"] == 1
+        assert sources["sources"]["items"][0]["receipt_confirmed"] is False
+        assert not workspace.history_catalog_path.exists()
+    finally:
+        _stop(proc, workspace.root)
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
