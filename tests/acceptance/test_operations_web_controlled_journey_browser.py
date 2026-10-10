@@ -278,7 +278,22 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
                 )
                 pw.expect(page.locator("#last-values")).to_contain_text("220.7", timeout=30000)
-                pw.expect(page.locator("#onboarding-monitor-link")).to_be_visible()
+                handoff = page.locator("#onboarding-monitor-link")
+                pw.expect(handoff).to_be_visible()
+                # Losing the real source GET must revoke a prior ready state,
+                # without claiming the stored measurements or review disappeared.
+                page.route("**/api/v1/sources", lambda route: route.abort("failed"))
+                page.get_by_role("button", name="데이터 다시 불러오기").click()
+                pw.expect(page.locator("#onboarding-next")).to_contain_text(
+                    "준비 여부를 확인할 수 없습니다"
+                )
+                pw.expect(handoff).to_be_hidden()
+                page.unroute("**/api/v1/sources")
+                page.get_by_role("button", name="데이터 다시 불러오기").click()
+                pw.expect(handoff).to_be_visible()
+                pw.expect(page.locator("#onboarding-steps")).to_contain_text(
+                    "active와 수신을 모두 확인한 소스 1개"
+                )
                 pw.expect(
                     page.get_by_role("button", name="이 근거에 사람 검토 요청")
                 ).to_have_count(0)
