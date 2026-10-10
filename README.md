@@ -29,10 +29,9 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
 터미널에 출력되는 `operations_url`(`http://127.0.0.1:<port>/web/`)을 브라우저에서 엽니다.
-현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 격리된 샘플 체험/Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더는 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
+현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더는 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
 빈 작업공간의 Web 파일럿은 FILE CSV 또는 로컬 OPC UA 소스 등록을 안내합니다. 소스 등록·ACTIVE·검증 수신·DuckLake 이력 저장·분석 근거는 별개의 사실이므로 각 단계의 근거를 확인해야 합니다.
-기존 marimo의 **격리 synthetic 샘플 시작·종료 및 전체 guided Setup**은 아직 새 Web UI에서 제공하지 않으며,
-현재 바로 사용하려면 `make up UI=marimo`를 선택하세요. 기존 소스가 있는 workspace는 새 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
+기본 Web 첫 실행의 **격리 synthetic 샘플 시작·종료** 버튼으로 기존 synthetic OPC UA 데모를 실제 workspace와 분리된 로컬 작업공간·포트에서 실행할 수 있습니다. 샘플은 **별도의 기존 데모 앱 창**에서 열리며, 종료해도 전용 샘플 폴더를 자동 삭제하지 않습니다. Web에서 전체 guided Setup이나 나머지 업무 여정이 필요하면 기능 범위를 확인하고 `make up UI=marimo`로 전환하세요. 기존 소스가 있는 workspace는 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
 
 ```bash
 make status
@@ -57,7 +56,7 @@ make down WORKSPACE=/var/lib/industrial-phm/plant-a
 ```
 
 외부 데이터가 없어 실행 흐름을 확인할 때는 별도 synthetic workspace를 쓰는 `make demo`를 활용할 수 있습니다.
-새 Web의 기본 first-run UI에서 자동으로 demo를 시작한다고 주장하지 않습니다.
+기본 Web은 사용자가 **격리 샘플 시작**을 명시적으로 누를 때만 데모 프로세스를 생성하며, 자동으로 시작하지 않습니다.
 
 직접 CLI, UI-only 실행, replay, backup/restore, deployment, 연구 앱 실행은
 [Applications 문서](apps/README.md)와 각 개발·운영 문서에서 다룹니다.
@@ -90,13 +89,11 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 - **System** — 수집·저장·분석 runtime과 state-read 상태
 - **Setup** — FILE/OPC UA 연결, signal mapping, measurement meaning과 collection intent
 
-아래 전체 guided Setup과 샘플 체험은 **기존 marimo UI에서 검증한 기능**입니다. 기본 Web 파일럿은
-현재 FILE/OPC UA 등록·수신 및 일부 조회/검토 경로만 지원하고, 해당 업무의 완전한 이전은 진행 중입니다. source 등록, Enable/Pause, OPC UA collection
+아래 전체 guided Setup은 **기존 marimo UI에서 검증한 기능**입니다. 기본 Web은 별도 기존 데모 앱으로 여는 synthetic 샘플의 시작·종료 및 FILE/OPC UA 등록·수신, 일부 조회/검토를 지원하지만, 나머지 업무의 완전한 이전은 진행 중입니다. source 등록, Enable/Pause, OPC UA collection
 요청은 각각 별도 의미를 유지하며 UI가 사용자의 판단 없이 자동 실행하지 않습니다. source가 준비된
 workspace는 Monitor를 기본 진입점으로 사용합니다.
 
-기존 marimo의 Synthetic 체험은 first-run 화면에서 real workspace와 분리된 demo workspace로 실행하며, `make demo`는
-직접 실행 shortcut으로 남습니다.
+새 Web에서도 사용자가 첫 실행에서 격리 synthetic 체험을 시작·종료할 수 있으며, 샘플 자체는 별도의 기존 데모 앱으로 열립니다. `make demo`는 직접 실행 shortcut으로 유지됩니다.
 
 **기존 marimo Operations**는 한국어(`ko-KR`)와 영어(`en-US`)의 locale-aware presentation 기반을 사용합니다.
 현재 기본 Web은 한국어 중심 파일럿이며 영어 근거 참고문만 제공합니다. 전체 영어 UI는 아직 미완료입니다. 화면 언어를 바꿔도 `source_id`, `asset_id`, `channel_id`,
