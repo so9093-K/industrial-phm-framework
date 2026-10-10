@@ -58,6 +58,18 @@
         <p class="hint">등록만으로 데이터가 수신되지 않습니다. 수집 실행은 기존 Operations 명령 또는 운영 화면에서 별도로 수행합니다.</p>
         <a href="#connect">데이터 소스 확인 및 CSV 등록하기</a>
         <a id="onboarding-monitor-link" class="hidden" href="#monitor">수신 근거 확인됨 · 관측·이력 별도 조회</a>
+        <div id="first-run-sample" class="sample-panel" aria-labelledby="sample-title">
+          <h3 id="sample-title">실제 작업공간과 분리된 synthetic 체험</h3>
+          <p class="hint">가상 3상 모터·로컬 OPC UA를 별도의 샘플 작업공간과 포트에서 시작합니다. 현재 작업공간에 샘플 소스·측정값을 등록하지 않습니다. 샘플은 별도의 기존 데모 화면에서 열립니다.</p>
+          <p id="sample-status" role="status" aria-live="polite">감독형 Web의 데모 실행 상태를 확인하는 중입니다.</p>
+          <div class="sample-actions">
+            <button id="sample-start" type="button" disabled>격리 샘플 시작</button>
+            <button id="sample-stop" type="button" disabled>격리 샘플 종료</button>
+            <button id="sample-refresh" type="button">샘플 상태 다시 확인</button>
+            <a id="sample-open" class="hidden" target="_blank" rel="noopener noreferrer">별도 샘플 화면 열기</a>
+          </div>
+          <p class="hint">실제 설비 연결·고장 진단·안전 판정이 아닙니다. 샘플은 현재 Web의 Supervisor가 살아 있는 동안만 실행되며, 종료해도 별도 샘플 작업공간은 자동 삭제하지 않습니다.</p>
+        </div>
       </section>
       <section class="kpis" id="monitor" aria-label="관측 요약">
         <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>

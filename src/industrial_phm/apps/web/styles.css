@@ -64,3 +64,12 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .onboarding-steps li{padding-left:2px;overflow-wrap:anywhere}
 #onboarding-next{font-weight:620;color:#254c62}
 #onboarding-monitor-link{margin-left:14px}
+
+/* Explicit, supervisor-owned synthetic demo; never confuse it with real data. */
+.sample-panel{border:1px solid #c6d9df;border-radius:10px;background:#f8fafb;padding:13px 16px;margin-top:16px}
+.sample-panel h3{margin:0 0 8px;font-size:.95rem}
+.sample-panel #sample-status{font-size:.83rem;line-height:1.5;color:#284d5f}
+.sample-panel #sample-status.error{color:#9b3333}
+.sample-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.sample-actions button{font-size:.81rem}
+.sample-actions a{font-size:.83rem;font-weight:650;overflow-wrap:anywhere}

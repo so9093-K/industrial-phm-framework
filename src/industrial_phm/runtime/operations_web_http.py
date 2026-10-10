@@ -25,6 +25,7 @@ from industrial_phm.runtime.operations_app_composition import load_operations_ap
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
+    WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
 from industrial_phm.runtime.operations_web_command import (
@@ -248,6 +249,9 @@ def create_operations_web_read_server(
                 return
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
+                return
+            if self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES and command_client is None:
+                self._error(HTTPStatus.FORBIDDEN, "supervisor_required")
                 return
             host = self.headers.get("Host", "")
             # Mutations require a complete same-origin browser request and

@@ -247,3 +247,65 @@ def test_command_replay_cache_reaches_bounded_capacity_without_eviction(
         with pytest.raises(command.WebCommandRejected, match="command_request_conflict"):
             client.execute(route, second, request_id="a" * 32)
     assert calls == [first, second]
+
+
+def test_real_supervisor_ipc_allows_only_bound_child_to_control_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
+    from industrial_phm.runtime import operations_sample as sample
+    from industrial_phm.runtime import operations_web_sample as sample_web
+
+    workspace = OperationsWorkspace(tmp_path / "operations")
+    initialize_operations_workspace(workspace)
+
+    class FakeProcess:
+        pid = 9911
+
+        def __init__(self) -> None:
+            self.exit_code: int | None = None
+
+        def poll(self) -> int | None:
+            return self.exit_code
+
+        def send_signal(self, _sig: int) -> None:
+            self.exit_code = 0
+
+        def terminate(self) -> None:
+            self.exit_code = 0
+
+        def kill(self) -> None:
+            self.exit_code = -9
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            return self.exit_code or 0
+
+    monkeypatch.setattr(sample, "_SAMPLE_PROCESS", None)
+    monkeypatch.setattr(sample, "_SAMPLE_LAUNCH", None)
+    process = FakeProcess()
+    ports = iter([2788, 4889])
+
+    def fake_launch(root: OperationsWorkspace) -> sample.FirstRunSampleLaunch:
+        return sample.launch_first_run_sample(
+            root,
+            process_launcher=lambda _args, _log: process,
+            listener_waiter=lambda *_args, **_kwargs: None,
+            port_resolver=lambda *_args: next(ports),
+        )
+
+    monkeypatch.setattr(sample_web, "launch_first_run_sample", fake_launch)
+
+    with command.open_supervisor_web_command_broker(workspace.root) as broker:
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+        with pytest.raises(command.WebCommandRejected, match="write_not_authorized"):
+            client.execute("/api/v1/demo/synthetic/status", {})
+        broker.bind_child(os.getpid())
+        started = client.execute("/api/v1/demo/synthetic/start", {})
+        assert started["url"] == "http://127.0.0.1:2788"
+        assert client.execute("/api/v1/demo/synthetic/status", {}) == started
+        with pytest.raises(command.WebCommandRejected, match="invalid_source_action"):
+            client.execute("/api/v1/demo/synthetic/start", {"port": 9999})
+        assert client.execute("/api/v1/demo/synthetic/stop", {})["state"] == "stopped"
+        assert process.poll() == 0
+    assert not workspace.source_registry_path.exists()

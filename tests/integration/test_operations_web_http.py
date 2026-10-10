@@ -248,3 +248,32 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_standalone_web_never_controls_synthetic_processes(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "read-preview")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        for route in (
+            "/api/v1/demo/synthetic/start",
+            "/api/v1/demo/synthetic/stop",
+            "/api/v1/demo/synthetic/status",
+        ):
+            status, _, payload = _request(
+                port,
+                "POST",
+                route,
+                origin=f"http://127.0.0.1:{port}",
+                site="same-origin",
+            )
+            assert status == 403
+            assert payload == {"error": {"code": "supervisor_required"}}
+        assert not list(tmp_path.glob("demo-synthetic-*"))
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
