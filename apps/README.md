@@ -28,8 +28,7 @@ make down
 make up WORKSPACE=artifacts/site-a
 ```
 
-빈 workspace의 기본 Web은 FILE/로컬 OPC UA 연결을 안내하지만, 기존 marimo의 샘플 시작·종료 버튼은 아직 이전되지 않았습니다.
-격리 synthetic sample과 기존 전체 guided Setup이 필요하면 `make up UI=marimo`로 기존 UI를 시작하세요.
+빈 workspace의 기본 Web은 FILE/로컬 OPC UA 연결 안내 외에도 **격리 synthetic 샘플 시작·종료·상태 확인**을 지원합니다. 이 기능은 Supervisor가 별도 loopback 포트와 sibling demo workspace에 기존 synthetic 데모를 실행하며, 실제 workspace에 demo source·측정값을 기록하지 않습니다. 샘플 화면은 별도 기존 데모 앱 창으로 열리고 샘플 폴더는 종료 후 자동 삭제되지 않습니다. 기존의 전체 guided Setup이 필요하면 `make up UI=marimo`로 시작하세요.
 `make demo`는 first-run UI를 거치지 않고 같은 demo를 직접 실행하는 개발·진단 shortcut입니다.
 
 현재 Operations가 지원하는 Monitor / Assets / Investigations / Maintenance / System / Setup의
