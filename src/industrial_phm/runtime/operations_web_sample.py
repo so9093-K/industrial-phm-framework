@@ -36,14 +36,14 @@ def execute_web_sample_action(
         stop_first_run_sample()
         return {"schema_version": 1, "state": "stopped", "synthetic": True}
     if route == "/api/v1/demo/synthetic/status":
-        launch = current_first_run_sample()
-        if launch is None:
+        current_launch = current_first_run_sample()
+        if current_launch is None:
             return {"schema_version": 1, "state": "stopped", "synthetic": True}
         return {
             "schema_version": 1,
             "state": "running",
             "synthetic": True,
-            "url": launch.url,
+            "url": current_launch.url,
             "separate_workspace": True,
         }
     raise ValueError("unknown synthetic sample action")
