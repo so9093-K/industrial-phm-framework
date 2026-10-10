@@ -57,3 +57,10 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .record.evidence-target:focus{outline:3px solid #237c88;outline-offset:4px;border-radius:5px}
 .record .evidence-link{font-size:.8rem;max-width:100%;overflow-wrap:anywhere;margin:8px 0}
 .review-evidence-unavailable{color:#735522;border-left:3px solid #ac9156;padding:6px 10px;font-size:.82rem}
+
+/* First-run handoff needs a persisted active source and an accepted receipt.
+   Source registration and an earlier receipt alone never unlock this link. */
+.onboarding-steps{display:grid;gap:5px;padding-left:1.4rem;margin:10px 0;font-size:.83rem;color:#354f5a}
+.onboarding-steps li{padding-left:2px;overflow-wrap:anywhere}
+#onboarding-next{font-weight:620;color:#254c62}
+#onboarding-monitor-link{margin-left:14px}
