@@ -993,7 +993,10 @@ async function diagnoseOpcua(sourceId, button) {
 // outcome must be rechecked, never retried as another start automatically.
 let sampleRequestPending = false;
 let sampleSupervisorAvailable = false;
+let sampleStatusKind = "unknown";
+let sampleValidatedUrl = null;
 function setSampleState(value, message) {
+  sampleStatusKind = value;
   const start = byId("sample-start"), stop = byId("sample-stop");
   const status = byId("sample-status"), open = byId("sample-open");
   start.disabled = sampleRequestPending || !sampleSupervisorAvailable || value !== "stopped";
@@ -1002,11 +1005,16 @@ function setSampleState(value, message) {
   status.textContent = message;
   open.classList.add("hidden");
   open.removeAttribute("href");
+  if (value === "running" && sampleValidatedUrl) {
+    open.href = sampleValidatedUrl;
+    open.classList.remove("hidden");
+  }
 }
 function showSampleState(payload) {
   if (payload.schema_version !== 1 || payload.synthetic !== true
       || !["running", "stopped"].includes(payload.state)) throw new Error("schema-mismatch");
   if (payload.state === "stopped") {
+    sampleValidatedUrl = null;
     setSampleState("stopped", "격리 샘플이 실행 중이지 않습니다. 실제 작업공간은 변경되지 않았습니다.");
     return;
   }
@@ -1014,10 +1022,8 @@ function showSampleState(payload) {
   if (payload.separate_workspace !== true || typeof payload.url !== "string"
       || !/^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(payload.url)
       || Number(payload.url.split(":").pop()) > 65535) throw new Error("schema-mismatch");
+  sampleValidatedUrl = payload.url;
   setSampleState("running", "격리 샘플 실행 중 · 별도 synthetic 작업공간 · 기존 데모 화면입니다.");
-  const open = byId("sample-open");
-  open.href = payload.url;
-  open.classList.remove("hidden");
 }
 async function sampleCommand(action) {
   if (sampleRequestPending) return;
@@ -1056,25 +1062,9 @@ async function sampleCommand(action) {
     byId("sample-refresh").disabled = false;
     // Re-render button enabled state after the pending flag clears, but never
     // infer a successful command from a failed or incomplete transport.
-    const running = !byId("sample-open").classList.contains("hidden");
-    const message = byId("sample-status").textContent;
-    setSampleState(
-      running ? "running" : message.startsWith("격리 샘플이 실행") ? "stopped" : "unknown",
-      message
-    );
-    if (running) {
-      // setSampleState intentionally hides the link before new verified evidence;
-      // keep the same validated URL from the just-received supervisor response.
-      const url = sampleValidatedUrl;
-      if (url) {
-        const open = byId("sample-open");
-        open.href = url;
-        open.classList.remove("hidden");
-      }
-    }
+    setSampleState(sampleStatusKind, byId("sample-status").textContent);
   }
 }
-let sampleValidatedUrl = null;
 byId("sample-start").addEventListener("click", () => {
   if (window.confirm("실제 작업공간과 분리된 synthetic 모터 데모를 새 로컬 프로세스로 시작합니다. 계속할까요?")) sampleCommand("start");
 });
