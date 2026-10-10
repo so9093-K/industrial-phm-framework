@@ -490,18 +490,68 @@ async function initializeReviewAccess() {
 }
 initializeReviewAccess();
 
+// Source reads can overlap after control actions. Only the newest successful read
+// may decide whether the operator sees an evidence-backed Monitor handoff.
+let sourcesRequestSequence = 0;
+function setOnboardingUnknown(message) {
+  byId("onboarding-monitor-link").classList.add("hidden");
+  const steps = byId("onboarding-steps");
+  clear(steps);
+  steps.append(create("li", null, message));
+  byId("onboarding-next").textContent =
+    "수신 준비 여부를 확인할 수 없습니다. 저장된 기록을 읽을 수 있어도 현재 수신이 확인됐다는 뜻은 아닙니다.";
+}
+function setOnboardingEvidence(items, data, evidenceReadError) {
+  const steps = byId("onboarding-steps");
+  const handoff = byId("onboarding-monitor-link");
+  const next = byId("onboarding-next");
+  clear(steps);
+  handoff.classList.add("hidden");
+  const active = items.filter((item) => item.lifecycle_state === "active").length;
+  const accepted = items.filter((item) => item.receipt_confirmed === true).length;
+  const ready = items.filter((item) =>
+    item.lifecycle_state === "active" && item.receipt_confirmed === true).length;
+  [
+    "등록된 소스: " + data.sources.total + "개 (설정만 확인)",
+    "관리 상태 active: " + active + "개 (연결·수집 성공 아님)",
+    "검증 수신: " + accepted + "개 · active와 수신을 모두 확인한 소스 "
+      + ready + "개 (DuckLake 이력 적재 아님)",
+    "DuckLake 저장 이력·분석: 관측·분석 근거에서 따로 확인",
+  ].forEach((line) => steps.append(create("li", null, line)));
+  if (data.sources.truncated || evidenceReadError) {
+    next.textContent = "소스 목록 일부 또는 live 수신 근거를 완전히 읽지 못했습니다. "
+      + "준비 여부를 확정할 수 없으므로 조회 범위와 저장소 상태를 확인하세요.";
+  } else if (!items.length) {
+    next.textContent = "다음: FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
+  } else if (!active) {
+    next.textContent = "다음: 등록된 소스를 활성화하세요. 활성화만으로 실제 연결·수신을 증명하지 않습니다.";
+  } else if (!ready) {
+    next.textContent = "다음: active 소스에서 실제 검증 수신 근거를 확인하세요. "
+      + "기존 수신 기록이 있어도 일시정지 상태는 준비 완료가 아닙니다.";
+  } else {
+    next.textContent = "active 소스의 검증 수신 근거가 확인됐습니다. "
+      + "이 버튼은 관측 근거 조회로 이동하며, 이력 저장·분석·설비 정상 판정은 보증하지 않습니다.";
+    handoff.classList.remove("hidden");
+  }
+}
+
 async function loadSources() {
+  const token = ++sourcesRequestSequence;
   const state = byId("source-status"), list = byId("source-list");
   state.textContent = "저장된 등록 상태를 조회 중입니다.";
+  byId("onboarding-monitor-link").classList.add("hidden");
+  byId("onboarding-next").textContent = "등록·수신 근거를 다시 확인 중입니다.";
   clear(list);
   try {
     const data = await getJSON("/api/v1/sources");
+    if (token !== sourcesRequestSequence) return;
     const items = rows(data, "sources");
     if (data.read_error_scopes && data.read_error_scopes.length) {
       state.textContent = "일부 소스 저장소를 읽지 못했습니다. 등록 상태와 수신 근거를 확정할 수 없습니다.";
       state.className = "state error";
       byId("onboarding-state").textContent = "조회 실패 · 등록이나 수신이 없다고 단정할 수 없습니다.";
       byId("onboarding-state").className = "notice error";
+      setOnboardingUnknown("소스 저장소 조회 오류 · 준비 여부 미확인");
       return;
     }
     const evidenceReadError = Array.isArray(data.live_evidence_error_scopes)
@@ -524,6 +574,7 @@ async function loadSources() {
         + (evidenceReadError ? " · live 근거 일부 미확인" : "");
     }
     byId("onboarding-state").className = "";
+    setOnboardingEvidence(items, data, evidenceReadError);
     items.forEach((item) => {
       const card = create("article", "source-record");
       card.append(create("strong", null, item.name + " · " + item.source_id));
@@ -604,10 +655,12 @@ async function loadSources() {
     });
     if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다. 전체 수신 상태를 뜻하지 않습니다."));
   } catch (error) {
+    if (token !== sourcesRequestSequence) return;
     state.textContent = presentError(error);
     state.className = "state error";
     byId("onboarding-state").textContent = "소스 조회 실패 — 등록 여부와 수신 근거를 확인할 수 없습니다.";
     byId("onboarding-state").className = "notice error";
+    setOnboardingUnknown("소스 조회 실패 · 등록·수신 상태를 알 수 없음");
   }
 }
 
