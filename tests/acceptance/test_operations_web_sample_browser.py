@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import socket
-import time
 from dataclasses import replace
 from http.client import HTTPConnection
 from pathlib import Path
