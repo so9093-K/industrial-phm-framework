@@ -77,7 +77,8 @@ class WebCommandClient:
                 raise WebCommandRejected("invalid_source_action")
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(
-                    _DEMO_TIMEOUT_SECONDS if route.startswith("/api/v1/demo/synthetic/")
+                    _DEMO_TIMEOUT_SECONDS
+                    if route.startswith("/api/v1/demo/synthetic/")
                     else _TIMEOUT_SECONDS
                 )
                 connection.connect(self.socket_path)
