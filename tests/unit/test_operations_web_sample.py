@@ -51,6 +51,7 @@ def test_web_sample_actions_start_reuse_status_and_stop_isolated_demo(
 
     monkeypatch.setattr(sample, "_SAMPLE_PROCESS", None)
     monkeypatch.setattr(sample, "_SAMPLE_LAUNCH", None)
+
     def launch_demo(root: OperationsWorkspace) -> sample.FirstRunSampleLaunch:
         return sample.launch_first_run_sample(
             root,
@@ -65,7 +66,9 @@ def test_web_sample_actions_start_reuse_status_and_stop_isolated_demo(
     start_route = "/api/v1/demo/synthetic/start"
     stop_route = "/api/v1/demo/synthetic/stop"
     assert execute_web_sample_action(workspace.root, status_route, {}) == {
-        "schema_version": 1, "state": "stopped", "synthetic": True,
+        "schema_version": 1,
+        "state": "stopped",
+        "synthetic": True,
     }
     started = execute_web_sample_action(workspace.root, start_route, {})
     assert started == {
@@ -91,7 +94,9 @@ def test_web_sample_actions_start_reuse_status_and_stop_isolated_demo(
         execute_web_sample_action(workspace.root, stop_route, {"workspace": "/tmp/not-ours"})
     assert process.stopped is False
     assert execute_web_sample_action(workspace.root, stop_route, {}) == {
-        "schema_version": 1, "state": "stopped", "synthetic": True,
+        "schema_version": 1,
+        "state": "stopped",
+        "synthetic": True,
     }
     assert process.stopped
     assert execute_web_sample_action(workspace.root, status_route, {})["state"] == "stopped"
@@ -103,10 +108,16 @@ def test_web_sample_status_rejects_stale_process_and_unknown_actions(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(sample, "_SAMPLE_PROCESS", FakeDemoProcess())
-    monkeypatch.setattr(sample, "_SAMPLE_LAUNCH", sample.FirstRunSampleLaunch(
-        workspace=tmp_path / "synthetic", url="http://127.0.0.1:2777",
-        opcua_port=4888, ui_port=2777,
-    ))
+    monkeypatch.setattr(
+        sample,
+        "_SAMPLE_LAUNCH",
+        sample.FirstRunSampleLaunch(
+            workspace=tmp_path / "synthetic",
+            url="http://127.0.0.1:2777",
+            opcua_port=4888,
+            ui_port=2777,
+        ),
+    )
     assert sample._SAMPLE_PROCESS is not None
     sample._SAMPLE_PROCESS.returncode = 1
     result = execute_web_sample_action(tmp_path, "/api/v1/demo/synthetic/status", {})
