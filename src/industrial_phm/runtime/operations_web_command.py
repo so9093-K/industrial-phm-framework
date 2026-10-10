@@ -34,6 +34,9 @@ from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 _MAX_MESSAGE_BYTES = 8192
 _MAX_REQUESTS_PER_GENERATION = 512
 _TIMEOUT_SECONDS = 5.0
+# Launching an isolated packaged demo starts its own local supervisor and OPC UA
+# listener; a 5-second timeout would turn a successful spawn into "unknown".
+_DEMO_TIMEOUT_SECONDS = 45.0
 
 
 class WebCommandRejected(RuntimeError):
@@ -73,7 +76,10 @@ class WebCommandClient:
             if len(encoded) > _MAX_MESSAGE_BYTES:
                 raise WebCommandRejected("invalid_source_action")
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                connection.settimeout(_TIMEOUT_SECONDS)
+                connection.settimeout(
+                    _DEMO_TIMEOUT_SECONDS if route.startswith("/api/v1/demo/synthetic/")
+                    else _TIMEOUT_SECONDS
+                )
                 connection.connect(self.socket_path)
                 connection.sendall(encoded)
                 with connection.makefile("rb") as reader:
@@ -161,6 +167,8 @@ class SupervisorWebCommandBroker:
             ):
                 raise ValueError("invalid bounded command")
             identity = json.dumps([route, payload], sort_keys=True, allow_nan=False)
+            if route.startswith("/api/v1/demo/synthetic/"):
+                connection.settimeout(_DEMO_TIMEOUT_SECONDS)
             with self._lock:
                 cached = self._seen.get(identifier)
                 if cached is not None:
