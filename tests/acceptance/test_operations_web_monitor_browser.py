@@ -233,6 +233,7 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("소스 미등록")
+            sync_api.expect(page.locator("#onboarding-monitor-link")).to_be_hidden()
             page.locator('#file-form input[name="source_id"]').fill("web-file-01")
             page.locator('#file-form input[name="name"]').fill("웹 등록 CSV")
             page.locator('#file-form input[name="asset_id"]').fill("pump-01")
@@ -247,6 +248,10 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             sync_api.expect(page.locator("#source-list")).to_contain_text("web-file-01")
             sync_api.expect(page.locator("#source-list")).to_contain_text("수신 근거 미확인")
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 0개")
+            sync_api.expect(page.locator("#onboarding-monitor-link")).to_be_hidden()
+            sync_api.expect(page.locator("#onboarding-next")).to_contain_text(
+                "등록된 소스를 활성화하세요"
+            )
             sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
             assert (
                 JsonSourceRepository(workspace.source_registry_path).get("web-file-01").asset_id
@@ -373,6 +378,17 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             )
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text(
                 "저장된 시계열은 별도로 확인해야 합니다"
+            )
+            handoff = page.locator("#onboarding-monitor-link")
+            sync_api.expect(handoff).to_be_visible()
+            sync_api.expect(page.locator("#onboarding-steps")).to_contain_text(
+                "active와 수신을 모두 확인한 소스 1개"
+            )
+            page.locator("#source-list").get_by_role("button", name="소스 일시정지").click()
+            sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: paused")
+            sync_api.expect(handoff).to_be_hidden()
+            sync_api.expect(page.locator("#onboarding-next")).to_contain_text(
+                "일시정지 상태는 준비 완료가 아닙니다"
             )
             assert (
                 JsonSourceRuntimeRepository(workspace.source_runtime_path).get_latest_receipt(
