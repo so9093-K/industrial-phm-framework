@@ -524,7 +524,7 @@ function setOnboardingEvidence(items, data, evidenceReadError) {
   } else if (!items.length) {
     next.textContent = "다음: FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
   } else if (!active) {
-    next.textContent = "다음: 등록된 소스를 활성화하세요. 활성화만으로 실제 연결·수신을 증명하지 않습니다.";
+    next.textContent = "다음: 등록된 소스를 활성화하세요. 과거 수신 기록이 있어도 일시정지 상태는 준비 완료가 아닙니다. 활성화만으로 실제 연결·수신을 증명하지 않습니다.";
   } else if (!ready) {
     next.textContent = "다음: active 소스에서 실제 검증 수신 근거를 확인하세요. "
       + "기존 수신 기록이 있어도 일시정지 상태는 준비 완료가 아닙니다.";
