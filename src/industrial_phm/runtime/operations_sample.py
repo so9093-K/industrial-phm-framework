@@ -106,6 +106,15 @@ def launch_first_run_sample(
     return launch
 
 
+def current_first_run_sample() -> FirstRunSampleLaunch | None:
+    """Return only a live sample owned by this process, never a stale launch URL."""
+    if _SAMPLE_PROCESS is None or _SAMPLE_LAUNCH is None:
+        return None
+    if _SAMPLE_PROCESS.poll() is not None:
+        return None
+    return _SAMPLE_LAUNCH
+
+
 def stop_first_run_sample() -> None:
     """Stop the sample process owned by this Operations UI process."""
 
