@@ -53,8 +53,11 @@
       <section class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
         <div class="panel-header"><div><h2 id="onboarding-title">처음 사용하는 작업공간</h2><p class="muted">소스 등록 → 수집기 동작 → 실제 수신 근거 → 모니터링</p></div></div>
         <p id="onboarding-state" role="status" aria-live="polite">등록된 데이터 소스와 수신 근거를 확인합니다.</p>
+        <ol id="onboarding-steps" class="onboarding-steps" aria-label="연결 준비 근거 단계"><li>연결·수신 근거를 조회하는 중입니다.</li></ol>
+        <p id="onboarding-next" class="hint">등록·활성·수신·저장 이력을 각각 확인합니다.</p>
         <p class="hint">등록만으로 데이터가 수신되지 않습니다. 수집 실행은 기존 Operations 명령 또는 운영 화면에서 별도로 수행합니다.</p>
         <a href="#connect">데이터 소스 확인 및 CSV 등록하기</a>
+        <a id="onboarding-monitor-link" class="hidden" href="#monitor">수신 근거 확인됨 · 관측·이력 별도 조회</a>
       </section>
       <section class="kpis" id="monitor" aria-label="관측 요약">
         <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>
