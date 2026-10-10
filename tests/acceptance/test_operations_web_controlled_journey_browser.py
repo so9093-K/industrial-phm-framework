@@ -548,8 +548,7 @@ def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
     inputs = workspace.root / "inputs"
     inputs.mkdir()
     (inputs / "phases.csv").write_text(
-        "timestamp,phase-R,phase-S,phase-T\n"
-        "2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
         encoding="utf-8",
     )
     registration = {
@@ -563,7 +562,10 @@ def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
     }
 
     def request(
-        method: str, route: str, *, payload: dict[str, object] | None = None,
+        method: str,
+        route: str,
+        *,
+        payload: dict[str, object] | None = None,
         csrf: str = "",
     ) -> tuple[int, dict[str, object]]:
         connection = HTTPConnection("127.0.0.1", port, timeout=10)
@@ -595,9 +597,7 @@ def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
         csrf = session["csrf_token"]
         assert isinstance(csrf, str)
         assert session["write_scope"] == "supervisor-owned-source-control"
-        status, created = request(
-            "POST", "/api/v1/sources/file", payload=registration, csrf=csrf
-        )
+        status, created = request("POST", "/api/v1/sources/file", payload=registration, csrf=csrf)
         assert status == 201 and created["registration_state"] == "registered"
         assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
         assert not workspace.history_catalog_path.exists()
@@ -636,7 +636,8 @@ def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
         new_csrf = session["csrf_token"]
         assert isinstance(new_csrf, str) and new_csrf != csrf
         status, rejected = request(
-            "POST", "/api/v1/sources/file",
+            "POST",
+            "/api/v1/sources/file",
             payload={**registration, "source_id": "stale-session"},
             csrf=csrf,
         )
