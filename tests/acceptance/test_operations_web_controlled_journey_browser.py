@@ -135,9 +135,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_hidden()
-                pw.expect(page.locator("#onboarding-next")).to_contain_text(
-                    "소스를 등록하세요"
-                )
+                pw.expect(page.locator("#onboarding-next")).to_contain_text("소스를 등록하세요")
                 pw.expect(page.locator("#asset-select")).to_have_value(
                     analysis.run.asset_id, timeout=30000
                 )
