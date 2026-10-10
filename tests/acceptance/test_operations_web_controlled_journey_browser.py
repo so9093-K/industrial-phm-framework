@@ -346,7 +346,11 @@ def test_supervised_web_serializes_separate_http_processes_and_recovers(tmp_path
     }
 
     def request(
-        method: str, path: str, *, token: str = "", payload: dict[str, object] | None = None,
+        method: str,
+        path: str,
+        *,
+        token: str = "",
+        payload: dict[str, object] | None = None,
         origin: str | None = None,
     ) -> tuple[int, dict[str, object]]:
         connection = HTTPConnection("127.0.0.1", port, timeout=10)
@@ -422,8 +426,14 @@ finally:
             processes.append(
                 subprocess.Popen(
                     [
-                        sys.executable, "-c", client_code, str(port), token,
-                        str(index), str(ready_dir), str(release),
+                        sys.executable,
+                        "-c",
+                        client_code,
+                        str(port),
+                        token,
+                        str(index),
+                        str(ready_dir),
+                        str(release),
                         json.dumps(registration),
                     ],
                     stdout=subprocess.PIPE,
@@ -446,7 +456,8 @@ finally:
         assert sorted(item["status"] for item in results) == [201, 409, 409, 409, 409, 409]
         assert all(
             item["body"]["error"]["code"] == "source_id_exists"
-            for item in results if item["status"] == 409
+            for item in results
+            if item["status"] == 409
         )
         assert JsonSourceRepository(workspace.source_registry_path).get("race-file")
         assert not workspace.history_catalog_path.exists()
@@ -462,8 +473,10 @@ finally:
             (token, "https://untrusted.example"),
         ):
             status, error = request(
-                "POST", "/api/v1/sources/file",
-                token=bad_token, payload={**registration, "source_id": "unauthorized"},
+                "POST",
+                "/api/v1/sources/file",
+                token=bad_token,
+                payload={**registration, "source_id": "unauthorized"},
                 origin=bad_origin,
             )
             assert status == 403, error
@@ -487,12 +500,17 @@ finally:
         new_token = new_session["csrf_token"]
         assert isinstance(new_token, str) and new_token != token
         status, error = request(
-            "POST", "/api/v1/sources/file", token=token,
+            "POST",
+            "/api/v1/sources/file",
+            token=token,
             payload={**registration, "source_id": "stale-session"},
         )
         assert status == 403, error
         status, duplicate = request(
-            "POST", "/api/v1/sources/file", token=new_token, payload=registration,
+            "POST",
+            "/api/v1/sources/file",
+            token=new_token,
+            payload=registration,
         )
         assert status == 409
         assert duplicate["error"]["code"] == "source_id_exists"
