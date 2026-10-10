@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import industrial_phm.runtime.operations_sample as sample
+import industrial_phm.runtime.operations_web_sample as sample_web
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_sample import execute_web_sample_action
 
@@ -50,13 +51,15 @@ def test_web_sample_actions_start_reuse_status_and_stop_isolated_demo(
 
     monkeypatch.setattr(sample, "_SAMPLE_PROCESS", None)
     monkeypatch.setattr(sample, "_SAMPLE_LAUNCH", None)
-    monkeypatch.setattr(
-        sample, "launch_logged_process",
-        lambda argv, log: launched.append((argv, log)) or process,
-    )
-    monkeypatch.setattr(sample, "wait_for_loopback_listener", lambda *_a, **_kw: None)
-    monkeypatch.setattr(sample, "_first_available_loopback_port",
-                        lambda *_a: next(ports))
+    def launch_demo(root: OperationsWorkspace) -> sample.FirstRunSampleLaunch:
+        return sample.launch_first_run_sample(
+            root,
+            process_launcher=lambda argv, log: launched.append((argv, log)) or process,
+            listener_waiter=lambda *_a, **_kw: None,
+            port_resolver=lambda *_a: next(ports),
+        )
+
+    monkeypatch.setattr(sample_web, "launch_first_run_sample", launch_demo)
 
     status_route = "/api/v1/demo/synthetic/status"
     start_route = "/api/v1/demo/synthetic/start"
