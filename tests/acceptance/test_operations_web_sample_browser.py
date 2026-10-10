@@ -56,11 +56,14 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
                 parsed = urlsplit(url)
                 assert parsed.hostname == "127.0.0.1"
                 assert parsed.port is not None and parsed.port != port
-                with HTTPConnection("127.0.0.1", parsed.port, timeout=5) as connection:
+                connection = HTTPConnection("127.0.0.1", parsed.port, timeout=5)
+                try:
                     connection.request("GET", "/")
                     response = connection.getresponse()
                     assert 200 <= response.status < 400
                     response.read()
+                finally:
+                    connection.close()
                 samples = list(tmp_path.glob("demo-synthetic-*"))
                 assert len(samples) == 1
                 assert samples[0] != root.root
