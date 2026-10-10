@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import socket
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -18,6 +20,10 @@ from industrial_phm.application import (
 )
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
+from industrial_phm.runtime.operations_web_command import (
+    WebCommandClient,
+    open_supervisor_web_command_broker,
+)
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from industrial_phm.runtime.operations_web_setup import project_web_source_setup
 
@@ -592,3 +598,80 @@ def test_two_web_process_leases_do_not_overlap(tmp_path: Path) -> None:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
     with web_workspace_writer(workspace.root):
         pass
+
+
+def test_supervised_http_unknown_outcome_after_committed_ipc_command(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lost IPC reply is HTTP 503 even when the source was durably registered."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+
+    workspace = OperationsWorkspace(tmp_path / "unknown-reply")
+    initialize_operations_workspace(workspace)
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    (inputs / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
+        encoding="utf-8",
+    )
+    with open_supervisor_web_command_broker(workspace.root) as broker:
+        # The HTTP handler and broker run in the test process, but use a real
+        # credential-checked Unix socket. The separate-child lifetime is owned
+        # by the real-supervisor acceptance test.
+        broker.bind_child(os.getpid())
+        client = WebCommandClient(broker.socket_path, broker.token)
+        reply_count = 0
+        original_reply = broker._reply
+
+        def drop_first_reply(connection: socket.socket, response: dict[str, object]) -> None:
+            nonlocal reply_count
+            reply_count += 1
+            if reply_count > 1:
+                original_reply(connection, response)
+
+        monkeypatch.setattr(broker, "_reply", drop_first_reply)
+        server = create_operations_web_read_server(workspace.root, command_client=client)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_port
+            _, session = _request(port, "GET", "/api/v1/session")
+            assert session["write_scope"] == "supervisor-owned-source-control"
+            csrf = session["csrf_token"]
+            assert isinstance(csrf, str)
+            payload = json.dumps(_payload()).encode("utf-8")
+
+            def register() -> tuple[int, dict[str, object]]:
+                return _request(
+                    port,
+                    "POST",
+                    "/api/v1/sources/file",
+                    body=payload,
+                    origin=f"http://127.0.0.1:{port}",
+                    csrf=csrf,
+                    fetch_site="same-origin",
+                )
+
+            # The broker has committed the operation, but losing its response
+            # must never be reported to the operator as a confirmed failure.
+            assert register() == (503, {"error": {"code": "command_outcome_unknown"}})
+            sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
+            assert len(sources) == 1 and sources[0].source_id == "registered-file-01"
+            assert not workspace.history_catalog_path.exists()
+            _, listing = _request(port, "GET", "/api/v1/sources")
+            assert listing["sources"]["total"] == 1
+            assert listing["sources"]["items"][0]["receipt_confirmed"] is False
+
+            # A new explicit submission gets a durable duplicate conflict.
+            # No transport handler may retry the original uncertain command.
+            status, duplicate = register()
+            assert status == 409
+            assert duplicate == {"error": {"code": "source_id_exists"}}
+            assert reply_count == 2
+            assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=10)
+            assert not thread.is_alive()

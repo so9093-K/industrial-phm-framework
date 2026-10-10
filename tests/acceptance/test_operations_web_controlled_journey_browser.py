@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import socket
 import subprocess
 import sys
@@ -20,6 +22,9 @@ from industrial_phm.application import (
     SqlitePhaseUnbalanceRepository,
 )
 from industrial_phm.runtime import (
+    OperationsComponentKind,
+    OperationsSupervisorStateKind,
+    OperationsSupervisorStateRepository,
     OperationsUiConfig,
     OperationsWorkspace,
     initialize_operations_workspace,
@@ -518,6 +523,136 @@ finally:
         assert status == 200
         assert sources["sources"]["total"] == 1
         assert sources["sources"]["items"][0]["receipt_confirmed"] is False
+        assert not workspace.history_catalog_path.exists()
+    finally:
+        _stop(proc, workspace.root)
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
+
+
+def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
+    tmp_path: Path,
+) -> None:
+    """Actual supervised Web SIGKILL must fail closed, then restart from durable state."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+
+    workspace = OperationsWorkspace(tmp_path / "web-kill")
+    initialized = initialize_operations_workspace(workspace)
+    port = _port()
+    write_operations_runtime_config(
+        workspace.config_path, replace(initialized.config, ui=OperationsUiConfig(port=port))
+    )
+    original_config = workspace.config_path.read_bytes()
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    (inputs / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
+        encoding="utf-8",
+    )
+    registration = {
+        "source_id": "kill-file",
+        "name": "Web failure FILE",
+        "asset_id": "motor-01",
+        "measurement_point_id": "panel",
+        "file_path": "inputs/phases.csv",
+        "channel_columns": ["phase-R", "phase-S", "phase-T"],
+        "timestamp_column": "timestamp",
+    }
+
+    def request(
+        method: str,
+        route: str,
+        *,
+        payload: dict[str, object] | None = None,
+        csrf: str = "",
+    ) -> tuple[int, dict[str, object]]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=10)
+        headers = {"Host": f"127.0.0.1:{port}"}
+        body = None
+        if payload is not None:
+            body = json.dumps(payload)
+            headers.update(
+                {
+                    "Origin": f"http://127.0.0.1:{port}",
+                    "Sec-Fetch-Site": "same-origin",
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": csrf,
+                }
+            )
+        try:
+            connection.request(method, route, body=body, headers=headers)
+            reply = connection.getresponse()
+            return reply.status, json.loads(reply.read())
+        finally:
+            connection.close()
+
+    state_repository = OperationsSupervisorStateRepository(workspace.supervisor_state_path)
+    log = tmp_path / "supervisor-kill.log"
+    proc = _start(workspace.root, port, log)
+    try:
+        status, session = request("GET", "/api/v1/session")
+        assert status == 200
+        csrf = session["csrf_token"]
+        assert isinstance(csrf, str)
+        assert session["write_scope"] == "supervisor-owned-source-control"
+        status, created = request("POST", "/api/v1/sources/file", payload=registration, csrf=csrf)
+        assert status == 201 and created["registration_state"] == "registered"
+        assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+        assert not workspace.history_catalog_path.exists()
+
+        running = state_repository.load()
+        assert running is not None
+        assert running.state == OperationsSupervisorStateKind.RUNNING
+        assert running.supervisor_pid == proc.pid
+        ui = next(item for item in running.components if item.kind == OperationsComponentKind.UI)
+        assert ui.pid != proc.pid
+        # Kill only the PID verified against the active supervisor state.
+        # The supervisor must stop its other children and release writer ownership.
+        os.kill(ui.pid, signal.SIGKILL)
+        assert proc.wait(timeout=35) != 0
+        failed = state_repository.load()
+        assert failed is not None
+        assert failed.state == OperationsSupervisorStateKind.FAILED
+        assert failed.supervisor_pid == proc.pid
+        assert failed.failure is not None and "ui exited with code" in failed.failure
+        killed_ui = next(
+            item for item in failed.components if item.kind == OperationsComponentKind.UI
+        )
+        assert killed_ui.return_code == -signal.SIGKILL
+        with pytest.raises(OSError):
+            request("GET", "/api/v1/session")
+        assert workspace.config_path.read_bytes() == original_config
+        assert JsonSourceRepository(workspace.source_registry_path).get("kill-file")
+        assert not workspace.history_catalog_path.exists()
+    finally:
+        _stop(proc, workspace.root)
+
+    proc = _start(workspace.root, port, log)
+    try:
+        status, session = request("GET", "/api/v1/session")
+        assert status == 200
+        new_csrf = session["csrf_token"]
+        assert isinstance(new_csrf, str) and new_csrf != csrf
+        status, rejected = request(
+            "POST",
+            "/api/v1/sources/file",
+            payload={**registration, "source_id": "stale-session"},
+            csrf=csrf,
+        )
+        assert status == 403 and rejected == {"error": {"code": "write_not_authorized"}}
+        status, duplicate = request(
+            "POST", "/api/v1/sources/file", payload=registration, csrf=new_csrf
+        )
+        assert status == 409
+        assert duplicate == {"error": {"code": "source_id_exists"}}
+        status, sources = request("GET", "/api/v1/sources")
+        assert status == 200
+        assert sources["sources"]["total"] == 1
+        row = sources["sources"]["items"][0]
+        assert row["source_id"] == "kill-file" and row["receipt_confirmed"] is False
+        assert workspace.config_path.read_bytes() == original_config
         assert not workspace.history_catalog_path.exists()
     finally:
         _stop(proc, workspace.root)
