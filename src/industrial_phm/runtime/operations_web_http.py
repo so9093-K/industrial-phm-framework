@@ -58,8 +58,12 @@ _MAX_WEB_CSV_UPLOAD = 1024 * 1024
 _MAX_WEB_CSV_REQUEST = 1_410_000
 _UPLOAD_SETUP_FIELDS = frozenset(
     {
-        "source_id", "name", "asset_id", "measurement_point_id",
-        "channel_columns", "timestamp_column",
+        "source_id",
+        "name",
+        "asset_id",
+        "measurement_point_id",
+        "channel_columns",
+        "timestamp_column",
     }
 )
 
