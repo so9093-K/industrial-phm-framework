@@ -23,12 +23,14 @@ from industrial_phm.runtime.operations_web_setup import (
     backfill_workspace_file_history,
     change_web_source_control,
     receive_workspace_file_source,
+    register_uploaded_csv_source,
     register_workspace_csv_source,
 )
 
 WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
     {
         "/api/v1/sources/file",
+        "/api/v1/sources/file/upload",
         "/api/v1/sources/file/receive",
         "/api/v1/sources/file/backfill",
         "/api/v1/sources/lifecycle",
@@ -48,6 +50,7 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
 # preview must never acquire this capability through its local writer path.
 WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
     {
+        "/api/v1/sources/file/upload",
         "/api/v1/demo/synthetic/start",
         "/api/v1/demo/synthetic/stop",
         "/api/v1/demo/synthetic/status",
@@ -56,11 +59,15 @@ WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
 
 
 def execute_web_source_action(
-    root: Path, route: str, payload: dict[str, object]
+    root: Path, route: str, payload: dict[str, object], *, upload_directory: Path | None = None
 ) -> dict[str, object]:
     """Dispatch an explicitly authorized command through existing action facades."""
     if route not in WEB_SOURCE_ACTION_ROUTES:
         raise ValueError("unknown Web source action")
+    if route == "/api/v1/sources/file/upload":
+        if upload_directory is None:
+            raise ValueError("supervisor upload directory required")
+        return register_uploaded_csv_source(root, payload, upload_directory=upload_directory)
     if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
         return execute_web_sample_action(root, route, payload)
     if route == "/api/v1/sources/file":

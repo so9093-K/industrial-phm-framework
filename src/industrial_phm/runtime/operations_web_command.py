@@ -109,6 +109,7 @@ class SupervisorWebCommandBroker:
     def __init__(self, workspace: Path, socket_path: str) -> None:
         self.workspace = workspace.resolve()
         self.socket_path = socket_path
+        self.upload_directory = Path(socket_path).parent / "uploads"
         self.token = secrets.token_urlsafe(32)
         self._child_pid: int | None = None
         self._lock = threading.Lock()
@@ -191,7 +192,13 @@ class SupervisorWebCommandBroker:
 
     def _execute(self, route: str, payload: dict[str, object]) -> dict[str, object]:
         try:
-            return {"ok": True, "result": execute_web_source_action(self.workspace, route, payload)}
+            if route == "/api/v1/sources/file/upload":
+                result = execute_web_source_action(
+                    self.workspace, route, payload, upload_directory=self.upload_directory
+                )
+            else:
+                result = execute_web_source_action(self.workspace, route, payload)
+            return {"ok": True, "result": result}
         except SourceAlreadyRegisteredError:
             return {"ok": False, "code": "source_id_exists"}
         except SourceControlConflict:
@@ -235,6 +242,7 @@ def open_supervisor_web_command_broker(workspace: Path) -> Iterator[SupervisorWe
     with tempfile.TemporaryDirectory(prefix="phm-web-command-") as directory:
         os.chmod(directory, 0o700)
         path = str(Path(directory) / "command.sock")
+        (Path(directory) / "uploads").mkdir(mode=0o700)
         broker = SupervisorWebCommandBroker(workspace, path)
 
         class Handler(socketserver.BaseRequestHandler):

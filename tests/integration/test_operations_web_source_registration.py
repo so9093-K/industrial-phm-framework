@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import socket
@@ -675,3 +676,89 @@ def test_supervised_http_unknown_outcome_after_committed_ipc_command(
             server.server_close()
             thread.join(timeout=10)
             assert not thread.is_alive()
+
+
+def test_supervised_browser_csv_upload_registers_file_without_workspace_path_input(
+    tmp_path: Path,
+) -> None:
+    """Upload actual bytes through same-origin HTTP and the real Unix broker."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    workspace = OperationsWorkspace(tmp_path / "browser-upload")
+    initialize_operations_workspace(workspace)
+    raw = (
+        b"timestamp,phase-R,phase-S,phase-T\n"
+        b"2026-10-08T12:00:00+00:00,220.5,219.0,221.0\n"
+        b"2026-10-08T12:00:01+00:00,220.6,219.1,221.1\n"
+    )
+    setup = {key: value for key, value in _payload().items() if key != "file_path"}
+    body = json.dumps(
+        {"setup": setup, "csv_base64": base64.b64encode(raw).decode("ascii")}
+    ).encode()
+    preview = create_operations_web_read_server(workspace.root)
+    preview_thread = Thread(target=preview.serve_forever, daemon=True)
+    preview_thread.start()
+    try:
+        _, session = _request(preview.server_port, "GET", "/api/v1/session")
+        assert (
+            _request(
+                preview.server_port,
+                "POST",
+                "/api/v1/sources/file/upload",
+                body=body,
+                origin=f"http://127.0.0.1:{preview.server_port}",
+                fetch_site="same-origin",
+                csrf=str(session["csrf_token"]),
+            )[0]
+            == 403
+        )
+    finally:
+        preview.shutdown()
+        preview.server_close()
+        preview_thread.join(timeout=5)
+
+    with open_supervisor_web_command_broker(workspace.root) as broker:
+        broker.bind_child(os.getpid())
+        client = WebCommandClient(broker.socket_path, broker.token)
+        server = create_operations_web_read_server(workspace.root, command_client=client)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_port
+            origin = f"http://127.0.0.1:{port}"
+            _, session = _request(port, "GET", "/api/v1/session")
+            csrf = str(session["csrf_token"])
+
+            def upload(data: bytes = body, *, site: str = "same-origin", token: str = csrf):
+                return _request(
+                    port,
+                    "POST",
+                    "/api/v1/sources/file/upload",
+                    body=data,
+                    origin=origin,
+                    fetch_site=site,
+                    csrf=token,
+                )
+
+            assert upload(site="cross-site")[0] == 403
+            assert upload(token="invalid")[0] == 403
+            assert upload(b'{"setup":{},"csv_base64":"!!!!!"}')[0] == 400
+            assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+            status, result = upload()
+            assert status == HTTPStatus.CREATED
+            assert result["registration_state"] == "registered"
+            assert result["receipt_confirmed"] is False
+            stored = JsonSourceRepository(workspace.source_registry_path).get("registered-file-01")
+            saved = Path(stored.config.source_path)
+            assert saved.is_relative_to(workspace.root.resolve())
+            assert saved.read_bytes() == raw
+            assert len(tuple((workspace.root / "web-uploads").glob("*.csv"))) == 1
+            assert tuple(broker.upload_directory.iterdir()) == ()
+            assert upload()[0] == 409
+            assert len(tuple((workspace.root / "web-uploads").glob("*.csv"))) == 1
+            assert tuple(broker.upload_directory.iterdir()) == ()
+            assert not workspace.history_catalog_path.exists()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
