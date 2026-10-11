@@ -860,8 +860,8 @@ def test_abandoned_http_post_preserves_committed_source_without_auto_replay(
     inputs = workspace.root / "inputs"
     inputs.mkdir()
     (inputs / "phases.csv").write_text(
-        "timestamp,phase-R,phase-S,phase-T\\n"
-        "2026-10-01T00:00:00+00:00,220.5,219.0,221.0\\n",
+        "timestamp,phase-R,phase-S,phase-T\n"
+        "2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
         encoding="utf-8",
     )
     with open_supervisor_web_command_broker(workspace.root) as broker:
