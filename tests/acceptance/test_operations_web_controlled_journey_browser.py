@@ -155,6 +155,11 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_hidden()
                 pw.expect(page.locator("#onboarding-next")).to_contain_text("소스를 등록하세요")
+                page.get_by_role("button", name="CSV 등록 양식으로 이동").click()
+                pw.expect(page.locator('#file-form input[name="source_id"]')).to_be_focused()
+                pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
                 pw.expect(page.locator("#asset-select")).to_have_value(
                     analysis.run.asset_id, timeout=30000
                 )
@@ -200,6 +205,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
                     "관리 상태 active: 0개"
                 )
+                pw.expect(page.locator("#onboarding-source-select")).to_have_value("journey-file")
+                page.get_by_role("button", name="소스 활성화 버튼 찾기").click()
+                pw.expect(listing.get_by_role("button", name="소스 활성화")).to_be_focused()
                 pw.expect(handoff).to_be_hidden()
                 assert not workspace.history_catalog_path.exists()
                 listing.get_by_role("button", name="소스 활성화").click()
@@ -210,6 +218,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#onboarding-next")).to_contain_text(
                     "실제 검증 수신 근거를 확인하세요"
                 )
+                page.get_by_role("button", name="FILE 수신 확인 버튼 찾기").click()
+                pw.expect(listing.get_by_role("button", name="FILE 수신 확인")).to_be_focused()
                 pw.expect(handoff).to_be_hidden()
                 listing.get_by_role("button", name="FILE 수신 확인").click()
                 pw.expect(listing).to_contain_text("FILE 검증 수신 근거 있음")
@@ -222,6 +232,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#onboarding-next")).to_contain_text(
                     "이력 저장·분석·설비 정상 판정은 보증하지 않습니다"
                 )
+                page.get_by_role("button", name="FILE 이력 적재 버튼 찾기").click()
+                pw.expect(listing.get_by_role("button", name="FILE 이력 적재")).to_be_focused()
                 pw.expect(handoff).to_be_visible()
                 assert not workspace.history_catalog_path.exists()
                 handoff.click()
