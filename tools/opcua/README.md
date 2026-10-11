@@ -337,35 +337,36 @@ no external server, credentials or AI-Hub payload. On failure, pytest's temporar
 contains the subprocess output.
 
 
-## Monitor interaction browser gate
+## Current Web browser and replay fault validation
 
-For a running Operations UI backed by a populated workspace, test actual Monitor controls:
+The legacy marimo Monitor/anywidget and `tools/opcua/monitor_browser.py`
+were retired after #480. Their `.mw-*` selectors do not exist in the packaged
+Operations Web and must not be used as evidence for the current operator UI.
+
+The isolated Chromium acceptance uses a fresh synthetic workspace and the
+actual packaged Web/supervisor. Install the required Operations environment
+and Chromium before running this test:
 
 ```bash
-uv run --no-sync --with playwright python -m tools.opcua.monitor_browser \
-  --url http://127.0.0.1:27192 \
-  --output artifacts/monitor-browser \
-  --focus R상전압 \
-  --compare T상전류
+uv sync --locked --extra operations
+uv run --locked --extra operations --with playwright python -m playwright install chromium
+uv run --locked --extra operations --with playwright pytest \
+  tests/acceptance/test_operations_web_monitor_browser.py \
+  tests/acceptance/test_operations_web_controlled_journey_browser.py \
+  tests/acceptance/test_operations_web_sample_browser.py
 ```
 
-The channel arguments must exist in that workspace. Chromium must already be installed
-(`uv run --no-sync --with playwright playwright install chromium` if needed).
-The caller owns the UI server lifecycle. The gate checks 1440px and 1024px viewports, the initial
-chart position, actual chart changes for all four ranges, signal search and focus/comparison selection, Asset picker, cursor bucket summaries, exact analysis
-evidence routing, and return from Assets signal detail with selection preserved. It also checks that
-Monitor contains no native selects, reports browser errors, and detects viewport overflow. It writes
-JSON and screenshots; screenshots still require visual review. This is a stored-data interaction
-gate, not the live fault/reconnect protocol owned by `fault_harness.py`.
+This verifies current Web navigation, evidence identity, errors, and interactions;
+it does **not** replay recorded AI-Hub service faults. For source stall,
+reconnect, collector failure, spool overflow and persisted evidence, use
+`tools.opcua.fault_harness --browser --repeat 3` with the explicit local
+AI-Hub 2297 archive/binding and keep its JSON verdict. Without that recorded
+input, the full fault-replay gate is **unexecuted**, not passed.
 
-
-The current Operations Web is packaged in `industrial_phm/apps/web/index.html`,
-`app.js` and `styles.css` and consumes the Python read/command API. Historical
-marimo/anywidget Monitor renderer and its separate browser contract were retired in
-#480. Stored history charts do not interpolate missing/null buckets or silently
-replace original channel semantics. A recorded replay fault-run must be re-executed
-against the current Web before claiming a new full browser gate.
-
+The Web assets are `industrial_phm/apps/web/index.html`, `app.js` and
+`styles.css`. Stored history does not interpolate null/gap buckets or silently
+replace channel semantics. Screenshots require a visual review and do not alone
+prove live collection or persistence.
 
 A channel choice covers all recorded sources/points of that channel; it is not an implicit pick of
 the first origin. Scalars and charts identify each origin independently. Registered but unobserved

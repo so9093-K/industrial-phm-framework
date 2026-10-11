@@ -13,7 +13,7 @@ For current capability claims, use [status](../status.md); older cutover history
 - The listener **always binds 127.0.0.1**. Read routes are `GET /api/v1/monitor`,
   `GET /api/v1/history/channels`, `GET /api/v1/history/trend`,
   `GET /api/v1/sources` and `GET /api/v1/session`.
-  **Only** `/web/`, `/web/app.js`, and `/web/styles.css` serve packaged static
+  The packaged static paths `/web/`, `/web/app.js`, and `/web/styles.css` serve
   assets from the installed Python wheel. No arbitrary file path may be requested.
   Only `POST /api/v1/sources/file`, `POST /api/v1/sources/file/receive`,
   `POST /api/v1/sources/file/backfill`, `POST /api/v1/sources/lifecycle`,
@@ -84,10 +84,12 @@ alarms or local browser-only review mutations**. When the history store
 is not initialized, the Web preview displays a distinct read failure
 rather than inventing zero-valued measurements.
 
-This is **not** a completed production web cutover: isolated first-run sample,
-complete OPC UA setup/diagnostics, URL/deep-linked evidence screens,
-locale switching, accessibility audit, independent supervision, and
-full operational lifecycle/browser acceptance remain in [Issue #449](https://github.com/so9093-K/industrial-phm-framework/issues/449).
+The Web-only Operations product cutover (#480) is complete. Synthetic first-run and
+bounded OPC UA / FILE / Review journeys have landed, but whole-workflow parity,
+locale switching, accessibility, and the recorded full fault-replay matrix remain
+unaccepted under [#489](https://github.com/so9093-K/industrial-phm-framework/issues/489)
+and [#488](https://github.com/so9093-K/industrial-phm-framework/issues/488).
+This historical initial-slice section is not a current feature-completeness claim.
 
 ## Supervised Web preview pilot (read-only, opt-in)
 
@@ -107,8 +109,8 @@ normal supervisor owns the lifetime `supervisor.lock` and all Web POST
 mutations **continue to return 409 `workspace_writer_busy`**. This is a
 strictly **read-only pilot**, not a usable replacement for registration or
 review editing. The supervised Web command broker remains the writer
-through the old UI. Never bypass this boundary by disabling the lock or using
-an environment variable as write authorization.
+through the current supervised Web. Never bypass this boundary by disabling the lock
+or using an environment variable as write authorization.
 
 The supervisor-owned mutation command bridge is tracked in
 [Issue #465](https://github.com/so9093-K/industrial-phm-framework/issues/465);
