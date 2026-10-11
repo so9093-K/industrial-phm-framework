@@ -7,7 +7,10 @@ the supervisor or prove ingestion. The existing marimo UI remains unchanged.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
+import os
 import secrets
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -50,6 +53,10 @@ from industrial_phm.runtime.operations_web_signals import (
 )
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+
+
+_MAX_WEB_CSV_UPLOAD = 1024 * 1024
+_MAX_WEB_CSV_REQUEST = 1_410_000
 
 
 def create_operations_web_read_server(
@@ -269,7 +276,7 @@ def create_operations_web_read_server(
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
                 return
-            if self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES and command_client is None:
+            if (self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES or self.path == "/api/v1/sources/file/upload") and command_client is None:
                 self._error(HTTPStatus.FORBIDDEN, "supervisor_required")
                 return
             host = self.headers.get("Host", "")
@@ -290,7 +297,12 @@ def create_operations_web_read_server(
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
                 return
             length = int(lengths[0])
-            if not 1 <= length <= 4096 or self.headers.get("Content-Type") != "application/json":
+            max_length = (
+                _MAX_WEB_CSV_REQUEST
+                if self.path == "/api/v1/sources/file/upload"
+                else 4096
+            )
+            if not 1 <= length <= max_length or self.headers.get("Content-Type") != "application/json":
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
                 return
             try:
@@ -298,7 +310,42 @@ def create_operations_web_read_server(
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
                 with mutation_lock:
-                    if command_client is None:
+                    if self.path == "/api/v1/sources/file/upload":
+                        assert command_client is not None
+                        if set(body) != {"setup", "csv_base64"}:
+                            raise ValueError("unexpected upload fields")
+                        setup, encoded = body["setup"], body["csv_base64"]
+                        if (
+                            not isinstance(setup, dict)
+                            or set(setup) != {
+                                "source_id", "name", "asset_id", "measurement_point_id",
+                                "channel_columns", "timestamp_column",
+                            }
+                            or not isinstance(encoded, str)
+                            or len(encoded) > 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3)
+                        ):
+                            raise ValueError("invalid bounded upload")
+                        try:
+                            raw = base64.b64decode(encoded, validate=True)
+                        except (binascii.Error, ValueError) as error:
+                            raise ValueError("invalid CSV encoding") from error
+                        if not 0 < len(raw) <= _MAX_WEB_CSV_UPLOAD:
+                            raise ValueError("CSV upload size outside limits")
+                        # This ephemeral location belongs to the supervisor broker,
+                        # never to a user-provided path or workspace-writer bypass.
+                        directory = Path(command_client.socket_path).parent / "uploads"
+                        staged_name = secrets.token_hex(16) + ".csv"
+                        staged = directory / staged_name
+                        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                        try:
+                            with os.fdopen(fd, "wb") as stream:
+                                stream.write(raw)
+                            result = command_client.execute(
+                                self.path, {**setup, "staged_name": staged_name}
+                            )
+                        finally:
+                            staged.unlink(missing_ok=True)
+                    elif command_client is None:
                         with web_workspace_writer(root):
                             result = execute_web_source_action(root, self.path, body)
                     else:
@@ -352,6 +399,7 @@ def create_operations_web_read_server(
                     if self.path
                     in {
                         "/api/v1/sources/file",
+                        "/api/v1/sources/file/upload",
                         "/api/v1/sources/opcua",
                         "/api/v1/reviews/request",
                     }
