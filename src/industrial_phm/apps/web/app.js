@@ -668,7 +668,106 @@ loadRuntimeStatus();
 // Source reads can overlap after control actions. Only the newest successful read
 // may decide whether the operator sees an evidence-backed Monitor handoff.
 let sourcesRequestSequence = 0;
+let selectedOnboardingSourceId = "";
+let onboardingSources = [];
+let onboardingIncomplete = false;
+function onboardingStepFor(source) {
+  if (["registered", "paused", "error"].includes(source.lifecycle_state)) {
+    return ["소스 활성화", "현재 관리 상태는 " + source.lifecycle_state
+      + "입니다. 활성화는 연결·수신 성공을 뜻하지 않습니다."];
+  }
+  if (source.lifecycle_state !== "active") {
+    return [null, "관리 상태가 확인되지 않았습니다. 상태를 새로 조회하세요."];
+  }
+  if (source.source_type === "file") {
+    return source.receipt_confirmed
+      ? ["FILE 이력 적재", "검증 수신 근거가 있습니다. DuckLake 이력 커밋은 아직 확인되지 않았습니다. 필요한 경우 FILE 이력 적재 버튼으로 이동하세요."]
+      : ["FILE 수신 확인", "등록·활성화만 확인됐습니다. CSV의 실제 검증 수신 결과를 별도로 확인하세요."];
+  }
+  if (source.source_type === "opcua") {
+    if (!source.receipt_confirmed) {
+      return ["OPC UA 1회 수신 진단", "활성 소스에서 로컬 OPC UA 1회 읽기·수신 근거를 확인하세요. 연속 수집과 별도입니다."];
+    }
+    if (source.collection_desired_state !== "running") {
+      return ["수집 시작 요청", "1회 수신 근거가 있습니다. 연속 수집의 원하는 상태를 요청할 수 있으나 실제 연결·저장 성공은 별도 확인해야 합니다."];
+    }
+    return [null, "수집 시작 요청이 기록됐습니다. 현재 접속·최근 live 수신·저장 이력은 아래 소스 상태와 관측 화면에서 별도로 확인하세요."];
+  }
+  return [null, "이 소스 유형은 화면에서 다음 작업을 안내할 수 없습니다."];
+}
+function renderOnboardingGuide() {
+  const selector = byId("onboarding-source-select");
+  const detail = byId("onboarding-action-detail");
+  const button = byId("onboarding-action");
+  clear(selector);
+  const none = !onboardingSources.length;
+  if (none) {
+    const option = create("option", null, "등록된 소스 없음");
+    option.value = "";
+    selector.append(option);
+    selector.disabled = true;
+    selectedOnboardingSourceId = "";
+    button.disabled = false;
+    button.textContent = "CSV 등록 양식으로 이동";
+    detail.textContent = "첫 단계: 준비된 CSV를 등록하거나 아래의 로컬 OPC UA 등록 양식을 이용하세요. 파일은 작업공간 내부에 있어야 합니다.";
+    return;
+  }
+  onboardingSources.forEach((source) => {
+    const option = create("option", null, source.name + " · " + source.source_id + " (" + source.asset_id + ")");
+    option.value = source.source_id;
+    selector.append(option);
+  });
+  selector.disabled = false;
+  if (!onboardingSources.some((item) => item.source_id === selectedOnboardingSourceId)) {
+    selectedOnboardingSourceId = onboardingSources[0].source_id;
+  }
+  selector.value = selectedOnboardingSourceId;
+  const item = onboardingSources.find((source) => source.source_id === selectedOnboardingSourceId);
+  if (!item) return;
+  const [action, next] = onboardingStepFor(item);
+  detail.textContent = "소스 " + item.source_id + " · " + next
+    + (onboardingIncomplete ? " 일부 수신 근거 조회 오류가 있어 현재 상태를 확정할 수 없습니다." : "");
+  button.textContent = action ? action + " 버튼 찾기" : "관측 화면으로 이동";
+  button.disabled = !action && item.lifecycle_state !== "active";
+}
+function scrollToOnboardingTarget(target, hash) {
+  if (!target) {
+    byId("onboarding-action-detail").textContent =
+      "해당 작업 버튼이 현재 목록에 없습니다. 소스 목록을 새로 조회하세요.";
+    return;
+  }
+  location.hash = hash;
+  target.focus({preventScroll: true});
+  target.scrollIntoView({block: "center"});
+}
+byId("onboarding-source-select").addEventListener("change", (event) => {
+  selectedOnboardingSourceId = event.target.value;
+  renderOnboardingGuide();
+});
+byId("onboarding-action").addEventListener("click", () => {
+  const item = onboardingSources.find((source) => source.source_id === selectedOnboardingSourceId);
+  if (!item) {
+    scrollToOnboardingTarget(byId("file-form").querySelector('input[name="source_id"]'), "#connect");
+    return;
+  }
+  const [action] = onboardingStepFor(item);
+  if (!action) {
+    scrollToOnboardingTarget(byId("asset-select"), "#monitor");
+    return;
+  }
+  const card = [...byId("source-list").querySelectorAll(".source-record")]
+    .find((element) => element.dataset.sourceId === item.source_id);
+  const target = card && [...card.querySelectorAll(".source-actions button")]
+    .find((element) => element.textContent === action);
+  scrollToOnboardingTarget(target, "#connect");
+});
 function setOnboardingUnknown(message) {
+  onboardingSources = [];
+  const selector = byId("onboarding-source-select");
+  clear(selector);
+  selector.disabled = true;
+  byId("onboarding-action").disabled = true;
+  byId("onboarding-action-detail").textContent = message;
   byId("onboarding-monitor-link").classList.add("hidden");
   const steps = byId("onboarding-steps");
   clear(steps);
@@ -750,8 +849,12 @@ async function loadSources() {
     }
     byId("onboarding-state").className = "";
     setOnboardingEvidence(items, data, evidenceReadError);
+    onboardingSources = items;
+    onboardingIncomplete = evidenceReadError || Boolean(data.sources.truncated);
+    renderOnboardingGuide();
     items.forEach((item) => {
       const card = create("article", "source-record");
+      card.dataset.sourceId = item.source_id;
       card.append(create("strong", null, item.name + " · " + item.source_id));
       card.append(create("span", null, "설비: " + item.asset_id + " · 유형: " + item.source_type));
       card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + " (접속 상태 아님)"));
