@@ -11,7 +11,6 @@ on:
       - "src/industrial_phm/application/**"
       - "src/industrial_phm/presentation/**"
       - "src/industrial_phm/runtime/**"
-      - "tests/integration/test_operations_app.py"
       - "tests/support/**"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
@@ -36,7 +35,6 @@ on:
       - "src/industrial_phm/application/**"
       - "src/industrial_phm/presentation/**"
       - "src/industrial_phm/runtime/**"
-      - "tests/integration/test_operations_app.py"
       - "tests/support/**"
       - "src/industrial_phm/adapters/csv_sensor.py"
       - "src/industrial_phm/contracts/quality.py"
@@ -83,17 +81,12 @@ jobs:
         run: uv lock --check
 
       - name: Sync locked research environment
-        run: uv sync --locked --group research --extra operations
+        run: uv sync --locked --group research
 
       - name: Check marimo analysis files
         run: |
-          uv run --locked --group research --extra operations marimo check --strict \
-            notebooks/*.py apps/*.py src/industrial_phm/apps/operations.py
-
-      - name: Render Operations with analysis results and review requests
-        run: |
-          uv run --locked --group research --extra operations pytest \
-            tests/integration/test_operations_app.py
+          uv run --locked --group research marimo check --strict \
+            notebooks/*.py apps/*.py
 
       - name: Smoke Developer Workbench
         run: |
@@ -115,49 +108,3 @@ jobs:
             apps/analysis_explorer.py \
             --no-include-code \
             --output /tmp/analysis-explorer-inspection.html
-
-      - name: Smoke PHM Operations registered-source surface
-        run: |
-          uv run --locked --group research python - <<'PY'
-          from datetime import datetime
-          from pathlib import Path
-
-          from industrial_phm.application import (
-              FileSourceConfig,
-              FileSourceMode,
-              JsonSourceRepository,
-              RegisteredSource,
-          )
-
-          workspace = Path("/tmp/operations-file-workspace")
-          workspace.mkdir(parents=True, exist_ok=True)
-          repository = JsonSourceRepository(workspace / "sources.json")
-          repository.register(
-              RegisteredSource(
-                  source_id="ci-registered-file",
-                  name="CI registered file source",
-                  config=FileSourceConfig(
-                      source_path="/tmp/operations-observation.csv",
-                      asset_id="ci-pump-01",
-                      measurement_point_id="drive-end-bearing",
-                      channel_columns=("vibration_x", "temperature"),
-                      mode=FileSourceMode.SNAPSHOT,
-                      timestamp_column="timestamp",
-                      sampling_rate_hz=1.0,
-                  ),
-                  registered_at=datetime.fromisoformat("2026-09-23T09:00:00+09:00"),
-              )
-          )
-          PY
-
-          cat > /tmp/operations-observation.csv <<'EOF'
-          timestamp,vibration_x,temperature
-          2026-09-22T10:00:00+09:00,-1.0,42.0
-          2026-09-22T10:00:01+09:00,0.0,42.2
-          2026-09-22T10:00:02+09:00,1.0,42.4
-          EOF
-          INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=/tmp/operations-file-workspace \
-            uv run --locked --group research --extra operations marimo export html \
-            src/industrial_phm/apps/operations.py \
-            --no-include-code \
-            --output /tmp/phm-operations-registered-source.html

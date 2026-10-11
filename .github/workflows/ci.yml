@@ -361,16 +361,11 @@ jobs:
       - name: Validate packaged Operations extra
         run: |
           uv run --locked --extra operations python - <<'PY'
-          from industrial_phm.apps import operations_app_path
-
-          path = operations_app_path()
-          assert path.is_file(), path
-          assert path.name == "operations.py"
+          from importlib.resources import files
+          assets = files("industrial_phm.apps").joinpath("web")
+          for name in ("index.html", "app.js", "styles.css"):
+              assert assets.joinpath(name).read_bytes(), name
           PY
-          uv run --locked --extra operations python -m marimo check --strict \
-            src/industrial_phm/apps/operations.py
-          uv run --locked --extra operations python -m marimo run --help | grep -q -- '--headless'
-          uv run --locked --extra operations python -m marimo run --help | grep -q -- '--no-token'
           uv run --locked --extra operations industrial-phm demo synthetic --help
           uv run --locked --extra operations pytest \
             tests/integration/test_operations_backup_restore_cli.py
@@ -380,9 +375,6 @@ jobs:
           uv run --locked --extra operations industrial-phm operations init "$DEPLOY_ROOT/plant-a"
           uv run --locked --extra operations industrial-phm validate deployment "$DEPLOY_ROOT/plant-a"
 
-      - name: Validate Monitor widget JavaScript syntax
-        run: node --check --input-type=module < src/industrial_phm/apps/monitor_widget.js
-
       - name: Validate read-only Web monitor JavaScript syntax
         run: node --check --input-type=module < src/industrial_phm/apps/web/app.js
 
@@ -391,9 +383,8 @@ jobs:
           uv run --locked --extra operations pytest \
             tests/acceptance/test_synthetic_operations_node.py \
             tests/acceptance/test_operations_evidence_journey.py \
-            tests/integration/test_operations_app.py \
             tests/unit/test_monitor_workspace.py \
-            tests/unit/test_monitor_widget.py
+            tests/unit/test_operations_runtime.py
 
       - name: Install Chromium for first-run acceptance
         run: uv run --locked --extra operations --with playwright python -m playwright install --with-deps chromium
@@ -403,7 +394,6 @@ jobs:
           PHM_FIRST_RUN_SCREENSHOTS: ${{ runner.temp }}/first-run-evidence
         run: |
           uv run --locked --extra operations --with playwright pytest \
-            tests/acceptance/test_operations_first_run_browser.py \
             tests/acceptance/test_operations_web_monitor_browser.py \
             tests/acceptance/test_operations_web_controlled_journey_browser.py \
             tests/acceptance/test_operations_web_cross_action_http.py \
@@ -457,8 +447,6 @@ jobs:
       - name: Verify packaged runtime contract
         run: |
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/xjtu-sy.toml'
-          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/monitor_widget.js'
-          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/monitor_widget.css'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/index.html'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/app.js'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/styles.css'
@@ -475,7 +463,6 @@ jobs:
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: duckdb.*extra == .history.'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Provides-Extra: opcua'
           unzip -p dist/*.whl '*dist-info/METADATA' | grep -q '^Requires-Dist: asyncua.*extra == .opcua.'
-          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/operations.py'
           unzip -l dist/*.whl | grep -q 'industrial_phm/demo/aihub_boiler.py'
           unzip -l dist/*.whl | grep -q 'industrial_phm/demo/aihub_replay.py'
           uv run --locked python - <<'PY'
@@ -502,18 +489,12 @@ jobs:
                   {"extra": "operations"}
               )
 
-          assert any(
-              requirement.name == "marimo" and active_for_operations(requirement)
-              for requirement in requirements
-          ), requirements
           operations_names = {
-              requirement.name
-              for requirement in requirements
+              requirement.name for requirement in requirements
               if active_for_operations(requirement)
           }
-          assert {"marimo", "asyncua", "duckdb", "filelock", "pytz"} <= operations_names, (
-              operations_names
-          )
+          assert {"asyncua", "duckdb", "filelock", "pytz"} <= operations_names, operations_names
+          assert not {"marimo", "anywidget", "matplotlib"} & operations_names, operations_names
           PY
 
       - name: Verify packaged license

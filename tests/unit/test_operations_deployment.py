@@ -25,7 +25,7 @@ def _stub_runtime_imports(monkeypatch) -> None:
     original = deployment_module.importlib.import_module
 
     def fake_import(name: str):
-        if name in {"asyncua", "duckdb", "filelock", "marimo"}:
+        if name in {"asyncua", "duckdb", "filelock"}:
             return SimpleNamespace()
         return original(name)
 
@@ -52,6 +52,7 @@ def test_deployment_preflight_accepts_initialized_absolute_workspace(
     assert by_name["config"].state == OperationsDeploymentCheckState.PASS
     assert by_name["supervisor-lock"].state == OperationsDeploymentCheckState.PASS
     assert by_name["ui-port"].state == OperationsDeploymentCheckState.PASS
+    assert by_name["operations-web-assets"].state == OperationsDeploymentCheckState.PASS
 
 
 def test_deployment_preflight_requires_absolute_workspace(monkeypatch) -> None:
@@ -80,8 +81,8 @@ def test_deployment_preflight_reports_missing_runtime_dependency(
     original = deployment_module.importlib.import_module
 
     def fake_import(name: str):
-        if name == "marimo":
-            raise ModuleNotFoundError("marimo")
+        if name == "duckdb":
+            raise ModuleNotFoundError("duckdb")
         if name in {"asyncua", "duckdb", "filelock"}:
             return SimpleNamespace()
         return original(name)
@@ -92,7 +93,7 @@ def test_deployment_preflight_reports_missing_runtime_dependency(
 
     assert report.ready is False
     by_name = {item.name: item for item in report.checks}
-    assert by_name["dependency-marimo"].state == OperationsDeploymentCheckState.FAIL
+    assert by_name["dependency-duckdb"].state == OperationsDeploymentCheckState.FAIL
 
 
 def test_deployment_preflight_rejects_occupied_ui_port(

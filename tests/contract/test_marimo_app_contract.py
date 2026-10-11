@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from industrial_phm.apps import operations_app_path
 
 REPO = Path(__file__).resolve().parents[2]
-APPS = [*sorted((REPO / "apps").glob("*.py")), operations_app_path()]
+APPS = sorted((REPO / "apps").glob("*.py"))
 
 
 def _ui_values_read_in_creating_cell(path: Path) -> list[str]:

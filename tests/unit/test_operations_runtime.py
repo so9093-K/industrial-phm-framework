@@ -1,7 +1,6 @@
 import sys
 from pathlib import Path
 
-from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime import (
     OperationsAnalysisConfig,
     OperationsCollectionConfig,
@@ -69,22 +68,18 @@ def test_operations_runtime_plan_uses_one_workspace_root_and_config(tmp_path: Pa
     assert ui.argv == (
         sys.executable,
         "-m",
-        "marimo",
-        "run",
-        str(operations_app_path()),
-        "--headless",
-        "--no-token",
-        "--host",
-        OPERATIONS_UI_HOST,
+        "industrial_phm.runtime.operations_web_preview",
+        str(workspace.root),
         "--port",
         "3818",
+        "--supervised-actions",
     )
     assert ui.env_overrides == ((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),)
     assert ui.clear_env == ()
     assert collection.log_path == workspace.logs_path / "collection.log"
     assert analysis.log_path == workspace.logs_path / "analysis.log"
     assert ui.log_path == workspace.logs_path / "ui.log"
-    assert plan.ui_url == "http://127.0.0.1:3818"
+    assert plan.ui_url == "http://127.0.0.1:3818/web/"
 
 
 def test_operations_runtime_plan_preserves_bounded_previous_provenance(tmp_path: Path) -> None:
@@ -130,7 +125,7 @@ def test_web_preview_plan_is_opt_in_and_keeps_supervisor_topology(tmp_path: Path
     assert ui.env_overrides == ((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),)
     assert plan.ui_url == "http://127.0.0.1:4876/web/"
     assert ui.log_path == workspace.logs_path / "ui.log"
-    assert build_operations_runtime_plan(workspace, config).ui_mode == OperationsUiMode.MARIMO
+    assert build_operations_runtime_plan(workspace, config).ui_mode == OperationsUiMode.WEB_CONTROLLED
 
 
 def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
@@ -142,6 +137,17 @@ def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
     assert default.ui == "web-controlled"
     assert opt_in.ui == "web-preview"
     up_default = build_parser().parse_args(["operations", "up", workspace])
-    up_fallback = build_parser().parse_args(["operations", "up", workspace, "--ui", "marimo"])
     assert up_default.ui == "web-controlled"
-    assert up_fallback.ui == "marimo"
+    assert up_default.ui == "web-controlled"
+
+
+def test_retired_marimo_operations_mode_is_rejected(tmp_path: Path) -> None:
+    import pytest
+    from industrial_phm.cli import build_parser
+
+    for command in ("up", "start"):
+        with pytest.raises(SystemExit) as error:
+            build_parser().parse_args(
+                ["operations", command, str(tmp_path / "site"), "--ui", "marimo"]
+            )
+        assert error.value.code == 2
