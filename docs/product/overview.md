@@ -935,23 +935,17 @@ Information architecture는 다음 원칙을 적용합니다.
   지원 작업으로 제공하되, accepted receipt 이전에는 실제 data-ready로
   표현하지 않는다.
 
-[검토 전용 웹 시안](../../examples/operations/web-ux-wireframe.html)은 위
-순서를 가상 상전압·불평형 결과·임시 review 상태로 보여주는 user-flow
-hypothesis다. 사용자 리뷰나 production API contract를 통과한 것으로
-취급하지 않으며, 현재 지원·미지원 내용은 `docs/status.md`에서
-확인한다.
+현재 실제 구현 및 미지원 기능은 `docs/status.md`를 기준으로 확인한다.
 
 #### 공통 시각·상호작용 디자인 계약
 
 Operations의 공통 디자인은 화려한 산업용 경보판보다 **측정 사실, 시간, 다음 행동을
 빠르게 구분하는 데이터 제품**을 우선한다. 구현 프레임워크의 기본 widget 스타일을
 제품 디자인 결정으로 삼지 않고, 공통 component/token 계층을 소유한다.
-[독립형 검토 시안](../../examples/operations/web-ux-wireframe.html)은 이 원칙을
-바탕으로 만든 **비운영용 정적 UX 예시**이며 실제 연결·저장·조회·진단을 구현하지 않는다.
-시안의 색상/숫자/레이아웃은 사용자·접근성 검증 이전의 가설이므로 production
-design token이나 지원 capability의 확정 선언이 아니다.
+과거 정적 UX 시안은 현재 제품의 기준으로 사용하지 않는다. 이 디자인 계약은
+실제 Web 화면과 사용자 행동을 기준으로 검증한다.
 
-| 공통 요소 | 제품 계약 | 시안에서 검토할 질문 |
+| 공통 요소 | 제품 계약 | 실제 Web에서 검증할 질문 |
 | --- | --- | --- |
 | Layout/navigation | 한 shell 안에서 화면 제목, 현재 위치, 주 동작·상태를 같은 위치에 둠 | 1024/1440px에서 핵심 행동이 숨겨지지 않는가? |
 | Typography/spacing | 한국어 15px 중심의 읽기 쉬운 본문, 분명한 제목 위계, 일관된 간격·행 높이 | technical ID·UTC와 도움말이 작아도 읽을 수 있는가? |
