@@ -5,12 +5,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from industrial_phm.application.asset_history import HistoricalInputReference
+from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
     OperationsMonitorAttention,
     OperationsMonitorStatus,
 )
-from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
     PhaseUnbalanceConfig,
