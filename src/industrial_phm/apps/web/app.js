@@ -1054,7 +1054,7 @@ async function receiveFile(sourceId, button) {
 
 async function analyzeFile(sourceId, button) {
   const output = byId("source-control-result");
-  if (!window.confirm(sourceId + " · 등록한 CSV 스냅샷의 통계 특징을 새로 계산해 Run/Evidence를 기록합니다.\\nDuckLake 이력 적재나 설비 고장 진단은 실행하지 않습니다.")) return;
+  if (!window.confirm(sourceId + " · 등록한 CSV 스냅샷의 통계 특징을 새로 계산해 Run/Evidence를 기록합니다.\nDuckLake 이력 적재나 설비 고장 진단은 실행하지 않습니다.")) return;
   button.disabled = true;
   output.className = "";
   output.textContent = sourceId + " · CSV 특징 분석 실행 중";

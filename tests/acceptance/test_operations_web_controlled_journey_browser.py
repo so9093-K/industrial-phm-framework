@@ -209,7 +209,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#asset-select")).to_have_value(asset_id)
                 saved_uploads = tuple((workspace.root / "web-uploads").glob("*.csv"))
                 assert len(saved_uploads) == 1
-                assert saved_uploads[0].read_bytes() == (inputs / "phase.csv").read_bytes()
+                assert saved_uploads[0].read_bytes() == (inputs / "vibration.csv").read_bytes()
                 pw.expect(listing).to_contain_text("수신 근거 미확인")
                 pw.expect(listing.locator(".source-meaning")).to_contain_text(
                     "소스 등록 정보만 확인"
