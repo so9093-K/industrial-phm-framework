@@ -342,7 +342,7 @@ def test_real_supervisor_ipc_allows_only_bound_child_to_control_sample(
             client.execute("/api/v1/demo/synthetic/status", {})
         broker.bind_child(os.getpid())
         started = client.execute("/api/v1/demo/synthetic/start", {})
-        assert started["url"] == "http://127.0.0.1:2788"
+        assert started["url"] == "http://127.0.0.1:2788/web/"
         assert client.execute("/api/v1/demo/synthetic/status", {}) == started
         with pytest.raises(command.WebCommandRejected, match="invalid_source_action"):
             client.execute("/api/v1/demo/synthetic/start", {"port": 9999})

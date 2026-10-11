@@ -68,7 +68,7 @@ def launch_first_run_sample(
     sample_workspace = workspace.root.parent / f"demo-synthetic-{ui_port}-{opcua_port}"
     launch = FirstRunSampleLaunch(
         workspace=sample_workspace,
-        url=f"http://127.0.0.1:{ui_port}",
+        url=f"http://127.0.0.1:{ui_port}/web/",
         opcua_port=opcua_port,
         ui_port=ui_port,
     )
