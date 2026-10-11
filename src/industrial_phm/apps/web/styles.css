@@ -73,3 +73,12 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .sample-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
 .sample-actions button{font-size:.81rem}
 .sample-actions a{font-size:.83rem;font-weight:650;overflow-wrap:anywhere}
+
+/* Live local process evidence, separate from persisted storage read evidence. */
+.runtime-panel{border:1px solid #c8dbe2;border-radius:11px;background:#f7fafb;padding:16px;margin-bottom:22px}
+.runtime-panel .panel-header{align-items:center;flex-wrap:wrap}
+.runtime-panel h3,.system-read-title{font-size:.98rem;margin:0 0 5px}
+.runtime-panel .facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}
+.runtime-components{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.runtime-components .source-record{min-width:0}
+@media(max-width:1100px){.runtime-components{grid-template-columns:1fr}.runtime-panel .facts{grid-template-columns:1fr}}
