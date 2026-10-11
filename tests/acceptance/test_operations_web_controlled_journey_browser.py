@@ -1,7 +1,8 @@
-"""Real Chromium first-run → persisted history → review via default supervised Web."""
+"""Real Chromium CSV → fresh analysis → exact review → restart via supervised Web."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import signal
@@ -18,9 +19,9 @@ from pathlib import Path
 import pytest
 
 from industrial_phm.application import (
+    JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonSourceRepository,
-    SqlitePhaseUnbalanceRepository,
 )
 from industrial_phm.runtime import (
     OperationsComponentKind,
@@ -35,7 +36,6 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
 )
-from tests.support.window_analysis import phase_unbalance_analysis
 
 _RUN = "from industrial_phm.cli import main; raise SystemExit(main())"
 
@@ -110,15 +110,15 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
     write_operations_runtime_config(
         workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
     )
-    analysis = phase_unbalance_analysis()
-    SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).record(analysis)
+    asset_id = "journey-pump"
     inputs = workspace.root / "inputs"
     inputs.mkdir()
     observed = datetime.now(UTC) - timedelta(minutes=3)
-    (inputs / "phase.csv").write_text(
-        "timestamp,phase-R,phase-S,phase-T\n"
-        f"{observed.isoformat()},220.5,219.0,221.0\n"
-        f"{(observed + timedelta(seconds=1)).isoformat()},220.7,219.2,221.1\n",
+    (inputs / "vibration.csv").write_text(
+        "timestamp,vibration_x,vibration_y\n"
+        f"{observed.isoformat()},-1.0,2.0\n"
+        f"{(observed + timedelta(seconds=1)).isoformat()},0.0,3.0\n"
+        f"{(observed + timedelta(seconds=2)).isoformat()},1.5,4.0\n",
         encoding="utf-8",
     )
     log = tmp_path / "supervisor.log"
@@ -160,9 +160,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
                     "aria-current", "page"
                 )
-                pw.expect(page.locator("#asset-select")).to_have_value(
-                    analysis.run.asset_id, timeout=30000
-                )
+                pw.expect(page.locator("#asset-select")).to_be_disabled()
                 assert page.locator(".skip-link").get_attribute("href") == "#main"
                 assert page.locator("html").get_attribute("lang") == "ko"
                 guide = page.locator("#operator-reference-en")
@@ -187,27 +185,28 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 fields = {
                     "source_id": "journey-file",
                     "name": "브라우저 여정",
-                    "asset_id": analysis.run.asset_id,
+                    "asset_id": asset_id,
                     "measurement_point_id": "panel",
-                    "channel_columns": "phase-R,phase-S,phase-T",
+                    "channel_columns": "vibration_x,vibration_y",
                     "timestamp_column": "timestamp",
                 }
                 for key, value in fields.items():
                     page.locator(f'#file-form input[name="{key}"]').fill(value)
                 page.locator("#csv-upload").set_input_files(
                     {
-                        "name": "phase.csv",
+                        "name": "vibration.csv",
                         "mimeType": "text/csv",
-                        "buffer": (inputs / "phase.csv").read_bytes(),
+                        "buffer": (inputs / "vibration.csv").read_bytes(),
                     }
                 )
                 pw.expect(page.locator("#csv-file-preview")).to_contain_text(
-                    "헤더 후보: timestamp, phase-R, phase-S, phase-T"
+                    "헤더 후보: timestamp, vibration_x, vibration_y"
                 )
                 pw.expect(page.locator('#file-form input[name="file_path"]')).to_be_disabled()
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 listing = page.locator("#source-list")
                 pw.expect(listing).to_contain_text("journey-file", timeout=30000)
+                pw.expect(page.locator("#asset-select")).to_have_value(asset_id)
                 saved_uploads = tuple((workspace.root / "web-uploads").glob("*.csv"))
                 assert len(saved_uploads) == 1
                 assert saved_uploads[0].read_bytes() == (inputs / "phase.csv").read_bytes()
@@ -257,8 +256,22 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "6개 이벤트", timeout=30000
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text("220.7", timeout=30000)
+                pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
                 assert workspace.history_catalog_path.exists()
+                listing.get_by_role("button", name="CSV 특징 분석 실행").click()
+                pw.expect(page.locator("#source-control-result")).to_contain_text(
+                    "신규 분석 근거 저장 완료", timeout=30000
+                )
+                analyses = JsonFileFeatureAnalysisRepository(
+                    workspace.file_feature_analysis_path
+                ).list_results()
+                assert len(analyses) == 1
+                analysis = analyses[0]
+                assert analysis.run.source_id == "journey-file"
+                assert analysis.run.asset_id == asset_id
+                assert analysis.evidence.source_snapshot_sha256 == hashlib.sha256(
+                    (inputs / "vibration.csv").read_bytes()
+                ).hexdigest()
                 page.get_by_role("link", name="분석 근거").click()
                 pw.expect(page.locator("#evidence-results")).to_contain_text(
                     analysis.evidence.evidence_id
@@ -317,6 +330,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
     assert JsonSourceRepository(workspace.source_registry_path).get("journey-file")
+    assert JsonFileFeatureAnalysisRepository(workspace.file_feature_analysis_path).list_results() == (
+        analysis,
+    )
     repository = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
     assert [event.action.value for event in repository.list_events()] == [
         "note",
@@ -335,7 +351,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#review-results .review-meaning")).to_contain_text(
                     "실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text("220.7", timeout=30000)
+                pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_visible()
                 # Losing the real source GET must revoke a prior ready state,
