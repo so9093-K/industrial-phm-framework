@@ -285,10 +285,7 @@ def create_operations_web_read_server(
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
                 return
-            if (
-                self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES
-                or self.path == "/api/v1/sources/file/upload"
-            ) and command_client is None:
+            if self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES and command_client is None:
                 self._error(HTTPStatus.FORBIDDEN, "supervisor_required")
                 return
             host = self.headers.get("Host", "")
