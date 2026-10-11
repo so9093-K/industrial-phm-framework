@@ -80,7 +80,7 @@
       </section>
       <section class="kpis" id="monitor" aria-label="관측 요약">
         <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>
-        <div class="kpi"><span>기록된 3상 분석</span><strong id="analysis-count">—</strong><small>실제 저장된 AnalysisRun</small></div>
+        <div class="kpi"><span>기록된 분석</span><strong id="analysis-count">—</strong><small>실제 저장된 AnalysisRun</small></div>
         <div class="kpi"><span>검토 요청 기록</span><strong id="review-count">—</strong><small>정비 수행과 구별</small></div>
         <div class="kpi"><span>데이터 평가 시각</span><strong id="assessed-at" class="time">—</strong><small>UTC 기준 · 수동 새로고침</small></div>
       </section>
@@ -105,7 +105,7 @@
         </div>
       </section>
       <section class="below">
-        <div class="panel" id="evidence"><div class="panel-header"><div><h2>3상 불평형 분석 근거</h2><p class="muted">실제로 저장된 분석만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
+        <div class="panel" id="evidence"><div class="panel-header"><div><h2>저장된 분석 근거</h2><p class="muted">CSV 통계 특징·3상 불평형 등 실제 저장된 결과만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
         <div class="panel" id="review">
           <div class="panel-header"><div><h2>사람의 정비 검토</h2><p class="muted">전체 설비의 미처리 요청을 찾고 원본 분석 근거로 이동합니다.</p></div></div>
           <div class="review-inbox" aria-labelledby="review-inbox-title">
@@ -128,7 +128,7 @@
       <section class="panel connection-panel" id="connect" aria-labelledby="connect-title">
         <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">설정 등록과 실제 수신 근거를 분리합니다. OPC UA 설정 변경은 기존 운영 화면을 사용하세요.</p></div></div>
         <div id="source-status" class="state" role="status" aria-live="polite">소스 등록 현황을 조회합니다.</div>
-        <p class="hint">OPC UA는 활성화 후 수집 시작을 요청할 수 있습니다. FILE은 활성화 후 먼저 수신을 검증하고, 명시적 시간 컬럼이 있는 1MiB 이하 CSV의 저장 이력을 별도로 적재할 수 있습니다. Receipt·DuckLake 이력·실시간 연결·분석은 서로 다른 사실입니다.</p>
+        <p class="hint">OPC UA는 활성화 후 수집 시작을 요청할 수 있습니다. FILE은 활성화 후 먼저 수신을 검증하고, 명시적 시간 컬럼이 있는 1MiB 이하 CSV의 저장 이력을 별도로 적재할 수 있습니다. Receipt·DuckLake 이력·실시간 연결·분석은 서로 다른 사실입니다. 검증 수신한 FILE은 이력 적재와 별도로 CSV 특징 분석을 명시적으로 실행할 수 있습니다. 특징값은 원본 신호의 물리 의미·건강 상태를 판단하지 않습니다.</p>
         <p class="hint">이 화면은 로컬 시험용입니다. 같은 작업공간에서 기존 Operations 화면과 웹 화면의 소스 등록·상태 변경을 동시에 실행하지 마세요. 프로세스 간 동시 쓰기는 지원되지 않습니다.</p>
         <div id="source-list" class="source-list" aria-label="등록된 데이터 소스"></div>
         <p id="source-control-result" role="status" aria-live="polite"></p>
