@@ -664,7 +664,6 @@ def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
 
 
-
 def test_independent_preview_process_cannot_mutate_supervised_workspace(
     tmp_path: Path,
 ) -> None:
@@ -758,9 +757,7 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
                         + preview_log.read_text(errors="replace")[-4000:]
                     )
                 try:
-                    preview_status, preview_session = request(
-                        preview_port, "/api/v1/session"
-                    )
+                    preview_status, preview_session = request(preview_port, "/api/v1/session")
                     if preview_status == 200:
                         break
                 except OSError:
@@ -793,9 +790,7 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
             blocked = {**registration, "source_id": "blocked-preview"}
 
             def attempt(route: str) -> tuple[str, int, dict[str, object]]:
-                status, response = request(
-                    preview_port, route, payload=blocked, token=preview_csrf
-                )
+                status, response = request(preview_port, route, payload=blocked, token=preview_csrf)
                 return route, status, response
 
             with ThreadPoolExecutor(max_workers=8) as pool:
@@ -806,12 +801,8 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
                 for _, status, body in responses
             ), responses
             for route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
-                status, result = request(
-                    preview_port, route, payload={}, token=preview_csrf
-                )
-                assert status == 403 and result == {
-                    "error": {"code": "supervisor_required"}
-                }
+                status, result = request(preview_port, route, payload={}, token=preview_csrf)
+                assert status == 403 and result == {"error": {"code": "supervisor_required"}}
             status, result = request(
                 preview_port,
                 "/api/v1/sources/file",
@@ -844,13 +835,10 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
             # Release the owner lease before trying the identical preview write.
             # No process restart, permission escalation or stale lock workaround.
             _stop(supervisor, workspace.root)
-            assert supervisor.returncode == 0, supervisor_log.read_text(
-                errors="replace"
-            )[-4000:]
+            assert supervisor.returncode == 0, supervisor_log.read_text(errors="replace")[-4000:]
             assert preview.poll() is None
             status, saved = request(
-                preview_port, "/api/v1/sources/file",
-                payload=blocked, token=preview_csrf
+                preview_port, "/api/v1/sources/file", payload=blocked, token=preview_csrf
             )
             assert status == 201 and saved["registration_state"] == "registered"
             status, visible = request(preview_port, "/api/v1/sources")
