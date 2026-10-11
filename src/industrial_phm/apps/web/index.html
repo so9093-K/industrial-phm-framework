@@ -144,12 +144,15 @@
             <p id="csv-file-preview" class="hint wide" role="status" aria-live="polite">파일을 선택하면 첫 행의 컬럼 후보를 확인합니다. 직접 파일을 선택하지 않으면 아래 상대 경로를 입력하세요.</p>
             <label class="wide">작업공간 상대 CSV 경로 (PC 파일을 선택하지 않을 때)<input name="file_path" required maxlength="128" placeholder="inputs/phase-voltage.csv" autocomplete="off"></label>
             <label>신호 컬럼 (쉼표로 구분)<input name="channel_columns" required maxlength="700" placeholder="phase-R,phase-S,phase-T" autocomplete="off"></label>
-            <label>시간 컬럼 (선택)<input name="timestamp_column" maxlength="128" placeholder="timestamp" autocomplete="off"></label>
+            <label>시간 컬럼 (Web 이력에 필수)<input name="timestamp_column" required maxlength="128" placeholder="timestamp" autocomplete="off"></label>
             <label class="wide">3상 역할 매핑 (선택 · 채널,voltage|current,R|S|T,단위 근거,해석 근거)
               <textarea name="phase_bindings" rows="4" maxlength="2300" placeholder="voltage_a,voltage,R,계측기 표시 V 확인,현장 배선도에서 R상 확인&#10;voltage_b,voltage,S,계측기 표시 V 확인,현장 배선도에서 S상 확인&#10;voltage_c,voltage,T,계측기 표시 V 확인,현장 배선도에서 T상 확인"></textarea>
             </label>
             <p class="hint wide">3상 불평형을 분석할 CSV에만 작성하세요. 전압은 V, 전류는 A로 측정된 값만 지원합니다. R/S/T를 한 세트로 모두 입력하고 각 채널의 단위·상 대응 근거를 직접 확인해야 합니다. 이름만으로 자동 추정하지 않습니다. 근거 문장에는 쉼표를 사용하지 마세요.</p>
           </div>
+          <p class="hint">등록 전에 현재 CSV와 선택한 열을 실제 데이터 검증기로 확인하세요. 단위·상의 물리적 진실은 자동 확인하지 않습니다. 사전 점검은 수신·이력·분석 기록을 저장하지 않습니다.</p>
+          <button id="preflight-file" type="button">CSV 분석 전 점검</button>
+          <p id="csv-preflight-result" class="state" role="status" aria-live="polite">파일과 매핑을 설정한 뒤 사전 점검을 실행하세요.</p>
           <button id="register-file" type="submit">CSV 확인 후 소스 등록</button>
           <p id="register-result" role="status" aria-live="polite"></p>
         </form>

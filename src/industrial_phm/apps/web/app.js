@@ -1236,6 +1236,8 @@ async function backfillFile(sourceId, button) {
 
 const MAX_CSV_UPLOAD = 1024 * 1024;
 byId("csv-upload").addEventListener("change", async () => {
+  byId("csv-preflight-result").className = "state";
+  byId("csv-preflight-result").textContent = "선택한 파일이 변경됐습니다. CSV 분석 전 점검을 다시 실행하세요.";
   const chosen = byId("csv-upload").files[0];
   const pathInput = byId("file-form").elements.namedItem("file_path");
   pathInput.required = !chosen;
@@ -1305,24 +1307,18 @@ function declaredPhaseBindings(value, channels) {
   return bindings;
 }
 
-async function registerFile(event) {
-  event.preventDefault();
-  const button = byId("register-file"), feedback = byId("register-result");
+function csvRegistrationInput() {
   const form = byId("file-form");
   const values = new FormData(form);
   const channels = String(values.get("channel_columns") || "").split(",").map((x) => x.trim());
   if (channels.some((x) => !x) || channels.length > 12 || new Set(channels).size !== channels.length) {
-    feedback.className = "error";
-    feedback.textContent = "중복되지 않는 신호 컬럼 1~12개를 쉼표로 입력하세요.";
-    return;
+    throw new Error("중복되지 않는 신호 컬럼 1~12개를 쉼표로 입력하세요.");
   }
   let phaseBindings;
   try {
     phaseBindings = declaredPhaseBindings(String(values.get("phase_bindings") || ""), channels);
   } catch (_error) {
-    feedback.className = "error";
-    feedback.textContent = "3상 매핑을 확인하세요: 채널,voltage|current,R|S|T,단위 근거,해석 근거를 3개 또는 6개 줄에 모두 입력해야 합니다.";
-    return;
+    throw new Error("3상 매핑 오류: 채널,voltage|current,R|S|T,단위 근거,해석 근거를 3개 또는 6개 줄에 모두 입력하세요.");
   }
   const payload = {
     source_id: String(values.get("source_id") || "").trim(),
@@ -1335,11 +1331,128 @@ async function registerFile(event) {
     ...(phaseBindings.length ? {phase_channels: phaseBindings} : {}),
   };
   const chosen = byId("csv-upload").files[0];
-  if (chosen && (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
-    feedback.className = "error";
-    feedback.textContent = "업로드할 CSV는 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.";
+  if (chosen && (!/\\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
+    throw new Error("업로드할 CSV는 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.");
+  }
+  if (!payload.timestamp_column) {
+    throw new Error("Web의 CSV 이력·3상 분석에는 명시적 시간 컬럼이 필요합니다.");
+  }
+  return {payload, chosen, phaseBindings};
+}
+
+function csvRequest(payload, chosen, phaseBindings, preflight) {
+  const upload = Boolean(chosen);
+  const url = upload
+    ? (preflight ? "/api/v1/sources/file/upload/preflight" : "/api/v1/sources/file/upload")
+    : (preflight ? "/api/v1/sources/file/preflight" : "/api/v1/sources/file");
+  return {
+    url,
+    upload,
+    body: upload
+      ? chosen.arrayBuffer().then((buffer) => JSON.stringify({
+          setup: {
+            source_id: payload.source_id, name: payload.name, asset_id: payload.asset_id,
+            measurement_point_id: payload.measurement_point_id,
+            channel_columns: payload.channel_columns, timestamp_column: payload.timestamp_column,
+            ...(phaseBindings.length ? {phase_channels: phaseBindings} : {}),
+          },
+          csv_base64: csvBase64(buffer),
+        }))
+      : Promise.resolve(JSON.stringify(payload)),
+  };
+}
+
+function describeCsvPreflight(result) {
+  if (result.schema_version !== 1
+      || result.meaning !== "csv-preflight-only-not-registered-or-ingested"
+      || !["ready", "needs_input", "blocked"].includes(result.status)) {
+    throw new Error("schema-mismatch");
+  }
+  const lines = [];
+  if (result.status === "blocked") {
+    lines.push("점검 결과: 실행 불가 · 원본 또는 설정을 수정한 뒤 다시 점검하세요.");
+  } else {
+    lines.push(result.status === "ready"
+      ? "점검 결과: CSV 구조와 이력 적재의 필수 조건 확인"
+      : "점검 결과: 추가 확인 필요 · 이력 적재를 시작하지 마세요.");
+    lines.push("표본 " + result.sample_count + "행 · "
+      + result.channel_columns.join(", ") + " · "
+      + (result.first_timestamp || "시작 시각 없음") + " ~ "
+      + (result.last_timestamp || "마지막 시각 없음"));
+    lines.push("원본 식별 SHA-256: " + result.source_sha256.slice(0, 16) + "…");
+    lines.push(result.phase_mapping_ready
+      ? "3상 R/S/T 매핑 3개 이상 제출됨 · 물리적 단위·배선 근거는 현장 확인 필요"
+      : "3상 분석: 명시적 V/A·R/S/T 매핑과 근거를 모두 제출해야 합니다 (통계 특징 분석과 별개).");
+    if (Array.isArray(result.quality_warnings) && result.quality_warnings.length) {
+      lines.push("데이터 품질 주의: " + result.quality_warnings.join(", ") + " · 실제 측정 간격을 확인하세요.");
+    }
+  }
+  if (result.issue) {
+    const issue = result.issue;
+    const location = issue.row_number
+      ? " · " + issue.row_number + "행" + (issue.column ? " / " + issue.column + " 컬럼" : "")
+      : "";
+    lines.push("수정 사항 [" + issue.code + "]" + location + ": " + issue.guidance);
+  }
+  lines.push("사전 점검만 수행됨 · 소스 등록·수신·DuckLake 저장·분석은 아직 하지 않았습니다.");
+  return lines.join("\\n");
+}
+
+async function preflightFile() {
+  const button = byId("preflight-file"), output = byId("csv-preflight-result");
+  let input;
+  try {
+    input = csvRegistrationInput();
+  } catch (error) {
+    output.className = "state error";
+    output.textContent = error.message;
     return;
   }
+  button.disabled = true;
+  output.className = "state";
+  output.textContent = "현재 CSV와 매핑을 점검합니다. 기록은 저장하지 않습니다.";
+  try {
+    const session = await getJSON("/api/v1/session");
+    if (session.write_scope !== "supervisor-owned-source-control") throw new Error("preflight-supervisor-required");
+    const request = csvRequest(input.payload, input.chosen, input.phaseBindings, true);
+    const response = await fetch(request.url, {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: await request.body,
+    });
+    if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
+      if (response.status === 400) throw new Error("invalid-csv");
+      throw new Error("http-" + response.status);
+    }
+    const report = await response.json();
+    output.className = report.status === "ready" ? "state" : "state error";
+    output.textContent = describeCsvPreflight(report);
+  } catch (error) {
+    output.className = "state error";
+    output.textContent = error.message === "preflight-supervisor-required"
+      ? "사전 점검은 감독형 Web에서 실행하세요. 독립 Preview에서는 불가능합니다."
+      : error.message === "invalid-csv"
+      ? "CSV 사전 점검 요청이 잘못됐습니다. 파일 크기·인코딩·선택한 컬럼을 확인하세요."
+      : presentError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function registerFile(event) {
+  event.preventDefault();
+  const button = byId("register-file"), feedback = byId("register-result");
+  const form = byId("file-form");
+  let input;
+  try {
+    input = csvRegistrationInput();
+  } catch (error) {
+    feedback.className = "error";
+    feedback.textContent = error.message;
+    return;
+  }
+  const {payload, chosen, phaseBindings} = input;
   button.disabled = true;
   feedback.className = "";
   feedback.textContent = "CSV 형식과 등록 조건을 검증합니다. 이 단계에서 수집은 시작하지 않습니다.";
@@ -1349,18 +1462,9 @@ async function registerFile(event) {
     if (upload && session.write_scope !== "supervisor-owned-source-control") {
       throw new Error("upload-supervisor-required");
     }
-    const url = upload ? "/api/v1/sources/file/upload" : "/api/v1/sources/file";
-    const body = upload
-      ? JSON.stringify({
-          setup: {
-            source_id: payload.source_id, name: payload.name, asset_id: payload.asset_id,
-            measurement_point_id: payload.measurement_point_id,
-            channel_columns: payload.channel_columns, timestamp_column: payload.timestamp_column,
-            ...(phaseBindings.length ? {phase_channels: phaseBindings} : {}),
-          },
-          csv_base64: csvBase64(await chosen.arrayBuffer()),
-        })
-      : JSON.stringify(payload);
+    const request = csvRequest(payload, chosen, phaseBindings, false);
+    const url = request.url;
+    const body = await request.body;
     const response = await fetch(url, {
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
@@ -1607,6 +1711,12 @@ byId("sample-stop").addEventListener("click", () => {
 byId("sample-refresh").addEventListener("click", () => sampleCommand("status"));
 sampleCommand("status");
 
+byId("file-form").addEventListener("input", () => {
+  const output = byId("csv-preflight-result");
+  output.className = "state";
+  output.textContent = "파일 또는 매핑이 변경됐습니다. 최신 내용으로 다시 점검하세요.";
+});
+byId("preflight-file").addEventListener("click", preflightFile);
 byId("file-form").addEventListener("submit", registerFile);
 byId("opcua-form").addEventListener("submit", registerOpcua);
 byId("browse-opcua").addEventListener("click", browseOpcua);
