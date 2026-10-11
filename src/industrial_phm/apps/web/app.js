@@ -392,6 +392,71 @@ async function selectAsset() {
   trendState("설비의 저장된 신호 목록을 확인합니다.");
   if (selectedAsset) await loadChannels(selectedAsset, generation);
 }
+const runtimeConditions = {
+  running: "실행 근거 있음",
+  "not-ready": "프로세스 있음 · 준비 미확인",
+  stale: "heartbeat 오래됨",
+  stopped: "중지됨",
+  failed: "실패 · 로그 확인 필요",
+  unavailable: "상태 미확인",
+};
+const runtimeNames = {
+  collection: "데이터 수집기",
+  analysis: "분석 실행기",
+  ui: "Web 화면",
+};
+let runtimeRequestSequence = 0;
+async function loadRuntimeStatus() {
+  const token = ++runtimeRequestSequence;
+  const state = byId("runtime-status");
+  const facts = byId("runtime-facts");
+  const components = byId("runtime-components");
+  const button = byId("runtime-refresh");
+  button.disabled = true;
+  state.className = "state";
+  state.textContent = "로컬 Supervisor·수집기·분석기·Web 상태를 확인하고 있습니다.";
+  clear(facts); clear(components);
+  try {
+    const data = await getJSON("/api/v1/system/runtime");
+    if (token !== runtimeRequestSequence) return;
+    if (data.meaning !== "local-process-readiness-not-collection-receipt-or-asset-health"
+        || typeof data.ready !== "boolean" || !data.supervisor
+        || !Array.isArray(data.components) || data.components.length !== 3) {
+      throw new Error("schema-mismatch");
+    }
+    const supervisor = data.supervisor;
+    if (!Object.hasOwn(runtimeConditions, supervisor.condition)) throw new Error("schema-mismatch");
+    state.className = data.ready ? "state" : "state error";
+    state.textContent = data.ready
+      ? "로컬 서비스의 프로세스·heartbeat·Web listener 준비 근거가 확인됐습니다. 실제 데이터 수신 또는 설비 정상 판정은 아닙니다."
+      : "로컬 서비스가 완전히 준비됐는지 확인되지 않습니다. 아래 구성 요소 상태를 확인하고 필요하면 CLI 로그를 조회하세요.";
+    facts.append(
+      withText("평가 시각 · UTC", utc(data.assessed_at)),
+      withText("Supervisor", runtimeConditions[supervisor.condition]),
+      withText("Supervisor PID (조회 시점)", supervisor.pid),
+      withText("Supervisor heartbeat · UTC", utc(supervisor.heartbeat_at)),
+    );
+    data.components.forEach((part) => {
+      if (!Object.hasOwn(runtimeNames, part.kind)
+          || !Object.hasOwn(runtimeConditions, part.condition)) throw new Error("schema-mismatch");
+      const card = create("article", "source-record");
+      card.append(
+        create("strong", null, runtimeNames[part.kind] + " · " + runtimeConditions[part.condition]),
+        create("span", null, "프로세스 PID: " + fmt(part.pid)),
+        create("span", null, "프로세스별 런타임 상태: " + fmt(part.runtime_state)),
+        create("span", null, "마지막 heartbeat · UTC: " + utc(part.heartbeat_at)),
+      );
+      components.append(card);
+    });
+  } catch (error) {
+    if (token !== runtimeRequestSequence) return;
+    state.className = "state error";
+    state.textContent = "실행 상태 조회 실패 · 현재 서비스 상태를 알 수 없습니다. CLI operations status·logs에서 확인하세요. (" + presentError(error) + ")";
+    clear(facts); clear(components);
+  } finally {
+    if (token === runtimeRequestSequence) button.disabled = false;
+  }
+}
 function systemViews(snapshot) {
   const status = byId("system-status");
   const details = byId("system-facts");
@@ -473,7 +538,8 @@ async function refresh() {
     byId("refresh").disabled = false;
   }
 }
-byId("refresh").addEventListener("click",() => {refresh();loadSources();});
+byId("refresh").addEventListener("click",() => {refresh();loadSources();loadRuntimeStatus();});
+byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
 byId("asset-select").addEventListener("change",selectAsset);
 byId("show-trend").addEventListener("click",() => loadTrend());
 byId("range-select").addEventListener("change",() => loadTrend());
@@ -489,6 +555,7 @@ async function initializeReviewAccess() {
   await refresh();
 }
 initializeReviewAccess();
+loadRuntimeStatus();
 
 // Source reads can overlap after control actions. Only the newest successful read
 // may decide whether the operator sees an evidence-backed Monitor handoff.

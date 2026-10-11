@@ -58,6 +58,22 @@ def test_local_operations_web_read_http_is_bounded_and_origin_checked(
         assert status == 200
         assert payload["schema_version"] == 1
         assert payload["assets"]["items"] == []
+        runtime_status, runtime_headers, runtime = _request(port, "GET", "/api/v1/system/runtime")
+        assert runtime_status == 200
+        assert runtime["schema_version"] == 1
+        assert runtime["ready"] is False
+        assert runtime["supervisor"]["condition"] == "unavailable"
+        assert [item["kind"] for item in runtime["components"]] == [
+            "collection",
+            "analysis",
+            "ui",
+        ]
+        assert "log_path" not in str(runtime)
+        assert "detail" not in str(runtime)
+        assert runtime_headers["Cache-Control"] == "no-store"
+        assert _request(port, "GET", "/api/v1/system/runtime", host="rebind.example")[0] == 403
+        assert _request(port, "GET", "/api/v1/system/runtime", site="cross-site")[0] == 403
+        assert _request(port, "POST", "/api/v1/system/runtime")[0] == 405
         assert headers["Cache-Control"] == "no-store"
         assert headers["X-Content-Type-Options"] == "nosniff"
         assert "Access-Control-Allow-Origin" not in headers

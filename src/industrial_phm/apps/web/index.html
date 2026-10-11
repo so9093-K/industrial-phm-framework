@@ -143,9 +143,17 @@
       </section>
       <section class="panel system-panel" id="system" aria-labelledby="system-title">
         <div class="panel-header"><div><h2 id="system-title">시스템 조회 근거</h2><p class="muted">이번 조회에서 확인된 저장소 근거 · 정상 운전 판정 아님</p></div></div>
+        <div class="runtime-panel" aria-labelledby="runtime-title">
+          <div class="panel-header"><div><h3 id="runtime-title">로컬 서비스 실행 상태</h3><p class="muted">Supervisor · 수집기 · 분석기 · Web 프로세스</p></div><button id="runtime-refresh" type="button">실행 상태 다시 확인</button></div>
+          <p id="runtime-status" class="state" role="status" aria-live="polite">현재 프로세스와 heartbeat를 확인하는 중입니다.</p>
+          <div id="runtime-facts" class="facts" aria-label="Supervisor 평가 시각과 상태"></div>
+          <div id="runtime-components" class="runtime-components" aria-label="구성 요소별 실행 상태"></div>
+          <p class="hint">로컬 프로세스 PID, heartbeat와 Web listener를 조회한 시점의 상태입니다. 실제 수신·DuckLake 저장·분석 성공 또는 설비 안전을 의미하지 않습니다. 오류나 상태 정체가 지속되면 CLI status·logs에서 원인을 확인하세요.</p>
+        </div>
+        <h3 class="system-read-title">저장소 조회 상태</h3>
         <p id="system-status" class="state" role="status" aria-live="polite">시스템 조회 근거를 확인하는 중입니다.</p>
         <div id="system-facts" class="facts" aria-label="조회 시점과 저장소 오류 범위"></div>
-        <p class="hint">이 화면은 로컬 저장소 조회 진단입니다. 수집기의 현재 PID·heartbeat, Web readiness 및 로그는 <code>industrial-phm operations status &lt;workspace&gt;</code>와 <code>industrial-phm operations logs &lt;workspace&gt;</code>에서 각각 확인하세요. 조회 오류가 없다는 사실은 수집·연결·설비 정상의 증거가 아닙니다.</p>
+        <p class="hint">더 상세한 상태 및 오류 로그는 <code>industrial-phm operations status &lt;workspace&gt;</code>와 <code>industrial-phm operations logs &lt;workspace&gt;</code>에서 확인하세요. 조회 오류가 없거나 프로세스가 실행 중이어도 수집·연결·설비 정상의 증거가 아닙니다.</p>
       </section>
       <footer>Industrial PHM · 로컬 검증 웹 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>
     </main>

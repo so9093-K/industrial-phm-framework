@@ -141,6 +141,14 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
             page.on("dialog", lambda dialog: dialog.accept())
             try:
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                pw.expect(page.locator("#runtime-facts")).to_contain_text(
+                    str(proc.pid), timeout=30000
+                )
+                pw.expect(page.locator("#runtime-components")).to_contain_text("데이터 수집기")
+                pw.expect(page.locator("#runtime-components")).to_contain_text("분석 실행기")
+                pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
+                page.get_by_role("button", name="실행 상태 다시 확인").click()
+                pw.expect(page.locator("#runtime-facts")).to_contain_text(str(proc.pid))
                 pw.expect(page.locator("#onboarding-state")).to_contain_text(
                     "소스 미등록", timeout=30000
                 )
