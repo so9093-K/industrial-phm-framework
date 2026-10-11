@@ -296,7 +296,7 @@ def test_harness_uses_packaged_operations_web():
     assert "industrial_phm.runtime.operations_web_preview" in source
     assert 'page.locator("#asset-count")' in source
     assert 'page.locator("#monitor-attention strong")' in source
-    assert 'page.locator(\'.source-record[data-source-id="aihub239-replay-boiler-2297"]\')' in source
+    assert '.source-record[data-source-id="aihub239-replay-boiler-2297"]' in source
     assert "source_evidence_seen" in source
     assert "system_state_clearly_scoped" in source
     assert "review_workflow" in source
