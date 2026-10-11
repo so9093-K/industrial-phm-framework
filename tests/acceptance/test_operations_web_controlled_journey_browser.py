@@ -330,9 +330,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
     assert JsonSourceRepository(workspace.source_registry_path).get("journey-file")
-    assert JsonFileFeatureAnalysisRepository(workspace.file_feature_analysis_path).list_results() == (
-        analysis,
-    )
+    persisted = JsonFileFeatureAnalysisRepository(workspace.file_feature_analysis_path)
+    assert persisted.list_results() == (analysis,)
     repository = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
     assert [event.action.value for event in repository.list_events()] == [
         "note",
