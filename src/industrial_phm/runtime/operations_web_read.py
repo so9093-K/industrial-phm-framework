@@ -13,6 +13,7 @@ from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
+from industrial_phm.runtime.operations_status import OperationsRuntimeStatus
 
 _API_VERSION = 1
 _MAX_ITEMS = 100
@@ -173,4 +174,35 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
         "skipped_analysis_attempts": _bounded(skipped),
         "review_requests": _bounded(reviews),
         "system_error_scopes": sorted({item.scope for item in snapshot.system_errors}),
+    }
+
+
+
+def project_operations_runtime_status(status: OperationsRuntimeStatus) -> dict[str, object]:
+    """Expose current local process evidence, not a physical equipment-health verdict.
+
+    Process existence and heartbeat freshness are observation-time signals.
+    Runtime failure details and filesystem/log paths stay outside the Web API.
+    """
+    supervisor = status.supervisor
+    return {
+        "schema_version": _API_VERSION,
+        "assessed_at": _utc(status.assessed_at),
+        "meaning": "local-process-readiness-not-collection-receipt-or-asset-health",
+        "ready": status.ready,
+        "supervisor": {
+            "condition": supervisor.condition.value,
+            "pid": supervisor.process.pid if supervisor.process is not None else None,
+            "heartbeat_at": _utc(supervisor.heartbeat_at),
+        },
+        "components": [
+            {
+                "kind": component.kind.value,
+                "condition": component.condition.value,
+                "pid": component.process.pid if component.process is not None else None,
+                "runtime_state": component.runtime_state,
+                "heartbeat_at": _utc(component.heartbeat_at),
+            }
+            for component in status.components
+        ],
     }
