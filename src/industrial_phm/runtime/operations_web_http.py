@@ -56,6 +56,12 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MAX_WEB_CSV_UPLOAD = 1024 * 1024
 _MAX_WEB_CSV_REQUEST = 1_410_000
+_UPLOAD_SETUP_FIELDS = frozenset(
+    {
+        "source_id", "name", "asset_id", "measurement_point_id",
+        "channel_columns", "timestamp_column",
+    }
+)
 
 
 def create_operations_web_read_server(
@@ -300,9 +306,7 @@ def create_operations_web_read_server(
                 return
             length = int(lengths[0])
             max_length = (
-                _MAX_WEB_CSV_REQUEST
-                if self.path == "/api/v1/sources/file/upload"
-                else 4096
+                _MAX_WEB_CSV_REQUEST if self.path == "/api/v1/sources/file/upload" else 4096
             )
             if (
                 not 1 <= length <= max_length
@@ -322,10 +326,7 @@ def create_operations_web_read_server(
                         setup, encoded = body["setup"], body["csv_base64"]
                         if (
                             not isinstance(setup, dict)
-                            or set(setup) != {
-                                "source_id", "name", "asset_id", "measurement_point_id",
-                                "channel_columns", "timestamp_column",
-                            }
+                            or set(setup) != _UPLOAD_SETUP_FIELDS
                             or not isinstance(encoded, str)
                             or len(encoded) > 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3)
                         ):
