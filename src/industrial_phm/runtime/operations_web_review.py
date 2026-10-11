@@ -16,6 +16,7 @@ from industrial_phm.application import (
     JsonOperationalFindingRepository,
     SqlitePhaseUnbalanceRepository,
 )
+from industrial_phm.application.operational import OperationalAnalysisResult
 from industrial_phm.runtime.operations_app_actions import OperationsAppActions
 from industrial_phm.runtime.operations_app_wiring import OperationsAppPaths
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -50,14 +51,14 @@ def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[
     workspace = OperationsWorkspace(root)
     paths = OperationsAppPaths(workspace)
     phase_results = SqlitePhaseUnbalanceRepository(paths.phase_analysis).find_results({run_id})
-    file_results = tuple(
-        item
-        for item in JsonFileFeatureAnalysisRepository(paths.file_feature_analysis).list_results()
-        if item.run.analysis_run_id == run_id
-    )
-    matches = tuple(
-        item for item in (*phase_results, *file_results) if item.evidence.evidence_id == evidence_id
-    )
+    matches: list[OperationalAnalysisResult] = []
+    for item in phase_results:
+        if item.evidence.evidence_id == evidence_id:
+            matches.append(item)
+    if not matches:
+        for item in JsonFileFeatureAnalysisRepository(paths.file_feature_analysis).list_results():
+            if item.run.analysis_run_id == run_id and item.evidence.evidence_id == evidence_id:
+                matches.append(item)
     if len(matches) != 1:
         raise WebReviewNotFound("exact analysis evidence unavailable")
     finding, _ = OperationsAppActions(paths).request_review(matches[0])
