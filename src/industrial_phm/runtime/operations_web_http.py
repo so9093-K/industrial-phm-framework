@@ -23,6 +23,7 @@ from industrial_phm.application import (
 )
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
 from industrial_phm.runtime.operations_live import OperationsReadError
+from industrial_phm.runtime.operations_status import inspect_operations_runtime_status
 from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
@@ -33,7 +34,6 @@ from industrial_phm.runtime.operations_web_command import (
     WebCommandOutcomeUnknown,
     WebCommandRejected,
 )
-from industrial_phm.runtime.operations_status import inspect_operations_runtime_status
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
     project_operations_runtime_status,
