@@ -399,10 +399,7 @@ def check_live_browser_journey(renders: dict[str, dict[str, object]]) -> dict[st
     incomplete = {
         name: renders[name]
         for name in required
-        if name in renders
-        and (
-            not renders[name].get("source_evidence_seen")
-        )
+        if name in renders and (not renders[name].get("source_evidence_seen"))
     }
     return _check(
         not missing and not slow and not unmatched and not incomplete,
