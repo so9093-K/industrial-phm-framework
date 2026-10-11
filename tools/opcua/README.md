@@ -34,11 +34,11 @@ uv run --no-sync industrial-phm internal collection-service \
   --workspace artifacts/live-demo
 ```
 
-In a third terminal, open Operations with the same state paths:
+In a third terminal, open the packaged Web API/preview without starting another collector:
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live-demo
-uv run --no-sync marimo run src/industrial_phm/apps/operations.py
+uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
+  artifacts/live-demo --port 8765
 ```
 
 1. Setup → Data Sources: select `demo-opcua`, then **Start collection**. This records the desired
@@ -137,8 +137,8 @@ Operations Monitor로 이 상태까지 함께 보려면 동일한 source/acquisi
 실행합니다.
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live-3phase
-uv run --no-sync marimo run src/industrial_phm/apps/operations.py
+uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
+  artifacts/live-3phase --port 8765
 ```
 
 The collection service reads newly durable history through a bounded ingestion cursor and stores
@@ -243,8 +243,8 @@ uv run --no-sync industrial-phm internal window-analysis \
   --alignment bounded-previous --max-carry-age-seconds 5 \
   --alignment-basis "AI-Hub 239 replay: every channel is written once per recorded minute (1 s at 60x); unchanged values raise no DataChange; carry bounded to 5 recorded minutes"
 
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE="$WORKSPACE"
-uv run --no-sync marimo run src/industrial_phm/apps/operations.py
+uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
+  "$WORKSPACE" --port 8765
 ```
 
 Then use Setup → **Start collection**. The workspace root projects the source/runtime/control/spool,
@@ -274,8 +274,8 @@ uv run --no-sync python -m tools.opcua.fault_harness --root artifacts/harness-n3
 
 Only a run with every scenario, `--repeat` of at least 3 and `--browser` is recorded as `"gate": "full"`.
 A run with `--scenarios`, a smaller N or no browser check is `"gate": "diagnostic"` and does not stand in for
-the full reliability gate. `--browser` starts `marimo run src/industrial_phm/apps/operations.py` against the harness root and opens
-Monitor in Chromium through `uv run --no-sync --with playwright` (screenshots: `<root>/ui-*.png`).
+the full reliability gate. `--browser` starts the packaged Web server against the harness root and checks actual
+source/attention evidence in Chromium through `uv run --no-sync --with playwright` (screenshots: `<root>/ui-*.png`).
 
 Scenarios: collector stall (SIGSTOP), source stall, collector kill/restart (SIGKILL), analysis runner
 kill/restart, forced queue overflow (queue 16 < one subscription's 35 initial values), spool backlog
@@ -359,12 +359,12 @@ JSON and screenshots; screenshots still require visual review. This is a stored-
 gate, not the live fault/reconnect protocol owned by `fault_harness.py`.
 
 
-The Monitor renderer is packaged in `industrial_phm/apps/monitor_widget.js` and `.css`, connected
-through the optional Operations `anywidget` bridge. It owns presentation and transient selection;
-canonical history queries, quality, registration, inspection routing and review remain in Python.
-Charts connect adjacent usable bucket means and break at empty/excluded buckets; cursor values
-are summaries, not same-instant sensor samples. Old recorded meaning is never filled from a newer
-registration. Install the locked Operations extra when updating an existing development environment.
+The current Operations Web is packaged in `industrial_phm/apps/web/index.html`,
+`app.js` and `styles.css` and consumes the Python read/command API. Historical
+marimo/anywidget Monitor renderer and its separate browser contract were retired in
+#480. Stored history charts do not interpolate missing/null buckets or silently
+replace original channel semantics. A recorded replay fault-run must be re-executed
+against the current Web before claiming a new full browser gate.
 
 
 A channel choice covers all recorded sources/points of that channel; it is not an implicit pick of

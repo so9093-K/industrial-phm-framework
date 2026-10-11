@@ -1,9 +1,9 @@
 # Operations Web Read API v1 (initial slice)
 
-This document owns the opt-in, loopback-only **Operations Web API v1 contract**. The installed
-Operations product **still launches marimo**. The Web preview reads saved evidence and
-permits only explicitly listed, protected source mutations. It does not replace the
-production UI or supervise collection/analysis.
+This document records the initial loopback-only **Operations Web API v1 contract**. Since
+ADR-0024 and #480 the packaged supervised Web is the default and only Operations UI.
+Standalone Web preview reads the same saved evidence and does not supervise collection/analysis.
+For current capability claims, use [status](../status.md); older cutover history below is not a live rollout gate.
 
 ## Endpoint and lifecycle
 
@@ -50,7 +50,7 @@ serves both static frontend assets and API data, so **no CORS, Node, bundled npm
 dependencies, or separate browser auth exception** is required. A nonstandard
 port may be selected with `--port` (`0` selects an ephemeral local port);
 a nonexistent workspace is rejected. It does not run or stop collection,
-analysis, or the existing supervised marimo child. Existing `make up` and
+analysis, or the existing supervised Web child. `make up` and
 `industrial-phm operations up` retain their current behavior. The preview is a
 single-user local tool. The HTTP process mutex serializes its own requests, and
 each authorized Web mutation additionally acquires the same nonblocking POSIX
@@ -61,7 +61,7 @@ Web preview processes also cannot mutate that workspace at the same time.
 The lease is held until each accepted mutation completes, never used to
 rewrite/truncate the supervisor PID marker, and then released. This is an
 interlock only for cooperating Web previews and the normal supervisor; direct
-file edits or an unsupported manually launched marimo process remain outside
+file edits or an unsupported directly mutating process remain outside
 this contract. The preview does not become the collector/analysis lifecycle owner.
 
 The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
@@ -91,8 +91,8 @@ full operational lifecycle/browser acceptance remain in [Issue #449](https://git
 
 ## Supervised Web preview pilot (read-only, opt-in)
 
-The **default** `make up`, `operations up`, and `operations start` still
-launch the packaged marimo Operations UI. For local engineering acceptance only,
+The **default** `make up`, `operations up`, and `operations start` now
+launch the packaged supervised Web Operations UI. For local engineering acceptance only,
 an initialized workspace can opt into the existing Web static client under the
 same collection/analysis/UI supervisor:
 
@@ -106,7 +106,7 @@ supervised UI **process** (loopback, readiness, stop order, log target), but the
 normal supervisor owns the lifetime `supervisor.lock` and all Web POST
 mutations **continue to return 409 `workspace_writer_busy`**. This is a
 strictly **read-only pilot**, not a usable replacement for registration or
-review editing. The unchanged default marimo path remains the writer
+review editing. The supervised Web command broker remains the writer
 through the old UI. Never bypass this boundary by disabling the lock or using
 an environment variable as write authorization.
 
@@ -139,7 +139,7 @@ A standalone Web preview still runs with its original lease-based POST
 authorization: while another supervisor owns the workspace, GET remains
 available and POST returns `409 workspace_writer_busy`. Explicit supervised
 `--ui web-preview` remains read-only. Default `make up`, `operations
-up`, and unflagged `operations start` continue to launch marimo.
+up`, and unflagged `operations start` launch supervised Web.
 
 The IPC reply body has a strict size/time bound and never returns raw
 paths, stack traces or credentials. Within one supervisor generation, a
@@ -197,7 +197,7 @@ an isolated first-run synthetic sample and protected human-review writes remain
 specified separately below; neither operation constitutes a live collector.
 Source lifecycle and OPC UA collection desired-state requests are described below;
 those requests do not start a collector or prove actual receipt.
-The default marimo Operations remains the production onboarding owner
+The supervised Web product now owns the supported onboarding flow
 until the staged Web transition acceptance gates pass.
 
 ## Explicit FILE validated receipt (opt-in preview only)
@@ -289,7 +289,7 @@ This is historical import, **not** a collector, an analysis run, or a claim
 about machine condition. Failed/partial imports are not treated as success;
 the next explicit import may recover already committed segments.
 The JSON source/runtime state and DuckLake catalog have distinct writer
-constraints; legacy and Web writers must not mutate the workspace concurrently.
+constraints; different Web preview and supervisor writers must not mutate the workspace concurrently.
 
 ## Local anonymous OPC UA first-run diagnostics (opt-in preview only)
 
@@ -355,8 +355,7 @@ supports OPC UA sources.
 A successful control response does **not** alter `receipt_confirmed`. Operators
 must verify accepted receipt and current stored history independently before
 claiming working monitoring. No diagnostic connector cycle is launched by these
-routes. Old marimo Operations/supervisor processes and research notebooks
-remain the default product.
+routes. The supervised Web is the operator product; research notebooks are separate.
 
 ## GET /api/v1/monitor response
 
@@ -387,7 +386,7 @@ The monitor response itself does **not** embed the full time series; it offers
 asset and evidence identities to select a bounded follow-up history query.
 FILE vibration capability details, source credentials, source paths,
 arbitrary history paging, and mutation APIs remain excluded. The existing
-marimo product continues to read its established runtime composition until cutover.
+supervised Web product reads the existing runtime composition.
 
 ## GET /api/v1/history/channels
 

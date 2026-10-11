@@ -9,6 +9,11 @@
 
 ## [Unreleased]
 
+### Removed / cutover (#480)
+
+- 구형 marimo Operations 앱·anywidget Monitor·전용 presentation/locale·전용 브라우저 검사를 제거했습니다. `--ui marimo` 복귀는 더 이상 제공하지 않으며, 기본 UI와 synthetic/AI-Hub demo는 supervised Web입니다. `operations` extra에서는 marimo·anywidget·구형 화면용 matplotlib 직접 의존성을 제거하고 연구용 marimo/Matplotlib은 별도 `research` group에 유지합니다. Supervisor single-writer·데이터 저장 스키마·workspace identity는 변경하지 않습니다.
+- Web 자산 기준 preflight/wheel/CI 및 공용 read model·정확한 저장된 근거 기반 fault harness를 사용합니다. 과거 구형 브라우저 실측 결과를 신규 Web full gate로 승격하지 않습니다.
+
 ### Added
 
 - 감독형 Operations Web의 실제 저장된 분석 근거 항목에 사람 검토 요청 버튼을 연결하고,

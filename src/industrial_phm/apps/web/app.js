@@ -1,4 +1,4 @@
-// Opt-in Operations Web preview. All server strings enter the DOM as text, never HTML.
+// Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; there is no polling or fallback sample.
 const byId = (id) => document.getElementById(id);
 const create = (tag, className, content) => {
