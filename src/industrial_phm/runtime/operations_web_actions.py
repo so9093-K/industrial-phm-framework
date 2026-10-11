@@ -20,6 +20,7 @@ from industrial_phm.runtime.operations_web_review import (
 )
 from industrial_phm.runtime.operations_web_sample import execute_web_sample_action
 from industrial_phm.runtime.operations_web_setup import (
+    analyze_workspace_file_phase,
     analyze_workspace_file_source,
     backfill_workspace_file_history,
     change_web_source_control,
@@ -31,6 +32,7 @@ from industrial_phm.runtime.operations_web_setup import (
 WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
     {
         "/api/v1/analysis/file",
+        "/api/v1/analysis/phase-file",
         "/api/v1/sources/file",
         "/api/v1/sources/file/upload",
         "/api/v1/sources/file/receive",
@@ -73,6 +75,8 @@ def execute_web_source_action(
         return register_uploaded_csv_source(root, payload, upload_directory=upload_directory)
     if route == "/api/v1/analysis/file":
         return analyze_workspace_file_source(root, payload)
+    if route == "/api/v1/analysis/phase-file":
+        return analyze_workspace_file_phase(root, payload)
     if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
         return execute_web_sample_action(root, route, payload)
     if route == "/api/v1/sources/file":

@@ -131,6 +131,11 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 "last_accepted_received_at": None if receipt is None else _utc(receipt.received_at),
                 "last_accepted_observed_at": None if receipt is None else _utc(receipt.observed_at),
                 "receipt_confirmed": receipt is not None,
+                "phase_binding_count": (
+                    len(source.config.semantic_bindings)
+                    if isinstance(source.config, FileSourceConfig)
+                    else 0
+                ),
                 "continuous_collection_supported": source.source_type.value == "opcua",
                 "collection_desired_state": (
                     None if request is None else request.desired_state.value
@@ -583,6 +588,7 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
         raise SourceControlConflict("stored FILE history does not match source or binding")
     start_at = min(event.event_at for event in events)
     end_at = max(event.event_at for event in events) + timedelta(microseconds=1)
+    snapshot = history.current_snapshot_id()
     result = run_phase_unbalance_analysis(
         history,
         asset_id=source.asset_id,
@@ -590,6 +596,7 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
         start_at=start_at,
         end_at=end_at,
         measurement_point_id=source.measurement_point_id,
+        snapshot_id=snapshot,
     )
     SqlitePhaseUnbalanceRepository(paths.phase_analysis).record(result)
     return {
@@ -599,7 +606,7 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
         "analysis_run_id": result.run.analysis_run_id,
         "evidence_id": result.evidence.evidence_id,
         "capability_id": result.evidence.capability_id,
-        "history_snapshot_id": result.evidence.input_reference.snapshot_id,
+        "history_snapshot_id": snapshot,
         "source_sha256": digest,
         "meaning": "persisted-phase-unbalance-from-bound-file-history-not-fault-diagnosis",
     }

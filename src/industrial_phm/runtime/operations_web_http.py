@@ -66,6 +66,7 @@ _UPLOAD_SETUP_FIELDS = frozenset(
         "timestamp_column",
     }
 )
+_UPLOAD_SETUP_OPTIONAL_FIELDS = _UPLOAD_SETUP_FIELDS | {"phase_channels"}
 
 
 def create_operations_web_read_server(
@@ -327,7 +328,9 @@ def create_operations_web_read_server(
                         setup, encoded = body["setup"], body["csv_base64"]
                         if (
                             not isinstance(setup, dict)
-                            or set(setup) != _UPLOAD_SETUP_FIELDS
+                            or set(setup) not in {
+                                _UPLOAD_SETUP_FIELDS, _UPLOAD_SETUP_OPTIONAL_FIELDS
+                            }
                             or not isinstance(encoded, str)
                             or len(encoded) > 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3)
                         ):
@@ -410,6 +413,7 @@ def create_operations_web_read_server(
                         "/api/v1/sources/opcua",
                         "/api/v1/reviews/request",
                         "/api/v1/analysis/file",
+                        "/api/v1/analysis/phase-file",
                     }
                     else HTTPStatus.OK
                 ),

@@ -37,6 +37,7 @@ _TIMEOUT_SECONDS = 5.0
 # Launching an isolated packaged demo starts its own local supervisor and OPC UA
 # listener; a 5-second timeout would turn a successful spawn into "unknown".
 _DEMO_TIMEOUT_SECONDS = 45.0
+_PHASE_FILE_TIMEOUT_SECONDS = 30.0
 
 
 class WebCommandRejected(RuntimeError):
@@ -76,11 +77,14 @@ class WebCommandClient:
             if len(encoded) > _MAX_MESSAGE_BYTES:
                 raise WebCommandRejected("invalid_source_action")
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                connection.settimeout(
+                timeout = (
                     _DEMO_TIMEOUT_SECONDS
                     if route.startswith("/api/v1/demo/synthetic/")
+                    else _PHASE_FILE_TIMEOUT_SECONDS
+                    if route == "/api/v1/analysis/phase-file"
                     else _TIMEOUT_SECONDS
                 )
+                connection.settimeout(timeout)
                 connection.connect(self.socket_path)
                 connection.sendall(encoded)
                 with connection.makefile("rb") as reader:
@@ -171,6 +175,8 @@ class SupervisorWebCommandBroker:
             identity = json.dumps([route, payload], sort_keys=True, allow_nan=False)
             if route.startswith("/api/v1/demo/synthetic/"):
                 connection.settimeout(_DEMO_TIMEOUT_SECONDS)
+            elif route == "/api/v1/analysis/phase-file":
+                connection.settimeout(_PHASE_FILE_TIMEOUT_SECONDS)
             with self._lock:
                 cached = self._seen.get(identifier)
                 if cached is not None:
