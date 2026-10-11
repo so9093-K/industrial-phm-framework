@@ -408,15 +408,25 @@ _CSV_DIAGNOSTICS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def _csv_preflight_problem(error: ValueError) -> dict[str, object]:
+def _csv_preflight_problem(error: Exception) -> dict[str, object]:
     message = str(error)
-    diagnostic = next(
-        ((code, guidance) for pattern, code, guidance in _CSV_DIAGNOSTICS if pattern in message),
-        ("csv-invalid", "CSV 헤더·측정값·시간 형식을 확인하세요. 등록이나 저장은 하지 않았습니다."),
-    )
-    match = re.search(r"CSV row (\\d+) column '([^']{1,128})'", message)
+    if "phase channels" in message or "phase role" in message or "phase binding" in message:
+        diagnostic = (
+            "phase-mapping",
+            "V/A 단위와 서로 다른 R/S/T 채널 3개 또는 6개를 지정하고 근거를 확인하세요.",
+        )
+    elif "timestamp_column or sampling_rate_hz" in message:
+        diagnostic = ("timestamp-required", "명시적 시간 컬럼을 선택하세요.")
+    elif "CSV path" in message or "inside workspace" in message:
+        diagnostic = ("invalid-path", "CSV의 작업공간 내부 상대 경로를 확인하세요.")
+    else:
+        diagnostic = next(
+            ((code, guidance) for pattern, code, guidance in _CSV_DIAGNOSTICS if pattern in message),
+            ("csv-invalid", "CSV 헤더·측정값·시간 형식을 확인하세요. 등록이나 저장은 하지 않았습니다."),
+        )
+    match = re.search(r"CSV row (\d+) column '([^']{1,128})'", message)
     if match is None:
-        match = re.search(r"CSV row (\\d+)", message)
+        match = re.search(r"CSV row (\d+)", message)
     return {
         "code": diagnostic[0],
         "guidance": diagnostic[1],
@@ -525,20 +535,24 @@ def preflight_uploaded_csv_source(
         channels = payload["channel_columns"]
         if not isinstance(channels, list) or not 1 <= len(channels) <= 12:
             raise ValueError("invalid channel count")
-        channel_ids = tuple(_text({"channel": ch}, "channel") for ch in channels)
-        if len(set(channel_ids)) != len(channel_ids) or None in channel_ids:
+        channel_ids: list[str] = []
+        for item in channels:
+            channel = _text({"channel": item}, "channel")
+            if channel is None:
+                raise ValueError("invalid channel")
+            channel_ids.append(channel)
+        if len(set(channel_ids)) != len(channel_ids):
             raise ValueError("duplicate or invalid channel")
         assert isinstance(source_id, str)
         assert isinstance(name, str)
         assert isinstance(asset_id, str)
-        assert all(isinstance(ch, str) for ch in channel_ids)
         config = FileSourceConfig(
             source_path=str(staged),
             asset_id=asset_id,
             measurement_point_id=point,
-            channel_columns=channel_ids,
+            channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
-            semantic_bindings=_file_phase_bindings(payload, source_id, channel_ids),
+            semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
         )
         source = RegisteredSource(
             source_id=source_id, name=name, config=config, registered_at=datetime.now(UTC)

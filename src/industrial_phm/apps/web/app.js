@@ -1395,7 +1395,7 @@ function describeCsvPreflight(result) {
     lines.push("수정 사항 [" + issue.code + "]" + location + ": " + issue.guidance);
   }
   lines.push("사전 점검만 수행됨 · 소스 등록·수신·DuckLake 저장·분석은 아직 하지 않았습니다.");
-  return lines.join("\\n");
+  return lines.join("\n");
 }
 
 async function preflightFile() {
