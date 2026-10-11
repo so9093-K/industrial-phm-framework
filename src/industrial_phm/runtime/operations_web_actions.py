@@ -50,6 +50,7 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
 # preview must never acquire this capability through its local writer path.
 WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
     {
+        "/api/v1/sources/file/upload",
         "/api/v1/demo/synthetic/start",
         "/api/v1/demo/synthetic/stop",
         "/api/v1/demo/synthetic/status",
