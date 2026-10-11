@@ -76,7 +76,7 @@ def test_first_run_sample_reuses_existing_demo_command_in_isolated_workspace(
     )
 
     assert launch.workspace == tmp_path / "demo-synthetic-2719-4842"
-    assert launch.url == "http://127.0.0.1:2719"
+    assert launch.url == "http://127.0.0.1:2719/web/"
     assert launch.opcua_port == 4842
     assert launch.ui_port == 2719
     assert captured["log_path"] == workspace.logs_path / "first-run-sample.log"

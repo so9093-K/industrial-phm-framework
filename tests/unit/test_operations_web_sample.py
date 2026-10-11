@@ -75,7 +75,7 @@ def test_web_sample_actions_start_reuse_status_and_stop_isolated_demo(
         "schema_version": 1,
         "state": "running",
         "synthetic": True,
-        "url": "http://127.0.0.1:2777",
+        "url": "http://127.0.0.1:2777/web/",
         "separate_workspace": True,
     }
     assert execute_web_sample_action(workspace.root, status_route, {}) == started
@@ -113,7 +113,7 @@ def test_web_sample_status_rejects_stale_process_and_unknown_actions(
         "_SAMPLE_LAUNCH",
         sample.FirstRunSampleLaunch(
             workspace=tmp_path / "synthetic",
-            url="http://127.0.0.1:2777",
+            url="http://127.0.0.1:2777/web/",
             opcua_port=4888,
             ui_port=2777,
         ),

@@ -249,15 +249,32 @@ def check_missing_phase(
     )
 
 
-def check_review_workflow(detail: dict[str, object]) -> dict[str, object]:
-    """After the faults one result travels Investigation -> review request -> Maintenance."""
+def check_review_persistence(detail: dict[str, object]) -> dict[str, object]:
+    """Validate persisted review evidence, not an unimplemented maintenance journey."""
     return _check(
         detail.get("before_state") == "not-requested"
         and detail.get("after_state") == "open"
-        and detail.get("maintenance_status") == "open"
+        and detail.get("review_evidence_matches") is True
+        and detail.get("status_matches_response") is True
         and detail.get("result_after_last_fault") is True,
         **detail,
     )
+
+
+def match_web_source_state(expected: Sequence[str], source: dict[str, object]) -> str | None:
+    """Match replay phase to source API evidence rather than display-text fragments."""
+    if source.get("source_id") != AIHUB_BOILER_2297_SOURCE_ID:
+        return None
+    session = source.get("opcua_session_last_state")
+    freshness = source.get("last_live_receive_fresh")
+    conditions = {
+        "Source flow · Receiving": freshness is True,
+        "Source flow · No recent source data": freshness is False,
+        "Source flow · Connecting": session == "CONNECTING",
+        "Source flow · Reconnecting": session == "RECONNECT_WAIT",
+        "Source flow · Disconnected": session == "DISCONNECTED",
+    }
+    return next((name for name in expected if conditions.get(name) is True), None)
 
 
 # Monitor states captured in Chromium. Normal receiving and a missing phase have no
@@ -364,19 +381,25 @@ def check_live_browser_journey(renders: dict[str, dict[str, object]]) -> dict[st
         for name in required
         if name in renders and not renders[name].get("within_5s")
     }
+    expected_states = {
+        "before_missing": {"Source flow · Receiving"},
+        "paused": {"Source flow · No recent source data"},
+        "reconnecting": {
+            "Source flow · Connecting",
+            "Source flow · Reconnecting",
+            "Source flow · Disconnected",
+        },
+        "recovered": {"Source flow · Receiving"},
+    }
     unmatched = {
         name: renders[name]
         for name in required
-        if name in renders and not renders[name].get("matched")
+        if name in renders and renders[name].get("matched") not in expected_states[name]
     }
     incomplete = {
         name: renders[name]
         for name in required
-        if name in renders
-        and (
-            not renders[name].get("source_evidence_seen")
-            or int(renders[name].get("evidence_row_count", 0)) < 1
-        )
+        if name in renders and (not renders[name].get("source_evidence_seen"))
     }
     return _check(
         not missing and not slow and not unmatched and not incomplete,
@@ -878,21 +901,36 @@ with sync_playwright() as p:
     except Exception:
         pass
     text = card.inner_text() if card.count() else ""
-    # Web exposes accepted receipts, session and recent live evidence separately.
-    source_evidence_seen = (
-        "OPC UA 세션 마지막 기록:" in text and "live 이벤트 마지막 수신:" in text
+    # Read source evidence independently; static text alone is not a live receipt.
+    from urllib.parse import urljoin
+    from tools.opcua.fault_harness import match_web_source_state
+    source = None
+    api_error = None
+    try:
+        response = page.request.get(urljoin(url, "/api/v1/sources"), timeout=10000)
+        if response.status == 200:
+            entries = response.json()["sources"]["items"]
+            source = next(
+                (item for item in entries if item["source_id"] == "aihub239-replay-boiler-2297"),
+                None,
+            )
+        else:
+            api_error = "source_read_http_" + str(response.status)
+    except Exception as error:
+        api_error = type(error).__name__
+    matched = match_web_source_state(expected, source) if source else None
+    session = source.get("opcua_session_last_state") if source else None
+    fresh = source.get("last_live_receive_fresh") if source else None
+    source_evidence_seen = bool(
+        source
+        and isinstance(session, str)
+        and ("OPC UA 세션 마지막 기록: " + session) in text
+        and "live 이벤트 마지막 수신: UTC " in text
+        and (
+            ("30초 이내 수신 근거 있음" if fresh is True else "최근 수신 근거 미확인")
+            in text
+        )
     )
-    conditions = {
-        "Source flow · Receiving": "30초 이내 수신 근거 있음",
-        "Source flow · No recent source data": "최근 수신 근거 미확인",
-        "Source flow · Connecting": "connecting",
-        "Source flow · Reconnecting": "reconnect",
-        "Source flow · Disconnected": "disconnected",
-    }
-    matched = next(
-        (item for item in expected if conditions.get(item, item) in text), None
-    )
-    evidence_rows = card.locator("span").count() if card.count() else 0
     seconds = time.monotonic() - started
     overflow = page.evaluate(OVERFLOW_JS)
     page.screenshot(path=shot, full_page=True)
@@ -902,7 +940,10 @@ print("LIVE-BROWSER " + json.dumps({
     "expected": expected,
     "matched": matched,
     "source_evidence_seen": source_evidence_seen,
-    "evidence_row_count": evidence_rows,
+    "source_id": source.get("source_id") if source else None,
+    "session_state": session,
+    "live_received_at": source.get("last_live_received_at") if source else None,
+    "api_error": api_error,
     "overflow_count": len(overflow),
     "overflow_examples": overflow,
 }))
@@ -1201,7 +1242,10 @@ class Harness:
             **before,
             "finding_id": response["finding_id"],
             "after_state": status,
-            "maintenance_status": status,
+            "review_evidence_matches": (
+                result.evidence.evidence_id in matching[0].finding.evidence_refs
+            ),
+            "status_matches_response": status == response["status"],
             "result_after_last_fault": result.run.observed_end_at > last_fault,
         }
         print(f"  review workflow: {self.workflow}", flush=True)
@@ -1356,7 +1400,7 @@ def judge(harness: Harness, *, audit_since: datetime, audit_until: datetime) -> 
         ),
         "ui_states_distinct": check_ui_states(harness.ui),
         "live_replay_observation_journey": check_live_replay_sequence(harness.live),
-        "review_workflow_continues": check_review_workflow(harness.workflow),
+        "review_request_persisted": check_review_persistence(harness.workflow),
     }
     # Scenario-specific checks only for scenarios that ran (a diagnostic run may filter).
     if overflow_faults:

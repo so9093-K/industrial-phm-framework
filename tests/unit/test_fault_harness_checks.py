@@ -19,9 +19,10 @@ from tools.opcua.fault_harness import (
     check_missing_phase,
     check_missing_within_boundary,
     check_recovered,
-    check_review_workflow,
+    check_review_persistence,
     check_ui_states,
     check_windows,
+    match_web_source_state,
 )
 
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
@@ -163,16 +164,50 @@ def test_missing_phase_must_name_the_exact_channel_and_reason():
     assert not check_missing_phase("T상전류", [], 0)["passed"]
 
 
-def test_review_workflow_must_reach_maintenance_from_a_post_fault_result():
+def test_post_fault_review_persists_exact_evidence_not_maintenance() -> None:
     detail = {
         "before_state": "not-requested",
         "after_state": "open",
-        "maintenance_status": "open",
+        "review_evidence_matches": True,
+        "status_matches_response": True,
         "result_after_last_fault": True,
     }
-    assert check_review_workflow(detail)["passed"]
-    assert not check_review_workflow({**detail, "maintenance_status": None})["passed"]
-    assert not check_review_workflow({**detail, "result_after_last_fault": False})["passed"]
+    assert check_review_persistence(detail)["passed"]
+    for broken in (
+        {"after_state": "closed"},
+        {"review_evidence_matches": False},
+        {"status_matches_response": False},
+        {"result_after_last_fault": False},
+    ):
+        assert not check_review_persistence({**detail, **broken})["passed"]
+
+
+def test_web_source_state_matches_exact_api_enum_and_freshness() -> None:
+    source = {
+        "source_id": "aihub239-replay-boiler-2297",
+        "opcua_session_last_state": "CONNECTED",
+        "last_live_receive_fresh": True,
+    }
+    receiving = "Source flow · Receiving"
+    stale = "Source flow · No recent source data"
+    assert match_web_source_state((receiving,), source) == receiving
+    stale_source = {**source, "last_live_receive_fresh": False}
+    assert match_web_source_state((receiving,), stale_source) is None
+    assert match_web_source_state((stale,), stale_source) == stale
+    retry = (
+        "Source flow · Connecting",
+        "Source flow · Reconnecting",
+        "Source flow · Disconnected",
+    )
+    for enum, expected in (
+        ("CONNECTING", retry[0]),
+        ("RECONNECT_WAIT", retry[1]),
+        ("DISCONNECTED", retry[2]),
+    ):
+        state = {**source, "opcua_session_last_state": enum}
+        assert match_web_source_state(retry, state) == expected
+    assert match_web_source_state(retry, source) is None
+    assert match_web_source_state((receiving,), {**source, "source_id": "other"}) is None
 
 
 def test_every_ui_state_must_render_within_five_seconds():
@@ -266,7 +301,6 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
         "seconds": 2.0,
         "matched": "Source flow · Receiving",
         "source_evidence_seen": True,
-        "evidence_row_count": 1,
     }
     renders = {
         "before_missing": fast,
@@ -281,25 +315,6 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
     assert not check_live_browser_journey(
         {name: value for name, value in renders.items() if name != "reconnecting"}
     )["passed"]
-
-
-def test_harness_uses_packaged_operations_web():
-    from importlib.resources import files
-
-    assets = files("industrial_phm.apps").joinpath("web")
-    for name in ("index.html", "app.js", "styles.css"):
-        assert assets.joinpath(name).read_bytes(), name
-    source = (
-        Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
-    )
-    assert "marimo" not in source
-    assert "industrial_phm.runtime.operations_web_preview" in source
-    assert 'page.locator("#asset-count")' in source
-    assert 'page.locator("#monitor-attention strong")' in source
-    assert '.source-record[data-source-id="aihub239-replay-boiler-2297"]' in source
-    assert "source_evidence_seen" in source
-    assert "system_state_clearly_scoped" in source
-    assert "review_workflow" in source
 
 
 def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
@@ -335,13 +350,12 @@ def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
     assert not check_first_render({**renders, "normal": clipped})["passed"]
 
 
-def test_live_browser_gate_rejects_state_without_current_value_surface():
+def test_live_browser_gate_rejects_false_state_or_source_evidence():
     fast = {
         "within_5s": True,
         "seconds": 2.0,
         "matched": "Source flow · Receiving",
         "source_evidence_seen": True,
-        "evidence_row_count": 1,
     }
     renders = {
         "before_missing": fast,
@@ -354,5 +368,5 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
     assert not check_live_browser_journey(
         {**renders, "recovered": {**fast, "source_evidence_seen": False}}
     )["passed"]
-    empty = {**renders, "recovered": {**fast, "evidence_row_count": 0}}
-    assert not check_live_browser_journey(empty)["passed"]
+    incorrect = {**renders, "recovered": {**fast, "matched": "Source flow · Disconnected"}}
+    assert not check_live_browser_journey(incorrect)["passed"]

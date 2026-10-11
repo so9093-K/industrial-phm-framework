@@ -120,6 +120,8 @@ jobs:
                   "tests/support/",
                   "tests/integration/test_operations",
                   "tests/unit/test_operations",
+                  "tests/unit/test_fault_harness_checks.py",
+                  "tools/opcua/fault_harness.py",
               ) or any_path("tools/operations_") or any_exact("Makefile")
               research = force_all or any_path(
                   "notebooks/",
@@ -164,6 +166,8 @@ jobs:
               "deploy/systemd/industrial-phm-operations.service.example": {"package": True},
               "tools/operations_systemd_smoke.py": {"operations": True, "package": True},
               "tools/operations_wheel_smoke.py": {"operations": True, "package": True},
+              "tools/opcua/fault_harness.py": {"runtime": True, "operations": True},
+              "tests/unit/test_fault_harness_checks.py": {"operations": True},
               "tools/operations_wheel_rollback.py": {"operations": True, "package": True},
               "src/industrial_phm/cli.py": {"runtime": True, "operations": True, "package": True},
               "src/industrial_phm/apps/web/app.js": {"operations": True, "package": True},
@@ -391,6 +395,9 @@ jobs:
         env:
           PHM_FIRST_RUN_SCREENSHOTS: ${{ runner.temp }}/first-run-evidence
         run: |
+          # Required browser/runtime dependencies must not silently turn this gate green.
+          uv run --locked --extra operations --with playwright python -c \
+            'import socket, playwright.sync_api, asyncua; assert hasattr(socket, "SO_PEERCRED")'
           uv run --locked --extra operations --with playwright pytest \
             tests/acceptance/test_operations_web_monitor_browser.py \
             tests/acceptance/test_operations_web_controlled_journey_browser.py \
