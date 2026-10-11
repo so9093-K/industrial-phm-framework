@@ -192,12 +192,13 @@ class SupervisorWebCommandBroker:
 
     def _execute(self, route: str, payload: dict[str, object]) -> dict[str, object]:
         try:
-            return {
-                "ok": True,
-                "result": execute_web_source_action(
+            if route == "/api/v1/sources/file/upload":
+                result = execute_web_source_action(
                     self.workspace, route, payload, upload_directory=self.upload_directory
-                ),
-            }
+                )
+            else:
+                result = execute_web_source_action(self.workspace, route, payload)
+            return {"ok": True, "result": result}
         except SourceAlreadyRegisteredError:
             return {"ok": False, "code": "source_id_exists"}
         except SourceControlConflict:
