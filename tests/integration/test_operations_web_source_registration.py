@@ -518,7 +518,8 @@ def test_bound_file_phase_analysis_requires_exact_committed_history(tmp_path: Pa
     }
     with pytest.raises(ValueError, match="three or six"):
         register_workspace_csv_source(workspace.root, {**payload, "phase_channels": declared[:2]})
-    assert register_workspace_csv_source(workspace.root, payload)["registration_state"] == "registered"
+    registered = register_workspace_csv_source(workspace.root, payload)
+    assert registered["registration_state"] == "registered"
     source = JsonSourceRepository(workspace.source_registry_path).get("phase-file")
     assert len(source.config.semantic_bindings) == 3
     assert [b.definition.unit for b in source.config.semantic_bindings] == ["V"] * 3
@@ -553,9 +554,12 @@ def test_bound_file_phase_analysis_requires_exact_committed_history(tmp_path: Pa
     assert repeated["history_snapshot_id"] == stored["history_snapshot_id"]
 
     result = analyze_workspace_file_phase(workspace.root, identity)
-    assert result["meaning"] == "persisted-phase-unbalance-from-bound-file-history-not-fault-diagnosis"
+    assert result["meaning"] == (
+        "persisted-phase-unbalance-from-bound-file-history-not-fault-diagnosis"
+    )
     assert result["history_snapshot_id"] == stored["history_snapshot_id"]
-    (analysis,) = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).list_results()
+    repository = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
+    (analysis,) = repository.list_results()
     assert result["analysis_run_id"] == analysis.run.analysis_run_id
     assert result["evidence_id"] == analysis.evidence.evidence_id
     assert analysis.evidence.semantic_versions == ("file-web-phase-v1",)
