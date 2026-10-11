@@ -14,6 +14,10 @@ import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from industrial_phm.adapters.csv_sensor import (
+    CsvSensorSourceError,
+    validate_csv_sensor_source,
+)
 from industrial_phm.application import (
     ChannelSemanticBinding,
     CollectionDesiredState,
@@ -29,10 +33,6 @@ from industrial_phm.application import (
     SqlitePhaseUnbalanceRepository,
     backfill_registered_file_source,
     run_phase_unbalance_analysis,
-)
-from industrial_phm.adapters.csv_sensor import (
-    CsvSensorSourceError,
-    validate_csv_sensor_source,
 )
 from industrial_phm.application.measurement_semantics import serialize_channel_semantic_binding
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
@@ -396,9 +396,17 @@ _CSV_DIAGNOSTICS: tuple[tuple[str, str, str], ...] = (
     ("missing required columns", "missing-column", "헤더에 선택한 시간·측정 컬럼이 없습니다. 컬럼 이름을 다시 선택하세요."),
     ("duplicate column names", "duplicate-header", "CSV 헤더에 중복 컬럼이 있습니다. 원본 헤더를 수정하세요."),
     ("empty column name", "empty-header", "CSV 헤더에 빈 컬럼이 있습니다. 원본 헤더를 수정하세요."),
-    ("must be an ISO 8601 timestamp", "timestamp-format", "시간을 ISO 8601 형식으로 기록하세요. 예: 2026-10-11T09:00:00+09:00"),
+    (
+        "must be an ISO 8601 timestamp",
+        "timestamp-format",
+        "시간을 ISO 8601 형식으로 기록하세요. 예: 2026-10-11T09:00:00+09:00",
+    ),
     ("contains a missing timestamp", "missing-timestamp", "표시된 행의 빈 시간 값을 원본에서 확인하세요."),
-    ("timestamps must use consistent timezone awareness", "mixed-timezone", "시간대 포함 여부를 모든 행에서 일관되게 지정하세요."),
+    (
+        "timestamps must use consistent timezone awareness",
+        "mixed-timezone",
+        "시간대 포함 여부를 모든 행에서 일관되게 지정하세요.",
+    ),
     ("timestamps must be strictly increasing", "time-order", "시간 값이 중복되거나 역순입니다. 원본 행 순서를 확인하세요."),
     ("contains a missing value", "missing-value", "표시된 행·컬럼의 측정값이 비어 있습니다. 원본을 확인하세요."),
     ("must be numeric", "non-numeric", "측정 컬럼에는 숫자만 입력하세요. 표기와 소수점을 확인하세요."),
@@ -421,8 +429,15 @@ def _csv_preflight_problem(error: Exception) -> dict[str, object]:
         diagnostic = ("invalid-path", "CSV의 작업공간 내부 상대 경로를 확인하세요.")
     else:
         diagnostic = next(
-            ((code, guidance) for pattern, code, guidance in _CSV_DIAGNOSTICS if pattern in message),
-            ("csv-invalid", "CSV 헤더·측정값·시간 형식을 확인하세요. 등록이나 저장은 하지 않았습니다."),
+            (
+                (code, guidance)
+                for pattern, code, guidance in _CSV_DIAGNOSTICS
+                if pattern in message
+            ),
+            (
+                "csv-invalid",
+                "CSV 헤더·측정값·시간 형식을 확인하세요. 등록이나 저장은 하지 않았습니다.",
+            ),
         )
     match = re.search(r"CSV row (\d+) column '([^']{1,128})'", message)
     if match is None:
@@ -464,7 +479,10 @@ def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
             "guidance": (
                 "이력 적재에는 시간 컬럼을 지정해야 합니다."
                 if start is None
-                else "이력 적재에는 시간대가 있는 ISO 8601 값이 필요합니다. 예: 2026-10-11T09:00:00+09:00"
+                else (
+                    "이력 적재에는 시간대가 있는 ISO 8601 값이 필요합니다. "
+                    "예: 2026-10-11T09:00:00+09:00"
+                )
             ),
             "row_number": None,
             "column": source.config.timestamp_column,

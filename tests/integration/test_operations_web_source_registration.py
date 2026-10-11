@@ -89,9 +89,9 @@ def test_csv_preflight_reports_recoverable_input_and_never_persists(tmp_path: Pa
     files.mkdir()
     csv = files / "phase.csv"
     csv.write_text(
-        "timestamp,leg_a,leg_b,leg_c\\n"
-        "2026-10-11T09:00:00+09:00,220,225,230\\n"
-        "2026-10-11T09:00:01+09:00,221,226,231\\n",
+        "timestamp,leg_a,leg_b,leg_c\n"
+        "2026-10-11T09:00:00+09:00,220,225,230\n"
+        "2026-10-11T09:00:01+09:00,221,226,231\n",
         encoding="utf-8",
     )
     mapping = [
@@ -130,7 +130,9 @@ def test_csv_preflight_reports_recoverable_input_and_never_persists(tmp_path: Pa
     assert failed["issue"]["row_number"] == 2
     assert failed["issue"]["column"] == "leg_b"
 
-    csv.write_text(csv.read_text().replace(",bad,", ",225,").replace("+09:00", ""), encoding="utf-8")
+    csv.write_text(
+        csv.read_text().replace(",bad,", ",225,").replace("+09:00", ""), encoding="utf-8"
+    )
     naive = preflight_workspace_csv_source(workspace.root, setup)
     assert naive["status"] == "needs_input"
     assert naive["history_ready"] is False
