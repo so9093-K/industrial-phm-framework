@@ -1688,8 +1688,8 @@ function showSampleState(payload) {
   }
   // Allow only the already checked, local loopback URL returned by the supervisor.
   if (payload.separate_workspace !== true || typeof payload.url !== "string"
-      || !/^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(payload.url)
-      || Number(payload.url.split(":").pop()) > 65535) throw new Error("schema-mismatch");
+      || !/^http:\/\/127\.0\.0\.1:\d{2,5}\/web\/$/.test(payload.url)
+      || Number(payload.url.split("/")[2].split(":")[1]) > 65535) throw new Error("schema-mismatch");
   sampleValidatedUrl = payload.url;
   setSampleState("running", "격리 샘플 실행 중 · 별도 synthetic 작업공간 · 기존 데모 화면입니다.");
 }

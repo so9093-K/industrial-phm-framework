@@ -391,6 +391,9 @@ jobs:
         env:
           PHM_FIRST_RUN_SCREENSHOTS: ${{ runner.temp }}/first-run-evidence
         run: |
+          # Required browser/runtime dependencies must not silently turn this gate green.
+          uv run --locked --extra operations --with playwright python -c \
+            'import socket, playwright.sync_api, asyncua; assert hasattr(socket, "SO_PEERCRED")'
           uv run --locked --extra operations --with playwright pytest \
             tests/acceptance/test_operations_web_monitor_browser.py \
             tests/acceptance/test_operations_web_controlled_journey_browser.py \

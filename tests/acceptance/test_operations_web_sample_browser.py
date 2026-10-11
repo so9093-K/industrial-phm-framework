@@ -23,7 +23,6 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
     if not hasattr(socket, "SO_PEERCRED"):
         pytest.skip("Linux supervisor peer credentials required")
     playwright = pytest.importorskip("playwright.sync_api")
-    pytest.importorskip("marimo")
     pytest.importorskip("asyncua")
 
     root = OperationsWorkspace(tmp_path / "real-operations")
@@ -55,14 +54,24 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
                 parsed = urlsplit(url)
                 assert parsed.hostname == "127.0.0.1"
                 assert parsed.port is not None and parsed.port != port
+                assert parsed.path == "/web/"
+                assert not parsed.query and not parsed.fragment
                 connection = HTTPConnection("127.0.0.1", parsed.port, timeout=5)
                 try:
-                    connection.request("GET", "/")
+                    connection.request("GET", parsed.path)
                     response = connection.getresponse()
-                    assert 200 <= response.status < 400
-                    response.read()
+                    assert response.status == 200
+                    assert b"id=\"sample-start\"" in response.read()
                 finally:
                     connection.close()
+                with page.expect_popup() as sample_popup:
+                    link.click()
+                sample_page = sample_popup.value
+                sample_page.wait_for_load_state("domcontentloaded")
+                assert sample_page.url == url
+                playwright.expect(sample_page.locator("#sample-start")).to_be_visible(timeout=30000)
+                sample_page.close()
+
                 samples = list(tmp_path.glob("demo-synthetic-*"))
                 assert len(samples) == 1
                 assert samples[0] != root.root
