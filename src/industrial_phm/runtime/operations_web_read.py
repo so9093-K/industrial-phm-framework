@@ -177,7 +177,6 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
     }
 
 
-
 def project_operations_runtime_status(status: OperationsRuntimeStatus) -> dict[str, object]:
     """Expose current local process evidence, not a physical equipment-health verdict.
 
