@@ -274,7 +274,11 @@ def register_uploaded_csv_source(
         raise ValueError("invalid staged CSV identity")
     stage_root = upload_directory.resolve(strict=True)
     staged = upload_directory / staged_name
-    if staged.is_symlink() or not staged.is_file() or staged.resolve(strict=True).parent != stage_root:
+    if (
+        staged.is_symlink()
+        or not staged.is_file()
+        or staged.resolve(strict=True).parent != stage_root
+    ):
         raise ValueError("CSV staging location invalid")
     if not 0 < staged.stat().st_size <= _MAX_WEB_UPLOAD_BYTES:
         raise ValueError("CSV upload too large")
