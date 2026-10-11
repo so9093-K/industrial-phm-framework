@@ -96,3 +96,10 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .review-inbox-item button{font-size:.78rem;margin:7px 0 0}
 .record.review-record:focus{outline:3px solid #237c88;outline-offset:4px;border-radius:5px}
 .record .review-link{font-size:.8rem;max-width:100%;overflow-wrap:anywhere;margin:8px 0}
+
+/* First-run next-step navigation only; existing source buttons own real writes. */
+.onboarding-guide{display:grid;gap:7px;padding:13px 15px;margin:13px 0;border:1px solid #c4dcda;border-radius:10px;background:#fff}
+.onboarding-guide label{font-size:.83rem}
+.onboarding-guide select{width:100%;min-width:0;max-width:550px}
+.onboarding-guide button{justify-self:start;max-width:100%}
+.onboarding-guide .hint{margin:2px 0;line-height:1.5}
