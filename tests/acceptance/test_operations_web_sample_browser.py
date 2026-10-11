@@ -61,7 +61,7 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
                     connection.request("GET", parsed.path)
                     response = connection.getresponse()
                     assert response.status == 200
-                    assert b"id=\"sample-start\"" in response.read()
+                    assert b'id="sample-start"' in response.read()
                 finally:
                     connection.close()
                 with page.expect_popup() as sample_popup:
