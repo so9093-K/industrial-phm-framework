@@ -15,13 +15,15 @@ For current capability claims, use [status](../status.md); older cutover history
   `GET /api/v1/sources` and `GET /api/v1/session`.
   The packaged static paths `/web/`, `/web/app.js`, and `/web/styles.css` serve
   assets from the installed Python wheel. No arbitrary file path may be requested.
-  Only `POST /api/v1/sources/file`, `POST /api/v1/sources/file/receive`,
-  `POST /api/v1/sources/file/backfill`, `POST /api/v1/sources/lifecycle`,
-  `POST /api/v1/sources/opcua/browse`, `POST /api/v1/sources/opcua`,
-  `POST /api/v1/sources/opcua/diagnose`, and `POST /api/v1/sources/collection` are allowed
-  under the protected write contract;
-  other mutations return 405. There is no arbitrary mutation command, Node runtime,
-  dev server, repository file proxy, or remote exposure.
+  Protected POST routes use the explicit `WEB_SOURCE_ACTION_ROUTES` allowlist
+  in `src/industrial_phm/runtime/operations_web_actions.py`. The **current**
+  supervised product supports bounded FILE/OPC UA registration, receipt/backfill,
+  source lifecycle, evidence-linked analysis/Review and isolated demo actions;
+  routes in `WEB_SUPERVISOR_ONLY_ACTION_ROUTES` require the supervisor command
+  broker. Unknown POST routes return 405 and unsupported preview actions return
+  403. This initial API document is not an exhaustive current route catalog.
+  There is no arbitrary mutation command, Node runtime, dev server, repository
+  file proxy or remote exposure.
 - Host must be `127.0.0.1:<bound-port>` or `localhost:<bound-port>`. Optional
   `Origin` must be the same allowed HTTP origin, and `Sec-Fetch-Site: cross-site`
   is rejected. No wildcard CORS headers are emitted. Mutations require an exact

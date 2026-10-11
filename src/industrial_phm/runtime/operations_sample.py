@@ -1,4 +1,4 @@
-"""First-run sample lifecycle owned by the Operations UI process."""
+"""Isolated first-run synthetic sample lifecycle owned by the Operations supervisor."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def current_first_run_sample() -> FirstRunSampleLaunch | None:
 
 
 def stop_first_run_sample() -> None:
-    """Stop the sample process owned by this Operations UI process."""
+    """Stop the sample process owned by this supervisor process."""
 
     global _SAMPLE_LAUNCH, _SAMPLE_PROCESS
 

@@ -1,7 +1,7 @@
 """Execute only the bounded Operations Web source-action allowlist.
 
 The caller must authorize and serialize mutations before entering this dispatcher.
-This boundary is shared by the standalone preview writer and a future
+This boundary is shared by the standalone preview writer and the existing
 supervisor-owned command broker; it grants no write authority by itself.
 """
 
