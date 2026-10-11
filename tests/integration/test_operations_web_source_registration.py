@@ -678,7 +678,6 @@ def test_supervised_http_unknown_outcome_after_committed_ipc_command(
             assert not thread.is_alive()
 
 
-
 def test_supervised_browser_csv_upload_registers_file_without_workspace_path_input(
     tmp_path: Path,
 ) -> None:
@@ -732,8 +731,13 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
 
             def upload(data: bytes = body, *, site: str = "same-origin", token: str = csrf):
                 return _request(
-                    port, "POST", "/api/v1/sources/file/upload",
-                    body=data, origin=origin, fetch_site=site, csrf=token,
+                    port,
+                    "POST",
+                    "/api/v1/sources/file/upload",
+                    body=data,
+                    origin=origin,
+                    fetch_site=site,
+                    csrf=token,
                 )
 
             assert upload(site="cross-site")[0] == 403
@@ -744,9 +748,7 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
             assert status == HTTPStatus.CREATED
             assert result["registration_state"] == "registered"
             assert result["receipt_confirmed"] is False
-            stored = JsonSourceRepository(workspace.source_registry_path).get(
-                "registered-file-01"
-            )
+            stored = JsonSourceRepository(workspace.source_registry_path).get("registered-file-01")
             saved = Path(stored.config.source_path)
             assert saved.is_relative_to(workspace.root.resolve())
             assert saved.read_bytes() == raw
