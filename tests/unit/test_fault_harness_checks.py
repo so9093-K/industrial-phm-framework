@@ -292,15 +292,14 @@ def test_harness_uses_packaged_operations_web():
     source = (
         Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
     )
-    assert "apps/operations_v2.py" not in source
-    assert 'locator(".mw-asset h1")' in source
-    assert 'locator(".mw-reading-value strong")' in source
-    assert 'locator(".mw-plot svg")' in source
-    assert 'get_by_text("System data flow", exact=True).count() == 0' in source
-    assert 'get_by_text("Current observation", exact=True)' in source
-    assert 'get_by_text("Live observation", exact=True)' not in source
-    assert 'get_by_role("button", name="Assets", exact=True)' in source
-    assert 'get_by_role("radio", name="Signals", exact=True)' in source
+    assert "marimo" not in source
+    assert "industrial_phm.runtime.operations_web_preview" in source
+    assert 'page.locator("#asset-count")' in source
+    assert 'page.locator("#monitor-attention strong")' in source
+    assert 'page.locator(\'.source-record[data-source-id="aihub239-replay-boiler-2297"]\')' in source
+    assert "source_evidence_seen" in source
+    assert "system_state_clearly_scoped" in source
+    assert "review_workflow" in source
 
 
 def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
