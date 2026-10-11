@@ -1281,7 +1281,7 @@ function csvBase64(buffer) {
 
 function declaredPhaseBindings(value, channels) {
   if (!value.trim()) return [];
-  const lines = value.trim().split(/\\r?\\n/).filter((line) => line.trim());
+  const lines = value.trim().split(/\r?\n/).filter((line) => line.trim());
   if (![3, 6].includes(lines.length)) throw new Error("invalid-phase-bindings");
   const found = new Set();
   const mapped = new Set();
