@@ -189,15 +189,28 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "name": "브라우저 여정",
                     "asset_id": analysis.run.asset_id,
                     "measurement_point_id": "panel",
-                    "file_path": "inputs/phase.csv",
                     "channel_columns": "phase-R,phase-S,phase-T",
                     "timestamp_column": "timestamp",
                 }
                 for key, value in fields.items():
                     page.locator(f'#file-form input[name="{key}"]').fill(value)
+                page.locator("#csv-upload").set_input_files(
+                    {
+                        "name": "phase.csv",
+                        "mimeType": "text/csv",
+                        "buffer": (inputs / "phase.csv").read_bytes(),
+                    }
+                )
+                pw.expect(page.locator("#csv-file-preview")).to_contain_text(
+                    "헤더 후보: timestamp, phase-R, phase-S, phase-T"
+                )
+                pw.expect(page.locator('#file-form input[name="file_path"]')).to_be_disabled()
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 listing = page.locator("#source-list")
                 pw.expect(listing).to_contain_text("journey-file", timeout=30000)
+                saved_uploads = tuple((workspace.root / "web-uploads").glob("*.csv"))
+                assert len(saved_uploads) == 1
+                assert saved_uploads[0].read_bytes() == (inputs / "phase.csv").read_bytes()
                 pw.expect(listing).to_contain_text("수신 근거 미확인")
                 pw.expect(listing.locator(".source-meaning")).to_contain_text(
                     "소스 등록 정보만 확인"
