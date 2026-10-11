@@ -85,8 +85,7 @@ def test_supervisor_serializes_concurrent_file_review_and_replay_across_restart(
     inputs = workspace.root / "inputs"
     inputs.mkdir()
     (inputs / "phase.csv").write_text(
-        "timestamp,phase-R,phase-S,phase-T\n"
-        "2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
         encoding="utf-8",
     )
 
