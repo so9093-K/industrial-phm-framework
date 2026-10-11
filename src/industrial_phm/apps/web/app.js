@@ -1087,6 +1087,51 @@ async function backfillFile(sourceId, button) {
   if (saved) await Promise.allSettled([loadSources(), refresh()]);
 }
 
+const MAX_CSV_UPLOAD = 1024 * 1024;
+byId("csv-upload").addEventListener("change", async () => {
+  const chosen = byId("csv-upload").files[0];
+  const pathInput = byId("file-form").elements.namedItem("file_path");
+  pathInput.required = !chosen;
+  pathInput.disabled = Boolean(chosen);
+  const preview = byId("csv-file-preview");
+  if (!chosen) {
+    preview.textContent = "작업공간 내부 CSV의 상대 경로를 입력하세요.";
+    return;
+  }
+  if (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD) {
+    preview.textContent = "선택한 파일은 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.";
+    preview.className = "hint error wide";
+    return;
+  }
+  preview.className = "hint wide";
+  try {
+    const head = (await chosen.slice(0, 8192).text()).replace(/^\uFEFF/, "");
+    const first = head.split(/\r?\n/, 1)[0];
+    const columns = first.split(",").map((column) => column.trim().replace(/^"(.*)"$/, "$1"));
+    const time = columns.find((column) => /^(timestamp|time|event_time|observed_at)$/i.test(column));
+    const channels = columns.filter((column) => column && column !== time);
+    preview.textContent = "파일: " + chosen.name + " (" + chosen.size + "B) · 헤더 후보: "
+      + columns.join(", ") + " · 실제 CSV 검증은 등록 시 수행합니다.";
+    const form = byId("file-form");
+    if (time && !form.elements.namedItem("timestamp_column").value) {
+      form.elements.namedItem("timestamp_column").value = time;
+    }
+    if (channels.length && channels.length <= 12 && !form.elements.namedItem("channel_columns").value) {
+      form.elements.namedItem("channel_columns").value = channels.join(",");
+    }
+  } catch (_error) {
+    preview.textContent = "첫 행을 읽을 수 없습니다. 신호·시간 컬럼을 직접 입력한 뒤 등록하세요.";
+  }
+});
+function csvBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const parts = [];
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    parts.push(String.fromCharCode(...bytes.subarray(offset, offset + 8192)));
+  }
+  return btoa(parts.join(""));
+}
+
 async function registerFile(event) {
   event.preventDefault();
   const button = byId("register-file"), feedback = byId("register-result");
@@ -1107,15 +1152,36 @@ async function registerFile(event) {
     channel_columns: channels,
     timestamp_column: String(values.get("timestamp_column") || "").trim(),
   };
+  const chosen = byId("csv-upload").files[0];
+  if (chosen && (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
+    feedback.className = "error";
+    feedback.textContent = "업로드할 CSV는 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.";
+    return;
+  }
   button.disabled = true;
   feedback.className = "";
   feedback.textContent = "CSV 형식과 등록 조건을 검증합니다. 이 단계에서 수집은 시작하지 않습니다.";
   try {
     const session = await getJSON("/api/v1/session");
-    const response = await fetch("/api/v1/sources/file", {
+    const upload = Boolean(chosen);
+    if (upload && session.write_scope !== "supervisor-owned-source-control") {
+      throw new Error("upload-supervisor-required");
+    }
+    const url = upload ? "/api/v1/sources/file/upload" : "/api/v1/sources/file";
+    const body = upload
+      ? JSON.stringify({
+          setup: {
+            source_id: payload.source_id, name: payload.name, asset_id: payload.asset_id,
+            measurement_point_id: payload.measurement_point_id,
+            channel_columns: payload.channel_columns, timestamp_column: payload.timestamp_column,
+          },
+          csv_base64: csvBase64(await chosen.arrayBuffer()),
+        })
+      : JSON.stringify(payload);
+    const response = await fetch(url, {
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
-      body: JSON.stringify(payload),
+      body,
     });
     if (!response.ok) {
       await checkWorkspaceWriterConflict(response);
@@ -1129,6 +1195,10 @@ async function registerFile(event) {
     }
     feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 수집은 기존 Operations에서 별도 실행하세요.";
     form.reset();
+    const pathInput = form.elements.namedItem("file_path");
+    pathInput.disabled = false;
+    pathInput.required = true;
+    byId("csv-file-preview").textContent = "등록된 CSV는 서버 작업공간에 보존됩니다. 소스 활성화·수신 검증·이력 적재는 별도로 진행하세요.";
     await loadSources();
     await refresh();
   } catch (error) {
@@ -1137,6 +1207,8 @@ async function registerFile(event) {
       feedback.textContent = "이미 등록된 소스 ID입니다. 다른 ID를 사용하세요.";
     } else if (error.message === "invalid-csv") {
       feedback.textContent = "등록 실패: CSV 경로·헤더·신호 컬럼과 작업공간 내부 경로 여부를 확인하세요.";
+    } else if (error.message === "upload-supervisor-required") {
+      feedback.textContent = "PC 파일 업로드는 감독형 기본 Web에서만 가능합니다. 독립 Preview에서는 변경할 수 없습니다.";
     } else {
       feedback.textContent = presentError(error);
     }
