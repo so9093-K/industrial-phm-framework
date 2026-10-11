@@ -16,6 +16,7 @@ from industrial_phm.runtime import operations_web_actions as actions
         ("/api/v1/sources/file/receive", "receive_workspace_file_source", None),
         ("/api/v1/sources/file/backfill", "backfill_workspace_file_history", None),
         ("/api/v1/analysis/file", "analyze_workspace_file_source", None),
+        ("/api/v1/analysis/phase-file", "analyze_workspace_file_phase", None),
         ("/api/v1/sources/opcua/browse", "browse_local_opcua", None),
         ("/api/v1/sources/opcua", "register_local_opcua", None),
         ("/api/v1/sources/opcua/diagnose", "diagnose_local_opcua", None),
