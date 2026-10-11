@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http.client import HTTPConnection
@@ -30,6 +31,10 @@ from industrial_phm.runtime import (
     initialize_operations_workspace,
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
+from industrial_phm.runtime.operations_web_actions import (
+    WEB_SOURCE_ACTION_ROUTES,
+    WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
+)
 from tests.support.window_analysis import phase_unbalance_analysis
 
 _RUN = "from industrial_phm.cli import main; raise SystemExit(main())"
@@ -657,3 +662,193 @@ def test_web_child_sigkill_revokes_old_write_authority_and_preserves_workspace(
     finally:
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
+
+
+def test_independent_preview_process_cannot_mutate_supervised_workspace(
+    tmp_path: Path,
+) -> None:
+    """Only the supervisor may write until its real cross-process lease is released."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+
+    workspace = OperationsWorkspace(tmp_path / "supervised-and-preview")
+    initialized = initialize_operations_workspace(workspace)
+    supervisor_port = _port()
+    preview_port = _port()
+    while preview_port == supervisor_port:
+        preview_port = _port()
+    write_operations_runtime_config(
+        workspace.config_path,
+        replace(initialized.config, ui=OperationsUiConfig(port=supervisor_port)),
+    )
+    original_config = workspace.config_path.read_bytes()
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    (inputs / "phase.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
+        encoding="utf-8",
+    )
+    registration = {
+        "source_id": "owner-file",
+        "name": "Supervisor FILE",
+        "asset_id": "motor-01",
+        "measurement_point_id": "panel",
+        "file_path": "inputs/phase.csv",
+        "channel_columns": ["phase-R", "phase-S", "phase-T"],
+        "timestamp_column": "timestamp",
+    }
+
+    def request(
+        port: int,
+        route: str,
+        *,
+        payload: dict[str, object] | None = None,
+        token: str = "",
+        origin: str | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=10)
+        headers = {"Host": f"127.0.0.1:{port}"}
+        body = None
+        if payload is not None:
+            body = json.dumps(payload)
+            headers.update(
+                {
+                    "Origin": origin if origin is not None else f"http://127.0.0.1:{port}",
+                    "Sec-Fetch-Site": "same-origin",
+                    "X-CSRF-Token": token,
+                    "Content-Type": "application/json",
+                }
+            )
+        try:
+            connection.request("POST" if payload is not None else "GET", route, body, headers)
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+
+    # The preview has a different PID, HTTP port and CSRF generation from
+    # the supervised Web child. It must never borrow the supervisor IPC token.
+    preview_script = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from industrial_phm.runtime.operations_web_http import create_operations_web_read_server\n"
+        "server = create_operations_web_read_server(Path(sys.argv[1]), port=int(sys.argv[2]))\n"
+        "server.serve_forever()\n"
+    )
+    supervisor_log = tmp_path / "supervisor.log"
+    preview_log = tmp_path / "preview.log"
+    supervisor = _start(workspace.root, supervisor_port, supervisor_log)
+    try:
+        with preview_log.open("wb") as output:
+            preview = subprocess.Popen(
+                [sys.executable, "-c", preview_script, str(workspace.root), str(preview_port)],
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+            )
+        try:
+            deadline = time.monotonic() + 20
+            while True:
+                if preview.poll() is not None:
+                    pytest.fail(
+                        "independent Web preview exited: "
+                        + preview_log.read_text(errors="replace")[-4000:]
+                    )
+                try:
+                    preview_status, preview_session = request(preview_port, "/api/v1/session")
+                    if preview_status == 200:
+                        break
+                except OSError:
+                    pass
+                if time.monotonic() >= deadline:
+                    pytest.fail("independent Web preview did not start")
+                time.sleep(0.1)
+            assert preview_session["write_scope"] == "local-source-control-and-opcua-preview"
+            preview_csrf = preview_session["csrf_token"]
+            assert isinstance(preview_csrf, str)
+            status, supervisor_session = request(supervisor_port, "/api/v1/session")
+            assert status == 200
+            assert supervisor_session["write_scope"] == "supervisor-owned-source-control"
+            supervisor_csrf = supervisor_session["csrf_token"]
+            assert isinstance(supervisor_csrf, str) and supervisor_csrf != preview_csrf
+
+            status, created = request(
+                supervisor_port,
+                "/api/v1/sources/file",
+                payload=registration,
+                token=supervisor_csrf,
+            )
+            assert status == 201 and created["registration_state"] == "registered"
+            status, visible = request(preview_port, "/api/v1/sources")
+            assert status == 200 and visible["sources"]["total"] == 1
+
+            # Concurrent valid same-origin preview POSTs must fail on the actual
+            # supervisor's OS-level workspace lease before reaching any facade.
+            routes = sorted(WEB_SOURCE_ACTION_ROUTES - WEB_SUPERVISOR_ONLY_ACTION_ROUTES)
+            blocked = {**registration, "source_id": "blocked-preview"}
+
+            def attempt(route: str) -> tuple[str, int, dict[str, object]]:
+                status, response = request(preview_port, route, payload=blocked, token=preview_csrf)
+                return route, status, response
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                responses = list(pool.map(attempt, routes))
+            assert len(responses) == len(routes)
+            assert all(
+                status == 409 and body == {"error": {"code": "workspace_writer_busy"}}
+                for _, status, body in responses
+            ), responses
+            for route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
+                status, result = request(preview_port, route, payload={}, token=preview_csrf)
+                assert status == 403 and result == {"error": {"code": "supervisor_required"}}
+            status, result = request(
+                preview_port,
+                "/api/v1/sources/file",
+                payload=blocked,
+                token=supervisor_csrf,
+            )
+            assert status == 403 and result == {"error": {"code": "write_not_authorized"}}
+            status, result = request(
+                preview_port,
+                "/api/v1/sources/file",
+                payload=blocked,
+                token=preview_csrf,
+                origin="https://untrusted.example",
+            )
+            assert status == 403 and result == {"error": {"code": "origin_not_allowed"}}
+
+            # Live supervisor writes must still succeed; preview cannot modify
+            # either the registry or received/collected history.
+            status, created = request(
+                supervisor_port,
+                "/api/v1/sources/file",
+                payload={**registration, "source_id": "owner-file-two"},
+                token=supervisor_csrf,
+            )
+            assert status == 201 and created["registration_state"] == "registered"
+            assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 2
+            assert not workspace.history_catalog_path.exists()
+            assert workspace.config_path.read_bytes() == original_config
+
+            # Release the owner lease before trying the identical preview write.
+            # No process restart, permission escalation or stale lock workaround.
+            _stop(supervisor, workspace.root)
+            assert supervisor.returncode == 0, supervisor_log.read_text(errors="replace")[-4000:]
+            assert preview.poll() is None
+            status, saved = request(
+                preview_port, "/api/v1/sources/file", payload=blocked, token=preview_csrf
+            )
+            assert status == 201 and saved["registration_state"] == "registered"
+            status, visible = request(preview_port, "/api/v1/sources")
+            assert status == 200 and visible["sources"]["total"] == 3
+            assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 3
+            assert not workspace.history_catalog_path.exists()
+            assert workspace.config_path.read_bytes() == original_config
+        finally:
+            if preview.poll() is None:
+                preview.terminate()
+            preview.wait(timeout=15)
+    finally:
+        _stop(supervisor, workspace.root)
