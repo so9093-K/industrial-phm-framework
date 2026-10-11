@@ -479,7 +479,6 @@ def test_web_file_backfill_commits_real_history_and_recovers_same_batch(tmp_path
         thread.join(timeout=10)
 
 
-
 def test_bound_file_phase_analysis_requires_exact_committed_history(tmp_path: Path) -> None:
     pytest.importorskip("duckdb")
     pytest.importorskip("filelock")
