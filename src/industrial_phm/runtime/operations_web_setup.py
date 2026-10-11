@@ -7,9 +7,9 @@ validation, durable source registry and accepted receipt evidence.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 import os
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from industrial_phm.application import (
@@ -255,7 +255,7 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
 
 _MAX_WEB_UPLOAD_BYTES = 1024 * 1024
 _UPLOAD_FIELDS = (_FIELDS - {"file_path"}) | {"staged_name"}
-_STAGED_CSV_NAME = re.compile(r"[0-9a-f]{32}\\.csv\\Z")
+_STAGED_CSV_NAME = re.compile(r"[0-9a-f]{32}\.csv\Z")
 
 
 def register_uploaded_csv_source(
@@ -287,7 +287,7 @@ def register_uploaded_csv_source(
     if not 0 < len(raw) <= _MAX_WEB_UPLOAD_BYTES:
         raise ValueError("CSV upload too large")
     text = raw.decode("utf-8-sig")
-    if "\\x00" in text:
+    if "\x00" in text:
         raise ValueError("CSV contains binary data")
 
     destination_dir = root / "web-uploads"
@@ -305,7 +305,7 @@ def register_uploaded_csv_source(
         registration = {key: value for key, value in payload.items() if key != "staged_name"}
         registration["file_path"] = f"web-uploads/{staged_name}"
         return register_workspace_csv_source(root, registration)
-    except BaseException:
+    except Exception:
         destination.unlink(missing_ok=True)
         raise
 
