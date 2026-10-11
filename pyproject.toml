@@ -44,10 +44,7 @@ opcua = [
   "asyncua>=2.0.1,<2.1",
 ]
 operations = [
-  "anywidget>=0.9,<1",
   "industrial-phm-framework[history,opcua]",
-  "marimo>=0.24.2,<0.25",
-  "matplotlib>=3.11.2,<4",
 ]
 aihub = [
     "ijson>=3.4,<4",
@@ -100,7 +97,6 @@ python_version = "3.14"
 strict = true
 mypy_path = "src"
 packages = ["industrial_phm"]
-exclude = ["^src/industrial_phm/apps/operations\\.py$"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"

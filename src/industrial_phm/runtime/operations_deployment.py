@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime.operations_config import load_operations_runtime_config
 from industrial_phm.runtime.operations_runtime import (
     OPERATIONS_UI_HOST,
@@ -24,7 +23,7 @@ try:
 except ImportError:  # pragma: no cover - reference deployment is POSIX
     fcntl = None  # type: ignore[assignment]
 
-_OPERATIONS_RUNTIME_MODULES = ("asyncua", "duckdb", "filelock", "marimo")
+_OPERATIONS_RUNTIME_MODULES = ("asyncua", "duckdb", "filelock")
 
 
 class OperationsDeploymentCheckState(StrEnum):
@@ -110,19 +109,21 @@ def inspect_operations_deployment(
     if config is not None:
         checks.append(_ui_port_check(config.ui.port))
 
-    app_path = operations_app_path()
+    # Check the real packaged Web files instead of the retired marimo notebook.
+    web_root = Path(__file__).resolve().parents[1] / "apps" / "web"
+    required_assets = ("index.html", "app.js", "styles.css")
+    missing = tuple(
+        name for name in required_assets
+        if not (web_root / name).is_file() or not os.access(web_root / name, os.R_OK)
+    )
     checks.append(
         OperationsDeploymentCheck(
-            "operations-app",
+            "operations-web-assets",
+            OperationsDeploymentCheckState.FAIL if missing else OperationsDeploymentCheckState.PASS,
             (
-                OperationsDeploymentCheckState.PASS
-                if app_path.is_file() and os.access(app_path, os.R_OK)
-                else OperationsDeploymentCheckState.FAIL
-            ),
-            (
-                f"packaged Operations app is readable: {app_path}"
-                if app_path.is_file() and os.access(app_path, os.R_OK)
-                else f"packaged Operations app is unavailable or unreadable: {app_path}"
+                f"packaged Operations Web assets unavailable: {', '.join(missing)}"
+                if missing
+                else "packaged Operations Web assets are readable"
             ),
         )
     )
