@@ -1166,7 +1166,8 @@ class Harness:
         snapshot = load_operations_app_snapshot(environ=self.stack.app_env())
         reviewed = {item.finding.analysis_run_id for item in snapshot.overview.review_summaries}
         candidates = [
-            result for result in snapshot.analysis_results
+            result
+            for result in snapshot.analysis_results
             if result.run.capability_id == PHASE_UNBALANCE_CAPABILITY_ID
             and result.run.analysis_run_id not in reviewed
         ]
@@ -1187,7 +1188,8 @@ class Harness:
         )
         after = load_operations_app_snapshot(environ=self.stack.app_env())
         matching = [
-            item for item in after.overview.review_summaries
+            item
+            for item in after.overview.review_summaries
             if item.finding.finding_id == response["finding_id"]
             and item.finding.analysis_run_id == result.run.analysis_run_id
         ]

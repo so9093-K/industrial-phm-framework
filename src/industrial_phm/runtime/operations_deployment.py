@@ -113,7 +113,8 @@ def inspect_operations_deployment(
     web_root = Path(__file__).resolve().parents[1] / "apps" / "web"
     required_assets = ("index.html", "app.js", "styles.css")
     missing = tuple(
-        name for name in required_assets
+        name
+        for name in required_assets
         if not (web_root / name).is_file() or not os.access(web_root / name, os.R_OK)
     )
     checks.append(

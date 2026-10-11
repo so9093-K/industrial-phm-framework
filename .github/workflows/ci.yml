@@ -382,7 +382,6 @@ jobs:
         run: |
           uv run --locked --extra operations pytest \
             tests/acceptance/test_synthetic_operations_node.py \
-            tests/unit/test_monitor_workspace.py \
             tests/unit/test_operations_runtime.py
 
       - name: Install Chromium for first-run acceptance

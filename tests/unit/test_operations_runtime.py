@@ -125,8 +125,7 @@ def test_web_preview_plan_is_opt_in_and_keeps_supervisor_topology(tmp_path: Path
     assert plan.ui_url == "http://127.0.0.1:4876/web/"
     assert ui.log_path == workspace.logs_path / "ui.log"
     assert (
-        build_operations_runtime_plan(workspace, config).ui_mode
-        == OperationsUiMode.WEB_CONTROLLED
+        build_operations_runtime_plan(workspace, config).ui_mode == OperationsUiMode.WEB_CONTROLLED
     )
 
 
