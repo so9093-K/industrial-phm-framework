@@ -429,7 +429,12 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                         has_text="검토 기록 종료됨"
                     )
                 ).to_contain_text("실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다")
-                pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
+                # The newest FILE source is now phase-file; the history preview
+                # must reflect its stored values rather than the earlier vibration CSV.
+                pw.expect(page.locator("#last-values")).to_contain_text(
+                    "leg_a / phase-file", timeout=30000
+                )
+                pw.expect(page.locator("#last-values")).to_contain_text("221")
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_visible()
                 # Losing the real source GET must revoke a prior ready state,
