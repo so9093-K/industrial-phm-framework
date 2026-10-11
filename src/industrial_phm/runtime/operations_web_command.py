@@ -198,7 +198,10 @@ class SupervisorWebCommandBroker:
 
     def _execute(self, route: str, payload: dict[str, object]) -> dict[str, object]:
         try:
-            if route == "/api/v1/sources/file/upload":
+            if route in {
+                "/api/v1/sources/file/upload",
+                "/api/v1/sources/file/upload/preflight",
+            }:
                 result = execute_web_source_action(
                     self.workspace, route, payload, upload_directory=self.upload_directory
                 )

@@ -308,7 +308,12 @@ def create_operations_web_read_server(
                 return
             length = int(lengths[0])
             max_length = (
-                _MAX_WEB_CSV_REQUEST if self.path == "/api/v1/sources/file/upload" else 4096
+                _MAX_WEB_CSV_REQUEST
+                if self.path in {
+                    "/api/v1/sources/file/upload",
+                    "/api/v1/sources/file/upload/preflight",
+                }
+                else 4096
             )
             if (
                 not 1 <= length <= max_length
@@ -321,7 +326,10 @@ def create_operations_web_read_server(
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
                 with mutation_lock:
-                    if self.path == "/api/v1/sources/file/upload":
+                    if self.path in {
+                        "/api/v1/sources/file/upload",
+                        "/api/v1/sources/file/upload/preflight",
+                    }:
                         assert command_client is not None
                         if set(body) != {"setup", "csv_base64"}:
                             raise ValueError("unexpected upload fields")
