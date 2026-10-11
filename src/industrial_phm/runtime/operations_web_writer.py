@@ -1,8 +1,8 @@
 """Cooperative process-wide Web mutation lock using the supervisor's workspace lease.
 
 The opt-in Web preview may read while the normal Operations node runs.
-Mutations must never race the supervisor-owned marimo UI or another Web
-preview: both processes coordinate through the same POSIX advisory lock.
+Mutations must never race the supervisor-owned Web UI or another Web
+preview: all processes coordinate through the same POSIX advisory lock.
 """
 
 from __future__ import annotations

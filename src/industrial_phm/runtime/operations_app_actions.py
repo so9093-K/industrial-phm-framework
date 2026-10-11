@@ -1,6 +1,6 @@
 """Concrete write-side actions for the packaged Operations application.
 
-The marimo app owns interaction state and form-to-domain input mapping. Concrete
+The Web command layer owns interaction state and form-to-domain input mapping. Concrete
 repository construction, persistence refreshes, and diagnostic event-loop bridging
 belong to the local runtime composition boundary.
 """

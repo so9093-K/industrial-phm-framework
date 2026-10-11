@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from industrial_phm.apps import operations_app_path
 from industrial_phm.runtime.operations_config import OperationsRuntimeConfig
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -27,7 +26,6 @@ class OperationsComponentKind(StrEnum):
 class OperationsUiMode(StrEnum):
     """Explicit local UI mode; controlled Web commands are supervisor-owned."""
 
-    MARIMO = "marimo"
     WEB_PREVIEW = "web-preview"
     WEB_CONTROLLED = "web-controlled"
 
@@ -71,7 +69,7 @@ class OperationsRuntimePlan:
     workspace: OperationsWorkspace
     config: OperationsRuntimeConfig
     components: tuple[OperationsComponentLaunch, ...]
-    ui_mode: OperationsUiMode = OperationsUiMode.MARIMO
+    ui_mode: OperationsUiMode = OperationsUiMode.WEB_CONTROLLED
 
     def __post_init__(self) -> None:
         if not isinstance(self.workspace, OperationsWorkspace):
@@ -89,14 +87,14 @@ class OperationsRuntimePlan:
     @property
     def ui_url(self) -> str:
         url = f"http://{OPERATIONS_UI_HOST}:{self.config.ui.port}"
-        return url + "/web/" if self.ui_mode != OperationsUiMode.MARIMO else url
+        return url + "/web/"
 
 
 def build_operations_runtime_plan(
     workspace: OperationsWorkspace,
     config: OperationsRuntimeConfig,
     *,
-    ui_mode: OperationsUiMode = OperationsUiMode.MARIMO,
+    ui_mode: OperationsUiMode = OperationsUiMode.WEB_CONTROLLED,
 ) -> OperationsRuntimePlan:
     """Build the local process set from one authoritative workspace config."""
     if not isinstance(ui_mode, OperationsUiMode):
@@ -145,32 +143,16 @@ def build_operations_runtime_plan(
             )
         )
 
-    ui_argv: tuple[str, ...]
-    if ui_mode in {OperationsUiMode.WEB_PREVIEW, OperationsUiMode.WEB_CONTROLLED}:
-        # Plain web-preview remains read-only under the supervisor's writer lease.
-        # Explicit web-controlled delegates every mutation to the supervisor IPC.
-        ui_argv = (
-            sys.executable,
-            "-m",
-            "industrial_phm.runtime.operations_web_preview",
-            str(workspace.root),
-            "--port",
-            str(config.ui.port),
-        ) + (("--supervised-actions",) if ui_mode == OperationsUiMode.WEB_CONTROLLED else ())
-    else:
-        ui_argv = (
-            sys.executable,
-            "-m",
-            "marimo",
-            "run",
-            str(operations_app_path()),
-            "--headless",
-            "--no-token",
-            "--host",
-            OPERATIONS_UI_HOST,
-            "--port",
-            str(config.ui.port),
-        )
+    # The product UI is Web-only. The preview stays read-only under a writer lease.
+    # Supervised actions are exclusively delegated to the supervisor command broker.
+    ui_argv = (
+        sys.executable,
+        "-m",
+        "industrial_phm.runtime.operations_web_preview",
+        str(workspace.root),
+        "--port",
+        str(config.ui.port),
+    ) + (("--supervised-actions",) if ui_mode == OperationsUiMode.WEB_CONTROLLED else ())
 
     return OperationsRuntimePlan(
         workspace=workspace,

@@ -1,4 +1,4 @@
-"""Opt-in loopback Operations Web preview; does not supervise collection or analysis."""
+"""Loopback Operations Web server for supervisor-owned or standalone preview mode."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from industrial_phm.runtime.operations_web_http import create_operations_web_rea
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Run the opt-in Operations Web preview without replacing marimo"
+        description="Run local Operations Web (supervised command broker or standalone preview)"
     )
     parser.add_argument("workspace", type=Path, help="existing Operations workspace")
     parser.add_argument("--port", type=int, default=8765, help="loopback port (default: 8765)")

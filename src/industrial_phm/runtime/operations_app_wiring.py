@@ -134,7 +134,7 @@ def operations_source_registry_state(
 def run_async_in_worker[T](
     factory: Callable[[], Coroutine[Any, Any, T]],
 ) -> T:
-    """Execute one bounded async connector action outside a marimo event loop."""
+    """Execute one bounded async connector action outside a UI event loop."""
 
     def run() -> T:
         return asyncio.run(factory())

@@ -53,9 +53,9 @@ def _add_operations_commands(
     up.add_argument("workspace", type=Path, help="local Operations workspace root")
     up.add_argument(
         "--ui",
-        choices=("web-controlled", "marimo", "web-preview"),
+        choices=("web-controlled", "web-preview"),
         default="web-controlled",
-        help="UI: supervised local Web default, marimo explicit fallback, preview read-only",
+        help="UI: supervised local Web default; preview read-only",
     )
     up.set_defaults(handler=_run_operations_up)
 
@@ -77,9 +77,9 @@ def _add_operations_commands(
     )
     start.add_argument(
         "--ui",
-        choices=("marimo", "web-preview", "web-controlled"),
+        choices=("web-controlled", "web-preview"),
         default="web-controlled",
-        help="UI: supervised local Web default, marimo explicit fallback, preview read-only",
+        help="UI: supervised local Web default; preview read-only",
     )
     start.set_defaults(handler=_run_operations_start)
 

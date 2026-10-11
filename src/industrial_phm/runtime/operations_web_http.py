@@ -1,8 +1,9 @@
 """Loopback-only Operations Web preview with narrowly scoped protected actions.
 
-This is not the production UI entry point. Mutations require exact same-origin
-browser evidence and a process CSRF token; collection requests do not start
-the supervisor or prove ingestion. The existing marimo UI remains unchanged.
+The same read/HTTP transport serves supervised Web and standalone preview.
+Mutations require exact same-origin browser evidence and a process CSRF token;
+collection requests do not start the supervisor or prove ingestion.
+Supervised writes are brokered by the Operations supervisor.
 """
 
 from __future__ import annotations

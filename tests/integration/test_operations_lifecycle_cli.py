@@ -156,29 +156,6 @@ def test_operations_start_runs_full_local_node_from_workspace_config(
     assert "mode=foreground" in output
 
 
-def test_operations_up_explicit_marimo_fallback_preserves_workspace(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
-    workspace = OperationsWorkspace(tmp_path / "legacy-fallback")
-    initialize_operations_workspace(workspace)
-    original_config = workspace.config_path.read_bytes()
-    captured = {}
-
-    def fake_run(plan):
-        captured["plan"] = plan
-        return SimpleNamespace(
-            state=SimpleNamespace(failure=None, state=OperationsSupervisorStateKind.STOPPED),
-            exit_code=0,
-        )
-
-    monkeypatch.setattr(operations_commands, "run_operations_supervisor", fake_run)
-    assert main(["operations", "up", str(workspace.root), "--ui", "marimo"]) == 0
-    assert captured["plan"].ui_mode.value == "marimo"
-    assert captured["plan"].ui_url == "http://127.0.0.1:2718"
-    assert workspace.config_path.read_bytes() == original_config
-    assert "ui=marimo legacy-local-fallback" in capsys.readouterr().out
-
-
 def test_operations_start_requires_initialized_workspace(tmp_path: Path, capsys) -> None:
     root = tmp_path / "missing"
 

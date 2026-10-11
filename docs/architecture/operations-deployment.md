@@ -85,7 +85,7 @@ It does **not** install a permanent production service, certify all Linux
 distributions, prove host reboot persistence, or grant an authenticated
 remote/multi-user UI. The local single-user reference unit launches supervised Web by default;
 the test uses the same no-flag CLI default when rendering the temporary unit.
-The legacy Operations UI remains available via `operations start <root> --ui marimo`.
+The production operator UI is the packaged supervised Web; research marimo remains separate.
 This does not certify remote/multi-user or field-tested deployment.
 
 ## Filesystem and permissions

@@ -41,10 +41,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 
-from industrial_phm.apps import operations_app_path
-
 REPO = Path(__file__).resolve().parents[2]
-OPERATIONS_APP = operations_app_path()
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
 # Deliberately fixed identities for the bundled boiler-2297 replay gate.
 AIHUB_BOILER_2297_SOURCE_ID = "aihub239-replay-boiler-2297"
@@ -286,8 +283,8 @@ def check_first_render(renders: dict[str, dict[str, object]]) -> dict[str, objec
         for name, r in renders.items()
         if not r.get("monitor_ready")
         or (name not in _MONITOR_STATES_WITHOUT_ATTENTION and not r.get("attention_seen"))
-        or int(r.get("signal_value_count", 0)) < 1
-        or not r.get("system_data_flow_absent")
+        or int(r.get("asset_fact_count", 0)) < 1
+        or not r.get("system_state_clearly_scoped")
         or int(r.get("overflow_count", 0)) > 0
     }
     return _check(
@@ -377,8 +374,8 @@ def check_live_browser_journey(renders: dict[str, dict[str, object]]) -> dict[st
         for name in required
         if name in renders
         and (
-            not renders[name].get("current_observation_seen")
-            or int(renders[name].get("value_count", 0)) < 1
+            not renders[name].get("source_evidence_seen")
+            or int(renders[name].get("evidence_row_count", 0)) < 1
         )
     }
     return _check(
@@ -613,18 +610,19 @@ class Stack:
         return None
 
     def ui_snapshot(self) -> dict[str, object]:
-        """Evaluate the Operations V2 Monitor read model exactly as the app builds it."""
-        return self.app_probe(
-            "m = defs['monitor']\n"
-            "stage = {s.kind.value: s for s in m.stages}\n"
-            "out = {\n"
-            "  'sources': stage['source'].status.value,\n"
-            "  'collect': stage['collection'].status.value,\n"
-            "  'collect_summary': stage['collection'].summary,\n"
-            "  'analyze': stage['analysis'].status.value,\n"
-            "  'attention': sorted({a.title for a in m.attention}),\n"
-            "}\n"
-        )
+        """Inspect the shared Operations monitor read model, independent of any UI."""
+        from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
+
+        snapshot = load_operations_app_snapshot(environ=self.app_env())
+        monitor = snapshot.monitor
+        stages = {stage.kind.value: stage for stage in monitor.stages}
+        return {
+            "sources": stages["source"].status.value,
+            "collect": stages["collection"].status.value,
+            "collect_summary": stages["collection"].summary,
+            "analyze": stages["analysis"].status.value,
+            "attention": sorted({item.title for item in monitor.attention}),
+        }
 
     def live_snapshot(self, channel_id: str) -> dict[str, object]:
         """Read the same bounded live projection used by Assets -> Signals."""
@@ -700,44 +698,17 @@ class Stack:
         env["INDUSTRIAL_PHM_OPERATIONS_WORKSPACE"] = str(self.root)
         return env
 
-    def app_probe(self, body: str) -> dict[str, object]:
-        """Run Operations V2 in script mode against this root; ``body`` sets ``out``."""
-        script = (
-            "import json, runpy\n"
-            f"app = runpy.run_path({str(OPERATIONS_APP)!r})['app']\n"
-            "_, defs = app.run()\n"
-            f"{body}"
-            "print('UI-SNAPSHOT ' + json.dumps(out, default=str))\n"
-        )
-        output = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=REPO,
-            env=self.app_env(),
-            capture_output=True,
-            text=True,
-            timeout=180,
-            check=False,
-        )
-        for line in output.stdout.splitlines():
-            if line.startswith("UI-SNAPSHOT "):
-                return dict(json.loads(line.removeprefix("UI-SNAPSHOT ")))
-        raise RuntimeError(f"Operations V2 could not be evaluated: {output.stderr[-2000:]}")
-
     # ----------------------------------------------------------- real browser
 
     def start_ui_server(self, port: int) -> None:
+        """Run the actual packaged Web in read-only mode against the replay root."""
         log = (self.root / "harness-ui.log").open("ab")
         self.ui_server = subprocess.Popen(
             [
                 sys.executable,
                 "-m",
-                "marimo",
-                "run",
-                str(OPERATIONS_APP),
-                "--headless",
-                "--no-token",
-                "--host",
-                "127.0.0.1",
+                "industrial_phm.runtime.operations_web_preview",
+                str(self.root),
                 "--port",
                 str(port),
             ],
@@ -746,18 +717,21 @@ class Stack:
             stdout=log,
             stderr=log,
         )
-        self.ui_url = f"http://127.0.0.1:{port}"
+        self.ui_url = f"http://127.0.0.1:{port}/web/"
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
+            if self.ui_server.poll() is not None:
+                raise RuntimeError("Operations Web process exited before readiness")
             try:
-                urllib.request.urlopen(self.ui_url, timeout=1)
-                return
+                with urllib.request.urlopen(self.ui_url, timeout=1) as response:
+                    if response.status == 200:
+                        return
             except OSError:
                 time.sleep(0.5)
-        raise RuntimeError("marimo UI server did not start")
+        raise RuntimeError("Operations Web UI server did not start")
 
     def browser_render(self, name: str, expected_attention: str | None) -> dict[str, object]:
-        """Open Monitor in Chromium; time until observation data and attention are readable."""
+        """Check Web asset context and fault attention against persisted evidence."""
         assert self.ui_url is not None, "start_ui_server first"
         output = subprocess.run(
             [
@@ -796,7 +770,7 @@ class Stack:
         name: str,
         expected: Sequence[str],
     ) -> dict[str, object]:
-        """Open Assets -> Signals and wait for one expected live observation state."""
+        """Check current Web source/receipt/connection evidence after replay faults."""
 
         assert self.ui_url is not None, "start_ui_server first"
         output = subprocess.run(
@@ -824,8 +798,8 @@ class Stack:
             if line.startswith("LIVE-BROWSER "):
                 render = dict(json.loads(line.removeprefix("LIVE-BROWSER ")))
                 render["within_5s"] = bool(
-                    render.get("current_observation_seen")
-                    and int(render.get("value_count", 0)) >= 1
+                    render.get("source_evidence_seen")
+                    and int(render.get("evidence_row_count", 0)) >= 1
                     and render.get("matched")
                     and int(render.get("overflow_count", 0)) == 0
                     and float(render["seconds"]) <= 5.0
@@ -834,31 +808,21 @@ class Stack:
         return {"within_5s": False, "error": output.stderr[-1500:]}
 
 
-# Visible elements whose right edge passes the viewport, outside intended horizontal
-# scroll containers. Content clipped by the page is unreadable even when it "renders".
+# Detect visible horizontal overflow outside scrollable containers.
 _OVERFLOW_JS = """() => {
   const limit = window.innerWidth + 1;
-  const scrolls = (e) => {
-    for (let a = e.parentElement; a; a = a.parentElement) {
-      const x = getComputedStyle(a).overflowX;
-      if ((x === 'auto' || x === 'scroll') && a.getBoundingClientRect().right <= limit) return true;
+  return [...document.querySelectorAll('main *')].filter((element) => {
+    const rect = element.getBoundingClientRect();
+    if (!rect.width || !rect.height || rect.right <= limit) return false;
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      const style = getComputedStyle(parent).overflowX;
+      if (style === 'auto' || style === 'scroll') return false;
     }
-    return false;
-  };
-  const out = [];
-  // Only notebook output: marimo's own off-screen hover panels are not page content.
-  for (const e of document.querySelectorAll('.output-area *')) {
-    const r = e.getBoundingClientRect();
-    if (r.width === 0 || r.height === 0 || r.right <= limit) continue;
-    if (getComputedStyle(e).visibility === 'hidden' || scrolls(e)) continue;
-    out.push(e.tagName + '.' + String(e.className).slice(0, 40) + ':' + Math.round(r.right));
-  }
-  return out;
+    return true;
+  }).map((element) => element.tagName + ':' + element.id).slice(0, 10);
 }"""
 
-# Opens a fresh page (a fresh marimo session reads current runtime files), waits for
-# the observation-first Monitor surface and the expected attention title, and reports
-# the elapsed time. Runtime/System flow is deliberately not a Monitor readiness signal.
+# The current Web shows bounded evidence, not a live measurement widget.
 _BROWSER_SCRIPT = """
 import json, sys, time
 from playwright.sync_api import sync_playwright
@@ -867,58 +831,36 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1440, "height": 1100})
     started = time.monotonic()
-    page.goto(url)
-    observed_asset_seen = latest_seen = trends_seen = False
+    page.goto(url, wait_until="domcontentloaded")
     try:
-        page.locator(".mw-asset h1").first.wait_for(timeout=30000)
-        observed_asset_seen = True
-        page.locator(".mw-reading-value strong").first.wait_for(timeout=30000)
-        latest_seen = True
-        page.locator(".mw-plot svg").first.wait_for(timeout=30000)
-        trends_seen = True
-        page.locator(".mw-reading-value strong").first.wait_for(timeout=30000)
+        page.wait_for_function(
+            "() => document.getElementById('asset-count').textContent.trim() !== '—'",
+            timeout=30000,
+        )
     except Exception:
         pass
-    observation_seconds = time.monotonic() - started
-    attention_seen = None
-    if attention:
-        attention_seen = True
-        try:
-            # Exact text: the attention selector's hidden <option> also contains it.
-            page.get_by_text(attention, exact=True).first.wait_for(timeout=30000)
-        except Exception:
-            attention_seen = False
     seconds = time.monotonic() - started
-    signal_values = page.locator(".mw-reading-value strong").all_inner_texts()
-    system_data_flow_absent = page.get_by_text("System data flow", exact=True).count() == 0
+    count = page.locator("#asset-count").inner_text().strip()
+    facts = page.locator("#asset-facts .fact strong").all_inner_texts()
+    statuses = page.locator("#monitor-attention strong").all_inner_texts()
+    attention_seen = None if not attention else attention in statuses
+    system_scoped = "설비 정상" in page.locator("#system-status").inner_text()
     overflow = page.evaluate(OVERFLOW_JS)
-    monitor_ready = (
-        observed_asset_seen
-        and latest_seen
-        and trends_seen
-        and bool(signal_values)
-        and system_data_flow_absent
-        and not overflow
-    )
+    monitor_ready = count not in ("—", "0") and bool(facts) and system_scoped and not overflow
     page.screenshot(path=shot, full_page=True)
     browser.close()
 print("BROWSER " + json.dumps({
-    "observation_seconds": round(observation_seconds, 2),
     "seconds": round(seconds, 2),
     "attention": attention,
     "attention_seen": attention_seen,
-    "observed_asset_seen": observed_asset_seen,
-    "latest_observations_seen": latest_seen,
-    "recent_trends_seen": trends_seen,
-    "signal_value_count": len(signal_values),
-    "signal_values": [" | ".join(item.split()) for item in signal_values[:8]],
-    "system_data_flow_absent": system_data_flow_absent,
+    "asset_count": count,
+    "asset_fact_count": len(facts),
+    "system_state_clearly_scoped": system_scoped,
     "overflow_count": len(overflow),
-    "overflow_examples": overflow[:6],
+    "overflow_examples": overflow,
     "monitor_ready": monitor_ready,
 }))
 """
-
 
 _BROWSER_LIVE_SCRIPT = """
 import json, sys, time
@@ -929,32 +871,29 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1440, "height": 1100})
     started = time.monotonic()
-    page.goto(url)
+    page.goto(url, wait_until="domcontentloaded")
+    card = page.locator('.source-record[data-source-id="aihub239-replay-boiler-2297"]')
     try:
-        page.get_by_role("button", name="Assets", exact=True).click(timeout=5000)
+        card.wait_for(state="visible", timeout=30000)
     except Exception:
-        page.get_by_text("Assets", exact=True).first.click()
-    try:
-        page.get_by_role("radio", name="Signals", exact=True).click(timeout=5000)
-    except Exception:
-        page.get_by_text("Signals", exact=True).first.click()
-    current_observation_seen = True
-    try:
-        page.get_by_text("Current observation", exact=True).first.wait_for(timeout=30000)
-        page.locator(".phm-live-value").first.wait_for(timeout=30000)
-    except Exception:
-        current_observation_seen = False
-    matched = None
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        body = page.locator("body").inner_text()
-        matched = next((item for item in expected if item in body), None)
-        if matched is not None:
-            break
-        page.wait_for_timeout(200)
+        pass
+    text = card.inner_text() if card.count() else ""
+    # Web exposes accepted receipts, session and recent live evidence separately.
+    source_evidence_seen = (
+        "OPC UA 세션 마지막 기록:" in text and "live 이벤트 마지막 수신:" in text
+    )
+    conditions = {
+        "Source flow · Receiving": "30초 이내 수신 근거 있음",
+        "Source flow · No recent source data": "최근 수신 근거 미확인",
+        "Source flow · Connecting": "connecting",
+        "Source flow · Reconnecting": "reconnect",
+        "Source flow · Disconnected": "disconnected",
+    }
+    matched = next(
+        (item for item in expected if conditions.get(item, item) in text), None
+    )
+    evidence_rows = card.locator("span").count() if card.count() else 0
     seconds = time.monotonic() - started
-    states = page.locator(".phm-live-state").all_inner_texts()
-    values = page.locator(".phm-live-value").all_inner_texts()
     overflow = page.evaluate(OVERFLOW_JS)
     page.screenshot(path=shot, full_page=True)
     browser.close()
@@ -962,12 +901,10 @@ print("LIVE-BROWSER " + json.dumps({
     "seconds": round(seconds, 2),
     "expected": expected,
     "matched": matched,
-    "current_observation_seen": current_observation_seen,
-    "value_count": len(values),
-    "states": [" | ".join(item.split()) for item in states],
-    "values": [" | ".join(item.split()) for item in values],
+    "source_evidence_seen": source_evidence_seen,
+    "evidence_row_count": evidence_rows,
     "overflow_count": len(overflow),
-    "overflow_examples": overflow[:6],
+    "overflow_examples": overflow,
 }))
 """
 _BROWSER_SCRIPT = f"OVERFLOW_JS = {_OVERFLOW_JS!r}\n" + _BROWSER_SCRIPT
@@ -1221,40 +1158,51 @@ class Harness:
         self._record(fault)
 
     def review_workflow(self) -> None:
-        """After every fault, request review of the newest result and follow it to Maintenance.
+        """Request and verify exact persisted evidence through the Web review facade."""
+        from industrial_phm.application.phase_unbalance import PHASE_UNBALANCE_CAPABILITY_ID
+        from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
+        from industrial_phm.runtime.operations_web_review import request_web_analysis_review
 
-        Both steps read the queues the app itself builds; the review request is the
-        same domain call the Investigations "Request review" button makes.
-        """
-        before = self.stack.app_probe(
-            "from industrial_phm.application import PHASE_UNBALANCE_CAPABILITY_ID as CAP\n"
-            "queue = defs['investigation_queue']\n"
-            "latest = [g.latest for g in queue.groups() if g.capability_id == CAP\n"
-            "          and g.review_state.value == 'not-requested']\n"
-            "item = max(latest, key=lambda i: i.completed_at)\n"
-            "result = next(r for r in defs['current_analysis_results']\n"
-            "              if r.run.analysis_run_id == item.analysis_run_id)\n"
-            "# The workspace-bound action the Investigations button calls.\n"
-            "finding, _ = defs['operations_actions'].request_review(result)\n"
-            "out = {'analysis_run_id': item.analysis_run_id, 'finding_id': finding.finding_id,\n"
-            "       'observed_end_at': result.run.observed_end_at.isoformat(),\n"
-            "       'before_state': item.review_state.value}\n"
+        snapshot = load_operations_app_snapshot(environ=self.stack.app_env())
+        reviewed = {item.finding.analysis_run_id for item in snapshot.overview.review_summaries}
+        candidates = [
+            result
+            for result in snapshot.analysis_results
+            if PHASE_UNBALANCE_CAPABILITY_ID in result.run.capability_ids
+            and result.run.analysis_run_id not in reviewed
+        ]
+        if not candidates:
+            raise RuntimeError("no unreviewed persisted phase analysis after injected faults")
+        result = max(candidates, key=lambda item: item.run.completed_at)
+        before = {
+            "analysis_run_id": result.run.analysis_run_id,
+            "observed_end_at": result.run.observed_end_at.isoformat(),
+            "before_state": "not-requested",
+        }
+        response = request_web_analysis_review(
+            self.stack.root,
+            {
+                "analysis_run_id": result.run.analysis_run_id,
+                "evidence_id": result.evidence.evidence_id,
+            },
         )
-        after = self.stack.app_probe(
-            f"run_id = {before['analysis_run_id']!r}\n"
-            f"finding_id = {before['finding_id']!r}\n"
-            "states = [g.review_state.value for g in defs['investigation_queue'].groups()\n"
-            "          if any(i.analysis_run_id == run_id for i in g.items)]\n"
-            "items = [i for i in defs['maintenance_queue'].items if i.finding_id == finding_id]\n"
-            "out = {'after_state': states[0] if len(states) == 1 else states,\n"
-            "       'maintenance_status': items[0].status.value if len(items) == 1 else None}\n"
-        )
+        after = load_operations_app_snapshot(environ=self.stack.app_env())
+        matching = [
+            item
+            for item in after.overview.review_summaries
+            if item.finding.finding_id == response["finding_id"]
+            and item.finding.analysis_run_id == result.run.analysis_run_id
+        ]
+        if len(matching) != 1:
+            raise RuntimeError("persisted review reference missing or ambiguous")
+        status = matching[0].status.value
         last_fault = max(fault.started for fault in self.faults)
         self.workflow = {
             **before,
-            **after,
-            "result_after_last_fault": datetime.fromisoformat(str(before["observed_end_at"]))
-            > last_fault,
+            "finding_id": response["finding_id"],
+            "after_state": status,
+            "maintenance_status": status,
+            "result_after_last_fault": result.run.observed_end_at > last_fault,
         }
         print(f"  review workflow: {self.workflow}", flush=True)
 

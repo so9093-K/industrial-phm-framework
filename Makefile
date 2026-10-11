@@ -20,7 +20,7 @@ help:
 		'' \
 		'Variables:' \
 		'  WORKSPACE=<path>   Local Operations workspace (default: artifacts/operations)' \
-		'  UI=marimo          Legacy UI fallback (default: web-controlled)' \
+		'  UI=web-controlled   Supervised Web (web-preview for read-only diagnostics)' \
 		'  UV=<command>       uv executable (default: uv)'
 
 _require-uv:

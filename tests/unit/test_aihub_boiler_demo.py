@@ -247,5 +247,5 @@ def test_run_aihub_boiler_demo_reuses_normal_operations_supervisor(
     assert "--speed" in argv
     plan = captured["plan"]
     assert plan.workspace.root == preset.workspace
-    assert plan.ui_url == "http://127.0.0.1:2722"
+    assert plan.ui_url == "http://127.0.0.1:2722/web/"
     assert replay.signals == [signal.SIGINT]

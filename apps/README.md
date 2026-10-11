@@ -7,12 +7,11 @@
 [architecture 문서](../docs/architecture/overview.md)를 authoritative source로 사용합니다.
 이 문서는 화면별 현재 기능 목록을 중복해서 유지하지 않습니다.
 
-## Operations
+## Operations — supervised Web
 
-현재 기본 사용자 Operations 화면은 supervisor가 실행하는 **wheel 내장 Web**입니다.
-기존 marimo 레퍼런스 `src/industrial_phm/apps/operations.py`는 `--ui marimo` 명시적 복귀를 위해 유지합니다.
-
-정상 local lifecycle은 저장소 root의 한 front door를 사용합니다.
+현재 운영자 제품은 패키지 내 Web 자산(`src/industrial_phm/apps/web/`)과
+Python API로 실행합니다. 운영용 marimo 애플리케이션 및 `--ui marimo`는 제거했습니다.
+연구용 `apps/analysis_explorer.py`와 노트북의 marimo는 별개로 유지합니다.
 
 ```bash
 make up
@@ -21,69 +20,30 @@ make logs
 make down
 ```
 
-기본 workspace는 `artifacts/operations`입니다. 다른 root는 같은 값을 모든 runtime component에
-공유하도록 `WORKSPACE=<path>`로 지정합니다.
-
-```bash
-make up WORKSPACE=artifacts/site-a
-```
-
-빈 workspace의 기본 Web은 FILE/로컬 OPC UA 연결 안내 외에도 **격리 synthetic 샘플 시작·종료·상태 확인**을 지원합니다. 이 기능은 Supervisor가 별도 loopback 포트와 sibling demo workspace에 기존 synthetic 데모를 실행하며, 실제 workspace에 demo source·측정값을 기록하지 않습니다. 샘플 화면은 별도 기존 데모 앱 창으로 열리고 샘플 폴더는 종료 후 자동 삭제되지 않습니다. 기존의 전체 guided Setup이 필요하면 `make up UI=marimo`로 시작하세요.
-`make demo`는 first-run UI를 거치지 않고 같은 demo를 직접 실행하는 개발·진단 shortcut입니다.
-
-현재 Operations가 지원하는 Monitor / Assets / Investigations / Maintenance / System / Setup의
-정확한 범위는 [docs/status.md](../docs/status.md)를 참조합니다. Live observation과
-observation/interpretation 경계는 [docs/product/overview.md](../docs/product/overview.md)가 소유합니다.
-
-### Display locale
-
-**기존 marimo Operations**는 `ko-KR`과 `en-US` locale resource를 사용합니다. 기존 앱 상단의 language selector에서
-전환할 수 있으며, 초기값은 `INDUSTRIAL_PHM_LOCALE`을 먼저 보고 그다음 `LC_ALL`,
-`LC_MESSAGES`, `LANG`을 해석합니다. 지원하지 않는 값은 `en-US`로 fallback합니다. 기존 marimo의
-localized coverage는 first-run, top-level navigation, Monitor와 주요 workspace의
-status/label/action/help/error/empty-state 및 주요 table/section label까지 적용합니다. 한국어
-화면은 Korean fallback font stack, 15px 중심 base scale, locale-aware tracking/uppercase와 keep-all
-wrapping을 사용합니다. error/content 구조와 browser acceptance의 완료 범위는
-[현재 지원 상태](../docs/status.md)의 경계를 따릅니다.
-
-Locale은 presentation concern입니다. `source_id`, `asset_id`, `measurement_point_id`,
-`channel_id`, `capability_id`, `analysis_run_id`, `evidence_id`, `finding_id`와 저장된 UTC
-timestamp는 번역하거나 locale별로 다시 기록하지 않습니다.
-
-### Direct CLI / development
-
-`Makefile`은 runtime을 직접 구현하지 않고 canonical CLI에 위임합니다. service-manager 통합,
-자동화 또는 UI-only 개발처럼 lower-level 제어가 필요한 경우에만 직접 실행합니다.
+기본 작업공간은 `artifacts/operations`이며 `WORKSPACE=<path>`로 변경합니다.
+`make up`은 collection/analysis/Web를 하나의 Supervisor로 시작하므로,
+이미 동일 작업공간에 수동으로 실행한 수집기·분석기와 병행하지 마세요.
 
 ```bash
 uv sync --locked --extra operations
-uv run --no-sync industrial-phm operations init artifacts/live
-uv run --no-sync industrial-phm operations start artifacts/live
-# 기존 marimo 화면이 필요한 경우, 현재 프로세스 종료 후:
-uv run --no-sync industrial-phm operations up artifacts/live --ui marimo
+uv run --no-sync industrial-phm operations up artifacts/live
+# 정지된 workspace의 수집/분석 재시작이 필요하지 않은 독립 UI/API 진단:
+uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
+  artifacts/live --port 8765
 ```
 
-UI만 개발용으로 실행할 때도 동일한 workspace root를 사용합니다.
+마지막 UI-only 명령은 **독립 Web preview**이며 Supervisor의 수집/분석 lifecycle을
+소유하지 않습니다. 같은 workspace의 supervised Web가 작동 중이면 협조적 writer lease가
+preview 쓰기를 차단합니다. 무인증 네트워크·다중 사용자 서비스가 아닙니다.
 
-```bash
-export INDUSTRIAL_PHM_OPERATIONS_WORKSPACE=artifacts/live
-uv run --no-sync marimo run src/industrial_phm/apps/operations.py
-```
+빈 Web 작업공간에서 분리된 synthetic 샘플을 명시적으로 시작·중지할 수 있고,
+FILE/OPC UA 소스별 등록·활성·수신 근거와 저장 이력, 분석 근거, Review를 조회할 수
+있습니다. 전체 영어 UI·접근성과 모든 업무·오류 복구는 미완료이며
+[현재 지원 상태](../docs/status.md)가 범위 기준입니다.
+소스·설비·측정점·채널·분석/검토 ID와 UTC 의미는 화면에서 변경하지 않습니다.
 
-source/runtime/control/spool/telemetry/window/analysis/review/history path는
-`OperationsWorkspace`가 workspace root 아래에서 결정합니다. Packaged Operations app은 개별
-persistence path 환경변수를 조합하지 않습니다.
-
-OPC UA simulator, recorded replay, independent collector와 fault/recovery 검증 절차는
-[OPC UA tools](../tools/opcua/README.md)를 참조합니다. AI-Hub raw data 준비와 profiling은
-[AI-Hub tools](../tools/aihub/README.md)를 참조합니다.
-
-## Application roles
-
-- `src/industrial_phm/apps/operations.py` — operational observation/evidence/human-review workspace
-- `apps/analysis_explorer.py` — research environment에서 experiment/analysis evidence를 검토하는 PHM Workbench surface
-
-Operations와 Analysis Explorer는 서로의 persistence/runtime ownership을 대신하지 않습니다.
+개별 OPC UA replay와 fault/recovery 실험은 [도구 안내](../tools/opcua/README.md)를
+따르며, 연구 화면은 아래 Analysis Explorer 실행 지침을 따릅니다.
 
 ## Analysis Explorer
 

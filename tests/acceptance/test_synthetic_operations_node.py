@@ -13,7 +13,6 @@ import pytest
 
 pytest.importorskip("asyncua")
 pytest.importorskip("duckdb")
-pytest.importorskip("marimo")
 
 from industrial_phm.application import (
     JsonFindingReviewRepository,

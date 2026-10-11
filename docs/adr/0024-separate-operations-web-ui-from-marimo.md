@@ -2,6 +2,11 @@
 
 Status: Accepted
 
+Implementation note (2026-10-11, #480): supervised Web is now the sole Operations
+operator UI. The marimo app/widget and `--ui marimo` fallback have been retired;
+research marimo remains. The Context below is the original historical rationale,
+not a description of the current packaged UI.
+
 Supersedes: ADR-0014의 **UI 구현 프레임워크 및 `marimo run` launch 결정만** 대체.
 ADR-0014의 local supervisor ownership, loopback-only reference boundary, 단일 workspace,
 readiness 및 failure semantics는 계속 유효하다.

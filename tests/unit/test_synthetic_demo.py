@@ -162,7 +162,7 @@ def test_run_synthetic_demo_uses_normal_operations_supervisor_and_stops_simulato
     )
     plan = captured["plan"]
     assert plan.workspace.root == preset.workspace
-    assert plan.ui_url == "http://127.0.0.1:2726"
+    assert plan.ui_url == "http://127.0.0.1:2726/web/"
     assert simulator.return_code == 0
     assert simulator.signals
 

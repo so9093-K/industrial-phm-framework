@@ -6,7 +6,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.opcua.fault_harness import (
     MONITOR_RENDER_STATES,
-    OPERATIONS_APP,
     SCENARIOS,
     Fault,
     build_parser,
@@ -182,8 +181,8 @@ def test_every_ui_state_must_render_within_five_seconds():
         "seconds": 2.1,
         "monitor_ready": True,
         "attention_seen": True,
-        "signal_value_count": 4,
-        "system_data_flow_absent": True,
+        "asset_fact_count": 4,
+        "system_state_clearly_scoped": True,
     }
     names = MONITOR_RENDER_STATES
     assert check_first_render(dict.fromkeys(names, fast))["passed"]
@@ -266,8 +265,8 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
         "within_5s": True,
         "seconds": 2.0,
         "matched": "Source flow · Receiving",
-        "current_observation_seen": True,
-        "value_count": 1,
+        "source_evidence_seen": True,
+        "evidence_row_count": 1,
     }
     renders = {
         "before_missing": fast,
@@ -284,22 +283,23 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
     )["passed"]
 
 
-def test_harness_uses_packaged_operations_app_path():
-    assert OPERATIONS_APP.is_file()
-    assert OPERATIONS_APP.parent.name == "apps"
-    assert OPERATIONS_APP.parent.parent.name == "industrial_phm"
+def test_harness_uses_packaged_operations_web():
+    from importlib.resources import files
+
+    assets = files("industrial_phm.apps").joinpath("web")
+    for name in ("index.html", "app.js", "styles.css"):
+        assert assets.joinpath(name).read_bytes(), name
     source = (
         Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
     )
-    assert "apps/operations_v2.py" not in source
-    assert 'locator(".mw-asset h1")' in source
-    assert 'locator(".mw-reading-value strong")' in source
-    assert 'locator(".mw-plot svg")' in source
-    assert 'get_by_text("System data flow", exact=True).count() == 0' in source
-    assert 'get_by_text("Current observation", exact=True)' in source
-    assert 'get_by_text("Live observation", exact=True)' not in source
-    assert 'get_by_role("button", name="Assets", exact=True)' in source
-    assert 'get_by_role("radio", name="Signals", exact=True)' in source
+    assert "marimo" not in source
+    assert "industrial_phm.runtime.operations_web_preview" in source
+    assert 'page.locator("#asset-count")' in source
+    assert 'page.locator("#monitor-attention strong")' in source
+    assert '.source-record[data-source-id="aihub239-replay-boiler-2297"]' in source
+    assert "source_evidence_seen" in source
+    assert "system_state_clearly_scoped" in source
+    assert "review_workflow" in source
 
 
 def test_harness_command_line_defaults_reach_every_setting_the_run_needs():
@@ -318,17 +318,17 @@ def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
         "seconds": 1.5,
         "monitor_ready": True,
         "attention_seen": True,
-        "signal_value_count": 3,
-        "system_data_flow_absent": True,
+        "asset_fact_count": 3,
+        "system_state_clearly_scoped": True,
     }
     renders = dict.fromkeys(MONITOR_RENDER_STATES, ready)
 
     assert check_first_render(renders)["passed"]
-    assert not check_first_render({**renders, "source_stale": {**ready, "signal_value_count": 0}})[
+    assert not check_first_render({**renders, "source_stale": {**ready, "asset_fact_count": 0}})[
         "passed"
     ]
     assert not check_first_render(
-        {**renders, "source_stale": {**ready, "system_data_flow_absent": False}}
+        {**renders, "source_stale": {**ready, "system_state_clearly_scoped": False}}
     )["passed"]
     # Content that runs past the 1440px viewport is unreadable even if it rendered.
     clipped = {**ready, "overflow_count": 3, "overflow_examples": ["DIV.phm-grid:1622"]}
@@ -340,8 +340,8 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
         "within_5s": True,
         "seconds": 2.0,
         "matched": "Source flow · Receiving",
-        "current_observation_seen": True,
-        "value_count": 1,
+        "source_evidence_seen": True,
+        "evidence_row_count": 1,
     }
     renders = {
         "before_missing": fast,
@@ -352,8 +352,7 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
 
     assert check_live_browser_journey(renders)["passed"]
     assert not check_live_browser_journey(
-        {**renders, "recovered": {**fast, "current_observation_seen": False}}
+        {**renders, "recovered": {**fast, "source_evidence_seen": False}}
     )["passed"]
-    assert not check_live_browser_journey({**renders, "recovered": {**fast, "value_count": 0}})[
-        "passed"
-    ]
+    empty = {**renders, "recovered": {**fast, "evidence_row_count": 0}}
+    assert not check_live_browser_journey(empty)["passed"]

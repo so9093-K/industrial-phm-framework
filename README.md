@@ -29,22 +29,14 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
 터미널에 출력되는 `operations_url`(`http://127.0.0.1:<port>/web/`)을 브라우저에서 엽니다.
-현재 기본 UI는 **제품 책임자가 수용한 로컬 단일 사용자 Web 파일럿**입니다. 한국어 중심 데이터 수신·이력·분석 근거·사람 검토·일부 System 조회를 제공하지만, 기존 marimo의 Investigation·Maintenance·System 전체 여정, 전체 영어 조작 UI·스크린리더는 아직 동등하지 않습니다. 설비 고장·안전·정비 완료를 판정하지 않습니다.
+현재 UI는 **로컬 단일 사용자 supervised Web 파일럿**입니다. 데이터 수신·저장 이력·분석 근거·사람 검토·일부 System 조회를 지원하지만 Investigation·Maintenance·System 전체 업무, 영어 조작 UI·스크린리더의 완전한 수용은 아직 진행 중입니다(#488, #489). 설비 고장·안전·물리적 정비 완료를 판정하지 않습니다.
 빈 작업공간의 Web 파일럿은 FILE CSV 또는 로컬 OPC UA 소스 등록을 안내합니다. 소스 등록·ACTIVE·검증 수신·DuckLake 이력 저장·분석 근거는 별개의 사실이므로 각 단계의 근거를 확인해야 합니다.
-기본 Web 첫 실행의 **격리 synthetic 샘플 시작·종료** 버튼으로 기존 synthetic OPC UA 데모를 실제 workspace와 분리된 로컬 작업공간·포트에서 실행할 수 있습니다. 샘플은 **별도의 기존 데모 앱 창**에서 열리며, 종료해도 전용 샘플 폴더를 자동 삭제하지 않습니다. Web에서 전체 guided Setup이나 나머지 업무 여정이 필요하면 기능 범위를 확인하고 `make up UI=marimo`로 전환하세요. 기존 소스가 있는 workspace는 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
+기본 Web 첫 실행의 **격리 synthetic 샘플 시작·종료** 버튼으로 기존 synthetic OPC UA 데모를 실제 workspace와 분리된 로컬 작업공간·포트에서 실행할 수 있습니다. 샘플은 **별도의 기존 데모 앱 창**에서 열리며, 종료해도 전용 샘플 폴더를 자동 삭제하지 않습니다. 신규 Web에서 미지원인 업무는 구현된 것처럼 안내하지 않습니다. 지원 범위를 [현재 상태](docs/status.md)에서 확인하세요. 기존 소스가 있는 workspace는 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
 
 ```bash
 make status
 make logs
 make down
-```
-
-기존 marimo 작업 화면이 필요한 경우, 동일 workspace의 Web을 **종료한 뒤** 명시적으로 선택할 수 있습니다. 두 UI로 같은 workspace를 동시에 수정하지 않습니다.
-
-```bash
-make down
-make up UI=marimo
-# CLI: industrial-phm operations up <workspace> --ui marimo
 ```
 
 다른 workspace를 사용하려면 모든 lifecycle target에 같은 값을 전달합니다.
@@ -76,34 +68,20 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 
 ## 애플리케이션
 
-### Operations
+### Operations (supervised Web)
 
-설비 관측 데이터와 PHM 근거를 다루는 운영 UI입니다. 기존 marimo 레퍼런스는 wheel에 남아 있는
-`industrial_phm.apps.operations`이고, 기본 사용자 진입점은 이제 supervisor-owned Web의 정적 화면입니다.
-정상 repository-local 실행은 위의 `make up`을 사용합니다.
+운영자 화면은 wheel에 포함된 `industrial_phm/apps/web/`의 HTML·JavaScript·CSS와
+로컬 Python API로 구성됩니다. `make up` 및 `operations up/start`가 기본적으로
+수집·분석·Web를 하나의 Supervisor로 실행합니다. 연구용 marimo는 운영 제품에 필요하지 않습니다.
 
-- **Monitor** — 수집·저장·분석·검토 흐름과 지금 확인할 항목
-- **Assets** — 설비별 현재 데이터, Signals, Analysis, Events, Maintenance
-- **Investigations** — 저장된 분석 evidence와 사람의 review 요청
-- **Maintenance** — Open / Acknowledged / Closed review 업무
-- **System** — 수집·저장·분석 runtime과 state-read 상태
-- **Setup** — FILE/OPC UA 연결, signal mapping, measurement meaning과 collection intent
+- **Monitor / Assets / Signals**: 설비별 관측·저장 이력과 출처·품질·시각, 확인이 필요한 운영 상태
+- **Connect**: FILE CSV와 제한된 로컬 익명 OPC UA 소스 등록·수신/제어 증거
+- **Evidence / Review**: 저장된 AnalysisRun·Evidence 및 사람이 기록한 요청·확인·종료
+- **System**: 로컬 프로세스 상태와 저장소 조회 오류의 제한된 진단
 
-아래 전체 guided Setup은 **기존 marimo UI에서 검증한 기능**입니다. 기본 Web은 별도 기존 데모 앱으로 여는 synthetic 샘플의 시작·종료 및 FILE/OPC UA 등록·수신, 일부 조회/검토를 지원하지만, 나머지 업무의 완전한 이전은 진행 중입니다. source 등록, Enable/Pause, OPC UA collection
-요청은 각각 별도 의미를 유지하며 UI가 사용자의 판단 없이 자동 실행하지 않습니다. source가 준비된
-workspace는 Monitor를 기본 진입점으로 사용합니다.
-
-새 Web에서도 사용자가 첫 실행에서 격리 synthetic 체험을 시작·종료할 수 있으며, 샘플 자체는 별도의 기존 데모 앱으로 열립니다. `make demo`는 직접 실행 shortcut으로 유지됩니다.
-
-**기존 marimo Operations**는 한국어(`ko-KR`)와 영어(`en-US`)의 locale-aware presentation 기반을 사용합니다.
-현재 기본 Web은 한국어 중심 파일럿이며 영어 근거 참고문만 제공합니다. 전체 영어 UI는 아직 미완료입니다. 화면 언어를 바꿔도 `source_id`, `asset_id`, `channel_id`,
-capability/evidence 식별자와 저장 UTC 의미는 바뀌지 않습니다. 현재 localized surface 범위는
-[지원 상태](docs/status.md)를 기준으로 확인합니다. AI-Hub recorded replay, 직접
-`industrial-phm` CLI, backup/restore, service deployment, 개별 collector/analysis runner 실행은
-[Applications 문서](apps/README.md), [로컬 OPC UA 개발·진단 문서](tools/opcua/README.md),
-[Local Operations deployment](docs/architecture/operations-deployment.md)에서 설명합니다.
-
-현재 지원되는 capability와 명시적 미지원 경계는 [지원 상태](docs/status.md)를 기준으로 확인합니다.
+소스 등록, 수신, DuckLake 적재, 분석과 사람 검토는 서로 다른 증거입니다. 현재 Web은
+한국어 중심 파일럿이며 전체 영어/접근성 및 일부 복구·업무 경로는 별도 개선 중입니다.
+실제 API·업무 지원 범위는 [지원 상태](docs/status.md)를 따릅니다.
 
 ### Analysis Explorer
 

@@ -201,11 +201,9 @@ def _start_operations_workspace(
         elif ui_mode == OperationsUiMode.WEB_CONTROLLED:
             print(
                 "ui=web-controlled writes=supervisor-command-broker "
-                "(default local single-user pilot; use --ui marimo to revert)",
+                "(default local single-user pilot)",
                 flush=True,
             )
-        elif ui_mode == OperationsUiMode.MARIMO:
-            print("ui=marimo legacy-local-fallback (no simultaneous Web writer)", flush=True)
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)

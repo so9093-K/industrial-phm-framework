@@ -15,7 +15,6 @@ from industrial_phm.presentation.operations_live import (
     initial_signal_channel,
     live_observation_recent_page,
     live_source_flow_label,
-    render_live_observation_html,
 )
 
 NOW = datetime(2026, 10, 4, 9, 30, tzinfo=UTC)
@@ -81,22 +80,6 @@ def _view(*, series: LiveObservationSeries | None = None) -> LiveObservationView
     )
 
 
-def test_live_presenter_separates_source_flow_from_recorded_channel_time() -> None:
-    rendered = render_live_observation_html(_view(), silence_limit_seconds=30.0)
-
-    assert "Current observation" in rendered
-    assert "18.2" in rendered
-    assert "Source flow · Receiving" in rendered
-    assert "Last source receipt" in rendered
-    assert "1.0s ago" in rendered
-    assert "Channel event time" in rendered
-    assert EVENT_AT.isoformat() in rendered
-    assert "Channel quality · good" in rendered
-    assert "<details" in rendered
-    assert "Source details" in rendered
-    assert "Healthy" not in rendered
-
-
 def test_live_source_flow_surfaces_reconnect_and_source_silence() -> None:
     reconnecting = _series(
         session_state=OpcUaPersistentSessionState.RECONNECT_WAIT,
@@ -122,18 +105,6 @@ def test_live_source_flow_surfaces_reconnect_and_source_silence() -> None:
     )
 
 
-def test_live_presenter_marks_non_good_channel_quality_explicitly() -> None:
-    series = _series(latest_point=_point(status_good=False))
-
-    rendered = render_live_observation_html(
-        _view(series=series),
-        silence_limit_seconds=30.0,
-    )
-
-    assert "Channel quality · non-good" in rendered
-    assert "non-good" in rendered
-
-
 def test_channel_event_lag_is_factual_relative_to_latest_source_timestamp() -> None:
     channel_point = _point(event_at=EVENT_AT - timedelta(seconds=12))
     series = _series(
@@ -142,35 +113,6 @@ def test_channel_event_lag_is_factual_relative_to_latest_source_timestamp() -> N
     )
 
     assert channel_event_lag_label(series) == "12.0s behind latest source timestamp"
-
-
-def test_live_presenter_keeps_missing_channel_observation_distinct_from_source_flow() -> None:
-    series = _series(
-        latest_point=None,
-        last_source_timestamp=EVENT_AT,
-    )
-    series = LiveObservationSeries(
-        source_id=series.source_id,
-        source_name=series.source_name,
-        measurement_point_id=series.measurement_point_id,
-        status=series.status,
-        session_state=series.session_state,
-        last_received_at=series.last_received_at,
-        last_source_timestamp=series.last_source_timestamp,
-        average_event_rate_hz=series.average_event_rate_hz,
-        latest_point=None,
-        recent_points=(),
-    )
-
-    rendered = render_live_observation_html(
-        _view(series=series),
-        silence_limit_seconds=30.0,
-    )
-
-    assert "Source flow · Receiving" in rendered
-    assert "Channel · no stored observation" in rendered
-    assert "Channel event lag" in rendered
-    assert "Unavailable" in rendered
 
 
 def test_live_recent_page_preserves_raw_point_without_interpolation() -> None:

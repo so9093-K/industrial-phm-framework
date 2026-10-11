@@ -1,6 +1,6 @@
 """Concrete read-side composition for the packaged Operations application.
 
-The marimo app should render operator workflows, not know how every JSON/SQLite/
+The Web operator UI consumes this read model without knowing how JSON/SQLite/
 DuckLake repository is wired. Shared path wiring is resolved by operations_app_wiring;
 this module owns one bounded, error-tolerant operational read snapshot.
 """

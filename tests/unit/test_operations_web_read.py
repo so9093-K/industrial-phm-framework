@@ -6,6 +6,11 @@ from pathlib import Path
 
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operational import AnalysisRun
+from industrial_phm.application.operations_monitor import (
+    OperationsAttentionDestination,
+    OperationsMonitorAttention,
+    OperationsMonitorStatus,
+)
 from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
     PhaseUnbalanceConfig,
@@ -120,3 +125,35 @@ def test_web_read_repository_error_reports_scope_without_path_or_message(
     assert "source-settings" in payload["system_error_scopes"]
     assert "invalid-json" not in str(payload)
     assert str(workspace.root) not in str(payload)
+
+
+def test_web_attention_includes_exact_text_and_scope_for_fault_audit(tmp_path: Path) -> None:
+    _, snapshot = _snapshot(tmp_path)
+    item = OperationsMonitorAttention(
+        attention_id="attention:collection-down",
+        status=OperationsMonitorStatus.ERROR,
+        title="Collection service is not running",
+        detail="Collector heartbeat is stale",
+        destination=OperationsAttentionDestination.SYSTEM,
+        occurred_at=snapshot.assessed_at,
+    )
+    payload = project_operations_monitor(
+        replace(snapshot, monitor=replace(snapshot.monitor, attention=(item,)))
+    )
+    assert payload["attention"] == {
+        "items": [
+            {
+                "attention_id": "attention:collection-down",
+                "title": "Collection service is not running",
+                "status": "error",
+                "destination": "system",
+                "occurred_at": "2026-10-08T09:30:00Z",
+                "asset_id": None,
+                "source_id": None,
+                "measurement_point_id": None,
+                "finding_id": None,
+            }
+        ],
+        "total": 1,
+        "truncated": False,
+    }
