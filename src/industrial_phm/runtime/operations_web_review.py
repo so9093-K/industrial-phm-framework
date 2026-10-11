@@ -11,10 +11,12 @@ from pathlib import Path
 from industrial_phm.application import (
     FindingReviewAction,
     FindingReviewStatus,
+    JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
     SqlitePhaseUnbalanceRepository,
 )
+from industrial_phm.application.operational import OperationalAnalysisResult
 from industrial_phm.runtime.operations_app_actions import OperationsAppActions
 from industrial_phm.runtime.operations_app_wiring import OperationsAppPaths
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -41,17 +43,29 @@ def _id(payload: dict[str, object], key: str) -> str:
 
 
 def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[str, object]:
-    """Request human review of an exact, persisted phase-unbalance evidence result."""
+    """Request review of one exact persisted phase or FILE feature result."""
     if set(payload) != {"analysis_run_id", "evidence_id"}:
         raise ValueError("unexpected analysis review fields")
     run_id = _id(payload, "analysis_run_id")
     evidence_id = _id(payload, "evidence_id")
     workspace = OperationsWorkspace(root)
     paths = OperationsAppPaths(workspace)
-    results = SqlitePhaseUnbalanceRepository(paths.phase_analysis).find_results({run_id})
-    if len(results) != 1 or results[0].evidence.evidence_id != evidence_id:
+    phase_results = SqlitePhaseUnbalanceRepository(paths.phase_analysis).find_results({run_id})
+    matches: list[OperationalAnalysisResult] = []
+    for item in phase_results:
+        if item.evidence.evidence_id == evidence_id:
+            matches.append(item)
+    if not matches:
+        file_repository = JsonFileFeatureAnalysisRepository(paths.file_feature_analysis)
+        for file_result in file_repository.list_results():
+            if (
+                file_result.run.analysis_run_id == run_id
+                and file_result.evidence.evidence_id == evidence_id
+            ):
+                matches.append(file_result)
+    if len(matches) != 1:
         raise WebReviewNotFound("exact analysis evidence unavailable")
-    finding, _ = OperationsAppActions(paths).request_review(results[0])
+    finding, _ = OperationsAppActions(paths).request_review(matches[0])
     # The finding is idempotent, but its human disposition may have advanced.
     status = JsonFindingReviewRepository(paths.review).status_for(finding.finding_id)
     return {

@@ -235,7 +235,8 @@ function renderReviewInbox() {
   });
 }
 function evidenceViews() {
-  const analyses = rows(monitor, "phase_unbalance_analyses").filter((r) => r.asset_id === selectedAsset);
+  const analyses = [...rows(monitor, "phase_unbalance_analyses"), ...rows(monitor, "file_feature_analyses")]
+    .filter((r) => r.asset_id === selectedAsset);
   const attempts = rows(monitor, "skipped_analysis_attempts").filter((r) => r.asset_id === selectedAsset);
   const reviews = rows(monitor, "review_requests").filter((r) => r.asset_id === selectedAsset);
   const evidence = byId("evidence-results");
@@ -244,7 +245,7 @@ function evidenceViews() {
   // cannot establish that a review refers to the evidence currently displayed.
   const evidenceTargets = new Map();
   clear(evidence); clear(review);
-  if (!analyses.length && !attempts.length) empty(evidence, "이 설비의 저장된 3상 분석 기록이 없습니다. 분석 결과 없음은 정상 상태를 의미하지 않습니다.");
+  if (!analyses.length && !attempts.length) empty(evidence, "이 설비의 저장된 분석 기록이 없습니다. 분석 결과 없음은 정상 상태를 의미하지 않습니다.");
   analyses.forEach((run) => {
     const metrics = Array.isArray(run.quantities) ? run.quantities : [];
     const article = create("article", "record evidence-target");
@@ -263,6 +264,14 @@ function evidenceViews() {
     lines.forEach(([label, value]) => {
       const p = create("p"); p.append(create("strong", null, label + "  "), document.createTextNode(fmt(value))); article.append(p);
     });
+    if (Array.isArray(run.features)) {
+      article.append(create("p", "hint",
+        "CSV 통계 특징값 · 이 화면은 원본 신호의 물리 단위나 진동 의미를 확인하지 않으며, 고장 진단·경보가 아닙니다."));
+      article.append(create("p", null, "원본 SHA-256: " + fmt(run.source_snapshot_sha256)));
+      run.features.forEach((item) => {
+        article.append(create("p", "stat", fmt(item.name) + " · " + num(item.value)));
+      });
+    }
     metrics.forEach((m) => {
       const counts = Object.entries(m.excluded_samples || {}).map(([reason, count]) => reason + ": " + count).join(" · ");
       const p = create("p", "stat", fmt(m.quantity) + " 불평형률 · 중앙값 " + num(m.median_percent) + "% · p95 " + num(m.p95_percent) + "%");
@@ -574,7 +583,7 @@ function systemViews(snapshot) {
   details.append(
     withText("조회 평가 시각 · UTC", utc(snapshot.assessed_at)),
     withText("조회된 설비 수", snapshot.assets && snapshot.assets.total),
-    withText("조회된 분석 기록 수", snapshot.phase_unbalance_analyses && snapshot.phase_unbalance_analyses.total),
+    withText("조회된 분석 기록 수", (snapshot.phase_unbalance_analyses?.total ?? 0) + (snapshot.file_feature_analyses?.total ?? 0)),
     withText("조회된 검토 요청 수", snapshot.review_requests && snapshot.review_requests.total),
   );
   if (scopes.length) details.append(withText("확인되지 않은 저장소 범위", scopes.join(", ")));
@@ -596,7 +605,7 @@ async function refresh() {
     systemViews(data);
     renderReviewInbox();
     byId("asset-count").textContent = fmt(data.assets && data.assets.total);
-    byId("analysis-count").textContent = fmt(data.phase_unbalance_analyses && data.phase_unbalance_analyses.total);
+    byId("analysis-count").textContent = fmt((data.phase_unbalance_analyses?.total ?? 0) + (data.file_feature_analyses?.total ?? 0));
     byId("review-count").textContent = fmt(data.review_requests && data.review_requests.total);
     byId("assessed-at").textContent = utc(data.assessed_at);
     const assets = rows(data,"assets");
@@ -913,6 +922,10 @@ async function loadSources() {
           backfill.type = "button";
           backfill.addEventListener("click", () => backfillFile(item.source_id, backfill));
           actions.append(backfill);
+          const analyze = create("button", null, "CSV 특징 분석 실행");
+          analyze.type = "button";
+          analyze.addEventListener("click", () => analyzeFile(item.source_id, analyze));
+          actions.append(analyze);
         }
       }
       if (item.source_type === "opcua" && item.lifecycle_state === "active") {
@@ -1037,6 +1050,68 @@ async function receiveFile(sourceId, button) {
     button.disabled = false;
   }
   await Promise.allSettled([loadSources(), refresh()]);
+}
+
+async function analyzeFile(sourceId, button) {
+  const output = byId("source-control-result");
+  if (!window.confirm(sourceId + " · 등록한 CSV 스냅샷의 통계 특징을 새로 계산해 Run/Evidence를 기록합니다.\nDuckLake 이력 적재나 설비 고장 진단은 실행하지 않습니다.")) return;
+  button.disabled = true;
+  output.className = "";
+  output.textContent = sourceId + " · CSV 특징 분석 실행 중";
+  try {
+    const session = await getJSON("/api/v1/session");
+    if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
+    const response = await fetch("/api/v1/analysis/file", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify({source_id: sourceId}),
+    });
+    if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
+      const errorBody = await response.json().catch(() => null);
+      const code = errorBody && errorBody.error && errorBody.error.code;
+      if (code === "command_outcome_unknown") throw new Error("outcome-unknown");
+      if (response.status === 409) throw new Error("analysis-conflict");
+      if (response.status === 400) throw new Error("analysis-input-invalid");
+      throw new Error("http-" + response.status);
+    }
+    const saved = await response.json();
+    if (saved.schema_version !== 1 || saved.source_id !== sourceId
+        || saved.meaning !== "persisted-file-statistical-features-not-diagnosis-or-history"
+        || typeof saved.analysis_run_id !== "string" || !saved.analysis_run_id
+        || typeof saved.evidence_id !== "string" || !saved.evidence_id
+        || typeof saved.source_snapshot_sha256 !== "string") throw new Error("schema-mismatch");
+    output.textContent = sourceId + " · 신규 분석 근거 저장 완료 · Run " + saved.analysis_run_id
+      + " · Evidence " + saved.evidence_id + " · 이력 적재·고장 진단 아님";
+    await refresh();
+    if (rows(monitor, "file_feature_analyses").some((run) =>
+      run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
+      selectedAsset = saved.asset_id;
+      byId("asset-select").value = selectedAsset;
+      assetDetails();
+      evidenceViews();
+      location.hash = "#evidence";
+      const target = [...byId("evidence-results").querySelectorAll(".evidence-target")]
+        .find((node) => node.textContent.includes(saved.analysis_run_id));
+      if (target) {
+        target.focus({preventScroll: true});
+        target.scrollIntoView({block: "center"});
+      }
+    }
+  } catch (error) {
+    output.className = "error";
+    output.textContent = error.message === "outcome-unknown"
+      ? "분석 명령 결과가 불명확합니다. 다시 실행하지 말고 저장된 분석 목록을 새로 조회하세요."
+      : error.message === "analysis-conflict"
+      ? "분석 불가 · 활성 FILE, 검증 수신 및 1MiB 이하 원본 파일을 확인하세요."
+      : error.message === "analysis-input-invalid"
+      ? "분석 불가 · 시간대가 포함된 시각 컬럼, 서로 다른 값이 있는 두 개 이상 표본과 유한한 수치를 확인하세요."
+      : error.message === "read-only"
+      ? "신규 분석은 감독형 Web에서만 실행할 수 있습니다."
+      : presentError(error);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function backfillFile(sourceId, button) {

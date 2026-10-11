@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
+from industrial_phm.application.file_feature_analysis import RegisteredFileFeatureAnalysis
 from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_status import OperationsRuntimeStatus
@@ -94,6 +95,37 @@ def _analysis(result: object) -> dict[str, object] | None:
     }
 
 
+def _file_analysis(result: RegisteredFileFeatureAnalysis) -> dict[str, object]:
+    """Expose persisted CSV features without inventing physical units or diagnoses."""
+    run = result.run
+    evidence = result.evidence
+    return {
+        "analysis_run_id": run.analysis_run_id,
+        "asset_id": run.asset_id,
+        "source_id": run.source_id,
+        "measurement_point_id": run.measurement_point_id,
+        "capability_id": evidence.capability_id,
+        "evidence_id": evidence.evidence_id,
+        "feature_set_id": evidence.feature_set_id,
+        "observed_start_at": _utc(run.observed_start_at),
+        "observed_end_at": _utc(run.observed_end_at),
+        "completed_at": _utc(run.completed_at),
+        "data_quality": {
+            "state": run.data_quality.state.value,
+            "issue_codes": list(run.data_quality.issue_codes),
+        },
+        "source_snapshot_sha256": evidence.source_snapshot_sha256,
+        "features": [
+            {"name": name, "value": value}
+            for name, value in zip(evidence.feature_names, evidence.values, strict=True)
+        ],
+        "interpretation": (
+            "descriptive CSV statistical features; measurement units and vibration "
+            "semantics are not confirmed; not a fault, alarm or health assessment"
+        ),
+    }
+
+
 def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, object]:
     """Build an explicit GET /api/v1/monitor payload without filesystem or secrets.
 
@@ -127,6 +159,7 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
         for item in snapshot.monitor.attention
     ]
     phase_results: list[dict[str, object]] = []
+    file_results: list[dict[str, object]] = []
     for item in sorted(
         snapshot.analysis_results,
         key=lambda value: (value.run.completed_at, value.run.analysis_run_id),
@@ -135,6 +168,8 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
         result = _analysis(item)
         if result is not None:
             phase_results.append(result)
+        elif isinstance(item, RegisteredFileFeatureAnalysis):
+            file_results.append(_file_analysis(item))
     skipped: list[dict[str, object]] = [
         {
             "asset_id": item.asset_id,
@@ -171,6 +206,7 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
         "assets": _bounded(assets),
         "attention": _bounded(attention),
         "phase_unbalance_analyses": _bounded(phase_results),
+        "file_feature_analyses": _bounded(file_results),
         "skipped_analysis_attempts": _bounded(skipped),
         "review_requests": _bounded(reviews),
         "system_error_scopes": sorted({item.scope for item in snapshot.system_errors}),
