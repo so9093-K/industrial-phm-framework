@@ -731,7 +731,7 @@ class Stack:
         raise RuntimeError("Operations Web UI server did not start")
 
     def browser_render(self, name: str, expected_attention: str | None) -> dict[str, object]:
-        """Open Monitor in Chromium; time until observation data and attention are readable."""
+        """Check Web asset context and fault attention against persisted evidence."""
         assert self.ui_url is not None, "start_ui_server first"
         output = subprocess.run(
             [
@@ -770,7 +770,7 @@ class Stack:
         name: str,
         expected: Sequence[str],
     ) -> dict[str, object]:
-        """Open Assets -> Signals and wait for one expected live observation state."""
+        """Check current Web source/receipt/connection evidence after replay faults."""
 
         assert self.ui_url is not None, "start_ui_server first"
         output = subprocess.run(
@@ -1168,7 +1168,7 @@ class Harness:
         candidates = [
             result
             for result in snapshot.analysis_results
-            if result.run.capability_id == PHASE_UNBALANCE_CAPABILITY_ID
+            if PHASE_UNBALANCE_CAPABILITY_ID in result.run.capability_ids
             and result.run.analysis_run_id not in reviewed
         ]
         if not candidates:
