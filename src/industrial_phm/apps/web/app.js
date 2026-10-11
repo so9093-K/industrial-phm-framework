@@ -125,6 +125,15 @@ async function postReview(route, payload, button) {
     }
     setNotice("사람의 검토 기록이 저장됐습니다. 물리 정비 수행 또는 설비 진단을 뜻하지 않습니다.");
     await refresh();
+    if (route === "/api/v1/reviews/request"
+        && typeof outcome.finding_id === "string" && outcome.finding_id) {
+      const item = rows(monitor, "review_requests")
+        .find((review) => review.finding_id === outcome.finding_id
+          && review.analysis_run_id === payload.analysis_run_id
+          && Array.isArray(review.evidence_ids)
+          && review.evidence_ids.includes(payload.evidence_id));
+      if (item) openReviewRecord(item.asset_id, item.finding_id);
+    }
   } catch (error) {
     const explanation = error.message === "outcome-unknown"
       ? "명령 응답을 확인하지 못했습니다. 중복 전송하지 말고 기록을 새로 조회하세요."
@@ -139,6 +148,91 @@ async function postReview(route, payload, button) {
   } finally {
     button.disabled = false;
   }
+}
+const reviewStates = {
+  open: "열림 · 검토 필요",
+  acknowledged: "확인됨 · 종료 전",
+  closed: "종료 기록 · 실제 정비 완료 아님",
+};
+function focusSelectedReview(findingId) {
+  const article = [...byId("review-results").querySelectorAll(".review-record")]
+    .find((item) => item.dataset.findingId === findingId);
+  if (!article) {
+    setNotice("이번 조회에서 해당 검토 기록을 찾지 못했습니다. 저장소와 조회 범위를 다시 확인하세요.", true);
+    return;
+  }
+  location.hash = "#review";
+  article.focus({preventScroll: true});
+  article.scrollIntoView({block: "center"});
+}
+function openReviewRecord(assetId, findingId) {
+  // Never swap in a different finding, analysis or asset when the bounded
+  // current monitor snapshot does not contain this exact review.
+  const match = rows(monitor, "review_requests")
+    .some((item) => item.asset_id === assetId && item.finding_id === findingId);
+  const selector = byId("asset-select");
+  const available = [...selector.options].some((item) => item.value === assetId);
+  if (!match || !available) {
+    setNotice("이번 조회 범위에 이 설비의 정확한 검토 기록이 없습니다. 조회를 새로고침하세요.", true);
+    return;
+  }
+  if (selectedAsset !== assetId) {
+    selector.value = assetId;
+    void selectAsset();
+  }
+  focusSelectedReview(findingId);
+}
+function renderReviewInbox() {
+  const summary = byId("review-inbox-summary");
+  const root = byId("review-inbox-list");
+  clear(root);
+  if (!monitor) {
+    summary.textContent = "검토 저장소를 조회할 수 없습니다. 미처리 요청이 없다고 판단하지 마세요.";
+    return;
+  }
+  const reviews = rows(monitor, "review_requests");
+  const stored = monitor.review_requests;
+  const pending = reviews.filter((item) => item.status === "open" || item.status === "acknowledged");
+  const filter = byId("review-filter").value;
+  const visible = reviews.filter((item) => (
+    filter === "all" || (filter === "closed" ? item.status === "closed" : item.status !== "closed")
+  ));
+  const limited = Boolean(stored && stored.truncated);
+  const incomplete = Array.isArray(monitor.system_error_scopes) && monitor.system_error_scopes.length > 0;
+  summary.textContent = "표시 범위: 미처리 " + pending.length + "건 · 전체 "
+    + fmt(stored && stored.total) + "건"
+    + (limited ? " · 100건까지만 표시 (추가 기록 존재)" : "")
+    + (incomplete ? " · 일부 저장소 읽기 오류, 누락 가능" : "");
+  if (!visible.length) {
+    empty(root, incomplete
+      ? "이번 조회에서 해당 상태의 검토를 확인할 수 없습니다. 저장소 조회 오류가 있어 없다고 단정할 수 없습니다."
+      : "표시 조건에 맞는 검토 기록이 없습니다.");
+    return;
+  }
+  const knownAssets = new Set(rows(monitor, "assets").map((asset) => asset.asset_id));
+  visible.forEach((item) => {
+    const card = create("article", "review-inbox-item");
+    card.append(
+      create("strong", null, fmt(item.asset_id) + " · " + fmt(reviewStates[item.status] || item.status)),
+      create("p", "mono", "Finding " + fmt(item.finding_id)),
+      create("p", "mono", "Run " + fmt(item.analysis_run_id)),
+      create("p", "mono", "Evidence " + (
+        Array.isArray(item.evidence_ids) ? item.evidence_ids.join(", ") : "미확인"
+      )),
+    );
+    const open = create("button", null, "해당 설비의 검토 열기");
+    open.type = "button";
+    open.disabled = !knownAssets.has(item.asset_id)
+      || typeof item.finding_id !== "string" || !item.finding_id;
+    if (open.disabled) {
+      card.append(create("p", "hint", "이번 설비 조회 범위에 없어 이동할 수 없습니다. 다른 기록으로 대체하지 않습니다."));
+    } else {
+      open.setAttribute("aria-label", "검토 열기 · " + item.asset_id + " · " + item.finding_id);
+      open.addEventListener("click", () => openReviewRecord(item.asset_id, item.finding_id));
+    }
+    card.append(open);
+    root.append(card);
+  });
 }
 function evidenceViews() {
   const analyses = rows(monitor, "phase_unbalance_analyses").filter((r) => r.asset_id === selectedAsset);
@@ -175,7 +269,15 @@ function evidenceViews() {
       article.append(p);
       article.append(create("p", null, "평가 표본 " + fmt(m.evaluated_samples) + " · 제외 " + (counts || "없음")));
     });
-    if (reviewWritesAllowed && !reviews.some((item) => item.analysis_run_id === run.analysis_run_id)) {
+    const relatedReview = reviews.find((item) => item.analysis_run_id === run.analysis_run_id
+      && Array.isArray(item.evidence_ids) && item.evidence_ids.includes(run.evidence_id));
+    if (relatedReview) {
+      const showReview = create("button", "review-link", "이 분석의 검토 기록 열기");
+      showReview.type = "button";
+      showReview.addEventListener("click", () => focusSelectedReview(relatedReview.finding_id));
+      article.append(showReview);
+    }
+    if (reviewWritesAllowed && !relatedReview) {
       const button = create("button", null, "이 근거에 사람 검토 요청");
       button.type = "button";
       button.addEventListener("click", () => postReview("/api/v1/reviews/request", {
@@ -197,6 +299,9 @@ function evidenceViews() {
       ["분석 Run", reviewItem.analysis_run_id],
       ["근거 ID", (reviewItem.evidence_ids || []).join(", ")],
     ]);
+    article.classList.add("review-record");
+    article.dataset.findingId = reviewItem.finding_id;
+    article.tabIndex = -1;
     const meanings = {
       open: "검토 요청이 기록됐습니다. 아직 사람이 검토를 완료했다는 뜻이 아닙니다.",
       acknowledged: "검토 확인이 기록됐습니다. 실제 정비 수행이나 설비 정상 확인은 아닙니다.",
@@ -489,6 +594,7 @@ async function refresh() {
     if (token !== generation) return;
     monitor = data;
     systemViews(data);
+    renderReviewInbox();
     byId("asset-count").textContent = fmt(data.assets && data.assets.total);
     byId("analysis-count").textContent = fmt(data.phase_unbalance_analyses && data.phase_unbalance_analyses.total);
     byId("review-count").textContent = fmt(data.review_requests && data.review_requests.total);
@@ -526,6 +632,7 @@ async function refresh() {
   } catch (error) {
     if (token !== generation) return;
     monitor = null;setNotice(presentError(error),true);
+    renderReviewInbox();
     byId("system-status").className = "state error";
     byId("system-status").textContent = "시스템 조회 실패 · 정상 상태로 판단할 수 없습니다.";
     clear(byId("system-facts"));
@@ -541,6 +648,7 @@ async function refresh() {
 byId("refresh").addEventListener("click",() => {refresh();loadSources();loadRuntimeStatus();});
 byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
 byId("asset-select").addEventListener("change",selectAsset);
+byId("review-filter").addEventListener("change",renderReviewInbox);
 byId("show-trend").addEventListener("click",() => loadTrend());
 byId("range-select").addEventListener("change",() => loadTrend());
 window.addEventListener("hashchange",setActiveSection);
