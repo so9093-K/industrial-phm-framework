@@ -4,12 +4,12 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
     OperationsMonitorAttention,
     OperationsMonitorStatus,
 )
-from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
@@ -141,17 +141,19 @@ def test_web_attention_includes_exact_text_and_scope_for_fault_audit(tmp_path: P
         replace(snapshot, monitor=replace(snapshot.monitor, attention=(item,)))
     )
     assert payload["attention"] == {
-        "items": [{
-            "attention_id": "attention:collection-down",
-            "title": "Collection service is not running",
-            "status": "error",
-            "destination": "system",
-            "occurred_at": "2026-10-08T09:30:00Z",
-            "asset_id": None,
-            "source_id": None,
-            "measurement_point_id": None,
-            "finding_id": None,
-        }],
+        "items": [
+            {
+                "attention_id": "attention:collection-down",
+                "title": "Collection service is not running",
+                "status": "error",
+                "destination": "system",
+                "occurred_at": "2026-10-08T09:30:00Z",
+                "asset_id": None,
+                "source_id": None,
+                "measurement_point_id": None,
+                "finding_id": None,
+            }
+        ],
         "total": 1,
         "truncated": False,
     }
