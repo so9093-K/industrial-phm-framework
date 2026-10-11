@@ -56,6 +56,9 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MAX_WEB_CSV_UPLOAD = 1024 * 1024
 _MAX_WEB_CSV_REQUEST = 1_410_000
+_UPLOAD_REQUEST_ROUTES = frozenset(
+    {"/api/v1/sources/file/upload", "/api/v1/sources/file/upload/preflight"}
+)
 _UPLOAD_SETUP_FIELDS = frozenset(
     {
         "source_id",
@@ -307,9 +310,7 @@ def create_operations_web_read_server(
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
                 return
             length = int(lengths[0])
-            max_length = (
-                _MAX_WEB_CSV_REQUEST if self.path == "/api/v1/sources/file/upload" else 4096
-            )
+            max_length = _MAX_WEB_CSV_REQUEST if self.path in _UPLOAD_REQUEST_ROUTES else 4096
             if (
                 not 1 <= length <= max_length
                 or self.headers.get("Content-Type") != "application/json"
@@ -321,7 +322,7 @@ def create_operations_web_read_server(
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
                 with mutation_lock:
-                    if self.path == "/api/v1/sources/file/upload":
+                    if self.path in _UPLOAD_REQUEST_ROUTES:
                         assert command_client is not None
                         if set(body) != {"setup", "csv_base64"}:
                             raise ValueError("unexpected upload fields")

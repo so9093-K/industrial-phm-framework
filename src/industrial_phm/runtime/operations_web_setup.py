@@ -14,6 +14,10 @@ import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from industrial_phm.adapters.csv_sensor import (
+    CsvSensorSourceError,
+    validate_csv_sensor_source,
+)
 from industrial_phm.application import (
     ChannelSemanticBinding,
     CollectionDesiredState,
@@ -263,8 +267,8 @@ def _file_phase_bindings(
     return tuple(bindings)
 
 
-def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
-    """Validate one bounded, workspace-owned CSV, then call the existing write facade."""
+def _prepare_workspace_csv_source(root: Path, payload: dict[str, object]) -> RegisteredSource:
+    """Build the exact registered FILE candidate without persisting it."""
     if set(payload) not in {_FIELDS, _FIELDS | {_PHASE_FILE_FIELD}}:
         raise ValueError("unexpected registration fields")
     source_id = _text(payload, "source_id")
@@ -295,7 +299,6 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
         raise ValueError("CSV must be located inside workspace")
     if not target.is_file() or not 0 < target.stat().st_size <= _MAX_INPUT_BYTES:
         raise ValueError("CSV size outside registration limits")
-    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
     source = RegisteredSource(
         source_id=source_id,
         name=name,
@@ -309,6 +312,13 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
         ),
         registered_at=datetime.now(UTC),
     )
+    return source
+
+
+def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Register a validated workspace-owned CSV; registration is not ingestion."""
+    source = _prepare_workspace_csv_source(root, payload)
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
     OperationsAppActions(paths).register_source(source)
     return {
         "schema_version": 1,
@@ -380,6 +390,224 @@ def register_uploaded_csv_source(
     except Exception:
         destination.unlink(missing_ok=True)
         raise
+
+
+_CSV_DIAGNOSTICS: tuple[tuple[str, str, str], ...] = (
+    (
+        "missing required columns",
+        "missing-column",
+        "선택한 시간·측정 컬럼이 없습니다. CSV 헤더를 확인하세요.",
+    ),
+    (
+        "duplicate column names",
+        "duplicate-header",
+        "CSV 헤더의 중복 컬럼명을 수정하세요.",
+    ),
+    ("empty column name", "empty-header", "CSV 헤더의 빈 컬럼명을 수정하세요."),
+    (
+        "must be an ISO 8601 timestamp",
+        "timestamp-format",
+        "시간을 ISO 8601로 기록하세요. 예: 2026-10-11T09:00:00+09:00",
+    ),
+    (
+        "contains a missing timestamp",
+        "missing-timestamp",
+        "표시된 행의 빈 시각을 확인하세요.",
+    ),
+    (
+        "timestamps must use consistent timezone awareness",
+        "mixed-timezone",
+        "모든 시각에 시간대 포함 여부를 일치시키세요.",
+    ),
+    (
+        "timestamps must be strictly increasing",
+        "time-order",
+        "시간이 중복·역순입니다. 행 순서를 확인하세요.",
+    ),
+    (
+        "contains a missing value",
+        "missing-value",
+        "표시된 행·컬럼의 누락값을 확인하세요.",
+    ),
+    ("must be numeric", "non-numeric", "측정 컬럼에 숫자만 기록하세요."),
+    ("must be finite", "non-finite", "NaN·무한대는 사용할 수 없습니다."),
+    ("has", "row-width", "행의 컬럼 수와 CSV 쉼표·인용부호를 확인하세요."),
+    ("not valid UTF-8", "encoding", "파일을 UTF-8 CSV로 다시 저장하세요."),
+)
+
+
+def _csv_preflight_problem(error: Exception) -> dict[str, object]:
+    message = str(error)
+    if "phase channels" in message or "phase role" in message or "phase binding" in message:
+        diagnostic = (
+            "phase-mapping",
+            "V/A 단위와 서로 다른 R/S/T 채널 3개 또는 6개를 지정하고 근거를 확인하세요.",
+        )
+    elif "timestamp_column or sampling_rate_hz" in message:
+        diagnostic = ("timestamp-required", "명시적 시간 컬럼을 선택하세요.")
+    elif "CSV path" in message or "inside workspace" in message:
+        diagnostic = ("invalid-path", "CSV의 작업공간 내부 상대 경로를 확인하세요.")
+    else:
+        diagnostic = next(
+            (
+                (code, guidance)
+                for pattern, code, guidance in _CSV_DIAGNOSTICS
+                if pattern in message
+            ),
+            (
+                "csv-invalid",
+                "CSV 헤더·측정값·시간 형식을 확인하세요. 등록이나 저장은 하지 않았습니다.",
+            ),
+        )
+    match = re.search(r"CSV row (\d+) column '([^']{1,128})'", message)
+    if match is None:
+        match = re.search(r"CSV row (\d+)", message)
+    return {
+        "code": diagnostic[0],
+        "guidance": diagnostic[1],
+        "row_number": int(match.group(1)) if match else None,
+        "column": match.group(2) if match and match.lastindex == 2 else None,
+    }
+
+
+def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
+    """Read only; never produce receipt, history, analysis, or registration."""
+    assert isinstance(source.config, FileSourceConfig)
+    try:
+        report = validate_csv_sensor_source(
+            Path(source.config.source_path), source.config.to_csv_sensor_layout()
+        )
+    except (CsvSensorSourceError, ValueError) as error:
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "sample_count": None,
+            "history_ready": False,
+            "phase_mapping_ready": False,
+            "issue": _csv_preflight_problem(error),
+            "meaning": "csv-preflight-only-not-registered-or-ingested",
+        }
+    start, end = report.first_timestamp, report.last_timestamp
+    timezone_aware = (
+        start is not None
+        and end is not None
+        and all(value.utcoffset() is not None for value in (start, end))
+    )
+    history_ready = timezone_aware
+    status = "ready" if history_ready else "needs_input"
+    if not history_ready:
+        issue: dict[str, object] | None = {
+            "code": "timestamp-required" if start is None else "timezone-required",
+            "guidance": (
+                "이력 적재에는 시간 컬럼을 지정해야 합니다."
+                if start is None
+                else (
+                    "이력 적재에는 시간대가 있는 ISO 8601 값이 필요합니다. "
+                    "예: 2026-10-11T09:00:00+09:00"
+                )
+            ),
+            "row_number": None,
+            "column": source.config.timestamp_column,
+        }
+    else:
+        issue = None
+    return {
+        "schema_version": 1,
+        "status": status,
+        "sample_count": report.sample_count,
+        "channel_columns": list(report.channels),
+        "first_timestamp": start.isoformat() if start else None,
+        "last_timestamp": end.isoformat() if end else None,
+        "source_sha256": report.source_sha256,
+        "source_size_bytes": report.source_size_bytes,
+        "history_ready": history_ready,
+        "phase_mapping_ready": history_ready and len(source.config.semantic_bindings) >= 3,
+        "semantic_binding_count": len(source.config.semantic_bindings),
+        "quality_warnings": [issue.code for issue in report.quality_issues],
+        "issue": issue,
+        "meaning": "csv-preflight-only-not-registered-or-ingested",
+    }
+
+
+def preflight_workspace_csv_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Check a bounded workspace file using the registration contract, without writing."""
+    try:
+        source = _prepare_workspace_csv_source(root, payload)
+    except (ValueError, FileNotFoundError, NotADirectoryError, OSError) as error:
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "sample_count": None,
+            "history_ready": False,
+            "phase_mapping_ready": False,
+            "issue": _csv_preflight_problem(error),
+            "meaning": "csv-preflight-only-not-registered-or-ingested",
+        }
+    return _csv_preflight_result(source)
+
+
+def preflight_uploaded_csv_source(
+    root: Path, payload: dict[str, object], *, upload_directory: Path
+) -> dict[str, object]:
+    """Validate an ephemeral upload, without copying into the workspace."""
+    if set(payload) not in {_UPLOAD_FIELDS, _UPLOAD_OPTIONAL_FIELDS}:
+        raise ValueError("unexpected CSV preflight fields")
+    staged_name = payload["staged_name"]
+    if not isinstance(staged_name, str) or _STAGED_CSV_NAME.fullmatch(staged_name) is None:
+        raise ValueError("invalid staged CSV identity")
+    if upload_directory.is_symlink():
+        raise ValueError("untrusted staging directory")
+    stage_root = upload_directory.resolve(strict=True)
+    staged = upload_directory / staged_name
+    if (
+        staged.is_symlink()
+        or not staged.is_file()
+        or staged.resolve(strict=True).parent != stage_root
+        or not 0 < staged.stat().st_size <= _MAX_WEB_UPLOAD_BYTES
+    ):
+        raise ValueError("CSV staging location invalid")
+    try:
+        source_id = _text(payload, "source_id")
+        name = _text(payload, "name")
+        asset_id = _text(payload, "asset_id")
+        point = _text(payload, "measurement_point_id", optional=True)
+        timestamp = _text(payload, "timestamp_column", optional=True)
+        channels = payload["channel_columns"]
+        if not isinstance(channels, list) or not 1 <= len(channels) <= 12:
+            raise ValueError("invalid channel count")
+        channel_ids: list[str] = []
+        for item in channels:
+            channel = _text({"channel": item}, "channel")
+            if channel is None:
+                raise ValueError("invalid channel")
+            channel_ids.append(channel)
+        if len(set(channel_ids)) != len(channel_ids):
+            raise ValueError("duplicate or invalid channel")
+        assert isinstance(source_id, str)
+        assert isinstance(name, str)
+        assert isinstance(asset_id, str)
+        config = FileSourceConfig(
+            source_path=str(staged),
+            asset_id=asset_id,
+            measurement_point_id=point,
+            channel_columns=tuple(channel_ids),
+            timestamp_column=timestamp,
+            semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
+        )
+        source = RegisteredSource(
+            source_id=source_id, name=name, config=config, registered_at=datetime.now(UTC)
+        )
+    except (ValueError, TypeError) as error:
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "sample_count": None,
+            "history_ready": False,
+            "phase_mapping_ready": False,
+            "issue": _csv_preflight_problem(error),
+            "meaning": "csv-preflight-only-not-registered-or-ingested",
+        }
+    return _csv_preflight_result(source)
 
 
 class SourceControlConflict(ValueError):

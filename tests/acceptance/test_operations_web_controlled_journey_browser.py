@@ -211,6 +211,14 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "헤더 후보: timestamp, vibration_x, vibration_y"
                 )
                 pw.expect(page.locator('#file-form input[name="file_path"]')).to_be_disabled()
+                page.get_by_role("button", name="CSV 분석 전 점검").click()
+                pw.expect(page.locator("#csv-preflight-result")).to_contain_text(
+                    "CSV 구조와 이력 적재의 필수 조건 확인", timeout=30000
+                )
+                pw.expect(page.locator("#csv-preflight-result")).to_contain_text("표본 3행")
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+                assert not (workspace.root / "web-uploads").exists()
+                assert not workspace.history_catalog_path.exists()
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 listing = page.locator("#source-list")
                 pw.expect(listing).to_contain_text("journey-file", timeout=30000)
@@ -355,6 +363,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                         "mimeType": "text/csv",
                         "buffer": (inputs / "phase.csv").read_bytes(),
                     }
+                )
+                page.get_by_role("button", name="CSV 분석 전 점검").click()
+                pw.expect(page.locator("#csv-preflight-result")).to_contain_text(
+                    "3상 R/S/T 매핑 3개 이상 제출됨", timeout=30000
                 )
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 phase_card = page.locator('.source-record[data-source-id="phase-file"]')

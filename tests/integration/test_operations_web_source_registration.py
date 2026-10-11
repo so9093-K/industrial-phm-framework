@@ -32,6 +32,7 @@ from industrial_phm.runtime.operations_web_setup import (
     analyze_workspace_file_phase,
     backfill_workspace_file_history,
     change_web_source_control,
+    preflight_workspace_csv_source,
     project_web_source_setup,
     receive_workspace_file_source,
     register_workspace_csv_source,
@@ -79,6 +80,75 @@ def _payload(path: str = "inputs/phases.csv") -> dict[str, object]:
         "measurement_point_id": "panel",
         "timestamp_column": "timestamp",
     }
+
+
+def test_csv_preflight_reports_recoverable_input_and_never_persists(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "preflight-only")
+    initialize_operations_workspace(workspace)
+    files = workspace.root / "inputs"
+    files.mkdir()
+    csv = files / "phase.csv"
+    csv.write_text(
+        "timestamp,leg_a,leg_b,leg_c\n"
+        "2026-10-11T09:00:00+09:00,220,225,230\n"
+        "2026-10-11T09:00:01+09:00,221,226,231\n",
+        encoding="utf-8",
+    )
+    mapping = [
+        {
+            "channel_id": channel,
+            "quantity": "voltage",
+            "phase": phase,
+            "unit_evidence": "multimeter V",
+            "interpretation_evidence": f"wiring sheet {phase}",
+        }
+        for channel, phase in (("leg_a", "R"), ("leg_b", "S"), ("leg_c", "T"))
+    ]
+    setup = {
+        "source_id": "preflight-phase",
+        "name": "Preflight Phase",
+        "asset_id": "pump-01",
+        "measurement_point_id": "panel",
+        "file_path": "inputs/phase.csv",
+        "channel_columns": ["leg_a", "leg_b", "leg_c"],
+        "timestamp_column": "timestamp",
+        "phase_channels": mapping,
+    }
+    ready = preflight_workspace_csv_source(workspace.root, setup)
+    assert ready["status"] == "ready"
+    assert ready["sample_count"] == 2
+    assert ready["history_ready"] is True
+    assert ready["phase_mapping_ready"] is True
+    assert ready["source_size_bytes"] == csv.stat().st_size
+    assert ready["issue"] is None
+    assert ready["meaning"] == "csv-preflight-only-not-registered-or-ingested"
+
+    csv.write_text(csv.read_text().replace(",225,", ",bad,"), encoding="utf-8")
+    failed = preflight_workspace_csv_source(workspace.root, setup)
+    assert failed["status"] == "blocked"
+    assert failed["issue"]["code"] == "non-numeric"
+    assert failed["issue"]["row_number"] == 2
+    assert failed["issue"]["column"] == "leg_b"
+
+    csv.write_text(
+        csv.read_text().replace(",bad,", ",225,").replace("+09:00", ""), encoding="utf-8"
+    )
+    naive = preflight_workspace_csv_source(workspace.root, setup)
+    assert naive["status"] == "needs_input"
+    assert naive["history_ready"] is False
+    assert naive["phase_mapping_ready"] is False
+    assert naive["issue"]["code"] == "timezone-required"
+
+    incomplete = preflight_workspace_csv_source(
+        workspace.root, {**setup, "phase_channels": mapping[:2]}
+    )
+    assert incomplete["status"] == "blocked"
+    assert incomplete["issue"]["code"] == "phase-mapping"
+    assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+    assert not workspace.history_catalog_path.exists()
+    assert not workspace.phase_unbalance_state_path.exists()
+    assert not workspace.file_feature_analysis_path.exists()
+    assert not (workspace.root / "web-uploads").exists()
 
 
 def test_workspace_file_registration_protected_and_not_mistaken_for_receipt(
@@ -845,6 +915,42 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
             assert upload(token="invalid")[0] == 403
             assert upload(b'{"setup":{},"csv_base64":"!!!!!"}')[0] == 400
             assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+
+            def preflight(data: bytes = body, *, token: str = csrf):
+                return _request(
+                    port,
+                    "POST",
+                    "/api/v1/sources/file/upload/preflight",
+                    body=data,
+                    origin=origin,
+                    fetch_site="same-origin",
+                    csrf=token,
+                )
+
+            assert preflight(token="incorrect")[0] == HTTPStatus.FORBIDDEN
+            preflight_status, preview_result = preflight()
+            assert preflight_status == HTTPStatus.OK
+            assert preview_result["status"] == "ready"
+            assert preview_result["sample_count"] == 2
+            assert preview_result["history_ready"] is True
+            assert preview_result["phase_mapping_ready"] is False
+            assert preview_result["meaning"] == "csv-preflight-only-not-registered-or-ingested"
+            assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+            assert not (workspace.root / "web-uploads").exists()
+            assert tuple(broker.upload_directory.iterdir()) == ()
+
+            invalid = raw.replace(b"219.0", b"oops!")
+            invalid_body = json.dumps(
+                {"setup": setup, "csv_base64": base64.b64encode(invalid).decode("ascii")}
+            ).encode()
+            invalid_status, invalid_result = preflight(invalid_body)
+            assert invalid_status == HTTPStatus.OK
+            assert invalid_result["status"] == "blocked"
+            assert invalid_result["issue"]["code"] == "non-numeric"
+            assert invalid_result["issue"]["row_number"] == 2
+            assert not (workspace.root / "web-uploads").exists()
+            assert tuple(broker.upload_directory.iterdir()) == ()
+
             status, result = upload()
             assert status == HTTPStatus.CREATED
             assert result["registration_state"] == "registered"
