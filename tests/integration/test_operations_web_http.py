@@ -58,9 +58,7 @@ def test_local_operations_web_read_http_is_bounded_and_origin_checked(
         assert status == 200
         assert payload["schema_version"] == 1
         assert payload["assets"]["items"] == []
-        runtime_status, runtime_headers, runtime = _request(
-            port, "GET", "/api/v1/system/runtime"
-        )
+        runtime_status, runtime_headers, runtime = _request(port, "GET", "/api/v1/system/runtime")
         assert runtime_status == 200
         assert runtime["schema_version"] == 1
         assert runtime["ready"] is False
