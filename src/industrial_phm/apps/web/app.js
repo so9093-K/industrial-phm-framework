@@ -1508,7 +1508,7 @@ async function registerFile(event) {
     if (result.schema_version !== 1 || result.registration_state !== "registered") {
       throw new Error("schema-mismatch");
     }
-    feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 수집은 기존 Operations에서 별도 실행하세요.";
+    feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 데이터 연결의 해당 소스에서 별도 수신을 요청하고 근거를 확인하세요.";
     form.reset();
     csvPreflightRevision += 1;
     byId("csv-preflight-result").textContent =
@@ -1688,8 +1688,8 @@ function showSampleState(payload) {
   }
   // Allow only the already checked, local loopback URL returned by the supervisor.
   if (payload.separate_workspace !== true || typeof payload.url !== "string"
-      || !/^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(payload.url)
-      || Number(payload.url.split(":").pop()) > 65535) throw new Error("schema-mismatch");
+      || !/^http:\/\/127\.0\.0\.1:\d{2,5}\/web\/$/.test(payload.url)
+      || Number(payload.url.split("/")[2].split(":")[1]) > 65535) throw new Error("schema-mismatch");
   sampleValidatedUrl = payload.url;
   setSampleState("running", "격리 샘플 실행 중 · 별도 synthetic 작업공간 · 기존 데모 화면입니다.");
 }

@@ -1,51 +1,62 @@
-# Operations bundled demo
+# Operations bundled FILE demo
 
-This directory contains a small deterministic synthetic CSV snapshot for exercising the
-current **Operations** FILE-source workflow without downloading an external dataset.
+This folder contains one **synthetic CSV snapshot**, not an actual bearing
+condition or evidence of a fault, alarm, remaining useful life or maintenance.
 
-The signal is product-demo data only. It does **not** represent a real bearing condition,
-fault, anomaly, degradation trajectory, remaining useful life, alarm, or maintenance need.
+## Run the current supervised Web
 
-## Register the bundled FILE source
-
-Start the canonical Operations application:
+On the supported local Linux Operations pilot:
 
 ```bash
-uv sync --locked --group research
-uv run --no-sync marimo run src/industrial_phm/apps/operations.py
+uv sync --locked --extra operations
+make up
 ```
 
-Open **Setup → Data Sources → Add data source** and register a FILE snapshot with these
-explicit values:
+Open the **`/web/` URL** reported by the Operations supervisor. This is the
+packaged Web operator UI, not the retired marimo app. Stop with `make down`.
+The default workspace is `artifacts/operations` and can be changed using
+`make up WORKSPACE=<path>`.
 
-- Source ID: `demo-bearing-snapshot`
-- Name: `Bundled demo bearing snapshot`
-- Asset: `demo-bearing-01`
-- Measurement point: `drive-end`
-- File: `examples/operations/demo-bearing-snapshot.csv`
-- Mode: snapshot
-- Time column: `timestamp`
-- Signal: `vibration_x`
-- Sampling rate: `1 Hz`
-- Sampling-rate tolerance: `0.01`
-- Minimum samples: `16`
+## Register the bundled CSV without guessing measurement meaning
 
-Use the FILE discovery/validation step before saving. The bundled contract test verifies the
-same file and mapping: 32 samples, explicit UTC timestamps, and one vibration channel.
+Open **데이터 연결 → CSV 데이터 등록**. Use **내 PC에서 CSV 선택** for
+`examples/operations/demo-bearing-snapshot.csv` (under 1 MiB); an arbitrary
+repository path outside the workspace is **not** a supported relative-path
+registration. The source is synthetic, so the following values are demo
+identities rather than real machine metadata:
 
-Saving the source registers configuration only. It does not create a fault/health state and
-does not start a background analysis process.
+| Field | Value |
+| --- | --- |
+| Source ID | `demo-bearing-snapshot` |
+| Name | `Bundled demo bearing snapshot` |
+| Asset ID | `demo-bearing-01` |
+| Measurement point | `drive-end` |
+| Signal columns | `vibration_x` |
+| Timestamp column | `timestamp` |
+| Phase bindings | leave empty (vibration example, not three-phase voltage/current) |
 
-## Exercise the Operations flow
+Choose **CSV 분석 전 점검** and read the returned validation and timestamp
+evidence before **CSV 확인 후 소스 등록**. Registration alone does not
+prove receipt, history commit, a successful analysis or asset health.
 
-1. Open **Assets**, select `demo-bearing-01`, and choose **Analysis**.
-2. Select the registered FILE snapshot and run **Analyze FILE snapshot**.
-3. Open **Investigations**. Select the vibration-feature group and then the exact analysis
-   evidence inside that group.
-4. Inspect the stored waveform statistics and evidence identity. These features are not an
-   anomaly/fault verdict.
-5. Choose **Request review** if you want to exercise the explicit human-review workflow.
-6. Open **Maintenance** and add a note, acknowledge, then close the review item.
+## Verify actual receipt, history, analysis and human review
 
-The workflow demonstrates registration, persisted analysis evidence, investigation and
-human-review persistence only. It is not a predictive-maintenance model validation demo.
+1. In **데이터 연결**, activate the registered FILE source and explicitly
+   request **receive**. Verify accepted receipt evidence, not just registration.
+2. Run the explicit FILE history backfill where supported; in **설비 · 신호**
+   confirm stored observations, channel identity and UTC provenance.
+3. Run the **FILE statistical feature analysis** action separately. Verify the
+   resulting saved AnalysisRun and Evidence ID under **분석 근거**. This example
+   expects 32 recorded samples and eight statistical features, not a fault score.
+4. Request human review of that **exact saved evidence**. Under **정비 검토**,
+   enter a note, acknowledge and close as separate actions. Closing human review
+   is **not proof that physical maintenance occurred**.
+
+The older **Setup → Investigations → Maintenance** marimo page sequence no
+longer exists. The current Web workflow is intentionally bounded; full
+Investigation/Maintenance parity remains under
+[Issue #489](https://github.com/so9093-K/industrial-phm-framework/issues/489).
+
+A separate contract test verifies that the included CSV passes the data
+validator and produces the expected feature identities. It does not substitute
+for the live Chromium user journey.
