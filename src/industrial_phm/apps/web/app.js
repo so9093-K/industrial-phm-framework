@@ -1332,7 +1332,7 @@ function csvRegistrationInput() {
     ...(phaseBindings.length ? {phase_channels: phaseBindings} : {}),
   };
   const chosen = byId("csv-upload").files[0];
-  if (chosen && (!/\\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
+  if (chosen && (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
     throw new Error("업로드할 CSV는 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.");
   }
   if (!payload.timestamp_column) {
