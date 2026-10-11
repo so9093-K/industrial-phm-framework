@@ -65,7 +65,7 @@ _OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
 # byte-for-byte the original v5 shape and stays readable. Older v5 readers reject a
 # registry that uses them; pre-release builds do not promise downgrade reads. A
 # required key, a renamed key or a changed meaning still needs a new schema version.
-_CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name"})
+_CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name", "semantic_bindings"})
 
 
 class SourceRegistryFormatError(ValueError):
@@ -344,6 +344,10 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
             "minimum_sample_count": config.minimum_sample_count,
             "delimiter": config.delimiter,
         }
+        if config.semantic_bindings:
+            config_payload["semantic_bindings"] = [
+                serialize_channel_semantic_binding(binding) for binding in config.semantic_bindings
+            ]
     elif isinstance(config, OpcUaSourceConfig):
         config_payload = {
             "endpoint_url": config.endpoint_url,
@@ -439,6 +443,9 @@ def _parse_file_source_config(
     ):
         raise SourceRegistryFormatError(f"{label}.channel_columns must be a string array")
 
+    bindings_raw = config.get("semantic_bindings", [])
+    if not isinstance(bindings_raw, list):
+        raise SourceRegistryFormatError(f"{label}.semantic_bindings must be a JSON array")
     return FileSourceConfig(
         source_path=_require_string(config["source_path"], f"{label}.source_path"),
         asset_id=_require_string(config["asset_id"], f"{label}.asset_id"),
@@ -466,6 +473,7 @@ def _parse_file_source_config(
         ),
         delimiter=_require_string(config["delimiter"], f"{label}.delimiter"),
         asset_display_name=_optional_display_name(config, label),
+        semantic_bindings=tuple(parse_channel_semantic_binding(value) for value in bindings_raw),
     )
 
 

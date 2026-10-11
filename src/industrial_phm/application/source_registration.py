@@ -52,6 +52,7 @@ class FileSourceConfig:
     minimum_sample_count: int = 1
     delimiter: str = ","
     asset_display_name: str | None = None
+    semantic_bindings: Sequence[ChannelSemanticBinding] = ()
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_path, "source_path")
@@ -65,7 +66,17 @@ class FileSourceConfig:
             raise ValueError("history-directory source requires an explicit timestamp_column")
 
         layout = self.to_csv_sensor_layout()
-        object.__setattr__(self, "channel_columns", tuple(layout.channel_columns))
+        channels = tuple(layout.channel_columns)
+        bindings = tuple(self.semantic_bindings)
+        if any(not isinstance(binding, ChannelSemanticBinding) for binding in bindings):
+            raise ValueError("FILE semantic_bindings must contain ChannelSemanticBinding values")
+        bound_channels = tuple(binding.channel_id for binding in bindings)
+        if len(set(bound_channels)) != len(bound_channels):
+            raise ValueError("FILE semantic_bindings must not repeat channels")
+        if not set(bound_channels).issubset(channels):
+            raise ValueError("FILE semantic bindings must reference registered channels")
+        object.__setattr__(self, "channel_columns", channels)
+        object.__setattr__(self, "semantic_bindings", bindings)
 
     def to_csv_sensor_layout(self) -> CsvSensorLayout:
         """Build the existing CSV adapter layout without changing its semantics."""
@@ -158,7 +169,7 @@ class RegisteredSource:
         _validate_identifier(self.name, "name")
         if not isinstance(self.config, (FileSourceConfig, OpcUaSourceConfig)):
             raise ValueError("config must be FileSourceConfig or OpcUaSourceConfig")
-        if isinstance(self.config, OpcUaSourceConfig):
+        if isinstance(self.config, (FileSourceConfig, OpcUaSourceConfig)):
             mismatched = sorted(
                 binding.channel_id
                 for binding in self.config.semantic_bindings
@@ -166,7 +177,7 @@ class RegisteredSource:
             )
             if mismatched:
                 raise ValueError(
-                    "OPC UA semantic bindings must match the registered source_id; "
+                    "Source semantic bindings must match the registered source_id; "
                     f"channels={mismatched}"
                 )
         if not isinstance(self.registered_at, datetime):
