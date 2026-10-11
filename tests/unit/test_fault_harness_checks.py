@@ -15,7 +15,6 @@ from tools.opcua.fault_harness import (
     check_first_render,
     check_live_browser_journey,
     check_live_replay_sequence,
-    match_web_source_state,
     check_metrics_present,
     check_missing_phase,
     check_missing_within_boundary,
@@ -23,6 +22,7 @@ from tools.opcua.fault_harness import (
     check_review_persistence,
     check_ui_states,
     check_windows,
+    match_web_source_state,
 )
 
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
@@ -191,8 +191,9 @@ def test_web_source_state_matches_exact_api_enum_and_freshness() -> None:
     receiving = "Source flow · Receiving"
     stale = "Source flow · No recent source data"
     assert match_web_source_state((receiving,), source) == receiving
-    assert match_web_source_state((receiving,), {**source, "last_live_receive_fresh": False}) is None
-    assert match_web_source_state((stale,), {**source, "last_live_receive_fresh": False}) == stale
+    stale_source = {**source, "last_live_receive_fresh": False}
+    assert match_web_source_state((receiving,), stale_source) is None
+    assert match_web_source_state((stale,), stale_source) == stale
     retry = (
         "Source flow · Connecting",
         "Source flow · Reconnecting",
@@ -203,7 +204,8 @@ def test_web_source_state_matches_exact_api_enum_and_freshness() -> None:
         ("RECONNECT_WAIT", retry[1]),
         ("DISCONNECTED", retry[2]),
     ):
-        assert match_web_source_state(retry, {**source, "opcua_session_last_state": enum}) == expected
+        state = {**source, "opcua_session_last_state": enum}
+        assert match_web_source_state(retry, state) == expected
     assert match_web_source_state(retry, source) is None
     assert match_web_source_state((receiving,), {**source, "source_id": "other"}) is None
 

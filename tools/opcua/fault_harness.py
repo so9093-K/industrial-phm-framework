@@ -1245,7 +1245,9 @@ class Harness:
             **before,
             "finding_id": response["finding_id"],
             "after_state": status,
-            "review_evidence_matches": result.evidence.evidence_id in matching[0].finding.evidence_refs,
+            "review_evidence_matches": (
+                result.evidence.evidence_id in matching[0].finding.evidence_refs
+            ),
             "status_matches_response": status == response["status"],
             "result_after_last_fault": result.run.observed_end_at > last_fault,
         }

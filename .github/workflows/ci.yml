@@ -120,6 +120,8 @@ jobs:
                   "tests/support/",
                   "tests/integration/test_operations",
                   "tests/unit/test_operations",
+                  "tests/unit/test_fault_harness_checks.py",
+                  "tools/opcua/fault_harness.py",
               ) or any_path("tools/operations_") or any_exact("Makefile")
               research = force_all or any_path(
                   "notebooks/",
@@ -164,6 +166,8 @@ jobs:
               "deploy/systemd/industrial-phm-operations.service.example": {"package": True},
               "tools/operations_systemd_smoke.py": {"operations": True, "package": True},
               "tools/operations_wheel_smoke.py": {"operations": True, "package": True},
+              "tools/opcua/fault_harness.py": {"runtime": True, "operations": True},
+              "tests/unit/test_fault_harness_checks.py": {"operations": True},
               "tools/operations_wheel_rollback.py": {"operations": True, "package": True},
               "src/industrial_phm/cli.py": {"runtime": True, "operations": True, "package": True},
               "src/industrial_phm/apps/web/app.js": {"operations": True, "package": True},
