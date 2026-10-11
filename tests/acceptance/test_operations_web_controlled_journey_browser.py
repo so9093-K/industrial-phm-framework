@@ -22,6 +22,7 @@ from industrial_phm.application import (
     JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonSourceRepository,
+    SqlitePhaseUnbalanceRepository,
 )
 from industrial_phm.runtime import (
     OperationsComponentKind,
@@ -119,6 +120,13 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
         f"{observed.isoformat()},-1.0,2.0\n"
         f"{(observed + timedelta(seconds=1)).isoformat()},0.0,3.0\n"
         f"{(observed + timedelta(seconds=2)).isoformat()},1.5,4.0\n",
+        encoding="utf-8",
+    )
+    (inputs / "phase.csv").write_text(
+        "timestamp,leg_a,leg_b,leg_c\n"
+        f"{observed.isoformat()},220.0,225.0,230.0\n"
+        f"{(observed + timedelta(seconds=1)).isoformat()},222.0,226.0,231.0\n"
+        f"{(observed + timedelta(seconds=2)).isoformat()},221.0,224.0,228.0\n",
         encoding="utf-8",
     )
     log = tmp_path / "supervisor.log"
@@ -322,6 +330,70 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator('nav a[href="#evidence"]')).to_have_attribute(
                     "aria-current", "page"
                 )
+                # A distinct CSV with deliberately non-phase column names
+                # requires explicit evidence-backed V/A and R/S/T mapping.
+                page.get_by_role("link", name="데이터 연결").click()
+                phase_fields = {
+                    "source_id": "phase-file",
+                    "name": "확인된 3상 전압",
+                    "asset_id": asset_id,
+                    "measurement_point_id": "panel",
+                    "channel_columns": "leg_a,leg_b,leg_c",
+                    "timestamp_column": "timestamp",
+                }
+                for key, value in phase_fields.items():
+                    page.locator(f'#file-form input[name="{key}"]').fill(value)
+                page.locator('#file-form textarea[name="phase_bindings"]').fill(
+                    "\n".join(
+                        f"{channel},voltage,{phase},계측기 표시 V 확인,배선도 {phase}상 연결 확인"
+                        for channel, phase in (("leg_a", "R"), ("leg_b", "S"), ("leg_c", "T"))
+                    )
+                )
+                page.locator("#csv-upload").set_input_files(
+                    {
+                        "name": "phase.csv",
+                        "mimeType": "text/csv",
+                        "buffer": (inputs / "phase.csv").read_bytes(),
+                    }
+                )
+                page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
+                phase_card = page.locator('.source-record[data-source-id="phase-file"]')
+                pw.expect(phase_card).to_contain_text("검증할 3상 역할 3개", timeout=30000)
+                phase_card.get_by_role("button", name="소스 활성화").click()
+                pw.expect(phase_card).to_contain_text("관리 상태: active")
+                phase_card.get_by_role("button", name="FILE 수신 확인").click()
+                pw.expect(phase_card).to_contain_text("FILE 검증 수신 근거 있음")
+                phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
+                pw.expect(page.locator("#source-control-result")).to_contain_text(
+                    "분석 불가", timeout=30000
+                )
+                assert not SqlitePhaseUnbalanceRepository(
+                    workspace.phase_unbalance_state_path
+                ).list_results()
+                phase_card.get_by_role("button", name="FILE 이력 적재").click()
+                pw.expect(page.locator("#source-control-result")).to_contain_text(
+                    "DuckLake 이력 적재 완료", timeout=30000
+                )
+                phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
+                pw.expect(page.locator("#source-control-result")).to_contain_text(
+                    "신규 3상 분석 기록 완료", timeout=30000
+                )
+                phase_results = SqlitePhaseUnbalanceRepository(
+                    workspace.phase_unbalance_state_path
+                ).list_results()
+                assert len(phase_results) == 1
+                phase_analysis = phase_results[0]
+                assert phase_analysis.run.source_id == "phase-file"
+                assert phase_analysis.evidence.semantic_versions == ("file-web-phase-v1",)
+                assert phase_analysis.evidence.results[0].evaluated_samples == 3
+                pw.expect(page.locator("#evidence-results")).to_contain_text(
+                    phase_analysis.evidence.evidence_id
+                )
+                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
+                pw.expect(page.locator("#review-results")).to_contain_text(
+                    phase_analysis.run.analysis_run_id, timeout=30000
+                )
+                pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 1건")
                 _no_overflow(page, width)
                 assert not errors, errors
                 assert not external, external
@@ -331,6 +403,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
     assert JsonSourceRepository(workspace.source_registry_path).get("journey-file")
+    assert JsonSourceRepository(workspace.source_registry_path).get("phase-file")
+    assert SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).list_results() == (
+        phase_analysis,
+    )
     persisted = JsonFileFeatureAnalysisRepository(workspace.file_feature_analysis_path)
     assert persisted.list_results() == (analysis,)
     repository = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
@@ -348,10 +424,17 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
                 pw.expect(page.locator("#review-results")).to_contain_text("closed", timeout=30000)
-                pw.expect(page.locator("#review-results .review-meaning")).to_contain_text(
-                    "실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
+                pw.expect(
+                    page.locator("#review-results .review-meaning").filter(
+                        has_text="검토 기록 종료됨"
+                    )
+                ).to_contain_text("실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다")
+                # The newest FILE source is now phase-file; the history preview
+                # must reflect its stored values rather than the earlier vibration CSV.
+                pw.expect(page.locator("#last-values")).to_contain_text(
+                    "leg_a / phase-file", timeout=30000
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
+                pw.expect(page.locator("#last-values")).to_contain_text("221")
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_visible()
                 # Losing the real source GET must revoke a prior ready state,
@@ -366,7 +449,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page.get_by_role("button", name="데이터 다시 불러오기").click()
                 pw.expect(handoff).to_be_visible()
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "active와 수신을 모두 확인한 소스 1개"
+                    "active와 수신을 모두 확인한 소스 2개"
                 )
                 pw.expect(
                     page.get_by_role("button", name="이 근거에 사람 검토 요청")
@@ -376,10 +459,17 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "button",
                     name=f"연결된 분석 근거 확인 · {analysis.evidence.evidence_id}",
                 ).click()
-                target = page.locator("#evidence-results .evidence-target")
+                target = page.locator("#evidence-results .evidence-target").filter(
+                    has_text=analysis.run.analysis_run_id
+                )
                 pw.expect(target).to_be_focused()
-                pw.expect(target).to_contain_text(analysis.run.analysis_run_id)
                 pw.expect(target).to_contain_text(analysis.evidence.evidence_id)
+                pw.expect(page.locator("#evidence-results")).to_contain_text(
+                    phase_analysis.evidence.evidence_id
+                )
+                pw.expect(page.locator("#review-results")).to_contain_text(
+                    phase_analysis.run.analysis_run_id
+                )
                 _no_overflow(page, width)
             finally:
                 browser.close()

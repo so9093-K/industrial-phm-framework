@@ -17,6 +17,7 @@ from industrial_phm.application.asset_history import (
     HistoricalInputReference,
     HistoryIngestionMode,
 )
+from industrial_phm.application.measurement_semantics import serialize_channel_semantic_binding
 from industrial_phm.application.source_registration import (
     FileSourceConfig,
     FileSourceMode,
@@ -208,6 +209,14 @@ def backfill_registered_file_source(
             series.metadata.get("source_size_bytes"),
             "source_size_bytes",
         )
+        metadata_by_channel = {
+            binding.channel_id: json.dumps(
+                {"semantics": serialize_channel_semantic_binding(binding)},
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            for binding in config.semantic_bindings
+        }
         events = tuple(
             FileBackfillEvent(
                 raw_evidence_id=_file_raw_evidence_id(
@@ -227,6 +236,7 @@ def backfill_registered_file_source(
                 sample_index=sample_index,
                 event_at=timestamp,
                 value=float(series.values[sample_index][channel_index]),
+                source_metadata_json=metadata_by_channel.get(channel_id),
             )
             for sample_index, timestamp in enumerate(timestamps)
             for channel_index, channel_id in enumerate(series.channels)

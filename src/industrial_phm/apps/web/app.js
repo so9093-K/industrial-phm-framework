@@ -903,6 +903,10 @@ async function loadSources() {
         }
       } else {
         card.append(create("span", null, "FILE 소스 · 연속 수집 시작 요청 미지원. 기존 FILE 처리 경로를 사용하세요."));
+        if (item.phase_binding_count) {
+          card.append(create("span", null, "검증할 3상 역할 " + item.phase_binding_count
+            + "개 등록됨 · V/A 단위·R/S/T 해석 근거는 backfill 원본 행에 고정"));
+        }
       }
       const actions = create("div", "source-actions");
       if (item.lifecycle_state) {
@@ -926,6 +930,12 @@ async function loadSources() {
           analyze.type = "button";
           analyze.addEventListener("click", () => analyzeFile(item.source_id, analyze));
           actions.append(analyze);
+          if (item.phase_binding_count >= 3) {
+            const phase = create("button", null, "저장된 3상 이력 분석 실행");
+            phase.type = "button";
+            phase.addEventListener("click", () => analyzeFilePhase(item.source_id, phase));
+            actions.append(phase);
+          }
         }
       }
       if (item.source_type === "opcua" && item.lifecycle_state === "active") {
@@ -1114,6 +1124,68 @@ async function analyzeFile(sourceId, button) {
   }
 }
 
+async function analyzeFilePhase(sourceId, button) {
+  const output = byId("source-control-result");
+  if (!window.confirm(sourceId + " · 명시적 V/A·R/S/T 의미가 저장된 DuckLake FILE 이력으로 3상 불평형률을 분석합니다.\\n이 계산은 고장 진단이나 자동 경보가 아닙니다.")) return;
+  button.disabled = true;
+  output.className = "";
+  output.textContent = sourceId + " · 저장된 3상 이력 분석 중";
+  try {
+    const session = await getJSON("/api/v1/session");
+    if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
+    const response = await fetch("/api/v1/analysis/phase-file", {
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+      body: JSON.stringify({source_id: sourceId}),
+    });
+    if (!response.ok) {
+      await checkWorkspaceWriterConflict(response);
+      const body = await response.json().catch(() => null);
+      const code = body && body.error && body.error.code;
+      if (code === "command_outcome_unknown") throw new Error("outcome-unknown");
+      if (response.status === 409) throw new Error("phase-conflict");
+      if (response.status === 400) throw new Error("phase-ineligible");
+      throw new Error("http-" + response.status);
+    }
+    const saved = await response.json();
+    if (saved.schema_version !== 1 || saved.source_id !== sourceId
+        || saved.meaning !== "persisted-phase-unbalance-from-bound-file-history-not-fault-diagnosis"
+        || !Number.isSafeInteger(saved.history_snapshot_id)
+        || typeof saved.analysis_run_id !== "string" || !saved.analysis_run_id
+        || typeof saved.evidence_id !== "string" || !saved.evidence_id) {
+      throw new Error("schema-mismatch");
+    }
+    output.textContent = sourceId + " · 신규 3상 분석 기록 완료 · snapshot #"
+      + saved.history_snapshot_id + " · Run " + saved.analysis_run_id
+      + " · Evidence " + saved.evidence_id + " · 고장 진단 아님";
+    await refresh();
+    if (rows(monitor, "phase_unbalance_analyses").some((run) =>
+      run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
+      selectedAsset = saved.asset_id;
+      byId("asset-select").value = selectedAsset;
+      assetDetails();
+      evidenceViews();
+      location.hash = "#evidence";
+      const target = [...byId("evidence-results").querySelectorAll(".evidence-target")]
+        .find((node) => node.textContent.includes(saved.analysis_run_id));
+      if (target) target.focus({preventScroll: true});
+    }
+  } catch (error) {
+    output.className = "error";
+    output.textContent = error.message === "outcome-unknown"
+      ? "분석 응답을 확인하지 못했습니다. 재실행 전에 저장된 Run 목록을 조회하세요."
+      : error.message === "phase-conflict"
+      ? "분석 불가 · ACTIVE FILE, 확인된 수신, DuckLake 적재, 등록한 V/A·R/S/T 근거와 원본 SHA를 확인하세요."
+      : error.message === "phase-ineligible"
+      ? "3상 분석 대상 없음 · 완전한 R/S/T 표본, 같은 시각의 유효 측정값과 신호 임계조건을 확인하세요."
+      : error.message === "read-only"
+      ? "3상 분석은 감독형 Web에서만 실행할 수 있습니다."
+      : presentError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function backfillFile(sourceId, button) {
   const output = byId("source-control-result");
   if (!window.confirm(sourceId + " · CSV의 타임스탬프를 사용해 DuckLake에 실제 이력을 적재합니다.\n같은 파일의 재시도는 기존 배치 커밋을 재사용합니다. 수집·분석은 시작하지 않습니다.")) return;
@@ -1207,6 +1279,32 @@ function csvBase64(buffer) {
   return btoa(parts.join(""));
 }
 
+function declaredPhaseBindings(value, channels) {
+  if (!value.trim()) return [];
+  const lines = value.trim().split(/\r?\n/).filter((line) => line.trim());
+  if (![3, 6].includes(lines.length)) throw new Error("invalid-phase-bindings");
+  const found = new Set();
+  const mapped = new Set();
+  const bindings = lines.map((line) => {
+    const cells = line.split(",").map((cell) => cell.trim());
+    if (cells.length !== 5 || cells.some((cell) => !cell || cell.length > 128)) {
+      throw new Error("invalid-phase-bindings");
+    }
+    const [channel_id, quantity, phase, unit_evidence, interpretation_evidence] = cells;
+    if (!channels.includes(channel_id) || !["voltage", "current"].includes(quantity)
+        || !["R", "S", "T"].includes(phase) || mapped.has(channel_id)
+        || found.has(quantity + ":" + phase)) throw new Error("invalid-phase-bindings");
+    found.add(quantity + ":" + phase);
+    mapped.add(channel_id);
+    return {channel_id, quantity, phase, unit_evidence, interpretation_evidence};
+  });
+  for (const quantity of ["voltage", "current"]) {
+    const count = ["R", "S", "T"].filter((phase) => found.has(quantity + ":" + phase)).length;
+    if (count && count !== 3) throw new Error("invalid-phase-bindings");
+  }
+  return bindings;
+}
+
 async function registerFile(event) {
   event.preventDefault();
   const button = byId("register-file"), feedback = byId("register-result");
@@ -1218,6 +1316,14 @@ async function registerFile(event) {
     feedback.textContent = "중복되지 않는 신호 컬럼 1~12개를 쉼표로 입력하세요.";
     return;
   }
+  let phaseBindings;
+  try {
+    phaseBindings = declaredPhaseBindings(String(values.get("phase_bindings") || ""), channels);
+  } catch (_error) {
+    feedback.className = "error";
+    feedback.textContent = "3상 매핑을 확인하세요: 채널,voltage|current,R|S|T,단위 근거,해석 근거를 3개 또는 6개 줄에 모두 입력해야 합니다.";
+    return;
+  }
   const payload = {
     source_id: String(values.get("source_id") || "").trim(),
     name: String(values.get("name") || "").trim(),
@@ -1226,6 +1332,7 @@ async function registerFile(event) {
     file_path: String(values.get("file_path") || "").trim(),
     channel_columns: channels,
     timestamp_column: String(values.get("timestamp_column") || "").trim(),
+    ...(phaseBindings.length ? {phase_channels: phaseBindings} : {}),
   };
   const chosen = byId("csv-upload").files[0];
   if (chosen && (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
@@ -1249,6 +1356,7 @@ async function registerFile(event) {
             source_id: payload.source_id, name: payload.name, asset_id: payload.asset_id,
             measurement_point_id: payload.measurement_point_id,
             channel_columns: payload.channel_columns, timestamp_column: payload.timestamp_column,
+            ...(phaseBindings.length ? {phase_channels: phaseBindings} : {}),
           },
           csv_base64: csvBase64(await chosen.arrayBuffer()),
         })

@@ -18,6 +18,7 @@ import pytest
 from industrial_phm.application import (
     JsonSourceRepository,
     SourceReceiptEvidence,
+    SqlitePhaseUnbalanceRepository,
 )
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
@@ -26,7 +27,15 @@ from industrial_phm.runtime.operations_web_command import (
     open_supervisor_web_command_broker,
 )
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from industrial_phm.runtime.operations_web_setup import project_web_source_setup
+from industrial_phm.runtime.operations_web_setup import (
+    SourceControlConflict,
+    analyze_workspace_file_phase,
+    backfill_workspace_file_history,
+    change_web_source_control,
+    project_web_source_setup,
+    receive_workspace_file_source,
+    register_workspace_csv_source,
+)
 
 
 def _request(
@@ -468,6 +477,98 @@ def test_web_file_backfill_commits_real_history_and_recovers_same_batch(tmp_path
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_bound_file_phase_analysis_requires_exact_committed_history(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "phase-history")
+    initialize_operations_workspace(workspace)
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    file_path = inputs / "phases.csv"
+    file_path.write_text(
+        "timestamp,leg_a,leg_b,leg_c\n"
+        "2026-10-08T12:00:00+00:00,220.0,225.0,230.0\n"
+        "2026-10-08T12:00:01+00:00,222.0,226.0,231.0\n"
+        "2026-10-08T12:00:02+00:00,221.0,224.0,228.0\n",
+        encoding="utf-8",
+    )
+    declared = [
+        {
+            "channel_id": channel,
+            "quantity": "voltage",
+            "phase": phase,
+            "unit_evidence": "meter display confirms V",
+            "interpretation_evidence": f"wiring sheet confirms {phase}",
+        }
+        for channel, phase in (("leg_a", "R"), ("leg_b", "S"), ("leg_c", "T"))
+    ]
+    payload = {
+        "source_id": "phase-file",
+        "name": "Phase CSV",
+        "asset_id": "pump-01",
+        "measurement_point_id": "panel",
+        "file_path": "inputs/phases.csv",
+        "timestamp_column": "timestamp",
+        "channel_columns": ["leg_a", "leg_b", "leg_c"],
+        "phase_channels": declared,
+    }
+    with pytest.raises(ValueError, match="three or six"):
+        register_workspace_csv_source(workspace.root, {**payload, "phase_channels": declared[:2]})
+    registered = register_workspace_csv_source(workspace.root, payload)
+    assert registered["registration_state"] == "registered"
+    source = JsonSourceRepository(workspace.source_registry_path).get("phase-file")
+    assert len(source.config.semantic_bindings) == 3
+    assert [b.definition.unit for b in source.config.semantic_bindings] == ["V"] * 3
+    change_web_source_control(
+        workspace.root, "lifecycle", {"source_id": "phase-file", "target_state": "active"}
+    )
+    identity = {"source_id": "phase-file"}
+    with pytest.raises(SourceControlConflict, match="receipt"):
+        analyze_workspace_file_phase(workspace.root, identity)
+    receipt = receive_workspace_file_source(workspace.root, identity)
+    assert receipt["accepted_new_receipt"] is True
+    with pytest.raises(SourceControlConflict, match="history"):
+        analyze_workspace_file_phase(workspace.root, identity)
+    stored = backfill_workspace_file_history(workspace.root, identity)
+    assert stored["event_count"] == 9
+    assert stored["recovered_segment_count"] == 0
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    events = history.query_file_events("phase-file")
+    assert len(events) == 9
+    assert all(event.source_metadata_json is not None for event in events)
+    assert all(
+        json.loads(event.source_metadata_json)["semantics"]["definition"]["unit"] == "V"
+        for event in events
+        if event.source_metadata_json is not None
+    )
+    repeated = backfill_workspace_file_history(workspace.root, identity)
+    assert repeated["recovered_segment_count"] == 1
+    assert repeated["history_snapshot_id"] == stored["history_snapshot_id"]
+
+    result = analyze_workspace_file_phase(workspace.root, identity)
+    assert result["meaning"] == (
+        "persisted-phase-unbalance-from-bound-file-history-not-fault-diagnosis"
+    )
+    assert result["history_snapshot_id"] == stored["history_snapshot_id"]
+    repository = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
+    (analysis,) = repository.list_results()
+    assert result["analysis_run_id"] == analysis.run.analysis_run_id
+    assert result["evidence_id"] == analysis.evidence.evidence_id
+    assert analysis.evidence.semantic_versions == ("file-web-phase-v1",)
+    assert analysis.evidence.results[0].evaluated_samples == 3
+
+    file_path.write_text(file_path.read_text().replace("220.0", "219.0"), encoding="utf-8")
+    with pytest.raises(SourceControlConflict, match="does not match"):
+        analyze_workspace_file_phase(workspace.root, identity)
+    assert SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).list_results() == (
+        analysis,
+    )
 
 
 def test_web_file_backfill_rejects_missing_explicit_timestamps(tmp_path: Path) -> None:
