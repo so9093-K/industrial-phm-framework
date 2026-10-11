@@ -269,9 +269,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 analysis = analyses[0]
                 assert analysis.run.source_id == "journey-file"
                 assert analysis.run.asset_id == asset_id
-                assert analysis.evidence.source_snapshot_sha256 == hashlib.sha256(
-                    (inputs / "vibration.csv").read_bytes()
-                ).hexdigest()
+                assert (
+                    analysis.evidence.source_snapshot_sha256
+                    == hashlib.sha256((inputs / "vibration.csv").read_bytes()).hexdigest()
+                )
                 page.get_by_role("link", name="분석 근거").click()
                 pw.expect(page.locator("#evidence-results")).to_contain_text(
                     analysis.evidence.evidence_id

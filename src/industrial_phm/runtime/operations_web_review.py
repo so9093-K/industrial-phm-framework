@@ -56,9 +56,7 @@ def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[
         if item.run.analysis_run_id == run_id
     )
     matches = tuple(
-        item
-        for item in (*phase_results, *file_results)
-        if item.evidence.evidence_id == evidence_id
+        item for item in (*phase_results, *file_results) if item.evidence.evidence_id == evidence_id
     )
     if len(matches) != 1:
         raise WebReviewNotFound("exact analysis evidence unavailable")
