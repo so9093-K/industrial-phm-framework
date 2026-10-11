@@ -33,7 +33,11 @@ from industrial_phm.runtime.operations_web_command import (
     WebCommandOutcomeUnknown,
     WebCommandRejected,
 )
-from industrial_phm.runtime.operations_web_read import project_operations_monitor
+from industrial_phm.runtime.operations_status import inspect_operations_runtime_status
+from industrial_phm.runtime.operations_web_read import (
+    project_operations_monitor,
+    project_operations_runtime_status,
+)
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
@@ -45,6 +49,7 @@ from industrial_phm.runtime.operations_web_signals import (
     project_signal_history,
 )
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
 def create_operations_web_read_server(
@@ -192,7 +197,12 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[self.path])
                 return
             parts = urlsplit(self.path)
-            if self.path in {"/api/v1/monitor", "/api/v1/sources", "/api/v1/session"}:
+            if self.path in {
+                "/api/v1/monitor",
+                "/api/v1/sources",
+                "/api/v1/session",
+                "/api/v1/system/runtime",
+            }:
                 query: dict[str, object] = {}
             elif parts.path in {"/api/v1/history/channels", "/api/v1/history/trend"}:
                 try:
@@ -202,6 +212,15 @@ def create_operations_web_read_server(
                     return
             else:
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
+                return
+            if self.path == "/api/v1/system/runtime":
+                try:
+                    runtime_status = inspect_operations_runtime_status(OperationsWorkspace(root))
+                    payload = project_operations_runtime_status(runtime_status)
+                except (OSError, ValueError, TypeError, RuntimeError):
+                    self._error(HTTPStatus.SERVICE_UNAVAILABLE, "runtime_status_unavailable")
+                    return
+                self._send_json(HTTPStatus.OK, payload)
                 return
             if self.path == "/api/v1/session":
                 self._send_json(
