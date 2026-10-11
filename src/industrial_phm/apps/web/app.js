@@ -588,6 +588,26 @@ function systemViews(snapshot) {
   );
   if (scopes.length) details.append(withText("확인되지 않은 저장소 범위", scopes.join(", ")));
 }
+function renderMonitorAttention(snapshot) {
+  const target = byId("monitor-attention");
+  clear(target);
+  const entries = rows(snapshot, "attention");
+  if (!entries.length) {
+    target.append(create("p", "muted", "현재 조회 근거에 별도 운영 상태 확인 항목이 없습니다. 이는 설비 정상 또는 안전 판정이 아닙니다."));
+    return;
+  }
+  target.append(create("h2", null, "운영 상태 확인 필요 · " + entries.length + "건"));
+  entries.forEach((item) => {
+    const record = create("div", "source-record");
+    record.dataset.attentionId = item.attention_id;
+    record.append(
+      create("strong", null, fmt(item.title)),
+      create("span", null, "상태: " + fmt(item.status) + " · 확인 화면: " + fmt(item.destination)),
+      create("span", null, "설비: " + fmt(item.asset_id) + " · 소스: " + fmt(item.source_id))
+    );
+    target.append(record);
+  });
+}
 async function refresh() {
   const token = ++generation;
   trendSequence += 1;
@@ -602,6 +622,7 @@ async function refresh() {
     const data = await getJSON("/api/v1/monitor");
     if (token !== generation) return;
     monitor = data;
+    renderMonitorAttention(data);
     systemViews(data);
     renderReviewInbox();
     byId("asset-count").textContent = fmt(data.assets && data.assets.total);
@@ -641,6 +662,7 @@ async function refresh() {
   } catch (error) {
     if (token !== generation) return;
     monitor = null;setNotice(presentError(error),true);
+    byId("monitor-attention").textContent = "운영 상태 조회 실패 · 이전 확인 항목을 현재 상태로 표시하지 않습니다.";
     renderReviewInbox();
     byId("system-status").className = "state error";
     byId("system-status").textContent = "시스템 조회 실패 · 정상 상태로 판단할 수 없습니다.";

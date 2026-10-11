@@ -148,6 +148,7 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
     attention: list[dict[str, object]] = [
         {
             "attention_id": item.attention_id,
+            "title": item.title,
             "status": item.status.value,
             "destination": item.destination.value,
             "occurred_at": _utc(item.occurred_at),

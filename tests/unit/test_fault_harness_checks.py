@@ -182,8 +182,8 @@ def test_every_ui_state_must_render_within_five_seconds():
         "seconds": 2.1,
         "monitor_ready": True,
         "attention_seen": True,
-        "signal_value_count": 4,
-        "system_data_flow_absent": True,
+        "asset_fact_count": 4,
+        "system_state_clearly_scoped": True,
     }
     names = MONITOR_RENDER_STATES
     assert check_first_render(dict.fromkeys(names, fast))["passed"]
@@ -266,8 +266,8 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
         "within_5s": True,
         "seconds": 2.0,
         "matched": "Source flow · Receiving",
-        "current_observation_seen": True,
-        "value_count": 1,
+        "source_evidence_seen": True,
+        "evidence_row_count": 1,
     }
     renders = {
         "before_missing": fast,
@@ -318,17 +318,17 @@ def test_monitor_browser_gate_rejects_workflow_only_or_valueless_surfaces():
         "seconds": 1.5,
         "monitor_ready": True,
         "attention_seen": True,
-        "signal_value_count": 3,
-        "system_data_flow_absent": True,
+        "asset_fact_count": 3,
+        "system_state_clearly_scoped": True,
     }
     renders = dict.fromkeys(MONITOR_RENDER_STATES, ready)
 
     assert check_first_render(renders)["passed"]
-    assert not check_first_render({**renders, "source_stale": {**ready, "signal_value_count": 0}})[
+    assert not check_first_render({**renders, "source_stale": {**ready, "asset_fact_count": 0}})[
         "passed"
     ]
     assert not check_first_render(
-        {**renders, "source_stale": {**ready, "system_data_flow_absent": False}}
+        {**renders, "source_stale": {**ready, "system_state_clearly_scoped": False}}
     )["passed"]
     # Content that runs past the 1440px viewport is unreadable even if it rendered.
     clipped = {**ready, "overflow_count": 3, "overflow_examples": ["DIV.phm-grid:1622"]}
@@ -340,8 +340,8 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
         "within_5s": True,
         "seconds": 2.0,
         "matched": "Source flow · Receiving",
-        "current_observation_seen": True,
-        "value_count": 1,
+        "source_evidence_seen": True,
+        "evidence_row_count": 1,
     }
     renders = {
         "before_missing": fast,
@@ -352,8 +352,8 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
 
     assert check_live_browser_journey(renders)["passed"]
     assert not check_live_browser_journey(
-        {**renders, "recovered": {**fast, "current_observation_seen": False}}
+        {**renders, "recovered": {**fast, "source_evidence_seen": False}}
     )["passed"]
-    assert not check_live_browser_journey({**renders, "recovered": {**fast, "value_count": 0}})[
+    assert not check_live_browser_journey({**renders, "recovered": {**fast, "evidence_row_count": 0}})[
         "passed"
     ]
