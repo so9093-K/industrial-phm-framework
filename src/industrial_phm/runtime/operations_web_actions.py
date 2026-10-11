@@ -79,9 +79,7 @@ def execute_web_source_action(
         if upload_directory is None:
             raise ValueError("supervisor upload directory required")
         if route.endswith("/preflight"):
-            return preflight_uploaded_csv_source(
-                root, payload, upload_directory=upload_directory
-            )
+            return preflight_uploaded_csv_source(root, payload, upload_directory=upload_directory)
         return register_uploaded_csv_source(root, payload, upload_directory=upload_directory)
     if route == "/api/v1/sources/file/preflight":
         return preflight_workspace_csv_source(root, payload)

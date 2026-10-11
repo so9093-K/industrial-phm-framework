@@ -488,8 +488,10 @@ def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
             "meaning": "csv-preflight-only-not-registered-or-ingested",
         }
     start, end = report.first_timestamp, report.last_timestamp
-    timezone_aware = start is not None and end is not None and all(
-        value.utcoffset() is not None for value in (start, end)
+    timezone_aware = (
+        start is not None
+        and end is not None
+        and all(value.utcoffset() is not None for value in (start, end))
     )
     history_ready = timezone_aware
     status = "ready" if history_ready else "needs_input"

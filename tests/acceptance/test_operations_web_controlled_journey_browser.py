@@ -215,9 +215,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#csv-preflight-result")).to_contain_text(
                     "CSV 구조와 이력 적재의 필수 조건 확인", timeout=30000
                 )
-                pw.expect(page.locator("#csv-preflight-result")).to_contain_text(
-                    "표본 3행"
-                )
+                pw.expect(page.locator("#csv-preflight-result")).to_contain_text("표본 3행")
                 assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
                 assert not (workspace.root / "web-uploads").exists()
                 assert not workspace.history_catalog_path.exists()

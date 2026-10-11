@@ -1236,6 +1236,7 @@ async function backfillFile(sourceId, button) {
 
 const MAX_CSV_UPLOAD = 1024 * 1024;
 byId("csv-upload").addEventListener("change", async () => {
+  csvPreflightRevision += 1;
   byId("csv-preflight-result").className = "state";
   byId("csv-preflight-result").textContent = "선택한 파일이 변경됐습니다. CSV 분석 전 점검을 다시 실행하세요.";
   const chosen = byId("csv-upload").files[0];
@@ -1398,6 +1399,8 @@ function describeCsvPreflight(result) {
   return lines.join("\n");
 }
 
+let csvPreflightRevision = 0;
+
 async function preflightFile() {
   const button = byId("preflight-file"), output = byId("csv-preflight-result");
   let input;
@@ -1408,6 +1411,7 @@ async function preflightFile() {
     output.textContent = error.message;
     return;
   }
+  const revision = ++csvPreflightRevision;
   button.disabled = true;
   output.className = "state";
   output.textContent = "현재 CSV와 매핑을 점검합니다. 기록은 저장하지 않습니다.";
@@ -1426,9 +1430,11 @@ async function preflightFile() {
       throw new Error("http-" + response.status);
     }
     const report = await response.json();
+    if (revision !== csvPreflightRevision) return;
     output.className = report.status === "ready" ? "state" : "state error";
     output.textContent = describeCsvPreflight(report);
   } catch (error) {
+    if (revision !== csvPreflightRevision) return;
     output.className = "state error";
     output.textContent = error.message === "preflight-supervisor-required"
       ? "사전 점검은 감독형 Web에서 실행하세요. 독립 Preview에서는 불가능합니다."
@@ -1482,6 +1488,9 @@ async function registerFile(event) {
     }
     feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 수집은 기존 Operations에서 별도 실행하세요.";
     form.reset();
+    csvPreflightRevision += 1;
+    byId("csv-preflight-result").textContent =
+      "이 CSV는 등록됐습니다. 다음 파일을 점검할 때 새로 실행하세요.";
     const pathInput = form.elements.namedItem("file_path");
     pathInput.disabled = false;
     pathInput.required = true;
@@ -1712,6 +1721,7 @@ byId("sample-refresh").addEventListener("click", () => sampleCommand("status"));
 sampleCommand("status");
 
 byId("file-form").addEventListener("input", () => {
+  csvPreflightRevision += 1;
   const output = byId("csv-preflight-result");
   output.className = "state";
   output.textContent = "파일 또는 매핑이 변경됐습니다. 최신 내용으로 다시 점검하세요.";

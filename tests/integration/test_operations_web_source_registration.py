@@ -915,6 +915,7 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
             assert upload(token="invalid")[0] == 403
             assert upload(b'{"setup":{},"csv_base64":"!!!!!"}')[0] == 400
             assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+
             def preflight(data: bytes = body, *, token: str = csrf):
                 return _request(
                     port,
