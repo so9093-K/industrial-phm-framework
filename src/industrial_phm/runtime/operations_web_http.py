@@ -54,7 +54,6 @@ from industrial_phm.runtime.operations_web_signals import (
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-
 _MAX_WEB_CSV_UPLOAD = 1024 * 1024
 _MAX_WEB_CSV_REQUEST = 1_410_000
 
