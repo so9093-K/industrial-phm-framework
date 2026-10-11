@@ -217,7 +217,7 @@ def create_operations_web_read_server(
                 try:
                     runtime_status = inspect_operations_runtime_status(OperationsWorkspace(root))
                     payload = project_operations_runtime_status(runtime_status)
-                except (OSError, ValueError, TypeError, RuntimeError):
+                except OSError, ValueError, TypeError, RuntimeError:
                     self._error(HTTPStatus.SERVICE_UNAVAILABLE, "runtime_status_unavailable")
                     return
                 self._send_json(HTTPStatus.OK, payload)
