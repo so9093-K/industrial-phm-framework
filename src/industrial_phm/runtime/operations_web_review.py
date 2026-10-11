@@ -56,8 +56,12 @@ def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[
         if item.evidence.evidence_id == evidence_id:
             matches.append(item)
     if not matches:
-        for file_result in JsonFileFeatureAnalysisRepository(paths.file_feature_analysis).list_results():
-            if file_result.run.analysis_run_id == run_id and file_result.evidence.evidence_id == evidence_id:
+        file_repository = JsonFileFeatureAnalysisRepository(paths.file_feature_analysis)
+        for file_result in file_repository.list_results():
+            if (
+                file_result.run.analysis_run_id == run_id
+                and file_result.evidence.evidence_id == evidence_id
+            ):
                 matches.append(file_result)
     if len(matches) != 1:
         raise WebReviewNotFound("exact analysis evidence unavailable")
