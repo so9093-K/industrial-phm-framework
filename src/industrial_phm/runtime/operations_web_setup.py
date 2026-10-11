@@ -8,6 +8,8 @@ validation, durable source registry and accepted receipt evidence.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+import os
+import re
 from pathlib import Path
 
 from industrial_phm.application import (
@@ -249,6 +251,63 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
         "receipt_confirmed": False,
         "meaning": "validated-registration-only-not-collected",
     }
+
+
+_MAX_WEB_UPLOAD_BYTES = 1024 * 1024
+_UPLOAD_FIELDS = (_FIELDS - {"file_path"}) | {"staged_name"}
+_STAGED_CSV_NAME = re.compile(r"[0-9a-f]{32}\\.csv\\Z")
+
+
+def register_uploaded_csv_source(
+    root: Path, payload: dict[str, object], *, upload_directory: Path
+) -> dict[str, object]:
+    """Register browser CSV via the supervisor's private staging area.
+
+    The supervised UI child may stage a bounded file, but only this existing
+    single-writer action may copy it into the persistent workspace and register
+    its source. Never trust a browser-controlled absolute path.
+    """
+    if set(payload) != _UPLOAD_FIELDS:
+        raise ValueError("unexpected CSV upload fields")
+    staged_name = payload["staged_name"]
+    if not isinstance(staged_name, str) or _STAGED_CSV_NAME.fullmatch(staged_name) is None:
+        raise ValueError("invalid staged CSV identity")
+    stage_root = upload_directory.resolve(strict=True)
+    staged = upload_directory / staged_name
+    if staged.is_symlink() or not staged.is_file() or staged.resolve(strict=True).parent != stage_root:
+        raise ValueError("CSV staging location invalid")
+    if not 0 < staged.stat().st_size <= _MAX_WEB_UPLOAD_BYTES:
+        raise ValueError("CSV upload too large")
+
+    # The broker owns the staging directory and refuses arbitrary staged paths.
+    # UTF-8 decoding here rejects binary payloads before durable files are created.
+    descriptor = os.open(staged, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    with os.fdopen(descriptor, "rb") as stream:
+        raw = stream.read(_MAX_WEB_UPLOAD_BYTES + 1)
+    if not 0 < len(raw) <= _MAX_WEB_UPLOAD_BYTES:
+        raise ValueError("CSV upload too large")
+    text = raw.decode("utf-8-sig")
+    if "\\x00" in text:
+        raise ValueError("CSV contains binary data")
+
+    destination_dir = root / "web-uploads"
+    if destination_dir.is_symlink():
+        raise ValueError("workspace upload directory is not trusted")
+    destination_dir.mkdir(mode=0o700, exist_ok=True)
+    if destination_dir.resolve(strict=True).parent != root.resolve():
+        raise ValueError("workspace upload directory escapes workspace")
+    destination = destination_dir / staged_name
+    # Exclusive creation protects existing source bytes; no rewrite or overwrite.
+    fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(raw)
+        registration = {key: value for key, value in payload.items() if key != "staged_name"}
+        registration["file_path"] = f"web-uploads/{staged_name}"
+        return register_workspace_csv_source(root, registration)
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
 
 
 class SourceControlConflict(ValueError):
