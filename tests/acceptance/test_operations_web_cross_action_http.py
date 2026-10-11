@@ -32,7 +32,6 @@ from tests.acceptance.test_operations_web_controlled_journey_browser import (
 )
 from tests.support.window_analysis import phase_unbalance_analysis
 
-
 _CLIENT = """
 import json
 import sys
@@ -118,7 +117,7 @@ def test_supervisor_serializes_concurrent_file_review_and_replay_across_restart(
         finally:
             connection.close()
 
-    review_request = {
+    review_request: dict[str, object] = {
         "analysis_run_id": analysis.run.analysis_run_id,
         "evidence_id": analysis.evidence.evidence_id,
     }
