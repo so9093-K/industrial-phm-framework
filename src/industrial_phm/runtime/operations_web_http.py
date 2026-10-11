@@ -409,6 +409,7 @@ def create_operations_web_read_server(
                         "/api/v1/sources/file/upload",
                         "/api/v1/sources/opcua",
                         "/api/v1/reviews/request",
+                        "/api/v1/analysis/file",
                     }
                     else HTTPStatus.OK
                 ),

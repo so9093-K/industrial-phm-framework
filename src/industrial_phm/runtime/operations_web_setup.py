@@ -436,6 +436,36 @@ def _checked_workspace_file(
     return paths, registry, source
 
 
+def analyze_workspace_file_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Produce a new persisted FILE feature Run/Evidence from the registered CSV.
+
+    This uses the existing snapshot feature producer, not DuckLake backfill or a
+    synthetic analysis fixture. It never infers equipment health or fault status.
+    """
+    if set(payload) != {"source_id"}:
+        raise ValueError("unexpected FILE analysis fields")
+    source_id = _text(payload, "source_id")
+    assert isinstance(source_id, str)
+    paths, _, source = _checked_workspace_file(root, source_id)
+    assert isinstance(source.config, FileSourceConfig)
+    if Path(source.config.source_path).stat().st_size > _MAX_WEB_HISTORY_BYTES:
+        raise SourceControlConflict("FILE too large for synchronous Web analysis")
+    if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
+        raise SourceControlConflict("validate FILE receipt before analysis")
+
+    result, _ = OperationsAppActions(paths).record_file_analysis(source)
+    return {
+        "schema_version": 1,
+        "source_id": source_id,
+        "asset_id": result.run.asset_id,
+        "analysis_run_id": result.run.analysis_run_id,
+        "evidence_id": result.evidence.evidence_id,
+        "capability_id": result.evidence.capability_id,
+        "source_snapshot_sha256": result.evidence.source_snapshot_sha256,
+        "meaning": "persisted-file-statistical-features-not-diagnosis-or-history",
+    }
+
+
 def backfill_workspace_file_history(root: Path, payload: dict[str, object]) -> dict[str, object]:
     """Append or recover one existing FILE batch; never claim live receipt/analysis.
 

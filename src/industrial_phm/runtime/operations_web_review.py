@@ -11,6 +11,7 @@ from pathlib import Path
 from industrial_phm.application import (
     FindingReviewAction,
     FindingReviewStatus,
+    JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
     SqlitePhaseUnbalanceRepository,
@@ -41,17 +42,27 @@ def _id(payload: dict[str, object], key: str) -> str:
 
 
 def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[str, object]:
-    """Request human review of an exact, persisted phase-unbalance evidence result."""
+    """Request review of one exact persisted phase or FILE feature result."""
     if set(payload) != {"analysis_run_id", "evidence_id"}:
         raise ValueError("unexpected analysis review fields")
     run_id = _id(payload, "analysis_run_id")
     evidence_id = _id(payload, "evidence_id")
     workspace = OperationsWorkspace(root)
     paths = OperationsAppPaths(workspace)
-    results = SqlitePhaseUnbalanceRepository(paths.phase_analysis).find_results({run_id})
-    if len(results) != 1 or results[0].evidence.evidence_id != evidence_id:
+    phase_results = SqlitePhaseUnbalanceRepository(paths.phase_analysis).find_results({run_id})
+    file_results = tuple(
+        item
+        for item in JsonFileFeatureAnalysisRepository(paths.file_feature_analysis).list_results()
+        if item.run.analysis_run_id == run_id
+    )
+    matches = tuple(
+        item
+        for item in (*phase_results, *file_results)
+        if item.evidence.evidence_id == evidence_id
+    )
+    if len(matches) != 1:
         raise WebReviewNotFound("exact analysis evidence unavailable")
-    finding, _ = OperationsAppActions(paths).request_review(results[0])
+    finding, _ = OperationsAppActions(paths).request_review(matches[0])
     # The finding is idempotent, but its human disposition may have advanced.
     status = JsonFindingReviewRepository(paths.review).status_for(finding.finding_id)
     return {
