@@ -7,13 +7,19 @@ validation, durable source registry and accepted receipt evidence.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from industrial_phm.application import (
+    ChannelSemanticBinding,
     CollectionDesiredState,
+    MeasurementDefinition,
+    SqlitePhaseUnbalanceRepository,
+    run_phase_unbalance_analysis,
     FileSourceConfig,
     FileSourceMode,
     JsonSourceRepository,
@@ -24,6 +30,7 @@ from industrial_phm.application import (
     SourceRuntimeCycleState,
     backfill_registered_file_source,
 )
+from industrial_phm.application.measurement_semantics import serialize_channel_semantic_binding
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_app_actions import (
     OperationsAppActions,
@@ -54,6 +61,11 @@ _FIELDS = frozenset(
         "measurement_point_id",
     }
 )
+_PHASE_FILE_FIELD = "phase_channels"
+_PHASE_CHANNEL_FIELDS = frozenset(
+    {"channel_id", "quantity", "phase", "unit_evidence", "interpretation_evidence"}
+)
+
 
 
 def _age_seconds(at: datetime | None, assessed_at: datetime) -> int | None:
@@ -197,9 +209,59 @@ def _text(payload: dict[str, object], key: str, *, optional: bool = False) -> st
     return value
 
 
+def _file_phase_bindings(
+    payload: dict[str, object], source_id: str, channels: tuple[str, ...]
+) -> tuple[ChannelSemanticBinding, ...]:
+    """Interpret only explicitly selected V/A three-phase roles with evidence."""
+    raw = payload.get(_PHASE_FILE_FIELD, [])
+    if not isinstance(raw, list) or len(raw) not in {0, 3, 6}:
+        raise ValueError("phase channels require zero, three or six explicit roles")
+    bindings: list[ChannelSemanticBinding] = []
+    roles: set[tuple[str, str]] = set()
+    assigned: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict) or set(item) != _PHASE_CHANNEL_FIELDS:
+            raise ValueError("invalid phase channel fields")
+        channel = _text(item, "channel_id")
+        quantity = _text(item, "quantity")
+        phase = _text(item, "phase")
+        unit_evidence = _text(item, "unit_evidence")
+        interpretation_evidence = _text(item, "interpretation_evidence")
+        assert isinstance(channel, str)
+        assert isinstance(quantity, str)
+        assert isinstance(phase, str)
+        assert isinstance(unit_evidence, str)
+        assert isinstance(interpretation_evidence, str)
+        if quantity not in {"voltage", "current"} or phase not in {"R", "S", "T"}:
+            raise ValueError("only explicit R/S/T voltage V or current A roles are supported")
+        if channel not in channels or channel in assigned or (quantity, phase) in roles:
+            raise ValueError("phase roles must map distinct registered channels")
+        assigned.add(channel)
+        roles.add((quantity, phase))
+        bindings.append(
+            ChannelSemanticBinding(
+                source_id=source_id,
+                channel_id=channel,
+                version="file-web-phase-v1",
+                definition=MeasurementDefinition(
+                    observed_property=f"phase {quantity}",
+                    scope=f"phase {phase}",
+                    unit="V" if quantity == "voltage" else "A",
+                    unit_evidence=unit_evidence,
+                ),
+                interpretation_evidence=interpretation_evidence,
+            )
+        )
+    for quantity in ("voltage", "current"):
+        selected = {phase for selected_quantity, phase in roles if selected_quantity == quantity}
+        if selected and selected != {"R", "S", "T"}:
+            raise ValueError("each selected quantity requires R/S/T phase bindings")
+    return tuple(bindings)
+
+
 def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dict[str, object]:
     """Validate one bounded, workspace-owned CSV, then call the existing write facade."""
-    if set(payload) != _FIELDS:
+    if set(payload) not in {_FIELDS, _FIELDS | {_PHASE_FILE_FIELD}}:
         raise ValueError("unexpected registration fields")
     source_id = _text(payload, "source_id")
     name = _text(payload, "name")
@@ -239,6 +301,9 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
             measurement_point_id=point,
             channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
+            semantic_bindings=_file_phase_bindings(
+                payload, source_id, tuple(channel_ids)
+            ),
         ),
         registered_at=datetime.now(UTC),
     )
@@ -255,6 +320,7 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
 
 _MAX_WEB_UPLOAD_BYTES = 1024 * 1024
 _UPLOAD_FIELDS = (_FIELDS - {"file_path"}) | {"staged_name"}
+_UPLOAD_OPTIONAL_FIELDS = _UPLOAD_FIELDS | {_PHASE_FILE_FIELD}
 _STAGED_CSV_NAME = re.compile(r"[0-9a-f]{32}\.csv\Z")
 
 
@@ -267,7 +333,7 @@ def register_uploaded_csv_source(
     single-writer action may copy it into the persistent workspace and register
     its source. Never trust a browser-controlled absolute path.
     """
-    if set(payload) != _UPLOAD_FIELDS:
+    if set(payload) not in {_UPLOAD_FIELDS, _UPLOAD_OPTIONAL_FIELDS}:
         raise ValueError("unexpected CSV upload fields")
     staged_name = payload["staged_name"]
     if not isinstance(staged_name, str) or _STAGED_CSV_NAME.fullmatch(staged_name) is None:
@@ -463,6 +529,79 @@ def analyze_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
         "capability_id": result.evidence.capability_id,
         "source_snapshot_sha256": result.evidence.source_snapshot_sha256,
         "meaning": "persisted-file-statistical-features-not-diagnosis-or-history",
+    }
+
+
+def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Analyze only exact, already committed, meaning-bound FILE history."""
+    if set(payload) != {"source_id"}:
+        raise ValueError("unexpected phase analysis fields")
+    source_id = _text(payload, "source_id")
+    assert isinstance(source_id, str)
+    paths, _, source = _checked_workspace_file(root, source_id)
+    assert isinstance(source.config, FileSourceConfig)
+    if not source.config.semantic_bindings:
+        raise SourceControlConflict("FILE requires explicit three-phase semantic bindings")
+    file_path = Path(source.config.source_path)
+    if file_path.stat().st_size > _MAX_WEB_HISTORY_BYTES:
+        raise SourceControlConflict("FILE too large for synchronous phase analysis")
+    if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
+        raise SourceControlConflict("validate FILE receipt before phase analysis")
+    if not paths.history_catalog.is_file():
+        raise SourceControlConflict("persist FILE history before phase analysis")
+
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
+    )
+    events = history.query_file_events(source_id)
+    if not events or len(events) > 100_000:
+        raise SourceControlConflict("bounded FILE history evidence unavailable")
+    source_bytes = file_path.read_bytes()
+    digest = hashlib.sha256(source_bytes).hexdigest()
+    known_channels = set(source.config.channel_columns)
+    semantic_snapshots = {
+        binding.channel_id: serialize_channel_semantic_binding(binding)
+        for binding in source.config.semantic_bindings
+    }
+    if any(
+        event.source_sha256 != digest
+        or event.source_size_bytes != len(source_bytes)
+        or event.source_file != str(file_path)
+        or event.asset_id != source.asset_id
+        or event.measurement_point_id != source.measurement_point_id
+        or event.channel_id not in known_channels
+        or (
+            event.channel_id in semantic_snapshots
+            and (
+                event.source_metadata_json is None
+                or json.loads(event.source_metadata_json).get("semantics")
+                != semantic_snapshots[event.channel_id]
+            )
+        )
+        for event in events
+    ):
+        raise SourceControlConflict("stored FILE history does not match source or binding")
+    start_at = min(event.event_at for event in events)
+    end_at = max(event.event_at for event in events) + timedelta(microseconds=1)
+    result = run_phase_unbalance_analysis(
+        history,
+        asset_id=source.asset_id,
+        source_id=source_id,
+        start_at=start_at,
+        end_at=end_at,
+        measurement_point_id=source.measurement_point_id,
+    )
+    SqlitePhaseUnbalanceRepository(paths.phase_analysis).record(result)
+    return {
+        "schema_version": 1,
+        "source_id": source_id,
+        "asset_id": source.asset_id,
+        "analysis_run_id": result.run.analysis_run_id,
+        "evidence_id": result.evidence.evidence_id,
+        "capability_id": result.evidence.capability_id,
+        "history_snapshot_id": result.evidence.input_reference.snapshot_id,
+        "source_sha256": digest,
+        "meaning": "persisted-phase-unbalance-from-bound-file-history-not-fault-diagnosis",
     }
 
 
