@@ -672,8 +672,9 @@ let selectedOnboardingSourceId = "";
 let onboardingSources = [];
 let onboardingIncomplete = false;
 function onboardingStepFor(source) {
-  if (source.lifecycle_state === "paused") {
-    return ["소스 활성화", "관리 상태를 active로 바꾸세요. 활성화만으로 실제 연결·수신은 확인되지 않습니다."];
+  if (["registered", "paused", "error"].includes(source.lifecycle_state)) {
+    return ["소스 활성화", "현재 관리 상태는 " + source.lifecycle_state
+      + "입니다. 활성화는 연결·수신 성공을 뜻하지 않습니다."];
   }
   if (source.lifecycle_state !== "active") {
     return [null, "관리 상태가 확인되지 않았습니다. 상태를 새로 조회하세요."];
