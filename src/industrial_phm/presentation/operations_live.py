@@ -128,5 +128,3 @@ def _validate_silence_limit(value: float) -> None:
         raise ValueError("silence_limit_seconds must be a finite number")
     if value <= 0:
         raise ValueError("silence_limit_seconds must be positive")
-
-

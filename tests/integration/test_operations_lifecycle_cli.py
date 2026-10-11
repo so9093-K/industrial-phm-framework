@@ -156,8 +156,6 @@ def test_operations_start_runs_full_local_node_from_workspace_config(
     assert "mode=foreground" in output
 
 
-
-
 def test_operations_start_requires_initialized_workspace(tmp_path: Path, capsys) -> None:
     root = tmp_path / "missing"
 
