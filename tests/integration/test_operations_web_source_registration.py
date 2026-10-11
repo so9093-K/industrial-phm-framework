@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from http.client import HTTPConnection
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 
 import pytest
 
@@ -841,6 +841,92 @@ def test_supervised_http_unknown_outcome_after_committed_ipc_command(
             assert status == 409
             assert duplicate == {"error": {"code": "source_id_exists"}}
             assert reply_count == 2
+            assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=10)
+            assert not thread.is_alive()
+
+
+def test_abandoned_http_post_preserves_committed_source_without_auto_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A browser disconnect after IPC commit cannot undo or repeat a write."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    workspace = OperationsWorkspace(tmp_path / "disconnected-web")
+    initialize_operations_workspace(workspace)
+    inputs = workspace.root / "inputs"
+    inputs.mkdir()
+    (inputs / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n2026-10-01T00:00:00+00:00,220.5,219.0,221.0\n",
+        encoding="utf-8",
+    )
+    with open_supervisor_web_command_broker(workspace.root) as broker:
+        broker.bind_child(os.getpid())
+        web_client = WebCommandClient(broker.socket_path, broker.token)
+        server = create_operations_web_read_server(workspace.root, command_client=web_client)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            port = server.server_port
+            _, session = _request(port, "GET", "/api/v1/session")
+            token = session["csrf_token"]
+            assert isinstance(token, str)
+            committed = Event()
+            release_reply = Event()
+            original_reply = broker._reply
+
+            def defer_first_reply(connection: socket.socket, response: dict[str, object]) -> None:
+                if response.get("ok") is True and not committed.is_set():
+                    committed.set()
+                    assert release_reply.wait(timeout=5), "test failed to release IPC reply"
+                original_reply(connection, response)
+
+            monkeypatch.setattr(broker, "_reply", defer_first_reply)
+            raw = json.dumps(_payload()).encode("utf-8")
+            abandoned = HTTPConnection("127.0.0.1", port, timeout=5)
+            try:
+                abandoned.request(
+                    "POST",
+                    "/api/v1/sources/file",
+                    body=raw,
+                    headers={
+                        "Host": f"127.0.0.1:{port}",
+                        "Content-Type": "application/json",
+                        "Origin": f"http://127.0.0.1:{port}",
+                        "Sec-Fetch-Site": "same-origin",
+                        "X-CSRF-Token": token,
+                    },
+                )
+                assert committed.wait(timeout=4), "IPC write did not finish"
+                # The original browser has given up before the HTTP success reply.
+                abandoned.close()
+            finally:
+                release_reply.set()
+                abandoned.close()
+
+            sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
+            assert len(sources) == 1
+            assert sources[0].source_id == "registered-file-01"
+            assert not workspace.history_catalog_path.exists()
+            status, listing = _request(port, "GET", "/api/v1/sources")
+            assert status == 200
+            assert listing["sources"]["total"] == 1
+            # The UI must re-read durable state; its next explicit POST is a
+            # duplicate conflict rather than silent implicit transport replay.
+            status, duplicate = _request(
+                port,
+                "POST",
+                "/api/v1/sources/file",
+                body=raw,
+                origin=f"http://127.0.0.1:{port}",
+                fetch_site="same-origin",
+                csrf=token,
+            )
+            assert status == 409
+            assert duplicate == {"error": {"code": "source_id_exists"}}
             assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
         finally:
             server.shutdown()

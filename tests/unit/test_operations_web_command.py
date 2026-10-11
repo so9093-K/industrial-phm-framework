@@ -221,6 +221,46 @@ def test_lost_ipc_reply_does_not_automatically_repeat_completed_command(
         assert calls == [body]
 
 
+def test_broker_timeout_during_write_is_unknown_not_implicitly_retried(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Timeout precedes durable result; same-generation replay can read it once."""
+    entered = Event()
+    release = Event()
+    committed: list[dict[str, object]] = []
+
+    def slow_action(_root: Path, _route: str, payload: dict[str, object]) -> dict[str, object]:
+        entered.set()
+        assert release.wait(timeout=3), "test never released the pending action"
+        committed.append(payload)
+        return {"count": len(committed)}
+
+    monkeypatch.setattr(command, "execute_web_source_action", slow_action)
+    # Small local test budget: normal production command timeout remains five seconds.
+    monkeypatch.setattr(command, "_TIMEOUT_SECONDS", 0.2)
+    with command.open_supervisor_web_command_broker(tmp_path) as broker:
+        broker.bind_child(os.getpid())
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+        route = "/api/v1/sources/lifecycle"
+        payload: dict[str, object] = {"source_id": "pending"}
+        identifier = "f" * 32
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(client.execute, route, payload, request_id=identifier)
+            try:
+                assert entered.wait(timeout=2), "broker never received the write"
+                with pytest.raises(command.WebCommandOutcomeUnknown):
+                    pending.result(timeout=2)
+                assert committed == []
+            finally:
+                release.set()
+        # Transport timeout must not trigger a second facade call. A deliberate
+        # same-generation replay reads the cached result, not a new mutation.
+        assert client.execute(route, payload, request_id=identifier) == {"count": 1}
+        with pytest.raises(command.WebCommandRejected, match="command_request_conflict"):
+            client.execute(route, {"source_id": "changed"}, request_id=identifier)
+    assert committed == [payload]
+
+
 def test_command_replay_cache_reaches_bounded_capacity_without_eviction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
