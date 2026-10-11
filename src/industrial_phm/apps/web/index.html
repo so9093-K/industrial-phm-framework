@@ -55,6 +55,13 @@
         <p id="onboarding-state" role="status" aria-live="polite">등록된 데이터 소스와 수신 근거를 확인합니다.</p>
         <ol id="onboarding-steps" class="onboarding-steps" aria-label="연결 준비 근거 단계"><li>연결·수신 근거를 조회하는 중입니다.</li></ol>
         <p id="onboarding-next" class="hint">등록·활성·수신·저장 이력을 각각 확인합니다.</p>
+        <div class="onboarding-guide" aria-label="소스별 다음 작업">
+          <label for="onboarding-source-select">진행할 데이터 소스</label>
+          <select id="onboarding-source-select" disabled><option value="">소스 목록 확인 중</option></select>
+          <p id="onboarding-action-detail" class="hint" role="status" aria-live="polite">실제 등록·수신 상태를 확인하고 다음 작업을 안내합니다.</p>
+          <button id="onboarding-action" type="button" disabled>다음 작업 위치 보기</button>
+          <p class="hint">위 버튼은 작업 위치만 안내합니다. 소스 변경·수신·적재는 이동한 위치에서 별도로 확인하고 실행합니다.</p>
+        </div>
         <p class="hint">등록만으로 데이터가 수신되지 않습니다. 수집 실행은 기존 Operations 명령 또는 운영 화면에서 별도로 수행합니다.</p>
         <a href="#connect">데이터 소스 확인 및 CSV 등록하기</a>
         <a id="onboarding-monitor-link" class="hidden" href="#monitor">수신 근거 확인됨 · 관측·이력 별도 조회</a>
