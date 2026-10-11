@@ -242,6 +242,12 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#review-results")).to_contain_text(
                     analysis.run.analysis_run_id, timeout=30000
                 )
+                pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 1건")
+                page.locator("#review-inbox-list button").first.click()
+                pw.expect(page.locator("#review-results .review-record")).to_be_focused()
+                page.get_by_role("link", name="분석 근거").click()
+                page.get_by_role("button", name="이 분석의 검토 기록 열기").click()
+                pw.expect(page.locator("#review-results .review-record")).to_be_focused()
                 page.get_by_role("textbox", name="검토 메모 (물리 정비 완료 기록 아님)").fill(
                     "증거 확인"
                 )
@@ -254,6 +260,16 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "검토 기록 종료됨 · 실제 정비 완료, "
                     "고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
                 )
+                pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 0건")
+                pw.expect(page.locator("#review-inbox-list")).to_contain_text(
+                    "표시 조건에 맞는 검토 기록이 없습니다"
+                )
+                page.locator("#review-filter").select_option("closed")
+                pw.expect(page.locator("#review-inbox-list")).to_contain_text(
+                    analysis.run.analysis_run_id
+                )
+                page.locator("#review-inbox-list button").first.click()
+                pw.expect(page.locator("#review-results .review-record")).to_be_focused()
                 # A closed review still links only to the exact persisted Run/Evidence.
                 evidence_link = page.locator("#review-results").get_by_role(
                     "button",
