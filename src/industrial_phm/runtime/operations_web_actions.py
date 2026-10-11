@@ -23,8 +23,8 @@ from industrial_phm.runtime.operations_web_setup import (
     backfill_workspace_file_history,
     change_web_source_control,
     receive_workspace_file_source,
-    register_workspace_csv_source,
     register_uploaded_csv_source,
+    register_workspace_csv_source,
 )
 
 WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
