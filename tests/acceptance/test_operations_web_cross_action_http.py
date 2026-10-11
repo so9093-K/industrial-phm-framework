@@ -25,7 +25,11 @@ from industrial_phm.runtime import (
     initialize_operations_workspace,
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
-from tests.acceptance.test_operations_web_controlled_journey_browser import _port, _start, _stop
+from tests.acceptance.test_operations_web_controlled_journey_browser import (
+    _port,
+    _start,
+    _stop,
+)
 from tests.support.window_analysis import phase_unbalance_analysis
 
 
@@ -118,7 +122,7 @@ def test_supervisor_serializes_concurrent_file_review_and_replay_across_restart(
         "analysis_run_id": analysis.run.analysis_run_id,
         "evidence_id": analysis.evidence.evidence_id,
     }
-    sources = [
+    sources: list[dict[str, object]] = [
         {
             "source_id": f"mixed-file-{index}",
             "name": f"FILE {index}",
@@ -249,7 +253,9 @@ def test_supervisor_serializes_concurrent_file_review_and_replay_across_restart(
             "POST", "/api/v1/sources/file", body=sources[0], token=new_token
         )
         assert status == 409 and duplicate == {"error": {"code": "source_id_exists"}}
-        assert len(JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()) == 1
+        assert (
+            len(JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()) == 1
+        )
         assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 3
         events = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
         assert sorted(event.note for event in events) == sorted(notes)
