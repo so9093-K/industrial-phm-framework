@@ -393,25 +393,45 @@ def register_uploaded_csv_source(
 
 
 _CSV_DIAGNOSTICS: tuple[tuple[str, str, str], ...] = (
-    ("missing required columns", "missing-column", "헤더에 선택한 시간·측정 컬럼이 없습니다. 컬럼 이름을 다시 선택하세요."),
-    ("duplicate column names", "duplicate-header", "CSV 헤더에 중복 컬럼이 있습니다. 원본 헤더를 수정하세요."),
-    ("empty column name", "empty-header", "CSV 헤더에 빈 컬럼이 있습니다. 원본 헤더를 수정하세요."),
+    (
+        "missing required columns",
+        "missing-column",
+        "선택한 시간·측정 컬럼이 없습니다. CSV 헤더를 확인하세요.",
+    ),
+    (
+        "duplicate column names",
+        "duplicate-header",
+        "CSV 헤더의 중복 컬럼명을 수정하세요.",
+    ),
+    ("empty column name", "empty-header", "CSV 헤더의 빈 컬럼명을 수정하세요."),
     (
         "must be an ISO 8601 timestamp",
         "timestamp-format",
-        "시간을 ISO 8601 형식으로 기록하세요. 예: 2026-10-11T09:00:00+09:00",
+        "시간을 ISO 8601로 기록하세요. 예: 2026-10-11T09:00:00+09:00",
     ),
-    ("contains a missing timestamp", "missing-timestamp", "표시된 행의 빈 시간 값을 원본에서 확인하세요."),
+    (
+        "contains a missing timestamp",
+        "missing-timestamp",
+        "표시된 행의 빈 시각을 확인하세요.",
+    ),
     (
         "timestamps must use consistent timezone awareness",
         "mixed-timezone",
-        "시간대 포함 여부를 모든 행에서 일관되게 지정하세요.",
+        "모든 시각에 시간대 포함 여부를 일치시키세요.",
     ),
-    ("timestamps must be strictly increasing", "time-order", "시간 값이 중복되거나 역순입니다. 원본 행 순서를 확인하세요."),
-    ("contains a missing value", "missing-value", "표시된 행·컬럼의 측정값이 비어 있습니다. 원본을 확인하세요."),
-    ("must be numeric", "non-numeric", "측정 컬럼에는 숫자만 입력하세요. 표기와 소수점을 확인하세요."),
-    ("must be finite", "non-finite", "NaN 또는 무한대는 측정값으로 사용할 수 없습니다."),
-    ("has", "row-width", "행의 컬럼 수가 헤더와 다릅니다. 쉼표·인용부호를 확인하세요."),
+    (
+        "timestamps must be strictly increasing",
+        "time-order",
+        "시간이 중복·역순입니다. 행 순서를 확인하세요.",
+    ),
+    (
+        "contains a missing value",
+        "missing-value",
+        "표시된 행·컬럼의 누락값을 확인하세요.",
+    ),
+    ("must be numeric", "non-numeric", "측정 컬럼에 숫자만 기록하세요."),
+    ("must be finite", "non-finite", "NaN·무한대는 사용할 수 없습니다."),
+    ("has", "row-width", "행의 컬럼 수와 CSV 쉼표·인용부호를 확인하세요."),
     ("not valid UTF-8", "encoding", "파일을 UTF-8 CSV로 다시 저장하세요."),
 )
 
