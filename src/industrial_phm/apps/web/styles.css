@@ -82,3 +82,17 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .runtime-components{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
 .runtime-components .source-record{min-width:0}
 @media(max-width:1100px){.runtime-components{grid-template-columns:1fr}.runtime-panel .facts{grid-template-columns:1fr}}
+
+/* A cross-asset review inbox. Keep status badges neutral: review is not asset health. */
+.review-inbox{background:#f7fafb;border:1px solid #d0e0e5;border-radius:11px;padding:14px;margin-bottom:18px}
+.review-inbox h3,.review-selected-title{font-size:.95rem;margin:0 0 10px}
+.review-inbox-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.review-inbox-controls select{max-width:100%}
+#review-inbox-summary{font-size:.83rem;color:#45616f;margin:10px 0;overflow-wrap:anywhere}
+.review-inbox-list{display:grid;gap:9px;max-height:350px;overflow:auto}
+.review-inbox-item{background:#fff;border:1px solid #d4e2e7;border-radius:9px;padding:11px;min-width:0}
+.review-inbox-item strong{display:block;font-size:.86rem;overflow-wrap:anywhere}
+.review-inbox-item p{margin:5px 0;color:#546c79;overflow-wrap:anywhere}
+.review-inbox-item button{font-size:.78rem;margin:7px 0 0}
+.record.review-record:focus{outline:3px solid #237c88;outline-offset:4px;border-radius:5px}
+.record .review-link{font-size:.8rem;max-width:100%;overflow-wrap:anywhere;margin:8px 0}
