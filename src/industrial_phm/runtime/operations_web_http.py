@@ -276,7 +276,10 @@ def create_operations_web_read_server(
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
                 return
-            if (self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES or self.path == "/api/v1/sources/file/upload") and command_client is None:
+            if (
+                self.path in WEB_SUPERVISOR_ONLY_ACTION_ROUTES
+                or self.path == "/api/v1/sources/file/upload"
+            ) and command_client is None:
                 self._error(HTTPStatus.FORBIDDEN, "supervisor_required")
                 return
             host = self.headers.get("Host", "")
@@ -302,7 +305,10 @@ def create_operations_web_read_server(
                 if self.path == "/api/v1/sources/file/upload"
                 else 4096
             )
-            if not 1 <= length <= max_length or self.headers.get("Content-Type") != "application/json":
+            if (
+                not 1 <= length <= max_length
+                or self.headers.get("Content-Type") != "application/json"
+            ):
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_body")
                 return
             try:
