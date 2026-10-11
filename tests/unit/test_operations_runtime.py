@@ -9,7 +9,6 @@ from industrial_phm.runtime import (
     OperationsWorkspace,
 )
 from industrial_phm.runtime.operations_runtime import (
-    OPERATIONS_UI_HOST,
     OPERATIONS_WORKSPACE_ENV,
     OperationsComponentKind,
     OperationsUiMode,
@@ -125,7 +124,10 @@ def test_web_preview_plan_is_opt_in_and_keeps_supervisor_topology(tmp_path: Path
     assert ui.env_overrides == ((OPERATIONS_WORKSPACE_ENV, str(workspace.root)),)
     assert plan.ui_url == "http://127.0.0.1:4876/web/"
     assert ui.log_path == workspace.logs_path / "ui.log"
-    assert build_operations_runtime_plan(workspace, config).ui_mode == OperationsUiMode.WEB_CONTROLLED
+    assert (
+        build_operations_runtime_plan(workspace, config).ui_mode
+        == OperationsUiMode.WEB_CONTROLLED
+    )
 
 
 def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
@@ -143,6 +145,7 @@ def test_web_preview_cli_argument_is_explicit_opt_in(tmp_path: Path) -> None:
 
 def test_retired_marimo_operations_mode_is_rejected(tmp_path: Path) -> None:
     import pytest
+
     from industrial_phm.cli import build_parser
 
     for command in ("up", "start"):

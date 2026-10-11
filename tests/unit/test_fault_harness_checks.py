@@ -6,7 +6,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.opcua.fault_harness import (
     MONITOR_RENDER_STATES,
-    OPERATIONS_APP,
     SCENARIOS,
     Fault,
     build_parser,
@@ -284,10 +283,12 @@ def test_live_browser_journey_requires_each_core_state_within_five_seconds():
     )["passed"]
 
 
-def test_harness_uses_packaged_operations_app_path():
-    assert OPERATIONS_APP.is_file()
-    assert OPERATIONS_APP.parent.name == "apps"
-    assert OPERATIONS_APP.parent.parent.name == "industrial_phm"
+def test_harness_uses_packaged_operations_web():
+    from importlib.resources import files
+
+    assets = files("industrial_phm.apps").joinpath("web")
+    for name in ("index.html", "app.js", "styles.css"):
+        assert assets.joinpath(name).read_bytes(), name
     source = (
         Path(__file__).resolve().parents[2].joinpath("tools/opcua/fault_harness.py").read_text()
     )
@@ -354,6 +355,5 @@ def test_live_browser_gate_rejects_state_without_current_value_surface():
     assert not check_live_browser_journey(
         {**renders, "recovered": {**fast, "source_evidence_seen": False}}
     )["passed"]
-    assert not check_live_browser_journey({**renders, "recovered": {**fast, "evidence_row_count": 0}})[
-        "passed"
-    ]
+    empty = {**renders, "recovered": {**fast, "evidence_row_count": 0}}
+    assert not check_live_browser_journey(empty)["passed"]

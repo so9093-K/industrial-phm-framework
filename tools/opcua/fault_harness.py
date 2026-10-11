@@ -41,7 +41,6 @@ from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[2]
 CLI = [sys.executable, "-c", "from industrial_phm.cli import main; raise SystemExit(main())"]
 # Deliberately fixed identities for the bundled boiler-2297 replay gate.
