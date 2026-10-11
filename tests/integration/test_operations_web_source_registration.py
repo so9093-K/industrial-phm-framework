@@ -688,10 +688,10 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
     workspace = OperationsWorkspace(tmp_path / "browser-upload")
     initialize_operations_workspace(workspace)
     raw = (
-        "timestamp,phase-R,phase-S,phase-T\n"
-        "2026-10-08T12:00:00+00:00,220.5,219.0,221.0\n"
-        "2026-10-08T12:00:01+00:00,220.6,219.1,221.1\n"
-    ).encode()
+        b"timestamp,phase-R,phase-S,phase-T\n"
+        b"2026-10-08T12:00:00+00:00,220.5,219.0,221.0\n"
+        b"2026-10-08T12:00:01+00:00,220.6,219.1,221.1\n"
+    )
     setup = {key: value for key, value in _payload().items() if key != "file_path"}
     body = json.dumps(
         {"setup": setup, "csv_base64": base64.b64encode(raw).decode("ascii")}
