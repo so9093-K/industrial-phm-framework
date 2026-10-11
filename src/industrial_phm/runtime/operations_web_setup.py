@@ -67,7 +67,6 @@ _PHASE_CHANNEL_FIELDS = frozenset(
 )
 
 
-
 def _age_seconds(at: datetime | None, assessed_at: datetime) -> int | None:
     """Negative durations are invalid observations, not proof of freshness."""
     if at is None:
@@ -306,9 +305,7 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
             measurement_point_id=point,
             channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
-            semantic_bindings=_file_phase_bindings(
-                payload, source_id, tuple(channel_ids)
-            ),
+            semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
         ),
         registered_at=datetime.now(UTC),
     )

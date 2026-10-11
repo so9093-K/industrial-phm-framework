@@ -428,9 +428,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     page.locator("#review-results .review-meaning").filter(
                         has_text="검토 기록 종료됨"
                     )
-                ).to_contain_text(
-                    "실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
-                )
+                ).to_contain_text("실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다")
                 pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_visible()

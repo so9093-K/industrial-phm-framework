@@ -480,7 +480,6 @@ def test_web_file_backfill_commits_real_history_and_recovers_same_batch(tmp_path
 
 
 
-
 def test_bound_file_phase_analysis_requires_exact_committed_history(tmp_path: Path) -> None:
     pytest.importorskip("duckdb")
     pytest.importorskip("filelock")
@@ -490,10 +489,10 @@ def test_bound_file_phase_analysis_requires_exact_committed_history(tmp_path: Pa
     inputs.mkdir()
     file_path = inputs / "phases.csv"
     file_path.write_text(
-        "timestamp,leg_a,leg_b,leg_c\\n"
-        "2026-10-08T12:00:00+00:00,220.0,225.0,230.0\\n"
-        "2026-10-08T12:00:01+00:00,222.0,226.0,231.0\\n"
-        "2026-10-08T12:00:02+00:00,221.0,224.0,228.0\\n",
+        "timestamp,leg_a,leg_b,leg_c\n"
+        "2026-10-08T12:00:00+00:00,220.0,225.0,230.0\n"
+        "2026-10-08T12:00:01+00:00,222.0,226.0,231.0\n"
+        "2026-10-08T12:00:02+00:00,221.0,224.0,228.0\n",
         encoding="utf-8",
     )
     declared = [
