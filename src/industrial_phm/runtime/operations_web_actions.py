@@ -64,14 +64,14 @@ def execute_web_source_action(
     """Dispatch an explicitly authorized command through existing action facades."""
     if route not in WEB_SOURCE_ACTION_ROUTES:
         raise ValueError("unknown Web source action")
-    if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
-        return execute_web_sample_action(root, route, payload)
-    if route == "/api/v1/sources/file":
-        return register_workspace_csv_source(root, payload)
     if route == "/api/v1/sources/file/upload":
         if upload_directory is None:
             raise ValueError("supervisor upload directory required")
         return register_uploaded_csv_source(root, payload, upload_directory=upload_directory)
+    if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
+        return execute_web_sample_action(root, route, payload)
+    if route == "/api/v1/sources/file":
+        return register_workspace_csv_source(root, payload)
     if route == "/api/v1/sources/file/receive":
         return receive_workspace_file_source(root, payload)
     if route == "/api/v1/sources/file/backfill":
