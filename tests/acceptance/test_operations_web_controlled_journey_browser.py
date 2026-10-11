@@ -123,10 +123,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
         encoding="utf-8",
     )
     (inputs / "phase.csv").write_text(
-        "timestamp,leg_a,leg_b,leg_c\\n"
-        f"{observed.isoformat()},220.0,225.0,230.0\\n"
-        f"{(observed + timedelta(seconds=1)).isoformat()},222.0,226.0,231.0\\n"
-        f"{(observed + timedelta(seconds=2)).isoformat()},221.0,224.0,228.0\\n",
+        "timestamp,leg_a,leg_b,leg_c\n"
+        f"{observed.isoformat()},220.0,225.0,230.0\n"
+        f"{(observed + timedelta(seconds=1)).isoformat()},222.0,226.0,231.0\n"
+        f"{(observed + timedelta(seconds=2)).isoformat()},221.0,224.0,228.0\n",
         encoding="utf-8",
     )
     log = tmp_path / "supervisor.log"
@@ -344,7 +344,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 for key, value in phase_fields.items():
                     page.locator(f'#file-form input[name="{key}"]').fill(value)
                 page.locator('#file-form textarea[name="phase_bindings"]').fill(
-                    "\\n".join(
+                    "\n".join(
                         f"{channel},voltage,{phase},계측기 표시 V 확인,배선도 {phase}상 연결 확인"
                         for channel, phase in (("leg_a", "R"), ("leg_b", "S"), ("leg_c", "T"))
                     )
@@ -424,7 +424,11 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
                 pw.expect(page.locator("#review-results")).to_contain_text("closed", timeout=30000)
-                pw.expect(page.locator("#review-results .review-meaning")).to_contain_text(
+                pw.expect(
+                    page.locator("#review-results .review-meaning").filter(
+                        has_text="검토 기록 종료됨"
+                    )
+                ).to_contain_text(
                     "실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
                 )
                 pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
