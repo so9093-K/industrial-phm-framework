@@ -568,7 +568,7 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
     if any(
         event.source_sha256 != digest
         or event.source_size_bytes != len(source_bytes)
-        or event.source_file != str(file_path)
+        or event.source_file != file_path.name
         or event.asset_id != source.asset_id
         or event.measurement_point_id != source.measurement_point_id
         or event.channel_id not in known_channels
