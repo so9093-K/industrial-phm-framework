@@ -17,8 +17,11 @@ from tests.support.phm import analyze, deliver, phm_workspace
 
 @pytest.mark.parametrize("width", [1024, 1440])
 def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
-    tmp_path: Path, width: int
+    tmp_path: Path, width: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from industrial_phm.application import phm_read
+
+    monkeypatch.setattr(phm_read, "_SERIES_PAGE_SIZE", 2)
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "ws")
     waveforms = tmp_path / "waveforms"
@@ -82,6 +85,23 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#rul-recent tr")).to_have_count(8)
                 page.locator("#rul-model summary").click()
                 pw.expect(page.locator("#rul-model")).to_contain_text("synthetic-test-evidence")
+                page.locator('a[href="#anomaly"]').click()
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
+                page.route(
+                    "**/api/v1/phm/series?*",
+                    lambda route: route.fulfill(status=503, json={"error": "test-read-failed"}),
+                )
+                pw.expect(page.locator("#anomaly-state")).to_contain_text(
+                    "읽지 못했습니다", timeout=10_000
+                )
+                for selector in (
+                    "#anomaly-detail",
+                    "#anomaly-features",
+                    "#anomaly-cards",
+                    "#anomaly-score-chart",
+                ):
+                    pw.expect(page.locator(selector + ">*")).to_have_count(0)
+                pw.expect(page.locator("#anomaly-freshness")).to_be_empty()
                 assert not errors, errors
             finally:
                 browser.close()

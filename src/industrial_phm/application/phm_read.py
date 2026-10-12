@@ -28,6 +28,7 @@ from industrial_phm.models.package import StepKind
 
 PHM_READ_SCHEMA_VERSION = 1
 _MAX_PREVIEW_BINS = 2000
+_SERIES_PAGE_SIZE = 5000
 
 
 class PhmReadError(ValueError):
@@ -76,11 +77,19 @@ def project_phm_series(
     """Return step results newer than ``since_change_seq`` and the current interval set."""
     binding = _binding(store, binding_id)
     progress = store.progress(binding_id)
-    results = store.list_results(binding_id, after_change_seq=since_change_seq)
+    # Capture before reading: a result committed after an empty read must remain visible
+    # next time. A full page advances only through returned rows, never past unseen rows.
+    watermark = store.latest_change_seq()
+    page = store.list_results(
+        binding_id, after_change_seq=since_change_seq, limit=_SERIES_PAGE_SIZE + 1
+    )
+    results = page[:_SERIES_PAGE_SIZE]
+    cursor = results[-1].change_seq if results else watermark
     latest = store.latest_result(binding_id)
     return {
         "schema_version": PHM_READ_SCHEMA_VERSION,
-        "change_seq": store.latest_change_seq(),
+        "change_seq": cursor,
+        "has_more": len(page) > _SERIES_PAGE_SIZE,
         "since_change_seq": since_change_seq,
         "binding": {
             **_binding_json(binding),

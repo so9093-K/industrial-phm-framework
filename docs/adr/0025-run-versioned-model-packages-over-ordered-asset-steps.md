@@ -91,7 +91,9 @@ binding별 PHM 분석 상태는 하나의 SQLite 저장소(`<workspace>/phm-anal
 
 PHM 화면 API는 `phm-analysis.sqlite`를 직접 읽고, 응답마다 최신 step의 event 시각·처리 시각과 change sequence를
 반환합니다. Web은 `since=<change sequence>` 변경분 조회(polling)로 갱신합니다. Push 전송(SSE 등)은 이 계약 위에
-나중에 추가할 수 있습니다.
+나중에 추가할 수 있습니다. 변경분은 commit sequence 순으로 최대 5,000개씩 반환하며, 응답의
+`change_seq`는 반환한 마지막 결과까지만 전진합니다. `has_more`이면 이어서 조회하고, 이력 크기나 늦은
+step의 position 때문에 아직 읽지 않은 결과를 건너뛰지 않습니다.
 
 ### 7. Runner ownership
 

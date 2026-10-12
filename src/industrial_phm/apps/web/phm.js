@@ -32,6 +32,7 @@ let focusPosition = null;
 let pollTimer = null;
 let readError = "";
 let refreshedAt = null;
+let cycleVersion = 0;
 
 function activeView() {
   const view = document.body.dataset.view;
@@ -52,14 +53,18 @@ async function refreshBindings() {
 
 async function refreshSeries(bindingId) {
   const known = series.get(bindingId);
-  const since = known ? known.changeSeq : 0;
-  const data = await getJson("/api/v1/phm/series?binding_id=" + encodeURIComponent(bindingId) + "&since=" + since);
-  const entry = known || {steps: new Map(), changeSeq: 0};
-  for (const step of data.steps) entry.steps.set(step.position, step);
-  Object.assign(entry, {
-    changeSeq: data.change_seq, binding: data.binding, package: data.package,
-    intervals: data.intervals, latestAnalyzed: data.latest_analyzed, latestDelivered: data.latest_delivered,
-  });
+  const entry = known ? {...known, steps: new Map(known.steps)} : {steps: new Map(), changeSeq: 0};
+  // Drain bounded pages. If input keeps arriving, the next poll resumes this cursor.
+  for (let page = 0; page < 5; page++) {
+    const data = await getJson("/api/v1/phm/series?binding_id=" + encodeURIComponent(bindingId) + "&since=" + entry.changeSeq);
+    if (!data.binding || data.binding.binding_id !== bindingId) throw new Error("wrong_binding");
+    for (const step of data.steps) entry.steps.set(step.position, step);
+    Object.assign(entry, {
+      changeSeq: data.change_seq, binding: data.binding, package: data.package,
+      intervals: data.intervals, latestAnalyzed: data.latest_analyzed, latestDelivered: data.latest_delivered,
+    });
+    if (!data.has_more) break;
+  }
   series.set(bindingId, entry);
   return entry;
 }
@@ -193,7 +198,12 @@ function renderAnomaly() {
   selected.anomaly = fillSelect(byId("anomaly-binding"), choices, selected.anomaly);
   const state = byId("anomaly-state");
   for (const id of ["anomaly-cards", "anomaly-feature-chart", "anomaly-score-chart", "anomaly-intervals", "anomaly-model"]) byId(id).replaceChildren();
-  if (readError) {state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다. 운영 관리 화면에서 분석 프로세스 상태를 확인하세요.";return;}
+  if (readError) {
+    for (const id of ["anomaly-features", "anomaly-detail"]) byId(id).replaceChildren();
+    byId("anomaly-freshness").textContent = "";
+    byId("anomaly-replay").classList.add("hidden");
+    state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다. 운영 관리 화면에서 분석 프로세스 상태를 확인하세요.";return;
+  }
   if (!selected.anomaly) {
     state.className = "state";
     state.textContent = "이상 탐지 모델이 연결된 설비가 없습니다. `operations phm bind`로 검증된 모델 패키지를 설비 스트림에 연결하세요.";
@@ -352,7 +362,11 @@ function renderRul() {
   selected.rul = fillSelect(byId("rul-binding"), choices, selected.rul);
   const state = byId("rul-state");
   for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model"]) byId(id).replaceChildren();
-  if (readError) {state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다.";return;}
+  if (readError) {
+    byId("rul-freshness").textContent = "";
+    byId("rul-replay").classList.add("hidden");
+    state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다.";return;
+  }
   if (!selected.rul) {
     state.className = "state";
     state.textContent = "RUL 모델이 연결된 설비가 없습니다. RUL은 수명 종료 사건이 기록된 데이터로 검증된 모델에서만 제공하며, 근거가 없는 설비에는 표시하지 않습니다.";
@@ -434,13 +448,16 @@ function renderModelCard(root, pkg) {
 async function cycle() {
   const view = activeView();
   if (!view) return;
+  const version = ++cycleVersion;
   try {
     await refreshBindings();
     const choices = bindingsFor(view === "anomaly" ? "anomaly-score" : "rul-estimate");
     const current = choices.find((item) => item.binding_id === selected[view]) || choices[0];
     if (current) await refreshSeries(current.binding_id);
+    if (version !== cycleVersion) return;
     readError = "";
   } catch {
+    if (version !== cycleVersion) return;
     readError = "read_failed";
   }
   refreshedAt = new Date();
