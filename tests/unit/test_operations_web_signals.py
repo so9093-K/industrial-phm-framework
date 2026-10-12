@@ -67,6 +67,22 @@ def test_history_bucket_keeps_source_quality_and_time_without_inventing_gap_poin
     assert "interpretation_json" not in result
 
 
+def test_file_phase_semantics_show_the_saved_definition_and_evidence() -> None:
+    raw = (
+        '{"binding":null,"semantics":{"channel_id":"R상전압",'
+        '"definition":{"observed_property":"phase voltage","scope":"phase R",'
+        '"unit":"V","unit_evidence":"provider table and recorded relation"},'
+        '"interpretation_evidence":"archive/member; timezone explicitly assumed",'
+        '"source_path":"/private/input.csv"}}'
+    )
+    result = _semantic(raw)
+    assert result["unit"] == "V"
+    assert result["observed_property"] == "phase voltage"
+    assert result["unit_evidence"] == "provider table and recorded relation"
+    assert "timezone explicitly assumed" in str(result["interpretation_evidence"])
+    assert "private" not in str(result)
+
+
 def test_signal_query_validates_requested_groups_before_reading() -> None:
     with pytest.raises(ValueError, match="channel_ids"):
         project_signal_history(

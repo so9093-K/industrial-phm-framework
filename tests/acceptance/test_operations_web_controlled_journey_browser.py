@@ -158,8 +158,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#runtime-components")).to_contain_text("데이터 수집기")
                 pw.expect(page.locator("#runtime-components")).to_contain_text("분석 실행기")
                 pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
+                page.locator('nav a[href="#system"]').click()
                 page.get_by_role("button", name="실행 상태 다시 확인").click()
                 pw.expect(page.locator("#runtime-facts")).to_contain_text(str(proc.pid))
+                page.locator('nav a[href="#connect"]').click()
                 pw.expect(page.locator("#onboarding-state")).to_contain_text(
                     "소스 미등록", timeout=30000
                 )
@@ -174,6 +176,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#asset-select")).to_be_disabled()
                 assert page.locator(".skip-link").get_attribute("href") == "#main"
                 assert page.locator("html").get_attribute("lang") == "ko"
+                page.locator("#operator-guide > summary").click()
                 guide = page.locator("#operator-reference-en")
                 pw.expect(guide.locator("summary")).to_have_attribute("lang", "en")
                 guide.locator("summary").click()
@@ -189,7 +192,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "검토 기록 종료도 실제 정비 완료"
                 )
                 assert page.locator("#last-values .latest-item").count() == 0
-                page.get_by_role("link", name="데이터 연결").click()
+                page.get_by_role("link", name="데이터 연결", exact=True).click()
                 pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
                     "aria-current", "page"
                 )
@@ -265,12 +268,14 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 page.get_by_role("button", name="FILE 이력 적재 버튼 찾기").click()
                 pw.expect(listing.get_by_role("button", name="FILE 이력 적재")).to_be_focused()
+                page.locator('nav a[href="#connect"]').click()
                 pw.expect(handoff).to_be_visible()
                 assert not workspace.history_catalog_path.exists()
                 handoff.click()
                 pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(
                     "aria-current", "page"
                 )
+                page.locator('nav a[href="#connect"]').click()
                 listing.get_by_role("button", name="FILE 이력 적재").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "6개 이벤트", timeout=30000
@@ -343,7 +348,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 # A distinct CSV with deliberately non-phase column names
                 # requires explicit evidence-backed V/A and R/S/T mapping.
-                page.get_by_role("link", name="데이터 연결").click()
+                page.get_by_role("link", name="데이터 연결", exact=True).click()
                 phase_fields = {
                     "source_id": "phase-file",
                     "name": "확인된 3상 전압",
@@ -451,6 +456,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 pw.expect(page.locator("#last-values")).to_contain_text("221")
                 handoff = page.locator("#onboarding-monitor-link")
+                page.locator('nav a[href="#connect"]').click()
                 pw.expect(handoff).to_be_visible()
                 # Losing the real source GET must revoke a prior ready state,
                 # without claiming the stored measurements or review disappeared.
@@ -462,6 +468,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(handoff).to_be_hidden()
                 page.unroute("**/api/v1/sources")
                 page.get_by_role("button", name="데이터 다시 불러오기").click()
+                page.locator('nav a[href="#connect"]').click()
                 pw.expect(handoff).to_be_visible()
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
                     "active와 수신을 모두 확인한 소스 2개"
@@ -470,6 +477,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     page.get_by_role("button", name="이 근거에 사람 검토 요청")
                 ).to_have_count(0)
                 pw.expect(page.get_by_role("button", name="검토 기록 종료")).to_have_count(0)
+                page.locator('nav a[href="#review"]').click()
                 page.locator("#review-results").get_by_role(
                     "button",
                     name=f"연결된 분석 근거 확인 · {analysis.evidence.evidence_id}",
@@ -1092,6 +1100,7 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
                     str(proc.pid), timeout=30000
                 )
                 page.route("**/api/v1/system/runtime", lambda route: route.abort("failed"))
+                page.locator('nav a[href="#system"]').click()
                 page.get_by_role("button", name="실행 상태 다시 확인").click()
                 pw.expect(page.locator("#runtime-status")).to_contain_text(
                     "실행 상태 조회 실패", timeout=30000
@@ -1099,12 +1108,14 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
                 pw.expect(page.locator("#runtime-facts")).to_be_empty()
                 pw.expect(page.locator("#runtime-components")).to_be_empty()
                 page.unroute("**/api/v1/system/runtime")
+                page.locator('nav a[href="#system"]').click()
                 page.get_by_role("button", name="실행 상태 다시 확인").click()
                 pw.expect(page.locator("#runtime-facts")).to_contain_text(
                     str(proc.pid), timeout=30000
                 )
                 pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
 
+                page.locator('nav a[href="#evidence"]').click()
                 selector.select_option(first.run.asset_id)
                 evidence = page.locator("#evidence-results")
                 review = page.locator("#review-results")
@@ -1129,6 +1140,7 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
                 # The global inbox switches selected asset, exact Run/Evidence
                 # and keyboard focus; it must not open the newer asset's record.
                 first_finding_id = "finding-review-" + first.run.analysis_run_id
+                page.locator('nav a[href="#review"]').click()
                 inbox.get_by_role(
                     "button",
                     name=f"검토 열기 · {first.run.asset_id} · {first_finding_id}",
@@ -1144,6 +1156,7 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
                 pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
 
                 selector.select_option(second_asset_id)
+                page.locator('nav a[href="#evidence"]').click()
                 page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
                 pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
                     "미처리 2건", timeout=30000
@@ -1320,7 +1333,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(page.locator("#onboarding-state")).to_contain_text(
                     "소스 미등록", timeout=30000
                 )
-                page.get_by_role("link", name="데이터 연결").click()
+                page.get_by_role("link", name="데이터 연결", exact=True).click()
                 page.locator("#opcua-endpoint").fill(endpoint)
                 page.get_by_role("button", name="로컬 변수 탐색").click()
                 # Server internals can consume the bounded root browse budget.

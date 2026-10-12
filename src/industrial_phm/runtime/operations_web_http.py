@@ -78,8 +78,8 @@ def create_operations_web_read_server(
 ) -> ThreadingHTTPServer:
     """Construct a single-workspace server on 127.0.0.1 without starting a thread.
 
-    The caller owns serve_forever/shutdown. This reference read transport is not
-    installed into the current Operations UI child or CLI.
+    The caller owns serve_forever/shutdown. Supervised Web supplies the command
+    client; standalone preview retains its narrower write scope.
     """
     if not isinstance(workspace_root, Path) or not workspace_root.is_dir():
         raise ValueError("workspace_root must point to an existing workspace directory")
@@ -113,6 +113,9 @@ def create_operations_web_read_server(
                 "index.html": "text/html; charset=utf-8",
                 "app.js": "text/javascript; charset=utf-8",
                 "styles.css": "text/css; charset=utf-8",
+                "navigation.js": "text/javascript; charset=utf-8",
+                "research.js": "text/javascript; charset=utf-8",
+                "research-results.json": "application/json; charset=utf-8",
             }
             if asset_name not in mime:
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
@@ -161,7 +164,11 @@ def create_operations_web_read_server(
             if len(self.path) > 1600:
                 raise ValueError("query too long")
             parts = urlsplit(self.path)
-            allowed = {"asset_id"} if channels else {"asset_id", "channel_id", "range", "buckets"}
+            allowed = (
+                {"asset_id"}
+                if channels
+                else {"asset_id", "channel_id", "range", "buckets", "anchor"}
+            )
             params = parse_qs(
                 parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=12
             )
@@ -179,6 +186,9 @@ def create_operations_web_read_server(
                 raise ValueError("1 to 6 distinct channel_id values required")
             for signal_id in signal_ids:
                 self._validate_id(signal_id)
+            anchors = params.get("anchor", ("now",))
+            if len(anchors) != 1 or anchors[0] not in {"now", "latest"}:
+                raise ValueError("unsupported time anchor")
             presets = params.get("range", ("1h",))
             buckets = params.get("buckets", ("60",))
             if len(presets) != 1 or presets[0] not in RANGE_DURATIONS:
@@ -193,6 +203,7 @@ def create_operations_web_read_server(
                 "channel_ids": tuple(signal_ids),
                 "range_preset": presets[0],
                 "bucket_count": bucket_count,
+                "time_anchor": anchors[0],
             }
 
         @staticmethod
@@ -213,6 +224,9 @@ def create_operations_web_read_server(
                 "/web/": "index.html",
                 "/web/app.js": "app.js",
                 "/web/styles.css": "styles.css",
+                "/web/navigation.js": "navigation.js",
+                "/web/research.js": "research.js",
+                "/web/research-results.json": "research-results.json",
             }
             if self.path in static_paths:
                 self._send_asset(static_paths[self.path])
@@ -276,6 +290,7 @@ def create_operations_web_read_server(
                         channel_ids=cast(tuple[str, ...], query["channel_ids"]),
                         range_preset=cast(str, query["range_preset"]),
                         bucket_count=cast(int, query["bucket_count"]),
+                        time_anchor=cast(str, query["time_anchor"]),
                     )
             except OperationsReadError, OSError, ValueError, TypeError:
                 # No workspace paths, raw exceptions or tracebacks in responses.

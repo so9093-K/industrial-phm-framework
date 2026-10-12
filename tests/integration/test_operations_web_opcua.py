@@ -263,6 +263,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         errors: list[str] = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
+        page.locator('nav a[href="#connect"]').click()
         page.locator("#opcua-endpoint").fill(endpoint)
         page.get_by_role("button", name="로컬 변수 탐색").click()
         sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(

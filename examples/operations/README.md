@@ -54,8 +54,8 @@ prove receipt, history commit, a successful analysis or asset health.
 
 The older **Setup → Investigations → Maintenance** marimo page sequence no
 longer exists. The current Web workflow is intentionally bounded; full
-Investigation/Maintenance parity remains under
-[Issue #489](https://github.com/so9093-K/industrial-phm-framework/issues/489).
+Investigation/Maintenance parity is outside the current pilot; see
+[current support](../../docs/status.md).
 
 A separate contract test verifies that the included CSV passes the data
 validator and produces the expected feature identities. It does not substitute

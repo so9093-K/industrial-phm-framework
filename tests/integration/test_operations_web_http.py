@@ -240,6 +240,9 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
             ("/web/", "text/html", b"Industrial PHM"),
             ("/web/app.js", "text/javascript", b"/api/v1/monitor"),
             ("/web/styles.css", "text/css", b"focus-visible"),
+            ("/web/navigation.js", "text/javascript", b"renderView"),
+            ("/web/research.js", "text/javascript", b"research-results.json"),
+            ("/web/research-results.json", "application/json", b"artifact_sha256"),
         ):
             status, headers, data = request(path)
             assert status == 200
@@ -260,6 +263,8 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
         assert request("/web/app.js?debug=1")[0] == 404
         assert request("/web/", host="remote.example")[0] == 403
         assert request("/web/", origin="https://remote.example")[0] == 403
+        assert request("/web/research-results.json", host="remote.example")[0] == 403
+        assert request("/web/research-results.json?path=../../.env")[0] == 404
     finally:
         server.shutdown()
         server.server_close()
@@ -293,3 +298,59 @@ def test_standalone_web_never_controls_synthetic_processes(tmp_path: Path) -> No
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_recorded_history_anchor_preserves_old_event_time_without_source_registration(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("duckdb")
+    workspace = OperationsWorkspace(tmp_path / "recorded-only")
+    initialize_operations_workspace(workspace)
+    source_path = tmp_path / "recorded.csv"
+    source_path.write_text(
+        "timestamp,voltage-R\n2020-11-12T15:00:04+00:00,220.5\n2020-11-12T15:59:04+00:00,221.5\n",
+        encoding="utf-8",
+    )
+    sources = InMemorySourceRepository()
+    sources.register(
+        RegisteredSource(
+            source_id="recorded",
+            name="Historical recording",
+            config=FileSourceConfig(
+                source_path=str(source_path),
+                asset_id="old-asset",
+                channel_columns=("voltage-R",),
+                timestamp_column="timestamp",
+            ),
+            registered_at=datetime(2026, 10, 12, tzinfo=UTC),
+        )
+    )
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    backfill_registered_file_source(sources, history, "recorded")
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        query = "/api/v1/history/trend?asset_id=old-asset&channel_id=voltage-R&range=1h"
+        status, _, now = _request(server.server_port, "GET", query)
+        assert status == 200
+        assert now["time_anchor"] == "now"
+        assert sum(bucket["usable_count"] for bucket in now["buckets"]) == 0
+        status, _, recorded = _request(server.server_port, "GET", query + "&anchor=latest")
+        assert status == 200
+        assert recorded["time_anchor"] == "latest"
+        assert recorded["end_at"] == "2020-11-12T15:59:05Z"
+        assert sum(bucket["usable_count"] for bucket in recorded["buckets"]) == 2
+        assert recorded["latest_stored"][0]["event_at"] == "2020-11-12T15:59:04Z"
+        assert not workspace.source_registry_path.exists()
+        _, _, monitor = _request(server.server_port, "GET", "/api/v1/monitor")
+        assert monitor["assets"]["total"] == 1
+        assert _request(server.server_port, "GET", query + "&anchor=guess")[0] == 400
+        assert _request(server.server_port, "GET", query + "&anchor=now&anchor=latest")[0] == 400
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()

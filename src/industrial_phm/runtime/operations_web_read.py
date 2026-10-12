@@ -145,6 +145,25 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
         }
         for asset in snapshot.monitor.assets
     ]
+    known_assets = {str(asset["asset_id"]) for asset in assets}
+    for historical in snapshot.history_assets:
+        if historical.asset_id in known_assets:
+            continue
+        # A persisted observation does not require a currently registered source.
+        # Its event time is history, never proof of a live connection or receipt.
+        assets.append(
+            {
+                "asset_id": historical.asset_id,
+                "data_flow_status": "stored-history",
+                "source_count": 0,
+                "last_data_at": _utc(historical.end_at),
+                "latest_analysis_at": None,
+                "pending_review_count": 0,
+                "attention_count": 0,
+            }
+        )
+        known_assets.add(historical.asset_id)
+    assets.sort(key=lambda item: str(item["asset_id"]))
     attention: list[dict[str, object]] = [
         {
             "attention_id": item.attention_id,

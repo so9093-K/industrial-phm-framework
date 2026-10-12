@@ -57,11 +57,21 @@ def _semantic(raw: str) -> dict[str, str | None]:
     semantics = data.get("semantics")
     definition = binding.get("definition") if isinstance(binding, dict) else None
     if not isinstance(definition, dict):
-        definition = semantics if isinstance(semantics, dict) else {}
-    return {
+        definition = semantics.get("definition", semantics) if isinstance(semantics, dict) else {}
+    if not isinstance(definition, dict):
+        definition = {}
+    result = {
         name: value if isinstance(value := definition.get(name), str) else None
         for name in ("observed_property", "scope", "unit")
     }
+    if isinstance(unit_evidence := definition.get("unit_evidence"), str):
+        result["unit_evidence"] = unit_evidence
+    semantic_binding = semantics if isinstance(semantics, dict) else binding
+    if isinstance(semantic_binding, dict) and isinstance(
+        interpretation := semantic_binding.get("interpretation_evidence"), str
+    ):
+        result["interpretation_evidence"] = interpretation
+    return result
 
 
 def _bucket(item: MultiSignalMeasurementHistoryBucket) -> dict[str, object]:
@@ -114,6 +124,7 @@ def project_signal_history(
     channel_ids: tuple[str, ...],
     range_preset: str = "1h",
     bucket_count: int = 60,
+    time_anchor: str = "now",
 ) -> dict[str, object]:
     """Read one bounded multi-signal time window plus stored per-source last points."""
     if (
@@ -126,20 +137,10 @@ def project_signal_history(
         raise ValueError("unsupported range")
     if isinstance(bucket_count, bool) or not 1 <= bucket_count <= MAX_BUCKETS:
         raise ValueError("bucket_count must be between 1 and 120")
+    if time_anchor not in {"now", "latest"}:
+        raise ValueError("unsupported time anchor")
     reader = _history(snapshot)
     end = snapshot.assessed_at
-    start = end - RANGE_DURATIONS[range_preset]
-    agg = query_operations_multi_signal_measurement_aggregation(
-        reader,
-        asset_id,
-        channel_ids=channel_ids,
-        start_at=start,
-        end_at=end,
-        bucket_count=bucket_count,
-    )
-    if len(agg.buckets) > MAX_GROUPED_BUCKETS:
-        raise OperationsReadError("too many historical groups; narrow the query")
-
     latest: list[dict[str, object]] = []
     for channel in channel_ids:
         for point in query_operations_latest_measurements(reader, asset_id, channel_id=channel):
@@ -167,6 +168,22 @@ def project_signal_history(
                     "ingestion_mode": value.ingestion_mode.value,
                 }
             )
+    if time_anchor == "latest" and latest:
+        end = max(datetime.fromisoformat(str(point["event_at"])) for point in latest) + timedelta(
+            seconds=1
+        )
+    start = end - RANGE_DURATIONS[range_preset]
+    agg = query_operations_multi_signal_measurement_aggregation(
+        reader,
+        asset_id,
+        channel_ids=channel_ids,
+        start_at=start,
+        end_at=end,
+        bucket_count=bucket_count,
+    )
+    if len(agg.buckets) > MAX_GROUPED_BUCKETS:
+        raise OperationsReadError("too many historical groups; narrow the query")
+
     return {
         "schema_version": 1,
         "assessed_at": _time(snapshot.assessed_at),
@@ -174,6 +191,7 @@ def project_signal_history(
         "asset_id": asset_id,
         "channel_ids": list(channel_ids),
         "range": range_preset,
+        "time_anchor": time_anchor,
         "start_at": _time(start),
         "end_at": _time(end),
         "snapshot_id": agg.snapshot_id,

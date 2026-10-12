@@ -1,0 +1,10 @@
+{
+  "source_id": "aihub239-boiler",
+  "asset_id": "research-boiler-2297",
+  "device_id": "2297",
+  "device_board_id": "1",
+  "timezone": "Asia/Seoul",
+  "identity_evidence": "Explicit development grouping; physical asset identity unverified",
+  "timezone_evidence": "Explicit normalization assumption; source timezone unverified",
+  "version": "research-v1"
+}

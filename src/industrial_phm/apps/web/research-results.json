@@ -1,0 +1,1862 @@
+{
+  "schema_version": 1,
+  "meaning": "research-evaluation-not-workspace-data",
+  "items": [
+    {
+      "id": "ims-bearings-iforest-single-channel-cross-test-v1",
+      "title": "Isolation Forest · 단일 채널 교차 시험",
+      "dataset": "IMS Bearings",
+      "artifact_path": "docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json",
+      "artifact_sha256": "65c0f89c3e952399e6b277a19bcb3a8bf30b8cc9e474be500ddc1a69962d2ac6",
+      "artifact_bytes": 4749,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json",
+      "inspection": {
+        "schema_id": "ims-single-channel-cross-test-result-v1",
+        "status": "consumed",
+        "stages": [
+          {
+            "name": "Source",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Dataset",
+                "value": "ims-bearings"
+              },
+              {
+                "label": "Verified source profile",
+                "value": "9464 acquisition files"
+              },
+              {
+                "label": "Train scope",
+                "value": "set-2 complete / 984 files"
+              },
+              {
+                "label": "Evaluation scope",
+                "value": "set-3 readme-documented / 4448 files"
+              },
+              {
+                "label": "Excluded",
+                "value": "set-1, set-3:archive-extension"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Canonical",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Channels",
+                "value": "vibration"
+              },
+              {
+                "label": "Cardinality",
+                "value": "1 acquisition file -> 4 bearing observations"
+              },
+              {
+                "label": "Train conversion",
+                "value": "984 files -> 3936 observations"
+              },
+              {
+                "label": "Evaluation conversion",
+                "value": "4448 files -> 17792 observations"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Feature",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Feature set",
+                "value": "vibration-statistical-v1"
+              },
+              {
+                "label": "Selected features (8)",
+                "value": "feature.vibration.mean, feature.vibration.rms, feature.vibration.standard_deviation, feature.vibration.absolute_peak, feature.vibration.peak_to_peak, feature.vibration.crest_factor, feature.vibration.skewness, feature.vibration.excess_kurtosis"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Preprocessing",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Fit scope",
+                "value": "train / 3936 observations"
+              },
+              {
+                "label": "Scaling",
+                "value": "identity"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Reference",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Strategy",
+                "value": "all-train-observations"
+              },
+              {
+                "label": "Eligible observations",
+                "value": 3936
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Sequence Construction",
+            "status": "not applicable",
+            "facts": [
+              {
+                "label": "Reason",
+                "value": "model consumes acquisition-level feature observations"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Population",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Sampling policy",
+                "value": "acquisition-uniform-v1"
+              },
+              {
+                "label": "Train observations",
+                "value": 3936
+              },
+              {
+                "label": "Reference-eligible observations",
+                "value": 3936
+              },
+              {
+                "label": "Model-fit observations",
+                "value": 3936
+              },
+              {
+                "label": "Cross-test scoring observations",
+                "value": 17792
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Model",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Family",
+                "value": "isolation-forest"
+              },
+              {
+                "label": "Parameters",
+                "value": "bootstrap=False, contamination='auto', max_features=1.0, max_samples='auto', n_estimators=256"
+              },
+              {
+                "label": "Random seed",
+                "value": 42
+              },
+              {
+                "label": "Score semantics",
+                "value": "higher-is-more-anomalous"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Scoring",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Scope",
+                "value": "4 Set 3 bearings / 17792 observations"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Evaluation",
+            "status": "consumed",
+            "facts": [
+              {
+                "label": "Scope",
+                "value": "one-time-cross-test-evaluation"
+              },
+              {
+                "label": "Statistics",
+                "value": "acquisition-order-spearman-rho, test-stage-late-vs-middle-rank-probability"
+              },
+              {
+                "label": "Aggregation",
+                "value": "four-bearing-equal-weight-mean"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "set-3-bearing-1: observations=4448, rho=0.114819, late_vs_middle=0.554924"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "set-3-bearing-2: observations=4448, rho=0.0579435, late_vs_middle=0.485169"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "set-3-bearing-3: observations=4448, rho=-0.0815855, late_vs_middle=0.373548"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "set-3-bearing-4: observations=4448, rho=-0.401689, late_vs_middle=0.358547"
+              },
+              {
+                "label": "Mean rho",
+                "value": "-0.0776279"
+              },
+              {
+                "label": "Mean late-vs-middle",
+                "value": "0.443047"
+              },
+              {
+                "label": "Selection or threshold calibration",
+                "value": "none"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Capability",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Available",
+                "value": "anomaly-scoring, descriptive-score-trajectory-evaluation"
+              },
+              {
+                "label": "Unsupported",
+                "value": "thresholded-state-detection, health-assessment, fault-diagnostics, prognostics-rul"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Provenance",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Experiment",
+                "value": "ims-bearings-iforest-single-channel-cross-test-v1"
+              },
+              {
+                "label": "Split",
+                "value": "ims-single-channel-cross-test-v1 / fold-1"
+              },
+              {
+                "label": "Declared code revision",
+                "value": "37e876da301f13acee4081178b4cb33bfa5cc415"
+              },
+              {
+                "label": "Checkout attestation",
+                "value": "unavailable"
+              },
+              {
+                "label": "Artifact",
+                "value": "docs/research/results/ims-bearings-iforest-single-channel-cross-test-v1.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "mimii-due-iforest-domain-shift-development-v1",
+      "title": "Isolation Forest · 도메인 변화 개발 평가",
+      "dataset": "MIMII DUE",
+      "artifact_path": "docs/research/results/mimii-due-iforest-domain-shift-development-v1.json",
+      "artifact_sha256": "89b52add2e74298e235f9c71fb1b115e805a01669c24c4b380f2b6e74c1d4e2a",
+      "artifact_bytes": 143147,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/mimii-due-iforest-domain-shift-development-v1.json",
+      "inspection": {
+        "schema_id": "mimii-due-domain-shift-development-result-v1",
+        "status": "completed",
+        "stages": [
+          {
+            "name": "Source",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Dataset",
+                "value": "mimii-due"
+              },
+              {
+                "label": "Dataset version",
+                "value": "zenodo-v1.01"
+              },
+              {
+                "label": "Source provider",
+                "value": "manual"
+              },
+              {
+                "label": "Source URL",
+                "value": "https://zenodo.org/records/4740355"
+              },
+              {
+                "label": "Citation DOI",
+                "value": "10.5281/zenodo.4740355"
+              },
+              {
+                "label": "License",
+                "value": "CC BY-NC-SA 4.0; keep source data local and do not redistribute it through this repository"
+              },
+              {
+                "label": "Verified source profile",
+                "value": "36433 WAV clips"
+              },
+              {
+                "label": "Source group",
+                "value": "dev"
+              },
+              {
+                "label": "Machine types",
+                "value": "fan, gearbox, pump, slider, valve"
+              },
+              {
+                "label": "Sections",
+                "value": "00, 01, 02"
+              },
+              {
+                "label": "Excluded",
+                "value": "eval:sections-03-05, development-test-labels-from-model-fit-and-scoring"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Canonical",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Channels",
+                "value": "pcm_amplitude"
+              },
+              {
+                "label": "Sampling rate",
+                "value": "16000 Hz"
+              },
+              {
+                "label": "Cardinality",
+                "value": "1 WAV clip -> 1 mono 10-second canonical waveform"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Feature",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Feature set",
+                "value": "audio-logmel-statistical-v1"
+              },
+              {
+                "label": "Selected feature count",
+                "value": 128
+              },
+              {
+                "label": "Representation",
+                "value": "64 HTK mel bands / frame mean+population-std"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Preprocessing",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Fit scope",
+                "value": "per machine type x section complete normal train"
+              },
+              {
+                "label": "Scaling",
+                "value": "robust"
+              },
+              {
+                "label": "Fitted states",
+                "value": 15
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Reference",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Strategy",
+                "value": "all-train-observations"
+              },
+              {
+                "label": "Eligible train clips",
+                "value": 15062
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Sequence Construction",
+            "status": "not applicable",
+            "facts": [
+              {
+                "label": "Reason",
+                "value": "model consumes one fixed feature vector per audio clip"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Population",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Section models",
+                "value": 15
+              },
+              {
+                "label": "Source train clips",
+                "value": 15017
+              },
+              {
+                "label": "Target train clips",
+                "value": 45
+              },
+              {
+                "label": "Model-fit clips",
+                "value": 15062
+              },
+              {
+                "label": "Source scoring clips",
+                "value": 3174
+              },
+              {
+                "label": "Target scoring clips",
+                "value": 3047
+              },
+              {
+                "label": "Total scoring clips",
+                "value": 6221
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Model",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Family",
+                "value": "isolation-forest"
+              },
+              {
+                "label": "Model unit",
+                "value": "machine-type-x-section"
+              },
+              {
+                "label": "Parameters",
+                "value": "bootstrap=False, contamination='auto', max_features=1.0, max_samples='auto', n_estimators=256"
+              },
+              {
+                "label": "Random seed",
+                "value": 42
+              },
+              {
+                "label": "Score semantics",
+                "value": "higher-is-more-anomalous"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Scoring",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Scope",
+                "value": "dev source_test + target_test"
+              },
+              {
+                "label": "Scored clips",
+                "value": 6221
+              },
+              {
+                "label": "Label access",
+                "value": "evaluator edge only"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Evaluation",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Evidence class",
+                "value": "labeled-offline-development-evidence"
+              },
+              {
+                "label": "Strata",
+                "value": 30
+              },
+              {
+                "label": "Metrics",
+                "value": "roc-auc, standardized-partial-roc-auc:max-fpr=0.1"
+              },
+              {
+                "label": "Aggregation",
+                "value": "harmonic-mean-with-zero-preserved"
+              },
+              {
+                "label": "Source AUC harmonic mean",
+                "value": "0.585923"
+              },
+              {
+                "label": "Source pAUC harmonic mean",
+                "value": "0.517572"
+              },
+              {
+                "label": "Target AUC harmonic mean",
+                "value": "0.551603"
+              },
+              {
+                "label": "Target pAUC harmonic mean",
+                "value": "0.501258"
+              },
+              {
+                "label": "Overall AUC harmonic mean",
+                "value": "0.568245"
+              },
+              {
+                "label": "Overall pAUC harmonic mean",
+                "value": "0.509285"
+              },
+              {
+                "label": "MIMII domain-shift summary",
+                "value": "0.537152"
+              },
+              {
+                "label": "DCASE official score",
+                "value": "false"
+              },
+              {
+                "label": "Selection or threshold calibration",
+                "value": "none"
+              }
+            ],
+            "warnings": [
+              "Development evidence on sections 00-02; sections 03-05 external evaluation is not included.",
+              "Ranking metrics do not create thresholded state, diagnosis, health indicator, maintenance priority, or RUL."
+            ]
+          },
+          {
+            "name": "Capability",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Available",
+                "value": "clip-level-anomaly-scoring, labeled-offline-development-discrimination-evaluation, source-target-domain-stratified-auc-pauc-evidence"
+              },
+              {
+                "label": "Unsupported",
+                "value": "thresholded-state-detection, online-alerting, fault-diagnostics, fault-classification, health-assessment, health-indicator, prognostics-rul, causal-explanation, maintenance-recommendation-priority"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Provenance",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Experiment",
+                "value": "mimii-due-iforest-domain-shift-development-v1"
+              },
+              {
+                "label": "Split",
+                "value": "mimii-due-dev-sections-00-02-v1 / fold-1"
+              },
+              {
+                "label": "Protocol",
+                "value": "mimii-due-domain-shift-iforest-v1"
+              },
+              {
+                "label": "Evidence class",
+                "value": "labeled-offline-development-evidence"
+              },
+              {
+                "label": "Section models",
+                "value": 15
+              },
+              {
+                "label": "Declared code revision",
+                "value": "40fd3d044ce8a511cd0ec5f437e1c55f63197dc3"
+              },
+              {
+                "label": "Checkout attestation",
+                "value": "unavailable"
+              },
+              {
+                "label": "Artifact",
+                "value": "docs/research/results/mimii-due-iforest-domain-shift-development-v1.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "mimii-due-iforest-domain-shift-external-result-v1",
+      "title": "Isolation Forest · 외부 평가",
+      "dataset": "MIMII DUE",
+      "artifact_path": "docs/research/results/mimii-due-iforest-domain-shift-external-result-v1.json",
+      "artifact_sha256": "a58b30d94a6d5c9bd1df84f866058afd1da6b84c39b737bbdc33df99c21dfae6",
+      "artifact_bytes": 13557,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/mimii-due-iforest-domain-shift-external-result-v1.json",
+      "inspection": null,
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "mimii-due-iforest-domain-shift-external-score-v1",
+      "title": "Isolation Forest · 외부 점수 기록",
+      "dataset": "MIMII DUE",
+      "artifact_path": "docs/research/results/mimii-due-iforest-domain-shift-external-score-v1.json",
+      "artifact_sha256": "ff7290ae67604c2595e75094cdb9856c8fa143a4f1ebee70e35c32589d979a96",
+      "artifact_bytes": 1100992,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/mimii-due-iforest-domain-shift-external-score-v1.json",
+      "inspection": null,
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-iforest-cross-fold-robustness-v1",
+      "title": "Isolation Forest · 폴드 간 강건성 평가",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-iforest-cross-fold-robustness-v1.json",
+      "artifact_sha256": "5cb81cf0fd999ffb9f34223807990a1411e411b5f9db1a0462646a7b3abbd130",
+      "artifact_bytes": 8339,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-iforest-cross-fold-robustness-v1.json",
+      "inspection": null,
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-iforest-fold-1-holdout-v1",
+      "title": "Isolation Forest · 보류 데이터 평가",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json",
+      "artifact_sha256": "4e23e2506e77de6548795509b16e0c6194d0f7771f43cfca1bfed5e36e59d44b",
+      "artifact_bytes": 2248,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json",
+      "inspection": {
+        "schema_id": "xjtu-fold-1-holdout-result-v1",
+        "status": "consumed",
+        "stages": [
+          {
+            "name": "Source",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Dataset",
+                "value": "xjtu-sy"
+              },
+              {
+                "label": "Complete source profile",
+                "value": "9216 acquisition CSV files"
+              },
+              {
+                "label": "Split scope",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1 / test"
+              },
+              {
+                "label": "Selected holdout bearings",
+                "value": "Bearing1_1, Bearing2_1, Bearing3_1"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Canonical",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Channels",
+                "value": "Horizontal_vibration_signals, Vertical_vibration_signals"
+              },
+              {
+                "label": "Cardinality",
+                "value": "1 acquisition CSV -> 1 two-channel bearing observation"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Feature",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Feature set",
+                "value": "vibration-statistical-v1"
+              },
+              {
+                "label": "Selected features (16)",
+                "value": "feature.Horizontal_vibration_signals.mean, feature.Horizontal_vibration_signals.rms, feature.Horizontal_vibration_signals.standard_deviation, feature.Horizontal_vibration_signals.absolute_peak, feature.Horizontal_vibration_signals.peak_to_peak, feature.Horizontal_vibration_signals.crest_factor, feature.Horizontal_vibration_signals.skewness, feature.Horizontal_vibration_signals.excess_kurtosis, feature.Vertical_vibration_signals.mean, feature.Vertical_vibration_signals.rms, feature.Vertical_vibration_signals.standard_deviation, feature.Vertical_vibration_signals.absolute_peak, feature.Vertical_vibration_signals.peak_to_peak, feature.Vertical_vibration_signals.crest_factor, feature.Vertical_vibration_signals.skewness, feature.Vertical_vibration_signals.excess_kurtosis"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Preprocessing",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Fit scope",
+                "value": "train / 3246 observations"
+              },
+              {
+                "label": "Scaling",
+                "value": "identity"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Reference",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Strategy",
+                "value": "train-bearing-early-third-v1"
+              },
+              {
+                "label": "Eligible observations",
+                "value": 1084
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Sequence Construction",
+            "status": "not applicable",
+            "facts": [
+              {
+                "label": "Reason",
+                "value": "model consumes acquisition-level feature observations"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Population",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Sampling policy",
+                "value": "acquisition-uniform-v1"
+              },
+              {
+                "label": "Train observations",
+                "value": 3246
+              },
+              {
+                "label": "Reference-eligible observations",
+                "value": 1084
+              },
+              {
+                "label": "Model-fit observations",
+                "value": 1084
+              },
+              {
+                "label": "Holdout scoring observations",
+                "value": 3152
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Model",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Family",
+                "value": "isolation-forest"
+              },
+              {
+                "label": "Parameters",
+                "value": "bootstrap=False, contamination='auto', max_features=1.0, max_samples='auto', n_estimators=256"
+              },
+              {
+                "label": "Random seed",
+                "value": 42
+              },
+              {
+                "label": "Score semantics",
+                "value": "higher-is-more-anomalous"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Scoring",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Scope",
+                "value": "3 unseen holdout bearings / 3152 observations"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Evaluation",
+            "status": "consumed",
+            "facts": [
+              {
+                "label": "Statistics",
+                "value": "acquisition-order-spearman-rho, lifecycle-late-vs-middle-rank-probability"
+              },
+              {
+                "label": "Aggregation",
+                "value": "3-bearing equal-weight mean"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "Bearing1_1 (35Hz12kN): observations=123, rho=0.853297, late_vs_middle=0.995241"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "Bearing2_1 (37.5Hz11kN): observations=491, rho=0.551899, late_vs_middle=0.630256"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "Bearing3_1 (40Hz10kN): observations=2538, rho=0.0178433, late_vs_middle=0.468766"
+              },
+              {
+                "label": "Mean rho",
+                "value": "0.474347"
+              },
+              {
+                "label": "Mean late-vs-middle",
+                "value": "0.698087"
+              },
+              {
+                "label": "Selection or threshold calibration",
+                "value": "none"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Capability",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Available",
+                "value": "anomaly-scoring, descriptive-score-trajectory-evaluation"
+              },
+              {
+                "label": "Unsupported",
+                "value": "thresholded-state-detection, health-assessment, fault-diagnostics, prognostics-rul"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Provenance",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Experiment",
+                "value": "xjtu-sy-iforest-fold-1-finalized-v1"
+              },
+              {
+                "label": "Split",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Declared code revision",
+                "value": "f079f9341401f68a6a0428156773129eb242635e"
+              },
+              {
+                "label": "Checkout attestation",
+                "value": "unavailable"
+              },
+              {
+                "label": "Artifact",
+                "value": "docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-iforest-fold-1-reference-comparison-v1",
+      "title": "Isolation Forest · 참조 모델 비교",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-iforest-fold-1-reference-comparison-v1.json",
+      "artifact_sha256": "a7211342182ce8e8ef3ffcab90f13857a4156c6abfbac28c1317f1f8ccc0df0a",
+      "artifact_bytes": 4052,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-iforest-fold-1-reference-comparison-v1.json",
+      "inspection": null,
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-iforest-fold-1-validation-v1",
+      "title": "Isolation Forest · 검증 평가",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-iforest-fold-1-validation-v1.json",
+      "artifact_sha256": "2e744a3be67189f06e25ebe15247765de0882f2d3739416d52cd0164415e59ce",
+      "artifact_bytes": 9566,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-iforest-fold-1-validation-v1.json",
+      "inspection": null,
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-lstm-autoencoder-fold-1-development-v1",
+      "title": "LSTM Autoencoder · 개발 평가",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json",
+      "artifact_sha256": "de276f43849a16efa740c9eea600f88d3f581cdbd782a4d02ac0f4f192712a09",
+      "artifact_bytes": 2309853,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json",
+      "inspection": {
+        "schema_id": "xjtu-lstm-development-result-v1",
+        "status": "completed",
+        "stages": [
+          {
+            "name": "Source",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Dataset",
+                "value": "xjtu-sy"
+              },
+              {
+                "label": "Verified source profile",
+                "value": "9216 acquisition CSV files"
+              },
+              {
+                "label": "Split scope",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Train bearings",
+                "value": "Bearing1_3, Bearing1_4, Bearing1_5, Bearing2_3, Bearing2_4, Bearing2_5, Bearing3_3, Bearing3_4, Bearing3_5"
+              },
+              {
+                "label": "Validation bearings",
+                "value": "Bearing1_2, Bearing2_2, Bearing3_2"
+              },
+              {
+                "label": "Excluded",
+                "value": "test:Bearing1_1, test:Bearing2_1, test:Bearing3_1"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Canonical",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Channels",
+                "value": "Horizontal_vibration_signals, Vertical_vibration_signals"
+              },
+              {
+                "label": "Cardinality",
+                "value": "1 acquisition CSV -> 1 two-channel bearing observation"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Feature",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Feature set",
+                "value": "vibration-statistical-v1"
+              },
+              {
+                "label": "Selected features (16)",
+                "value": "feature.Horizontal_vibration_signals.mean, feature.Horizontal_vibration_signals.rms, feature.Horizontal_vibration_signals.standard_deviation, feature.Horizontal_vibration_signals.absolute_peak, feature.Horizontal_vibration_signals.peak_to_peak, feature.Horizontal_vibration_signals.crest_factor, feature.Horizontal_vibration_signals.skewness, feature.Horizontal_vibration_signals.excess_kurtosis, feature.Vertical_vibration_signals.mean, feature.Vertical_vibration_signals.rms, feature.Vertical_vibration_signals.standard_deviation, feature.Vertical_vibration_signals.absolute_peak, feature.Vertical_vibration_signals.peak_to_peak, feature.Vertical_vibration_signals.crest_factor, feature.Vertical_vibration_signals.skewness, feature.Vertical_vibration_signals.excess_kurtosis"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Preprocessing",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Fit scope",
+                "value": "train / 3246 acquisitions"
+              },
+              {
+                "label": "Scaling",
+                "value": "robust"
+              },
+              {
+                "label": "Zero-IQR features",
+                "value": 0
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Reference",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Strategy",
+                "value": "train-bearing-early-third-v1"
+              },
+              {
+                "label": "Source acquisitions",
+                "value": 1084
+              },
+              {
+                "label": "Sampling policy",
+                "value": "reference-window-uniform-v1"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Sequence Construction",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Length",
+                "value": 8
+              },
+              {
+                "label": "Stride",
+                "value": 1
+              },
+              {
+                "label": "Alignment",
+                "value": "right-edge"
+              },
+              {
+                "label": "Feature width",
+                "value": 16
+              },
+              {
+                "label": "Reference population",
+                "value": "1084 acquisitions -> 1021 windows / 63 dropped prefix"
+              },
+              {
+                "label": "Validation population",
+                "value": "2818 acquisitions -> 2797 windows / 21 dropped prefix"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Population",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Complete train acquisitions",
+                "value": 3246
+              },
+              {
+                "label": "Reference acquisitions",
+                "value": 1084
+              },
+              {
+                "label": "Model-fit windows",
+                "value": 1021
+              },
+              {
+                "label": "Validation acquisitions",
+                "value": 2818
+              },
+              {
+                "label": "Scoring windows",
+                "value": 2797
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Model",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Family",
+                "value": "lstm-autoencoder"
+              },
+              {
+                "label": "Parameters",
+                "value": "adam_beta1=0.9, adam_beta2=0.999, adam_epsilon=1e-08, batch_size=64, checkpoint='final-epoch', deterministic_algorithms=True, device='cpu', dropout=0.0, epochs=50, gradient_clip_norm=1.0, hidden_size=32, layer_count=1, learning_rate=0.001, loss='mean-squared-error', numeric_precision='float32', optimizer='adam', sequence_length=8, shuffle=True, weight_decay=0.0"
+              },
+              {
+                "label": "Framework",
+                "value": "pytorch 2.14.0"
+              },
+              {
+                "label": "Device",
+                "value": "cpu"
+              },
+              {
+                "label": "Numeric precision",
+                "value": "float32"
+              },
+              {
+                "label": "Random seed",
+                "value": 42
+              },
+              {
+                "label": "Epochs",
+                "value": 50
+              },
+              {
+                "label": "Parameter count",
+                "value": 15376
+              },
+              {
+                "label": "Final epoch mean training loss",
+                "value": "0.248351"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Scoring",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Semantics",
+                "value": "mean-squared-reconstruction-error-v1"
+              },
+              {
+                "label": "Direction",
+                "value": "higher-is-more-anomalous"
+              },
+              {
+                "label": "Alignment",
+                "value": "right-edge"
+              },
+              {
+                "label": "Scope",
+                "value": "3 validation bearings / 2797 windows"
+              },
+              {
+                "label": "Trajectory evidence",
+                "value": "2797 acquisition-aligned scores / 16 residual features"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Evaluation",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Scope",
+                "value": "retrospective-development-evidence"
+              },
+              {
+                "label": "Lifecycle",
+                "value": "original-full-run-thirds"
+              },
+              {
+                "label": "Statistics",
+                "value": "acquisition-order-spearman-rho, lifecycle-late-vs-middle-rank-probability, feature-mean-reconstruction-residual"
+              },
+              {
+                "label": "Aggregation",
+                "value": "three-bearing-equal-weight-mean"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "Bearing1_2: source=161, windows=154, rho=0.791534, late_vs_middle=0.62334"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "Bearing2_2: source=161, windows=154, rho=0.741265, late_vs_middle=0.691474"
+              },
+              {
+                "label": "Bearing evidence",
+                "value": "Bearing3_2: source=2496, windows=2489, rho=0.349877, late_vs_middle=0.730095"
+              },
+              {
+                "label": "Mean rho",
+                "value": "0.627559"
+              },
+              {
+                "label": "Mean late-vs-middle",
+                "value": "0.681636"
+              },
+              {
+                "label": "Feature residual summary",
+                "value": "16 robust-scaled features"
+              },
+              {
+                "label": "Selection or threshold calibration",
+                "value": "none"
+              }
+            ],
+            "warnings": [
+              "Retrospective development evidence; not a fresh holdout or test result."
+            ]
+          },
+          {
+            "name": "Capability",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Available",
+                "value": "anomaly-scoring, descriptive-score-trajectory-evaluation, reconstruction-residual-evidence"
+              },
+              {
+                "label": "Unsupported",
+                "value": "thresholded-state-detection, health-assessment, fault-diagnostics, prognostics-rul"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Provenance",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Experiment",
+                "value": "xjtu-lstm-autoencoder-fold-1-development-v1"
+              },
+              {
+                "label": "Split",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Evidence class",
+                "value": "retrospective-development-evidence"
+              },
+              {
+                "label": "Declared code revision",
+                "value": "6f0d959317ab956c08418db2d19a46bae4bcf48a"
+              },
+              {
+                "label": "Checkout attestation",
+                "value": "unavailable"
+              },
+              {
+                "label": "Artifact",
+                "value": "docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-rul-lstm-fold-1-benchmark-v1",
+      "title": "RUL · LSTM 벤치마크",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json",
+      "artifact_sha256": "874860c9a959e62311e959dc4609b022058cfb75ca4f107cf901d43b641b0fbf",
+      "artifact_bytes": 626581,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json",
+      "inspection": {
+        "schema_id": "xjtu-rul-lstm-fold-1-benchmark-result-v1",
+        "status": "completed",
+        "stages": [
+          {
+            "name": "Source",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Dataset",
+                "value": "xjtu-sy"
+              },
+              {
+                "label": "Split",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Verified source acquisitions",
+                "value": 9216
+              },
+              {
+                "label": "Train bearing runs",
+                "value": "Bearing1_3, Bearing1_4, Bearing1_5, Bearing2_3, Bearing2_4, Bearing2_5, Bearing3_3, Bearing3_4, Bearing3_5"
+              },
+              {
+                "label": "Benchmark bearing runs",
+                "value": "Bearing1_1, Bearing2_1, Bearing3_1"
+              }
+            ],
+            "warnings": [
+              "fold-1 test bearings were previously observed by project anomaly/robustness work; this is not a pristine external holdout"
+            ]
+          },
+          {
+            "name": "Canonical",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Channels",
+                "value": "Horizontal_vibration_signals, Vertical_vibration_signals"
+              },
+              {
+                "label": "Cardinality",
+                "value": "1 acquisition -> 1 canonical waveform segment"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Feature",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Feature set",
+                "value": "vibration-statistical-v1"
+              },
+              {
+                "label": "Selected feature count",
+                "value": 16
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Preprocessing",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Fit partition",
+                "value": "train"
+              },
+              {
+                "label": "Fit observations",
+                "value": 3246
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Reference",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Selection rule",
+                "value": "fold-1-validation-equal-bearing-mean-mae"
+              },
+              {
+                "label": "Validation-selected method",
+                "value": "xjtu-sy-rul-lstm-fold-1-v1"
+              },
+              {
+                "label": "Operational primary method",
+                "value": "none"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Sequence Construction",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Length",
+                "value": 8
+              },
+              {
+                "label": "Stride",
+                "value": 1
+              },
+              {
+                "label": "Alignment",
+                "value": "right-edge"
+              },
+              {
+                "label": "Train windows",
+                "value": 3183
+              },
+              {
+                "label": "Benchmark dropped prefix per bearing",
+                "value": 7
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Population",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Train source acquisitions",
+                "value": 3246
+              },
+              {
+                "label": "Benchmark source acquisitions",
+                "value": 3152
+              },
+              {
+                "label": "Benchmark predictions",
+                "value": 3131
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Model",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Method",
+                "value": "xjtu-sy-rul-lstm-fold-1-v1"
+              },
+              {
+                "label": "Kind",
+                "value": "temporal-sequence-lstm-regression"
+              },
+              {
+                "label": "Random seed",
+                "value": 42
+              },
+              {
+                "label": "Device",
+                "value": "cpu"
+              },
+              {
+                "label": "Numeric precision",
+                "value": "float32"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Scoring",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Target definition",
+                "value": "xjtu-sy-recorded-end-acquisition-interval-v1"
+              },
+              {
+                "label": "Target unit",
+                "value": "acquisition-interval"
+              },
+              {
+                "label": "Formula",
+                "value": "N-k"
+              },
+              {
+                "label": "Endpoint semantics",
+                "value": "last-recorded-acquisition"
+              },
+              {
+                "label": "Prediction alignment",
+                "value": "right-edge-acquisition"
+              }
+            ],
+            "warnings": [
+              "Target is the recorded-end acquisition interval, not a validated physical failure time."
+            ]
+          },
+          {
+            "name": "Evaluation",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Aggregation",
+                "value": "equal-bearing-mean"
+              },
+              {
+                "label": "Mean asset MAE",
+                "value": 458.2509983270932
+              },
+              {
+                "label": "Mean asset RMSE",
+                "value": 541.2325496138867
+              },
+              {
+                "label": "Mean asset signed error",
+                "value": -445.2042730972103
+              },
+              {
+                "label": "Mean asset normalized MAE",
+                "value": 0.33131433150710676
+              },
+              {
+                "label": "Lifecycle positions",
+                "value": "early, middle, late"
+              }
+            ],
+            "warnings": [
+              "Protocol-frozen retrospective benchmark evidence; project history means this is not a pristine external holdout.",
+              "Point-error and lifecycle metrics do not create uncertainty intervals, a validated failure threshold, field validation, or a maintenance recommendation."
+            ]
+          },
+          {
+            "name": "Capability",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Available",
+                "value": "prognostics-rul-point-estimate, retrospective-benchmark-error-evidence, lifecycle-position-diagnostics"
+              },
+              {
+                "label": "Unsupported",
+                "value": "prediction-interval, uncertainty-calibration, validated-physical-failure-threshold, field-rul-validation, maintenance-decision-recommendation"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Provenance",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Protocol",
+                "value": "xjtu-sy-recorded-end-rul-v1"
+              },
+              {
+                "label": "Split",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Evidence class",
+                "value": "protocol-frozen-retrospective-benchmark-evidence"
+              },
+              {
+                "label": "Declared code revision",
+                "value": "2ae41acc16c45bf922f3b6ad8a228103d16d0982"
+              },
+              {
+                "label": "Checkout attestation",
+                "value": "unavailable"
+              },
+              {
+                "label": "Artifact",
+                "value": "docs/research/results/xjtu-sy-rul-lstm-fold-1-benchmark-v1.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
+      "id": "xjtu-sy-rul-three-model-fold-1-validation-v1",
+      "title": "RUL · 3개 모델 검증 비교",
+      "dataset": "XJTU-SY",
+      "artifact_path": "docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json",
+      "artifact_sha256": "10dbca9388474e75e988630c99f65d592bafc928a4916a9865538c6228079e6d",
+      "artifact_bytes": 1764821,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json",
+      "inspection": {
+        "schema_id": "xjtu-rul-three-model-validation-result-v1",
+        "status": "completed",
+        "stages": [
+          {
+            "name": "Source",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Dataset",
+                "value": "xjtu-sy"
+              },
+              {
+                "label": "Split",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Verified source acquisitions",
+                "value": 9216
+              },
+              {
+                "label": "Train bearing runs",
+                "value": "Bearing1_3, Bearing1_4, Bearing1_5, Bearing2_3, Bearing2_4, Bearing2_5, Bearing3_3, Bearing3_4, Bearing3_5"
+              },
+              {
+                "label": "Validation bearing runs",
+                "value": "Bearing1_2, Bearing2_2, Bearing3_2"
+              },
+              {
+                "label": "Excluded",
+                "value": "test:Bearing1_1, test:Bearing2_1, test:Bearing3_1"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Canonical",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Channels",
+                "value": "Horizontal_vibration_signals, Vertical_vibration_signals"
+              },
+              {
+                "label": "Cardinality",
+                "value": "1 acquisition -> 1 canonical waveform segment"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Feature",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Feature set",
+                "value": "vibration-statistical-v1"
+              },
+              {
+                "label": "Selected feature count",
+                "value": 16
+              },
+              {
+                "label": "Age-only baseline",
+                "value": "uses acquisition index only; no vibration feature input"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Preprocessing",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Fit partition",
+                "value": "train"
+              },
+              {
+                "label": "Fit observation count",
+                "value": 3246
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Reference",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Strategy",
+                "value": "all-train-observations"
+              },
+              {
+                "label": "Sampling policy",
+                "value": "bearing-balanced-resample-v1"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Sequence Construction",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Length",
+                "value": 8
+              },
+              {
+                "label": "Stride",
+                "value": 1
+              },
+              {
+                "label": "Alignment",
+                "value": "right-edge"
+              },
+              {
+                "label": "Train windows",
+                "value": 3183
+              },
+              {
+                "label": "Train dropped prefix acquisitions",
+                "value": 63
+              },
+              {
+                "label": "Validation dropped prefix per bearing",
+                "value": 7
+              },
+              {
+                "label": "Acquisition-level methods",
+                "value": "age-only and feature Ridge consume one acquisition per prediction"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Population",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Train source acquisitions",
+                "value": 3246
+              },
+              {
+                "label": "Acquisition-level model-fit observations",
+                "value": 3246
+              },
+              {
+                "label": "Temporal model-fit windows",
+                "value": 3183
+              },
+              {
+                "label": "Common-support predictions",
+                "value": 2797
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Model",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "xjtu-sy-age-only-mean-train-endpoint-v1",
+                "value": "age-only-baseline"
+              },
+              {
+                "label": "xjtu-sy-rul-feature-ridge-fold-1-v1",
+                "value": "current-acquisition-feature-ridge-baseline"
+              },
+              {
+                "label": "xjtu-sy-rul-lstm-fold-1-v1",
+                "value": "temporal-sequence-lstm-regression"
+              },
+              {
+                "label": "Random seed",
+                "value": 42
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Scoring",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Target definition",
+                "value": "xjtu-sy-recorded-end-acquisition-interval-v1"
+              },
+              {
+                "label": "Target unit",
+                "value": "acquisition-interval"
+              },
+              {
+                "label": "Formula",
+                "value": "N-k"
+              },
+              {
+                "label": "Endpoint semantics",
+                "value": "last-recorded-acquisition"
+              },
+              {
+                "label": "Prediction alignment",
+                "value": "acquisition"
+              }
+            ],
+            "warnings": [
+              "Target is the recorded-end acquisition interval, not a validated physical failure time."
+            ]
+          },
+          {
+            "name": "Evaluation",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Support",
+                "value": "temporal-common-support"
+              },
+              {
+                "label": "First acquisition",
+                "value": 8
+              },
+              {
+                "label": "xjtu-sy-age-only-mean-train-endpoint-v1",
+                "value": "MAE 844.889 / RMSE 844.889 / signed -578.667"
+              },
+              {
+                "label": "xjtu-sy-rul-feature-ridge-fold-1-v1",
+                "value": "MAE 421.728 / RMSE 497.207 / signed -315.447"
+              },
+              {
+                "label": "xjtu-sy-rul-lstm-fold-1-v1",
+                "value": "MAE 415.966 / RMSE 486.727 / signed -399.004"
+              }
+            ],
+            "warnings": [
+              "Development evidence on fold-1 validation bearing runs; holdout test is excluded.",
+              "Point-error metrics do not create uncertainty intervals, a validated failure threshold, or a maintenance recommendation."
+            ]
+          },
+          {
+            "name": "Capability",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Available",
+                "value": "prognostics-rul-point-estimate, retrospective-validation-error-evidence"
+              },
+              {
+                "label": "Unsupported",
+                "value": "prediction-interval, uncertainty-calibration, validated-physical-failure-threshold, field-rul-validation, maintenance-decision-recommendation"
+              }
+            ],
+            "warnings": []
+          },
+          {
+            "name": "Provenance",
+            "status": "completed",
+            "facts": [
+              {
+                "label": "Protocol",
+                "value": "xjtu-sy-recorded-end-rul-v1"
+              },
+              {
+                "label": "Split",
+                "value": "xjtu-sy-condition-stratified-5fold-v1 / fold-1"
+              },
+              {
+                "label": "Evidence class",
+                "value": "protocol-frozen-retrospective-three-model-development-evidence"
+              },
+              {
+                "label": "Declared code revision",
+                "value": "ba195fc9da2bfb48f4872bb180dbfd3afde4856c"
+              },
+              {
+                "label": "Checkout attestation",
+                "value": "unavailable"
+              },
+              {
+                "label": "Artifact",
+                "value": "docs/research/results/xjtu-sy-rul-three-model-fold-1-validation-v1.json"
+              }
+            ],
+            "warnings": []
+          }
+        ]
+      },
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    }
+  ]
+}

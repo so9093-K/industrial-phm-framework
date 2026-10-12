@@ -40,7 +40,7 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
             try:
                 page = browser.new_page(viewport={"width": 1024, "height": 900})
                 page.on("dialog", lambda dialog: dialog.accept())
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                page.goto(f"http://127.0.0.1:{port}/web/#connect", wait_until="domcontentloaded")
                 playwright.expect(page.locator("#sample-start")).to_be_enabled(timeout=30000)
                 playwright.expect(page.locator("#sample-stop")).to_be_disabled()
                 playwright.expect(page.locator("#sample-open")).to_be_hidden()
@@ -69,6 +69,7 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
                 sample_page = sample_popup.value
                 sample_page.wait_for_load_state("domcontentloaded")
                 assert sample_page.url == url
+                sample_page.locator('nav a[href="#connect"]').click()
                 playwright.expect(sample_page.locator("#sample-start")).to_be_visible(timeout=30000)
                 sample_page.close()
 
