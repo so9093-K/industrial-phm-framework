@@ -21,9 +21,11 @@ import pytest
 from industrial_phm.application import (
     JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
+    JsonOperationalFindingRepository,
     JsonSourceRepository,
     SqlitePhaseUnbalanceRepository,
 )
+from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
 from industrial_phm.runtime import (
     OperationsComponentKind,
     OperationsSupervisorStateKind,
@@ -37,6 +39,7 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
 )
+from tests.support.window_analysis import phase_unbalance_analysis
 
 _RUN = "from industrial_phm.cli import main; raise SystemExit(main())"
 
@@ -1019,3 +1022,172 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
             preview.wait(timeout=15)
     finally:
         _stop(supervisor, workspace.root)
+
+
+@pytest.mark.parametrize("width", [1024, 1440])
+def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact(
+    tmp_path: Path, width: int
+) -> None:
+    """Two persisted analyses, real Supervisor IPC, cross-asset review and system recovery.
+
+    This tests the currently supported Analysis Evidence / Human Review / System
+    screens; it does not pretend the retired Investigation/Maintenance UI exists.
+    """
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+
+    workspace = OperationsWorkspace(tmp_path / "cross-asset")
+    init = initialize_operations_workspace(workspace)
+    port = _port()
+    write_operations_runtime_config(
+        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+    )
+    first = phase_unbalance_analysis()
+    second_run_id = "analysis-second-asset"
+    second_source_id = "other-site-opcua"
+    second_asset_id = "motor-8"
+    second = PhaseUnbalanceAnalysis(
+        run=replace(
+            first.run,
+            analysis_run_id=second_run_id,
+            source_id=second_source_id,
+            asset_id=second_asset_id,
+        ),
+        evidence=replace(
+            first.evidence,
+            evidence_id="evidence-second-asset",
+            analysis_run_id=second_run_id,
+            source_id=second_source_id,
+            input_reference=replace(
+                first.evidence.input_reference,
+                source_id=second_source_id,
+                asset_id=second_asset_id,
+                window_id="window-second-asset",
+            ),
+        ),
+    )
+    analyses = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
+    analyses.record(first)
+    analyses.record(second)
+    log = tmp_path / "cross-asset-supervisor.log"
+    proc = _start(workspace.root, port, log)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda exc: errors.append(str(exc)))
+                page.on("dialog", lambda dialog: dialog.accept())
+                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                selector = page.locator("#asset-select")
+                pw.expect(selector).to_be_enabled(timeout=30000)
+
+                # The real stored System status must not become a false green
+                # merely because an earlier snapshot was loaded successfully.
+                pw.expect(page.locator("#runtime-facts")).to_contain_text(
+                    str(proc.pid), timeout=30000
+                )
+                page.route("**/api/v1/system/runtime", lambda route: route.abort("failed"))
+                page.get_by_role("button", name="실행 상태 다시 확인").click()
+                pw.expect(page.locator("#runtime-status")).to_contain_text(
+                    "실행 상태 조회 실패", timeout=30000
+                )
+                pw.expect(page.locator("#runtime-facts")).to_be_empty()
+                pw.expect(page.locator("#runtime-components")).to_be_empty()
+                page.unroute("**/api/v1/system/runtime")
+                page.get_by_role("button", name="실행 상태 다시 확인").click()
+                pw.expect(page.locator("#runtime-facts")).to_contain_text(
+                    str(proc.pid), timeout=30000
+                )
+                pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
+
+                selector.select_option(first.run.asset_id)
+                evidence = page.locator("#evidence-results")
+                review = page.locator("#review-results")
+                pw.expect(evidence).to_contain_text(first.evidence.evidence_id)
+                pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
+                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
+                pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
+                    "미처리 1건", timeout=30000
+                )
+                pw.expect(review).to_contain_text(first.run.analysis_run_id)
+                pw.expect(review).not_to_contain_text(second.run.analysis_run_id)
+
+                selector.select_option(second_asset_id)
+                pw.expect(evidence).to_contain_text(second.evidence.evidence_id)
+                pw.expect(evidence).not_to_contain_text(first.evidence.evidence_id)
+                pw.expect(review).not_to_contain_text(first.run.analysis_run_id)
+                pw.expect(review).to_contain_text("이 설비에 기록된 검토 요청이 없습니다")
+                inbox = page.locator("#review-inbox-list")
+                pw.expect(inbox).to_contain_text(first.run.analysis_run_id)
+                pw.expect(inbox).to_contain_text(first.evidence.evidence_id)
+
+                # The global inbox switches selected asset, exact Run/Evidence
+                # and keyboard focus; it must not open the newer asset's record.
+                first_finding_id = "finding-review-" + first.run.analysis_run_id
+                inbox.get_by_role(
+                    "button",
+                    name=f"검토 열기 · {first.run.asset_id} · {first_finding_id}",
+                ).click()
+                pw.expect(selector).to_have_value(first.run.asset_id)
+                pw.expect(review.locator(".review-record")).to_be_focused()
+                pw.expect(review).to_contain_text(first.evidence.evidence_id)
+                pw.expect(review).not_to_contain_text(second.evidence.evidence_id)
+                review.get_by_role(
+                    "button", name=f"연결된 분석 근거 확인 · {first.evidence.evidence_id}"
+                ).click()
+                pw.expect(evidence.locator(".evidence-target")).to_be_focused()
+                pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
+
+                selector.select_option(second_asset_id)
+                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
+                pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
+                    "미처리 2건", timeout=30000
+                )
+                pw.expect(review).to_contain_text(second.run.analysis_run_id)
+                pw.expect(review).not_to_contain_text(first.run.analysis_run_id)
+                pw.expect(inbox).to_contain_text(first.run.analysis_run_id)
+                pw.expect(inbox).to_contain_text(second.run.analysis_run_id)
+                _no_overflow(page, width)
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        _stop(proc, workspace.root)
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
+    review_store = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
+    assert len(review_store.list_events()) == 0
+    stored = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()
+    assert {item.analysis_run_id for item in stored} == {
+        first.run.analysis_run_id,
+        second.run.analysis_run_id,
+    }
+
+    # Both finding identities must remain stable after a real supervisor restart.
+    proc = _start(workspace.root, port, log)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
+                    "미처리 2건", timeout=30000
+                )
+                selector = page.locator("#asset-select")
+                selector.select_option(second_asset_id)
+                pw.expect(page.locator("#review-results")).to_contain_text(
+                    second.evidence.evidence_id
+                )
+                pw.expect(page.locator("#review-results")).not_to_contain_text(
+                    first.evidence.evidence_id
+                )
+            finally:
+                browser.close()
+    finally:
+        _stop(proc, workspace.root)
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
