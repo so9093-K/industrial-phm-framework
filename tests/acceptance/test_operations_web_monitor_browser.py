@@ -115,11 +115,11 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "not an English-language operations interface"
             )
             # Keyboard activation, not a mouse click, must update current navigation.
-            page.get_by_role("link", name="시스템 근거").focus()
+            page.get_by_role("link", name="운영 관리").focus()
             page.keyboard.press("Enter")
             assert page.evaluate("location.hash") == "#system"
             sync_api.expect(page.get_by_role("combobox", name="설비 ID")).to_be_hidden()
-            page.get_by_role("link", name="시스템 근거").click()
+            page.get_by_role("link", name="운영 관리").click()
             sync_api.expect(page.locator('nav a[href="#system"]')).to_have_attribute(
                 "aria-current", "page"
             )
@@ -127,7 +127,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 평가 시각 · UTC")
-            page.locator('nav a[href="#monitor"]').click()
+            page.locator('nav a[href="#signals"]').click()
             sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
             sync_api.expect(page.locator("#channel-options input:checked")).to_have_count(1)
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(1)

@@ -480,3 +480,33 @@ canonical committed result JSON through the existing experiment inspector. Only 
 `/web/research-results.json` route serves it. No arbitrary local artifact path is accepted,
 no research data is written into a workspace, and raw dataset availability is not inferred.
 The canonical artifact hash and inspector facts are checked against the shipped summary.
+
+## Electrical operating-condition analysis
+
+Monitor consumes `GET /api/v1/condition?asset_id=...&period=1h|6h|24h`.
+An optional `source_id` and `point_id` select one context when an asset has several;
+the response does not merge sources or measurement points. `end_at` selects the recorded
+analysis end. `reference_start` and `reference_end` must be supplied together, with an explicit
+timezone, before the target window and spanning at most 24 hours. Omitted reference bounds
+select the preceding equal-length window. Invalid or cross-source selections return 400;
+history read failures remain distinct from missing or unsupported measurements.
+
+`operations_web_condition` owns bounded snapshot reads and semantic role resolution.
+`application/electrical_condition` owns strict phase alignment, descriptive load/unbalance
+changes and reference-pattern scoring. It reuses the phase unbalance definition and the
+existing dataset-neutral Isolation Forest. Reference-only training/calibration, fixed random
+seed, deterministic sampling of at most 2,048 fit observations, and separate target scoring
+prevent target values from entering the comparison baseline. Each period is limited to
+3,600 timestamps and 22,000 retrieved channel groups. Source labels are not model features.
+
+The current-duration estimate uses only consecutive valid current observations whose gap
+is at most 1.5 times the observed cadence and no more than 120 seconds. It does not fill
+missing intervals or extend the final observation. Low-current unbalance is unavailable,
+not zero. Insufficient/constant reference data cannot produce a pattern score or a healthy
+verdict. Sensor quality of FILE recordings remains unconfirmed.
+
+The result is a read-only exploratory analysis at an identified history snapshot. It creates
+no AnalysisRun, review entry, model deployment or alarm. Existing persisted analysis/review
+APIs retain their own writes. The primary screen shows quantities, comparison periods,
+time-series and candidate timestamps; exact storage identifiers and calculation details are
+secondary information.

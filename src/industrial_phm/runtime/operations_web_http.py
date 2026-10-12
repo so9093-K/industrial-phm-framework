@@ -13,6 +13,7 @@ import binascii
 import json
 import os
 import secrets
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
@@ -37,6 +38,10 @@ from industrial_phm.runtime.operations_web_command import (
     WebCommandClient,
     WebCommandOutcomeUnknown,
     WebCommandRejected,
+)
+from industrial_phm.runtime.operations_web_condition import (
+    ConditionSelectionError,
+    project_electrical_condition,
 )
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
@@ -115,6 +120,7 @@ def create_operations_web_read_server(
                 "styles.css": "text/css; charset=utf-8",
                 "navigation.js": "text/javascript; charset=utf-8",
                 "research.js": "text/javascript; charset=utf-8",
+                "condition.js": "text/javascript; charset=utf-8",
                 "research-results.json": "application/json; charset=utf-8",
             }
             if asset_name not in mime:
@@ -206,6 +212,46 @@ def create_operations_web_read_server(
                 "time_anchor": anchors[0],
             }
 
+        def _condition_query(self) -> dict[str, object]:
+            parts = urlsplit(self.path)
+            if len(self.path) > 1000:
+                raise ValueError("condition query too long")
+            params = parse_qs(
+                parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=8
+            )
+            allowed = {
+                "asset_id",
+                "period",
+                "source_id",
+                "point_id",
+                "end_at",
+                "reference_start",
+                "reference_end",
+            }
+            if set(params) - allowed or any(len(values) != 1 for values in params.values()):
+                raise ValueError("unexpected condition query")
+            asset = params.get("asset_id", [""])[0]
+            self._validate_id(asset)
+            period = params.get("period", ["24h"])[0]
+            if period not in {"1h", "6h", "24h"}:
+                raise ValueError("unsupported period")
+            query: dict[str, object] = {"asset_id": asset, "period": period}
+            for key in ("source_id", "point_id"):
+                if key in params:
+                    value = params[key][0]
+                    if value:
+                        self._validate_id(value)
+                        query[key] = value
+            for key in ("end_at", "reference_start", "reference_end"):
+                if key in params:
+                    timestamp = datetime.fromisoformat(params[key][0])
+                    if timestamp.utcoffset() is None:
+                        raise ValueError("explicit timezone required")
+                    query[key] = timestamp
+            if ("reference_start" in query) != ("reference_end" in query):
+                raise ValueError("reference start/end required together")
+            return query
+
         @staticmethod
         def _validate_id(identifier: str) -> None:
             if (
@@ -226,6 +272,7 @@ def create_operations_web_read_server(
                 "/web/styles.css": "styles.css",
                 "/web/navigation.js": "navigation.js",
                 "/web/research.js": "research.js",
+                "/web/condition.js": "condition.js",
                 "/web/research-results.json": "research-results.json",
             }
             if self.path in static_paths:
@@ -239,6 +286,12 @@ def create_operations_web_read_server(
                 "/api/v1/system/runtime",
             }:
                 query: dict[str, object] = {}
+            elif parts.path == "/api/v1/condition":
+                try:
+                    query = self._condition_query()
+                except ValueError:
+                    self._error(HTTPStatus.BAD_REQUEST, "invalid_condition_query")
+                    return
             elif parts.path in {"/api/v1/history/channels", "/api/v1/history/trend"}:
                 try:
                     query = self._history_query(channels=parts.path == "/api/v1/history/channels")
@@ -277,6 +330,17 @@ def create_operations_web_read_server(
                 )
                 if self.path == "/api/v1/monitor":
                     payload = project_operations_monitor(snapshot)
+                elif parts.path == "/api/v1/condition":
+                    payload = project_electrical_condition(
+                        snapshot,
+                        asset_id=cast(str, query["asset_id"]),
+                        period=cast(str, query["period"]),
+                        source_id=cast(str | None, query.get("source_id")),
+                        point_id=cast(str | None, query.get("point_id")),
+                        end_at=cast(datetime | None, query.get("end_at")),
+                        reference_start=cast(datetime | None, query.get("reference_start")),
+                        reference_end=cast(datetime | None, query.get("reference_end")),
+                    )
                 elif self.path == "/api/v1/sources":
                     payload = project_web_source_setup(snapshot)
                 elif parts.path == "/api/v1/history/channels":
@@ -292,6 +356,9 @@ def create_operations_web_read_server(
                         bucket_count=cast(int, query["bucket_count"]),
                         time_anchor=cast(str, query["time_anchor"]),
                     )
+            except ConditionSelectionError:
+                self._error(HTTPStatus.BAD_REQUEST, "invalid_condition_selection")
+                return
             except OperationsReadError, OSError, ValueError, TypeError:
                 # No workspace paths, raw exceptions or tracebacks in responses.
                 self._error(HTTPStatus.SERVICE_UNAVAILABLE, "history_or_snapshot_unavailable")

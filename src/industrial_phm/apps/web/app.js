@@ -1,3 +1,4 @@
+import { initializeCondition, loadCondition } from "./condition.js";
 import { initializeNavigation, navigate } from "./navigation.js";
 import { initializeResearch } from "./research.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
@@ -299,16 +300,21 @@ function evidenceViews() {
         && run.analysis_run_id && run.evidence_id) {
       evidenceTargets.set(JSON.stringify([run.analysis_run_id, run.evidence_id]), article);
     }
-    article.append(create("h3", null, "분석 근거 · " + fmt(run.analysis_run_id)));
+    article.append(create("h3", null, Array.isArray(run.quantities) ? "3상 불평형 분석" : "신호 통계 분석"));
+    article.append(create("p", "muted", "분석한 관측 구간 · " + utc(run.observed_start_at) + " → " + utc(run.observed_end_at)));
     const lines = [
+      ["분석 기록 ID", run.analysis_run_id],
       ["Capability", run.capability_id],
       ["계산 버전", run.algorithm_version],
       ["관측 구간 · UTC", utc(run.observed_start_at) + " → " + utc(run.observed_end_at)],
       ["Evidence ID", run.evidence_id],
     ];
+    const calculation = create("details", "analysis-calculation");
+    calculation.append(create("summary", null, "분석 입력·계산 방식"));
     lines.forEach(([label, value]) => {
-      const p = create("p"); p.append(create("strong", null, label + "  "), document.createTextNode(fmt(value))); article.append(p);
+      const p = create("p"); p.append(create("strong", null, label + "  "), document.createTextNode(fmt(value))); calculation.append(p);
     });
+    article.append(calculation);
     if (Array.isArray(run.features)) {
       article.append(create("p", "hint",
         "CSV 통계 특징값 · 이 화면은 원본 신호의 물리 단위나 진동 의미를 확인하지 않으며, 고장 진단·경보가 아닙니다."));
@@ -566,6 +572,7 @@ async function selectAsset() {
   byId("show-trend").disabled = true;
   trendState("설비의 저장된 신호 목록을 확인합니다.");
   if (selectedAsset) await loadChannels(selectedAsset, generation);
+  void loadCondition(selectedAsset, {reset: true});
 }
 const runtimeConditions = {
   running: "실행 근거 있음",
@@ -743,7 +750,7 @@ async function refresh() {
     clear(byId("trend-results"));clear(byId("last-values"));trendState(presentError(error),true);
     byId("show-trend").disabled = true;
   } finally {
-    if (token === generation) {renderWorkspace();renderOnboardingGuide();}
+    if (token === generation) {renderWorkspace();renderOnboardingGuide();void loadCondition(selectedAsset);}
     byId("refresh").disabled = false;
   }
 }
@@ -756,6 +763,7 @@ byId("range-select").addEventListener("change",() => loadTrend());
 byId("time-anchor").addEventListener("change",() => loadTrend());
 initializeNavigation();
 initializeResearch();
+initializeCondition();
 byId("start-sample").addEventListener("click", () => navigate("#connect", byId("sample-start")));
 async function initializeReviewAccess() {
   try {

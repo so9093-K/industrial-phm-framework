@@ -144,8 +144,8 @@ uv run --no-sync python -m tools.aihub.history \
   --member '5.보일러/SourceData_211.json' \
   --binding examples/operations/aihub-boiler-binding.json \
   --start 2020-11-13T00:00:00 --end 2020-11-13T01:00:00 \
-  --ducklake-catalog artifacts/operations/history/catalog.sqlite \
-  --ducklake-data artifacts/operations/history/data
+  --ducklake-catalog artifacts/operations/catalog.sqlite \
+  --ducklake-data artifacts/operations/data
 uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
   artifacts/operations --port 8765
 ```
@@ -160,12 +160,45 @@ Importer는 2,000개 단위 commit을 사용합니다. 동일 입력/설정의 �
 
 ## 대표 기록을 Web에서 검증하기
 
-보일러 원본 하나를 받고 기존 source profile의 SHA-256과 비교합니다.
+설비 변화 분석에는 전류가 0인 첫 1시간 대신 **2020-11-13–14 이틀의 보일러 2297 기록**을 사용합니다.
+이 구간에는 부하의 상승·하강과 전압의 큰 변화가 포함돼 있습니다. source timezone은 미확인이고,
+예시 binding의 Asia/Seoul은 명시적인 개발용 가정입니다.
 
 ```bash
 python3 -m tools.aihub.cli download 239 --preset boiler
 python3 -m tools.aihub.cli verify 239 --preset boiler
 uv sync --locked --extra operations --extra aihub --inexact
+uv run --no-sync industrial-phm operations init artifacts/operations-boiler-condition
+uv run --no-sync python -m tools.aihub.history \
+  data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --member '5.보일러/SourceData_211.json' \
+  --binding examples/operations/aihub-boiler-binding.json \
+  --start 2020-11-13T00:00:00 --end 2020-11-15T00:00:00 \
+  --ducklake-catalog artifacts/operations-boiler-condition/catalog.sqlite \
+  --ducklake-data artifacts/operations-boiler-condition/data
+make up WORKSPACE=artifacts/operations-boiler-condition
+```
+
+신규·중지된 전용 작업공간에서 적재합니다. 기존 노드가 같은 Web 포트를 사용 중이면 해당 노드를 먼저 종료합니다.
+Operations workspace의 기본 이력 위치는 root의 `catalog.sqlite`와 `data/`입니다.
+35채널 원본 100,800개 관측을 보존하며, 소스 등록 없이 이력의 설비를 조회할 수 있습니다.
+같은 입력 재실행은 기존 batch를 복구하고, 겹치는 범위를 다른 binding으로 적재하지 않습니다.
+
+**설비 모니터링 → 최근 기록 24시간 → 변화 분석**에서 앞선 동일 기간과 비교합니다.
+평균 전류·전류 통전 시간 추정·전압/전류 불평형·기준 패턴 이탈 시각을 확인하고,
+**구간 확인**을 선택해 그 시각의 R/S/T 값을 살펴봅니다. 상별 원본 신호는 **설비 · 신호**에서 확인합니다.
+분석·기준 기간은 UTC로 직접 선택할 수 있습니다. 선택한 기준은 분석 구간보다 앞서야 합니다.
+
+패턴 비교는 기존 Isolation Forest를 재사용합니다. 기준 구간에서만 학습하고 기준 점수의 99% 분위수를
+비교선으로 사용합니다. 선택한 기준이 정상 운전으로 검증됐다는 뜻이 아니며, 점수는 고장 확률이 아닙니다.
+운전 스케줄·부하 변경과 원본 계측값을 함께 확인합니다. 1A 미만 전류는 불평형 계산에서 제외하고,
+결측·충돌·시간 공백을 채우거나 다른 측정 지점을 섞지 않습니다.
+
+### 작은 CSV 등록 경로 검증
+
+첫 1시간 발췌는 연결·저장·검토의 경계를 확인하는 테스트 입력입니다. 설비 변화 분석의 대표 구간과 구분합니다.
+
+```bash
 uv run --no-sync python -m tools.aihub.reference \
   data/raw/aihub/239/archives/training/raw/5.보일러.zip \
   --member '5.보일러/SourceData_211.json' \
@@ -174,27 +207,14 @@ uv run --no-sync python -m tools.aihub.reference \
   --output artifacts/aihub-239/reference
 ```
 
-`reference`는 기존 semantics-v3에서 단위·상 의미가 확인된 R/S/T 전압만 CSV로 발췌합니다.
-확인되지 않은 archive/member의 의미는 거부하고, 중복·채널 누락을 자동 보간하거나 제거하지 않습니다.
-원본 local time과 별도로 명시적 binding 가정에 따라 UTC를 기록하며 원본 인덱스·archive SHA와
-시간대 가정을 CSV와 `provenance.json`에 보존합니다. 원본 JSON 전체 35채널의 이력이 필요하면
-위 `tools.aihub.history` 경로를 사용합니다.
+발췌 CSV는 R/S/T 전압만 포함하며 원본 인덱스·해시·시간대 가정을 보존합니다.
+단위가 확인되지 않은 archive/member, 중복, 채널 누락은 자동 보정하지 않습니다.
+별도 작업공간의 CSV 등록 양식에서 Source ID `aihub239-recorded-boiler-2297`, Asset ID
+`research-boiler-2297`, 신호 `R상전압,S상전압,T상전압`, 시간 컬럼 `timestamp`와 생성된
+`phase-bindings.txt`를 입력하면 기존 명시적 수신·이력 적재·분석·검토 경로를 확인할 수 있습니다.
 
-별도 빈 작업공간을 `make up WORKSPACE=artifacts/operations-boiler-2297`로 열고 **데이터 연결**에서
-생성된 `recorded-phase.csv`를 선택합니다. Source ID는 `aihub239-recorded-boiler-2297`, Asset ID는
-`research-boiler-2297`, 신호 컬럼은 `R상전압,S상전압,T상전압`, 시간 컬럼은 `timestamp`입니다.
-생성된 `phase-bindings.txt` 내용을 3상 역할 매핑에 입력합니다.
-
-**CSV 분석 전 점검 → 등록 → 활성화 → FILE 수신 확인 → FILE 이력 적재**를 각각 실행합니다.
-**설비 · 신호**의 기간 기준은 **마지막 저장 기록 기준**을 사용하세요. **현재 조회 시각 기준**에는
-2020년 기록의 그래프가 나타나지 않으며, 기록을 현재 시각으로 옮기지 않습니다.
-수신·이력 저장이 확인되면 **저장된 3상 이력 분석 실행**으로 새 AnalysisRun/Evidence를 만들고
-**분석 근거 → 사람 검토 요청 → 메모·확인·검토 종료**를 진행합니다. 기존 연구 결과 재사용과 별개입니다.
-단위·상·timezone 근거는 신호의 **측정 의미·출처 근거**에서 확인합니다.
-
-로컬 원본이 준비된 환경에서만 실제 Chromium 수용 테스트를 명시적으로 실행할 수 있습니다.
-테스트는 네트워크에서 데이터를 받지 않고 별도의 작업공간을 사용하며 재시작 후 이력·분석·검토를 확인합니다.
-기본 CI에서 이 외부 데이터 테스트는 실행하지 않습니다.
+외부 데이터가 준비된 환경에서만 다음 테스트를 실행합니다. 기본 CI는 데이터를 다운로드하지 않습니다.
+`PHM_RECORDED_EVIDENCE`는 매번 새 경로를 사용합니다.
 
 ```bash
 PHM_RECORDED_REFERENCE="$PWD/artifacts/aihub-239/reference" \
@@ -202,10 +222,6 @@ PHM_RECORDED_EVIDENCE="$PWD/artifacts/aihub-239/browser-run-01" \
   uv run --locked --extra operations --extra aihub --with playwright pytest \
     tests/acceptance/test_operations_recorded_reference_browser.py -q
 ```
-
-`PHM_RECORDED_EVIDENCE`는 매번 새 경로를 사용합니다. 실행 결과·스크린샷·검증 작업공간을 보존합니다.
-자동 검증은 실제 사용자가 도움 없이 과제를 수행했다는 근거가 아닙니다. 사용자 검증에서는
-기존 결과 찾기, 과거 관측 시각 설명, 수신·저장·분석 단계 구별, 연결된 검토 근거 찾기를 따로 확인합니다.
 
 ## Observed macOS vendor-shell issue
 

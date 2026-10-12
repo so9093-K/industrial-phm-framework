@@ -51,6 +51,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Temporal alignment `bounded-previous-v1` | **조건부 지원** | explicit max age와 근거가 필요. causal event-transition reconstruction이며 synchronized acquisition cycle을 주장하지 않음 |
 | window 시작 전 carry-in state | **미제공** | finalized window 밖의 이전 값을 analysis input으로 재조회하지 않음 |
 | Operations source control/monitor | **지원** | desired collection request, collector-service heartbeat, OPC UA session, live receive silence, spool/history evidence를 서로 다른 사실로 표시 |
+| 설비 전기 상태·변화 분석 | **조건부 지원** | 한 asset/source/측정 지점의 확인된 3상 V/A 이력을 기준 구간과 비교. 관측 평균 전류, 1A 이상 통전 시간의 관측 추정, 전압/전류 불평형 및 기존 Isolation Forest의 기준 패턴 이탈 점수·시각을 표시. 기준만 학습·99% 점수 분위수 비교선을 계산하며 분석 구간은 학습에 사용하지 않음. 1/6/24h와 명시적인 앞선 기준 기간, 같은 snapshot·측정 의미, 기간별 3,600시각·22,000행 안에서 지원. 의미 미확정·혼합·결측·충돌·저전류·기준 부족은 미평가로 표시. 점수는 고장 확률·진단·경보·정비 권고·RUL이 아님. 탐색형 읽기 분석이며 자동 재학습 운영 모델의 배포·승인 기능이 아님 |
 | Operations Monitor / Signals / attention | **조건부 지원** | 현재 wheel 내 `/web/`의 source·asset ID와 저장된 신호 이력, 최신 측정값·품질·시간·출처, 최대 6개 채널의 15m/1h/24h/7d 조회와 저장된 AnalysisRun/Review 증거를 제공합니다. 수동 refresh이며 live subscription이나 설비 안전 판정이 아닙니다. 빈 bucket은 0으로 연결하지 않으며, attention은 확인한 운영 상태 근거를 표시합니다. **구형 marimo의 별도 신호 검색/hover·cursor·Investigation drill-down 전체 UI를 현재 Web에 구현한 것으로 주장하지 않습니다.** 구형 화면과의 전체 업무 동등성은 현재 지원 범위 밖 |
 | Operations Asset History | **지원** | 최신값·raw page·UI aggregation·quality·provenance 조회 |
 | Operations의 3상 불평형 결과 조회 | **조건부 지원** | runner와 Operations가 같은 phase-unbalance result repository path를 사용해야 함. 실행 중 새 결과는 명시적 refresh로 읽음(자동 polling 없음) |
