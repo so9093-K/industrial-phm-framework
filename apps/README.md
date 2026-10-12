@@ -36,10 +36,11 @@ uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
 소유하지 않습니다. 같은 workspace의 supervised Web가 작동 중이면 협조적 writer lease가
 preview 쓰기를 차단합니다. 무인증 네트워크·다중 사용자 서비스가 아닙니다.
 
-빈 Web 작업공간에서 분리된 synthetic 샘플을 명시적으로 시작·중지할 수 있고,
-FILE/OPC UA 소스별 등록·활성·수신 근거와 저장 이력, 분석 근거, Review를 조회할 수
-있습니다. 전체 영어 UI·접근성과 모든 업무·오류 복구는 미완료이며
-[현재 지원 상태](../docs/status.md)가 범위 기준입니다.
+빈 Web 작업공간은 자동으로 측정값을 생성하지 않습니다. 첫 화면에서 격리 synthetic
+샘플을 명시적으로 시작하거나 실제 FILE CSV/로컬 OPC UA 소스를 연결하세요.
+등록·활성·수신·이력·분석은 단계별로 다른 근거입니다. 전체 영어 UI·스크린리더
+접근성 및 구형 UI 전체 업무/오류 복구의 동등성은 현재 지원 범위가 아니며
+[현재 지원 상태](../docs/status.md)가 기준입니다.
 소스·설비·측정점·채널·분석/검토 ID와 UTC 의미는 화면에서 변경하지 않습니다.
 
 개별 OPC UA replay와 fault/recovery 실험은 [도구 안내](../tools/opcua/README.md)를
