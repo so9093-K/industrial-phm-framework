@@ -161,6 +161,13 @@ def test_opcua_web_denies_remote_urls_and_requires_auth(tmp_path: Path) -> None:
             )[0]
             == 400
         )
+        for bad_browse in (
+            {"endpoint_url": endpoint, "start_node_id": ""},
+            {"endpoint_url": endpoint, "start_node_id": "x" * 129},
+            {"endpoint_url": endpoint, "start_node_id": 100},
+            {"endpoint_url": endpoint, "start_node_id": "i=85", "unexpected": True},
+        ):
+            assert _post(port, "/api/v1/sources/opcua/browse", bad_browse, token)[0] == 400
         assert _post(port, diagnostic, {"source_id": "unknown"}, token)[0] == 404
         assert _post(port, route, mapping, token)[0] == 201
         assert _post(port, route, mapping, token)[0] == 409
@@ -183,6 +190,18 @@ def test_web_browse_and_diagnostic_persist_real_opcua_receipt(tmp_path: Path) ->
         assert status == 200
         assert browse["meaning"] == "address-space-candidates-not-received-or-registered"
         assert any(v["node_id"] == node_id for v in browse["variables"])
+        machine = next(obj for obj in browse["objects"] if obj["browse_name"] == "Machine")
+        status, scoped = _post(
+            port,
+            "/api/v1/sources/opcua/browse",
+            {"endpoint_url": endpoint, "start_node_id": machine["node_id"]},
+            token,
+        )
+        assert status == 200
+        assert scoped["start_node_id"] == machine["node_id"]
+        assert any(v["node_id"] == node_id for v in scoped["variables"])
+        assert scoped["visited_node_count"] < browse["visited_node_count"]
+        assert not scoped["truncated"]
         assert not workspace.source_runtime_path.exists()
 
         registration = _registration(endpoint, node_id)
@@ -246,7 +265,12 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
         page.locator("#opcua-endpoint").fill(endpoint)
         page.get_by_role("button", name="로컬 변수 탐색").click()
+        sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(
+            "Machine 객체 내부 탐색"
+        )
+        page.get_by_role("button", name="Machine 객체 내부 탐색").click()
         sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(node_id)
+        assert page.locator("#opcua-browse-start").input_value() != "i=85"
         sync_api.expect(page.locator("#source-list")).to_contain_text("등록 소스가 없습니다")
         page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
         page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")

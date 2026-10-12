@@ -58,11 +58,18 @@ def _loopback_endpoint(value: object) -> str:
 
 def browse_local_opcua(root: Path, payload: dict[str, object]) -> dict[str, object]:
     """Discover bounded NodeIds, without registration or receipt persistence."""
-    if set(payload) != {"endpoint_url"}:
+    if set(payload) not in ({"endpoint_url"}, {"endpoint_url", "start_node_id"}):
         raise ValueError("unexpected OPC UA browse fields")
     endpoint = _loopback_endpoint(payload["endpoint_url"])
+    start_node_id = (
+        _text(payload, "start_node_id") if "start_node_id" in payload else "i=85"
+    )
+    if not isinstance(start_node_id, str) or len(start_node_id) > 128:
+        raise ValueError("invalid OPC UA browse start node")
     paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
-    result = OperationsAppActions(paths).browse_opcua(endpoint_url=endpoint, timeout_seconds=2.0)
+    result = OperationsAppActions(paths).browse_opcua(
+        endpoint_url=endpoint, timeout_seconds=2.0, start_node_id=start_node_id
+    )
     variables = [
         {
             "node_id": row.node_id[:128],
@@ -71,14 +78,27 @@ def browse_local_opcua(root: Path, payload: dict[str, object]) -> dict[str, obje
         }
         for row in result.variables[:24]
     ]
+    objects = [
+        {
+            "node_id": row.node_id[:128],
+            "browse_name": row.browse_name[:128],
+        }
+        for row in result.objects[:24]
+    ]
     return {
         "schema_version": 1,
         "meaning": "address-space-candidates-not-received-or-registered",
+        "start_node_id": result.start_node_id,
+        "objects": objects,
         "connected_at": _utc(result.connected_at),
         "completed_at": _utc(result.completed_at),
         "visited_node_count": result.visited_node_count,
         "variables": variables,
-        "truncated": result.truncated or len(result.variables) > len(variables),
+        "truncated": (
+            result.truncated
+            or len(result.variables) > len(variables)
+            or len(result.objects) > len(objects)
+        ),
     }
 
 

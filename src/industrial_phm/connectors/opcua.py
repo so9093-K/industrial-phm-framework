@@ -80,6 +80,23 @@ class OpcUaBrowseVariable:
 
 
 @dataclass(frozen=True, slots=True)
+class OpcUaBrowseObject:
+    """One bounded Object candidate, suitable for selecting a narrower browse root."""
+
+    node_id: str
+    browse_name: str
+    browse_path: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.node_id, "node_id")
+        _validate_identifier(self.browse_name, "browse_name")
+        if not self.browse_path or not all(
+            isinstance(item, str) and item.strip() == item and item for item in self.browse_path
+        ):
+            raise ValueError("browse_path must contain non-empty trimmed strings")
+
+
+@dataclass(frozen=True, slots=True)
 class OpcUaBrowseResult:
     """Result of one bounded browse session.
 
@@ -93,6 +110,7 @@ class OpcUaBrowseResult:
     visited_node_count: int
     truncated: bool
     variables: tuple[OpcUaBrowseVariable, ...]
+    objects: tuple[OpcUaBrowseObject, ...] = ()
 
     def __post_init__(self) -> None:
         _validate_endpoint_url(self.endpoint_url)
@@ -113,6 +131,8 @@ class OpcUaBrowseResult:
             raise ValueError("truncated must be boolean")
         if not all(isinstance(item, OpcUaBrowseVariable) for item in self.variables):
             raise ValueError("variables must contain OpcUaBrowseVariable values")
+        if not all(isinstance(item, OpcUaBrowseObject) for item in self.objects):
+            raise ValueError("objects must contain OpcUaBrowseObject values")
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,6 +432,7 @@ async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult
     )
 
     variables: list[OpcUaBrowseVariable] = []
+    objects: list[OpcUaBrowseObject] = []
     visited_node_ids: set[str] = set()
     visited_node_count = 0
     truncated = False
@@ -449,8 +470,16 @@ async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult
                             browse_path=child_path,
                         )
                     )
-                elif node_class == ua.NodeClass.Object and child_depth < config.max_depth:
-                    stack.append((child, child_path, child_depth))
+                elif node_class == ua.NodeClass.Object:
+                    objects.append(
+                        OpcUaBrowseObject(
+                            node_id=node_id,
+                            browse_name=browse_name,
+                            browse_path=child_path,
+                        )
+                    )
+                    if child_depth < config.max_depth:
+                        stack.append((child, child_path, child_depth))
 
     completed_at = datetime.now(UTC)
     return OpcUaBrowseResult(
@@ -461,6 +490,7 @@ async def browse_opcua_variables(config: OpcUaBrowseConfig) -> OpcUaBrowseResult
         visited_node_count=visited_node_count,
         truncated=truncated,
         variables=tuple(sorted(variables, key=lambda item: (item.browse_path, item.node_id))),
+        objects=tuple(objects),
     )
 
 
