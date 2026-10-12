@@ -11,7 +11,10 @@ from industrial_phm.application import (
     MeasurementDefinition,
     ObservationWindowBuffer,
 )
-from industrial_phm.application.electrical_window_features import ELECTRICAL_WINDOW_FEATURE_NAMES
+from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
+    ELECTRICAL_WINDOW_FEATURE_NAMES,
+)
 from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
 from industrial_phm.models.package import (
@@ -103,7 +106,7 @@ def electrical_workspace(root: Path) -> OperationsWorkspace:
             estimator_kind=EstimatorKind.PCA_RESIDUAL,
             input=PackageInputSpec(
                 step_kind=StepKind.OBSERVATION_WINDOW,
-                channels=CHANNELS,
+                channels=ELECTRICAL_WINDOW_CHANNELS,
                 feature_set_id="electrical-window-v1",
                 feature_names=ELECTRICAL_WINDOW_FEATURE_NAMES,
             ),

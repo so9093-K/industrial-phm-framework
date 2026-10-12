@@ -25,6 +25,7 @@ from industrial_phm.adapters.aihub_power import iter_power_observations
 from industrial_phm.adapters.aihub_power_history import AIHUB_239_SEMANTICS_V3, interpret_channel
 from industrial_phm.application.analysis_input import ChannelObservation
 from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
     ELECTRICAL_WINDOW_FEATURE_NAMES,
     ELECTRICAL_WINDOW_FEATURE_SET_ID,
     ElectricalWindowSample,
@@ -207,7 +208,7 @@ def _window_start(at: datetime) -> datetime:
 def input_spec() -> PackageInputSpec:
     return PackageInputSpec(
         step_kind=StepKind.OBSERVATION_WINDOW,
-        channels=("phase current R/S/T [A]", "phase voltage R/S/T [V]", "frequency [Hz]"),
+        channels=ELECTRICAL_WINDOW_CHANNELS,
         feature_set_id=ELECTRICAL_WINDOW_FEATURE_SET_ID,
         feature_names=ELECTRICAL_WINDOW_FEATURE_NAMES,
     )
