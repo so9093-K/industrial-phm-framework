@@ -100,6 +100,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             sync_api.expect(page.locator("#main")).to_be_focused()
             assert page.evaluate("location.hash") == "#main"
             # English guidance is a separate language-tagged reference, not an English UI.
+            page.locator("#operator-guide > summary").click()
             guide = page.locator("#operator-reference-en")
             sync_api.expect(guide.locator("summary")).to_have_attribute("lang", "en")
             assert page.locator("html").get_attribute("lang") == "ko"
@@ -117,7 +118,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             page.get_by_role("link", name="시스템 근거").focus()
             page.keyboard.press("Enter")
             assert page.evaluate("location.hash") == "#system"
-            sync_api.expect(page.get_by_role("combobox", name="설비 ID")).to_be_visible()
+            sync_api.expect(page.get_by_role("combobox", name="설비 ID")).to_be_hidden()
             page.get_by_role("link", name="시스템 근거").click()
             sync_api.expect(page.locator('nav a[href="#system"]')).to_have_attribute(
                 "aria-current", "page"
@@ -126,6 +127,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 평가 시각 · UTC")
+            page.locator('nav a[href="#monitor"]').click()
             sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
             sync_api.expect(page.locator("#channel-options input:checked")).to_have_count(1)
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(1)
@@ -231,7 +233,9 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             page = browser.new_page(viewport={"width": width, "height": 900})
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            page.goto(
+                f"http://127.0.0.1:{server.server_port}/web/#connect", wait_until="networkidle"
+            )
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("소스 미등록")
             sync_api.expect(page.locator("#onboarding-monitor-link")).to_be_hidden()
             page.locator('#file-form input[name="source_id"]').fill("web-file-01")
@@ -298,7 +302,7 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
             browser = playwright.chromium.launch(headless=True)
             page = browser.new_page(viewport={"width": 1024, "height": 900})
             page.goto(
-                f"http://127.0.0.1:{server.server_port}/web/",
+                f"http://127.0.0.1:{server.server_port}/web/#connect",
                 wait_until="domcontentloaded",
                 timeout=60_000,
             )
@@ -357,7 +361,9 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
         with sync_api.sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             page = browser.new_page(viewport={"width": 1024, "height": 900})
-            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            page.goto(
+                f"http://127.0.0.1:{server.server_port}/web/#connect", wait_until="networkidle"
+            )
             page.locator('#file-form input[name="source_id"]').fill("file-receipt")
             page.locator('#file-form input[name="name"]').fill("FILE receipt")
             page.locator('#file-form input[name="asset_id"]').fill("pump-01")
@@ -430,7 +436,9 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
             page = browser.new_page(viewport={"width": width, "height": 900})
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+            page.goto(
+                f"http://127.0.0.1:{server.server_port}/web/#connect", wait_until="networkidle"
+            )
             page.locator('#file-form input[name="source_id"]').fill("web-history-01")
             page.locator('#file-form input[name="name"]').fill("FILE history")
             page.locator('#file-form input[name="asset_id"]').fill("pump-01")
@@ -523,7 +531,7 @@ def test_web_review_buttons_follow_persisted_evidence_in_browser(
                 # readiness and can hang while the snapshot API is still loading.
                 # Assert the actual user-facing data instead of idle transport.
                 page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web/",
+                    f"http://127.0.0.1:{server.server_port}/web/#evidence",
                     wait_until="domcontentloaded",
                 )
                 sync_api.expect(page.locator("#asset-select")).to_have_value(

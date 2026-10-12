@@ -131,27 +131,18 @@ Profiler는 ZIP/member를 stream하고 임시 SQLite에서 중복·cadence를 �
 source timezone을 확인했다는 주장이 아닙니다. 실제 적용에는 확인된 근거 또는 사용자가 선택한 가정을
 기록합니다. `.env`나 API key는 이 파일에 넣지 않습니다.
 
-```json
-{
-  "source_id": "aihub239-boiler",
-  "asset_id": "research-boiler-2297",
-  "device_id": "2297",
-  "device_board_id": "1",
-  "timezone": "Asia/Seoul",
-  "identity_evidence": "Explicit development grouping; physical asset identity unverified",
-  "timezone_evidence": "Explicit normalization assumption; source timezone unverified",
-  "version": "research-v1"
-}
-```
+대표 보일러 binding은
+[`examples/operations/aihub-boiler-binding.json`](../../examples/operations/aihub-boiler-binding.json)에
+있습니다. source timezone은 미확인이고 Asia/Seoul을 개발용으로 가정합니다.
 
-이를 `artifacts/aihub-239/boiler-binding.json`에 저장한 뒤 작은 구간을 적재합니다. 선택 시각은
+예시 binding으로 작은 구간을 적재합니다. 선택 시각은
 offset 없는 **원본 local time**이고 종료 시각은 미포함입니다.
 
 ```bash
 uv run --no-sync python -m tools.aihub.history \
   data/raw/aihub/239/archives/training/raw/5.보일러.zip \
   --member '5.보일러/SourceData_211.json' \
-  --binding artifacts/aihub-239/boiler-binding.json \
+  --binding examples/operations/aihub-boiler-binding.json \
   --start 2020-11-13T00:00:00 --end 2020-11-13T01:00:00 \
   --ducklake-catalog artifacts/operations/history/catalog.sqlite \
   --ducklake-data artifacts/operations/history/data
@@ -159,13 +150,62 @@ uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
   artifacts/operations --port 8765
 ```
 
-Operations의 **Assets → Asset → Measurement History → 이력 조회**에서 추세와 provenance를 확인합니다.
+Operations의 **설비 · 신호**에서 해당 설비를 선택하고 **마지막 저장 기록 기준**으로 추세와 provenance를 확인합니다.
 압출기는 별도 source/asset binding(device 2223/board 1), member `7.압출기/SourceData_127.json`,
 local range `2020-11-01T00:00:00`–`2020-11-01T01:00:00`으로 같은 경로를 사용할 수 있습니다.
 
 Importer는 2,000개 단위 commit을 사용합니다. 동일 입력/설정의 재실행은 기존 commit을 복구하지만,
 다른 범위나 변경된 binding이 기존 raw identity와 겹치면 명시적으로 실패합니다. 오류 이전 batch는
 보존되므로 같은 명령으로 재실행합니다. 이 명령은 CSV Source 등록이나 collector start를 수행하지 않습니다.
+
+## 대표 기록을 Web에서 검증하기
+
+보일러 원본 하나를 받고 기존 source profile의 SHA-256과 비교합니다.
+
+```bash
+python3 -m tools.aihub.cli download 239 --preset boiler
+python3 -m tools.aihub.cli verify 239 --preset boiler
+uv sync --locked --extra operations --extra aihub --inexact
+uv run --no-sync python -m tools.aihub.reference \
+  data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --member '5.보일러/SourceData_211.json' \
+  --binding examples/operations/aihub-boiler-binding.json \
+  --start 2020-11-13T00:00:00 --end 2020-11-13T01:00:00 \
+  --output artifacts/aihub-239/reference
+```
+
+`reference`는 기존 semantics-v3에서 단위·상 의미가 확인된 R/S/T 전압만 CSV로 발췌합니다.
+확인되지 않은 archive/member의 의미는 거부하고, 중복·채널 누락을 자동 보간하거나 제거하지 않습니다.
+원본 local time과 별도로 명시적 binding 가정에 따라 UTC를 기록하며 원본 인덱스·archive SHA와
+시간대 가정을 CSV와 `provenance.json`에 보존합니다. 원본 JSON 전체 35채널의 이력이 필요하면
+위 `tools.aihub.history` 경로를 사용합니다.
+
+별도 빈 작업공간을 `make up WORKSPACE=artifacts/operations-boiler-2297`로 열고 **데이터 연결**에서
+생성된 `recorded-phase.csv`를 선택합니다. Source ID는 `aihub239-recorded-boiler-2297`, Asset ID는
+`research-boiler-2297`, 신호 컬럼은 `R상전압,S상전압,T상전압`, 시간 컬럼은 `timestamp`입니다.
+생성된 `phase-bindings.txt` 내용을 3상 역할 매핑에 입력합니다.
+
+**CSV 분석 전 점검 → 등록 → 활성화 → FILE 수신 확인 → FILE 이력 적재**를 각각 실행합니다.
+**설비 · 신호**의 기간 기준은 **마지막 저장 기록 기준**을 사용하세요. **현재 조회 시각 기준**에는
+2020년 기록의 그래프가 나타나지 않으며, 기록을 현재 시각으로 옮기지 않습니다.
+수신·이력 저장이 확인되면 **저장된 3상 이력 분석 실행**으로 새 AnalysisRun/Evidence를 만들고
+**분석 근거 → 사람 검토 요청 → 메모·확인·검토 종료**를 진행합니다. 기존 연구 결과 재사용과 별개입니다.
+단위·상·timezone 근거는 신호의 **측정 의미·출처 근거**에서 확인합니다.
+
+로컬 원본이 준비된 환경에서만 실제 Chromium 수용 테스트를 명시적으로 실행할 수 있습니다.
+테스트는 네트워크에서 데이터를 받지 않고 별도의 작업공간을 사용하며 재시작 후 이력·분석·검토를 확인합니다.
+기본 CI에서 이 외부 데이터 테스트는 실행하지 않습니다.
+
+```bash
+PHM_RECORDED_REFERENCE="$PWD/artifacts/aihub-239/reference" \
+PHM_RECORDED_EVIDENCE="$PWD/artifacts/aihub-239/browser-run-01" \
+  uv run --locked --extra operations --extra aihub --with playwright pytest \
+    tests/acceptance/test_operations_recorded_reference_browser.py -q
+```
+
+`PHM_RECORDED_EVIDENCE`는 매번 새 경로를 사용합니다. 실행 결과·스크린샷·검증 작업공간을 보존합니다.
+자동 검증은 실제 사용자가 도움 없이 과제를 수행했다는 근거가 아닙니다. 사용자 검증에서는
+기존 결과 찾기, 과거 관측 시각 설명, 수신·저장·분석 단계 구별, 연결된 검토 근거 찾기를 따로 확인합니다.
 
 ## Observed macOS vendor-shell issue
 

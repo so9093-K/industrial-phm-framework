@@ -15,6 +15,20 @@ data/
 `.gitignore`는 `data/raw/`, `data/interim/`, `data/processed/`를 제외합니다. dataset source/version/license의
 Source of Truth는 `src/industrial_phm/data/manifests/`에 유지합니다.
 
+## 대표 데이터와 기존 성과 찾기
+
+| 자산 | 확인 경로 | 원본·재실행 구분 |
+| --- | --- | --- |
+| XJTU-SY / IMS / MIMII 연구 결과 | `docs/research/results/` 및 Web의 **기존 연구 결과** | 결과 JSON은 Git에 포함. 원본 데이터는 별도이며 조회가 재실행 가능성을 뜻하지 않음 |
+| AI-Hub 239 보일러 원본 | `data/raw/aihub/239/archives/training/raw/5.보일러.zip` | Git 제외. 승인·키로 다운로드 후 local manifest의 SHA-256 확인 |
+| 보일러 2297 대표 기록 | `5.보일러/SourceData_211.json`, 원본 local time 2020-11-13 00:00–01:00 | 과거 기록. timezone과 물리 asset identity는 개발용 binding 가정 |
+| 대표 Web 입력 | `artifacts/aihub-239/reference/recorded-phase.csv`와 `provenance.json` | 명시적으로 생성한 3상 전압 발췌. 원본 인덱스·해시·시간대 가정 보존 |
+| 작업공간의 수신·이력·분석·검토 | 선택한 Operations workspace | 해당 workspace에서 실행해 저장한 기록만 표시. 연구 결과와 별개 |
+
+AI-Hub 대표 기록 준비와 외부 데이터가 있는 환경에서의 브라우저 검증 명령은
+[AI-Hub 도구 안내](../tools/aihub/README.md#대표-기록을-web에서-검증하기)를 따릅니다.
+로컬 원본 유무는 해당 경로와 생성된 provenance를 확인해야 하며, clone만으로 있다고 가정하지 않습니다.
+
 ## Local source inspection
 
 `industrial-phm data inspect`는 dataset-specific parsing 전에 local source의 **구조적 inventory**를 요약합니다.

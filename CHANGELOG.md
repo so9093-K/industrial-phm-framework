@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+### Operations 관측·기록 데이터 사용자 흐름 (2026-10-12)
+
+- Operations Web에서 관측·연결·신호·분석·검토·시스템을 각각 선택해 표시하고 설비·신호 선택을 유지합니다.
+- 빈 작업공간의 시작 선택지와 기존 연구 결과 조회를 제공하며 반복 온보딩과 해석 도움말을 관측 앞에서 이동했습니다.
+- 마지막 저장 기록 기준의 이력 조회와 저장된 단위·출처 근거 표시를 추가했습니다.
+- AI-Hub 239 보일러 기록을 출처·시간대 가정과 함께 작은 Web 입력으로 준비하는 개발 도구를 추가했습니다.
+
+
 ### Operations entry point / scope cleanup (2026-10-12)
 
 - `industrial-phm doctor`의 기본 다음 실행 경로를 연구용 marimo가 아닌 로컬 Operations로 바로잡고, checkout 내부의 `make up`과 설치된 wheel의 `industrial-phm operations up`을 구분합니다.

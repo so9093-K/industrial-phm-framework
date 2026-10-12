@@ -103,3 +103,32 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .onboarding-guide select{width:100%;min-width:0;max-width:550px}
 .onboarding-guide button{justify-self:start;max-width:100%}
 .onboarding-guide .hint{margin:2px 0;line-height:1.5}
+
+/* Views own visibility; state-specific empty/error content remains independent. */
+[hidden]{display:none!important}
+main{margin:0 auto;align-self:start}
+body[data-view="evidence"] .layout,body[data-view="review"] .layout,.below{grid-template-columns:minmax(0,1fr)}
+body[data-view="evidence"] .asset-panel,body[data-view="review"] .asset-panel{margin-bottom:0}
+.start-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+.start-options a{display:flex;flex-direction:column;gap:8px;text-decoration:none;border:1px solid #b9cad5;border-radius:12px;padding:18px;background:#f7fbfc}
+.start-options a:hover{background:#eaf5f5;border-color:#18596d}
+.start-options span{font-size:.82rem;color:#5a6c78}
+.workspace-overview{margin-bottom:16px}.workspace-overview p{margin-bottom:0}
+.research-panel details{margin:12px 0;padding:12px;border:1px solid #d9e3e9;border-radius:10px}
+.research-panel summary{cursor:pointer;font-weight:650}
+.research-panel pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f9;padding:12px;border-radius:8px;font-size:.8rem}
+.research-panel .facts{margin:12px 0}.research-panel .fact strong{overflow-wrap:anywhere}
+.source-progress{display:flex;flex-wrap:wrap;gap:8px;padding:0;list-style:none}
+.source-progress li{font-size:.82rem;padding:6px 10px;border-radius:7px;background:#edf3f6}
+.source-next{border-top:1px solid #d9e3e9;padding-top:12px;margin-top:12px}
+@media(max-width:1100px){.app{grid-template-columns:190px minmax(0,1fr)}main{padding:24px}.top-actions .pill{display:none}.kpis{gap:8px}.start-options a{padding:12px}.topbar{gap:12px}}
+@media(max-width:700px){.start-options{grid-template-columns:1fr}}
+
+body[data-view="monitor"][data-workspace-state="empty"] #monitor,
+body[data-view="monitor"][data-workspace-state="empty"] #monitor-attention,
+body[data-view="monitor"][data-workspace-state="empty"] .layout{display:none}
+.research-panel dd{margin:0;overflow-wrap:anywhere;font-weight:600;font-size:.82rem}
+
+.latest>h3{grid-column:1/-1;font-size:.95rem;margin:8px 0}
+.point-provenance{font-size:.73rem;margin-top:6px;cursor:pointer}
+@media(min-width:900px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi{padding:12px}.kpi strong.time{font-size:.85rem}}
