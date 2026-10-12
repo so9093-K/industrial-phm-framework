@@ -382,6 +382,74 @@ jobs:
       - name: Validate read-only Web monitor JavaScript syntax
         run: node --check --input-type=module < src/industrial_phm/apps/web/app.js
 
+      - name: Validate actual Makefile up / status / Web / logs / down / resume
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ROOT="$(mktemp -d)"
+          WORKSPACE="$RUN_ROOT/operations"
+          LAUNCH_PID=""
+          cleanup() {
+            if [ -f "$WORKSPACE/config.toml" ]; then
+              make down WORKSPACE="$WORKSPACE" >/dev/null 2>&1 || true
+            fi
+            if [ -n "$LAUNCH_PID" ]; then
+              kill "$LAUNCH_PID" >/dev/null 2>&1 || true
+              wait "$LAUNCH_PID" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$RUN_ROOT"
+          }
+          trap cleanup EXIT
+
+          for cycle in created existing; do
+            make up WORKSPACE="$WORKSPACE" >"$RUN_ROOT/$cycle.log" 2>&1 &
+            LAUNCH_PID="$!"
+            ready=no
+            for attempt in $(seq 1 60); do
+              if ! kill -0 "$LAUNCH_PID" 2>/dev/null; then
+                echo "::error::make up exited before ready ($cycle)"
+                tail -100 "$RUN_ROOT/$cycle.log"
+                exit 1
+              fi
+              if make status WORKSPACE="$WORKSPACE" >"$RUN_ROOT/status.log" 2>&1; then
+                ready=yes
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ready" != yes ]; then
+              echo "::error::make up did not become ready ($cycle)"
+              tail -100 "$RUN_ROOT/$cycle.log"
+              cat "$RUN_ROOT/status.log"
+              exit 1
+            fi
+            grep -F "state=$cycle" "$RUN_ROOT/$cycle.log"
+            grep -F "operations_url=http://127.0.0.1:2718/web/" "$RUN_ROOT/$cycle.log"
+            grep -F "ready=yes" "$RUN_ROOT/status.log"
+            curl --fail --silent --show-error --max-time 5 \
+              http://127.0.0.1:2718/web/ -o /dev/null
+            curl --fail --silent --show-error --max-time 5 \
+              http://127.0.0.1:2718/api/v1/session -o /dev/null
+            make logs WORKSPACE="$WORKSPACE" >"$RUN_ROOT/logs.log"
+            grep -F "== ui ==" "$RUN_ROOT/logs.log"
+            make down WORKSPACE="$WORKSPACE"
+            stopped=no
+            for attempt in $(seq 1 40); do
+              if ! kill -0 "$LAUNCH_PID" 2>/dev/null; then
+                stopped=yes
+                break
+              fi
+              sleep 0.5
+            done
+            if [ "$stopped" != yes ]; then
+              echo "::error::make down did not stop foreground process ($cycle)"
+              tail -100 "$RUN_ROOT/$cycle.log"
+              exit 1
+            fi
+            wait "$LAUNCH_PID"
+            LAUNCH_PID=""
+          done
+
       - name: Validate clean-workspace Operations product acceptance
         run: |
           uv run --locked --extra operations pytest \

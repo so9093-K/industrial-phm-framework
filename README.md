@@ -15,7 +15,12 @@
 정상적인 repository-local 진입점은 root `Makefile`입니다. 사용자는 내부 process나
 `marimo` 실행 경로를 조합하지 않고 같은 front door에서 local Operations lifecycle을 다룹니다.
 
-필요한 외부 도구는 `make`와 `uv`입니다.
+지원하는 기본 실행 환경은 **Linux 단일 사용자 로컬 호스트**입니다. `make`와
+`uv`(`>=0.12.13,<0.13`)가 필요하며, 첫 실행에서는 Python 3.14와 잠긴
+Operations 의존성을 설치하므로 다운로드 가능한 네트워크 환경이 필요합니다.
+기본 Web 포트는 `127.0.0.1:2718`이고, 이미 다른 프로세스가 사용 중이라면
+실행이 실패할 수 있습니다. 다른 OS·원격/다중 사용자 서비스는 이 빠른 시작의
+수용 범위가 아닙니다.
 
 ```bash
 make up
@@ -28,8 +33,12 @@ supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유�
 현재 기본 runtime policy를 기록한 config를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
 채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
 
-터미널에 출력되는 `operations_url`(`http://127.0.0.1:<port>/web/`)을 브라우저에서 엽니다.
-현재 UI는 **로컬 단일 사용자 supervised Web 파일럿**입니다. 데이터 수신·저장 이력·분석 근거·사람 검토·일부 System 조회를 지원하지만 Investigation·Maintenance·System 전체 업무, 영어 조작 UI·스크린리더의 완전한 수용은 아직 진행 중입니다(#488, #489). 설비 고장·안전·물리적 정비 완료를 판정하지 않습니다.
+**`make up`은 foreground 실행**이므로 첫 터미널을 닫지 마세요. 시작 시 출력되는
+`operations_url`(`http://127.0.0.1:<port>/web/`)은 접속 주소이며,
+출력 자체가 서비스 준비 완료를 뜻하지 않습니다. **다른 터미널**에서
+`make status`의 `ready=yes`를 확인한 뒤 브라우저에서 주소를 여세요.
+오류가 있으면 `make logs`로 확인하고 `make down`으로 종료합니다.
+현재 UI는 **로컬 단일 사용자 supervised Web 파일럿**입니다. 데이터 수신·저장 이력·분석 근거·사람 검토·일부 System 조회를 지원합니다. Investigation·Maintenance·System 전체 업무, 전체 영어 조작 UI와 스크린리더 접근성은 **현재 지원하지 않거나 수용이 완료되지 않았습니다**. 해당 포괄적 동등성·언어 확대 작업은 지금의 필수 개발 과제가 아닙니다. 설비 고장·안전·물리적 정비 완료를 판정하지 않습니다.
 빈 작업공간의 Web 파일럿은 FILE CSV 또는 로컬 OPC UA 소스 등록을 안내합니다. 소스 등록·ACTIVE·검증 수신·DuckLake 이력 저장·분석 근거는 별개의 사실이므로 각 단계의 근거를 확인해야 합니다.
 기본 Web 첫 실행의 **격리 synthetic 샘플 시작·종료** 버튼으로 기존 synthetic OPC UA 데모를 실제 workspace와 분리된 로컬 작업공간·포트에서 실행할 수 있습니다. 샘플은 **별도의 기존 데모 앱 창**에서 열리며, 종료해도 전용 샘플 폴더를 자동 삭제하지 않습니다. 신규 Web에서 미지원인 업무는 구현된 것처럼 안내하지 않습니다. 지원 범위를 [현재 상태](docs/status.md)에서 확인하세요. 기존 소스가 있는 workspace는 Web에서 저장된 관측/검토 근거를 조회할 수 있습니다.
 
@@ -80,7 +89,7 @@ README는 제품 목적과 주요 진입점을 설명하며 capability matrix나
 - **System**: 로컬 프로세스 상태와 저장소 조회 오류의 제한된 진단
 
 소스 등록, 수신, DuckLake 적재, 분석과 사람 검토는 서로 다른 증거입니다. 현재 Web은
-한국어 중심 파일럿이며 전체 영어/접근성 및 일부 복구·업무 경로는 별도 개선 중입니다.
+한국어 중심 파일럿이며 전체 영어/접근성 및 일부 복구·업무 경로는 현재 지원 범위 밖입니다.
 실제 API·업무 지원 범위는 [지원 상태](docs/status.md)를 따릅니다.
 
 ### Analysis Explorer
