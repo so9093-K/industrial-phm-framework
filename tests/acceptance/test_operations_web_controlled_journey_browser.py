@@ -1408,9 +1408,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 assert recovered["asset_id"] == asset_id
                 page.locator("#refresh").click()
                 pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록: connected")
-                pw.expect(page.locator("#last-values")).to_contain_text(
-                    source_id, timeout=30000
-                )
+                pw.expect(page.locator("#last-values")).to_contain_text(source_id, timeout=30000)
                 browser_evidence(page, "recovered")
                 _no_overflow(page, width)
                 assert not errors, errors
