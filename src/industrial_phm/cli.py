@@ -687,7 +687,9 @@ def _run_doctor(args: argparse.Namespace) -> int:
     python_supported = sys.version_info[:2] == (3, 14)
     data_root = default_data_root()
     checkout_detected = (
-        Path("pyproject.toml").is_file() and Path("apps/analysis_explorer.py").is_file()
+        Path("pyproject.toml").is_file()
+        and Path("Makefile").is_file()
+        and Path("src/industrial_phm/cli.py").is_file()
     )
     research_ui_installed = importlib.util.find_spec("marimo") is not None
     deep_learning_installed = importlib.util.find_spec("torch") is not None
@@ -699,12 +701,13 @@ def _run_doctor(args: argparse.Namespace) -> int:
     print(f"registered datasets: {len(list_datasets())}")
     print(f"research UI runtime: {'installed' if research_ui_installed else 'not installed'}")
     print(f"deep-learning runtime: {'installed' if deep_learning_installed else 'not installed'}")
+    print("operations host: " + ("Linux" if sys.platform.startswith("linux") else "unsupported"))
     print("next:")
     if checkout_detected:
-        print(
-            "  open recorded example: "
-            "uv run --locked --group research marimo run apps/analysis_explorer.py"
-        )
+        print("  start Operations: make up")
+        print("  open the printed operations_url in a local browser")
+        print("  first use: register your CSV or start the isolated sample in Web")
     else:
-        print("  run this command from an industrial-phm-framework repository checkout")
+        print("  start installed Operations: industrial-phm operations up artifacts/operations")
+        print("  requires the operations extra and a local Linux host")
     return 0

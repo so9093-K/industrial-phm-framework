@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+### Operations entry point / scope cleanup (2026-10-12)
+
+- `industrial-phm doctor`의 기본 다음 실행 경로를 연구용 marimo가 아닌 로컬 Operations로 바로잡고, checkout 내부의 `make up`과 설치된 wheel의 `industrial-phm operations up`을 구분합니다.
+- README에서 빈 작업공간의 기본 상태·첫 데이터 연결/격리 샘플·정상 종료를 바로 안내합니다. #449 로컬 파일럿 전환은 완료됐고 전면 영어 UI·구형 화면 동등성은 현재 범위 밖으로 명시합니다.
+
+
 ### Validation and legacy audit (2026-10-11)
 
 - 현재 Operations 샘플 Web 링크의 누락된 `/web/`를 수정하고, 삭제된 marimo 설치 여부 때문에 skip되던 필수 Chromium sample acceptance를 실행하도록 복구했습니다(#512). 필수 브라우저 의존성 부족을 성공한 skip으로 처리하지 않습니다.

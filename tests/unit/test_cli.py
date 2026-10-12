@@ -16,7 +16,24 @@ def test_doctor_reports_environment_and_next_action(
     assert "research UI runtime:" in output
     assert "deep-learning runtime:" in output
     assert "next:" in output
-    assert "marimo run apps/analysis_explorer.py" in output
+    assert "start Operations: make up" in output
+    assert "open the printed operations_url" in output
+    assert "first use: register your CSV or start the isolated sample in Web" in output
+    assert "marimo run" not in output
+
+
+def test_doctor_guides_installed_cli_when_not_in_checkout(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["doctor"]) == 0
+
+    output = capsys.readouterr().out
+    assert "project checkout: not detected" in output
+    assert "industrial-phm operations up artifacts/operations" in output
+    assert "requires the operations extra and a local Linux host" in output
+    assert "make up" not in output
 
 
 def test_removed_phase_result_migration_command_is_rejected() -> None:
