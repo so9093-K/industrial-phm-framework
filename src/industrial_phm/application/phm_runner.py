@@ -25,6 +25,7 @@ from industrial_phm.application.analysis_input import (
     window_input_reference,
 )
 from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
     ELECTRICAL_WINDOW_FEATURE_SET_ID,
     align_electrical_samples,
     electrical_window_features,
@@ -235,8 +236,8 @@ def _electrical_window(
     return features, reason
 
 
-WINDOW_FEATURE_SETS: Mapping[str, _WindowFeatures] = {
-    ELECTRICAL_WINDOW_FEATURE_SET_ID: _electrical_window,
+WINDOW_FEATURE_SETS: Mapping[str, tuple[tuple[str, ...], _WindowFeatures]] = {
+    ELECTRICAL_WINDOW_FEATURE_SET_ID: (ELECTRICAL_WINDOW_CHANNELS, _electrical_window),
 }
 
 
@@ -265,10 +266,14 @@ def prepare_window_step(
     reason: str | None = None
     if spec.step_kind is not StepKind.OBSERVATION_WINDOW:
         reason = f"package expects {spec.step_kind.value} steps"
-    elif (extractor := WINDOW_FEATURE_SETS.get(spec.feature_set_id)) is None:
+    elif (feature_set := WINDOW_FEATURE_SETS.get(spec.feature_set_id)) is None:
         reason = f"unsupported feature set for windows: {spec.feature_set_id}"
+    elif tuple(spec.channels) != feature_set[0]:
+        reason = f"channels differ from feature set {spec.feature_set_id}: {list(spec.channels)}"
+    elif spec.sampling_rate_hz is not None or spec.samples_per_step is not None:
+        reason = "fixed sampling rate or sample count cannot be verified for finalized windows"
     else:
-        values, reason = extractor(window)
+        values, reason = feature_set[1](window)
         if values is not None:
             missing = [name for name in spec.feature_names if name not in values]
             if missing:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -20,7 +21,17 @@ from industrial_phm.application.phm_analysis import (
     advance_review_interval,
     run_binding,
 )
-from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bindings
+from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
+    ELECTRICAL_WINDOW_FEATURE_NAMES,
+    ELECTRICAL_WINDOW_FEATURE_SET_ID,
+)
+from industrial_phm.application.observation_window import DurableObservationWindow
+from industrial_phm.application.phm_runner import (
+    PackageCache,
+    prepare_window_step,
+    run_snapshot_bindings,
+)
 from industrial_phm.features.vibration import vibration_feature_names
 from industrial_phm.models.package import (
     AffinePreprocessing,
@@ -253,6 +264,46 @@ def test_change_feed_returns_only_newer_results(tmp_path: Path) -> None:
 
 
 # Snapshots and runner --------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("override", "reason"),
+    [
+        ({"channels": ("different channel meaning",)}, "channels differ"),
+        ({"sampling_rate_hz": 10.0}, "fixed sampling rate"),
+        ({"samples_per_step": 50}, "fixed sampling rate"),
+    ],
+)
+def test_window_package_input_mismatch_is_skipped_with_a_reason(
+    override: dict[str, object], reason: str
+) -> None:
+    window = DurableObservationWindow(
+        window_id="w1",
+        source_id="src",
+        asset_id="A",
+        window_start=T0,
+        window_end=T0 + timedelta(minutes=5),
+        watermark_at_close=T0 + timedelta(minutes=5),
+        finalized_at=T0 + timedelta(minutes=6),
+        expected_channel_ids=("raw-channel",),
+        events=(),
+    )
+    spec = PackageInputSpec(
+        step_kind=StepKind.OBSERVATION_WINDOW,
+        channels=ELECTRICAL_WINDOW_CHANNELS,
+        feature_set_id=ELECTRICAL_WINDOW_FEATURE_SET_ID,
+        feature_names=ELECTRICAL_WINDOW_FEATURE_NAMES,
+    )
+    rejected = prepare_window_step(window, replace(spec, **override), recorded_replay=True)
+    assert rejected.features is None
+    assert reason in (rejected.skip_reason or "")
+    assert rejected.input_reference["window_id"] == "w1"
+
+    # The same feature set with its declared schema is still accepted for extraction.
+    # This empty window is skipped for missing observations, not for schema mismatch.
+    supported = prepare_window_step(window, spec, recorded_replay=True)
+    assert supported.features is None
+    assert "confirmed channel meaning missing" in (supported.skip_reason or "")
+
 
 
 def _write_waveform(path: Path, scale: float) -> Path:

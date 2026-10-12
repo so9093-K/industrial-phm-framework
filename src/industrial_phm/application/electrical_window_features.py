@@ -20,6 +20,11 @@ from industrial_phm.application.analysis_input import ChannelObservation
 from industrial_phm.application.phase_unbalance import unbalance_percent
 
 ELECTRICAL_WINDOW_FEATURE_SET_ID = "electrical-window-v1"
+ELECTRICAL_WINDOW_CHANNELS = (
+    "phase current R/S/T [A]",
+    "phase voltage R/S/T [V]",
+    "frequency [Hz]",
+)
 ELECTRICAL_WINDOW_FEATURE_NAMES = (
     "current.phase_r.mean_a",
     "current.phase_s.mean_a",
