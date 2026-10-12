@@ -1228,6 +1228,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
     supervisor_log = tmp_path / "opcua-supervisor.log"
 
     def simulator_start() -> subprocess.Popen[bytes]:
+        log_offset = simulator_log.stat().st_size if simulator_log.exists() else 0
         with simulator_log.open("ab") as output:
             process = subprocess.Popen(
                 [
@@ -1251,7 +1252,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     "OPC UA simulator terminated before ready: "
                     + simulator_log.read_text(errors="replace")[-4000:]
                 )
-            if "Synthetic OPC UA server:" in simulator_log.read_text(errors="replace"):
+            if "Synthetic OPC UA server:" in simulator_log.read_text(errors="replace")[log_offset:]:
                 return process
             time.sleep(0.2)
         simulator_stop(process)
@@ -1389,9 +1390,12 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 assert disconnected["last_live_history_snapshot_id"] is not None
                 assert disconnected["collection_desired_state"] == "running"
                 page.locator("#refresh").click()
-                pw.expect(listing).to_contain_text(
-                    "OPC UA 세션 마지막 기록: " + disconnected["opcua_session_last_state"]
-                )
+                # A disconnected worker can transition STOPPED → CONNECTING while
+                # this read is in flight. The UI must keep the *meaning* unknown;
+                # matching the earlier enum snapshot would be a race.
+                pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록:", timeout=30000)
+                pw.expect(listing).to_contain_text("현재 연결 미확인")
+                pw.expect(listing).not_to_contain_text("OPC UA 세션 마지막 기록: CONNECTED")
                 pw.expect(page.locator("#last-values")).to_contain_text(
                     "마지막 저장된 측정값 · 현재 상태가 아님"
                 )
