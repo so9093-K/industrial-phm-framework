@@ -179,9 +179,7 @@ def test_new_model_package_keeps_prior_results_and_resumes_independently(
     path = tmp_path / "phm.sqlite"
     store = SqlitePhmAnalysisStore(path)
     before_binding = _bind(store, previous, "model-before")
-    first = run_binding(
-        store, before_binding, previous, [_step(1, 0.3), _step(2, 0.4)], now=_clock
-    )
+    first = run_binding(store, before_binding, previous, [_step(1, 0.3), _step(2, 0.4)], now=_clock)
     assert [r.output["score"] for r in first] == pytest.approx([0.3, 0.4])
     preserved = store.list_results("model-before")
 
@@ -194,20 +192,14 @@ def test_new_model_package_keeps_prior_results_and_resumes_independently(
 
     # Reopen the durable store as after a restart: both cursors advance separately.
     restarted = SqlitePhmAnalysisStore(path)
-    (old_next,) = run_binding(
-        restarted, before_binding, previous, [_step(3, 0.7)], now=_clock
-    )
-    (new_next,) = run_binding(
-        restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock
-    )
+    (old_next,) = run_binding(restarted, before_binding, previous, [_step(3, 0.7)], now=_clock)
+    (new_next,) = run_binding(restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock)
     assert old_next.output["score"] == pytest.approx(0.7)
     assert new_next.output["score"] == pytest.approx(1.4)
     assert [r.position for r in restarted.list_results("model-before")] == [1, 2, 3]
     assert [r.position for r in restarted.list_results("model-after")] == [1, 2, 3]
     assert restarted.list_results("model-before")[:2] == preserved
-    assert run_binding(
-        restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock
-    ) == ()
+    assert run_binding(restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock) == ()
 
 
 def test_late_step_is_recorded_as_skip_without_touching_state(tmp_path: Path) -> None:
