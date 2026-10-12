@@ -180,3 +180,24 @@ def test_feature_width_mismatch_is_rejected(tmp_path: Path) -> None:
     package = load_model_package(tmp_path / manifest.package_id)
     with pytest.raises(ModelPackageError, match="feature schema"):
         package.evaluate([[1.0, 2.0]])
+
+
+def test_linear_output_does_not_depend_on_batch_composition(tmp_path: Path) -> None:
+    rng = np.random.default_rng(3)
+    coefficients = rng.normal(size=16).tolist()
+    build = _rul_build(
+        input=PackageInputSpec(
+            step_kind=StepKind.ACQUISITION_SNAPSHOT,
+            channels=("ch1",),
+            feature_set_id="test-features-v1",
+            feature_names=tuple(f"f{i}" for i in range(16)),
+        ),
+        preprocessing=AffinePreprocessing(center=(0.5,) * 16, scale=(3.0,) * 16),
+        estimator_state={"coefficients": coefficients, "intercept": 1234.5},
+        probe_rows=rng.normal(size=(4, 16)).tolist(),
+    )
+    manifest = write_model_package(tmp_path, build)
+    package = load_model_package(tmp_path / manifest.package_id)
+    rows = (rng.normal(size=(500, 16)) * 1000).tolist()
+    batch = package.evaluate(rows)
+    assert batch == tuple(package.evaluate([row])[0] for row in rows)
