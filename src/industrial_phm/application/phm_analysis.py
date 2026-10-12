@@ -553,14 +553,51 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
     rule = spec.review_interval
 
     def evaluate(state: Mapping[str, Any], step: PreparedStep) -> StepEvaluation:
+        length = manifest.input.sequence_length
         if step.skip_reason is not None:
-            return StepEvaluation(StepState.SKIPPED, {}, state, step.skip_reason)
+            # Missing/incompatible inputs break causal sequence continuity; they do not
+            # become normal samples, nor may a later inference silently bridge them.
+            next_state = dict(state)
+            if length > 1:
+                next_state.pop("feature_sequence", None)
+                next_state.pop("sequence_context", None)
+            return StepEvaluation(StepState.SKIPPED, {}, next_state, step.skip_reason)
         assert step.features is not None
+        next_state = dict(state)
+        sequence_positions = None
+        inputs = step.features
+        if length > 1:
+            context = {key: step.context.get(key) for key in manifest.applicability}
+            prior = list(state.get("feature_sequence") or ())
+            if state.get("sequence_context") != context:
+                prior = []
+            next_state["sequence_context"] = context
+            if prior and prior[-1]["position"] + 1 != step.position:
+                prior = []
+            sequence = [
+                *prior,
+                {
+                    "position": step.position,
+                    "step_key": step.step_key,
+                    "features": list(step.features),
+                },
+            ][-length:]
+            next_state["feature_sequence"] = sequence
+            if len(sequence) < length:
+                return StepEvaluation(
+                    StepState.SKIPPED,
+                    {},
+                    next_state,
+                    f"sequence warm-up: {len(sequence)}/{length} acquisitions",
+                )
+            inputs = tuple(v for item in sequence for v in item["features"])
+            sequence_positions = [item["position"] for item in sequence]
         try:
-            (value,) = package.evaluate([step.features])
+            (value,) = package.evaluate([inputs])
         except ModelPackageError as error:
+            next_state.pop("feature_sequence", None)
             return StepEvaluation(
-                StepState.SKIPPED, {}, state, f"package evaluation failed: {error}"
+                StepState.SKIPPED, {}, next_state, f"package evaluation failed: {error}"
             )
         applicability = _applicability(manifest.applicability, step.context).value
         if spec.task is ModelTask.ANOMALY_SCORE:
@@ -581,11 +618,13 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
                 "exceeds_threshold": exceeds,
                 "applicability": applicability,
             }
-            contributions = package.feature_contributions([step.features])
+            if sequence_positions is not None:
+                output["sequence_positions"] = sequence_positions
+            contributions = package.feature_contributions([inputs])
             if contributions is not None:
                 output["feature_contributions"] = dict(contributions[0])
             return StepEvaluation(
-                StepState.ANALYZED, output, {**state, "interval": tracker}, None, writes
+                StepState.ANALYZED, output, {**next_state, "interval": tracker}, None, writes
             )
         previous = state.get("last_estimate")
         output = {
@@ -596,7 +635,9 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
             "change_from_previous": None if previous is None else value - float(previous),
             "applicability": applicability,
         }
-        return StepEvaluation(StepState.ANALYZED, output, {**state, "last_estimate": value})
+        if sequence_positions is not None:
+            output["sequence_positions"] = sequence_positions
+        return StepEvaluation(StepState.ANALYZED, output, {**next_state, "last_estimate": value})
 
     return evaluate
 

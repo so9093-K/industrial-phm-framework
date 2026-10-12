@@ -68,6 +68,15 @@ def add_phm_commands(
     package.add_argument("--code-revision", help="full Git SHA; default reads the checkout HEAD")
     package.set_defaults(handler=_run_phm_package_xjtu)
 
+    sequence = phm_commands.add_parser(
+        "package-xjtu-lstm", help="fit and persist the frozen XJTU LSTM AE and RUL recipes"
+    )
+    sequence.add_argument("workspace", type=Path)
+    sequence.add_argument("--source", type=Path, required=True)
+    sequence.add_argument("--evidence-root", type=Path, default=Path("docs/research/results"))
+    sequence.add_argument("--code-revision")
+    sequence.set_defaults(handler=_run_phm_package_xjtu_lstm)
+
     electrical = phm_commands.add_parser(
         "package-aihub", help="fit one device's confirmed Training/raw reference windows"
     )
@@ -237,6 +246,47 @@ def _run_phm_package_xjtu(args: argparse.Namespace) -> int:
         return 1
     for manifest in manifests:
         print(f"package={manifest.package_id} task={manifest.output.task.value}")
+    return 0
+
+
+def _run_phm_package_xjtu_lstm(args: argparse.Namespace) -> int:
+    from industrial_phm.adapters import XjtuSyAdapter, validate_xjtu_source
+    from industrial_phm.experiments.xjtu import get_xjtu_reference_split
+    from industrial_phm.experiments.xjtu_lstm_operational_package import build_xjtu_lstm_packages
+    from industrial_phm.features import iter_vibration_features
+
+    workspace = OperationsWorkspace(args.workspace.resolve())
+    if not workspace.config_path.is_file():
+        print("package failed: initialize an Operations workspace first", file=sys.stderr)
+        return 1
+    revision = args.code_revision or _checkout_revision()
+    if revision is None:
+        print("package failed: pass --code-revision outside a clean checkout", file=sys.stderr)
+        return 1
+    try:
+        report = validate_xjtu_source(args.source)
+        if not report.profile_matches:
+            raise ValueError("XJTU-SY source does not match the complete profile")
+        fold = next(f for f in get_xjtu_reference_split().folds if f.fold_id == "fold-1")
+        print("extracting train-only features and fitting frozen LSTM recipes ...", flush=True)
+        train = tuple(
+            iter_vibration_features(XjtuSyAdapter().iter_asset_series(args.source, fold.train))
+        )
+        manifests = build_xjtu_lstm_packages(
+            train,
+            workspace.models_path,
+            created_at=datetime.now(UTC),
+            code_revision=revision,
+            evidence_root=args.evidence_root,
+        )
+    except (ValueError, OSError) as error:
+        print(f"package failed: {error}", file=sys.stderr)
+        return 1
+    for manifest in manifests:
+        print(
+            f"package={manifest.package_id} task={manifest.output.task.value} "
+            f"sequence={manifest.input.sequence_length}"
+        )
     return 0
 
 
