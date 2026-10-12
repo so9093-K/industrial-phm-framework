@@ -52,6 +52,7 @@ class EstimatorKind(StrEnum):
 
     ISOLATION_FOREST_REFIT = "isolation-forest-refit-v1"
     LINEAR = "linear-v1"
+    PCA_RESIDUAL = "pca-residual-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,10 +241,12 @@ class LoadedModelPackage:
         manifest: ModelPackageManifest,
         preprocessing: AffinePreprocessing,
         evaluate_transformed: Callable[[np.ndarray], np.ndarray],
+        contributions_transformed: Callable[[np.ndarray], np.ndarray] | None = None,
     ) -> None:
         self.manifest = manifest
         self._preprocessing = preprocessing
         self._evaluate = evaluate_transformed
+        self._contributions = contributions_transformed
 
     @property
     def package_id(self) -> str:
@@ -259,6 +262,19 @@ class LoadedModelPackage:
         if len(values) != len(rows) or not all(math.isfinite(v) for v in values):
             raise ModelPackageError("package evaluation produced invalid values")
         return values
+
+    def feature_contributions(
+        self, rows: Sequence[Sequence[float]]
+    ) -> tuple[dict[str, float], ...] | None:
+        """Per-feature parts of the value, only for estimators whose value decomposes."""
+        if self._contributions is None:
+            return None
+        transformed = np.asarray(self._preprocessing.transform(rows), dtype=np.float64)
+        names = self.manifest.input.feature_names
+        return tuple(
+            {name: float(v) for name, v in zip(names, row, strict=True)}
+            for row in self._contributions(transformed)
+        )
 
 
 def write_model_package(models_root: Path, build: PackageBuild) -> ModelPackageManifest:
@@ -283,7 +299,7 @@ def write_model_package(models_root: Path, build: PackageBuild) -> ModelPackageM
     if not build.probe_rows:
         raise ModelPackageError("a package needs probe rows")
 
-    restored = _restore(build.estimator_kind, state["estimator"], payload)
+    restored, _ = _restore(build.estimator_kind, state["estimator"], payload)
     preprocessing = build.preprocessing
     probe_transformed = np.asarray(preprocessing.transform(build.probe_rows), dtype=np.float64)
     state["probe_expected"] = [float(v) for v in restored(probe_transformed)]
@@ -364,8 +380,8 @@ def load_model_package(path: Path) -> LoadedModelPackage:
     preprocessing = AffinePreprocessing(
         center=state["preprocessing"]["center"], scale=state["preprocessing"]["scale"]
     )
-    evaluate = _restore(manifest.estimator_kind, state["estimator"], payload)
-    package = LoadedModelPackage(manifest, preprocessing, evaluate)
+    evaluate, contributions = _restore(manifest.estimator_kind, state["estimator"], payload)
+    package = LoadedModelPackage(manifest, preprocessing, evaluate, contributions)
     observed = package.evaluate(state["probe_rows"])
     expected = state["probe_expected"]
     if len(observed) != len(expected) or any(
@@ -379,9 +395,12 @@ def load_model_package(path: Path) -> LoadedModelPackage:
     return package
 
 
+_Evaluate = Callable[[np.ndarray], np.ndarray]
+
+
 def _restore(
     kind: EstimatorKind, state: Mapping[str, Any], payload: Mapping[str, bytes]
-) -> Callable[[np.ndarray], np.ndarray]:
+) -> tuple[_Evaluate, _Evaluate | None]:
     if kind is EstimatorKind.LINEAR:
         coefficients = np.asarray(state["coefficients"], dtype=np.float64)
         intercept = float(state["intercept"])
@@ -389,7 +408,24 @@ def _restore(
             raise ModelPackageError("linear coefficients must be a vector")
         # Elementwise products reduced per row: unlike a BLAS matrix-vector product, the
         # summation order cannot depend on how many rows are evaluated together.
-        return lambda rows: (rows * coefficients).sum(axis=1) + intercept
+        return (lambda rows: (rows * coefficients).sum(axis=1) + intercept), None
+    if kind is EstimatorKind.PCA_RESIDUAL:
+        mean = np.asarray(state["mean"], dtype=np.float64)
+        components = np.asarray(state["components"], dtype=np.float64)
+        if components.ndim != 2 or components.shape[1] != mean.shape[0]:
+            raise ModelPackageError("PCA components must be k x d with a d-wide mean")
+
+        def residual_squares(rows: np.ndarray) -> np.ndarray:
+            # Broadcast products reduced per row (no BLAS), so a row's value never depends
+            # on the other rows evaluated with it.
+            centered = rows - mean
+            scores = (centered[:, None, :] * components[None, :, :]).sum(axis=2)
+            reconstruction = (scores[:, :, None] * components[None, :, :]).sum(axis=1)
+            residual = centered - reconstruction
+            return cast(np.ndarray, residual * residual)
+
+        # Squared prediction error (SPE) and its exact per-feature decomposition.
+        return (lambda rows: residual_squares(rows).sum(axis=1)), residual_squares
     if kind is EstimatorKind.ISOLATION_FOREST_REFIT:
         from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
 
@@ -406,7 +442,7 @@ def _restore(
         )
         estimator.fit(rows)
         # Higher score means more anomalous, matching FittedIsolationForest.score.
-        return lambda x: -cast(np.ndarray, estimator.score_samples(x))
+        return (lambda x: -cast(np.ndarray, estimator.score_samples(x))), None
     raise ModelPackageError(f"unsupported estimator kind: {kind!r}")  # pragma: no cover
 
 
