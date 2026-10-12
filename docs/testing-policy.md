@@ -104,13 +104,25 @@ property-based testing이나 mutation testing은 기본 도구가 아닙니다. 
 | OPC UA reconnect / delivery loss | live acquisition runtime contract / fault gate |
 | spool → DuckLake recovery와 idempotent replay | runtime contract |
 | observation window cursor / restart | window contract |
-| Operations first-run / navigation | Operations integration |
+| Operations first-run / navigation / isolated sample | Operations Chromium acceptance (필수 실행, 무의도 skip 금지) |
 | 실제 browser에서 Live observation 가시성 | acceptance / fault browser gate |
-| marimo same-cell `.value` runtime regression | marimo structural contract |
-| Operations UI의 concrete storage/runtime composition 침범 | Operations architecture import contract |
+| 연구용 marimo same-cell `.value` runtime regression | 연구 marimo structural contract (Operations 제품 UI와 별개) |
+| Operations Web의 read model·HTTP·Supervisor writer 경계 | Operations runtime/API integration 및 Chromium acceptance |
 | presenter의 단순 문구·HTML 모양 | 기본적으로 regression owner를 두지 않음 |
 
 새 회귀 테스트를 추가할 때는 먼저 이 표 또는 기존 테스트에서 같은 failure owner가 있는지 확인합니다.
+
+## 필수 테스트 skip 정책
+
+`operations` extra와 Chromium을 설치한 CI의 **필수 제품 수용 테스트**가
+불필요한 구형 의존성 `pytest.importorskip` 때문에 실행되지 않으면 녹색 통과로
+취급하지 않습니다. CI는 필수 런타임·브라우저 의존성을 먼저 import/검사하며,
+정상적으로 지원되는 OS에서 필수 테스트가 skip되면 원인을 조사합니다.
+선택적 연구 데이터·다른 OS 기능을 위한 명시적 skip과는 구별합니다.
+
+소스 파일에 CSS selector나 함수 이름이 존재한다는 정적 문자열 검사는 제품 동작
+검증을 대체하지 않습니다. 브라우저의 실제 HTTP 상태, 화면, API 근거 및 저장된
+identity를 검증하고, 외부 recorded fault replay 미실행은 따로 표기합니다.
 
 ## 10. Review Checklist
 

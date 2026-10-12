@@ -58,19 +58,25 @@ uv run --locked industrial-phm data validate-csv \
 
 Framework가 임의 tolerance를 정하거나 resampling하지 않습니다.
 
-여러 prepared segment를 Operations observation history로 확인할 때는 각 파일을 같은 mapping으로 검증하고,
-history directory를 지정합니다.
+여러 prepared segment를 확인할 때는 각 CSV를 동일한 자산·신호 의미로 **별도로**
+검증하십시오. 아래는 과거 marimo Operations UI의 환경변수/실행 예시를 대체한
+현재 **supervised Web** 경계입니다.
 
 ```bash
-export INDUSTRIAL_PHM_OPERATIONS_HISTORY_DIRECTORY=/authorized/path/pump-history
-export INDUSTRIAL_PHM_OPERATIONS_ASSET_ID=pump-01
-export INDUSTRIAL_PHM_OPERATIONS_SOURCE_ID=file-export:pump-01
-export INDUSTRIAL_PHM_OPERATIONS_MEASUREMENT_POINT_ID=drive-end-bearing
-export INDUSTRIAL_PHM_OPERATIONS_CHANNELS=vibration_x,vibration_y
-export INDUSTRIAL_PHM_OPERATIONS_TIMESTAMP_COLUMN=timestamp
-
-uv run --locked --group research marimo run src/industrial_phm/apps/operations.py
+uv sync --locked --extra operations
+make up
 ```
+
+표시된 `/web/` URL의 **데이터 연결 → CSV 데이터 등록**에서 PC의 허가된 CSV를
+직접 선택(현재 1MiB 이하)하거나, 초기화된 workspace **내부**의 상대 경로를
+지정합니다. 등록 전에 `CSV 분석 전 점검`으로 현재 파일의 원본 구조·시간 의미를
+확인합니다. 파일이 더 크거나 외부 경로에 있으면 임의로 raw data를 tracked
+repository로 복사하거나 기존 granular environment variable을 재활성화하지
+말고 CLI의 명시적 CSV 검증 경계만 사용하세요.
+
+현재 Web는 임의의 외부 디렉터리에서 여러 segment를 자동 발견·정렬하는
+구형 마리모 workflow를 제공하지 않습니다. 다중 segment source의 동등성은
+별도 기능 Gate이며 미구현 기능을 수용 완료로 간주하지 않습니다.
 
 각 CSV는 독립 source snapshot으로 SHA-256/byte size를 보존합니다. Application timeline은 recorded timestamp로
 segment를 정렬하며 overlap/reverse segment를 차단합니다. Timeline ordering은 source observation history일

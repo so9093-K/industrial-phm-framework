@@ -161,13 +161,16 @@ projection으로 둡니다. 현재 category는 `SOURCE_ERROR`, `NO_RECEIPT`, `ST
 threshold가 만나는 시각을 사용합니다. Data Quality는 아직 fleet-wide durable latest state가 없으므로
 현재 로드된 observation evidence만 queue에 포함하며 그 coverage를 UI에서 숨기지 않습니다.
 
-Operations presentation은 application read model과 marimo widget 조립 사이에 pure presenter를 둡니다.
-`industrial_phm.presentation`은 application read model을 HTML/Markdown 및 Monitor snapshot payload로
-변환하며 새로운 operational 의미를 계산하지 않습니다. 이 layer는 `marimo`를 import하지 않아
-core package가 UI dependency를 요구하지 않게 유지합니다. Packaged app의 state wiring과 page composition은
-`src/industrial_phm/apps/operations.py`가 소유하고, Monitor의 interactive layout은 packaged widget의
-JS/CSS가 소유합니다. Acceptance는 실제 composition과 widget snapshot을 검증하며 별도의 구형 화면을
-검증 대상으로 유지하지 않습니다.
+Operations 제품 UI는 `runtime/operations_app_composition.py`의 bounded read snapshot,
+`runtime/operations_web_read.py`와 `operations_web_setup.py`의 명시적 JSON projection,
+`runtime/operations_web_http.py`의 loopback HTTP/API, 그리고 wheel에 포함된
+`src/industrial_phm/apps/web/index.html`/`app.js`/`styles.css`를 사용합니다.
+변경 명령은 Supervisor-owned IPC 또는 명시된 독립 preview writer lease를 따라야 하며,
+Web에서 저장소 상태를 임의로 다시 계산하거나 writer 잠금을 우회하지 않습니다.
+기존 marimo Operations 앱과 anywidget Monitor 조립, HTML presenter 및 해당 브라우저 도구는
+#480 이후 제품 실행 경로가 아닙니다. 연구용 Analysis Explorer와 노트북의 marimo는 별개입니다.
+UI acceptance는 실제 Web의 데이터 근거와 저장 후 재조회까지 확인해야 하며,
+문구·CSS 선택자만 존재한다는 이유로 수집·분석·Review가 성공했다고 판단하지 않습니다.
 
 Asset Detail은 current registry와 historical AnalysisRun/OperationalFinding을 같은 physical asset identity로
 묶되, source가 registry에서 사라졌다는 이유로 historical asset evidence를 숨기지 않습니다. Asset inventory는

@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+### Validation and legacy audit (2026-10-11)
+
+- 현재 Operations 샘플 Web 링크의 누락된 `/web/`를 수정하고, 삭제된 marimo 설치 여부 때문에 skip되던 필수 Chromium sample acceptance를 실행하도록 복구했습니다(#512). 필수 브라우저 의존성 부족을 성공한 skip으로 처리하지 않습니다.
+- OPC UA 장애/복구의 Web 브라우저 상태 비교를 실제 source API 세션 enum·최근 live 수신 근거에 결합하고, 동일 review 상태를 가짜 Maintenance 성공으로 이중 계산하지 않도록 검증 책임을 분리했습니다. 기록 원본이 없으면 AI-Hub full replay 미실행으로 남깁니다.
+- 삭제된 anywidget Monitor 전용 브라우저 도구, 옛 실행 명령, 제품 화면의 구형 Operations 안내와 current API/테스트 정책의 모순을 정리합니다. 공개 pure application projection은 UI 업무 동등성으로 과장하지 않습니다.
+
 ### Removed / cutover (#480)
 
 - 구형 marimo Operations 앱·anywidget Monitor·전용 presentation/locale·전용 브라우저 검사를 제거했습니다. `--ui marimo` 복귀는 더 이상 제공하지 않으며, 기본 UI와 synthetic/AI-Hub demo는 supervised Web입니다. `operations` extra에서는 marimo·anywidget·구형 화면용 matplotlib 직접 의존성을 제거하고 연구용 marimo/Matplotlib은 별도 `research` group에 유지합니다. Supervisor single-writer·데이터 저장 스키마·workspace identity는 변경하지 않습니다.

@@ -1508,7 +1508,7 @@ async function registerFile(event) {
     if (result.schema_version !== 1 || result.registration_state !== "registered") {
       throw new Error("schema-mismatch");
     }
-    feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 수집은 기존 Operations에서 별도 실행하세요.";
+    feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 데이터 연결의 해당 소스에서 별도 수신을 요청하고 근거를 확인하세요.";
     form.reset();
     csvPreflightRevision += 1;
     byId("csv-preflight-result").textContent =
