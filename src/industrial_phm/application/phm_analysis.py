@@ -55,6 +55,7 @@ class PhmBinding:
     asset_id: str
     step_kind: StepKind
     created_at: datetime
+    recorded_replay: bool = False
 
     def __post_init__(self) -> None:
         for name in ("binding_id", "package_id", "source_id", "asset_id"):
@@ -195,8 +196,8 @@ class SqlitePhmAnalysisStore:
             with connection:
                 connection.execute("BEGIN IMMEDIATE")
                 existing = connection.execute(
-                    "SELECT package_id, source_id, asset_id, step_kind FROM binding "
-                    "WHERE binding_id = ?",
+                    "SELECT package_id, source_id, asset_id, step_kind, recorded_replay "
+                    "FROM binding WHERE binding_id = ?",
                     (binding.binding_id,),
                 ).fetchone()
                 if existing is not None:
@@ -205,12 +206,13 @@ class SqlitePhmAnalysisStore:
                         binding.source_id,
                         binding.asset_id,
                         binding.step_kind.value,
+                        int(binding.recorded_replay),
                     ):
                         raise PhmAnalysisError("binding ID already exists with different content")
                     return False
                 connection.execute(
                     "INSERT INTO binding(binding_id, package_id, source_id, asset_id, step_kind, "
-                    "created_at, state) VALUES (?,?,?,?,?,?,'{}')",
+                    "created_at, recorded_replay, state) VALUES (?,?,?,?,?,?,?,'{}')",
                     (
                         binding.binding_id,
                         binding.package_id,
@@ -218,6 +220,7 @@ class SqlitePhmAnalysisStore:
                         binding.asset_id,
                         binding.step_kind.value,
                         binding.created_at.isoformat(),
+                        int(binding.recorded_replay),
                     ),
                 )
                 _log_change(connection, binding.binding_id, "binding", binding.binding_id)
@@ -229,8 +232,8 @@ class SqlitePhmAnalysisStore:
         connection = self._connect()
         try:
             rows = connection.execute(
-                "SELECT binding_id, package_id, source_id, asset_id, step_kind, created_at "
-                "FROM binding ORDER BY binding_id"
+                "SELECT binding_id, package_id, source_id, asset_id, step_kind, created_at, "
+                "recorded_replay FROM binding ORDER BY binding_id"
             ).fetchall()
         finally:
             connection.close()
@@ -452,6 +455,7 @@ class SqlitePhmAnalysisStore:
                 asset_id TEXT NOT NULL,
                 step_kind TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                recorded_replay INTEGER NOT NULL DEFAULT 0,
                 cursor_position INTEGER,
                 cursor_step_key TEXT,
                 state TEXT NOT NULL,
@@ -694,20 +698,20 @@ def run_binding(
 def _progress(connection: sqlite3.Connection, binding_id: str) -> BindingProgress:
     row = connection.execute(
         "SELECT binding_id, package_id, source_id, asset_id, step_kind, created_at, "
-        "cursor_position, cursor_step_key, state, health, health_reason, health_at "
-        "FROM binding WHERE binding_id = ?",
+        "recorded_replay, cursor_position, cursor_step_key, state, health, health_reason, "
+        "health_at FROM binding WHERE binding_id = ?",
         (binding_id,),
     ).fetchone()
     if row is None:
         raise PhmAnalysisError(f"unknown binding: {binding_id}")
     return BindingProgress(
-        binding=_binding(row[:6]),
-        cursor_position=None if row[6] is None else int(row[6]),
-        cursor_step_key=row[7],
-        state=json.loads(row[8]),
-        health=row[9],
-        health_reason=row[10],
-        health_at=_dt(row[11]),
+        binding=_binding(row[:7]),
+        cursor_position=None if row[7] is None else int(row[7]),
+        cursor_step_key=row[8],
+        state=json.loads(row[9]),
+        health=row[10],
+        health_reason=row[11],
+        health_at=_dt(row[12]),
     )
 
 
@@ -719,6 +723,7 @@ def _binding(row: Sequence[Any]) -> PhmBinding:
         asset_id=row[3],
         step_kind=StepKind(row[4]),
         created_at=datetime.fromisoformat(row[5]),
+        recorded_replay=bool(row[6]),
     )
 
 

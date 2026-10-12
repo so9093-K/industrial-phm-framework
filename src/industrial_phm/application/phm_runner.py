@@ -1,8 +1,9 @@
 """Drive PHM bindings from their step sources (ADR-0025).
 
-The runner turns each new acquisition snapshot into a step projected onto the bound package's
-input schema, then commits it through :class:`SqlitePhmAnalysisStore`. A package that cannot be
-loaded marks only its binding unavailable; other bindings keep running.
+The runner turns each new acquisition snapshot or finalized observation window into a step
+projected onto the bound package's input schema, then commits it through
+:class:`SqlitePhmAnalysisStore`. A package that cannot be loaded marks only its binding
+unavailable; other bindings keep running.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Protocol
 
 from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshot,
@@ -18,6 +20,17 @@ from industrial_phm.application.acquisition_snapshot import (
     SqliteAcquisitionSnapshotRepository,
     read_snapshot_waveform,
 )
+from industrial_phm.application.analysis_input import (
+    window_channel_observations,
+    window_input_reference,
+)
+from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_FEATURE_SET_ID,
+    align_electrical_samples,
+    electrical_window_features,
+    resolve_electrical_roles,
+)
+from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.phm_analysis import (
     PhmBinding,
     PreparedStep,
@@ -59,6 +72,8 @@ def prepare_snapshot_step(
     snapshot: AcquisitionSnapshot,
     spec: PackageInputSpec,
     memo: FeatureMemo | None = None,
+    *,
+    recorded_replay: bool = False,
 ) -> PreparedStep:
     """Project one snapshot onto the package input schema, or record why it does not fit."""
     reference = {
@@ -75,7 +90,7 @@ def prepare_snapshot_step(
     return PreparedStep(
         step_key=snapshot.step_key,
         position=snapshot.ordinal,
-        replay=snapshot.replay,
+        replay=snapshot.replay or recorded_replay,
         input_reference=reference,
         event_start=snapshot.event_at,
         features=features,
@@ -188,5 +203,148 @@ def _run_one(
         limit=page_size,
     )
     spec = package.manifest.input
-    steps = (prepare_snapshot_step(snapshot, spec, memo) for snapshot in pending)
+    steps = (
+        prepare_snapshot_step(snapshot, spec, memo, recorded_replay=binding.recorded_replay)
+        for snapshot in pending
+    )
     return BindingCycle(binding.binding_id, run_binding(store, binding, package, steps, now=now))
+
+
+# Observation windows ------------------------------------------------------------
+
+_WindowFeatures = Callable[
+    [DurableObservationWindow], tuple[Mapping[str, float] | None, str | None]
+]
+
+
+def _electrical_window(
+    window: DurableObservationWindow,
+) -> tuple[Mapping[str, float] | None, str | None]:
+    observations = window_channel_observations(window)
+    roles, reason = resolve_electrical_roles(observations)
+    if roles is None:
+        return None, reason
+    samples, excluded = align_electrical_samples(observations, roles)
+    features, reason, _ = electrical_window_features(samples)
+    if reason is not None and excluded:
+        reason += (
+            " (excluded times: " + ", ".join(f"{k}={v}" for k, v in sorted(excluded.items())) + ")"
+        )
+    return features, reason
+
+
+WINDOW_FEATURE_SETS: Mapping[str, _WindowFeatures] = {
+    ELECTRICAL_WINDOW_FEATURE_SET_ID: _electrical_window,
+}
+
+
+def window_position(window: DurableObservationWindow) -> int:
+    """Order windows of one stream by their event-time end, in microseconds."""
+    return int(window.window_end.timestamp() * 1_000_000)
+
+
+def prepare_window_step(
+    window: DurableObservationWindow, spec: PackageInputSpec, *, recorded_replay: bool
+) -> PreparedStep:
+    """Project one finalized window (ADR-0008 accepted events) onto the package schema."""
+    reference = window_input_reference(window)
+    input_reference = {
+        "kind": StepKind.OBSERVATION_WINDOW.value,
+        "window_id": window.window_id,
+        "source_id": window.source_id,
+        "asset_id": window.asset_id,
+        "measurement_point_id": window.measurement_point_id,
+        "window_start": window.window_start.isoformat(),
+        "window_end": window.window_end.isoformat(),
+        "input_digest": reference.input_digest,
+        "accepted_event_count": window.accepted_event_count,
+    }
+    features: tuple[float, ...] | None = None
+    reason: str | None = None
+    if spec.step_kind is not StepKind.OBSERVATION_WINDOW:
+        reason = f"package expects {spec.step_kind.value} steps"
+    elif (extractor := WINDOW_FEATURE_SETS.get(spec.feature_set_id)) is None:
+        reason = f"unsupported feature set for windows: {spec.feature_set_id}"
+    else:
+        values, reason = extractor(window)
+        if values is not None:
+            missing = [name for name in spec.feature_names if name not in values]
+            if missing:
+                reason = f"features missing from step: {missing[:3]}"
+            else:
+                features = tuple(values[name] for name in spec.feature_names)
+    return PreparedStep(
+        step_key=f"window:{window.window_id}",
+        position=window_position(window),
+        replay=recorded_replay,
+        input_reference=input_reference,
+        event_start=window.window_start,
+        event_end=window.window_end,
+        features=features,
+        context={"asset_id": window.asset_id},
+        skip_reason=None if features is not None else (reason or "window not evaluated"),
+    )
+
+
+class WindowReader(Protocol):
+    def list_windows_after(
+        self,
+        *,
+        after_window_end: datetime | None = None,
+        after_window_id: str | None = None,
+        limit: int = 1000,
+    ) -> tuple[DurableObservationWindow, ...]: ...
+
+
+def run_window_bindings(
+    store: SqlitePhmAnalysisStore,
+    windows: WindowReader,
+    packages: PackageCache,
+    *,
+    page_size: int = 200,
+    max_scanned: int = 5_000,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> tuple[BindingCycle, ...]:
+    """Process new finalized windows of each window binding's (source, asset) stream."""
+    cycles = []
+    for binding in store.list_bindings():
+        if binding.step_kind is not StepKind.OBSERVATION_WINDOW:
+            continue
+        try:
+            package = packages.get(binding.package_id)
+        except ModelPackageError as error:
+            store.set_binding_health(binding.binding_id, healthy=False, reason=str(error), at=now())
+            cycles.append(BindingCycle(binding.binding_id, (), str(error)))
+            continue
+        store.set_binding_health(binding.binding_id, healthy=True, reason=None, at=now())
+        progress = store.progress(binding.binding_id)
+        after_end = (
+            None
+            if progress.cursor_position is None
+            else datetime.fromtimestamp(progress.cursor_position / 1_000_000, tz=UTC)
+        )
+        after_id = (progress.cursor_step_key or "").removeprefix("window:") or None
+        pending: list[DurableObservationWindow] = []
+        scanned = 0
+        while len(pending) < page_size and scanned < max_scanned:
+            page = windows.list_windows_after(
+                after_window_end=after_end, after_window_id=after_id, limit=500
+            )
+            if not page:
+                break
+            scanned += len(page)
+            pending.extend(
+                w
+                for w in page
+                if (w.source_id, w.asset_id) == (binding.source_id, binding.asset_id)
+            )
+            after_end, after_id = page[-1].window_end, page[-1].window_id
+        spec = package.manifest.input
+        steps = (
+            prepare_window_step(w, spec, recorded_replay=binding.recorded_replay)
+            for w in pending[:page_size]
+        )
+        cycles.append(
+            BindingCycle(binding.binding_id, run_binding(store, binding, package, steps, now=now))
+        )
+    return tuple(cycles)
