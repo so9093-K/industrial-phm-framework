@@ -179,6 +179,7 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .phm-feature-title{margin:6px 0 0;font-size:.8rem;font-weight:680;color:#33505e}
 .phm-svg{display:block;width:100%;margin:2px 0;overflow:visible}
 .phm-svg.pickable{cursor:crosshair}
+.phm-svg .axis{fill:none;stroke:#8ca3af;stroke-width:1}
 .phm-svg text,.phm-wave text{font-size:11px;fill:#536c7a}
 .phm-interval{fill:#f2d9b8;opacity:.55}
 .phm-interval.open{fill:#e9b979;opacity:.6}

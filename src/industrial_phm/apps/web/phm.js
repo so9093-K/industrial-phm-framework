@@ -15,7 +15,13 @@ const svgNode = (tag, attributes = {}) => {
 };
 const number = (value, digits = 3) => typeof value === "number" && Number.isFinite(value)
   ? value.toLocaleString("ko-KR", {maximumFractionDigits: digits}) : "값 없음";
-const time = (value) => value ? value.replace("T", " ").replace(/\.\d+/, "").replace(/\+00:00|Z/, " UTC") : "시각 없음";
+const time = (value) => {
+  if (!value) return "시각 없음";
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed)
+    ? new Date(parsed).toISOString().replace("T", " ").replace(/\.\d+/, "").replace("Z", " UTC")
+    : String(value);
+};
 const POLL_MS = 3000;
 const TASK_LABEL = {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"};
 const FEATURE_LABEL = {
@@ -62,6 +68,7 @@ async function refreshSeries(bindingId) {
     Object.assign(entry, {
       changeSeq: data.change_seq, binding: data.binding, package: data.package,
       intervals: data.intervals, latestAnalyzed: data.latest_analyzed, latestDelivered: data.latest_delivered,
+      latestProcessed: data.latest_processed,
     });
     if (!data.has_more) break;
   }
@@ -106,15 +113,16 @@ function axisFor(entry) {
 }
 
 function freshness(entry) {
-  const delivered = entry.latestDelivered, analyzed = entry.latestAnalyzed;
+  const delivered = entry.latestDelivered, analyzed = entry.latestAnalyzed, processed = entry.latestProcessed;
   if (!analyzed && !delivered) return "아직 공급된 step이 없습니다.";
   const parts = [];
   if (delivered) parts.push("최신 수신 #" + delivered.position + " · " + time(delivered.delivered_at));
   if (analyzed) parts.push("최신 분석 #" + analyzed.position + " · " + time(analyzed.processed_at));
-  if (delivered && analyzed) {
-    const lag = delivered.position - analyzed.position;
+  if (delivered && (processed || analyzed)) {
+    const lag = delivered.position - (processed || analyzed).position;
     parts.push(lag > 0 ? "분석 대기 " + lag + "개" : "분석 지연 없음");
   }
+  if (processed && processed.state === "skipped") parts.push("최근 입력 조건 불충족 · 분석하지 않음");
   if (refreshedAt) parts.push("화면 갱신 " + refreshedAt.toLocaleTimeString("ko-KR"));
   return parts.join(" · ");
 }
@@ -221,11 +229,14 @@ function renderAnomaly() {
   if (binding && binding.health === "unavailable") {
     state.className = "state error";state.textContent = "모델을 실행할 수 없습니다: " + (binding.health_reason || "이유 미기록");
   } else if (!analyzed.length) {
-    state.className = "state";state.textContent = "분석된 step이 아직 없습니다. 데이터가 공급되면 자동으로 갱신됩니다.";
+    state.className = "state";state.textContent = steps.length
+      ? "입력을 분석할 수 없습니다: " + (steps.at(-1).reason || "모델 입력 조건 불충족")
+      : "분석된 step이 아직 없습니다. 데이터가 공급되면 자동으로 갱신됩니다.";
   } else {
     state.className = "state";
     state.textContent = analyzed.length + "개 step 분석" + (skipped ? " · " + skipped + "개 분석 불가(이유 기록)" : "") + " · 점수는 고장 확률이나 진단이 아닙니다.";
   }
+  if (analyzed.length && steps.at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + steps.at(-1).reason;
   if (!analyzed.length) {renderModelCard(byId("anomaly-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const threshold = last.output.threshold;
@@ -471,12 +482,16 @@ function schedule() {
   pollTimer = setTimeout(async () => {await cycle();schedule();}, POLL_MS);
 }
 
+export async function refreshPhm() {
+  await cycle();schedule();
+}
+
 export function initializePhm() {
   byId("anomaly-binding").addEventListener("change", (event) => {
     selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;byId("anomaly-detail").replaceChildren();cycle();
   });
   byId("rul-binding").addEventListener("change", (event) => {selected.rul = event.target.value;cycle();});
-  const start = () => {if (activeView()) {cycle().then(schedule);} else clearTimeout(pollTimer);};
+  const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
   window.addEventListener("hashchange", start);
   document.addEventListener("visibilitychange", start);
   start();

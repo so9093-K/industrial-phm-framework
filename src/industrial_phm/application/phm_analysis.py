@@ -388,13 +388,18 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in rows)
 
-    def latest_result(self, binding_id: str) -> StepResult | None:
+    def latest_result(
+        self, binding_id: str, *, state: StepState | None = None
+    ) -> StepResult | None:
         connection = self._connect()
         try:
+            clause = "" if state is None else "AND state = ? "
+            params = (binding_id,) if state is None else (binding_id, state.value)
             row = connection.execute(
                 "SELECT * FROM step_result WHERE binding_id = ? "
-                "ORDER BY position DESC, change_seq DESC LIMIT 1",
-                (binding_id,),
+                + clause
+                + "ORDER BY position DESC, change_seq DESC LIMIT 1",
+                params,
             ).fetchone()
         finally:
             connection.close()

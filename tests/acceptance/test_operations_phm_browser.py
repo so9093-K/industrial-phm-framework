@@ -47,6 +47,13 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                     "고장 확률이나 진단이 아닙니다"
                 )
                 pw.expect(page.locator("#anomaly-score-chart .reference-line")).to_have_count(1)
+                assert (
+                    page.locator("#anomaly-score-chart .axis").evaluate(
+                        "e => getComputedStyle(e).fill"
+                    )
+                    == "none"
+                )
+                pw.expect(page.locator("#notice")).not_to_be_visible()
                 pw.expect(page.locator("#anomaly-score-chart .phm-interval")).to_have_count(1)
                 assert page.locator("#anomaly-feature-chart .phm-svg").count() >= 2
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #6")
@@ -87,6 +94,15 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#rul-model")).to_contain_text("synthetic-test-evidence")
                 page.locator('a[href="#anomaly"]').click()
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
+                deliver(workspace, waveforms, 8, 0.9)
+                (waveforms / "8.csv").write_text("damaged after delivery", encoding="utf-8")
+                analyze(workspace)
+                page.locator("#refresh").click()
+                pw.expect(page.locator("#anomaly-state")).to_contain_text(
+                    "최근 입력은 분석되지 않았습니다", timeout=10_000
+                )
+                pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #7")
+                pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.route(
                     "**/api/v1/phm/series?*",
                     lambda route: route.fulfill(status=503, json={"error": "test-read-failed"}),
