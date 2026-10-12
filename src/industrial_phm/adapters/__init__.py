@@ -30,10 +30,12 @@ from industrial_phm.adapters.mimii import (
 )
 from industrial_phm.adapters.xjtu import (
     XJTU_SY_CHANNELS,
+    XjtuAcquisitionFile,
     XjtuSyAdapter,
     XjtuSySourceError,
     XjtuSyValidationReport,
     get_xjtu_expected_acquisition_count,
+    list_xjtu_acquisition_files,
     validate_xjtu_source,
 )
 
@@ -55,11 +57,13 @@ __all__ = [
     "MimiiDueEvaluationTestReport",
     "MimiiDueSourceError",
     "MimiiDueValidationReport",
+    "XjtuAcquisitionFile",
     "XjtuSyAdapter",
     "XjtuSySourceError",
     "XjtuSyValidationReport",
     "get_xjtu_expected_acquisition_count",
     "iter_mimii_evaluation_test_clips",
+    "list_xjtu_acquisition_files",
     "read_mimii_evaluation_test_series",
     "validate_csv_sensor_source",
     "validate_ims_source",

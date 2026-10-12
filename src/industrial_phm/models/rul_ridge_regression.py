@@ -28,6 +28,12 @@ class _RidgeEstimator(Protocol):
 
     def predict(self, feature_rows: Sequence[Sequence[float]]) -> Sequence[float]: ...
 
+    @property
+    def coef_(self) -> Sequence[float]: ...
+
+    @property
+    def intercept_(self) -> float: ...
+
 
 @dataclass(frozen=True, slots=True)
 class _RidgeParameters:
@@ -106,6 +112,14 @@ class FittedRulRidgeRegressor:
         if not all(math.isfinite(value) for value in predictions):
             raise RulRidgeRegressionError("Ridge predictions must be finite")
         return predictions
+
+
+def ridge_linear_state(model: FittedRulRidgeRegressor) -> tuple[tuple[float, ...], float]:
+    """Return the fitted coefficient vector and intercept for data-only persistence."""
+    coefficients = tuple(float(value) for value in model._estimator.coef_)
+    if len(coefficients) != len(model.feature_names):
+        raise RulRidgeRegressionError("Ridge coefficients do not match the feature schema")
+    return coefficients, float(model._estimator.intercept_)
 
 
 def fit_rul_ridge_regression(

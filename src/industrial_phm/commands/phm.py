@@ -45,6 +45,39 @@ def add_phm_commands(
     listing.add_argument("workspace", type=Path, help="local Operations workspace root")
     listing.set_defaults(handler=_run_phm_list)
 
+    package = phm_commands.add_parser(
+        "package-xjtu",
+        help="fit the frozen XJTU-SY fold-1 anomaly and RUL configurations as model packages",
+    )
+    package.add_argument("workspace", type=Path, help="local Operations workspace root")
+    package.add_argument("--source", type=Path, required=True, help="prepared XJTU-SY root")
+    package.add_argument(
+        "--evidence-root",
+        type=Path,
+        default=Path("docs/research/results"),
+        help="directory holding the canonical XJTU research result JSON files",
+    )
+    package.add_argument("--code-revision", help="full Git SHA; default reads the checkout HEAD")
+    package.set_defaults(handler=_run_phm_package_xjtu)
+
+    replay = phm_commands.add_parser(
+        "replay-xjtu",
+        help="deliver one recorded XJTU-SY bearing run as ordered acquisition snapshots",
+    )
+    replay.add_argument("workspace", type=Path, help="local Operations workspace root")
+    replay.add_argument("--source", type=Path, required=True, help="prepared XJTU-SY root")
+    replay.add_argument("--bearing", required=True, help="bearing run, e.g. Bearing1_1")
+    replay.add_argument("--source-id", default="xjtu-sy-replay", help="stream source ID")
+    replay.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=1.0,
+        help="pause between deliveries (recorded period is 60 s; replay is time-compressed)",
+    )
+    replay.add_argument("--start", type=int, default=1, help="first acquisition index")
+    replay.add_argument("--count", type=int, help="number of acquisitions; default all")
+    replay.set_defaults(handler=_run_phm_replay_xjtu)
+
 
 def _run_phm_bind(args: argparse.Namespace) -> int:
     workspace = OperationsWorkspace(args.workspace.resolve())
@@ -102,6 +135,102 @@ def _run_phm_list(args: argparse.Namespace) -> int:
     if not bindings:
         print("no PHM bindings")
     return 0
+
+
+def _run_phm_package_xjtu(args: argparse.Namespace) -> int:
+    from industrial_phm.adapters import XjtuSyAdapter, validate_xjtu_source
+    from industrial_phm.experiments.xjtu import get_xjtu_reference_split
+    from industrial_phm.experiments.xjtu_operational_package import build_xjtu_fold_1_packages
+    from industrial_phm.features import iter_vibration_features
+
+    workspace = OperationsWorkspace(args.workspace.resolve())
+    if not workspace.config_path.is_file():
+        print(f"package failed: not an Operations workspace: {workspace.root}", file=sys.stderr)
+        return 1
+    revision = args.code_revision or _checkout_revision()
+    if revision is None:
+        print("package failed: pass --code-revision outside a clean Git checkout", file=sys.stderr)
+        return 1
+    try:
+        report = validate_xjtu_source(args.source)
+        if not report.profile_matches:
+            raise ValueError("XJTU-SY source does not match the complete profile")
+        fold = next(f for f in get_xjtu_reference_split().folds if f.fold_id == "fold-1")
+        print(f"extracting train features from {len(fold.train)} bearing runs ...", flush=True)
+        train = tuple(
+            iter_vibration_features(XjtuSyAdapter().iter_asset_series(args.source, fold.train))
+        )
+        manifests = build_xjtu_fold_1_packages(
+            train,
+            workspace.models_path,
+            created_at=datetime.now(UTC),
+            code_revision=revision,
+            evidence_root=args.evidence_root,
+        )
+    except (ValueError, OSError, ModelPackageError) as error:
+        print(f"package failed: {error}", file=sys.stderr)
+        return 1
+    for manifest in manifests:
+        print(f"package={manifest.package_id} task={manifest.output.task.value}")
+    return 0
+
+
+def _run_phm_replay_xjtu(args: argparse.Namespace) -> int:
+    from industrial_phm.application.acquisition_snapshot import (
+        AcquisitionSnapshot,
+        AcquisitionSnapshotError,
+        SqliteAcquisitionSnapshotRepository,
+    )
+    from industrial_phm.demo.xjtu_snapshot_replay import replay_xjtu_bearing
+
+    workspace = OperationsWorkspace(args.workspace.resolve())
+    if not workspace.config_path.is_file():
+        print(f"replay failed: not an Operations workspace: {workspace.root}", file=sys.stderr)
+        return 1
+
+    def report(snapshot: AcquisitionSnapshot) -> None:
+        print(f"delivered asset={snapshot.asset_id} acquisition={snapshot.ordinal}", flush=True)
+
+    try:
+        progress = replay_xjtu_bearing(
+            SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+            args.source,
+            asset_id=args.bearing,
+            source_id=args.source_id,
+            interval_seconds=args.interval_seconds,
+            start=args.start,
+            count=args.count,
+            on_delivered=report,
+        )
+    except KeyboardInterrupt:
+        print("replay interrupted; delivered acquisitions are kept", file=sys.stderr)
+        return 130
+    except (ValueError, OSError, AcquisitionSnapshotError, sqlite3.Error) as error:
+        print(f"replay failed: {error}", file=sys.stderr)
+        return 1
+    print(
+        f"replay asset={progress.asset_id} delivered={progress.delivered} "
+        f"already_present={progress.already_present} last={progress.last_ordinal} (recorded replay)"
+    )
+    return 0
+
+
+def _checkout_revision() -> str | None:
+    import subprocess
+
+    try:
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except OSError, subprocess.CalledProcessError:
+        return None
+    return None if dirty or len(head) != 40 else head
 
 
 def _derived_binding_id(package_id: str, source_id: str, asset_id: str) -> str:

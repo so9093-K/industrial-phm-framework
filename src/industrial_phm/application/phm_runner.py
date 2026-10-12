@@ -52,7 +52,14 @@ SNAPSHOT_FEATURE_SETS: Mapping[str, _SnapshotFeatures] = {
 }
 
 
-def prepare_snapshot_step(snapshot: AcquisitionSnapshot, spec: PackageInputSpec) -> PreparedStep:
+FeatureMemo = dict[tuple[str, str], Mapping[str, float] | str]
+
+
+def prepare_snapshot_step(
+    snapshot: AcquisitionSnapshot,
+    spec: PackageInputSpec,
+    memo: FeatureMemo | None = None,
+) -> PreparedStep:
     """Project one snapshot onto the package input schema, or record why it does not fit."""
     reference = {
         "kind": StepKind.ACQUISITION_SNAPSHOT.value,
@@ -64,7 +71,7 @@ def prepare_snapshot_step(snapshot: AcquisitionSnapshot, spec: PackageInputSpec)
         "delivered_at": snapshot.delivered_at.isoformat(),
     }
     context = {key: str(value) for key, value in snapshot.metadata.items() if value is not None}
-    features, reason = _snapshot_features(snapshot, spec)
+    features, reason = _snapshot_features(snapshot, spec, {} if memo is None else memo)
     return PreparedStep(
         step_key=snapshot.step_key,
         position=snapshot.ordinal,
@@ -78,7 +85,7 @@ def prepare_snapshot_step(snapshot: AcquisitionSnapshot, spec: PackageInputSpec)
 
 
 def _snapshot_features(
-    snapshot: AcquisitionSnapshot, spec: PackageInputSpec
+    snapshot: AcquisitionSnapshot, spec: PackageInputSpec, memo: FeatureMemo
 ) -> tuple[tuple[float, ...] | None, str | None]:
     reason = _snapshot_incompatibility(snapshot, spec)
     if reason is not None:
@@ -86,14 +93,20 @@ def _snapshot_features(
     extractor = SNAPSHOT_FEATURE_SETS.get(spec.feature_set_id)
     if extractor is None:
         return None, f"unsupported feature set for snapshots: {spec.feature_set_id}"
-    try:
-        features = extractor(read_snapshot_waveform(snapshot))
-    except (AcquisitionSnapshotError, VibrationFeatureError, ValueError) as error:
-        return None, f"snapshot unreadable: {error}"
-    missing = [name for name in spec.feature_names if name not in features]
+    # Bindings sharing a stream read the same verified bytes; extract each snapshot once.
+    key = (snapshot.sha256, spec.feature_set_id)
+    if key not in memo:
+        try:
+            memo[key] = extractor(read_snapshot_waveform(snapshot))
+        except (AcquisitionSnapshotError, VibrationFeatureError, ValueError) as error:
+            memo[key] = f"snapshot unreadable: {error}"
+    cached = memo[key]
+    if isinstance(cached, str):
+        return None, cached
+    missing = [name for name in spec.feature_names if name not in cached]
     if missing:
         return None, f"features missing from step: {missing[:3]}"
-    return tuple(features[name] for name in spec.feature_names), None
+    return tuple(cached[name] for name in spec.feature_names), None
 
 
 def _snapshot_incompatibility(snapshot: AcquisitionSnapshot, spec: PackageInputSpec) -> str | None:
@@ -144,10 +157,11 @@ def run_snapshot_bindings(
 ) -> tuple[BindingCycle, ...]:
     """Process up to ``page_size`` new snapshots for every snapshot binding."""
     cycles = []
+    memo: FeatureMemo = {}
     for binding in store.list_bindings():
         if binding.step_kind is not StepKind.ACQUISITION_SNAPSHOT:
             continue
-        cycles.append(_run_one(store, snapshots, packages, binding, page_size, now))
+        cycles.append(_run_one(store, snapshots, packages, binding, page_size, now, memo))
     return tuple(cycles)
 
 
@@ -158,6 +172,7 @@ def _run_one(
     binding: PhmBinding,
     page_size: int,
     now: Callable[[], datetime],
+    memo: FeatureMemo,
 ) -> BindingCycle:
     try:
         package = packages.get(binding.package_id)
@@ -173,5 +188,5 @@ def _run_one(
         limit=page_size,
     )
     spec = package.manifest.input
-    steps = (prepare_snapshot_step(snapshot, spec) for snapshot in pending)
+    steps = (prepare_snapshot_step(snapshot, spec, memo) for snapshot in pending)
     return BindingCycle(binding.binding_id, run_binding(store, binding, package, steps, now=now))
