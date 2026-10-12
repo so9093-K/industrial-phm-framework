@@ -56,7 +56,7 @@ def _clock() -> datetime:
 
 
 def _anomaly_package(
-    tmp_path: Path, *, feature_names: tuple[str, ...] = ("x",)
+    tmp_path: Path, *, feature_names: tuple[str, ...] = ("x",), coefficient: float = 1.0
 ) -> LoadedModelPackage:
     width = len(feature_names)
     manifest = write_model_package(
@@ -78,7 +78,7 @@ def _anomaly_package(
                 review_interval=ReviewIntervalRule(min_consecutive_steps=2, max_gap_steps=1),
             ),
             preprocessing=AffinePreprocessing((0.0,) * width, (1.0,) * width),
-            estimator_state={"coefficients": [1.0] + [0.0] * (width - 1), "intercept": 0.0},
+            estimator_state={"coefficients": [coefficient] + [0.0] * (width - 1), "intercept": 0.0},
             fit_rows=None,
             probe_rows=[[0.5] * width],
             training_scope={},
@@ -166,6 +166,48 @@ def test_each_step_is_recorded_exactly_once_across_store_instances(tmp_path: Pat
     stored = SqlitePhmAnalysisStore(path).list_results("b1")
     assert [r.position for r in stored] == [1, 2, 3]
     assert len({r.analysis_run_id for r in stored}) == 3
+
+
+def test_new_model_package_keeps_prior_results_and_resumes_independently(
+    tmp_path: Path,
+) -> None:
+    # Two immutable versions on the same source/asset must not share cursor or model state.
+    previous = _anomaly_package(tmp_path)
+    replacement = _anomaly_package(tmp_path, coefficient=2.0)
+    assert previous.package_id != replacement.package_id
+
+    path = tmp_path / "phm.sqlite"
+    store = SqlitePhmAnalysisStore(path)
+    before_binding = _bind(store, previous, "model-before")
+    first = run_binding(
+        store, before_binding, previous, [_step(1, 0.3), _step(2, 0.4)], now=_clock
+    )
+    assert [r.output["score"] for r in first] == pytest.approx([0.3, 0.4])
+    preserved = store.list_results("model-before")
+
+    after_binding = _bind(store, replacement, "model-after")
+    later = run_binding(
+        store, after_binding, replacement, [_step(1, 0.3), _step(2, 0.4)], now=_clock
+    )
+    assert [r.output["score"] for r in later] == pytest.approx([0.6, 0.8])
+    assert store.list_results("model-before") == preserved
+
+    # Reopen the durable store as after a restart: both cursors advance separately.
+    restarted = SqlitePhmAnalysisStore(path)
+    (old_next,) = run_binding(
+        restarted, before_binding, previous, [_step(3, 0.7)], now=_clock
+    )
+    (new_next,) = run_binding(
+        restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock
+    )
+    assert old_next.output["score"] == pytest.approx(0.7)
+    assert new_next.output["score"] == pytest.approx(1.4)
+    assert [r.position for r in restarted.list_results("model-before")] == [1, 2, 3]
+    assert [r.position for r in restarted.list_results("model-after")] == [1, 2, 3]
+    assert restarted.list_results("model-before")[:2] == preserved
+    assert run_binding(
+        restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock
+    ) == ()
 
 
 def test_late_step_is_recorded_as_skip_without_touching_state(tmp_path: Path) -> None:
