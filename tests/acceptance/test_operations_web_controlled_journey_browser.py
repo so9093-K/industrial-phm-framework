@@ -1331,12 +1331,8 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(browse_result).to_contain_text(
                     "SyntheticPower 객체 내부 탐색", timeout=30000
                 )
-                browse_result.get_by_role(
-                    "button", name="SyntheticPower 객체 내부 탐색"
-                ).click()
-                pw.expect(browse_result).to_contain_text(
-                    "ns=2;s=active_power", timeout=30000
-                )
+                browse_result.get_by_role("button", name="SyntheticPower 객체 내부 탐색").click()
+                pw.expect(browse_result).to_contain_text("ns=2;s=active_power", timeout=30000)
                 pw.expect(browse_result).to_contain_text("수신 근거 아님")
                 assert source_row(page) is None
                 assert not workspace.history_catalog_path.exists()
