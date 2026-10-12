@@ -123,6 +123,7 @@ def create_operations_web_read_server(
                 "research.js": "text/javascript; charset=utf-8",
                 "condition.js": "text/javascript; charset=utf-8",
                 "phm.js": "text/javascript; charset=utf-8",
+                "phm-explanation.js": "text/javascript; charset=utf-8",
                 "research-results.json": "application/json; charset=utf-8",
             }
             if asset_name not in mime:
@@ -275,6 +276,7 @@ def create_operations_web_read_server(
                 "/web/navigation.js": "navigation.js",
                 "/web/research.js": "research.js",
                 "/web/condition.js": "condition.js",
+                "/web/phm-explanation.js": "phm-explanation.js",
                 "/web/phm.js": "phm.js",
                 "/web/research-results.json": "research-results.json",
             }

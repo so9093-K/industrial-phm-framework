@@ -219,7 +219,12 @@ def _rul_build(
             ],
             "uncertainty": "not validated in RUL v1; no interval is reported",
         },
-        applicability={"operating_condition": list(XJTU_OPERATING_CONDITIONS)},
+        applicability={
+            "dataset_id": ["xjtu-sy"],
+            "operating_condition": list(XJTU_OPERATING_CONDITIONS),
+            # Remaining life is defined to the dataset's last recorded acquisition.
+            "recorded_replay": ["true"],
+        },
         created_at=created_at.isoformat(),
         code_revision=code_revision,
     )

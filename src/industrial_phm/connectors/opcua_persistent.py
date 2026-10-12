@@ -175,7 +175,28 @@ class OpcUaPersistentSubscription:
 
             subscription.set_overflow_disconnect_handler(_on_queue_overflow)
             self._install_arrival_probe(subscription)
-            await subscription.subscribe_data_change(nodes)
+            # A new timestamp is a new observation even if its value is unchanged.
+            # Constant frequency/voltage otherwise disappear from aligned windows.
+            ua = module.ua
+            requests = []
+            for handle, node in enumerate(nodes, start=1):
+                request = ua.MonitoredItemCreateRequest()
+                request.ItemToMonitor.NodeId = node.nodeid
+                request.ItemToMonitor.AttributeId = ua.AttributeIds.Value
+                request.MonitoringMode = ua.MonitoringMode.Reporting
+                parameters = request.RequestedParameters
+                parameters.ClientHandle = handle
+                parameters.SamplingInterval = 0.0
+                parameters.QueueSize = 1
+                parameters.DiscardOldest = True
+                data_filter = ua.DataChangeFilter()
+                data_filter.Trigger = ua.DataChangeTrigger.StatusValueTimestamp
+                parameters.Filter = data_filter
+                requests.append(request)
+            results = await subscription.create_monitored_items(requests)
+            for result in results:
+                if isinstance(result, ua.StatusCode):
+                    result.check()
         except Exception:
             await self.close()
             raise

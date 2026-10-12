@@ -10,20 +10,33 @@ import sqlite3
 from http import HTTPStatus
 from urllib.parse import parse_qs
 
+from industrial_phm.application import JsonFindingReviewRepository, JsonOperationalFindingRepository
 from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
+from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.application.phm_read import (
     PhmReadError,
     project_phm_bindings,
     project_phm_series,
     project_snapshot_preview,
 )
+from industrial_phm.application.phm_window_read import project_phm_window
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-PHM_READ_ROUTES = frozenset({"/api/v1/phm/bindings", "/api/v1/phm/series", "/api/v1/phm/snapshot"})
+PHM_READ_ROUTES = frozenset(
+    {
+        "/api/v1/phm/bindings",
+        "/api/v1/phm/series",
+        "/api/v1/phm/snapshot",
+        "/api/v1/phm/window",
+        "/api/v1/phm/explanations",
+        "/api/v1/phm/review",
+    }
+)
 _MAX_ID_LENGTH = 512
 
 
@@ -32,11 +45,48 @@ def handle_phm_read(
 ) -> tuple[HTTPStatus, dict[str, object]]:
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    windows = SqliteObservationWindowRepository(workspace.window_state_path)
     try:
         params = _params(query)
         if path == "/api/v1/phm/bindings":
-            return HTTPStatus.OK, project_phm_bindings(store, workspace.models_path, snapshots)
+            return HTTPStatus.OK, project_phm_bindings(
+                store, workspace.models_path, snapshots, windows=windows
+            )
         binding_id = _required_id(params, "binding_id")
+        if path == "/api/v1/phm/review":
+            result = store.get_result(binding_id, _int(params, "position", default=None, minimum=1))
+            if result is None:
+                raise PhmReadError("step unavailable")
+            identifier = "finding-phm-" + result.analysis_run_id
+            finding = next(
+                (
+                    f
+                    for f in JsonOperationalFindingRepository(
+                        workspace.finding_state_path
+                    ).list_findings()
+                    if f.finding_id == identifier
+                ),
+                None,
+            )
+            reviews = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
+            return HTTPStatus.OK, {
+                "finding_id": identifier if finding else None,
+                "status": reviews.status_for(identifier).value if finding else None,
+                "events": [
+                    {
+                        "action": e.action.value,
+                        "note": e.note,
+                        "recorded_at": e.recorded_at.isoformat(),
+                    }
+                    for e in reviews.list_events()
+                    if e.finding_id == identifier
+                ][-20:],
+            }
+        if path == "/api/v1/phm/explanations":
+            explanations = PhmExplanationStore(workspace.phm_explanation_path).list_for(
+                binding_id, _int(params, "position", default=None, minimum=1)
+            )
+            return HTTPStatus.OK, {"schema_version": 1, "explanations": explanations}
         if path == "/api/v1/phm/series":
             return HTTPStatus.OK, project_phm_series(
                 store,
@@ -44,6 +94,14 @@ def handle_phm_read(
                 snapshots,
                 binding_id=binding_id,
                 since_change_seq=_int(params, "since", default=0, minimum=0),
+                windows=windows,
+            )
+        if path == "/api/v1/phm/window":
+            return HTTPStatus.OK, project_phm_window(
+                store,
+                SqliteObservationWindowRepository(workspace.window_state_path),
+                binding_id=binding_id,
+                position=_int(params, "position", default=None, minimum=1),
             )
         return HTTPStatus.OK, project_snapshot_preview(
             store,

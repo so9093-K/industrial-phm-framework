@@ -202,6 +202,13 @@ class FittedLstmAutoencoder:
             raise LstmAutoencoderError("training batch_size must match the fitted LSTM")
         object.__setattr__(self, "feature_names", feature_names)
 
+    def export_weights(self) -> dict[str, Any]:
+        """Export numeric CPU arrays only; no executable module or pickle payload."""
+        return {
+            name: tensor.detach().cpu().tolist()
+            for name, tensor in self._module.state_dict().items()
+        }
+
     def reconstruct(self, construction: SequenceConstruction) -> SequenceReconstructions:
         """Reconstruct windows in source order without producing anomaly scores."""
         _validate_construction_context(

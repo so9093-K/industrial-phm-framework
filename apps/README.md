@@ -206,3 +206,88 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 
 모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
 앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.
+
+
+### AI-Hub 전기 다변량 모델 개발 경로
+
+공기압축기 후보의 운영 승격 [평가 v2](../docs/research/results/aihub-239-electrical-anomaly-evaluation-v2.json)는
+**FAIL**입니다. 다음 경로는 원본 신호와 모델 출력을 탐색하는 개발 기능이며 합격한 현장 경보·진단이 아닙니다.
+AI-Hub에는 수명 종료 사건이 없어 RUL을 생성하지 않습니다.
+
+```bash
+uv sync --locked --extra operations --extra aihub
+uv run --no-sync python -m tools.opcua.aihub_replay prepare \
+  --root artifacts/aihub-phm --endpoint opc.tcp://127.0.0.1:48555/phm/ \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --member 3.공기압축기/SourceData_16.json \
+  --binding tools/opcua/presets/aihub-air-compressor-1338-replay.json \
+  --start 2020-11-13T09:35:00 --end 2020-11-13T10:09:00
+# 개발 replay가 만든 sources/control을 보존하며 작업공간 형식만 초기화합니다.
+uv run --no-sync python - <<'PY'
+from pathlib import Path
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace, initialize_operations_workspace
+initialize_operations_workspace(OperationsWorkspace(Path("artifacts/aihub-phm")), allow_recognized_legacy=True)
+PY
+uv run --no-sync industrial-phm operations phm package-aihub artifacts/aihub-phm \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --member 3.공기압축기/SourceData_16.json --candidate pca-residual
+```
+
+시작 전에 `artifacts/aihub-phm/config.toml`의 `[collection] window_duration_seconds = 300.0`을
+설정합니다. 다른 윈도우 길이는 이 모델의 입력이 아니므로 이유를 남기고 분석하지 않습니다.
+출력된 package ID를 사용해 명시적으로 연결합니다. 측정점이 있는 다른 소스라면 `--measurement-point-id`도
+정확히 지정하며, 생략하면 측정점이 없는 스트림만 선택합니다.
+
+```bash
+uv run --no-sync industrial-phm operations phm bind artifacts/aihub-phm \
+  --package <package-id> --source-id aihub239-replay-air-compressor-1338 \
+  --asset-id aihub-air-compressor-1338 --recorded-replay
+uv run --no-sync industrial-phm internal request-collection \
+  --workspace artifacts/aihub-phm --source-id aihub239-replay-air-compressor-1338 --state running
+uv run --no-sync industrial-phm operations start artifacts/aihub-phm
+# 다른 터미널: 속도는 전송에만 적용하고 원래 기록 시각·60초 cadence는 보존합니다.
+uv run --no-sync python -m tools.opcua.aihub_replay server \
+  --root artifacts/aihub-phm --speed 60 --recorded-timestamps
+```
+
+`/web/#anomaly`에서 입력 특징과 점수·검토 구간을 같은 축으로 탐색하고, 시점을 선택해 7개 원본 신호와
+품질·PCA 잔차 기여를 확인합니다. 변화율은 선택 윈도우의 첫 유효 관측 대비 화면 비교값으로,
+모델 정규화나 고장 원인 판정이 아닙니다. 최근 입력이 조건을 충족하지 않으면 이전 분석과 구분해 표시합니다.
+
+
+### LSTM 이상 탐지 · RUL 연결
+
+같은 준비된 XJTU-SY 데이터로 LSTM AE와 LSTM RUL을 패키징할 수 있습니다.
+학습은 기존 frozen 연구 설정과 train 베어링만 사용하며, 실행 시 다시 학습하지 않고 저장 가중치를 적재합니다.
+
+```bash
+uv sync --locked --extra operations --extra deep-learning
+uv run --no-sync industrial-phm operations phm package-xjtu-lstm artifacts/live \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+```
+
+출력된 두 package ID를 `operations phm bind`로 기존 `xjtu-sy-replay`와 선택한 베어링에 각각 연결한 뒤
+동일한 `replay-xjtu` 명령을 사용합니다. 두 화면의 설비·모델 목록에서 모델을 선택합니다.
+처음 7개 획득은 과거 8개 입력을 모으는 준비 구간이며 결과로 채우지 않습니다. 버퍼는 결과와 함께 저장해
+재시작 후 이어지고, 누락·입력 불일치·운전 조건 변경은 시퀀스 준비를 다시 시작합니다.
+RUL의 참고 MAE는 기존 연구 결과이며 새 가중치의 성능 인증이 아닙니다. 같은 가중치의 계산 재현성과
+제품 동작을 모델 성능 개선과 분리합니다.
+
+### AI 설명과 사람 검토 (local-main)
+
+이상 탐지·RUL 화면에서 선택한 저장 결과마다 **AI 설명 생성**과 **검토 요청 → 검토 확인 → 검토 종료**를
+기록할 수 있습니다. 쓰기는 감독 실행(`make up`) 화면에서만 가능합니다.
+
+```bash
+# 기본값: 로컬 OpenAI 호환 서버의 local-main (Responses API, 없으면 Chat Completions)
+export INDUSTRIAL_PHM_GENAI_BASE_URL="http://127.0.0.1:9400/v1"
+export INDUSTRIAL_PHM_GENAI_MODEL="local-main"
+# 선택: INDUSTRIAL_PHM_GENAI_API_KEY, 원격(https) 주소는 INDUSTRIAL_PHM_GENAI_ALLOW_REMOTE=1일 때만
+```
+
+- AI에는 저장된 결과와 함께 **코드가 확정한 의미 문장**(점수·종료점·검증 근거·적용 범위)을 전달하고,
+  수치를 다시 계산하거나 고장 확률·진단·신뢰구간을 만들지 않도록 지시합니다.
+- 생성된 설명의 숫자를 저장된 근거와 대조해, 근거에 없는 수치가 있으면 경고와 함께 표시합니다.
+- 설명은 분석 결과와 별도 저장소(`phm-explanations.sqlite`)에 저장되며 모델 출력을 바꾸지 않습니다.
+  AI 서버가 응답하지 않아도 분석 조회와 직접 검토는 계속됩니다. 검토 종료는 정비 완료가 아닙니다.
+- `INDUSTRIAL_PHM_GENAI_MODEL`은 연구 Analysis Explorer의 OpenAI 설명과 같은 변수명을 씁니다.

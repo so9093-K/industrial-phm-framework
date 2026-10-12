@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -12,6 +13,12 @@ from industrial_phm.application.acquisition_snapshot import (
     file_sha256,
     read_snapshot_waveform,
 )
+from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
+    ELECTRICAL_WINDOW_FEATURE_NAMES,
+    ELECTRICAL_WINDOW_FEATURE_SET_ID,
+)
+from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.phm_analysis import (
     PhmBinding,
     PreparedStep,
@@ -20,7 +27,11 @@ from industrial_phm.application.phm_analysis import (
     advance_review_interval,
     run_binding,
 )
-from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bindings
+from industrial_phm.application.phm_runner import (
+    PackageCache,
+    prepare_window_step,
+    run_snapshot_bindings,
+)
 from industrial_phm.features.vibration import vibration_feature_names
 from industrial_phm.models.package import (
     AffinePreprocessing,
@@ -45,7 +56,7 @@ def _clock() -> datetime:
 
 
 def _anomaly_package(
-    tmp_path: Path, *, feature_names: tuple[str, ...] = ("x",)
+    tmp_path: Path, *, feature_names: tuple[str, ...] = ("x",), coefficient: float = 1.0
 ) -> LoadedModelPackage:
     width = len(feature_names)
     manifest = write_model_package(
@@ -67,7 +78,7 @@ def _anomaly_package(
                 review_interval=ReviewIntervalRule(min_consecutive_steps=2, max_gap_steps=1),
             ),
             preprocessing=AffinePreprocessing((0.0,) * width, (1.0,) * width),
-            estimator_state={"coefficients": [1.0] + [0.0] * (width - 1), "intercept": 0.0},
+            estimator_state={"coefficients": [coefficient] + [0.0] * (width - 1), "intercept": 0.0},
             fit_rows=None,
             probe_rows=[[0.5] * width],
             training_scope={},
@@ -157,6 +168,40 @@ def test_each_step_is_recorded_exactly_once_across_store_instances(tmp_path: Pat
     assert len({r.analysis_run_id for r in stored}) == 3
 
 
+def test_new_model_package_keeps_prior_results_and_resumes_independently(
+    tmp_path: Path,
+) -> None:
+    # Two immutable versions on the same source/asset must not share cursor or model state.
+    previous = _anomaly_package(tmp_path)
+    replacement = _anomaly_package(tmp_path, coefficient=2.0)
+    assert previous.package_id != replacement.package_id
+
+    path = tmp_path / "phm.sqlite"
+    store = SqlitePhmAnalysisStore(path)
+    before_binding = _bind(store, previous, "model-before")
+    first = run_binding(store, before_binding, previous, [_step(1, 0.3), _step(2, 0.4)], now=_clock)
+    assert [r.output["score"] for r in first] == pytest.approx([0.3, 0.4])
+    preserved = store.list_results("model-before")
+
+    after_binding = _bind(store, replacement, "model-after")
+    later = run_binding(
+        store, after_binding, replacement, [_step(1, 0.3), _step(2, 0.4)], now=_clock
+    )
+    assert [r.output["score"] for r in later] == pytest.approx([0.6, 0.8])
+    assert store.list_results("model-before") == preserved
+
+    # Reopen the durable store as after a restart: both cursors advance separately.
+    restarted = SqlitePhmAnalysisStore(path)
+    (old_next,) = run_binding(restarted, before_binding, previous, [_step(3, 0.7)], now=_clock)
+    (new_next,) = run_binding(restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock)
+    assert old_next.output["score"] == pytest.approx(0.7)
+    assert new_next.output["score"] == pytest.approx(1.4)
+    assert [r.position for r in restarted.list_results("model-before")] == [1, 2, 3]
+    assert [r.position for r in restarted.list_results("model-after")] == [1, 2, 3]
+    assert restarted.list_results("model-before")[:2] == preserved
+    assert run_binding(restarted, after_binding, replacement, [_step(3, 0.7)], now=_clock) == ()
+
+
 def test_late_step_is_recorded_as_skip_without_touching_state(tmp_path: Path) -> None:
     package = _anomaly_package(tmp_path)
     store = SqlitePhmAnalysisStore(tmp_path / "phm.sqlite")
@@ -237,9 +282,13 @@ def test_rul_output_reports_change_and_applicability(tmp_path: Path) -> None:
         now=_clock,
     )
     assert results[0].output["change_from_previous"] is None
-    assert results[1].output["change_from_previous"] == -10.0
-    assert [r.output["applicability"] for r in results] == ["inside", "outside"]
+    assert results[0].output["applicability"] == "inside"
     assert results[0].output["unit"] == "acquisition-interval"
+    # Outside the declared operating conditions a remaining-life estimate is not produced.
+    assert results[1].state is StepState.SKIPPED and results[1].output == {}
+    assert results[1].reason == (
+        "RUL applicability unavailable: operating_condition=c2 is outside ['c1']"
+    )
 
 
 def test_change_feed_returns_only_newer_results(tmp_path: Path) -> None:
@@ -253,6 +302,46 @@ def test_change_feed_returns_only_newer_results(tmp_path: Path) -> None:
 
 
 # Snapshots and runner --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("override", "reason"),
+    [
+        ({"channels": ("different channel meaning",)}, "channels differ"),
+        ({"sampling_rate_hz": 10.0}, "fixed sampling rate"),
+        ({"samples_per_step": 50}, "fixed sampling rate"),
+    ],
+)
+def test_window_package_input_mismatch_is_skipped_with_a_reason(
+    override: dict[str, object], reason: str
+) -> None:
+    window = DurableObservationWindow(
+        window_id="w1",
+        source_id="src",
+        asset_id="A",
+        window_start=T0,
+        window_end=T0 + timedelta(minutes=5),
+        watermark_at_close=T0 + timedelta(minutes=5),
+        finalized_at=T0 + timedelta(minutes=6),
+        expected_channel_ids=("raw-channel",),
+        events=(),
+    )
+    spec = PackageInputSpec(
+        step_kind=StepKind.OBSERVATION_WINDOW,
+        channels=ELECTRICAL_WINDOW_CHANNELS,
+        feature_set_id=ELECTRICAL_WINDOW_FEATURE_SET_ID,
+        feature_names=ELECTRICAL_WINDOW_FEATURE_NAMES,
+    )
+    rejected = prepare_window_step(window, replace(spec, **override), recorded_replay=True)
+    assert rejected.features is None
+    assert reason in (rejected.skip_reason or "")
+    assert rejected.input_reference["window_id"] == "w1"
+
+    # The same feature set with its declared schema is still accepted for extraction.
+    # This empty window is skipped for missing observations, not for schema mismatch.
+    supported = prepare_window_step(window, spec, recorded_replay=True)
+    assert supported.features is None
+    assert "confirmed channel meaning missing" in (supported.skip_reason or "")
 
 
 def _write_waveform(path: Path, scale: float) -> Path:
@@ -360,3 +449,15 @@ def test_change_pages_preserve_late_steps_and_never_jump_past_unread_results(
             break
     assert seen == [1, 3, 2, 4, 5]
     assert store.list_results(binding.binding_id, after_change_seq=cursor) == ()
+
+
+def test_missing_steps_cannot_turn_separated_crossings_into_a_consecutive_run(
+    tmp_path: Path,
+) -> None:
+    package = _anomaly_package(tmp_path)
+    store = SqlitePhmAnalysisStore(tmp_path / "gap.sqlite")
+    binding = _bind(store, package)
+    run_binding(store, binding, package, [_step(1, 2.0), _step(5, 2.0)], now=_clock)
+    assert store.list_intervals("b1") == ()
+    run_binding(store, binding, package, [_step(6, 2.0)], now=_clock)
+    assert store.list_intervals("b1")[0].start_position == 5

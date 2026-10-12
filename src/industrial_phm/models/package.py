@@ -52,6 +52,9 @@ class EstimatorKind(StrEnum):
 
     ISOLATION_FOREST_REFIT = "isolation-forest-refit-v1"
     LINEAR = "linear-v1"
+    PCA_RESIDUAL = "pca-residual-v1"
+    LSTM_AUTOENCODER = "lstm-autoencoder-v1"
+    LSTM_RUL = "lstm-rul-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,8 +67,13 @@ class PackageInputSpec:
     feature_names: Sequence[str]
     sampling_rate_hz: float | None = None
     samples_per_step: int | None = None
+    sequence_length: int = 1
 
     def __post_init__(self) -> None:
+        if _bad_int(self.sequence_length, minimum=1) or self.sequence_length > 4096:
+            raise ModelPackageError("sequence_length must be between 1 and 4096")
+        if self.sequence_length > 1 and self.step_kind is not StepKind.ACQUISITION_SNAPSHOT:
+            raise ModelPackageError("sequence packages currently require acquisition snapshots")
         if not isinstance(self.step_kind, StepKind):
             raise ModelPackageError("step_kind must be a StepKind")
         object.__setattr__(self, "channels", _names(self.channels, "channels"))
@@ -160,6 +168,17 @@ class ModelPackageManifest:
         _text(self.recipe_id, "recipe_id")
         if not isinstance(self.estimator_kind, EstimatorKind):
             raise ModelPackageError("estimator_kind must be an EstimatorKind")
+        sequence_kinds = (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL)
+        if self.estimator_kind not in sequence_kinds and self.input.sequence_length != 1:
+            raise ModelPackageError("only LSTM estimators currently consume sequence inputs")
+        if self.estimator_kind in sequence_kinds:
+            expected = (
+                ModelTask.ANOMALY_SCORE
+                if self.estimator_kind is EstimatorKind.LSTM_AUTOENCODER
+                else ModelTask.RUL_ESTIMATE
+            )
+            if self.output.task is not expected:
+                raise ModelPackageError("LSTM estimator kind does not match its output task")
         if not math.isfinite(self.probe_tolerance) or self.probe_tolerance < 0:
             raise ModelPackageError("probe_tolerance must be finite and non-negative")
         _text(self.created_at, "created_at")
@@ -240,10 +259,12 @@ class LoadedModelPackage:
         manifest: ModelPackageManifest,
         preprocessing: AffinePreprocessing,
         evaluate_transformed: Callable[[np.ndarray], np.ndarray],
+        contributions_transformed: Callable[[np.ndarray], np.ndarray] | None = None,
     ) -> None:
         self.manifest = manifest
         self._preprocessing = preprocessing
         self._evaluate = evaluate_transformed
+        self._contributions = contributions_transformed
 
     @property
     def package_id(self) -> str:
@@ -251,14 +272,34 @@ class LoadedModelPackage:
 
     def evaluate(self, rows: Sequence[Sequence[float]]) -> tuple[float, ...]:
         """Return one task value per raw (untransformed) feature row."""
-        width = len(self.manifest.input.feature_names)
+        width = len(self.manifest.input.feature_names) * self.manifest.input.sequence_length
         if not rows or any(len(row) != width for row in rows):
             raise ModelPackageError("feature rows must match the package feature schema")
-        transformed = np.asarray(self._preprocessing.transform(rows), dtype=np.float64)
+        transformed = self._transform(rows)
         values = tuple(float(v) for v in self._evaluate(transformed))
         if len(values) != len(rows) or not all(math.isfinite(v) for v in values):
             raise ModelPackageError("package evaluation produced invalid values")
         return values
+
+    def _transform(self, rows: Sequence[Sequence[float]]) -> np.ndarray:
+        spec = self.manifest.input
+        width = len(spec.feature_names)
+        steps = [row[i : i + width] for row in rows for i in range(0, len(row), width)]
+        values = np.asarray(self._preprocessing.transform(steps), dtype=np.float64)
+        return values.reshape(len(rows), spec.sequence_length * width)
+
+    def feature_contributions(
+        self, rows: Sequence[Sequence[float]]
+    ) -> tuple[dict[str, float], ...] | None:
+        """Per-feature parts of the value, only for estimators whose value decomposes."""
+        if self._contributions is None:
+            return None
+        transformed = self._transform(rows)
+        names = self.manifest.input.feature_names
+        return tuple(
+            {name: float(v) for name, v in zip(names, row, strict=True)}
+            for row in self._contributions(transformed)
+        )
 
 
 def write_model_package(models_root: Path, build: PackageBuild) -> ModelPackageManifest:
@@ -283,13 +324,25 @@ def write_model_package(models_root: Path, build: PackageBuild) -> ModelPackageM
     if not build.probe_rows:
         raise ModelPackageError("a package needs probe rows")
 
-    restored = _restore(build.estimator_kind, state["estimator"], payload)
+    restored, _ = _restore(build.estimator_kind, state["estimator"], payload)
     preprocessing = build.preprocessing
-    probe_transformed = np.asarray(preprocessing.transform(build.probe_rows), dtype=np.float64)
+    width = len(build.input.feature_names)
+    if any(len(row) != width * build.input.sequence_length for row in build.probe_rows):
+        raise ModelPackageError("probe rows must include the entire input sequence")
+    probe_steps = [
+        row[i : i + width] for row in build.probe_rows for i in range(0, len(row), width)
+    ]
+    probe_transformed = np.asarray(preprocessing.transform(probe_steps), dtype=np.float64).reshape(
+        len(build.probe_rows), width * build.input.sequence_length
+    )
     state["probe_expected"] = [float(v) for v in restored(probe_transformed)]
     payload[_STATE_NAME] = _canonical(state).encode("utf-8")
 
     runtime = _runtime_versions()
+    if build.estimator_kind in (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL):
+        from importlib import import_module
+
+        runtime["torch"] = str(import_module("torch").__version__)
     body: dict[str, Any] = {
         "schema_id": MODEL_PACKAGE_SCHEMA_ID,
         "recipe_id": build.recipe_id,
@@ -364,8 +417,8 @@ def load_model_package(path: Path) -> LoadedModelPackage:
     preprocessing = AffinePreprocessing(
         center=state["preprocessing"]["center"], scale=state["preprocessing"]["scale"]
     )
-    evaluate = _restore(manifest.estimator_kind, state["estimator"], payload)
-    package = LoadedModelPackage(manifest, preprocessing, evaluate)
+    evaluate, contributions = _restore(manifest.estimator_kind, state["estimator"], payload)
+    package = LoadedModelPackage(manifest, preprocessing, evaluate, contributions)
     observed = package.evaluate(state["probe_rows"])
     expected = state["probe_expected"]
     if len(observed) != len(expected) or any(
@@ -379,9 +432,16 @@ def load_model_package(path: Path) -> LoadedModelPackage:
     return package
 
 
+_Evaluate = Callable[[np.ndarray], np.ndarray]
+
+
 def _restore(
     kind: EstimatorKind, state: Mapping[str, Any], payload: Mapping[str, bytes]
-) -> Callable[[np.ndarray], np.ndarray]:
+) -> tuple[_Evaluate, _Evaluate | None]:
+    if kind in (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL):
+        from industrial_phm.models.package_lstm import restore_lstm_estimator
+
+        return restore_lstm_estimator(kind, state)
     if kind is EstimatorKind.LINEAR:
         coefficients = np.asarray(state["coefficients"], dtype=np.float64)
         intercept = float(state["intercept"])
@@ -389,7 +449,24 @@ def _restore(
             raise ModelPackageError("linear coefficients must be a vector")
         # Elementwise products reduced per row: unlike a BLAS matrix-vector product, the
         # summation order cannot depend on how many rows are evaluated together.
-        return lambda rows: (rows * coefficients).sum(axis=1) + intercept
+        return (lambda rows: (rows * coefficients).sum(axis=1) + intercept), None
+    if kind is EstimatorKind.PCA_RESIDUAL:
+        mean = np.asarray(state["mean"], dtype=np.float64)
+        components = np.asarray(state["components"], dtype=np.float64)
+        if components.ndim != 2 or components.shape[1] != mean.shape[0]:
+            raise ModelPackageError("PCA components must be k x d with a d-wide mean")
+
+        def residual_squares(rows: np.ndarray) -> np.ndarray:
+            # Broadcast products reduced per row (no BLAS), so a row's value never depends
+            # on the other rows evaluated with it.
+            centered = rows - mean
+            scores = (centered[:, None, :] * components[None, :, :]).sum(axis=2)
+            reconstruction = (scores[:, :, None] * components[None, :, :]).sum(axis=1)
+            residual = centered - reconstruction
+            return cast(np.ndarray, residual * residual)
+
+        # Squared prediction error (SPE) and its exact per-feature decomposition.
+        return (lambda rows: residual_squares(rows).sum(axis=1)), residual_squares
     if kind is EstimatorKind.ISOLATION_FOREST_REFIT:
         from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
 
@@ -406,7 +483,7 @@ def _restore(
         )
         estimator.fit(rows)
         # Higher score means more anomalous, matching FittedIsolationForest.score.
-        return lambda x: -cast(np.ndarray, estimator.score_samples(x))
+        return (lambda x: -cast(np.ndarray, estimator.score_samples(x))), None
     raise ModelPackageError(f"unsupported estimator kind: {kind!r}")  # pragma: no cover
 
 
@@ -435,7 +512,7 @@ def _manifest_from_json(body: Mapping[str, Any]) -> ModelPackageManifest:
 
 
 def _input_to_json(spec: PackageInputSpec) -> dict[str, Any]:
-    return {
+    body: dict[str, Any] = {
         "step_kind": spec.step_kind.value,
         "channels": list(spec.channels),
         "feature_set_id": spec.feature_set_id,
@@ -443,6 +520,10 @@ def _input_to_json(spec: PackageInputSpec) -> dict[str, Any]:
         "sampling_rate_hz": spec.sampling_rate_hz,
         "samples_per_step": spec.samples_per_step,
     }
+
+    if spec.sequence_length != 1:
+        body["sequence_length"] = spec.sequence_length
+    return body
 
 
 def _input_from_json(raw: Mapping[str, Any]) -> PackageInputSpec:
@@ -453,6 +534,7 @@ def _input_from_json(raw: Mapping[str, Any]) -> PackageInputSpec:
         feature_names=raw["feature_names"],
         sampling_rate_hz=raw["sampling_rate_hz"],
         samples_per_step=raw["samples_per_step"],
+        sequence_length=raw.get("sequence_length", 1),
     )
 
 
