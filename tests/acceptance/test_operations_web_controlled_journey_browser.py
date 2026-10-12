@@ -1380,8 +1380,10 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     "collector-observed disconnect",
                     lambda: matching_source(
                         page,
-                        lambda row: row["opcua_session_last_state"] is not None
-                        and str(row["opcua_session_last_state"]).upper() != "CONNECTED",
+                        lambda row: (
+                            row["opcua_session_last_state"] is not None
+                            and str(row["opcua_session_last_state"]).upper() != "CONNECTED"
+                        ),
                     ),
                 )
                 assert disconnected["last_live_history_snapshot_id"] is not None
