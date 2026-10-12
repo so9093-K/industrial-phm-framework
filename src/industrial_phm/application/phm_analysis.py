@@ -27,7 +27,7 @@ from industrial_phm.models.package import (
     StepKind,
 )
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 class PhmAnalysisError(ValueError):
@@ -56,12 +56,15 @@ class PhmBinding:
     step_kind: StepKind
     created_at: datetime
     recorded_replay: bool = False
+    measurement_point_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("binding_id", "package_id", "source_id", "asset_id"):
             _identifier(getattr(self, name), name)
         if not isinstance(self.step_kind, StepKind):
             raise PhmAnalysisError("step_kind must be a StepKind")
+        if self.measurement_point_id is not None:
+            _identifier(self.measurement_point_id, "measurement_point_id")
         _aware(self.created_at, "created_at")
 
 
@@ -196,7 +199,8 @@ class SqlitePhmAnalysisStore:
             with connection:
                 connection.execute("BEGIN IMMEDIATE")
                 existing = connection.execute(
-                    "SELECT package_id, source_id, asset_id, step_kind, recorded_replay "
+                    "SELECT package_id, source_id, asset_id, step_kind, recorded_replay, "
+                    "measurement_point_id "
                     "FROM binding WHERE binding_id = ?",
                     (binding.binding_id,),
                 ).fetchone()
@@ -207,12 +211,14 @@ class SqlitePhmAnalysisStore:
                         binding.asset_id,
                         binding.step_kind.value,
                         int(binding.recorded_replay),
+                        binding.measurement_point_id,
                     ):
                         raise PhmAnalysisError("binding ID already exists with different content")
                     return False
                 connection.execute(
                     "INSERT INTO binding(binding_id, package_id, source_id, asset_id, step_kind, "
-                    "created_at, recorded_replay, state) VALUES (?,?,?,?,?,?,?,'{}')",
+                    "created_at, recorded_replay, measurement_point_id, state) "
+                    "VALUES (?,?,?,?,?,?,?,?,'{}')",
                     (
                         binding.binding_id,
                         binding.package_id,
@@ -221,6 +227,7 @@ class SqlitePhmAnalysisStore:
                         binding.step_kind.value,
                         binding.created_at.isoformat(),
                         int(binding.recorded_replay),
+                        binding.measurement_point_id,
                     ),
                 )
                 _log_change(connection, binding.binding_id, "binding", binding.binding_id)
@@ -233,7 +240,7 @@ class SqlitePhmAnalysisStore:
         try:
             rows = connection.execute(
                 "SELECT binding_id, package_id, source_id, asset_id, step_kind, created_at, "
-                "recorded_replay FROM binding ORDER BY binding_id"
+                "recorded_replay, measurement_point_id FROM binding ORDER BY binding_id"
             ).fetchall()
         finally:
             connection.close()
@@ -391,6 +398,17 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in rows)
 
+    def get_result(self, binding_id: str, position: int) -> StepResult | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT * FROM step_result WHERE binding_id = ? AND position = ?",
+                (binding_id, position),
+            ).fetchone()
+        finally:
+            connection.close()
+        return None if row is None else _result(row)
+
     def latest_result(
         self, binding_id: str, *, state: StepState | None = None
     ) -> StepResult | None:
@@ -443,6 +461,22 @@ class SqlitePhmAnalysisStore:
                 "INSERT OR IGNORE INTO phm_meta VALUES ('schema_version', ?)",
                 (str(_SCHEMA_VERSION),),
             )
+        elif current[0] == "1":
+            # Older M1 stores have neither field; unmerged M3 stores may have replay only.
+            # Serialize migration and re-read under the write lock for concurrent readers.
+            with connection:
+                connection.execute("BEGIN IMMEDIATE")
+                columns = {row[1] for row in connection.execute("PRAGMA table_info(binding)")}
+                if "recorded_replay" not in columns:
+                    connection.execute(
+                        "ALTER TABLE binding ADD COLUMN recorded_replay INTEGER NOT NULL DEFAULT 0"
+                    )
+                if "measurement_point_id" not in columns:
+                    connection.execute("ALTER TABLE binding ADD COLUMN measurement_point_id TEXT")
+                connection.execute(
+                    "UPDATE phm_meta SET value = ? WHERE key = 'schema_version'",
+                    (str(_SCHEMA_VERSION),),
+                )
         elif current[0] != str(_SCHEMA_VERSION):
             connection.close()
             raise PhmAnalysisError(f"unsupported PHM analysis schema: {current[0]!r}")
@@ -456,6 +490,7 @@ class SqlitePhmAnalysisStore:
                 step_kind TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 recorded_replay INTEGER NOT NULL DEFAULT 0,
+                measurement_point_id TEXT,
                 cursor_position INTEGER,
                 cursor_step_key TEXT,
                 state TEXT NOT NULL,
@@ -546,6 +581,9 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
                 "exceeds_threshold": exceeds,
                 "applicability": applicability,
             }
+            contributions = package.feature_contributions([step.features])
+            if contributions is not None:
+                output["feature_contributions"] = dict(contributions[0])
             return StepEvaluation(
                 StepState.ANALYZED, output, {**state, "interval": tracker}, None, writes
             )
@@ -584,6 +622,23 @@ def advance_review_interval(
         "score": score,
     }
     current = dict(tracker)
+    interrupted: tuple[IntervalWrite, ...] = ()
+    last = current.get("end") or (current.get("run") or [None])[-1]
+    if last is not None:
+        allowed_gap = max_gap_steps if current.get("open_id") else 0
+        if step.event_start is not None and step.event_end is not None and last.get("end_at"):
+            missing_duration = (
+                step.event_start - datetime.fromisoformat(last["end_at"])
+            ).total_seconds()
+            width = (step.event_end - step.event_start).total_seconds()
+            disconnected = missing_duration < 0 or missing_duration > allowed_gap * width
+        else:
+            distance = step.position - last["position"]
+            disconnected = distance <= 0 or distance > allowed_gap + 1
+        if disconnected:
+            if current.get("open_id"):
+                interrupted = (_interval_write(current, open_=False),)
+            current = {}
     if exceeds:
         if current.get("open_id"):
             current["end"] = point
@@ -591,10 +646,10 @@ def advance_review_interval(
             current["gap"] = 0
             if score > float(current["peak"]):
                 current["peak"], current["peak_key"] = score, step.step_key
-            return current, (_interval_write(current, open_=True),)
+            return current, (*interrupted, _interval_write(current, open_=True))
         run = [*current.get("run", []), point]
         if len(run) < min_consecutive_steps:
-            return {"run": run}, ()
+            return {"run": run}, interrupted
         peak = max(run, key=lambda item: float(item["score"]))
         opened = {
             "open_id": f"interval-{run[0]['position']}",
@@ -605,13 +660,13 @@ def advance_review_interval(
             "peak_key": peak["key"],
             "gap": 0,
         }
-        return opened, (_interval_write(opened, open_=True),)
+        return opened, (*interrupted, _interval_write(opened, open_=True))
     if current.get("open_id"):
         current["gap"] = int(current.get("gap", 0)) + 1
         if current["gap"] > max_gap_steps:
-            return {}, (_interval_write(current, open_=False),)
-        return current, ()
-    return {}, ()
+            return {}, (*interrupted, _interval_write(current, open_=False))
+        return current, interrupted
+    return {}, interrupted
 
 
 def _interval_write(tracker: Mapping[str, Any], *, open_: bool) -> IntervalWrite:
@@ -699,13 +754,13 @@ def _progress(connection: sqlite3.Connection, binding_id: str) -> BindingProgres
     row = connection.execute(
         "SELECT binding_id, package_id, source_id, asset_id, step_kind, created_at, "
         "recorded_replay, cursor_position, cursor_step_key, state, health, health_reason, "
-        "health_at FROM binding WHERE binding_id = ?",
+        "health_at, measurement_point_id FROM binding WHERE binding_id = ?",
         (binding_id,),
     ).fetchone()
     if row is None:
         raise PhmAnalysisError(f"unknown binding: {binding_id}")
     return BindingProgress(
-        binding=_binding(row[:7]),
+        binding=_binding((*row[:7], row[13])),
         cursor_position=None if row[7] is None else int(row[7]),
         cursor_step_key=row[8],
         state=json.loads(row[9]),
@@ -724,6 +779,7 @@ def _binding(row: Sequence[Any]) -> PhmBinding:
         step_kind=StepKind(row[4]),
         created_at=datetime.fromisoformat(row[5]),
         recorded_replay=bool(row[6]),
+        measurement_point_id=row[7],
     )
 
 

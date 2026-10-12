@@ -41,12 +41,20 @@ class _Windows:
         after_window_end: datetime | None = None,
         after_window_id: str | None = None,
         limit: int = 1000,
+        source_id: str | None = None,
+        asset_id: str | None = None,
+        measurement_point_id: str | None = None,
     ) -> tuple[DurableObservationWindow, ...]:
         key = (after_window_end, after_window_id or "")
         return tuple(
             w
             for w in self._windows
-            if after_window_end is None or (w.window_end, w.window_id) > key
+            if (after_window_end is None or (w.window_end, w.window_id) > key)
+            and (
+                source_id is None
+                or (w.source_id, w.asset_id, w.measurement_point_id)
+                == (source_id, asset_id, measurement_point_id)
+            )
         )[:limit]
 
 
@@ -97,11 +105,19 @@ def test_window_binding_records_each_window_once_with_reason_and_declared_replay
             StepKind.OBSERVATION_WINDOW,
             START,
             recorded_replay=True,
+            measurement_point_id="mcc-3",
         )
     )
+
+    def window(name: str, start: datetime) -> DurableObservationWindow:
+        end = start + timedelta(minutes=5)
+        return replace(
+            finalized_window(name, start), window_end=end, watermark_at_close=end, finalized_at=end
+        )
+
     windows = [
-        replace(finalized_window("a", START), window_end=START + timedelta(minutes=5)),
-        finalized_window("b", START + timedelta(minutes=1)),
+        window("a", START),
+        window("b", START + timedelta(minutes=5)),
     ]
     cache = PackageCache(tmp_path / "models")
     (cycle,) = run_window_bindings(store, _Windows(windows), cache, now=lambda: START)
@@ -114,6 +130,6 @@ def test_window_binding_records_each_window_once_with_reason_and_declared_replay
     assert first.event_start == START
     (again,) = run_window_bindings(store, _Windows(windows), cache, now=lambda: START)
     assert again.results == ()
-    later = [*windows, finalized_window("c", START + timedelta(minutes=2))]
+    later = [*windows, window("c", START + timedelta(minutes=10))]
     (third,) = run_window_bindings(store, _Windows(later), cache, now=lambda: datetime.now(UTC))
     assert [r.input_reference["window_id"] for r in third.results] == ["c"]

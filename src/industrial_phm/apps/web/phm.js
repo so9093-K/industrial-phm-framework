@@ -108,7 +108,7 @@ function axisFor(entry) {
   const timed = steps.length && steps.every((step) => step.event_start);
   const period = entry.package && entry.package.output && entry.package.output.step_period_seconds;
   return timed
-    ? {x: (step) => Date.parse(step.event_start), label: "관측 시각 · UTC", format: (v) => time(new Date(v).toISOString()).slice(0, 16)}
+    ? {cadence: period ? period * 1000 : null, x: (step) => Date.parse(step.event_start), label: "관측 시각 · UTC", format: (v) => time(new Date(v).toISOString()).slice(0, 16)}
     : {x: (step) => step.position, label: "획득 순번" + (period ? " · 기록 주기 " + period + "초" : ""), format: (v) => "#" + Math.round(v)};
 }
 
@@ -116,11 +116,20 @@ function freshness(entry) {
   const delivered = entry.latestDelivered, analyzed = entry.latestAnalyzed, processed = entry.latestProcessed;
   if (!analyzed && !delivered) return "아직 공급된 step이 없습니다.";
   const parts = [];
-  if (delivered) parts.push("최신 수신 #" + delivered.position + " · " + time(delivered.delivered_at));
-  if (analyzed) parts.push("최신 분석 #" + analyzed.position + " · " + time(analyzed.processed_at));
-  if (delivered && (processed || analyzed)) {
-    const lag = delivered.position - (processed || analyzed).position;
-    parts.push(lag > 0 ? "분석 대기 " + lag + "개" : "분석 지연 없음");
+  if (entry.binding.step_kind === "observation-window") {
+    if (delivered) parts.push("최신 수신 " + time(delivered.event_at) + " · 저장 " + time(delivered.delivered_at));
+    if (analyzed) parts.push("최신 분석 " + time(analyzed.event_start) + " · 처리 " + time(analyzed.processed_at));
+    if (delivered && processed) {
+      const lag = Math.max(0, delivered.position - processed.position) / 1000000;
+      parts.push(lag ? "최근 윈도우와 분석 시각 차이 " + number(lag / 60, 1) + "분" : "입력 처리 지연 없음");
+    }
+  } else {
+    if (delivered) parts.push("최신 수신 #" + delivered.position + " · " + time(delivered.delivered_at));
+    if (analyzed) parts.push("최신 분석 #" + analyzed.position + " · " + time(analyzed.processed_at));
+    if (delivered && (processed || analyzed)) {
+      const lag = delivered.position - (processed || analyzed).position;
+      parts.push(lag > 0 ? "분석 대기 " + lag + "개" : "분석 지연 없음");
+    }
   }
   if (processed && processed.state === "skipped") parts.push("최근 입력 조건 불충족 · 분석하지 않음");
   if (refreshedAt) parts.push("화면 갱신 " + refreshedAt.toLocaleTimeString("ko-KR"));
@@ -168,7 +177,7 @@ function linePlot({steps, value, axis, height, domain, threshold, intervals, hig
   svg.append(svgNode("path", {d: `M${PLOT.left} ${PLOT.top}V${bottom}H${PLOT.right}`, class: "axis"}));
   let path = "", previous = null;
   for (const step of visible) {
-    const contiguous = previous && step.position - previous.position === 1;
+    const contiguous = previous && (axis.cadence ? axis.x(step) - axis.x(previous) === axis.cadence : step.position - previous.position === 1);
     path += (contiguous ? "L" : "M") + x(axis.x(step)).toFixed(1) + " " + y(value(step)).toFixed(1) + " ";
     previous = step;
   }
@@ -194,6 +203,16 @@ function linePlot({steps, value, axis, height, domain, threshold, intervals, hig
 const channelLabel = (channel) => channel.replace("_vibration_signals", "").replace("Horizontal", "수평 진동").replace("Vertical", "수직 진동");
 
 function featureLabel(name) {
+  const electrical = {
+    "current.phase_r.mean_a": "R상 평균 전류 · A", "current.phase_s.mean_a": "S상 평균 전류 · A",
+    "current.phase_t.mean_a": "T상 평균 전류 · A", "voltage.phase_r.mean_v": "R상 평균 전압 · V",
+    "voltage.phase_s.mean_v": "S상 평균 전압 · V", "voltage.phase_t.mean_v": "T상 평균 전압 · V",
+    "current.unbalance.mean_percent": "전류 불평형 평균 · %",
+    "voltage.unbalance.mean_percent": "전압 불평형 평균 · %",
+    "current.three_phase_mean.std_a": "3상 평균 전류의 변동 · A",
+    "frequency.mean_hz": "평균 주파수 · Hz",
+  };
+  if (electrical[name]) return electrical[name];
   const parts = name.split(".");
   const statistic = parts.at(-1), channel = parts.slice(1, -1).join(".");
   return channelLabel(channel) + " · " + (FEATURE_LABEL[statistic] || statistic);
@@ -237,6 +256,9 @@ function renderAnomaly() {
     state.textContent = analyzed.length + "개 step 분석" + (skipped ? " · " + skipped + "개 분석 불가(이유 기록)" : "") + " · 점수는 고장 확률이나 진단이 아닙니다.";
   }
   if (analyzed.length && steps.at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + steps.at(-1).reason;
+  if (entry.package && entry.package.validation && entry.package.validation.acceptance === "not-yet-evaluated") {
+    state.textContent += " · 개발 모델: 합격 기준 검증 미완료";
+  }
   if (!analyzed.length) {renderModelCard(byId("anomaly-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const threshold = last.output.threshold;
@@ -246,7 +268,8 @@ function renderAnomaly() {
     card("최신 이상 점수", number(last.output.score), "임계값 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
     card("검토 구간", entry.intervals.length + "개", openIntervals.length ? "진행 중 " + openIntervals.length + "개" : "진행 중 구간 없음"),
     card("임계값 초과 step", analyzed.filter((step) => step.output.exceeds_threshold).length + "개", "전체 " + analyzed.length + "개 중"),
-    card("적용 범위", applicabilityText(last.output.applicability), "학습 운전 조건과 비교"),
+    card("적용 범위", applicabilityText(last.output.applicability, entry.package),
+      entry.package.applicability.asset_id ? "연결한 설비 ID만 비교 · 운전 적합성 보증 아님" : "학습 운전 조건과 비교"),
   );
   const axis = axisFor(entry);
   const full = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
@@ -336,7 +359,24 @@ async function focusStep(position) {
   for (const [name, value] of Object.entries(step.features || {})) facts.append(node("span", featureLabel(name) + " " + number(value)));
   root.append(facts);
   root.append(node("p", "분석 ID " + step.analysis_run_id + " · 입력 SHA-256 " + String(step.input_reference.sha256 || step.input_reference.window_id || "").slice(0, 16) + "…", "mono"));
-  root.append(node("p", "이 모델은 변수별 기여도를 제공하지 않습니다. 값이 크게 바뀐 입력 특징과 원본 파형을 함께 확인하고, 같은 시기의 운전 조건 변화를 점검하세요.", "next-check"));
+  if (!step.output.feature_contributions) root.append(node("p", "이 모델은 변수별 기여도를 제공하지 않습니다. 값이 크게 바뀐 입력 특징과 원본 파형을 함께 확인하고, 같은 시기의 운전 조건 변화를 점검하세요.", "next-check"));
+  if (step.output.feature_contributions) {
+    const contributions = node("div", "", "phm-facts");
+    contributions.append(node("h4", "특징별 잔차 기여"));
+    for (const [name, value] of Object.entries(step.output.feature_contributions).sort((a, b) => b[1] - a[1])) {
+      contributions.append(node("span", featureLabel(name) + " · " + number(value)));
+    }
+    root.append(contributions, node("p", "잔차 기여는 모델 점수의 분해이며 물리적 고장 원인 판정은 아닙니다.", "muted"));
+  }
+  if (entry.binding.step_kind === "observation-window") {
+    const holder = node("div", "원본 관측을 불러오는 중입니다.", "phm-raw");root.append(holder);
+    const bindingId = selected.anomaly;
+    try {
+      const preview = await getJson("/api/v1/phm/window?binding_id=" + encodeURIComponent(bindingId) + "&position=" + position);
+      if (selected.anomaly !== bindingId || focusPosition !== position || readError) return;
+      holder.replaceChildren(rawSignals(preview));
+    } catch {holder.replaceChildren(node("p", "원본 관측을 확인할 수 없습니다.", "muted"));}
+  }
   if (entry.binding.step_kind === "acquisition-snapshot") {
     const holder = node("div", "", "phm-waveform");holder.append(node("p", "원본 파형을 불러오는 중입니다.", "muted"));root.append(holder);
     try {
@@ -346,6 +386,37 @@ async function focusStep(position) {
       holder.replaceChildren(node("p", "원본 파형을 확인할 수 없습니다.", "muted"));
     }
   }
+}
+
+function rawSignals(preview) {
+  const box = node("div");
+  if (!preview.available) {box.append(node("p", "원본 신호 조회 불가: " + preview.reason));return box;}
+  box.append(node("h4", "동일 시간축의 원본 신호"));
+  const toggle = document.createElement("select");toggle.setAttribute("aria-label", "원본 신호 표시 방식");
+  for (const [value, label] of [["raw", "원본값 · 채널별 단위"], ["relative", "첫 유효 관측 대비 변화 (%)"]]) {
+    const option = node("option", label);option.value = value;toggle.append(option);
+  }
+  const plots = node("div");box.append(toggle, plots);
+  const render = () => {
+    plots.replaceChildren();
+    const domain = [Date.parse(preview.start), Date.parse(preview.end)];
+    const axis = {x: (s) => Date.parse(s.event_start), cadence: 60000, format: (v) => time(new Date(v).toISOString()).slice(11, 19)};
+    for (const channel of preview.channels) {
+      const first = channel.points.find((p) => typeof p.value === "number");
+      const reference = first && first.value;
+      const relative = toggle.value === "relative";
+      const steps = channel.points.map((p, i) => ({position: i, event_start: p.at, value: p.value}));
+      const title = channel.channel_id + " · " + (relative ? "%" : channel.unit);
+      plots.append(node("p", title, "phm-feature-title"));
+      plots.append(linePlot({steps, value: (s) => typeof s.value !== "number" ? null : relative ? (reference ? (s.value / reference - 1) * 100 : null) : s.value,
+        axis, height: 70, domain, label: title + " 원본 관측", unitText: relative ? "%" : channel.unit}));
+      const unavailable = channel.points.filter((p) => p.quality !== "good").length;
+      plots.append(node("p", "관측 " + channel.points.length + "개 · 사용 불가 " + unavailable + "개 · 누락은 채우지 않습니다.", "muted"));
+    }
+  };
+  toggle.addEventListener("change", render);render();
+  box.append(node("p", "변화율은 화면 비교용이며 모델 정규화가 아닙니다. 첫 유효 값이 0이면 변화율을 계산하지 않습니다.", "muted"));
+  return box;
 }
 
 function waveform(preview) {
@@ -429,7 +500,12 @@ function renderRul() {
 const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 1) : "값 없음";
 const unitText = (unit) => unit === "acquisition-interval" ? "획득 간격" : (unit || "단위 없음");
 const endpointText = (value) => value === "last-recorded-acquisition" ? "데이터셋의 마지막 기록 획득(물리 고장 시각 아님)" : (value || "미기록");
-const applicabilityText = (value) => ({inside: "학습 범위 안", outside: "학습 범위 밖", unknown: "판단 근거 없음"})[value] || "판단 근거 없음";
+const applicabilityText = (value, pkg = null) => {
+  if (pkg && pkg.applicability && pkg.applicability.asset_id) {
+    return ({inside: "연결 설비와 일치", outside: "다른 설비", unknown: "설비 범위 미확인"})[value] || "설비 범위 미확인";
+  }
+  return ({inside: "학습 범위 안", outside: "학습 범위 밖", unknown: "판단 근거 없음"})[value] || "판단 근거 없음";
+};
 
 function renderModelCard(root, pkg) {
   root.replaceChildren();
@@ -442,6 +518,9 @@ function renderModelCard(root, pkg) {
   add("모델", (pkg.recipe_id || "") + " · " + (TASK_LABEL[pkg.output.task] || pkg.output.task));
   add("패키지", pkg.package_id);
   add("학습 데이터", [scope.dataset_id, scope.fold_id, scope.partition].filter(Boolean).join(" · ") + (scope.asset_ids ? " · " + scope.asset_ids.length + "개 설비" : ""));
+  if (scope.member) add("참조 기록", scope.member);
+  if (scope.period) add("학습 기간", scope.period);
+  if (scope.timezone_assumption) add("시각 가정", scope.timezone_assumption + " · 원본 시간대 미확인");
   if (pkg.output.threshold_rule) add("임계값 규칙", pkg.output.threshold_rule + " = " + number(pkg.output.threshold));
   add("검증 근거", (validation.evidence_class || "기록 없음") + (validation.artifact ? " · " + validation.artifact : ""));
   for (const item of validation.per_asset || []) {

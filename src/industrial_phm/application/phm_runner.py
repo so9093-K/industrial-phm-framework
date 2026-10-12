@@ -295,6 +295,9 @@ class WindowReader(Protocol):
         after_window_end: datetime | None = None,
         after_window_id: str | None = None,
         limit: int = 1000,
+        source_id: str | None = None,
+        asset_id: str | None = None,
+        measurement_point_id: str | None = None,
     ) -> tuple[DurableObservationWindow, ...]: ...
 
 
@@ -330,7 +333,12 @@ def run_window_bindings(
         scanned = 0
         while len(pending) < page_size and scanned < max_scanned:
             page = windows.list_windows_after(
-                after_window_end=after_end, after_window_id=after_id, limit=500
+                after_window_end=after_end,
+                after_window_id=after_id,
+                limit=500,
+                source_id=binding.source_id,
+                asset_id=binding.asset_id,
+                measurement_point_id=binding.measurement_point_id,
             )
             if not page:
                 break
@@ -338,7 +346,8 @@ def run_window_bindings(
             pending.extend(
                 w
                 for w in page
-                if (w.source_id, w.asset_id) == (binding.source_id, binding.asset_id)
+                if (w.source_id, w.asset_id, w.measurement_point_id)
+                == (binding.source_id, binding.asset_id, binding.measurement_point_id)
             )
             after_end, after_id = page[-1].window_end, page[-1].window_id
         spec = package.manifest.input

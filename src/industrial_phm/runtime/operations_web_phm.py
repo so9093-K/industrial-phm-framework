@@ -14,6 +14,7 @@ from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_read import (
     PhmReadError,
@@ -21,9 +22,12 @@ from industrial_phm.application.phm_read import (
     project_phm_series,
     project_snapshot_preview,
 )
+from industrial_phm.application.phm_window_read import project_phm_window
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-PHM_READ_ROUTES = frozenset({"/api/v1/phm/bindings", "/api/v1/phm/series", "/api/v1/phm/snapshot"})
+PHM_READ_ROUTES = frozenset(
+    {"/api/v1/phm/bindings", "/api/v1/phm/series", "/api/v1/phm/snapshot", "/api/v1/phm/window"}
+)
 _MAX_ID_LENGTH = 512
 
 
@@ -32,10 +36,13 @@ def handle_phm_read(
 ) -> tuple[HTTPStatus, dict[str, object]]:
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    windows = SqliteObservationWindowRepository(workspace.window_state_path)
     try:
         params = _params(query)
         if path == "/api/v1/phm/bindings":
-            return HTTPStatus.OK, project_phm_bindings(store, workspace.models_path, snapshots)
+            return HTTPStatus.OK, project_phm_bindings(
+                store, workspace.models_path, snapshots, windows=windows
+            )
         binding_id = _required_id(params, "binding_id")
         if path == "/api/v1/phm/series":
             return HTTPStatus.OK, project_phm_series(
@@ -44,6 +51,14 @@ def handle_phm_read(
                 snapshots,
                 binding_id=binding_id,
                 since_change_seq=_int(params, "since", default=0, minimum=0),
+                windows=windows,
+            )
+        if path == "/api/v1/phm/window":
+            return HTTPStatus.OK, project_phm_window(
+                store,
+                SqliteObservationWindowRepository(workspace.window_state_path),
+                binding_id=binding_id,
+                position=_int(params, "position", default=None, minimum=1),
             )
         return HTTPStatus.OK, project_snapshot_preview(
             store,
