@@ -71,6 +71,16 @@ def resolve_electrical_roles(
     observations: Sequence[ChannelObservation],
 ) -> tuple[ElectricalChannelRoles | None, str | None]:
     """Bind roles from the observations' own semantic snapshots; ambiguity is a reason."""
+    streams = {(o.source_id, o.measurement_point_id) for o in observations}
+    if len(streams) > 1:
+        return None, "mixed sources or measurement points"
+    meanings: dict[str, set[tuple[str | None, str | None, str | None, str | None]]] = defaultdict(
+        set
+    )
+    for o in observations:
+        meanings[o.channel_id].add((o.observed_property, o.scope, o.unit, o.semantic_version))
+    if any(len(values) > 1 for values in meanings.values()):
+        return None, "changed measurement meaning or semantic version"
     roles: dict[tuple[str, str], set[str]] = defaultdict(set)
     for item in observations:
         if item.observed_property == "phase current" and item.unit == "A":
@@ -92,6 +102,8 @@ def resolve_electrical_roles(
     if ambiguous:
         return None, "ambiguous channel meaning: " + ", ".join(ambiguous)
     pick = {key: next(iter(value)) for key, value in roles.items()}
+    if len({pick[key] for key in needed}) != 7:
+        return None, "one channel cannot represent multiple electrical roles"
     return (
         ElectricalChannelRoles(
             current=tuple(pick[("current", p)] for p in _PHASES),  # type: ignore[arg-type]
