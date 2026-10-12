@@ -17,16 +17,16 @@
         <a href="#monitor" aria-current="page">설비 모니터링</a>
         <a href="#connect">데이터 연결</a>
         <a href="#signals">설비 · 신호</a>
-        <a href="#evidence">분석 근거</a>
-        <a href="#review">정비 검토</a>
-        <a href="#research">기존 연구 결과</a>
-        <a href="#system">시스템 근거</a>
+        <a href="#evidence">분석 결과</a>
+        <a href="#review">검토 작업</a>
+        <a href="#research">연구 · 검증 결과</a>
+        <a href="#system">운영 관리</a>
       </nav>
       <p class="sidebar-note">로컬 작업공간<br>수동 새로고침 · 관측 시각 UTC</p>
     </aside>
     <main id="main" tabindex="-1">
       <header class="topbar">
-        <div><p class="eyebrow">OPERATIONS / OBSERVATION</p><h1 id="view-title" tabindex="-1">설비 모니터링</h1><p id="view-description" class="muted">현재 작업공간의 관측과 확인할 항목을 살펴봅니다.</p></div>
+        <div><p class="eyebrow">EQUIPMENT / CONDITION</p><h1 id="view-title" tabindex="-1">설비 모니터링</h1><p id="view-description" class="muted">설비의 부하 변화와 불평형, 기준 운전 패턴과의 차이를 확인합니다.</p></div>
         <div class="top-actions"><span class="pill">조회 · 소스 등록·제어</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
       </header>
       <section class="notice hidden" id="notice" role="status" aria-live="polite"></section>
@@ -44,7 +44,7 @@
         </div>
       </section>
       <section data-views="monitor" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
-      <section data-views="monitor" class="kpis" id="monitor" aria-label="관측 요약">
+      <section data-views="system" class="kpis" id="monitor" aria-label="관측 요약">
         <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>
         <div class="kpi"><span>기록된 분석</span><strong id="analysis-count">—</strong><small>실제 저장된 AnalysisRun</small></div>
         <div class="kpi"><span>검토 요청 기록</span><strong id="review-count">—</strong><small>정비 수행과 구별</small></div>
@@ -52,12 +52,11 @@
       </section>
       <section data-views="monitor signals evidence review" class="layout">
         <div class="panel asset-panel">
-          <div class="panel-header"><div><h2>설비 선택</h2><p class="muted">관측 대상과 수신 상태</p></div></div>
+          <div class="panel-header"><div><h2>설비 선택</h2><p class="muted">분석할 설비</p></div></div>
           <label for="asset-select">설비 ID</label><select id="asset-select" disabled><option>설비 조회 중</option></select>
-          <div id="asset-facts" class="facts" aria-live="polite"><p class="muted">저장된 관측 정보를 조회합니다.</p></div>
-          <p class="hint">데이터가 수신 중이더라도 설비가 정상이라는 뜻은 아닙니다.</p>
+          <details id="asset-info"><summary>데이터 수신·저장 정보</summary><div id="asset-facts" class="facts" aria-live="polite"><p class="muted">저장된 관측 정보를 조회합니다.</p></div></details>
         </div>
-        <div data-views="monitor signals" class="panel trend-panel" id="signals">
+        <div data-views="signals" class="panel trend-panel" id="signals">
           <div class="panel-header"><div><h2>저장된 측정 신호</h2><p class="muted">신호별 원본 관측 · 출처와 측정 의미를 분리</p></div><span class="tag">원본 이력</span></div>
           <div class="filters">
             <fieldset class="channel-fieldset" id="channel-options"><legend>비교할 신호 (최대 6개)</legend><p class="muted">설비를 선택하면 신호 목록을 불러옵니다.</p></fieldset>
@@ -71,10 +70,33 @@
           <p class="hint">빈 버킷은 0이 아닙니다. 그래프의 점을 연결하지 않으며, 다른 단위·출처를 한 신호로 합치지 않습니다.</p>
         </div>
       </section>
+      <section id="condition" class="panel condition-panel" data-views="monitor" aria-labelledby="condition-title">
+        <div class="panel-header"><div><h2 id="condition-title">설비 변화 분석</h2><p class="muted">전류 부하 · 3상 불평형 · 기준 패턴 비교</p></div><a href="#signals">상별 신호 확인</a></div>
+        <div class="condition-controls">
+          <label>분석 기간<select id="condition-period"><option value="1h">최근 기록 1시간</option><option value="6h">최근 기록 6시간</option><option value="24h" selected>최근 기록 24시간</option></select></label>
+          <label id="condition-source-field" hidden>분석할 소스 · 측정 지점<select id="condition-source"><option value="">데이터 소스 선택</option></select></label>
+          <button id="condition-run" type="button" disabled>변화 분석</button>
+          <details class="condition-period-details"><summary>분석·기준 기간 직접 선택</summary>
+            <label>분석 종료 시각 · UTC<input id="condition-end" type="datetime-local" step="1"></label>
+            <label>기준 시작 시각 · UTC<input id="condition-reference-start" type="datetime-local" step="1"></label>
+            <label>기준 종료 시각 · UTC<input id="condition-reference-end" type="datetime-local" step="1"></label>
+            <p class="muted">비워 두면 마지막 저장 기록과 직전 동일 기간을 비교합니다. 직접 선택한 기준은 분석 구간보다 앞서야 합니다.</p>
+          </details>
+        </div>
+        <p id="condition-state" class="state" role="status" aria-live="polite">설비를 선택하면 부하·불평형·기준 패턴 변화를 분석합니다.</p>
+        <p id="condition-reference" class="muted"></p>
+        <div id="condition-cards" class="condition-cards"></div>
+        <div class="condition-plot-header"><h3>어느 시각에 변화했는가</h3><label>분석 신호<select id="condition-metric"><option value="current_mean_a">3상 평균 전류 · A</option><option value="voltage_unbalance_percent">전압 불평형 · %</option><option value="current_unbalance_percent">전류 불평형 · %</option><option value="pattern_score">기준 패턴과의 차이</option></select></label></div>
+        <div id="condition-chart"></div>
+        <div id="condition-insights" class="condition-insights"></div>
+        <div id="condition-events" class="condition-events"></div>
+        <div id="condition-detail" class="condition-detail"></div>
+        <details class="condition-method-details"><summary>분석 방법·데이터 품질 확인</summary><div id="condition-method"></div></details>
+      </section>
       <section data-views="evidence review" class="below">
-        <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>저장된 분석 근거</h2><p class="muted">CSV 통계 특징·3상 불평형 등 실제 저장된 결과만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
+        <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>저장된 분석 결과</h2><p class="muted">CSV 통계 특징·3상 불평형 등 실제 저장된 결과만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
         <div data-views="review" class="panel" id="review">
-          <div class="panel-header"><div><h2>사람의 정비 검토</h2><p class="muted">전체 설비의 미처리 요청을 찾고 원본 분석 근거로 이동합니다.</p></div></div>
+          <div class="panel-header"><div><h2>분석에 연결된 검토 작업</h2><p class="muted">전체 설비의 미처리 요청을 찾고 원본 분석 근거로 이동합니다.</p></div></div>
           <div class="review-inbox" aria-labelledby="review-inbox-title">
             <h3 id="review-inbox-title">전체 설비 검토 작업함</h3>
             <div class="review-inbox-controls">

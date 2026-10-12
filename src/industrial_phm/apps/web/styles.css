@@ -132,3 +132,39 @@ body[data-view="monitor"][data-workspace-state="empty"] .layout{display:none}
 .latest>h3{grid-column:1/-1;font-size:.95rem;margin:8px 0}
 .point-provenance{font-size:.73rem;margin-top:6px;cursor:pointer}
 @media(min-width:900px){.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi{padding:12px}.kpi strong.time{font-size:.85rem}}
+
+/* Equipment behavior is the Monitor's primary content. */
+body[data-view="monitor"] .layout{grid-template-columns:minmax(0,1fr);margin-bottom:14px}
+body[data-view="monitor"] .asset-panel{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px 20px}
+body[data-view="monitor"] .asset-panel .panel-header{margin:0;min-width:130px}
+body[data-view="monitor"] .asset-panel select{width:auto;min-width:180px;margin:0}
+body[data-view="monitor"] .asset-panel .facts{max-width:600px}
+body[data-view="monitor"][data-workspace-state="known"] #workspace-overview{display:none}
+body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
+.condition-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:16px 0}
+.condition-controls label,.condition-plot-header label{display:grid;gap:5px;font-size:.82rem}
+.condition-period-details{margin-left:auto;max-width:100%;font-size:.82rem}
+.condition-period-details label{margin:8px 0}.condition-controls input{max-width:100%;border:1px solid #b9cad5;border-radius:8px;padding:8px}
+.condition-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.condition-card{border:1px solid #d4e3e8;border-radius:12px;padding:14px;background:#f7fbfc;min-width:0}
+.condition-card span,.condition-card small{display:block;color:#506875;font-size:.78rem}
+.condition-card strong{display:block;font-size:1.5rem;color:#143c4c;line-height:1.4;margin:6px 0}
+.condition-insights{background:#edf6f5;border-left:4px solid #3b7c7a;padding:14px 18px;margin:18px 0}
+.condition-insights h3,.condition-plot-header h3,.condition-events h3,.condition-detail h3{font-size:1rem;margin:0 0 8px}
+.condition-insights p{margin:7px 0;font-size:.87rem}
+.condition-plot-header{display:flex;gap:20px;align-items:center;justify-content:space-between;margin-top:22px}
+.condition-svg{display:block;width:100%;margin:12px 0;cursor:crosshair}
+.condition-svg text{font-size:12px;fill:#536c7a}
+.condition-curve{fill:none;stroke:#17687c;stroke-width:1.6}
+.reference-line{fill:none;stroke:#bb7634;stroke-width:1.2;stroke-dasharray:6 4}
+.condition-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px}
+.condition-events>h3,.condition-events>.muted{grid-column:1/-1}
+.condition-event{padding:12px;border:1px solid #d6e3e9;border-radius:10px;min-width:0}
+.condition-event button{font-size:.8rem;text-align:left}.condition-event p{font-size:.8rem;overflow-wrap:anywhere}
+.condition-detail:not(:empty){border:1px solid #c5dcdf;border-radius:10px;padding:16px;margin:16px 0}
+.condition-detail p,.condition-method-details{font-size:.83rem}.next-check{color:#315665;background:#eff5f8;padding:10px}
+.condition-method-details{margin-top:20px;overflow-wrap:anywhere}
+@media(max-width:1100px){.condition-cards{gap:8px}.condition-card{padding:10px}.condition-card strong{font-size:1.2rem}}
+@media(max-width:700px){.condition-cards,.condition-events{grid-template-columns:repeat(2,minmax(0,1fr))}.condition-plot-header{align-items:start;flex-direction:column}.condition-period-details{margin-left:0}}
+
+.condition-svg .axis{fill:none}

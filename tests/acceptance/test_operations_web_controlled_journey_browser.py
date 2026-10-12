@@ -297,7 +297,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     analysis.evidence.source_snapshot_sha256
                     == hashlib.sha256((inputs / "vibration.csv").read_bytes()).hexdigest()
                 )
-                page.get_by_role("link", name="분석 근거").click()
+                page.get_by_role("link", name="분석 결과").click()
                 pw.expect(page.locator("#evidence-results")).to_contain_text(
                     analysis.evidence.evidence_id
                 )
@@ -308,7 +308,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 1건")
                 page.locator("#review-inbox-list button").first.click()
                 pw.expect(page.locator("#review-results .review-record")).to_be_focused()
-                page.get_by_role("link", name="분석 근거").click()
+                page.get_by_role("link", name="분석 결과").click()
                 page.get_by_role("button", name="이 분석의 검토 기록 열기").click()
                 pw.expect(page.locator("#review-results .review-record")).to_be_focused()
                 page.get_by_role("textbox", name="검토 메모 (물리 정비 완료 기록 아님)").fill(

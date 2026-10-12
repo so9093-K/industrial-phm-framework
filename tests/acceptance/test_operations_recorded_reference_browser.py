@@ -108,6 +108,7 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 pw.expect(page.locator("#workspace-state")).to_have_text("저장된 기록 데이터")
                 pw.expect(page.locator("#first-run")).to_be_hidden()
                 pw.expect(page.locator("#last-values")).to_contain_text("2020-11-12T15:59:04Z")
+                page.locator('nav a[href="#signals"]').click()
                 pw.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
                 first = page.locator("#trend-results .trend-group").first
                 first.locator("summary").click()
