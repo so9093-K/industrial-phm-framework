@@ -1252,9 +1252,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     "OPC UA simulator terminated before ready: "
                     + simulator_log.read_text(errors="replace")[-4000:]
                 )
-            if "Synthetic OPC UA server:" in simulator_log.read_text(errors="replace")[
-                log_offset:
-            ]:
+            if "Synthetic OPC UA server:" in simulator_log.read_text(errors="replace")[log_offset:]:
                 return process
             time.sleep(0.2)
         simulator_stop(process)
