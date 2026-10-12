@@ -43,6 +43,7 @@ from industrial_phm.runtime.operations_web_condition import (
     ConditionSelectionError,
     project_electrical_condition,
 )
+from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
     project_operations_runtime_status,
@@ -279,6 +280,12 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[self.path])
                 return
             parts = urlsplit(self.path)
+            if parts.path in PHM_READ_ROUTES:
+                status, phm_payload = handle_phm_read(
+                    OperationsWorkspace(root), parts.path, parts.query
+                )
+                self._send_json(status, phm_payload)
+                return
             if self.path in {
                 "/api/v1/monitor",
                 "/api/v1/sources",
