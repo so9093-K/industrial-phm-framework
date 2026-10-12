@@ -16,6 +16,7 @@ from industrial_phm.experiments.result_inspection import (
 _ROOT = Path(__file__).resolve().parents[1]
 _OUTPUT = Path("src/industrial_phm/apps/web/research-results.json")
 _TITLES = {
+    "aihub-239-electrical-anomaly-evaluation-v2": "전기 다변량 이상 탐지 · 운영 승격 평가 FAIL",
     "ims-bearings-iforest-single-channel-cross-test-v1": "Isolation Forest · 단일 채널 교차 시험",
     "mimii-due-iforest-domain-shift-development-v1": "Isolation Forest · 도메인 변화 개발 평가",
     "mimii-due-iforest-domain-shift-external-result-v1": "Isolation Forest · 외부 평가",
@@ -63,6 +64,8 @@ def build_catalog(root: Path) -> dict[str, object]:
             if path.name.startswith("xjtu-sy-")
             else "IMS Bearings"
             if path.name.startswith("ims-bearings-")
+            else "AI-Hub 239"
+            if path.name.startswith("aihub-239-")
             else "MIMII DUE"
         )
         items.append(

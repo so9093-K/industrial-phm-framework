@@ -93,7 +93,10 @@ PHM 화면 API는 `phm-analysis.sqlite`를 직접 읽고, 응답마다 최신 st
 반환합니다. Web은 `since=<change sequence>` 변경분 조회(polling)로 갱신합니다. Push 전송(SSE 등)은 이 계약 위에
 나중에 추가할 수 있습니다. 변경분은 commit sequence 순으로 최대 5,000개씩 반환하며, 응답의
 `change_seq`는 반환한 마지막 결과까지만 전진합니다. `has_more`이면 이어서 조회하고, 이력 크기나 늦은
-step의 position 때문에 아직 읽지 않은 결과를 건너뛰지 않습니다.
+step의 position 때문에 아직 읽지 않은 결과를 건너뛰지 않습니다. Window binding은 측정점도 포함해
+같은 source/asset의 다른 측정점을 섞지 않습니다. `/api/v1/phm/window`는 저장된 step이 사용한 finalized
+window의 확인된 원본 신호와 품질을 반환합니다. 최신 수신은 window 저장소, 분석 시각은 결과 저장소에서
+각각 읽으며 PHM 저장소 v1→v2 migration은 기존 cursor·상태를 보존합니다.
 
 ### 7. Runner ownership
 

@@ -206,3 +206,50 @@ uv run --locked --group research marimo edit apps/analysis_explorer.py
 
 모델·검증·artifact의 정확한 의미는 [연구 문서](../docs/research/README.md),
 앱의 제품 정보 구조는 [제품·UX 기준](../docs/product/overview.md)을 참조합니다.
+
+
+### AI-Hub 전기 다변량 모델 개발 경로
+
+공기압축기 후보의 운영 승격 [평가 v2](../docs/research/results/aihub-239-electrical-anomaly-evaluation-v2.json)는
+**FAIL**입니다. 다음 경로는 원본 신호와 모델 출력을 탐색하는 개발 기능이며 합격한 현장 경보·진단이 아닙니다.
+AI-Hub에는 수명 종료 사건이 없어 RUL을 생성하지 않습니다.
+
+```bash
+uv sync --locked --extra operations --extra aihub
+uv run --no-sync python -m tools.opcua.aihub_replay prepare \
+  --root artifacts/aihub-phm --endpoint opc.tcp://127.0.0.1:48555/phm/ \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --member 3.공기압축기/SourceData_16.json \
+  --binding tools/opcua/presets/aihub-air-compressor-1338-replay.json \
+  --start 2020-11-13T09:35:00 --end 2020-11-13T10:09:00
+# 개발 replay가 만든 sources/control을 보존하며 작업공간 형식만 초기화합니다.
+uv run --no-sync python - <<'PY'
+from pathlib import Path
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace, initialize_operations_workspace
+initialize_operations_workspace(OperationsWorkspace(Path("artifacts/aihub-phm")), allow_recognized_legacy=True)
+PY
+uv run --no-sync industrial-phm operations phm package-aihub artifacts/aihub-phm \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --member 3.공기압축기/SourceData_16.json --candidate pca-residual
+```
+
+시작 전에 `artifacts/aihub-phm/config.toml`의 `[collection] window_duration_seconds = 300.0`을
+설정합니다. 다른 윈도우 길이는 이 모델의 입력이 아니므로 이유를 남기고 분석하지 않습니다.
+출력된 package ID를 사용해 명시적으로 연결합니다. 측정점이 있는 다른 소스라면 `--measurement-point-id`도
+정확히 지정하며, 생략하면 측정점이 없는 스트림만 선택합니다.
+
+```bash
+uv run --no-sync industrial-phm operations phm bind artifacts/aihub-phm \
+  --package <package-id> --source-id aihub239-replay-air-compressor-1338 \
+  --asset-id aihub-air-compressor-1338 --recorded-replay
+uv run --no-sync industrial-phm internal request-collection \
+  --workspace artifacts/aihub-phm --source-id aihub239-replay-air-compressor-1338 --state running
+uv run --no-sync industrial-phm operations start artifacts/aihub-phm
+# 다른 터미널: 속도는 전송에만 적용하고 원래 기록 시각·60초 cadence는 보존합니다.
+uv run --no-sync python -m tools.opcua.aihub_replay server \
+  --root artifacts/aihub-phm --speed 60 --recorded-timestamps
+```
+
+`/web/#anomaly`에서 입력 특징과 점수·검토 구간을 같은 축으로 탐색하고, 시점을 선택해 7개 원본 신호와
+품질·PCA 잔차 기여를 확인합니다. 변화율은 선택 윈도우의 첫 유효 관측 대비 화면 비교값으로,
+모델 정규화나 고장 원인 판정이 아닙니다. 최근 입력이 조건을 충족하지 않으면 이전 분석과 구분해 표시합니다.

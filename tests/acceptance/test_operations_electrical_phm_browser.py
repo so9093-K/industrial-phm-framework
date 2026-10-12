@@ -37,10 +37,19 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("연결 설비와 일치")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 수신")
                 page.locator("#anomaly-intervals button").first.click()
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("특징별 잔차 기여")
                 pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
+                assert (
+                    page.locator("#anomaly-score-chart .axis").evaluate(
+                        "e => getComputedStyle(e).fill"
+                    )
+                    == "none"
+                )
+                pw.expect(page.locator("#anomaly-features")).to_contain_text("R상 평균 전류 · A")
+                pw.expect(page.locator("#notice")).not_to_be_visible()
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("관측 5개")
                 page.get_by_label("원본 신호 표시 방식").select_option("relative")
                 pw.expect(page.locator("#anomaly-detail .phm-raw")).to_contain_text(
@@ -49,9 +58,20 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
                 windows.record_window(electrical_window("w3", START + timedelta(minutes=15), 10.0))
                 run_window_bindings(store, windows, PackageCache(workspace.models_path))
+                page.locator("#refresh").click()
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "4개 step 분석", timeout=10_000
                 )
+                windows.record_window(
+                    electrical_window(
+                        "too-short", START + timedelta(minutes=20), duration_minutes=1
+                    )
+                )
+                run_window_bindings(store, windows, PackageCache(workspace.models_path))
+                pw.expect(page.locator("#anomaly-state")).to_contain_text(
+                    "최근 입력은 분석되지 않았습니다", timeout=10_000
+                )
+                pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.locator('a[href="#rul"]').click()
                 pw.expect(page.locator("#rul-state")).to_contain_text(
                     "근거가 없는 설비에는 표시하지 않습니다"

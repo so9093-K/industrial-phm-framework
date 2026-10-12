@@ -37,3 +37,8 @@ canonical JSON
 summary와 capability boundary를 PR evidence note에 기록합니다.
 
 상세 정책: [Evidence Artifact Storage and Review Policy](../evidence-artifact-policy.md)
+
+
+AI-Hub 전기 다변량 후보의 [평가 v2](aihub-239-electrical-anomaly-evaluation-v2.json)는 **FAIL**입니다.
+설비·유형별 주입 사례와 학습 불가/위치 부족도 보존하며, 원본을 바꾸지 않은 경보 비율은 실제 이상이
+섞일 수 있어 오경보율로 부르지 않습니다. 기능 재생 검증을 모델 성능 합격으로 승격하지 않습니다.

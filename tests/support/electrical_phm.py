@@ -41,8 +41,9 @@ def electrical_window(
     *,
     point: str = "mcc-3",
     frequency: float = 60.0,
+    duration_minutes: int = 5,
 ) -> DurableObservationWindow:
-    end = start + timedelta(minutes=5)
+    end = start + timedelta(minutes=duration_minutes)
     buffer = ObservationWindowBuffer(
         window_id=name,
         source_id="site-opcua",
@@ -55,7 +56,7 @@ def electrical_window(
         max_future_skew_seconds=5.0,
     )
     base = int((start - START).total_seconds())
-    for minute in range(5):
+    for minute in range(duration_minutes):
         for offset, channel in enumerate(CHANNELS):
             value = frequency if channel == "freq" else (220.0 if channel[0] == "v" else current)
             event = window_event(

@@ -5,6 +5,8 @@ import sqlite3
 from datetime import timedelta
 from pathlib import Path
 
+import pytest
+
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
@@ -54,9 +56,30 @@ def test_real_finalized_windows_are_point_isolated_scored_and_read_as_raw_signal
     )
     assert series["latest_delivered"]["event_at"] == cycle.results[-1].event_end.isoformat()
     assert series["latest_delivered"]["replay"]
+    previous_position = cycle.results[-1].position
+    windows.record_window(
+        electrical_window("too-short", START + timedelta(minutes=15), duration_minutes=1)
+    )
+    run_window_bindings(store, windows, PackageCache(workspace.models_path))
+    series = project_phm_series(
+        store,
+        workspace.models_path,
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+        binding_id="electrical-a",
+        windows=windows,
+    )
+    assert series["latest_analyzed"]["position"] == previous_position
+    assert series["latest_processed"]["state"] == "skipped"
+    assert (
+        series["steps"][-1]["reason"]
+        == "electrical-window-v1 requires a 300-second finalized window"
+    )
 
 
-def test_m1_store_is_migrated_without_discarding_binding_or_state(tmp_path: Path) -> None:
+@pytest.mark.parametrize("had_replay", [False, True])
+def test_m1_store_is_migrated_without_discarding_binding_or_state(
+    tmp_path: Path, had_replay: bool
+) -> None:
     path = tmp_path / "old.sqlite"
     with sqlite3.connect(path) as connection:
         connection.executescript("""
@@ -68,9 +91,12 @@ def test_m1_store_is_migrated_without_discarding_binding_or_state(tmp_path: Path
             INSERT INTO binding VALUES('old','package','source','asset','acquisition-snapshot',
                 '2026-10-12T00:00:00+00:00',3,'s3','{"last_estimate":42}','ok',NULL,NULL);
         """)
+        if had_replay:
+            connection.execute("ALTER TABLE binding ADD COLUMN recorded_replay INTEGER DEFAULT 0")
+            connection.execute("UPDATE binding SET recorded_replay = 1")
     store = SqlitePhmAnalysisStore(path)
     (binding,) = store.list_bindings()
-    assert binding.binding_id == "old" and not binding.recorded_replay
+    assert binding.binding_id == "old" and binding.recorded_replay == had_replay
     assert binding.measurement_point_id is None
     progress = store.progress("old")
     assert progress.cursor_position == 3 and progress.state["last_estimate"] == 42
