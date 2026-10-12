@@ -216,12 +216,15 @@ def _workspace_owned_backup_files(
         relative = source.relative_to(root)
         selected[relative.as_posix()] = (relative, source)
 
-    if workspace.history_data_path.exists():
-        if workspace.history_data_path.is_symlink() or not workspace.history_data_path.is_dir():
-            raise ValueError(
-                f"history data path must be a non-symlink directory: {workspace.history_data_path}"
-            )
-        for source in workspace.history_data_path.rglob("*"):
+    for directory, label in (
+        (workspace.history_data_path, "history data"),
+        (workspace.models_path, "model package"),
+    ):
+        if not directory.exists():
+            continue
+        if directory.is_symlink() or not directory.is_dir():
+            raise ValueError(f"{label} path must be a non-symlink directory: {directory}")
+        for source in directory.rglob("*"):
             if source.is_symlink():
                 raise ValueError(f"backup does not follow symlinks: {source}")
             if source.is_dir():

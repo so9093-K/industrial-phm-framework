@@ -143,3 +143,37 @@ def test_restore_refuses_existing_destination(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="must not already exist"):
         restore_operations_backup(backup, destination)
+
+
+def test_backup_restores_phm_stores_and_model_packages(tmp_path: Path) -> None:
+    workspace = _seed_workspace(tmp_path / "plant-a")
+    for path in (workspace.phm_analysis_path, workspace.acquisition_snapshot_path):
+        connection = sqlite3.connect(path)
+        try:
+            connection.execute("CREATE TABLE marker(value TEXT NOT NULL)")
+            connection.execute("INSERT INTO marker(value) VALUES (?)", (path.name,))
+            connection.commit()
+        finally:
+            connection.close()
+    package = workspace.models_path / "recipe-0123456789ab"
+    package.mkdir(parents=True)
+    package.joinpath("package.json").write_text("{}\n", encoding="utf-8")
+    package.joinpath("state.json").write_text("{}\n", encoding="utf-8")
+
+    result = create_operations_backup(workspace, tmp_path / "backup")
+    relative_paths = {item.relative_path for item in result.manifest.files}
+    assert {
+        "phm-analysis.sqlite",
+        "snapshots.sqlite",
+        "models/recipe-0123456789ab/package.json",
+        "models/recipe-0123456789ab/state.json",
+    } <= relative_paths
+
+    restored = OperationsWorkspace(tmp_path / "plant-b")
+    restore_operations_backup(tmp_path / "backup", restored)
+    assert restored.models_path.joinpath("recipe-0123456789ab", "package.json").is_file()
+    connection = sqlite3.connect(restored.phm_analysis_path)
+    try:
+        assert connection.execute("SELECT value FROM marker").fetchone() == ("phm-analysis.sqlite",)
+    finally:
+        connection.close()

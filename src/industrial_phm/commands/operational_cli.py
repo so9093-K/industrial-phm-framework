@@ -25,6 +25,7 @@ from industrial_phm.commands.operations import (
     _run_operations_up,
     _run_operations_window_analysis,
 )
+from industrial_phm.commands.phm import add_phm_commands
 
 
 def add_operational_command_groups(
@@ -126,6 +127,8 @@ def _add_operations_commands(
         help="initialized local Operations workspace root",
     )
     stop.set_defaults(handler=_run_operations_stop)
+
+    add_phm_commands(commands)
 
 
 def _add_maintenance_commands(

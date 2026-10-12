@@ -70,6 +70,21 @@ class OperationsWorkspace:
         return self.root / "phase-unbalance-runtime.json"
 
     @property
+    def acquisition_snapshot_path(self) -> Path:
+        """Return the ordered waveform-snapshot step store (ADR-0025)."""
+        return self.root / "snapshots.sqlite"
+
+    @property
+    def phm_analysis_path(self) -> Path:
+        """Return the PHM binding/state/result store (ADR-0025)."""
+        return self.root / "phm-analysis.sqlite"
+
+    @property
+    def models_path(self) -> Path:
+        """Return the directory of immutable model packages."""
+        return self.root / "models"
+
+    @property
     def finding_state_path(self) -> Path:
         return self.root / "findings.json"
 
@@ -111,6 +126,8 @@ class OperationsWorkspace:
             self.file_feature_analysis_path,
             self.phase_unbalance_state_path,
             self.analysis_runtime_path,
+            self.acquisition_snapshot_path,
+            self.phm_analysis_path,
             self.finding_state_path,
             self.maintenance_review_state_path,
             self.history_catalog_path,

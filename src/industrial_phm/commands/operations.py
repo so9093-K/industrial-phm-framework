@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import signal
+import sqlite3
 import sys
 import time
 from collections.abc import Callable
@@ -31,7 +32,10 @@ from industrial_phm.application import (
     request_collection_state,
     validate_distinct_source_state_paths,
 )
+from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPolicy
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
+from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bindings
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import (
     CollectionServicePolicy,
@@ -562,6 +566,13 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
         results = SqlitePhaseUnbalanceRepository(analysis_state)
         ledger = SqliteWindowAnalysisLedger(ledger_state)
         config = PhaseUnbalanceConfig(alignment=_alignment_policy(args))
+        phm = None
+        if workspace is not None:
+            phm = (
+                SqlitePhmAnalysisStore(workspace.phm_analysis_path),
+                SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+                PackageCache(workspace.models_path),
+            )
         while True:
             outcomes = analyze_finalized_windows_incremental(
                 windows,
@@ -581,10 +592,18 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
                 outcomes,
                 completed_at=datetime.now(UTC),
             )
+            if phm is not None:
+                _run_phm_bindings_cycle(*phm)
             if args.once:
                 _try_record_window_analysis_runtime(runtime.record_stop, datetime.now(UTC))
                 return 0
-            time.sleep(args.interval_seconds)
+            # PHM bindings consume ordered steps that arrive independently of window cadence;
+            # poll them on a short tick so analysis lag is not bounded by the window interval.
+            deadline = time.monotonic() + args.interval_seconds
+            while (remaining := deadline - time.monotonic()) > 0:
+                time.sleep(min(_PHM_POLL_SECONDS, remaining))
+                if phm is not None:
+                    _run_phm_bindings_cycle(*phm)
     except KeyboardInterrupt:
         _try_record_window_analysis_runtime(runtime.record_stop, datetime.now(UTC))
         print("window analysis interrupted by user", file=sys.stderr)
@@ -597,6 +616,34 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
         )
         print(f"window analysis failed: {error}", file=sys.stderr)
         return 1
+
+
+_PHM_POLL_SECONDS = 0.5
+
+
+def _run_phm_bindings_cycle(
+    store: SqlitePhmAnalysisStore,
+    snapshots: SqliteAcquisitionSnapshotRepository,
+    packages: PackageCache,
+) -> None:
+    """Advance PHM model bindings without letting their failures stop window analysis."""
+    if not store.path.exists():
+        return
+    try:
+        cycles = run_snapshot_bindings(store, snapshots, packages)
+    except (OSError, ValueError, sqlite3.Error) as error:
+        print(f"phm analysis cycle failed: {error}", file=sys.stderr, flush=True)
+        return
+    for cycle in cycles:
+        if cycle.error is not None:
+            print(f"phm binding={cycle.binding_id} unavailable: {cycle.error}", flush=True)
+        for result in cycle.results:
+            detail = result.analysis_run_id if result.reason is None else result.reason
+            print(
+                f"phm binding={cycle.binding_id} step={result.position} "
+                f"state={result.state.value} detail={detail}",
+                flush=True,
+            )
 
 
 def _try_record_window_analysis_runtime(
