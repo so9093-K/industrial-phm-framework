@@ -35,7 +35,12 @@ from industrial_phm.application import (
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPolicy
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
-from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bindings
+from industrial_phm.application.phm_runner import (
+    PackageCache,
+    WindowReader,
+    run_snapshot_bindings,
+    run_window_bindings,
+)
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime import (
     CollectionServicePolicy,
@@ -572,6 +577,7 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
                 SqlitePhmAnalysisStore(workspace.phm_analysis_path),
                 SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
                 PackageCache(workspace.models_path),
+                windows,
             )
         while True:
             outcomes = analyze_finalized_windows_incremental(
@@ -625,12 +631,14 @@ def _run_phm_bindings_cycle(
     store: SqlitePhmAnalysisStore,
     snapshots: SqliteAcquisitionSnapshotRepository,
     packages: PackageCache,
+    windows: WindowReader,
 ) -> None:
     """Advance PHM model bindings without letting their failures stop window analysis."""
     if not store.path.exists():
         return
     try:
         cycles = run_snapshot_bindings(store, snapshots, packages)
+        cycles += run_window_bindings(store, windows, packages)
     except (OSError, ValueError, sqlite3.Error) as error:
         print(f"phm analysis cycle failed: {error}", file=sys.stderr, flush=True)
         return

@@ -36,6 +36,11 @@ def add_phm_commands(
     bind.add_argument("--source-id", required=True, help="registered source ID of the stream")
     bind.add_argument("--asset-id", required=True, help="asset ID of the stream")
     bind.add_argument(
+        "--recorded-replay",
+        action="store_true",
+        help="declare that this stream replays recorded data; results and screens say so",
+    )
+    bind.add_argument(
         "--binding-id",
         help="explicit binding ID; default derives one from package, source and asset",
     )
@@ -102,6 +107,7 @@ def _run_phm_bind(args: argparse.Namespace) -> int:
             asset_id=args.asset_id,
             step_kind=package.manifest.input.step_kind,
             created_at=datetime.now(UTC),
+            recorded_replay=bool(args.recorded_replay),
         )
         created = SqlitePhmAnalysisStore(workspace.phm_analysis_path).create_binding(binding)
     except (PhmAnalysisError, OSError, sqlite3.Error) as error:

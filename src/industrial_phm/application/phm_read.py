@@ -172,6 +172,7 @@ def _binding_json(binding: PhmBinding) -> dict[str, Any]:
         "asset_id": binding.asset_id,
         "step_kind": binding.step_kind.value,
         "created_at": binding.created_at.isoformat(),
+        "recorded_replay": binding.recorded_replay,
     }
 
 
