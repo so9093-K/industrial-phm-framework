@@ -1,6 +1,6 @@
 """AI-Hub 239 air-compressor electrical anomaly packages and their acceptance evaluation.
 
-Implements the operational inference acceptance protocol v1 §3 without provider labels:
+Implements the operational inference acceptance protocol v2 §3 without provider labels:
 per-device packages are fitted on the first 70% of each device's Training/raw record, and the
 last 30% is used only to measure (a) the review-window rate with no injection and (b) detection
 of known injected changes. Every score goes through the same window feature function, model
@@ -120,8 +120,14 @@ def load_device(archive: Path, member: str, *, archive_sha256: str) -> DeviceRec
     zone = ZoneInfo(TIMEZONE)
     grouped: dict[tuple[str, datetime], set[float | None]] = defaultdict(set)
     device_id = ""
+    boards: set[str] = set()
     for record in iter_power_observations(archive, member):
+        if device_id and record.device_id != device_id:
+            return DeviceRecord(member, device_id, (), "mixed device identities", {})
         device_id = record.device_id
+        boards.add(record.device_board_id)
+        if len(boards) > 1:
+            return DeviceRecord(member, device_id, (), "mixed measurement boards", {})
         if record.channel_name not in REQUIRED_CHANNELS:
             continue
         at = datetime.fromisoformat(record.timestamp_text).replace(tzinfo=zone).astimezone(UTC)
@@ -161,6 +167,8 @@ def split_device(
     samples: Sequence[ElectricalWindowSample],
 ) -> tuple[tuple[ElectricalWindowSample, ...], tuple[ElectricalWindowSample, ...], datetime]:
     """First 70% of the recorded time span trains; the boundary is snapped to the window grid."""
+    if not samples:
+        raise ValueError("device has no confirmed aligned samples")
     first, last = samples[0].at, samples[-1].at
     raw = first + (last - first) * TRAIN_FRACTION
     boundary = _window_start(raw)
@@ -223,6 +231,8 @@ def build_device_package(
         ],
         dtype=np.float64,
     )
+    if matrix.ndim != 2 or len(matrix) < 2 or not np.isfinite(matrix).all():
+        raise ValueError("at least two finite evaluated training windows are required")
     if candidate == "isolation-forest":
         kind = EstimatorKind.ISOLATION_FOREST_REFIT
         preprocessing = AffinePreprocessing((0.0,) * matrix.shape[1], (1.0,) * matrix.shape[1])
@@ -244,7 +254,10 @@ def build_device_package(
         standardized = (matrix - center) / scale
         mean = standardized.mean(axis=0)
         _, singular, vt = np.linalg.svd(standardized - mean, full_matrices=False)
-        explained = np.cumsum(singular**2) / np.sum(singular**2)
+        variance = np.sum(singular**2)
+        if variance <= 0:
+            raise ValueError("training windows have no variation for PCA")
+        explained = np.cumsum(singular**2) / variance
         needed = int(np.searchsorted(explained, 0.95)) + 1
         keep = min(max(1, needed), int(matrix.shape[1]) - 1)
         state = {"mean": mean.tolist(), "components": vt[:keep].tolist()}
@@ -338,12 +351,12 @@ def _build(
         },
         validation={
             "evidence_class": "per-device-holdout-injection-evaluation",
-            "protocol": "docs/research/operational-inference-acceptance-protocol.md §3",
+            "protocol": "docs/research/operational-inference-acceptance-protocol.md §3 (v2)",
             "score_semantics": (
                 "departure from this device's training windows; not a failure probability"
             ),
         },
-        applicability={"device_id": [device.device_id]},
+        applicability={"asset_id": [f"aihub-air-compressor-{device.device_id}"]},
         created_at=created_at.isoformat(),
         code_revision=code_revision,
     )
@@ -440,9 +453,18 @@ def alarm_window_fraction(
 
 
 def injection_starts(
-    holdout: Sequence[WindowRow], rng: random.Random, count: int, duration: timedelta
+    holdout: Sequence[WindowRow],
+    rng: random.Random,
+    count: int,
+    duration: timedelta,
+    *,
+    reserved: Sequence[tuple[datetime, timedelta]] = (),
 ) -> list[datetime]:
-    """Window starts where the injected span is fully covered by evaluated windows."""
+    """Deterministic positions with full coverage and >=6h after every injected span.
+
+    The plan is shared by all candidates and includes every injection kind. Insufficient
+    positions are reported as missing cases, never removed from the detection denominator.
+    """
     evaluated = {row.start for row in holdout if row.features}
     needed = max(1, int(duration / WINDOW))
     candidates = [
@@ -450,7 +472,16 @@ def injection_starts(
         for row in holdout
         if all(row.start + WINDOW * k in evaluated for k in range(needed))
     ]
-    return sorted(rng.sample(candidates, min(count, len(candidates))))
+    rng.shuffle(candidates)
+    selected: list[datetime] = []
+    gap = timedelta(hours=6)
+    for at in candidates:
+        occupied = [*reserved, *((p, duration) for p in selected)]
+        if all(at + duration + gap <= p or p + d + gap <= at for p, d in occupied):
+            selected.append(at)
+            if len(selected) == count:
+                break
+    return sorted(selected)
 
 
 def evaluate_injection(
@@ -467,10 +498,12 @@ def evaluate_injection(
     interval open at the injection start, the case is reported as masked, not detected.
     """
     threshold = float(package.manifest.output.threshold or 0.0)
-    lead = timedelta(hours=1)
-    span = [s for s in holdout_samples if start - lead <= s.at < start + injection.duration + lead]
+    # Start at the actual holdout beginning. Resetting a one-hour neighborhood can lose
+    # a pre-existing open interval and incorrectly count it as a new detection.
+    span = [s for s in holdout_samples if s.at < start + DETECTION_WINDOW + WINDOW]
     _, baseline_states = review_windows(score_rows(package, window_rows(span)), threshold)
-    masked = any(open_ for at, open_ in baseline_states if at == start - WINDOW)
+    previous = [open_ for at, open_ in baseline_states if at < start]
+    masked = previous[-1] if previous else False
     opened, _ = review_windows(
         score_rows(package, window_rows([injection.apply(s, start, phase) for s in span])),
         threshold,
@@ -503,7 +536,9 @@ def device_contributions(
 
 def choose_development_members(eligible: Sequence[str], reference: str) -> list[str]:
     others = sorted(m for m in eligible if m != reference)
-    return [reference, *random.Random(SEED).sample(others, min(5, len(others)))]
+    if reference not in eligible or len(others) < 5:
+        raise ValueError("six fixed development devices, including the reference, are required")
+    return [reference, *random.Random(SEED).sample(others, 5)]
 
 
 ProgressCallback = Callable[[str], None]

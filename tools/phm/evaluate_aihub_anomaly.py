@@ -1,4 +1,4 @@
-"""Run the AI-Hub 239 air-compressor anomaly acceptance evaluation (protocol v1 §3).
+"""Run the AI-Hub 239 air-compressor anomaly acceptance evaluation (protocol v2 §3).
 
 Stage 1 (development devices): fit both candidates per device, measure, select one.
 Stage 2 (evaluation devices): fit only the selected candidate per device, measure once, judge.
@@ -50,6 +50,15 @@ def _evaluate_member(job: tuple[str, str, str, tuple[str, ...], str]) -> dict[st
         "holdout_evaluated": sum(1 for r in holdout_rows if r.features),
         "holdout_not_evaluated": sum(1 for r in holdout_rows if not r.features),
     }
+    rng = random.Random(f"{ev.SEED}:{member}")
+    reserved: list[tuple[datetime, Any]] = []
+    plan = {}
+    for injection in sorted(ev.INJECTIONS, key=lambda i: i.duration, reverse=True):
+        starts = ev.injection_starts(
+            holdout_rows, rng, ev.INJECTIONS_PER_TYPE, injection.duration, reserved=reserved
+        )
+        plan[injection.kind] = starts
+        reserved.extend((start, injection.duration) for start in starts)
     report["candidates"] = {}
     with tempfile.TemporaryDirectory() as models:
         for candidate in candidates:
@@ -66,17 +75,23 @@ def _evaluate_member(job: tuple[str, str, str, tuple[str, ...], str]) -> dict[st
             inside, evaluated = ev.alarm_window_fraction(
                 ev.score_rows(package, holdout_rows), threshold
             )
-            rng = random.Random(f"{ev.SEED}:{member}")
             injections = []
             for injection in ev.INJECTIONS:
-                for index, start in enumerate(
-                    ev.injection_starts(
-                        holdout_rows, rng, ev.INJECTIONS_PER_TYPE, injection.duration
-                    )
-                ):
+                starts = plan[injection.kind]
+                for index, start in enumerate(starts):
                     injections.append(
                         ev.evaluate_injection(package, holdout, injection, start, phase=index % 3)
                     )
+                for _ in range(ev.INJECTIONS_PER_TYPE - len(starts)):
+                    injections.append(
+                        {
+                            "kind": injection.kind,
+                            "detected": False,
+                            "delay_minutes": None,
+                            "reason": "no eligible spaced position",
+                        }
+                    )
+
             report["candidates"][candidate] = {
                 "package_id": package.package_id,
                 "threshold": threshold,
@@ -130,6 +145,8 @@ def main(argv: list[str] | None = None) -> int:
         help="development stops after candidate selection; evaluation devices are judged once",
     )
     args = parser.parse_args(argv)
+    if args.workers < 1:
+        parser.error("--workers must be positive")
 
     digest = archive_sha256(args.archive)
     members = list_power_members(args.archive)
@@ -172,6 +189,11 @@ def main(argv: list[str] | None = None) -> int:
         args.output.write_text(
             json.dumps(
                 {
+                    "schema_id": "aihub-239-air-compressor-electrical-anomaly-development-v2",
+                    "protocol": "operational-inference-acceptance-protocol v2",
+                    "archive_sha256": digest,
+                    "code_revision": args.code_revision,
+                    "development_reports": dev_reports,
                     "stage": "development",
                     "development_members": development,
                     "development_summary": dev_summary,
@@ -200,6 +222,8 @@ def main(argv: list[str] | None = None) -> int:
                 ],
             )
         )
+    if not evaluation:
+        raise ValueError("no eligible evaluation devices; cannot judge acceptance")
     final = _rates(eval_reports, selected)
     checks = {kind: final["detection_rate"].get(kind, 0.0) >= GATE_RATE for kind in gate_kinds}
     alarm_ok = (
@@ -208,8 +232,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     verdict = all(checks.values()) and alarm_ok
     result = {
-        "schema_id": "aihub-239-air-compressor-electrical-anomaly-evaluation-v1",
-        "protocol": "docs/research/operational-inference-acceptance-protocol.md §3 (v1)",
+        "schema_id": "aihub-239-air-compressor-electrical-anomaly-evaluation-v2",
+        "protocol": "docs/research/operational-inference-acceptance-protocol.md §3 (v2)",
         "archive_sha256": digest,
         "code_revision": args.code_revision,
         "feature_set_id": "electrical-window-v1",

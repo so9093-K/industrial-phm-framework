@@ -220,6 +220,8 @@ _WindowFeatures = Callable[
 def _electrical_window(
     window: DurableObservationWindow,
 ) -> tuple[Mapping[str, float] | None, str | None]:
+    if (window.window_end - window.window_start).total_seconds() != 300:
+        return None, "electrical-window-v1 requires a 300-second finalized window"
     observations = window_channel_observations(window)
     roles, reason = resolve_electrical_roles(observations)
     if roles is None:

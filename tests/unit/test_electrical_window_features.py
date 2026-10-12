@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -110,3 +111,19 @@ def test_incomplete_and_bad_quality_times_are_counted_out() -> None:
     assert excluded == {"incomplete": 1, "missing-value": 1}
     bad = _observations([_row(10.0)], good=False)
     assert align_electrical_samples(bad, roles)[1] == {"non-good-quality": 1}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"measurement_point_id": "other-board"},
+        {"source_id": "other-source"},
+        {"semantic_version": "changed-v4"},
+        {"unit": "mA"},
+    ],
+)
+def test_mixed_streams_or_changed_meaning_cannot_supply_one_feature_vector(change) -> None:
+    observations = _observations([_row(10.0)] * 3)
+    observations[-1] = replace(observations[-1], **change)
+    roles, reason = resolve_electrical_roles(observations)
+    assert roles is None and reason is not None

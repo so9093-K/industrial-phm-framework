@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import cast
 from urllib.parse import urlparse
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
@@ -336,8 +337,11 @@ async def serve(
     omit_channels: Sequence[str] = (),
     freeze_after_records: int | None = None,
     publish_ledger: Path | None = None,
+    recorded_timestamps: bool = False,
 ) -> None:
     """Publish recorded values on a rebased clock without changing their values."""
+    if recorded_timestamps and loop:
+        raise ValueError("recorded event-time replay cannot loop an already processed range")
     run_id = uuid4().hex
     manifest, selection = load_selection(root)
     records, _ = load_replay_records(selection)
@@ -399,6 +403,13 @@ async def serve(
                     return
                 if freeze_after_records is not None and published >= freeze_after_records:
                     continue
+                event_at = (
+                    record.source_local.replace(
+                        tzinfo=ZoneInfo(selection.binding.timezone)
+                    ).astimezone(UTC)
+                    if recorded_timestamps
+                    else at
+                )
                 written: dict[str, float | None] = {}
                 for channel, value in record.values.items():
                     if channel in omit_channels:
@@ -416,7 +427,7 @@ async def serve(
                         ua.DataValue(
                             variant,
                             StatusCode=status,
-                            SourceTimestamp=at,
+                            SourceTimestamp=event_at,
                             ServerTimestamp=datetime.now(UTC),
                         )
                     )
@@ -426,7 +437,8 @@ async def serve(
                             json.dumps(
                                 {
                                     "run": run_id,
-                                    "at": at.isoformat(),
+                                    "at": event_at.isoformat(),
+                                    "published_at": at.isoformat(),
                                     "values": written,
                                     "good": {
                                         channel: value is not None
@@ -478,6 +490,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=float,
         default=60.0,
         help="recorded seconds per replay second",
+    )
+    server_parser.add_argument(
+        "--recorded-timestamps",
+        action="store_true",
+        help="preserve original event times and cadence; speed affects delivery only (no loop)",
     )
     server_parser.add_argument("--loop", action="store_true", help="repeat the selection")
     server_parser.add_argument(
@@ -542,6 +559,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 omit_channels=args.omit_channel,
                 freeze_after_records=args.freeze_after_records,
                 publish_ledger=args.publish_ledger,
+                recorded_timestamps=args.recorded_timestamps,
             )
 
         asyncio.run(run())

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -99,7 +100,7 @@ def test_window_binding_records_each_window_once_with_reason_and_declared_replay
         )
     )
     windows = [
-        finalized_window("a", START),
+        replace(finalized_window("a", START), window_end=START + timedelta(minutes=5)),
         finalized_window("b", START + timedelta(minutes=1)),
     ]
     cache = PackageCache(tmp_path / "models")
