@@ -70,3 +70,29 @@ def test_time_split_never_shares_a_window_across_fit_and_holdout() -> None:
         w.start for w in ev.window_rows(holdout)
     )
     assert train[-1].at < boundary <= holdout[0].at
+
+
+def test_fit_failure_remains_in_evaluation_population_and_all_case_denominators(
+    monkeypatch,
+) -> None:
+    from tools.phm.evaluate_aihub_anomaly import _evaluate_member, _rates
+
+    samples = tuple(
+        ElectricalWindowSample(T0 + timedelta(minutes=i), (10.0,) * 3, (0.0,) * 3, 60.0)
+        for i in range(100)
+    )
+    device = ev.DeviceRecord("member", "1338", samples, None, {}, "a" * 64)
+    monkeypatch.setattr(ev, "load_device", lambda *args, **kwargs: device)
+    monkeypatch.setattr(ev, "MIN_TRAIN_RUNNING", 1)
+    monkeypatch.setattr(ev, "MIN_HOLDOUT_RUNNING", 1)
+    report = _evaluate_member(("unused", "a" * 64, "member", ("pca-residual",), "0" * 40))
+    assert report["eligible"]
+    candidate = report["candidates"]["pca-residual"]
+    assert "fit unavailable" in candidate["error"]
+    assert len(candidate["injections"]) == 15
+    assert all(not i["detected"] for i in candidate["injections"])
+    summary = _rates([report], "pca-residual")
+    assert summary["devices"] == 1 and summary["alarm_evaluated_devices"] == 0
+    assert summary["fit_failed_devices"] == 1
+    assert summary["holdout_alarm_fraction"] is None
+    assert all(rate == 0 for rate in summary["detection_rate"].values())

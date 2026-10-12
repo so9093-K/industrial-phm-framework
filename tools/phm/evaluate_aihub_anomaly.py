@@ -17,7 +17,7 @@ import tempfile
 from concurrent.futures import ProcessPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
-from statistics import fmean
+from statistics import fmean, median
 from typing import Any
 
 from industrial_phm.adapters.aihub_power import archive_sha256, list_power_members
@@ -62,15 +62,32 @@ def _evaluate_member(job: tuple[str, str, str, tuple[str, ...], str]) -> dict[st
     report["candidates"] = {}
     with tempfile.TemporaryDirectory() as models:
         for candidate in candidates:
-            package = ev.build_device_package(
-                candidate,
-                train_rows,
-                Path(models),
-                device=device,
-                boundary=boundary,
-                created_at=datetime(2026, 10, 12, tzinfo=UTC),
-                code_revision=revision,
-            )
+            try:
+                package = ev.build_device_package(
+                    candidate,
+                    train_rows,
+                    Path(models),
+                    device=device,
+                    boundary=boundary,
+                    created_at=datetime(2026, 10, 12, tzinfo=UTC),
+                    code_revision=revision,
+                )
+            except ValueError as error:
+                report["candidates"][candidate] = {
+                    "error": f"package fit unavailable: {error}",
+                    "holdout_alarm_fraction": None,
+                    "injections": [
+                        {
+                            "kind": i.kind,
+                            "detected": False,
+                            "delay_minutes": None,
+                            "reason": "package fit unavailable",
+                        }
+                        for i in ev.INJECTIONS
+                        for _ in range(ev.INJECTIONS_PER_TYPE)
+                    ],
+                }
+                continue
             threshold = float(package.manifest.output.threshold or 0.0)
             inside, evaluated = ev.alarm_window_fraction(
                 ev.score_rows(package, holdout_rows), threshold
@@ -124,10 +141,13 @@ def _rates(reports: list[dict[str, Any]], candidate: str) -> dict[str, Any]:
     ]
     return {
         "devices": len(reports),
+        "alarm_evaluated_devices": len(alarm),
+        "fit_failed_devices": sum(bool(r["candidates"][candidate].get("error")) for r in reports),
+        "incomplete_injection_devices": sum(
+            any(i.get("reason") for i in r["candidates"][candidate]["injections"]) for r in reports
+        ),
         "detection_rate": {kind: fmean(values) for kind, values in per_kind.items()},
-        "median_delay_minutes": {
-            kind: sorted(v)[len(v) // 2] if v else None for kind, v in delays.items()
-        },
+        "median_delay_minutes": {kind: median(v) if v else None for kind, v in delays.items()},
         "holdout_alarm_fraction": fmean(alarm) if alarm else None,
     }
 
@@ -230,7 +250,11 @@ def main(argv: list[str] | None = None) -> int:
         final["holdout_alarm_fraction"] is not None
         and final["holdout_alarm_fraction"] <= ALARM_LIMIT
     )
-    verdict = all(checks.values()) and alarm_ok
+    complete = (
+        final["alarm_evaluated_devices"] == len(evaluation)
+        and final["incomplete_injection_devices"] == 0
+    )
+    verdict = all(checks.values()) and alarm_ok and complete
     result = {
         "schema_id": "aihub-239-air-compressor-electrical-anomaly-evaluation-v2",
         "protocol": "docs/research/operational-inference-acceptance-protocol.md §3 (v2)",
@@ -252,7 +276,11 @@ def main(argv: list[str] | None = None) -> int:
         "selected_candidate": selected,
         "evaluation_members": evaluation,
         "evaluation_summary": final,
-        "checks": {"detection_rate_ge_0.90": checks, "holdout_alarm_fraction_le_0.02": alarm_ok},
+        "checks": {
+            "detection_rate_ge_0.90": checks,
+            "holdout_alarm_fraction_le_0.02": alarm_ok,
+            "all_selected_devices_evaluated": complete,
+        },
         "pass": verdict,
         "development_reports": dev_reports,
         "evaluation_reports": eval_reports,

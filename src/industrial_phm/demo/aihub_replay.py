@@ -370,9 +370,19 @@ async def serve(
         for channel in channels
     }
     waiting_status = ua.StatusCode(ua.StatusCodes.BadWaitingForInitialData)
+    waiting_at = (
+        records[0].source_local.replace(tzinfo=ZoneInfo(selection.binding.timezone)).astimezone(UTC)
+        - timedelta(microseconds=1)
+        if recorded_timestamps
+        else None
+    )
     for node in nodes.values():
         await node.write_value(
-            ua.DataValue(ua.Variant(None, ua.VariantType.Null), StatusCode=waiting_status)
+            ua.DataValue(
+                ua.Variant(None, ua.VariantType.Null),
+                StatusCode=waiting_status,
+                SourceTimestamp=waiting_at,
+            )
         )
 
     published = 0
