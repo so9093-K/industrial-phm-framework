@@ -24,6 +24,7 @@
 - [Prepared FILE Source Conformance Runbook](prepared-file-source-conformance.md)
 - [XJTU-SY RUL / Prognostics Protocol v1](xjtu-rul-prognostics-protocol.md)
 - [XJTU-SY RUL v1 Held-out Benchmark Execution Runbook](xjtu-rul-benchmark-execution-runbook.md)
+- [Operational Inference Acceptance Protocol v1](operational-inference-acceptance-protocol.md)
 
 ## Measured evidence and decisions
 
