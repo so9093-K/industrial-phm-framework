@@ -1191,3 +1191,233 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
     finally:
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
+
+
+@pytest.mark.parametrize("width", [1024, 1440])
+def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
+    tmp_path: Path, width: int
+) -> None:
+    """Real Web commands, collector-owned live history and an observed OPC UA outage.
+
+    A one-shot Web diagnostic is not continuous collection. The simulator is a
+    separate real OPC UA server process, restarted on the *same* endpoint; only
+    the supervised collector may commit the resulting history to DuckLake.
+    """
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("asyncua")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+
+    workspace = OperationsWorkspace(tmp_path / "opcua-live-browser")
+    initialized = initialize_operations_workspace(workspace)
+    web_port, opcua_port = _port(), _port()
+    while opcua_port == web_port:
+        opcua_port = _port()
+    endpoint = f"opc.tcp://127.0.0.1:{opcua_port}/phm-demo/"
+    source_id = "browser-live-opcua"
+    asset_id = "browser-motor"
+    write_operations_runtime_config(
+        workspace.config_path,
+        replace(initialized.config, ui=OperationsUiConfig(port=web_port)),
+    )
+    simulator_log = tmp_path / "opcua-server.log"
+    supervisor_log = tmp_path / "opcua-supervisor.log"
+
+    def simulator_start() -> subprocess.Popen[bytes]:
+        with simulator_log.open("ab") as output:
+            process = subprocess.Popen(
+                [
+                    sys.executable, "-m", "tools.opcua.demo", "server",
+                    "--endpoint", endpoint, "--profile", "power",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+            )
+        until = time.monotonic() + 35
+        while time.monotonic() < until:
+            if process.poll() is not None:
+                pytest.fail(
+                    "OPC UA simulator terminated before ready: "
+                    + simulator_log.read_text(errors="replace")[-4000:]
+                )
+            if "Synthetic OPC UA server:" in simulator_log.read_text(errors="replace"):
+                return process
+            time.sleep(0.2)
+        simulator_stop(process)
+        pytest.fail("OPC UA simulator readiness timeout")
+
+    def simulator_stop(process: subprocess.Popen[bytes]) -> None:
+        if process.poll() is not None:
+            return
+        process.send_signal(signal.SIGINT)
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+    def until_evidence(name: str, predicate, *, timeout: float = 85.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            value = predicate()
+            if value:
+                return value
+            time.sleep(0.4)
+        pytest.fail(
+            f"Missing {name}\nsimulator:\n"
+            + simulator_log.read_text(errors="replace")[-4000:]
+            + "\nsupervisor:\n"
+            + supervisor_log.read_text(errors="replace")[-4000:]
+        )
+
+    def source_row(page):
+        response = page.request.get(f"http://127.0.0.1:{web_port}/api/v1/sources")
+        assert response.ok, (response.status, response.text()[:500])
+        payload = response.json()
+        assert payload["schema_version"] == 1
+        return next(
+            (item for item in payload["sources"]["items"] if item["source_id"] == source_id),
+            None,
+        )
+
+    def browser_evidence(page, stage: str) -> None:
+        if root := os.environ.get("PHM_FIRST_RUN_SCREENSHOTS"):
+            target = Path(root)
+            target.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(target / f"opcua-{width}-{stage}.png"), full_page=True)
+
+    simulator = simulator_start()
+    supervisor: subprocess.Popen[bytes] | None = None
+    try:
+        supervisor = _start(workspace.root, web_port, supervisor_log)
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on("dialog", lambda dialog: dialog.accept())
+                page.goto(f"http://127.0.0.1:{web_port}/web/", wait_until="domcontentloaded")
+                pw.expect(page.locator("#runtime-facts")).to_contain_text(
+                    str(supervisor.pid), timeout=30000
+                )
+                pw.expect(page.locator("#onboarding-state")).to_contain_text(
+                    "소스 미등록", timeout=30000
+                )
+                page.get_by_role("link", name="데이터 연결").click()
+                page.locator("#opcua-endpoint").fill(endpoint)
+                page.get_by_role("button", name="로컬 변수 탐색").click()
+                pw.expect(page.locator("#opcua-browse-result")).to_contain_text(
+                    "ns=2;s=active_power", timeout=30000
+                )
+                assert source_row(page) is None
+                assert not workspace.history_catalog_path.exists()
+
+                form = page.locator("#opcua-form")
+                for name, value in (
+                    ("source_id", source_id),
+                    ("name", "Browser live OPC UA"),
+                    ("asset_id", asset_id),
+                ):
+                    form.locator(f'input[name="{name}"]').fill(value)
+                form.locator('textarea[name="node_mappings"]').fill(
+                    "active_power=ns=2;s=active_power\nvoltage=ns=2;s=voltage"
+                )
+                page.get_by_role("button", name="OPC UA 매핑 등록").click()
+                listing = page.locator("#source-list")
+                pw.expect(listing).to_contain_text(source_id, timeout=30000)
+                pw.expect(listing).to_contain_text("수신 근거 미확인")
+                assert not workspace.history_catalog_path.exists()
+
+                listing.get_by_role("button", name="소스 활성화").click()
+                pw.expect(listing).to_contain_text("관리 상태: active")
+                listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
+                pw.expect(page.locator("#source-control-result")).to_contain_text(
+                    "수신 근거 기록 완료", timeout=30000
+                )
+                assert source_row(page)["last_live_history_committed_at"] is None
+
+                listing.get_by_role("button", name="수집 시작 요청").click()
+                pw.expect(listing).to_contain_text("연속 수집 요청: running")
+                first = until_evidence(
+                    "collector live receive and DuckLake commit",
+                    lambda: (
+                        row if row is not None
+                        and row["opcua_session_last_state"] == "connected"
+                        and row["last_live_received_at"] is not None
+                        and row["last_live_history_snapshot_id"] is not None
+                        else None
+                    ) if (row := source_row(page)) is not None else None,
+                )
+                first_snapshot = first["last_live_history_snapshot_id"]
+                first_received = first["last_live_received_at"]
+                page.locator("#refresh").click()
+                pw.expect(listing).to_contain_text("OPC UA DuckLake 커밋: UTC", timeout=30000)
+                pw.expect(page.locator("#last-values")).to_contain_text(
+                    source_id, timeout=30000
+                )
+                pw.expect(page.locator("#last-values")).to_contain_text("현재 상태가 아님")
+                browser_evidence(page, "receiving")
+
+                simulator_stop(simulator)
+                disconnected = until_evidence(
+                    "collector-observed disconnect",
+                    lambda: (
+                        row if row is not None
+                        and row["opcua_session_last_state"] not in (None, "connected")
+                        else None
+                    ) if (row := source_row(page)) is not None else None,
+                )
+                assert disconnected["last_live_history_snapshot_id"] is not None
+                assert disconnected["collection_desired_state"] == "running"
+                page.locator("#refresh").click()
+                pw.expect(listing).to_contain_text(
+                    "OPC UA 세션 마지막 기록: " + disconnected["opcua_session_last_state"]
+                )
+                pw.expect(page.locator("#last-values")).to_contain_text(
+                    "마지막 저장된 측정값 · 현재 상태가 아님"
+                )
+                browser_evidence(page, "disconnected")
+
+                simulator = simulator_start()
+                recovered = until_evidence(
+                    "same-source reconnect, new live receive and new DuckLake snapshot",
+                    lambda: (
+                        row if row is not None
+                        and row["opcua_session_last_state"] == "connected"
+                        and row["last_live_received_at"] != first_received
+                        and row["last_live_history_snapshot_id"] not in (None, first_snapshot)
+                        else None
+                    ) if (row := source_row(page)) is not None else None,
+                )
+                assert recovered["source_id"] == source_id
+                assert recovered["asset_id"] == asset_id
+                page.locator("#refresh").click()
+                pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록: connected")
+                pw.expect(page.locator("#last-values")).to_contain_text(
+                    source_id, timeout=30000
+                )
+                browser_evidence(page, "recovered")
+                _no_overflow(page, width)
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        if supervisor is not None:
+            _stop(supervisor, workspace.root)
+        simulator_stop(simulator)
+
+    assert supervisor is not None and supervisor.returncode == 0
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    events = history.query_opcua_events(source_id)
+    assert events, "Collection must commit real OPC UA events, not only a one-shot receipt"
+    identities = [event.local_delivery_identity for event in events]
+    assert len(identities) == len(set(identities)), "Reconnect duplicated persisted delivery"
+    assert all(event.source_id == source_id for event in events)
