@@ -280,7 +280,7 @@ class SqlitePhmAnalysisStore:
         evaluate: StepEvaluator,
         package_id: str,
         processed_at: datetime,
-        feature_names: Sequence[str] = (),
+        feature_names: Sequence[str],
     ) -> StepResult | None:
         """Atomically evaluate and record one step; return None if it was already recorded.
 
@@ -288,6 +288,8 @@ class SqlitePhmAnalysisStore:
         transaction so the state it reads is exactly the state its result is committed against.
         """
         _aware(processed_at, "processed_at")
+        if step.features is not None and len(step.features) != len(feature_names):
+            raise PhmAnalysisError("step features must align with the package feature names")
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
