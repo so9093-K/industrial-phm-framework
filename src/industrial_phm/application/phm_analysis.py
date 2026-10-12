@@ -564,24 +564,20 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
             return StepEvaluation(StepState.SKIPPED, {}, next_state, step.skip_reason)
         assert step.features is not None
         next_state = dict(state)
-        xjtu_rul = (
-            spec.task is ModelTask.RUL_ESTIMATE
-            and manifest.training_scope.get("dataset_id") == "xjtu-sy"
-        )
-        if xjtu_rul and (
-            step.context.get("dataset_id") != "xjtu-sy"
-            or not step.replay
-            or _applicability(manifest.applicability, step.context) is not Applicability.INSIDE
-        ):
-            next_state.pop("feature_sequence", None)
-            next_state.pop("sequence_context", None)
-            return StepEvaluation(
-                StepState.SKIPPED,
-                {},
-                next_state,
-                "RUL applicability unavailable: requires XJTU-SY recorded acquisitions "
-                "and declared operating conditions",
-            )
+        # A remaining-life estimate is only as meaningful as its lifecycle endpoint, so RUL
+        # packages run only on inputs inside every condition they declare (dataset, operating
+        # condition, recorded replay, ...). Anomaly scores keep running and carry the flag.
+        if spec.task is ModelTask.RUL_ESTIMATE:
+            mismatch = _applicability_mismatch(manifest.applicability, step.context)
+            if mismatch is not None:
+                next_state.pop("feature_sequence", None)
+                next_state.pop("sequence_context", None)
+                return StepEvaluation(
+                    StepState.SKIPPED,
+                    {},
+                    next_state,
+                    f"RUL applicability unavailable: {mismatch}",
+                )
         sequence_positions = None
         inputs = step.features
         if length > 1:
@@ -738,6 +734,21 @@ def _interval_write(tracker: Mapping[str, Any], *, open_: bool) -> IntervalWrite
         peak_step_key=tracker["peak_key"],
         open=open_,
     )
+
+
+def _applicability_mismatch(
+    rules: Mapping[str, Sequence[str]], context: Mapping[str, str]
+) -> str | None:
+    """Describe the first declared condition the step does not meet, if any."""
+    if not rules:
+        return "the package declares no applicability conditions"
+    for key, allowed in rules.items():
+        observed = context.get(key)
+        if observed is None:
+            return f"{key} is not stated by the input"
+        if observed not in allowed:
+            return f"{key}={observed} is outside {list(allowed)}"
+    return None
 
 
 def _applicability(rules: Mapping[str, Sequence[str]], context: Mapping[str, str]) -> Applicability:

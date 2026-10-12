@@ -142,7 +142,12 @@ def build_xjtu_lstm_packages(
             probe_rows=rul_raw,
             training_scope=_scope(fitted.config, fitted.model.training),
             validation=_validation(evidence_root, "xjtu-sy-rul-lstm-fold-1-benchmark-v1.json"),
-            applicability={"operating_condition": list(XJTU_OPERATING_CONDITIONS)},
+            applicability={
+                "dataset_id": ["xjtu-sy"],
+                "operating_condition": list(XJTU_OPERATING_CONDITIONS),
+                # Remaining life is defined to the dataset's last recorded acquisition.
+                "recorded_replay": ["true"],
+            },
             created_at=created_at.isoformat(),
             code_revision=code_revision,
         ),

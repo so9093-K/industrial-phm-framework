@@ -86,6 +86,7 @@ def prepare_snapshot_step(
         "delivered_at": snapshot.delivered_at.isoformat(),
     }
     context = {key: str(value) for key, value in snapshot.metadata.items() if value is not None}
+    context["recorded_replay"] = "true" if snapshot.replay or recorded_replay else "false"
     features, reason = _snapshot_features(snapshot, spec, {} if memo is None else memo)
     return PreparedStep(
         step_key=snapshot.step_key,
@@ -283,7 +284,10 @@ def prepare_window_step(
         event_start=window.window_start,
         event_end=window.window_end,
         features=features,
-        context={"asset_id": window.asset_id},
+        context={
+            "asset_id": window.asset_id,
+            "recorded_replay": "true" if recorded_replay else "false",
+        },
         skip_reason=None if features is not None else (reason or "window not evaluated"),
     )
 
