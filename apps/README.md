@@ -272,3 +272,22 @@ uv run --no-sync industrial-phm operations phm package-xjtu-lstm artifacts/live 
 재시작 후 이어지고, 누락·입력 불일치·운전 조건 변경은 시퀀스 준비를 다시 시작합니다.
 RUL의 참고 MAE는 기존 연구 결과이며 새 가중치의 성능 인증이 아닙니다. 같은 가중치의 계산 재현성과
 제품 동작을 모델 성능 개선과 분리합니다.
+
+### AI 설명과 사람 검토 (local-main)
+
+이상 탐지·RUL 화면에서 선택한 저장 결과마다 **AI 설명 생성**과 **검토 요청 → 검토 확인 → 검토 종료**를
+기록할 수 있습니다. 쓰기는 감독 실행(`make up`) 화면에서만 가능합니다.
+
+```bash
+# 기본값: 로컬 OpenAI 호환 서버의 local-main (Responses API, 없으면 Chat Completions)
+export INDUSTRIAL_PHM_GENAI_BASE_URL="http://127.0.0.1:9400/v1"
+export INDUSTRIAL_PHM_GENAI_MODEL="local-main"
+# 선택: INDUSTRIAL_PHM_GENAI_API_KEY, 원격(https) 주소는 INDUSTRIAL_PHM_GENAI_ALLOW_REMOTE=1일 때만
+```
+
+- AI에는 저장된 결과와 함께 **코드가 확정한 의미 문장**(점수·종료점·검증 근거·적용 범위)을 전달하고,
+  수치를 다시 계산하거나 고장 확률·진단·신뢰구간을 만들지 않도록 지시합니다.
+- 생성된 설명의 숫자를 저장된 근거와 대조해, 근거에 없는 수치가 있으면 경고와 함께 표시합니다.
+- 설명은 분석 결과와 별도 저장소(`phm-explanations.sqlite`)에 저장되며 모델 출력을 바꾸지 않습니다.
+  AI 서버가 응답하지 않아도 분석 조회와 직접 검토는 계속됩니다. 검토 종료는 정비 완료가 아닙니다.
+- `INDUSTRIAL_PHM_GENAI_MODEL`은 연구 Analysis Explorer의 OpenAI 설명과 같은 변수명을 씁니다.

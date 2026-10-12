@@ -112,6 +112,11 @@ class SupervisorWebCommandBroker:
 
     def __init__(self, workspace: Path, socket_path: str) -> None:
         self.workspace = workspace.resolve()
+        from industrial_phm.runtime.operations_web_phm_explanation import (
+            initialize_explanation_manager,
+        )
+
+        initialize_explanation_manager(self.workspace)
         self.socket_path = socket_path
         self.upload_directory = Path(socket_path).parent / "uploads"
         self.token = secrets.token_urlsafe(32)

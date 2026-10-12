@@ -1,3 +1,4 @@
+import { renderPhmExplanation } from "./phm-explanation.js";
 // PHM monitoring: anomaly detection and RUL are separate screens over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
 // nothing here recomputes a score, an interval or an estimate.
@@ -35,6 +36,7 @@ const selected = {anomaly: "", rul: ""};
 const zoom = {anomaly: null};
 let chosenFeatures = [];
 let focusPosition = null;
+let rulFocusPosition = null;
 let pollTimer = null;
 let readError = "";
 let refreshedAt = null;
@@ -226,12 +228,14 @@ function renderAnomaly() {
   const state = byId("anomaly-state");
   for (const id of ["anomaly-cards", "anomaly-feature-chart", "anomaly-score-chart", "anomaly-intervals", "anomaly-model"]) byId(id).replaceChildren();
   if (readError) {
+    renderPhmExplanation("anomaly", "", null);
     for (const id of ["anomaly-features", "anomaly-detail"]) byId(id).replaceChildren();
     byId("anomaly-freshness").textContent = "";
     byId("anomaly-replay").classList.add("hidden");
     state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다. 운영 관리 화면에서 분석 프로세스 상태를 확인하세요.";return;
   }
   if (!selected.anomaly) {
+    renderPhmExplanation("anomaly", "", null);
     state.className = "state";
     state.textContent = "이상 탐지 모델이 연결된 설비가 없습니다. `operations phm bind`로 검증된 모델 패키지를 설비 스트림에 연결하세요.";
     byId("anomaly-freshness").textContent = "";
@@ -259,7 +263,7 @@ function renderAnomaly() {
   if (entry.package && entry.package.validation && entry.package.validation.acceptance === "not-yet-evaluated") {
     state.textContent += " · 개발 모델: 합격 기준 검증 미완료";
   }
-  if (!analyzed.length) {renderModelCard(byId("anomaly-model"), entry.package);return;}
+  if (!analyzed.length) {renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const threshold = last.output.threshold;
   const openIntervals = entry.intervals.filter((item) => item.open);
@@ -303,6 +307,8 @@ function renderAnomaly() {
   scoreRoot.append(zoomControls);
   renderIntervals(entry, axis);
   renderModelCard(byId("anomaly-model"), entry.package);
+  renderPhmExplanation("anomaly", selected.anomaly, focusPosition ?? last.position,
+                       () => {focusPosition = focusPosition ?? last.position;});
 }
 
 function renderFeatureControls(steps) {
@@ -449,11 +455,13 @@ function renderRul() {
   const state = byId("rul-state");
   for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model"]) byId(id).replaceChildren();
   if (readError) {
+    renderPhmExplanation("rul", "", null);
     byId("rul-freshness").textContent = "";
     byId("rul-replay").classList.add("hidden");
     state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다.";return;
   }
   if (!selected.rul) {
+    renderPhmExplanation("rul", "", null);
     state.className = "state";
     state.textContent = "RUL 모델이 연결된 설비가 없습니다. RUL은 수명 종료 사건이 기록된 데이터로 검증된 모델에서만 제공하며, 근거가 없는 설비에는 표시하지 않습니다.";
     byId("rul-freshness").textContent = "";
@@ -465,7 +473,7 @@ function renderRul() {
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
   const output = (entry.package && entry.package.output) || {};
-  if (!analyzed.length) {state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
+  if (!analyzed.length) {renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const unit = unitText(last.output.unit);
   const period = output.step_period_seconds;
@@ -491,7 +499,8 @@ function renderRul() {
   const axis = axisFor(entry);
   const domain = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
   byId("rul-chart").append(linePlot({steps: analyzed, value: (step) => step.output.estimate, axis, height: 190, domain,
-    threshold: 0, label: "시점별 RUL 추정 궤적", unitText: ""}));
+    threshold: 0, label: "시점별 RUL 추정 궤적", unitText: "",
+    onPick: (step) => {rulFocusPosition = step.position;renderRul();}}));
   byId("rul-chart").append(node("p", axis.label + " · 각 점은 그 시점까지의 입력만으로 계산한 추정입니다. 점선은 0(기록 종료점)이며 신뢰구간이 아닙니다.", "muted"));
   const recent = byId("rul-recent");
   recent.append(node("h3", "최근 추정 갱신"));
@@ -506,6 +515,8 @@ function renderRul() {
   }
   recent.append(table);
   renderModelCard(byId("rul-model"), entry.package);
+  renderPhmExplanation("rul", selected.rul, rulFocusPosition ?? last.position,
+                       () => {rulFocusPosition = rulFocusPosition ?? last.position;});
 }
 
 const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 1) : "값 없음";
@@ -582,7 +593,7 @@ export function initializePhm() {
   byId("anomaly-binding").addEventListener("change", (event) => {
     selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;byId("anomaly-detail").replaceChildren();cycle();
   });
-  byId("rul-binding").addEventListener("change", (event) => {selected.rul = event.target.value;cycle();});
+  byId("rul-binding").addEventListener("change", (event) => {selected.rul = event.target.value;rulFocusPosition = null;cycle();});
   const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
   window.addEventListener("hashchange", start);
   document.addEventListener("visibilitychange", start);

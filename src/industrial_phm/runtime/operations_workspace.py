@@ -80,6 +80,10 @@ class OperationsWorkspace:
         return self.root / "phm-analysis.sqlite"
 
     @property
+    def phm_explanation_path(self) -> Path:
+        return self.root / "phm-explanations.sqlite"
+
+    @property
     def models_path(self) -> Path:
         """Return the directory of immutable model packages."""
         return self.root / "models"
@@ -128,6 +132,7 @@ class OperationsWorkspace:
             self.analysis_runtime_path,
             self.acquisition_snapshot_path,
             self.phm_analysis_path,
+            self.phm_explanation_path,
             self.finding_state_path,
             self.maintenance_review_state_path,
             self.history_catalog_path,

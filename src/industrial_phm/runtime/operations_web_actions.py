@@ -14,6 +14,10 @@ from industrial_phm.runtime.operations_web_opcua import (
     diagnose_local_opcua,
     register_local_opcua,
 )
+from industrial_phm.runtime.operations_web_phm_explanation import (
+    request_phm_explanation,
+    request_phm_review,
+)
 from industrial_phm.runtime.operations_web_review import (
     record_web_review_action,
     request_web_analysis_review,
@@ -46,6 +50,8 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/sources/opcua/browse",
         "/api/v1/sources/opcua",
         "/api/v1/sources/opcua/diagnose",
+        "/api/v1/phm/explanations/request",
+        "/api/v1/phm/reviews/request",
         "/api/v1/reviews/request",
         "/api/v1/reviews/action",
         "/api/v1/demo/synthetic/start",
@@ -62,6 +68,8 @@ WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
         "/api/v1/sources/file/preflight",
         "/api/v1/sources/file/upload/preflight",
         "/api/v1/analysis/file",
+        "/api/v1/phm/explanations/request",
+        "/api/v1/phm/reviews/request",
         "/api/v1/demo/synthetic/start",
         "/api/v1/demo/synthetic/stop",
         "/api/v1/demo/synthetic/status",
@@ -87,6 +95,11 @@ def execute_web_source_action(
         return analyze_workspace_file_source(root, payload)
     if route == "/api/v1/analysis/phase-file":
         return analyze_workspace_file_phase(root, payload)
+    # PHM writes are supervisor-only too; dispatch them before the sample catch-all.
+    if route == "/api/v1/phm/explanations/request":
+        return request_phm_explanation(root, payload)
+    if route == "/api/v1/phm/reviews/request":
+        return request_phm_review(root, payload)
     if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
         return execute_web_sample_action(root, route, payload)
     if route == "/api/v1/sources/file":

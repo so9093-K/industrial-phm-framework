@@ -243,6 +243,7 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
             ("/web/navigation.js", "text/javascript", b"renderView"),
             ("/web/research.js", "text/javascript", b"research-results.json"),
             ("/web/phm.js", "text/javascript", b"/api/v1/phm/series"),
+            ("/web/phm-explanation.js", "text/javascript", b"/api/v1/phm/explanations"),
             ("/web/research-results.json", "application/json", b"artifact_sha256"),
         ):
             status, headers, data = request(path)
