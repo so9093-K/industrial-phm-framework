@@ -13,6 +13,12 @@ from industrial_phm.application.acquisition_snapshot import (
     file_sha256,
     read_snapshot_waveform,
 )
+from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
+    ELECTRICAL_WINDOW_FEATURE_NAMES,
+    ELECTRICAL_WINDOW_FEATURE_SET_ID,
+)
+from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.phm_analysis import (
     PhmBinding,
     PreparedStep,
@@ -21,12 +27,6 @@ from industrial_phm.application.phm_analysis import (
     advance_review_interval,
     run_binding,
 )
-from industrial_phm.application.electrical_window_features import (
-    ELECTRICAL_WINDOW_CHANNELS,
-    ELECTRICAL_WINDOW_FEATURE_NAMES,
-    ELECTRICAL_WINDOW_FEATURE_SET_ID,
-)
-from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.phm_runner import (
     PackageCache,
     prepare_window_step,
@@ -303,7 +303,6 @@ def test_window_package_input_mismatch_is_skipped_with_a_reason(
     supported = prepare_window_step(window, spec, recorded_replay=True)
     assert supported.features is None
     assert "confirmed channel meaning missing" in (supported.skip_reason or "")
-
 
 
 def _write_waveform(path: Path, scale: float) -> Path:
