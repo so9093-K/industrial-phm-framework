@@ -195,3 +195,28 @@ def test_missing_deep_learning_runtime_is_explicit_and_does_not_fake_a_predictio
     monkeypatch.setattr(package_lstm, "import_module", missing)
     with pytest.raises(ModelPackageError, match="deep-learning extra"):
         load_model_package(tmp_path / "models" / package.package_id)
+
+
+def test_xjtu_rul_rejects_other_datasets_even_when_numeric_shape_matches(tmp_path) -> None:
+    package, *_ = build_package(tmp_path / "models", EstimatorKind.LSTM_RUL)
+    package.manifest = replace(
+        package.manifest,
+        training_scope={"dataset_id": "xjtu-sy"},
+        applicability={"operating_condition": ["35Hz12kN"]},
+    )
+    store = SqlitePhmAnalysisStore(tmp_path / "scope.sqlite")
+    binding = PhmBinding(
+        "b", package.package_id, "source", "asset", StepKind.ACQUISITION_SNAPSHOT, T0
+    )
+    store.create_binding(binding)
+    step = PreparedStep(
+        "other",
+        1,
+        True,
+        {},
+        features=(0.1, 0.2),
+        context={"dataset_id": "aihub-239", "operating_condition": "35Hz12kN"},
+    )
+    (result,) = run_binding(store, binding, package, [step], now=lambda: T0)
+    assert result.state is StepState.SKIPPED
+    assert result.output == {} and "RUL applicability unavailable" in result.reason

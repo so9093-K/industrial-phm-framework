@@ -269,6 +269,7 @@ jobs:
             tests/contract/test_deep_learning_runtime.py \
             tests/contract/test_lstm_autoencoder.py \
             tests/contract/test_lstm_rul_regression.py \
+            tests/contract/test_lstm_operational_package.py \
             tests/contract/test_xjtu_lstm_execution.py \
             tests/contract/test_xjtu_rul_lstm.py
 

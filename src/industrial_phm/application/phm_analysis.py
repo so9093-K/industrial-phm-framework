@@ -564,6 +564,24 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
             return StepEvaluation(StepState.SKIPPED, {}, next_state, step.skip_reason)
         assert step.features is not None
         next_state = dict(state)
+        xjtu_rul = (
+            spec.task is ModelTask.RUL_ESTIMATE
+            and manifest.training_scope.get("dataset_id") == "xjtu-sy"
+        )
+        if xjtu_rul and (
+            step.context.get("dataset_id") != "xjtu-sy"
+            or not step.replay
+            or _applicability(manifest.applicability, step.context) is not Applicability.INSIDE
+        ):
+            next_state.pop("feature_sequence", None)
+            next_state.pop("sequence_context", None)
+            return StepEvaluation(
+                StepState.SKIPPED,
+                {},
+                next_state,
+                "RUL applicability unavailable: requires XJTU-SY recorded acquisitions "
+                "and declared operating conditions",
+            )
         sequence_positions = None
         inputs = step.features
         if length > 1:

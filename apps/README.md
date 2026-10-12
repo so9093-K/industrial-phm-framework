@@ -253,3 +253,22 @@ uv run --no-sync python -m tools.opcua.aihub_replay server \
 `/web/#anomaly`에서 입력 특징과 점수·검토 구간을 같은 축으로 탐색하고, 시점을 선택해 7개 원본 신호와
 품질·PCA 잔차 기여를 확인합니다. 변화율은 선택 윈도우의 첫 유효 관측 대비 화면 비교값으로,
 모델 정규화나 고장 원인 판정이 아닙니다. 최근 입력이 조건을 충족하지 않으면 이전 분석과 구분해 표시합니다.
+
+
+### LSTM 이상 탐지 · RUL 연결
+
+같은 준비된 XJTU-SY 데이터로 LSTM AE와 LSTM RUL을 패키징할 수 있습니다.
+학습은 기존 frozen 연구 설정과 train 베어링만 사용하며, 실행 시 다시 학습하지 않고 저장 가중치를 적재합니다.
+
+```bash
+uv sync --locked --extra operations --extra deep-learning
+uv run --no-sync industrial-phm operations phm package-xjtu-lstm artifacts/live \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+```
+
+출력된 두 package ID를 `operations phm bind`로 기존 `xjtu-sy-replay`와 선택한 베어링에 각각 연결한 뒤
+동일한 `replay-xjtu` 명령을 사용합니다. 두 화면의 설비·모델 목록에서 모델을 선택합니다.
+처음 7개 획득은 과거 8개 입력을 모으는 준비 구간이며 결과로 채우지 않습니다. 버퍼는 결과와 함께 저장해
+재시작 후 이어지고, 누락·입력 불일치·운전 조건 변경은 시퀀스 준비를 다시 시작합니다.
+RUL의 참고 MAE는 기존 연구 결과이며 새 가중치의 성능 인증이 아닙니다. 같은 가중치의 계산 재현성과
+제품 동작을 모델 성능 개선과 분리합니다.

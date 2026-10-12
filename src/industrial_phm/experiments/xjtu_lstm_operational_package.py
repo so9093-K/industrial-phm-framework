@@ -184,7 +184,9 @@ def _validation(root: Path, name: str) -> dict[str, Any]:
         "artifact_sha256": hashlib.sha256(content).hexdigest(),
         "acceptance": "not-yet-evaluated",
         "metrics_origin": "recorded-research-model",
-        "mean_asset_mean_absolute_error": document.get("evaluation", {}).get("point", {}).get("mean_asset_mean_absolute_error"),
+        "mean_asset_mean_absolute_error": document.get("evaluation", {})
+        .get("point", {})
+        .get("mean_asset_mean_absolute_error"),
         "performance_note": (
             "Reference research performance; this package is newly fitted, "
             "not independently performance validated."
