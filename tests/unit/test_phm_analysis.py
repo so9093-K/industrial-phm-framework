@@ -265,6 +265,7 @@ def test_change_feed_returns_only_newer_results(tmp_path: Path) -> None:
 
 # Snapshots and runner --------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     ("override", "reason"),
     [
