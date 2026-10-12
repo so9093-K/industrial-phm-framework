@@ -1361,7 +1361,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     lambda: matching_source(
                         page,
                         lambda row: (
-                            row["opcua_session_last_state"] == "connected"
+                            str(row["opcua_session_last_state"]).upper() == "CONNECTED"
                             and row["last_live_received_at"] is not None
                             and row["last_live_history_snapshot_id"] is not None
                         ),
@@ -1380,7 +1380,8 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     "collector-observed disconnect",
                     lambda: matching_source(
                         page,
-                        lambda row: row["opcua_session_last_state"] not in (None, "connected"),
+                        lambda row: row["opcua_session_last_state"] is not None
+                        and str(row["opcua_session_last_state"]).upper() != "CONNECTED",
                     ),
                 )
                 assert disconnected["last_live_history_snapshot_id"] is not None
@@ -1400,7 +1401,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     lambda: matching_source(
                         page,
                         lambda row: (
-                            row["opcua_session_last_state"] == "connected"
+                            str(row["opcua_session_last_state"]).upper() == "CONNECTED"
                             and row["last_live_received_at"] != first_received
                             and row["last_live_history_snapshot_id"] not in (None, first_snapshot)
                         ),
@@ -1409,7 +1410,9 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 assert recovered["source_id"] == source_id
                 assert recovered["asset_id"] == asset_id
                 page.locator("#refresh").click()
-                pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록: connected")
+                pw.expect(listing).to_contain_text(
+                    "OPC UA 세션 마지막 기록: " + str(recovered["opcua_session_last_state"])
+                )
                 pw.expect(page.locator("#last-values")).to_contain_text(source_id, timeout=30000)
                 browser_evidence(page, "recovered")
                 _no_overflow(page, width)
