@@ -1552,19 +1552,35 @@ async function opcuaPost(path, payload) {
 }
 async function browseOpcua() {
   const endpoint = byId("opcua-endpoint").value.trim();
+  const startNode = byId("opcua-browse-start").value.trim() || "i=85";
   const resultNode = byId("opcua-browse-result");
   const button = byId("browse-opcua");
   clear(resultNode);
   button.disabled = true;
   resultNode.textContent = "로컬 OPC UA 주소공간 탐색 중 · 수신이나 등록이 아닙니다.";
   try {
-    const result = await opcuaPost("/api/v1/sources/opcua/browse", {endpoint_url: endpoint});
+    const result = await opcuaPost("/api/v1/sources/opcua/browse",
+      {endpoint_url: endpoint, start_node_id: startNode});
     if (result.meaning !== "address-space-candidates-not-received-or-registered"
-        || !Array.isArray(result.variables)) throw new Error("schema-mismatch");
+        || !Array.isArray(result.variables) || !Array.isArray(result.objects)
+        || result.start_node_id !== startNode) throw new Error("schema-mismatch");
     clear(resultNode);
     resultNode.append(create("p", "hint", "변수 후보 " + result.variables.length
+      + "개 · 객체 후보 " + result.objects.length
       + "개 (탐색 노드 " + fmt(result.visited_node_count) + "개)"
-      + (result.truncated ? " · 결과 일부만 표시" : "") + " · 수신 근거 아님"));
+      + (result.truncated ? " · 결과 일부만 표시 · 객체를 선택해 범위를 좁히세요" : "")
+      + " · 수신 근거 아님"));
+    result.objects.forEach((item) => {
+      const row = create("p");
+      const button = create("button", null, fmt(item.browse_name) + " 객체 내부 탐색");
+      button.type = "button";
+      button.addEventListener("click", () => {
+        byId("opcua-browse-start").value = item.node_id;
+        browseOpcua();
+      });
+      row.append(button, create("code", null, " " + fmt(item.node_id)));
+      resultNode.append(row);
+    });
     result.variables.forEach((item) => {
       const row = create("p");
       row.append(create("strong", null, fmt(item.display_name) + " · "),
@@ -1574,7 +1590,7 @@ async function browseOpcua() {
   } catch (error) {
     clear(resultNode);
     resultNode.append(create("p", "error", error.message === "http-400"
-      ? "로컬 127.0.0.1 OPC UA 주소만 허용됩니다."
+      ? "로컬 127.0.0.1 OPC UA 주소와 탐색 시작 NodeId를 확인하세요."
       : error.message === "workspace-writer-busy"
       ? presentError(error)
       : "탐색 실패 · 로컬 OPC UA 서버 실행 및 접속을 확인하세요. 수신 근거는 없습니다."));

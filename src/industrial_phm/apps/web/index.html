@@ -158,7 +158,7 @@
           <p id="register-result" role="status" aria-live="polite"></p>
         </form>
         <h3>로컬 OPC UA 소스 등록·탐색</h3>
-        <p class="hint">현재 파일럿은 127.0.0.1 익명 OPC UA 서버만 허용합니다. 탐색은 변수 후보를 찾을 뿐 실제 수신을 뜻하지 않습니다. 원격 서버·계정·인증서 설정은 아직 지원하지 않습니다.</p>
+        <p class="hint">현재 파일럿은 127.0.0.1 익명 OPC UA 서버만 허용합니다. 변수 탐색은 최대 256개 노드를 조사합니다. 결과가 일부만 표시되면 객체 후보의 하위 탐색을 선택하거나 시작 NodeId를 명시하세요. 탐색은 수신·등록 근거가 아니며 원격 서버·계정·인증서 설정은 지원하지 않습니다.</p>
         <form id="opcua-form">
           <div class="form-grid">
             <label>OPC UA 소스 ID<input name="source_id" required maxlength="128" placeholder="opcua-pump-01" autocomplete="off"></label>
@@ -167,6 +167,7 @@
             <label>측정 지점 (선택)<input name="measurement_point_id" maxlength="128" autocomplete="off"></label>
             <label class="wide">로컬 OPC UA 서버 URL<input id="opcua-endpoint" name="endpoint_url" required maxlength="128" placeholder="opc.tcp://127.0.0.1:4840/" autocomplete="off"></label>
             <label class="wide">채널 매핑 (channel_id=NodeId, 한 줄에 하나)<textarea name="node_mappings" required maxlength="1700" rows="3" placeholder="vibration_x=ns=2;i=1"></textarea></label>
+            <label class="wide">변수 탐색 시작 객체 NodeId (기본 Objects)<input id="opcua-browse-start" maxlength="128" value="i=85" autocomplete="off"></label>
           </div>
           <button id="browse-opcua" type="button">로컬 변수 탐색</button>
           <button id="register-opcua" type="submit">OPC UA 매핑 등록</button>

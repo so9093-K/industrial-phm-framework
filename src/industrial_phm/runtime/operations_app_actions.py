@@ -120,12 +120,14 @@ class OperationsAppActions:
         *,
         endpoint_url: str,
         timeout_seconds: float,
+        start_node_id: str = "i=85",
     ) -> OpcUaBrowseResult:
         """Run one bounded OPC UA browse without exposing event-loop plumbing to the UI."""
         try:
             config = OpcUaBrowseConfig(
                 endpoint_url=endpoint_url,
                 timeout_seconds=timeout_seconds,
+                start_node_id=start_node_id,
             )
             return run_async_in_worker(lambda: browse_opcua_variables(config))
         except (OSError, ValueError, OpcUaRuntimeUnavailableError, OpcUaSourceError) as error:
