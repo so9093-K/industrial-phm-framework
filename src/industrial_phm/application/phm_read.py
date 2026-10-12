@@ -23,6 +23,7 @@ from industrial_phm.application.phm_analysis import (
     ReviewInterval,
     SqlitePhmAnalysisStore,
     StepResult,
+    StepState,
 )
 from industrial_phm.models.package import StepKind
 
@@ -45,7 +46,8 @@ def project_phm_bindings(
     items = []
     for binding in store.list_bindings():
         progress = store.progress(binding.binding_id)
-        latest = store.latest_result(binding.binding_id)
+        latest = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
+        processed = store.latest_result(binding.binding_id)
         items.append(
             {
                 **_binding_json(binding),
@@ -53,6 +55,7 @@ def project_phm_bindings(
                 "health_reason": progress.health_reason,
                 "package": _package_summary(models_root, binding.package_id),
                 "latest_analyzed": None if latest is None else _step_brief(latest),
+                "latest_processed": None if processed is None else _step_brief(processed),
                 "latest_delivered": _latest_delivered(binding, snapshots),
                 "open_intervals": sum(
                     1 for i in store.list_intervals(binding.binding_id) if i.open
@@ -85,7 +88,8 @@ def project_phm_series(
     )
     results = page[:_SERIES_PAGE_SIZE]
     cursor = results[-1].change_seq if results else watermark
-    latest = store.latest_result(binding_id)
+    latest = store.latest_result(binding_id, state=StepState.ANALYZED)
+    processed = store.latest_result(binding_id)
     return {
         "schema_version": PHM_READ_SCHEMA_VERSION,
         "change_seq": cursor,
@@ -98,6 +102,7 @@ def project_phm_series(
         },
         "package": _package_summary(models_root, binding.package_id),
         "latest_analyzed": None if latest is None else _step_brief(latest),
+        "latest_processed": None if processed is None else _step_brief(processed),
         "latest_delivered": _latest_delivered(binding, snapshots),
         "steps": [_step_json(result) for result in results],
         "intervals": [_interval_json(item) for item in store.list_intervals(binding_id)],
