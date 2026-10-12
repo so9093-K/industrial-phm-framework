@@ -384,7 +384,9 @@ jobs:
         run: node --check --input-type=module < src/industrial_phm/apps/web/app.js
 
       - name: Check PHM monitoring module syntax
-        run: node --check --input-type=module < src/industrial_phm/apps/web/phm.js
+        run: |
+          node --check --input-type=module < src/industrial_phm/apps/web/phm.js
+          node --check --input-type=module < src/industrial_phm/apps/web/phm-explanation.js
 
       - name: Validate actual Makefile up / status / Web / logs / down / resume
         shell: bash
@@ -478,6 +480,8 @@ jobs:
             tests/acceptance/test_operations_web_cross_action_http.py \
             tests/acceptance/test_operations_web_sample_browser.py \
             tests/acceptance/test_operations_phm_browser.py \
+            tests/acceptance/test_operations_phm_explanation_browser.py \
+            tests/integration/test_operations_web_phm_explanation.py \
             tests/acceptance/test_operations_electrical_phm_browser.py \
             tests/integration/test_operations_web_condition.py \
             tests/integration/test_operations_phm_windows.py \
@@ -535,6 +539,7 @@ jobs:
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/app.js'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/styles.css'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/phm.js'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/phm-explanation.js'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ai4i-2020.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ims-bearings.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-condition-stratified-5fold-v1.toml'
