@@ -3,6 +3,17 @@
   "meaning": "research-evaluation-not-workspace-data",
   "items": [
     {
+      "id": "aihub-239-electrical-anomaly-evaluation-v2",
+      "title": "전기 다변량 이상 탐지 · 운영 승격 평가 FAIL",
+      "dataset": "AI-Hub 239",
+      "artifact_path": "docs/research/results/aihub-239-electrical-anomaly-evaluation-v2.json",
+      "artifact_sha256": "b5199201309615a6ceb002c1f3eceb6a5956675f127c8f7cbb5c347de85fe11f",
+      "artifact_bytes": 329977,
+      "source_url": "https://github.com/so9093-K/industrial-phm-framework/blob/main/docs/research/results/aihub-239-electrical-anomaly-evaluation-v2.json",
+      "inspection": null,
+      "raw_data_status": "not-bundled-local-availability-unverified"
+    },
+    {
       "id": "ims-bearings-iforest-single-channel-cross-test-v1",
       "title": "Isolation Forest · 단일 채널 교차 시험",
       "dataset": "IMS Bearings",

@@ -119,6 +119,18 @@ def test_persistent_worker_collects_real_asyncua_datachange_to_durable_spool(
             )
             await _wait_until(lambda: spool.pending_event_count() > baseline_count)
 
+            # Repeat the same value at new recorded times: each must be delivered.
+            for minute in (1, 2):
+                before = spool.pending_event_count()
+                await vibration.write_value(
+                    ua.DataValue(
+                        ua.Variant(42.5, ua.VariantType.Double),
+                        StatusCode=ua.StatusCode(ua.StatusCodes.Good),
+                        SourceTimestamp=source_at + timedelta(minutes=minute),
+                        ServerTimestamp=source_at + timedelta(minutes=minute),
+                    )
+                )
+                await _wait_until(lambda before=before: spool.pending_event_count() > before)
             stop_event.set()
             result = await worker
 
@@ -135,7 +147,10 @@ def test_persistent_worker_collects_real_asyncua_datachange_to_durable_spool(
         matching = [
             event for event in batch.events if event.event.notification.observation.value == 42.5
         ]
-        assert len(matching) == 1
+        assert len(matching) == 3
+        assert [e.event_time.source_timestamp for e in matching] == [
+            source_at + timedelta(minutes=i) for i in range(3)
+        ]
         event = matching[0]
         assert event.connection_epoch == 1
         assert event.event_time.source_timestamp == source_at

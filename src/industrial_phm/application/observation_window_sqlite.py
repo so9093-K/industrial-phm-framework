@@ -92,6 +92,9 @@ class SqliteObservationWindowRepository:
         after_window_end: datetime | None = None,
         after_window_id: str | None = None,
         limit: int = 1000,
+        source_id: str | None = None,
+        asset_id: str | None = None,
+        measurement_point_id: str | None = None,
     ) -> tuple[DurableObservationWindow, ...]:
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
             raise ValueError("limit must be a positive integer")
@@ -100,13 +103,25 @@ class SqliteObservationWindowRepository:
         if (after_window_end is None) != (after_window_id is None):
             raise ValueError("window cursor requires both end time and window id")
         params: list[object] = []
-        where = ""
+        clauses = []
         if after_window_end is not None:
             if after_window_end.utcoffset() is None:
                 raise ValueError("after_window_end must be timezone-aware")
-            where = "WHERE window_end > ? OR (window_end = ? AND window_id > ?)"
+            clauses.append("(window_end > ? OR (window_end = ? AND window_id > ?))")
             stamp = after_window_end.isoformat()
             params.extend((stamp, stamp, after_window_id))
+        if source_id is not None:
+            if asset_id is None:
+                raise ValueError("source filtering requires an asset")
+            clauses.extend(
+                (
+                    "source_id = ?",
+                    "json_extract(payload_json, '$.asset_id') = ?",
+                    "json_extract(payload_json, '$.measurement_point_id') IS ?",
+                )
+            )
+            params.extend((source_id, asset_id, measurement_point_id))
+        where = "WHERE " + " AND ".join(clauses) if clauses else ""
         params.append(limit)
         connection = self._connect()
         try:
@@ -126,6 +141,22 @@ class SqliteObservationWindowRepository:
             self._parse_payload(row[0], context=f"window page[{index}]")
             for index, row in enumerate(rows)
         )
+
+    def latest_for_stream(
+        self, source_id: str, asset_id: str, measurement_point_id: str | None
+    ) -> DurableObservationWindow | None:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT payload_json FROM finalized_window WHERE source_id = ? "
+                "AND json_extract(payload_json, '$.asset_id') = ? "
+                "AND json_extract(payload_json, '$.measurement_point_id') IS ? "
+                "ORDER BY window_end DESC, window_id DESC LIMIT 1",
+                (source_id, asset_id, measurement_point_id),
+            ).fetchone()
+        finally:
+            connection.close()
+        return None if row is None else self._parse_payload(row[0], context="latest window")
 
     def list_window_bounds(self) -> tuple[tuple[str, str, datetime, datetime], ...]:
         """(window_id, source_id, window_start, window_end) of every stored window."""

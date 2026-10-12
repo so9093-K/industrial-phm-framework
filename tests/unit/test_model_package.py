@@ -201,3 +201,50 @@ def test_linear_output_does_not_depend_on_batch_composition(tmp_path: Path) -> N
     rows = (rng.normal(size=(500, 16)) * 1000).tolist()
     batch = package.evaluate(rows)
     assert batch == tuple(package.evaluate([row])[0] for row in rows)
+
+
+def test_pca_residual_decomposes_exactly_and_ignores_batch_composition(tmp_path: Path) -> None:
+    rng = np.random.default_rng(5)
+    basis = rng.normal(size=(3, 6))
+    train = rng.normal(size=(400, 3)) @ basis + rng.normal(scale=0.01, size=(400, 6))
+    mean = train.mean(axis=0)
+    _, _, vt = np.linalg.svd(train - mean, full_matrices=False)
+    build = PackageBuild(
+        recipe_id="test-pca-v1",
+        estimator_kind=EstimatorKind.PCA_RESIDUAL,
+        input=PackageInputSpec(
+            step_kind=StepKind.OBSERVATION_WINDOW,
+            channels=("c",),
+            feature_set_id="test-features-v1",
+            feature_names=tuple(f"f{i}" for i in range(6)),
+        ),
+        output=PackageOutputSpec(
+            task=ModelTask.ANOMALY_SCORE,
+            value_name="spe",
+            threshold=1.0,
+            threshold_rule="fixed-for-test",
+            review_interval=ReviewIntervalRule(2, 1),
+            provides_feature_contributions=True,
+        ),
+        preprocessing=AffinePreprocessing((0.0,) * 6, (1.0,) * 6),
+        estimator_state={"mean": mean.tolist(), "components": vt[:3].tolist()},
+        fit_rows=None,
+        probe_rows=train[:4].tolist(),
+        training_scope={},
+        validation={},
+        applicability={},
+        created_at="2026-10-12T00:00:00+00:00",
+        code_revision="0" * 40,
+    )
+    package = load_model_package(tmp_path / write_model_package(tmp_path, build).package_id)
+    shifted = train[:50].copy()
+    shifted[:, 4] += 3.0
+    rows = shifted.tolist()
+    scores = package.evaluate(rows)
+    assert scores == tuple(package.evaluate([row])[0] for row in rows)
+    contributions = package.feature_contributions(rows)
+    assert contributions is not None
+    for score, parts in zip(scores, contributions, strict=True):
+        assert sum(parts.values()) == pytest.approx(score)
+    assert max(contributions[0], key=contributions[0].__getitem__) == "f4"
+    assert min(scores) > max(package.evaluate(train[100:150].tolist()))

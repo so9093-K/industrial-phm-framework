@@ -6,6 +6,7 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zipfile import ZipFile
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -122,7 +123,10 @@ def test_prepare_binds_no_meaning_for_an_unprofiled_archive(tmp_path):
     assert manifest["channels"]
 
 
-def test_server_keeps_unpublished_channel_non_good_until_first_record(tmp_path):
+@pytest.mark.parametrize("recorded_timestamps", [False, True])
+def test_server_keeps_unpublished_channel_non_good_until_first_record(
+    tmp_path, recorded_timestamps
+):
     asyncua = pytest.importorskip("asyncua")
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -140,6 +144,7 @@ def test_server_keeps_unpublished_channel_non_good_until_first_record(tmp_path):
                 speed=600.0,
                 loop=False,
                 freeze_after_records=0,
+                recorded_timestamps=recorded_timestamps,
             )
         )
         try:
@@ -157,6 +162,11 @@ def test_server_keeps_unpublished_channel_non_good_until_first_record(tmp_path):
 
     value = asyncio.run(scenario())
     assert not value.StatusCode.is_good()
+    if recorded_timestamps:
+        first = (
+            (LOCAL + timedelta(minutes=1)).replace(tzinfo=ZoneInfo("Asia/Seoul")).astimezone(UTC)
+        )
+        assert value.SourceTimestamp == first - timedelta(microseconds=1)
 
 
 def test_server_publishes_recorded_values_on_the_replay_clock(tmp_path):

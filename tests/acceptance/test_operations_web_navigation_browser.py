@@ -39,7 +39,10 @@ def test_empty_workspace_start_routes_research_and_read_failures(
                 page.get_by_role("link", name="기존 연구 결과 보기").click()
                 pw.expect(page.locator("#view-title")).to_have_text("연구 · 검증 결과")
                 pw.expect(page.locator("#workspace-start")).to_be_hidden()
-                pw.expect(page.locator("#research-state")).to_contain_text("11건")
+                catalog = page.request.get(base + "research-results.json").json()
+                count = len(catalog["items"])
+                pw.expect(page.locator("#research-state")).to_contain_text(f"{count}건")
+                pw.expect(page.locator(".research-result")).to_have_count(count)
                 result = page.locator(".research-result").filter(
                     has_text="xjtu-sy-lstm-autoencoder-fold-1-development-v1"
                 )

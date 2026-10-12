@@ -36,6 +36,14 @@ def add_phm_commands(
     bind.add_argument("--source-id", required=True, help="registered source ID of the stream")
     bind.add_argument("--asset-id", required=True, help="asset ID of the stream")
     bind.add_argument(
+        "--measurement-point-id", help="exact window measurement point (default: no point)"
+    )
+    bind.add_argument(
+        "--recorded-replay",
+        action="store_true",
+        help="declare that this stream replays recorded data; results and screens say so",
+    )
+    bind.add_argument(
         "--binding-id",
         help="explicit binding ID; default derives one from package, source and asset",
     )
@@ -59,6 +67,20 @@ def add_phm_commands(
     )
     package.add_argument("--code-revision", help="full Git SHA; default reads the checkout HEAD")
     package.set_defaults(handler=_run_phm_package_xjtu)
+
+    electrical = phm_commands.add_parser(
+        "package-aihub", help="fit one device's confirmed Training/raw reference windows"
+    )
+    electrical.add_argument("workspace", type=Path)
+    electrical.add_argument("--archive", type=Path, required=True)
+    electrical.add_argument("--member", required=True, help="exact profiled compressor ZIP member")
+    electrical.add_argument(
+        "--candidate", choices=("isolation-forest", "pca-residual"), required=True
+    )
+    electrical.add_argument(
+        "--code-revision", help="full Git SHA; default requires a clean checkout"
+    )
+    electrical.set_defaults(handler=_run_phm_package_aihub)
 
     replay = phm_commands.add_parser(
         "replay-xjtu",
@@ -93,7 +115,9 @@ def _run_phm_bind(args: argparse.Namespace) -> int:
     except ModelPackageError as error:
         print(f"phm bind failed: package not usable: {error}", file=sys.stderr)
         return 1
-    binding_id = args.binding_id or _derived_binding_id(package_id, args.source_id, args.asset_id)
+    binding_id = args.binding_id or _derived_binding_id(
+        package_id, args.source_id, args.asset_id, args.measurement_point_id
+    )
     try:
         binding = PhmBinding(
             binding_id=binding_id,
@@ -102,6 +126,8 @@ def _run_phm_bind(args: argparse.Namespace) -> int:
             asset_id=args.asset_id,
             step_kind=package.manifest.input.step_kind,
             created_at=datetime.now(UTC),
+            recorded_replay=bool(args.recorded_replay),
+            measurement_point_id=args.measurement_point_id,
         )
         created = SqlitePhmAnalysisStore(workspace.phm_analysis_path).create_binding(binding)
     except (PhmAnalysisError, OSError, sqlite3.Error) as error:
@@ -134,6 +160,45 @@ def _run_phm_list(args: argparse.Namespace) -> int:
         return 1
     if not bindings:
         print("no PHM bindings")
+    return 0
+
+
+def _run_phm_package_aihub(args: argparse.Namespace) -> int:
+    from industrial_phm.adapters.aihub_power import archive_sha256
+    from industrial_phm.experiments import aihub_electrical_anomaly as ev
+
+    workspace = OperationsWorkspace(args.workspace.resolve())
+    if not workspace.config_path.is_file():
+        print("package failed: initialize an Operations workspace first", file=sys.stderr)
+        return 1
+    revision = args.code_revision or _checkout_revision()
+    if revision is None:
+        print("package failed: pass --code-revision outside a clean checkout", file=sys.stderr)
+        return 1
+    try:
+        device = ev.load_device(
+            args.archive, args.member, archive_sha256=archive_sha256(args.archive)
+        )
+        if device.ineligible_reason:
+            raise ValueError(device.ineligible_reason)
+        train, _holdout, boundary = ev.split_device(device.samples)
+        if ev.running_count(train) < ev.MIN_TRAIN_RUNNING:
+            raise ValueError("reference requires at least 2880 running timestamps")
+        package = ev.build_device_package(
+            args.candidate,
+            ev.window_rows(train),
+            workspace.models_path,
+            device=device,
+            boundary=boundary,
+            created_at=datetime.now(UTC),
+            code_revision=revision,
+        )
+    except (ValueError, OSError, ModelPackageError) as error:
+        print(f"package failed: {error}", file=sys.stderr)
+        return 1
+    print(f"package={package.package_id} task=anomaly-score device={device.device_id}")
+    print(f"reference_end={boundary.isoformat()} window_seconds=300")
+    print("development candidate: acceptance not yet passed; no RUL lifetime evidence")
     return 0
 
 
@@ -233,6 +298,11 @@ def _checkout_revision() -> str | None:
     return None if dirty or len(head) != 40 else head
 
 
-def _derived_binding_id(package_id: str, source_id: str, asset_id: str) -> str:
-    digest = hashlib.sha256(f"{package_id}\n{source_id}\n{asset_id}".encode()).hexdigest()
+def _derived_binding_id(
+    package_id: str, source_id: str, asset_id: str, point_id: str | None = None
+) -> str:
+    identity = f"{package_id}\n{source_id}\n{asset_id}"
+    if point_id is not None:
+        identity += "\npoint:" + point_id
+    digest = hashlib.sha256(identity.encode()).hexdigest()
     return f"phm-{asset_id}-{digest[:10]}"
