@@ -111,11 +111,7 @@ def ungrounded_numbers(text: str, context: object) -> list[str]:
         decimals = len(token.split(".")[1]) if "." in token else 0
         # Ignore only numbered-list markers, never a measurement or RUL estimate.
         line_prefix = text[text.rfind("\n", 0, match.start()) + 1 : match.start()]
-        if (
-            decimals == 0
-            and not line_prefix.strip()
-            and re.match(r"[.)]\s", text[match.end() :])
-        ):
+        if decimals == 0 and not line_prefix.strip() and re.match(r"[.)]\s", text[match.end() :]):
             continue
         tolerance = 0.5 * 10**-decimals + 1e-9
         if not any(abs(value - number) <= tolerance for value in known):
