@@ -1,6 +1,6 @@
 import { initializeCondition, loadCondition } from "./condition.js";
 import { initializeNavigation, navigate } from "./navigation.js";
-import { initializePhm } from "./phm.js";
+import { initializePhm, refreshPhm } from "./phm.js";
 import { initializeResearch } from "./research.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; there is no polling or fallback sample.
@@ -689,7 +689,7 @@ async function refresh() {
   clear(byId("trend-results"));
   clear(byId("last-values"));
   trendState("현재 설비의 측정 이력을 다시 확인합니다.");
-  byId("refresh").disabled = true;
+  byId("refresh").disabled = !["anomaly", "rul"].includes(document.body.dataset.view);
   setNotice("저장된 관측 현황을 불러오는 중입니다.");
   try {
     const data = await getJSON("/api/v1/monitor");
@@ -755,7 +755,10 @@ async function refresh() {
     byId("refresh").disabled = false;
   }
 }
-byId("refresh").addEventListener("click",() => {refresh();loadSources();loadRuntimeStatus();});
+byId("refresh").addEventListener("click",() => {
+  if (["anomaly", "rul"].includes(document.body.dataset.view)) {void refreshPhm();return;}
+  refresh();loadSources();loadRuntimeStatus();
+});
 byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
 byId("asset-select").addEventListener("change",selectAsset);
 byId("review-filter").addEventListener("change",renderReviewInbox);
