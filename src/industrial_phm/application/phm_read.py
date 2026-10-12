@@ -18,6 +18,7 @@ from industrial_phm.application.acquisition_snapshot import (
     SqliteAcquisitionSnapshotRepository,
     read_snapshot_waveform,
 )
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import (
     PhmBinding,
     ReviewInterval,
@@ -39,6 +40,8 @@ def project_phm_bindings(
     store: SqlitePhmAnalysisStore,
     models_root: Path,
     snapshots: SqliteAcquisitionSnapshotRepository,
+    *,
+    windows: SqliteObservationWindowRepository | None = None,
 ) -> dict[str, Any]:
     if not store.path.exists():
         return {"schema_version": PHM_READ_SCHEMA_VERSION, "change_seq": 0, "bindings": []}
@@ -53,7 +56,7 @@ def project_phm_bindings(
                 "health_reason": progress.health_reason,
                 "package": _package_summary(models_root, binding.package_id),
                 "latest_analyzed": None if latest is None else _step_brief(latest),
-                "latest_delivered": _latest_delivered(binding, snapshots),
+                "latest_delivered": _latest_delivered(binding, snapshots, windows),
                 "open_intervals": sum(
                     1 for i in store.list_intervals(binding.binding_id) if i.open
                 ),
@@ -73,6 +76,7 @@ def project_phm_series(
     *,
     binding_id: str,
     since_change_seq: int = 0,
+    windows: SqliteObservationWindowRepository | None = None,
 ) -> dict[str, Any]:
     """Return step results newer than ``since_change_seq`` and the current interval set."""
     binding = _binding(store, binding_id)
@@ -98,7 +102,7 @@ def project_phm_series(
         },
         "package": _package_summary(models_root, binding.package_id),
         "latest_analyzed": None if latest is None else _step_brief(latest),
-        "latest_delivered": _latest_delivered(binding, snapshots),
+        "latest_delivered": _latest_delivered(binding, snapshots, windows),
         "steps": [_step_json(result) for result in results],
         "intervals": [_interval_json(item) for item in store.list_intervals(binding_id)],
     }
@@ -173,12 +177,30 @@ def _binding_json(binding: PhmBinding) -> dict[str, Any]:
         "step_kind": binding.step_kind.value,
         "created_at": binding.created_at.isoformat(),
         "recorded_replay": binding.recorded_replay,
+        "measurement_point_id": binding.measurement_point_id,
     }
 
 
 def _latest_delivered(
-    binding: PhmBinding, snapshots: SqliteAcquisitionSnapshotRepository
+    binding: PhmBinding,
+    snapshots: SqliteAcquisitionSnapshotRepository,
+    windows: SqliteObservationWindowRepository | None = None,
 ) -> dict[str, Any] | None:
+    if binding.step_kind is StepKind.OBSERVATION_WINDOW:
+        if windows is None or not windows.path.exists():
+            return None
+        window = windows.latest_for_stream(
+            binding.source_id, binding.asset_id, binding.measurement_point_id
+        )
+        if window is None:
+            return None
+        return {
+            "position": int(window.window_end.timestamp() * 1_000_000),
+            "delivered_at": max(e.event_time.ingested_at for e in window.events).isoformat(),
+            "event_at": window.window_end.isoformat(),
+            "finalized_at": window.finalized_at.isoformat(),
+            "replay": binding.recorded_replay,
+        }
     if binding.step_kind is not StepKind.ACQUISITION_SNAPSHOT or not snapshots.path.exists():
         return None
     snapshot = snapshots.latest(binding.source_id, binding.asset_id)

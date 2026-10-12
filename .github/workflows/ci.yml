@@ -477,7 +477,9 @@ jobs:
             tests/acceptance/test_operations_web_cross_action_http.py \
             tests/acceptance/test_operations_web_sample_browser.py \
             tests/acceptance/test_operations_phm_browser.py \
+            tests/acceptance/test_operations_electrical_phm_browser.py \
             tests/integration/test_operations_web_condition.py \
+            tests/integration/test_operations_phm_windows.py \
             tests/integration/test_operations_web_phm.py \
             tests/integration/test_operations_web_opcua.py
 

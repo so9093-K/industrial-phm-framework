@@ -32,13 +32,13 @@ def test_short_coverage_is_reported_as_missing_injection_positions() -> None:
 
 
 class _FrequencyPackage:
-    manifest = SimpleNamespace(output=SimpleNamespace(threshold=0.5))
+    manifest = SimpleNamespace(output=SimpleNamespace(threshold=0.4))
 
     def evaluate(self, rows):
         return tuple(row[-1] - 60 for row in rows)
 
 
-def test_injection_uses_entire_prior_interval_state_instead_of_resetting_a_neighborhood() -> None:
+def test_injection_after_long_unobserved_gap_does_not_claim_prior_interval_continuity() -> None:
     samples = tuple(
         ElectricalWindowSample(
             at=T0 + timedelta(minutes=i),
@@ -51,8 +51,8 @@ def test_injection_uses_entire_prior_interval_state_instead_of_resetting_a_neigh
     result = ev.evaluate_injection(
         _FrequencyPackage(), samples, ev.INJECTIONS[3], T0 + timedelta(hours=2), 0
     )
-    assert result["masked_by_existing_interval"]
-    assert not result["detected"]
+    assert not result["masked_by_existing_interval"]
+    assert result["detected"]
 
 
 def test_reference_asset_and_six_development_members_are_mandatory() -> None:

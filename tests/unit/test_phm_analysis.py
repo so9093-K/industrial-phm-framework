@@ -360,3 +360,15 @@ def test_change_pages_preserve_late_steps_and_never_jump_past_unread_results(
             break
     assert seen == [1, 3, 2, 4, 5]
     assert store.list_results(binding.binding_id, after_change_seq=cursor) == ()
+
+
+def test_missing_steps_cannot_turn_separated_crossings_into_a_consecutive_run(
+    tmp_path: Path,
+) -> None:
+    package = _anomaly_package(tmp_path)
+    store = SqlitePhmAnalysisStore(tmp_path / "gap.sqlite")
+    binding = _bind(store, package)
+    run_binding(store, binding, package, [_step(1, 2.0), _step(5, 2.0)], now=_clock)
+    assert store.list_intervals("b1") == ()
+    run_binding(store, binding, package, [_step(6, 2.0)], now=_clock)
+    assert store.list_intervals("b1")[0].start_position == 5

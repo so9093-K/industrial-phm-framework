@@ -103,6 +103,7 @@ class DeviceRecord:
     samples: tuple[ElectricalWindowSample, ...]
     ineligible_reason: str | None
     excluded: Mapping[str, int]
+    archive_sha256: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,7 +161,7 @@ def load_device(archive: Path, member: str, *, archive_sha256: str) -> DeviceRec
     if roles is None:
         return DeviceRecord(member, device_id, (), reason, {})
     samples, excluded = align_electrical_samples(observations, roles)
-    return DeviceRecord(member, device_id, samples, None, excluded)
+    return DeviceRecord(member, device_id, samples, None, excluded, archive_sha256)
 
 
 def split_device(
@@ -343,6 +344,7 @@ def _build(
             "dataset_id": "aihub-239",
             "archive": "Training/raw 3.공기압축기.zip (filekey 44031)",
             "member": device.member,
+            "archive_sha256": device.archive_sha256,
             "device_id": device.device_id,
             "period": f"first {TRAIN_FRACTION:.0%} of the record, before {boundary.isoformat()}",
             "evaluated_window_count": window_count,
@@ -350,7 +352,8 @@ def _build(
             "timezone_assumption": TIMEZONE,
         },
         validation={
-            "evidence_class": "per-device-holdout-injection-evaluation",
+            "evidence_class": "unvalidated-anomaly-candidate",
+            "acceptance": "not-yet-evaluated",
             "protocol": "docs/research/operational-inference-acceptance-protocol.md §3 (v2)",
             "score_semantics": (
                 "departure from this device's training windows; not a failure probability"
@@ -436,7 +439,13 @@ def alarm_window_fraction(
             continue
         evaluated += 1
         step = PreparedStep(
-            step_key=f"w{index}", position=index, replay=True, input_reference={}, features=(score,)
+            step_key=f"w{index}",
+            position=index,
+            replay=True,
+            input_reference={},
+            features=(score,),
+            event_start=_row.start,
+            event_end=_row.start + WINDOW,
         )
         tracker, writes = advance_review_interval(
             tracker,
@@ -502,8 +511,12 @@ def evaluate_injection(
     # a pre-existing open interval and incorrectly count it as a new detection.
     span = [s for s in holdout_samples if s.at < start + DETECTION_WINDOW + WINDOW]
     _, baseline_states = review_windows(score_rows(package, window_rows(span)), threshold)
-    previous = [open_ for at, open_ in baseline_states if at < start]
-    masked = previous[-1] if previous else False
+    previous = [(at, open_) for at, open_ in baseline_states if at < start]
+    masked = bool(
+        previous
+        and previous[-1][1]
+        and start - previous[-1][0] <= WINDOW * (INTERVAL_RULE.max_gap_steps + 1)
+    )
     opened, _ = review_windows(
         score_rows(package, window_rows([injection.apply(s, start, phase) for s in span])),
         threshold,
