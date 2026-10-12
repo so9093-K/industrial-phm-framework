@@ -151,6 +151,19 @@ def fit_isolation_forest(
     )
 
 
+def isolation_forest_parameters(config: ExperimentConfig) -> dict[str, str | int | float | bool]:
+    """Return validated estimator parameters exactly as :func:`fit_isolation_forest` uses them."""
+    parameters = _parse_parameters(config.model_parameters)
+    return {
+        "n_estimators": parameters.n_estimators,
+        "max_samples": parameters.max_samples,
+        "contamination": parameters.contamination,
+        "max_features": parameters.max_features,
+        "bootstrap": parameters.bootstrap,
+        "random_seed": config.random_seed,
+    }
+
+
 def _validate_fit_context(config: ExperimentConfig, model_input: ModelFitInput) -> None:
     if config.model_family is not ModelFamily.ISOLATION_FOREST:
         raise IsolationForestError("model_family must be isolation-forest")

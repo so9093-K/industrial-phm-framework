@@ -381,7 +381,7 @@ class SqlitePhmAnalysisStore:
         try:
             rows = connection.execute(
                 "SELECT * FROM step_result WHERE binding_id = ? AND change_seq > ? "
-                "ORDER BY position, step_key LIMIT ?",
+                "ORDER BY change_seq LIMIT ?",
                 (binding_id, after_change_seq, limit),
             ).fetchall()
         finally:

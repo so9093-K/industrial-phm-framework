@@ -45,6 +45,33 @@ FILE/OPC UA 소스별 등록·활성·수신 근거와 저장 이력, 분석 근
 개별 OPC UA replay와 fault/recovery 실험은 [도구 안내](../tools/opcua/README.md)를
 따르며, 연구 화면은 아래 Analysis Explorer 실행 지침을 따릅니다.
 
+### 이상 탐지 · RUL 모니터링 (XJTU-SY 기록 재생)
+
+**이상 탐지**와 **RUL 모니터링** 화면은 작업공간에 연결된 모델 패키지의 저장된 step 결과를 3초마다
+변경분으로 읽습니다. 모델을 연결하는 순서는 다음과 같습니다(준비된 XJTU-SY 원본은
+[데이터 안내](../data/README.md#xjtu-sy)를 따릅니다).
+
+```bash
+make up                                   # 첫 터미널: 수집·분석·Web Supervisor
+# 다른 터미널
+SRC=data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+uv run --no-sync industrial-phm operations phm package-xjtu artifacts/operations --source "$SRC"
+uv run --no-sync industrial-phm operations phm bind artifacts/operations \
+  --package <이상 점수 package ID> --source-id xjtu-sy-replay --asset-id Bearing1_1
+uv run --no-sync industrial-phm operations phm bind artifacts/operations \
+  --package <RUL package ID> --source-id xjtu-sy-replay --asset-id Bearing1_1
+uv run --no-sync industrial-phm operations phm replay-xjtu artifacts/operations \
+  --source "$SRC" --bearing Bearing1_1 --interval-seconds 1
+```
+
+- `package-xjtu`는 fold-1 연구 설정을 train 베어링으로 다시 학습해 `models/`에 불변 패키지로 씁니다
+  (약 3–4분). 깨끗한 Git checkout이 아니면 `--code-revision`을 지정합니다.
+- 재생은 기록 데이터를 시간 압축해 공급하는 것이며 화면에 "기록 데이터 재생"으로 표시됩니다. 재생 대상은
+  모델 학습에 쓰지 않은 베어링(`Bearing1_1/2_1/3_1`, `Bearing1_2/2_2/3_2`)을 사용합니다.
+- 분석 runner는 0.5초마다 새 step을 처리하고, 화면은 최신 수신·최신 분석 시각과 분석 대기 수를 함께 보여줍니다.
+- 이상 점수는 고장 확률·진단이 아니며, RUL은 데이터셋의 마지막 기록 획득까지의 획득 간격입니다. 판정 기준과
+  검증 결과는 [운영 추론 수용 프로토콜](../docs/research/operational-inference-acceptance-protocol.md)을 따릅니다.
+
 ## Analysis Explorer
 
 apps/analysis_explorer.py는 저장된 PHM experiment/analysis evidence를 화면에서 검토하고,

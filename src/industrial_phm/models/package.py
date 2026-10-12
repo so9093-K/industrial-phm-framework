@@ -387,7 +387,9 @@ def _restore(
         intercept = float(state["intercept"])
         if coefficients.ndim != 1:
             raise ModelPackageError("linear coefficients must be a vector")
-        return lambda rows: rows @ coefficients + intercept
+        # Elementwise products reduced per row: unlike a BLAS matrix-vector product, the
+        # summation order cannot depend on how many rows are evaluated together.
+        return lambda rows: (rows * coefficients).sum(axis=1) + intercept
     if kind is EstimatorKind.ISOLATION_FOREST_REFIT:
         from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
 

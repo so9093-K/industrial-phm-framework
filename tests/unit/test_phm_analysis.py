@@ -330,3 +330,33 @@ def test_unloadable_package_marks_only_its_binding_unavailable(tmp_path: Path) -
     assert cycle.error is not None
     progress = store.progress("missing")
     assert progress.health == "unavailable" and progress.health_reason
+
+
+def test_change_pages_preserve_late_steps_and_never_jump_past_unread_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from industrial_phm.application import phm_read
+
+    package = _anomaly_package(tmp_path)
+    store = SqlitePhmAnalysisStore(tmp_path / "phm.sqlite")
+    binding = _bind(store, package)
+    run_binding(store, binding, package, [_step(i, 0.5) for i in (1, 3, 2, 4, 5)], now=_clock)
+    monkeypatch.setattr(phm_read, "_SERIES_PAGE_SIZE", 2)
+    snapshots = SqliteAcquisitionSnapshotRepository(tmp_path / "snapshots.sqlite")
+    seen = []
+    cursor = 0
+    while True:
+        page = phm_read.project_phm_series(
+            store,
+            tmp_path / "models",
+            snapshots,
+            binding_id=binding.binding_id,
+            since_change_seq=cursor,
+        )
+        seen.extend(step["position"] for step in page["steps"])
+        assert page["change_seq"] > cursor
+        cursor = page["change_seq"]
+        if not page["has_more"]:
+            break
+    assert seen == [1, 3, 2, 4, 5]
+    assert store.list_results(binding.binding_id, after_change_seq=cursor) == ()

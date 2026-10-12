@@ -87,12 +87,21 @@ flowchart LR
     ANALYSIS --> EVIDENCE[Analysis evidence]
     WINDOW --> RUNNER[Window analysis runner<br/>accepted events·temporal alignment]
     RUNNER --> EVIDENCE
+    SNAPSHOT[Acquisition snapshot<br/>파형 파일·SHA-256] --> PHM[PHM binding runner<br/>model package·설비별 상태]
+    PACKAGE[Model package<br/>해시·probe 검증] --> PHM
+    PHM --> PHMSTORE[PHM 결과<br/>점수·검토 구간·RUL 궤적]
+    PHMSTORE --> UI
     UNBALANCE --> EVIDENCE
     EVIDENCE --> INVESTIGATION[Investigation]
     INVESTIGATION --> FINDING[사람의 review finding]
     FINDING --> REVIEW[Maintenance review]
     UI[Operations UI] -. desired state .-> COLLECTOR
 ```
+
+학습된 PHM 모델은 불변 model package로 저장하고, 명시적 binding이 정한 (source, asset) 스트림의 순서 있는
+step마다 analysis runner가 실행합니다. step 결과·설비별 상태·검토 구간·cursor는 한 트랜잭션으로 저장되어
+재시작 후 이어지며, 이상 탐지와 RUL은 서로 다른 결과 형태와 화면을 가집니다
+([ADR-0025](../adr/0025-run-versioned-model-packages-over-ordered-asset-steps.md)).
 
 Operations UI의 desired collection state와 실제 collection process ownership은 분리합니다. 3상 불평형 같은
 capability는 history snapshot 또는 finalized window처럼 명시적으로 고정된 입력을 소비하고, temporal

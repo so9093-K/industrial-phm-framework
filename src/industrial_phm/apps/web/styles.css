@@ -168,3 +168,28 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 @media(max-width:700px){.condition-cards,.condition-events{grid-template-columns:repeat(2,minmax(0,1fr))}.condition-plot-header{align-items:start;flex-direction:column}.condition-period-details{margin-left:0}}
 
 .condition-svg .axis{fill:none}
+
+/* PHM monitoring: anomaly and RUL screens share axes, never alarm colors or health verdicts. */
+.phm-panel{margin-bottom:16px}
+.phm-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+.phm-controls select{min-width:260px;max-width:100%}
+.phm-controls p{margin:0}
+.tag.replay{background:#fff5e7;color:#713e12;border:1px solid #e5be78}
+.phm-features{display:grid;gap:4px}
+.phm-feature-title{margin:6px 0 0;font-size:.8rem;font-weight:680;color:#33505e}
+.phm-svg{display:block;width:100%;margin:2px 0;overflow:visible}
+.phm-svg.pickable{cursor:crosshair}
+.phm-svg text,.phm-wave text{font-size:11px;fill:#536c7a}
+.phm-interval{fill:#f2d9b8;opacity:.55}
+.phm-interval.open{fill:#e9b979;opacity:.6}
+.phm-focus{fill:none;stroke:#237c88;stroke-width:2}
+.phm-zoom{margin:4px 0 12px}
+.phm-facts{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.phm-facts span{font-size:.78rem;background:#eef4f6;border-radius:6px;padding:4px 8px}
+.phm-wave{display:block;width:100%;height:90px}
+.phm-wave-line{stroke:#17687c;stroke-width:1;fill:none}
+.phm-table{border-collapse:collapse;width:100%;font-size:.83rem}
+.phm-table th,.phm-table td{border-bottom:1px solid #e3ebef;padding:7px 8px;text-align:left}
+.phm-recent{margin:16px 0}
+.phm-recent h3{font-size:1rem;margin:0 0 8px}
+#anomaly-features{margin:6px 0}

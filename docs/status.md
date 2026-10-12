@@ -58,6 +58,9 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Operations 분석 시도/skip 이유 조회 | **조건부 지원** | Operations가 runner와 같은 finalized-window SQLite와 analysis-ledger SQLite를 읽을 때 Asset별 Analyzed/Skipped 시도와 exact skip reason을 표시 |
 | Live runner process lifecycle | **지원** | `operations start <root>`의 supervisor가 collection과 별도 analysis runner process를 함께 소유. analysis health는 runner-owned heartbeat가 authoritative |
 | Investigation / human Review / Maintenance | **조건부 지원** | 저장된 AnalysisRun/Evidence ID를 기반으로 Web에서 Review request/note/acknowledge/close를 기록하고 재조회하며 사람의 검토 종료는 실제 정비 완료가 아닙니다. 구형 Investigation·Maintenance 전용 화면 및 큐는 현재 Web에 존재하지 않습니다. `application/operations_investigations.py`, `operations_maintenance.py`의 공개 pure projection은 라이브러리 계약으로 보존되어 있으나 제품 UI 전체 지원의 근거로 사용하지 않습니다(구형 화면 전체 지원 아님) |
+| PHM 모델 패키지 · 설비별 순서 step 분석 | **조건부 지원** | [ADR-0025](adr/0025-run-versioned-model-packages-over-ordered-asset-steps.md). 데이터 전용 패키지(내용 해시 ID, 적재 시 payload SHA-256·probe 재검증, pickle 없음)를 `operations phm bind`로 명시한 (source, asset) 스트림에만 실행. step 결과·skip 이유·설비별 상태·검토 구간·cursor를 step 단위 트랜잭션으로 저장해 재시작 후 이어감. 현재 step 종류는 **acquisition snapshot**(파형 파일+SHA-256)만 지원하며 observation window binding은 미제공. 자동 재학습·모델 승인 workflow는 미제공 |
+| XJTU-SY 기록 재생 이상 점수 · RUL 추정 | **조건부 지원** | fold-1 연구 설정(Isolation Forest finalized, feature Ridge)을 train 베어링으로 다시 학습한 패키지를 `operations phm package-xjtu`로 생성하고 `replay-xjtu`로 학습에 쓰지 않은 베어링의 획득을 순서대로 공급. [운영 추론 수용 프로토콜](research/operational-inference-acceptance-protocol.md) §2.2 판정: **PASS**(2026-10-12, 커밋 `344193d`, 학습에 쓰지 않은 6개 베어링 11,940 step): IForest held-out 3개 베어링의 Spearman ρ·late-vs-middle이 저장된 연구 결과와 차이 0, Ridge 검증 3개 베어링 획득별 최대 차이 3.8e-12, 순차 출력 = 일괄 출력(차이 0). 기록 데이터 시간 압축 재생이며 현장 설비 수신이 아님. 이상 점수 임계값은 train reference 점수 99.5% 분위수, 점수는 고장 확률이 아님. RUL 단위는 획득 간격, 종료점은 데이터셋의 마지막 기록 획득(물리 고장 시각 아님), 불확실성 미검증으로 구간 미표시. LSTM 패키지는 미제공 |
+| 이상 탐지 · RUL Web 화면 | **조건부 지원** | `#anomaly`, `#rul`. 화면이 열려 있을 때 3초 변경분 조회, 최신 수신·최신 분석 시각과 분석 대기 수 표시, 기록 재생 표시. 검토 구간 선택 시 입력 특징·점수 그래프를 같은 범위로 이동하고 원본 파형 envelope 확인. 모델이 변수별 기여를 제공하지 않으면 표시하지 않음. RUL 모델이 없는 설비는 "근거 없음"으로 안내. 1024/1440 ko-KR Chromium 수용 |
 | Operations asset 표시 이름 | **조건부 지원** | source 등록이 선언한 optional `asset_display_name`을 같은 asset의 선언이 모두 일치할 때만 label로 사용. 없거나 불일치하면 `asset_id`(불일치는 System 표시). `asset_id`는 identity·provenance로 유지 |
 
 3상 불평형의 계산·eligibility·alignment 계약은
@@ -73,7 +76,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | provider label을 production 분석 입력으로 사용 | **미제공** | label은 research evaluation에만 사용 |
 | validated fault diagnosis | **미제공** | 관측·분석 evidence를 진단으로 자동 승격하지 않음 |
 | operational alarm / fleet risk scoring | **미제공** | source 상태나 analysis output을 alarm/risk verdict로 자동 승격하지 않음 |
-| operational RUL | **미제공** | 연구 RUL evidence와 operational capability를 분리 |
+| operational RUL | **조건부 지원 (XJTU-SY 기록 재생만)** | 수명 종료가 기록된 데이터로 검증된 패키지에서만 제공. 현장 설비 RUL·정비 시점 예측이 아니며, AI-Hub 239처럼 수명·고장 사건 근거가 없는 데이터에는 제공하지 않음 |
 | 자동 정비 권고·설비 제어 실행 | **미제공** | 사람의 review/승인을 대체하지 않음 |
 
 ## Validation and deployment boundary

@@ -107,6 +107,39 @@ class XjtuSyAdapter:
                 yield from _iter_run_series(source, run)
 
 
+@dataclass(frozen=True, slots=True)
+class XjtuAcquisitionFile:
+    """One acquisition CSV located without parsing its waveform."""
+
+    asset_id: str
+    operating_condition: str
+    rotational_speed_hz: float
+    radial_load_kn: float
+    acquisition_index: int
+    path: Path
+    sampling_rate_hz: float = _SAMPLING_RATE_HZ
+    sample_count: int = _EXPECTED_SAMPLE_COUNT
+    acquisition_period_seconds: float = _ACQUISITION_PERIOD_SECONDS
+
+
+def list_xjtu_acquisition_files(source: Path, asset_id: str) -> tuple[XjtuAcquisitionFile, ...]:
+    """Return one bearing run's acquisitions in lifecycle order, validating only the layout."""
+    for run in _iter_runs(source):
+        if run.bearing_dir.name == asset_id:
+            return tuple(
+                XjtuAcquisitionFile(
+                    asset_id=asset_id,
+                    operating_condition=run.condition_name,
+                    rotational_speed_hz=run.speed_hz,
+                    radial_load_kn=run.load_kn,
+                    acquisition_index=index,
+                    path=path,
+                )
+                for index, path in run.acquisitions
+            )
+    raise XjtuSySourceError(f"unknown XJTU-SY bearing run requested: {asset_id}")
+
+
 def get_xjtu_expected_acquisition_count(asset_id: str) -> int:
     """Return the observed complete-source acquisition count for one bearing run."""
     matches = tuple(

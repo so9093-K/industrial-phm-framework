@@ -1,5 +1,6 @@
 import { initializeCondition, loadCondition } from "./condition.js";
 import { initializeNavigation, navigate } from "./navigation.js";
+import { initializePhm } from "./phm.js";
 import { initializeResearch } from "./research.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; there is no polling or fallback sample.
@@ -764,6 +765,7 @@ byId("time-anchor").addEventListener("change",() => loadTrend());
 initializeNavigation();
 initializeResearch();
 initializeCondition();
+initializePhm();
 byId("start-sample").addEventListener("click", () => navigate("#connect", byId("sample-start")));
 async function initializeReviewAccess() {
   try {

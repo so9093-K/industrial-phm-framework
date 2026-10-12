@@ -382,6 +382,9 @@ jobs:
       - name: Validate read-only Web monitor JavaScript syntax
         run: node --check --input-type=module < src/industrial_phm/apps/web/app.js
 
+      - name: Check PHM monitoring module syntax
+        run: node --check --input-type=module < src/industrial_phm/apps/web/phm.js
+
       - name: Validate actual Makefile up / status / Web / logs / down / resume
         shell: bash
         run: |
@@ -473,7 +476,9 @@ jobs:
             tests/acceptance/test_operations_web_controlled_journey_browser.py \
             tests/acceptance/test_operations_web_cross_action_http.py \
             tests/acceptance/test_operations_web_sample_browser.py \
+            tests/acceptance/test_operations_phm_browser.py \
             tests/integration/test_operations_web_condition.py \
+            tests/integration/test_operations_web_phm.py \
             tests/integration/test_operations_web_opcua.py
 
       - name: Upload first-run browser evidence
@@ -526,6 +531,7 @@ jobs:
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/index.html'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/app.js'
           unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/styles.css'
+          unzip -l dist/*.whl | grep -q 'industrial_phm/apps/web/phm.js'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ai4i-2020.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/data/manifests/ims-bearings.toml'
           unzip -l dist/*.whl | grep -q 'industrial_phm/experiments/manifests/xjtu-sy-condition-stratified-5fold-v1.toml'

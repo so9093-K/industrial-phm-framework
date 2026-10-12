@@ -16,13 +16,15 @@
       <nav aria-label="주요 화면">
         <a href="#monitor" aria-current="page">설비 모니터링</a>
         <a href="#connect">데이터 연결</a>
+        <a href="#anomaly">이상 탐지</a>
+        <a href="#rul">RUL 모니터링</a>
         <a href="#signals">설비 · 신호</a>
         <a href="#evidence">분석 결과</a>
         <a href="#review">검토 작업</a>
         <a href="#research">연구 · 검증 결과</a>
         <a href="#system">운영 관리</a>
       </nav>
-      <p class="sidebar-note">로컬 작업공간<br>수동 새로고침 · 관측 시각 UTC</p>
+      <p class="sidebar-note">로컬 작업공간<br>이상 탐지·RUL 자동 갱신 · 그 외 수동<br>관측 시각 UTC</p>
     </aside>
     <main id="main" tabindex="-1">
       <header class="topbar">
@@ -92,6 +94,30 @@
         <div id="condition-events" class="condition-events"></div>
         <div id="condition-detail" class="condition-detail"></div>
         <details class="condition-method-details"><summary>분석 방법·데이터 품질 확인</summary><div id="condition-method"></div></details>
+      </section>
+      <section id="anomaly" class="panel phm-panel" data-views="anomaly" aria-labelledby="anomaly-title">
+        <div class="panel-header"><div><h2 id="anomaly-title">이상 탐지 모니터링</h2><p class="muted">저장된 모델 점수 · 검토 구간 · 입력 특징을 같은 축에서 비교</p></div><span id="anomaly-replay" class="tag replay hidden">기록 데이터 재생 · 실시간 현장 수신 아님</span></div>
+        <div class="phm-controls"><label for="anomaly-binding">설비 · 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select><p id="anomaly-freshness" class="muted" role="status" aria-live="polite"></p></div>
+        <p id="anomaly-state" class="state" role="status" aria-live="polite">이상 탐지 결과를 조회하고 있습니다.</p>
+        <div id="anomaly-cards" class="condition-cards"></div>
+        <div class="condition-plot-header"><h3>입력 특징 · 공통 축</h3></div>
+        <fieldset id="anomaly-features" class="channel-fieldset choices"></fieldset>
+        <div id="anomaly-feature-chart" class="phm-features"></div>
+        <div class="condition-plot-header"><h3>이상 점수와 검토 구간</h3></div>
+        <div id="anomaly-score-chart"></div>
+        <div id="anomaly-intervals" class="condition-events"></div>
+        <div id="anomaly-detail" class="condition-detail" tabindex="-1"></div>
+        <details id="anomaly-model" class="condition-method-details"></details>
+      </section>
+      <section id="rul" class="panel phm-panel" data-views="rul" aria-labelledby="rul-title">
+        <div class="panel-header"><div><h2 id="rul-title">RUL 모니터링</h2><p class="muted">시점별 잔여 수명 추정 궤적 · 단위 · 종료점 의미 · 검증 오차</p></div><span id="rul-replay" class="tag replay hidden">기록 데이터 재생 · 실시간 현장 수신 아님</span></div>
+        <div class="phm-controls"><label for="rul-binding">설비 · 모델</label><select id="rul-binding" disabled><option>조회 중</option></select><p id="rul-freshness" class="muted" role="status" aria-live="polite"></p></div>
+        <p id="rul-state" class="state" role="status" aria-live="polite">RUL 추정을 조회하고 있습니다.</p>
+        <div id="rul-cards" class="condition-cards"></div>
+        <div class="condition-plot-header"><h3>시간에 따른 RUL 추정 궤적</h3></div>
+        <div id="rul-chart"></div>
+        <div id="rul-recent" class="phm-recent"></div>
+        <details id="rul-model" class="condition-method-details"></details>
       </section>
       <section data-views="evidence review" class="below">
         <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>저장된 분석 결과</h2><p class="muted">CSV 통계 특징·3상 불평형 등 실제 저장된 결과만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
@@ -236,7 +262,7 @@
       </details>
 
       </details>
-      <footer>Industrial PHM · 로컬 검증 웹 화면 · 고장 진단, 자동 경보 및 잔여수명 예측 기능 없음</footer>
+      <footer>Industrial PHM · 로컬 검증 웹 화면 · 이상 점수·RUL은 연결된 모델의 검증 범위에서 제공 · 자동 제어 없음</footer>
     </main>
   </div>
 </body>
