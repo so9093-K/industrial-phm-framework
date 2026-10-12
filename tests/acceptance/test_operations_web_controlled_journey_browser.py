@@ -1128,9 +1128,10 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
 
                 # The global inbox switches selected asset, exact Run/Evidence
                 # and keyboard focus; it must not open the newer asset's record.
+                first_finding_id = "finding-review-" + first.run.analysis_run_id
                 inbox.get_by_role(
                     "button",
-                    name=f"검토 열기 · {first.run.asset_id} · finding-review-{first.run.analysis_run_id}",
+                    name=f"검토 열기 · {first.run.asset_id} · {first_finding_id}",
                 ).click()
                 pw.expect(selector).to_have_value(first.run.asset_id)
                 pw.expect(review.locator(".review-record")).to_be_focused()
@@ -1158,7 +1159,8 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
     finally:
         _stop(proc, workspace.root)
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
-    assert len(JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()) == 0
+    review_store = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
+    assert len(review_store.list_events()) == 0
     stored = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()
     assert {item.analysis_run_id for item in stored} == {
         first.run.analysis_run_id,
