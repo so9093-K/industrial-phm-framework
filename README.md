@@ -1,57 +1,34 @@
-# industrial-phm-framework
+# Industrial PHM Framework
 
-**산업 설비의 상태와 변화를 지속적으로 파악하고, 분석 근거를 바탕으로 운영자와 정비 담당자가
-더 나은 운영·정비 판단을 내릴 수 있도록 지원하는 시스템**입니다.
+산업 설비의 **다변량 시계열 이상 탐지와 잔여수명(RUL) 추정**을 바탕으로,
+운영자가 관측 데이터와 분석 근거를 확인하고 정비 판단을 검토할 수 있도록 돕는
+Python 기반 PHM(Prognostics and Health Management) 프로젝트입니다.
 
-센서 데이터의 품질과 출처를 확인하고, 이상·열화·RUL 등 PHM 분석 결과와 근거를 만들며,
-그 결과를 사람이 검토해 운영·정비 판단으로 이어갈 수 있는 흐름을 다룹니다.
+수집한 데이터의 시각·품질·출처를 보존하고, 분석 결과를 기록하며,
+**모델의 추정과 사람의 판단을 구분**합니다. 연구 결과를 실제 설비 고장 진단이나
+검증된 정비 권고로 자동 해석하지 않습니다.
 
-데이터·출처 보존, 분석 재현성과 수집 신뢰성은 이 목적을 뒷받침하는 시스템 요구사항입니다.
+## 주요 시나리오
 
-공개 데이터셋과 연구 모델은 프레임워크를 개발하고 검증하는 데 사용합니다.
+| 데이터 | 현재 제공하는 흐름 | 제한 |
+| --- | --- | --- |
+| **XJTU-SY 베어링** | 기록 데이터 순차 재생 → 모델 패키지 기반 이상 점수·RUL 추정 → 별도 Web 모니터링·근거 확인 | 로컬 기록 재생 기반. RUL은 마지막 기록 획득까지의 간격이며 실제 고장 시각 예측 또는 검증된 불확실성 구간이 아님 |
+| **AI-Hub 산업 설비** | 기록된 전기 신호의 수집·이력·3상 상태 변화 분석과 근거 검토 | 다변량 이상 탐지 운영 추론은 개발·평가 중. 고장까지의 수명 라벨이 없어 RUL을 제공하지 않음 |
+
+기능별 실제 지원 조건과 검증 수준은 [현재 지원 상태](docs/status.md)에서 확인할 수 있습니다.
+연구 데이터와 재현 가능한 평가 결과는 실제 현장 설비 검증과 구별합니다.
 
 ## 빠른 시작
 
-정상적인 repository-local 진입점은 root `Makefile`입니다. 사용자는 내부 process나
-`marimo` 실행 경로를 조합하지 않고 같은 front door에서 local Operations lifecycle을 다룹니다.
-
-지원하는 기본 실행 환경은 **Linux 단일 사용자 로컬 호스트**입니다. `make`와
-`uv`(`>=0.12.13,<0.13`)가 필요하며, 첫 실행에서는 Python 3.14와 잠긴
-Operations 의존성을 설치하므로 다운로드 가능한 네트워크 환경이 필요합니다.
-기본 Web 포트는 `127.0.0.1:2718`이고, 이미 다른 프로세스가 사용 중이라면
-실행이 실패할 수 있습니다. 다른 OS·원격/다중 사용자 서비스는 이 빠른 시작의
-수용 범위가 아닙니다.
+**Linux 로컬 단일 사용자** 환경에서 `make`와 [uv](https://docs.astral.sh/uv/)가 필요합니다.
+첫 실행 시 Python 3.14와 잠긴 의존성을 설치하므로 네트워크 연결이 필요합니다.
 
 ```bash
 make up
 ```
 
-`make up`은 Python 3.14와 locked Operations 환경을 준비한 뒤 기본 workspace
-`artifacts/operations`를 열고 collection + analysis + Operations UI를 하나의 foreground
-supervisor로 실행합니다. 새 workspace는 자동으로 준비하고, 유효한 기존 workspace는 그대로 다시 엽니다.
-현재 config가 생기기 전 Operations가 만든 것으로 식별 가능한 workspace는 기존 state를 보존한 채
-현재 기본 runtime policy를 기록한 config를 추가해 재개합니다. Operations와 관계없는 파일이 섞인 directory는 자동으로
-채택하지 않고 아무것도 변경하지 않은 채 다른 workspace를 선택하도록 안내합니다.
-
-**`make up`은 foreground 실행**이므로 첫 터미널을 닫지 마세요. 시작 시 출력되는
-`operations_url`(`http://127.0.0.1:<port>/web/`)은 접속 주소이며,
-출력 자체가 서비스 준비 완료를 뜻하지 않습니다. **다른 터미널**에서
-`make status`의 `ready=yes`를 확인한 뒤 브라우저에서 주소를 여세요.
-오류가 있으면 `make logs`로 확인하고 `make down`으로 종료합니다.
-현재 UI는 **Linux 로컬 단일 사용자 Web 파일럿**입니다.
-첫 화면에서는 선택한 설비의 **부하 변화·3상 불평형·기준 운전 패턴과의 차이**를 분석합니다. 빈 작업공간에는
-**기존 연구 결과 보기 · 실제 데이터 연결하기 · 격리 샘플 체험**을 제공합니다.
-기존 데이터가 있으면 설비와 분석 기간을 선택해 직전 구간과 비교하고, 변화가 큰 시각의 상별 측정값을 확인합니다.
-소스·저장·분석 기록 수와 프로세스 정보는 **운영 관리**에서 확인합니다.
-
-**새 작업공간이 비어 있는 것은 정상**이며 `make up`은 샘플·연구 결과를 자동으로 등록하지 않습니다.
-**기존 연구 결과**는 저장소의 과거 평가를 조회하는 별도 경로입니다. **데이터 연결**은 CSV 또는
-로컬 OPC UA의 등록·수신·저장·분석을 각각 확인하며, **격리 샘플 체험**은 별도 작업공간에서 실행합니다.
-샘플은 현재 packaged Web로 열리고 종료해도 샘플 폴더는 자동 삭제하지 않습니다.
-
-기록 데이터를 볼 때는 **마지막 저장 기록 기준**, 최근 기간을 볼 때는 **현재 조회 시각 기준**을 선택합니다.
-원본 관측 시각·품질·출처를 보존하고, 분석과 사람 검토는 설비 고장·안전·물리 정비 완료 판정과 구분합니다.
-전체 업무·영어·접근성 및 배포 범위는 [현재 지원 상태](docs/status.md)를 확인하세요.
+서비스는 현재 터미널에서 실행됩니다. 다른 터미널에서 준비 상태를 확인한 뒤
+[http://127.0.0.1:2718/web/](http://127.0.0.1:2718/web/)에 접속합니다.
 
 ```bash
 make status
@@ -59,87 +36,32 @@ make logs
 make down
 ```
 
-다른 workspace를 사용하려면 모든 lifecycle target에 같은 값을 전달합니다.
+기본 작업공간은 `artifacts/operations`입니다. 별도 작업공간은
+`make up WORKSPACE=/absolute/path`처럼 지정합니다.
+원본 데이터 없이 흐름을 확인하려면 별도 합성 작업공간을 사용하는 `make demo`를 실행할 수 있습니다.
 
-```bash
-make up WORKSPACE=/var/lib/industrial-phm/plant-a
-make status WORKSPACE=/var/lib/industrial-phm/plant-a
-make down WORKSPACE=/var/lib/industrial-phm/plant-a
-```
+XJTU-SY 모델 준비·바인딩·재생 명령은 [Operations 사용법](apps/README.md#이상-탐지--rul-모니터링-xjtu-sy-기록-재생),
+데이터셋 준비와 출처는 [데이터 안내](data/README.md)를 참고하세요.
+AI-Hub 데이터를 연결하는 방법도 [애플리케이션 안내](apps/README.md)에서 확인할 수 있습니다.
 
-외부 데이터가 없어 실행 흐름을 확인할 때는 별도 synthetic workspace를 쓰는 `make demo`를 활용할 수 있습니다.
-기본 Web은 사용자가 **격리 샘플 시작**을 명시적으로 누를 때만 데모 프로세스를 생성하며, 자동으로 시작하지 않습니다.
+## 시스템 구조
 
-직접 CLI, UI-only 실행, replay, backup/restore, deployment, 연구 앱 실행은
-[Applications 문서](apps/README.md)와 각 개발·운영 문서에서 다룹니다.
+![설비 관측에서 사람의 운영·정비 판단까지 이어지는 구조](assets/system-architecture.svg)
 
-## 전체 구조
+**설비 데이터 → 수집·이력 저장 → 이상 탐지/RUL 분석 → 근거 조회 → 운영자 검토**
 
-![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](assets/system-architecture.svg)
-
-설비 데이터는 원본 근거를 보존한 채 설비 이력(Asset History)으로 모이고, 분석은 이력에서 명시적으로
-만든 입력으로 실행되어 근거(evidence)를 남깁니다. 사람은 Operations에서 근거를 조사·검토해 운영·정비를
-판단합니다. 공개 데이터셋의 label 같은 provider annotation은 연구 평가에만 쓰며 production 분석의 입력이
-아닙니다.
-
-구체적인 구현 지원 여부와 명시적 미지원 경계는 [현재 지원 상태](docs/status.md)를 기준으로 확인합니다.
-README는 제품 목적과 주요 진입점을 설명하며 capability matrix나 roadmap을 중복 기록하지 않습니다.
-수집 runtime, 저장소, 분석 책임의 상세 구조는 [아키텍처 문서](docs/architecture/overview.md)에서 확인할 수 있습니다.
-
-## 애플리케이션
-
-### Operations (supervised Web)
-
-운영자 화면은 wheel에 포함된 `industrial_phm/apps/web/`의 HTML·JavaScript·CSS와
-로컬 Python API로 구성됩니다. `make up` 및 `operations up/start`가 기본적으로
-수집·분석·Web를 하나의 Supervisor로 실행합니다. 연구용 marimo는 운영 제품에 필요하지 않습니다.
-
-- **Monitor**: 전류 부하·관측 통전 시간·전압/전류 불평형과 앞선 기준 구간 대비 패턴 변화
-- **Assets / Signals**: 설비별 관측·저장 이력과 상별 측정값·품질·시각
-- **Connect**: FILE CSV와 제한된 로컬 익명 OPC UA 소스 등록·수신/제어 증거
-- **분석 결과 / 검토 작업**: 저장된 분석 결과와 그 분석에 연결된 검토
-- **연구 · 검증 결과**: XJTU-SY·IMS·MIMII의 저장된 연구 결과와 평가·출처·적용 범위
-- **운영 관리**: 로컬 프로세스 상태와 저장소 조회 오류의 제한된 진단
-
-소스 등록, 수신, DuckLake 적재, 분석과 사람 검토는 서로 다른 증거입니다. 현재 Web은
-한국어 중심 파일럿이며 전체 영어/접근성 및 일부 복구·업무 경로는 현재 지원 범위 밖입니다.
-실제 API·업무 지원 범위는 [지원 상태](docs/status.md)를 따릅니다.
-
-### Analysis Explorer
-
-PHM 분석 결과를 상세하게 검토하는 UI입니다.
-
-- anomaly/RUL evidence
-- feature/model 결과
-- 주요 관측 구간
-- 분석 provenance와 review
-
-애플리케이션의 로컬 개발·실행 방법은 [Applications 문서](apps/README.md),
-개발 환경 구성은 [기여 방법](CONTRIBUTING.md)에 정리되어 있습니다.
-
-## 데이터
-
-XJTU-SY, IMS Bearings, MIMII DUE 등의 공개 데이터는 분석 방법과 evidence를 개발·검증하는 데 사용합니다.
-데이터 준비와 출처는 [데이터 안내](data/README.md), 연구 프로토콜은 [연구 문서](docs/research/README.md)에 정리되어 있습니다.
+분석 결과는 원본 관측과 모델·데이터 출처에 연결됩니다.
+지원되지 않는 데이터나 검증되지 않은 수명 정보는 임의로 만들어내지 않습니다.
 
 ## 문서
 
-AI-Hub 보일러의 실제 운전 변화 분석과 기록 데이터 준비 방법은
-[실행 안내](tools/aihub/README.md#local-power-data-profiling-and-history)와
-[검증된 데이터 범위](docs/research/aihub-239-source-profile.md)를 참고하세요.
-
-- [현재 지원 상태](docs/status.md) — 구현된 operational/research 지원 범위와 명시적 미지원 경계
-- [Applications](apps/README.md) — Analysis Explorer와 Operations 사용 방법
-- [측정 이력 의미·집계·scale 경계](docs/architecture/measurement-history-evolution.md) — semantic/display/storage 계약과 측정 근거
-- [아키텍처](docs/architecture/overview.md) — 구성 요소와 책임 경계
-- [제품·UX 기준](docs/product/overview.md) — 사용자 흐름과 제품 의미
-- [데이터 준비](data/README.md) — 데이터셋과 입력 검증
-- [연구 문서](docs/research/README.md) — 실험 프로토콜과 연구 evidence
-- [테스트 정책](docs/testing-policy.md) — 검증 기준
-- [기여 방법](CONTRIBUTING.md) — 개발 환경과 변경 절차
-- [변경 이력](CHANGELOG.md) — 변경 내용
+- [애플리케이션 사용법](apps/README.md) — Operations Web, XJTU-SY 재생, 연구 분석 화면
+- [데이터 준비](data/README.md) — 공개 데이터셋과 입력 준비
+- [현재 지원 상태](docs/status.md) — 구현 범위와 명시적 제한
+- [아키텍처](docs/architecture/overview.md) — 시스템 구성 요소와 책임
+- [연구 및 평가](docs/research/README.md) — 프로토콜과 결과
+- [개발 참여](CONTRIBUTING.md) — 개발 환경과 기여 방법
 
 ## 라이선스
 
-[Apache License 2.0](LICENSE)을 사용합니다.
-데이터셋의 원본 라이선스와 출처는 각 데이터 문서를 따릅니다.
+[Apache License 2.0](LICENSE). 데이터셋은 각 제공자의 사용 조건을 따릅니다.

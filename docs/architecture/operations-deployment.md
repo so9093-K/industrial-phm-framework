@@ -59,35 +59,6 @@ systemd documents `Restart=on-failure` as the recommended restart mode for long-
 forced kill for the remaining service processes. These semantics match the Operations supervisor's
 ownership boundary.
 
-## Real systemd lifecycle acceptance
-
-On Linux GitHub Actions, the `systemd Operations service` CI job builds and
-**installs** the Operations wheel in an isolated virtual environment, renders
-the exact reference unit `deploy/systemd/industrial-phm-operations.service.example`
-with the CI service user's account and temporary workspace, then installs
-that temporary unit into `/run/systemd/system`. It explicitly requires a
-running systemd service manager; it must **fail**, not silently skip, if the
-runner cannot execute real `systemctl` operations.
-
-The gate checks `systemd-analyze verify`, `ExecStartPre` and first start
-of the supervised `web-controlled` UI (now the local CLI default); rejects cross-site/invalid
-CSRF source registration while persisting a valid FILE source. It then checks
-a manual systemd restart, persistence of the source registration, kills the
-actual supervised Web UI child to force supervisor non-zero exit, and waits
-for `Restart=on-failure` to create a **different** supervisor PID. The saved
-source identity must still be readable after recovery. Finally a
-`systemctl stop` must leave the service inactive for longer than the
-unit's `RestartSec`, with no unexpected restart. The script always attempts
-to stop the temporary unit and removes it from `/run`.
-
-The CI gate tests a genuine systemd service on the GitHub Ubuntu runner.
-It does **not** install a permanent production service, certify all Linux
-distributions, prove host reboot persistence, or grant an authenticated
-remote/multi-user UI. The local single-user reference unit launches supervised Web by default;
-the test uses the same no-flag CLI default when rendering the temporary unit.
-The production operator UI is the packaged supervised Web; research marimo remains separate.
-This does not certify remote/multi-user or field-tested deployment.
-
 ## Filesystem and permissions
 
 The reference deployment uses:
@@ -103,60 +74,6 @@ explicit CLI argument and may be placed elsewhere when the same ownership/permis
 Do not make the workspace world-writable. Preflight reports that condition as a warning. Credentials and
 OPC UA certificates are not part of the non-secret workspace and must be provisioned separately once a
 connected source requires an OPC UA security profile and that profile is implemented.
-
-## Isolated installed-wheel acceptance gate
-
-The Package CI builds the wheel and installs `wheel[operations]` into a **fresh virtual
-environment outside the repository checkout**, then runs
-`tools/operations_wheel_smoke.py` with that environment's Python interpreter.
-The smoke runner asserts that `industrial_phm` imports from the installed
-environment and invokes the installed `industrial-phm` console script rather
-than a development checkout. It verifies deployment preflight and two real
-supervisor-managed `--ui web-controlled` starts, packaged Web HTML/JS/CSS,
-session/Monitor/source inventory reads, clean shutdown and offline
-backup into a **different** restored root. In the restored workspace it
-checks a CSRF-rejected source mutation, an accepted FILE registration,
-a duplicate-registration conflict, and the distinction between
-registration and an actual data receipt.
-
-The sample FILE is deliberately created **after** restore. A workspace
-backup captures durable Operations-managed state; it does **not** claim
-to capture user-managed external FILE input. This gate tests a local
-Linux wheel installation only. It does not exercise systemd service
-restarts, production equipment, a previous wheel version or rollback.
-Those remain independent checks for expansion beyond the owner-approved local Web pilot;
-the Web default does not extend the installed-wheel gate's actual test scope.
-
-## Previous known-good wheel rollback acceptance
-
-The Package CI also verifies a **real Python installation rollback**, not just
-workspace snapshot restoration. It builds a wheel from verified green main
-commit `b3f9d1076fe3d286e304e30d9f503d4ebb6c718c` (green CI run
-`37911770483`) in a detached temporary Git worktree and compares it to
-the current wheel. The test installs each wheel sequentially in one isolated
-venv and uses one durable, stopped-between-stages workspace:
-
-1. Install the previous green wheel, start supervised `web-controlled`, persist
-   FILE registration A, verify same-origin/CSRF and stop cleanly.
-2. Force-reinstall the current candidate wheel, reopen the **same** workspace
-   with a fresh loopback port, confirm A and persist registration B; stop.
-3. Force-reinstall the previous wheel, reopen the same workspace, confirm
-   A and B and persist registration C; stop.
-4. At every stage compare the **actual installed module bytes** to the
-   corresponding built wheel and assert source identity, inventory counts,
-   no fabricated data receipt, and duplicate-registration rejection.
-
-The package version is currently `0.0.1` for both builds, so checking
-`--version` or allowing an installer to skip an equal-version install would
-not prove rollback. The check explicitly forces package reinstalls and
-verifies wheel module contents differ before starting.
-
-This acceptance covers only the known-good commit above, the unchanged
-workspace schema and local Linux source-control flows; it is **not** a
-promise that arbitrary future versions can read newer workspace schemas.
-New irreversible migrations must block rollback or provide a separately
-proven restore path. It does not exercise systemd, remote service management,
-or connected industrial hardware; those are independent P2 gates.
 
 ## Restart, backup, and retention
 
