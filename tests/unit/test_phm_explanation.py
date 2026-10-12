@@ -215,7 +215,7 @@ def test_numbers_absent_from_the_stored_context_are_flagged() -> None:
         (5.0, "RUL 4", ["4"]),
         (-5.0, "RUL -5", []),
         (5.0, "RUL 5", []),
-        (5.0, "1. 점검\\nRUL 5", []),
+        (5.0, "1. 점검\nRUL 5", []),
     ],
 )
 def test_grounding_warning_preserves_sign_and_checks_small_rul_integers(
