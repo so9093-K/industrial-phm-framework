@@ -303,6 +303,7 @@ def test_standalone_web_never_controls_synthetic_processes(tmp_path: Path) -> No
 def test_recorded_history_anchor_preserves_old_event_time_without_source_registration(
     tmp_path: Path,
 ) -> None:
+    pytest.importorskip("duckdb")
     workspace = OperationsWorkspace(tmp_path / "recorded-only")
     initialize_operations_workspace(workspace)
     source_path = tmp_path / "recorded.csv"
