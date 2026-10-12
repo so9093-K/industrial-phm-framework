@@ -84,8 +84,8 @@ def explanation_instructions(context: dict[str, object]) -> str:
 def ungrounded_numbers(text: str, context: object) -> list[str]:
     """Numbers in the explanation that no value in the context supports (after rounding).
 
-    Small integers without decimals (list numbering, counts) are ignored; everything else
-    must round-trip to a number the code supplied.
+    Numeric values must match the stored context with their signs preserved. Only
+    numbered-list markers (for example "3. ") are excluded from this safeguard.
     """
     known: list[float] = []
 
@@ -105,13 +105,20 @@ def ungrounded_numbers(text: str, context: object) -> list[str]:
 
     collect(context)
     missing = []
-    for token in _NUMBER.findall(text):
+    for match in _NUMBER.finditer(text):
+        token = match.group()
         number = float(token.replace(",", ""))
         decimals = len(token.split(".")[1]) if "." in token else 0
-        if decimals == 0 and abs(number) < 10:
+        # Ignore only numbered-list markers, never a measurement or RUL estimate.
+        line_prefix = text[text.rfind("\n", 0, match.start()) + 1 : match.start()]
+        if (
+            decimals == 0
+            and not line_prefix.strip()
+            and re.match(r"[.)]\s", text[match.end() :])
+        ):
             continue
         tolerance = 0.5 * 10**-decimals + 1e-9
-        if not any(abs(abs(value) - abs(number)) <= tolerance for value in known):
+        if not any(abs(value - number) <= tolerance for value in known):
             missing.append(token)
     return missing
 

@@ -201,8 +201,29 @@ def test_numbers_absent_from_the_stored_context_are_flagged() -> None:
         "x": "35Hz12kN",
         "m": 1081.03,
     }
-    assert ungrounded_numbers("점수 0.728, 임계값 0.754, 1,081, 35Hz, 항목 3", context) == []
+    assert ungrounded_numbers("점수 0.728, 임계값 0.754, 1,081, 35Hz", context) == []
     assert ungrounded_numbers("고장 확률 87.5%, 신뢰구간 ±12.4", context) == ["87.5", "12.4"]
+
+
+@pytest.mark.parametrize(
+    ("context_value", "statement", "unsupported"),
+    [
+        (-25.0, "RUL 25", ["25"]),
+        (25.0, "RUL -25", ["-25"]),
+        (-5.0, "RUL 5", ["5"]),
+        (5.0, "RUL -5", ["-5"]),
+        (5.0, "RUL 4", ["4"]),
+        (-5.0, "RUL -5", []),
+        (5.0, "RUL 5", []),
+        (5.0, "1. 점검\\nRUL 5", []),
+    ],
+)
+def test_grounding_warning_preserves_sign_and_checks_small_rul_integers(
+    context_value: float, statement: str, unsupported: list[str]
+) -> None:
+    from industrial_phm.genai.local_explanation import ungrounded_numbers
+
+    assert ungrounded_numbers(statement, {"output": {"estimate": context_value}}) == unsupported
 
 
 def test_manager_stores_grounding_warnings_with_the_explanation(
