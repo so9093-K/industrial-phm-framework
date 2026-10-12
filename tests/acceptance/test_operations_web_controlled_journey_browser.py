@@ -1231,8 +1231,14 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
         with simulator_log.open("ab") as output:
             process = subprocess.Popen(
                 [
-                    sys.executable, "-m", "tools.opcua.demo", "server",
-                    "--endpoint", endpoint, "--profile", "power",
+                    sys.executable,
+                    "-m",
+                    "tools.opcua.demo",
+                    "server",
+                    "--endpoint",
+                    endpoint,
+                    "--profile",
+                    "power",
                 ],
                 stdin=subprocess.DEVNULL,
                 stdout=output,
@@ -1284,6 +1290,10 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
             (item for item in payload["sources"]["items"] if item["source_id"] == source_id),
             None,
         )
+
+    def matching_source(page, predicate):
+        row = source_row(page)
+        return row if row is not None and predicate(row) else None
 
     def browser_evidence(page, stage: str) -> None:
         if root := os.environ.get("PHM_FIRST_RUN_SCREENSHOTS"):
@@ -1346,32 +1356,30 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(listing).to_contain_text("연속 수집 요청: running")
                 first = until_evidence(
                     "collector live receive and DuckLake commit",
-                    lambda: (
-                        row if row is not None
-                        and row["opcua_session_last_state"] == "connected"
-                        and row["last_live_received_at"] is not None
-                        and row["last_live_history_snapshot_id"] is not None
-                        else None
-                    ) if (row := source_row(page)) is not None else None,
+                    lambda: matching_source(
+                        page,
+                        lambda row: (
+                            row["opcua_session_last_state"] == "connected"
+                            and row["last_live_received_at"] is not None
+                            and row["last_live_history_snapshot_id"] is not None
+                        ),
+                    ),
                 )
                 first_snapshot = first["last_live_history_snapshot_id"]
                 first_received = first["last_live_received_at"]
                 page.locator("#refresh").click()
                 pw.expect(listing).to_contain_text("OPC UA DuckLake 커밋: UTC", timeout=30000)
-                pw.expect(page.locator("#last-values")).to_contain_text(
-                    source_id, timeout=30000
-                )
+                pw.expect(page.locator("#last-values")).to_contain_text(source_id, timeout=30000)
                 pw.expect(page.locator("#last-values")).to_contain_text("현재 상태가 아님")
                 browser_evidence(page, "receiving")
 
                 simulator_stop(simulator)
                 disconnected = until_evidence(
                     "collector-observed disconnect",
-                    lambda: (
-                        row if row is not None
-                        and row["opcua_session_last_state"] not in (None, "connected")
-                        else None
-                    ) if (row := source_row(page)) is not None else None,
+                    lambda: matching_source(
+                        page,
+                        lambda row: row["opcua_session_last_state"] not in (None, "connected"),
+                    ),
                 )
                 assert disconnected["last_live_history_snapshot_id"] is not None
                 assert disconnected["collection_desired_state"] == "running"
@@ -1387,13 +1395,14 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 simulator = simulator_start()
                 recovered = until_evidence(
                     "same-source reconnect, new live receive and new DuckLake snapshot",
-                    lambda: (
-                        row if row is not None
-                        and row["opcua_session_last_state"] == "connected"
-                        and row["last_live_received_at"] != first_received
-                        and row["last_live_history_snapshot_id"] not in (None, first_snapshot)
-                        else None
-                    ) if (row := source_row(page)) is not None else None,
+                    lambda: matching_source(
+                        page,
+                        lambda row: (
+                            row["opcua_session_last_state"] == "connected"
+                            and row["last_live_received_at"] != first_received
+                            and row["last_live_history_snapshot_id"] not in (None, first_snapshot)
+                        ),
+                    ),
                 )
                 assert recovered["source_id"] == source_id
                 assert recovered["asset_id"] == asset_id
