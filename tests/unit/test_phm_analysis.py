@@ -248,9 +248,13 @@ def test_rul_output_reports_change_and_applicability(tmp_path: Path) -> None:
         now=_clock,
     )
     assert results[0].output["change_from_previous"] is None
-    assert results[1].output["change_from_previous"] == -10.0
-    assert [r.output["applicability"] for r in results] == ["inside", "outside"]
+    assert results[0].output["applicability"] == "inside"
     assert results[0].output["unit"] == "acquisition-interval"
+    # Outside the declared operating conditions a remaining-life estimate is not produced.
+    assert results[1].state is StepState.SKIPPED and results[1].output == {}
+    assert results[1].reason == (
+        "RUL applicability unavailable: operating_condition=c2 is outside ['c1']"
+    )
 
 
 def test_change_feed_returns_only_newer_results(tmp_path: Path) -> None:

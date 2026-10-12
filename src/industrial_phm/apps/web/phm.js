@@ -355,6 +355,10 @@ async function focusStep(position) {
   root.append(node("h3", (step.event_start ? time(step.event_start) : "획득 #" + step.position) + " · 입력과 모델 출력"));
   if (step.state !== "analyzed") {root.append(node("p", "분석 불가: " + step.reason));return;}
   root.append(node("p", "이상 점수 " + number(step.output.score) + " · 임계값 " + number(step.output.threshold) + (step.output.exceeds_threshold ? " (초과)" : " (이하)")));
+  if (step.output.sequence_positions) {
+    const positions = step.output.sequence_positions;
+    root.append(node("p", "과거 " + positions.length + "개 연속 획득 #" + positions[0] + " → #" + positions.at(-1) + "을 입력으로 사용했습니다. 원본 파형은 현재 획득입니다.", "muted"));
+  }
   const facts = node("div", "", "phm-facts");
   for (const [name, value] of Object.entries(step.features || {})) facts.append(node("span", featureLabel(name) + " " + number(value)));
   root.append(facts);
@@ -461,7 +465,7 @@ function renderRul() {
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
   const output = (entry.package && entry.package.output) || {};
-  if (!analyzed.length) {state.className = "state";state.textContent = "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
+  if (!analyzed.length) {state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const unit = unitText(last.output.unit);
   const period = output.step_period_seconds;
@@ -473,10 +477,17 @@ function renderRul() {
     card("마지막 RUL 추정", number(last.output.estimate, 1) + " " + unit,
       (period ? "기록 주기 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
     card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "정상 진행이면 획득마다 약 -1"),
-    card("검증 오차 (MAE)", number(validation.mean_asset_mean_absolute_error, 1) + " " + unit,
+    card(validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차 (MAE)" : "검증 오차 (MAE)", number(validation.mean_asset_mean_absolute_error, 1) + " " + unit,
       sameAsset ? "이 설비 검증 MAE " + number(sameAsset.mean_absolute_error, 1) + " · 편향 " + signed(sameAsset.mean_signed_error) : "다른 설비 검증 평균 · 이 설비 검증값 없음"),
     card("적용 범위", applicabilityText(last.output.applicability), "학습 운전 조건과 비교"),
   );
+  if (last.output.sequence_positions) {
+    state.textContent += " · 과거 " + last.output.sequence_positions.length + "개 획득으로 계산";
+  }
+  if (validation.metrics_origin === "recorded-research-model") {
+    state.textContent += " · MAE는 기존 연구 수치이며 이 가중치의 별도 성능 검증이 아닙니다.";
+  }
+  if (orderedSteps(entry).at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + orderedSteps(entry).at(-1).reason;
   const axis = axisFor(entry);
   const domain = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
   byId("rul-chart").append(linePlot({steps: analyzed, value: (step) => step.output.estimate, axis, height: 190, domain,
@@ -518,6 +529,8 @@ function renderModelCard(root, pkg) {
   add("모델", (pkg.recipe_id || "") + " · " + (TASK_LABEL[pkg.output.task] || pkg.output.task));
   add("패키지", pkg.package_id);
   add("학습 데이터", [scope.dataset_id, scope.fold_id, scope.partition].filter(Boolean).join(" · ") + (scope.asset_ids ? " · " + scope.asset_ids.length + "개 설비" : ""));
+  if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스 입력", "과거 " + pkg.input.sequence_length + "개 획득 · 현재 시점이 오른쪽 끝");
+  if (validation.performance_note) add("성능 수치 범위", validation.performance_note);
   if (scope.member) add("참조 기록", scope.member);
   if (scope.period) add("학습 기간", scope.period);
   if (scope.timezone_assumption) add("시각 가정", scope.timezone_assumption + " · 원본 시간대 미확인");

@@ -104,17 +104,7 @@ def prepare_xjtu_lstm_sequence_inputs(
         expected_assets=fold.validation,
     )
 
-    transformed_train = _transform_complete_partition(preprocessing_state, ordered_train)
-    transformed_validation = _transform_complete_partition(
-        preprocessing_state,
-        ordered_validation,
-    )
-    reference_observations = tuple(
-        _sequence_observation(vector, row, partition="train", vector_index=index)
-        for index, (vector, row) in enumerate(zip(ordered_train, transformed_train, strict=True))
-        if _acquisition_index(vector, vector_index=index)
-        <= early_third_length(get_xjtu_expected_acquisition_count(vector.asset_id))
-    )
+    transformed_validation = _transform_complete_partition(preprocessing_state, ordered_validation)
     validation_observations = tuple(
         _sequence_observation(vector, row, partition="validation", vector_index=index)
         for index, (vector, row) in enumerate(
@@ -123,12 +113,7 @@ def prepare_xjtu_lstm_sequence_inputs(
     )
 
     try:
-        reference = construct_sequence_windows(
-            reference_observations,
-            feature_set_id=preprocessing_state.feature_set_id,
-            feature_names=preprocessing_state.feature_names,
-            spec=XJTU_LSTM_SEQUENCE_SPEC,
-        )
+        reference = prepare_xjtu_lstm_reference(preprocessing_state, ordered_train)
         validation = construct_sequence_windows(
             validation_observations,
             feature_set_id=preprocessing_state.feature_set_id,
@@ -144,6 +129,30 @@ def prepare_xjtu_lstm_sequence_inputs(
         complete_train_acquisition_count=len(ordered_train),
         reference=reference,
         validation=validation,
+    )
+
+
+def prepare_xjtu_lstm_reference(
+    state: PreprocessingState, train_vectors: Sequence[VibrationFeatureVector]
+) -> SequenceConstruction:
+    """Build the same frozen train reference without requiring validation observations."""
+    _validate_preprocessing_state(state)
+    fold = next(f for f in get_xjtu_reference_split().folds if f.fold_id == state.fold_id)
+    ordered = _ordered_partition_vectors(
+        state, train_vectors, partition="train", expected_assets=fold.train
+    )
+    transformed = _transform_complete_partition(state, ordered)
+    observations = tuple(
+        _sequence_observation(vector, row, partition="train", vector_index=index)
+        for index, (vector, row) in enumerate(zip(ordered, transformed, strict=True))
+        if _acquisition_index(vector, vector_index=index)
+        <= early_third_length(get_xjtu_expected_acquisition_count(vector.asset_id))
+    )
+    return construct_sequence_windows(
+        observations,
+        feature_set_id=state.feature_set_id,
+        feature_names=state.feature_names,
+        spec=XJTU_LSTM_SEQUENCE_SPEC,
     )
 
 
