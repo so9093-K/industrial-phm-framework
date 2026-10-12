@@ -140,6 +140,10 @@ collection/analysis process와 SQLite/DuckLake history, source/review repositori
 
 ### 7. CI 검증과 수용 범위를 새 코드 경로까지 확장한다
 
+> 이 절은 Operations Web 전환 당시의 검증 계획에 관한 결정 기록입니다. 경로 분류와
+> `required` 집계 job은 이후 삭제되었으며, 현재 실행되는 CI 검사는
+> [테스트 정책](../testing-policy.md)과 `.github/workflows/ci.yml`을 따릅니다.
+
 - Python의 Ruff/format/mypy/pytest와 runtime contracts는 유지한다.
   새 Web UI에는 JS/TS lint/format/typecheck, component behavior test,
   production build, packaged asset test를 추가한다. **경로 분류 CI에서

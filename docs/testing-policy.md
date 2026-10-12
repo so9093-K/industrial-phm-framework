@@ -41,10 +41,10 @@ tests/
 Integration test도 concrete boundary를 보호해야 하며 미래용 directory나 fixture framework를 미리 만들지
 않습니다.
 
-현재 Operations acceptance gate는 외부 dataset/network를 사용하지 않습니다. Packaged synthetic demo를 실제
-subprocess로 시작해 workspace 생성 → runtime ready → finalized window/analysis evidence → graceful stop →
-같은 workspace restart/state 보존을 확인합니다. Base unit suite에서는 optional Operations runtime이 없으면
-skip하고, CI의 `operations` extra 환경에서 별도 gate로 실행합니다.
+Operations 수용 테스트는 실제 synthetic workspace에서 subprocess·저장 이력·Web 동작과
+재시작 후 상태 보존 등을 검증합니다. 별도 optional 런타임·브라우저가 필요한 테스트는
+기본 CI의 단위·계약 검사와 구별하여 해당 변경을 검토할 때 명시적으로 실행합니다.
+의존성이 없어 skip된 테스트를 실행 성공으로 간주하지 않습니다.
 
 ## 4. Do Not Reimplement Validation in Tests
 
@@ -59,7 +59,7 @@ PR 기본 test suite는 대형 공개 데이터셋을 내려받지 않습니다.
 - unit: 작은 synthetic input
 - contract: hand-written representative fixture
 - integration: 필요한 최소 real sample 또는 명시적 opt-in local data
-- full benchmark: 별도 manual/scheduled research workflow
+- full benchmark: 필요한 원본 데이터가 있을 때 명시적으로 실행하는 연구 평가
 
 remote endpoint availability는 unit test가 아닙니다. 실제 provider smoke check가 필요하면 PR gate와 분리하고
 실패가 코드 regression인지 외부 서비스 문제인지 구분할 수 있게 합니다.
@@ -73,19 +73,8 @@ fixture/helper 추상화는 실제 중복이 반복된 이후 도입합니다. �
 
 ## 7. Coverage
 
-coverage는 누락된 경로를 발견하는 진단 정보이지 품질 목표 자체가 아닙니다. 전체 coverage percentage를
-높이기 위해 가치 없는 branch test를 생성하지 않습니다.
-
-특히 다음 경로를 우선 확인합니다.
-
-- contract invariant
-- data provenance/integrity validation
-- split leakage prevention
-- artifact compatibility
-- CLI/API error path
-
-coverage threshold가 필요해지는 경우 repository 규모와 regression history가 충분히 쌓인 뒤 별도 결정으로
-도입합니다.
+기본 CI는 coverage 비율을 측정하거나 합격 기준으로 사용하지 않습니다. 누락 경로를
+조사할 필요가 있을 때만 별도로 분석하며, 테스트 추가 여부는 실제 회귀 위험으로 판단합니다.
 
 ## 8. Property and Mutation Testing
 
@@ -101,28 +90,25 @@ property-based testing이나 mutation testing은 기본 도구가 아닙니다. 
 
 | Failure | Primary owner |
 | --- | --- |
-| OPC UA reconnect / delivery loss | live acquisition runtime contract / fault gate |
+| OPC UA reconnect / delivery loss | live acquisition runtime contract / fault-recovery test |
 | spool → DuckLake recovery와 idempotent replay | runtime contract |
 | observation window cursor / restart | window contract |
-| Operations first-run / navigation / isolated sample | Operations Chromium acceptance (필수 실행, 무의도 skip 금지) |
-| 실제 browser에서 Live observation 가시성 | acceptance / fault browser gate |
+| Operations first-run / navigation / isolated sample | Operations browser acceptance (해당 UI 변경 시 실행) |
+| 실제 browser에서 Live observation 가시성 | browser acceptance / recorded fault-recovery test |
 | 연구용 marimo same-cell `.value` runtime regression | 연구 marimo structural contract (Operations 제품 UI와 별개) |
 | Operations Web의 read model·HTTP·Supervisor writer 경계 | Operations runtime/API integration 및 Chromium acceptance |
 | presenter의 단순 문구·HTML 모양 | 기본적으로 regression owner를 두지 않음 |
 
 새 회귀 테스트를 추가할 때는 먼저 이 표 또는 기존 테스트에서 같은 failure owner가 있는지 확인합니다.
 
-## 필수 테스트 skip 정책
+## 선택 실행 테스트와 skip
 
-`operations` extra와 Chromium을 설치한 CI의 **필수 제품 수용 테스트**가
-불필요한 구형 의존성 `pytest.importorskip` 때문에 실행되지 않으면 녹색 통과로
-취급하지 않습니다. CI는 필수 런타임·브라우저 의존성을 먼저 import/검사하며,
-정상적으로 지원되는 OS에서 필수 테스트가 skip되면 원인을 조사합니다.
-선택적 연구 데이터·다른 OS 기능을 위한 명시적 skip과는 구별합니다.
+Operations 의존성·Chromium·실제 데이터가 필요한 테스트는 해당 범위 검증 시 명시적으로 실행합니다.
+실행 환경에 필요한 의존성이 준비됐는데 관련 테스트가 skip된다면 통과로 간주하지 않습니다.
+원본 기록이 없어 실행하지 못한 실측 replay 역시 미실행으로 표시합니다.
 
-소스 파일에 CSS selector나 함수 이름이 존재한다는 정적 문자열 검사는 제품 동작
-검증을 대체하지 않습니다. 브라우저의 실제 HTTP 상태, 화면, API 근거 및 저장된
-identity를 검증하고, 외부 recorded fault replay 미실행은 따로 표기합니다.
+소스 파일에 CSS selector나 함수 이름이 있다는 문자열 검사만으로 UI의 실제 동작을
+증명하지 않습니다. 실제 브라우저 검증에서는 HTTP 상태, 화면 및 저장된 근거를 확인합니다.
 
 ## 10. Review Checklist
 

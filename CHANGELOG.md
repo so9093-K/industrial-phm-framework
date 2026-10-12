@@ -9,6 +9,12 @@
 
 ## [Unreleased]
 
+### Repository 정리 (2026-10-12)
+
+- PR 경로 분류·도메인별 과도한 CI 및 wheel rollback/systemd 전용 검증 스크립트를 실제 삭제하고 lock·lint·type·unit/contract 중심의 단일 job으로 단순화합니다.
+- 루트 README를 현재 PHM 제품 목적, XJTU-SY/AI-Hub 모델 시나리오와 빠른 시작 중심으로 다시 작성합니다.
+- 삭제된 CI의 배포·브라우저 수용 시험은 지속적인 자동 보증이 아니며, 제품 기능과 관련 회귀 테스트 파일은 보존합니다.
+
 ### PHM 모델 순차 추론과 이상 탐지 · RUL 모니터링
 
 - 학습된 모델을 데이터 전용 패키지로 저장하고 적재할 때 해시·probe로 동일성을 검증합니다(ADR-0025).

@@ -14,13 +14,8 @@
 
 ## 검증
 
-- [ ] `uv lock --check`
-- [ ] `uv sync --locked`
-- [ ] `uv run --locked ruff check .`
-- [ ] `uv run --locked ruff format --check .`
-- [ ] `uv run --locked mypy`
-- [ ] `uv run --locked pytest`
-- [ ] `uv build`
+- 실행한 검사와 결과:
+- 미실행/skip된 검사와 이유(해당하는 경우):
 
 ## 관련 ADR
 

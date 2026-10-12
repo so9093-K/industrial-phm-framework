@@ -8,21 +8,23 @@
 ```bash
 uv python install 3.14
 uv lock --check
-uv sync --locked
+uv sync --locked --extra operations
 ```
 
 제품의 정상 repository-local 실행은 root `make up`을 사용합니다. 아래 `uv` 명령은 개발 환경과
 변경 검증의 source of truth이며, 제품 lifecycle front door를 대체하지 않습니다.
 
-변경 제출 전:
+기본 소스 검증:
 
 ```bash
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv run --locked mypy
-uv run --locked pytest
-uv build
+uv run --locked --extra operations ruff check .
+uv run --locked --extra operations ruff format --check .
+uv run --locked --extra operations mypy
+uv run --locked --extra operations pytest tests/unit tests/contract
 ```
+
+의도적으로 제품 lifecycle·Web·데이터 계약·패키징을 변경했다면 관련 integration/acceptance 테스트를
+추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는 `uv build`도 확인합니다.
 
 의존성을 추가·제거·변경할 때는 `pyproject.toml`을 수정한 뒤 `uv lock`으로 `uv.lock`을 갱신하고
 두 파일을 같은 변경 단위로 commit합니다. 일반 개발과 CI에서는 lockfile을 암묵적으로 갱신하지 않습니다.
