@@ -37,16 +37,16 @@ jobs:
         run: uv lock --check
 
       - name: Sync locked environment
-        run: uv sync --locked
+        run: uv sync --locked --extra operations
 
       - name: Lint
-        run: uv run --locked ruff check .
+        run: uv run --locked --extra operations ruff check .
 
       - name: Format check
-        run: uv run --locked ruff format --check .
+        run: uv run --locked --extra operations ruff format --check .
 
       - name: Type check
-        run: uv run --locked mypy
+        run: uv run --locked --extra operations mypy
 
       - name: Unit and contract tests
-        run: uv run --locked pytest tests/unit tests/contract
+        run: uv run --locked --extra operations pytest tests/unit tests/contract

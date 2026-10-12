@@ -8,7 +8,7 @@
 ```bash
 uv python install 3.14
 uv lock --check
-uv sync --locked
+uv sync --locked --extra operations
 ```
 
 제품의 정상 repository-local 실행은 root `make up`을 사용합니다. 아래 `uv` 명령은 개발 환경과
@@ -17,10 +17,10 @@ uv sync --locked
 기본 소스 검증:
 
 ```bash
-uv run --locked ruff check .
-uv run --locked ruff format --check .
-uv run --locked mypy
-uv run --locked pytest tests/unit tests/contract
+uv run --locked --extra operations ruff check .
+uv run --locked --extra operations ruff format --check .
+uv run --locked --extra operations mypy
+uv run --locked --extra operations pytest tests/unit tests/contract
 ```
 
 의도적으로 제품 lifecycle·Web·데이터 계약·패키징을 변경했다면 관련 integration/acceptance 테스트를
