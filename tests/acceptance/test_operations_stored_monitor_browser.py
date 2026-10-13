@@ -199,7 +199,9 @@ def test_connected_and_failed_model_never_replaces_stored_measurements(tmp_path:
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     template = store.list_bindings()[0]
     store.create_binding(
-        PhmBinding("linked-model", template.package_id, "model-input", ASSET, template.step_kind, T0)
+        PhmBinding(
+            "linked-model", template.package_id, "model-input", ASSET, template.step_kind, T0
+        )
     )
     deliver(workspace, tmp_path / "waves", 1, 0.5)
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
@@ -235,7 +237,9 @@ def test_connected_and_failed_model_never_replaces_stored_measurements(tmp_path:
                 pw.expect(reading).to_contain_text("12.5")
                 # A real inference refusal and then absent package metadata keep observation intact.
                 original.file_path.write_text("changed after receipt")
-                snapshots.record(replace(original, ordinal=2, source_id="model-input", asset_id=ASSET))
+                snapshots.record(
+                    replace(original, ordinal=2, source_id="model-input", asset_id=ASSET)
+                )
                 analyze(workspace)
                 pw.expect(page.locator("#phm-monitor-assets")).to_contain_text(
                     "최근 진동 파형을 읽을 수 없음", timeout=10000
