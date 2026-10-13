@@ -316,3 +316,9 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 @media(max-width:700px){.phm-trends,.phm-original-waveforms{grid-template-columns:1fr}#anomaly .condition-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.phm-controls{align-items:start;gap:7px}.phm-controls select{max-width:100%}.phm-chart-heading select{max-width:70%}}
 .phm-chart-grid{stroke:#e3ebef;fill:none;stroke-width:1}.phm-trends .phm-interval{opacity:.18}.phm-trends .phm-focus{stroke-width:1;stroke-dasharray:3 3}
 #anomaly-latest{background:transparent;color:#376675;border:1px solid #b9ccd5;padding:6px 9px;font-size:.76rem;font-weight:500}
+
+/* Stored measurements: mean line, min-max range and unusable buckets, never a health color. */
+.monitor-stored-range{stroke:#9cc3cc;stroke-width:3;stroke-linecap:round}
+.monitor-stored-missing{fill:#fff;stroke:#b56f53;stroke-width:1.5}
+.monitor-stored-source{font-size:.76rem;color:#45616f;margin:8px 0 0;overflow-wrap:anywhere}
+.monitor-reading small+small{margin-top:2px}

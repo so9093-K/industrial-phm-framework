@@ -5,6 +5,7 @@ const svgNode = (tag, attrs = {}) => {
   const n = document.createElementNS(ns, tag);for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);return n;
 };
 const number = (n) => n.toLocaleString("ko-KR", {maximumFractionDigits: 3});
+const finite = (n) => typeof n === "number" && Number.isFinite(n) ? number(n) : "—";
 export const channelName = (name) => ({Horizontal_vibration_signals: "수평 진동", Vertical_vibration_signals: "수직 진동"}[name] || name);
 export function signalChoices(preview) {
   if (!preview?.available) return [];
@@ -125,5 +126,50 @@ export function drawMeasuredTrend(root, rows, channel) {
   label("#" + first.position, {x: left, y: 146});
   if (rows.length > 1) label("#" + last.position, {x: right, y: 146, "text-anchor": "end"});
   label("기록 번호", {x: (left + right) / 2, y: 146, "text-anchor": "middle"});
+  root.append(svg);
+}
+
+// Stored Asset History buckets: mean line with the min-max range of usable values.
+// A missing bucket is a gap, never zero or an interpolated line. A bucket with stored
+// observations but no usable value (missing/non-good/conflicting) is a hollow marker on the axis.
+export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, unit, height = 170) {
+  root.replaceChildren();
+  const start = Date.parse(startAt), end = Date.parse(endAt), step = bucketSeconds * 1000;
+  const usable = buckets.filter((b) => b.usable_count > 0 && typeof b.mean === "number" && Number.isFinite(b.mean));
+  if (!Number.isFinite(start) || !(end > start) || !(step > 0)) return;
+  const width = Math.max(260, root.clientWidth), left = 56, right = width - 14, top = 14, bottom = height - 30;
+  const lows = usable.map((b) => typeof b.minimum === "number" ? b.minimum : b.mean);
+  const highs = usable.map((b) => typeof b.maximum === "number" ? b.maximum : b.mean);
+  const min = usable.length ? Math.min(...lows) : 0, max = usable.length ? Math.max(...highs) : 1;
+  const pad = (max - min) * .08 || Math.abs(max) * .05 || 1;
+  const x = (at) => left + (at - start) / (end - start) * (right - left);
+  const y = (value) => bottom - (value - min + pad) / (max - min + 2 * pad) * (bottom - top);
+  const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, class: "monitor-raw-chart monitor-stored-trend", role: "img",
+    "aria-label": "저장된 측정값의 구간 평균과 최소·최대 범위. 값이 없는 구간은 연결하지 않습니다."});
+  svg.append(svgNode("path", {d: `M${left} ${top}V${bottom}H${right}`, class: "axis"}));
+  let path = "", previous = null;
+  for (const bucket of [...buckets].sort((a, b) => Date.parse(a.bucket_start) - Date.parse(b.bucket_start))) {
+    const at = Date.parse(bucket.bucket_start), index = Math.round((at - start) / step);
+    const centre = x(Math.min(end, at + step / 2));
+    if (!(bucket.usable_count > 0) || typeof bucket.mean !== "number" || !Number.isFinite(bucket.mean)) {
+      svg.append(svgNode("circle", {cx: centre, cy: bottom - 3, r: 3, class: "monitor-stored-missing"}));
+      previous = null;continue;
+    }
+    if (typeof bucket.minimum === "number" && typeof bucket.maximum === "number" && bucket.maximum > bucket.minimum) {
+      svg.append(svgNode("path", {d: `M${centre.toFixed(2)} ${y(bucket.minimum).toFixed(2)}V${y(bucket.maximum).toFixed(2)}`, class: "monitor-stored-range"}));
+    }
+    path += (previous !== null && index === previous + 1 ? "L" : "M") + centre.toFixed(2) + " " + y(bucket.mean).toFixed(2) + " ";
+    const dot = svgNode("circle", {cx: centre, cy: y(bucket.mean), r: 2.5, class: "monitor-raw-dot phase-0"});
+    const title = svgNode("title");
+    title.textContent = formatTime(bucket.bucket_start) + " 구간 · 평균 " + number(bucket.mean) + (unit ? " " + unit : "")
+      + " · 최소 " + finite(bucket.minimum) + " · 최대 " + finite(bucket.maximum) + " · 유효 " + bucket.usable_count + "개";
+    dot.append(title);svg.append(dot);
+    previous = index;
+  }
+  svg.append(svgNode("path", {d: path, class: "monitor-raw-line phase-0"}));
+  const text = (label, attrs) => {const n = svgNode("text", attrs);n.textContent = label;svg.append(n);};
+  if (usable.length) {text(number(max) + (unit ? " " + unit : ""), {x: 2, y: top + 9});text(number(min), {x: 2, y: bottom});}
+  text(formatAxisTime(start, end - start), {x: left, y: height - 4});
+  text(formatAxisTime(end, end - start), {x: right, y: height - 4, "text-anchor": "end"});
   root.append(svg);
 }
