@@ -42,9 +42,10 @@
             <p id="monitor-signal-context" class="muted"></p>
             <div class="monitor-signal-controls"><label id="monitor-stream-field" hidden>측정 소스<select id="monitor-input-stream"></select></label><label>측정 신호<select id="monitor-signal-channel" disabled></select></label><label id="monitor-range-field" hidden>표시 구간<select id="monitor-signal-range"><option value="recent">최근 연속 기록</option><option value="all">조회 기록 전체</option></select></label><label id="monitor-history-range-field" hidden>표시 구간 (마지막 기록까지)<select id="monitor-history-range"><option value="15m">15분</option><option value="1h" selected>1시간</option><option value="24h">24시간</option><option value="7d">7일</option></select></label><button id="monitor-all-sources" type="button" hidden>설비 전체 신호 보기</button><button id="monitor-last-good" type="button" hidden>마지막 성공 입력 보기</button></div>
             <div id="monitor-signal-reading" class="monitor-reading" hidden></div>
-            <section class="monitor-detection" aria-labelledby="monitor-detection-title"><h4 id="monitor-detection-title">이상 탐지</h4><div id="monitor-detection-results"></div></section>
             <p id="monitor-signal-state" role="status" class="muted">설비를 선택하면 실제 원본 신호를 표시합니다.</p>
             <div id="monitor-signal-chart" aria-label="선택 설비의 실제 측정 신호"></div><p id="monitor-signal-legend" class="muted"></p>
+            <section class="monitor-detection" aria-labelledby="monitor-detection-title"><h4 id="monitor-detection-title">관련 PHM 분석</h4><div id="monitor-detection-results"></div></section>
+
           </section>
         </div>
         <details id="monitor-analysis-details" class="monitor-analysis"><summary>모델·입력 상세</summary><p id="monitor-analysis-context" class="muted"></p><div class="monitor-score"><p id="monitor-score-state" class="muted"></p><div id="monitor-score-chart" aria-label="선택한 연결 모델의 저장된 결과 추세"></div></div><div id="monitor-analysis-models"></div></details>

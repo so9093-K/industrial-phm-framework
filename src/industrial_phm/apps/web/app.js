@@ -1975,6 +1975,10 @@ async function readMonitorFacts() {
     if (sourceSnapshot.read_error_scopes?.length || sourceSnapshot.live_evidence_error_scopes?.length) errors.push("sources-store");
   } else {sourceSnapshot = null;sourceReadState = "error";errors.push("sources");}
   assetDetails();renderWorkspace();
+  if (document.body.dataset.view === "monitor") {
+    byId("refresh").disabled = false;
+    if (byId("notice").textContent === "저장된 관측 현황을 불러오는 중입니다.") setNotice("");
+  }
   return {monitor, sources: sourceSnapshot, errors};
 }
 document.addEventListener("phm-monitor-count", (event) => {phmModelCount = event.detail;renderWorkspace();});

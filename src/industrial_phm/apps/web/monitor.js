@@ -118,7 +118,8 @@ function render(data, base) {
     const button = node("button", "", "monitor-asset");button.type = "button";button.dataset.assetId = f.assetId;button.setAttribute("aria-pressed", f.assetId === selectedAsset);
     const heading = node("span", "", "monitor-asset-heading");heading.append(node("strong", assetName(f.assetId)), node("small", f.items.some(replay) ? "기록 재생" : "저장·수신"));
     const row = assetRow(base, f.assetId);
-    const message = f.notes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.compared.length
+    const analysisNotes = f.notes.filter((n) => !["receipt", "read"].includes(n.kind));
+    const message = analysisNotes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.compared.length
       ? (f.items.some((i) => i.step_kind === "observation-window") ? "전기 신호" : "진동 신호") + " · 기준 초과 없음" : f.items.length ? "신호 기준 비교 없음"
       : flowLabels[row?.data_flow_status] || "수신 상태 미확인");
     const assetSources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === f.assetId);
