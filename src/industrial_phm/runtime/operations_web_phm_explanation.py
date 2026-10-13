@@ -18,6 +18,7 @@ from industrial_phm.genai.local_explanation import (
     ExplanationProvider,
     generate_local_explanation,
     ungrounded_numbers,
+    verdict_phrases,
 )
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -60,7 +61,7 @@ class ExplanationManager:
                     identifier,
                     owner=self.owner,
                     text=text,
-                    warnings=ungrounded_numbers(text, context),
+                    warnings=ungrounded_numbers(text, context) + verdict_phrases(text),
                 )
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()

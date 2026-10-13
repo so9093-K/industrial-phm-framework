@@ -193,6 +193,14 @@ def test_facts_state_meanings_the_model_must_not_reinterpret() -> None:
     assert "FAIL (protocol v1 §3)" in anomaly and "RUL" not in anomaly
 
 
+def test_status_verdicts_are_flagged_but_negations_are_not() -> None:
+    from industrial_phm.genai.local_explanation import verdict_phrases
+
+    observed = "이 데이터는 정상 범위 내에 있음을 시사합니다. 이상 없음으로 보이며 고장입니다."
+    assert verdict_phrases(observed) == ["고장입니다", "이상 없음", "정상 범위"]
+    assert verdict_phrases("임계값 이하는 '정상' 판정이 아닙니다. 고장 판정이 아닙니다.") == []
+
+
 def test_numbers_absent_from_the_stored_context_are_flagged() -> None:
     from industrial_phm.genai.local_explanation import ungrounded_numbers
 

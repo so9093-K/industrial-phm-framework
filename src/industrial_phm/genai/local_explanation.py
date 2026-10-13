@@ -58,6 +58,7 @@ _COMMON_INSTRUCTIONS = (
     "의미를 바꾸지 말고 그대로 따르세요. "
     "저장된 수치를 재계산·반올림 외 변형하지 말고, JSON에 없는 수치를 만들지 마세요. "
     "고장 확률, 진단, 물리적 고장 시각, 신뢰구간, 정비 지시를 만들지 마세요. "
+    "설비 상태를 '정상', '이상 없음', '고장'으로 판정하지 마세요. "
     "'관측 사실', '모델 해석', '한계', '사람이 확인할 사항' 네 부분으로 나누세요. "
     "화면에 일반 텍스트로 표시되므로 마크다운 기호(*, #, $)를 쓰지 마세요."
 )
@@ -79,6 +80,20 @@ def explanation_instructions(context: dict[str, object]) -> str:
     output = context.get("output")
     task = output.get("task") if isinstance(output, dict) else None
     return _COMMON_INSTRUCTIONS + " " + _TASK_INSTRUCTIONS.get(str(task), "")
+
+
+# Status verdicts the product never makes from a stored result; a score under its threshold
+# is a distance from training data, not "normal". Negations such as "정상 판정이 아닙니다" pass.
+_VERDICT = re.compile(
+    r"정상\s*(?:범위|상태|작동|운전|가동|입니다|이다|으로\s*(?:판단|보))"
+    r"|이상\s*(?:없음|이\s*없)"
+    r"|고장\s*(?:입니다|상태|으로\s*판단)"
+)
+
+
+def verdict_phrases(text: str) -> list[str]:
+    """Status verdicts the explanation asserted although no stored result makes them."""
+    return sorted({match.group() for match in _VERDICT.finditer(text)})
 
 
 def ungrounded_numbers(text: str, context: object) -> list[str]:
