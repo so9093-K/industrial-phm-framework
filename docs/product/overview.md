@@ -402,36 +402,18 @@ Acceptance criteria:
   표시합니다.
 - displayed aggregate에서 source observation 또는 raw artifact까지 provenance를 따라갈 수 있습니다.
 
-### Prototype 진입 기준
-
-첫 interactive prototype은 LSTM result schema와 `ExperimentInspection` reader가 실제 Sequence Construction 및
-reconstruction evidence를 제공한 뒤 시작합니다. Prototype은 위 세 view의 navigation과 정보 이해도를 검증하며,
-frontend framework, API schema, authentication 또는 persistent workflow state를 선택하는 단계가 아닙니다.
-
-다음 질문을 representative XJTU와 IMS artifact로 답할 수 있으면 low-fidelity baseline을 충족한 것으로 봅니다.
-
-- 무엇을 어떤 data scope와 configuration으로 실행했는가?
-- 어느 stage에서 population의 값 또는 단위가 바뀌었는가?
-- model이 실제로 fit/scoring한 population은 무엇인가?
-- 현재 result가 제공하는 evidence와 제공하지 않는 PHM capability는 무엇인가?
-- 표시된 수치를 어떤 artifact, config와 code revision까지 추적할 수 있는가?
-
-Cross-schema low-fidelity implementation은 `notebooks/02_developer_workbench.py`에 있습니다. Version-controlled XJTU
-Isolation Forest holdout, IMS Isolation Forest cross-test와 XJTU LSTM development artifact를 각각 schema-specific
-reader로 검증하고 같은 `ExperimentInspection` stage vocabulary로 표시합니다. Acquisition-level model은 Sequence
-Construction을 `not applicable`로, raw trajectory/residual을 보존하지 않은 result는 detailed evidence를
-`not recorded`로 표현합니다. 이 implementation은 navigation, population unit, evidence availability와 provenance
-이해도를 검토하기 위한 research-tooling interface이며 frontend/API/persistent state 결정을 만들지 않습니다.
+구현의 실행 방법과 결과 탐색 진입점은 [Applications](../../apps/README.md)와
+[Notebooks](../../notebooks/README.md)가 소유합니다. 이 문서는 화면이 보존할 정보와 의미의 계약을 다룹니다.
 
 ## 4. Experiment evidence와 operational result 경계
 
-현재 repository의 authoritative result는 주로 **experiment evidence**입니다. 이는 dataset/split, fit/reference
-population, model configuration, retrospective/fixed evaluation과 code revision을 설명하기 위한 artifact입니다.
+**Experiment evidence**는 dataset/split, fit/reference population, model configuration,
+retrospective/fixed evaluation과 code revision을 설명하는 artifact입니다.
 
-향후 운영 UI가 소비할 **operational result**는 다른 질문을 가져야 합니다.
+운영 UI가 소비하는 **operational result**는 자산·입력 시점·저장된 모델 출력에 관한 질문을 다룹니다.
 
 ```text
-Experiment evidence                 Future operational result
+Experiment evidence                 Operational result
 -------------------------------     --------------------------------
 dataset / source scope              physical asset / measurement point
 split / partition                   observation time
@@ -443,15 +425,14 @@ code/artifact provenance            deployment/inference provenance
 ```
 
 Experiment artifact에서 observation time, validated alarm state, maintenance priority 또는 current asset health를
-추론해 operational field로 만들지 않습니다. 반대로 향후 operational result가 생겨도 experiment split이나
+추론해 operational field로 만들지 않습니다. 반대로 operational result에 experiment split이나
 development statistic을 억지로 항상 포함시키지 않습니다.
 
 
 ### Analysis Application read model
 
-현재 Analysis Application을 만들기 위해 full operational result contract가 먼저 완성될 때까지 기다리지 않습니다.
-이미 검증된 experiment/analysis output을 사용자에게 보여주기 위한 **presentation-oriented read model**을 둘 수
-있습니다. 이 read model은 새로운 numerical Source of Truth나 universal `PHMResult`가 아니며, 기존 result와
+검증된 experiment/analysis output은 **presentation-oriented read model**을 통해 화면에 표시합니다.
+이 read model은 새로운 numerical Source of Truth나 universal `PHMResult`가 아니며, 기존 result와
 evidence를 재계산하거나 의미를 승격하지 않습니다.
 
 현재 loading boundary는 `AnalysisSurface`와 optional `AnalysisView`로 나뉩니다.
@@ -585,8 +566,7 @@ UI는 사실, 모델 추정, 모델 설명 근거, 원인 가설, 정비 권고�
 
 ## 6. CLI도 UX
 
-현재 단계에서 가장 먼저 사용되는 제품 인터페이스는 CLI일 가능성이 높습니다. 따라서 CLI도 다음 UX 기준을
-적용합니다.
+CLI도 화면과 함께 사용되는 인터페이스로서 다음 UX 기준을 적용합니다.
 
 - 명령과 option 이름이 일관적일 것
 - 실패 이유와 다음 조치를 설명할 것

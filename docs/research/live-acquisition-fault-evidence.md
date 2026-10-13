@@ -164,13 +164,14 @@ not certification with a specific screen-reader product. Main auxiliary text is 
 are 12px. The obsolete Monitor reactive presentation and multi-signal Matplotlib renderer were
 removed; Assets retains its responsive single-signal Matplotlib charts.
 
-Review captures below show the full Monitor surface, including the bounded scrollable evidence
+The captures are pinned to the historical Marimo implementation in Git; they do not certify
+the current Web UI. Review captures below show the full Monitor surface, including the bounded scrollable evidence
 list. The interaction viewport height was 1000px; capture height was expanded at the same width
 to include the entire surface because Marimo scrolls its app viewport internally. These PNGs are
 human-review representations (each below 1 MiB), not canonical numerical evidence.
 
-- [1440px full Monitor](results/monitor-workspace-1440.png)
-- [1024px full Monitor](results/monitor-workspace-1024.png)
+- [1440px full Monitor](https://github.com/so9093-K/industrial-phm-framework/blob/30beec1aa0aacd8c63c1f7e592392f05530388b3/docs/research/results/monitor-workspace-1440.png)
+- [1024px full Monitor](https://github.com/so9093-K/industrial-phm-framework/blob/30beec1aa0aacd8c63c1f7e592392f05530388b3/docs/research/results/monitor-workspace-1024.png)
 
 This covers navigation integration for the opened default/current sections at these two widths;
 it does not certify every page submode, mobile layout, or field endpoint. Screenshots support
