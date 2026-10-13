@@ -243,6 +243,8 @@ function renderAnomaly() {
   const state = byId("anomaly-state");
   for (const id of ["anomaly-cards", "anomaly-feature-chart", "anomaly-score-chart", "anomaly-intervals", "anomaly-model"]) byId(id).replaceChildren();
   if (readError) {
+    byId("anomaly-asset-title").textContent = "데이터 조회 실패";
+    byId("anomaly-observation").textContent = "최신 결과를 확인할 수 없습니다. 이전 결과를 현재 상태로 표시하지 않습니다.";
     renderPhmExplanation("anomaly", "", null);
     for (const id of ["anomaly-features", "anomaly-detail"]) byId(id).replaceChildren();
     byId("anomaly-freshness").textContent = "";
@@ -250,6 +252,8 @@ function renderAnomaly() {
     state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다. 운영 관리 화면에서 분석 프로세스 상태를 확인하세요.";return;
   }
   if (!selected.anomaly) {
+    byId("anomaly-asset-title").textContent = "연결된 설비 없음";
+    byId("anomaly-observation").textContent = "모델이 연결되면 관측 결과를 표시합니다.";
     renderPhmExplanation("anomaly", "", null);
     state.className = "state";
     state.textContent = "이상 탐지 모델이 연결된 설비가 없습니다. `operations phm bind`로 검증된 모델 패키지를 설비 스트림에 연결하세요.";
@@ -259,6 +263,7 @@ function renderAnomaly() {
   const entry = series.get(selected.anomaly);
   if (!entry) return;
   const binding = choices.find((item) => item.binding_id === selected.anomaly);
+  byId("anomaly-asset-title").textContent = entry.binding.asset_id || "설비 정보 없음";
   byId("anomaly-freshness").textContent = freshness(entry);
   setReplayTag("anomaly-replay", entry);
   const steps = orderedSteps(entry);
@@ -278,17 +283,20 @@ function renderAnomaly() {
   if (entry.package && entry.package.validation && entry.package.validation.acceptance === "not-yet-evaluated") {
     state.textContent += " · 개발 모델: 합격 기준 검증 미완료";
   }
-  if (!analyzed.length) {renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;}
+  if (!analyzed.length) {
+    byId("anomaly-observation").textContent = skipped ? "이 모델로 분석되지 않은 입력이 있습니다. 입력 상태와 모델 규격을 확인하세요." : "분석 가능한 입력을 기다리고 있습니다.";
+    renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;
+  }
   const last = analyzed.at(-1);
+  byId("anomaly-observation").textContent = last.output.exceeds_threshold
+    ? "최근 분석의 참고 기준을 초과했습니다. 해당 시점의 원본 신호를 확인할 수 있습니다."
+    : "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.";
   const threshold = last.output.threshold;
   const openIntervals = entry.intervals.filter((item) => item.open);
   const cards = byId("anomaly-cards");
   cards.append(
-    card("최신 이상 점수", number(last.output.score), "임계값 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
-    card("검토 구간", entry.intervals.length + "개", openIntervals.length ? "진행 중 " + openIntervals.length + "개" : "진행 중 구간 없음"),
-    card("임계값 초과 step", analyzed.filter((step) => step.output.exceeds_threshold).length + "개", "전체 " + analyzed.length + "개 중"),
-    card("적용 범위", applicabilityText(last.output.applicability, entry.package),
-      entry.package.applicability.asset_id ? "연결한 설비 ID만 비교 · 운전 적합성 보증 아님" : "학습 운전 조건과 비교"),
+    card("최신 이상 점수", number(last.output.score), "참고 기준 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
+    card("기준 초과 구간", entry.intervals.length + "개", openIntervals.length ? "확인 중 " + openIntervals.length + "개" : "현재 열린 구간 없음"),
   );
   const axis = axisFor(entry);
   const full = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
@@ -471,12 +479,16 @@ function renderRul() {
   const state = byId("rul-state");
   for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model"]) byId(id).replaceChildren();
   if (readError) {
+    byId("rul-asset-title").textContent = "데이터 조회 실패";
+    byId("rul-validation-note").textContent = "";
     renderPhmExplanation("rul", "", null);
     byId("rul-freshness").textContent = "";
     byId("rul-replay").classList.add("hidden");
     state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다.";return;
   }
   if (!selected.rul) {
+    byId("rul-asset-title").textContent = "연결된 설비 없음";
+    byId("rul-validation-note").textContent = "";
     renderPhmExplanation("rul", "", null);
     state.className = "state";
     state.textContent = "RUL 모델이 연결된 설비가 없습니다. RUL은 수명 종료 사건이 기록된 데이터로 검증된 모델에서만 제공하며, 근거가 없는 설비에는 표시하지 않습니다.";
@@ -485,6 +497,8 @@ function renderRul() {
   }
   const entry = series.get(selected.rul);
   if (!entry) return;
+  byId("rul-asset-title").textContent = entry.binding.asset_id || "설비 정보 없음";
+  byId("rul-validation-note").textContent = "";
   byId("rul-freshness").textContent = freshness(entry);
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
@@ -500,11 +514,14 @@ function renderRul() {
   byId("rul-cards").append(
     card("마지막 RUL 추정", number(last.output.estimate, 1) + " " + unit,
       (period ? "기록 주기 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
-    card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "정상 진행이면 획득마다 약 -1"),
-    card(validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차 (MAE)" : "검증 오차 (MAE)", number(validation.mean_asset_mean_absolute_error, 1) + " " + unit,
-      sameAsset ? "이 설비 검증 MAE " + number(sameAsset.mean_absolute_error, 1) + " · 편향 " + signed(sameAsset.mean_signed_error) : "다른 설비 검증 평균 · 이 설비 검증값 없음"),
-    card("적용 범위", applicabilityText(last.output.applicability), "학습 운전 조건과 비교"),
+    card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "직전 추정값과 비교"),
   );
+  const mae = validation.mean_asset_mean_absolute_error;
+  byId("rul-validation-note").textContent = typeof mae === "number"
+    ? (validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차" : "검증 오차") + " (MAE) " + number(mae, 1) + " " + unit
+      + (sameAsset ? " · 이 설비 검증 MAE " + number(sameAsset.mean_absolute_error, 1) : " · 이 설비에서 직접 검증된 수치가 아닙니다.")
+      + " · 이 수치는 개별 추정의 신뢰구간이 아닙니다."
+    : "이 추정의 검증 오차를 표시할 근거가 없습니다.";
   if (last.output.sequence_positions) {
     state.textContent += " · 과거 " + last.output.sequence_positions.length + "개 획득으로 계산";
   }

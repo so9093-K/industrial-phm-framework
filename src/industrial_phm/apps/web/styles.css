@@ -199,3 +199,19 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .phm-ai-text:not(:empty){white-space:pre-wrap;background:#f7fafb;border-left:3px solid #517f96;padding:10px 12px;font-size:.84rem;line-height:1.6}
 .phm-ai-warning:not(:empty){color:#833c3c;background:#fff0f0;border-radius:6px;padding:8px 10px;font-size:.82rem}
 .phm-review-history p{margin:4px 0;font-size:.8rem;color:#45616f}
+
+/* PHM overview: data provenance precedes model scores; technical details remain available. */
+.phm-summary{border-bottom:1px solid #e0e9ed;padding:11px 0 14px;margin:7px 0 14px}
+.phm-summary h3{font-size:1.16rem;font-weight:730;margin:0 0 4px;overflow-wrap:anywhere}
+.phm-observation{font-size:.92rem;color:#294b5d;margin:5px 0;line-height:1.55}
+.phm-summary .muted{font-size:.78rem;line-height:1.5;overflow-wrap:anywhere}
+.phm-panel .condition-cards{grid-template-columns:repeat(2,minmax(0,1fr));max-width:750px}
+.phm-panel .condition-plot-header{margin-top:18px}
+.phm-panel .condition-plot-header h3{font-size:1.02rem}
+.phm-options{border-top:1px solid #e3ebef;margin:15px 0;padding:12px 0}
+.phm-options summary{cursor:pointer;color:#315665;font-size:.86rem;font-weight:650;min-height:30px}
+.phm-options summary:focus-visible{outline:3px solid #ed9e3e}
+.phm-options .channel-fieldset{margin:11px 0}
+.phm-validation-note{background:#f1f5f7;border-left:3px solid #7a9eaa;padding:10px 14px;font-size:.84rem;line-height:1.6;color:#335363;margin:16px 0}
+.phm-validation-note:empty{display:none}
+@media(max-width:650px){.phm-panel .condition-cards{grid-template-columns:1fr}.phm-summary h3{font-size:1rem}}
