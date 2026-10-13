@@ -25,6 +25,10 @@ const time = (value) => {
 };
 const POLL_MS = 3000;
 const TASK_LABEL = {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"};
+const STEP_KIND_LABEL = {"acquisition-snapshot": "획득 파형", "observation-window": "관측 윈도우"};
+// A rejected input is not a fault; it means this package was not trained or validated for it.
+const INPUT_GUIDE = "모델 입력 규격은 '모델·학습 범위·검증 근거'에서 확인할 수 있습니다. "
+  + "규격이 다른 데이터는 그 입력으로 학습·검증한 모델 패키지가 있어야 분석합니다.";
 const FEATURE_LABEL = {
   rms: "RMS", mean: "평균", standard_deviation: "표준편차", absolute_peak: "절대 피크",
   peak_to_peak: "피크-피크", crest_factor: "파고율", skewness: "왜도", excess_kurtosis: "첨도(초과)",
@@ -253,7 +257,7 @@ function renderAnomaly() {
     state.className = "state error";state.textContent = "모델을 실행할 수 없습니다: " + (binding.health_reason || "이유 미기록");
   } else if (!analyzed.length) {
     state.className = "state";state.textContent = steps.length
-      ? "입력을 분석할 수 없습니다: " + (steps.at(-1).reason || "모델 입력 조건 불충족")
+      ? "입력을 분석할 수 없습니다: " + (steps.at(-1).reason || "모델 입력 조건 불충족") + " · " + INPUT_GUIDE
       : "분석된 step이 아직 없습니다. 데이터가 공급되면 자동으로 갱신됩니다.";
   } else {
     state.className = "state";
@@ -473,7 +477,7 @@ function renderRul() {
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
   const output = (entry.package && entry.package.output) || {};
-  if (!analyzed.length) {renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
+  if (!analyzed.length) {renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + " · " + INPUT_GUIDE : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const unit = unitText(last.output.unit);
   const period = output.step_period_seconds;
@@ -529,6 +533,16 @@ const applicabilityText = (value, pkg = null) => {
   return ({inside: "학습 범위 안", outside: "학습 범위 밖", unknown: "판단 근거 없음"})[value] || "판단 근거 없음";
 };
 
+function inputSpec(input) {
+  return [
+    STEP_KIND_LABEL[input.step_kind] || input.step_kind,
+    "채널 " + (input.channels || []).join(", "),
+    input.sampling_rate_hz ? number(input.sampling_rate_hz) + " Hz" : "",
+    input.samples_per_step ? number(input.samples_per_step) + " 샘플/step" : "",
+    input.feature_set_id ? "특징 " + input.feature_set_id : "",
+  ].filter(Boolean).join(" · ");
+}
+
 function renderModelCard(root, pkg) {
   root.replaceChildren();
   if (!pkg) {root.append(node("p", "모델 패키지 정보를 읽지 못했습니다.", "muted"));return;}
@@ -539,6 +553,7 @@ function renderModelCard(root, pkg) {
   const scope = pkg.training_scope || {}, validation = pkg.validation || {};
   add("모델", (pkg.recipe_id || "") + " · " + (TASK_LABEL[pkg.output.task] || pkg.output.task));
   add("패키지", pkg.package_id);
+  if (pkg.input) add("입력 규격", inputSpec(pkg.input));
   add("학습 데이터", [scope.dataset_id, scope.fold_id, scope.partition].filter(Boolean).join(" · ") + (scope.asset_ids ? " · " + scope.asset_ids.length + "개 설비" : ""));
   if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스 입력", "과거 " + pkg.input.sequence_length + "개 획득 · 현재 시점이 오른쪽 끝");
   if (validation.performance_note) add("성능 수치 범위", validation.performance_note);

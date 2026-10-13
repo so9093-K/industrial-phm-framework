@@ -7,12 +7,19 @@ from threading import Thread
 
 import pytest
 
+from industrial_phm.application.acquisition_snapshot import (
+    AcquisitionSnapshot,
+    SqliteAcquisitionSnapshotRepository,
+    file_sha256,
+)
+from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
+from industrial_phm.models.package import StepKind
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     initialize_operations_workspace,
 )
-from tests.support.phm import analyze, deliver, phm_workspace
+from tests.support.phm import CHANNELS, SAMPLES, T0, analyze, deliver, phm_workspace
 
 
 @pytest.mark.parametrize("width", [1024, 1440])
@@ -147,6 +154,61 @@ def test_phm_screens_explain_missing_models_instead_of_inventing_results(tmp_pat
                     "근거가 없는 설비에는 표시하지 않습니다"
                 )
                 pw.expect(page.locator("#rul-chart>*")).to_have_count(0)
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path: Path) -> None:
+    """New data that does not fit the package is refused with what differs and what is needed."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    package_id = next(b.package_id for b in store.list_bindings() if b.binding_id == "anomaly-a")
+    store.create_binding(
+        PhmBinding("anomaly-pump", package_id, "bench", "pump-1", StepKind.ACQUISITION_SNAPSHOT, T0)
+    )
+    path = tmp_path / "pump-1.csv"
+    path.write_text("x,y\n" + "\n".join("1,2" for _ in range(SAMPLES)) + "\n", encoding="utf-8")
+    SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path).record(
+        AcquisitionSnapshot(
+            source_id="bench",
+            asset_id="pump-1",
+            ordinal=1,
+            file_path=path.resolve(),
+            sha256=file_sha256(path),
+            channels=("x", "y"),
+            sampling_rate_hz=1000.0,
+            sample_count=SAMPLES,
+            delivered_at=T0,
+            replay=True,
+            acquisition_period_seconds=60.0,
+            metadata={},
+        )
+    )
+    analyze(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1280, "height": 900}, locale="ko-KR")
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
+                page.select_option("#anomaly-binding", "anomaly-pump")
+                state = page.locator("#anomaly-state")
+                pw.expect(state).to_contain_text("입력을 분석할 수 없습니다")
+                pw.expect(state).to_contain_text(f"got ['x', 'y'], expected {list(CHANNELS)}")
+                pw.expect(state).to_contain_text("그 입력으로 학습·검증한 모델 패키지가 있어야")
+                pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
+                page.locator("#anomaly-model summary").click()
+                pw.expect(page.locator("#anomaly-model")).to_contain_text(
+                    "획득 파형 · 채널 " + ", ".join(CHANNELS) + " · 1,000 Hz · 64 샘플/step"
+                )
             finally:
                 browser.close()
     finally:
