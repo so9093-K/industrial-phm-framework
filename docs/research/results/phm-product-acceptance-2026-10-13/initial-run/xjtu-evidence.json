@@ -1,0 +1,241 @@
+{
+  "scenario": "xjtu-sy-recorded-replay-product-acceptance",
+  "started_at": "2026-10-13T00:31:48.524826+00:00",
+  "code_revision": "7409f29185750c0e227f782c41c89a7abba310f4",
+  "packages": {
+    "anomaly-score": "xjtu-sy-iforest-fold-1-finalized-v1-e33607299fa6",
+    "rul-estimate": "xjtu-sy-rul-feature-ridge-fold-1-v1-174d1e7f7951",
+    "lstm-lstm-autoencoder-v1": "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+    "lstm-lstm-rul-v1": "xjtu-sy-rul-lstm-fold-1-v1-fad12998c873"
+  },
+  "bindings": {
+    "anomaly-score": "anomaly-score-Bearing1_1",
+    "rul-estimate": "rul-estimate-Bearing1_1",
+    "lstm-lstm-autoencoder-v1": "lstm-lstm-autoencoder-v1-Bearing1_1",
+    "lstm-lstm-rul-v1": "lstm-lstm-rul-v1-Bearing1_1"
+  },
+  "supervisor_ready_seconds": [
+    1.9078634180004883,
+    1.941176873000586,
+    1.910017723999772
+  ],
+  "phase_live_replay": "replay asset=Bearing1_1 delivered=30 already_present=0 last=30 (recorded replay)",
+  "supervisor_stop_seconds": 1.5437673549986357,
+  "supply_to_commit_seconds": {
+    "anomaly-score": {
+      "count": 53,
+      "p50": 0.342,
+      "p95": 0.769,
+      "max": 2.167
+    },
+    "rul-estimate": {
+      "count": 53,
+      "p50": 0.418,
+      "p95": 0.661,
+      "max": 1.478
+    },
+    "lstm-lstm-autoencoder-v1": {
+      "count": 53,
+      "p50": 0.38,
+      "p95": 0.619,
+      "max": 1.355
+    },
+    "lstm-lstm-rul-v1": {
+      "count": 53,
+      "p50": 0.398,
+      "p95": 0.631,
+      "max": 1.396
+    }
+  },
+  "commit_to_screen_seconds": {
+    "count": 45,
+    "p50": 1.226,
+    "p95": 2.849,
+    "max": 8.419,
+    "unreflected": 0,
+    "screen_poll_ms": 3000
+  },
+  "explanations": {
+    "anomaly": {
+      "text": "관측 사실\n이상 점수는 0.5635이며, 설정된 임계값 0.7544 이하입니다. 이는 현재 측정값이 학습 기준 데이터와 비교했을 때 심각하게 벗어나지 않았음을 의미합니다. 분석에 사용된 데이터는 기록 데이터 재생 결과이며, 현재 현장에서 수신한 실시간 측정값이 아닙니다.\n\n모델 해석\n이 이상 점수는 모델이 정의한 임계값(0.7544)을 초과하지 않았으므로, 이상 징후로 간주되지 않습니다. 점수 자체는 높을수록 더 이상적인 상태와 다름을 의미합니다. 이 모델은 특정 변수들의 기여도를 제공하지 않아 원인 변수를 추정할 수 없습니다.\n\n한계\n해당 모델 패키지에는 운영 합격 판정이 기록되어 있지 않으며, 이 점수 자체가 고장 확률이나 구체적인 고장 진단이 아님을 명시합니다. 또한, 제공된 분석은 학습 데이터의 분포와 비교하는 것일 뿐, 물리적 고장 시점을 나타내지 않습니다.\n\n사람이 확인할 사항\n분석에 사용된 입력 값들 중, 'feature.Horizontal_vibration_signals.absolute_peak' (6.3273)와 'feature.Horizontal_vibration_signals.rms' (0.8058) 등의 진동 관련 특성치들이 관측되었습니다. 추가적인 상황 판단을 위해 해당 시점의 다른 관련 신호들을 사람이 확인하는 것이 필요합니다.",
+      "grounding_warning": "",
+      "status": "AI 설명 · local-main · 저장된 분석 #69 참조"
+    },
+    "rul": {
+      "text": "관측 사실\n기록 데이터 재생 결과이며, 현재 현장 측정치가 아닙니다. 입력된 데이터는 모델 학습 시 사용된 운전 조건(35Hz12kN, 37.5Hz11kN, 40Hz10kN) 내에 속합니다.\n\n모델 해석\nRUL 추정값은 198.12 획득 간격이며, 이는 데이터셋에서 마지막으로 기록된 획득 시점까지 남은 추정 기간을 의미합니다. 이 값은 물리적 고장 시각이 아닙니다. 직전 추정 대비 변화는 -47.31 획득 간격으로, 이는 추정치가 상당히 크게 감소했음을 나타냅니다.\n\n한계\n이 모델 패키지에는 운영 합격 판정이 기록되어 있지 않습니다. 또한, RUL v1 모델은 신뢰구간을 보고하지 않습니다.\n\n사람이 확인할 사항\n해당 RUL 추정치는 연구 검증 단계의 결과물이며, 전체 모델의 평균 절대 오차는 423.03 획득 간격입니다. 이 추정치는 모델이 학습된 운전 범위 내에서 유효하며, 실제 현장 적용 시 검증이 필요합니다.",
+      "grounding_warning": "",
+      "status": "AI 설명 · local-main · 저장된 분석 #69 참조"
+    }
+  },
+  "checks": [
+    {
+      "name": "restart-catches-up-backlog",
+      "pass": true,
+      "detail": "backlog=15"
+    },
+    {
+      "name": "duplicate-delivery-is-ignored",
+      "pass": true,
+      "detail": "replay asset=Bearing1_1 delivered=0 already_present=10 last=10 (recorded replay)"
+    },
+    {
+      "name": "delivered-acquisitions",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "exactly-once-anomaly-score",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 68
+      }
+    },
+    {
+      "name": "exactly-once-rul-estimate",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 68
+      }
+    },
+    {
+      "name": "exactly-once-lstm-lstm-autoencoder-v1",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 54
+      }
+    },
+    {
+      "name": "sequence-survives-restart-and-restarts-after-gap-lstm-lstm-autoencoder-v1",
+      "pass": true,
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68
+      ]
+    },
+    {
+      "name": "exactly-once-lstm-lstm-rul-v1",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 54
+      }
+    },
+    {
+      "name": "sequence-survives-restart-and-restarts-after-gap-lstm-lstm-rul-v1",
+      "pass": true,
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68
+      ]
+    },
+    {
+      "name": "supply-to-commit-p95-le-2s-anomaly-score",
+      "pass": true,
+      "detail": 0.769
+    },
+    {
+      "name": "supply-to-commit-p95-le-2s-rul-estimate",
+      "pass": true,
+      "detail": 0.661
+    },
+    {
+      "name": "every-live-commit-reflected-on-screen",
+      "pass": true,
+      "detail": 0
+    },
+    {
+      "name": "commit-to-screen-p95-le-5s",
+      "pass": true,
+      "detail": 2.849
+    },
+    {
+      "name": "incompatible-input-reason-on-screen",
+      "pass": true,
+      "detail": "입력을 분석할 수 없습니다: channels differ from the package input: ['x', 'y']"
+    },
+    {
+      "name": "unloadable-package-on-screen",
+      "pass": true,
+      "detail": "모델을 실행할 수 없습니다: model package payload digest mismatch: state.json"
+    },
+    {
+      "name": "unloadable-package-produces-no-results",
+      "pass": true,
+      "detail": 0
+    },
+    {
+      "name": "real-local-main-explanation-anomaly",
+      "pass": true,
+      "detail": "AI 설명 · local-main · 저장된 분석 #69 참조"
+    },
+    {
+      "name": "explanation-numbers-grounded-anomaly",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "real-local-main-explanation-rul",
+      "pass": true,
+      "detail": "AI 설명 · local-main · 저장된 분석 #69 참조"
+    },
+    {
+      "name": "explanation-numbers-grounded-rul",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "restart-keeps-results-unchanged",
+      "pass": true,
+      "detail": {
+        "anomaly-score-Bearing1_1": 68,
+        "rul-estimate-Bearing1_1": 68,
+        "lstm-lstm-autoencoder-v1-Bearing1_1": 68,
+        "lstm-lstm-rul-v1-Bearing1_1": 68
+      }
+    },
+    {
+      "name": "restart-keeps-explanation-and-review-anomaly",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "restart-keeps-explanation-and-review-rul",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "no-browser-errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "pass": true,
+  "finished_at": "2026-10-13T00:36:33.150221+00:00"
+}
