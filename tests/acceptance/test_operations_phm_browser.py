@@ -233,7 +233,7 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path:
                 page.select_option("#anomaly-binding", "anomaly-pump")
                 pw.expect(state).to_contain_text("입력을 분석할 수 없습니다")
                 pw.expect(state).to_contain_text(f"got ['x', 'y'], expected {list(CHANNELS)}")
-                pw.expect(state).to_contain_text("그 입력으로 학습·검증한 모델 패키지가 있어야")
+                pw.expect(state).to_contain_text("입력 조건을 확인하고, 맞는 모델을 연결해야")
                 pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
                 page.locator("#anomaly-model summary").click()
                 pw.expect(page.locator("#anomaly-model")).to_contain_text(
