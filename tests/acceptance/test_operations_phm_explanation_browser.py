@@ -58,6 +58,8 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
                 panel = page.locator("#anomaly-explanation")
                 pw.expect(panel).to_contain_text("사람 검토")
+                pw.expect(panel.get_by_role("button", name="검토 요청")).not_to_be_visible()
+                page.locator("#anomaly-review-options > summary").click()
                 pw.expect(panel.get_by_role("button", name="검토 요청")).to_be_visible()
                 pw.expect(panel.get_by_role("button", name="검토 확인")).to_have_count(0)
                 panel.locator(".phm-ai-details summary").click()

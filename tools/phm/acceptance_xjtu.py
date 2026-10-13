@@ -398,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
                 page.select_option(f"#{view}-binding", binding)
                 panel = page.locator(f"#{view}-explanation")
                 expect(panel).to_contain_text("사람 검토", timeout=15_000)
+                page.locator("#anomaly-review-options > summary").click()
                 panel.locator(".phm-ai-details summary").click()
                 panel.get_by_role("button", name="AI 설명 생성").click()
                 expect(panel.locator(".phm-ai-text")).not_to_be_empty(timeout=180_000)
