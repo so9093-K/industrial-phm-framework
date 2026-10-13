@@ -159,6 +159,7 @@ def file_history_job_fields(job: Mapping[str, object] | None) -> dict[str, objec
             "finished_at",
             "event_count",
             "history_snapshot_id",
+            "recovered_segment_count",
             "failure",
         )
     }

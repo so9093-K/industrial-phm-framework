@@ -107,6 +107,7 @@ def test_background_job_writes_real_history_and_reports_it_through_sources(
             "finished_at": again["finished_at"],
             "event_count": 6,
             "history_snapshot_id": first["history_snapshot_id"],
+            "recovered_segment_count": 1,
             "failure": None,
         }
     finally:

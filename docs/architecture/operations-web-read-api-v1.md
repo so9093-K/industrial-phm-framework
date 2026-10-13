@@ -289,7 +289,7 @@ another source's request is refused with `source_control_conflict` while one is 
 The status of the last job per FILE source is ephemeral runtime state in
 `runtime/web-file-history.json`, exposed as the additive `file_history_job` object on
 `GET /api/v1/sources` FILE items (`state` running/succeeded/failed/interrupted,
-`started_at`, `finished_at`, `event_count`, `history_snapshot_id`, bounded `failure`
+`started_at`, `finished_at`, `event_count`, `history_snapshot_id`, `recovered_segment_count`, bounded `failure`
 code). It is not history evidence: the committed DuckLake batch is. A supervisor restart
 marks a running job `interrupted`; restarting the job recovers or completes the
 content-addressed batch without duplicating it. Supervisor shutdown waits for an

@@ -1358,8 +1358,10 @@ async function backfillFile(sourceId, button) {
   output.textContent = sourceId + " · FILE 이력 적재 요청 중";
   try {
     const session = await getJSON("/api/v1/session");
-    if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
-    const response = await fetch("/api/v1/sources/file/backfill/start", {
+    // The supervisor owns long history writes as a background job. A standalone preview keeps
+    // the existing synchronous path, which is bounded to small files.
+    const background = session.write_scope === "supervisor-owned-source-control";
+    const response = await fetch(background ? "/api/v1/sources/file/backfill/start" : "/api/v1/sources/file/backfill", {
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
       body: JSON.stringify({source_id: sourceId}),
@@ -1372,11 +1374,15 @@ async function backfillFile(sourceId, button) {
       throw new Error("http-" + response.status);
     }
     const started = await response.json();
-    if (started.schema_version !== 1 || started.source_id !== sourceId
+    if (!background) {
+      if (started.schema_version !== 1 || started.source_id !== sourceId
+          || started.meaning !== "persisted-file-history-not-live-collection-or-analysis"
+          || !Number.isSafeInteger(started.event_count)) throw new Error("schema-mismatch");
+    } else if (started.schema_version !== 1 || started.source_id !== sourceId
         || !["running", "succeeded"].includes(started.state)) throw new Error("schema-mismatch");
     // Poll the supervisor job; a failed status read is not a failed write.
     const begun = Date.now();
-    let job = started.state === "succeeded" ? started : null;
+    let job = !background ? {...started, state: "succeeded"} : started.state === "succeeded" ? started : null;
     while (!job || job.state === "running") {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       output.textContent = sourceId + " · 백그라운드 이력 적재 중 · 경과 " + Math.round((Date.now() - begun) / 1000) + "초";
@@ -1389,15 +1395,14 @@ async function backfillFile(sourceId, button) {
     if (job.state === "interrupted") throw new Error("history-interrupted");
     if (job.state !== "succeeded" || !Number.isSafeInteger(job.event_count)) throw new Error("history-failed");
     output.textContent = sourceId + " · DuckLake 이력 적재 완료 · "
-      + job.event_count + "개 이벤트 · snapshot #" + job.history_snapshot_id + " · 분석·실시간 수집 아님";
+      + job.event_count + "개 이벤트 · snapshot #" + job.history_snapshot_id
+      + " · 재사용 배치 " + job.recovered_segment_count + "개 · 분석·실시간 수집 아님";
   } catch (error) {
     output.className = "error";
     if (error.message === "control-conflict") {
-      output.textContent = "적재 불가 · ACTIVE FILE, 검증 receipt, 시간 컬럼, CSV 크기(20MiB 이하), 작업공간 경계와 다른 이력 적재 진행 여부를 확인하세요.";
+      output.textContent = "적재 불가 · ACTIVE FILE, 검증 receipt, 시간 컬럼, CSV 크기(감독형 Web 20MiB·독립 Preview 1MiB 이하), 작업공간 경계와 다른 이력 적재 진행 여부를 확인하세요.";
     } else if (error.message === "source-missing") {
       output.textContent = "등록되지 않은 소스입니다.";
-    } else if (error.message === "read-only") {
-      output.textContent = "이력 적재는 감독형 Web에서만 실행할 수 있습니다.";
     } else if (error.message === "history-interrupted") {
       output.textContent = "서비스 재시작으로 이력 적재가 중단됐습니다. 다시 실행하면 이어서 저장합니다.";
     } else if (error.message === "history-failed") {
