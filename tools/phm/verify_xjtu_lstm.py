@@ -10,7 +10,8 @@ autoencoder Spearman rho within 0.05.
 Without --research-rerun §5 cannot be judged and the run fails.
 
     uv run --no-sync python -m tools.phm.verify_xjtu_lstm <workspace-with-lstm-packages> \\
-        --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets --output <verdict.json>
+        --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \\
+        --research-rerun <same-environment-research-rerun-dir> --output <verdict.json>
 """
 
 from __future__ import annotations
