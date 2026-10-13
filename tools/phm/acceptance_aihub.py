@@ -15,6 +15,7 @@ One workspace, one continuous journey on device 1338's held-out period:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shutil
 import subprocess
@@ -24,8 +25,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from industrial_phm.adapters.aihub_power_history import PowerHistoryBinding
+from industrial_phm.application import CollectionDesiredState
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
+from industrial_phm.demo.aihub_replay import (
+    ReplaySelection,
+    build_replay_manifest,
+    register_replay_source,
+    write_replay_manifest,
+)
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     initialize_operations_workspace,
@@ -44,6 +53,7 @@ from tools.phm.acceptance_common import (
 )
 
 MEMBER = "3.공기압축기/SourceData_16.json"
+BINDING = "tools/opcua/presets/aihub-air-compressor-1338-replay.json"
 SOURCE_ID = "aihub239-replay-air-compressor-1338"
 ASSET_ID = "aihub-air-compressor-1338"
 # Held-out period of device 1338 (training is the first 70% of its record, before 09:35 local).
@@ -70,32 +80,27 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     # 1. Replay source, workspace, package, binding --------------------------------------
+    # Initialize the node first, then register the replay source into it as the packaged AI-Hub
+    # demo does; the stand-alone `aihub_replay prepare` only accepts an empty directory.
     opcua_port = free_port()
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "tools.opcua.aihub_replay",
-            "prepare",
-            "--root",
-            str(workspace),
-            "--endpoint",
-            f"opc.tcp://127.0.0.1:{opcua_port}/phm/",
-            "--archive",
-            str(args.archive),
-            "--member",
-            MEMBER,
-            "--binding",
-            "tools/opcua/presets/aihub-air-compressor-1338-replay.json",
-            "--start",
-            START,
-            "--end",
-            END,
-        ],
-        check=True,
-        capture_output=True,
+    initialize_operations_workspace(OperationsWorkspace(workspace))
+    selection = ReplaySelection(
+        archive=args.archive,
+        member=MEMBER,
+        binding=PowerHistoryBinding(**json.loads(Path(BINDING).read_text(encoding="utf-8"))),
+        start_local=datetime.fromisoformat(START),
+        end_local=datetime.fromisoformat(END),
     )
-    initialize_operations_workspace(OperationsWorkspace(workspace), allow_recognized_legacy=True)
+    manifest = build_replay_manifest(f"opc.tcp://127.0.0.1:{opcua_port}/phm/", selection)
+    register_replay_source(
+        workspace,
+        selection,
+        manifest,
+        name="AI-Hub 239 recorded power (OPC UA replay)",
+        desired_state=CollectionDesiredState.STOPPED,
+        registered_at=datetime.fromisoformat(str(manifest["prepared_at"])),
+    )
+    write_replay_manifest(workspace, manifest)
     ui_port = free_port()
     set_config(workspace, "ui", "port", str(ui_port))
     set_config(workspace, "collection", "window_duration_seconds", "300.0")
