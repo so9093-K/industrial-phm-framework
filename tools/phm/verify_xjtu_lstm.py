@@ -1,13 +1,17 @@
-"""Judge XJTU-SY LSTM packages against the acceptance protocol v1 §2.2-§2.3.
+"""Judge XJTU-SY LSTM packages against the acceptance protocol §2.3 and its v3 revision (§5).
 
-LSTM training is not bit-reproducible across CPU math kernels, so retrained packages are judged
-by performance equivalence with the stored research evidence (per-bearing MAE within 2%
-relative for RUL, Spearman rho within 0.05 for the autoencoder) and, once fixed, by
-determinism: sequential outputs equal a batch evaluation of the same package (<= 1e-4) and
-the causal input buffer survives restarts (every cycle here builds a fresh runner).
+LSTM training is not bit-reproducible across CPU math kernels. §2.3 judged retrained packages by
+performance equivalence with the stored research evidence (per-bearing MAE within 2% relative
+for RUL); that FAIL is preserved and reported as `pass_section_2_3`. The verdict of a run
+(`pass` and the exit code) is §5 (v3): agreement with a same-environment research rerun,
+determinism (sequential outputs equal a batch evaluation of the same package, <= 1e-4; the
+causal input buffer survives restarts, every cycle here builds a fresh runner) and the
+autoencoder Spearman rho within 0.05.
+Without --research-rerun §5 cannot be judged and the run fails.
 
     uv run --no-sync python -m tools.phm.verify_xjtu_lstm <workspace-with-lstm-packages> \\
-        --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets --output <verdict.json>
+        --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \\
+        --research-rerun <same-environment-research-rerun-dir> --output <verdict.json>
 """
 
 from __future__ import annotations
@@ -52,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     workspace = OperationsWorkspace(args.workspace.resolve())
-    kinds = {}
+    kinds: dict[EstimatorKind, str] = {}
     for path in sorted(workspace.models_path.iterdir()):
         if (path / "package.json").is_file():
             kind = load_model_package(path).manifest.estimator_kind
@@ -96,24 +100,32 @@ def main(argv: list[str] | None = None) -> int:
         _same_environment_checks(store, args.research_rerun) if args.research_rerun else []
     )
     verdict = {
-        "protocol": "operational-inference-acceptance-protocol §2.2-2.3",
+        "protocol": "operational-inference-acceptance-protocol §2.3 (v1/v2) and §5 (v3)",
         "packages": {kind.value: package_id for kind, package_id in kinds.items()},
         "checks": checks,
         "same_environment_checks": same_environment,
-        "pass_v1": all(check["pass"] for check in checks),
-        "pass_v2": bool(same_environment)
+        "pass_section_2_3": all(check["pass"] for check in checks),
+        "pass_v3": bool(same_environment)
         and all(c["pass"] for c in same_environment)
         and all(c["pass"] for c in checks if not c["name"].startswith("lstm-rul-mae-")),
     }
-    verdict["pass"] = verdict["pass_v1"]
+    # One run, one meaning: the criterion in force for LSTM packages (§5, v3) decides `pass` and
+    # the exit code. §2.3 stays a separate, preserved record and is never folded into it.
+    verdict["pass"] = verdict["pass_v3"]
+    verdict["pass_criterion"] = (
+        "§5 (v3) operational reproducibility; requires --research-rerun. "
+        "pass_section_2_3 is the preserved v1/v2 performance-equivalence record, not part of pass"
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     for check in checks + same_environment:
         print(f"{'PASS' if check['pass'] else 'FAIL'} {check['name']} {check.get('detail', '')}")
-    print("VERDICT v1", "PASS" if verdict["pass_v1"] else "FAIL")
+    print("RECORD §2.3 (v1/v2, preserved)", "PASS" if verdict["pass_section_2_3"] else "FAIL")
     if same_environment:
-        print("VERDICT v2", "PASS" if verdict["pass_v2"] else "FAIL")
-    return 0 if verdict["pass_v1"] or verdict["pass_v2"] else 1
+        print("VERDICT §5 (v3)", "PASS" if verdict["pass_v3"] else "FAIL")
+    else:
+        print("VERDICT §5 (v3) NOT JUDGED: --research-rerun is required")
+    return 0 if verdict["pass"] else 1
 
 
 def _steps(store: SqlitePhmAnalysisStore, binding_id: str) -> tuple[list[Any], list[Any]]:
