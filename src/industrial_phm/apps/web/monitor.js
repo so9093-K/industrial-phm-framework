@@ -9,7 +9,7 @@ const active = () => document.body.dataset.view === "monitor" && !document.hidde
 const states = {processed: "입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비", rejected: "입력 분석 거부", waiting: "확정 입력 대기", unavailable: "모델 실행 불가"};
 const reviewLabels = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료 · 정비 완료 아님"};
 let timer = null, running = false, refreshRequested = false, readOperations;
-let lastData = null, lastBase = null, selectedAsset = "", selectedStream = "", previousInput = false;
+let lastData = null, lastBase = null, selectedAsset = new URLSearchParams(location.search).get("monitor_asset") || "", selectedStream = "", previousInput = false;
 let traceKey = "", traceVersion = 0, traceData = null;
 let preview = null, previewKey = "", choiceId = "rms-0", signalVersion = 0, detailsKey = "";
 const streamKey = (i) => JSON.stringify([i.source_id, i.measurement_point_id, i.step_kind]);
@@ -37,7 +37,7 @@ function role(item) {
 function detailLink(item, position = item.latest_analyzed?.position) {
   const url = new URL(location.href), view = item.task === "rul-estimate" ? "rul" : "anomaly";
   url.searchParams.set("phm_binding", item.binding_id);url.searchParams.set("phm_position", position);
-  url.searchParams.set("phm_view", view);url.hash = view;return url.pathname + url.search + url.hash;
+  url.searchParams.set("phm_view", view);url.searchParams.set("monitor_asset", item.asset_id);url.hash = view;return url.pathname + url.search + url.hash;
 }
 function assetFacts(assetId, items, base) {
   const notes = [];
@@ -59,6 +59,7 @@ function assetFacts(assetId, items, base) {
 }
 function selectAsset(assetId) {
   selectedAsset = assetId;selectedStream = "";previousInput = false;previewKey = "";detailsKey = "";
+  const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
   if (lastData) render(lastData, lastBase);
 }
 function render(data, base) {

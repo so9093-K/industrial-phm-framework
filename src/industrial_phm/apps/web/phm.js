@@ -796,6 +796,7 @@ export async function refreshPhm() {
 
 function updateMonitorTarget(view, position) {
   const url = new URL(location.href);
+  const entry = series.get(selected[view]);if (entry?.binding.asset_id) url.searchParams.set("monitor_asset", entry.binding.asset_id);
   if (!url.searchParams.has("phm_binding")) return;
   url.searchParams.set("phm_binding", selected[view]);url.searchParams.set("phm_position", position);
   history.replaceState(history.state, "", url);
