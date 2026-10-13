@@ -1,0 +1,368 @@
+{
+  "code_revision": "fd223ec63aaaebd1846f0780434cf1009a5861f3",
+  "started_at": "2026-10-13T05:49:09.358540+00:00",
+  "scenario": "continuous-asset-monitor-original-replay",
+  "selection": {
+    "start_local": "2020-11-13T13:35:00",
+    "end_local": "2020-11-13T14:15:00",
+    "speed": 20
+  },
+  "package_ids": [
+    "aihub-239-electrical-pca-residual-v1-5e0d608be8c7",
+    "xjtu-sy-iforest-fold-1-finalized-v1-2ae8a27dfe43",
+    "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+    "xjtu-sy-rul-lstm-fold-1-v1-fad12998c873",
+    "xjtu-sy-rul-feature-ridge-fold-1-v1-837a017f45d1"
+  ],
+  "steady_requests": [
+    {
+      "seconds": 5.849,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 5.849,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 5.849,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 9.033,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 9.033,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 9.033,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 12.42,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 12.42,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 12.421,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 15.861,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 15.861,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 15.861,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 19.101,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 19.102,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 19.102,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 22.34,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 22.34,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 22.34,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 25.526,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 25.526,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 25.526,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 28.715,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 28.716,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 28.716,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 31.895,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 31.895,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 31.895,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 35.285,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 35.285,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 35.285,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 38.487,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 38.487,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 38.487,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 41.723,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 41.723,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 41.724,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 44.914,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 44.914,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 44.914,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 48.3,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 48.3,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 48.3,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 51.485,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 51.485,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 51.485,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 54.875,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 54.875,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 54.875,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 58.063,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 58.063,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 58.063,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 61.256,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 61.256,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 61.256,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 64.443,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 64.444,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 64.444,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 67.639,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 67.639,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 67.639,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 71.026,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 71.026,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 71.026,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 74.211,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 74.211,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 74.212,
+      "path": "/api/v1/sources"
+    }
+  ],
+  "phm_overview_http_ms": {
+    "count": 37,
+    "p50": 19.736,
+    "p95": 35.499,
+    "max": 51.534
+  },
+  "checks": [
+    {
+      "name": "page-open-before-inputs-two-assets-five-models",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-lstm-warmup-visible-on-monitor",
+      "pass": true,
+      "detail": "이상 탐지 · xjtu-lstm-autoencoder-fold-1-development-v1\n\n소스 xjtu-sy-replay\n\n기록 재생 · 현장 수신 아님\n\nLSTM 입력 준비\n\nsequence warm-up: 2/8 acquisitions\n\n수신 상태: 획득 파일 전달 · 연결 상태 근거 없음\n\n최신 입력 #2 · 저장 2026-10-13 05:49:16 UTC\n\n저장된 분석 결과 없음 · RUL 지원 여부는 연결된 모델로 확인합니다."
+    },
+    {
+      "name": "both-assets-change-without-manual-refresh",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-analysis-pause-keeps-input-and-last-output-distinct",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-refused-input-does-not-look-like-new-analysis",
+      "pass": true,
+      "detail": "이상 탐지 · xjtu-sy-iforest-fold-1-finalized-v1\n\n소스 xjtu-sy-replay\n\n기록 재생 · 현장 수신 아님\n\n최근 입력 분석 거부\n\nsnapshot unreadable: snapshot file changed after delivery (SHA-256 mismatch)\n\n수신 상태: 획득 파일 전달 · 연결 상태 근거 없음\n\n최신 입력 #10 · 저장 2026-10-13 05:49:41 UTC\n\n이전 마지막 분석 · 이상 점수 0.448 · 참고 기준 0.754 이하\n\n분석 #9 · 처리 2026-10-13 05:49:43 UTC\n\n이 분석의 검토: 요청 없음\n\n이 시점의 추세·원본 입력 보기"
+    },
+    {
+      "name": "node-outage-clears-old-results-on-monitor",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "restart-recovers-monitor-and-all-backlogged-model-inputs",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "previous-model-results-unchanged",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "steady-monitor-never-loads-model-history-or-refits-condition",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "steady-monitor-three-requests-per-poll",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-1440-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-1024-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-390-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-handoff-preserves-exact-model-position-waveform-after-reload",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "no-browser-page-errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "finished_at": "2026-10-13T05:51:21.844596+00:00"
+}

@@ -3,6 +3,46 @@
 원본 기록 재생을 감독형 Operations 노드와 실제 `local-main`으로 확인한 결과입니다. 현장 설비 수신이나
 모델 정확도 검증은 아닙니다.
 
+## 기본 Monitor의 지속 관측 인수
+
+기본 `#monitor`를 먼저 열고 같은 감독형 노드에 XJTU-SY 원본 획득과 AI-Hub 공기압축기 원본 OPC UA 재생을
+공급했습니다. 제품 코드는 `fd223ec`로 고정했으며 모델 패키지·가중치는 기존 인수의 고정 패키지를 재사용했습니다.
+재학습이나 성능 판정은 수행하지 않았습니다.
+
+- 두 설비·모델 5개의 새 입력과 분석 결과가 수동 새로고침 없이 반영됐습니다. 실제 재생 여정 **15/15 PASS**.
+- 같은 노드의 검토 요청→확인→종료가 기본 Monitor에 자동 반영되고 재시작 후 종료 이력이 유지됐습니다.
+  검토 여정 **4/4 PASS**, 모델 결과 변경 0. [검토 요청](monitor/review-requested-1440.png) ·
+  [재시작 후 종료](monitor/review-persisted-1440.png). 브라우저/HTTP 통합 **39 passed / 0 skipped**,
+  단위·계약 **1,164 passed**, Ruff·format·mypy·lockfile·wheel 빌드 통과.
+- 실제 LSTM 준비, 분석기 일시 정지(SIGSTOP/CONT), 손상된 테스트 복사본 거부, 노드 중단·재시작 중 공급을
+  기본 화면에서 확인했습니다. 원본 파일은 바꾸지 않았습니다. 이전 성공 결과와 최근 입력을 구별하며 중단 시
+  이전 결과를 지우고 자동 복구했습니다. 이전 저장 결과 변경은 0건입니다.
+- 실제 모델 5개 PHM 요약 HTTP 응답 p95는 35.499ms였습니다. 일반 조회는 3초 주기마다 HTTP 요청 3개입니다. 이력 전체 읽기·부하/불평형 재계산·AI 호출은 포함하지 않습니다.
+- 링크는 정확한 모델·시점·원본 파형을 유지하고 재로딩 후에도 같은 입력을 엽니다. 1440·1024·390px에서
+  문서 가로 넘침은 없었습니다. 부하·불평형 분석은 별도 수동 실행 영역으로 접혀 있습니다.
+- PHM 요약의 응답 시간과 요청 기록은 아래 실행 JSON을 따릅니다. 합성 설비 50대·표시 모델 100개(전체 102개)의
+  저장 결과 조회 10회 p95는 118.918ms, 응답 125,464 bytes였습니다. 실제 대규모 현장 성능 보증은 아닙니다.
+  100개 초과 모델은 전체 수와 조회 범위를 표시합니다.
+
+[실행 결과·로그](monitor/) · [다수 모델 조회 측정](monitor/scale.json)
+
+| 기본 Monitor | 1440px | 1024px | 390px |
+| --- | --- | --- | --- |
+| 두 설비의 지속 관측 | [화면](monitor/monitor-1440.png) | [화면](monitor/monitor-1024.png) | [화면](monitor/monitor-390.png) |
+
+[분석 대기](monitor/analysis-pending-1440.png) · [입력 거부와 이전 결과](monitor/input-refused-1440.png) ·
+[노드 중단](monitor/node-outage-1440.png)
+
+재현에는 이전 재생 인수에서 생성한 패키지 작업공간과 원본이 필요합니다. 새 출력 경로를 사용합니다.
+
+```bash
+uv run --locked --all-extras --all-groups --with playwright python -m tools.phm.acceptance_monitor \
+  --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets \
+  --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \
+  --xjtu-workspace artifacts/acceptance/xjtu/ws --aihub-workspace artifacts/acceptance/aihub/ws \
+  --output artifacts/acceptance/continuous-monitor
+```
+
 ## UX 개편 후 인수
 
 #549–#551이 반영된 제품 코드 `30beec1aa0aacd8c63c1f7e592392f05530388b3`로 다시 실행했습니다.

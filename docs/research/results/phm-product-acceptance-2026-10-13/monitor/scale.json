@@ -1,0 +1,12 @@
+{
+  "scenario": "50 synthetic assets, 100 displayed models with saved outputs; 102 models total",
+  "persistence": "summary reads only; no history scan or model fitting during measurement",
+  "response_ms": {
+    "count": 10,
+    "p50": 112.426,
+    "p95": 118.918,
+    "max": 118.918
+  },
+  "payload_bytes": 125464,
+  "client_requests_per_cycle": 3
+}

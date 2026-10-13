@@ -1,0 +1,48 @@
+import json,time
+from pathlib import Path
+from playwright.sync_api import sync_playwright,expect
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
+from tools.phm.acceptance_common import Supervisor,set_config,free_port,Checks,write_evidence
+root=Path('artifacts/acceptance/continuous-monitor-release');ws=root/'ws'
+port=free_port();set_config(ws,'ui','port',str(port));supervisor=Supervisor(ws,root/'review-supervisor.log')
+store=SqlitePhmAnalysisStore(ws/'phm-analysis.sqlite');before=store.list_results('anomaly-score-Bearing1_1');checks=Checks()
+try:
+    supervisor.start()
+    with sync_playwright() as runtime:
+        browser=runtime.chromium.launch()
+        try:
+            page=browser.new_page(viewport={'width':1440,'height':900},locale='ko-KR')
+            url=f'http://127.0.0.1:{port}/web/'
+            page.goto(url+'#monitor')
+            card=page.locator('.monitor-model[data-binding-id="anomaly-score-Bearing1_1"]')
+            expect(card).to_contain_text('분석 #18',timeout=15000)
+            card.get_by_role('link',name='이 시점의 추세·원본 입력 보기').click()
+            panel=page.locator('#anomaly-explanation')
+            panel.get_by_role('button',name='검토 요청').click()
+            expect(panel.locator('.phm-review-status')).to_contain_text('확인 대기')
+            page.locator('nav a[href="#monitor"]').click()
+            expect(page.locator('#phm-monitor-summary')).to_contain_text('요청 1',timeout=10000)
+            expect(card).to_contain_text('이 분석의 검토: 검토 요청됨')
+            page.screenshot(path=str(root/'review-requested-1440.png'),full_page=True)
+            checks.add('review-request-visible-in-default-monitor',True)
+            card.get_by_role('link',name='이 시점의 추세·원본 입력 보기').click()
+            panel.get_by_label('검토 메모').fill('기본 모니터에서 선택한 정확한 입력과 분석 확인')
+            panel.get_by_role('button',name='검토 확인').click()
+            expect(panel.locator('.phm-review-status')).to_contain_text('종료 가능')
+            page.locator('nav a[href="#monitor"]').click()
+            expect(page.locator('#phm-monitor-summary')).to_contain_text('확인 1',timeout=10000)
+            checks.add('review-acknowledgement-visible-in-default-monitor',True)
+            card.get_by_role('link',name='이 시점의 추세·원본 입력 보기').click()
+            panel.get_by_role('button',name='검토 종료').click()
+            expect(panel.locator('.phm-review-status')).to_contain_text('정비 완료 아님')
+            supervisor.stop();supervisor.start()
+            page.goto(url+'#monitor')
+            expect(page.locator('#phm-monitor-summary')).to_contain_text('종료 1',timeout=15000)
+            expect(card).to_contain_text('검토 종료됨 · 정비 완료 아님')
+            page.screenshot(path=str(root/'review-persisted-1440.png'),full_page=True)
+            checks.add('closed-review-persists-on-monitor-after-node-restart',True)
+            checks.add('review-does-not-mutate-model-results',before==store.list_results('anomaly-score-Bearing1_1'))
+        finally:browser.close()
+finally:
+    if supervisor.process and supervisor.process.poll() is None:supervisor.stop()
+    write_evidence(root/'review-evidence.json',{'checks':checks.items,'passed':checks.passed})

@@ -1,0 +1,71 @@
+{
+  "product_code_revision": "fd223ec63aaaebd1846f0780434cf1009a5861f3",
+  "browser_tests": {
+    "passed": 39,
+    "skipped": 0
+  },
+  "unit_contract_tests": {
+    "passed": 1164
+  },
+  "native_journey_checks": 15,
+  "review_checks": 4,
+  "model_performance_not_evaluated": true,
+  "screenshots": [
+    {
+      "file": "analysis-pending-1440.png",
+      "width": 1440,
+      "height": 2296,
+      "bytes": 328274,
+      "sha256": "a8dcccbdf555f104cd684dfd9745b37a6f621ef09bf22d8b8395139af0c8c7fe"
+    },
+    {
+      "file": "input-refused-1440.png",
+      "width": 1440,
+      "height": 2296,
+      "bytes": 340565,
+      "sha256": "c244c88347a02b01fe6071b28fb5908aa50c3a6f6a8652412b171c11a49e68c0"
+    },
+    {
+      "file": "monitor-1024.png",
+      "width": 1024,
+      "height": 2562,
+      "bytes": 309818,
+      "sha256": "8c3126d20d1abbfff7a21d486bf7b86dbdfc6d9c99686f08e8a7be72482ae70e"
+    },
+    {
+      "file": "monitor-1440.png",
+      "width": 1440,
+      "height": 2133,
+      "bytes": 316506,
+      "sha256": "04c3fc00e4d6b560622478786cf23af0212494d2c45169ccbf57a24823f9253e"
+    },
+    {
+      "file": "monitor-390.png",
+      "width": 390,
+      "height": 3405,
+      "bytes": 288940,
+      "sha256": "1e50491e32073bc41768b60a7179068c838bd7f0ab47620605b625a3e67abfcf"
+    },
+    {
+      "file": "node-outage-1440.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 97772,
+      "sha256": "460b86b49c0f8d81723e33bb884a49e711237e22f653acb2eb6269efb9a21722"
+    },
+    {
+      "file": "review-persisted-1440.png",
+      "width": 1440,
+      "height": 2291,
+      "bytes": 333485,
+      "sha256": "26ade155924921d7050cfcf47e4adffe266e1b0dd2b1bf6e1a9cff7658159295"
+    },
+    {
+      "file": "review-requested-1440.png",
+      "width": 1440,
+      "height": 2357,
+      "bytes": 337761,
+      "sha256": "ab4661d8465bc423fabdc3eeabca2541a688a4ab55c8354b88671c45310a84d0"
+    }
+  ]
+}

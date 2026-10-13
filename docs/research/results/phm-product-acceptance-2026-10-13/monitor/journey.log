@@ -1,0 +1,49 @@
+PASS page-open-before-inputs-two-assets-five-models 
+PASS real-lstm-warmup-visible-on-monitor 이상 탐지 · xjtu-lstm-autoencoder-fold-1-development-v1
+
+소스 xjtu-sy-replay
+
+기록 재생 · 현장 수신 아님
+
+LSTM 입력 준비
+
+sequence warm-up: 2/8 acquisitions
+
+수신 상태: 획득 파일 전달 · 연결 상태 근거 없음
+
+최신 입력 #2 · 저장 2026-10-13 05:49:16 UTC
+
+저장된 분석 결과 없음 · RUL 지원 여부는 연결된 모델로 확인합니다.
+PASS both-assets-change-without-manual-refresh 
+PASS real-analysis-pause-keeps-input-and-last-output-distinct 
+PASS real-refused-input-does-not-look-like-new-analysis 이상 탐지 · xjtu-sy-iforest-fold-1-finalized-v1
+
+소스 xjtu-sy-replay
+
+기록 재생 · 현장 수신 아님
+
+최근 입력 분석 거부
+
+snapshot unreadable: snapshot file changed after delivery (SHA-256 mismatch)
+
+수신 상태: 획득 파일 전달 · 연결 상태 근거 없음
+
+최신 입력 #10 · 저장 2026-10-13 05:49:41 UTC
+
+이전 마지막 분석 · 이상 점수 0.448 · 참고 기준 0.754 이하
+
+분석 #9 · 처리 2026-10-13 05:49:43 UTC
+
+이 분석의 검토: 요청 없음
+
+이 시점의 추세·원본 입력 보기
+PASS node-outage-clears-old-results-on-monitor 
+PASS restart-recovers-monitor-and-all-backlogged-model-inputs 
+PASS previous-model-results-unchanged 
+PASS steady-monitor-never-loads-model-history-or-refits-condition 
+PASS steady-monitor-three-requests-per-poll 
+PASS monitor-1440-no-document-overflow 
+PASS monitor-1024-no-document-overflow 
+PASS monitor-390-no-document-overflow 
+PASS monitor-handoff-preserves-exact-model-position-waveform-after-reload 
+PASS no-browser-page-errors []
