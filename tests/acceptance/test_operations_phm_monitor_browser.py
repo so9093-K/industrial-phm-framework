@@ -91,6 +91,17 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 page.reload()
                 pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
                 pw.expect(page.locator("#anomaly-explanation h3")).to_contain_text("분석 #2")
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?phm_binding=rul-a&phm_position=2&phm_view=rul#rul"
+                )
+                pw.expect(page.locator("#rul-binding")).to_have_value("rul-a")
+                pw.expect(page.locator("#rul-selected")).to_contain_text("#2")
+                pw.expect(page.locator("#rul-explanation h3")).to_contain_text("분석 #2")
+                page.reload()
+                pw.expect(page.locator("#rul-selected")).to_contain_text("#2")
+                page.locator('nav a[href="#anomaly"]').click()
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("점수")
+                assert "phm_binding" not in page.evaluate("location.search")
                 # An unknown target cannot silently open another asset/model.
                 page.goto(
                     f"http://127.0.0.1:{server.server_port}/web/?phm_binding=missing&phm_position=2#anomaly"

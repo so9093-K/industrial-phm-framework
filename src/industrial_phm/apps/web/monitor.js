@@ -80,7 +80,7 @@ function render(data, base) {
   base.reviewError = data.review_read_error;
   const summary = byId("phm-monitor-summary");
   summary.replaceChildren(
-    metric("데이터 수신 · 조회 범위", base.errors.length ? "조회 미확인" : "최근 live " + (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length + " · 등록 " + (base.sources?.sources?.total ?? "미확인") + "개"),
+    metric("데이터 수신 · 조회 범위", base.errors.length ? "조회 미확인" : "30초 내 OPC UA " + (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length + " · 등록 " + (base.sources?.sources?.total ?? "미확인") + "개"),
     metric("분석 처리 · 표시 모델", "대기 " + data.items.filter((i) => ["pending", "warmup", "waiting"].includes(i.processing_state)).length
       + " · 거부/불가 " + data.items.filter((i) => ["rejected", "unavailable"].includes(i.processing_state)).length),
     metric("저장된 기준 비교 · 표시 모델", "마지막 분석 초과 " + data.items.filter((i) => i.latest_analyzed?.output.exceeds_threshold).length),
@@ -101,8 +101,7 @@ function render(data, base) {
     const card = node("article", "", "monitor-asset");card.dataset.assetId = assetId;
     card.append(node("h3", assetId));
     const observedAsset = (base.monitor?.assets?.items || []).find((a) => a.asset_id === assetId);
-    if (observedAsset) card.append(node("p", "설비 수신 요약: " + (base.errors.length ? "조회 미확인" : flows[observedAsset.data_flow_status] || "미확인")
-      + " · 마지막 관측 " + time(observedAsset.last_data_at), "muted"));
+    if (observedAsset) card.append(node("p", "설비 수신 요약: " + (base.errors.length ? "조회 미확인" : flows[observedAsset.data_flow_status] || "미확인"), "muted"));
     for (const item of items) card.append(modelRow(item, base));
     if (items.length && !items.some((i) => i.task === "rul-estimate")) card.append(node("p", "RUL 연결 근거 없음 · 추정하지 않습니다.", "muted"));
     if (!items.length) card.append(node("p", "PHM 모델 연결 없음 · 이상 점수·RUL을 생성하지 않습니다."));
