@@ -1,4 +1,5 @@
 // Operating-condition questions first; exact identifiers live in analysis details.
+import {formatTime, kstInputToInstant} from "./time.js";
 const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {
   const element = document.createElement(tag);
@@ -6,7 +7,7 @@ const node = (tag, text = "", className = "") => {
 };
 const number = (value, unit = "") => typeof value === "number" && Number.isFinite(value)
   ? value.toLocaleString("ko-KR", {maximumFractionDigits: 2}) + unit : "분석값 없음";
-const time = (value) => value ? value.replace("T", " ").replace(/\.\d+/, "").replace(/\+00:00|Z/, " UTC") : "시각 없음";
+const time = (value) => formatTime(value);
 const states = {
   "no-history": "저장된 측정값이 없습니다. 데이터를 연결하고 이력을 불러오세요.",
   "select-source": "서로 다른 데이터 소스가 있습니다. 분석할 소스·측정 지점을 선택하세요.",
@@ -88,8 +89,8 @@ function drawChart() {
   for (const [value, labelY] of [[hi, 25], [lo, 172]]) {
     const label = svgNode("text");label.setAttribute("x", "4");label.setAttribute("y", String(labelY));label.textContent = number(value);svg.append(label);
   }
-  const from = svgNode("text");from.setAttribute("x", "58");from.setAttribute("y", "202");from.textContent = time(result.target_start).slice(0, 16);
-  const until = svgNode("text");until.setAttribute("x", "776");until.setAttribute("y", "202");until.setAttribute("text-anchor", "end");until.textContent = time(result.target_end).slice(0, 16);
+  const from = svgNode("text");from.setAttribute("x", "58");from.setAttribute("y", "202");from.textContent = formatTime(result.target_start, {seconds: false});
+  const until = svgNode("text");until.setAttribute("x", "776");until.setAttribute("y", "202");until.setAttribute("text-anchor", "end");until.textContent = formatTime(result.target_end, {seconds: false});
   svg.append(from, until);
   svg.addEventListener("click", (event) => {
     const box = svg.getBoundingClientRect();
@@ -97,7 +98,7 @@ function drawChart() {
     const closest = points.reduce((best, point) => Math.abs(Date.parse(point.at) - targetAt) < Math.abs(Date.parse(best.at) - targetAt) ? point : best);
     showDetail(closest);
   });
-  root.append(svg, node("p", "UTC 관측 시각 · 그래프를 선택하면 그 시각의 값을 확인합니다."
+  root.append(svg, node("p", "원본 측정 시각(KST) · 그래프를 선택하면 그 시각의 값을 확인합니다."
     + (metric === "pattern_score" ? " 점선은 기준 구간 점수의 99% 분위수입니다." : ""), "muted"));
 }
 function render(data) {
@@ -184,10 +185,13 @@ export async function loadCondition(selectedAsset, {reset = false} = {}) {
   const context = contexts.find((item) => contextKey(item) === byId("condition-source").value);
   if (byId("condition-source").value && context) {params.set("source_id", context.source_id);params.set("point_id", context.point_id || "");}
   const end = byId("condition-end").value;
-  if (end) params.set("end_at", end + "Z");
   const start = byId("condition-reference-start").value, until = byId("condition-reference-end").value;
   if (Boolean(start) !== Boolean(until)) {state.textContent = "기준 기간의 시작과 종료를 모두 입력하세요.";button.disabled = false;return;}
-  if (start) {params.set("reference_start", start + "Z");params.set("reference_end", until + "Z");}
+  try {
+    // The inputs are KST wall-clock times; send the same instant with its explicit offset.
+    if (end) params.set("end_at", kstInputToInstant(end));
+    if (start) {params.set("reference_start", kstInputToInstant(start));params.set("reference_end", kstInputToInstant(until));}
+  } catch {state.className = "state error";state.textContent = "분석·기준 시각 형식을 확인하세요. 시각은 KST입니다.";button.disabled = false;return;}
   try {
     const response = await fetch("/api/v1/condition?" + params, {cache: "no-store"});
     const data = await response.json();
@@ -210,7 +214,7 @@ export async function loadCondition(selectedAsset, {reset = false} = {}) {
     if (token !== sequence) return;
     clearResults();state.className = "state error";
     state.textContent = error.message === "context-mismatch" ? "선택한 설비·데이터 소스와 분석 응답이 일치하지 않습니다. 다시 불러오세요."
-      : error.message === "invalid-period" ? "분석 기간과 그보다 앞선 기준 기간을 확인하세요. 시각은 UTC입니다."
+      : error.message === "invalid-period" ? "분석 기간과 그보다 앞선 기준 기간을 확인하세요. 시각은 KST입니다."
       : "분석 데이터를 읽지 못했습니다. 이전 결과는 표시하지 않습니다. 고주파 데이터는 분석 기간을 줄이고 다시 시도하세요.";
   } finally {if (token === sequence) button.disabled = false;}
 }

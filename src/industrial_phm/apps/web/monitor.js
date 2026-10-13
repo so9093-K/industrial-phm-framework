@@ -1,9 +1,10 @@
 import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
+import {formatTime} from "./time.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {const e = document.createElement(tag);e.textContent = text;e.className = className;return e;};
-const time = (at) => {const stamp = at ? Date.parse(at) : NaN;return Number.isFinite(stamp) ? new Date(stamp).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC") : "미확인";};
+const time = (at) => formatTime(at, {missing: "미확인"});
 const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "미평가";
 const active = () => document.body.dataset.view === "monitor" && !document.hidden;
 const states = {processed: "입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비", rejected: "입력 분석 거부", waiting: "확정 입력 대기", unavailable: "모델 실행 불가"};
@@ -168,8 +169,8 @@ function clearSignal() {
 async function loadSignal(item) {
   const delivered = item.latest_delivered, chosen = previousInput ? item.latest_analyzed : delivered;
   const context = byId("monitor-signal-context");
-  context.textContent = (previousInput ? " 이전 입력 · " : "최신 입력 · ") + inputName(item, chosen)
-    + (delivered ? " · 저장 " + time(delivered.delivered_at) : "");
+  context.textContent = (previousInput ? " 이전 입력 · " : "최신 입력 · ") + (item.step_kind === "observation-window" ? "원본 측정 " : "") + inputName(item, chosen)
+    + (delivered ? " · 최신 입력 수신 " + time(delivered.delivered_at) : "");
   const previous = byId("monitor-last-good");previous.hidden = !item.latest_analyzed || item.latest_analyzed.position === delivered?.position;
   previous.textContent = previousInput ? "최신 입력 보기" : "마지막 성공 입력 보기";
   if (!chosen) {clearSignal();byId("monitor-signal-state").textContent = "원본 입력 수신을 기다립니다.";return;}
@@ -189,7 +190,7 @@ async function loadSignal(item) {
     for (const choice of choices) {const option = node("option", choice.name);option.value = choice.id;select.append(option);}
     if (!choices.some((c) => c.id === choiceId)) choiceId = choices[0]?.id;
     select.value = choiceId;select.disabled = false;
-    byId("monitor-signal-state").textContent = data.sample_count ? "최근 획득의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 시각 UTC";
+    byId("monitor-signal-state").textContent = data.sample_count ? "최근 획득의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
     updateLegend();
     paintSignal();
   } catch (error) {
@@ -261,7 +262,7 @@ function paintSignal() {
     return;
   } else {
     drawSignal(byId("monitor-signal-chart"), preview, choiceId);
-    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 시각 UTC";
+    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
     if (!preview.sample_count) {
       const choice = signalChoices(preview).find((c) => c.id === choiceId);
       for (const [index, channel] of (choice?.channels || []).entries()) {

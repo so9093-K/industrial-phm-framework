@@ -59,7 +59,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("특징별 잔차 기여")
                 # A window is named by its event time, not by its internal ordering key.
                 pw.expect(page.locator("#anomaly-explanation h3")).to_have_text(
-                    re.compile(r"^분석 윈도우 \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC · 사람 검토")
+                    re.compile(r"^분석 윈도우 \d{4}-\d\d-\d\d \d\d:\d\d:\d\d KST · 사람 검토")
                 )
                 pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(1)
                 assert (

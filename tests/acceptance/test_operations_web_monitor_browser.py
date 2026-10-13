@@ -126,7 +126,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             sync_api.expect(page.locator("#system-status")).to_contain_text(
                 "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
             )
-            sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 평가 시각 · UTC")
+            sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 시각")
             page.locator('nav a[href="#signals"]').click()
             sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
             sync_api.expect(page.locator("#channel-options input:checked")).to_have_count(1)

@@ -1,5 +1,6 @@
 import { renderPhmExplanation } from "./phm-explanation.js";
 import { drawSignal, signalChoices } from "./monitor-signal.js";
+import { formatTime } from "./time.js";
 // PHM monitoring: anomaly detection and RUL are separate screens over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
 // nothing here recomputes a score, an interval or an estimate.
@@ -17,13 +18,7 @@ const svgNode = (tag, attributes = {}) => {
 };
 const number = (value, digits = 3) => typeof value === "number" && Number.isFinite(value)
   ? value.toLocaleString("ko-KR", {maximumFractionDigits: digits}) : "값 없음";
-const time = (value) => {
-  if (!value) return "시각 없음";
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed)
-    ? new Date(parsed).toISOString().replace("T", " ").replace(/\.\d+/, "").replace("Z", " UTC")
-    : String(value);
-};
+const time = (value) => formatTime(value);
 const POLL_MS = 3000;
 const TASK_LABEL = {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"};
 const STEP_KIND_LABEL = {"acquisition-snapshot": "획득 파형", "observation-window": "관측 윈도우"};
@@ -130,7 +125,7 @@ function axisFor(entry) {
   const timed = steps.length && steps.every((step) => step.event_start);
   const period = entry.package && entry.package.output && entry.package.output.step_period_seconds;
   return timed
-    ? {cadence: period ? period * 1000 : null, x: (step) => Date.parse(step.event_start), label: "관측 시각 · UTC", format: (v) => time(new Date(v).toISOString()).slice(0, 16)}
+    ? {cadence: period ? period * 1000 : null, x: (step) => Date.parse(step.event_start), label: "원본 측정 시각 · KST", format: (v) => formatTime(v, {seconds: false, zone: false})}
     : {x: (step) => step.position, label: "획득 순번" + (period ? " · 기록 주기 " + period + "초" : ""), format: (v) => "#" + Math.round(v)};
 }
 
@@ -146,15 +141,15 @@ function freshness(entry) {
   if (!analyzed && !delivered) return "아직 공급된 step이 없습니다.";
   const parts = [];
   if (entry.binding.step_kind === "observation-window") {
-    if (delivered) parts.push("최신 수신 " + time(delivered.event_at) + " · 저장 " + time(delivered.delivered_at));
-    if (analyzed) parts.push("최신 분석 " + time(analyzed.event_start) + " · 처리 " + time(analyzed.processed_at));
+    if (delivered) parts.push("최신 입력 원본 측정 " + time(delivered.event_at) + " · 수신 " + time(delivered.delivered_at));
+    if (analyzed) parts.push("최신 분석 원본 측정 " + time(analyzed.event_start) + " · 분석 완료 " + time(analyzed.processed_at));
     if (delivered && processed) {
       const lag = Math.max(0, delivered.position - processed.position) / 1000000;
       parts.push(lag ? "최근 윈도우와 분석 시각 차이 " + number(lag / 60, 1) + "분" : "입력 처리 지연 없음");
     }
   } else {
-    if (delivered) parts.push("최신 수신 #" + delivered.position + " · " + time(delivered.delivered_at));
-    if (analyzed) parts.push("최신 분석 #" + analyzed.position + " · " + time(analyzed.processed_at));
+    if (delivered) parts.push("최신 입력 #" + delivered.position + " · 수신 " + time(delivered.delivered_at));
+    if (analyzed) parts.push("최신 분석 #" + analyzed.position + " · 분석 완료 " + time(analyzed.processed_at));
     if (delivered && (processed || analyzed)) {
       const lag = delivered.position - (processed || analyzed).position;
       parts.push(lag > 0 ? "분석 대기 " + lag + "개" : "분석 지연 없음");
@@ -694,7 +689,7 @@ function renderRul() {
     const focused = entry.steps.get(rulFocusPosition);
     byId("rul-selected").textContent = focused
       ? "모니터에서 선택한 분석 " + stepLabel(entry, focused.position) + " · RUL " + number(focused.output.estimate, 1) + " " + unit
-        + " · 처리 " + time(focused.processed_at) + " · 이 시점의 검토와 연결됩니다."
+        + " · 분석 완료 " + time(focused.processed_at) + " · 이 시점의 검토와 연결됩니다."
       : "선택한 시점이 이번 조회 범위에 없습니다.";
   }
   const explained = rulFocusPosition ?? last.position;
