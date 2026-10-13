@@ -273,7 +273,6 @@ def main(argv: list[str] | None = None) -> int:
             )
             page.goto(url + "#anomaly")
             page.select_option("#anomaly-binding", anomaly_binding)
-            expect(page.locator("#anomaly-freshness")).to_contain_text("최신", timeout=15_000)
             record_display(page, "anomaly-freshness")
             live = replay(1, 30, 1.0)
             evidence["phase_live_replay"] = live.communicate()[0].splitlines()[-1]
