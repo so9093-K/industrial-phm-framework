@@ -69,7 +69,7 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
                 pw.expect(page.locator("#workspace-state")).to_have_text("빈 작업공간")
                 page.screenshot(path=str(output / f"empty-{width}.png"))
-                page.get_by_role("link", name="기존 연구 결과 보기").click()
+                page.get_by_role("link", name="연구 데이터 확인").click()
                 pw.expect(page.locator("#research-state")).to_contain_text("11건")
                 result = page.locator(".research-result").filter(
                     has_text="xjtu-sy-lstm-autoencoder-fold-1-development-v1"

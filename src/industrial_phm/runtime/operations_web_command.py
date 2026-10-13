@@ -117,6 +117,9 @@ class SupervisorWebCommandBroker:
         )
 
         initialize_explanation_manager(self.workspace)
+        from industrial_phm.runtime.operations_web_file_history import FileHistoryJobs
+
+        self.file_history = FileHistoryJobs(self.workspace)
         self.socket_path = socket_path
         self.upload_directory = Path(socket_path).parent / "uploads"
         self.token = secrets.token_urlsafe(32)
@@ -203,6 +206,8 @@ class SupervisorWebCommandBroker:
 
     def _execute(self, route: str, payload: dict[str, object]) -> dict[str, object]:
         try:
+            if route == "/api/v1/sources/file/backfill/start":
+                return {"ok": True, "result": self.file_history.start(payload)}
             if route in {
                 "/api/v1/sources/file/upload",
                 "/api/v1/sources/file/upload/preflight",
@@ -272,3 +277,4 @@ def open_supervisor_web_command_broker(workspace: Path) -> Iterator[SupervisorWe
             finally:
                 server.shutdown()
                 thread.join(timeout=_TIMEOUT_SECONDS)
+                broker.file_history.close()

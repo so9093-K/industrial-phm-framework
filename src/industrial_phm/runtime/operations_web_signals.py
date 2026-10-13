@@ -125,6 +125,7 @@ def project_signal_history(
     range_preset: str = "1h",
     bucket_count: int = 60,
     time_anchor: str = "now",
+    source_id: str | None = None,
 ) -> dict[str, object]:
     """Read one bounded multi-signal time window plus stored per-source last points."""
     if (
@@ -144,6 +145,8 @@ def project_signal_history(
     latest: list[dict[str, object]] = []
     for channel in channel_ids:
         for point in query_operations_latest_measurements(reader, asset_id, channel_id=channel):
+            if source_id is not None and point.measurement.source_id != source_id:
+                continue
             if len(latest) >= MAX_LATEST_POINTS:
                 raise OperationsReadError("too many stored last points; narrow the query")
             value = point.measurement
@@ -181,7 +184,8 @@ def project_signal_history(
         end_at=end,
         bucket_count=bucket_count,
     )
-    if len(agg.buckets) > MAX_GROUPED_BUCKETS:
+    buckets = tuple(b for b in agg.buckets if source_id is None or b.source_id == source_id)
+    if len(buckets) > MAX_GROUPED_BUCKETS:
         raise OperationsReadError("too many historical groups; narrow the query")
 
     return {
@@ -196,6 +200,6 @@ def project_signal_history(
         "end_at": _time(end),
         "snapshot_id": agg.snapshot_id,
         "bucket_seconds": agg.bucket_seconds,
-        "buckets": [_bucket(bucket) for bucket in agg.buckets],
+        "buckets": [_bucket(bucket) for bucket in buckets],
         "latest_stored": latest,
     }

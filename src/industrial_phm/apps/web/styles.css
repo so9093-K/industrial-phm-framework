@@ -322,3 +322,48 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .monitor-stored-missing{fill:#fff;stroke:#b56f53;stroke-width:1.5}
 .monitor-stored-source{font-size:.76rem;color:#45616f;margin:8px 0 0;overflow-wrap:anywhere}
 .monitor-reading small+small{margin-top:2px}
+
+/* First data from a CSV: the file's own signal first, then server check, then visible writes. */
+.start-options{grid-template-columns:repeat(2,minmax(0,1fr))}
+.start-secondary{font-size:.82rem;color:#5a6c78;margin:14px 0 0}
+.csv-start{margin-bottom:16px;border-color:#9fcfc6}
+.csv-start h3{font-size:.95rem;margin:20px 0 8px}
+.csv-start-steps{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:0 0 14px;counter-reset:step}
+.csv-start-steps li{counter-increment:step;font-size:.78rem;color:#5a6c78;background:#eef3f6;border-radius:999px;padding:4px 10px}
+.csv-start-steps li::before{content:counter(step) ". "}
+.csv-start-steps li[aria-current]{background:#18596d;color:#fff;font-weight:700}
+.csv-start-file{display:grid;gap:6px;max-width:520px}
+.csv-start-file input{font-size:.85rem}
+#csv-start-file-state{margin:6px 0 10px;overflow-wrap:anywhere}
+.csv-start-preview{border-top:1px solid #dce6eb;padding-top:12px;margin-top:6px}
+.csv-start-columns{display:flex;gap:16px;align-items:start;flex-wrap:wrap;margin:10px 0}
+.csv-start-columns>label{display:grid;gap:5px;font-size:.82rem}
+.csv-start-columns .choice input:disabled+*{opacity:.6}
+.csv-start-issues{margin:8px 0;padding-left:1.2rem;font-size:.82rem;color:#2f5161}
+.csv-start-issues li{margin:3px 0;overflow-wrap:anywhere}.csv-start-issues li.error{color:#8b3a3a}
+.csv-start-chart-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.csv-start-chart-heading h3{margin:8px 0}.csv-start-chart-heading label{display:flex;gap:6px;align-items:center;font-size:.8rem}
+#csv-start-chart-note{overflow-wrap:anywhere}
+.csv-start-details{border-top:1px solid #dce6eb;margin-top:12px}
+.csv-start-advanced{font-size:.82rem;margin:0 0 6px}.csv-start-advanced summary{cursor:pointer}.csv-start-advanced .form-grid{margin:10px 0}
+#csv-start-check-result{white-space:pre-line}
+.csv-start-save-steps{display:grid;gap:6px;padding-left:1.3rem;margin:8px 0 12px}
+.csv-start-save-steps li{font-size:.82rem;color:#3d5866}
+.csv-start-save-steps strong{margin-right:8px}.csv-start-save-steps span{color:#5f7480}
+.csv-start-save-steps em{display:block;font-style:normal;font-weight:650;color:#5f7480}
+.csv-start-save-steps li[data-state="running"] em{color:#18596d}
+.csv-start-save-steps li[data-state="done"] em{color:#195d57}
+.csv-start-save-steps li[data-state="failed"] em,.csv-start-save-steps li[data-state="unknown"] em{color:#9b3333}
+#csv-start-save-result{font-size:.85rem;color:#285266;margin:8px 0}#csv-start-save-result.error{color:#9b3333}
+.csv-start-done{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.csv-start-done .hint{flex-basis:100%;margin:4px 0}
+button.secondary{background:#fff;color:#18596d}button.secondary:hover:not(:disabled){background:#eaf5f5;color:#104455}
+@media(max-width:700px){.start-options{grid-template-columns:1fr}}
+#monitor-detection-results>p{grid-column:1/-1;margin:0}
+/* An empty readable workspace shows only the first data choices; a failed read stays visible. */
+body[data-view="monitor"][data-workspace-state="empty"] #phm-monitor,
+body[data-view="monitor"][data-workspace-state="empty"] #workspace-overview,
+body[data-view="monitor"][data-workspace-state="empty"] #condition-disclosure{display:none}
+.start-example{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:14px 0 4px;padding:14px 16px;border:1px solid #9fcfc6;border-radius:12px;background:#f1faf8}
+.start-example button{font-size:.95rem}.start-example p{margin:0;font-size:.82rem;color:#395866;flex:1;min-width:220px}
+.csv-start-examples{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 0;font-size:.8rem;color:#45616f}
+.csv-start-examples button{font-size:.78rem;padding:5px 9px}

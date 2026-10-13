@@ -11,7 +11,10 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from functools import cache
 from pathlib import Path
 
 from industrial_phm.adapters.csv_sensor import (
@@ -89,8 +92,15 @@ def _recent(at: datetime | None, assessed_at: datetime, budget: timedelta) -> bo
     return timedelta(0) <= age <= budget
 
 
-def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, object]:
+def project_web_source_setup(
+    snapshot: OperationsAppSnapshot,
+    *,
+    file_history_jobs: Mapping[str, Mapping[str, object]] | None = None,
+) -> dict[str, object]:
     """Keep desired state, one-shot receipts, live telemetry and stored batches apart."""
+    from industrial_phm.runtime.operations_web_file_history import file_history_job_fields
+
+    jobs = file_history_jobs or {}
     lifecycle = {record.source_id: record for record in snapshot.lifecycle_records}
     receipts = {receipt.source_id: receipt for receipt in snapshot.receipts}
     requests = {record.source_id: record for record in snapshot.collection_records}
@@ -170,6 +180,13 @@ def project_web_source_setup(snapshot: OperationsAppSnapshot) -> dict[str, objec
                 "last_live_history_snapshot_id": (None if history is None else history.snapshot_id),
                 "last_live_history_batch_event_count": (
                     None if history is None else history.source_event_count
+                ),
+                # Supervisor job status for a Web FILE history write; the batch itself
+                # remains the evidence and is read through history channels/trend.
+                "file_history_job": (
+                    file_history_job_fields(jobs.get(source.source_id))
+                    if source.source_type.value == "file"
+                    else None
                 ),
                 "live_telemetry_read_error": (
                     any(
@@ -330,7 +347,10 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
     }
 
 
-_MAX_WEB_UPLOAD_BYTES = 1024 * 1024
+# Browser uploads share the workspace-path registration limit; history for them runs as a
+# supervisor background job because one synchronous command cannot finish it in time.
+_MAX_WEB_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_WEB_BACKGROUND_HISTORY_BYTES = 20 * 1024 * 1024
 _UPLOAD_FIELDS = (_FIELDS - {"file_path"}) | {"staged_name"}
 _UPLOAD_OPTIONAL_FIELDS = _UPLOAD_FIELDS | {_PHASE_FILE_FIELD}
 _STAGED_CSV_NAME = re.compile(r"[0-9a-f]{32}\.csv\Z")
@@ -368,6 +388,8 @@ def register_uploaded_csv_source(
         raw = stream.read(_MAX_WEB_UPLOAD_BYTES + 1)
     if not 0 < len(raw) <= _MAX_WEB_UPLOAD_BYTES:
         raise ValueError("CSV upload too large")
+    if hashlib.sha256(raw).hexdigest() == _bundled_synthetic_digest():
+        raise ValueError("bundled synthetic CSV requires an isolated demo workspace")
     text = raw.decode("utf-8-sig")
     if "\x00" in text:
         raise ValueError("CSV contains binary data")
@@ -470,6 +492,12 @@ def _csv_preflight_problem(error: Exception) -> dict[str, object]:
     }
 
 
+@cache
+def _bundled_synthetic_digest() -> str | None:
+    path = Path(__file__).parents[1] / "apps" / "web" / "example-motor.csv"
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
 def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
     """Read only; never produce receipt, history, analysis, or registration."""
     assert isinstance(source.config, FileSourceConfig)
@@ -488,6 +516,24 @@ def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
             "meaning": "csv-preflight-only-not-registered-or-ingested",
         }
     start, end = report.first_timestamp, report.last_timestamp
+    if report.source_sha256 == _bundled_synthetic_digest():
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "sample_count": report.sample_count,
+            "history_ready": False,
+            "phase_mapping_ready": False,
+            "issue": {
+                "code": "synthetic-example-isolated",
+                "guidance": (
+                    "동봉된 합성 예시는 격리된 예시 환경에서 확인하세요. "
+                    "실제 작업공간에 저장하지 않습니다."
+                ),
+                "row_number": None,
+                "column": None,
+            },
+            "meaning": "csv-preflight-only-not-registered-or-ingested",
+        }
     timezone_aware = (
         start is not None
         and end is not None
@@ -607,7 +653,51 @@ def preflight_uploaded_csv_source(
             "issue": _csv_preflight_problem(error),
             "meaning": "csv-preflight-only-not-registered-or-ingested",
         }
-    return _csv_preflight_result(source)
+    report = _csv_preflight_result(source)
+    if report.get("status") != "ready":
+        report["registration_match"] = "unchecked"
+        return report
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
+    known = next(
+        (
+            item
+            for item in JsonSourceRepository(paths.registry).list_sources()
+            if item.source_id == source_id
+        ),
+        None,
+    )
+    matches = known is None
+    if known is not None and isinstance(known.config, FileSourceConfig):
+        try:
+            known_path = Path(known.config.source_path)
+            matches = (
+                known.name == source.name
+                and replace(config, source_path=known.config.source_path) == known.config
+                and known_path.resolve(strict=True) == known_path
+                and known_path.is_relative_to(root.resolve())
+                and known_path.stat().st_size == report.get("source_size_bytes")
+                and hashlib.sha256(known_path.read_bytes()).hexdigest()
+                == report.get("source_sha256")
+            )
+        except OSError:
+            matches = False
+    report["registration_match"] = (
+        "absent" if known is None else "matching" if matches else "conflict"
+    )
+    if not matches:
+        report.update(
+            status="blocked",
+            history_ready=False,
+            issue={
+                "code": "source_id_exists",
+                "guidance": (
+                    "동일 ID의 기존 파일·측정 컬럼·설정이 다릅니다. 새 소스 ID를 사용하세요."
+                ),
+                "row_number": None,
+                "column": None,
+            },
+        )
+    return report
 
 
 class SourceControlConflict(ValueError):
@@ -837,12 +927,10 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
     }
 
 
-def backfill_workspace_file_history(root: Path, payload: dict[str, object]) -> dict[str, object]:
-    """Append or recover one existing FILE batch; never claim live receipt/analysis.
-
-    The only supported Web path is an ACTIVE, small prepared snapshot CSV with
-    timezone-aware source timestamps and an independently persisted receipt.
-    """
+def check_file_history_backfill(
+    root: Path, payload: dict[str, object], *, max_bytes: int
+) -> tuple[OperationsAppPaths, JsonSourceRepository, str]:
+    """Validate one FILE history request before any history write starts."""
     if set(payload) != {"source_id"}:
         raise ValueError("unexpected FILE history fields")
     source_id = _text(payload, "source_id")
@@ -851,11 +939,17 @@ def backfill_workspace_file_history(root: Path, payload: dict[str, object]) -> d
     assert isinstance(source.config, FileSourceConfig)
     if source.config.timestamp_column is None:
         raise SourceControlConflict("historical FILE backfill needs explicit timestamps")
-    if Path(source.config.source_path).stat().st_size > _MAX_WEB_HISTORY_BYTES:
-        raise SourceControlConflict("FILE too large for synchronous Web backfill")
+    if Path(source.config.source_path).stat().st_size > max_bytes:
+        raise SourceControlConflict("FILE too large for this Web history path")
     if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
         raise SourceControlConflict("validate FILE receipt before history backfill")
+    return paths, registry, source_id
 
+
+def run_file_history_backfill(
+    paths: OperationsAppPaths, registry: JsonSourceRepository, source_id: str
+) -> dict[str, object]:
+    """Append or recover the checked FILE batch; a retry reuses an existing commit."""
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(
             catalog_path=paths.history_catalog,
@@ -873,3 +967,15 @@ def backfill_workspace_file_history(root: Path, payload: dict[str, object]) -> d
         "history_snapshot_id": result.history_snapshot_id,
         "meaning": "persisted-file-history-not-live-collection-or-analysis",
     }
+
+
+def backfill_workspace_file_history(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    """Append or recover one existing FILE batch; never claim live receipt/analysis.
+
+    This synchronous path answers within one bounded command, so it keeps the small
+    file limit. Larger files use the supervisor's background history job.
+    """
+    paths, registry, source_id = check_file_history_backfill(
+        root, payload, max_bytes=_MAX_WEB_HISTORY_BYTES
+    )
+    return run_file_history_backfill(paths, registry, source_id)

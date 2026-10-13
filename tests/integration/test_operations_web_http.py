@@ -43,6 +43,43 @@ def _request(
         connection.close()
 
 
+def test_synthetic_workspace_declares_purpose_and_denies_web_writes(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "demo")
+    initialize_operations_workspace(workspace)
+    workspace.web_context_path.parent.mkdir(exist_ok=True)
+    workspace.web_context_path.write_text('{"schema_version":1,"kind":"synthetic-demo"}')
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        _, _, session = _request(server.server_port, "GET", "/api/v1/session")
+        assert session["workspace_kind"] == "synthetic-demo"
+        assert session["write_scope"] == "read-only-synthetic-demo"
+        connection = HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+        try:
+            origin = f"http://127.0.0.1:{server.server_port}"
+            connection.request(
+                "POST",
+                "/api/v1/sources/file",
+                body="{}",
+                headers={
+                    "Origin": origin,
+                    "Sec-Fetch-Site": "same-origin",
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": session["csrf_token"],
+                },
+            )
+            response = connection.getresponse()
+            assert response.status == 403
+            assert json.loads(response.read())["error"]["code"] == "synthetic_demo_read_only"
+        finally:
+            connection.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_local_operations_web_read_http_is_bounded_and_origin_checked(
     tmp_path: Path,
 ) -> None:
@@ -351,6 +388,32 @@ def test_recorded_history_anchor_preserves_old_event_time_without_source_registr
         assert monitor["assets"]["total"] == 1
         assert _request(server.server_port, "GET", query + "&anchor=guess")[0] == 400
         assert _request(server.server_port, "GET", query + "&anchor=now&anchor=latest")[0] == 400
+        newer = tmp_path / "newer.csv"
+        newer.write_text(
+            "timestamp,voltage-R\n2026-10-12T00:00:00Z,999\n2026-10-12T00:01:00Z,998\n",
+            encoding="utf-8",
+        )
+        sources.register(
+            RegisteredSource(
+                source_id="newer",
+                name="Newer file for the same asset",
+                config=FileSourceConfig(
+                    str(newer),
+                    "old-asset",
+                    channel_columns=("voltage-R",),
+                    timestamp_column="timestamp",
+                ),
+                registered_at=datetime(2026, 10, 12, tzinfo=UTC),
+            )
+        )
+        backfill_registered_file_source(sources, history, "newer")
+        _, _, selected = _request(
+            server.server_port, "GET", query + "&anchor=latest&source_id=recorded"
+        )
+        assert selected["end_at"] == "2020-11-12T15:59:05Z"
+        assert {p["source_id"] for p in selected["latest_stored"]} == {"recorded"}
+        assert sum(b["usable_count"] for b in selected["buckets"]) == 2
+        assert {b["source_id"] for b in selected["buckets"]} == {"recorded"}
     finally:
         server.shutdown()
         server.server_close()

@@ -37,6 +37,9 @@ export function navigate(hash, target = null) {
   // Reveal the view before focusing a cross-view review or workflow target.
   renderView();
   if (target) {
+    for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+      if (parent.tagName === "DETAILS") parent.open = true;
+    }
     target.focus({preventScroll: true});
     target.scrollIntoView({block: "center"});
   }

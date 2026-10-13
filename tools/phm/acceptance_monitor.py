@@ -248,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
                 }
                 supervisor.stop()
                 expect(page.locator("#phm-monitor-state")).to_contain_text(
-                    "PHM 조회 실패", timeout=15_000
+                    "관측 상태 조회 실패", timeout=15_000
                 )
                 expect(page.locator(".monitor-asset")).to_have_count(0)
                 checks.add("node-outage-clears-old-results-on-monitor", True)

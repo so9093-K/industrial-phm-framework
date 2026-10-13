@@ -36,7 +36,7 @@ def test_empty_workspace_start_routes_research_and_read_failures(
                 for link in page.locator("#workspace-start a").all():
                     box = link.bounding_box()
                     assert box and box["y"] >= 0 and box["y"] + box["height"] <= 800
-                page.get_by_role("link", name="기존 연구 결과 보기").click()
+                page.get_by_role("link", name="연구 데이터 확인").click()
                 pw.expect(page.locator("#view-title")).to_have_text("연구 · 검증 결과")
                 pw.expect(page.locator("#workspace-start")).to_be_hidden()
                 catalog = page.request.get(base + "research-results.json").json()
@@ -54,8 +54,11 @@ def test_empty_workspace_start_routes_research_and_read_failures(
                 assert page.locator("#analysis-count").inner_text() == "0"
                 page.go_back(wait_until="networkidle")
                 pw.expect(page.locator("#view-title")).to_have_text("설비 모니터링")
-                page.get_by_role("link", name="실제 데이터 연결하기").click()
+                page.get_by_role("link", name="파일에서 시작").click()
                 pw.expect(page.locator("#view-title")).to_have_text("데이터 연결")
+                pw.expect(page.locator("#csv-start-file")).to_be_focused()
+                pw.expect(page.locator("#file-form")).not_to_be_visible()
+                page.locator("#advanced-file-registration > summary").click()
                 pw.expect(page.locator("#file-form")).to_be_visible()
                 pw.expect(page.locator("#monitor")).to_be_hidden()
                 page.reload(wait_until="networkidle")

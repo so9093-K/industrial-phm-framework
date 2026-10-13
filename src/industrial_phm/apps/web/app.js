@@ -3,6 +3,7 @@ import { initializeNavigation, navigate } from "./navigation.js";
 import { initializePhm, refreshPhm } from "./phm.js";
 import { initializeMonitor, refreshMonitor } from "./monitor.js";
 import { initializeResearch } from "./research.js";
+import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
@@ -772,7 +773,10 @@ initializeNavigation();
 initializeResearch();
 initializeCondition();
 initializePhm();
-byId("start-sample").addEventListener("click", () => navigate("#connect", byId("sample-start")));
+byId("start-example").addEventListener("click", () => void exploreExample());
+byId("start-file").addEventListener("click", () => navigate("#connect", byId("csv-start-file")));
+byId("start-opcua").addEventListener("click", () => {byId("opcua-registration").open = true;navigate("#connect", byId("opcua-form").querySelector('input[name="source_id"]'));});
+initializeCsvStart();
 async function initializeReviewAccess() {
   try {
     const session = await getJSON("/api/v1/session");
@@ -827,6 +831,7 @@ function updateSourceProgress() {
     const analyzed = [...rows(monitor, "file_feature_analyses"), ...rows(monitor, "phase_unbalance_analyses")]
       .some((run) => run.source_id === source.source_id);
     progress.children[2].textContent = sourceHistory.has(source.source_id) || source.last_live_history_snapshot_id != null
+      || source.file_history_job?.state === "succeeded"
       ? "저장 이력 근거 있음" : "저장 이력 미확인";
     progress.children[3].textContent = analyzed ? "분석 근거 있음" : "분석 근거 미확인";
   });
@@ -873,9 +878,7 @@ function scrollToOnboardingTarget(target, hash) {
       "해당 작업 버튼이 현재 목록에 없습니다. 소스 목록을 새로 조회하세요.";
     return;
   }
-  navigate(hash);
-  target.focus({preventScroll: true});
-  target.scrollIntoView({block: "center"});
+  navigate(hash, target);
 }
 byId("onboarding-source-select").addEventListener("change", (event) => {
   selectedOnboardingSourceId = event.target.value;
@@ -884,7 +887,7 @@ byId("onboarding-source-select").addEventListener("change", (event) => {
 byId("onboarding-action").addEventListener("click", () => {
   const item = onboardingSources.find((source) => source.source_id === selectedOnboardingSourceId);
   if (!item) {
-    scrollToOnboardingTarget(byId("file-form").querySelector('input[name="source_id"]'), "#connect");
+    scrollToOnboardingTarget(byId("csv-start-file"), "#connect");
     return;
   }
   const [action] = onboardingStepFor(item);
@@ -1036,6 +1039,13 @@ async function loadSources() {
         }
       } else {
         card.append(create("span", null, "FILE 소스 · 연속 수집 시작 요청 미지원. 기존 FILE 처리 경로를 사용하세요."));
+        const job = item.file_history_job;
+        if (job) {
+          card.append(create("span", job.state === "failed" || job.state === "interrupted" ? "error" : null,
+            "이력 저장 작업: " + ({running: "진행 중 · 시작 " + formatTime(job.started_at),
+              succeeded: "완료 · 측정값 " + job.event_count + "개 · " + formatTime(job.finished_at),
+              failed: "실패 · 다시 실행하세요", interrupted: "서비스 재시작으로 중단 · 다시 실행하세요"})[job.state]));
+        }
         if (item.phase_binding_count) {
           card.append(create("span", null, "검증할 3상 역할 " + item.phase_binding_count
             + "개 등록됨 · V/A 단위·R/S/T 해석 근거는 backfill 원본 행에 고정"));
@@ -1046,7 +1056,8 @@ async function loadSources() {
       const analyzed = [...rows(monitor, "file_feature_analyses"), ...rows(monitor, "phase_unbalance_analyses")]
         .some((run) => run.source_id === item.source_id);
       ["등록 확인", item.receipt_confirmed ? "검증 수신 확인" : "검증 수신 미확인",
-        sourceHistory.has(item.source_id) || item.last_live_history_snapshot_id != null ? "저장 이력 근거 있음" : "저장 이력 미확인",
+        sourceHistory.has(item.source_id) || item.last_live_history_snapshot_id != null || item.file_history_job?.state === "succeeded"
+          ? "저장 이력 근거 있음" : "저장 이력 미확인",
         analyzed ? "분석 근거 있음" : "분석 근거 미확인"].forEach((text) => progress.append(create("li", null, text)));
       card.append(progress);
       const inspectHistory = create("button", "source-next", "이 소스의 저장 이력 확인");
@@ -1339,14 +1350,16 @@ async function analyzeFilePhase(sourceId, button) {
 
 async function backfillFile(sourceId, button) {
   const output = byId("source-control-result");
-  if (!window.confirm(sourceId + " · CSV의 타임스탬프를 사용해 DuckLake에 실제 이력을 적재합니다.\n같은 파일의 재시도는 기존 배치 커밋을 재사용합니다. 수집·분석은 시작하지 않습니다.")) return;
+  if (!window.confirm(sourceId + " · CSV의 타임스탬프를 사용해 DuckLake에 실제 이력을 적재합니다.\nSupervisor가 백그라운드에서 저장하며, 같은 파일의 재시도는 기존 배치 커밋을 재사용합니다. 수집·분석은 시작하지 않습니다.")) return;
   button.disabled = true;
   output.className = "";
   output.textContent = sourceId + " · FILE 이력 적재 요청 중";
-  let saved = false;
   try {
     const session = await getJSON("/api/v1/session");
-    const response = await fetch("/api/v1/sources/file/backfill", {
+    // The supervisor owns long history writes as a background job. A standalone preview keeps
+    // the existing synchronous path, which is bounded to small files.
+    const background = session.write_scope === "supervisor-owned-source-control";
+    const response = await fetch(background ? "/api/v1/sources/file/backfill/start" : "/api/v1/sources/file/backfill", {
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
       body: JSON.stringify({source_id: sourceId}),
@@ -1358,34 +1371,52 @@ async function backfillFile(sourceId, button) {
       if (response.status === 400) throw new Error("control-invalid");
       throw new Error("http-" + response.status);
     }
-    const result = await response.json();
-    if (result.schema_version !== 1 || result.source_id !== sourceId
-        || result.meaning !== "persisted-file-history-not-live-collection-or-analysis"
-        || !Number.isSafeInteger(result.history_snapshot_id)
-        || !Number.isSafeInteger(result.event_count)
-        || !Number.isSafeInteger(result.recovered_segment_count)) {
-      throw new Error("schema-mismatch");
+    const started = await response.json();
+    if (!background) {
+      if (started.schema_version !== 1 || started.source_id !== sourceId
+          || started.meaning !== "persisted-file-history-not-live-collection-or-analysis"
+          || !Number.isSafeInteger(started.event_count)) throw new Error("schema-mismatch");
+    } else if (started.schema_version !== 1 || started.source_id !== sourceId
+        || !["running", "succeeded"].includes(started.state)) throw new Error("schema-mismatch");
+    // Poll the supervisor job; a failed status read is not a failed write.
+    const begun = Date.now();
+    let job = !background ? {...started, state: "succeeded"} : started.state === "succeeded" ? started : null;
+    while (!job || job.state === "running") {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      output.textContent = sourceId + " · 백그라운드 이력 적재 중 · 경과 " + Math.round((Date.now() - begun) / 1000) + "초";
+      try {
+        const data = await getJSON("/api/v1/sources");
+        job = rows(data, "sources").find((item) => item.source_id === sourceId)?.file_history_job || job;
+      } catch (_) { /* keep waiting */ }
+      if (Date.now() - begun > 15 * 60 * 1000) throw new Error("history-unknown");
     }
-    saved = true;
+    if (job.state === "interrupted") throw new Error("history-interrupted");
+    if (job.state !== "succeeded" || !Number.isSafeInteger(job.event_count)) throw new Error("history-failed");
     output.textContent = sourceId + " · DuckLake 이력 적재 완료 · "
-      + result.event_count + "개 이벤트 · snapshot #" + result.history_snapshot_id
-      + " · 재사용 배치 " + result.recovered_segment_count + "개 · 분석·실시간 수집 아님";
+      + job.event_count + "개 이벤트 · snapshot #" + job.history_snapshot_id
+      + " · 재사용 배치 " + job.recovered_segment_count + "개 · 분석·실시간 수집 아님";
   } catch (error) {
     output.className = "error";
     if (error.message === "control-conflict") {
-      output.textContent = "적재 불가 · ACTIVE FILE, 검증 receipt, 시간 컬럼, CSV 크기(1MiB 이하) 및 작업공간 경계를 확인하세요.";
+      output.textContent = "적재 불가 · ACTIVE FILE, 검증 receipt, 시간 컬럼, CSV 크기(감독형 Web 20MiB·독립 Preview 1MiB 이하), 작업공간 경계와 다른 이력 적재 진행 여부를 확인하세요.";
     } else if (error.message === "source-missing") {
       output.textContent = "등록되지 않은 소스입니다.";
+    } else if (error.message === "history-interrupted") {
+      output.textContent = "서비스 재시작으로 이력 적재가 중단됐습니다. 다시 실행하면 이어서 저장합니다.";
+    } else if (error.message === "history-failed") {
+      output.textContent = "이력 적재에 실패했습니다. 시간대가 있는 시각과 원본 파일을 확인한 뒤 다시 실행하세요.";
+    } else if (error.message === "history-unknown") {
+      output.textContent = "적재 결과를 확인하지 못했습니다. 소스 목록의 이력 저장 상태를 새로 조회하세요.";
     } else {
       output.textContent = presentError(error);
     }
   } finally {
     button.disabled = false;
   }
-  if (saved) await Promise.allSettled([loadSources(), refresh()]);
+  await Promise.allSettled([loadSources(), refresh()]);
 }
 
-const MAX_CSV_UPLOAD = 1024 * 1024;
+const MAX_CSV_UPLOAD = 20 * 1024 * 1024;
 byId("csv-upload").addEventListener("change", async () => {
   csvPreflightRevision += 1;
   byId("csv-preflight-result").className = "state";
@@ -1400,7 +1431,7 @@ byId("csv-upload").addEventListener("change", async () => {
     return;
   }
   if (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD) {
-    preview.textContent = "선택한 파일은 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.";
+    preview.textContent = "선택한 파일은 20MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.";
     preview.className = "hint error wide";
     return;
   }
@@ -1484,7 +1515,7 @@ function csvRegistrationInput() {
   };
   const chosen = byId("csv-upload").files[0];
   if (chosen && (!/\.csv$/i.test(chosen.name) || !chosen.size || chosen.size > MAX_CSV_UPLOAD)) {
-    throw new Error("업로드할 CSV는 1MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.");
+    throw new Error("업로드할 CSV는 20MiB 이하의 비어 있지 않은 .csv 파일이어야 합니다.");
   }
   if (!payload.timestamp_column) {
     throw new Error("Web의 CSV 이력·3상 분석에는 명시적 시간 컬럼이 필요합니다.");
@@ -1885,7 +1916,27 @@ byId("sample-stop").addEventListener("click", () => {
   if (window.confirm("이 Web Supervisor가 시작한 격리 synthetic 데모를 중지합니다. 계속할까요?")) sampleCommand("stop");
 });
 byId("sample-refresh").addEventListener("click", () => sampleCommand("status"));
+document.addEventListener("isolated-example-request", async () => {
+  byId("connection-progress").open = true;
+  navigate("#connect", byId("sample-status"));
+  await sampleCommand("status");
+  if (sampleStatusKind === "stopped") await sampleCommand("start");
+  if (sampleStatusKind === "running" && sampleValidatedUrl) {
+    const url = new URL(sampleValidatedUrl);url.searchParams.set("return_to", location.origin + "/web/#monitor");
+    location.assign(url);
+  }
+});
 sampleCommand("status");
+
+getJSON("/api/v1/session").then((session) => {
+  if (session.workspace_kind !== "synthetic-demo") return;
+  const notice = create("section", "notice synthetic-context", "합성 예시 · 별도 작업공간 · 읽기 전용 · 실제 설비 측정이 아닙니다. ");
+  const target = new URLSearchParams(location.search).get("return_to");
+  if (target && /^http:\/\/127\.0\.0\.1:\d{2,5}\/web\/#monitor$/.test(target)) {
+    const link = create("a", null, "내 작업공간으로 돌아가기");link.href = target;notice.append(link);
+  }
+  byId("phm-monitor").before(notice);
+}).catch(() => {});
 
 byId("file-form").addEventListener("input", () => {
   csvPreflightRevision += 1;
@@ -1924,9 +1975,15 @@ async function readMonitorFacts() {
     if (sourceSnapshot.read_error_scopes?.length || sourceSnapshot.live_evidence_error_scopes?.length) errors.push("sources-store");
   } else {sourceSnapshot = null;sourceReadState = "error";errors.push("sources");}
   assetDetails();renderWorkspace();
+  if (document.body.dataset.view === "monitor") {
+    byId("refresh").disabled = false;
+    if (byId("notice").textContent === "저장된 관측 현황을 불러오는 중입니다.") setNotice("");
+  }
   return {monitor, sources: sourceSnapshot, errors};
 }
 document.addEventListener("phm-monitor-count", (event) => {phmModelCount = event.detail;renderWorkspace();});
+// The guided CSV flow performs its own explicit writes; reread sources and evidence afterwards.
+document.addEventListener("workspace-changed", () => {void loadSources();void refresh();});
 initializeMonitor(readMonitorFacts);
 
 byId("condition-disclosure").addEventListener("toggle", () => {if (byId("condition-disclosure").open) void loadCondition(selectedAsset);});
