@@ -222,3 +222,13 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .phm-phase-1{stroke:#c17e43;stroke-dasharray:7 3}
 .phm-phase-2{stroke:#6778a1;stroke-dasharray:2 3}
 .phm-phase-legend{font-size:.78rem;color:#496373;margin:0 0 5px;word-spacing:.25rem}
+
+/* PHM review is the main action; optional AI prose and history stay secondary. */
+.phm-review-status{font-size:.92rem;font-weight:650;color:#254a5e;margin:12px 0}
+.phm-review-details,.phm-ai-details{border-top:1px solid #dbe5e9;margin-top:15px;padding:10px 0}
+.phm-review-details summary,.phm-ai-details summary{font-size:.87rem;font-weight:650;cursor:pointer;color:#254e60;min-height:28px}
+.phm-ai-details>button{margin:8px 0}
+.phm-review-details .phm-review-history{padding-top:8px}
+#anomaly-explanation>button:not([hidden]),#rul-explanation>button:not([hidden]){margin:8px 8px 6px 0}
+#anomaly-explanation>label:not([hidden]),#rul-explanation>label:not([hidden]){margin:12px 0 7px}
+#anomaly-explanation textarea,#rul-explanation textarea{display:block;width:100%;min-height:70px;margin-top:7px;border:1px solid #b9cad5;border-radius:8px;padding:9px;resize:vertical}
