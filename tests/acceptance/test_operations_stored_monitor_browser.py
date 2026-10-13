@@ -144,3 +144,39 @@ def test_model_less_asset_shows_stored_signal_and_follows_new_history(
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+def test_slow_cadence_reads_as_one_line_while_a_real_gap_stays_open(tmp_path: Path) -> None:
+    """One-minute records in 30 s buckets must not look like a broken signal."""
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    # 00:00-01:59 every 60 s with no record from 01:20 to 01:39.
+    rows = [(s, 10 + s / 3600) for s in range(0, 7200, 60) if not 4800 <= s < 6000]
+    _record(tmp_path, history, "recorder-slow", rows)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1024, "height": 900})
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/#monitor")
+                pw.expect(page.locator("#monitor-history-range")).to_have_value(
+                    "1h", timeout=15_000
+                )
+                line = page.locator("#monitor-signal-chart .monitor-raw-line")
+                pw.expect(line).to_have_count(1, timeout=15_000)
+                # The last hour holds 01:00-01:19 and 01:40-01:59: exactly two segments.
+                assert line.get_attribute("d").count("M") == 2
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)

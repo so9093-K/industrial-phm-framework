@@ -170,7 +170,7 @@ function paint(data) {
     : "선택한 구간에 저장된 측정값이 없습니다. 표시 구간을 넓혀 보세요.";
   byId("monitor-signal-legend").textContent = shown.length
     ? "사용 가능 " + counts.usable_count + " · 결측 " + counts.null_count + " · 품질 문제 " + counts.non_good_count + " · 중복 충돌 "
-      + counts.conflict_count + " · 값이 없는 구간은 연결하지 않으며, 측정값은 설비 정상·고장 판정이 아닙니다."
+      + counts.conflict_count + " · 평소 측정 간격보다 긴 공백은 연결하지 않으며, 측정값은 설비 정상·고장 판정이 아닙니다."
       + (groups.size > MAX_GROUPS ? " · 출처 " + groups.size + "개 중 " + MAX_GROUPS + "개 표시" : "")
     : "";
 }

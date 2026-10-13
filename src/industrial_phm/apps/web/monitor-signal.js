@@ -130,8 +130,9 @@ export function drawMeasuredTrend(root, rows, channel) {
 }
 
 // Stored Asset History buckets: mean line with the min-max range of usable values.
-// A missing bucket is a gap, never zero or an interpolated line. A bucket with stored
-// observations but no usable value (missing/non-good/conflicting) is a hollow marker on the axis.
+// A missing bucket is never zero. Neighbouring values are joined only within 1.5 times the usual
+// spacing of filled buckets, so a slow sampling cadence still reads as one line while a longer
+// gap stays open. A bucket with stored observations but no usable value is a hollow axis marker.
 export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, unit, height = 170) {
   root.replaceChildren();
   const start = Date.parse(startAt), end = Date.parse(endAt), step = bucketSeconds * 1000;
@@ -145,11 +146,15 @@ export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, un
   const x = (at) => left + (at - start) / (end - start) * (right - left);
   const y = (value) => bottom - (value - min + pad) / (max - min + 2 * pad) * (bottom - top);
   const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, class: "monitor-raw-chart monitor-stored-trend", role: "img",
-    "aria-label": "저장된 측정값의 구간 평균과 최소·최대 범위. 값이 없는 구간은 연결하지 않습니다."});
+    "aria-label": "저장된 측정값의 구간 평균과 최소·최대 범위. 평소 측정 간격보다 긴 공백은 연결하지 않습니다."});
   svg.append(svgNode("path", {d: `M${left} ${top}V${bottom}H${right}`, class: "axis"}));
+  const position = (bucket) => Math.round((Date.parse(bucket.bucket_start) - start) / step);
+  const filled = usable.map(position).sort((a, b) => a - b);
+  const spacing = filled.slice(1).map((value, i) => value - filled[i]).sort((a, b) => a - b);
+  const joinLimit = Math.max(1, (spacing[Math.floor(spacing.length / 2)] || 1) * 1.5);
   let path = "", previous = null;
   for (const bucket of [...buckets].sort((a, b) => Date.parse(a.bucket_start) - Date.parse(b.bucket_start))) {
-    const at = Date.parse(bucket.bucket_start), index = Math.round((at - start) / step);
+    const at = Date.parse(bucket.bucket_start), index = position(bucket);
     const centre = x(Math.min(end, at + step / 2));
     if (!(bucket.usable_count > 0) || typeof bucket.mean !== "number" || !Number.isFinite(bucket.mean)) {
       svg.append(svgNode("circle", {cx: centre, cy: bottom - 3, r: 3, class: "monitor-stored-missing"}));
@@ -158,7 +163,7 @@ export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, un
     if (typeof bucket.minimum === "number" && typeof bucket.maximum === "number" && bucket.maximum > bucket.minimum) {
       svg.append(svgNode("path", {d: `M${centre.toFixed(2)} ${y(bucket.minimum).toFixed(2)}V${y(bucket.maximum).toFixed(2)}`, class: "monitor-stored-range"}));
     }
-    path += (previous !== null && index === previous + 1 ? "L" : "M") + centre.toFixed(2) + " " + y(bucket.mean).toFixed(2) + " ";
+    path += (previous !== null && index - previous <= joinLimit ? "L" : "M") + centre.toFixed(2) + " " + y(bucket.mean).toFixed(2) + " ";
     const dot = svgNode("circle", {cx: centre, cy: y(bucket.mean), r: 2.5, class: "monitor-raw-dot phase-0"});
     const title = svgNode("title");
     title.textContent = formatTime(bucket.bucket_start) + " 구간 · 평균 " + number(bucket.mean) + (unit ? " " + unit : "")
