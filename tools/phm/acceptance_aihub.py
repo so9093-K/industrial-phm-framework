@@ -161,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             # 2. Replay with original timestamps; interrupt collection midway ---------------
             evidence["supervisor_ready_seconds"] = [supervisor.start()]
+            replay_log = output / "replay.log"
             server = subprocess.Popen(
                 [
                     sys.executable,
@@ -173,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
                     str(SPEED),
                     "--recorded-timestamps",
                 ],
-                stdout=(output / "replay.log").open("w"),
+                stdout=replay_log.open("w"),
                 stderr=subprocess.STDOUT,
             )
             replay_began = time.monotonic()
@@ -181,7 +182,10 @@ def main(argv: list[str] | None = None) -> int:
             record_display(page, "anomaly-freshness")
             shown_text: list[tuple[datetime, str]] = []
             selected = interrupted = False
-            while server.poll() is None:
+            # The replay server stays up after publishing the selection; it is done when it says so.
+            while server.poll() is None and "replay selection finished" not in replay_log.read_text(
+                encoding="utf-8", errors="replace"
+            ):
                 time.sleep(1.5)
                 elapsed = time.monotonic() - replay_began
                 if not interrupted and elapsed > 100:
@@ -214,7 +218,12 @@ def main(argv: list[str] | None = None) -> int:
                 if not selected and option.count():
                     page.select_option("#anomaly-binding", "aihub-1338")
                     selected = True
-            evidence["replay_exit"] = server.returncode
+            evidence["replay_finished_seconds"] = round(time.monotonic() - replay_began, 1)
+            checks.add(
+                "replay-published-whole-selection",
+                "replay selection finished" in replay_log.read_text(encoding="utf-8"),
+                server.poll(),
+            )
             # Let the coordinator close the last window and the runner catch up.
             time.sleep(20)
             shown_text += displayed(page)
