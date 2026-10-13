@@ -27,8 +27,8 @@ const POLL_MS = 3000;
 const TASK_LABEL = {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"};
 const STEP_KIND_LABEL = {"acquisition-snapshot": "획득 파형", "observation-window": "관측 윈도우"};
 // A rejected input is not a fault; it means this package was not trained or validated for it.
-const INPUT_GUIDE = "모델 입력 규격은 '모델·학습 범위·검증 근거'에서 확인할 수 있습니다. "
-  + "규격이 다른 데이터는 그 입력으로 학습·검증한 모델 패키지가 있어야 분석합니다.";
+const INPUT_GUIDE = "이 입력은 선택한 모델로 분석할 수 없습니다. "
+  + "아래 모델 정보에서 필요한 입력 조건을 확인하고, 맞는 모델을 연결해야 합니다.";
 // Only skips where the package does not fit the input get that guidance. A sequence warm-up,
 // an unreadable file or a too-short window is not a reason to train another model.
 const INPUT_MISMATCH = /^(package expects |channels differ |sampling rate .+ differs |sample count .+ differs |unsupported feature set |fixed sampling rate or sample count |RUL applicability unavailable)/;
@@ -339,14 +339,18 @@ function renderAnomaly() {
     renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;
   }
   const last = analyzed.at(-1);
-  byId("anomaly-observation").textContent = last.output.exceeds_threshold
-    ? "최근 분석의 참고 기준을 초과했습니다. 해당 시점의 원본 신호를 확인할 수 있습니다."
-    : "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.";
+  const latestSkipped = steps.at(-1)?.state === "skipped";
+  byId("anomaly-observation").textContent = latestSkipped
+    ? "최근 입력은 분석되지 않았습니다. 아래 점수는 마지막으로 분석된 이전 입력에 대한 결과입니다."
+    : last.output.exceeds_threshold
+      ? "최근 분석의 참고 기준을 초과했습니다. 해당 시점의 원본 신호를 확인할 수 있습니다."
+      : "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.";
   const threshold = last.output.threshold;
   const openIntervals = entry.intervals.filter((item) => item.open);
   const cards = byId("anomaly-cards");
   cards.append(
-    card("최신 이상 점수", number(last.output.score), "참고 기준 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
+    card(latestSkipped ? "마지막 분석 점수" : "최신 이상 점수", number(last.output.score),
+      "참고 기준 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
     card("기준 초과 구간", entry.intervals.length + "개", openIntervals.length ? "확인 중 " + openIntervals.length + "개" : "현재 열린 구간 없음"),
   );
   const axis = axisFor(entry);
@@ -366,7 +370,15 @@ function renderAnomaly() {
     const group = node("div", "", "phm-feature");
     group.append(node("p", phaseGroup.title + " · " + phaseGroup.unit, "phm-feature-title"));
     group.append(phasePlot(analyzed, phaseGroup, axis, domain, (step) => focusStep(step.position)));
-    group.append(node("p", "R상 · S상 · T상", "phm-phase-legend"));
+    const legend = node("p", "", "phm-phase-legend");
+    for (const [index, phase] of ["R상", "S상", "T상"].entries()) {
+      const sample = node("span", "", "phm-phase-key phm-phase-key-" + index);
+      sample.setAttribute("aria-hidden", "true");
+      const item = node("span", "", "phm-phase-label");
+      item.append(sample, document.createTextNode(phase));
+      legend.append(item);
+    }
+    group.append(legend);
     featureRoot.append(group);
     for (const name of phaseGroup.names) combined.add(name);
   }
@@ -541,6 +553,7 @@ function renderRul() {
   for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model"]) byId(id).replaceChildren();
   if (readError) {
     byId("rul-asset-title").textContent = "데이터 조회 실패";
+    byId("rul-observation").textContent = "현재 결과를 조회할 수 없습니다. 이전 추정값을 최신 상태로 표시하지 않습니다.";
     byId("rul-validation-note").textContent = "";
     renderPhmExplanation("rul", "", null);
     byId("rul-freshness").textContent = "";
@@ -549,6 +562,7 @@ function renderRul() {
   }
   if (!selected.rul) {
     byId("rul-asset-title").textContent = "연결된 설비 없음";
+    byId("rul-observation").textContent = "분석 모델이 연결되면 수명 추정 결과를 표시합니다.";
     byId("rul-validation-note").textContent = "";
     renderPhmExplanation("rul", "", null);
     state.className = "state";
@@ -564,8 +578,15 @@ function renderRul() {
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
   const output = (entry.package && entry.package.output) || {};
-  if (!analyzed.length) {renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
+  if (!analyzed.length) {
+    byId("rul-observation").textContent = "분석 가능한 입력을 기다리고 있습니다.";
+    renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;
+  }
   const last = analyzed.at(-1);
+  const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
+  byId("rul-observation").textContent = latestRulSkipped
+    ? "최근 입력은 분석되지 않았습니다. 아래 추정은 마지막으로 분석된 이전 입력의 결과입니다."
+    : "기록된 마지막 획득 시점까지의 추정입니다. 실제 고장 시점 예측이 아닙니다.";
   const unit = unitText(last.output.unit);
   const period = output.step_period_seconds;
   state.className = "state";
@@ -573,7 +594,7 @@ function renderRul() {
   const validation = (entry.package && entry.package.validation) || {};
   const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
   byId("rul-cards").append(
-    card("마지막 RUL 추정", number(last.output.estimate, 1) + " " + unit,
+    card(latestRulSkipped ? "마지막 분석 RUL 추정" : "마지막 RUL 추정", number(last.output.estimate, 1) + " " + unit,
       (period ? "기록 주기 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
     card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "직전 추정값과 비교"),
   );
@@ -621,7 +642,8 @@ const applicabilityText = (value, pkg = null) => {
   if (pkg && pkg.applicability && pkg.applicability.asset_id) {
     return ({inside: "연결 설비와 일치", outside: "다른 설비", unknown: "설비 범위 미확인"})[value] || "설비 범위 미확인";
   }
-  return ({inside: "학습 범위 안", outside: "학습 범위 밖", unknown: "판단 근거 없음"})[value] || "판단 근거 없음";
+  return ({inside: "모델 등록 조건 일치", outside: "모델 등록 조건 불일치",
+    unknown: "비교 정보 부족"})[value] || "비교 정보 부족";
 };
 
 function inputSpec(input) {
@@ -637,7 +659,7 @@ function inputSpec(input) {
 function renderModelCard(root, pkg) {
   root.replaceChildren();
   if (!pkg) {root.append(node("p", "모델 패키지 정보를 읽지 못했습니다.", "muted"));return;}
-  const summary = node("summary", "모델·학습 범위·검증 근거");
+  const summary = node("summary", "모델 정보 · 입력 조건과 검증 기록");
   root.append(summary);
   const facts = node("div", "", "facts");
   const add = (label, value) => {const item = node("div", "", "fact");item.append(node("span", label), node("strong", value));facts.append(item);};

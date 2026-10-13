@@ -117,6 +117,10 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "최근 입력은 분석되지 않았습니다", timeout=10_000
                 )
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
+                    "마지막으로 분석된 이전 입력"
+                )
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("마지막 분석 점수")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #7")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.route(

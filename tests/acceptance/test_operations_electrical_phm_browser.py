@@ -87,6 +87,9 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "최근 입력은 분석되지 않았습니다", timeout=10_000
                 )
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
+                    "마지막으로 분석된 이전 입력"
+                )
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.locator('a[href="#rul"]').click()
                 pw.expect(page.locator("#rul-state")).to_contain_text(
