@@ -55,12 +55,16 @@
       </section>
       <section id="workspace-start" class="panel hidden" data-views="monitor" aria-labelledby="start-title">
         <h2 id="start-title">설비 데이터를 연결하세요</h2>
-        <p class="muted">아직 이 작업공간에 측정 데이터가 없습니다. 측정값을 넣으면 이 화면에서 설비의 실제 신호를 볼 수 있습니다.</p>
+        <p class="muted">아직 이 작업공간에 측정 데이터가 없습니다. 예시 데이터로 먼저 둘러보거나 내 데이터를 연결하세요.</p>
+        <div class="start-example">
+          <button id="start-example" type="button">예시 데이터로 둘러보기</button>
+          <p>합성 예시 · 모터 3상 전류와 진동 6시간(실제 설비 아님 · 모니터링 전용). 내 데이터와 같은 점검·저장 절차로 이 작업공간에 넣고 모니터링을 엽니다. 이상 탐지·RUL 모델의 입력 규격과 다르므로 분석 결과는 만들지 않습니다.</p>
+        </div>
         <div class="start-options">
           <a id="start-file" href="#connect"><strong>파일에서 시작</strong><span>CSV 파일의 실제 신호와 컬럼을 먼저 확인하고 점검한 뒤 저장</span></a>
           <a id="start-opcua" href="#connect"><strong>설비 연결 (OPC UA)</strong><span>로컬 OPC UA 서버의 변수를 탐색·등록하고 수신을 확인</span></a>
         </div>
-        <p class="start-secondary">별도 선택: <a id="start-sample" href="#connect">격리된 예제 환경 체험</a> (이 작업공간과 분리된 별도 화면) · <a href="#research">연구 데이터 확인</a></p>
+        <p class="start-secondary">공개 데이터셋의 과거 평가 결과는 <a href="#research">연구 데이터 확인</a>에서 따로 봅니다.</p>
       </section>
       <section data-views="system" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
       <section data-views="system" class="kpis" id="monitor" aria-label="관측 요약">
@@ -166,6 +170,10 @@
         <div class="panel-header"><div><h2 id="csv-start-title">CSV 파일로 시작</h2><p class="muted">파일의 실제 신호를 먼저 보고, 서버에서 점검한 뒤 저장하면 모니터링에서 같은 신호를 봅니다.</p></div></div>
         <ol id="csv-start-steps" class="csv-start-steps" aria-label="진행 단계"><li data-step="file" aria-current="step">파일 확인</li><li data-step="asset">설비 정보</li><li data-step="check">서버 점검</li><li data-step="save">등록·이력 저장</li><li data-step="monitor">모니터링</li></ol>
         <label class="csv-start-file">CSV 파일 선택 (UTF-8 · 20MiB 이하)<input id="csv-start-file" type="file" accept=".csv,text/csv"></label>
+        <div class="csv-start-examples" aria-label="예시 파일"><span>예시 파일로 해보기</span>
+          <button id="csv-start-example-motor" type="button" class="secondary">합성 예시 · 모터 전류·진동 6시간 (모니터링 전용)</button>
+          <button id="csv-start-example-invalid" type="button" class="secondary">오류 예시 · 시간대 없음·빈 값</button>
+        </div>
         <p id="csv-start-file-state" class="hint" role="status" aria-live="polite">아직 파일을 선택하지 않았습니다. 저장하기 전까지 파일은 이 브라우저에서만 읽습니다.</p>
         <div id="csv-start-preview" class="csv-start-preview" hidden>
           <p class="tag">브라우저 미리보기 · 아직 서버 검증·저장 전</p>

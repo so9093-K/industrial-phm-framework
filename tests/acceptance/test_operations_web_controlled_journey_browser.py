@@ -253,6 +253,60 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
     assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
 
 
+def test_supervised_web_one_click_example_opens_monitoring_without_duplicates(
+    tmp_path: Path,
+) -> None:
+    """A bundled synthetic example takes the same writes as a user file, labelled as such."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "web")
+    init = initialize_operations_workspace(workspace)
+    port = _port()
+    write_operations_runtime_config(
+        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+    )
+    log = tmp_path / "supervisor.log"
+    proc = _start(workspace.root, port, log)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1440, "height": 900}, locale="ko-KR")
+            errors: list[str] = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            try:
+                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                page.get_by_role("button", name="예시 데이터로 둘러보기").click(timeout=30000)
+                monitor = page.locator('nav a[href="#monitor"]')
+                pw.expect(monitor).to_have_attribute("aria-current", "page", timeout=60000)
+                reading = page.locator("#monitor-signal-reading")
+                pw.expect(reading).to_contain_text("example-motor", timeout=30000)
+                pw.expect(reading).to_contain_text("원본 측정 2026-10-01 14:59:50 KST")
+                pw.expect(page.locator("#monitor-detection-results")).to_contain_text(
+                    "연결된 PHM 분석 모델 없음"
+                )
+                # Repeating resumes from the stored example instead of registering again.
+                page.locator('nav a[href="#connect"]').click()
+                page.evaluate("import('/web/csv-start.js').then((m) => m.exploreExample())")
+                pw.expect(monitor).to_have_attribute("aria-current", "page", timeout=60000)
+                sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
+                assert [source.source_id for source in sources] == ["example-motor"]
+                # The invalid example shows row-level guidance and writes nothing.
+                page.locator('nav a[href="#connect"]').click()
+                page.get_by_role("button", name="오류 예시 · 시간대 없음·빈 값").click()
+                pw.expect(page.locator("#csv-start-issues")).to_contain_text("8행의 시각")
+                pw.expect(page.locator("#csv-start-file-state")).to_contain_text("모니터링 전용")
+                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        _stop(proc, workspace.root)
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
+
+
 @pytest.mark.parametrize("width", [1024, 1440])
 def test_supervised_web_first_run_to_review_persists_across_restart(
     tmp_path: Path, width: int

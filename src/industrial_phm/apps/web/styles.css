@@ -363,3 +363,7 @@ button.secondary{background:#fff;color:#18596d}button.secondary:hover:not(:disab
 body[data-view="monitor"][data-workspace-state="empty"] #phm-monitor,
 body[data-view="monitor"][data-workspace-state="empty"] #workspace-overview,
 body[data-view="monitor"][data-workspace-state="empty"] #condition-disclosure{display:none}
+.start-example{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:14px 0 4px;padding:14px 16px;border:1px solid #9fcfc6;border-radius:12px;background:#f1faf8}
+.start-example button{font-size:.95rem}.start-example p{margin:0;font-size:.82rem;color:#395866;flex:1;min-width:220px}
+.csv-start-examples{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 0;font-size:.8rem;color:#45616f}
+.csv-start-examples button{font-size:.78rem;padding:5px 9px}

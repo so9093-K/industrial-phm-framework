@@ -103,8 +103,8 @@ function setCurrent(step) {
   }
 }
 
-async function chooseFile() {
-  const chosen = byId("csv-start-file").files[0];
+async function chooseFile(example = null) {
+  const chosen = example || byId("csv-start-file").files[0];
   file = null;table = null;resetSave();invalidateCheck();
   byId("csv-start-preview").hidden = true;byId("csv-start-details").hidden = true;
   const state = byId("csv-start-file-state");state.className = "hint";
@@ -127,7 +127,7 @@ async function chooseFile() {
   }
   file = chosen;table = inspect(parseCsv(text));
   byId("csv-start-channels").replaceChildren();byId("csv-start-time").replaceChildren();
-  state.textContent = chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + table.sampleCount + "행 · 컬럼 " + table.header.length + "개";
+  state.textContent = (example ? "합성 예시 파일 · 실제 설비 아님 · 모니터링 전용 · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + table.sampleCount + "행 · 컬럼 " + table.header.length + "개";
   renderColumns();
   const stem = chosen.name.replace(/\.csv$/i, "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "file";
   byId("csv-start-source-id").value = "csv-" + stem + "-" + Math.random().toString(16).slice(2, 6);
@@ -424,6 +424,42 @@ function finish() {
   open.focus();
 }
 
+// Bundled synthetic examples, like Gradio's examples: one click fills the same flow a user's file
+// takes. They are labelled as synthetic and never presented as a real asset's measurements.
+const EXAMPLES = {
+  motor: {file: "example-motor.csv", asset: "example-motor-01", source: "example-motor", name: "합성 예시 · 모터 전류·진동"},
+  invalid: {file: "example-invalid.csv", asset: "example-invalid-01", source: "example-invalid", name: "합성 예시 · 오류 파일"},
+};
+
+async function loadExample(key) {
+  const example = EXAMPLES[key];
+  if (progress) restart();
+  const response = await fetch("/web/" + example.file, {cache: "no-store", credentials: "same-origin"});
+  if (!response.ok) throw new Error("example-unavailable");
+  byId("csv-start-file").value = "";
+  await chooseFile(new File([await response.blob()], example.file, {type: "text/csv"}));
+  byId("csv-start-asset").value = example.asset;
+  byId("csv-start-source-id").value = example.source;byId("csv-start-source-name").value = example.name;
+  invalidateCheck();
+}
+
+// Kibana-style sample data: run the same check → register → store sequence for the bundled
+// example and open the Monitor. A repeated click resumes from the stored example, never duplicates it.
+export async function exploreExample() {
+  navigate("#connect", byId("csv-start-title"));
+  const state = byId("csv-start-file-state");
+  try {
+    await loadExample("motor");
+    await check();
+    if (checkedRevision !== revision) return;
+    progress = {setup: setup(), done: {}, stored: null};
+    await save();
+    if (progress?.done.store) byId("csv-start-open-monitor").click();
+  } catch {
+    state.className = "hint error";state.textContent = "예시 파일을 불러오지 못했습니다. 화면을 새로 고친 뒤 다시 시도하세요.";
+  }
+}
+
 function restart() {
   byId("csv-start-file").value = "";byId("csv-start-asset").value = "";byId("csv-start-point").value = "";
   byId("csv-start-save").hidden = false;byId("csv-start-save").textContent = "등록하고 이력 저장";
@@ -441,5 +477,7 @@ export function initializeCsvStart() {
   byId("csv-start-check").addEventListener("click", () => void check());
   byId("csv-start-save").addEventListener("click", () => void save());
   byId("csv-start-restart").addEventListener("click", restart);
+  byId("csv-start-example-motor").addEventListener("click", () => void loadExample("motor").catch(() => {}));
+  byId("csv-start-example-invalid").addEventListener("click", () => void loadExample("invalid").catch(() => {}));
   new ResizeObserver(() => {if (table && !byId("csv-start-preview").hidden) drawChart();}).observe(byId("csv-start-chart"));
 }

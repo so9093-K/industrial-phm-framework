@@ -3,7 +3,7 @@ import { initializeNavigation, navigate } from "./navigation.js";
 import { initializePhm, refreshPhm } from "./phm.js";
 import { initializeMonitor, refreshMonitor } from "./monitor.js";
 import { initializeResearch } from "./research.js";
-import { initializeCsvStart } from "./csv-start.js";
+import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
@@ -773,7 +773,7 @@ initializeNavigation();
 initializeResearch();
 initializeCondition();
 initializePhm();
-byId("start-sample").addEventListener("click", () => navigate("#connect", byId("sample-start")));
+byId("start-example").addEventListener("click", () => void exploreExample());
 byId("start-file").addEventListener("click", () => navigate("#connect", byId("csv-start-file")));
 byId("start-opcua").addEventListener("click", () => navigate("#connect", byId("opcua-form").querySelector('input[name="source_id"]')));
 initializeCsvStart();

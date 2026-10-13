@@ -131,6 +131,8 @@ def create_operations_web_read_server(
                 "time.js": "text/javascript; charset=utf-8",
                 "monitor-history.js": "text/javascript; charset=utf-8",
                 "csv-start.js": "text/javascript; charset=utf-8",
+                "example-motor.csv": "text/csv; charset=utf-8",
+                "example-invalid.csv": "text/csv; charset=utf-8",
                 "research-results.json": "application/json; charset=utf-8",
             }
             if asset_name not in mime:
@@ -290,6 +292,8 @@ def create_operations_web_read_server(
                 "/web/time.js": "time.js",
                 "/web/monitor-history.js": "monitor-history.js",
                 "/web/csv-start.js": "csv-start.js",
+                "/web/example-motor.csv": "example-motor.csv",
+                "/web/example-invalid.csv": "example-invalid.csv",
                 "/web/research-results.json": "research-results.json",
             }
             asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path
