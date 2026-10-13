@@ -182,7 +182,19 @@ def main(argv: list[str] | None = None) -> int:
                 if not interrupted and elapsed > 100:
                     evidence["interruption"] = {"stopped_at_replay_seconds": round(elapsed, 1)}
                     evidence["supervisor_stop_seconds"] = supervisor.stop()
-                    time.sleep(15)  # the replay keeps publishing while nothing collects
+                    outage_began = time.monotonic()
+                    # While the node is down the screen must say it cannot read results,
+                    # not keep presenting the last analysis as current.
+                    try:
+                        expect(page.locator("#anomaly-state")).to_contain_text(
+                            "PHM 분석 결과를 읽지 못했습니다", timeout=10_000
+                        )
+                        outage_state = page.locator("#anomaly-state").inner_text()
+                    except AssertionError:
+                        outage_state = None
+                    checks.add("outage-shows-read-failure", outage_state is not None, outage_state)
+                    # The replay keeps publishing while nothing collects.
+                    time.sleep(max(0.0, 15 - (time.monotonic() - outage_began)))
                     evidence["supervisor_ready_seconds"].append(supervisor.start())
                     evidence["interruption"]["restarted_at_replay_seconds"] = round(
                         time.monotonic() - replay_began, 1
