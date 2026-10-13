@@ -759,7 +759,7 @@ async function refresh() {
 }
 byId("refresh").addEventListener("click",() => {
   if (["anomaly", "rul"].includes(document.body.dataset.view)) {void refreshPhm();return;}
-  if (document.body.dataset.view === "monitor") {void refreshMonitor();return;}
+  if (document.body.dataset.view === "monitor") {void refreshMonitor({force: true});return;}
   refresh();loadSources();loadRuntimeStatus();
 });
 byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);

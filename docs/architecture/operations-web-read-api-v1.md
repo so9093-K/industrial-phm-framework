@@ -70,7 +70,11 @@ The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
 shipped with the **Python wheel**, and use the same-origin, explicit
 `GET /api/v1/monitor`, `GET /api/v1/history/channels`, and
 `GET /api/v1/history/trend` endpoints. Monitor summary and PHM detail use 3-second polling of saved facts; signal/history and
-manual operating-change inspection remain explicit selections. This is not a live subscription. The HTML uses native form
+manual operating-change inspection remain explicit selections. This is not a live subscription.
+The default Monitor reads stored Asset History for the selected asset independently of PHM bindings: the channel list once per
+asset (re-read after 30 s) and a `anchor=latest` trend only when the selection changes, the asset's live history commit
+or source-less recorded end changes, or 30 s pass. Each history read loads a full snapshot, so it is not part of the 3-second
+poll. A failed read clears the stored values instead of keeping an earlier reading. The HTML uses native form
 labels, semantic controls, keyboard focus and responsive layout. Dynamic
 IDs, evidence and source fields are assigned via `textContent`, never
 `innerHTML`; browser content security policy only allows self-hosted

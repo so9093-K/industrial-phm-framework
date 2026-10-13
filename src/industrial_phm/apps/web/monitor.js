@@ -1,5 +1,6 @@
 import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
 import {formatTime} from "./time.js";
+import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored} from "./monitor-history.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
@@ -9,8 +10,13 @@ const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximum
 const active = () => document.body.dataset.view === "monitor" && !document.hidden;
 const states = {processed: "입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비", rejected: "입력 분석 거부", waiting: "확정 입력 대기", unavailable: "모델 실행 불가"};
 const reviewLabels = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료 · 정비 완료 아님"};
+// Data-flow evidence of the asset, independent of any connected model.
+const flowLabels = {running: "수신 흐름 근거 있음", waiting: "수신 대기", delayed: "수신 지연", stopped: "수집 중지", "needs-attention": "수신 확인 필요",
+  error: "수신 오류", unavailable: "수신 상태 미확인", "stored-history": "저장된 과거 기록"};
+const HISTORY = "stored-history";
 let timer = null, running = false, refreshRequested = false, readOperations;
 let lastData = null, lastBase = null, selectedAsset = new URLSearchParams(location.search).get("monitor_asset") || "", selectedStream = "", previousInput = false;
+let explicitStream = false;
 let traceKey = "", traceVersion = 0, traceData = null;
 let preview = null, previewKey = "", choiceId = "rms-0", signalVersion = 0, detailsKey = "";
 const streamKey = (i) => JSON.stringify([i.source_id, i.measurement_point_id, i.step_kind]);
@@ -60,6 +66,7 @@ function assetFacts(assetId, items, base) {
 }
 function selectAsset(assetId) {
   selectedAsset = assetId;selectedStream = "";previousInput = false;previewKey = "";detailsKey = "";
+  explicitStream = false;
   const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
   if (lastData) render(lastData, lastBase);
 }
@@ -98,33 +105,59 @@ function render(data, base) {
   for (const f of facts) {
     const button = node("button", "", "monitor-asset");button.type = "button";button.dataset.assetId = f.assetId;button.setAttribute("aria-pressed", f.assetId === selectedAsset);
     const heading = node("span", "", "monitor-asset-heading");heading.append(node("strong", assetName(f.assetId)), node("small", f.items.some(replay) ? "기록 재생" : "저장·수신"));
+    const row = assetRow(base, f.assetId);
     const message = f.notes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.compared.length
-      ? (f.items.some((i) => i.step_kind === "observation-window") ? "전기 신호" : "진동 신호") + " · 기준 초과 없음" : f.items.length ? "신호 기준 비교 없음" : "PHM 모델 미연결");
+      ? (f.items.some((i) => i.step_kind === "observation-window") ? "전기 신호" : "진동 신호") + " · 기준 초과 없음" : f.items.length ? "신호 기준 비교 없음"
+      : flowLabels[row?.data_flow_status] || "수신 상태 미확인");
     button.append(heading, node("span", message, f.notes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
     const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
-    button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : "입력 미확인"));
+    button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : dataTime(row)));
+    if (!f.items.length) button.append(node("small", data.unavailable ? "PHM 분석 조회 실패" : "PHM 분석 연결 안 됨"));
     button.append(node("small", "", "monitor-asset-observation"));
     button.addEventListener("click", () => selectAsset(f.assetId));root.append(button);
   }
   if (focusAsset) [...root.children].find((b) => b.dataset.assetId === focusAsset)?.focus({preventScroll: true});
-  byId("monitor-board").hidden = !facts.length;byId("monitor-analysis-details").hidden = !facts.length;
-  if (!facts.length) {root.append(node("p", "관측 설비 없음", "muted"));clearSignal();return;}
+  byId("monitor-board").hidden = !facts.length;
+  if (!facts.length) {byId("monitor-analysis-details").hidden = true;root.append(node("p", "관측 설비 없음", "muted"));clearSignal();return;}
   const selected = facts.find((f) => f.assetId === selectedAsset);
+  byId("monitor-analysis-details").hidden = !selected.items.length;
   const inputs = selected.items.filter((i, index, all) => all.findIndex((j) => streamKey(j) === streamKey(i)) === index);
-  const item = inputs.find((i) => streamKey(i) === selectedStream) || inputs.find((i) => i.latest_delivered) || inputs[0];
-  selectedStream = item ? streamKey(item) : "";
-  const streamSelect = byId("monitor-input-stream");streamSelect.replaceChildren();
+  // Stored measurements own the default observation; model inputs are an explicit alternative.
+  // A failed history read must not silently replace measurement data with an analysis waveform.
+  const row = assetRow(base, selectedAsset), dataKey = storedDataKey(row, base);
+  const stored = storedChannelState(selectedAsset, dataKey, () => {if (lastData && active()) render(lastData, lastBase);});
+  if (!explicitStream) selectedStream = stored.state === "ready" || (row && ["loading", "error", "unavailable"].includes(stored.state)) || !inputs.length
+    ? HISTORY : streamKey(inputs.find((i) => i.latest_delivered) || inputs[0]);
+  const offerStored = !inputs.length || stored.state === "ready" || selectedStream === HISTORY;
+  const item = selectedStream === HISTORY && offerStored ? null
+    : inputs.find((i) => streamKey(i) === selectedStream) || inputs.find((i) => i.latest_delivered) || inputs[0];
+  selectedStream = item ? streamKey(item) : HISTORY;
+  const streamSelect = byId("monitor-input-stream"), options = [];
   for (const input of inputs) {
     const source = (base.sources?.sources?.items || []).find((s) => s.source_id === input.source_id);
-    const option = node("option", (source?.name || input.source_id) + (input.measurement_point_id ? " · " + input.measurement_point_id : ""));option.value = streamKey(input);streamSelect.append(option);
+    options.push({label: "분석 입력 · " + (source?.name || input.source_id) + (input.measurement_point_id ? " · " + input.measurement_point_id : ""), value: streamKey(input)});
   }
-  streamSelect.value = selectedStream;byId("monitor-stream-field").hidden = inputs.length < 2;
+  if (offerStored) options.unshift({label: "저장된 측정 이력 (모델 무관)", value: HISTORY});
+  if (JSON.stringify([...streamSelect.options].map((o) => ({label: o.textContent, value: o.value}))) !== JSON.stringify(options)) {
+    streamSelect.replaceChildren(...options.map(({label, value}) => {const option = node("option", label);option.value = value;return option;}));
+  }
+  streamSelect.value = selectedStream;byId("monitor-stream-field").hidden = streamSelect.options.length < 2;
   byId("monitor-signal-title").textContent = assetName(selectedAsset) + " · 측정 신호";byId("monitor-signal-title").tabIndex = -1;
-  byId("monitor-signal-mode").textContent = item && replay(item) ? "기록 재생" : "저장 입력";
   byId("monitor-analysis-context").textContent = assetName(selectedAsset) + " · 연결 분석 " + selected.items.length + "개 · 기준 비교는 고장 판정이 아닙니다.";
   if (byId("monitor-analysis-details").open) renderDetails(selected);
   else {byId("monitor-analysis-models").replaceChildren();detailsKey = "";}
-  if (!item) {clearSignal();byId("monitor-signal-state").textContent = "모델에 연결된 원본 입력 없음 · 설비·신호 화면에서 저장 이력 확인";return;}
+  if (!item) {
+    leavePhmSignal();
+    if (selected.items.length) renderDetection(selected.items);
+    else byId("monitor-detection-results").replaceChildren(node("p", data.unavailable
+      ? "PHM 분석 결과를 읽지 못했습니다. 측정 신호는 분석 조회와 무관하게 표시합니다."
+      : "연결된 PHM 분석 모델 없음 · 측정 신호는 모델 연결과 무관하게 표시합니다.", "muted"));
+    showStored({assetId: selectedAsset, asset: row, dataKey, onChange: () => {if (lastData && active()) render(lastData, lastBase);},
+      historyError: (base.monitor?.system_error_scopes || []).includes("asset-history")});
+    return;
+  }
+  leaveStored();
+  byId("monitor-signal-mode").textContent = replay(item) ? "기록 재생" : "저장 입력";
   renderDetection(selected.items.filter((i) => streamKey(i) === selectedStream));
   void loadSignal(item);void loadTrace(item);paintSignal();
 }
@@ -159,10 +192,27 @@ function renderDetection(items) {
   }
   if (anomalies.length > 2) root.append(node("p", "주요 모델 2개 표시 · 연결 모델 " + anomalies.length + "개는 모델·입력 상세에서 확인", "muted"));
 }
+function leavePhmSignal() {
+  if (!preview && !previewKey && !traceKey) return;
+  signalVersion++;traceVersion++;preview = null;previewKey = "";traceKey = "";traceData = null;
+  byId("monitor-score-chart").replaceChildren();byId("monitor-score-state").textContent = "";
+}
+function assetRow(base, assetId) {return (base.monitor?.assets?.items || []).find((a) => a.asset_id === assetId);}
+// New stored data is signalled by a history commit or, for a source-less recorded asset, a later
+// recorded end. A live receipt alone is not stored history, so it does not trigger a history read.
+function storedDataKey(row, base) {
+  const sources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === row?.asset_id)
+    .map((s) => [s.source_id, s.last_live_history_snapshot_id ?? null]);
+  return JSON.stringify([row?.data_flow_status === "stored-history" ? row.last_data_at : null, sources]);
+}
+function dataTime(row) {
+  if (!row?.last_data_at) return "수신 근거 없음";
+  return (row.data_flow_status === "stored-history" ? "마지막 기록 원본 측정 " : "마지막 수신 ") + time(row.last_data_at);
+}
 function clearSignal() {
   signalVersion++;traceVersion++;preview = null;previewKey = "";traceKey = "";traceData = null;byId("monitor-score-chart").replaceChildren();byId("monitor-score-state").textContent = "";
   byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-legend").textContent = "";
-  byId("monitor-signal-reading").hidden = true;byId("monitor-range-field").hidden = true;
+  byId("monitor-signal-reading").hidden = true;byId("monitor-range-field").hidden = true;byId("monitor-history-range-field").hidden = true;
   byId("monitor-detection-results").replaceChildren();
   byId("monitor-signal-channel").replaceChildren();byId("monitor-signal-channel").disabled = true;
 }
@@ -299,20 +349,33 @@ function renderDetails(facts) {
   }
 }
 function schedule() {clearTimeout(timer);if (active()) timer = setTimeout(refreshMonitor, POLL_MS);}
-export async function refreshMonitor() {
+async function readPhm() {
+  const response = await fetch("/api/v1/phm/monitor", {cache: "no-store", signal: AbortSignal.timeout(5000)});
+  const data = await response.json();
+  if (!response.ok || data.schema_version !== 1 || !Array.isArray(data.items)) throw new Error("read_failed");
+  return data;
+}
+export async function refreshMonitor({force = false} = {}) {
   if (!active()) return;
+  if (force) invalidateStored();
   if (running) {refreshRequested = true;return;}
   running = true;clearTimeout(timer);
   try {
-    const [response, base] = await Promise.all([fetch("/api/v1/phm/monitor", {cache: "no-store", signal: AbortSignal.timeout(5000)}), readOperations()]);
-    const data = await response.json();
-    if (!response.ok || data.schema_version !== 1 || !Array.isArray(data.items)) throw new Error("read_failed");
+    const [phm, base] = await Promise.all([readPhm().catch(() => null), readOperations()]);
+    // A PHM read failure must not hide equipment observation: render the stored-measurement
+    // monitor without any model value, and say that the analysis read failed.
+    if (!phm && !base.monitor) throw new Error("read_failed");
+    const data = phm || {schema_version: 1, assessed_at: base.monitor.assessed_at, items: [], total: 0, unavailable: true};
     if (active()) render(data, base);
-    document.dispatchEvent(new CustomEvent("phm-monitor-count", {detail: data.total}));
+    if (phm) document.dispatchEvent(new CustomEvent("phm-monitor-count", {detail: phm.total}));
+    if (!phm && active()) {
+      byId("phm-monitor-state").className = "state error";
+      byId("phm-monitor-state").textContent = "PHM 조회 실패 · 분석 결과를 표시하지 않습니다. 저장된 측정 신호는 계속 확인할 수 있으며 자동 재조회합니다.";
+    }
   } catch {
     if (active()) {
       byId("phm-monitor-state").className = "state error";
-      byId("phm-monitor-state").textContent = "PHM 조회 실패 · 이전 결과를 표시하지 않습니다. 자동 재조회합니다.";
+      byId("phm-monitor-state").textContent = "관측 상태 조회 실패 · 이전 결과를 표시하지 않습니다. 자동 재조회합니다.";
       byId("phm-monitor-summary").textContent = "관측 상태 미확인";byId("phm-monitor-assets").replaceChildren();byId("monitor-attention-list").replaceChildren();
       byId("monitor-analysis-models").replaceChildren();byId("monitor-board").hidden = true;byId("monitor-analysis-details").hidden = true;clearSignal();
     }
@@ -322,8 +385,12 @@ export function initializeMonitor(read) {
   readOperations = read;
   const start = () => {clearTimeout(timer);if (active()) void refreshMonitor();};
   window.addEventListener("hashchange", start);document.addEventListener("visibilitychange", start);
-  byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
-  byId("monitor-signal-channel").addEventListener("change", (e) => {choiceId = e.target.value;paintSignal();});
+  byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;explicitStream = true;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
+  byId("monitor-signal-channel").addEventListener("change", (e) => {
+    if (selectedStream === HISTORY) {selectStoredChannel(e.target.value);if (lastData) render(lastData, lastBase);return;}
+    choiceId = e.target.value;paintSignal();
+  });
+  byId("monitor-history-range").addEventListener("change", (e) => {selectStoredRange(e.target.value);if (lastData) render(lastData, lastBase);});
   byId("monitor-signal-range").addEventListener("change", paintSignal);
   byId("monitor-last-good").addEventListener("click", () => {previousInput = !previousInput;previewKey = "";if (lastData) render(lastData, lastBase);});
   byId("monitor-analysis-details").addEventListener("toggle", () => {
@@ -332,6 +399,7 @@ export function initializeMonitor(read) {
       if (traceData) drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);
     }
   });
-  new ResizeObserver(() => {if (active()) {if (preview?.available) paintSignal();if (traceData) drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);}}).observe(byId("monitor-signal-chart"));
-  schedule();
+  new ResizeObserver(() => {if (active()) {if (selectedStream === HISTORY) repaintStored();else if (preview?.available) paintSignal();if (traceData) drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);}}).observe(byId("monitor-signal-chart"));
+  // Show the first observation immediately instead of after one polling interval.
+  start();
 }
