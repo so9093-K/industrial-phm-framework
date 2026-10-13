@@ -521,6 +521,13 @@ step histories, waveform files or estimator payloads, and never fits or scores a
 The previous successful output is an indexed position-bounded read from the same binding;
 refused inputs are excluded and the browser labels nonconsecutive comparisons explicitly.
 Selected anomaly scores and reconstruction-error deltas remain visible without opening details.
+
+The detail view uses the selected record for its summary, model delta, original input and
+bookmark. Subsequent polling retains a selected record; explicit latest-follow mode updates
+the displayed record and bookmark together. Error and signal trends share a default contiguous
+range around that selection, with an explicit full-history choice. Independent units are never
+overlaid. Original phase signals use one same-unit group (A, V or Hz) at a time; unavailable
+observations remain gaps. These are presentations of existing stored quantities, not new inference.
 Transport evidence comes from the existing `/api/v1/monitor` and `/api/v1/sources` contracts;
 the browser makes three overview requests per cycle. Missing inputs do not prove a stopped sensor.
 

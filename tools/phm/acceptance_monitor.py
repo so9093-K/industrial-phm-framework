@@ -306,8 +306,7 @@ def main(argv: list[str] | None = None) -> int:
                 expect(reconstruction).to_contain_text("#9 → #18")
                 checks.add(
                     "reconstruction-error-and-nonconsecutive-change-visible-without-details",
-                    reconstruction.bounding_box()["y"]
-                    + reconstruction.bounding_box()["height"]
+                    reconstruction.bounding_box()["y"] + reconstruction.bounding_box()["height"]
                     < 900,
                 )
                 checks.add(

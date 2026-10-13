@@ -114,6 +114,16 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 page.reload()
                 pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
                 pw.expect(page.locator("#anomaly-explanation h3")).to_contain_text("분석 #2")
+                # A keyboard-selected older record updates summary, raw input and bookmark together.
+                page.locator("#anomaly-position").focus()
+                page.locator("#anomaly-position").press("ArrowUp")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #1")
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
+                    "선택한 이전 기록 #1"
+                )
+                assert "phm_position=1" in page.url
+                page.select_option("#anomaly-position", "2")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
                 page.goto(
                     f"http://127.0.0.1:{server.server_port}/web/?phm_binding=rul-a&phm_position=2&phm_view=rul#rul"
                 )

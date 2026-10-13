@@ -12,12 +12,12 @@ export function signalChoices(preview) {
     name: ({A: "3상 전류 · A", V: "3상 전압 · V", Hz: "주파수 · Hz"}[unit] || unit),
     channels: preview.channels.filter((c) => c.unit === unit)}));
 }
-export function drawSignal(root, preview, choiceId) {
+export function drawSignal(root, preview, choiceId, height = 180) {
   root.replaceChildren();
   const choice = signalChoices(preview).find((c) => c.id === choiceId);
   if (!choice) return;
   const waveform = Boolean(preview.sample_count);
-  const width = Math.max(260, root.clientWidth), height = 180, left = 56, right = width - 14, top = 16, bottom = 150;
+  const width = Math.max(260, root.clientWidth), left = 56, right = width - 14, top = 16, bottom = height - 30;
   const sequences = choice.channels.map((channel) => waveform ? channel.envelope.map((pair, i) => ({
     x: (i * preview.samples_per_bin + (Math.min(preview.samples_per_bin, preview.sample_count - i * preview.samples_per_bin) - 1) / 2)
       / (preview.sampling_rate_hz || 1), lo: pair[0], hi: pair[1],
@@ -50,7 +50,7 @@ export function drawSignal(root, preview, choiceId) {
   const text = (label, attrs) => {const n = svgNode("text", attrs);n.textContent = label;svg.append(n);};
   text(number(max), {x: 2, y: 25});text(number(min), {x: 2, y: bottom});
   const formatX = waveform ? (v) => number(v) + (preview.sampling_rate_hz ? "초" : " 표본") : (v) => new Date(v).toISOString().slice(11, 19);
-  text(formatX(x0), {x: left, y: 176});text(formatX(x1), {x: right, y: 176, "text-anchor": "end"});
+  text(formatX(x0), {x: left, y: height - 4});text(formatX(x1), {x: right, y: height - 4, "text-anchor": "end"});
   root.append(svg);
 }
 

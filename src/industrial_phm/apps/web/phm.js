@@ -1,4 +1,5 @@
 import { renderPhmExplanation } from "./phm-explanation.js";
+import { drawSignal, signalChoices } from "./monitor-signal.js";
 // PHM monitoring: anomaly detection and RUL are separate screens over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
 // nothing here recomputes a score, an interval or an estimate.
@@ -108,7 +109,9 @@ function fillSelect(select, items, current) {
     return "";
   }
   for (const item of items) {
-    const option = node("option", item.asset_id + " · " + (item.package.recipe_id || item.package_id));
+    const recipe = item.package.recipe_id || "";
+    const family = /autoencoder/.test(recipe) ? "재구성 오차 · LSTM" : /pca/.test(recipe) ? "재구성 오차 · PCA" : /iforest/.test(recipe) ? "이상 점수 · IF" : /lstm/.test(recipe) ? "RUL · LSTM" : /ridge/.test(recipe) ? "RUL · Ridge" : TASK_LABEL[item.package.output.task];
+    const option = node("option", item.asset_id.replace(/^aihub-air-compressor-/, "공기압축기 ") + " · " + family);
     option.value = item.binding_id;
     select.append(option);
   }
@@ -175,10 +178,10 @@ function card(title, value, detail) {
 
 // Charts ---------------------------------------------------------------------
 
-const PLOT = {left: 64, right: 784, top: 14};
-
-function linePlot({steps, value, axis, height, domain, threshold, intervals, highlight, label, onPick, unitText}) {
-  const svg = svgNode("svg", {viewBox: `0 0 800 ${height + 34}`, class: "phm-svg", role: "img", "aria-label": label});
+function linePlot({steps, value, axis, height, domain, threshold, intervals, highlight, label, onPick, unitText, width = 800, zeroBase = false}) {
+  width = Math.max(260, width);
+  const PLOT = {left: 56, right: width - 16, top: 14};
+  const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height + 34}`, class: "phm-svg", role: "img", "aria-label": label});
   const points = steps.filter((step) => typeof value(step) === "number");
   const [x0, x1] = domain;
   const visible = points.filter((step) => axis.x(step) >= x0 && axis.x(step) <= x1);
@@ -187,6 +190,7 @@ function linePlot({steps, value, axis, height, domain, threshold, intervals, hig
   let lo = Math.min(...values), hi = Math.max(...values);
   const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1;
   lo -= pad; hi += pad;
+  if (zeroBase && lo >= -pad && values.every((v) => v >= 0)) lo = 0;
   const bottom = PLOT.top + height;
   const x = (v) => PLOT.left + (v - x0) / ((x1 - x0) || 1) * (PLOT.right - PLOT.left);
   const y = (v) => bottom - (v - lo) / ((hi - lo) || 1) * height;
@@ -208,17 +212,24 @@ function linePlot({steps, value, axis, height, domain, threshold, intervals, hig
     previous = step;
   }
   svg.append(svgNode("path", {d: path, class: "condition-curve"}));
+  for (const step of visible) {
+    const dot = svgNode("circle", {cx: x(axis.x(step)), cy: y(value(step)), r: highlight && axis.x(step) === highlight[0] ? 4 : 2, class: "phm-chart-dot"});
+    const title = svgNode("title");title.textContent = axis.format(axis.x(step)) + " · " + number(value(step));dot.append(title);svg.append(dot);
+  }
   if (typeof threshold === "number") svg.append(svgNode("path", {d: `M${PLOT.left} ${y(threshold).toFixed(1)}H${PLOT.right}`, class: "reference-line"}));
   const text = (content, attributes) => {const t = svgNode("text", attributes);t.textContent = content;svg.append(t);};
-  text(number(hi - pad) + (unitText || ""), {x: 4, y: PLOT.top + 10});
-  text(number(lo + pad) + (unitText || ""), {x: 4, y: bottom});
+  for (const value of [lo, (lo + hi) / 2, hi]) {
+    svg.insertBefore(svgNode("path", {d: `M${PLOT.left} ${y(value)}H${PLOT.right}`, class: "phm-chart-grid"}), svg.firstChild);
+    text(number(value) + (unitText || ""), {x: 4, y: y(value) + 4});
+  }
   text(axis.format(x0), {x: PLOT.left, y: bottom + 22});
   text(axis.format(x1), {x: PLOT.right, y: bottom + 22, "text-anchor": "end"});
   if (onPick) {
     svg.classList.add("pickable");
     svg.addEventListener("click", (event) => {
       const box = svg.getBoundingClientRect();
-      const target = x0 + ((event.clientX - box.left) / box.width * 800 - PLOT.left) / (PLOT.right - PLOT.left) * (x1 - x0);
+      const target = x0 + ((event.clientX - box.left) / box.width * width - PLOT.left) / (PLOT.right - PLOT.left) * (x1 - x0);
+      if (!visible.length) return;
       const closest = visible.reduce((best, step) => Math.abs(axis.x(step) - target) < Math.abs(axis.x(best) - target) ? step : best, visible[0]);
       onPick(closest);
     });
@@ -233,9 +244,11 @@ const PHASE_GROUPS = [
 ];
 
 // Overlay only the same physical quantity and unit. This is presentation, not normalization.
-function phasePlot(steps, group, axis, domain, onPick) {
+function phasePlot(steps, group, axis, domain, onPick, width = 800) {
+  width = Math.max(260, width);
+  const PLOT = {left: 56, right: width - 16, top: 14};
   const height = 104, bottom = PLOT.top + height, [x0, x1] = domain;
-  const svg = svgNode("svg", {viewBox: `0 0 800 ${height + 34}`, class: "phm-svg", role: "img",
+  const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height + 34}`, class: "phm-svg", role: "img",
     "aria-label": group.title + " R상·S상·T상 추세"});
   const visible = steps.filter((step) => axis.x(step) >= x0 && axis.x(step) <= x1);
   const values = visible.flatMap((step) => group.names.map((name) => step.features?.[name]))
@@ -268,7 +281,7 @@ function phasePlot(steps, group, axis, domain, onPick) {
     svg.classList.add("pickable");
     svg.addEventListener("click", (event) => {
       const box = svg.getBoundingClientRect();
-      const target = x0 + ((event.clientX - box.left) / box.width * 800 - PLOT.left)
+      const target = x0 + ((event.clientX - box.left) / box.width * width - PLOT.left)
         / (PLOT.right - PLOT.left) * (x1 - x0);
       if (visible.length) onPick(visible.reduce((best, step) =>
         Math.abs(axis.x(step) - target) < Math.abs(axis.x(best) - target) ? step : best, visible[0]));
@@ -301,6 +314,8 @@ function renderAnomaly() {
   const choices = bindingsFor("anomaly-score");
   selected.anomaly = fillSelect(byId("anomaly-binding"), choices, selected.anomaly);
   const state = byId("anomaly-state");
+  byId("anomaly-latest").hidden = focusPosition === null;
+  state.hidden = false;
   for (const id of ["anomaly-cards", "anomaly-feature-chart", "anomaly-score-chart", "anomaly-intervals", "anomaly-model"]) byId(id).replaceChildren();
   if (readError) {
     byId("anomaly-asset-title").textContent = "데이터 조회 실패";
@@ -312,6 +327,7 @@ function renderAnomaly() {
     state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다. 운영 관리 화면에서 분석 프로세스 상태를 확인하세요.";return;
   }
   if (!selected.anomaly) {
+    byId("anomaly-detail").replaceChildren();
     byId("anomaly-asset-title").textContent = "연결된 설비 없음";
     byId("anomaly-observation").textContent = "모델이 연결되면 관측 결과를 표시합니다.";
     renderPhmExplanation("anomaly", "", null);
@@ -323,8 +339,10 @@ function renderAnomaly() {
   const entry = series.get(selected.anomaly);
   if (!entry) return;
   const binding = choices.find((item) => item.binding_id === selected.anomaly);
-  byId("anomaly-asset-title").textContent = entry.binding.asset_id || "설비 정보 없음";
-  byId("anomaly-freshness").textContent = freshness(entry);
+  byId("anomaly-asset-title").textContent = entry.binding.asset_id?.replace(/^aihub-air-compressor-/, "공기압축기 ") || "설비 정보 없음";
+  byId("anomaly-freshness").textContent = "최신 분석 " + (entry.latestAnalyzed ? stepLabel(entry, entry.latestAnalyzed.position) : "없음")
+    + " · 최신 입력 " + (entry.latestDelivered ? stepLabel(entry, entry.latestDelivered.position) : "없음")
+    + (entry.latestProcessed?.state === "skipped" ? " · 입력 조건 불충족" : "") + " · 3초 자동 조회";
   setReplayTag("anomaly-replay", entry);
   const steps = orderedSteps(entry);
   const analyzed = steps.filter((step) => step.state === "analyzed");
@@ -344,33 +362,51 @@ function renderAnomaly() {
     state.textContent += " · 개발 모델: 합격 기준 검증 미완료";
   }
   if (!analyzed.length) {
+    byId("anomaly-detail").replaceChildren();
     byId("anomaly-observation").textContent = skipped ? "이 모델로 분석되지 않은 입력이 있습니다. 입력 상태와 모델 규격을 확인하세요." : "분석 가능한 입력을 기다리고 있습니다.";
     renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;
   }
-  const last = analyzed.at(-1);
+  const latest = analyzed.at(-1);
+  const last = analyzed.find((s) => s.position === focusPosition) || latest;
+  const prior = analyzed.filter((s) => s.position < last.position).at(-1);
+  const reconstruction = /autoencoder|pca/.test(entry.package?.recipe_id || "");
+  const scoreName = reconstruction ? "재구성 오차" : "이상 점수";
   const latestSkipped = steps.at(-1)?.state === "skipped";
+  const rms = Object.keys(last.features || {}).find((k) => /Horizontal.+\.rms$/.test(k));
+  const change = rms && prior?.features?.[rms] > 0 ? (last.features[rms] / prior.features[rms] - 1) * 100 : null;
   byId("anomaly-observation").textContent = latestSkipped
-    ? "최근 입력은 분석되지 않았습니다. 아래 점수는 마지막으로 분석된 이전 입력에 대한 결과입니다."
-    : last.output.exceeds_threshold
-      ? "최근 분석의 참고 기준을 초과했습니다. 해당 시점의 원본 신호를 확인할 수 있습니다."
-      : "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.";
+    ? "최근 입력은 분석되지 않았습니다. 선택한 이전 기록 " + stepLabel(entry, last.position) + "의 결과입니다."
+    : "선택 기록 " + stepLabel(entry, last.position)
+      + (change === null ? "" : " · 수평 진동 크기 " + number(Math.abs(change), 1) + "% " + (change >= 0 ? "증가" : "감소"))
+      + " · " + scoreName + (last.output.exceeds_threshold ? " 참고 기준 초과" : " 참고 기준 이내");
+  state.hidden = !latestSkipped && binding?.health !== "unavailable";
   const threshold = last.output.threshold;
-  const openIntervals = entry.intervals.filter((item) => item.open);
   const cards = byId("anomaly-cards");
   cards.append(
-    card(latestSkipped ? "마지막 분석 점수" : "최신 이상 점수", number(last.output.score),
+    card(latestSkipped ? last.position === latest.position ? "마지막 분석 점수" : "선택한 이전 점수" : "선택한 " + scoreName, number(last.output.score),
       "참고 기준 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
-    card("기준 초과 구간", entry.intervals.length + "개", openIntervals.length ? "확인 중 " + openIntervals.length + "개" : "현재 열린 구간 없음"),
+    card("앞선 분석 대비", prior ? (last.output.score > prior.output.score ? "+" : "") + number(last.output.score - prior.output.score) : "첫 분석",
+      prior ? number(prior.output.score) + " → " + number(last.output.score) + " · " + stepLabel(entry, prior.position) + " → " + stepLabel(entry, last.position) : "비교 기록 없음"),
   );
   const axis = axisFor(entry);
   const full = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
-  const domain = zoom.anomaly || full;
+  let firstIndex = analyzed.indexOf(last), lastIndex = firstIndex;
+  const adjacent = (a, b) => axis.cadence ? axis.x(b) - axis.x(a) === axis.cadence : b.position - a.position === 1;
+  while (firstIndex > 0 && lastIndex - firstIndex < 63 && adjacent(analyzed[firstIndex - 1], analyzed[firstIndex])) firstIndex--;
+  while (lastIndex < analyzed.length - 1 && lastIndex - firstIndex < 63 && adjacent(analyzed[lastIndex], analyzed[lastIndex + 1])) lastIndex++;
+  const recent = [axis.x(analyzed[firstIndex]), axis.x(analyzed[lastIndex])];
+  const range = byId("anomaly-range");
+  if (zoom.anomaly) {
+    if (!range.querySelector('option[value="interval"]')) {const option = node("option", "기준 초과 구간");option.value = "interval";range.append(option);}
+    range.value = "interval";
+  } else range.querySelector('option[value="interval"]')?.remove();
+  const domain = zoom.anomaly || (byId("anomaly-range").value === "all" ? full : recent);
   const intervals = entry.intervals.map((item) => ({
     from: axis.x(entry.steps.get(item.start_position) || {position: item.start_position, event_start: item.start_event_at}),
     to: axis.x(entry.steps.get(item.end_position) || {position: item.end_position, event_start: item.end_event_at}),
     open: item.open,
   }));
-  const highlight = focusPosition !== null && entry.steps.get(focusPosition) ? [axis.x(entry.steps.get(focusPosition)), axis.x(entry.steps.get(focusPosition))] : null;
+  const highlight = [axis.x(last), axis.x(last)];
   renderFeatureControls(analyzed);
   const featureRoot = byId("anomaly-feature-chart");
   const combined = new Set();
@@ -378,7 +414,7 @@ function renderAnomaly() {
     if (!phaseGroup.names.every((name) => chosenFeatures.includes(name))) continue;
     const group = node("div", "", "phm-feature");
     group.append(node("p", phaseGroup.title + " · " + phaseGroup.unit, "phm-feature-title"));
-    group.append(phasePlot(analyzed, phaseGroup, axis, domain, (step) => focusStep(step.position)));
+    group.append(phasePlot(analyzed, phaseGroup, axis, domain, (step) => focusStep(step.position), featureRoot.clientWidth));
     const legend = node("p", "", "phm-phase-legend");
     for (const [index, phase] of ["R상", "S상", "T상"].entries()) {
       const sample = node("span", "", "phm-phase-key phm-phase-key-" + index);
@@ -394,23 +430,25 @@ function renderAnomaly() {
   for (const name of chosenFeatures.filter((value) => !combined.has(value))) {
     const group = node("div", "", "phm-feature");
     group.append(node("p", featureLabel(name), "phm-feature-title"));
-    group.append(linePlot({steps: analyzed, value: (step) => step.features ? step.features[name] : null, axis, height: 70, domain,
-      intervals, highlight, label: featureLabel(name) + " 추세", onPick: (step) => focusStep(step.position)}));
+    group.append(linePlot({steps: analyzed, value: (step) => step.features ? step.features[name] : null, axis, height: 110, domain,
+      highlight, width: featureRoot.clientWidth, zeroBase: /\.rms$/.test(name), label: featureLabel(name) + " 추세", onPick: (step) => focusStep(step.position)}));
     featureRoot.append(group);
   }
-  featureRoot.append(node("p", axis.label + " · 그래프를 선택하면 그 step의 입력과 원본 파형을 확인합니다. 선은 연속 step만 연결합니다.", "muted"));
+  featureRoot.append(node("p", axis.label + (entry.binding.step_kind === "observation-window" ? "" : " · 단위 미확인"), "muted"));
   const scoreRoot = byId("anomaly-score-chart");
-  scoreRoot.append(linePlot({steps: analyzed, value: (step) => step.output.score, axis, height: 150, domain, threshold,
-    intervals, highlight, label: "이상 점수와 임계값, 검토 구간", onPick: (step) => focusStep(step.position)}));
-  scoreRoot.append(node("p", "점선은 패키지 임계값(" + ((entry.package && entry.package.output.threshold_rule) || "규칙 미기록") + "), 음영은 검토 구간입니다.", "muted"));
+  byId("anomaly-score-title").textContent = scoreName + " 추세";
+  scoreRoot.append(linePlot({steps: analyzed, value: (step) => step.output.score, axis, height: 110, domain, threshold,
+    intervals, highlight, width: scoreRoot.clientWidth, zeroBase: true, label: scoreName + "와 참고 기준", onPick: (step) => focusStep(step.position)}));
+  scoreRoot.append(node("p", "점선: 참고 기준 " + number(threshold) + " · 점을 선택하면 해당 기록을 표시", "muted"));
   const zoomControls = node("div", "", "phm-zoom");
   if (zoom.anomaly) {
     const reset = node("button", "전체 기간 보기");reset.type = "button";
-    reset.addEventListener("click", () => {zoom.anomaly = null;renderAnomaly();});
+    reset.addEventListener("click", () => {zoom.anomaly = null;byId("anomaly-range").value = "all";renderAnomaly();});
     zoomControls.append(reset);
   }
   scoreRoot.append(zoomControls);
   renderIntervals(entry, axis);
+  byId("anomaly-periods").querySelector("summary").textContent = "기준 초과 구간 " + entry.intervals.length + "개";
   renderModelCard(byId("anomaly-model"), entry.package);
   const explained = focusPosition ?? last.position;
   renderPhmExplanation("anomaly", selected.anomaly, explained,
@@ -421,10 +459,17 @@ function renderFeatureControls(steps) {
   const root = byId("anomaly-features");
   const names = Object.keys((steps.find((step) => step.features) || {}).features || {});
   if (!chosenFeatures.length || !chosenFeatures.every((name) => names.includes(name))) {
-    chosenFeatures = names.filter((name) => /\.(rms|excess_kurtosis)$/.test(name)).slice(0, 4);
+    chosenFeatures = names.filter((name) => /\.rms$/.test(name)).slice(0, 1);
+    if (!chosenFeatures.length && PHASE_GROUPS[0].names.every((n) => names.includes(n))) chosenFeatures = [...PHASE_GROUPS[0].names];
     if (!chosenFeatures.length) chosenFeatures = names.slice(0, 3);
   }
   root.replaceChildren(node("legend", "입력 특징 (최대 6개)"));
+  const select = byId("anomaly-signal");select.replaceChildren();
+  const choices = PHASE_GROUPS.filter((g) => g.names.every((n) => names.includes(n))).map((g) => ({name: g.title + " · " + g.unit, names: g.names}));
+  for (const name of names.filter((n) => !PHASE_GROUPS.some((g) => g.names.includes(n))).sort((a, b) => Number(/\.rms$/.test(b)) - Number(/\.rms$/.test(a)))) choices.push({name: featureLabel(name), names: [name]});
+  for (const choice of choices) {const option = node("option", choice.name);option.value = JSON.stringify(choice.names);select.append(option);}
+  if (!choices.some((c) => JSON.stringify(c.names) === JSON.stringify(chosenFeatures))) {const option = node("option", "직접 선택한 특징");option.value = JSON.stringify(chosenFeatures);select.append(option);}
+  select.value = JSON.stringify(chosenFeatures);
   for (const name of names) {
     const label = node("label", "", "choice");
     const box = document.createElement("input");box.type = "checkbox";box.checked = chosenFeatures.includes(name);
@@ -449,7 +494,8 @@ function renderIntervals(entry, axis) {
     button.addEventListener("click", () => {
       const from = axis.x(entry.steps.get(item.start_position)), to = axis.x(entry.steps.get(item.end_position));
       const span = Math.max(to - from, 1);
-      zoom.anomaly = [from - span * 1.5, to + span * 1.5];
+      const steps = orderedSteps(entry).filter((s) => s.state === "analyzed");
+      zoom.anomaly = [Math.max(axis.x(steps[0]), from - span), Math.min(axis.x(steps.at(-1)), to + span)];
       focusStep(item.end_position);
     });
     row.append(button, node("p", item.step_count + "개 step 초과 · 최고 점수 " + number(item.peak_score)));
@@ -457,50 +503,62 @@ function renderIntervals(entry, axis) {
   }
 }
 
-async function focusStep(position) {
-  updateMonitorTarget("anomaly", position);
-  focusPosition = position;
-  renderAnomaly();
+async function focusStep(position, pin = true) {
+  if (pin) {updateMonitorTarget("anomaly", position);focusPosition = position;renderAnomaly();}
+  const bindingId = selected.anomaly;
   const entry = series.get(selected.anomaly);
   const step = entry && entry.steps.get(position);
-  const root = byId("anomaly-detail");root.replaceChildren();
+  const root = byId("anomaly-detail");
+  const key = JSON.stringify([bindingId, position, step?.change_seq]);
+  if (!pin && root.dataset.inputKey === key && root.childElementCount) return;
+  root.replaceChildren();root.dataset.inputKey = key;
   if (!step) return;
-  root.append(node("h3", (step.event_start ? time(step.event_start) : "획득 #" + step.position) + " · 입력과 모델 출력"));
+  const heading = node("div", "", "phm-input-heading");
+  heading.append(node("h3", (step.event_start ? time(step.event_start) : "획득 #" + step.position) + " · 원본 신호"));
+  const picker = node("select");picker.setAttribute("aria-label", "선택한 기록");picker.id = "anomaly-position";
+  const pickable = orderedSteps(entry).filter((s) => s.state === "analyzed").slice(-64);
+  if (!pickable.some((s) => s.position === position)) pickable.unshift(step);
+  for (const candidate of pickable) {const option = node("option", stepLabel(entry, candidate.position));option.value = String(candidate.position);picker.append(option);}
+  picker.value = String(position);picker.addEventListener("change", () => focusStep(Number(picker.value)));
+  heading.append(picker);root.append(heading);
   if (step.state !== "analyzed") {root.append(node("p", "분석 불가: " + step.reason));return;}
-  root.append(node("p", "이상 점수 " + number(step.output.score) + " · 임계값 " + number(step.output.threshold) + (step.output.exceeds_threshold ? " (초과)" : " (이하)")));
+  const metadata = node("details", "", "phm-input-details");metadata.append(node("summary", "입력 특징·오차 분해"));
+  metadata.append(node("p", "이상 점수 " + number(step.output.score) + " · 참고 기준 " + number(step.output.threshold) + (step.output.exceeds_threshold ? " (초과)" : " (이하)")));
   if (step.output.sequence_positions) {
     const positions = step.output.sequence_positions;
-    root.append(node("p", "과거 " + positions.length + "개 연속 획득 #" + positions[0] + " → #" + positions.at(-1) + "을 입력으로 사용했습니다. 원본 파형은 현재 획득입니다.", "muted"));
+    root.append(node("p", "모델 입력 #" + positions[0] + "–#" + positions.at(-1) + " · 아래 파형은 선택 기록 #" + position, "muted"));
   }
   const facts = node("div", "", "phm-facts");
   for (const [name, value] of Object.entries(step.features || {})) facts.append(node("span", featureLabel(name) + " " + number(value)));
-  root.append(facts);
-  root.append(node("p", "분석 ID " + step.analysis_run_id + " · 입력 SHA-256 " + String(step.input_reference.sha256 || step.input_reference.window_id || "").slice(0, 16) + "…", "mono"));
-  if (!step.output.feature_contributions) root.append(node("p", "이 모델은 변수별 기여도를 제공하지 않습니다. 값이 크게 바뀐 입력 특징과 원본 파형을 함께 확인하고, 같은 시기의 운전 조건 변화를 점검하세요.", "next-check"));
+  metadata.append(facts);
+  metadata.append(node("p", "분석 ID " + step.analysis_run_id + " · 입력 SHA-256 " + String(step.input_reference.sha256 || step.input_reference.window_id || "").slice(0, 16) + "…", "mono"));
+  if (!step.output.feature_contributions) metadata.append(node("p", "이 모델은 변수별 기여도를 제공하지 않습니다.", "muted"));
   if (step.output.feature_contributions) {
     const contributions = node("div", "", "phm-facts");
     contributions.append(node("h4", "특징별 잔차 기여"));
     for (const [name, value] of Object.entries(step.output.feature_contributions).sort((a, b) => b[1] - a[1])) {
       contributions.append(node("span", featureLabel(name) + " · " + number(value)));
     }
-    root.append(contributions, node("p", "잔차 기여는 모델 점수의 분해이며 물리적 고장 원인 판정은 아닙니다.", "muted"));
+    metadata.append(contributions, node("p", "잔차 기여는 모델 점수의 분해이며 물리적 고장 원인 판정은 아닙니다.", "muted"));
   }
+  root.append(metadata);
   if (entry.binding.step_kind === "observation-window") {
-    const holder = node("div", "원본 관측을 불러오는 중입니다.", "phm-raw");root.append(holder);
-    const bindingId = selected.anomaly;
+    const holder = node("div", "원본 관측을 불러오는 중입니다.", "phm-raw");root.insertBefore(holder, metadata);
     try {
       const preview = await getJson("/api/v1/phm/window?binding_id=" + encodeURIComponent(bindingId) + "&position=" + position);
-      if (selected.anomaly !== bindingId || focusPosition !== position || readError) return;
+      if (selected.anomaly !== bindingId || root.dataset.inputKey !== key || readError) return;
       holder.replaceChildren(rawSignals(preview));
-    } catch {holder.replaceChildren(node("p", "원본 관측을 확인할 수 없습니다.", "muted"));}
+    } catch {holder.replaceChildren(node("p", "원본 관측을 확인할 수 없습니다.", "muted"));delete root.dataset.inputKey;}
   }
   if (entry.binding.step_kind === "acquisition-snapshot") {
-    const holder = node("div", "", "phm-waveform");holder.append(node("p", "원본 파형을 불러오는 중입니다.", "muted"));root.append(holder);
+    const holder = node("div", "", "phm-waveform");holder.append(node("p", "원본 파형을 불러오는 중입니다.", "muted"));root.insertBefore(holder, metadata);
     try {
-      const preview = await getJson("/api/v1/phm/snapshot?binding_id=" + encodeURIComponent(selected.anomaly) + "&position=" + position + "&bins=400");
+      const preview = await getJson("/api/v1/phm/snapshot?binding_id=" + encodeURIComponent(bindingId) + "&position=" + position + "&bins=400");
+      if (selected.anomaly !== bindingId || root.dataset.inputKey !== key || readError) return;
       holder.replaceChildren(waveform(preview));
     } catch {
       holder.replaceChildren(node("p", "원본 파형을 확인할 수 없습니다.", "muted"));
+      delete root.dataset.inputKey;
     }
   }
 }
@@ -508,48 +566,29 @@ async function focusStep(position) {
 function rawSignals(preview) {
   const box = node("div");
   if (!preview.available) {box.append(node("p", "원본 신호 조회 불가: " + preview.reason));return box;}
-  box.append(node("h4", "동일 시간축의 원본 신호"));
-  const toggle = document.createElement("select");toggle.setAttribute("aria-label", "원본 신호 표시 방식");
-  for (const [value, label] of [["raw", "원본값 · 채널별 단위"], ["relative", "첫 유효 관측 대비 변화 (%)"]]) {
-    const option = node("option", label);option.value = value;toggle.append(option);
-  }
-  const plots = node("div");box.append(toggle, plots);
+  const select = node("select");select.setAttribute("aria-label", "원본 측정 신호");
+  const choices = signalChoices(preview);
+  for (const choice of choices) {const option = node("option", choice.name);option.value = choice.id;select.append(option);}
+  const plot = node("div", "", "phm-original-plot"), caption = node("p", "", "muted");box.append(select, plot, caption);
   const render = () => {
-    plots.replaceChildren();
-    const domain = [Date.parse(preview.start), Date.parse(preview.end)];
-    const axis = {x: (s) => Date.parse(s.event_start), cadence: 60000, format: (v) => time(new Date(v).toISOString()).slice(11, 19)};
-    for (const channel of preview.channels) {
-      const first = channel.points.find((p) => typeof p.value === "number");
-      const reference = first && first.value;
-      const relative = toggle.value === "relative";
-      const steps = channel.points.map((p, i) => ({position: i, event_start: p.at, value: p.value}));
-      const title = channel.channel_id + " · " + (relative ? "%" : channel.unit);
-      plots.append(node("p", title, "phm-feature-title"));
-      plots.append(linePlot({steps, value: (s) => typeof s.value !== "number" ? null : relative ? (reference ? (s.value / reference - 1) * 100 : null) : s.value,
-        axis, height: 70, domain, label: title + " 원본 관측", unitText: relative ? "%" : channel.unit}));
-      const unavailable = channel.points.filter((p) => p.quality !== "good").length;
-      plots.append(node("p", "관측 " + channel.points.length + "개 · 사용 불가 " + unavailable + "개 · 누락은 채우지 않습니다.", "muted"));
-    }
+    const choice = choices.find((c) => c.id === select.value);
+    drawSignal(plot, preview, select.value);
+    const unavailable = (choice?.channels || []).flatMap((c) => c.points).filter((p) => p.quality !== "good").length;
+    caption.textContent = (choice?.channels.length === 3 ? "R상 ━ · S상 ┄ · T상 ⋯ · " : "") + "관측 " + (choice?.channels[0]?.points.length || 0) + "개/채널 · 사용 불가 " + unavailable + "개 · 누락은 연결하지 않음";
   };
-  toggle.addEventListener("change", render);render();
-  box.append(node("p", "변화율은 화면 비교용이며 모델 정규화가 아닙니다. 첫 유효 값이 0이면 변화율을 계산하지 않습니다.", "muted"));
+  plot.redraw = render;select.addEventListener("change", render);requestAnimationFrame(render);
   return box;
 }
 
 function waveform(preview) {
   const box = node("div");
   if (!preview.available) {box.append(node("p", "원본 파형 확인 불가: " + preview.reason, "muted"));return box;}
-  box.append(node("p", "원본 파형 · " + preview.file_name + " · " + number(preview.sampling_rate_hz, 0) + " Hz · " + preview.sample_count + " samples (구간별 최소·최대)", "muted"));
-  for (const channel of preview.channels) {
-    const values = channel.envelope.flat();
-    const lo = Math.min(...values), hi = Math.max(...values);
-    const svg = svgNode("svg", {viewBox: "0 0 800 90", class: "phm-wave", role: "img", "aria-label": channel.channel + " 파형 범위"});
-    const y = (v) => 80 - (v - lo) / ((hi - lo) || 1) * 70;
-    let d = "";
-    channel.envelope.forEach(([mn, mx], index) => {const x = 40 + index / channel.envelope.length * 750;d += `M${x.toFixed(1)} ${y(mn).toFixed(1)}V${y(mx).toFixed(1)}`;});
-    svg.append(svgNode("path", {d, class: "phm-wave-line"}));
-    const label = svgNode("text", {x: 2, y: 12});label.textContent = channelLabel(channel.channel);svg.append(label);
-    box.append(svg);
+  const plots = node("div", "", "phm-original-waveforms");box.append(plots);
+  for (const [index, channel] of preview.channels.entries()) {
+    const group = node("div");group.append(node("p", channelLabel(channel.channel) + " · 단위 미확인", "phm-feature-title"));
+    const plot = node("div", "", "phm-original-plot");group.append(plot);plots.append(group);
+    const render = () => {drawSignal(plot, preview, String(index), 130);plot.querySelector("svg")?.classList.add("phm-wave");};
+    plot.redraw = render;requestAnimationFrame(render);
   }
   return box;
 }
@@ -592,7 +631,8 @@ function renderRul() {
     byId("rul-observation").textContent = "분석 가능한 입력을 기다리고 있습니다.";
     renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;
   }
-  const last = analyzed.at(-1);
+  const last = analyzed.find((s) => s.position === rulFocusPosition) || analyzed.at(-1);
+  if (rulFocusPosition === null) updateMonitorTarget("rul", last.position);
   const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
   byId("rul-observation").textContent = latestRulSkipped
     ? "최근 입력은 분석되지 않았습니다. 아래 추정은 마지막으로 분석된 이전 입력의 결과입니다."
@@ -604,7 +644,7 @@ function renderRul() {
   const validation = (entry.package && entry.package.validation) || {};
   const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
   byId("rul-cards").append(
-    card(latestRulSkipped ? "마지막 분석 RUL 추정" : "마지막 RUL 추정", number(last.output.estimate, 1) + " " + unit,
+    card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 1) + " " + unit,
       (period ? "기록 주기 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
     card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "직전 추정값과 비교"),
   );
@@ -624,7 +664,7 @@ function renderRul() {
   const axis = axisFor(entry);
   const domain = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
   byId("rul-chart").append(linePlot({steps: analyzed, value: (step) => step.output.estimate, axis, height: 190, domain,
-    threshold: 0, label: "시점별 RUL 추정 궤적", unitText: "",
+    threshold: 0, label: "시점별 RUL 추정 궤적", unitText: "", width: byId("rul-chart").clientWidth,
     onPick: (step) => {rulFocusPosition = step.position;updateMonitorTarget("rul", step.position);renderRul();}}));
   byId("rul-chart").append(node("p", axis.label + " · 각 점은 그 시점까지의 입력만으로 계산한 추정입니다. 점선은 0(기록 종료점)이며 신뢰구간이 아닙니다.", "muted"));
   const recent = byId("rul-recent");
@@ -732,7 +772,15 @@ async function cycle() {
     readError = "read_failed";
   }
   refreshedAt = new Date();
-  if (activeView() === "anomaly") {renderAnomaly();if (!readError && focusPosition !== null && !byId("anomaly-detail").childElementCount) await focusStep(focusPosition);}
+  if (activeView() === "anomaly") {
+    renderAnomaly();
+    const entry = series.get(selected.anomaly);
+    const shown = focusPosition ?? (entry && orderedSteps(entry).filter((s) => s.state === "analyzed").at(-1)?.position);
+    if (!readError && shown != null) {
+      if (focusPosition === null) updateMonitorTarget("anomaly", shown);
+      await focusStep(shown, false);
+    }
+  }
   if (activeView() === "rul") renderRul();
 }
 
@@ -759,12 +807,21 @@ function clearMonitorTarget() {
 }
 export function initializePhm() {
   byId("anomaly-binding").addEventListener("change", (event) => {
-    clearMonitorTarget();selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;byId("anomaly-detail").replaceChildren();cycle();
+    clearMonitorTarget();selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;chosenFeatures = [];byId("anomaly-detail").replaceChildren();cycle();
+  });
+  byId("anomaly-range").addEventListener("change", () => {zoom.anomaly = null;renderAnomaly();});
+  byId("anomaly-latest").addEventListener("click", () => {focusPosition = null;zoom.anomaly = null;clearMonitorTarget();cycle();});
+  byId("anomaly-signal").addEventListener("change", (event) => {chosenFeatures = JSON.parse(event.target.value);renderAnomaly();});
+  window.addEventListener("resize", () => {
+    if (activeView() === "anomaly" && !readError) renderAnomaly();
+    if (activeView() === "rul" && !readError) renderRul();
+    for (const plot of document.querySelectorAll(".phm-original-plot")) if (plot.isConnected) plot.redraw?.();
   });
   byId("rul-binding").addEventListener("change", (event) => {clearMonitorTarget();selected.rul = event.target.value;rulFocusPosition = null;cycle();});
   const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
   window.addEventListener("hashchange", () => {
-    if (activeView() && activeView() !== requestedParams.get("phm_view") && new URLSearchParams(location.search).has("phm_binding") && requestedParams.has("phm_view")) clearMonitorTarget();
+    const params = new URLSearchParams(location.search);
+    if (activeView() && params.has("phm_binding") && params.has("phm_view") && activeView() !== params.get("phm_view")) clearMonitorTarget();
     start();
   });
   document.addEventListener("visibilitychange", start);

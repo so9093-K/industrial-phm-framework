@@ -115,18 +115,15 @@
       </section>
       </details>
       <section id="anomaly" class="panel phm-panel" data-views="anomaly" aria-labelledby="anomaly-title">
-        <div class="panel-header"><div><h2 id="anomaly-title">이상 탐지 모니터링</h2><p class="muted">저장된 모델 점수 · 검토 구간 · 입력 특징을 같은 축에서 비교</p></div><span id="anomaly-replay" class="tag replay hidden">기록 데이터 재생 · 실시간 현장 수신 아님</span></div>
-        <div class="phm-controls"><label for="anomaly-binding">설비 · 분석 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select></div>
+        <div class="panel-header"><div><a class="phm-back" href="#monitor">← 설비 모니터링</a><h2 id="anomaly-title">이상 변화</h2></div><span id="anomaly-replay" class="tag replay hidden">기록 재생</span></div>
+        <div class="phm-controls"><label for="anomaly-binding">설비 · 분석</label><select id="anomaly-binding" disabled><option>조회 중</option></select><label for="anomaly-range">표시 구간</label><select id="anomaly-range"><option value="recent">선택 시점의 연속 기록</option><option value="all">전체 기록</option></select><button id="anomaly-latest" type="button" hidden>최신 기록으로</button></div>
         <header class="phm-summary"><h3 id="anomaly-asset-title">설비 선택 대기</h3><p id="anomaly-observation" class="phm-observation">분석 결과를 조회하고 있습니다.</p><p id="anomaly-freshness" class="muted" role="status" aria-live="polite"></p></header>
         <p id="anomaly-state" class="state" role="status" aria-live="polite">이상 탐지 결과를 조회하고 있습니다.</p>
         <div id="anomaly-cards" class="condition-cards"></div>
-        <div class="condition-plot-header"><h3>이상 점수 변화</h3></div>
-        <div id="anomaly-score-chart"></div>
-        <div class="condition-plot-header"><h3>관련 입력 신호</h3></div>
-        <div id="anomaly-feature-chart" class="phm-features"></div>
-        <details class="phm-options"><summary>다른 입력 특징 선택</summary><fieldset id="anomaly-features" class="channel-fieldset choices"></fieldset></details>
-        <div id="anomaly-intervals" class="condition-events"></div>
+        <div class="phm-trends"><section><div class="phm-chart-heading"><h3 id="anomaly-score-title">이상 점수</h3></div><div id="anomaly-score-chart"></div></section><section><div class="phm-chart-heading"><h3>측정 크기</h3><select id="anomaly-signal" aria-label="추세 신호"></select></div><div id="anomaly-feature-chart" class="phm-features"></div></section></div>
         <div id="anomaly-detail" class="condition-detail" tabindex="-1"></div>
+        <details class="phm-options" id="anomaly-periods"><summary>기준 초과 구간</summary><div id="anomaly-intervals" class="condition-events"></div></details>
+        <details class="phm-options"><summary>추세에 표시할 다른 특징</summary><fieldset id="anomaly-features" class="channel-fieldset choices"></fieldset></details>
         <section id="anomaly-explanation" class="condition-detail"></section>
         <details id="anomaly-model" class="condition-method-details"></details>
       </section>
