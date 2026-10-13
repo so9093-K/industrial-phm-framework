@@ -180,3 +180,81 @@ def test_slow_cadence_reads_as_one_line_while_a_real_gap_stays_open(tmp_path: Pa
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_connected_and_failed_model_never_replaces_stored_measurements(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+    from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
+    from tests.support.phm import analyze, deliver, phm_workspace
+
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws")
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    _record(tmp_path, history, "meter", [(0, 10.0), (60, 11.0), (120, 12.5)])
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    template = store.list_bindings()[0]
+    store.create_binding(
+        PhmBinding("linked-model", template.package_id, "model-input", ASSET, template.step_kind, T0)
+    )
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    original = snapshots.latest("bench", "bearing-a")
+    assert original is not None
+    snapshots.record(replace(original, source_id="model-input", asset_id=ASSET))
+    analyze(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 1440, "height": 900})
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?monitor_asset={ASSET}#monitor"
+                )
+                reading = page.locator("#monitor-signal-reading")
+                selector = page.locator("#monitor-input-stream")
+                pw.expect(page.locator("#monitor-signal-mode")).to_have_text("저장 측정 이력")
+                pw.expect(reading).to_contain_text("12.5")
+                model_option = selector.locator("option").filter(has_text="분석 입력").first
+                value = model_option.get_attribute("value")
+                assert value is not None
+                selector.select_option(value)
+                pw.expect(page.locator("#monitor-signal-context")).to_contain_text("#1")
+                selector.focus()
+                page.wait_for_timeout(4000)
+                pw.expect(selector).to_have_value(value)
+                assert selector.evaluate("el => el === document.activeElement")
+                selector.select_option("stored-history")
+                pw.expect(reading).to_contain_text("12.5")
+                # A real inference refusal and then absent package metadata keep observation intact.
+                original.file_path.write_text("changed after receipt")
+                snapshots.record(replace(original, ordinal=2, source_id="model-input", asset_id=ASSET))
+                analyze(workspace)
+                pw.expect(page.locator("#phm-monitor-assets")).to_contain_text(
+                    "최근 진동 파형을 읽을 수 없음", timeout=10000
+                )
+                pw.expect(reading).to_contain_text("12.5")
+                (workspace.models_path / template.package_id / "package.json").unlink()
+                pw.expect(page.locator("#phm-monitor-assets")).to_contain_text(
+                    "분석 실행 불가", timeout=10000
+                )
+                pw.expect(reading).to_contain_text("12.5")
+                pw.expect(selector).to_have_value("stored-history")
+                page.route("**/api/v1/history/trend?**", lambda r: r.fulfill(status=503, json={}))
+                page.get_by_role("button", name="데이터 다시 불러오기").click()
+                pw.expect(page.locator("#monitor-signal-state")).to_contain_text("읽지 못했습니다")
+                pw.expect(page.locator("#monitor-signal-chart svg")).to_have_count(0)
+                pw.expect(selector).to_have_value("stored-history")
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)

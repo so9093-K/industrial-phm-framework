@@ -16,6 +16,7 @@ const flowLabels = {running: "수신 흐름 근거 있음", waiting: "수신 대
 const HISTORY = "stored-history";
 let timer = null, running = false, refreshRequested = false, readOperations;
 let lastData = null, lastBase = null, selectedAsset = new URLSearchParams(location.search).get("monitor_asset") || "", selectedStream = "", previousInput = false;
+let explicitStream = false;
 let traceKey = "", traceVersion = 0, traceData = null;
 let preview = null, previewKey = "", choiceId = "rms-0", signalVersion = 0, detailsKey = "";
 const streamKey = (i) => JSON.stringify([i.source_id, i.measurement_point_id, i.step_kind]);
@@ -65,6 +66,7 @@ function assetFacts(assetId, items, base) {
 }
 function selectAsset(assetId) {
   selectedAsset = assetId;selectedStream = "";previousInput = false;previewKey = "";detailsKey = "";
+  explicitStream = false;
   const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
   if (lastData) render(lastData, lastBase);
 }
@@ -120,20 +122,25 @@ function render(data, base) {
   const selected = facts.find((f) => f.assetId === selectedAsset);
   byId("monitor-analysis-details").hidden = !selected.items.length;
   const inputs = selected.items.filter((i, index, all) => all.findIndex((j) => streamKey(j) === streamKey(i)) === index);
-  // Stored measurements are the model-independent stream: the only one without a model,
-  // an explicit alternative to model inputs when the asset also has stored channels.
+  // Stored measurements own the default observation; model inputs are an explicit alternative.
+  // A failed history read must not silently replace measurement data with an analysis waveform.
   const row = assetRow(base, selectedAsset), dataKey = storedDataKey(row, base);
   const stored = storedChannelState(selectedAsset, dataKey, () => {if (lastData && active()) render(lastData, lastBase);});
-  const offerStored = !inputs.length || stored.state === "ready";
+  if (!explicitStream) selectedStream = stored.state === "ready" || (row && ["loading", "error", "unavailable"].includes(stored.state)) || !inputs.length
+    ? HISTORY : streamKey(inputs.find((i) => i.latest_delivered) || inputs[0]);
+  const offerStored = !inputs.length || stored.state === "ready" || selectedStream === HISTORY;
   const item = selectedStream === HISTORY && offerStored ? null
     : inputs.find((i) => streamKey(i) === selectedStream) || inputs.find((i) => i.latest_delivered) || inputs[0];
   selectedStream = item ? streamKey(item) : HISTORY;
-  const streamSelect = byId("monitor-input-stream");streamSelect.replaceChildren();
+  const streamSelect = byId("monitor-input-stream"), options = [];
   for (const input of inputs) {
     const source = (base.sources?.sources?.items || []).find((s) => s.source_id === input.source_id);
-    const option = node("option", "분석 입력 · " + (source?.name || input.source_id) + (input.measurement_point_id ? " · " + input.measurement_point_id : ""));option.value = streamKey(input);streamSelect.append(option);
+    options.push({label: "분석 입력 · " + (source?.name || input.source_id) + (input.measurement_point_id ? " · " + input.measurement_point_id : ""), value: streamKey(input)});
   }
-  if (offerStored) {const option = node("option", "저장된 측정 이력 (모델 무관)");option.value = HISTORY;streamSelect.append(option);}
+  if (offerStored) options.unshift({label: "저장된 측정 이력 (모델 무관)", value: HISTORY});
+  if (JSON.stringify([...streamSelect.options].map((o) => ({label: o.textContent, value: o.value}))) !== JSON.stringify(options)) {
+    streamSelect.replaceChildren(...options.map(({label, value}) => {const option = node("option", label);option.value = value;return option;}));
+  }
   streamSelect.value = selectedStream;byId("monitor-stream-field").hidden = streamSelect.options.length < 2;
   byId("monitor-signal-title").textContent = assetName(selectedAsset) + " · 측정 신호";byId("monitor-signal-title").tabIndex = -1;
   byId("monitor-analysis-context").textContent = assetName(selectedAsset) + " · 연결 분석 " + selected.items.length + "개 · 기준 비교는 고장 판정이 아닙니다.";
@@ -378,7 +385,7 @@ export function initializeMonitor(read) {
   readOperations = read;
   const start = () => {clearTimeout(timer);if (active()) void refreshMonitor();};
   window.addEventListener("hashchange", start);document.addEventListener("visibilitychange", start);
-  byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
+  byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;explicitStream = true;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
   byId("monitor-signal-channel").addEventListener("change", (e) => {
     if (selectedStream === HISTORY) {selectStoredChannel(e.target.value);if (lastData) render(lastData, lastBase);return;}
     choiceId = e.target.value;paintSignal();
