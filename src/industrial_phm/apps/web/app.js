@@ -775,7 +775,7 @@ initializeCondition();
 initializePhm();
 byId("start-example").addEventListener("click", () => void exploreExample());
 byId("start-file").addEventListener("click", () => navigate("#connect", byId("csv-start-file")));
-byId("start-opcua").addEventListener("click", () => navigate("#connect", byId("opcua-form").querySelector('input[name="source_id"]')));
+byId("start-opcua").addEventListener("click", () => {byId("opcua-registration").open = true;navigate("#connect", byId("opcua-form").querySelector('input[name="source_id"]'));});
 initializeCsvStart();
 async function initializeReviewAccess() {
   try {
@@ -1918,7 +1918,27 @@ byId("sample-stop").addEventListener("click", () => {
   if (window.confirm("이 Web Supervisor가 시작한 격리 synthetic 데모를 중지합니다. 계속할까요?")) sampleCommand("stop");
 });
 byId("sample-refresh").addEventListener("click", () => sampleCommand("status"));
+document.addEventListener("isolated-example-request", async () => {
+  byId("connection-progress").open = true;
+  navigate("#connect", byId("sample-status"));
+  await sampleCommand("status");
+  if (sampleStatusKind === "stopped") await sampleCommand("start");
+  if (sampleStatusKind === "running" && sampleValidatedUrl) {
+    const url = new URL(sampleValidatedUrl);url.searchParams.set("return_to", location.origin + "/web/#monitor");
+    location.assign(url);
+  }
+});
 sampleCommand("status");
+
+getJSON("/api/v1/session").then((session) => {
+  if (session.workspace_kind !== "synthetic-demo") return;
+  const notice = create("section", "notice synthetic-context", "합성 예시 · 별도 작업공간 · 읽기 전용 · 실제 설비 측정이 아닙니다. ");
+  const target = new URLSearchParams(location.search).get("return_to");
+  if (target && /^http:\/\/127\.0\.0\.1:\d{2,5}\/web\/#monitor$/.test(target)) {
+    const link = create("a", null, "내 작업공간으로 돌아가기");link.href = target;notice.append(link);
+  }
+  byId("phm-monitor").before(notice);
+}).catch(() => {});
 
 byId("file-form").addEventListener("input", () => {
   csvPreflightRevision += 1;

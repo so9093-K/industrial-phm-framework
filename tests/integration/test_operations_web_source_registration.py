@@ -1045,6 +1045,26 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
             saved = Path(stored.config.source_path)
             assert saved.is_relative_to(workspace.root.resolve())
             assert saved.read_bytes() == raw
+            _, matching = preflight()
+            assert matching["registration_match"] == "matching"
+            assert matching["status"] == "ready"
+            changed_body = json.dumps(
+                {
+                    "setup": setup,
+                    "csv_base64": base64.b64encode(raw.replace(b"219.0", b"999.0")).decode("ascii"),
+                }
+            ).encode()
+            _, changed = preflight(changed_body)
+            assert changed["status"] == "blocked"
+            assert changed["registration_match"] == "conflict"
+            changed_setup = {**setup, "channel_columns": ["phase-S", "phase-R"]}
+            _, changed = preflight(
+                json.dumps(
+                    {"setup": changed_setup, "csv_base64": base64.b64encode(raw).decode("ascii")}
+                ).encode()
+            )
+            assert changed["status"] == "blocked"
+            assert saved.read_bytes() == raw
             assert len(tuple((workspace.root / "web-uploads").glob("*.csv"))) == 1
             assert tuple(broker.upload_directory.iterdir()) == ()
             assert upload()[0] == 409

@@ -122,6 +122,11 @@ class OperationsWorkspace:
         return self.root / "runtime" / "web-file-history.json"
 
     @property
+    def web_context_path(self) -> Path:
+        """Declared Web purpose for an isolated demo; not operational data or evidence."""
+        return self.root / "runtime" / "web-context.json"
+
+    @property
     def runtime_state_files(self) -> tuple[Path, ...]:
         """Return durable/local state files owned by this workspace layout."""
         return (

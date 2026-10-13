@@ -57,6 +57,8 @@ def test_empty_workspace_start_routes_research_and_read_failures(
                 page.get_by_role("link", name="파일에서 시작").click()
                 pw.expect(page.locator("#view-title")).to_have_text("데이터 연결")
                 pw.expect(page.locator("#csv-start-file")).to_be_focused()
+                pw.expect(page.locator("#file-form")).not_to_be_visible()
+                page.locator("#advanced-file-registration > summary").click()
                 pw.expect(page.locator("#file-form")).to_be_visible()
                 pw.expect(page.locator("#monitor")).to_be_hidden()
                 page.reload(wait_until="networkidle")

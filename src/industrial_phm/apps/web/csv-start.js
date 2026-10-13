@@ -17,6 +17,14 @@ const TIME_NAME = /time|timestamp|date|시각|시간|일시/i;
 const STEPS = ["register", "activate", "receive", "store"];
 const stepState = {pending: "대기", running: "진행 중", done: "완료", failed: "실패", unknown: "결과 확인 필요"};
 let file = null, table = null, revision = 0, checkedRevision = -1, progress = null, running = false, checkedRows = 0;
+let checkedMatch = "absent", syntheticPreview = false;
+let fileDigest = "";
+const TICKET_KEY = "phm-csv-pending-v1";
+function readTicket() {try {return JSON.parse(localStorage.getItem(TICKET_KEY) || "null");} catch {return null;}}
+function remember() {
+  if (!progress || !fileDigest) return;
+  try {localStorage.setItem(TICKET_KEY, JSON.stringify({digest: fileDigest, setup: progress.setup}));} catch {}
+}
 
 // RFC 4180 subset matching the server's csv module defaults: comma, double quotes, CRLF or LF.
 function parseCsv(text) {
@@ -69,7 +77,7 @@ function inspect(rows) {
 }
 
 function timeIssues(columnIndex) {
-  const parsed = [];let previous = null, firstBackwards = null, naive = false;
+  const parsed = [];let previous = null, firstBackwards = null, firstInvalidDate = null, naive = false;
   table.rows.forEach((row, offset) => {
     if (row.length !== table.header.length) return;
     const text = row[columnIndex].trim(), match = ISO.exec(text);
@@ -77,10 +85,14 @@ function timeIssues(columnIndex) {
     if (!match[1]) naive = true;
     // Without an offset the wall time is placed on UTC only to order and space the preview.
     const at = Date.parse(match[1] ? text.replace(" ", "T") : text.replace(" ", "T") + "Z");
+    const day = Date.parse(text.slice(0, 10) + "T00:00:00Z");
+    if (!Number.isFinite(at) || !Number.isFinite(day) || new Date(day).toISOString().slice(0, 10) !== text.slice(0, 10) || Number(text.slice(11, 13)) > 23) {
+      firstInvalidDate ??= offset + 2;return;
+    }
     if (previous !== null && !(at > previous)) firstBackwards ??= offset + 2;
     previous = at;parsed.push({at, row});
   });
-  return {parsed, naive, firstBackwards};
+  return {parsed, naive, firstBackwards, firstInvalidDate};
 }
 
 function resetSave() {
@@ -106,6 +118,7 @@ function setCurrent(step) {
 async function chooseFile(example = null) {
   const chosen = example || byId("csv-start-file").files[0];
   file = null;table = null;resetSave();invalidateCheck();
+  syntheticPreview = Boolean(example);
   byId("csv-start-preview").hidden = true;byId("csv-start-details").hidden = true;
   const state = byId("csv-start-file-state");state.className = "hint";
   if (!chosen) {state.textContent = "아직 파일을 선택하지 않았습니다.";setCurrent("file");return;}
@@ -121,6 +134,7 @@ async function chooseFile(example = null) {
   let text;
   try {
     const bytes = new Uint8Array(await chosen.arrayBuffer());
+    fileDigest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((v) => v.toString(16).padStart(2, "0")).join("");
     text = new TextDecoder("utf-8", {fatal: true}).decode(bytes).replace(/^﻿/, "");
   } catch {
     state.className = "hint error";state.textContent = "UTF-8로 읽을 수 없는 파일입니다. CSV를 UTF-8로 다시 저장한 뒤 선택하세요.";return;
@@ -132,6 +146,16 @@ async function chooseFile(example = null) {
   const stem = chosen.name.replace(/\.csv$/i, "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "file";
   byId("csv-start-source-id").value = "csv-" + stem + "-" + Math.random().toString(16).slice(2, 6);
   byId("csv-start-source-name").value = chosen.name.slice(0, 128);
+  const ticket = readTicket();
+  if (!syntheticPreview && ticket?.digest === fileDigest && ticket.setup) {
+    for (const [id, key] of [["csv-start-source-id", "source_id"], ["csv-start-source-name", "name"], ["csv-start-asset", "asset_id"], ["csv-start-point", "measurement_point_id"]]) {
+      byId(id).value = typeof ticket.setup[key] === "string" ? ticket.setup[key] : "";
+    }
+    const column = table.columns.find((c) => c.name === ticket.setup.timestamp_column);
+    if (column) {byId("csv-start-time").value = String(column.index);renderColumns();}
+    for (const box of byId("csv-start-channels").querySelectorAll("input")) box.checked = (ticket.setup.channel_columns || []).includes(box.value);
+    drawPreview();state.textContent += " · 이전 작업 입력 복원 · 서버 점검으로 동일성을 다시 확인하세요.";
+  }
   byId("csv-start-preview").hidden = false;byId("csv-start-details").hidden = false;
   setCurrent("asset");
 }
@@ -187,6 +211,7 @@ function drawPreview() {
     if (column.missing) list.push(["error", column.firstMissing + "행의 시각이 비어 있습니다 (빈 시각 " + column.missing + "개)."]);
     if (column.firstNonIso) list.push(["error", column.firstNonIso + "행의 시각을 ISO 8601로 읽을 수 없습니다. 예: 2026-10-11T09:00:00+09:00"]);
     if (timing.firstBackwards) list.push(["error", timing.firstBackwards + "행의 시각이 앞 행보다 늦지 않습니다. 시간 순서대로 정렬하고 중복 시각을 확인하세요."]);
+    if (timing.firstInvalidDate) list.push(["error", timing.firstInvalidDate + "행의 날짜·시각이 유효하지 않습니다. 달력 날짜와 시·분·초를 확인하세요."]);
   }
   for (const name of channels) {
     const column = table.columns.find((c) => c.name === name);
@@ -252,11 +277,14 @@ async function base64(blob) {
 async function post(path, payload) {
   const session = await (await fetch("/api/v1/session", {cache: "no-store", credentials: "same-origin"})).json();
   if (session.write_scope !== "supervisor-owned-source-control") throw Object.assign(new Error("read-only"), {code: "read-only"});
-  const response = await fetch(path, {method: "POST", credentials: "same-origin", cache: "no-store",
-    headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token}, body: JSON.stringify(payload)});
+  let response;
+  try {
+    response = await fetch(path, {method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token}, body: JSON.stringify(payload)});
+  } catch {throw Object.assign(new Error("outcome-unknown"), {code: "command_outcome_unknown"});}
   const body = await response.json().catch(() => null);
   if (!response.ok) throw Object.assign(new Error("http-" + response.status), {code: body?.error?.code || "http-" + response.status});
-  if (body?.schema_version !== 1) throw Object.assign(new Error("schema"), {code: "schema-mismatch"});
+  if (body?.schema_version !== 1) throw Object.assign(new Error("schema"), {code: "command_outcome_unknown"});
   return body;
 }
 
@@ -277,6 +305,7 @@ async function check() {
   const output = byId("csv-start-check-result"), button = byId("csv-start-check");
   const values = setup();
   if (!file || !table) return;
+  if (syntheticPreview) {output.className = "state";output.textContent = "합성 예시는 미리보기 전용입니다. 격리 예시 환경에서 둘러보세요. 현재 작업공간에는 저장하지 않습니다.";return;}
   if (!values.asset_id || !values.source_id || !values.name) {output.className = "state error";output.textContent = "설비 ID를 입력하세요. 소스 ID·이름도 비어 있으면 안 됩니다.";return;}
   if (!values.timestamp_column || !values.channel_columns.length) {output.className = "state error";output.textContent = "시간 컬럼과 저장할 측정 컬럼을 확인하세요.";return;}
   const token = ++revision;button.disabled = true;
@@ -288,10 +317,11 @@ async function check() {
     if (report.meaning !== "csv-preflight-only-not-registered-or-ingested") throw Object.assign(new Error("schema"), {code: "schema-mismatch"});
     const lines = [];
     if (report.status === "ready") {
-      checkedRevision = token;checkedRows = report.sample_count * report.channel_columns.length;
+      checkedRevision = token;checkedMatch = report.registration_match;checkedRows = report.sample_count * report.channel_columns.length;
       lines.push("서버 점검 통과 · 측정값 " + report.sample_count + "행 · " + report.channel_columns.join(", "),
         "원본 측정 " + formatTime(report.first_timestamp) + " ~ " + formatTime(report.last_timestamp) + " · 아직 저장하지 않았습니다.");
       if (report.quality_warnings?.length) lines.push("측정 간격 주의: " + report.quality_warnings.join(", ") + " · 원래 간격대로 저장합니다.");
+      if (checkedMatch === "matching") lines.push("기존 파일·설정과 동일합니다. 저장 상태를 확인해 이어서 진행할 수 있습니다.");
     } else {
       lines.push(report.status === "blocked" ? "서버 점검 실패 · 파일 또는 설정을 고친 뒤 다시 점검하세요." : "추가 확인 필요 · 아직 저장할 수 없습니다.");
     }
@@ -318,24 +348,30 @@ function lockInputs(locked) {
 
 // Resume from durable server state, so a retry never repeats a completed or unknown registration.
 async function resync() {
-  const response = await fetch("/api/v1/sources", {cache: "no-store", credentials: "same-origin"});
-  const data = await response.json();
-  if (!response.ok || data.schema_version !== 1) throw Object.assign(new Error("read"), {code: "read"});
+  const response = await fetch("/api/v1/sources", {cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(5000)})
+    .catch(() => {throw Object.assign(new Error("read"), {code: "command_outcome_unknown"});});
+  const data = await response.json().catch(() => {throw Object.assign(new Error("read"), {code: "command_outcome_unknown"});});
+  if (!response.ok || data.schema_version !== 1) throw Object.assign(new Error("read"), {code: "command_outcome_unknown"});
   const source = (data.sources?.items || []).find((item) => item.source_id === progress.setup.source_id);
-  if (source && source.asset_id !== progress.setup.asset_id) throw Object.assign(new Error("other"), {code: "source_id_exists"});
+  if (source) {
+    const verified = await post("/api/v1/sources/file/upload/preflight", {setup: progress.setup, csv_base64: await base64(file)});
+    if (verified.status !== "ready" || verified.registration_match !== "matching") throw Object.assign(new Error("other"), {code: "source_id_exists"});
+  }
   progress.done.register = Boolean(source);
   progress.done.activate = source?.lifecycle_state === "active";
-  progress.done.receive = progress.done.activate && source?.receipt_confirmed === true;
+  // The receipt has no content digest: verify the current file again before reusing a batch.
+  progress.done.receive = false;
 }
 
 async function save() {
-  if (running || checkedRevision !== revision || !file) return;
+  if (running || syntheticPreview || checkedRevision !== revision || !file) return;
   running = true;byId("csv-start-save").disabled = true;
   const output = byId("csv-start-save-result");output.className = "";
-  const retry = Boolean(progress);
+  const retry = Boolean(progress) || checkedMatch === "matching";
   progress ??= {setup: setup(), done: {}, stored: null};
+  remember();
   lockInputs(true);
-  let current = "register";
+  let current = STEPS.find((step) => !progress.done[step]) || "store";
   try {
     if (retry) {output.textContent = "서버의 현재 소스 상태를 확인하고 이어서 진행합니다.";await resync();}
     for (const step of STEPS) if (progress.done[step]) setStep(step, "done");
@@ -370,13 +406,14 @@ async function save() {
     if (job.source_id !== progress.setup.source_id || !["running", "succeeded"].includes(job.state)) {
       throw Object.assign(new Error("schema"), {code: "schema-mismatch"});
     }
-    const stored = await waitForHistory(progress.setup.source_id, (seconds) => setStep(current, "running",
-      "경과 " + seconds + "초 · 측정값 약 " + checkedRows.toLocaleString("ko-KR") + "개 저장 중 · 다른 화면으로 이동해도 계속됩니다"));
+    const stored = await waitForHistory(progress.setup.source_id, job.started_at, (seconds, known) => setStep(current, known ? "running" : "unknown",
+      "경과 " + seconds + "초 · " + (known ? "서버에서 저장 중 · 다른 화면으로 이동해도 작업은 유지됩니다" : "최근 상태 조회 실패 · 저장 결과 미확정")));
     progress.done.store = true;progress.stored = stored;
+    try {localStorage.removeItem(TICKET_KEY);} catch {}
     setStep(current, "done", "측정값 " + stored.event_count.toLocaleString("ko-KR") + "개");
     finish();
   } catch (error) {
-    setStep(current, error.code === "command_outcome_unknown" ? "unknown" : "failed");
+    setStep(current, ["command_outcome_unknown", "history_interrupted"].includes(error.code) ? "unknown" : "failed");
     output.className = "error";
     output.textContent = (error.code === "receipt" ? "파일을 다시 읽어 수신 근거를 남기지 못했습니다 (" + (error.detail || "원인 미확인") + "). " : explain(error) + " ")
       + (progress.done.register ? "입력은 유지되며, 다시 시도하면 완료된 단계는 건너뜁니다." : "입력은 그대로 유지됩니다.");
@@ -390,18 +427,19 @@ async function save() {
 }
 
 // Poll the supervisor job status. A failed status read is not a failed write: keep waiting.
-async function waitForHistory(sourceId, onTick) {
+async function waitForHistory(sourceId, startedAt, onTick) {
   const started = Date.now();
   for (;;) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     let job = null;
     try {
-      const response = await fetch("/api/v1/sources", {cache: "no-store", credentials: "same-origin"});
+      const response = await fetch("/api/v1/sources", {cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(5000)});
       const data = await response.json();
       if (response.ok && data.schema_version === 1) job = (data.sources?.items || []).find((s) => s.source_id === sourceId)?.file_history_job || null;
     } catch {}
-    onTick(Math.round((Date.now() - started) / 1000));
-    if (job?.state === "succeeded" && Number.isSafeInteger(job.event_count)) return job;
+    onTick(Math.round((Date.now() - started) / 1000), Boolean(job));
+    if (job && job.started_at !== startedAt) throw Object.assign(new Error("job-changed"), {code: "command_outcome_unknown"});
+    if (job?.state === "succeeded" && Number.isSafeInteger(job.event_count) && Number.isSafeInteger(job.history_snapshot_id)) return job;
     if (job?.state === "failed") throw Object.assign(new Error("history"), {code: job.failure || "source_state_unavailable"});
     if (job?.state === "interrupted") throw Object.assign(new Error("history"), {code: "history_interrupted"});
     if (Date.now() - started > HISTORY_WAIT_MS) throw Object.assign(new Error("history"), {code: "command_outcome_unknown"});
@@ -412,13 +450,13 @@ function finish() {
   const {setup: values, stored} = progress;
   const timeIndex = Number(byId("csv-start-time").value), timing = timeIssues(timeIndex);
   const span = timing.parsed.length ? timing.parsed.at(-1).at - timing.parsed[0].at : 0;
-  const range = span >= 7 * 86400000 ? "7d" : span >= 86400000 ? "24h" : span >= 3600000 ? "1h" : "15m";
+  const range = span >= 86400000 ? "7d" : span >= 3600000 ? "24h" : span >= 900000 ? "1h" : "15m";
   byId("csv-start-save-result").textContent = "저장 완료 · 설비 " + values.asset_id + "에 측정값 " + stored.event_count.toLocaleString("ko-KR") + "개를 원래 측정 시각으로 저장했습니다. PHM 분석은 실행하지 않았습니다.";
   byId("csv-start-done").hidden = false;byId("csv-start-save").hidden = true;
   setCurrent("monitor");
   const open = byId("csv-start-open-monitor");
   open.onclick = () => {
-    openMonitorAsset(values.asset_id, {channel: byId("csv-start-preview-channel").value || values.channel_columns[0], range});
+    openMonitorAsset(values.asset_id, {channel: byId("csv-start-preview-channel").value || values.channel_columns[0], range, sourceId: values.source_id});
     navigate("#monitor", byId("monitor-signal-title"));
   };
   open.focus();
@@ -445,20 +483,7 @@ async function loadExample(key) {
 
 // Kibana-style sample data: run the same check → register → store sequence for the bundled
 // example and open the Monitor. A repeated click resumes from the stored example, never duplicates it.
-export async function exploreExample() {
-  navigate("#connect", byId("csv-start-title"));
-  const state = byId("csv-start-file-state");
-  try {
-    await loadExample("motor");
-    await check();
-    if (checkedRevision !== revision) return;
-    progress = {setup: setup(), done: {}, stored: null};
-    await save();
-    if (progress?.done.store) byId("csv-start-open-monitor").click();
-  } catch {
-    state.className = "hint error";state.textContent = "예시 파일을 불러오지 못했습니다. 화면을 새로 고친 뒤 다시 시도하세요.";
-  }
-}
+export async function exploreExample() {document.dispatchEvent(new CustomEvent("isolated-example-request"));}
 
 function restart() {
   byId("csv-start-file").value = "";byId("csv-start-asset").value = "";byId("csv-start-point").value = "";

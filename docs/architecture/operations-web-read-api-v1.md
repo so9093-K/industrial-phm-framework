@@ -293,7 +293,10 @@ The status of the last job per FILE source is ephemeral runtime state in
 code). It is not history evidence: the committed DuckLake batch is. A supervisor restart
 marks a running job `interrupted`; restarting the job recovers or completes the
 content-addressed batch without duplicating it. Supervisor shutdown waits for an
-in-flight history write before releasing the workspace lease.
+in-flight history write before releasing the workspace lease, and refuses new jobs once closing starts.
+Client status reads are matched by source and started_at. Lost status and interrupted jobs mean
+unconfirmed storage, not a failed commit. Same-source retries verify current bytes and configuration
+through upload preflight; a receipt without a content digest is revalidated.
 
 The command delegates to the existing `backfill_registered_file_source` and
 `DuckLakeAssetHistory`. It returns actual `event_count`,
@@ -575,3 +578,20 @@ original window preview as `/phm/window`, including before scoring. The pending 
 the exact source/asset/measurement-point and encoded window-end position. It never substitutes
 another window and does not create analysis state. Original window/series/snapshot contracts
 are unchanged. These selected-input reads run only when the selection or input position changes.
+
+## CSV entry identity and isolated examples
+
+Upload preflight adds registration_match (absent/matching/conflict/unchecked). A reusable registration
+requires the same file SHA-256, name, asset, measurement point, ordered channels, timestamp layout and
+semantic configuration. A conflict is blocked without changing the registered file. Registration itself
+still refuses duplicate IDs; only the verified browser recovery flow reuses completed stages.
+
+History trend accepts one optional source_id. Latest anchoring and returned groups use that source, so
+an older imported file is not hidden by newer data for the same asset. Existing queries and response
+fields retain their meaning. CSV handoff preserves asset, source, channel and range in URL context.
+
+Synthetic first-run exploration uses the existing isolated demo lifecycle. The demo declares its
+purpose through runtime/web-context.json; session adds workspace_kind and gives that workspace
+read-only-synthetic-demo write scope. Its Web POSTs are forbidden even with a valid CSRF token.
+Parent Operations workspaces retain their existing scope. Bundled synthetic CSV content is blocked
+from ordinary Web registration/storage; browser-only previews remain available.

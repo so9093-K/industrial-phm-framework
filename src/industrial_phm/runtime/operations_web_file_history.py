@@ -68,6 +68,7 @@ class FileHistoryJobs:
         self._root = workspace
         self._run = run
         self._lock = threading.Lock()
+        self._closed = False
         self._thread: threading.Thread | None = None
         # A new supervisor generation cannot be continuing an earlier thread.
         self._jobs = {
@@ -83,10 +84,12 @@ class FileHistoryJobs:
 
     def start(self, payload: dict[str, object]) -> dict[str, object]:
         """Check synchronously, then write history on a supervisor thread."""
-        paths, registry, source_id = check_file_history_backfill(
-            self._root, payload, max_bytes=MAX_WEB_BACKGROUND_HISTORY_BYTES
-        )
         with self._lock:
+            if self._closed:
+                raise SourceControlConflict("FILE history owner is shutting down")
+            paths, registry, source_id = check_file_history_backfill(
+                self._root, payload, max_bytes=MAX_WEB_BACKGROUND_HISTORY_BYTES
+            )
             running = next(
                 (key for key, job in self._jobs.items() if job.get("state") == "running"), None
             )
@@ -142,7 +145,9 @@ class FileHistoryJobs:
 
     def close(self) -> None:
         """Let an in-flight history write finish before the supervisor lease is released."""
-        thread = self._thread
+        with self._lock:
+            self._closed = True
+            thread = self._thread
         if thread is not None:
             thread.join()
 

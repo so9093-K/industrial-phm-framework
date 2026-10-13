@@ -12,7 +12,9 @@ import json
 import os
 import re
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from functools import cache
 from pathlib import Path
 
 from industrial_phm.adapters.csv_sensor import (
@@ -386,6 +388,8 @@ def register_uploaded_csv_source(
         raw = stream.read(_MAX_WEB_UPLOAD_BYTES + 1)
     if not 0 < len(raw) <= _MAX_WEB_UPLOAD_BYTES:
         raise ValueError("CSV upload too large")
+    if hashlib.sha256(raw).hexdigest() == _bundled_synthetic_digest():
+        raise ValueError("bundled synthetic CSV requires an isolated demo workspace")
     text = raw.decode("utf-8-sig")
     if "\x00" in text:
         raise ValueError("CSV contains binary data")
@@ -488,6 +492,12 @@ def _csv_preflight_problem(error: Exception) -> dict[str, object]:
     }
 
 
+@cache
+def _bundled_synthetic_digest() -> str | None:
+    path = Path(__file__).parents[1] / "apps" / "web" / "example-motor.csv"
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
 def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
     """Read only; never produce receipt, history, analysis, or registration."""
     assert isinstance(source.config, FileSourceConfig)
@@ -506,6 +516,24 @@ def _csv_preflight_result(source: RegisteredSource) -> dict[str, object]:
             "meaning": "csv-preflight-only-not-registered-or-ingested",
         }
     start, end = report.first_timestamp, report.last_timestamp
+    if report.source_sha256 == _bundled_synthetic_digest():
+        return {
+            "schema_version": 1,
+            "status": "blocked",
+            "sample_count": report.sample_count,
+            "history_ready": False,
+            "phase_mapping_ready": False,
+            "issue": {
+                "code": "synthetic-example-isolated",
+                "guidance": (
+                    "동봉된 합성 예시는 격리된 예시 환경에서 확인하세요. "
+                    "실제 작업공간에 저장하지 않습니다."
+                ),
+                "row_number": None,
+                "column": None,
+            },
+            "meaning": "csv-preflight-only-not-registered-or-ingested",
+        }
     timezone_aware = (
         start is not None
         and end is not None
@@ -625,7 +653,51 @@ def preflight_uploaded_csv_source(
             "issue": _csv_preflight_problem(error),
             "meaning": "csv-preflight-only-not-registered-or-ingested",
         }
-    return _csv_preflight_result(source)
+    report = _csv_preflight_result(source)
+    if report.get("status") != "ready":
+        report["registration_match"] = "unchecked"
+        return report
+    paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
+    known = next(
+        (
+            item
+            for item in JsonSourceRepository(paths.registry).list_sources()
+            if item.source_id == source_id
+        ),
+        None,
+    )
+    matches = known is None
+    if known is not None and isinstance(known.config, FileSourceConfig):
+        try:
+            known_path = Path(known.config.source_path)
+            matches = (
+                known.name == source.name
+                and replace(config, source_path=known.config.source_path) == known.config
+                and known_path.resolve(strict=True) == known_path
+                and known_path.is_relative_to(root.resolve())
+                and known_path.stat().st_size == report.get("source_size_bytes")
+                and hashlib.sha256(known_path.read_bytes()).hexdigest()
+                == report.get("source_sha256")
+            )
+        except OSError:
+            matches = False
+    report["registration_match"] = (
+        "absent" if known is None else "matching" if matches else "conflict"
+    )
+    if not matches:
+        report.update(
+            status="blocked",
+            history_ready=False,
+            issue={
+                "code": "source_id_exists",
+                "guidance": (
+                    "동일 ID의 기존 파일·측정 컬럼·설정이 다릅니다. 새 소스 ID를 사용하세요."
+                ),
+                "row_number": None,
+                "column": None,
+            },
+        )
+    return report
 
 
 class SourceControlConflict(ValueError):

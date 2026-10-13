@@ -12,7 +12,8 @@ const node = (tag, text = "", className = "") => {const e = document.createEleme
 const number = (n) => typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "—";
 const quality = {good: "원본 품질 정상 표시", "non-good": "원본 품질 문제", unknown: "원본 품질 정보 없음"};
 const channelCache = new Map();
-let selected = {assetId: "", channel: "", range: "1h"};
+const context = new URLSearchParams(location.search);
+let selected = {assetId: context.get("monitor_asset") || "", channel: context.get("monitor_channel") || "", range: ["15m", "1h", "24h", "7d"].includes(context.get("monitor_range")) ? context.get("monitor_range") : "1h", sourceId: context.get("monitor_source") || ""};
 let loaded = {selectionKey: "", dataKey: "", at: 0, data: null, error: false};
 let pending = "", version = 0, paintedKey = "";
 
@@ -49,13 +50,21 @@ export function invalidateStored(assetId = null) {
 }
 
 // The PHM input view owns the shared chart while it is shown; repaint the stored view on return.
-export function leaveStored() {byId("monitor-history-range-field").hidden = true;paintedKey = "";}
+export function leaveStored() {byId("monitor-history-range-field").hidden = true;byId("monitor-all-sources").hidden = true;paintedKey = "";}
 // Open one asset's stored signal from another screen, e.g. right after its history was written.
-export function focusStored(assetId, channel = "", range = selected.range) {
-  selected = {assetId, channel, range};invalidateStored(assetId);
+export function focusStored(assetId, channel = "", range = selected.range, sourceId = "") {
+  selected = {assetId, channel, range, sourceId};invalidateStored(assetId);
 }
-export function selectStoredChannel(channel) {selected.channel = channel;paintedKey = "";}
-export function selectStoredRange(range) {selected.range = range;paintedKey = "";}
+function syncContext() {
+  const url = new URL(location.href);
+  for (const [key, value] of [["monitor_source", selected.sourceId], ["monitor_channel", selected.channel], ["monitor_range", selected.range]]) {
+    if (value) url.searchParams.set(key, value);else url.searchParams.delete(key);
+  }
+  history.replaceState(history.state, "", url);
+}
+export function selectStoredChannel(channel) {selected.channel = channel;paintedKey = "";syncContext();}
+export function selectStoredRange(range) {selected.range = range;paintedKey = "";syncContext();}
+export function clearStoredSource() {selected.sourceId = "";paintedKey = "";syncContext();}
 
 function setControls(entry) {
   const select = byId("monitor-signal-channel");
@@ -77,10 +86,11 @@ function clearStoredDisplay(message) {
 
 // `asset` is the /api/v1/monitor row; `historyError` is the snapshot's asset-history read scope.
 export function showStored({assetId, asset, dataKey, historyError, onChange}) {
-  if (selected.assetId !== assetId) {selected = {assetId, channel: "", range: selected.range};paintedKey = "";}
+  if (selected.assetId !== assetId) {selected = {assetId, channel: "", range: selected.range, sourceId: ""};paintedKey = "";}
   byId("monitor-signal-mode").textContent = "저장 측정 이력";
+  byId("monitor-all-sources").hidden = !selected.sourceId;
   byId("monitor-range-field").hidden = true;byId("monitor-last-good").hidden = true;
-  byId("monitor-signal-context").textContent = receiptText(asset);
+  byId("monitor-signal-context").textContent = (selected.sourceId ? "선택한 파일·출처의 측정값 · " : "") + receiptText(asset);
   const entry = readChannels(assetId, dataKey, onChange);
   setControls(entry);
   if (entry.state === "loading" && !entry.channels.length) {clearStoredDisplay("저장된 측정 신호 목록을 확인하고 있습니다.");return;}
@@ -91,7 +101,7 @@ export function showStored({assetId, asset, dataKey, historyError, onChange}) {
       : "저장된 측정 이력이 확인되지 않습니다. 이력 저장 전이거나 일시적으로 읽지 못했습니다.");
     return;
   }
-  const selectionKey = JSON.stringify([assetId, selected.channel, selected.range]);
+  const selectionKey = JSON.stringify([assetId, selected.channel, selected.range, selected.sourceId]);
   const now = Date.now();
   const due = loaded.selectionKey !== selectionKey
     || (loaded.error ? now - loaded.at >= RETRY_MS : loaded.dataKey !== dataKey || now - loaded.at >= STALE_MS);
@@ -113,6 +123,7 @@ async function load(assetId, channel, range, selectionKey, dataKey, request, onC
   const token = ++version;pending = request;
   try {
     const params = new URLSearchParams({asset_id: assetId, channel_id: channel, range, anchor: "latest", buckets: "120"});
+    if (selected.sourceId) params.set("source_id", selected.sourceId);
     const response = await fetch("/api/v1/history/trend?" + params, {cache: "no-store", signal: AbortSignal.timeout(8000)});
     const data = await response.json();
     if (token !== version) return;
@@ -127,7 +138,7 @@ async function load(assetId, channel, range, selectionKey, dataKey, request, onC
   }
 }
 
-export function repaintStored() {paintedKey = "";if (loaded.data && loaded.selectionKey === JSON.stringify([selected.assetId, selected.channel, selected.range])) paint(loaded.data);}
+export function repaintStored() {paintedKey = "";if (loaded.data && loaded.selectionKey === JSON.stringify([selected.assetId, selected.channel, selected.range, selected.sourceId])) paint(loaded.data);}
 
 function paint(data) {
   const key = JSON.stringify([loaded.selectionKey, loaded.at]);

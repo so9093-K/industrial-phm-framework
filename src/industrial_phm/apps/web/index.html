@@ -40,7 +40,7 @@
           <section class="monitor-fleet" aria-labelledby="monitor-fleet-title"><h3 id="monitor-fleet-title">설비 목록</h3><div id="phm-monitor-assets"></div></section>
           <section class="monitor-signal" aria-labelledby="monitor-signal-title"><div class="monitor-section-title"><h3 id="monitor-signal-title">측정 신호</h3><span id="monitor-signal-mode" class="tag"></span></div>
             <p id="monitor-signal-context" class="muted"></p>
-            <div class="monitor-signal-controls"><label id="monitor-stream-field" hidden>측정 소스<select id="monitor-input-stream"></select></label><label>측정 신호<select id="monitor-signal-channel" disabled></select></label><label id="monitor-range-field" hidden>표시 구간<select id="monitor-signal-range"><option value="recent">최근 연속 기록</option><option value="all">조회 기록 전체</option></select></label><label id="monitor-history-range-field" hidden>표시 구간 (마지막 기록까지)<select id="monitor-history-range"><option value="15m">15분</option><option value="1h" selected>1시간</option><option value="24h">24시간</option><option value="7d">7일</option></select></label><button id="monitor-last-good" type="button" hidden>마지막 성공 입력 보기</button></div>
+            <div class="monitor-signal-controls"><label id="monitor-stream-field" hidden>측정 소스<select id="monitor-input-stream"></select></label><label>측정 신호<select id="monitor-signal-channel" disabled></select></label><label id="monitor-range-field" hidden>표시 구간<select id="monitor-signal-range"><option value="recent">최근 연속 기록</option><option value="all">조회 기록 전체</option></select></label><label id="monitor-history-range-field" hidden>표시 구간 (마지막 기록까지)<select id="monitor-history-range"><option value="15m">15분</option><option value="1h" selected>1시간</option><option value="24h">24시간</option><option value="7d">7일</option></select></label><button id="monitor-all-sources" type="button" hidden>설비 전체 신호 보기</button><button id="monitor-last-good" type="button" hidden>마지막 성공 입력 보기</button></div>
             <div id="monitor-signal-reading" class="monitor-reading" hidden></div>
             <section class="monitor-detection" aria-labelledby="monitor-detection-title"><h4 id="monitor-detection-title">이상 탐지</h4><div id="monitor-detection-results"></div></section>
             <p id="monitor-signal-state" role="status" class="muted">설비를 선택하면 실제 원본 신호를 표시합니다.</p>
@@ -58,7 +58,7 @@
         <p class="muted">아직 이 작업공간에 측정 데이터가 없습니다. 예시 데이터로 먼저 둘러보거나 내 데이터를 연결하세요.</p>
         <div class="start-example">
           <button id="start-example" type="button">예시 데이터로 둘러보기</button>
-          <p>합성 예시 · 모터 3상 전류와 진동 6시간(실제 설비 아님 · 모니터링 전용). 내 데이터와 같은 점검·저장 절차로 이 작업공간에 넣고 모니터링을 엽니다. 이상 탐지·RUL 모델의 입력 규격과 다르므로 분석 결과는 만들지 않습니다.</p>
+          <p>별도 작업공간의 합성 모터 신호를 둘러봅니다. 현재 작업공간에 예시 소스나 측정값을 저장하지 않습니다.</p>
         </div>
         <div class="start-options">
           <a id="start-file" href="#connect"><strong>파일에서 시작</strong><span>CSV 파일의 실제 신호와 컬럼을 먼저 확인하고 점검한 뒤 저장</span></a>
@@ -171,7 +171,7 @@
         <ol id="csv-start-steps" class="csv-start-steps" aria-label="진행 단계"><li data-step="file" aria-current="step">파일 확인</li><li data-step="asset">설비 정보</li><li data-step="check">서버 점검</li><li data-step="save">등록·이력 저장</li><li data-step="monitor">모니터링</li></ol>
         <label class="csv-start-file">CSV 파일 선택 (UTF-8 · 20MiB 이하)<input id="csv-start-file" type="file" accept=".csv,text/csv"></label>
         <div class="csv-start-examples" aria-label="예시 파일"><span>예시 파일로 해보기</span>
-          <button id="csv-start-example-motor" type="button" class="secondary">합성 예시 · 모터 전류·진동 6시간 (모니터링 전용)</button>
+          <button id="csv-start-example-motor" type="button" class="secondary">합성 CSV 미리보기 · 저장하지 않음</button>
           <button id="csv-start-example-invalid" type="button" class="secondary">오류 예시 · 시간대 없음·빈 값</button>
         </div>
         <p id="csv-start-file-state" class="hint" role="status" aria-live="polite">아직 파일을 선택하지 않았습니다. 저장하기 전까지 파일은 이 브라우저에서만 읽습니다.</p>
@@ -189,7 +189,7 @@
         <div id="csv-start-details" class="csv-start-details" hidden>
           <h3>설비 정보</h3>
           <div class="form-grid">
-            <label>설비 ID<input id="csv-start-asset" maxlength="128" placeholder="예: pump-01" autocomplete="off" required></label>
+            <label>설비 이름·번호<input id="csv-start-asset" maxlength="128" placeholder="예: 1호 펌프" autocomplete="off" required></label>
             <label>측정 지점 (선택)<input id="csv-start-point" maxlength="128" placeholder="예: panel-main" autocomplete="off"></label>
           </div>
           <details class="csv-start-advanced"><summary>소스 ID·이름 (자동 생성 · 필요하면 수정)</summary>
@@ -215,6 +215,7 @@
           </div>
         </div>
       </section>
+      <details data-views="connect" class="panel connection-progress" id="connection-progress"><summary>연결 진행·격리 예시 관리</summary>
       <section data-views="connect" class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
         <div class="panel-header"><div><h2 id="onboarding-title">데이터 연결 진행</h2><p class="muted">선택한 소스의 다음 작업과 단계별 근거</p></div></div>
         <p id="onboarding-state" role="status" aria-live="polite">등록된 데이터 소스와 수신 근거를 확인합니다.</p>
@@ -243,6 +244,7 @@
           <p class="hint">실제 설비 연결·고장 진단·안전 판정이 아닙니다. 샘플은 현재 Web의 Supervisor가 살아 있는 동안만 실행되며, 종료해도 별도 샘플 작업공간은 자동 삭제하지 않습니다.</p>
         </div>
       </section>
+      </details>
       <section data-views="connect" class="panel connection-panel" id="connect" aria-labelledby="connect-title">
         <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">설정 등록과 실제 수신 근거를 구분합니다. 지원하는 OPC UA 등록·탐색·수집 요청은 이 Web에서 실행합니다.</p></div></div>
         <div id="source-status" class="state" role="status" aria-live="polite">소스 등록 현황을 조회합니다.</div>
@@ -250,7 +252,7 @@
         <p class="hint">로컬 단일 사용자 파일럿입니다. 동일 작업공간의 Supervisor와 별도 preview·수집기를 함께 실행해 쓰기를 경합시키지 마세요. 현재 Web의 변경은 Supervisor IPC 및 writer 잠금 계약을 따릅니다.</p>
         <div id="source-list" class="source-list" aria-label="등록된 데이터 소스"></div>
         <p id="source-control-result" role="status" aria-live="polite"></p>
-        <h3>고급 CSV 등록 · 작업공간 경로·3상 역할 매핑</h3>
+        <details id="advanced-file-registration" class="phm-options"><summary>고급 CSV 등록 · 경로·3상 역할 매핑</summary>
         <p class="hint">PC의 UTF-8 CSV를 직접 선택하거나, 기존처럼 작업공간 내부 CSV 상대 경로를 입력하세요. 직접 선택은 20MiB 이하만 지원하며 소스 등록만 수행합니다. 데이터 수신·DuckLake 적재·분석은 별도 단계입니다.</p>
         <form id="file-form">
           <div class="form-grid">
@@ -274,7 +276,8 @@
           <button id="register-file" type="submit">CSV 확인 후 소스 등록</button>
           <p id="register-result" role="status" aria-live="polite"></p>
         </form>
-        <h3>로컬 OPC UA 소스 등록·탐색</h3>
+        </details>
+        <details id="opcua-registration" class="phm-options"><summary>OPC UA로 설비 연결</summary>
         <p class="hint">현재 파일럿은 127.0.0.1 익명 OPC UA 서버만 허용합니다. 변수 탐색은 최대 256개 노드를 조사합니다. 결과가 일부만 표시되면 객체 후보의 하위 탐색을 선택하거나 시작 NodeId를 명시하세요. 탐색은 수신·등록 근거가 아니며 원격 서버·계정·인증서 설정은 지원하지 않습니다.</p>
         <form id="opcua-form">
           <div class="form-grid">
@@ -291,6 +294,7 @@
           <div id="opcua-browse-result" role="status" aria-live="polite"></div>
           <p id="opcua-register-result" role="status" aria-live="polite"></p>
         </form>
+        </details>
         <p class="hint">등록 후에도 accepted receipt가 확인되기 전에는 모니터링의 관측 데이터가 준비됐다고 표시하지 않습니다. 등록·수집·분석은 서로 다른 단계입니다.</p>
       </section>
       <section data-views="system" class="panel system-panel" id="system" aria-labelledby="system-title">

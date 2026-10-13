@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import importlib
+import json
 import math
 import signal
 import sys
@@ -194,6 +195,10 @@ def prepare_synthetic_demo(
         ui=OperationsUiConfig(port=preset.ui_port),
     )
     write_operations_runtime_config(workspace.config_path, runtime_config)
+    workspace.web_context_path.parent.mkdir(parents=True, exist_ok=True)
+    workspace.web_context_path.write_text(
+        json.dumps({"schema_version": 1, "kind": "synthetic-demo"}), encoding="utf-8"
+    )
     control = SqliteCollectionControlRepository(workspace.collection_control_path)
     request_collection_state(
         repository,

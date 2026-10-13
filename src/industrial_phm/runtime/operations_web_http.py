@@ -94,6 +94,16 @@ def create_operations_web_read_server(
     if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535:
         raise ValueError("port must be an integer between 0 and 65535")
     root = workspace_root.resolve()
+    context_path = OperationsWorkspace(root).web_context_path
+    try:
+        synthetic_demo = (
+            not context_path.is_symlink()
+            and context_path.stat().st_size <= 4096
+            and json.loads(context_path.read_text(encoding="utf-8"))
+            == {"schema_version": 1, "kind": "synthetic-demo"}
+        )
+    except OSError, ValueError:
+        synthetic_demo = False
     csrf_token = secrets.token_urlsafe(32)
     mutation_lock = Lock()
 
@@ -185,7 +195,7 @@ def create_operations_web_read_server(
             allowed = (
                 {"asset_id"}
                 if channels
-                else {"asset_id", "channel_id", "range", "buckets", "anchor"}
+                else {"asset_id", "channel_id", "range", "buckets", "anchor", "source_id"}
             )
             params = parse_qs(
                 parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=12
@@ -207,6 +217,11 @@ def create_operations_web_read_server(
             anchors = params.get("anchor", ("now",))
             if len(anchors) != 1 or anchors[0] not in {"now", "latest"}:
                 raise ValueError("unsupported time anchor")
+            sources = params.get("source_id", ())
+            if len(sources) > 1:
+                raise ValueError("at most one source_id is supported")
+            if sources:
+                self._validate_id(sources[0])
             presets = params.get("range", ("1h",))
             buckets = params.get("buckets", ("60",))
             if len(presets) != 1 or presets[0] not in RANGE_DURATIONS:
@@ -222,6 +237,7 @@ def create_operations_web_read_server(
                 "range_preset": presets[0],
                 "bucket_count": bucket_count,
                 "time_anchor": anchors[0],
+                "source_id": sources[0] if sources else None,
             }
 
         def _condition_query(self) -> dict[str, object]:
@@ -345,10 +361,13 @@ def create_operations_web_read_server(
                         "schema_version": 1,
                         "csrf_token": csrf_token,
                         "write_scope": (
-                            "supervisor-owned-source-control"
+                            "read-only-synthetic-demo"
+                            if synthetic_demo
+                            else "supervisor-owned-source-control"
                             if command_client is not None
                             else "local-source-control-and-opcua-preview"
                         ),
+                        "workspace_kind": "synthetic-demo" if synthetic_demo else "operations",
                     },
                 )
                 return
@@ -386,6 +405,7 @@ def create_operations_web_read_server(
                         range_preset=cast(str, query["range_preset"]),
                         bucket_count=cast(int, query["bucket_count"]),
                         time_anchor=cast(str, query["time_anchor"]),
+                        source_id=cast(str | None, query["source_id"]),
                     )
             except ConditionSelectionError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_condition_selection")
@@ -397,6 +417,9 @@ def create_operations_web_read_server(
             self._send_json(HTTPStatus.OK, payload)
 
         def do_POST(self) -> None:
+            if synthetic_demo:
+                self._error(HTTPStatus.FORBIDDEN, "synthetic_demo_read_only")
+                return
             if self.path not in WEB_SOURCE_ACTION_ROUTES:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
                 return

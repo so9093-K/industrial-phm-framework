@@ -1,6 +1,6 @@
 import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
 import {formatTime} from "./time.js";
-import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored, focusStored} from "./monitor-history.js";
+import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored, focusStored, clearStoredSource} from "./monitor-history.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
@@ -67,14 +67,20 @@ function assetFacts(assetId, items, base) {
 function selectAsset(assetId) {
   selectedAsset = assetId;selectedStream = "";previousInput = false;previewKey = "";detailsKey = "";
   explicitStream = false;
-  const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
+  const url = new URL(location.href);
+  if (url.searchParams.get("monitor_asset") !== assetId) for (const key of ["monitor_source", "monitor_channel", "monitor_range"]) url.searchParams.delete(key);
+  url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
   if (lastData) render(lastData, lastBase);
 }
 // Select an asset's stored measurements before navigating to the Monitor (no read happens here).
-export function openMonitorAsset(assetId, {channel = "", range = "1h"} = {}) {
+export function openMonitorAsset(assetId, {channel = "", range = "1h", sourceId = ""} = {}) {
   selectedAsset = assetId;selectedStream = HISTORY;previousInput = false;previewKey = "";detailsKey = "";
-  focusStored(assetId, channel, range);
-  const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
+  explicitStream = true;
+  focusStored(assetId, channel, range, sourceId);
+  const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);
+  if (sourceId) url.searchParams.set("monitor_source", sourceId);else url.searchParams.delete("monitor_source");
+  url.searchParams.set("monitor_channel", channel);url.searchParams.set("monitor_range", range);
+  history.replaceState(history.state, "", url);
 }
 function render(data, base) {
   lastData = data;lastBase = base;
@@ -115,7 +121,12 @@ function render(data, base) {
     const message = f.notes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.compared.length
       ? (f.items.some((i) => i.step_kind === "observation-window") ? "전기 신호" : "진동 신호") + " · 기준 초과 없음" : f.items.length ? "신호 기준 비교 없음"
       : flowLabels[row?.data_flow_status] || "수신 상태 미확인");
-    button.append(heading, node("span", message, f.notes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
+    const assetSources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === f.assetId);
+    const fileOnly = assetSources.length && assetSources.every((s) => s.source_type === "file");
+    const collection = fileOnly ? assetSources.some((s) => s.receipt_confirmed) ? "파일 검증 수신 확인" : "파일 수신 미확인"
+      : flowLabels[row?.data_flow_status] || "수신 상태 미확인";
+    button.append(heading, node("span", "수집 · " + collection, "monitor-asset-status"));
+    button.append(node("span", "분석 · " + (f.items.length ? message : data.unavailable ? "조회 실패" : "PHM 연결 없음"), f.notes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
     const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
     button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : dataTime(row)));
     if (!f.items.length) button.append(node("small", data.unavailable ? "PHM 분석 조회 실패" : "PHM 분석 연결 안 됨"));
@@ -397,6 +408,7 @@ export function initializeMonitor(read) {
     choiceId = e.target.value;paintSignal();
   });
   byId("monitor-history-range").addEventListener("change", (e) => {selectStoredRange(e.target.value);if (lastData) render(lastData, lastBase);});
+  byId("monitor-all-sources").addEventListener("click", () => {clearStoredSource();if (lastData) render(lastData, lastBase);});
   byId("monitor-signal-range").addEventListener("change", paintSignal);
   byId("monitor-last-good").addEventListener("click", () => {previousInput = !previousInput;previewKey = "";if (lastData) render(lastData, lastBase);});
   byId("monitor-analysis-details").addEventListener("toggle", () => {

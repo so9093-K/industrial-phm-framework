@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 from http.client import HTTPConnection
 from pathlib import Path
@@ -89,7 +90,10 @@ def test_background_job_writes_real_history_and_reports_it_through_sources(
     assert first["state"] == "succeeded"
     assert first["event_count"] == 6
     assert isinstance(first["history_snapshot_id"], int)
+    with pytest.raises(SourceControlConflict, match="shutting down"):
+        jobs.start(identity)
     # A retry of the same batch reuses its commit rather than writing it twice.
+    jobs = FileHistoryJobs(root)
     jobs.start(identity)
     jobs.close()
     again = read_file_history_jobs(workspace)["file-a"]
@@ -145,6 +149,7 @@ def test_one_writer_at_a_time_restart_marks_interrupted_and_failures_stay_bounde
     assert read_file_history_jobs(workspace)["a"]["state"] == "interrupted"
     release.set()
     jobs.close()
+    jobs = FileHistoryJobs(workspace.root, run=blocked)
     assert jobs.start({"source_id": "broken"})["state"] == "running"
     jobs.close()
     broken = read_file_history_jobs(workspace)["broken"]
@@ -152,3 +157,42 @@ def test_one_writer_at_a_time_restart_marks_interrupted_and_failures_stay_bounde
     assert broken["failure"] == "source_state_unavailable"
     assert "private" not in workspace.file_history_job_path.read_text(encoding="utf-8")
     restarted.close()
+
+
+def test_shutdown_finishes_current_commit_and_refuses_new_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    monkeypatch.setattr(
+        jobs_module,
+        "check_file_history_backfill",
+        lambda root, payload, *, max_bytes: (None, None, payload["source_id"]),
+    )
+    release = threading.Event()
+
+    def run(*args: object) -> dict[str, object]:
+        assert release.wait(10)
+        return {"event_count": 4, "history_snapshot_id": 7, "recovered_segment_count": 0}
+
+    jobs = FileHistoryJobs(workspace.root, run=run)
+    jobs.start({"source_id": "a"})
+    closer = threading.Thread(target=jobs.close)
+    closer.start()
+    try:
+        deadline = time.monotonic() + 3
+        while True:
+            try:
+                jobs.start({"source_id": "a"})
+            except SourceControlConflict as error:
+                assert "shutting down" in str(error)
+                break
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        assert closer.is_alive()
+        assert read_file_history_jobs(workspace)["a"]["state"] == "running"
+    finally:
+        release.set()
+        closer.join(10)
+    assert not closer.is_alive()
+    assert read_file_history_jobs(workspace)["a"]["state"] == "succeeded"

@@ -41,6 +41,7 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
                 page = browser.new_page(viewport={"width": 1024, "height": 900})
                 page.on("dialog", lambda dialog: dialog.accept())
                 page.goto(f"http://127.0.0.1:{port}/web/#connect", wait_until="domcontentloaded")
+                page.locator("#connection-progress").evaluate("el => el.open = true")
                 playwright.expect(page.locator("#sample-start")).to_be_enabled(timeout=30000)
                 playwright.expect(page.locator("#sample-stop")).to_be_disabled()
                 playwright.expect(page.locator("#sample-open")).to_be_hidden()
@@ -70,7 +71,9 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
                 sample_page.wait_for_load_state("domcontentloaded")
                 assert sample_page.url == url
                 sample_page.locator('nav a[href="#connect"]').click()
-                playwright.expect(sample_page.locator("#sample-start")).to_be_visible(timeout=30000)
+                playwright.expect(sample_page.locator(".synthetic-context")).to_be_visible(
+                    timeout=30000
+                )
                 sample_page.close()
 
                 samples = list(tmp_path.glob("demo-synthetic-*"))
@@ -82,6 +85,7 @@ def test_supervised_web_launches_and_stops_real_isolated_synthetic_demo(tmp_path
 
                 # The existing sample remains a separate application after reloading Web.
                 page.reload(wait_until="domcontentloaded")
+                page.locator("#connection-progress > summary").click()
                 playwright.expect(page.locator("#sample-open")).to_be_visible(timeout=15000)
                 assert page.locator("#sample-open").get_attribute("href") == url
                 page.set_viewport_size({"width": 1440, "height": 900})

@@ -203,7 +203,19 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
                 assert not workspace.history_catalog_path.exists()
                 page.unroute("**/api/v1/sources/file/backfill/start")
-                page.get_by_role("button", name="실패한 단계부터 다시 시도").click()
+                with page.expect_response(lambda r: "/api/v1/sources/file/backfill/start" in r.url):
+                    page.get_by_role("button", name="실패한 단계부터 다시 시도").click()
+                # Browser lifecycle cannot cancel the supervisor's write. Re-selecting the same
+                # bytes restores the pending input and verifies identity before resuming.
+                page.reload()
+                chooser.set_input_files(str(files / "motor.csv"))
+                pw.expect(page.locator("#csv-start-file-state")).to_contain_text(
+                    "이전 작업 입력 복원"
+                )
+                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
+                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
+                pw.expect(check).to_contain_text("기존 파일·설정과 동일", timeout=30000)
+                page.get_by_role("button", name="등록하고 이력 저장").click()
                 pw.expect(steps.locator('[data-step="store"]')).to_contain_text(
                     f"측정값 {len(rows) * 2:,}개", timeout=180000
                 )
@@ -225,21 +237,23 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                     "원본 측정 " + last_at.strftime("%Y-%m-%d %H:%M:%S") + " KST"
                 )
                 pw.expect(page.locator("#monitor-signal-chart .monitor-raw-line")).to_have_count(1)
-                pw.expect(page.locator("#monitor-history-range")).to_have_value("24h")
+                pw.expect(page.locator("#monitor-history-range")).to_have_value("7d")
 
                 # The real server refuses a duplicate source; inputs stay for correction.
                 page.locator('nav a[href="#connect"]').click()
                 page.get_by_role("button", name="다른 파일로 시작").click()
+                (files / "motor.csv").write_text(
+                    (files / "motor.csv").read_text().replace(",RUN", ",STOP")
+                )
                 chooser.set_input_files(str(files / "motor.csv"))
                 page.locator("#csv-start-asset").fill("motor-01")
                 page.locator(".csv-start-advanced > summary").click()
                 page.locator("#csv-start-source-id").fill(source_id)
                 page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
-                pw.expect(check).to_contain_text("서버 점검 통과", timeout=30000)
-                page.get_by_role("button", name="등록하고 이력 저장").click()
-                pw.expect(page.locator("#csv-start-save-result")).to_contain_text(
-                    "이미 등록된 소스 ID", timeout=30000
+                pw.expect(check).to_contain_text(
+                    "기존 파일·측정 컬럼·설정이 다릅니다", timeout=30000
                 )
+                pw.expect(page.locator("#csv-start-save")).to_be_disabled()
                 pw.expect(page.locator("#csv-start-asset")).to_be_enabled()
                 pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
                 assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
@@ -256,7 +270,7 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
 def test_supervised_web_one_click_example_opens_monitoring_without_duplicates(
     tmp_path: Path,
 ) -> None:
-    """A bundled synthetic example takes the same writes as a user file, labelled as such."""
+    """A real isolated demo stays separate; its measurements cannot mutate the parent."""
     if not hasattr(socket, "SO_PEERCRED"):
         pytest.skip("Linux peer credentials required")
     pw = pytest.importorskip("playwright.sync_api")
@@ -279,26 +293,30 @@ def test_supervised_web_one_click_example_opens_monitoring_without_duplicates(
             try:
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
                 page.get_by_role("button", name="예시 데이터로 둘러보기").click(timeout=30000)
-                monitor = page.locator('nav a[href="#monitor"]')
-                pw.expect(monitor).to_have_attribute("aria-current", "page", timeout=60000)
-                reading = page.locator("#monitor-signal-reading")
-                pw.expect(reading).to_contain_text("example-motor", timeout=30000)
-                pw.expect(reading).to_contain_text("원본 측정 2026-10-01 14:59:50 KST")
-                pw.expect(page.locator("#monitor-detection-results")).to_contain_text(
-                    "연결된 PHM 분석 모델 없음"
+                pw.expect(page.locator(".synthetic-context")).to_contain_text(
+                    "읽기 전용", timeout=60000
                 )
-                # Repeating resumes from the stored example instead of registering again.
-                page.locator('nav a[href="#connect"]').click()
-                page.evaluate("import('/web/csv-start.js').then((m) => m.exploreExample())")
-                pw.expect(monitor).to_have_attribute("aria-current", "page", timeout=60000)
-                sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
-                assert [source.source_id for source in sources] == ["example-motor"]
-                # The invalid example shows row-level guidance and writes nothing.
-                page.locator('nav a[href="#connect"]').click()
-                page.get_by_role("button", name="오류 예시 · 시간대 없음·빈 값").click()
-                pw.expect(page.locator("#csv-start-issues")).to_contain_text("8행의 시각")
-                pw.expect(page.locator("#csv-start-file-state")).to_contain_text("모니터링 전용")
-                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+                assert page.url.startswith("http://127.0.0.1:")
+                assert not page.url.startswith(f"http://127.0.0.1:{port}/")
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+                pw.expect(page.locator("#monitor-signal-chart svg").first).to_be_visible(
+                    timeout=60000
+                )
+                session = page.request.get(page.url.split("/web/")[0] + "/api/v1/session").json()
+                assert session["write_scope"] == "read-only-synthetic-demo"
+                page.get_by_role("link", name="내 작업공간으로 돌아가기").click()
+                pw.expect(page.locator("#workspace-start")).to_be_visible(timeout=30000)
+                # Reopening the owned demo does not mix data into the parent's source catalogue.
+                page.get_by_role("button", name="예시 데이터로 둘러보기").click()
+                pw.expect(page.locator(".synthetic-context")).to_be_visible(timeout=30000)
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+                page.get_by_role("link", name="내 작업공간으로 돌아가기").click()
+                page.get_by_role("link", name="파일에서 시작").click()
+                page.get_by_role("button", name="합성 CSV 미리보기 · 저장하지 않음").click()
+                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
+                pw.expect(page.locator("#csv-start-check-result")).to_contain_text("미리보기 전용")
+                pw.expect(page.locator("#csv-start-save")).to_be_disabled()
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
                 assert not errors, errors
             finally:
                 browser.close()
@@ -565,6 +583,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "channel_columns": "leg_a,leg_b,leg_c",
                     "timestamp_column": "timestamp",
                 }
+                page.locator("#advanced-file-registration").evaluate("el => el.open = true")
                 for key, value in phase_fields.items():
                     page.locator(f'#file-form input[name="{key}"]').fill(value)
                 page.locator('#file-form textarea[name="phase_bindings"]').fill(
@@ -1543,6 +1562,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     "소스 미등록", timeout=30000
                 )
                 page.get_by_role("link", name="데이터 연결", exact=True).click()
+                page.locator("#opcua-registration > summary").click()
                 page.locator("#opcua-endpoint").fill(endpoint)
                 page.get_by_role("button", name="로컬 변수 탐색").click()
                 # Server internals can consume the bounded root browse budget.

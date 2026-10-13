@@ -238,6 +238,7 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             )
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("소스 미등록")
             sync_api.expect(page.locator("#onboarding-monitor-link")).to_be_hidden()
+            page.locator("#advanced-file-registration > summary").click()
             page.locator('#file-form input[name="source_id"]').fill("web-file-01")
             page.locator('#file-form input[name="name"]').fill("웹 등록 CSV")
             page.locator('#file-form input[name="asset_id"]').fill("pump-01")
@@ -364,6 +365,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             page.goto(
                 f"http://127.0.0.1:{server.server_port}/web/#connect", wait_until="networkidle"
             )
+            page.locator("#advanced-file-registration > summary").click()
             page.locator('#file-form input[name="source_id"]').fill("file-receipt")
             page.locator('#file-form input[name="name"]').fill("FILE receipt")
             page.locator('#file-form input[name="asset_id"]').fill("pump-01")
@@ -385,6 +387,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text(
                 "저장된 시계열은 별도로 확인해야 합니다"
             )
+            page.locator("#connection-progress > summary").click()
             handoff = page.locator("#onboarding-monitor-link")
             sync_api.expect(handoff).to_be_visible()
             sync_api.expect(page.locator("#onboarding-steps")).to_contain_text(
@@ -439,6 +442,7 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
             page.goto(
                 f"http://127.0.0.1:{server.server_port}/web/#connect", wait_until="networkidle"
             )
+            page.locator("#advanced-file-registration > summary").click()
             page.locator('#file-form input[name="source_id"]').fill("web-history-01")
             page.locator('#file-form input[name="name"]').fill("FILE history")
             page.locator('#file-form input[name="asset_id"]').fill("pump-01")
