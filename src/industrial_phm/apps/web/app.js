@@ -878,9 +878,7 @@ function scrollToOnboardingTarget(target, hash) {
       "해당 작업 버튼이 현재 목록에 없습니다. 소스 목록을 새로 조회하세요.";
     return;
   }
-  navigate(hash);
-  target.focus({preventScroll: true});
-  target.scrollIntoView({block: "center"});
+  navigate(hash, target);
 }
 byId("onboarding-source-select").addEventListener("change", (event) => {
   selectedOnboardingSourceId = event.target.value;
@@ -889,7 +887,7 @@ byId("onboarding-source-select").addEventListener("change", (event) => {
 byId("onboarding-action").addEventListener("click", () => {
   const item = onboardingSources.find((source) => source.source_id === selectedOnboardingSourceId);
   if (!item) {
-    scrollToOnboardingTarget(byId("file-form").querySelector('input[name="source_id"]'), "#connect");
+    scrollToOnboardingTarget(byId("csv-start-file"), "#connect");
     return;
   }
   const [action] = onboardingStepFor(item);

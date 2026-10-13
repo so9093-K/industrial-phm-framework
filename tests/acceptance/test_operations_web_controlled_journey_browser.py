@@ -394,8 +394,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 handoff = page.locator("#onboarding-monitor-link")
                 pw.expect(handoff).to_be_hidden()
                 pw.expect(page.locator("#onboarding-next")).to_contain_text("소스를 등록하세요")
+                page.locator("#connection-progress > summary").click()
                 page.get_by_role("button", name="CSV 등록 양식으로 이동").click()
-                pw.expect(page.locator('#file-form input[name="source_id"]')).to_be_focused()
+                pw.expect(page.locator("#csv-start-file")).to_be_focused()
+                page.locator("#advanced-file-registration > summary").click()
                 pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
                     "aria-current", "page"
                 )
@@ -495,6 +497,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page.get_by_role("button", name="FILE 이력 적재 버튼 찾기").click()
                 pw.expect(listing.get_by_role("button", name="FILE 이력 적재")).to_be_focused()
                 page.locator('nav a[href="#connect"]').click()
+                if page.locator("#connection-progress").get_attribute("open") is None:
+                    page.locator("#connection-progress > summary").click()
                 pw.expect(handoff).to_be_visible()
                 assert not workspace.history_catalog_path.exists()
                 handoff.click()
@@ -684,6 +688,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#last-values")).to_contain_text("221")
                 handoff = page.locator("#onboarding-monitor-link")
                 page.locator('nav a[href="#connect"]').click()
+                if page.locator("#connection-progress").get_attribute("open") is None:
+                    page.locator("#connection-progress > summary").click()
                 pw.expect(handoff).to_be_visible()
                 # Losing the real source GET must revoke a prior ready state,
                 # without claiming the stored measurements or review disappeared.
@@ -696,6 +702,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page.unroute("**/api/v1/sources")
                 page.get_by_role("button", name="데이터 다시 불러오기").click()
                 page.locator('nav a[href="#connect"]').click()
+                if page.locator("#connection-progress").get_attribute("open") is None:
+                    page.locator("#connection-progress > summary").click()
                 pw.expect(handoff).to_be_visible()
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
                     "active와 수신을 모두 확인한 소스 2개"
