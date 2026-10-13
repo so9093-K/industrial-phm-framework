@@ -85,7 +85,7 @@ assumption을 먼저 고정한 뒤 추가합니다. RUL v1 held-out benchmark는
 
 ## 5. Held-out benchmark boundary
 
-다음 numerical execution은 frozen temporal LSTM candidate로 fold-1 held-out bearing을 평가합니다.
+Held-out benchmark는 frozen temporal LSTM candidate를 다음 fold-1 bearing에 적용했습니다(§7).
 
 ```text
 Bearing1_1
@@ -107,25 +107,16 @@ Project history에서 이 bearing들은 기존 anomaly/robustness 연구에 이�
 Held-out 결과를 본 뒤 같은 RUL v1 configuration, target, lifecycle segmentation, evaluation metric 또는
 selection rule을 수정해 같은 benchmark를 다시 unbiased evidence로 재사용하지 않습니다.
 
-## 6. Benchmark 전에 남은 implementation
+## 6. Benchmark 진단 범위
 
-Held-out 실행 전에 protocol §9.1의 lifecycle-position diagnostics를 구현합니다.
-
-- recorded lifecycle early / middle / late thirds
-- per-bearing prediction count
-- MAE
-- mean signed error
-- 필요 시 normalized MAE
-- aggregate는 bearing별 metric을 먼저 계산한 equal-bearing mean
-- selection metric은 변경하지 않음
-- diagnostic은 state/degradation-onset label이 아님
-
-그 뒤 frozen candidate benchmark runner/result schema를 추가하고 prepared XJTU source가 있는 clean tracked
-checkout에서 numerical artifact를 생성합니다.
+완료된 benchmark는 protocol §9.1에 따라 recorded lifecycle early/middle/late thirds별
+prediction count, MAE, mean signed error, normalized MAE를 기록합니다. Aggregate는 bearing별 metric의
+동등 가중 평균이며 selection metric을 바꾸지 않습니다. 이 진단은 state/degradation-onset label이 아닙니다.
+실행 절차는 [benchmark runbook](xjtu-rul-benchmark-execution-runbook.md), 수치와 재현 결과는 §7이 소유합니다.
 
 ## 7. 실행된 held-out benchmark 기록
 
-§6의 implementation이 완료된 뒤 runbook 절차대로 benchmark를 실행했습니다. 이 절은 실행 사실과 기록된
+Runbook 절차대로 benchmark를 실행했습니다. 이 절은 실행 사실과 기록된
 숫자만 남기며, 결과를 본 뒤 새로운 판정 기준이나 threshold를 만들지 않습니다.
 
 ```text
