@@ -21,14 +21,15 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from industrial_phm.adapters.aihub_power_history import PowerHistoryBinding
 from industrial_phm.application import CollectionDesiredState
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
-from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepResult, StepState
 from industrial_phm.demo.aihub_replay import (
     ReplaySelection,
     build_replay_manifest,
@@ -57,7 +58,13 @@ BINDING = "tools/opcua/presets/aihub-air-compressor-1338-replay.json"
 SOURCE_ID = "aihub239-replay-air-compressor-1338"
 ASSET_ID = "aihub-air-compressor-1338"
 # Held-out period of device 1338 (training is the first 70% of its record, before 09:35 local).
-START, END, SPEED = "2020-11-13T09:35:00", "2020-11-13T13:35:00", 60
+# 20x keeps delivery (35 values per recorded minute) below the collector's durable ingest rate, so
+# the outage below is the only gap; faster replay piles values up in the client queue, which a stop
+# does not drain by design (ADR-0010 loss boundary).
+START, END, SPEED = "2020-11-13T09:35:00", "2020-11-13T13:35:00", 20
+STOP_AFTER_SECONDS = 240
+WINDOW = timedelta(seconds=300)
+SEOUL = ZoneInfo("Asia/Seoul")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -188,7 +195,8 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 time.sleep(1.5)
                 elapsed = time.monotonic() - replay_began
-                if not interrupted and elapsed > 100:
+                if not interrupted and elapsed > STOP_AFTER_SECONDS:
+                    stop_at = datetime.now(UTC)
                     evidence["interruption"] = {"stopped_at_replay_seconds": round(elapsed, 1)}
                     evidence["supervisor_stop_seconds"] = supervisor.stop()
                     outage_began = time.monotonic()
@@ -205,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
                     # The replay keeps publishing while nothing collects.
                     time.sleep(max(0.0, 15 - (time.monotonic() - outage_began)))
                     evidence["supervisor_ready_seconds"].append(supervisor.start())
+                    ready_at = datetime.now(UTC)
                     evidence["interruption"]["restarted_at_replay_seconds"] = round(
                         time.monotonic() - replay_began, 1
                     )
@@ -284,12 +293,50 @@ def main(argv: list[str] | None = None) -> int:
                 ],
                 "accepted_events_per_window": sorted(w.accepted_event_count for w in stream),
             }
-            expected_windows = int(4 * 60 / 5)
+            # The outage in event time, from the replay's own publishing rule. Windows it touches
+            # must be absent or partial, and no window may be absent outside it (one window of
+            # margin: the edges depend on when the old session stopped and the new one subscribed).
+            rule = json.loads((workspace / "replay-log.jsonl").read_text("utf-8").splitlines()[0])
+
+            def event_at(wall: datetime) -> datetime:
+                started = datetime.fromisoformat(rule["replay_started_at"])
+                origin = datetime.fromisoformat(rule["source_start_local"]).replace(tzinfo=SEOUL)
+                return (origin + (wall - started) * float(rule["speed"])).astimezone(UTC)
+
+            outage = (event_at(stop_at), event_at(ready_at))
+            starts = {w.window_start.astimezone(UTC): w for w in stream}
+            first, last = min(starts), max(starts)
+            missing = [
+                first + i * WINDOW
+                for i in range(int((last - first) / WINDOW))
+                if first + i * WINDOW not in starts
+            ]
+            full = max(w.accepted_event_count for w in stream)
+
+            def touches_outage(start: datetime) -> bool:
+                return start < outage[1] + WINDOW and start + WINDOW > outage[0] - WINDOW
+
+            evidence["collection_outage"] = {
+                "event_range": [outage[0].isoformat(), outage[1].isoformat()],
+                "missing_windows": [t.isoformat() for t in missing],
+                "windows_touching_outage": {
+                    t.isoformat(): w.accepted_event_count
+                    for t, w in sorted(starts.items())
+                    if touches_outage(t)
+                },
+                "full_window_events": full,
+            }
             checks.add(
-                "collection-gap-is-not-shown-as-analyzed-data",
-                len(analyzed) < expected_windows,
-                f"{len(analyzed)} analyzed of {expected_windows} recorded windows; "
-                "the rest are absent or skipped with reasons",
+                "gap-lies-only-in-the-collection-outage",
+                all(touches_outage(t) for t in missing)
+                and all(
+                    w.accepted_event_count < full
+                    for t, w in starts.items()
+                    # Records are one per minute; a window that only grazes the outage edge
+                    # may still hold all of them.
+                    if min(t + WINDOW, outage[1]) - max(t, outage[0]) > timedelta(minutes=2)
+                ),
+                evidence["collection_outage"],
             )
 
             # 4. Real local-main explanation and human review on the screen -----------------
@@ -329,14 +376,28 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             # 5. Restart: results, explanation, review persist --------------------------------
-            before = len(store.list_results("aihub-1338"))
+            def committed() -> dict[str, StepResult]:
+                return {r.step_key: r for r in store.list_results("aihub-1338")}
+
+            before = committed()
             supervisor.stop()
             evidence["supervisor_ready_seconds"].append(supervisor.start())
-            time.sleep(3)
+            time.sleep(10)
+            after = committed()
+            changed = [key for key, result in before.items() if after.get(key) != result]
+            # Re-subscribing delivers current values, which may close the window that was open
+            # when values stopped changing; that is a new window, never a re-analysis.
+            latest = max(r.event_start for r in before.values() if r.event_start is not None)
+            added = [after[key] for key in sorted(set(after) - set(before))]
+            evidence["results_added_after_restart"] = [
+                {"event_start": r.event_start, "state": r.state.value, "reason": r.reason}
+                for r in added
+            ]
             checks.add(
-                "restart-keeps-results-unchanged",
-                len(store.list_results("aihub-1338")) == before,
-                before,
+                "restart-keeps-committed-results-unchanged",
+                not changed
+                and all(r.event_start is not None and r.event_start > latest for r in added),
+                {"kept": len(before), "changed": changed, "added": len(added)},
             )
             page.goto(url + "#anomaly")
             page.select_option("#anomaly-binding", "aihub-1338")
