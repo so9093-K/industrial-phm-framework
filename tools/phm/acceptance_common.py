@@ -123,3 +123,46 @@ class Checks:
     @property
     def passed(self) -> bool:
         return all(item["pass"] for item in self.items)
+
+
+_RECORDER = """(id) => {
+  window.__phmShown = [];
+  const element = document.getElementById(id);
+  const record = () => window.__phmShown.push([Date.now(), element.textContent]);
+  new MutationObserver(record).observe(
+    element, {childList: true, characterData: true, subtree: true}
+  );
+  record();
+}"""
+
+
+def record_display(page: Any, element_id: str) -> None:
+    """Record every text change of one element with the browser's wall-clock time."""
+    page.evaluate(_RECORDER, element_id)
+
+
+def displayed(page: Any) -> list[tuple[datetime, str]]:
+    return [
+        (datetime.fromtimestamp(ms / 1000, UTC), text)
+        for ms, text in page.evaluate("window.__phmShown || []")
+    ]
+
+
+def reflection_latency(
+    commits: list[tuple[Any, datetime]],
+    shown: list[tuple[datetime, Any]],
+) -> tuple[list[float], int]:
+    """Seconds from each commit until the screen first shows that result or a newer one.
+
+    The screen polls on a fixed period while results may arrive faster, so a result can be
+    superseded before it is drawn; it is reflected once anything at least as new is shown.
+    Returns the latencies and how many commits were never reflected.
+    """
+    latencies, missing = [], 0
+    for key, committed_at in commits:
+        times = [at for at, shown_key in shown if shown_key >= key and at >= committed_at]
+        if times:
+            latencies.append((min(times) - committed_at).total_seconds())
+        else:
+            missing += 1
+    return latencies, missing

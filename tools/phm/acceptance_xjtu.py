@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -47,8 +48,11 @@ from tools.phm.acceptance_common import (
     Checks,
     Supervisor,
     cli,
+    displayed,
     free_port,
     percentiles,
+    record_display,
+    reflection_latency,
     set_config,
     wait_until,
     write_evidence,
@@ -269,22 +273,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             page.goto(url + "#anomaly")
             page.select_option("#anomaly-binding", anomaly_binding)
-            screen_latency: list[float] = []
+            expect(page.locator("#anomaly-freshness")).to_contain_text("최신", timeout=15_000)
+            record_display(page, "anomaly-freshness")
             live = replay(1, 30, 1.0)
-            seen: set[int] = set()
-            while live.poll() is None:
-                time.sleep(1.5)
-                latest = store.latest_result(anomaly_binding)
-                if latest is None or latest.position in seen:
-                    continue
-                seen.add(latest.position)
-                try:
-                    expect(page.locator("#anomaly-freshness")).to_contain_text(
-                        f"최신 분석 #{latest.position}", timeout=15_000
-                    )
-                except AssertionError:
-                    continue
-                screen_latency.append((datetime.now(UTC) - latest.processed_at).total_seconds())
             evidence["phase_live_replay"] = live.communicate()[0].splitlines()[-1]
 
             # 3. Supervisor stop while delivery continues, then restart ------------------
@@ -297,6 +288,12 @@ def main(argv: list[str] | None = None) -> int:
             checks.add("restart-catches-up-backlog", caught_up, f"backlog={backlog_at_restart}")
             live2 = replay(46, 15, 1.0)
             live2.communicate()
+            time.sleep(5)  # one more screen poll after the last live commit
+            shown = [
+                (at, int(match.group(1)))
+                for at, text in displayed(page)
+                if (match := re.search(r"최신 분석 #(\d+) ", text))
+            ]
             # 4. Gap and duplicate delivery ---------------------------------------------
             replay(62, 8, 0.5).communicate()
             duplicate = replay(1, 10, 0.0).communicate()[0]
@@ -353,7 +350,18 @@ def main(argv: list[str] | None = None) -> int:
                 checks.add(
                     f"supply-to-commit-p95-le-2s-{name}", p95 is not None and p95 <= 2.0, p95
                 )
-            evidence["commit_to_screen_seconds"] = percentiles(screen_latency)
+            measured = [
+                (r.position, r.processed_at)
+                for r in results(anomaly_binding)
+                if r.position in set(range(1, 31)) | set(range(46, 61))
+            ]
+            screen_latency, unreflected = reflection_latency(measured, shown)
+            evidence["commit_to_screen_seconds"] = {
+                **percentiles(screen_latency),
+                "unreflected": unreflected,
+                "screen_poll_ms": 3000,
+            }
+            checks.add("every-live-commit-reflected-on-screen", unreflected == 0, unreflected)
             p95 = evidence["commit_to_screen_seconds"]["p95"]
             checks.add("commit-to-screen-p95-le-5s", p95 is not None and p95 <= 5.0, p95)
 

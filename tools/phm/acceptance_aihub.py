@@ -15,6 +15,7 @@ One workspace, one continuous journey on device 1338's held-out period:
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -33,8 +34,11 @@ from tools.phm.acceptance_common import (
     Checks,
     Supervisor,
     cli,
+    displayed,
     free_port,
     percentiles,
+    record_display,
+    reflection_latency,
     set_config,
     write_evidence,
 )
@@ -169,9 +173,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             replay_began = time.monotonic()
             page.goto(url + "#anomaly")
-            screen_latency: list[float] = []
-            seen: set[int] = set()
-            interrupted = False
+            record_display(page, "anomaly-freshness")
+            shown_text: list[tuple[datetime, str]] = []
+            selected = interrupted = False
             while server.poll() is None:
                 time.sleep(1.5)
                 elapsed = time.monotonic() - replay_began
@@ -184,32 +188,20 @@ def main(argv: list[str] | None = None) -> int:
                         time.monotonic() - replay_began, 1
                     )
                     interrupted = True
+                    shown_text += displayed(page)
                     page.reload()
+                    record_display(page, "anomaly-freshness")
+                    selected = False
                     continue
-                analyzed_now = [
-                    r for r in store.list_results("aihub-1338") if r.state is StepState.ANALYZED
-                ]
-                if not analyzed_now:
-                    continue
-                latest = max(analyzed_now, key=lambda r: r.position)
-                if latest.position in seen:
-                    continue
-                seen.add(latest.position)
-                page.select_option("#anomaly-binding", "aihub-1338")
-                # The window screen shows "최신 분석 <event time> · 처리 <processed time>".
-                marker = "처리 " + latest.processed_at.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
-                try:
-                    page.wait_for_function(
-                        "([id, text]) => document.getElementById(id).textContent.includes(text)",
-                        arg=["anomaly-freshness", marker],
-                        timeout=15_000,
-                    )
-                except Exception:
-                    continue
-                screen_latency.append((datetime.now(UTC) - latest.processed_at).total_seconds())
+                option = page.locator('#anomaly-binding option[value="aihub-1338"]')
+                if not selected and option.count():
+                    page.select_option("#anomaly-binding", "aihub-1338")
+                    selected = True
+            evidence["replay_exit"] = server.returncode
             evidence["replay_exit"] = server.returncode
             # Let the coordinator close the last window and the runner catch up.
             time.sleep(20)
+            shown_text += displayed(page)
 
             # 3. Exactly-once over every finalized window, latency, gap honesty -------------
             stream = [
@@ -234,7 +226,25 @@ def main(argv: list[str] | None = None) -> int:
             checks.add(
                 "window-finalized-to-commit-p95-le-10s", p95 is not None and p95 <= 10.0, p95
             )
-            evidence["commit_to_screen_seconds"] = percentiles(screen_latency)
+            # The window screen shows "최신 분석 <event start> · 처리 <processed time>" for the
+            # latest analyzed window, so a commit is reflected once that start reaches it.
+            shown = [
+                (at, datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC))
+                for at, text in shown_text
+                if (match := re.search(r"최신 분석 (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) UTC", text))
+            ]
+            measured = [
+                (r.event_start.astimezone(UTC).replace(microsecond=0), r.processed_at)
+                for r in results.values()
+                if r.state is StepState.ANALYZED and r.event_start is not None
+            ]
+            screen_latency, unreflected = reflection_latency(measured, shown)
+            evidence["commit_to_screen_seconds"] = {
+                **percentiles(screen_latency),
+                "unreflected": unreflected,
+                "screen_poll_ms": 3000,
+            }
+            checks.add("every-analyzed-window-reflected-on-screen", unreflected == 0, unreflected)
             p95 = evidence["commit_to_screen_seconds"]["p95"]
             checks.add("commit-to-screen-p95-le-5s", p95 is not None and p95 <= 5.0, p95)
             analyzed = [r for r in results.values() if r.state is StepState.ANALYZED]
