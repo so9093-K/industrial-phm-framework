@@ -379,6 +379,9 @@ whole response.
 | `system_error_scopes` | Repository areas that failed to read; sorted scope identifiers only, **no exception strings or local filesystem paths** |
 
 All timestamps use UTC ISO-8601 with `Z`; missing times/numeric results are JSON `null`.
+The Korean Web displays these instants in KST (fixed UTC+09:00) through one shared formatter and
+sends KST date-time inputs with an explicit `+09:00` offset. Display never rewrites a stored instant,
+and original measurement, receipt, history commit, analysis completion and read times keep distinct labels.
 Each collection has `items`, `total`, `truncated` and up to **100 entries**;
 analyses/skips are newest first. `total` describes the snapshot's loaded
 population (which is already bounded for phase results), **not a universal

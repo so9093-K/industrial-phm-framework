@@ -3,6 +3,7 @@ import { initializeNavigation, navigate } from "./navigation.js";
 import { initializePhm, refreshPhm } from "./phm.js";
 import { initializeMonitor, refreshMonitor } from "./monitor.js";
 import { initializeResearch } from "./research.js";
+import { formatTime } from "./time.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
 const byId = (id) => document.getElementById(id);
@@ -15,7 +16,6 @@ const create = (tag, className, content) => {
 const clear = (node) => node.replaceChildren();
 const fmt = (value) => (value === null || value === undefined || value === "" ? "확인된 값 없음" : String(value));
 const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "—");
-const utc = (value) => value ? String(value) : "시각 없음";
 const list = (root, rows) => rows.forEach((row) => root.append(row));
 const withText = (name, value) => {
   const item = create("div", "fact");
@@ -123,8 +123,8 @@ function assetDetails() {
     withText("데이터 수신 상태", ({running:"수신 흐름 근거 있음",waiting:"수신 대기",delayed:"수신 지연",
       stopped:"수집 중지", "needs-attention":"확인 필요",error:"오류",unavailable:"수신 상태 미확인",
       "stored-history":"저장 이력만 확인"})[item.data_flow_status] || fmt(item.data_flow_status)),
-    withText("마지막 저장 관측 시각 · UTC", lastStoredAt),
-    withText("마지막 분석 완료 · UTC", utc(item.latest_analysis_at)),
+    withText("마지막 저장 기록의 원본 측정 시각", lastStoredAt ? formatTime(lastStoredAt) : null),
+    withText("마지막 분석 완료", formatTime(item.latest_analysis_at)),
     withText("등록된 소스 수", item.source_count),
     withText("확인할 항목", item.attention_count),
     withText("미처리 검토", item.pending_review_count),
@@ -304,12 +304,12 @@ function evidenceViews() {
       evidenceTargets.set(JSON.stringify([run.analysis_run_id, run.evidence_id]), article);
     }
     article.append(create("h3", null, Array.isArray(run.quantities) ? "3상 불평형 분석" : "신호 통계 분석"));
-    article.append(create("p", "muted", "분석한 관측 구간 · " + utc(run.observed_start_at) + " → " + utc(run.observed_end_at)));
+    article.append(create("p", "muted", "분석한 원본 측정 구간 · " + formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)));
     const lines = [
       ["분석 기록 ID", run.analysis_run_id],
       ["Capability", run.capability_id],
       ["계산 버전", run.algorithm_version],
-      ["관측 구간 · UTC", utc(run.observed_start_at) + " → " + utc(run.observed_end_at)],
+      ["원본 측정 구간", formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)],
       ["Evidence ID", run.evidence_id],
     ];
     const calculation = create("details", "analysis-calculation");
@@ -353,7 +353,7 @@ function evidenceViews() {
   });
   attempts.forEach((run) => record(evidence, "미수행 분석 · " + fmt(run.capability_id), [
     ["상태 / 이유", fmt(run.state) + " / " + fmt(run.reason)],
-    ["관측 기간 · UTC", utc(run.observed_start_at) + " → " + utc(run.observed_end_at)],
+    ["원본 측정 구간", formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)],
   ]));
   if (!reviews.length) empty(review, "이 설비에 기록된 검토 요청이 없습니다. 검토 없음은 정비 완료를 뜻하지 않습니다.");
   reviews.forEach((reviewItem) => {
@@ -498,7 +498,7 @@ function drawSeries(entries, group) {
       const y = 106 - (v - min) / (max - min) * 87;
       const circle = svgNode("circle");
       circle.setAttribute("cx", String(x));circle.setAttribute("cy", String(y));circle.setAttribute("r", "4");circle.setAttribute("class", "trend-dot");
-      const label = svgNode("title");label.textContent = bucket.bucket_start + " · mean " + num(v) + " · valid " + bucket.usable_count;
+      const label = svgNode("title");label.textContent = formatTime(bucket.bucket_start) + " · 평균 " + num(v) + " · 유효 " + bucket.usable_count;
       circle.append(label);svg.append(circle);
     } else {
       const circle = svgNode("circle");
@@ -537,14 +537,14 @@ function showTrend(data) {
     const item = create("div","latest-item");
     item.append(create("small",null,p.channel_id + " / " + p.source_id));
     item.append(create("strong",null, p.usable_for_display ? num(p.value) : "표시 신뢰 불가"));
-    item.append(create("small",null,utc(p.event_at)));
+    item.append(create("small",null,"원본 측정 " + formatTime(p.event_at)));
     item.append(create("small",null,"원본 품질 " + fmt(p.source_quality) + " · " + (p.conflicting_duplicate ? "충돌 있음" : "충돌 없음")));
     const provenance = create("details", "point-provenance");
     provenance.append(create("summary", null, "원본 근거 ID"), create("small", null, "evidence: " + fmt(p.raw_evidence_id)));
     item.append(provenance);
     latest.append(item);
   });
-  trendState((data.time_anchor === "latest" ? "마지막 저장 기록 기준 · " : "현재 조회 시각 기준 · ") + "이력 snapshot " + fmt(data.snapshot_id) + " · " + utc(data.start_at) + " ~ " + utc(data.end_at) + " · " + grouped.size + "개 신호/출처 조합");
+  trendState((data.time_anchor === "latest" ? "마지막 저장 기록 기준 · " : "현재 조회 시각 기준 · ") + "이력 snapshot " + fmt(data.snapshot_id) + " · " + formatTime(data.start_at) + " ~ " + formatTime(data.end_at) + " · " + grouped.size + "개 신호/출처 조합");
 }
 async function loadTrend(token = generation) {
   if (!selectedAsset || !selectedChannels.length) return;
@@ -616,10 +616,10 @@ async function loadRuntimeStatus() {
       ? "로컬 서비스의 프로세스·heartbeat·Web listener 준비 근거가 확인됐습니다. 실제 데이터 수신 또는 설비 정상 판정은 아닙니다."
       : "로컬 서비스가 완전히 준비됐는지 확인되지 않습니다. 아래 구성 요소 상태를 확인하고 필요하면 CLI 로그를 조회하세요.";
     facts.append(
-      withText("평가 시각 · UTC", utc(data.assessed_at)),
+      withText("조회 시각", formatTime(data.assessed_at)),
       withText("Supervisor", runtimeConditions[supervisor.condition]),
       withText("Supervisor PID (조회 시점)", supervisor.pid),
-      withText("Supervisor heartbeat · UTC", utc(supervisor.heartbeat_at)),
+      withText("Supervisor heartbeat", formatTime(supervisor.heartbeat_at)),
     );
     data.components.forEach((part) => {
       if (!Object.hasOwn(runtimeNames, part.kind)
@@ -629,7 +629,7 @@ async function loadRuntimeStatus() {
         create("strong", null, runtimeNames[part.kind] + " · " + runtimeConditions[part.condition]),
         create("span", null, "프로세스 PID: " + fmt(part.pid)),
         create("span", null, "프로세스별 런타임 상태: " + fmt(part.runtime_state)),
-        create("span", null, "마지막 heartbeat · UTC: " + utc(part.heartbeat_at)),
+        create("span", null, "마지막 heartbeat: " + formatTime(part.heartbeat_at)),
       );
       components.append(card);
     });
@@ -652,7 +652,7 @@ function systemViews(snapshot) {
     ? "일부 저장소 조회 범위에 오류가 있습니다. 표시되지 않은 관측·분석·검토 근거가 있을 수 있습니다."
     : "이번 조회에서 저장소 오류 범위가 보고되지 않았습니다. 수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다.";
   details.append(
-    withText("조회 평가 시각 · UTC", utc(snapshot.assessed_at)),
+    withText("조회 시각", formatTime(snapshot.assessed_at)),
     withText("조회된 설비 수", snapshot.assets && snapshot.assets.total),
     withText("조회된 분석 기록 수", (snapshot.phase_unbalance_analyses?.total ?? 0) + (snapshot.file_feature_analyses?.total ?? 0)),
     withText("조회된 검토 요청 수", snapshot.review_requests && snapshot.review_requests.total),
@@ -704,7 +704,7 @@ async function refresh() {
     byId("asset-count").textContent = fmt(data.assets && data.assets.total);
     byId("analysis-count").textContent = fmt((data.phase_unbalance_analyses?.total ?? 0) + (data.file_feature_analyses?.total ?? 0));
     byId("review-count").textContent = fmt(data.review_requests && data.review_requests.total);
-    byId("assessed-at").textContent = utc(data.assessed_at);
+    byId("assessed-at").textContent = formatTime(data.assessed_at);
     const assets = rows(data,"assets");
     const select = byId("asset-select");
     const previous = selectedAsset;
@@ -1011,23 +1011,23 @@ async function loadSources() {
           ? (item.source_type === "file" ? "FILE 검증 수신 근거 있음 · 이력 적재는 별도" : "실제 수신 근거 있음")
           : "수신 근거 미확인");
       card.append(receipt);
-      card.append(create("span", null, "마지막 수신 · UTC: " + utc(item.last_accepted_received_at)));
-      card.append(create("span", null, "원본 관측 · UTC: " + utc(item.last_accepted_observed_at)));
+      card.append(create("span", null, "마지막 수신: " + formatTime(item.last_accepted_received_at)));
+      card.append(create("span", null, "그 수신의 원본 측정 시각: " + formatTime(item.last_accepted_observed_at)));
       if (item.continuous_collection_supported) {
         card.append(create("span", null, "연속 수집 요청: " + fmt(item.collection_desired_state || "미요청") + " (실제 수집 상태 아님)"));
-        card.append(create("span", null, "요청 세대: " + fmt(item.collection_request_generation) + " · UTC " + utc(item.collection_requested_at)));
+        card.append(create("span", null, "요청 세대: " + fmt(item.collection_request_generation) + " · 요청 " + formatTime(item.collection_requested_at)));
         card.append(create("span", null, "수집 서비스 마지막 기록: " + fmt(item.collection_service_state)
-          + " · heartbeat UTC " + utc(item.collection_service_heartbeat_at)
+          + " · heartbeat " + formatTime(item.collection_service_heartbeat_at)
           + (item.collection_service_heartbeat_fresh ? " · 최근 확인" : " · 실행 미확인/오래됨")));
         card.append(create("span", null, "OPC UA 세션 마지막 기록: " + fmt(item.opcua_session_last_state)
-          + " · 변경 UTC " + utc(item.opcua_session_state_changed_at)
+          + " · 변경 " + formatTime(item.opcua_session_state_changed_at)
           + (item.recent_connected_evidence ? " · 최근 연결 근거 있음" : " · 현재 연결 미확인")));
-        card.append(create("span", null, "live 이벤트 마지막 수신: UTC " + utc(item.last_live_received_at)
+        card.append(create("span", null, "live 이벤트 마지막 수신: " + formatTime(item.last_live_received_at)
           + " · " + (item.last_live_receive_fresh
             ? "30초 이내 수신 근거 있음" : "최근 수신 근거 미확인")
           + " (1회 읽기 receipt와 별개)"));
-        card.append(create("span", null, "OPC UA DuckLake 커밋: UTC "
-          + utc(item.last_live_history_committed_at)
+        card.append(create("span", null, "OPC UA 이력 저장(DuckLake 커밋): "
+          + formatTime(item.last_live_history_committed_at)
           + " · snapshot " + fmt(item.last_live_history_snapshot_id)
           + " · 소스 이벤트 " + fmt(item.last_live_history_batch_event_count)
           + " (live 배치 이력; live 수신과 별개)"));
@@ -1785,8 +1785,8 @@ async function diagnoseOpcua(sourceId, button) {
       throw new Error("schema-mismatch");
     }
     if (result.cycle_state === "succeeded" && result.accepted_new_receipt === true) {
-      output.textContent = sourceId + " · OPC UA 1회 읽기/수신 근거 기록 완료 · UTC "
-        + utc(result.accepted_received_at) + " · 연속 수집·이력 저장 아님";
+      output.textContent = sourceId + " · OPC UA 1회 읽기/수신 근거 기록 완료 · 수신 "
+        + formatTime(result.accepted_received_at) + " · 연속 수집·이력 저장 아님";
     } else {
       output.className = "error";
       output.textContent = sourceId + " · 읽기 진단 실패 · 범위 "
@@ -1911,7 +1911,7 @@ async function readMonitorFacts() {
     byId("asset-count").textContent = fmt(monitor.assets?.total);
     byId("analysis-count").textContent = fmt((monitor.phase_unbalance_analyses?.total ?? 0) + (monitor.file_feature_analyses?.total ?? 0));
     byId("review-count").textContent = fmt(monitor.review_requests?.total);
-    byId("assessed-at").textContent = utc(monitor.assessed_at);
+    byId("assessed-at").textContent = formatTime(monitor.assessed_at);
     if (monitor.system_error_scopes?.length) errors.push("monitor-store");
   } else {
     monitor = null;monitorReadState = "error";errors.push("monitor");

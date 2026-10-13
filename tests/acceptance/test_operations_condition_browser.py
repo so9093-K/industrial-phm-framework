@@ -4,6 +4,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from threading import Thread
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -150,6 +151,64 @@ def test_condition_source_selection_survives_a_new_source_changing_list_order(
                     "데이터 소스: synthetic-electrical"
                 )
                 pw.expect(page.locator("#condition-method")).not_to_contain_text("aaa-new-source")
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()
+
+
+def test_kst_period_inputs_request_the_same_instant_in_any_browser_time_zone(
+    tmp_path: Path,
+) -> None:
+    """A KST wall-clock choice must not be sent as UTC and silently move nine hours."""
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    # Stored observations span 2020-11-13 00:00 to 03:59 UTC, i.e. 09:00 to 12:59 KST.
+    workspace = condition_workspace(tmp_path / "kst")
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                # The display policy is fixed KST, independent of the viewer's machine zone.
+                page = browser.new_page(locale="ko-KR", timezone_id="America/New_York")
+                requests: list[str] = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        requests.append(request.url)
+                        if "/api/v1/condition?" in request.url
+                        else None
+                    ),
+                )
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+                page.locator("#condition-disclosure > summary").click()
+                pw.expect(page.locator("#condition-method")).to_contain_text(
+                    "마지막 관측: 2020-11-13 12:59:00 KST"
+                )
+                page.locator("#condition-period").select_option("1h")
+                page.locator(".condition-period-details > summary").click()
+                page.locator("#condition-end").fill("2020-11-13T12:30:15")
+                page.locator("#condition-reference-start").fill("2020-11-13T10:00")
+                page.locator("#condition-reference-end").fill("2020-11-13T11:00")
+                requests.clear()
+                page.locator("#condition-run").click()
+                pw.expect(page.locator("#condition-state")).to_contain_text(
+                    "2020-11-13 11:30:15 KST → 2020-11-13 12:30:15 KST"
+                )
+                pw.expect(page.locator("#condition-reference")).to_contain_text(
+                    "2020-11-13 10:00:00 KST → 2020-11-13 11:00:00 KST"
+                )
+                pw.expect(page.locator("#condition-chart .condition-curve")).to_be_visible()
+                query = parse_qs(urlsplit(requests[-1]).query)
+                assert query["end_at"] == ["2020-11-13T12:30:15+09:00"]
+                assert query["reference_start"] == ["2020-11-13T10:00:00+09:00"]
+                assert query["reference_end"] == ["2020-11-13T11:00:00+09:00"]
             finally:
                 browser.close()
     finally:

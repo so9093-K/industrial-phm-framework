@@ -1,4 +1,5 @@
 // Plot the verified original input. No invented points, score normalization or health colors.
+import {formatAxisTime, formatTime} from "./time.js";
 const ns = "http://www.w3.org/2000/svg";
 const svgNode = (tag, attrs = {}) => {
   const n = document.createElementNS(ns, tag);for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);return n;
@@ -41,7 +42,7 @@ export function drawSignal(root, preview, choiceId, height = 180) {
       else {
         path += (previous && point.x - previous.x <= gapLimit ? "L" : "M") + x(point.x).toFixed(2) + " " + y(point.lo).toFixed(2) + " ";
         const dot = svgNode("circle", {cx: x(point.x), cy: y(point.lo), r: 3, class: "monitor-raw-dot phase-" + index});
-        const title = svgNode("title");title.textContent = point.x + " · " + number(point.lo) + " " + choice.id;dot.append(title);svg.append(dot);
+        const title = svgNode("title");title.textContent = formatTime(point.x) + " · " + number(point.lo) + " " + choice.id;dot.append(title);svg.append(dot);
       }
       previous = point;
     }
@@ -49,7 +50,7 @@ export function drawSignal(root, preview, choiceId, height = 180) {
   }
   const text = (label, attrs) => {const n = svgNode("text", attrs);n.textContent = label;svg.append(n);};
   text(number(max), {x: 2, y: 25});text(number(min), {x: 2, y: bottom});
-  const formatX = waveform ? (v) => number(v) + (preview.sampling_rate_hz ? "초" : " 표본") : (v) => new Date(v).toISOString().slice(11, 19);
+  const formatX = waveform ? (v) => number(v) + (preview.sampling_rate_hz ? "초" : " 표본") : (v) => formatAxisTime(v, x1 - x0);
   text(formatX(x0), {x: left, y: height - 4});text(formatX(x1), {x: right, y: height - 4, "text-anchor": "end"});
   root.append(svg);
 }
@@ -81,8 +82,8 @@ export function drawTrace(root, steps, task, threshold, height = 85) {
   svg.append(svgNode("path", {d: path, class: "monitor-raw-line phase-0"}));
   if (typeof threshold === "number") svg.append(svgNode("path", {d: `M${left} ${y(threshold)}H${right}`, class: "reference-line"}));
   for (const [label, attrs] of [[number(hi), {x: 2, y: 14}], [number(lo), {x: 2, y: bottom + 2}],
-    [timed ? new Date(minX).toISOString().slice(11, 19) : "#" + minX, {x: left, y: height - 4}],
-    [timed ? new Date(maxX).toISOString().slice(11, 19) : "#" + maxX, {x: right, y: height - 4, "text-anchor": "end"}]]) {
+    [timed ? formatAxisTime(minX, maxX - minX) : "#" + minX, {x: left, y: height - 4}],
+    [timed ? formatAxisTime(maxX, maxX - minX) : "#" + maxX, {x: right, y: height - 4, "text-anchor": "end"}]]) {
     const t = svgNode("text", attrs);t.textContent = label;svg.append(t);
   }
   root.append(svg);

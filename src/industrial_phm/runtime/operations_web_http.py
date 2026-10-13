@@ -126,6 +126,7 @@ def create_operations_web_read_server(
                 "monitor.js": "text/javascript; charset=utf-8",
                 "monitor-signal.js": "text/javascript; charset=utf-8",
                 "phm-explanation.js": "text/javascript; charset=utf-8",
+                "time.js": "text/javascript; charset=utf-8",
                 "research-results.json": "application/json; charset=utf-8",
             }
             if asset_name not in mime:
@@ -282,6 +283,7 @@ def create_operations_web_read_server(
                 "/web/phm.js": "phm.js",
                 "/web/monitor.js": "monitor.js",
                 "/web/monitor-signal.js": "monitor-signal.js",
+                "/web/time.js": "time.js",
                 "/web/research-results.json": "research-results.json",
             }
             asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path

@@ -1391,7 +1391,9 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 first_snapshot = first["last_live_history_snapshot_id"]
                 first_received = first["last_live_received_at"]
                 page.locator("#refresh").click()
-                pw.expect(listing).to_contain_text("OPC UA DuckLake 커밋: UTC", timeout=30000)
+                pw.expect(listing).to_contain_text(
+                    "OPC UA 이력 저장(DuckLake 커밋):", timeout=30000
+                )
                 pw.expect(page.locator("#last-values")).to_contain_text(source_id, timeout=30000)
                 pw.expect(page.locator("#last-values")).to_contain_text("현재 상태가 아님")
                 browser_evidence(page, "receiving")

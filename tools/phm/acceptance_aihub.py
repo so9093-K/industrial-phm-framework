@@ -262,12 +262,16 @@ def main(argv: list[str] | None = None) -> int:
             checks.add(
                 "window-finalized-to-commit-p95-le-10s", p95 is not None and p95 <= 10.0, p95
             )
-            # The window screen shows "최신 분석 <event start> · 처리 <processed time>" for the
-            # latest analyzed window, so a commit is reflected once that start reaches it.
+            # The window screen shows "최신 분석 원본 측정 <event start, KST> · 분석 완료 <time>"
+            # for the latest analyzed window, so a commit is reflected once that start reaches it.
             shown = [
-                (at, datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC))
+                (at, datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=SEOUL))
                 for at, text in shown_text
-                if (match := re.search(r"최신 분석 (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) UTC", text))
+                if (
+                    match := re.search(
+                        r"최신 분석 원본 측정 (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) KST", text
+                    )
+                )
             ]
             measured = [
                 (r.event_start.astimezone(UTC).replace(microsecond=0), r.processed_at)
