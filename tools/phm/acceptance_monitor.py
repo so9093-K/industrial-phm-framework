@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
                 checks.add("real-lstm-warmup-visible-on-monitor", True, model.inner_text())
                 replay(3, 6)
                 expect(model).to_contain_text("입력 #8", timeout=20_000)
-                expect(compressor).to_contain_text("최근 입력 처리됨", timeout=45_000)
+                expect(compressor).to_contain_text("기준 초과 없음", timeout=45_000)
                 checks.add("both-assets-change-without-manual-refresh", True)
                 details = json.loads(workspace.supervisor_state_path.read_text())
                 paused = next(
@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
                 checks.add("real-analysis-pause-keeps-input-and-last-output-distinct", True)
                 os.kill(paused, signal.SIGCONT)
                 paused = None
-                expect(model).to_contain_text("최근 입력 처리됨", timeout=20_000)
+                expect(model).to_contain_text("기준 초과 없음", timeout=20_000)
                 repo = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
                 snapshot = repo.latest("xjtu-sy-replay", "Bearing1_1")
                 assert snapshot is not None

@@ -88,15 +88,41 @@ export function drawTrace(root, steps, task, threshold, height = 85) {
   root.append(svg);
 }
 
-export function drawMeasuredTrend(root, steps, channel) {
-  const converted = steps.map((s) => {
+export function measuredRows(steps, channel) {
+  return steps.flatMap((s) => {
     const feature = Object.keys(s.features || {}).find((key) => key.endsWith(channel + ".rms"));
-    return {...s, output: {estimate: feature ? s.features[feature] : null}};
+    const value = s.features?.[feature];
+    return s.state === "analyzed" && typeof value === "number" && Number.isFinite(value) ? [{position: s.position, value}] : [];
   });
-  drawTrace(root, converted, "rul-estimate", undefined, 180);
-  const svg = root.querySelector("svg");
-  if (svg) {
-    svg.setAttribute("aria-label", channelName(channel) + " 원본 RMS 추세");
-    svg.classList.add("monitor-measured-trend");
+}
+export function recentMeasuredSegment(rows) {
+  let start = rows.length - 1;
+  while (start > 0 && rows[start].position === rows[start - 1].position + 1) start--;
+  return rows.slice(Math.max(0, start));
+}
+export function drawMeasuredTrend(root, rows, channel) {
+  root.replaceChildren();
+  if (!rows.length) return;
+  const width = Math.max(260, root.clientWidth), height = 180, left = 56, right = width - 16, top = 20, bottom = 150;
+  const first = rows[0], last = rows.at(-1), max = Math.max(...rows.map((r) => r.value)) * 1.1 || 1;
+  const x = (r) => left + (r.position - first.position) / (last.position - first.position || 1) * (right - left);
+  const y = (v) => bottom - v / max * (bottom - top);
+  const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": channelName(channel) + " 원본 RMS 추세", class: "monitor-result-chart monitor-measured-trend"});
+  const label = (value, attrs) => {const t = svgNode("text", attrs);t.textContent = value;svg.append(t);};
+  for (const value of [0, max / 2, max]) {
+    svg.append(svgNode("path", {d: `M${left} ${y(value)}H${right}`, class: "monitor-grid"}));
+    label(number(value), {x: 2, y: y(value) + 4});
   }
+  let path = "", previous = null;
+  for (const row of rows) {
+    path += (previous && row.position === previous.position + 1 ? "L" : "M") + x(row).toFixed(2) + " " + y(row.value).toFixed(2) + " ";
+    const dot = svgNode("circle", {cx: x(row), cy: y(row.value), r: row === last ? 4 : 2.5, class: "monitor-raw-dot phase-0"});
+    const title = svgNode("title");title.textContent = "기록 #" + row.position + " · RMS " + number(row.value);dot.append(title);svg.append(dot);
+    previous = row;
+  }
+  svg.append(svgNode("path", {d: path, class: "monitor-raw-line phase-0"}));
+  label("#" + first.position, {x: left, y: 176});
+  if (rows.length > 1) label("#" + last.position, {x: right, y: 176, "text-anchor": "end"});
+  label("기록 번호", {x: (left + right) / 2, y: 176, "text-anchor": "middle"});
+  root.append(svg);
 }

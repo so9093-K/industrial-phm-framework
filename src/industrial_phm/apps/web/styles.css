@@ -282,3 +282,6 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 
 .monitor-measured-trend{height:180px}
 .monitor-measured-trend text{font-size:12px}
+.monitor-reading{display:flex;gap:12px;flex-wrap:wrap;background:#eef5f7;border-radius:8px;padding:10px 12px;margin:8px 0}
+.monitor-reading>div{flex:1;min-width:105px}.monitor-reading small{display:block;font-size:.74rem;color:#536c7a}.monitor-reading strong{display:block;font-size:1.25rem;color:#164e61;margin-top:3px;font-variant-numeric:tabular-nums}
+.monitor-grid{stroke:#dce6eb;stroke-width:1;fill:none}

@@ -531,3 +531,16 @@ Polling runs only for visible active Monitor or PHM detail views. Overview failu
 previous model values and automatically retry; independent transport/review read failures remain
 visible. Manual condition fitting is excluded from overview refresh. These reads do not own
 collection, inference, deployment approval or asset-health semantics.
+
+`GET /api/v1/phm/trace?binding_id=...` returns at most 64 saved steps in ascending position
+order, including skipped steps. It reads the existing binding/position index without loading
+the full series. The browser renders saved input RMS features separately from model scores;
+it never joins missing/refused positions or treats an ordinal gap as a transport outage.
+The latest contiguous input segment is the default, with an explicit whole-range option.
+Comparisons use the first available saved feature in this bounded range, not a normal baseline.
+
+`GET /api/v1/phm/window-input?binding_id=...&position=...` provides the same quality-aware
+original window preview as `/phm/window`, including before scoring. The pending path requires
+the exact source/asset/measurement-point and encoded window-end position. It never substitutes
+another window and does not create analysis state. Original window/series/snapshot contracts
+are unchanged. These selected-input reads run only when the selection or input position changes.

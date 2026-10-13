@@ -1,4 +1,4 @@
-import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend} from "./monitor-signal.js";
+import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
@@ -78,6 +78,7 @@ function render(data, base) {
   for (const f of attention.slice(0, 4)) {
     const button = node("button", "", "monitor-attention-item");button.type = "button";button.dataset.assetId = f.assetId;
     button.append(node("strong", assetName(f.assetId)), node("span", f.notes.map((n) => n.label).join(" · ")), node("small", f.notes[0].detail + " → 신호 보기"));
+    const observation = node("small", "", "monitor-attention-observation");observation.hidden = true;button.append(observation);
     button.addEventListener("click", () => {selectAsset(f.assetId);byId("monitor-signal-title").focus({preventScroll: true});});attentionRoot.append(button);
   }
   if (attention.length > 4) attentionRoot.append(node("p", "추가 " + (attention.length - 4) + "대는 아래 설비 목록에서 확인", "muted"));
@@ -87,10 +88,12 @@ function render(data, base) {
   for (const f of facts) {
     const button = node("button", "", "monitor-asset");button.type = "button";button.dataset.assetId = f.assetId;button.setAttribute("aria-pressed", f.assetId === selectedAsset);
     const heading = node("span", "", "monitor-asset-heading");heading.append(node("strong", assetName(f.assetId)), node("small", f.items.some(replay) ? "기록 재생" : "저장·수신"));
-    const message = f.notes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.items.length ? "최근 입력 처리됨" : "PHM 모델 미연결");
+    const message = f.notes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.compared.length
+      ? (f.items.some((i) => i.step_kind === "observation-window") ? "전기 신호" : "진동 신호") + " · 기준 초과 없음" : f.items.length ? "신호 기준 비교 없음" : "PHM 모델 미연결");
     button.append(heading, node("span", message, f.notes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
     const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
-    button.append(node("small", representative ? "입력 " + inputName(representative, representative.latest_delivered) : "입력 미확인"));
+    button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : "입력 미확인"));
+    button.append(node("small", "", "monitor-asset-observation"));
     button.addEventListener("click", () => selectAsset(f.assetId));root.append(button);
   }
   if (focusAsset) [...root.children].find((b) => b.dataset.assetId === focusAsset)?.focus({preventScroll: true});
@@ -112,11 +115,12 @@ function render(data, base) {
   if (byId("monitor-analysis-details").open) renderDetails(selected);
   else {byId("monitor-analysis-models").replaceChildren();detailsKey = "";}
   if (!item) {clearSignal();byId("monitor-signal-state").textContent = "모델에 연결된 원본 입력 없음 · 설비·신호 화면에서 저장 이력 확인";return;}
-  void loadSignal(item);void loadTrace(item);
+  void loadSignal(item);void loadTrace(item);paintSignal();
 }
 function clearSignal() {
   signalVersion++;traceVersion++;preview = null;previewKey = "";traceKey = "";traceData = null;byId("monitor-score-chart").replaceChildren();byId("monitor-score-state").textContent = "";
   byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-legend").textContent = "";
+  byId("monitor-signal-reading").hidden = true;byId("monitor-range-field").hidden = true;
   byId("monitor-signal-channel").replaceChildren();byId("monitor-signal-channel").disabled = true;
 }
 async function loadSignal(item) {
@@ -130,6 +134,7 @@ async function loadSignal(item) {
   const key = JSON.stringify([item.binding_id, chosen.position, previousInput]);
   if (key === previewKey && preview?.available) return;
   const version = ++signalVersion;previewKey = key;preview = null;
+  byId("monitor-signal-reading").hidden = true;byId("monitor-range-field").hidden = true;
   byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-state").textContent = "원본 신호 조회 중";
   try {
     const route = item.step_kind === "observation-window" ? "window-input" : "snapshot";
@@ -181,19 +186,47 @@ function monitorChoices(data) {
 }
 function paintSignal() {
   if (!preview?.available) return;
+  const reading = byId("monitor-signal-reading");reading.replaceChildren();reading.hidden = true;
+  const observation = byId("phm-monitor-assets").querySelector('[aria-pressed="true"] .monitor-asset-observation');
+  if (observation) observation.textContent = "";
+  byId("monitor-range-field").hidden = true;
   if (choiceId.startsWith("rms-") && preview.sample_count) {
     const channelIndex = Number(choiceId.slice(4)), channel = preview.channels[channelIndex]?.channel;
-    const count = (traceData?.steps || []).filter((s) => s.features && Object.keys(s.features).some((key) => key.endsWith(channel + ".rms"))).length;
-    if (count < 2) {
+    const steps = (traceData?.steps || []).filter((s) => s.position <= preview.position);
+    const rows = measuredRows(steps, channel), first = rows[0], last = rows.at(-1);
+    if (rows.length < 2 || last.position !== preview.position) {
       drawSignal(byId("monitor-signal-chart"), preview, String(channelIndex));
-      byId("monitor-signal-state").textContent = "크기 추세 축적 대기 · 현재 입력의 원본 파형";
+      byId("monitor-signal-state").textContent = "크기 추세 축적 대기 · 선택 입력의 원본 파형";
       byId("monitor-signal-legend").textContent = "원본 표본 구간별 최솟값·최댓값 · 단위 미확인";return;
     }
-    drawMeasuredTrend(byId("monitor-signal-chart"), traceData.steps, channel);
-    byId("monitor-signal-state").textContent = "획득별 원본 진동 크기(RMS) · 저장된 통계 특징 · 단위 미확인";
+    const ratio = first.value > 0 ? last.value / first.value : null;
+    const current = node("div");current.append(node("small", channelName(channel) + " 크기 · 기록 #" + last.position), node("strong", number(last.value) + " RMS"));
+    const comparison = node("div");comparison.append(node("small", "조회 범위 첫 기록 #" + first.position + " · " + number(first.value) + " RMS"), node("strong", ratio === null ? "비율 비교 불가" : number(ratio) + "배"));
+    reading.append(current, comparison);reading.hidden = false;
+    if (observation) observation.textContent = channelName(channel) + " 크기 " + number(last.value) + " RMS" + (ratio === null ? "" : " · #" + first.position + " 대비 " + number(ratio) + "배") + (previousInput ? " · 이전 기록" : "");
+    const alert = [...byId("monitor-attention-list").children].find((e) => e.dataset.assetId === selectedAsset)?.querySelector(".monitor-attention-observation");
+    if (alert && !previousInput) {alert.textContent = observation?.textContent || "";alert.hidden = false;}
+    const recent = recentMeasuredSegment(rows), all = byId("monitor-signal-range").value === "all";
+    const shown = all ? rows : recent;
+    byId("monitor-range-field").hidden = recent.length === rows.length;
+    drawMeasuredTrend(byId("monitor-signal-chart"), shown, channel);
+    byId("monitor-signal-state").textContent = "진동 크기(RMS) · 0부터 표시 · 단위 미확인";
+    const absent = steps.at(-1).position - steps[0].position + 1 - steps.length;
+    const rejected = steps.filter((s) => s.state === "skipped").length;
+    byId("monitor-signal-legend").textContent = (all ? "조회 기록" : "최근 연속 기록") + " #" + shown[0].position + "–#" + shown.at(-1).position
+      + (absent || rejected ? " · 기록 공백 " + absent + "개 · 분석 거부 " + rejected + "개" : "") + " · 비교 기록은 정상 기준이 아닙니다.";
+    return;
   } else {
     drawSignal(byId("monitor-signal-chart"), preview, choiceId);
     byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 시각 UTC";
+    if (!preview.sample_count) {
+      const choice = signalChoices(preview).find((c) => c.id === choiceId);
+      for (const [index, channel] of (choice?.channels || []).entries()) {
+        const point = channel.points.at(-1), cell = node("div");
+        cell.append(node("small", choice.channels.length === 3 ? ["R상", "S상", "T상"][index] : choice.name), node("strong", typeof point?.value === "number" ? number(point.value) + " " + channel.unit : "측정 미확인"));reading.append(cell);
+      }
+      reading.hidden = !reading.children.length;
+    }
   }
   updateLegend();
 }
@@ -247,8 +280,14 @@ export function initializeMonitor(read) {
   window.addEventListener("hashchange", start);document.addEventListener("visibilitychange", start);
   byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
   byId("monitor-signal-channel").addEventListener("change", (e) => {choiceId = e.target.value;paintSignal();});
+  byId("monitor-signal-range").addEventListener("change", paintSignal);
   byId("monitor-last-good").addEventListener("click", () => {previousInput = !previousInput;previewKey = "";if (lastData) render(lastData, lastBase);});
-  byId("monitor-analysis-details").addEventListener("toggle", () => {if (lastData && byId("monitor-analysis-details").open) render(lastData, lastBase);});
+  byId("monitor-analysis-details").addEventListener("toggle", () => {
+    if (lastData && byId("monitor-analysis-details").open) {
+      render(lastData, lastBase);
+      if (traceData) drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);
+    }
+  });
   new ResizeObserver(() => {if (active()) {if (preview?.available) paintSignal();if (traceData) drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);}}).observe(byId("monitor-signal-chart"));
   schedule();
 }
