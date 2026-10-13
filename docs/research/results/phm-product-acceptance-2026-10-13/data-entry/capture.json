@@ -1,0 +1,17 @@
+{
+  "code_revision": "5362a0e503005c5d6b89f7bc9d509d83696d099d",
+  "workspace": "existing real AI-Hub acceptance workspace; read-only, no new inference or writes",
+  "checks": [
+    "real-AIHub-stored-history-default-with-PCA-linked",
+    "original-time-KST",
+    "three-widths-no-overflow",
+    "PHM-failure-does-not-clear-observation"
+  ],
+  "captures": {
+    "aihub-stored-default-1440.png": "2bead4f3ebfb4839d58a3b35dc4adf22d4ad3d046484c41443d07629abf6fb59",
+    "aihub-stored-default-1024.png": "f0c375369b977a74b3c96a2fdfd3370a2e7a3f6355c079c40e4f99a4977b483a",
+    "aihub-stored-default-390.png": "297d6951a6ed48d69289ada5c2a7f10050a88792edb854e19f179738d34e9a6f",
+    "aihub-model-read-failure-1440.png": "992656e2ed628e3e8b86c3aef780f2abce23077000ad67fbf2f455205fda53c9"
+  },
+  "human_usability_acceptance": "not established by automated checks"
+}

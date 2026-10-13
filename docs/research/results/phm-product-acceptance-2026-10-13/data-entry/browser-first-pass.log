@@ -1,0 +1,317 @@
+......................ss.......FF....................................... [ 69%]
+...F...........................                                          [100%]
+=================================== FAILURES ===================================
+____ test_supervised_web_first_run_to_review_persists_across_restart[1024] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-80/test_supervised_web_first_run_0')
+width = 1024
+
+    @pytest.mark.parametrize("width", [1024, 1440])
+    def test_supervised_web_first_run_to_review_persists_across_restart(
+        tmp_path: Path, width: int
+    ) -> None:
+        if not hasattr(socket, "SO_PEERCRED"):
+            pytest.skip("Linux peer credentials required")
+        pw = pytest.importorskip("playwright.sync_api")
+        pytest.importorskip("duckdb")
+        pytest.importorskip("filelock")
+        workspace = OperationsWorkspace(tmp_path / "web")
+        init = initialize_operations_workspace(workspace)
+        port = _port()
+        write_operations_runtime_config(
+            workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+        )
+        asset_id = "journey-pump"
+        inputs = workspace.root / "inputs"
+        inputs.mkdir()
+        observed = datetime.now(UTC) - timedelta(minutes=3)
+        (inputs / "vibration.csv").write_text(
+            "timestamp,vibration_x,vibration_y\n"
+            f"{observed.isoformat()},-1.0,2.0\n"
+            f"{(observed + timedelta(seconds=1)).isoformat()},0.0,3.0\n"
+            f"{(observed + timedelta(seconds=2)).isoformat()},1.5,4.0\n",
+            encoding="utf-8",
+        )
+        (inputs / "phase.csv").write_text(
+            "timestamp,leg_a,leg_b,leg_c\n"
+            f"{observed.isoformat()},220.0,225.0,230.0\n"
+            f"{(observed + timedelta(seconds=1)).isoformat()},222.0,226.0,231.0\n"
+            f"{(observed + timedelta(seconds=2)).isoformat()},221.0,224.0,228.0\n",
+            encoding="utf-8",
+        )
+        log = tmp_path / "supervisor.log"
+        proc = _start(workspace.root, port, log)
+        try:
+            with pw.sync_playwright() as runtime:
+                browser = runtime.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                external: list[str] = []
+                page.on("pageerror", lambda e: errors.append(str(e)))
+                page.on(
+                    "request",
+                    lambda r: (
+                        external.append(r.url)
+                        if not r.url.startswith(f"http://127.0.0.1:{port}/")
+                        else None
+                    ),
+                )
+                page.on("dialog", lambda dialog: dialog.accept())
+                try:
+                    page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                    pw.expect(page.locator("#runtime-facts")).to_contain_text(
+                        str(proc.pid), timeout=30000
+                    )
+                    pw.expect(page.locator("#runtime-components")).to_contain_text("데이터 수집기")
+                    pw.expect(page.locator("#runtime-components")).to_contain_text("분석 실행기")
+                    pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
+                    page.locator('nav a[href="#system"]').click()
+                    page.get_by_role("button", name="실행 상태 다시 확인").click()
+                    pw.expect(page.locator("#runtime-facts")).to_contain_text(str(proc.pid))
+                    page.locator('nav a[href="#connect"]').click()
+                    pw.expect(page.locator("#onboarding-state")).to_contain_text(
+                        "소스 미등록", timeout=30000
+                    )
+                    handoff = page.locator("#onboarding-monitor-link")
+                    pw.expect(handoff).to_be_hidden()
+                    pw.expect(page.locator("#onboarding-next")).to_contain_text("소스를 등록하세요")
+>                   page.get_by_role("button", name="CSV 등록 양식으로 이동").click()
+
+tests/acceptance/test_operations_web_controlled_journey_browser.py:397: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/sync_api/_generated.py:18032: in click
+    self._sync(
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_locator.py:165: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_frame.py:594: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_connection.py:76: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7ffa8b365950>
+cb = <function Channel.send.<locals>.<lambda> at 0x7ffa8aea5bc0>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E           Call log:
+E             - waiting for get_by_role("button", name="CSV 등록 양식으로 이동")
+
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_connection.py:632: TimeoutError
+____ test_supervised_web_first_run_to_review_persists_across_restart[1440] _____
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-80/test_supervised_web_first_run_1')
+width = 1440
+
+    @pytest.mark.parametrize("width", [1024, 1440])
+    def test_supervised_web_first_run_to_review_persists_across_restart(
+        tmp_path: Path, width: int
+    ) -> None:
+        if not hasattr(socket, "SO_PEERCRED"):
+            pytest.skip("Linux peer credentials required")
+        pw = pytest.importorskip("playwright.sync_api")
+        pytest.importorskip("duckdb")
+        pytest.importorskip("filelock")
+        workspace = OperationsWorkspace(tmp_path / "web")
+        init = initialize_operations_workspace(workspace)
+        port = _port()
+        write_operations_runtime_config(
+            workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+        )
+        asset_id = "journey-pump"
+        inputs = workspace.root / "inputs"
+        inputs.mkdir()
+        observed = datetime.now(UTC) - timedelta(minutes=3)
+        (inputs / "vibration.csv").write_text(
+            "timestamp,vibration_x,vibration_y\n"
+            f"{observed.isoformat()},-1.0,2.0\n"
+            f"{(observed + timedelta(seconds=1)).isoformat()},0.0,3.0\n"
+            f"{(observed + timedelta(seconds=2)).isoformat()},1.5,4.0\n",
+            encoding="utf-8",
+        )
+        (inputs / "phase.csv").write_text(
+            "timestamp,leg_a,leg_b,leg_c\n"
+            f"{observed.isoformat()},220.0,225.0,230.0\n"
+            f"{(observed + timedelta(seconds=1)).isoformat()},222.0,226.0,231.0\n"
+            f"{(observed + timedelta(seconds=2)).isoformat()},221.0,224.0,228.0\n",
+            encoding="utf-8",
+        )
+        log = tmp_path / "supervisor.log"
+        proc = _start(workspace.root, port, log)
+        try:
+            with pw.sync_playwright() as runtime:
+                browser = runtime.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                external: list[str] = []
+                page.on("pageerror", lambda e: errors.append(str(e)))
+                page.on(
+                    "request",
+                    lambda r: (
+                        external.append(r.url)
+                        if not r.url.startswith(f"http://127.0.0.1:{port}/")
+                        else None
+                    ),
+                )
+                page.on("dialog", lambda dialog: dialog.accept())
+                try:
+                    page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                    pw.expect(page.locator("#runtime-facts")).to_contain_text(
+                        str(proc.pid), timeout=30000
+                    )
+                    pw.expect(page.locator("#runtime-components")).to_contain_text("데이터 수집기")
+                    pw.expect(page.locator("#runtime-components")).to_contain_text("분석 실행기")
+                    pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
+                    page.locator('nav a[href="#system"]').click()
+                    page.get_by_role("button", name="실행 상태 다시 확인").click()
+                    pw.expect(page.locator("#runtime-facts")).to_contain_text(str(proc.pid))
+                    page.locator('nav a[href="#connect"]').click()
+                    pw.expect(page.locator("#onboarding-state")).to_contain_text(
+                        "소스 미등록", timeout=30000
+                    )
+                    handoff = page.locator("#onboarding-monitor-link")
+                    pw.expect(handoff).to_be_hidden()
+                    pw.expect(page.locator("#onboarding-next")).to_contain_text("소스를 등록하세요")
+>                   page.get_by_role("button", name="CSV 등록 양식으로 이동").click()
+
+tests/acceptance/test_operations_web_controlled_journey_browser.py:397: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/sync_api/_generated.py:18032: in click
+    self._sync(
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_locator.py:165: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_frame.py:594: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_connection.py:76: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7ffa8b367b50>
+cb = <function Channel.send.<locals>.<lambda> at 0x7ffa800eeda0>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E           Call log:
+E             - waiting for get_by_role("button", name="CSV 등록 양식으로 이동")
+
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_connection.py:632: TimeoutError
+_______________________ test_web_opcua_full_browser_flow _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-80/test_web_opcua_full_browser_fl0')
+
+    def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
+        sync_api = pytest.importorskip("playwright.sync_api")
+        pytest.importorskip("asyncua")
+        workspace = OperationsWorkspace(tmp_path / "opcua-browser")
+        initialize_operations_workspace(workspace)
+        with (
+            _opc_server() as (endpoint, node_id),
+            _web(workspace) as port,
+            sync_api.sync_playwright() as playwright,
+        ):
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1024, "height": 900})
+            errors: list[str] = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
+            page.locator('nav a[href="#connect"]').click()
+>           page.locator("#opcua-endpoint").fill(endpoint)
+
+tests/integration/test_operations_web_opcua.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/sync_api/_generated.py:18398: in fill
+    self._sync(
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_locator.py:219: in fill
+    return await self._frame.fill(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_frame.py:637: in fill
+    await self._fill(**locals_to_params(locals()))
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_frame.py:649: in _fill
+    await self._channel.send("fill", self._timeout, locals_to_params(locals()))
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_connection.py:76: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7ffa8b83fb50>
+cb = <function Channel.send.<locals>.<lambda> at 0x7ffa8aa364b0>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Locator.fill: Timeout 30000ms exceeded.
+E           Call log:
+E             - waiting for locator("#opcua-endpoint")
+E               - locator resolved to <input required="" maxlength="128" autocomplete="off" id="opcua-endpoint" name="endpoint_url" placeholder="opc.tcp://127.0.0.1:4840/"/>
+E               - fill("opc.tcp://127.0.0.1:50093/industrial-phm/")
+E             - attempting fill action
+E               2 × waiting for element to be visible, enabled and editable
+E                 - element is not visible
+E               - retrying fill action
+E               - waiting 20ms
+E               2 × waiting for element to be visible, enabled and editable
+E                 - element is not visible
+E               - retrying fill action
+E                 - waiting 100ms
+E               60 × waiting for element to be visible, enabled and editable
+E                  - element is not visible
+E                - retrying fill action
+E                  - waiting 500ms
+
+/home/so/.cache/uv/archive-v0/nhZTIQjutpXXcRsH/lib/python3.14/site-packages/playwright/_impl/_connection.py:632: TimeoutError
+------------------------------ Captured log call -------------------------------
+WARNING  asyncua.server.server:server.py:489 No encrypting policy available, password may get transferred in plaintext
+WARNING  asyncua.server.server:server.py:433 Endpoints other than open requested but private key and certificate are not set.
+=========================== short test summary info ============================
+SKIPPED [2] tests/acceptance/test_operations_recorded_reference_browser.py:35: opt-in local recorded data: set PHM_RECORDED_REFERENCE
+FAILED tests/acceptance/test_operations_web_controlled_journey_browser.py::test_supervised_web_first_run_to_review_persists_across_restart[1024]
+FAILED tests/acceptance/test_operations_web_controlled_journey_browser.py::test_supervised_web_first_run_to_review_persists_across_restart[1440]
+FAILED tests/integration/test_operations_web_opcua.py::test_web_opcua_full_browser_flow
+3 failed, 98 passed, 2 skipped in 535.41s (0:08:55)
