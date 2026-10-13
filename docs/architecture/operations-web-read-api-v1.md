@@ -277,10 +277,23 @@ mutation lock as registration/receipt. Only an ACTIVE registered FILE snapshot
 CSV within the workspace is eligible; its canonical path, symlink boundary,
 file type, size and max 12 channels are checked again. A source must have a
 **separately persisted accepted receipt** and an explicit timestamp column.
-The first browser iteration limits backfill input to **1 MiB** to bound
-synchronous event materialization; larger prepared FILE history requires an
-existing non-Web workflow. Times must be timezone-aware; invalid input does
-not imply that any history was accepted.
+This synchronous route keeps a **1 MiB** input limit because one bounded supervisor
+command waits at most 5 s; measured FILE history writes take about 7–8 s per MiB of
+three-channel CSV. Times must be timezone-aware; invalid input does not imply that any
+history was accepted.
+
+`POST /api/v1/sources/file/backfill/start` (supervised Web only) applies the same checks
+with a **20 MiB** limit, then writes the same batch on a supervisor-owned background
+thread and returns `state: "running"` immediately. At most one such job runs per workspace;
+another source's request is refused with `source_control_conflict` while one is running.
+The status of the last job per FILE source is ephemeral runtime state in
+`runtime/web-file-history.json`, exposed as the additive `file_history_job` object on
+`GET /api/v1/sources` FILE items (`state` running/succeeded/failed/interrupted,
+`started_at`, `finished_at`, `event_count`, `history_snapshot_id`, bounded `failure`
+code). It is not history evidence: the committed DuckLake batch is. A supervisor restart
+marks a running job `interrupted`; restarting the job recovers or completes the
+content-addressed batch without duplicating it. Supervisor shutdown waits for an
+in-flight history write before releasing the workspace lease.
 
 The command delegates to the existing `backfill_registered_file_source` and
 `DuckLakeAssetHistory`. It returns actual `event_count`,

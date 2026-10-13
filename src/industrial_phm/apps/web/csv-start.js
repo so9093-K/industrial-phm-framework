@@ -5,7 +5,8 @@ import {formatTime} from "./time.js";
 // First data from one CSV file: see the file's own signals, check it on the server, then run the
 // existing register → activate → receipt → history writes as one visible sequence. Each write
 // keeps its own contract and result; the browser preview is never presented as validation or storage.
-const MAX_BYTES = 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
+const HISTORY_WAIT_MS = 15 * 60 * 1000;
 const MAX_CHANNELS = 12;
 const PREVIEW_BUCKETS = 120;
 const byId = (id) => document.getElementById(id);
@@ -15,7 +16,7 @@ const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 const TIME_NAME = /time|timestamp|date|시각|시간|일시/i;
 const STEPS = ["register", "activate", "receive", "store"];
 const stepState = {pending: "대기", running: "진행 중", done: "완료", failed: "실패", unknown: "결과 확인 필요"};
-let file = null, table = null, revision = 0, checkedRevision = -1, progress = null, running = false;
+let file = null, table = null, revision = 0, checkedRevision = -1, progress = null, running = false, checkedRows = 0;
 
 // RFC 4180 subset matching the server's csv module defaults: comma, double quotes, CRLF or LF.
 function parseCsv(text) {
@@ -113,8 +114,8 @@ async function chooseFile() {
   }
   if (chosen.size > MAX_BYTES) {
     state.className = "hint error";
-    state.textContent = "이 파일은 " + (chosen.size / MAX_BYTES).toFixed(1) + "MiB입니다. Web에서 바로 저장할 수 있는 CSV는 1MiB까지입니다. "
-      + "기간을 나눈 1MiB 이하 파일로 시작하거나, 운영 중지 상태에서 'industrial-phm maintenance history backfill' 절차로 적재하세요.";
+    state.textContent = "이 파일은 " + (chosen.size / 1048576).toFixed(1) + "MiB입니다. Web에서 바로 저장할 수 있는 CSV는 20MiB까지입니다. "
+      + "기간을 나눈 20MiB 이하 파일로 시작하거나, 운영 중지 상태에서 'industrial-phm maintenance history backfill' 절차로 적재하세요.";
     return;
   }
   let text;
@@ -209,7 +210,10 @@ function drawChart() {
   const column = table.columns.find((c) => c.name === select.value);
   if (!timing || !column || timing.parsed.length < 1) {note.textContent = "시간 컬럼과 측정 컬럼을 고르면 실제 값을 그립니다.";return;}
   const points = timing.parsed;
-  const times = points.map((p) => p.at), start = Math.min(...times), end = Math.max(...times, start + 1000);
+  // Large files have hundreds of thousands of rows: never spread them into Math.min/max arguments.
+  let start = Infinity, end = -Infinity;
+  for (const {at} of points) {if (at < start) start = at;if (at > end) end = at;}
+  end = Math.max(end, start + 1000);
   const step = Math.max(1, Math.ceil((end - start) / PREVIEW_BUCKETS));
   const buckets = new Map();
   for (const {at, row} of points) {
@@ -264,6 +268,8 @@ function explain(error) {
     invalid_source_action: "서버가 입력을 거부했습니다. 설비 ID·컬럼·파일 형식을 확인하세요.",
     source_control_conflict: "현재 소스 상태에서 이 단계를 실행할 수 없습니다. 소스 목록에서 상태를 확인하세요.",
     command_outcome_unknown: "요청 결과를 확인하지 못했습니다. 다시 시도하면 서버 상태를 먼저 확인한 뒤 이어서 진행합니다.",
+    history_interrupted: "서비스 재시작으로 이력 저장이 중단됐습니다. 다시 시도하면 이어서 저장합니다.",
+    source_state_unavailable: "이력 저장소에 쓰지 못했습니다. 운영 관리에서 서비스 상태를 확인한 뒤 다시 시도하세요.",
   })[error.code] || "요청에 실패했습니다. 로컬 서버 상태를 확인하고 다시 시도하세요.";
 }
 
@@ -282,7 +288,7 @@ async function check() {
     if (report.meaning !== "csv-preflight-only-not-registered-or-ingested") throw Object.assign(new Error("schema"), {code: "schema-mismatch"});
     const lines = [];
     if (report.status === "ready") {
-      checkedRevision = token;
+      checkedRevision = token;checkedRows = report.sample_count * report.channel_columns.length;
       lines.push("서버 점검 통과 · 측정값 " + report.sample_count + "행 · " + report.channel_columns.join(", "),
         "원본 측정 " + formatTime(report.first_timestamp) + " ~ " + formatTime(report.last_timestamp) + " · 아직 저장하지 않았습니다.");
       if (report.quality_warnings?.length) lines.push("측정 간격 주의: " + report.quality_warnings.join(", ") + " · 원래 간격대로 저장합니다.");
@@ -357,14 +363,17 @@ async function save() {
       progress.done.receive = true;setStep(current, "done", "수신 " + formatTime(result.accepted_received_at));
     }
     current = "store";
-    setStep(current, "running");
-    // Re-running a stored batch reuses its commit, so a retry here cannot duplicate history.
-    const stored = await post("/api/v1/sources/file/backfill", {source_id: progress.setup.source_id});
-    if (stored.meaning !== "persisted-file-history-not-live-collection-or-analysis" || !Number.isSafeInteger(stored.event_count)) {
+    setStep(current, "running", "시작 요청 중");
+    // The supervisor writes history in the background; re-running a stored batch reuses its
+    // commit, so a retry here cannot duplicate history.
+    const job = await post("/api/v1/sources/file/backfill/start", {source_id: progress.setup.source_id});
+    if (job.source_id !== progress.setup.source_id || !["running", "succeeded"].includes(job.state)) {
       throw Object.assign(new Error("schema"), {code: "schema-mismatch"});
     }
+    const stored = await waitForHistory(progress.setup.source_id, (seconds) => setStep(current, "running",
+      "경과 " + seconds + "초 · 측정값 약 " + checkedRows.toLocaleString("ko-KR") + "개 저장 중 · 다른 화면으로 이동해도 계속됩니다"));
     progress.done.store = true;progress.stored = stored;
-    setStep(current, "done", "측정값 " + stored.event_count + "개");
+    setStep(current, "done", "측정값 " + stored.event_count.toLocaleString("ko-KR") + "개");
     finish();
   } catch (error) {
     setStep(current, error.code === "command_outcome_unknown" ? "unknown" : "failed");
@@ -380,12 +389,31 @@ async function save() {
   }
 }
 
+// Poll the supervisor job status. A failed status read is not a failed write: keep waiting.
+async function waitForHistory(sourceId, onTick) {
+  const started = Date.now();
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    let job = null;
+    try {
+      const response = await fetch("/api/v1/sources", {cache: "no-store", credentials: "same-origin"});
+      const data = await response.json();
+      if (response.ok && data.schema_version === 1) job = (data.sources?.items || []).find((s) => s.source_id === sourceId)?.file_history_job || null;
+    } catch {}
+    onTick(Math.round((Date.now() - started) / 1000));
+    if (job?.state === "succeeded" && Number.isSafeInteger(job.event_count)) return job;
+    if (job?.state === "failed") throw Object.assign(new Error("history"), {code: job.failure || "source_state_unavailable"});
+    if (job?.state === "interrupted") throw Object.assign(new Error("history"), {code: "history_interrupted"});
+    if (Date.now() - started > HISTORY_WAIT_MS) throw Object.assign(new Error("history"), {code: "command_outcome_unknown"});
+  }
+}
+
 function finish() {
   const {setup: values, stored} = progress;
   const timeIndex = Number(byId("csv-start-time").value), timing = timeIssues(timeIndex);
   const span = timing.parsed.length ? timing.parsed.at(-1).at - timing.parsed[0].at : 0;
   const range = span >= 7 * 86400000 ? "7d" : span >= 86400000 ? "24h" : span >= 3600000 ? "1h" : "15m";
-  byId("csv-start-save-result").textContent = "저장 완료 · 설비 " + values.asset_id + "에 측정값 " + stored.event_count + "개를 원래 측정 시각으로 저장했습니다. PHM 분석은 실행하지 않았습니다.";
+  byId("csv-start-save-result").textContent = "저장 완료 · 설비 " + values.asset_id + "에 측정값 " + stored.event_count.toLocaleString("ko-KR") + "개를 원래 측정 시각으로 저장했습니다. PHM 분석은 실행하지 않았습니다.";
   byId("csv-start-done").hidden = false;byId("csv-start-save").hidden = true;
   setCurrent("monitor");
   const open = byId("csv-start-open-monitor");

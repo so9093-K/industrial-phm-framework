@@ -123,7 +123,8 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
     )
     kst = timezone(timedelta(hours=9))
     start = datetime(2020, 3, 2, 9, 0, tzinfo=kst)
-    rows = [(seconds, round(12 + seconds / 1000, 3)) for seconds in range(0, 1800, 10)]
+    # Large enough that storing history takes longer than one bounded 5 s Web command.
+    rows = [(seconds, round(12 + seconds / 100000, 3)) for seconds in range(0, 360000, 10)]
     (files / "motor.csv").write_text(
         "timestamp,current_r,current_s,status\n"
         + "".join(
@@ -184,7 +185,7 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
 
                 # A failed later write keeps inputs, and a retry never registers twice.
                 page.route(
-                    "**/api/v1/sources/file/backfill",
+                    "**/api/v1/sources/file/backfill/start",
                     lambda route: route.fulfill(
                         status=503, json={"error": {"code": "source_state_unavailable"}}
                     ),
@@ -201,10 +202,10 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
                 assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
                 assert not workspace.history_catalog_path.exists()
-                page.unroute("**/api/v1/sources/file/backfill")
+                page.unroute("**/api/v1/sources/file/backfill/start")
                 page.get_by_role("button", name="실패한 단계부터 다시 시도").click()
                 pw.expect(steps.locator('[data-step="store"]')).to_contain_text(
-                    f"측정값 {len(rows) * 2}개", timeout=60000
+                    f"측정값 {len(rows) * 2:,}개", timeout=180000
                 )
                 sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
                 assert len(sources) == 1
@@ -219,9 +220,12 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 pw.expect(selected).to_contain_text("motor-01", timeout=30000)
                 reading = page.locator("#monitor-signal-reading")
                 pw.expect(reading).to_contain_text(f"{rows[-1][1]:g}", timeout=30000)
-                pw.expect(reading).to_contain_text("원본 측정 2020-03-02 09:29:50 KST")
+                last_at = start + timedelta(seconds=rows[-1][0])
+                pw.expect(reading).to_contain_text(
+                    "원본 측정 " + last_at.strftime("%Y-%m-%d %H:%M:%S") + " KST"
+                )
                 pw.expect(page.locator("#monitor-signal-chart .monitor-raw-line")).to_have_count(1)
-                pw.expect(page.locator("#monitor-history-range")).to_have_value("15m")
+                pw.expect(page.locator("#monitor-history-range")).to_have_value("24h")
 
                 # The real server refuses a duplicate source; inputs stay for correction.
                 page.locator('nav a[href="#connect"]').click()

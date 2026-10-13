@@ -204,11 +204,11 @@ function leavePhmSignal() {
   byId("monitor-score-chart").replaceChildren();byId("monitor-score-state").textContent = "";
 }
 function assetRow(base, assetId) {return (base.monitor?.assets?.items || []).find((a) => a.asset_id === assetId);}
-// New stored data is signalled by a history commit or, for a source-less recorded asset, a later
-// recorded end. A live receipt alone is not stored history, so it does not trigger a history read.
+// New stored data is signalled by a live or FILE history commit or, for a source-less recorded asset,
+// a later recorded end. A live receipt alone is not stored history, so it does not trigger a read.
 function storedDataKey(row, base) {
   const sources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === row?.asset_id)
-    .map((s) => [s.source_id, s.last_live_history_snapshot_id ?? null]);
+    .map((s) => [s.source_id, s.last_live_history_snapshot_id ?? null, s.file_history_job?.history_snapshot_id ?? null]);
   return JSON.stringify([row?.data_flow_status === "stored-history" ? row.last_data_at : null, sources]);
 }
 function dataTime(row) {

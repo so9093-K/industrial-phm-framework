@@ -43,6 +43,7 @@ from industrial_phm.runtime.operations_web_condition import (
     ConditionSelectionError,
     project_electrical_condition,
 )
+from industrial_phm.runtime.operations_web_file_history import read_file_history_jobs
 from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
@@ -61,8 +62,9 @@ from industrial_phm.runtime.operations_web_signals import (
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-_MAX_WEB_CSV_UPLOAD = 1024 * 1024
-_MAX_WEB_CSV_REQUEST = 1_410_000
+_MAX_WEB_CSV_UPLOAD = 20 * 1024 * 1024
+# Base64 of the largest upload plus the bounded JSON setup fields.
+_MAX_WEB_CSV_REQUEST = 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3) + 8192
 _UPLOAD_REQUEST_ROUTES = frozenset(
     {"/api/v1/sources/file/upload", "/api/v1/sources/file/upload/preflight"}
 )
@@ -364,7 +366,10 @@ def create_operations_web_read_server(
                         reference_end=cast(datetime | None, query.get("reference_end")),
                     )
                 elif self.path == "/api/v1/sources":
-                    payload = project_web_source_setup(snapshot)
+                    payload = project_web_source_setup(
+                        snapshot,
+                        file_history_jobs=read_file_history_jobs(OperationsWorkspace(root)),
+                    )
                 elif parts.path == "/api/v1/history/channels":
                     payload = project_history_channels(
                         snapshot, asset_id=cast(str, query["asset_id"])

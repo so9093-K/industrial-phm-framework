@@ -117,6 +117,11 @@ class OperationsWorkspace:
         return self.root / "runtime" / "supervisor.lock"
 
     @property
+    def file_history_job_path(self) -> Path:
+        """Ephemeral status of supervisor-run Web FILE history jobs; not durable evidence."""
+        return self.root / "runtime" / "web-file-history.json"
+
+    @property
     def runtime_state_files(self) -> tuple[Path, ...]:
         """Return durable/local state files owned by this workspace layout."""
         return (
@@ -215,6 +220,7 @@ def inspect_operations_workspace(workspace: OperationsWorkspace) -> OperationsWo
         allowed_runtime_entries = {
             workspace.supervisor_state_path.name,
             workspace.supervisor_lock_path.name,
+            workspace.file_history_job_path.name,
         }
         if not runtime_entries <= allowed_runtime_entries:
             return OperationsWorkspaceInspection(
