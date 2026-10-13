@@ -198,7 +198,6 @@ def main(argv: list[str] | None = None) -> int:
                     page.select_option("#anomaly-binding", "aihub-1338")
                     selected = True
             evidence["replay_exit"] = server.returncode
-            evidence["replay_exit"] = server.returncode
             # Let the coordinator close the last window and the runner catch up.
             time.sleep(20)
             shown_text += displayed(page)
