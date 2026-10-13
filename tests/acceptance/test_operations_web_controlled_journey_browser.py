@@ -12,7 +12,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from http.client import HTTPConnection
 from pathlib import Path
 
@@ -97,6 +97,156 @@ def _start(root: Path, port: int, log: Path) -> subprocess.Popen[bytes]:
 def _no_overflow(page, width: int) -> None:
     measured = page.evaluate("() => [window.innerWidth, document.documentElement.scrollWidth]")
     assert measured[0] == width and measured[1] <= width + 2, measured
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
+    tmp_path: Path, width: int
+) -> None:
+    """Empty workspace → CSV preview → server check → visible writes → measured graph."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        pytest.skip("Linux peer credentials required")
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "web")
+    init = initialize_operations_workspace(workspace)
+    port = _port()
+    write_operations_runtime_config(
+        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+    )
+    files = tmp_path / "files"
+    files.mkdir()
+    (files / "naive.csv").write_text(
+        "time,current_r,current_s\n2020-03-02 09:00:00,1.0,2.0\n2020-03-02 09:00:10,,2.1\n",
+        encoding="utf-8",
+    )
+    kst = timezone(timedelta(hours=9))
+    start = datetime(2020, 3, 2, 9, 0, tzinfo=kst)
+    rows = [(seconds, round(12 + seconds / 1000, 3)) for seconds in range(0, 1800, 10)]
+    (files / "motor.csv").write_text(
+        "timestamp,current_r,current_s,status\n"
+        + "".join(
+            f"{(start + timedelta(seconds=s)).isoformat()},{v},{v + 1},RUN\n" for s, v in rows
+        ),
+        encoding="utf-8",
+    )
+    log = tmp_path / "supervisor.log"
+    proc = _start(workspace.root, port, log)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+            errors: list[str] = []
+            external: list[str] = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.on(
+                "request",
+                lambda r: (
+                    external.append(r.url)
+                    if not r.url.startswith(f"http://127.0.0.1:{port}/")
+                    else None
+                ),
+            )
+            try:
+                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                pw.expect(page.locator("#workspace-start")).to_be_visible(timeout=30000)
+                pw.expect(page.locator("#phm-monitor")).to_be_hidden()
+                page.get_by_role("link", name="파일에서 시작").click()
+                chooser = page.locator("#csv-start-file")
+                pw.expect(chooser).to_be_focused()
+
+                # An unsupported file is explained by row before anything is written.
+                chooser.set_input_files(str(files / "naive.csv"))
+                issues = page.locator("#csv-start-issues")
+                pw.expect(issues).to_contain_text("시간대")
+                pw.expect(issues).to_contain_text("current_r 컬럼의 3행이 비어 있습니다")
+                page.locator("#csv-start-asset").fill("motor-01")
+                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
+                check = page.locator("#csv-start-check-result")
+                pw.expect(check).to_contain_text("3행", timeout=30000)
+                pw.expect(page.get_by_role("button", name="등록하고 이력 저장")).to_be_disabled()
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+                assert not (workspace.root / "web-uploads").exists()
+
+                # A supported file shows its own values; a text column is not stored.
+                chooser.set_input_files(str(files / "motor.csv"))
+                pw.expect(page.locator("#csv-start-chart svg")).to_be_visible()
+                pw.expect(issues).to_contain_text("구조 문제는 없습니다")
+                status = page.locator('#csv-start-channels input[value="status"]')
+                pw.expect(status).to_be_disabled()
+                pw.expect(status).not_to_be_checked()
+                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
+                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
+                pw.expect(check).to_contain_text("서버 점검 통과", timeout=30000)
+                pw.expect(check).to_contain_text("2020-03-02 09:00:00 KST")
+                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
+
+                # A failed later write keeps inputs, and a retry never registers twice.
+                page.route(
+                    "**/api/v1/sources/file/backfill",
+                    lambda route: route.fulfill(
+                        status=503, json={"error": {"code": "source_state_unavailable"}}
+                    ),
+                )
+                page.get_by_role("button", name="등록하고 이력 저장").click()
+                steps = page.locator("#csv-start-save-steps")
+                pw.expect(steps.locator('[data-step="store"]')).to_contain_text(
+                    "실패", timeout=60000
+                )
+                pw.expect(steps.locator('[data-step="receive"]')).to_contain_text("완료")
+                pw.expect(page.locator("#csv-start-save-result")).to_contain_text(
+                    "완료된 단계는 건너뜁니다"
+                )
+                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
+                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+                assert not workspace.history_catalog_path.exists()
+                page.unroute("**/api/v1/sources/file/backfill")
+                page.get_by_role("button", name="실패한 단계부터 다시 시도").click()
+                pw.expect(steps.locator('[data-step="store"]')).to_contain_text(
+                    f"측정값 {len(rows) * 2}개", timeout=60000
+                )
+                sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
+                assert len(sources) == 1
+                source_id = sources[0].source_id
+                assert workspace.history_catalog_path.exists()
+
+                page.get_by_role("button", name="모니터링에서 실제 그래프 보기").click()
+                pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
+                selected = page.locator('.monitor-asset[aria-pressed="true"]')
+                pw.expect(selected).to_contain_text("motor-01", timeout=30000)
+                reading = page.locator("#monitor-signal-reading")
+                pw.expect(reading).to_contain_text(f"{rows[-1][1]:g}", timeout=30000)
+                pw.expect(reading).to_contain_text("원본 측정 2020-03-02 09:29:50 KST")
+                pw.expect(page.locator("#monitor-signal-chart .monitor-raw-line")).to_have_count(1)
+                pw.expect(page.locator("#monitor-history-range")).to_have_value("15m")
+
+                # The real server refuses a duplicate source; inputs stay for correction.
+                page.locator('nav a[href="#connect"]').click()
+                page.get_by_role("button", name="다른 파일로 시작").click()
+                chooser.set_input_files(str(files / "motor.csv"))
+                page.locator("#csv-start-asset").fill("motor-01")
+                page.locator(".csv-start-advanced > summary").click()
+                page.locator("#csv-start-source-id").fill(source_id)
+                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
+                pw.expect(check).to_contain_text("서버 점검 통과", timeout=30000)
+                page.get_by_role("button", name="등록하고 이력 저장").click()
+                pw.expect(page.locator("#csv-start-save-result")).to_contain_text(
+                    "이미 등록된 소스 ID", timeout=30000
+                )
+                pw.expect(page.locator("#csv-start-asset")).to_be_enabled()
+                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
+                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+                _no_overflow(page, width)
+                assert not errors, errors
+                assert not external, external
+            finally:
+                browser.close()
+    finally:
+        _stop(proc, workspace.root)
+    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
 
 
 @pytest.mark.parametrize("width", [1024, 1440])

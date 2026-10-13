@@ -50,6 +50,10 @@ export function invalidateStored(assetId = null) {
 
 // The PHM input view owns the shared chart while it is shown; repaint the stored view on return.
 export function leaveStored() {byId("monitor-history-range-field").hidden = true;paintedKey = "";}
+// Open one asset's stored signal from another screen, e.g. right after its history was written.
+export function focusStored(assetId, channel = "", range = selected.range) {
+  selected = {assetId, channel, range};invalidateStored(assetId);
+}
 export function selectStoredChannel(channel) {selected.channel = channel;paintedKey = "";}
 export function selectStoredRange(range) {selected.range = range;paintedKey = "";}
 

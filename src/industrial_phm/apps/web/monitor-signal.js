@@ -133,7 +133,8 @@ export function drawMeasuredTrend(root, rows, channel) {
 // A missing bucket is never zero. Neighbouring values are joined only within 1.5 times the usual
 // spacing of filled buckets, so a slow sampling cadence still reads as one line while a longer
 // gap stays open. A bucket with stored observations but no usable value is a hollow axis marker.
-export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, unit, height = 170) {
+// `timeLabels: false` is for times without a known offset: their axis instants cannot be shown as KST.
+export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, unit, {height = 170, timeLabels = true} = {}) {
   root.replaceChildren();
   const start = Date.parse(startAt), end = Date.parse(endAt), step = bucketSeconds * 1000;
   const usable = buckets.filter((b) => b.usable_count > 0 && typeof b.mean === "number" && Number.isFinite(b.mean));
@@ -166,7 +167,7 @@ export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, un
     path += (previous !== null && index - previous <= joinLimit ? "L" : "M") + centre.toFixed(2) + " " + y(bucket.mean).toFixed(2) + " ";
     const dot = svgNode("circle", {cx: centre, cy: y(bucket.mean), r: 2.5, class: "monitor-raw-dot phase-0"});
     const title = svgNode("title");
-    title.textContent = formatTime(bucket.bucket_start) + " 구간 · 평균 " + number(bucket.mean) + (unit ? " " + unit : "")
+    title.textContent = (timeLabels ? formatTime(bucket.bucket_start) + " 구간" : "구간 " + (index + 1)) + " · 평균 " + number(bucket.mean) + (unit ? " " + unit : "")
       + " · 최소 " + finite(bucket.minimum) + " · 최대 " + finite(bucket.maximum) + " · 유효 " + bucket.usable_count + "개";
     dot.append(title);svg.append(dot);
     previous = index;
@@ -174,7 +175,9 @@ export function drawStoredTrend(root, buckets, startAt, endAt, bucketSeconds, un
   svg.append(svgNode("path", {d: path, class: "monitor-raw-line phase-0"}));
   const text = (label, attrs) => {const n = svgNode("text", attrs);n.textContent = label;svg.append(n);};
   if (usable.length) {text(number(max) + (unit ? " " + unit : ""), {x: 2, y: top + 9});text(number(min), {x: 2, y: bottom});}
-  text(formatAxisTime(start, end - start), {x: left, y: height - 4});
-  text(formatAxisTime(end, end - start), {x: right, y: height - 4, "text-anchor": "end"});
+  if (timeLabels) {
+    text(formatAxisTime(start, end - start), {x: left, y: height - 4});
+    text(formatAxisTime(end, end - start), {x: right, y: height - 4, "text-anchor": "end"});
+  }
   root.append(svg);
 }

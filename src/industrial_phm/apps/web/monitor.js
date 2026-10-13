@@ -1,6 +1,6 @@
 import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
 import {formatTime} from "./time.js";
-import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored} from "./monitor-history.js";
+import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored, focusStored} from "./monitor-history.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
@@ -69,6 +69,12 @@ function selectAsset(assetId) {
   explicitStream = false;
   const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
   if (lastData) render(lastData, lastBase);
+}
+// Select an asset's stored measurements before navigating to the Monitor (no read happens here).
+export function openMonitorAsset(assetId, {channel = "", range = "1h"} = {}) {
+  selectedAsset = assetId;selectedStream = HISTORY;previousInput = false;previewKey = "";detailsKey = "";
+  focusStored(assetId, channel, range);
+  const url = new URL(location.href);url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
 }
 function render(data, base) {
   lastData = data;lastBase = base;
