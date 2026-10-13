@@ -131,6 +131,13 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 pw.expect(page.locator("#rul-selected")).to_contain_text("#2")
                 page.reload()
                 pw.expect(page.locator("#rul-selected")).to_contain_text("#2")
+                # A real refused bookmark cannot substitute the last successful score.
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?phm_binding=anomaly-a&phm_position=3#anomaly"
+                )
+                pw.expect(page.locator("#anomaly-state")).to_contain_text("선택한 기록 #3")
+                pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
+                pw.expect(page.locator("#anomaly-score-chart svg")).to_have_count(0)
                 # An unknown target cannot silently open another asset/model.
                 page.goto(
                     f"http://127.0.0.1:{server.server_port}/web/?phm_binding=missing&phm_position=2#anomaly"

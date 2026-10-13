@@ -347,6 +347,11 @@ function renderAnomaly() {
   const steps = orderedSteps(entry);
   const analyzed = steps.filter((step) => step.state === "analyzed");
   const skipped = steps.length - analyzed.length;
+  if (focusPosition !== null && entry.steps.get(focusPosition)?.state !== "analyzed") {
+    state.className = "state error";state.textContent = "선택한 기록 " + stepLabel(entry, focusPosition) + "은 분석되지 않았습니다: " + (entry.steps.get(focusPosition)?.reason || "분석 결과 없음");
+    byId("anomaly-observation").textContent = "선택한 입력의 점수를 표시할 수 없습니다.";
+    renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;
+  }
   if (binding && binding.health === "unavailable") {
     state.className = "state error";state.textContent = "모델을 실행할 수 없습니다: " + (binding.health_reason || "이유 미기록");
   } else if (!analyzed.length) {
@@ -632,7 +637,7 @@ function renderRul() {
     renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;
   }
   const last = analyzed.find((s) => s.position === rulFocusPosition) || analyzed.at(-1);
-  if (rulFocusPosition === null) updateMonitorTarget("rul", last.position);
+  updateMonitorTarget("rul", last.position);
   const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
   byId("rul-observation").textContent = latestRulSkipped
     ? "최근 입력은 분석되지 않았습니다. 아래 추정은 마지막으로 분석된 이전 입력의 결과입니다."
@@ -777,7 +782,7 @@ async function cycle() {
     const entry = series.get(selected.anomaly);
     const shown = focusPosition ?? (entry && orderedSteps(entry).filter((s) => s.state === "analyzed").at(-1)?.position);
     if (!readError && shown != null) {
-      if (focusPosition === null) updateMonitorTarget("anomaly", shown);
+      updateMonitorTarget("anomaly", shown);
       await focusStep(shown, false);
     }
   }
