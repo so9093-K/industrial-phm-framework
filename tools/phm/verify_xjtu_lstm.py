@@ -1,4 +1,4 @@
-"""Judge XJTU-SY LSTM packages against the acceptance protocol v1 §2.2-§2.3.
+"""Judge XJTU-SY LSTM packages against the acceptance protocol §2.3 and its v3 revision (§5).
 
 LSTM training is not bit-reproducible across CPU math kernels, so retrained packages are judged
 by performance equivalence with the stored research evidence (per-bearing MAE within 2%
@@ -96,24 +96,24 @@ def main(argv: list[str] | None = None) -> int:
         _same_environment_checks(store, args.research_rerun) if args.research_rerun else []
     )
     verdict = {
-        "protocol": "operational-inference-acceptance-protocol §2.2-2.3",
+        "protocol": "operational-inference-acceptance-protocol §2.3 (v1/v2) and §5 (v3)",
         "packages": {kind.value: package_id for kind, package_id in kinds.items()},
         "checks": checks,
         "same_environment_checks": same_environment,
-        "pass_v1": all(check["pass"] for check in checks),
-        "pass_v2": bool(same_environment)
+        "pass_section_2_3": all(check["pass"] for check in checks),
+        "pass_v3": bool(same_environment)
         and all(c["pass"] for c in same_environment)
         and all(c["pass"] for c in checks if not c["name"].startswith("lstm-rul-mae-")),
     }
-    verdict["pass"] = verdict["pass_v1"]
+    verdict["pass"] = verdict["pass_section_2_3"]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     for check in checks + same_environment:
         print(f"{'PASS' if check['pass'] else 'FAIL'} {check['name']} {check.get('detail', '')}")
-    print("VERDICT v1", "PASS" if verdict["pass_v1"] else "FAIL")
+    print("VERDICT §2.3 (v1/v2)", "PASS" if verdict["pass_section_2_3"] else "FAIL")
     if same_environment:
-        print("VERDICT v2", "PASS" if verdict["pass_v2"] else "FAIL")
-    return 0 if verdict["pass_v1"] or verdict["pass_v2"] else 1
+        print("VERDICT §5 (v3)", "PASS" if verdict["pass_v3"] else "FAIL")
+    return 0 if verdict["pass_section_2_3"] or verdict["pass_v3"] else 1
 
 
 def _steps(store: SqlitePhmAnalysisStore, binding_id: str) -> tuple[list[Any], list[Any]]:
