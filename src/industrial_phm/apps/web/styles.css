@@ -280,8 +280,18 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 @media(max-width:900px){.monitor-board{grid-template-columns:1fr}.monitor-signal{border-left:0;border-top:1px solid #dce6eb;padding:14px 0 0}#phm-monitor-assets{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-attention-item{grid-template-columns:1fr}.monitor-attention-item small{grid-column:1}.monitor-observation p{font-size:.78rem}}
 @media(max-width:500px){.phm-monitor{padding:12px}#phm-monitor-assets{grid-template-columns:1fr}.monitor-asset{padding:8px 10px;gap:3px}.monitor-asset[aria-pressed=true]{padding:7px 9px}.monitor-asset-heading strong{font-size:.82rem}#monitor-analysis-models{grid-template-columns:1fr}.monitor-board{gap:12px}}
 
-.monitor-measured-trend{height:180px}
+.monitor-measured-trend{height:150px}
 .monitor-measured-trend text{font-size:12px}
 .monitor-reading{display:flex;gap:12px;flex-wrap:wrap;background:#eef5f7;border-radius:8px;padding:10px 12px;margin:8px 0}
 .monitor-reading>div{flex:1;min-width:105px}.monitor-reading small{display:block;font-size:.74rem;color:#536c7a}.monitor-reading strong{display:block;font-size:1.25rem;color:#164e61;margin-top:3px;font-variant-numeric:tabular-nums}
 .monitor-grid{stroke:#dce6eb;stroke-width:1;fill:none}
+.monitor-attention-item .monitor-attention-observation{color:#704507;font-size:.85rem;font-weight:700}
+.monitor-asset .monitor-asset-observation{color:#29495a;font-size:.8rem;font-weight:650}
+.monitor-detection{margin:8px 0}.monitor-detection h4{font-size:.85rem;margin:0 0 6px}
+#monitor-detection-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.monitor-detection-result{border:1px solid #dce6eb;border-radius:7px;padding:8px 10px;min-width:0}
+.monitor-detection-result h5{font-size:.8rem;margin:0 0 3px;color:#365666}
+.monitor-detection-heading{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.monitor-detection-value{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.monitor-detection-value strong{font-size:1.1rem;font-variant-numeric:tabular-nums}.monitor-detection-value span{font-size:.73rem;color:#77591e}
+.monitor-detection-result p,.monitor-detection-result a{font-size:.74rem;margin:3px 0;overflow-wrap:anywhere}.monitor-detection-old{color:#86550e;font-weight:650}
+@media(max-width:500px){#monitor-detection-results{grid-template-columns:1fr}}

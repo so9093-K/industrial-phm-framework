@@ -16,6 +16,14 @@ const streamKey = (i) => JSON.stringify([i.source_id, i.measurement_point_id, i.
 const replay = (i) => i.recorded_replay || i.latest_delivered?.replay || i.latest_analyzed?.replay;
 const inputName = (i, v) => i.step_kind === "observation-window" ? time(v?.event_at || v?.event_start) : v ? "#" + v.position : "없음";
 const assetName = (id) => /^aihub-air-compressor-/.test(id) ? "공기압축기 " + id.replace("aihub-air-compressor-", "") : id;
+function measuredChange(previous, latest) {
+  const difference = latest.value - previous.value;
+  if (!difference) return "크기 변화 없음";
+  const direction = difference > 0 ? "커짐" : "작아짐";
+  if (previous.value <= 0) return "크기 " + direction;
+  const percent = Math.abs(difference / previous.value * 100);
+  return (percent < .05 ? "0.1% 미만" : percent.toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%") + " " + direction;
+}
 function friendlyReason(reason) {
   if (/sha.?256|checksum|digest/i.test(reason || "")) return "전달 후 원본 변경 감지";
   if (/channels differ|sampling rate|sample count|package expects/i.test(reason || "")) return "필요한 입력 규격과 다름";
@@ -115,12 +123,45 @@ function render(data, base) {
   if (byId("monitor-analysis-details").open) renderDetails(selected);
   else {byId("monitor-analysis-models").replaceChildren();detailsKey = "";}
   if (!item) {clearSignal();byId("monitor-signal-state").textContent = "모델에 연결된 원본 입력 없음 · 설비·신호 화면에서 저장 이력 확인";return;}
+  renderDetection(selected.items.filter((i) => streamKey(i) === selectedStream));
   void loadSignal(item);void loadTrace(item);paintSignal();
+}
+function renderDetection(items) {
+  const root = byId("monitor-detection-results");root.replaceChildren();
+  const anomalies = items.filter((i) => i.task === "anomaly-score");
+  anomalies.sort((a, b) => Number(/lstm/.test(b.recipe_id || "")) - Number(/lstm/.test(a.recipe_id || "")));
+  if (!anomalies.length) root.append(node("p", "연결된 이상 탐지 모델 없음", "muted"));
+  for (const item of anomalies.slice(0, 2)) {
+    const row = node("article", "", "monitor-detection-result");row.dataset.bindingId = item.binding_id;
+    const reconstruction = /autoencoder|pca/i.test(item.recipe_id || "");
+    const label = reconstruction ? "재구성 오차 · " + (/lstm/i.test(item.recipe_id) ? "LSTM" : "PCA") : "이상 점수 · " + (/iforest/i.test(item.recipe_id || "") ? "IF" : "연결 모델");
+    const heading = node("div", "", "monitor-detection-heading");heading.append(node("h5", label));row.append(heading);
+    const last = item.latest_analyzed, prior = item.previous_analyzed;
+    if (!last || typeof last.output.score !== "number") {
+      row.append(node("p", states[item.processing_state] || "비교할 분석 결과 없음"));root.append(row);continue;
+    }
+    const current = item.processing_state === "processed" && !previousInput;
+    const value = node("div", "", "monitor-detection-value");
+    value.append(node("strong", number(last.output.score)), node("span", "참고 기준 " + number(last.output.threshold) + (last.output.exceeds_threshold ? " 초과" : " 이내")));
+    row.append(value);
+    if (!current) row.append(node("p", "이전 분석 결과 · 최신 입력 미평가", "monitor-detection-old"));
+    if (prior && typeof prior.output.score === "number") {
+      const delta = last.output.score - prior.output.score;
+      const deltaText = delta === 0 ? "변화 없음" : (delta > 0 ? "+" : "−") + (Math.abs(delta) < .001 ? Math.abs(delta).toExponential(2) : number(Math.abs(delta)));
+      const description = reconstruction ? "학습 패턴과 차이 " : "이상 점수 ";
+      const relation = item.step_kind === "acquisition-snapshot" && prior.position + 1 === last.position ? "직전" : "앞선 분석";
+      row.append(node("p", relation + " " + number(prior.output.score) + " · 변화 " + deltaText));
+      row.append(node("p", description + (delta > 0 ? "증가" : delta < 0 ? "감소" : "변화 없음") + " · " + inputName(item, prior) + " → " + inputName(item, last), "muted"));
+    } else row.append(node("p", "첫 분석 결과 · 이전값 비교 대기", "muted"));
+    const link = node("a", "추세 보기");link.href = detailLink(item);heading.append(link);root.append(row);
+  }
+  if (anomalies.length > 2) root.append(node("p", "주요 모델 2개 표시 · 연결 모델 " + anomalies.length + "개는 모델·입력 상세에서 확인", "muted"));
 }
 function clearSignal() {
   signalVersion++;traceVersion++;preview = null;previewKey = "";traceKey = "";traceData = null;byId("monitor-score-chart").replaceChildren();byId("monitor-score-state").textContent = "";
   byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-legend").textContent = "";
   byId("monitor-signal-reading").hidden = true;byId("monitor-range-field").hidden = true;
+  byId("monitor-detection-results").replaceChildren();
   byId("monitor-signal-channel").replaceChildren();byId("monitor-signal-channel").disabled = true;
 }
 async function loadSignal(item) {
@@ -193,17 +234,18 @@ function paintSignal() {
   if (choiceId.startsWith("rms-") && preview.sample_count) {
     const channelIndex = Number(choiceId.slice(4)), channel = preview.channels[channelIndex]?.channel;
     const steps = (traceData?.steps || []).filter((s) => s.position <= preview.position);
-    const rows = measuredRows(steps, channel), first = rows[0], last = rows.at(-1);
+    const rows = measuredRows(steps, channel), last = rows.at(-1);
     if (rows.length < 2 || last.position !== preview.position) {
       drawSignal(byId("monitor-signal-chart"), preview, String(channelIndex));
       byId("monitor-signal-state").textContent = "크기 추세 축적 대기 · 선택 입력의 원본 파형";
       byId("monitor-signal-legend").textContent = "원본 표본 구간별 최솟값·최댓값 · 단위 미확인";return;
     }
-    const ratio = first.value > 0 ? last.value / first.value : null;
-    const current = node("div");current.append(node("small", channelName(channel) + " 크기 · 기록 #" + last.position), node("strong", number(last.value) + " RMS"));
-    const comparison = node("div");comparison.append(node("small", "조회 범위 첫 기록 #" + first.position + " · " + number(first.value) + " RMS"), node("strong", ratio === null ? "비율 비교 불가" : number(ratio) + "배"));
+    const before = rows.at(-2), contiguous = before.position + 1 === last.position;
+    const change = measuredChange(before, last), relation = contiguous ? "직전 기록" : "앞선 조회 기록";
+    const current = node("div");current.append(node("small", channelName(channel) + " · " + relation + " 대비"), node("strong", change));
+    const comparison = node("div");comparison.append(node("small", "기록 #" + before.position + " → #" + last.position + " · RMS"), node("strong", number(before.value) + " → " + number(last.value)));
     reading.append(current, comparison);reading.hidden = false;
-    if (observation) observation.textContent = channelName(channel) + " 크기 " + number(last.value) + " RMS" + (ratio === null ? "" : " · #" + first.position + " 대비 " + number(ratio) + "배") + (previousInput ? " · 이전 기록" : "");
+    if (observation) observation.textContent = channelName(channel) + "이 " + relation + " #" + before.position + "보다 " + change + (previousInput ? " · 이전 기록" : "");
     const alert = [...byId("monitor-attention-list").children].find((e) => e.dataset.assetId === selectedAsset)?.querySelector(".monitor-attention-observation");
     if (alert && !previousInput) {alert.textContent = observation?.textContent || "";alert.hidden = false;}
     const recent = recentMeasuredSegment(rows), all = byId("monitor-signal-range").value === "all";
@@ -214,7 +256,7 @@ function paintSignal() {
     const absent = steps.at(-1).position - steps[0].position + 1 - steps.length;
     const rejected = steps.filter((s) => s.state === "skipped").length;
     byId("monitor-signal-legend").textContent = (all ? "조회 기록" : "최근 연속 기록") + " #" + shown[0].position + "–#" + shown.at(-1).position
-      + (absent || rejected ? " · 기록 공백 " + absent + "개 · 분석 거부 " + rejected + "개" : "") + " · 비교 기록은 정상 기준이 아닙니다.";
+      + (absent || rejected ? " · 기록 공백 " + absent + "개 · 분석 거부 " + rejected + "개" : "") + " · 크기 변화는 고장 판정이 아닙니다.";
     return;
   } else {
     drawSignal(byId("monitor-signal-chart"), preview, choiceId);

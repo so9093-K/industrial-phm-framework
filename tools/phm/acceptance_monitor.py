@@ -297,6 +297,19 @@ def main(argv: list[str] | None = None) -> int:
                 page.set_viewport_size({"width": 1440, "height": 900})
                 model.click()
                 expect(page.locator("#monitor-signal-chart svg")).to_be_visible()
+                reconstruction = page.locator(
+                    '.monitor-detection-result[data-binding-id="lstm-lstm-autoencoder-v1-Bearing1_1"]'
+                )
+                expect(reconstruction).to_be_visible()
+                expect(reconstruction).to_contain_text("재구성 오차")
+                expect(reconstruction).to_contain_text("앞선 분석")
+                expect(reconstruction).to_contain_text("#9 → #18")
+                checks.add(
+                    "reconstruction-error-and-nonconsecutive-change-visible-without-details",
+                    reconstruction.bounding_box()["y"]
+                    + reconstruction.bounding_box()["height"]
+                    < 900,
+                )
                 checks.add(
                     "actual-signal-visible-on-first-screen-1440",
                     page.locator("#monitor-signal-chart").bounding_box()["y"]

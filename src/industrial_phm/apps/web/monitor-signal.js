@@ -103,7 +103,7 @@ export function recentMeasuredSegment(rows) {
 export function drawMeasuredTrend(root, rows, channel) {
   root.replaceChildren();
   if (!rows.length) return;
-  const width = Math.max(260, root.clientWidth), height = 180, left = 56, right = width - 16, top = 20, bottom = 150;
+  const width = Math.max(260, root.clientWidth), height = 150, left = 56, right = width - 16, top = 20, bottom = 120;
   const first = rows[0], last = rows.at(-1), max = Math.max(...rows.map((r) => r.value)) * 1.1 || 1;
   const x = (r) => left + (r.position - first.position) / (last.position - first.position || 1) * (right - left);
   const y = (v) => bottom - v / max * (bottom - top);
@@ -121,8 +121,8 @@ export function drawMeasuredTrend(root, rows, channel) {
     previous = row;
   }
   svg.append(svgNode("path", {d: path, class: "monitor-raw-line phase-0"}));
-  label("#" + first.position, {x: left, y: 176});
-  if (rows.length > 1) label("#" + last.position, {x: right, y: 176, "text-anchor": "end"});
-  label("기록 번호", {x: (left + right) / 2, y: 176, "text-anchor": "middle"});
+  label("#" + first.position, {x: left, y: 146});
+  if (rows.length > 1) label("#" + last.position, {x: right, y: 146, "text-anchor": "end"});
+  label("기록 번호", {x: (left + right) / 2, y: 146, "text-anchor": "middle"});
   root.append(svg);
 }

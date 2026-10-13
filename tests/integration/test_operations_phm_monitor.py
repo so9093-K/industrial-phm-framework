@@ -92,6 +92,7 @@ def test_monitor_distinguishes_new_input_refusal_and_an_exact_saved_result(tmp_p
     assert item["processing_state"] == "pending"
     assert item["latest_delivered"]["position"] == 2
     assert item["latest_analyzed"]["position"] == 1
+    assert item["previous_analyzed"] is None
     (tmp_path / "waves/2.csv").write_text("corrupted after delivery")
     analyze(workspace)
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -116,6 +117,27 @@ def test_monitor_distinguishes_new_input_refusal_and_an_exact_saved_result(tmp_p
     _, body = handle_phm_read(workspace, "/api/v1/phm/monitor", "")
     assert body["review_read_error"] is True and body["reviews"] is None
     assert body["items"][0]["latest_analyzed"] is not None
+
+
+def test_monitor_score_change_uses_same_binding_and_skips_refused_input(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    analyze(workspace)
+    deliver(workspace, tmp_path / "waves", 2, 3.0)
+    (tmp_path / "waves/2.csv").write_text("corrupted after delivery")
+    analyze(workspace)
+    deliver(workspace, tmp_path / "waves", 3, 4.0)
+    analyze(workspace)
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    cursor = store.latest_change_seq()
+    _, body = handle_phm_read(workspace, "/api/v1/phm/monitor", "")
+    item = next(i for i in body["items"] if i["binding_id"] == "anomaly-a")
+    assert item["latest_analyzed"]["position"] == 3
+    assert item["previous_analyzed"]["position"] == 1
+    assert item["previous_analyzed"]["output"] == dict(store.get_result("anomaly-a", 1).output)
+    assert item["latest_analyzed"]["output"] == dict(store.get_result("anomaly-a", 3).output)
+    assert item["latest_analyzed"]["output"]["score"] > item["previous_analyzed"]["output"]["score"]
+    assert store.latest_change_seq() == cursor
 
 
 def test_many_bindings_use_a_bounded_summary_without_reading_series(

@@ -424,12 +424,22 @@ class SqlitePhmAnalysisStore:
         return None if row is None else _result(row)
 
     def latest_result(
-        self, binding_id: str, *, state: StepState | None = None
+        self,
+        binding_id: str,
+        *,
+        state: StepState | None = None,
+        before_position: int | None = None,
     ) -> StepResult | None:
         connection = self._connect()
         try:
-            clause = "" if state is None else "AND state = ? "
-            params = (binding_id,) if state is None else (binding_id, state.value)
+            clause = ""
+            params: list[str | int] = [binding_id]
+            if state is not None:
+                clause += "AND state = ? "
+                params.append(state.value)
+            if before_position is not None:
+                clause += "AND position < ? "
+                params.append(before_position)
             row = connection.execute(
                 "SELECT * FROM step_result WHERE binding_id = ? "
                 + clause

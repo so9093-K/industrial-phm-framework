@@ -67,8 +67,12 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 deliver(workspace, tmp_path / "waves", 2, 3.0)
                 analyze(workspace)
                 pw.expect(asset).to_contain_text("진동 변화 확인 필요", timeout=10_000)
-                pw.expect(page.locator("#monitor-signal-reading")).to_contain_text("기록 #2")
-                pw.expect(page.locator("#monitor-signal-reading")).to_contain_text("6배")
+                pw.expect(page.locator("#monitor-signal-reading")).to_contain_text("기록 #1 → #2")
+                pw.expect(page.locator("#monitor-signal-reading")).to_contain_text("500% 커짐")
+                detection = page.locator('.monitor-detection-result[data-binding-id="anomaly-a"]')
+                pw.expect(detection).to_be_visible()
+                pw.expect(detection).to_contain_text("이상 점수 증가")
+                pw.expect(detection).to_contain_text("#1 → #2")
                 pw.expect(page.locator("#monitor-score-chart")).not_to_be_visible()
                 deliver(workspace, tmp_path / "waves", 3, 4.0)
                 (tmp_path / "waves/3.csv").write_text("corrupted after delivery")
@@ -79,6 +83,7 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 pw.expect(alert).to_contain_text("전달 후 원본 변경 감지")
                 pw.expect(alert).to_contain_text("2개 분석")
                 pw.expect(other).not_to_contain_text("최근 진동 파형을 읽을 수 없음")
+                pw.expect(detection).to_contain_text("이전 분석 결과 · 최신 입력 미평가")
                 pw.expect(page.locator("#monitor-signal-state")).to_contain_text(
                     "원본을 표시할 수 없습니다"
                 )

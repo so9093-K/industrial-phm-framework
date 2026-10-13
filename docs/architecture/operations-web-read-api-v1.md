@@ -515,9 +515,12 @@ secondary information.
 ## Asset Monitor PHM reads
 
 `GET /api/v1/phm/monitor` is an additive bounded projection of PHM bindings, input progress,
-last successful output, latest processed/refused input and review status. It returns at most
+last successful output, previous successful output, latest processed/refused input and review status. It returns at most
 100 binding rows, total/limit/truncated, and a separate review-read error. It never loads full
 step histories, waveform files or estimator payloads, and never fits or scores a model.
+The previous successful output is an indexed position-bounded read from the same binding;
+refused inputs are excluded and the browser labels nonconsecutive comparisons explicitly.
+Selected anomaly scores and reconstruction-error deltas remain visible without opening details.
 Transport evidence comes from the existing `/api/v1/monitor` and `/api/v1/sources` contracts;
 the browser makes three overview requests per cycle. Missing inputs do not prove a stopped sensor.
 
@@ -537,7 +540,8 @@ order, including skipped steps. It reads the existing binding/position index wit
 the full series. The browser renders saved input RMS features separately from model scores;
 it never joins missing/refused positions or treats an ordinal gap as a transport outage.
 The latest contiguous input segment is the default, with an explicit whole-range option.
-Comparisons use the first available saved feature in this bounded range, not a normal baseline.
+Magnitude changes compare the latest two available saved features, with an explicit distinction
+between consecutive and nonconsecutive positions. The earlier record is not a normal baseline.
 
 `GET /api/v1/phm/window-input?binding_id=...&position=...` provides the same quality-aware
 original window preview as `/phm/window`, including before scoring. The pending path requires
