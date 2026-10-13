@@ -37,7 +37,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
-                pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 재구성 오차")
                 pw.expect(page.locator("#anomaly-asset-title")).to_contain_text("motor-7")
                 pw.expect(page.locator("#anomaly-cards")).not_to_contain_text("학습 범위")
                 pw.expect(page.locator("#anomaly-score-chart .condition-curve")).to_be_visible()
@@ -53,14 +53,15 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                     + "document.getElementById('anomaly-feature-chart')) "
                     + "& Node.DOCUMENT_POSITION_FOLLOWING) !== 0"
                 )
-                pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 수신")
+                pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 입력")
+                page.locator("#anomaly-periods > summary").click()
                 page.locator("#anomaly-intervals button").first.click()
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("특징별 잔차 기여")
                 # A window is named by its event time, not by its internal ordering key.
                 pw.expect(page.locator("#anomaly-explanation h3")).to_have_text(
                     re.compile(r"^분석 윈도우 \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC · 사람 검토")
                 )
-                pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
+                pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(1)
                 assert (
                     page.locator("#anomaly-score-chart .axis").evaluate(
                         "e => getComputedStyle(e).fill"
@@ -73,11 +74,13 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                     "PHM page overflows the viewport"
                 )
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("관측 5개")
-                page.get_by_label("원본 신호 표시 방식").select_option("relative")
-                pw.expect(page.locator("#anomaly-detail .phm-raw")).to_contain_text(
-                    "첫 유효 값이 0"
-                )
-                pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
+                raw = page.locator("#anomaly-detail .phm-raw")
+                pw.expect(raw.locator(".monitor-raw-line")).to_have_count(3)
+                page.get_by_label("원본 측정 신호").select_option("V")
+                pw.expect(raw.locator(".monitor-raw-line")).to_have_count(3)
+                pw.expect(raw).to_contain_text("관측 5개")
+                page.get_by_label("원본 측정 신호").select_option("Hz")
+                pw.expect(raw.locator(".monitor-raw-line")).to_have_count(1)
                 windows.record_window(electrical_window("w3", START + timedelta(minutes=15), 10.0))
                 run_window_bindings(store, windows, PackageCache(workspace.models_path))
                 page.locator("#refresh").click()
@@ -93,9 +96,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "최근 입력은 분석되지 않았습니다", timeout=10_000
                 )
-                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
-                    "마지막으로 분석된 이전 입력"
-                )
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택한 이전 기록")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.locator('a[href="#rul"]').click()
                 pw.expect(page.locator("#rul-state")).to_contain_text(

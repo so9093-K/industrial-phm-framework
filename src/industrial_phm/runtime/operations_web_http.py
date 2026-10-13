@@ -124,6 +124,7 @@ def create_operations_web_read_server(
                 "condition.js": "text/javascript; charset=utf-8",
                 "phm.js": "text/javascript; charset=utf-8",
                 "monitor.js": "text/javascript; charset=utf-8",
+                "monitor-signal.js": "text/javascript; charset=utf-8",
                 "phm-explanation.js": "text/javascript; charset=utf-8",
                 "research-results.json": "application/json; charset=utf-8",
             }
@@ -280,6 +281,7 @@ def create_operations_web_read_server(
                 "/web/phm-explanation.js": "phm-explanation.js",
                 "/web/phm.js": "phm.js",
                 "/web/monitor.js": "monitor.js",
+                "/web/monitor-signal.js": "monitor-signal.js",
                 "/web/research-results.json": "research-results.json",
             }
             asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path

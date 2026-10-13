@@ -1,0 +1,37 @@
+{
+  "code_revision": "b9ea855b90b0a98cb26aca40d7c5e346631e128a",
+  "scenario": "Read-only preview after real XJTU inputs 1-19 and 110-123; #10/#19 are altered test copies, originals preserved. AI-Hub recorded original window.",
+  "checks": [
+    "lstm-reconstruction-error-and-change-visible-without-opening-details",
+    "signal-magnitude-and-comparison-readable-outside-plot",
+    "record-gap-distinct-from-refusal",
+    "recent-contiguous-plot-default",
+    "full-history-score-chart-optional",
+    "three-widths-no-overflow",
+    "attention-and-real-signal-visible-without-scroll-1440",
+    "whole-range-does-not-join-missing-or-rejected-records",
+    "compressor-original-phase-values-and-threshold-comparison"
+  ],
+  "page_errors": [],
+  "binding_id": "anomaly-score-Bearing1_1",
+  "previous_comparison_position": 122,
+  "latest_position": 123,
+  "previous_rms": 4.339479711734307,
+  "latest_rms": 7.268278160413312,
+  "percent_change": 67.49192629612475,
+  "unit": "unconfirmed",
+  "human_usability_acceptance": "pending after previous failed/partial feedback; automated checks do not establish it",
+  "captures": {
+    "observation-1440.png": "03c9800f2715f102af0693b5242a391235a8cef9319512cc2ce0ce67f06779c5",
+    "observation-1024.png": "32ba9593c7f5e6bc911fc4b7f2a5bbec308f5f697e292cff07efbed22572ae63",
+    "observation-390.png": "745edae83941c78dc1bc60ac0b9d705c3f166a14b9c019ee647e9f331bb4eb2c",
+    "electrical-observation-1440.png": "09560cdd7690ded581903e61ff11b2830b7b6c6ebf5772ad16f6858e7c93fb10"
+  },
+  "reconstruction_error": {
+    "binding_id": "lstm-lstm-autoencoder-v1-Bearing1_1",
+    "previous": 7.32444237612883,
+    "latest": 10.697460974755366,
+    "delta": 3.373018598626536,
+    "threshold": 1.7461440064539213
+  }
+}

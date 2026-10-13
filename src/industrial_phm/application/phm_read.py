@@ -60,6 +60,13 @@ def project_phm_monitor(
             manifests[binding.package_id] = _package_summary(models_root, binding.package_id)
         package = manifests[binding.package_id]
         analyzed = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
+        previous = (
+            None
+            if analyzed is None
+            else store.latest_result(
+                binding.binding_id, state=StepState.ANALYZED, before_position=analyzed.position
+            )
+        )
         processed = store.latest_result(binding.binding_id)
         delivered = _latest_delivered(binding, snapshots, windows)
         progress = store.progress(binding.binding_id)
@@ -90,13 +97,8 @@ def project_phm_monitor(
                 "latest_processed": None
                 if not processed
                 else {**_step_brief(processed), "reason": processed.reason},
-                "latest_analyzed": None
-                if not analyzed
-                else {
-                    **_step_brief(analyzed),
-                    "analysis_run_id": analyzed.analysis_run_id,
-                    "output": dict(analyzed.output),
-                },
+                "latest_analyzed": None if not analyzed else _model_brief(analyzed),
+                "previous_analyzed": None if previous is None else _model_brief(previous),
             }
         )
     return {
@@ -182,6 +184,17 @@ def project_phm_series(
         "latest_delivered": _latest_delivered(binding, snapshots, windows),
         "steps": [_step_json(result) for result in results],
         "intervals": [_interval_json(item) for item in store.list_intervals(binding_id)],
+    }
+
+
+def project_phm_trace(store: SqlitePhmAnalysisStore, *, binding_id: str) -> dict[str, Any]:
+    """Last 64 stored steps; rejected steps remain explicit gaps, without any new scoring."""
+    _binding(store, binding_id)
+    return {
+        "schema_version": PHM_READ_SCHEMA_VERSION,
+        "binding_id": binding_id,
+        "limit": 64,
+        "steps": [_step_json(row) for row in store.recent_results(binding_id)],
     }
 
 
@@ -339,6 +352,14 @@ def _step_brief(result: StepResult) -> dict[str, Any]:
         "event_start": _iso(result.event_start),
         "processed_at": result.processed_at.isoformat(),
         "replay": result.replay,
+    }
+
+
+def _model_brief(result: StepResult) -> dict[str, Any]:
+    return {
+        **_step_brief(result),
+        "analysis_run_id": result.analysis_run_id,
+        "output": dict(result.output),
     }
 
 

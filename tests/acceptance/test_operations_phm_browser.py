@@ -53,8 +53,8 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
                 pw.expect(page.locator("#view-title")).to_have_text("이상 탐지")
-                pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
-                pw.expect(page.locator("#anomaly-cards")).to_contain_text("1개")
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 이상 점수")
+                pw.expect(page.locator("#anomaly-periods summary")).to_contain_text("1개")
                 pw.expect(page.locator("#anomaly-replay")).to_be_visible()
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "고장 확률이나 진단이 아닙니다"
@@ -71,14 +71,15 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                     "PHM page overflows the viewport"
                 )
                 pw.expect(page.locator("#anomaly-score-chart .phm-interval")).to_have_count(1)
-                assert page.locator("#anomaly-feature-chart .phm-svg").count() >= 2
+                pw.expect(page.locator("#anomaly-feature-chart .phm-svg")).to_have_count(1)
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #6")
 
+                page.locator("#anomaly-periods > summary").click()
                 page.locator("#anomaly-intervals button").first.click()
                 pw.expect(page.locator("#anomaly-score-chart button")).to_have_text(
                     "전체 기간 보기"
                 )
-                pw.expect(page.locator("#anomaly-detail")).to_contain_text("입력과 모델 출력")
+                pw.expect(page.locator("#anomaly-detail")).to_contain_text("원본 신호")
                 pw.expect(page.locator("#anomaly-detail .phm-wave")).to_have_count(2)
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text(
                     "변수별 기여도를 제공하지 않습니다"
@@ -97,6 +98,11 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                     "최신 분석 #7", timeout=10_000
                 )
 
+                # Older selections stay pinned while new data arrives; latest is an explicit action.
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #4")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #4")
+                page.locator("#anomaly-latest").click()
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #7")
                 page.locator('a[href="#rul"]').click()
                 pw.expect(page.locator("#view-title")).to_have_text("RUL 모니터링")
                 pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 RUL 추정")
@@ -112,7 +118,7 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 page.locator("#rul-model summary").click()
                 pw.expect(page.locator("#rul-model")).to_contain_text("synthetic-test-evidence")
                 page.locator('a[href="#anomaly"]').click()
-                pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 이상 점수")
                 deliver(workspace, waveforms, 8, 0.9)
                 (waveforms / "8.csv").write_text("damaged after delivery", encoding="utf-8")
                 analyze(workspace)
@@ -120,9 +126,7 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "최근 입력은 분석되지 않았습니다", timeout=10_000
                 )
-                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
-                    "마지막으로 분석된 이전 입력"
-                )
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택한 이전 기록")
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("마지막 분석 점수")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #7")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")

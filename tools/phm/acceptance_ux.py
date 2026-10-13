@@ -106,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
                             )
                             checks.add(label + "-threshold-is-not-health-verdict", True, text)
                         page.screenshot(path=str(output / (label + ".png")), full_page=True)
+                        page.locator(f"#{view}-review-options > summary").click()
                         # Real Tab/Enter navigation, not an element.focus() substitute.
                         select.focus()
                         page.keyboard.press("Tab")
@@ -158,15 +159,15 @@ def main(argv: list[str] | None = None) -> int:
                     chart.click(position={"x": chart.bounding_box()["width"] * 0.45, "y": 30})
                 raw = response.value.json()
                 position = int(parse_qs(urlparse(response.value.url).query)["position"][0])
-                expect(page.locator("#anomaly-detail")).to_contain_text("입력과 모델 출력")
+                expect(page.locator("#anomaly-detail")).to_contain_text("원본 신호")
                 checks.add(
                     args.scenario + "-point-opens-raw-input",
                     response.value.ok and raw.get("available") is True,
                     {"position": position, "response_keys": sorted(raw)},
                 )
                 if args.scenario == "aihub":
-                    expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
-                    options = page.locator("#anomaly .phm-options summary")
+                    expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(1)
+                    options = page.locator("#anomaly .phm-options summary").last
                     if options.count():
                         options.click()
                     # Three phases in amperes, then three phases in volts, share their own axes.
@@ -231,6 +232,7 @@ def main(argv: list[str] | None = None) -> int:
                 # Simulate only the optional generation endpoint being unavailable.
                 # Analysis reads and real supervisor review writes continue normally.
                 panel = page.locator("#anomaly-explanation")
+                page.locator("#anomaly-review-options > summary").click()
                 panel.locator(".phm-ai-details summary").click()
                 page.route(
                     "**/api/v1/phm/explanations/request",
@@ -240,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 panel.get_by_role("button", name="AI 설명 생성").click()
                 expect(panel).to_contain_text("AI 설명 생성 불가 · 직접 검토는 계속할 수 있습니다")
-                expect(page.locator("#anomaly-cards")).to_contain_text("점수")
+                expect(page.locator("#anomaly-cards")).to_contain_text("참고 기준")
                 panel.get_by_role("button", name="검토 요청").click()
                 expect(panel.locator(".phm-review-status")).to_contain_text("확인 대기")
                 panel.get_by_label("검토 메모").fill(

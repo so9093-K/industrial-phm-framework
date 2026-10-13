@@ -1,0 +1,27 @@
+{
+  "code_revision": "b9ea855b90b0a98cb26aca40d7c5e346631e128a",
+  "scenario": "Read-only real Monitor → LSTM trace → recorded input → older bookmark/reload → latest → electrical trace → selected-asset return. Original records and frozen packages; no estimator runs.",
+  "checks": [
+    "real-monitor-link-opens-same-lstm-record",
+    "same-range-error-and-signal-trends",
+    "error-and-signal-deltas-match-original-records",
+    "both-trends-and-original-waveforms-visible-without-scroll-1440",
+    "review-ai-optional",
+    "three-widths-no-overflow",
+    "older-record-summary-raw-and-bookmark-stay-consistent-after-reload",
+    "model-selection-and-record-survive-reload",
+    "original-electrical-phases-share-units-and-axis",
+    "A-V-Hz-switch-keeps-source-window",
+    "back-to-monitor-keeps-selected-compressor"
+  ],
+  "page_errors": [],
+  "human_usability_acceptance": "Not established. Latest user feedback found the preceding detail view cluttered; this revision has not received user acceptance.",
+  "captures": {
+    "detail-observation-1440.png": "f50ed33d36b20d24d24bc739d48009ef411a63a37001200181022dfbbf62c499",
+    "detail-observation-1024.png": "1898b9baa5176f6832ad3fd3cab93f9f14497958b0e703b58d2e76031b888586",
+    "detail-observation-390.png": "39d53893dd30bc81f75b230efadbc4c014caa16d66dc71ea142f0e514997407d",
+    "detail-electrical-1440.png": "dbe20ec7637615514473890d495f3762a69a7ce9c22eb64ee41badd090179d2a",
+    "detail-electrical-1024.png": "84fd5a558ec9b143079cad69452475212947ba93fe121de31955950216bc2ae4",
+    "detail-electrical-390.png": "fa7161e2e12f9916ad9d58752d36f38546bbbc5cf7f7c9bc12a04f74deed4d51"
+  }
+}

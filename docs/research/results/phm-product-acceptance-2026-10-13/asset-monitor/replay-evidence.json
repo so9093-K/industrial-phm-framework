@@ -1,0 +1,410 @@
+{
+  "code_revision": "b9ea855b90b0a98cb26aca40d7c5e346631e128a",
+  "started_at": "2026-10-13T08:18:23.353307+00:00",
+  "scenario": "continuous-asset-monitor-original-replay",
+  "selection": {
+    "start_local": "2020-11-13T13:35:00",
+    "end_local": "2020-11-13T14:15:00",
+    "speed": 20
+  },
+  "package_ids": [
+    "aihub-239-electrical-pca-residual-v1-5e0d608be8c7",
+    "xjtu-sy-iforest-fold-1-finalized-v1-2ae8a27dfe43",
+    "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+    "xjtu-sy-rul-lstm-fold-1-v1-fad12998c873",
+    "xjtu-sy-rul-feature-ridge-fold-1-v1-837a017f45d1"
+  ],
+  "steady_requests": [
+    {
+      "seconds": 5.838,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 5.838,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 5.838,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 9.02,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 9.02,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 9.02,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 12.315,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 12.315,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 12.315,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 15.761,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 15.761,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 15.761,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 19.09,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 19.09,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 19.09,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 22.272,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 22.272,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 22.272,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 25.451,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 25.451,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 25.451,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 28.684,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 28.685,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 28.685,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 31.864,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 31.865,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 31.865,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 35.147,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 35.147,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 35.148,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 38.331,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 38.331,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 38.332,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 41.534,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 41.534,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 41.534,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 44.871,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 44.871,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 44.871,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 48.055,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 48.056,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 48.056,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 51.556,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 51.557,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 51.557,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 54.74,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 54.74,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 54.74,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 58.137,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 58.138,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 58.138,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 61.322,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 61.322,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 61.322,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 64.655,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 64.655,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 64.655,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 67.841,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 67.842,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 67.842,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 71.026,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 71.026,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 71.026,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 74.216,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 74.216,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 74.216,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 77.4,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 77.4,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 77.4,
+      "path": "/api/v1/sources"
+    }
+  ],
+  "phm_overview_http_ms": {
+    "count": 37,
+    "p50": 20.39,
+    "p95": 29.095,
+    "max": 68.842
+  },
+  "checks": [
+    {
+      "name": "page-open-before-inputs-two-assets-five-models",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "model-details-not-expanded-by-default",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-lstm-warmup-visible-on-monitor",
+      "pass": true,
+      "detail": "Bearing1_1\n기록 재생\n입력 준비 중\n입력 #2"
+    },
+    {
+      "name": "both-assets-change-without-manual-refresh",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-analysis-pause-keeps-input-and-last-output-distinct",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-refused-input-does-not-look-like-new-analysis",
+      "pass": true,
+      "detail": "Bearing1_1\n기록 재생\n최근 진동 파형을 읽을 수 없음\n입력 #10"
+    },
+    {
+      "name": "four-refusals-grouped-under-one-asset",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "attention-visible-without-scrolling-1440",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "node-outage-clears-old-results-on-monitor",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "restart-recovers-monitor-and-all-backlogged-model-inputs",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "previous-model-results-unchanged",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "steady-monitor-never-loads-model-history-or-refits-condition",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "overview-three-requests-plus-selected-input-and-bounded-trace",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-1440-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-1024-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-390-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "reconstruction-error-and-nonconsecutive-change-visible-without-details",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "actual-signal-visible-on-first-screen-1440",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "two-assets-visible-on-first-screen-1440",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-handoff-preserves-exact-model-position-waveform-after-reload",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "no-browser-page-errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "finished_at": "2026-10-13T08:20:37.084932+00:00"
+}

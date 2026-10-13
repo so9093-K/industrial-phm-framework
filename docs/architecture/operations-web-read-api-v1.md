@@ -515,9 +515,19 @@ secondary information.
 ## Asset Monitor PHM reads
 
 `GET /api/v1/phm/monitor` is an additive bounded projection of PHM bindings, input progress,
-last successful output, latest processed/refused input and review status. It returns at most
+last successful output, previous successful output, latest processed/refused input and review status. It returns at most
 100 binding rows, total/limit/truncated, and a separate review-read error. It never loads full
 step histories, waveform files or estimator payloads, and never fits or scores a model.
+The previous successful output is an indexed position-bounded read from the same binding;
+refused inputs are excluded and the browser labels nonconsecutive comparisons explicitly.
+Selected anomaly scores and reconstruction-error deltas remain visible without opening details.
+
+The detail view uses the selected record for its summary, model delta, original input and
+bookmark. Subsequent polling retains a selected record; explicit latest-follow mode updates
+the displayed record and bookmark together. Error and signal trends share a default contiguous
+range around that selection, with an explicit full-history choice. Independent units are never
+overlaid. Original phase signals use one same-unit group (A, V or Hz) at a time; unavailable
+observations remain gaps. These are presentations of existing stored quantities, not new inference.
 Transport evidence comes from the existing `/api/v1/monitor` and `/api/v1/sources` contracts;
 the browser makes three overview requests per cycle. Missing inputs do not prove a stopped sensor.
 
@@ -531,3 +541,17 @@ Polling runs only for visible active Monitor or PHM detail views. Overview failu
 previous model values and automatically retry; independent transport/review read failures remain
 visible. Manual condition fitting is excluded from overview refresh. These reads do not own
 collection, inference, deployment approval or asset-health semantics.
+
+`GET /api/v1/phm/trace?binding_id=...` returns at most 64 saved steps in ascending position
+order, including skipped steps. It reads the existing binding/position index without loading
+the full series. The browser renders saved input RMS features separately from model scores;
+it never joins missing/refused positions or treats an ordinal gap as a transport outage.
+The latest contiguous input segment is the default, with an explicit whole-range option.
+Magnitude changes compare the latest two available saved features, with an explicit distinction
+between consecutive and nonconsecutive positions. The earlier record is not a normal baseline.
+
+`GET /api/v1/phm/window-input?binding_id=...&position=...` provides the same quality-aware
+original window preview as `/phm/window`, including before scoring. The pending path requires
+the exact source/asset/measurement-point and encoded window-end position. It never substitutes
+another window and does not create analysis state. Original window/series/snapshot contracts
+are unchanged. These selected-input reads run only when the selection or input position changes.
