@@ -1,0 +1,420 @@
+"""M5/M7 product acceptance: AI-Hub 239 air-compressor OPC UA replay through the real node.
+
+One workspace, one continuous journey on device 1338's held-out period:
+
+    replay source -> per-device PCA package -> explicit binding -> supervisor -> OPC UA replay
+    with original timestamps (window latency measured) -> supervisor stop/restart while the
+    replay keeps publishing (a real collection gap) -> Web -> real local-main explanation ->
+    human review -> restart -> everything persisted; RUL screen states that no RUL applies
+
+    uv run --no-sync --with playwright python -m tools.phm.acceptance_aihub \\
+        --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \\
+        --output artifacts/acceptance/aihub
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import sys
+import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+from industrial_phm.adapters.aihub_power_history import PowerHistoryBinding
+from industrial_phm.application import CollectionDesiredState
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepResult, StepState
+from industrial_phm.demo.aihub_replay import (
+    ReplaySelection,
+    build_replay_manifest,
+    register_replay_source,
+    write_replay_manifest,
+)
+from industrial_phm.runtime.operations_workspace import (
+    OperationsWorkspace,
+    initialize_operations_workspace,
+)
+from tools.phm.acceptance_common import (
+    NOT_CAUGHT_UP,
+    Checks,
+    Supervisor,
+    check_explanation,
+    cli,
+    displayed,
+    free_port,
+    percentiles,
+    record_display,
+    reflection_latency,
+    set_config,
+    write_evidence,
+)
+
+MEMBER = "3.공기압축기/SourceData_16.json"
+BINDING = "tools/opcua/presets/aihub-air-compressor-1338-replay.json"
+SOURCE_ID = "aihub239-replay-air-compressor-1338"
+ASSET_ID = "aihub-air-compressor-1338"
+# Held-out period of device 1338 (training is the first 70% of its record, before 09:35 local).
+# 20x keeps delivery (35 values per recorded minute) below the collector's durable ingest rate, so
+# the outage below is the only gap; faster replay piles values up in the client queue, which a stop
+# does not drain by design (ADR-0010 loss boundary).
+START, END, SPEED = "2020-11-13T09:35:00", "2020-11-13T13:35:00", 20
+STOP_AFTER_SECONDS = 240
+WINDOW = timedelta(seconds=300)
+SEOUL = ZoneInfo("Asia/Seoul")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args(argv)
+    output = args.output.resolve()
+    if output.exists():
+        shutil.rmtree(output)
+    workspace = output / "ws"
+    checks = Checks()
+    evidence: dict[str, Any] = {
+        "scenario": "aihub-239-air-compressor-opcua-replay-product-acceptance",
+        "started_at": datetime.now(UTC).isoformat(),
+        "selection": {"member": MEMBER, "start_local": START, "end_local": END, "speed": SPEED},
+        "code_revision": subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False
+        ).stdout.strip(),
+    }
+
+    # 1. Replay source, workspace, package, binding --------------------------------------
+    # Initialize the node first, then register the replay source into it as the packaged AI-Hub
+    # demo does; the stand-alone `aihub_replay prepare` only accepts an empty directory.
+    opcua_port = free_port()
+    initialize_operations_workspace(OperationsWorkspace(workspace))
+    selection = ReplaySelection(
+        archive=args.archive,
+        member=MEMBER,
+        binding=PowerHistoryBinding(**json.loads(Path(BINDING).read_text(encoding="utf-8"))),
+        start_local=datetime.fromisoformat(START),
+        end_local=datetime.fromisoformat(END),
+    )
+    manifest = build_replay_manifest(f"opc.tcp://127.0.0.1:{opcua_port}/phm/", selection)
+    register_replay_source(
+        workspace,
+        selection,
+        manifest,
+        name="AI-Hub 239 recorded power (OPC UA replay)",
+        desired_state=CollectionDesiredState.STOPPED,
+        registered_at=datetime.fromisoformat(str(manifest["prepared_at"])),
+    )
+    write_replay_manifest(workspace, manifest)
+    ui_port = free_port()
+    set_config(workspace, "ui", "port", str(ui_port))
+    set_config(workspace, "collection", "window_duration_seconds", "300.0")
+    built = cli(
+        "operations",
+        "phm",
+        "package-aihub",
+        str(workspace),
+        "--archive",
+        str(args.archive),
+        "--member",
+        MEMBER,
+        "--candidate",
+        "pca-residual",
+    )
+    package_id = next(
+        line.split()[0].split("=")[1] for line in built.splitlines() if line.startswith("package=")
+    )
+    evidence["package_id"] = package_id
+    cli(
+        "operations",
+        "phm",
+        "bind",
+        str(workspace),
+        "--package",
+        package_id,
+        "--source-id",
+        SOURCE_ID,
+        "--asset-id",
+        ASSET_ID,
+        "--binding-id",
+        "aihub-1338",
+        "--recorded-replay",
+    )
+    cli(
+        "internal",
+        "request-collection",
+        "--workspace",
+        str(workspace),
+        "--source-id",
+        SOURCE_ID,
+        "--state",
+        "running",
+    )
+    store = SqlitePhmAnalysisStore(workspace / "phm-analysis.sqlite")
+    windows = SqliteObservationWindowRepository(workspace / "windows.sqlite")
+    supervisor = Supervisor(workspace, output / "supervisor.log")
+
+    from playwright.sync_api import expect, sync_playwright
+
+    with sync_playwright() as runtime:
+        browser = runtime.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1440, "height": 1000}, locale="ko-KR")
+        errors: list[str] = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        url = f"http://127.0.0.1:{ui_port}/web/"
+        server = None
+        try:
+            # 2. Replay with original timestamps; interrupt collection midway ---------------
+            evidence["supervisor_ready_seconds"] = [supervisor.start()]
+            replay_log = output / "replay.log"
+            server = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "tools.opcua.aihub_replay",
+                    "server",
+                    "--root",
+                    str(workspace),
+                    "--speed",
+                    str(SPEED),
+                    "--recorded-timestamps",
+                ],
+                stdout=replay_log.open("w"),
+                stderr=subprocess.STDOUT,
+            )
+            replay_began = time.monotonic()
+            page.goto(url + "#anomaly")
+            record_display(page, "anomaly-freshness")
+            shown_text: list[tuple[datetime, str]] = []
+            selected = interrupted = False
+            # The replay server stays up after publishing the selection; it is done when it says so.
+            while server.poll() is None and "replay selection finished" not in replay_log.read_text(
+                encoding="utf-8", errors="replace"
+            ):
+                time.sleep(1.5)
+                elapsed = time.monotonic() - replay_began
+                if not interrupted and elapsed > STOP_AFTER_SECONDS:
+                    stop_at = datetime.now(UTC)
+                    evidence["interruption"] = {"stopped_at_replay_seconds": round(elapsed, 1)}
+                    evidence["supervisor_stop_seconds"] = supervisor.stop()
+                    outage_began = time.monotonic()
+                    # While the node is down the screen must say it cannot read results,
+                    # not keep presenting the last analysis as current.
+                    try:
+                        expect(page.locator("#anomaly-state")).to_contain_text(
+                            "PHM 분석 결과를 읽지 못했습니다", timeout=10_000
+                        )
+                        outage_state = page.locator("#anomaly-state").inner_text()
+                    except AssertionError:
+                        outage_state = None
+                    checks.add("outage-shows-read-failure", outage_state is not None, outage_state)
+                    # The replay keeps publishing while nothing collects.
+                    time.sleep(max(0.0, 15 - (time.monotonic() - outage_began)))
+                    evidence["supervisor_ready_seconds"].append(supervisor.start())
+                    ready_at = datetime.now(UTC)
+                    evidence["interruption"]["restarted_at_replay_seconds"] = round(
+                        time.monotonic() - replay_began, 1
+                    )
+                    interrupted = True
+                    shown_text += displayed(page)
+                    page.reload()
+                    record_display(page, "anomaly-freshness")
+                    selected = False
+                    continue
+                option = page.locator('#anomaly-binding option[value="aihub-1338"]')
+                if not selected and option.count():
+                    page.select_option("#anomaly-binding", "aihub-1338")
+                    selected = True
+            evidence["replay_finished_seconds"] = round(time.monotonic() - replay_began, 1)
+            checks.add(
+                "replay-published-whole-selection",
+                "replay selection finished" in replay_log.read_text(encoding="utf-8"),
+                server.poll(),
+            )
+            # Let the coordinator close the last window and the runner catch up.
+            time.sleep(20)
+            shown_text += displayed(page)
+
+            # 3. Exactly-once over every finalized window, latency, gap honesty -------------
+            stream = [
+                w
+                for w in windows.list_windows()
+                if (w.source_id, w.asset_id) == (SOURCE_ID, ASSET_ID)
+            ]
+            results = {r.input_reference["window_id"]: r for r in store.list_results("aihub-1338")}
+            checks.add(
+                "every-finalized-window-has-one-result",
+                {w.window_id for w in stream} == set(results)
+                and len(results) == len(store.list_results("aihub-1338")),
+                {"windows": len(stream), "results": len(results)},
+            )
+            latency = [
+                (results[w.window_id].processed_at - w.finalized_at).total_seconds()
+                for w in stream
+                if w.window_id in results
+            ]
+            evidence["window_finalized_to_commit_seconds"] = percentiles(latency)
+            p95 = evidence["window_finalized_to_commit_seconds"]["p95"]
+            checks.add(
+                "window-finalized-to-commit-p95-le-10s", p95 is not None and p95 <= 10.0, p95
+            )
+            # The window screen shows "최신 분석 <event start> · 처리 <processed time>" for the
+            # latest analyzed window, so a commit is reflected once that start reaches it.
+            shown = [
+                (at, datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC))
+                for at, text in shown_text
+                if (match := re.search(r"최신 분석 (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) UTC", text))
+            ]
+            measured = [
+                (r.event_start.astimezone(UTC).replace(microsecond=0), r.processed_at)
+                for r in results.values()
+                if r.state is StepState.ANALYZED and r.event_start is not None
+            ]
+            screen_latency, not_caught_up = reflection_latency(measured, shown)
+            evidence["commit_to_screen_seconds"] = {
+                **percentiles(screen_latency),
+                "not_caught_up": not_caught_up,
+                "not_caught_up_meaning": NOT_CAUGHT_UP,
+                "screen_poll_ms": 3000,
+            }
+            checks.add("screen-caught-up-after-every-commit", not_caught_up == 0, not_caught_up)
+            p95 = evidence["commit_to_screen_seconds"]["p95"]
+            checks.add("commit-to-screen-p95-le-5s", p95 is not None and p95 <= 5.0, p95)
+            analyzed = [r for r in results.values() if r.state is StepState.ANALYZED]
+            skipped = [r for r in results.values() if r.state is not StepState.ANALYZED]
+            evidence["windows"] = {
+                "analyzed": len(analyzed),
+                "skipped": len(skipped),
+                "skip_reasons": sorted({(r.reason or "")[:120] for r in skipped}),
+                "event_span": [
+                    min(w.window_start for w in stream).isoformat() if stream else None,
+                    max(w.window_end for w in stream).isoformat() if stream else None,
+                ],
+                "accepted_events_per_window": sorted(w.accepted_event_count for w in stream),
+            }
+            # The outage in event time, from the replay's own publishing rule. Windows it touches
+            # must be absent or partial, and no window may be absent outside it (one window of
+            # margin: the edges depend on when the old session stopped and the new one subscribed).
+            rule = json.loads((workspace / "replay-log.jsonl").read_text("utf-8").splitlines()[0])
+
+            def event_at(wall: datetime) -> datetime:
+                started = datetime.fromisoformat(rule["replay_started_at"])
+                origin = datetime.fromisoformat(rule["source_start_local"]).replace(tzinfo=SEOUL)
+                return (origin + (wall - started) * float(rule["speed"])).astimezone(UTC)
+
+            outage = (event_at(stop_at), event_at(ready_at))
+            starts = {w.window_start.astimezone(UTC): w for w in stream}
+            first, last = min(starts), max(starts)
+            missing = [
+                first + i * WINDOW
+                for i in range(int((last - first) / WINDOW))
+                if first + i * WINDOW not in starts
+            ]
+            full = max(w.accepted_event_count for w in stream)
+
+            def touches_outage(start: datetime) -> bool:
+                return start < outage[1] + WINDOW and start + WINDOW > outage[0] - WINDOW
+
+            evidence["collection_outage"] = {
+                "event_range": [outage[0].isoformat(), outage[1].isoformat()],
+                "missing_windows": [t.isoformat() for t in missing],
+                "windows_touching_outage": {
+                    t.isoformat(): w.accepted_event_count
+                    for t, w in sorted(starts.items())
+                    if touches_outage(t)
+                },
+                "full_window_events": full,
+            }
+            checks.add(
+                "gap-lies-only-in-the-collection-outage",
+                all(touches_outage(t) for t in missing)
+                and all(
+                    w.accepted_event_count < full
+                    for t, w in starts.items()
+                    # Records are one per minute; a window that only grazes the outage edge
+                    # may still hold all of them.
+                    if min(t + WINDOW, outage[1]) - max(t, outage[0]) > timedelta(minutes=2)
+                ),
+                evidence["collection_outage"],
+            )
+
+            # 4. Real local-main explanation and human review on the screen -----------------
+            page.goto(url + "#anomaly")
+            page.select_option("#anomaly-binding", "aihub-1338")
+            panel = page.locator("#anomaly-explanation")
+            expect(panel).to_contain_text("AI 설명과 사람 검토", timeout=15_000)
+            panel.get_by_role("button", name="AI 설명 생성").click()
+            expect(panel.locator(".phm-ai-text")).not_to_be_empty(timeout=180_000)
+            explanation = check_explanation(checks, "", panel, window=True)
+            evidence["explanation"] = explanation
+            panel.get_by_role("button", name="검토 요청").click()
+            expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")
+            panel.get_by_label("검토 메모").first.fill("R/S/T 전류와 전압 원본 신호를 함께 확인함")
+            panel.get_by_role("button", name="검토 확인").click()
+            expect(panel.locator(".phm-review-history")).to_contain_text("검토 확인됨")
+            panel.get_by_role("button", name="검토 종료").click()
+            expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+            page.screenshot(path=str(output / "anomaly-reviewed.png"), full_page=True)
+            page.goto(url + "#rul")
+            expect(page.locator("#rul-state")).to_contain_text(
+                "근거가 없는 설비에는 표시하지 않습니다", timeout=15_000
+            )
+            checks.add(
+                "rul-screen-states-no-lifecycle-evidence",
+                True,
+                page.locator("#rul-state").inner_text(),
+            )
+
+            # 5. Restart: results, explanation, review persist --------------------------------
+            def committed() -> dict[str, StepResult]:
+                return {r.step_key: r for r in store.list_results("aihub-1338")}
+
+            before = committed()
+            supervisor.stop()
+            evidence["supervisor_ready_seconds"].append(supervisor.start())
+            time.sleep(10)
+            after = committed()
+            changed = [key for key, result in before.items() if after.get(key) != result]
+            # Re-subscribing delivers current values, which may close the window that was open
+            # when values stopped changing; that is a new window, never a re-analysis.
+            latest = max(r.event_start for r in before.values() if r.event_start is not None)
+            added = [after[key] for key in sorted(set(after) - set(before))]
+            evidence["results_added_after_restart"] = [
+                {"event_start": r.event_start, "state": r.state.value, "reason": r.reason}
+                for r in added
+            ]
+            checks.add(
+                "restart-keeps-committed-results-unchanged",
+                not changed
+                and all(r.event_start is not None and r.event_start > latest for r in added),
+                {"kept": len(before), "changed": changed, "added": len(added)},
+            )
+            page.goto(url + "#anomaly")
+            page.select_option("#anomaly-binding", "aihub-1338")
+            panel = page.locator("#anomaly-explanation")
+            expect(panel.locator(".phm-ai-text")).to_have_text(explanation["text"], timeout=15_000)
+            expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+            checks.add("restart-keeps-explanation-and-review", True)
+            page.screenshot(path=str(output / "anomaly-after-restart.png"), full_page=True)
+            checks.add("no-browser-errors", not errors, errors)
+        finally:
+            browser.close()
+            if server is not None and server.poll() is None:
+                server.terminate()
+            if supervisor.process is not None and supervisor.process.poll() is None:
+                supervisor.stop()
+
+    evidence["checks"] = checks.items
+    evidence["pass"] = checks.passed
+    evidence["finished_at"] = datetime.now(UTC).isoformat()
+    write_evidence(output / "evidence.json", evidence)
+    print("VERDICT", "PASS" if checks.passed else "FAIL")
+    return 0 if checks.passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

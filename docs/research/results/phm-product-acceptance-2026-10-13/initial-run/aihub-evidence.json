@@ -1,0 +1,205 @@
+{
+  "scenario": "aihub-239-air-compressor-opcua-replay-product-acceptance",
+  "started_at": "2026-10-13T01:03:41.587515+00:00",
+  "selection": {
+    "member": "3.공기압축기/SourceData_16.json",
+    "start_local": "2020-11-13T09:35:00",
+    "end_local": "2020-11-13T13:35:00",
+    "speed": 20
+  },
+  "code_revision": "69b339d1fea5b88358bd7940f26962e7e588ec9f",
+  "package_id": "aihub-239-electrical-pca-residual-v1-27186ea25144",
+  "supervisor_ready_seconds": [
+    1.8895051920007973,
+    1.9544777890005207,
+    1.9687957480000478
+  ],
+  "interruption": {
+    "stopped_at_replay_seconds": 240.1,
+    "restarted_at_replay_seconds": 258.4
+  },
+  "supervisor_stop_seconds": 1.2959235050002462,
+  "replay_finished_seconds": 725.0,
+  "window_finalized_to_commit_seconds": {
+    "count": 47,
+    "p50": 1.316,
+    "p95": 1.784,
+    "max": 2.045
+  },
+  "commit_to_screen_seconds": {
+    "count": 46,
+    "p50": 1.463,
+    "p95": 2.768,
+    "max": 2.825,
+    "unreflected": 0,
+    "screen_poll_ms": 3000
+  },
+  "windows": {
+    "analyzed": 46,
+    "skipped": 1,
+    "skip_reasons": [
+      "not evaluated: 2 running samples (current >= 1.0 A), 3 required"
+    ],
+    "event_span": [
+      "2020-11-13T00:35:00+00:00",
+      "2020-11-13T04:30:00+00:00"
+    ],
+    "accepted_events_per_window": [
+      70,
+      107,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175,
+      175
+    ]
+  },
+  "collection_outage": {
+    "event_range": [
+      "2020-11-13T01:52:56.553680+00:00",
+      "2020-11-13T01:59:01.563800+00:00"
+    ],
+    "missing_windows": [],
+    "windows_touching_outage": {
+      "2020-11-13T01:45:00+00:00": 175,
+      "2020-11-13T01:50:00+00:00": 107,
+      "2020-11-13T01:55:00+00:00": 70,
+      "2020-11-13T02:00:00+00:00": 175
+    },
+    "full_window_events": 175
+  },
+  "explanation": {
+    "text": "관측 사실\n기록 데이터 재생 결과로, 현재 현장 측정값이 아닙니다. 이상 점수는 0.1789이며, 이는 학습 기준 데이터와의 차이를 나타냅니다. 이 점수는 설정된 임계값 1.54 이하입니다.\n\n모델 해석\n이상 점수가 임계값보다 낮으므로, 이 데이터는 정상 범위 내에 있음을 시사합니다. 점수에 가장 크게 기여한 특징은 current.unbalance.mean_percent(0.1084), voltage.unbalance.mean_percent(0.05233), current.phase_t.mean_a(0.005074)입니다. 이는 현재 관측된 패턴이 학습된 운전 조건에서 크게 벗어나지 않음을 의미합니다.\n\n한계\n이 결과는 고장 확률이나 진단을 제공하지 않으며, 단지 모델 학습 데이터와의 차이(departure from this device's training windows)를 나타냅니다. 모델의 운영 합격 판정은 'not-yet-evaluated' 상태입니다.\n\n사람이 확인할 사항\n이상 점수가 낮아 현재는 이상 징후가 관찰되지 않았으나, 가장 큰 기여 특징인 전류 및 전압의 불균형(unbalance) 관련 신호들을 추가로 확인하여 설비 상태를 점검할 필요가 있습니다.",
+    "grounding_warning": ""
+  },
+  "results_added_after_restart": [],
+  "checks": [
+    {
+      "name": "outage-shows-read-failure",
+      "pass": true,
+      "detail": "PHM 분석 결과를 읽지 못했습니다. 운영 관리 화면에서 분석 프로세스 상태를 확인하세요."
+    },
+    {
+      "name": "replay-published-whole-selection",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "every-finalized-window-has-one-result",
+      "pass": true,
+      "detail": {
+        "windows": 47,
+        "results": 47
+      }
+    },
+    {
+      "name": "window-finalized-to-commit-p95-le-10s",
+      "pass": true,
+      "detail": 1.784
+    },
+    {
+      "name": "every-analyzed-window-reflected-on-screen",
+      "pass": true,
+      "detail": 0
+    },
+    {
+      "name": "commit-to-screen-p95-le-5s",
+      "pass": true,
+      "detail": 2.768
+    },
+    {
+      "name": "gap-lies-only-in-the-collection-outage",
+      "pass": true,
+      "detail": {
+        "event_range": [
+          "2020-11-13T01:52:56.553680+00:00",
+          "2020-11-13T01:59:01.563800+00:00"
+        ],
+        "missing_windows": [],
+        "windows_touching_outage": {
+          "2020-11-13T01:45:00+00:00": 175,
+          "2020-11-13T01:50:00+00:00": 107,
+          "2020-11-13T01:55:00+00:00": 70,
+          "2020-11-13T02:00:00+00:00": 175
+        },
+        "full_window_events": 175
+      }
+    },
+    {
+      "name": "real-local-main-explanation",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "explanation-numbers-grounded",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "rul-screen-states-no-lifecycle-evidence",
+      "pass": true,
+      "detail": "RUL 모델이 연결된 설비가 없습니다. RUL은 수명 종료 사건이 기록된 데이터로 검증된 모델에서만 제공하며, 근거가 없는 설비에는 표시하지 않습니다."
+    },
+    {
+      "name": "restart-keeps-committed-results-unchanged",
+      "pass": true,
+      "detail": {
+        "kept": 47,
+        "changed": [],
+        "added": 0
+      }
+    },
+    {
+      "name": "restart-keeps-explanation-and-review",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "no-browser-errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "pass": true,
+  "finished_at": "2026-10-13T01:16:44.985308+00:00"
+}
