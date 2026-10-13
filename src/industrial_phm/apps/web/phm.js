@@ -632,6 +632,11 @@ function renderRul() {
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
   const output = (entry.package && entry.package.output) || {};
+  if (rulFocusPosition !== null && entry.steps.get(rulFocusPosition)?.state !== "analyzed") {
+    state.className = "state error";state.textContent = "선택한 기록 " + stepLabel(entry, rulFocusPosition) + "은 분석되지 않았습니다.";
+    byId("rul-observation").textContent = "선택한 입력의 RUL을 표시할 수 없습니다.";
+    renderPhmExplanation("rul", "", null);renderModelCard(byId("rul-model"), entry.package);return;
+  }
   if (!analyzed.length) {
     byId("rul-observation").textContent = "분석 가능한 입력을 기다리고 있습니다.";
     renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;
