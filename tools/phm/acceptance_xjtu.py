@@ -45,8 +45,10 @@ from industrial_phm.models.package import (
 )
 from tools.phm.acceptance_common import (
     CLI,
+    NOT_CAUGHT_UP,
     Checks,
     Supervisor,
+    check_explanation,
     cli,
     displayed,
     free_port,
@@ -354,13 +356,14 @@ def main(argv: list[str] | None = None) -> int:
                 for r in results(anomaly_binding)
                 if r.position in set(range(1, 31)) | set(range(46, 61))
             ]
-            screen_latency, unreflected = reflection_latency(measured, shown)
+            screen_latency, not_caught_up = reflection_latency(measured, shown)
             evidence["commit_to_screen_seconds"] = {
                 **percentiles(screen_latency),
-                "unreflected": unreflected,
+                "not_caught_up": not_caught_up,
+                "not_caught_up_meaning": NOT_CAUGHT_UP,
                 "screen_poll_ms": 3000,
             }
-            checks.add("every-live-commit-reflected-on-screen", unreflected == 0, unreflected)
+            checks.add("screen-caught-up-after-every-commit", not_caught_up == 0, not_caught_up)
             p95 = evidence["commit_to_screen_seconds"]["p95"]
             checks.add("commit-to-screen-p95-le-5s", p95 is not None and p95 <= 5.0, p95)
 
@@ -397,11 +400,7 @@ def main(argv: list[str] | None = None) -> int:
                 expect(panel).to_contain_text("AI 설명과 사람 검토", timeout=15_000)
                 panel.get_by_role("button", name="AI 설명 생성").click()
                 expect(panel.locator(".phm-ai-text")).not_to_be_empty(timeout=180_000)
-                explanations[view] = {
-                    "text": panel.locator(".phm-ai-text").inner_text(),
-                    "grounding_warning": panel.locator(".phm-ai-warning").inner_text(),
-                    "status": panel.locator("[role=status]").first.inner_text(),
-                }
+                explanations[view] = check_explanation(checks, f"-{view}", panel, window=False)
                 panel.get_by_role("button", name="검토 요청").click()
                 expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")
                 panel.get_by_label("검토 메모").first.fill(f"{view}: 원본 파형과 추세를 확인함")
@@ -411,17 +410,6 @@ def main(argv: list[str] | None = None) -> int:
                 expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
                 page.screenshot(path=str(output / f"{view}-reviewed.png"), full_page=True)
             evidence["explanations"] = explanations
-            for view, item in explanations.items():
-                checks.add(
-                    f"real-local-main-explanation-{view}",
-                    bool(item["text"].strip()),
-                    item["status"],
-                )
-                checks.add(
-                    f"explanation-numbers-grounded-{view}",
-                    not item["grounding_warning"],
-                    item["grounding_warning"],
-                )
 
             # 8. Restart: results, explanation and review persist ------------------------
             before = {b: len(store.list_results(b)) for b in bindings.values()}

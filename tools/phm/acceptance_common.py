@@ -148,6 +148,13 @@ def displayed(page: Any) -> list[tuple[datetime, str]]:
     ]
 
 
+# Meaning of the screen counter recorded with each run's evidence.
+NOT_CAUGHT_UP = (
+    "commits after which the screen never showed that result or a newer one; a result superseded "
+    "between two polls counts as caught up once a newer one is shown"
+)
+
+
 def reflection_latency(
     commits: list[tuple[Any, datetime]],
     shown: list[tuple[datetime, Any]],
@@ -155,8 +162,9 @@ def reflection_latency(
     """Seconds from each commit until the screen first shows that result or a newer one.
 
     The screen polls on a fixed period while results may arrive faster, so a result can be
-    superseded before it is drawn; it is reflected once anything at least as new is shown.
-    Returns the latencies and how many commits were never reflected.
+    superseded before it is drawn; the screen has caught up once anything at least as new is
+    shown. This measures freshness, not that every individual result was drawn. Returns the
+    latencies and how many commits the screen never caught up with.
     """
     latencies, missing = [], 0
     for key, committed_at in commits:
@@ -166,3 +174,34 @@ def reflection_latency(
         else:
             missing += 1
     return latencies, missing
+
+
+def check_explanation(checks: Checks, suffix: str, panel: Any, *, window: bool) -> dict[str, Any]:
+    """Record the explanation panel and judge what the product guarantees about it.
+
+    Numbers must all come from the stored result. A status verdict ("정상 범위", "고장입니다")
+    is model text the product cannot prevent, so it must be flagged on the screen when present.
+    """
+    from industrial_phm.genai.local_explanation import verdict_phrases
+
+    item = {
+        "heading": panel.locator("h3").inner_text(),
+        "text": panel.locator(".phm-ai-text").inner_text(),
+        "warning": panel.locator(".phm-ai-warning").inner_text(),
+        "status": panel.locator("[role=status]").first.inner_text(),
+    }
+    item["verdict_phrases"] = verdict_phrases(item["text"])
+    checks.add(f"real-local-main-explanation{suffix}", bool(item["text"].strip()), item["status"])
+    checks.add(
+        f"explanation-numbers-grounded{suffix}",
+        "근거 대조 경고" not in item["warning"],
+        item["warning"],
+    )
+    checks.add(
+        f"explanation-status-verdict-flagged{suffix}",
+        not item["verdict_phrases"] or "판정 표현 경고" in item["warning"],
+        item["verdict_phrases"],
+    )
+    named = item["heading"].startswith("분석 윈도우 ") if window else "분석 #" in item["heading"]
+    checks.add(f"explanation-names-the-step{suffix}", named, item["heading"])
+    return item
