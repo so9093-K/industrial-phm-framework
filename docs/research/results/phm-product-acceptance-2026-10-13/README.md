@@ -55,8 +55,8 @@
 | 결함 | 수정 | 화면 |
 | --- | --- | --- |
 | 비호환 입력 거부가 들어온 채널만 보여주고 패키지 입력 규격·재학습 필요를 알리지 않음 | #545 | [수정 후](fix-incompatible-input-guidance.png) |
-| 설명 패널이 윈도우를 내부 정렬 키(`#1605241800000000`)로 표시 | 별도 PR | [수정 전](fix-explanation-before.png) · [수정 후](fix-explanation-after.png) |
-| local-main이 임계값 이하 점수를 "정상 범위"라고 판정(숫자 대조로는 잡히지 않음) | 별도 PR: 프롬프트 판정 금지 + 판정 표현 경고 | [수정 전](fix-explanation-before.png) · [수정 후](fix-explanation-after.png) |
+| 설명 패널이 윈도우를 내부 정렬 키(`#1605241800000000`)로 표시 | #546 | [수정 전](fix-explanation-before.png) · [수정 후](fix-explanation-after.png) |
+| local-main이 임계값 이하 점수를 "정상 범위"라고 판정(숫자 대조로는 잡히지 않음) | #546: 프롬프트 판정 금지 + 판정 표현 경고 | [수정 전](fix-explanation-before.png) · [수정 후](fix-explanation-after.png) |
 
 ## 한계와 관찰
 
