@@ -42,7 +42,9 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-cards")).not_to_contain_text("학습 범위")
                 pw.expect(page.locator("#anomaly-score-chart .condition-curve")).to_be_visible()
                 assert page.locator("#anomaly-score-chart").evaluate(
-                    "(e) => e.compareDocumentPosition(document.getElementById('anomaly-feature-chart')) & Node.DOCUMENT_POSITION_FOLLOWING"
+                    "(e) => (e.compareDocumentPosition("
+                    + "document.getElementById('anomaly-feature-chart')) "
+                    + "& Node.DOCUMENT_POSITION_FOLLOWING) !== 0"
                 )
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 수신")
                 page.locator("#anomaly-intervals button").first.click()
