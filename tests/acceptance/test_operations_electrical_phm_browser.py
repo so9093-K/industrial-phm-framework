@@ -15,7 +15,7 @@ from tests.support.electrical_phm import electrical_window, electrical_workspace
 from tests.support.window_analysis import START
 
 
-@pytest.mark.parametrize("width", [1024, 1440])
+@pytest.mark.parametrize("width", [390, 1024, 1440])
 def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_refresh(
     tmp_path: Path, width: int
 ) -> None:
@@ -38,7 +38,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("최신 이상 점수")
-                pw.expect(page.locator("#anomaly-asset-title")).to_contain_text("pump-1")
+                pw.expect(page.locator("#anomaly-asset-title")).to_contain_text("motor-7")
                 pw.expect(page.locator("#anomaly-cards")).not_to_contain_text("학습 범위")
                 pw.expect(page.locator("#anomaly-score-chart .condition-curve")).to_be_visible()
                 # Same-unit R/S/T values share a plot; no value rescaling or estimation.
@@ -69,6 +69,9 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 )
                 pw.expect(page.locator("#anomaly-features")).to_contain_text("R상 평균 전류 · A")
                 pw.expect(page.locator("#notice")).not_to_be_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
+                    "PHM page overflows the viewport"
+                )
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("관측 5개")
                 page.get_by_label("원본 신호 표시 방식").select_option("relative")
                 pw.expect(page.locator("#anomaly-detail .phm-raw")).to_contain_text(

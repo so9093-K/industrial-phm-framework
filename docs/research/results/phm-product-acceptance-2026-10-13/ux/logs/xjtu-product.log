@@ -1,0 +1,29 @@
+PASS restart-catches-up-backlog backlog=15
+PASS duplicate-delivery-is-ignored replay asset=Bearing1_1 delivered=0 already_present=10 last=10 (recorded replay)
+PASS delivered-acquisitions []
+PASS exactly-once-anomaly-score {'results': 68, 'analyzed': 68}
+PASS exactly-once-rul-estimate {'results': 68, 'analyzed': 68}
+PASS exactly-once-lstm-lstm-autoencoder-v1 {'results': 68, 'analyzed': 54}
+PASS sequence-survives-restart-and-restarts-after-gap-lstm-lstm-autoencoder-v1 [1, 2, 3, 4, 5, 6, 7, 62, 63, 64, 65, 66, 67, 68]
+PASS exactly-once-lstm-lstm-rul-v1 {'results': 68, 'analyzed': 54}
+PASS sequence-survives-restart-and-restarts-after-gap-lstm-lstm-rul-v1 [1, 2, 3, 4, 5, 6, 7, 62, 63, 64, 65, 66, 67, 68]
+PASS supply-to-commit-p95-le-2s-anomaly-score 1.005
+PASS supply-to-commit-p95-le-2s-rul-estimate 0.797
+PASS screen-caught-up-after-every-commit 0
+PASS commit-to-screen-p95-le-5s 3.025
+PASS incompatible-input-reason-on-screen 입력을 분석할 수 없습니다: channels differ from the package input: got ['x', 'y'], expected ['Horizontal_vibration_signals', 'Vertical_vibration_signals'] · 이 입력은 선택한 모델로 분석할 수 없습니다. 아래 모델 정보에서 필요한 입력 조건을 확인하고, 맞는 모델을 연결해야 합니다.
+PASS unloadable-package-on-screen 모델을 실행할 수 없습니다: model package payload digest mismatch: state.json
+PASS unloadable-package-produces-no-results 0
+PASS real-local-main-explanation-anomaly 아직 검토 요청이 없습니다.
+PASS explanation-numbers-grounded-anomaly 
+PASS explanation-status-verdict-flagged-anomaly []
+PASS explanation-names-the-step-anomaly 분석 #69 · 사람 검토
+PASS real-local-main-explanation-rul 아직 검토 요청이 없습니다.
+PASS explanation-numbers-grounded-rul 
+PASS explanation-status-verdict-flagged-rul []
+PASS explanation-names-the-step-rul 분석 #69 · 사람 검토
+PASS restart-keeps-results-unchanged {'anomaly-score-Bearing1_1': 68, 'rul-estimate-Bearing1_1': 68, 'lstm-lstm-autoencoder-v1-Bearing1_1': 68, 'lstm-lstm-rul-v1-Bearing1_1': 68}
+PASS restart-keeps-explanation-and-review-anomaly 
+PASS restart-keeps-explanation-and-review-rul 
+PASS no-browser-errors []
+VERDICT PASS

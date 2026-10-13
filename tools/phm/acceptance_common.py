@@ -188,7 +188,7 @@ def check_explanation(checks: Checks, suffix: str, panel: Any, *, window: bool) 
         "heading": panel.locator("h3").inner_text(),
         "text": panel.locator(".phm-ai-text").inner_text(),
         "warning": panel.locator(".phm-ai-warning").inner_text(),
-        "status": panel.locator("[role=status]").first.inner_text(),
+        "status": panel.locator(".phm-ai-details [role=status]").inner_text(),
     }
     item["verdict_phrases"] = verdict_phrases(item["text"])
     checks.add(f"real-local-main-explanation{suffix}", bool(item["text"].strip()), item["status"])

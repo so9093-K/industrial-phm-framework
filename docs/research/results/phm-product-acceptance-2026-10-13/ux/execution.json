@@ -1,0 +1,220 @@
+{
+  "issue": 552,
+  "product_code_revision": "30beec1aa0aacd8c63c1f7e592392f05530388b3",
+  "product_src_unchanged": true,
+  "locale": "ko-KR",
+  "browser": "Chromium 153.0.8010.12",
+  "checks": {
+    "chromium_tests": {
+      "passed": 15,
+      "skipped": 0
+    },
+    "unit_contract": {
+      "passed": 1164
+    },
+    "source_checks": {
+      "lock": {
+        "command": [
+          "uv",
+          "lock",
+          "--check"
+        ],
+        "exit_code": 0,
+        "output": "Resolved 89 packages in 0.92ms\n"
+      },
+      "ruff": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "operations",
+          "ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "output": "All checks passed!\n"
+      },
+      "format": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "operations",
+          "ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "output": "570 files already formatted\n"
+      },
+      "mypy": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "operations",
+          "mypy"
+        ],
+        "exit_code": 0,
+        "output": "Success: no issues found in 233 source files\n"
+      },
+      "catalog": {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "--extra",
+          "operations",
+          "python",
+          "-m",
+          "tools.research_catalog",
+          "--check"
+        ],
+        "exit_code": 0,
+        "output": "Research catalog matches canonical result artifacts\n"
+      }
+    }
+  },
+  "capture_tool_sha256": "fc423fa492b631762c649b5e81261e096517eb60e81015fe6595f381c1c9d80f",
+  "model_performance_is_not_a_ux_gate": true,
+  "screenshots": [
+    {
+      "file": "aihub-ai-unavailable-review-1440.png",
+      "width": 1440,
+      "height": 4191,
+      "bytes": 485443,
+      "sha256": "199ff3a7ec8f1ec1d6b2e34b53054f75840dd9b3a17be1e895b459a197a545e2"
+    },
+    {
+      "file": "aihub-aihub-1338-1024.png",
+      "width": 1024,
+      "height": 1834,
+      "bytes": 206688,
+      "sha256": "fba46b5561743dfbc7a79fdaa5d44f71244cb79e97544158563954e9cf8beee6"
+    },
+    {
+      "file": "aihub-aihub-1338-1440.png",
+      "width": 1440,
+      "height": 1988,
+      "bytes": 242137,
+      "sha256": "87e69bb9c4fb4522e1d8bfd13f103a19d9ed1a4ce8ee79d4acdfa911f36211bd"
+    },
+    {
+      "file": "aihub-aihub-1338-390.png",
+      "width": 390,
+      "height": 2164,
+      "bytes": 153271,
+      "sha256": "3268a2bc7c699c668926da2e648f199da3fe34f554c5fd9e9809307ca08f200c"
+    },
+    {
+      "file": "aihub-selected-input-1440.png",
+      "width": 1440,
+      "height": 3987,
+      "bytes": 476025,
+      "sha256": "25132916d944b69dd0592c1a285876ce73dece2dffb87e5e79031a2a0a5b5192"
+    },
+    {
+      "file": "xjtu-ai-unavailable-review-1440.png",
+      "width": 1440,
+      "height": 3039,
+      "bytes": 332160,
+      "sha256": "8230cf80139f88d5d7cc49a6f342be0d7346a82b20a57f55d958482a55d4b635"
+    },
+    {
+      "file": "xjtu-anomaly-score-Bearing1_1-1024.png",
+      "width": 1024,
+      "height": 2148,
+      "bytes": 211176,
+      "sha256": "e1655123d73295aed5a3d837a2c614922ed67839c59a187ef92152f48a0af4e0"
+    },
+    {
+      "file": "xjtu-anomaly-score-Bearing1_1-1440.png",
+      "width": 1440,
+      "height": 2437,
+      "bytes": 255284,
+      "sha256": "c696b78ae07ba3795f3d5832f41697284e6862150ee4dcff7c4545b34f0be849"
+    },
+    {
+      "file": "xjtu-anomaly-score-Bearing1_1-390.png",
+      "width": 390,
+      "height": 2286,
+      "bytes": 153893,
+      "sha256": "e2d94a4e2afb7c842a0157d373d434c0c1e624e5453f8de150efd6b649daef65"
+    },
+    {
+      "file": "xjtu-lstm-lstm-autoencoder-v1-Bearing1_1-1024.png",
+      "width": 1024,
+      "height": 2125,
+      "bytes": 220096,
+      "sha256": "ee3b9a829fb9f169af71fa9cf2389623e4e0450ebef8e3e164e9bab0670fe940"
+    },
+    {
+      "file": "xjtu-lstm-lstm-autoencoder-v1-Bearing1_1-1440.png",
+      "width": 1440,
+      "height": 2414,
+      "bytes": 266199,
+      "sha256": "78053839a7f2870441e779cc1f2a54da36ea6eafde4363e7752c2806afb899b2"
+    },
+    {
+      "file": "xjtu-lstm-lstm-autoencoder-v1-Bearing1_1-390.png",
+      "width": 390,
+      "height": 2300,
+      "bytes": 160609,
+      "sha256": "058133404fbca859fec90f11004b982d24802086960fefa21b77898eec0d5ac5"
+    },
+    {
+      "file": "xjtu-lstm-lstm-rul-v1-Bearing1_1-1024.png",
+      "width": 1024,
+      "height": 1485,
+      "bytes": 157578,
+      "sha256": "81de43369c065fff2fdcc6f8ae1020263995326649315e5f407413328c2cf176"
+    },
+    {
+      "file": "xjtu-lstm-lstm-rul-v1-Bearing1_1-1440.png",
+      "width": 1440,
+      "height": 1616,
+      "bytes": 170861,
+      "sha256": "4561d7d974c13883a34402f6ae97f0b0ee0d432077c6daf00e2c843072745563"
+    },
+    {
+      "file": "xjtu-lstm-lstm-rul-v1-Bearing1_1-390.png",
+      "width": 390,
+      "height": 1886,
+      "bytes": 137393,
+      "sha256": "db1d8ef87abed50275e17597267d26065f034a2bd526a45e1e69e31ff69230af"
+    },
+    {
+      "file": "xjtu-rul-estimate-Bearing1_1-1024.png",
+      "width": 1024,
+      "height": 1569,
+      "bytes": 162008,
+      "sha256": "4d808b6a567c3a26ddf509e27c6ba691449ed057b1ee942947759e2d34dc3a7f"
+    },
+    {
+      "file": "xjtu-rul-estimate-Bearing1_1-1440.png",
+      "width": 1440,
+      "height": 1700,
+      "bytes": 181578,
+      "sha256": "c49b4d487c5069c36ee6a860afa18fe02c478b594e96a205a1ac07cfc346bdd2"
+    },
+    {
+      "file": "xjtu-rul-estimate-Bearing1_1-390.png",
+      "width": 390,
+      "height": 1970,
+      "bytes": 135111,
+      "sha256": "816545725c5fa6b6823d5bba9a09f501b8b419d89b16a2551b6c6232210a4177"
+    },
+    {
+      "file": "xjtu-selected-input-1440.png",
+      "width": 1440,
+      "height": 2835,
+      "bytes": 322985,
+      "sha256": "6550355a8a280366cee9e9c53fdd6546a57fc5b2f0436fc30b9e14baec4df54e"
+    }
+  ]
+}

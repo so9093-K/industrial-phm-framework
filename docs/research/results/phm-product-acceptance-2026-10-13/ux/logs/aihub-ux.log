@@ -1,0 +1,45 @@
+PASS aihub-aihub-1338-1440-no-horizontal-overflow {'viewport': 1440, 'document': 1440}
+PASS aihub-aihub-1338-1440-ai-secondary 
+PASS aihub-aihub-1338-1440-threshold-is-not-health-verdict 46개 step 분석 · 1개 분석 불가(이유 기록) · 점수는 고장 확률이나 진단이 아닙니다. · 개발 모델: 합격 기준 검증 미완료
+PASS aihub-aihub-1338-1440-keyboard-focus-visible 
+PASS aihub-aihub-1338-1440-ai-summary-keyboard-reachable 
+PASS aihub-1440-no-browser-errors []
+PASS aihub-aihub-1338-1024-no-horizontal-overflow {'viewport': 1024, 'document': 1024}
+PASS aihub-aihub-1338-1024-ai-secondary 
+PASS aihub-aihub-1338-1024-threshold-is-not-health-verdict 46개 step 분석 · 1개 분석 불가(이유 기록) · 점수는 고장 확률이나 진단이 아닙니다. · 개발 모델: 합격 기준 검증 미완료
+PASS aihub-aihub-1338-1024-keyboard-focus-visible 
+PASS aihub-aihub-1338-1024-ai-summary-keyboard-reachable 
+PASS aihub-1024-no-browser-errors []
+PASS aihub-aihub-1338-390-no-horizontal-overflow {'viewport': 390, 'document': 390}
+PASS aihub-aihub-1338-390-ai-secondary 
+PASS aihub-aihub-1338-390-threshold-is-not-health-verdict 46개 step 분석 · 1개 분석 불가(이유 기록) · 점수는 고장 확률이나 진단이 아닙니다. · 개발 모델: 합격 기준 검증 미완료
+PASS aihub-aihub-1338-390-keyboard-focus-visible 
+PASS aihub-aihub-1338-390-ai-summary-keyboard-reachable 
+PASS aihub-390-no-browser-errors []
+PASS aihub-point-opens-raw-input {'position': 1605233700000000, 'response_keys': ['available', 'binding_id', 'channels', 'end', 'measurement_point_id', 'position', 'schema_version', 'start', 'window_id']}
+PASS aihub-three-phases-per-unit 3상 평균 전류 · A
+
+76.038 A
+50.006 A
+2020-11-13 00:35
+2020-11-13 04:25
+
+R상
+S상
+T상
+
+3상 평균 전압 · V
+
+225.2 V
+216.05 V
+2020-11-13 00:35
+2020-11-13 04:25
+
+R상
+S상
+T상
+
+관측 시각 · UTC · 그래프를 선택하면 그 step의 입력과 원본 파형을 확인합니다. 선은 연속 step만 연결합니다.
+PASS aihub-current-original-unit-axis {'ticks': ['76.038 A', '50.006 A', '2020-11-13 00:35', '2020-11-13 04:25'], 'source_min': 50.00625, 'source_max': 76.0375}
+PASS aihub-voltage-original-unit-axis {'ticks': ['225.2 V', '216.05 V', '2020-11-13 00:35', '2020-11-13 04:25'], 'source_min': 216.05, 'source_max': 225.2}
+PASS aihub-ai-unavailable-does-not-block-review 

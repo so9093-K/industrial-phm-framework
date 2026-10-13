@@ -1,0 +1,266 @@
+{
+  "scenario": "xjtu-sy-recorded-replay-product-acceptance",
+  "started_at": "2026-10-13T04:15:58.679312+00:00",
+  "code_revision": "30beec1aa0aacd8c63c1f7e592392f05530388b3",
+  "packages": {
+    "anomaly-score": "xjtu-sy-iforest-fold-1-finalized-v1-2ae8a27dfe43",
+    "rul-estimate": "xjtu-sy-rul-feature-ridge-fold-1-v1-837a017f45d1",
+    "lstm-lstm-autoencoder-v1": "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+    "lstm-lstm-rul-v1": "xjtu-sy-rul-lstm-fold-1-v1-fad12998c873"
+  },
+  "bindings": {
+    "anomaly-score": "anomaly-score-Bearing1_1",
+    "rul-estimate": "rul-estimate-Bearing1_1",
+    "lstm-lstm-autoencoder-v1": "lstm-lstm-autoencoder-v1-Bearing1_1",
+    "lstm-lstm-rul-v1": "lstm-lstm-rul-v1-Bearing1_1"
+  },
+  "supervisor_ready_seconds": [
+    1.947530633999122,
+    1.991659390998393,
+    1.993381585998577
+  ],
+  "phase_live_replay": "replay asset=Bearing1_1 delivered=30 already_present=0 last=30 (recorded replay)",
+  "supervisor_stop_seconds": 1.7718728489999194,
+  "supply_to_commit_seconds": {
+    "anomaly-score": {
+      "count": 53,
+      "p50": 0.345,
+      "p95": 1.005,
+      "max": 2.906
+    },
+    "rul-estimate": {
+      "count": 53,
+      "p50": 0.439,
+      "p95": 0.797,
+      "max": 2.192
+    },
+    "lstm-lstm-autoencoder-v1": {
+      "count": 53,
+      "p50": 0.373,
+      "p95": 0.643,
+      "max": 2.152
+    },
+    "lstm-lstm-rul-v1": {
+      "count": 53,
+      "p50": 0.4,
+      "p95": 0.755,
+      "max": 2.333
+    }
+  },
+  "commit_to_screen_seconds": {
+    "count": 45,
+    "p50": 1.618,
+    "p95": 3.025,
+    "max": 8.044,
+    "not_caught_up": 0,
+    "not_caught_up_meaning": "commits after which the screen never showed that result or a newer one; a result superseded between two polls counts as caught up once a newer one is shown",
+    "screen_poll_ms": 3000
+  },
+  "explanations": {
+    "anomaly": {
+      "heading": "분석 #69 · 사람 검토",
+      "text": "관측 사실\n이상 점수는 0.563460879582034이며, 설정된 임계값 0.7543955575234664 이하입니다. 입력된 데이터는 현재 현장에서 수신된 측정이 아닌 기록 데이터 재생 결과입니다. 이 모델은 변수별 기여도를 제공하지 않아 이상 점수의 원인 변수 추정이 불가능합니다.\n\n모델 해석\n이상 점수 0.5635는 학습 기준 데이터와 비교했을 때 얼마나 다른지를 나타내는 지표이며, 이 점수가 높을수록 학습 기준 데이터와 더 다름을 의미합니다. 현재 점수는 임계값보다 낮아, 모델링된 기준에 근거한 판단을 내릴 수 없습니다. 분석에 사용된 입력 값들은 모델이 학습된 운전 조건(35Hz12kN, 37.5Hz11kN, 40Hz10kN) 범위 내에 있습니다.\n\n한계\n이 점수는 고장 확률이나 특정 진단을 의미하지 않으며, 설비의 상태에 대한 최종적인 판정(정상/이상/고장)을 내릴 수 없습니다. 모델 패키지에는 운영 합격 여부가 기록되어 있지 않습니다.\n\n사람이 확인할 사항\n측정된 특징 값들(예: Horizontal_vibration_signals.absolute_peak: 6.327271461486816, Vertical_vibration_signals.rms: 0.6532330273448378)을 바탕으로 실제 설비의 상태를 검토하고, 점수 변화 추이를 추가로 확인해 볼 필요가 있습니다.",
+      "warning": "",
+      "status": "아직 검토 요청이 없습니다.",
+      "verdict_phrases": []
+    },
+    "rul": {
+      "heading": "분석 #69 · 사람 검토",
+      "text": "관측 사실\n기록 데이터 재생 결과입니다. 현재 현장에서 수신한 측정이 아닙니다.\n이 모델 패키지에는 운영 합격 판정이 기록되어 있지 않습니다. 합격·불합격을 언급하지 마세요.\n입력이 모델의 학습 운전 조건 안에 있습니다.\n\n모델 해석\nRUL 추정값 198.12 획득 간격는 데이터셋에서 마지막으로 기록된 획득까지 남은 간격의 추정입니다. 이는 물리적 고장 시각이 아닙니다.\n직전 추정 대비 변화는 -47.31 획득 간격으로, 획득 하나가 지날 때 추정이 시간 경과와 일치하면 변화는 -1이므로, 이번 변화는 그보다 46.31 획득 간격 더 크게 감소했습니다.\n불확실성(패키지 기록): not validated in RUL v1; no interval is reported.\n\n한계\n불확실성(패키지 기록): not validated in RUL v1; no interval is reported. 신뢰구간을 만들지 마세요.\n\n사람이 확인할 사항\n해당 추정값은 데이터셋에서 마지막으로 기록된 획득까지 남은 간격의 추정이며, 물리적 고장 시각이 아님을 유념해야 합니다.",
+      "warning": "",
+      "status": "아직 검토 요청이 없습니다.",
+      "verdict_phrases": []
+    }
+  },
+  "checks": [
+    {
+      "name": "restart-catches-up-backlog",
+      "pass": true,
+      "detail": "backlog=15"
+    },
+    {
+      "name": "duplicate-delivery-is-ignored",
+      "pass": true,
+      "detail": "replay asset=Bearing1_1 delivered=0 already_present=10 last=10 (recorded replay)"
+    },
+    {
+      "name": "delivered-acquisitions",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "exactly-once-anomaly-score",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 68
+      }
+    },
+    {
+      "name": "exactly-once-rul-estimate",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 68
+      }
+    },
+    {
+      "name": "exactly-once-lstm-lstm-autoencoder-v1",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 54
+      }
+    },
+    {
+      "name": "sequence-survives-restart-and-restarts-after-gap-lstm-lstm-autoencoder-v1",
+      "pass": true,
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68
+      ]
+    },
+    {
+      "name": "exactly-once-lstm-lstm-rul-v1",
+      "pass": true,
+      "detail": {
+        "results": 68,
+        "analyzed": 54
+      }
+    },
+    {
+      "name": "sequence-survives-restart-and-restarts-after-gap-lstm-lstm-rul-v1",
+      "pass": true,
+      "detail": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68
+      ]
+    },
+    {
+      "name": "supply-to-commit-p95-le-2s-anomaly-score",
+      "pass": true,
+      "detail": 1.005
+    },
+    {
+      "name": "supply-to-commit-p95-le-2s-rul-estimate",
+      "pass": true,
+      "detail": 0.797
+    },
+    {
+      "name": "screen-caught-up-after-every-commit",
+      "pass": true,
+      "detail": 0
+    },
+    {
+      "name": "commit-to-screen-p95-le-5s",
+      "pass": true,
+      "detail": 3.025
+    },
+    {
+      "name": "incompatible-input-reason-on-screen",
+      "pass": true,
+      "detail": "입력을 분석할 수 없습니다: channels differ from the package input: got ['x', 'y'], expected ['Horizontal_vibration_signals', 'Vertical_vibration_signals'] · 이 입력은 선택한 모델로 분석할 수 없습니다. 아래 모델 정보에서 필요한 입력 조건을 확인하고, 맞는 모델을 연결해야 합니다."
+    },
+    {
+      "name": "unloadable-package-on-screen",
+      "pass": true,
+      "detail": "모델을 실행할 수 없습니다: model package payload digest mismatch: state.json"
+    },
+    {
+      "name": "unloadable-package-produces-no-results",
+      "pass": true,
+      "detail": 0
+    },
+    {
+      "name": "real-local-main-explanation-anomaly",
+      "pass": true,
+      "detail": "아직 검토 요청이 없습니다."
+    },
+    {
+      "name": "explanation-numbers-grounded-anomaly",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "explanation-status-verdict-flagged-anomaly",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "explanation-names-the-step-anomaly",
+      "pass": true,
+      "detail": "분석 #69 · 사람 검토"
+    },
+    {
+      "name": "real-local-main-explanation-rul",
+      "pass": true,
+      "detail": "아직 검토 요청이 없습니다."
+    },
+    {
+      "name": "explanation-numbers-grounded-rul",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "explanation-status-verdict-flagged-rul",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "explanation-names-the-step-rul",
+      "pass": true,
+      "detail": "분석 #69 · 사람 검토"
+    },
+    {
+      "name": "restart-keeps-results-unchanged",
+      "pass": true,
+      "detail": {
+        "anomaly-score-Bearing1_1": 68,
+        "rul-estimate-Bearing1_1": 68,
+        "lstm-lstm-autoencoder-v1-Bearing1_1": 68,
+        "lstm-lstm-rul-v1-Bearing1_1": 68
+      }
+    },
+    {
+      "name": "restart-keeps-explanation-and-review-anomaly",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "restart-keeps-explanation-and-review-rul",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "no-browser-errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "pass": true,
+  "finished_at": "2026-10-13T04:20:52.043314+00:00"
+}

@@ -1,0 +1,6 @@
+workspace=/home/so/Desktop/WorkSpace/soyanchan/workspace/industrial-phm-framework/artifacts/acceptance/ux-552-aihub/ws operations_url=http://127.0.0.1:48457/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)
+workspace=/home/so/Desktop/WorkSpace/soyanchan/workspace/industrial-phm-framework/artifacts/acceptance/ux-552-aihub/ws operations_url=http://127.0.0.1:48457/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)
+workspace=/home/so/Desktop/WorkSpace/soyanchan/workspace/industrial-phm-framework/artifacts/acceptance/ux-552-aihub/ws operations_url=http://127.0.0.1:48457/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)

@@ -26,8 +26,9 @@ class _InProcessSupervisor:
         return execute_web_source_action(self.root, route, payload)
 
 
+@pytest.mark.parametrize("width", [390, 1024, 1440])
 def test_explanation_is_marked_reference_text_and_review_moves_through_its_states(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
 ) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "ws")
@@ -51,7 +52,7 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
             try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900}, locale="ko-KR")
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
@@ -85,6 +86,9 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 pw.expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
                 pw.expect(panel.get_by_role("button", name="검토 종료")).to_have_count(0)
                 pw.expect(panel.locator(".phm-review-status")).to_contain_text("정비 완료 아님")
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
+                    "PHM review page overflows the viewport"
+                )
                 assert not errors, errors
             finally:
                 browser.close()
