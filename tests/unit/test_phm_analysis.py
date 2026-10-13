@@ -403,6 +403,7 @@ def test_runner_processes_new_snapshots_and_skips_incompatible_ones(tmp_path: Pa
     (cycle,) = run_snapshot_bindings(store, repo, cache, now=_clock)
     assert [r.state for r in cycle.results] == [StepState.ANALYZED, StepState.SKIPPED]
     assert cycle.results[1].reason is not None and "channels differ" in cycle.results[1].reason
+    assert "expected" in cycle.results[1].reason  # names what the package needs, not only what came
     repo.record(_snapshot(_write_waveform(tmp_path / "3.csv", 3.0), 3))
     (cycle,) = run_snapshot_bindings(store, repo, cache, now=_clock)
     assert [r.position for r in cycle.results] == [3]
