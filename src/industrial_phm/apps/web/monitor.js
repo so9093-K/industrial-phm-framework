@@ -1,132 +1,233 @@
-// Asset-first monitoring reads persisted facts; it never runs analysis or calls AI.
+import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend} from "./monitor-signal.js";
+// Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
-const node = (tag, text = "", className = "") => {
-  const e = document.createElement(tag);e.textContent = text;e.className = className;return e;
-};
-const time = (at) => {
-  const stamp = at ? Date.parse(at) : NaN;
-  return Number.isFinite(stamp) ? new Date(stamp).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC") : "미확인";
-};
-const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "미확인";
+const node = (tag, text = "", className = "") => {const e = document.createElement(tag);e.textContent = text;e.className = className;return e;};
+const time = (at) => {const stamp = at ? Date.parse(at) : NaN;return Number.isFinite(stamp) ? new Date(stamp).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC") : "미확인";};
+const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "미평가";
 const active = () => document.body.dataset.view === "monitor" && !document.hidden;
-const labels = {processed: "최근 입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비",
-  rejected: "최근 입력 분석 거부", waiting: "확정된 입력 대기", unavailable: "모델 실행 불가"};
-const flows = {running: "수신 흐름 근거 있음", waiting: "수신 대기", delayed: "수신 지연", stopped: "수집 중지", error: "오류", unavailable: "미확인", "stored-history": "저장 이력", "needs-attention": "확인 필요"};
-const reviews = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료됨 · 정비 완료 아님"};
-const cards = new Map();
+const states = {processed: "입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비", rejected: "입력 분석 거부", waiting: "확정 입력 대기", unavailable: "모델 실행 불가"};
+const reviewLabels = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료 · 정비 완료 아님"};
 let timer = null, running = false, refreshRequested = false, readOperations;
-
-function metric(label, text) {
-  const e = node("article", "", "condition-card");e.append(node("span", label), node("strong", text));return e;
+let lastData = null, lastBase = null, selectedAsset = "", selectedStream = "", previousInput = false;
+let traceKey = "", traceVersion = 0, traceData = null;
+let preview = null, previewKey = "", choiceId = "rms-0", signalVersion = 0, detailsKey = "";
+const streamKey = (i) => JSON.stringify([i.source_id, i.measurement_point_id, i.step_kind]);
+const replay = (i) => i.recorded_replay || i.latest_delivered?.replay || i.latest_analyzed?.replay;
+const inputName = (i, v) => i.step_kind === "observation-window" ? time(v?.event_at || v?.event_start) : v ? "#" + v.position : "없음";
+const assetName = (id) => /^aihub-air-compressor-/.test(id) ? "공기압축기 " + id.replace("aihub-air-compressor-", "") : id;
+function friendlyReason(reason) {
+  if (/sha.?256|checksum|digest/i.test(reason || "")) return "전달 후 원본 변경 감지";
+  if (/channels differ|sampling rate|sample count|package expects/i.test(reason || "")) return "필요한 입력 규격과 다름";
+  if (/file|snapshot.*unavailable/i.test(reason || "")) return "원본 입력을 읽을 수 없음";
+  return "입력 조건 미충족";
 }
-function detailLink(item) {
-  const view = item.task === "rul-estimate" ? "rul" : "anomaly";
-  const url = new URL(location.href);
-  url.searchParams.set("phm_binding", item.binding_id);
-  url.searchParams.set("phm_position", item.latest_analyzed.position);
-  url.searchParams.set("phm_view", view);url.hash = view;
-  return url.pathname + url.search + url.hash;
+function role(item) {
+  const family = /lstm/i.test(item.recipe_id) ? "LSTM" : /ridge/i.test(item.recipe_id) ? "Ridge" : /pca/i.test(item.recipe_id) ? "PCA" : /iforest/i.test(item.recipe_id) ? "Isolation Forest" : "연결 모델";
+  return (item.task === "rul-estimate" ? "기록 RUL" : item.step_kind === "observation-window" ? "전기 이상" : "진동 이상") + " · " + family;
 }
-function modelRow(item, base) {
-  const row = node("div", "", "monitor-model");row.dataset.bindingId = item.binding_id;
-  const task = item.task === "rul-estimate" ? "RUL" : item.task === "anomaly-score" ? "이상 탐지" : "모델 종류 미확인";
-  row.append(node("h4", task + " · " + (item.recipe_id || item.package_id)));
-  row.append(node("p", "소스 " + item.source_id + (item.measurement_point_id ? " · 측정점 " + item.measurement_point_id : ""), "muted"));
-  const delivered = item.latest_delivered, last = item.latest_analyzed;
-  if (item.recorded_replay || delivered?.replay || last?.replay) row.append(node("span", "기록 재생 · 현장 수신 아님", "tag replay"));
-  const status = node("p", labels[item.processing_state] || "처리 상태 미확인", "monitor-processing");
-  row.append(status);
-  if (item.processing_reason && item.processing_state !== "processed") row.append(node("p", item.processing_reason, "monitor-reason"));
-  const source = (base.sources?.sources?.items || []).find((s) => s.source_id === item.source_id && s.asset_id === item.asset_id);
-  row.append(node("p", "수신 상태: " + (base.errors.length ? "일부 수신 근거 조회 실패" : source
-    ? source.continuous_collection_supported
-      ? (source.last_live_receive_fresh ? "30초 이내 수신 근거 있음" : "최근 수신 미확인")
-        + (source.recent_connected_evidence ? " · 최근 연결 근거 있음" : " · 현재 연결 미확인")
-      : "FILE 수신·저장 이력 (연속 수신 근거 아님)" : "획득 파일 전달 · 연결 상태 근거 없음"), "muted"));
-  if (source) row.append(node("p", "소스 수신 " + time(source.last_live_received_at || source.last_accepted_received_at), "muted"));
-  row.append(node("p", (item.step_kind === "observation-window" ? "최신 확정 윈도우 " + time(delivered?.event_at) : "최신 입력 " + (delivered ? "#" + delivered.position : "없음"))
-    + " · 저장 " + time(delivered?.delivered_at), "monitor-input"));
-  if (!last) {row.append(node("p", "저장된 분석 결과 없음 · RUL 지원 여부는 연결된 모델로 확인합니다."));return row;}
-  const stale = item.processing_state !== "processed";
-  const output = last.output;
-  const result = node("p", "", "monitor-output");
-  result.append(node("strong", (stale ? "이전 마지막 분석" : "최근 저장된 분석") + " · "));
-  if (item.task === "anomaly-score") {
-    result.append(document.createTextNode("이상 점수 " + number(output.score) + " · 참고 기준 " + number(output.threshold)
-      + (output.exceeds_threshold ? " 초과" : " 이하")));
-  } else if (item.task === "rul-estimate") {
-    result.append(document.createTextNode("RUL " + number(output.estimate) + " " + (output.unit === "acquisition-interval" ? "획득 간격" : output.unit || "단위 미확인")));
-    row.append(node("p", "기록 종료점까지의 추정 · 실제 고장 시각·정비 기한 아님 · 신뢰구간 미검증", "muted"));
-  } else result.append(document.createTextNode("결과 의미는 모델 정보에서 확인하세요."));
-  row.append(result);
-  row.append(node("p", "분석 " + (last.event_start ? time(last.event_start) : "#" + last.position) + " · 처리 " + time(last.processed_at), "monitor-analyzed"));
-  const acceptance = item.validation?.acceptance;
-  if (acceptance) row.append(node("p", "성능 검증: " + ({"not-yet-evaluated": "미검증", "FAIL": "불합격", "fail": "불합격", "research-functional-only": "연구 기능만 확인"}[acceptance] || acceptance) + " · 기준 비교는 설비 정상·고장 판정이 아닙니다.", "muted"));
-  row.append(node("p", "이 분석의 검토: " + (base.reviewError ? "조회 실패" : reviews[item.latest_review_status] || "요청 없음"), "muted"));
-  if (["anomaly-score", "rul-estimate"].includes(item.task)) {
-    const link = node("a", item.task === "rul-estimate" ? "이 시점의 RUL 상세 보기" : "이 시점의 추세·원본 입력 보기", "monitor-detail-link");
-    link.href = detailLink(item);link.dataset.bindingId = item.binding_id;row.append(link);
+function detailLink(item, position = item.latest_analyzed?.position) {
+  const url = new URL(location.href), view = item.task === "rul-estimate" ? "rul" : "anomaly";
+  url.searchParams.set("phm_binding", item.binding_id);url.searchParams.set("phm_position", position);
+  url.searchParams.set("phm_view", view);url.hash = view;return url.pathname + url.search + url.hash;
+}
+function assetFacts(assetId, items, base) {
+  const notes = [];
+  const count = (state) => items.filter((i) => i.processing_state === state).length;
+  if (count("rejected")) {
+    const causes = [...new Set(items.filter((i) => i.processing_state === "rejected").map((i) => friendlyReason(i.processing_reason)))];
+    notes.push({kind: "refusal", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "최근 진동 파형을 읽을 수 없음" : "최근 측정 입력을 분석하지 못함", detail: causes.join(" · ") + " · 원본 입력 확인 (" + count("rejected") + "개 분석 거부)", priority: 0});
   }
-  return row;
+  if (count("unavailable")) notes.push({kind: "unavailable", label: "분석 실행 불가", detail: count("unavailable") + "개 분석의 입력·모델 확인", priority: 0});
+  const sources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === assetId && s.continuous_collection_supported);
+  if (base.errors.length) notes.push({kind: "read", label: "수신 근거 조회 미확인", detail: "데이터 연결 확인", priority: 1});
+  else if (sources.some((s) => !s.last_live_receive_fresh)) notes.push({kind: "receipt", label: "최근 수신 미확인", detail: "30초 이내 수신 근거 없음 · 연결·재생 여부 확인", priority: 1});
+  if (count("pending")) notes.push({kind: "pending", label: "새 입력 분석 대기", detail: count("pending") + "개 분석 · 이전 결과와 구분", priority: 2});
+  const compared = items.filter((i) => i.processing_state === "processed" && typeof i.latest_analyzed?.output.exceeds_threshold === "boolean");
+  const exceeded = compared.filter((i) => i.latest_analyzed.output.exceeds_threshold);
+  if (exceeded.length) notes.push({kind: "threshold", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "진동 변화 확인 필요" : "전기 신호 변화 확인 필요", detail: "저장된 참고 기준 초과 · 신호 추세 확인 (" + exceeded.length + "개 분석)", priority: 3});
+  if (items.some((i) => ["open", "acknowledged"].includes(i.latest_review_status))) notes.push({kind: "review", label: "사람 검토 대기", detail: "선택 분석의 검토 상태 확인", priority: 4});
+  return {assetId, items, notes, compared, exceeded, warmup: count("warmup"), waiting: count("waiting"), priority: notes[0]?.priority ?? 5};
+}
+function selectAsset(assetId) {
+  selectedAsset = assetId;selectedStream = "";previousInput = false;previewKey = "";detailsKey = "";
+  if (lastData) render(lastData, lastBase);
 }
 function render(data, base) {
-  const state = byId("phm-monitor-state");
-  state.className = "state";
-  state.textContent = "3초 자동 조회 · 화면 확인 " + time(data.assessed_at) + " · 모델 " + data.items.length + "/" + data.total
-    + (data.truncated ? "개 표시 · 추가 모델은 조회 범위 밖" : "개")
-    + (base.errors.length ? " · 운영 수신 상태 일부 조회 실패" : "")
-    + (data.review_read_error ? " · PHM 검토 저장소 조회 실패" : "");
-  base.reviewError = data.review_read_error;
-  const summary = byId("phm-monitor-summary");
-  summary.replaceChildren(
-    metric("데이터 수신 · 조회 범위", base.errors.length ? "조회 미확인" : "30초 내 OPC UA " + (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length + " · 등록 " + (base.sources?.sources?.total ?? "미확인") + "개"),
-    metric("분석 처리 · 표시 모델", "대기 " + data.items.filter((i) => ["pending", "warmup", "waiting"].includes(i.processing_state)).length
-      + " · 거부/불가 " + data.items.filter((i) => ["rejected", "unavailable"].includes(i.processing_state)).length),
-    metric("저장된 기준 비교 · 표시 모델", "마지막 분석 초과 " + data.items.filter((i) => i.latest_analyzed?.output.exceeds_threshold).length),
-    metric("PHM 검토 기록 · 전체", data.review_read_error ? "조회 미확인" : "요청 " + data.reviews.open + " · 확인 " + data.reviews.acknowledged + " · 종료 " + data.reviews.closed),
-  );
+  lastData = data;lastBase = base;
   const grouped = new Map();
-  for (const item of data.items) {
-    if (!grouped.has(item.asset_id)) grouped.set(item.asset_id, []);
-    grouped.get(item.asset_id).push(item);
+  for (const i of data.items) {if (!grouped.has(i.asset_id)) grouped.set(i.asset_id, []);grouped.get(i.asset_id).push(i);}
+  for (const a of base.monitor?.assets?.items || []) if (!grouped.has(a.asset_id)) grouped.set(a.asset_id, []);
+  const facts = [...grouped].map(([id, items]) => assetFacts(id, items, base)).sort((a, b) => a.priority - b.priority || a.assetId.localeCompare(b.assetId));
+  if (!grouped.has(selectedAsset)) selectedAsset = facts[0]?.assetId || "";
+  const replayAssets = facts.filter((f) => f.items.some(replay)).length;
+  const mode = byId("monitor-data-mode");mode.className = "tag" + (replayAssets ? " replay" : "");
+  mode.textContent = replayAssets === facts.length && replayAssets ? "기록 재생 데이터" : replayAssets ? "기록 재생·기타 입력 혼합" : "저장·수신 데이터";
+  const received = (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length;
+  const intake = base.errors.length ? "수신 상태 미확인" : (base.sources?.sources?.items || []).some((s) => s.continuous_collection_supported)
+    ? "최근 " + (replayAssets ? "재생 " : "") + "수신 " + received + "개 소스 (30초)" : "저장된 기록 조회";
+  byId("phm-monitor-summary").textContent = "설비 " + facts.length + "대 · 확인 필요 " + facts.filter((f) => f.notes.length).length + "대 · " + intake;
+  byId("phm-monitor-state").className = "muted";
+  byId("phm-monitor-state").textContent = "3초 자동 조회 · 확인 " + time(data.assessed_at) + (base.errors.length ? " · 운영 수신 조회 미확인" : "")
+    + (data.truncated || base.monitor?.assets?.truncated ? " · 일부 설비·모델은 조회 범위 밖 (모델 " + data.items.length + "/" + data.total + ")" : "")
+    + (data.review_read_error ? " · 검토 조회 미확인" : "");
+  const attention = facts.filter((f) => f.notes.length);
+  const attentionRoot = byId("monitor-attention-list");attentionRoot.replaceChildren();
+  byId("monitor-attention-count").textContent = attention.length + "대 · 운영 확인 항목";
+  if (!attention.length) attentionRoot.append(node("p", "현재 조회 범위에 별도 확인 항목이 없습니다. 설비 정상 판정이 아닙니다.", "muted"));
+  for (const f of attention.slice(0, 4)) {
+    const button = node("button", "", "monitor-attention-item");button.type = "button";button.dataset.assetId = f.assetId;
+    button.append(node("strong", assetName(f.assetId)), node("span", f.notes.map((n) => n.label).join(" · ")), node("small", f.notes[0].detail + " → 신호 보기"));
+    button.addEventListener("click", () => {selectAsset(f.assetId);byId("monitor-signal-title").focus({preventScroll: true});});attentionRoot.append(button);
   }
-  // Registered/history assets without PHM packages remain visible, rather than implying RUL support.
-  for (const asset of base.monitor?.assets?.items || []) if (!grouped.has(asset.asset_id)) grouped.set(asset.asset_id, []);
+  if (attention.length > 4) attentionRoot.append(node("p", "추가 " + (attention.length - 4) + "대는 아래 설비 목록에서 확인", "muted"));
   const root = byId("phm-monitor-assets");
-  for (const [assetId, items] of grouped) {
-    const key = JSON.stringify([items, base.errors, base.reviewError, (base.monitor?.assets?.items || []).find((a) => a.asset_id === assetId),
-      (base.sources?.sources?.items || []).filter((s) => s.asset_id === assetId)]);
-    if (cards.get(assetId)?.key === key) continue;
-    const card = node("article", "", "monitor-asset");card.dataset.assetId = assetId;
-    card.append(node("h3", assetId));
-    const observedAsset = (base.monitor?.assets?.items || []).find((a) => a.asset_id === assetId);
-    if (observedAsset) card.append(node("p", "설비 수신 요약: " + (base.errors.length ? "조회 미확인" : flows[observedAsset.data_flow_status] || "미확인"), "muted"));
-    for (const item of items) card.append(modelRow(item, base));
-    if (items.length && !items.some((i) => i.task === "rul-estimate")) card.append(node("p", "RUL 연결 근거 없음 · 추정하지 않습니다.", "muted"));
-    if (!items.length) card.append(node("p", "PHM 모델 연결 없음 · 이상 점수·RUL을 생성하지 않습니다."));
-    const previous = cards.get(assetId)?.element;
-    const focused = previous?.contains(document.activeElement) ? document.activeElement.dataset.bindingId : null;
-    if (previous) previous.replaceWith(card);else root.append(card);
-    cards.set(assetId, {key, element: card});
-    if (focused) [...card.querySelectorAll("a")].find((a) => a.dataset.bindingId === focused)?.focus({preventScroll: true});
+  const focusAsset = root.contains(document.activeElement) ? document.activeElement.dataset.assetId : null;
+  root.replaceChildren();
+  for (const f of facts) {
+    const button = node("button", "", "monitor-asset");button.type = "button";button.dataset.assetId = f.assetId;button.setAttribute("aria-pressed", f.assetId === selectedAsset);
+    const heading = node("span", "", "monitor-asset-heading");heading.append(node("strong", assetName(f.assetId)), node("small", f.items.some(replay) ? "기록 재생" : "저장·수신"));
+    const message = f.notes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.items.length ? "최근 입력 처리됨" : "PHM 모델 미연결");
+    button.append(heading, node("span", message, f.notes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
+    const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
+    button.append(node("small", representative ? "입력 " + inputName(representative, representative.latest_delivered) : "입력 미확인"));
+    button.addEventListener("click", () => selectAsset(f.assetId));root.append(button);
   }
-  for (const [assetId, card] of cards) if (!grouped.has(assetId)) {card.element.remove();cards.delete(assetId);}
-  if (!grouped.size) root.replaceChildren(node("p", "연결된 PHM 모델과 관측 설비가 없습니다. 데이터 연결 화면에서 준비 상태를 확인하세요."));
-  else for (const empty of root.querySelectorAll(":scope > p")) empty.remove();
+  if (focusAsset) [...root.children].find((b) => b.dataset.assetId === focusAsset)?.focus({preventScroll: true});
+  byId("monitor-board").hidden = !facts.length;byId("monitor-analysis-details").hidden = !facts.length;
+  if (!facts.length) {root.append(node("p", "관측 설비 없음", "muted"));clearSignal();return;}
+  const selected = facts.find((f) => f.assetId === selectedAsset);
+  const inputs = selected.items.filter((i, index, all) => all.findIndex((j) => streamKey(j) === streamKey(i)) === index);
+  const item = inputs.find((i) => streamKey(i) === selectedStream) || inputs.find((i) => i.latest_delivered) || inputs[0];
+  selectedStream = item ? streamKey(item) : "";
+  const streamSelect = byId("monitor-input-stream");streamSelect.replaceChildren();
+  for (const input of inputs) {
+    const source = (base.sources?.sources?.items || []).find((s) => s.source_id === input.source_id);
+    const option = node("option", (source?.name || input.source_id) + (input.measurement_point_id ? " · " + input.measurement_point_id : ""));option.value = streamKey(input);streamSelect.append(option);
+  }
+  streamSelect.value = selectedStream;byId("monitor-stream-field").hidden = inputs.length < 2;
+  byId("monitor-signal-title").textContent = assetName(selectedAsset) + " · 측정 신호";byId("monitor-signal-title").tabIndex = -1;
+  byId("monitor-signal-mode").textContent = item && replay(item) ? "기록 재생" : "저장 입력";
+  byId("monitor-analysis-context").textContent = assetName(selectedAsset) + " · 연결 분석 " + selected.items.length + "개 · 기준 비교는 고장 판정이 아닙니다.";
+  if (byId("monitor-analysis-details").open) renderDetails(selected);
+  else {byId("monitor-analysis-models").replaceChildren();detailsKey = "";}
+  if (!item) {clearSignal();byId("monitor-signal-state").textContent = "모델에 연결된 원본 입력 없음 · 설비·신호 화면에서 저장 이력 확인";return;}
+  void loadSignal(item);void loadTrace(item);
 }
-function schedule() {
-  clearTimeout(timer);
-  if (active()) timer = setTimeout(refreshMonitor, POLL_MS);
+function clearSignal() {
+  signalVersion++;traceVersion++;preview = null;previewKey = "";traceKey = "";traceData = null;byId("monitor-score-chart").replaceChildren();byId("monitor-score-state").textContent = "";
+  byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-legend").textContent = "";
+  byId("monitor-signal-channel").replaceChildren();byId("monitor-signal-channel").disabled = true;
 }
+async function loadSignal(item) {
+  const delivered = item.latest_delivered, chosen = previousInput ? item.latest_analyzed : delivered;
+  const context = byId("monitor-signal-context");
+  context.textContent = (previousInput ? " 이전 입력 · " : "최신 입력 · ") + inputName(item, chosen)
+    + (delivered ? " · 저장 " + time(delivered.delivered_at) : "");
+  const previous = byId("monitor-last-good");previous.hidden = !item.latest_analyzed || item.latest_analyzed.position === delivered?.position;
+  previous.textContent = previousInput ? "최신 입력 보기" : "마지막 성공 입력 보기";
+  if (!chosen) {clearSignal();byId("monitor-signal-state").textContent = "원본 입력 수신을 기다립니다.";return;}
+  const key = JSON.stringify([item.binding_id, chosen.position, previousInput]);
+  if (key === previewKey && preview?.available) return;
+  const version = ++signalVersion;previewKey = key;preview = null;
+  byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-state").textContent = "원본 신호 조회 중";
+  try {
+    const route = item.step_kind === "observation-window" ? "window-input" : "snapshot";
+    const response = await fetch("/api/v1/phm/" + route + "?binding_id=" + encodeURIComponent(item.binding_id) + "&position=" + chosen.position + "&bins=400", {signal: AbortSignal.timeout(5000)});
+    const data = await response.json();
+    if (version !== signalVersion || !active()) return;
+    if (!response.ok || !data.available) throw new Error(data.reason || "원본 조회 실패");
+    preview = data;
+    const choices = monitorChoices(data), select = byId("monitor-signal-channel");select.replaceChildren();
+    for (const choice of choices) {const option = node("option", choice.name);option.value = choice.id;select.append(option);}
+    if (!choices.some((c) => c.id === choiceId)) choiceId = choices[0]?.id;
+    select.value = choiceId;select.disabled = false;
+    byId("monitor-signal-state").textContent = data.sample_count ? "최근 획득의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 시각 UTC";
+    updateLegend();
+    paintSignal();
+  } catch (error) {
+    if (version !== signalVersion || !active()) return;
+    byId("monitor-signal-chart").replaceChildren();byId("monitor-signal-channel").disabled = true;
+    byId("monitor-signal-state").textContent = "선택 입력의 원본을 표시할 수 없습니다: " + friendlyReason(error.message);
+    byId("monitor-signal-legend").textContent = "다른 시점의 신호로 대체하지 않습니다.";
+  }
+}
+async function loadTrace(item) {
+  const key = JSON.stringify([item.binding_id, item.latest_processed?.position, item.processing_state]);
+  if (traceKey === key) return;traceKey = key;
+  const version = ++traceVersion;traceData = null;
+  byId("monitor-score-chart").replaceChildren();
+  const last = item.latest_analyzed, current = item.processing_state === "processed";
+  byId("monitor-score-state").textContent = role(item) + (current ? " · 저장된 최근 결과" : " · 이전 분석 결과, 최신 입력 미평가")
+    + (last ? item.task === "rul-estimate" ? " · RUL " + number(last.output.estimate) : " · 점수 " + number(last.output.score) + " / 기준 " + number(last.output.threshold) : " · 결과 대기");
+  try {
+    const response = await fetch("/api/v1/phm/trace?binding_id=" + encodeURIComponent(item.binding_id), {signal: AbortSignal.timeout(5000)});
+    const data = await response.json();
+    if (version !== traceVersion || !active()) return;
+    if (!response.ok || data.binding_id !== item.binding_id) throw new Error("wrong_trace");
+    traceData = {steps: data.steps, task: item.task, threshold: last?.output.threshold};
+    drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);paintSignal();
+  } catch {
+    if (version !== traceVersion || !active()) return;
+    traceKey = "";byId("monitor-score-state").textContent = "저장 결과 추세 조회 실패 · 자동 재조회";
+  }
+}
+function monitorChoices(data) {
+  const originals = signalChoices(data);
+  return data?.sample_count ? [
+    ...data.channels.map((c, i) => ({id: "rms-" + i, name: (i === 0 ? "수평" : "수직") + " 진동 크기 추세 · RMS"})),
+    ...originals.map((c) => ({...c, name: c.name + " · 최근 원본 파형"})),
+  ] : originals;
+}
+function paintSignal() {
+  if (!preview?.available) return;
+  if (choiceId.startsWith("rms-") && preview.sample_count) {
+    const channelIndex = Number(choiceId.slice(4)), channel = preview.channels[channelIndex]?.channel;
+    const count = (traceData?.steps || []).filter((s) => s.features && Object.keys(s.features).some((key) => key.endsWith(channel + ".rms"))).length;
+    if (count < 2) {
+      drawSignal(byId("monitor-signal-chart"), preview, String(channelIndex));
+      byId("monitor-signal-state").textContent = "크기 추세 축적 대기 · 현재 입력의 원본 파형";
+      byId("monitor-signal-legend").textContent = "원본 표본 구간별 최솟값·최댓값 · 단위 미확인";return;
+    }
+    drawMeasuredTrend(byId("monitor-signal-chart"), traceData.steps, channel);
+    byId("monitor-signal-state").textContent = "획득별 원본 진동 크기(RMS) · 저장된 통계 특징 · 단위 미확인";
+  } else {
+    drawSignal(byId("monitor-signal-chart"), preview, choiceId);
+    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 시각 UTC";
+  }
+  updateLegend();
+}
+function updateLegend() {
+  if (!preview?.available) return;
+  const choice = signalChoices(preview).find((c) => c.id === choiceId);
+  byId("monitor-signal-legend").textContent = choiceId.startsWith("rms-") ? "원본에서 계산해 저장한 크기입니다. 미전달·미평가 구간은 연결하지 않습니다." : preview.sample_count ? "표본 구간별 최솟값·최댓값을 표시합니다."
+    : choice?.channels.length === 3 ? "R상 ━ · S상 ┄ · T상 ⋯ · 원본 단위로 비교" : (choice?.name || "") + " · 원본 관측";
+}
+function renderDetails(facts) {
+  const key = JSON.stringify(facts.items);
+  if (detailsKey === key) return;detailsKey = key;
+  const root = byId("monitor-analysis-models");root.replaceChildren();
+  for (const item of facts.items) {
+    const row = node("article", "", "monitor-model");row.dataset.bindingId = item.binding_id;
+    row.append(node("h4", role(item)), node("p", states[item.processing_state] || "상태 미확인"));
+    const last = item.latest_analyzed;
+    if (last) {
+      const o = last.output, older = item.processing_state !== "processed" ? "이전 결과 · " : "";
+      row.append(node("p", older + (item.task === "rul-estimate" ? "RUL " + number(o.estimate) + " 획득 간격" : "점수 " + number(o.score) + " · 참고 기준 " + number(o.threshold) + (o.exceeds_threshold ? " 초과" : " 이하"))));
+      row.append(node("p", "분석 " + inputName(item, last) + " · " + (reviewLabels[item.latest_review_status] || "검토 요청 없음"), "muted"));
+      const link = node("a", item.task === "rul-estimate" ? "RUL·검토 상세" : "이 시점의 추세·원본 입력 보기");link.href = detailLink(item);row.append(link);
+    }
+    const technical = node("details", "", "monitor-technical");technical.append(node("summary", "모델·처리 근거"), node("p", "패키지 " + item.package_id), node("p", item.processing_reason || "입력 처리 근거 있음"), node("p", "성능 검증 " + (item.validation?.acceptance || "별도 검증 기록 확인")));
+    row.append(technical);root.append(row);
+  }
+}
+function schedule() {clearTimeout(timer);if (active()) timer = setTimeout(refreshMonitor, POLL_MS);}
 export async function refreshMonitor() {
   if (!active()) return;
   if (running) {refreshRequested = true;return;}
   running = true;clearTimeout(timer);
   try {
-    const [response, base] = await Promise.all([
-      fetch("/api/v1/phm/monitor", {cache: "no-store", signal: AbortSignal.timeout(5000)}), readOperations(),
-    ]);
+    const [response, base] = await Promise.all([fetch("/api/v1/phm/monitor", {cache: "no-store", signal: AbortSignal.timeout(5000)}), readOperations()]);
     const data = await response.json();
     if (!response.ok || data.schema_version !== 1 || !Array.isArray(data.items)) throw new Error("read_failed");
     if (active()) render(data, base);
@@ -134,18 +235,20 @@ export async function refreshMonitor() {
   } catch {
     if (active()) {
       byId("phm-monitor-state").className = "state error";
-      byId("phm-monitor-state").textContent = "PHM 조회 실패 · 이전 분석값을 현재 상태로 표시하지 않습니다. 자동으로 재조회합니다.";
-      byId("phm-monitor-summary").replaceChildren();byId("phm-monitor-assets").replaceChildren();cards.clear();
+      byId("phm-monitor-state").textContent = "PHM 조회 실패 · 이전 결과를 표시하지 않습니다. 자동 재조회합니다.";
+      byId("phm-monitor-summary").textContent = "관측 상태 미확인";byId("phm-monitor-assets").replaceChildren();byId("monitor-attention-list").replaceChildren();
+      byId("monitor-analysis-models").replaceChildren();byId("monitor-board").hidden = true;byId("monitor-analysis-details").hidden = true;clearSignal();
     }
-  } finally {
-    running = false;
-    if (refreshRequested) {refreshRequested = false;void refreshMonitor();} else schedule();
-  }
+  } finally {running = false;if (refreshRequested) {refreshRequested = false;void refreshMonitor();} else schedule();}
 }
 export function initializeMonitor(read) {
   readOperations = read;
   const start = () => {clearTimeout(timer);if (active()) void refreshMonitor();};
-  window.addEventListener("hashchange", start);
-  document.addEventListener("visibilitychange", start);
+  window.addEventListener("hashchange", start);document.addEventListener("visibilitychange", start);
+  byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
+  byId("monitor-signal-channel").addEventListener("change", (e) => {choiceId = e.target.value;paintSignal();});
+  byId("monitor-last-good").addEventListener("click", () => {previousInput = !previousInput;previewKey = "";if (lastData) render(lastData, lastBase);});
+  byId("monitor-analysis-details").addEventListener("toggle", () => {if (lastData && byId("monitor-analysis-details").open) render(lastData, lastBase);});
+  new ResizeObserver(() => {if (active()) {if (preview?.available) paintSignal();if (traceData) drawTrace(byId("monitor-score-chart"), traceData.steps, traceData.task, traceData.threshold);}}).observe(byId("monitor-signal-chart"));
   schedule();
 }

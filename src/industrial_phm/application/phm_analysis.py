@@ -398,6 +398,20 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in rows)
 
+    def recent_results(self, binding_id: str, *, limit: int = 64) -> tuple[StepResult, ...]:
+        """Bounded chronological tail for a selected asset's displayed trace."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 128:
+            raise PhmAnalysisError("recent result limit must be between 1 and 128")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM step_result WHERE binding_id = ? ORDER BY position DESC LIMIT ?",
+                (binding_id, limit),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_result(row) for row in reversed(rows))
+
     def get_result(self, binding_id: str, position: int) -> StepResult | None:
         connection = self._connect()
         try:

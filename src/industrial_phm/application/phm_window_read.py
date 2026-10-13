@@ -6,6 +6,7 @@ from typing import Any
 
 from industrial_phm.application.analysis_input import window_channel_observations
 from industrial_phm.application.electrical_window_features import resolve_electrical_roles
+from industrial_phm.application.observation_window import DurableObservationWindow
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_read import PhmReadError
@@ -38,6 +39,35 @@ def project_phm_window(
         binding.measurement_point_id,
     ):
         raise PhmReadError("window does not belong to binding")
+    return _window_preview(window, binding_id, position)
+
+
+def project_monitor_window(
+    store: SqlitePhmAnalysisStore,
+    windows: SqliteObservationWindowRepository,
+    *,
+    binding_id: str,
+    position: int,
+) -> dict[str, Any]:
+    """Read the exact finalized input even while its model is waiting to process it."""
+    binding = next((b for b in store.list_bindings() if b.binding_id == binding_id), None)
+    if binding is None or binding.step_kind is not StepKind.OBSERVATION_WINDOW:
+        raise PhmReadError("window binding unavailable")
+    if store.get_result(binding_id, position) is not None:
+        return project_phm_window(store, windows, binding_id=binding_id, position=position)
+    if not windows.path.exists():
+        raise PhmReadError("finalized input unavailable")
+    window = windows.latest_for_stream(
+        binding.source_id, binding.asset_id, binding.measurement_point_id
+    )
+    if window is None or int(window.window_end.timestamp() * 1_000_000) != position:
+        raise PhmReadError("selected finalized input unavailable")
+    return _window_preview(window, binding_id, position)
+
+
+def _window_preview(
+    window: DurableObservationWindow, binding_id: str, position: int
+) -> dict[str, Any]:
     observations = window_channel_observations(window)
     if len(observations) > 2_000:
         return {"available": False, "reason": "window exceeds preview limit"}

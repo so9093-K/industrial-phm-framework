@@ -23,6 +23,64 @@ def test_empty_monitor_does_not_initialize_an_analysis_store(tmp_path: Path) -> 
     assert not workspace.phm_analysis_path.exists()
 
 
+def test_finalized_signal_is_readable_before_model_processing(tmp_path: Path) -> None:
+    from industrial_phm.application.observation_window_sqlite import (
+        SqliteObservationWindowRepository,
+    )
+    from tests.support.electrical_phm import electrical_window, electrical_workspace
+    from tests.support.window_analysis import START
+
+    workspace = electrical_workspace(tmp_path / "ws")
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    binding = store.list_bindings()[0]
+    window = electrical_window("pending-input", START, 12.0)
+    SqliteObservationWindowRepository(workspace.window_state_path).record_window(window)
+    position = int(window.window_end.timestamp() * 1_000_000)
+    status, result = handle_phm_read(
+        workspace,
+        "/api/v1/phm/window-input",
+        f"binding_id={binding.binding_id}&position={position}",
+    )
+    assert status == 200 and result["available"] is True
+    assert result["window_id"] == window.window_id and len(result["channels"]) == 7
+    assert store.list_results(binding.binding_id) == ()
+    assert (
+        handle_phm_read(
+            workspace,
+            "/api/v1/phm/window-input",
+            f"binding_id={binding.binding_id}&position={position + 1}",
+        )[0]
+        == 400
+    )
+
+
+def test_selected_trace_is_a_bounded_tail_including_refused_input(tmp_path: Path) -> None:
+    from industrial_phm.application.phm_analysis import PreparedStep, StepEvaluation, StepState
+
+    workspace = phm_workspace(tmp_path / "ws")
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    binding = store.list_bindings()[0]
+    for position in range(1, 81):
+        store.commit_step(
+            binding.binding_id,
+            PreparedStep(str(position), position, True, {}, skip_reason="missing input"),
+            evaluate=lambda state, step: StepEvaluation(
+                StepState.SKIPPED, {}, state, "missing input"
+            ),
+            package_id=binding.package_id,
+            processed_at=T0,
+            feature_names=(),
+        )
+    cursor = store.latest_change_seq()
+    status, result = handle_phm_read(
+        workspace, "/api/v1/phm/trace", f"binding_id={binding.binding_id}"
+    )
+    assert status == 200 and len(result["steps"]) == 64
+    assert [s["position"] for s in result["steps"]] == list(range(17, 81))
+    assert all(s["state"] == "skipped" for s in result["steps"])
+    assert store.latest_change_seq() == cursor
+
+
 def test_monitor_distinguishes_new_input_refusal_and_an_exact_saved_result(tmp_path: Path) -> None:
     workspace = phm_workspace(tmp_path / "ws")
     deliver(workspace, tmp_path / "waves", 1, 0.5)

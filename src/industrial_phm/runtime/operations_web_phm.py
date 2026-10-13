@@ -25,9 +25,10 @@ from industrial_phm.application.phm_read import (
     project_phm_monitor,
     project_phm_result,
     project_phm_series,
+    project_phm_trace,
     project_snapshot_preview,
 )
-from industrial_phm.application.phm_window_read import project_phm_window
+from industrial_phm.application.phm_window_read import project_monitor_window, project_phm_window
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 PHM_READ_ROUTES = frozenset(
@@ -35,6 +36,8 @@ PHM_READ_ROUTES = frozenset(
         "/api/v1/phm/bindings",
         "/api/v1/phm/monitor",
         "/api/v1/phm/result",
+        "/api/v1/phm/trace",
+        "/api/v1/phm/window-input",
         "/api/v1/phm/series",
         "/api/v1/phm/snapshot",
         "/api/v1/phm/window",
@@ -89,6 +92,15 @@ def handle_phm_read(
                 store, workspace.models_path, snapshots, windows=windows
             )
         binding_id = _required_id(params, "binding_id")
+        if path == "/api/v1/phm/trace":
+            return HTTPStatus.OK, project_phm_trace(store, binding_id=binding_id)
+        if path == "/api/v1/phm/window-input":
+            return HTTPStatus.OK, project_monitor_window(
+                store,
+                windows,
+                binding_id=binding_id,
+                position=_int(params, "position", default=None, minimum=1),
+            )
         if path == "/api/v1/phm/result":
             return HTTPStatus.OK, project_phm_result(
                 store,

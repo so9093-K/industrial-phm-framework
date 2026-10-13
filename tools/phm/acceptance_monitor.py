@@ -173,17 +173,21 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 url = f"http://127.0.0.1:{port}/web/"
                 page.goto(url + "#monitor")
-                model = page.locator('.monitor-model[data-binding-id="anomaly-score-Bearing1_1"]')
-                lstm = page.locator(
-                    '.monitor-model[data-binding-id="lstm-lstm-autoencoder-v1-Bearing1_1"]'
+                model = page.locator('.monitor-asset[data-asset-id="Bearing1_1"]')
+                compressor = page.locator(
+                    '.monitor-asset[data-asset-id="aihub-air-compressor-1338"]'
                 )
-                compressor = page.locator('.monitor-model[data-binding-id="aihub-1338"]')
-                expect(model).to_contain_text("확정된 입력 대기", timeout=15_000)
+                expect(model).to_contain_text("확정 입력 대기", timeout=15_000)
+                count = page.request.get(url.removesuffix("/web/") + "/api/v1/phm/monitor").json()
                 checks.add(
                     "page-open-before-inputs-two-assets-five-models",
-                    page.locator(".monitor-asset").count() == 2
-                    and page.locator(".monitor-model").count() == 5,
+                    page.locator(".monitor-asset").count() == 2 and len(count["items"]) == 5,
                 )
+                checks.add(
+                    "model-details-not-expanded-by-default",
+                    page.locator(".monitor-model").count() == 0,
+                )
+                model.click()
                 replay_server = subprocess.Popen(
                     [
                         sys.executable,
@@ -200,12 +204,11 @@ def main(argv: list[str] | None = None) -> int:
                     stderr=subprocess.STDOUT,
                 )
                 replay(1, 2)
-                expect(lstm).to_contain_text("LSTM 입력 준비", timeout=20_000)
-                checks.add("real-lstm-warmup-visible-on-monitor", True, lstm.inner_text())
+                expect(model).to_contain_text("입력 준비 중", timeout=20_000)
+                checks.add("real-lstm-warmup-visible-on-monitor", True, model.inner_text())
                 replay(3, 6)
-                expect(model).to_contain_text("분석 #8", timeout=20_000)
-                expect(lstm).to_contain_text("분석 #8", timeout=20_000)
-                expect(compressor).to_contain_text("최근 저장된 분석", timeout=45_000)
+                expect(model).to_contain_text("입력 #8", timeout=20_000)
+                expect(compressor).to_contain_text("최근 입력 처리됨", timeout=45_000)
                 checks.add("both-assets-change-without-manual-refresh", True)
                 details = json.loads(workspace.supervisor_state_path.read_text())
                 paused = next(
@@ -214,24 +217,32 @@ def main(argv: list[str] | None = None) -> int:
                 os.kill(paused, signal.SIGSTOP)
                 replay(9, 1)
                 expect(model).to_contain_text("새 입력 분석 대기", timeout=15_000)
-                expect(model).to_contain_text("이전 마지막 분석")
+                expect(page.locator("#monitor-score-state")).to_contain_text("이전 분석 결과")
                 page.screenshot(path=str(output / "analysis-pending-1440.png"), full_page=True)
                 checks.add("real-analysis-pause-keeps-input-and-last-output-distinct", True)
                 os.kill(paused, signal.SIGCONT)
                 paused = None
-                expect(model).to_contain_text("분석 #9", timeout=20_000)
+                expect(model).to_contain_text("최근 입력 처리됨", timeout=20_000)
                 repo = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
                 snapshot = repo.latest("xjtu-sy-replay", "Bearing1_1")
                 assert snapshot is not None
                 bad = output / "invalid.csv"
                 bad.write_text("damaged test copy, original source untouched")
                 repo.record(replace(snapshot, ordinal=10, file_path=bad))
-                expect(model).to_contain_text("최근 입력 분석 거부", timeout=20_000)
-                expect(model).to_contain_text("이전 마지막 분석")
+                expect(model).to_contain_text("최근 진동 파형을 읽을 수 없음", timeout=20_000)
+                expect(page.locator("#monitor-score-state")).to_contain_text("이전 분석 결과")
                 checks.add(
                     "real-refused-input-does-not-look-like-new-analysis", True, model.inner_text()
                 )
                 page.screenshot(path=str(output / "input-refused-1440.png"), full_page=True)
+                alert = page.locator('.monitor-attention-item[data-asset-id="Bearing1_1"]')
+                expect(alert).to_have_count(1)
+                expect(alert).to_contain_text("원본 변경 감지")
+                expect(alert).to_contain_text("4개 분석")
+                checks.add("four-refusals-grouped-under-one-asset", True)
+                checks.add(
+                    "attention-visible-without-scrolling-1440", alert.bounding_box()["y"] < 900
+                )
                 before = {
                     b.binding_id: store.list_results(b.binding_id) for b in store.list_bindings()
                 }
@@ -239,13 +250,12 @@ def main(argv: list[str] | None = None) -> int:
                 expect(page.locator("#phm-monitor-state")).to_contain_text(
                     "PHM 조회 실패", timeout=15_000
                 )
-                expect(page.locator(".monitor-model")).to_have_count(0)
+                expect(page.locator(".monitor-asset")).to_have_count(0)
                 checks.add("node-outage-clears-old-results-on-monitor", True)
                 page.screenshot(path=str(output / "node-outage-1440.png"), full_page=True)
                 replay(11, 8)
                 supervisor.start()
-                expect(model).to_contain_text("분석 #18", timeout=30_000)
-                expect(lstm).to_contain_text("분석 #18", timeout=30_000)
+                expect(model).to_contain_text("입력 #18", timeout=30_000)
                 checks.add("restart-recovers-monitor-and-all-backlogged-model-inputs", True)
                 checks.add(
                     "previous-model-results-unchanged",
@@ -266,9 +276,9 @@ def main(argv: list[str] | None = None) -> int:
                     not any("/phm/series?" in r or "/condition?" in r for _, r in steady),
                 )
                 checks.add(
-                    "steady-monitor-three-requests-per-poll",
+                    "overview-three-requests-plus-selected-input-and-bounded-trace",
                     all(
-                        sum(1 for t, r in steady if at <= t < at + 3 and "/api/v1/" in r) <= 3
+                        sum(1 for t, r in steady if at <= t < at + 3 and "/api/v1/" in r) <= 5
                         for at, _ in steady
                     ),
                 )
@@ -284,7 +294,25 @@ def main(argv: list[str] | None = None) -> int:
                         page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
                     )
                     page.screenshot(path=str(output / f"monitor-{width}.png"), full_page=True)
-                model.get_by_role("link", name="이 시점의 추세·원본 입력 보기").click()
+                page.set_viewport_size({"width": 1440, "height": 900})
+                model.click()
+                expect(page.locator("#monitor-signal-chart svg")).to_be_visible()
+                checks.add(
+                    "actual-signal-visible-on-first-screen-1440",
+                    page.locator("#monitor-signal-chart").bounding_box()["y"]
+                    + page.locator("#monitor-signal-chart").bounding_box()["height"]
+                    <= 900,
+                )
+                checks.add(
+                    "two-assets-visible-on-first-screen-1440",
+                    all(
+                        page.locator(".monitor-asset").nth(i).bounding_box()["y"] < 900
+                        for i in range(2)
+                    ),
+                )
+                page.locator("#monitor-analysis-details > summary").click()
+                detail = page.locator('.monitor-model[data-binding-id="anomaly-score-Bearing1_1"]')
+                detail.get_by_role("link", name="이 시점의 추세·원본 입력 보기").click()
                 expect(page.locator("#anomaly-binding")).to_have_value("anomaly-score-Bearing1_1")
                 expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #18")
                 expect(page.locator("#anomaly-detail .phm-wave")).to_have_count(2)

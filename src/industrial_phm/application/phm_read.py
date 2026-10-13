@@ -185,6 +185,17 @@ def project_phm_series(
     }
 
 
+def project_phm_trace(store: SqlitePhmAnalysisStore, *, binding_id: str) -> dict[str, Any]:
+    """Last 64 stored steps; rejected steps remain explicit gaps, without any new scoring."""
+    _binding(store, binding_id)
+    return {
+        "schema_version": PHM_READ_SCHEMA_VERSION,
+        "binding_id": binding_id,
+        "limit": 64,
+        "steps": [_step_json(row) for row in store.recent_results(binding_id)],
+    }
+
+
 def project_phm_result(
     store: SqlitePhmAnalysisStore, *, binding_id: str, position: int
 ) -> dict[str, Any]:

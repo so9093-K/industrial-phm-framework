@@ -241,16 +241,44 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .phm-phase-key-1{border-color:#c17e43;border-top-style:dashed}
 .phm-phase-key-2{border-color:#6778a1;border-top-style:dotted}
 
-/* The Monitor owns asset discovery; detailed model plots stay on their existing screens. */
-.phm-monitor{margin-bottom:16px}
-#phm-monitor-assets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
-.monitor-asset{border:1px solid #d3e2e8;border-radius:12px;padding:16px;min-width:0}
-.monitor-asset h3{margin:0 0 10px;font-size:1.08rem;overflow-wrap:anywhere}
-.monitor-model{border-top:1px solid #e1e9ed;padding:12px 0;overflow-wrap:anywhere}
-.monitor-model h4{margin:0 0 6px;font-size:.9rem}
-.monitor-model p{margin:6px 0;font-size:.83rem}
-.monitor-processing{font-weight:700;color:#294c5c}
-.monitor-reason{background:#fff5e7;color:#713e12;padding:8px;border-radius:7px}
-.monitor-detail-link{display:inline-block;margin-top:8px;padding:7px 0;font-weight:650;font-size:.85rem}
-@media(max-width:1100px){#phm-monitor-assets{grid-template-columns:1fr}}
-@media(max-width:700px){.phm-monitor .condition-cards{grid-template-columns:1fr}.phm-monitor .panel-header{flex-wrap:wrap}}
+/* Fleet observation, current signal and optional analysis form separate levels. */
+.phm-monitor{margin-bottom:16px;padding:18px}
+.monitor-observation{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.monitor-observation h2{font-size:1rem}.monitor-observation p{margin:0;font-size:.85rem}
+#phm-monitor-state{font-size:.76rem;margin:7px 0 14px}
+.monitor-section-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.monitor-section-title h3,.monitor-fleet>h3{font-size:.93rem;margin:0 0 8px}
+#monitor-attention-count{font-size:.76rem;color:#6b5c40}
+.monitor-attention{padding:11px 13px;border:1px solid #e2d6bb;border-radius:9px;margin-bottom:16px;background:#fffdf7}
+.monitor-attention-item{display:grid;grid-template-columns:160px 1fr;gap:3px 12px;width:100%;border:0;border-top:1px solid #e8dfcc;border-radius:0;text-align:left;background:transparent;color:#4b442f;padding:8px 0;font-size:.82rem;font-weight:500}
+.monitor-attention-item:hover:not(:disabled){background:#f9f2df;color:#403820}
+.monitor-attention-item strong{overflow-wrap:anywhere}.monitor-attention-item small{grid-column:2;color:#726447}
+.monitor-board{display:grid;grid-template-columns:minmax(190px,260px) minmax(0,1fr);gap:20px}
+#phm-monitor-assets{display:grid;gap:8px;align-content:start}
+.monitor-asset{display:grid;gap:5px;width:100%;padding:12px;border:1px solid #d0dce3;border-radius:9px;background:#f8fafb;color:#29495a;text-align:left;font-weight:500;min-width:0}
+.monitor-asset:hover:not(:disabled){background:#edf4f7}
+.monitor-asset[aria-pressed=true]{border:2px solid #28788b;padding:11px;background:#eef6f8}
+.monitor-asset-heading{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.monitor-asset-heading strong{font-size:.88rem;overflow-wrap:anywhere}.monitor-asset small{font-size:.74rem;color:#637781;overflow-wrap:anywhere}
+.monitor-asset-status{font-size:.82rem}.monitor-asset-status.attention{color:#86550e;font-weight:700}
+.monitor-signal{min-width:0;border-left:1px solid #dce6eb;padding-left:20px}
+.monitor-signal-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:8px 0}
+.monitor-signal-controls label{font-size:.77rem}.monitor-signal-controls select{padding:5px 8px;font-size:.8rem;max-width:100%}
+.monitor-signal-controls button{font-size:.77rem;padding:6px 9px}
+#monitor-signal-state,#monitor-signal-legend,#monitor-signal-context{font-size:.76rem;margin:5px 0}
+.monitor-raw-chart,.monitor-result-chart{display:block;width:100%;overflow:visible}
+.monitor-raw-chart text,.monitor-result-chart text{font-size:12px;fill:#536c7a}
+.monitor-raw-chart .axis,.monitor-result-chart .axis{fill:none;stroke:#a4b7c2}
+.monitor-raw-line{fill:none;stroke-width:1.5}.monitor-raw-line.phase-0{stroke:#17687c}.monitor-raw-line.phase-1{stroke:#b77b35;stroke-dasharray:7 3}.monitor-raw-line.phase-2{stroke:#6778a1;stroke-dasharray:2 3}
+.monitor-raw-dot.phase-0{fill:#17687c}.monitor-raw-dot.phase-1{fill:#b77b35}.monitor-raw-dot.phase-2{fill:#6778a1}
+.monitor-score{border-top:1px solid #e4ecef;margin-top:8px;padding-top:6px}#monitor-score-state{font-size:.75rem}
+.monitor-analysis{border-top:1px solid #dce6eb;margin-top:15px;padding-top:12px}
+.monitor-analysis>summary{font-size:.86rem;font-weight:650;cursor:pointer}
+#monitor-analysis-models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.monitor-model{border:1px solid #dce6eb;border-radius:8px;padding:12px;min-width:0;overflow-wrap:anywhere}.monitor-model h4{font-size:.86rem;margin:0}.monitor-model p,.monitor-model a{font-size:.8rem;margin:6px 0}
+.monitor-technical{margin-top:10px;font-size:.75rem}.monitor-technical summary{cursor:pointer}.monitor-technical p{font-size:.74rem}
+@media(max-width:900px){.monitor-board{grid-template-columns:1fr}.monitor-signal{border-left:0;border-top:1px solid #dce6eb;padding:14px 0 0}#phm-monitor-assets{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-attention-item{grid-template-columns:1fr}.monitor-attention-item small{grid-column:1}.monitor-observation p{font-size:.78rem}}
+@media(max-width:500px){.phm-monitor{padding:12px}#phm-monitor-assets{grid-template-columns:1fr}.monitor-asset{padding:8px 10px;gap:3px}.monitor-asset[aria-pressed=true]{padding:7px 9px}.monitor-asset-heading strong{font-size:.82rem}#monitor-analysis-models{grid-template-columns:1fr}.monitor-board{gap:12px}}
+
+.monitor-measured-trend{height:180px}
+.monitor-measured-trend text{font-size:12px}

@@ -33,11 +33,19 @@
       </header>
       <section class="notice hidden" id="notice" data-views="monitor connect signals evidence review research system" role="status" aria-live="polite"></section>
       <section id="phm-monitor" class="panel phm-monitor" data-views="monitor" aria-labelledby="phm-monitor-title">
-        <div class="panel-header"><div><h2 id="phm-monitor-title">설비별 관측과 PHM 처리</h2><p class="muted">입력 수신 → 분석 처리 → 저장된 기준 비교 → 사람 검토</p></div><a href="#connect">데이터 연결 확인</a></div>
-        <p id="phm-monitor-state" class="state" role="status" aria-live="polite">설비별 상태를 자동 조회합니다.</p>
-        <div id="phm-monitor-summary" class="condition-cards"></div>
-        <div id="phm-monitor-assets" aria-label="설비별 PHM 모니터링"></div>
-        <p class="hint">수신·처리 상태와 저장된 모델 출력입니다. 검증된 설비 건강도·고장 경보·정비 권고가 아닙니다.</p>
+        <div class="monitor-observation"><h2 id="phm-monitor-title">관측 상태</h2><span id="monitor-data-mode" class="tag">입력 종류 확인 중</span><p id="phm-monitor-summary"></p></div>
+        <p id="phm-monitor-state" class="muted" role="status" aria-live="polite">설비 상태를 조회합니다.</p>
+        <section class="monitor-attention" aria-labelledby="monitor-attention-title"><div class="monitor-section-title"><h3 id="monitor-attention-title">확인이 필요한 설비</h3><span id="monitor-attention-count"></span></div><div id="monitor-attention-list" aria-live="polite"></div></section>
+        <div class="monitor-board" id="monitor-board">
+          <section class="monitor-fleet" aria-labelledby="monitor-fleet-title"><h3 id="monitor-fleet-title">설비 목록</h3><div id="phm-monitor-assets"></div></section>
+          <section class="monitor-signal" aria-labelledby="monitor-signal-title"><div class="monitor-section-title"><h3 id="monitor-signal-title">측정 신호</h3><span id="monitor-signal-mode" class="tag"></span></div>
+            <p id="monitor-signal-context" class="muted"></p>
+            <div class="monitor-signal-controls"><label id="monitor-stream-field" hidden>측정 소스<select id="monitor-input-stream"></select></label><label>측정 신호<select id="monitor-signal-channel" disabled></select></label><button id="monitor-last-good" type="button" hidden>마지막 성공 입력 보기</button></div>
+            <p id="monitor-signal-state" role="status" class="muted">설비를 선택하면 실제 원본 신호를 표시합니다.</p>
+            <div id="monitor-signal-chart" aria-label="선택 설비의 실제 측정 신호"></div><p id="monitor-signal-legend" class="muted"></p><div class="monitor-score"><p id="monitor-score-state" class="muted"></p><div id="monitor-score-chart" aria-label="선택한 연결 모델의 저장된 결과 추세"></div></div>
+          </section>
+        </div>
+        <details id="monitor-analysis-details" class="monitor-analysis"><summary>선택 설비의 분석·원본 근거</summary><p id="monitor-analysis-context" class="muted"></p><div id="monitor-analysis-models"></div></details>
       </section>
       <section id="workspace-overview" class="panel workspace-overview" data-views="monitor" aria-label="현재 작업공간">
         <div class="panel-header"><h2 id="workspace-state">작업공간 확인 중</h2><a href="#connect">연결 상태 확인</a></div>
@@ -52,14 +60,14 @@
           <a id="start-sample" href="#connect"><strong>격리 샘플 체험</strong><span>별도 작업공간의 가상 데이터</span></a>
         </div>
       </section>
-      <section data-views="monitor" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
+      <section data-views="system" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
       <section data-views="system" class="kpis" id="monitor" aria-label="관측 요약">
         <div class="kpi"><span>저장된 설비</span><strong id="asset-count">—</strong><small>설비 정상 판정이 아닙니다</small></div>
         <div class="kpi"><span>기록된 분석</span><strong id="analysis-count">—</strong><small>실제 저장된 AnalysisRun</small></div>
         <div class="kpi"><span>검토 요청 기록</span><strong id="review-count">—</strong><small>정비 수행과 구별</small></div>
         <div class="kpi"><span>데이터 평가 시각</span><strong id="assessed-at" class="time">—</strong><small>UTC 기준 · 수동 새로고침</small></div>
       </section>
-      <section data-views="monitor signals evidence review" class="layout">
+      <section data-views="signals evidence review" class="layout">
         <div class="panel asset-panel">
           <div class="panel-header"><div><h2>설비 선택</h2><p class="muted">분석할 설비</p></div></div>
           <label for="asset-select">설비 ID</label><select id="asset-select" disabled><option>설비 조회 중</option></select>
