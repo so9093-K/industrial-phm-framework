@@ -223,7 +223,11 @@ def explanation_facts(
         )
         facts.append(
             f"점수 {_n(score)}는 임계값 {_n(threshold)}"
-            + (" 를 초과했습니다." if output.get("exceeds_threshold") else " 이하입니다.")
+            + (
+                " 를 초과했습니다. 고장 판정이 아닙니다."
+                if output.get("exceeds_threshold")
+                else " 이하입니다. 임계값 이하는 '정상' 판정이 아닙니다."
+            )
         )
         contributions = output.get("feature_contributions")
         if isinstance(contributions, dict) and contributions:

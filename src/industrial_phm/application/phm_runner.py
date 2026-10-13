@@ -130,7 +130,10 @@ def _snapshot_incompatibility(snapshot: AcquisitionSnapshot, spec: PackageInputS
     if spec.step_kind is not StepKind.ACQUISITION_SNAPSHOT:
         return f"package expects {spec.step_kind.value} steps"
     if tuple(snapshot.channels) != tuple(spec.channels):
-        return f"channels differ from the package input: {list(snapshot.channels)}"
+        return (
+            f"channels differ from the package input: got {list(snapshot.channels)}, "
+            f"expected {list(spec.channels)}"
+        )
     if spec.sampling_rate_hz is not None and snapshot.sampling_rate_hz != spec.sampling_rate_hz:
         return (
             f"sampling rate {snapshot.sampling_rate_hz} Hz differs from {spec.sampling_rate_hz} Hz"

@@ -36,7 +36,10 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
     analyze(workspace)
 
     def provider(context: dict[str, Any], _: object) -> str:
-        return "관측 사실\n점수가 임계값을 넘었습니다. 고장 확률 91.3%로 보입니다."
+        return (
+            "관측 사실\n점수가 임계값을 넘었습니다. 고장 확률 91.3%로 보입니다. "
+            "설비는 정상 상태입니다."
+        )
 
     monkeypatch.setattr(explanation_runtime, "generate_local_explanation", provider)
     monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
@@ -59,6 +62,10 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 pw.expect(panel.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
                 pw.expect(panel).to_contain_text("local-main")
                 pw.expect(panel.locator(".phm-ai-warning")).to_contain_text("91.3")
+                pw.expect(panel.locator(".phm-ai-warning")).to_contain_text(
+                    "판정 표현 경고: 설명이 '정상 상태'처럼"
+                )
+                pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
 
                 panel.get_by_role("button", name="검토 요청").click()
                 pw.expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")
