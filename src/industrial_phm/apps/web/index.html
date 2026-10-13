@@ -79,6 +79,7 @@
           <p class="hint">빈 버킷은 0이 아닙니다. 그래프의 점을 연결하지 않으며, 다른 단위·출처를 한 신호로 합치지 않습니다.</p>
         </div>
       </section>
+      <details id="condition-disclosure" class="phm-options" data-views="monitor"><summary>선택 설비의 부하·불평형 변화 분석 (수동 실행)</summary>
       <section id="condition" class="panel condition-panel" data-views="monitor" aria-labelledby="condition-title">
         <div class="panel-header"><div><h2 id="condition-title">설비 변화 분석</h2><p class="muted">전류 부하 · 3상 불평형 · 기준 패턴 비교</p></div><a href="#signals">상별 신호 확인</a></div>
         <div class="condition-controls">
@@ -102,6 +103,7 @@
         <div id="condition-detail" class="condition-detail"></div>
         <details class="condition-method-details"><summary>분석 방법·데이터 품질 확인</summary><div id="condition-method"></div></details>
       </section>
+      </details>
       <section id="anomaly" class="panel phm-panel" data-views="anomaly" aria-labelledby="anomaly-title">
         <div class="panel-header"><div><h2 id="anomaly-title">이상 탐지 모니터링</h2><p class="muted">저장된 모델 점수 · 검토 구간 · 입력 특징을 같은 축에서 비교</p></div><span id="anomaly-replay" class="tag replay hidden">기록 데이터 재생 · 실시간 현장 수신 아님</span></div>
         <div class="phm-controls"><label for="anomaly-binding">설비 · 분석 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select></div>

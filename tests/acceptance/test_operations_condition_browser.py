@@ -35,6 +35,7 @@ def test_monitor_shows_load_change_and_actionable_time_without_review_diary(
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+                page.locator("#condition-disclosure > summary").click()
                 pw.expect(page.locator("#condition-events")).to_contain_text("평가하지 않았습니다")
                 page.locator("#condition-period").select_option("1h")
                 pw.expect(page.locator("#condition-reference")).to_contain_text("2020-11-13")
@@ -51,6 +52,7 @@ def test_monitor_shows_load_change_and_actionable_time_without_review_diary(
                 pw.expect(page.locator("#monitor")).to_be_hidden()
                 pw.expect(page.locator("#first-run")).to_be_hidden()
                 pw.expect(page.locator("#asset-facts")).to_be_hidden()
+                page.locator("#condition-cards").scroll_into_view_if_needed()
                 cards = page.locator("#condition-cards").bounding_box()
                 assert cards and cards["y"] + cards["height"] <= 900
                 page.locator("#condition-events button").first.click()
@@ -132,6 +134,7 @@ def test_condition_source_selection_survives_a_new_source_changing_list_order(
             try:
                 page = browser.new_page()
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+                page.locator("#condition-disclosure > summary").click()
                 pw.expect(page.locator("#condition-state")).to_contain_text("소스·측정 지점")
                 key = json.dumps(["synthetic-electrical", "meter"], separators=(",", ":"))
                 page.locator("#condition-period").select_option("1h")

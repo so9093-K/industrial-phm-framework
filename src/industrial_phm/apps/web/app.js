@@ -575,7 +575,7 @@ async function selectAsset() {
   byId("show-trend").disabled = true;
   trendState("설비의 저장된 신호 목록을 확인합니다.");
   if (selectedAsset) await loadChannels(selectedAsset, generation);
-  void loadCondition(selectedAsset, {reset: true});
+  if (byId("condition-disclosure").open) void loadCondition(selectedAsset, {reset: true});
 }
 const runtimeConditions = {
   running: "실행 근거 있음",
@@ -753,7 +753,7 @@ async function refresh() {
     clear(byId("trend-results"));clear(byId("last-values"));trendState(presentError(error),true);
     byId("show-trend").disabled = true;
   } finally {
-    if (token === generation) {renderWorkspace();renderOnboardingGuide();void loadCondition(selectedAsset);}
+    if (token === generation) {renderWorkspace();renderOnboardingGuide();if (byId("condition-disclosure").open) void loadCondition(selectedAsset);}
     byId("refresh").disabled = false;
   }
 }
@@ -1908,11 +1908,16 @@ async function readMonitorFacts() {
   if (result[0].status === "fulfilled") {
     monitor = result[0].value;monitorReadState = "ready";
     renderMonitorAttention(monitor);
+    byId("asset-count").textContent = fmt(monitor.assets?.total);
+    byId("analysis-count").textContent = fmt((monitor.phase_unbalance_analyses?.total ?? 0) + (monitor.file_feature_analyses?.total ?? 0));
+    byId("review-count").textContent = fmt(monitor.review_requests?.total);
+    byId("assessed-at").textContent = utc(monitor.assessed_at);
     if (monitor.system_error_scopes?.length) errors.push("monitor-store");
   } else {
     monitor = null;monitorReadState = "error";errors.push("monitor");
     byId("monitor-attention").classList.remove("hidden");
     byId("monitor-attention").textContent = "운영 수신 상태 조회 실패 · 자동으로 재조회합니다.";
+    for (const id of ["asset-count", "analysis-count", "review-count", "assessed-at"]) byId(id).textContent = "—";
   }
   if (result[1].status === "fulfilled") {
     sourceSnapshot = result[1].value;sourceReadState = "ready";
@@ -1923,3 +1928,5 @@ async function readMonitorFacts() {
 }
 document.addEventListener("phm-monitor-count", (event) => {phmModelCount = event.detail;renderWorkspace();});
 initializeMonitor(readMonitorFacts);
+
+byId("condition-disclosure").addEventListener("toggle", () => {if (byId("condition-disclosure").open) void loadCondition(selectedAsset);});

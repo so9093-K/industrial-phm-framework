@@ -4,11 +4,15 @@ const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {
   const e = document.createElement(tag);e.textContent = text;e.className = className;return e;
 };
-const time = (at) => at ? at.replace("T", " ").replace(/\.\d+/, "").replace(/\+00:00|Z/, " UTC") : "미확인";
+const time = (at) => {
+  const stamp = at ? Date.parse(at) : NaN;
+  return Number.isFinite(stamp) ? new Date(stamp).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC") : "미확인";
+};
 const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "미확인";
 const active = () => document.body.dataset.view === "monitor" && !document.hidden;
 const labels = {processed: "최근 입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비",
   rejected: "최근 입력 분석 거부", waiting: "확정된 입력 대기", unavailable: "모델 실행 불가"};
+const flows = {running: "수신 흐름 근거 있음", waiting: "수신 대기", delayed: "수신 지연", stopped: "수집 중지", error: "오류", unavailable: "미확인", "stored-history": "저장 이력", "needs-attention": "확인 필요"};
 const reviews = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료됨 · 정비 완료 아님"};
 const cards = new Map();
 let timer = null, running = false, refreshRequested = false, readOperations;
@@ -21,7 +25,7 @@ function detailLink(item) {
   const url = new URL(location.href);
   url.searchParams.set("phm_binding", item.binding_id);
   url.searchParams.set("phm_position", item.latest_analyzed.position);
-  url.hash = view;
+  url.searchParams.set("phm_view", view);url.hash = view;
   return url.pathname + url.search + url.hash;
 }
 function modelRow(item, base) {
@@ -58,7 +62,7 @@ function modelRow(item, base) {
   row.append(result);
   row.append(node("p", "분석 " + (last.event_start ? time(last.event_start) : "#" + last.position) + " · 처리 " + time(last.processed_at), "monitor-analyzed"));
   const acceptance = item.validation?.acceptance;
-  if (acceptance) row.append(node("p", "성능 검증: " + acceptance + " · 기준 비교는 설비 정상·고장 판정이 아닙니다.", "muted"));
+  if (acceptance) row.append(node("p", "성능 검증: " + ({"not-yet-evaluated": "미검증", "FAIL": "불합격", "fail": "불합격", "research-functional-only": "연구 기능만 확인"}[acceptance] || acceptance) + " · 기준 비교는 설비 정상·고장 판정이 아닙니다.", "muted"));
   row.append(node("p", "이 분석의 검토: " + (base.reviewError ? "조회 실패" : reviews[item.latest_review_status] || "요청 없음"), "muted"));
   if (["anomaly-score", "rul-estimate"].includes(item.task)) {
     const link = node("a", item.task === "rul-estimate" ? "이 시점의 RUL 상세 보기" : "이 시점의 추세·원본 입력 보기", "monitor-detail-link");
@@ -76,7 +80,7 @@ function render(data, base) {
   base.reviewError = data.review_read_error;
   const summary = byId("phm-monitor-summary");
   summary.replaceChildren(
-    metric("데이터 수신", base.errors.length ? "조회 미확인" : "소스 " + (base.sources?.sources?.total ?? "미확인") + "개"),
+    metric("데이터 수신 · 조회 범위", base.errors.length ? "조회 미확인" : "최근 live " + (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length + " · 등록 " + (base.sources?.sources?.total ?? "미확인") + "개"),
     metric("분석 처리 · 표시 모델", "대기 " + data.items.filter((i) => ["pending", "warmup", "waiting"].includes(i.processing_state)).length
       + " · 거부/불가 " + data.items.filter((i) => ["rejected", "unavailable"].includes(i.processing_state)).length),
     metric("저장된 기준 비교 · 표시 모델", "마지막 분석 초과 " + data.items.filter((i) => i.latest_analyzed?.output.exceeds_threshold).length),
@@ -96,6 +100,9 @@ function render(data, base) {
     if (cards.get(assetId)?.key === key) continue;
     const card = node("article", "", "monitor-asset");card.dataset.assetId = assetId;
     card.append(node("h3", assetId));
+    const observedAsset = (base.monitor?.assets?.items || []).find((a) => a.asset_id === assetId);
+    if (observedAsset) card.append(node("p", "설비 수신 요약: " + (base.errors.length ? "조회 미확인" : flows[observedAsset.data_flow_status] || "미확인")
+      + " · 마지막 관측 " + time(observedAsset.last_data_at), "muted"));
     for (const item of items) card.append(modelRow(item, base));
     if (items.length && !items.some((i) => i.task === "rul-estimate")) card.append(node("p", "RUL 연결 근거 없음 · 추정하지 않습니다.", "muted"));
     if (!items.length) card.append(node("p", "PHM 모델 연결 없음 · 이상 점수·RUL을 생성하지 않습니다."));

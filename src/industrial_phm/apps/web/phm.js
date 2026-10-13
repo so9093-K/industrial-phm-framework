@@ -458,6 +458,7 @@ function renderIntervals(entry, axis) {
 }
 
 async function focusStep(position) {
+  updateMonitorTarget("anomaly", position);
   focusPosition = position;
   renderAnomaly();
   const entry = series.get(selected.anomaly);
@@ -624,7 +625,7 @@ function renderRul() {
   const domain = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
   byId("rul-chart").append(linePlot({steps: analyzed, value: (step) => step.output.estimate, axis, height: 190, domain,
     threshold: 0, label: "시점별 RUL 추정 궤적", unitText: "",
-    onPick: (step) => {rulFocusPosition = step.position;renderRul();}}));
+    onPick: (step) => {rulFocusPosition = step.position;updateMonitorTarget("rul", step.position);renderRul();}}));
   byId("rul-chart").append(node("p", axis.label + " · 각 점은 그 시점까지의 입력만으로 계산한 추정입니다. 점선은 0(기록 종료점)이며 신뢰구간이 아닙니다.", "muted"));
   const recent = byId("rul-recent");
   recent.append(node("h3", "최근 추정 갱신"));
@@ -745,9 +746,15 @@ export async function refreshPhm() {
   await cycle();schedule();
 }
 
+function updateMonitorTarget(view, position) {
+  const url = new URL(location.href);
+  if (!url.searchParams.has("phm_binding")) return;
+  url.searchParams.set("phm_binding", selected[view]);url.searchParams.set("phm_position", position);
+  history.replaceState(history.state, "", url);
+}
 function clearMonitorTarget() {
   requestedResult = null;
-  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");
+  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");url.searchParams.delete("phm_view");
   history.replaceState(history.state, "", url);
 }
 export function initializePhm() {
@@ -756,7 +763,10 @@ export function initializePhm() {
   });
   byId("rul-binding").addEventListener("change", (event) => {clearMonitorTarget();selected.rul = event.target.value;rulFocusPosition = null;cycle();});
   const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
-  window.addEventListener("hashchange", start);
+  window.addEventListener("hashchange", () => {
+    if (activeView() && activeView() !== requestedParams.get("phm_view") && new URLSearchParams(location.search).has("phm_binding") && requestedParams.has("phm_view")) clearMonitorTarget();
+    start();
+  });
   document.addEventListener("visibilitychange", start);
   start();
 }
