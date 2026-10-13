@@ -1187,7 +1187,8 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
             browser = runtime.chromium.launch(headless=True)
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
+                # The default route is the Monitor; the review asset selector belongs to #review.
+                page.goto(f"http://127.0.0.1:{port}/web/#review", wait_until="domcontentloaded")
                 pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
                     "미처리 2건", timeout=30000
                 )
