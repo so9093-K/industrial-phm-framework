@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from pathlib import Path
 from threading import Thread
@@ -41,6 +42,10 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 수신")
                 page.locator("#anomaly-intervals button").first.click()
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("특징별 잔차 기여")
+                # A window is named by its event time, not by its internal ordering key.
+                pw.expect(page.locator("#anomaly-explanation h3")).to_have_text(
+                    re.compile(r"^분석 윈도우 \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC · AI 설명")
+                )
                 pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
                 assert (
                     page.locator("#anomaly-score-chart .axis").evaluate(

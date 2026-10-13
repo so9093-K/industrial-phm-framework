@@ -12,7 +12,17 @@ async function post(url, payload) {
   const body = await response.json();if (!response.ok) throw new Error(body.error || "write_failed");return body;
 }
 
-export function renderPhmExplanation(view, bindingId, position, pin = () => {}) {
+// Warnings are numbers the stored result does not contain, or status verdicts it never makes.
+function warningText(warnings) {
+  const numbers = warnings.filter((item) => /^-?\d/.test(item));
+  const verdicts = warnings.filter((item) => !/^-?\d/.test(item));
+  const parts = [];
+  if (numbers.length) parts.push("근거 대조 경고: 저장된 분석에 없는 수치 " + numbers.join(", ") + " 가 설명에 포함되어 있습니다. 이 수치는 사용하지 마세요.");
+  if (verdicts.length) parts.push("판정 표현 경고: 설명이 '" + verdicts.join("', '") + "'처럼 설비 상태를 판정했습니다. 저장된 분석은 정상·고장을 판정하지 않으므로 원본 신호로 사람이 확인하세요.");
+  return parts.join(" ");
+}
+
+export function renderPhmExplanation(view, bindingId, position, pin = () => {}, stepName = "#" + position) {
   const root = document.getElementById(view + "-explanation");
   let state = states.get(view);
   const key = bindingId && position !== null ? bindingId + ":" + position : "";
@@ -21,7 +31,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}) 
   state = {key, timer: null, explanation: null};states.set(view, state);root.replaceChildren();
   if (!key) return;
   const current = () => states.get(view) === state;
-  const heading = element("h3", "분석 #" + position + " · AI 설명과 사람 검토");
+  const heading = element("h3", "분석 " + stepName + " · AI 설명과 사람 검토");
   const note = element("p", "AI 설명은 저장된 분석의 참고 해석입니다. 모델 수치와 분리되며 검토 종료는 정비 완료가 아닙니다.");note.className = "muted";
   const status = element("p", "저장된 설명을 조회 중입니다.");status.setAttribute("role", "status");
   const text = element("p");text.className = "phm-ai-text";
@@ -53,13 +63,11 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}) 
       const data = await get(url("explanations"));if (!current()) return;
       const item = data.explanations[0];state.explanation = item || null;
       text.textContent = item && item.status === "complete" ? item.text : "";
-      grounding.textContent = item && item.status === "complete" && item.warnings && item.warnings.length
-        ? "근거 대조 경고: 저장된 분석에 없는 수치 " + item.warnings.join(", ") + " 가 설명에 포함되어 있습니다. 이 수치는 사용하지 마세요."
-        : "";
+      grounding.textContent = item && item.status === "complete" ? warningText(item.warnings || []) : "";
       status.textContent = !item ? "저장된 AI 설명이 없습니다. 직접 검토를 기록할 수 있습니다."
         : item.status === "pending" ? "선택한 분석의 AI 설명을 생성하고 있습니다. 분석은 계속 진행됩니다."
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."
-        : "AI 설명 · " + item.model + " · 저장된 분석 #" + item.position + " 참조";
+        : "AI 설명 · " + item.model + " · 저장된 분석 " + stepName + " 참조";
       generate.disabled = !writable || Boolean(item && item.status === "pending");
       if (item && item.status === "pending" && document.body.dataset.view === view) {
         state.timer = setTimeout(refreshExplanation, 1000);

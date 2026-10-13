@@ -122,6 +122,13 @@ function axisFor(entry) {
     : {x: (step) => step.position, label: "획득 순번" + (period ? " · 기록 주기 " + period + "초" : ""), format: (v) => "#" + Math.round(v)};
 }
 
+// A window's position is an internal ordering key; people identify it by its event time.
+function stepLabel(entry, position) {
+  const step = entry.binding.step_kind === "observation-window"
+    ? orderedSteps(entry).find((item) => item.position === position) : null;
+  return step && step.event_start ? "윈도우 " + time(step.event_start) : "#" + position;
+}
+
 function freshness(entry) {
   const delivered = entry.latestDelivered, analyzed = entry.latestAnalyzed, processed = entry.latestProcessed;
   if (!analyzed && !delivered) return "아직 공급된 step이 없습니다.";
@@ -315,8 +322,9 @@ function renderAnomaly() {
   scoreRoot.append(zoomControls);
   renderIntervals(entry, axis);
   renderModelCard(byId("anomaly-model"), entry.package);
-  renderPhmExplanation("anomaly", selected.anomaly, focusPosition ?? last.position,
-                       () => {focusPosition = focusPosition ?? last.position;});
+  const explained = focusPosition ?? last.position;
+  renderPhmExplanation("anomaly", selected.anomaly, explained,
+                       () => {focusPosition = focusPosition ?? last.position;}, stepLabel(entry, explained));
 }
 
 function renderFeatureControls(steps) {
@@ -523,8 +531,9 @@ function renderRul() {
   }
   recent.append(table);
   renderModelCard(byId("rul-model"), entry.package);
-  renderPhmExplanation("rul", selected.rul, rulFocusPosition ?? last.position,
-                       () => {rulFocusPosition = rulFocusPosition ?? last.position;});
+  const explained = rulFocusPosition ?? last.position;
+  renderPhmExplanation("rul", selected.rul, explained,
+                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained));
 }
 
 const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 1) : "값 없음";
