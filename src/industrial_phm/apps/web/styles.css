@@ -240,3 +240,17 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .phm-phase-key-0{border-color:#17687c}
 .phm-phase-key-1{border-color:#c17e43;border-top-style:dashed}
 .phm-phase-key-2{border-color:#6778a1;border-top-style:dotted}
+
+/* The Monitor owns asset discovery; detailed model plots stay on their existing screens. */
+.phm-monitor{margin-bottom:16px}
+#phm-monitor-assets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.monitor-asset{border:1px solid #d3e2e8;border-radius:12px;padding:16px;min-width:0}
+.monitor-asset h3{margin:0 0 10px;font-size:1.08rem;overflow-wrap:anywhere}
+.monitor-model{border-top:1px solid #e1e9ed;padding:12px 0;overflow-wrap:anywhere}
+.monitor-model h4{margin:0 0 6px;font-size:.9rem}
+.monitor-model p{margin:6px 0;font-size:.83rem}
+.monitor-processing{font-weight:700;color:#294c5c}
+.monitor-reason{background:#fff5e7;color:#713e12;padding:8px;border-radius:7px}
+.monitor-detail-link{display:inline-block;margin-top:8px;padding:7px 0;font-weight:650;font-size:.85rem}
+@media(max-width:1100px){#phm-monitor-assets{grid-template-columns:1fr}}
+@media(max-width:700px){.phm-monitor .condition-cards{grid-template-columns:1fr}.phm-monitor .panel-header{flex-wrap:wrap}}

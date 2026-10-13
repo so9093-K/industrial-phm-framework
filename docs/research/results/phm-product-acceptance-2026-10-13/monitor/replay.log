@@ -1,0 +1,4 @@
+No encrypting policy available, password may get transferred in plaintext
+Endpoints other than open requested but private key and certificate are not set.
+AI-Hub replay OPC UA server: opc.tcp://127.0.0.1:60447/phm/
+replay selection finished; server stays up without new values

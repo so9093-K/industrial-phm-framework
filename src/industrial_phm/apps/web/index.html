@@ -24,7 +24,7 @@
         <a href="#research">연구 · 검증 결과</a>
         <a href="#system">운영 관리</a>
       </nav>
-      <p class="sidebar-note">로컬 작업공간<br>이상 탐지·RUL 자동 갱신 · 그 외 수동<br>관측 시각 UTC</p>
+      <p class="sidebar-note">로컬 작업공간<br>모니터·이상 탐지·RUL 3초 자동 갱신<br>관측 시각 UTC</p>
     </aside>
     <main id="main" tabindex="-1">
       <header class="topbar">
@@ -32,6 +32,13 @@
         <div class="top-actions"><span class="pill">조회 · 소스 등록·제어</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
       </header>
       <section class="notice hidden" id="notice" data-views="monitor connect signals evidence review research system" role="status" aria-live="polite"></section>
+      <section id="phm-monitor" class="panel phm-monitor" data-views="monitor" aria-labelledby="phm-monitor-title">
+        <div class="panel-header"><div><h2 id="phm-monitor-title">설비별 관측과 PHM 처리</h2><p class="muted">입력 수신 → 분석 처리 → 저장된 기준 비교 → 사람 검토</p></div><a href="#connect">데이터 연결 확인</a></div>
+        <p id="phm-monitor-state" class="state" role="status" aria-live="polite">설비별 상태를 자동 조회합니다.</p>
+        <div id="phm-monitor-summary" class="condition-cards"></div>
+        <div id="phm-monitor-assets" aria-label="설비별 PHM 모니터링"></div>
+        <p class="hint">수신·처리 상태와 저장된 모델 출력입니다. 검증된 설비 건강도·고장 경보·정비 권고가 아닙니다.</p>
+      </section>
       <section id="workspace-overview" class="panel workspace-overview" data-views="monitor" aria-label="현재 작업공간">
         <div class="panel-header"><h2 id="workspace-state">작업공간 확인 중</h2><a href="#connect">연결 상태 확인</a></div>
         <p id="workspace-detail" role="status" aria-live="polite">관측·등록·조회 오류를 확인합니다.</p>
@@ -72,6 +79,7 @@
           <p class="hint">빈 버킷은 0이 아닙니다. 그래프의 점을 연결하지 않으며, 다른 단위·출처를 한 신호로 합치지 않습니다.</p>
         </div>
       </section>
+      <details id="condition-disclosure" class="phm-options" data-views="monitor"><summary>선택 설비의 부하·불평형 변화 분석 (수동 실행)</summary>
       <section id="condition" class="panel condition-panel" data-views="monitor" aria-labelledby="condition-title">
         <div class="panel-header"><div><h2 id="condition-title">설비 변화 분석</h2><p class="muted">전류 부하 · 3상 불평형 · 기준 패턴 비교</p></div><a href="#signals">상별 신호 확인</a></div>
         <div class="condition-controls">
@@ -95,6 +103,7 @@
         <div id="condition-detail" class="condition-detail"></div>
         <details class="condition-method-details"><summary>분석 방법·데이터 품질 확인</summary><div id="condition-method"></div></details>
       </section>
+      </details>
       <section id="anomaly" class="panel phm-panel" data-views="anomaly" aria-labelledby="anomaly-title">
         <div class="panel-header"><div><h2 id="anomaly-title">이상 탐지 모니터링</h2><p class="muted">저장된 모델 점수 · 검토 구간 · 입력 특징을 같은 축에서 비교</p></div><span id="anomaly-replay" class="tag replay hidden">기록 데이터 재생 · 실시간 현장 수신 아님</span></div>
         <div class="phm-controls"><label for="anomaly-binding">설비 · 분석 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select></div>
@@ -121,6 +130,7 @@
         <div id="rul-chart"></div>
         <p id="rul-validation-note" class="phm-validation-note"></p>
         <details class="phm-options"><summary>최근 추정값 상세 이력</summary><div id="rul-recent" class="phm-recent"></div></details>
+        <p id="rul-selected" class="phm-validation-note" role="status"></p>
         <section id="rul-explanation" class="condition-detail"></section>
         <details id="rul-model" class="condition-method-details"></details>
       </section>

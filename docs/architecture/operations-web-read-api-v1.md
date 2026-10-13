@@ -69,8 +69,8 @@ this contract. The preview does not become the collector/analysis lifecycle owne
 The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
 shipped with the **Python wheel**, and use the same-origin, explicit
 `GET /api/v1/monitor`, `GET /api/v1/history/channels`, and
-`GET /api/v1/history/trend` endpoints. Browser requests are **manual
-refresh/selection**, never a live subscription. The HTML uses native form
+`GET /api/v1/history/trend` endpoints. Monitor summary and PHM detail use 3-second polling of saved facts; signal/history and
+manual operating-change inspection remain explicit selections. This is not a live subscription. The HTML uses native form
 labels, semantic controls, keyboard focus and responsive layout. Dynamic
 IDs, evidence and source fields are assigned via `textContent`, never
 `innerHTML`; browser content security policy only allows self-hosted
@@ -260,8 +260,8 @@ and new Web source actions must not write the same workspace concurrently.
   optional telemetry or history store must not hide otherwise readable source
   registrations. Empty live facts do not establish health or connectivity.
 
-The Web displays these facts on manual refresh, without continuously supervising
-collectors, starting subscriptions, or inventing a fleet-wide green health status.
+The Monitor polls the saved transport facts; Sources/System retain manual inspection.
+These reads do not supervise collectors, start subscriptions or assign fleet-wide health status.
 The existing source lifecycle, backend telemetry and accepted history semantics
 are unchanged.
 
@@ -510,3 +510,24 @@ no AnalysisRun, review entry, model deployment or alarm. Existing persisted anal
 APIs retain their own writes. The primary screen shows quantities, comparison periods,
 time-series and candidate timestamps; exact storage identifiers and calculation details are
 secondary information.
+
+
+## Asset Monitor PHM reads
+
+`GET /api/v1/phm/monitor` is an additive bounded projection of PHM bindings, input progress,
+last successful output, latest processed/refused input and review status. It returns at most
+100 binding rows, total/limit/truncated, and a separate review-read error. It never loads full
+step histories, waveform files or estimator payloads, and never fits or scores a model.
+Transport evidence comes from the existing `/api/v1/monitor` and `/api/v1/sources` contracts;
+the browser makes three overview requests per cycle. Missing inputs do not prove a stopped sensor.
+
+`GET /api/v1/phm/result?binding_id=...&position=...` returns one exact saved step for a Monitor
+handoff. An unavailable binding/position fails explicitly, never substitutes another asset or
+latest result. Existing series, window and snapshot endpoints retain their contracts.
+The static `/web/` page accepts URL query context for these bookmarks; query content is not
+interpolated into the HTML. Model/source/asset/measurement-point identities remain distinct.
+
+Polling runs only for visible active Monitor or PHM detail views. Overview failures clear
+previous model values and automatically retry; independent transport/review read failures remain
+visible. Manual condition fitting is excluded from overview refresh. These reads do not own
+collection, inference, deployment approval or asset-health semantics.

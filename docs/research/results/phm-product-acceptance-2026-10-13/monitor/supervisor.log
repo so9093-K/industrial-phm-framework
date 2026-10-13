@@ -1,0 +1,4 @@
+workspace=/home/so/Desktop/WorkSpace/soyanchan/workspace/industrial-phm-framework/artifacts/acceptance/continuous-monitor-release/ws operations_url=http://127.0.0.1:44085/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)
+workspace=/home/so/Desktop/WorkSpace/soyanchan/workspace/industrial-phm-framework/artifacts/acceptance/continuous-monitor-release/ws operations_url=http://127.0.0.1:44085/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)

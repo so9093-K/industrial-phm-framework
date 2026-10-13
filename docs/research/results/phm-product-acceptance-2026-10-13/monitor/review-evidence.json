@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "name": "review-request-visible-in-default-monitor",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "review-acknowledgement-visible-in-default-monitor",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "closed-review-persists-on-monitor-after-node-restart",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "review-does-not-mutate-model-results",
+      "pass": true,
+      "detail": null
+    }
+  ],
+  "passed": true
+}

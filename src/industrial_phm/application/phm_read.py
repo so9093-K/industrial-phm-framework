@@ -9,7 +9,7 @@ incremental refresh.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,10 +31,82 @@ from industrial_phm.models.package import StepKind
 PHM_READ_SCHEMA_VERSION = 1
 _MAX_PREVIEW_BINS = 2000
 _SERIES_PAGE_SIZE = 5000
+_MONITOR_BINDING_LIMIT = 100
 
 
 class PhmReadError(ValueError):
     """Raised for a request the PHM read model cannot answer (unknown binding, bad position)."""
+
+
+def project_phm_monitor(
+    store: SqlitePhmAnalysisStore,
+    models_root: Path,
+    snapshots: SqliteAcquisitionSnapshotRepository,
+    *,
+    windows: SqliteObservationWindowRepository | None = None,
+) -> dict[str, Any]:
+    """Bounded current facts for all asset streams, without reading histories or fitting models.
+
+    A skipped/latest input never replaces the last successful model output. Absence of a
+    newer input is not evidence of a stopped sensor; transport freshness is a separate fact.
+    """
+    bindings = store.list_bindings() if store.path.exists() else ()
+    manifests: dict[str, dict[str, Any] | None] = {}
+    items = []
+    for binding in sorted(bindings, key=lambda b: (b.asset_id, b.source_id, b.binding_id))[
+        :_MONITOR_BINDING_LIMIT
+    ]:
+        if binding.package_id not in manifests:
+            manifests[binding.package_id] = _package_summary(models_root, binding.package_id)
+        package = manifests[binding.package_id]
+        analyzed = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
+        processed = store.latest_result(binding.binding_id)
+        delivered = _latest_delivered(binding, snapshots, windows)
+        progress = store.progress(binding.binding_id)
+        pending = bool(delivered and (not processed or delivered["position"] > processed.position))
+        reason: str | None
+        if progress.health == "unavailable" or package is None:
+            state, reason = "unavailable", progress.health_reason or "package metadata unavailable"
+        elif pending:
+            state, reason = "pending", "latest delivered input has not been processed"
+        elif processed and processed.state is StepState.SKIPPED:
+            state = (
+                "warmup" if (processed.reason or "").startswith("sequence warm-up") else "rejected"
+            )
+            reason = processed.reason
+        elif analyzed:
+            state, reason = "processed", None
+        else:
+            state, reason = "waiting", "no finalized model input"
+        items.append(
+            {
+                **_binding_json(binding),
+                "task": None if not package else (package.get("output") or {}).get("task"),
+                "recipe_id": None if not package else package.get("recipe_id"),
+                "validation": None if not package else package.get("validation"),
+                "processing_state": state,
+                "processing_reason": reason,
+                "latest_delivered": delivered,
+                "latest_processed": None
+                if not processed
+                else {**_step_brief(processed), "reason": processed.reason},
+                "latest_analyzed": None
+                if not analyzed
+                else {
+                    **_step_brief(analyzed),
+                    "analysis_run_id": analyzed.analysis_run_id,
+                    "output": dict(analyzed.output),
+                },
+            }
+        )
+    return {
+        "schema_version": PHM_READ_SCHEMA_VERSION,
+        "assessed_at": datetime.now(UTC).isoformat(),
+        "items": items,
+        "total": len(bindings),
+        "limit": _MONITOR_BINDING_LIMIT,
+        "truncated": len(bindings) > _MONITOR_BINDING_LIMIT,
+    }
 
 
 def project_phm_bindings(
@@ -110,6 +182,21 @@ def project_phm_series(
         "latest_delivered": _latest_delivered(binding, snapshots, windows),
         "steps": [_step_json(result) for result in results],
         "intervals": [_interval_json(item) for item in store.list_intervals(binding_id)],
+    }
+
+
+def project_phm_result(
+    store: SqlitePhmAnalysisStore, *, binding_id: str, position: int
+) -> dict[str, Any]:
+    """Read one exact result for an asset-monitor handoff, without scanning the full series."""
+    _binding(store, binding_id)
+    result = store.get_result(binding_id, position)
+    if result is None:
+        raise PhmReadError("selected result unavailable")
+    return {
+        "schema_version": PHM_READ_SCHEMA_VERSION,
+        "binding_id": binding_id,
+        "step": _step_json(result),
     }
 
 

@@ -1,0 +1,4 @@
+workspace=artifacts/acceptance/continuous-monitor-release/ws operations_url=http://127.0.0.1:56565/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)
+workspace=artifacts/acceptance/continuous-monitor-release/ws operations_url=http://127.0.0.1:56565/web/ mode=foreground
+ui=web-controlled writes=supervisor-command-broker (default local single-user pilot)

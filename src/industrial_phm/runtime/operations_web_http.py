@@ -123,6 +123,7 @@ def create_operations_web_read_server(
                 "research.js": "text/javascript; charset=utf-8",
                 "condition.js": "text/javascript; charset=utf-8",
                 "phm.js": "text/javascript; charset=utf-8",
+                "monitor.js": "text/javascript; charset=utf-8",
                 "phm-explanation.js": "text/javascript; charset=utf-8",
                 "research-results.json": "application/json; charset=utf-8",
             }
@@ -278,10 +279,12 @@ def create_operations_web_read_server(
                 "/web/condition.js": "condition.js",
                 "/web/phm-explanation.js": "phm-explanation.js",
                 "/web/phm.js": "phm.js",
+                "/web/monitor.js": "monitor.js",
                 "/web/research-results.json": "research-results.json",
             }
-            if self.path in static_paths:
-                self._send_asset(static_paths[self.path])
+            asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path
+            if asset_path in static_paths:
+                self._send_asset(static_paths[asset_path])
                 return
             parts = urlsplit(self.path)
             if parts.path in PHM_READ_ROUTES:
