@@ -21,12 +21,12 @@ export function formatTime(value, {seconds = true, zone = true, missing = "ì‹œê°
   return zone ? text + " " + ZONE : text;
 }
 
-// Compact axis label: a clock for spans within one KST day, otherwise month-day and minute.
+// Compact axis label: a clock for short spans, month-day and minute once the span may cross a day.
 export function formatAxisTime(value, spanMs = 0) {
   const at = shifted(value);
   if (!at) return "";
   const clock = pad(at.getUTCHours()) + ":" + pad(at.getUTCMinutes());
-  return spanMs > 24 * 60 * 60 * 1000
+  return spanMs >= 6 * 60 * 60 * 1000
     ? pad(at.getUTCMonth() + 1) + "-" + pad(at.getUTCDate()) + " " + clock
     : clock + ":" + pad(at.getUTCSeconds());
 }
