@@ -217,6 +217,57 @@ function linePlot({steps, value, axis, height, domain, threshold, intervals, hig
   return svg;
 }
 
+
+const PHASE_GROUPS = [
+  {names: ["current.phase_r.mean_a", "current.phase_s.mean_a", "current.phase_t.mean_a"], title: "3상 평균 전류", unit: "A"},
+  {names: ["voltage.phase_r.mean_v", "voltage.phase_s.mean_v", "voltage.phase_t.mean_v"], title: "3상 평균 전압", unit: "V"},
+];
+
+// Overlay only the same physical quantity and unit. This is presentation, not normalization.
+function phasePlot(steps, group, axis, domain, onPick) {
+  const height = 104, bottom = PLOT.top + height, [x0, x1] = domain;
+  const svg = svgNode("svg", {viewBox: `0 0 800 ${height + 34}`, class: "phm-svg", role: "img",
+    "aria-label": group.title + " R상·S상·T상 추세"});
+  const visible = steps.filter((step) => axis.x(step) >= x0 && axis.x(step) <= x1);
+  const values = visible.flatMap((step) => group.names.map((name) => step.features?.[name]))
+    .filter((value) => typeof value === "number" && Number.isFinite(value));
+  if (!values.length) return svg;
+  const min = Math.min(...values), max = Math.max(...values);
+  const padding = (max - min) * 0.08 || Math.abs(max) * 0.05 || 1;
+  const lo = min - padding, hi = max + padding;
+  const x = (value) => PLOT.left + (value - x0) / ((x1 - x0) || 1) * (PLOT.right - PLOT.left);
+  const y = (value) => bottom - (value - lo) / (hi - lo) * height;
+  svg.append(svgNode("path", {d: `M${PLOT.left} ${PLOT.top}V${bottom}H${PLOT.right}`, class: "axis"}));
+  for (const [index, name] of group.names.entries()) {
+    let d = "", previous = null;
+    for (const step of visible) {
+      const value = step.features?.[name];
+      if (typeof value !== "number" || !Number.isFinite(value)) {previous = null;continue;}
+      const contiguous = previous && (axis.cadence
+        ? axis.x(step) - axis.x(previous) === axis.cadence : step.position - previous.position === 1);
+      d += (contiguous ? "L" : "M") + x(axis.x(step)).toFixed(1) + " " + y(value).toFixed(1) + " ";
+      previous = step;
+    }
+    svg.append(svgNode("path", {d, class: "phm-phase-curve phm-phase-" + index}));
+  }
+  const label = (text, attrs) => {const t = svgNode("text", attrs);t.textContent = text;svg.append(t);};
+  label(number(max) + " " + group.unit, {x: 4, y: PLOT.top + 10});
+  label(number(min) + " " + group.unit, {x: 4, y: bottom});
+  label(axis.format(x0), {x: PLOT.left, y: bottom + 22});
+  label(axis.format(x1), {x: PLOT.right, y: bottom + 22, "text-anchor": "end"});
+  if (onPick) {
+    svg.classList.add("pickable");
+    svg.addEventListener("click", (event) => {
+      const box = svg.getBoundingClientRect();
+      const target = x0 + ((event.clientX - box.left) / box.width * 800 - PLOT.left)
+        / (PLOT.right - PLOT.left) * (x1 - x0);
+      if (visible.length) onPick(visible.reduce((best, step) =>
+        Math.abs(axis.x(step) - target) < Math.abs(axis.x(best) - target) ? step : best, visible[0]));
+    });
+  }
+  return svg;
+}
+
 const channelLabel = (channel) => channel.replace("_vibration_signals", "").replace("Horizontal", "수평 진동").replace("Vertical", "수직 진동");
 
 function featureLabel(name) {
@@ -309,7 +360,17 @@ function renderAnomaly() {
   const highlight = focusPosition !== null && entry.steps.get(focusPosition) ? [axis.x(entry.steps.get(focusPosition)), axis.x(entry.steps.get(focusPosition))] : null;
   renderFeatureControls(analyzed);
   const featureRoot = byId("anomaly-feature-chart");
-  for (const name of chosenFeatures) {
+  const combined = new Set();
+  for (const phaseGroup of PHASE_GROUPS) {
+    if (!phaseGroup.names.every((name) => chosenFeatures.includes(name))) continue;
+    const group = node("div", "", "phm-feature");
+    group.append(node("p", phaseGroup.title + " · " + phaseGroup.unit, "phm-feature-title"));
+    group.append(phasePlot(analyzed, phaseGroup, axis, domain, (step) => focusStep(step.position)));
+    group.append(node("p", "R상 · S상 · T상", "phm-phase-legend"));
+    featureRoot.append(group);
+    for (const name of phaseGroup.names) combined.add(name);
+  }
+  for (const name of chosenFeatures.filter((value) => !combined.has(value))) {
     const group = node("div", "", "phm-feature");
     group.append(node("p", featureLabel(name), "phm-feature-title"));
     group.append(linePlot({steps: analyzed, value: (step) => step.features ? step.features[name] : null, axis, height: 70, domain,

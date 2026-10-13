@@ -41,6 +41,10 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-asset-title")).to_contain_text("pump-1")
                 pw.expect(page.locator("#anomaly-cards")).not_to_contain_text("학습 범위")
                 pw.expect(page.locator("#anomaly-score-chart .condition-curve")).to_be_visible()
+                # Same-unit R/S/T values share a plot; no value rescaling or estimation.
+                pw.expect(page.locator("#anomaly-feature-chart .phm-phase-curve")).to_have_count(3)
+                pw.expect(page.locator("#anomaly-feature-chart")).to_contain_text("3상 평균 전류")
+                pw.expect(page.locator("#anomaly-feature-chart")).to_contain_text("R상 · S상 · T상")
                 assert page.locator("#anomaly-score-chart").evaluate(
                     "(e) => (e.compareDocumentPosition("
                     + "document.getElementById('anomaly-feature-chart')) "
