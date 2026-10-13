@@ -49,6 +49,15 @@ let pollTimer = null;
 let readError = "";
 let refreshedAt = null;
 let cycleVersion = 0;
+let requestedResult = null;
+const requestedParams = new URLSearchParams(location.search);
+if (requestedParams.has("phm_binding") || requestedParams.has("phm_position")) {
+  const view = location.hash.slice(1), position = Number(requestedParams.get("phm_position"));
+  if (["anomaly", "rul"].includes(view)) requestedResult = {
+    view, bindingId: requestedParams.get("phm_binding"), position,
+    valid: Boolean(requestedParams.get("phm_binding")) && Number.isSafeInteger(position) && position > 0,
+  };
+}
 
 function activeView() {
   const view = document.body.dataset.view;
@@ -550,7 +559,7 @@ function renderRul() {
   const choices = bindingsFor("rul-estimate");
   selected.rul = fillSelect(byId("rul-binding"), choices, selected.rul);
   const state = byId("rul-state");
-  for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model"]) byId(id).replaceChildren();
+  for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model", "rul-selected"]) byId(id).replaceChildren();
   if (readError) {
     byId("rul-asset-title").textContent = "데이터 조회 실패";
     byId("rul-observation").textContent = "현재 결과를 조회할 수 없습니다. 이전 추정값을 최신 상태로 표시하지 않습니다.";
@@ -630,6 +639,13 @@ function renderRul() {
   }
   recent.append(table);
   renderModelCard(byId("rul-model"), entry.package);
+  if (rulFocusPosition !== null) {
+    const focused = entry.steps.get(rulFocusPosition);
+    byId("rul-selected").textContent = focused
+      ? "모니터에서 선택한 분석 " + stepLabel(entry, focused.position) + " · RUL " + number(focused.output.estimate, 1) + " " + unit
+        + " · 처리 " + time(focused.processed_at) + " · 이 시점의 검토와 연결됩니다."
+      : "선택한 시점이 이번 조회 범위에 없습니다.";
+  }
   const explained = rulFocusPosition ?? last.position;
   renderPhmExplanation("rul", selected.rul, explained,
                        () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained));
@@ -694,8 +710,20 @@ async function cycle() {
   try {
     await refreshBindings();
     const choices = bindingsFor(view === "anomaly" ? "anomaly-score" : "rul-estimate");
-    const current = choices.find((item) => item.binding_id === selected[view]) || choices[0];
+    const target = requestedResult?.view === view ? requestedResult : null;
+    if (target && (!target.valid || !choices.some((item) => item.binding_id === target.bindingId))) throw new Error("selected_result_unavailable");
+    const current = target ? choices.find((item) => item.binding_id === target.bindingId)
+      : choices.find((item) => item.binding_id === selected[view]) || choices[0];
     if (current) await refreshSeries(current.binding_id);
+    if (target) {
+      const result = await getJson("/api/v1/phm/result?binding_id=" + encodeURIComponent(target.bindingId) + "&position=" + target.position);
+      if (result.binding_id !== target.bindingId || result.step?.position !== target.position) throw new Error("wrong_result");
+      if (version !== cycleVersion) return;
+      selected[view] = target.bindingId;
+      series.get(target.bindingId).steps.set(target.position, result.step);
+      if (view === "anomaly") focusPosition = target.position;else rulFocusPosition = target.position;
+      requestedResult = null;
+    }
     if (version !== cycleVersion) return;
     readError = "";
   } catch {
@@ -703,7 +731,7 @@ async function cycle() {
     readError = "read_failed";
   }
   refreshedAt = new Date();
-  if (activeView() === "anomaly") renderAnomaly();
+  if (activeView() === "anomaly") {renderAnomaly();if (!readError && focusPosition !== null && !byId("anomaly-detail").childElementCount) await focusStep(focusPosition);}
   if (activeView() === "rul") renderRul();
 }
 
@@ -717,11 +745,16 @@ export async function refreshPhm() {
   await cycle();schedule();
 }
 
+function clearMonitorTarget() {
+  requestedResult = null;
+  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");
+  history.replaceState(history.state, "", url);
+}
 export function initializePhm() {
   byId("anomaly-binding").addEventListener("change", (event) => {
-    selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;byId("anomaly-detail").replaceChildren();cycle();
+    clearMonitorTarget();selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;byId("anomaly-detail").replaceChildren();cycle();
   });
-  byId("rul-binding").addEventListener("change", (event) => {selected.rul = event.target.value;rulFocusPosition = null;cycle();});
+  byId("rul-binding").addEventListener("change", (event) => {clearMonitorTarget();selected.rul = event.target.value;rulFocusPosition = null;cycle();});
   const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
   window.addEventListener("hashchange", start);
   document.addEventListener("visibilitychange", start);

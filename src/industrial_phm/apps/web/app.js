@@ -1,9 +1,10 @@
 import { initializeCondition, loadCondition } from "./condition.js";
 import { initializeNavigation, navigate } from "./navigation.js";
 import { initializePhm, refreshPhm } from "./phm.js";
+import { initializeMonitor, refreshMonitor } from "./monitor.js";
 import { initializeResearch } from "./research.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
-// Source mutations are explicit and protected; there is no polling or fallback sample.
+// Source mutations are explicit and protected; monitoring reads never trigger analysis.
 const byId = (id) => document.getElementById(id);
 const create = (tag, className, content) => {
   const element = document.createElement(tag);
@@ -21,6 +22,7 @@ const withText = (name, value) => {
   item.append(create("span", null, name), create("strong", null, fmt(value)));
   return item;
 };
+let phmModelCount = 0;
 let monitor = null;
 let monitorReadState = "loading";
 let sourceSnapshot = null;
@@ -65,7 +67,7 @@ function renderWorkspace() {
   const assets = rows(monitor, "assets");
   const analyses = (monitor?.phase_unbalance_analyses?.total || 0) + (monitor?.file_feature_analyses?.total || 0);
   const received = sources.some((source) => source.last_live_receive_fresh);
-  const hasEvidence = assets.length || sources.length || analyses || monitor?.review_requests?.total;
+  const hasEvidence = phmModelCount || assets.length || sources.length || analyses || monitor?.review_requests?.total;
   if (!hasEvidence && !monitor?.assets?.truncated && !sourceSnapshot?.sources?.truncated) {
     document.body.dataset.workspaceState = "empty";
     title.textContent = "빈 작업공간";
@@ -91,8 +93,8 @@ function empty(target, message) {
   clear(target);
   target.append(create("p", "empty", message));
 }
-async function getJSON(url) {
-  const response = await fetch(url, {cache:"no-store",credentials:"same-origin"});
+async function getJSON(url, {signal} = {}) {
+  const response = await fetch(url, {cache:"no-store",credentials:"same-origin", signal});
   if (!response.ok) throw new Error("http-" + response.status);
   const value = await response.json();
   if (value.schema_version !== 1) throw new Error("schema-mismatch");
@@ -757,6 +759,7 @@ async function refresh() {
 }
 byId("refresh").addEventListener("click",() => {
   if (["anomaly", "rul"].includes(document.body.dataset.view)) {void refreshPhm();return;}
+  if (document.body.dataset.view === "monitor") {void refreshMonitor();return;}
   refresh();loadSources();loadRuntimeStatus();
 });
 byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
@@ -1895,3 +1898,28 @@ byId("file-form").addEventListener("submit", registerFile);
 byId("opcua-form").addEventListener("submit", registerOpcua);
 byId("browse-opcua").addEventListener("click", browseOpcua);
 loadSources();
+
+// Automatic Monitor updates retain selection/forms and never call condition fitting or history trends.
+async function readMonitorFacts() {
+  const result = await Promise.allSettled([
+    getJSON("/api/v1/monitor", {signal: AbortSignal.timeout(5000)}), getJSON("/api/v1/sources", {signal: AbortSignal.timeout(5000)}),
+  ]);
+  const errors = [];
+  if (result[0].status === "fulfilled") {
+    monitor = result[0].value;monitorReadState = "ready";
+    renderMonitorAttention(monitor);
+    if (monitor.system_error_scopes?.length) errors.push("monitor-store");
+  } else {
+    monitor = null;monitorReadState = "error";errors.push("monitor");
+    byId("monitor-attention").classList.remove("hidden");
+    byId("monitor-attention").textContent = "운영 수신 상태 조회 실패 · 자동으로 재조회합니다.";
+  }
+  if (result[1].status === "fulfilled") {
+    sourceSnapshot = result[1].value;sourceReadState = "ready";
+    if (sourceSnapshot.read_error_scopes?.length || sourceSnapshot.live_evidence_error_scopes?.length) errors.push("sources-store");
+  } else {sourceSnapshot = null;sourceReadState = "error";errors.push("sources");}
+  assetDetails();renderWorkspace();
+  return {monitor, sources: sourceSnapshot, errors};
+}
+document.addEventListener("phm-monitor-count", (event) => {phmModelCount = event.detail;renderWorkspace();});
+initializeMonitor(readMonitorFacts);

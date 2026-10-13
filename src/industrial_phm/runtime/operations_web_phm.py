@@ -15,12 +15,15 @@ from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
+from industrial_phm.application.maintenance_review import finding_review_status
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.application.phm_read import (
     PhmReadError,
     project_phm_bindings,
+    project_phm_monitor,
+    project_phm_result,
     project_phm_series,
     project_snapshot_preview,
 )
@@ -30,6 +33,8 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 PHM_READ_ROUTES = frozenset(
     {
         "/api/v1/phm/bindings",
+        "/api/v1/phm/monitor",
+        "/api/v1/phm/result",
         "/api/v1/phm/series",
         "/api/v1/phm/snapshot",
         "/api/v1/phm/window",
@@ -48,11 +53,48 @@ def handle_phm_read(
     windows = SqliteObservationWindowRepository(workspace.window_state_path)
     try:
         params = _params(query)
+        if path == "/api/v1/phm/monitor":
+            overview = project_phm_monitor(store, workspace.models_path, snapshots, windows=windows)
+            try:
+                findings = [
+                    item
+                    for item in JsonOperationalFindingRepository(
+                        workspace.finding_state_path
+                    ).list_findings()
+                    if item.finding_semantics_id == "phm-human-review-request-v1"
+                ]
+                events = JsonFindingReviewRepository(
+                    workspace.maintenance_review_state_path
+                ).list_events()
+                statuses = {
+                    item.finding_id: finding_review_status(events, item.finding_id).value
+                    for item in findings
+                }
+                overview["reviews"] = {
+                    state: sum(value == state for value in statuses.values())
+                    for state in ("open", "acknowledged", "closed")
+                }
+                for item in overview["items"]:
+                    latest = item["latest_analyzed"]
+                    item["latest_review_status"] = (
+                        statuses.get("finding-phm-" + latest["analysis_run_id"]) if latest else None
+                    )
+                overview["review_read_error"] = False
+            except ValueError, OSError:
+                overview["reviews"] = None
+                overview["review_read_error"] = True
+            return HTTPStatus.OK, overview
         if path == "/api/v1/phm/bindings":
             return HTTPStatus.OK, project_phm_bindings(
                 store, workspace.models_path, snapshots, windows=windows
             )
         binding_id = _required_id(params, "binding_id")
+        if path == "/api/v1/phm/result":
+            return HTTPStatus.OK, project_phm_result(
+                store,
+                binding_id=binding_id,
+                position=_int(params, "position", default=None, minimum=1),
+            )
         if path == "/api/v1/phm/review":
             result = store.get_result(binding_id, _int(params, "position", default=None, minimum=1))
             if result is None:
