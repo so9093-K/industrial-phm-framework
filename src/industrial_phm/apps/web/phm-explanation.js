@@ -31,31 +31,47 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   state = {key, timer: null, explanation: null};states.set(view, state);root.replaceChildren();
   if (!key) return;
   const current = () => states.get(view) === state;
-  const heading = element("h3", "분석 " + stepName + " · AI 설명과 사람 검토");
-  const note = element("p", "AI 설명은 저장된 분석의 참고 해석입니다. 모델 수치와 분리되며 검토 종료는 정비 완료가 아닙니다.");note.className = "muted";
-  const status = element("p", "저장된 설명을 조회 중입니다.");status.setAttribute("role", "status");
+  const heading = element("h3", "분석 " + stepName + " · 사람 검토");
+  const note = element("p", "검토 종료는 정비 완료를 의미하지 않습니다.");note.className = "muted";
+  const reviewStatus = element("p", "검토 상태를 조회 중입니다.");reviewStatus.className = "phm-review-status";
+  reviewStatus.setAttribute("role", "status");
+  const status = element("p", "저장된 AI 설명을 조회 중입니다.");status.setAttribute("role", "status");
   const text = element("p");text.className = "phm-ai-text";
   const grounding = element("p");grounding.className = "phm-ai-warning";grounding.setAttribute("role", "alert");
   const generate = element("button", "AI 설명 생성");generate.type = "button";
   const review = element("button", "검토 요청");review.type = "button";
-  const ack = element("button", "검토 확인");ack.type = "button";ack.disabled = true;
-  const close = element("button", "검토 종료");close.type = "button";close.disabled = true;
-  const label = element("label", "검토 메모");const input = element("textarea");input.maxLength = 1000;
-  input.setAttribute("aria-label", "검토 메모");label.append(input);
-  const save = element("button", "메모 저장");save.type = "button";save.disabled = true;
+  const ack = element("button", "검토 확인");ack.type = "button";
+  const close = element("button", "검토 종료");close.type = "button";
+  const memoLabel = element("label", "검토 메모");const input = element("textarea");input.maxLength = 1000;
+  input.setAttribute("aria-label", "검토 메모");memoLabel.append(input);
+  const save = element("button", "메모 저장");save.type = "button";
   const history = element("div");history.className = "phm-review-history";
-  root.append(heading, note, generate, status, text, grounding, review, ack, close, label, save, history);
+  const reviewHistory = element("details");reviewHistory.className = "phm-review-details";
+  reviewHistory.append(element("summary", "검토 처리 이력 보기"), history);
+  const aiDetails = element("details");aiDetails.className = "phm-ai-details";
+  aiDetails.append(element("summary", "AI 참고 설명 보기"), generate, status, text);
+  root.append(heading, note, reviewStatus, review, ack, close, memoLabel, save, grounding, aiDetails, reviewHistory);
   let finding = null, writable = false;
-  for (const button of [generate, review, ack, close, save]) button.disabled = true;
+  for (const button of [generate, review, ack, close, save]) {button.disabled = true;button.hidden = true;}
+  memoLabel.hidden = true;
   const url = (part) => "/api/v1/phm/" + part + "?binding_id=" + encodeURIComponent(bindingId) + "&position=" + position;
   async function refreshReview() {
     const data = await get(url("review"));if (!current()) return;
     finding = data.finding_id;
-    review.disabled = !writable || Boolean(finding);save.disabled = !writable || !finding;
-    // FindingReviewStatus values are lowercase ("open", "acknowledged", "closed").
-    ack.disabled = !writable || data.status !== "open";close.disabled = !writable || data.status !== "acknowledged";
-    const label = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료 · 정비 완료 아님"};
-    history.replaceChildren(element("p", finding ? "검토 상태: " + (label[data.status] || data.status) : "아직 사람 검토 요청이 없습니다."));
+    const currentStep = data.status;
+    // A review is a workflow, not three competing actions on the same screen.
+    review.hidden = !writable || Boolean(finding);
+    ack.hidden = !writable || !finding || currentStep !== "open";
+    close.hidden = !writable || !finding || currentStep !== "acknowledged";
+    save.hidden = !writable || !finding;
+    memoLabel.hidden = !writable || !finding;
+    review.disabled = review.hidden;ack.disabled = ack.hidden;
+    close.disabled = close.hidden;save.disabled = save.hidden;
+    const labels = {open: "검토 요청됨 · 확인 대기", acknowledged: "검토 확인됨 · 종료 가능",
+      closed: "검토 종료됨 · 정비 완료 아님"};
+    const stateText = finding ? labels[currentStep] || "검토 상태를 확인할 수 없음" : "아직 검토 요청이 없습니다.";
+    reviewStatus.textContent = stateText;
+    history.replaceChildren(element("p", stateText));
     for (const event of data.events || []) history.append(element("p", event.action + (event.note ? " · " + event.note : "")));
   }
   async function refreshExplanation() {
@@ -68,6 +84,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
         : item.status === "pending" ? "선택한 분석의 AI 설명을 생성하고 있습니다. 분석은 계속 진행됩니다."
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."
         : "AI 설명 · " + item.model + " · 저장된 분석 " + stepName + " 참조";
+      generate.hidden = !writable;
       generate.disabled = !writable || Boolean(item && item.status === "pending");
       if (item && item.status === "pending" && document.body.dataset.view === view) {
         state.timer = setTimeout(refreshExplanation, 1000);
@@ -97,8 +114,8 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   session().then((auth) => {
     if (!current()) return;
     writable = auth.write_scope === "supervisor-owned-source-control";
-    if (!writable) note.textContent += " 기록 명령은 감독 실행 화면에서 사용할 수 있습니다.";
-    refreshExplanation();refreshReview().catch(() => {});
+    if (!writable) note.textContent += " 검토 기록은 감독 화면에서만 수정할 수 있습니다.";
+    refreshExplanation();refreshReview().catch(() => {reviewStatus.textContent = "검토 상태를 조회하지 못했습니다.";});
   });
 
 }

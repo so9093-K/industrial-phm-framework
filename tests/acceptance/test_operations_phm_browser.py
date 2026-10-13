@@ -117,6 +117,10 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "최근 입력은 분석되지 않았습니다", timeout=10_000
                 )
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
+                    "마지막으로 분석된 이전 입력"
+                )
+                pw.expect(page.locator("#anomaly-cards")).to_contain_text("마지막 분석 점수")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #7")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.route(
@@ -229,7 +233,7 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path:
                 page.select_option("#anomaly-binding", "anomaly-pump")
                 pw.expect(state).to_contain_text("입력을 분석할 수 없습니다")
                 pw.expect(state).to_contain_text(f"got ['x', 'y'], expected {list(CHANNELS)}")
-                pw.expect(state).to_contain_text("그 입력으로 학습·검증한 모델 패키지가 있어야")
+                pw.expect(state).to_contain_text("입력 조건을 확인하고, 맞는 모델을 연결해야")
                 pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
                 page.locator("#anomaly-model summary").click()
                 pw.expect(page.locator("#anomaly-model")).to_contain_text(

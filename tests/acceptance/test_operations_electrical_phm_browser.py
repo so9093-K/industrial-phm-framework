@@ -44,7 +44,10 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 # Same-unit R/S/T values share a plot; no value rescaling or estimation.
                 pw.expect(page.locator("#anomaly-feature-chart .phm-phase-curve")).to_have_count(3)
                 pw.expect(page.locator("#anomaly-feature-chart")).to_contain_text("3상 평균 전류")
-                pw.expect(page.locator("#anomaly-feature-chart")).to_contain_text("R상 · S상 · T상")
+                phase_labels = page.locator("#anomaly-feature-chart .phm-phase-label")
+                pw.expect(phase_labels).to_have_count(3)
+                for index, phase in enumerate(("R상", "S상", "T상")):
+                    pw.expect(phase_labels.nth(index)).to_contain_text(phase)
                 assert page.locator("#anomaly-score-chart").evaluate(
                     "(e) => (e.compareDocumentPosition("
                     + "document.getElementById('anomaly-feature-chart')) "
@@ -55,7 +58,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-detail")).to_contain_text("특징별 잔차 기여")
                 # A window is named by its event time, not by its internal ordering key.
                 pw.expect(page.locator("#anomaly-explanation h3")).to_have_text(
-                    re.compile(r"^분석 윈도우 \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC · AI 설명")
+                    re.compile(r"^분석 윈도우 \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC · 사람 검토")
                 )
                 pw.expect(page.locator("#anomaly-detail .phm-raw svg")).to_have_count(7)
                 assert (
@@ -86,6 +89,9 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 run_window_bindings(store, windows, PackageCache(workspace.models_path))
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
                     "최근 입력은 분석되지 않았습니다", timeout=10_000
+                )
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text(
+                    "마지막으로 분석된 이전 입력"
                 )
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.locator('a[href="#rul"]').click()
