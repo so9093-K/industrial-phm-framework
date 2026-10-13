@@ -29,6 +29,10 @@ const STEP_KIND_LABEL = {"acquisition-snapshot": "획득 파형", "observation-w
 // A rejected input is not a fault; it means this package was not trained or validated for it.
 const INPUT_GUIDE = "모델 입력 규격은 '모델·학습 범위·검증 근거'에서 확인할 수 있습니다. "
   + "규격이 다른 데이터는 그 입력으로 학습·검증한 모델 패키지가 있어야 분석합니다.";
+// Only skips where the package does not fit the input get that guidance. A sequence warm-up,
+// an unreadable file or a too-short window is not a reason to train another model.
+const INPUT_MISMATCH = /^(package expects |channels differ |sampling rate .+ differs |sample count .+ differs |unsupported feature set |fixed sampling rate or sample count |RUL applicability unavailable)/;
+const inputGuide = (reason) => INPUT_MISMATCH.test(reason || "") ? " · " + INPUT_GUIDE : "";
 const FEATURE_LABEL = {
   rms: "RMS", mean: "평균", standard_deviation: "표준편차", absolute_peak: "절대 피크",
   peak_to_peak: "피크-피크", crest_factor: "파고율", skewness: "왜도", excess_kurtosis: "첨도(초과)",
@@ -257,7 +261,7 @@ function renderAnomaly() {
     state.className = "state error";state.textContent = "모델을 실행할 수 없습니다: " + (binding.health_reason || "이유 미기록");
   } else if (!analyzed.length) {
     state.className = "state";state.textContent = steps.length
-      ? "입력을 분석할 수 없습니다: " + (steps.at(-1).reason || "모델 입력 조건 불충족") + " · " + INPUT_GUIDE
+      ? "입력을 분석할 수 없습니다: " + (steps.at(-1).reason || "모델 입력 조건 불충족") + inputGuide(steps.at(-1).reason)
       : "분석된 step이 아직 없습니다. 데이터가 공급되면 자동으로 갱신됩니다.";
   } else {
     state.className = "state";
@@ -477,7 +481,7 @@ function renderRul() {
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
   const output = (entry.package && entry.package.output) || {};
-  if (!analyzed.length) {renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + " · " + INPUT_GUIDE : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
+  if (!analyzed.length) {renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;}
   const last = analyzed.at(-1);
   const unit = unitText(last.output.unit);
   const period = output.step_period_seconds;

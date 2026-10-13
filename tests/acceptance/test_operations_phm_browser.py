@@ -12,7 +12,13 @@ from industrial_phm.application.acquisition_snapshot import (
     SqliteAcquisitionSnapshotRepository,
     file_sha256,
 )
-from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
+from industrial_phm.application.phm_analysis import (
+    PhmBinding,
+    PreparedStep,
+    SqlitePhmAnalysisStore,
+    StepEvaluation,
+    StepState,
+)
 from industrial_phm.models.package import StepKind
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from industrial_phm.runtime.operations_workspace import (
@@ -190,6 +196,20 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path:
         )
     )
     analyze(workspace)
+    # A sequence model still collecting its window skips too, but the package fits the input.
+    store.create_binding(
+        PhmBinding(
+            "anomaly-warmup", package_id, "bench", "fan-1", StepKind.ACQUISITION_SNAPSHOT, T0
+        )
+    )
+    store.commit_step(
+        "anomaly-warmup",
+        PreparedStep("warmup:1", 1, True, {}, skip_reason="sequence warm-up: 1/8 acquisitions"),
+        evaluate=lambda state, step: StepEvaluation(StepState.SKIPPED, {}, state, step.skip_reason),
+        package_id=package_id,
+        processed_at=T0,
+        feature_names=(),
+    )
     server = create_operations_web_read_server(workspace.root)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -199,8 +219,11 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path:
             try:
                 page = browser.new_page(viewport={"width": 1280, "height": 900}, locale="ko-KR")
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
-                page.select_option("#anomaly-binding", "anomaly-pump")
+                page.select_option("#anomaly-binding", "anomaly-warmup")
                 state = page.locator("#anomaly-state")
+                pw.expect(state).to_contain_text("sequence warm-up: 1/8")
+                pw.expect(state).not_to_contain_text("학습·검증한 모델 패키지")
+                page.select_option("#anomaly-binding", "anomaly-pump")
                 pw.expect(state).to_contain_text("입력을 분석할 수 없습니다")
                 pw.expect(state).to_contain_text(f"got ['x', 'y'], expected {list(CHANNELS)}")
                 pw.expect(state).to_contain_text("그 입력으로 학습·검증한 모델 패키지가 있어야")
