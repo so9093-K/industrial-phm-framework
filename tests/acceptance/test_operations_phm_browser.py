@@ -28,7 +28,7 @@ from industrial_phm.runtime.operations_workspace import (
 from tests.support.phm import CHANNELS, SAMPLES, T0, analyze, deliver, phm_workspace
 
 
-@pytest.mark.parametrize("width", [1024, 1440])
+@pytest.mark.parametrize("width", [390, 1024, 1440])
 def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
     tmp_path: Path, width: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -67,6 +67,9 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                     == "none"
                 )
                 pw.expect(page.locator("#notice")).not_to_be_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
+                    "PHM page overflows the viewport"
+                )
                 pw.expect(page.locator("#anomaly-score-chart .phm-interval")).to_have_count(1)
                 assert page.locator("#anomaly-feature-chart .phm-svg").count() >= 2
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #6")
@@ -123,6 +126,13 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("마지막 분석 점수")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #7")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
+                page.locator('a[href="#rul"]').click()
+                pw.expect(page.locator("#rul-observation")).to_contain_text(
+                    "마지막으로 분석된 이전 입력"
+                )
+                pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 분석 RUL 추정")
+                pw.expect(page.locator("#rul-freshness")).to_contain_text("최신 분석 #7")
+                page.locator('a[href="#anomaly"]').click()
                 page.route(
                     "**/api/v1/phm/series?*",
                     lambda route: route.fulfill(status=503, json={"error": "test-read-failed"}),
@@ -147,7 +157,10 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
         thread.join(timeout=10)
 
 
-def test_phm_screens_explain_missing_models_instead_of_inventing_results(tmp_path: Path) -> None:
+@pytest.mark.parametrize("width", [390, 1024, 1440])
+def test_phm_screens_explain_missing_models_instead_of_inventing_results(
+    tmp_path: Path, width: int
+) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "empty")
     initialize_operations_workspace(workspace)
@@ -158,7 +171,7 @@ def test_phm_screens_explain_missing_models_instead_of_inventing_results(tmp_pat
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
             try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900}, locale="ko-KR")
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
                 pw.expect(page.locator("#anomaly-state")).to_contain_text("연결된 설비가 없습니다")
                 pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
@@ -175,7 +188,10 @@ def test_phm_screens_explain_missing_models_instead_of_inventing_results(tmp_pat
         thread.join(timeout=10)
 
 
-def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path: Path) -> None:
+@pytest.mark.parametrize("width", [390, 1024, 1440])
+def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
+    tmp_path: Path, width: int
+) -> None:
     """New data that does not fit the package is refused with what differs and what is needed."""
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "ws")
@@ -224,7 +240,7 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(tmp_path:
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
             try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900}, locale="ko-KR")
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
                 page.select_option("#anomaly-binding", "anomaly-warmup")
                 state = page.locator("#anomaly-state")

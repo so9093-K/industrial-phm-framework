@@ -5,7 +5,50 @@
 [운영 추론 수용 프로토콜](../../operational-inference-acceptance-protocol.md)의 지연 한도를 따릅니다.
 AI 설명은 실제 `local-main`(`http://127.0.0.1:9400/v1`), 브라우저는 Chromium 1440px ko-KR입니다.
 
-## 두 번의 인수
+## UX 개편 후 인수
+
+#549–#551이 반영된 제품 코드 `30beec1aa0aacd8c63c1f7e592392f05530388b3`로 다시 실행했습니다.
+수치 계산·입력 특징·저장 스키마·Web API·3초 polling은 변경하지 않았습니다.
+
+- 기존 Chromium 3개 파일과 390px/이전 RUL 결과 구분 검사를 포함해 **15 passed / 0 skipped**.
+- XJTU-SY 원본 기록 재생 **28/28 PASS**, 저장 결과의 UX 검사 **65/65 PASS**.
+- AI-Hub 239 원본 OPC UA 재생 **15/15 PASS**, UX 검사 **23/23 PASS**. R/S/T 세 상을
+  전류(A)와 전압(V) 각각 한 축에서 비교하고, 축의 최소·최대값을 저장 특징과 대조했습니다.
+- 1440×900, 1024×900, 390×844의 Chromium ko-KR 화면을 직접 캡처했습니다.
+- 이상 점수·참고 기준, 기록 재생과 수신/분석 시각, RUL의 기록 종료점과 참고 MAE를 구분합니다.
+- AI 설명은 기본으로 접혀 있고, 실제 Tab/Enter로 열 수 있습니다. 생성 요청 실패를 주입한 동안에도
+  저장 점수를 조회하고 감독형 노드에서 검토 요청→확인→종료를 완료했습니다.
+- 이 검사는 로컬 Chromium에 한정됩니다. 특정 스크린리더·다른 브라우저·현장 설비의 인증이 아닙니다.
+  작은 화면의 SVG 축 글자는 축소되므로, 정밀 수치는 결과 카드와 선택한 입력 상세에서 확인합니다.
+
+[실행 JSON과 최신 캡처](ux/)를 이번 UI의 인수 근거로 사용합니다. 아래 화면과 수치는 **UX 개편 전** 기록입니다.
+모델 성능 FAIL/미검증을 이 기능 인수 PASS로 대체하지 않습니다.
+
+| 최신 화면 | 1440px | 1024px | 390px |
+| --- | --- | --- | --- |
+| XJTU LSTM 이상 | [화면](ux/xjtu-lstm-lstm-autoencoder-v1-Bearing1_1-1440.png) | [화면](ux/xjtu-lstm-lstm-autoencoder-v1-Bearing1_1-1024.png) | [화면](ux/xjtu-lstm-lstm-autoencoder-v1-Bearing1_1-390.png) |
+| XJTU LSTM RUL | [화면](ux/xjtu-lstm-lstm-rul-v1-Bearing1_1-1440.png) | [화면](ux/xjtu-lstm-lstm-rul-v1-Bearing1_1-1024.png) | [화면](ux/xjtu-lstm-lstm-rul-v1-Bearing1_1-390.png) |
+
+| AI-Hub 전기 이상 | [화면](ux/aihub-aihub-1338-1440.png) | [화면](ux/aihub-aihub-1338-1024.png) | [화면](ux/aihub-aihub-1338-390.png) |
+
+원본 입력 연결과 AI 실패 중 검토: [XJTU 파형](ux/xjtu-selected-input-1440.png) ·
+[AI 생성 실패](ux/xjtu-ai-unavailable-review-1440.png) · [R/S/T와 원본 7채널](ux/aihub-selected-input-1440.png).
+실측 p95는 [XJTU JSON](ux/xjtu-product.json)을 따릅니다. 공급→커밋은 모델별 0.643–1.005초,
+커밋→화면 p95 3.025초입니다. 최대 화면 지연은 8.044초로, 모든 개별 지연이 5초 이하라는 뜻은 아닙니다.
+
+AI-Hub 윈도우 확정→커밋 p95는 1.724초, 커밋→화면은 2.614초입니다. 전체 실행 명령·판정·이미지
+해시는 [execution.json](ux/execution.json)과 [로그](ux/logs/)에서 확인합니다.
+
+UX 재현은 위 원본 재생 명령 이후 다음 명령으로 같은 감독형 작업공간을 다시 엽니다.
+
+```bash
+uv run --locked --all-extras --all-groups --with playwright python -m tools.phm.acceptance_ux \
+  --workspace artifacts/acceptance/xjtu/ws --scenario xjtu --output artifacts/acceptance/xjtu/captures
+uv run --locked --all-extras --all-groups --with playwright python -m tools.phm.acceptance_ux \
+  --workspace artifacts/acceptance/aihub/ws --scenario aihub --output artifacts/acceptance/aihub/captures
+```
+
+## 개편 전 두 번의 인수
 
 인수는 두 번 실행했습니다. 1차 인수에서 제품 결함 3건을 찾아 고친 뒤, 고친 코드로 다시 실행했습니다.
 **최종 판정은 최종 인수입니다.**

@@ -1,0 +1,781 @@
+{
+  "scenario": "aihub",
+  "code_revision": "30beec1aa0aacd8c63c1f7e592392f05530388b3",
+  "started_at": "2026-10-13T04:29:13.302141+00:00",
+  "source": "saved results from original recorded-data acceptance, not field input",
+  "viewports": [
+    {
+      "view": "anomaly",
+      "binding": "aihub-1338",
+      "width": 1440,
+      "height": 900,
+      "asset": "aihub-air-compressor-1338",
+      "observation": "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.",
+      "freshness": "최신 수신 2020-11-13 04:30:00 UTC · 저장 2026-10-13 04:28:06 UTC · 최신 분석 2020-11-13 04:25:00 UTC · 처리 2026-10-13 04:28:09 UTC · 입력 처리 지연 없음 · 화면 갱신 오후 1:29:16",
+      "screenshot": "aihub-aihub-1338-1440.png"
+    },
+    {
+      "view": "anomaly",
+      "binding": "aihub-1338",
+      "width": 1024,
+      "height": 900,
+      "asset": "aihub-air-compressor-1338",
+      "observation": "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.",
+      "freshness": "최신 수신 2020-11-13 04:30:00 UTC · 저장 2026-10-13 04:28:06 UTC · 최신 분석 2020-11-13 04:25:00 UTC · 처리 2026-10-13 04:28:09 UTC · 입력 처리 지연 없음 · 화면 갱신 오후 1:29:16",
+      "screenshot": "aihub-aihub-1338-1024.png"
+    },
+    {
+      "view": "anomaly",
+      "binding": "aihub-1338",
+      "width": 390,
+      "height": 844,
+      "asset": "aihub-air-compressor-1338",
+      "observation": "최근 분석은 참고 기준 이하입니다. 설비의 정상 여부를 판정한 것은 아닙니다.",
+      "freshness": "최신 수신 2020-11-13 04:30:00 UTC · 저장 2026-10-13 04:28:06 UTC · 최신 분석 2020-11-13 04:25:00 UTC · 처리 2026-10-13 04:28:09 UTC · 입력 처리 지연 없음 · 화면 갱신 오후 1:29:17",
+      "screenshot": "aihub-aihub-1338-390.png"
+    }
+  ],
+  "browser": {
+    "name": "Chromium",
+    "version": "153.0.8010.12"
+  },
+  "phase_paths": [
+    {
+      "class": "phm-phase-curve phm-phase-0",
+      "path": "M64.0 40.9 L79.7 59.4 L95.3 95.1 L111.0 67.3 L126.6 41.2 L142.3 79.6 L157.9 44.2 L173.6 60.6 L189.2 65.8 L204.9 71.0 L220.5 110.8 L236.2 42.7 L251.8 64.8 L267.5 40.4 L283.1 53.8 L298.8 63.7 M330.1 55.3 L345.7 39.2 L361.4 63.5 L377.0 44.4 L392.7 38.8 L408.3 64.9 L424.0 41.0 L439.7 60.4 L455.3 62.8 L471.0 66.9 L486.6 92.3 L502.3 80.7 L517.9 84.9 L533.6 64.1 L549.2 83.6 L564.9 83.0 L580.5 79.2 L596.2 80.7 L611.8 83.7 L627.5 78.3 L643.1 85.4 L658.8 81.5 L674.4 80.0 L690.1 93.2 L705.7 37.0 L721.4 43.5 L737.0 38.4 L752.7 61.5 L768.3 59.4 L784.0 38.1 "
+    },
+    {
+      "class": "phm-phase-curve phm-phase-1",
+      "path": "M64.0 30.1 L79.7 49.1 L95.3 85.0 L111.0 57.1 L126.6 30.3 L142.3 69.8 L157.9 33.3 L173.6 50.8 L189.2 55.6 L204.9 61.3 L220.5 102.3 L236.2 33.1 L251.8 55.3 L267.5 30.1 L283.1 43.8 L298.8 53.6 M330.1 45.5 L345.7 29.8 L361.4 54.1 L377.0 34.7 L392.7 29.4 L408.3 55.1 L424.0 30.2 L439.7 50.4 L455.3 53.1 L471.0 57.4 L486.6 83.1 L502.3 71.5 L517.9 76.0 L533.6 54.5 L549.2 73.8 L564.9 73.9 L580.5 69.3 L596.2 71.0 L611.8 73.8 L627.5 68.8 L643.1 75.6 L658.8 72.2 L674.4 69.9 L690.1 83.6 L705.7 26.1 L721.4 31.8 L737.0 28.2 L752.7 51.1 L768.3 48.8 L784.0 27.5 "
+    },
+    {
+      "class": "phm-phase-curve phm-phase-2",
+      "path": "M64.0 26.3 L79.7 45.4 L95.3 82.0 L111.0 53.2 L126.6 26.0 L142.3 66.3 L157.9 28.7 L173.6 46.1 L189.2 51.6 L204.9 57.3 L220.5 99.7 L236.2 28.9 L251.8 52.0 L267.5 25.6 L283.1 39.7 L298.8 48.9 M330.1 41.4 L345.7 24.9 L361.4 49.7 L377.0 29.3 L392.7 23.7 L408.3 50.4 L424.0 25.4 L439.7 45.8 L455.3 48.2 L471.0 51.9 L486.6 78.4 L502.3 66.6 L517.9 70.6 L533.6 48.7 L549.2 68.7 L564.9 69.1 L580.5 64.8 L596.2 66.3 L611.8 69.3 L627.5 63.3 L643.1 70.7 L658.8 67.2 L674.4 65.6 L690.1 80.0 L705.7 21.2 L721.4 26.7 L737.0 22.6 L752.7 45.9 L768.3 43.9 L784.0 22.2 "
+    },
+    {
+      "class": "phm-phase-curve phm-phase-0",
+      "path": "M64.0 72.6 L79.7 72.1 L95.3 71.6 L111.0 62.3 L126.6 61.3 L142.3 55.0 L157.9 59.4 L173.6 67.7 L189.2 75.6 L204.9 87.8 L220.5 82.4 L236.2 81.4 L251.8 85.4 L267.5 83.4 L283.1 77.0 L298.8 72.9 M330.1 82.9 L345.7 69.1 L361.4 65.3 L377.0 65.3 L392.7 65.3 L408.3 61.3 L424.0 59.9 L439.7 52.5 L455.3 52.0 L471.0 50.1 L486.6 48.2 L502.3 36.8 L517.9 30.5 L533.6 30.0 L549.2 49.1 L564.9 63.8 L580.5 67.2 L596.2 66.2 L611.8 62.8 L627.5 72.1 L643.1 62.3 L658.8 50.6 L674.4 70.2 L690.1 75.6 L705.7 100.5 L721.4 77.0 L737.0 82.4 L752.7 87.3 L768.3 92.2 L784.0 85.4 "
+    },
+    {
+      "class": "phm-phase-curve phm-phase-1",
+      "path": "M64.0 63.3 L79.7 61.8 L95.3 62.3 L111.0 53.0 L126.6 51.5 L142.3 45.7 L157.9 49.6 L173.6 57.4 L189.2 66.2 L204.9 78.5 L220.5 74.6 L236.2 69.7 L251.8 78.5 L267.5 75.1 L283.1 68.7 L298.8 64.0 M330.1 74.1 L345.7 60.5 L361.4 56.9 L377.0 57.9 L392.7 57.4 L408.3 51.5 L424.0 51.1 L439.7 43.7 L455.3 43.7 L471.0 40.8 L486.6 37.2 L502.3 26.6 L517.9 21.2 L533.6 21.2 L549.2 38.3 L564.9 56.4 L580.5 56.9 L596.2 56.9 L611.8 53.0 L627.5 62.3 L643.1 51.5 L658.8 41.3 L674.4 60.4 L690.1 67.7 L705.7 90.3 L721.4 65.8 L737.0 73.6 L752.7 77.5 L768.3 81.4 L784.0 76.5 "
+    },
+    {
+      "class": "phm-phase-curve phm-phase-2",
+      "path": "M64.0 82.4 L79.7 81.9 L95.3 80.9 L111.0 71.6 L126.6 70.7 L142.3 64.8 L157.9 69.2 L173.6 75.6 L189.2 84.4 L204.9 97.6 L220.5 93.7 L236.2 86.8 L251.8 95.6 L267.5 93.2 L283.1 86.3 L298.8 83.6 M330.1 91.7 L345.7 77.6 L361.4 74.1 L377.0 75.6 L392.7 75.6 L408.3 69.7 L424.0 70.2 L439.7 62.3 L455.3 61.8 L471.0 58.9 L486.6 58.0 L502.3 45.2 L517.9 38.3 L533.6 38.8 L549.2 57.4 L564.9 73.1 L580.5 75.1 L596.2 76.0 L611.8 71.1 L627.5 80.0 L643.1 69.7 L658.8 58.9 L674.4 79.0 L690.1 84.9 L705.7 110.8 L721.4 86.8 L737.0 90.7 L752.7 96.1 L768.3 100.5 L784.0 93.7 "
+    }
+  ],
+  "phase_values": [
+    {
+      "event_start": "2020-11-13T00:35:00+00:00",
+      "position": 1605228000000000,
+      "features": {
+        "current.phase_r.mean_a": 70.31875,
+        "current.phase_s.mean_a": 73.4375,
+        "current.phase_t.mean_a": 74.54375,
+        "voltage.phase_r.mean_v": 219.95,
+        "voltage.phase_s.mean_v": 220.9,
+        "voltage.phase_t.mean_v": 218.95
+      }
+    },
+    {
+      "event_start": "2020-11-13T00:40:00+00:00",
+      "position": 1605228300000000,
+      "features": {
+        "current.phase_r.mean_a": 64.93125,
+        "current.phase_s.mean_a": 67.925,
+        "current.phase_t.mean_a": 69.00625,
+        "voltage.phase_r.mean_v": 220.0,
+        "voltage.phase_s.mean_v": 221.05,
+        "voltage.phase_t.mean_v": 219.0
+      }
+    },
+    {
+      "event_start": "2020-11-13T00:45:00+00:00",
+      "position": 1605228600000000,
+      "features": {
+        "current.phase_r.mean_a": 54.56875,
+        "current.phase_s.mean_a": 57.5,
+        "current.phase_t.mean_a": 58.3875,
+        "voltage.phase_r.mean_v": 220.05,
+        "voltage.phase_s.mean_v": 221.0,
+        "voltage.phase_t.mean_v": 219.1
+      }
+    },
+    {
+      "event_start": "2020-11-13T00:50:00+00:00",
+      "position": 1605228900000000,
+      "features": {
+        "current.phase_r.mean_a": 62.6375,
+        "current.phase_s.mean_a": 65.6125,
+        "current.phase_t.mean_a": 66.725,
+        "voltage.phase_r.mean_v": 221.0,
+        "voltage.phase_s.mean_v": 221.95,
+        "voltage.phase_t.mean_v": 220.05
+      }
+    },
+    {
+      "event_start": "2020-11-13T00:55:00+00:00",
+      "position": 1605229200000000,
+      "features": {
+        "current.phase_r.mean_a": 70.23125,
+        "current.phase_s.mean_a": 73.375,
+        "current.phase_t.mean_a": 74.65,
+        "voltage.phase_r.mean_v": 221.1,
+        "voltage.phase_s.mean_v": 222.1,
+        "voltage.phase_t.mean_v": 220.15
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:00:00+00:00",
+      "position": 1605229500000000,
+      "features": {
+        "current.phase_r.mean_a": 59.075,
+        "current.phase_s.mean_a": 61.925,
+        "current.phase_t.mean_a": 62.94375,
+        "voltage.phase_r.mean_v": 221.75,
+        "voltage.phase_s.mean_v": 222.7,
+        "voltage.phase_t.mean_v": 220.75
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:05:00+00:00",
+      "position": 1605229800000000,
+      "features": {
+        "current.phase_r.mean_a": 69.35,
+        "current.phase_s.mean_a": 72.525,
+        "current.phase_t.mean_a": 73.85625,
+        "voltage.phase_r.mean_v": 221.3,
+        "voltage.phase_s.mean_v": 222.3,
+        "voltage.phase_t.mean_v": 220.3
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:10:00+00:00",
+      "position": 1605230100000000,
+      "features": {
+        "current.phase_r.mean_a": 64.6,
+        "current.phase_s.mean_a": 67.43125,
+        "current.phase_t.mean_a": 68.7875,
+        "voltage.phase_r.mean_v": 220.45,
+        "voltage.phase_s.mean_v": 221.5,
+        "voltage.phase_t.mean_v": 219.65
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:15:00+00:00",
+      "position": 1605230400000000,
+      "features": {
+        "current.phase_r.mean_a": 63.09375,
+        "current.phase_s.mean_a": 66.04375,
+        "current.phase_t.mean_a": 67.20625,
+        "voltage.phase_r.mean_v": 219.65,
+        "voltage.phase_s.mean_v": 220.6,
+        "voltage.phase_t.mean_v": 218.75
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:20:00+00:00",
+      "position": 1605230700000000,
+      "features": {
+        "current.phase_r.mean_a": 61.575,
+        "current.phase_s.mean_a": 64.3875,
+        "current.phase_t.mean_a": 65.54375,
+        "voltage.phase_r.mean_v": 218.4,
+        "voltage.phase_s.mean_v": 219.35,
+        "voltage.phase_t.mean_v": 217.4
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:25:00+00:00",
+      "position": 1605231000000000,
+      "features": {
+        "current.phase_r.mean_a": 50.00625,
+        "current.phase_s.mean_a": 52.475,
+        "current.phase_t.mean_a": 53.225,
+        "voltage.phase_r.mean_v": 218.95,
+        "voltage.phase_s.mean_v": 219.75,
+        "voltage.phase_t.mean_v": 217.8
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:30:00+00:00",
+      "position": 1605231300000000,
+      "features": {
+        "current.phase_r.mean_a": 69.78125,
+        "current.phase_s.mean_a": 72.56875,
+        "current.phase_t.mean_a": 73.80625,
+        "voltage.phase_r.mean_v": 219.05,
+        "voltage.phase_s.mean_v": 220.25,
+        "voltage.phase_t.mean_v": 218.5
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:35:00+00:00",
+      "position": 1605231600000000,
+      "features": {
+        "current.phase_r.mean_a": 63.36875,
+        "current.phase_s.mean_a": 66.11875,
+        "current.phase_t.mean_a": 67.1,
+        "voltage.phase_r.mean_v": 218.65,
+        "voltage.phase_s.mean_v": 219.35,
+        "voltage.phase_t.mean_v": 217.6
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:40:00+00:00",
+      "position": 1605231900000000,
+      "features": {
+        "current.phase_r.mean_a": 70.45,
+        "current.phase_s.mean_a": 73.4375,
+        "current.phase_t.mean_a": 74.75,
+        "voltage.phase_r.mean_v": 218.85,
+        "voltage.phase_s.mean_v": 219.7,
+        "voltage.phase_t.mean_v": 217.85
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:45:00+00:00",
+      "position": 1605232200000000,
+      "features": {
+        "current.phase_r.mean_a": 66.55625,
+        "current.phase_s.mean_a": 69.46875,
+        "current.phase_t.mean_a": 70.65625,
+        "voltage.phase_r.mean_v": 219.5,
+        "voltage.phase_s.mean_v": 220.35,
+        "voltage.phase_t.mean_v": 218.55
+      }
+    },
+    {
+      "event_start": "2020-11-13T01:50:00+00:00",
+      "position": 1605232500000000,
+      "features": {
+        "current.phase_r.mean_a": 63.697916666666664,
+        "current.phase_s.mean_a": 66.625,
+        "current.phase_t.mean_a": 67.97916666666667,
+        "voltage.phase_r.mean_v": 219.91666666666666,
+        "voltage.phase_s.mean_v": 220.83333333333334,
+        "voltage.phase_t.mean_v": 218.83333333333334
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:00:00+00:00",
+      "position": 1605233100000000,
+      "features": {
+        "current.phase_r.mean_a": 66.11875,
+        "current.phase_s.mean_a": 68.975,
+        "current.phase_t.mean_a": 70.16875,
+        "voltage.phase_r.mean_v": 218.9,
+        "voltage.phase_s.mean_v": 219.8,
+        "voltage.phase_t.mean_v": 218.0
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:05:00+00:00",
+      "position": 1605233400000000,
+      "features": {
+        "current.phase_r.mean_a": 70.796875,
+        "current.phase_s.mean_a": 73.5234375,
+        "current.phase_t.mean_a": 74.9453125,
+        "voltage.phase_r.mean_v": 220.3125,
+        "voltage.phase_s.mean_v": 221.1875,
+        "voltage.phase_t.mean_v": 219.4375
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:10:00+00:00",
+      "position": 1605233700000000,
+      "features": {
+        "current.phase_r.mean_a": 63.74375,
+        "current.phase_s.mean_a": 66.46875,
+        "current.phase_t.mean_a": 67.75625,
+        "voltage.phase_r.mean_v": 220.7,
+        "voltage.phase_s.mean_v": 221.55,
+        "voltage.phase_t.mean_v": 219.8
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:15:00+00:00",
+      "position": 1605234000000000,
+      "features": {
+        "current.phase_r.mean_a": 69.2875,
+        "current.phase_s.mean_a": 72.10625,
+        "current.phase_t.mean_a": 73.66875,
+        "voltage.phase_r.mean_v": 220.7,
+        "voltage.phase_s.mean_v": 221.45,
+        "voltage.phase_t.mean_v": 219.65
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:20:00+00:00",
+      "position": 1605234300000000,
+      "features": {
+        "current.phase_r.mean_a": 70.925,
+        "current.phase_s.mean_a": 73.65,
+        "current.phase_t.mean_a": 75.3,
+        "voltage.phase_r.mean_v": 220.7,
+        "voltage.phase_s.mean_v": 221.5,
+        "voltage.phase_t.mean_v": 219.65
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:25:00+00:00",
+      "position": 1605234600000000,
+      "features": {
+        "current.phase_r.mean_a": 63.3375,
+        "current.phase_s.mean_a": 66.175,
+        "current.phase_t.mean_a": 67.5375,
+        "voltage.phase_r.mean_v": 221.1,
+        "voltage.phase_s.mean_v": 222.1,
+        "voltage.phase_t.mean_v": 220.25
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:30:00+00:00",
+      "position": 1605234900000000,
+      "features": {
+        "current.phase_r.mean_a": 70.275,
+        "current.phase_s.mean_a": 73.425,
+        "current.phase_t.mean_a": 74.81875,
+        "voltage.phase_r.mean_v": 221.25,
+        "voltage.phase_s.mean_v": 222.15,
+        "voltage.phase_t.mean_v": 220.2
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:35:00+00:00",
+      "position": 1605235200000000,
+      "features": {
+        "current.phase_r.mean_a": 64.65,
+        "current.phase_s.mean_a": 67.54375,
+        "current.phase_t.mean_a": 68.89375,
+        "voltage.phase_r.mean_v": 222.0,
+        "voltage.phase_s.mean_v": 222.9,
+        "voltage.phase_t.mean_v": 221.0
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:40:00+00:00",
+      "position": 1605235500000000,
+      "features": {
+        "current.phase_r.mean_a": 63.9375,
+        "current.phase_s.mean_a": 66.7625,
+        "current.phase_t.mean_a": 68.18125,
+        "voltage.phase_r.mean_v": 222.05,
+        "voltage.phase_s.mean_v": 222.9,
+        "voltage.phase_t.mean_v": 221.05
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:45:00+00:00",
+      "position": 1605235800000000,
+      "features": {
+        "current.phase_r.mean_a": 62.75,
+        "current.phase_s.mean_a": 65.50625,
+        "current.phase_t.mean_a": 67.125,
+        "voltage.phase_r.mean_v": 222.25,
+        "voltage.phase_s.mean_v": 223.2,
+        "voltage.phase_t.mean_v": 221.35
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:50:00+00:00",
+      "position": 1605236100000000,
+      "features": {
+        "current.phase_r.mean_a": 55.3984375,
+        "current.phase_s.mean_a": 58.0625,
+        "current.phase_t.mean_a": 59.4140625,
+        "voltage.phase_r.mean_v": 222.4375,
+        "voltage.phase_s.mean_v": 223.5625,
+        "voltage.phase_t.mean_v": 221.4375
+      }
+    },
+    {
+      "event_start": "2020-11-13T02:55:00+00:00",
+      "position": 1605236400000000,
+      "features": {
+        "current.phase_r.mean_a": 58.75625,
+        "current.phase_s.mean_a": 61.41875,
+        "current.phase_t.mean_a": 62.84375,
+        "voltage.phase_r.mean_v": 223.6,
+        "voltage.phase_s.mean_v": 224.65,
+        "voltage.phase_t.mean_v": 222.75
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:00:00+00:00",
+      "position": 1605236700000000,
+      "features": {
+        "current.phase_r.mean_a": 57.5375,
+        "current.phase_s.mean_a": 60.125,
+        "current.phase_t.mean_a": 61.675,
+        "voltage.phase_r.mean_v": 224.25,
+        "voltage.phase_s.mean_v": 225.2,
+        "voltage.phase_t.mean_v": 223.45
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:05:00+00:00",
+      "position": 1605237000000000,
+      "features": {
+        "current.phase_r.mean_a": 63.58125,
+        "current.phase_s.mean_a": 66.35625,
+        "current.phase_t.mean_a": 68.04375,
+        "voltage.phase_r.mean_v": 224.3,
+        "voltage.phase_s.mean_v": 225.2,
+        "voltage.phase_t.mean_v": 223.4
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:10:00+00:00",
+      "position": 1605237300000000,
+      "features": {
+        "current.phase_r.mean_a": 57.90625,
+        "current.phase_s.mean_a": 60.76875,
+        "current.phase_t.mean_a": 62.2375,
+        "voltage.phase_r.mean_v": 222.35,
+        "voltage.phase_s.mean_v": 223.45,
+        "voltage.phase_t.mean_v": 221.5
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:15:00+00:00",
+      "position": 1605237600000000,
+      "features": {
+        "current.phase_r.mean_a": 58.075,
+        "current.phase_s.mean_a": 60.725,
+        "current.phase_t.mean_a": 62.11875,
+        "voltage.phase_r.mean_v": 220.85,
+        "voltage.phase_s.mean_v": 221.6,
+        "voltage.phase_t.mean_v": 219.9
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:20:00+00:00",
+      "position": 1605237900000000,
+      "features": {
+        "current.phase_r.mean_a": 59.2,
+        "current.phase_s.mean_a": 62.075,
+        "current.phase_t.mean_a": 63.38125,
+        "voltage.phase_r.mean_v": 220.5,
+        "voltage.phase_s.mean_v": 221.55,
+        "voltage.phase_t.mean_v": 219.7
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:25:00+00:00",
+      "position": 1605238200000000,
+      "features": {
+        "current.phase_r.mean_a": 58.7625,
+        "current.phase_s.mean_a": 61.56875,
+        "current.phase_t.mean_a": 62.94375,
+        "voltage.phase_r.mean_v": 220.6,
+        "voltage.phase_s.mean_v": 221.55,
+        "voltage.phase_t.mean_v": 219.6
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:30:00+00:00",
+      "position": 1605238500000000,
+      "features": {
+        "current.phase_r.mean_a": 57.875,
+        "current.phase_s.mean_a": 60.74375,
+        "current.phase_t.mean_a": 62.075,
+        "voltage.phase_r.mean_v": 220.95,
+        "voltage.phase_s.mean_v": 221.95,
+        "voltage.phase_t.mean_v": 220.1
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:35:00+00:00",
+      "position": 1605238800000000,
+      "features": {
+        "current.phase_r.mean_a": 59.44375,
+        "current.phase_s.mean_a": 62.2,
+        "current.phase_t.mean_a": 63.8,
+        "voltage.phase_r.mean_v": 220.0,
+        "voltage.phase_s.mean_v": 221.0,
+        "voltage.phase_t.mean_v": 219.2
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:40:00+00:00",
+      "position": 1605239100000000,
+      "features": {
+        "current.phase_r.mean_a": 57.375,
+        "current.phase_s.mean_a": 60.2375,
+        "current.phase_t.mean_a": 61.65,
+        "voltage.phase_r.mean_v": 221.0,
+        "voltage.phase_s.mean_v": 222.1,
+        "voltage.phase_t.mean_v": 220.25
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:45:00+00:00",
+      "position": 1605239400000000,
+      "features": {
+        "current.phase_r.mean_a": 58.53125,
+        "current.phase_s.mean_a": 61.21875,
+        "current.phase_t.mean_a": 62.675,
+        "voltage.phase_r.mean_v": 222.2,
+        "voltage.phase_s.mean_v": 223.15,
+        "voltage.phase_t.mean_v": 221.35
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:50:00+00:00",
+      "position": 1605239700000000,
+      "features": {
+        "current.phase_r.mean_a": 58.94375,
+        "current.phase_s.mean_a": 61.9,
+        "current.phase_t.mean_a": 63.14375,
+        "voltage.phase_r.mean_v": 220.2,
+        "voltage.phase_s.mean_v": 221.2,
+        "voltage.phase_t.mean_v": 219.3
+      }
+    },
+    {
+      "event_start": "2020-11-13T03:55:00+00:00",
+      "position": 1605240000000000,
+      "features": {
+        "current.phase_r.mean_a": 55.13125,
+        "current.phase_s.mean_a": 57.9125,
+        "current.phase_t.mean_a": 58.94375,
+        "voltage.phase_r.mean_v": 219.65,
+        "voltage.phase_s.mean_v": 220.45,
+        "voltage.phase_t.mean_v": 218.7
+      }
+    },
+    {
+      "event_start": "2020-11-13T04:00:00+00:00",
+      "position": 1605240300000000,
+      "features": {
+        "current.phase_r.mean_a": 71.43125,
+        "current.phase_s.mean_a": 74.61875,
+        "current.phase_t.mean_a": 76.0375,
+        "voltage.phase_r.mean_v": 217.1,
+        "voltage.phase_s.mean_v": 218.15,
+        "voltage.phase_t.mean_v": 216.05
+      }
+    },
+    {
+      "event_start": "2020-11-13T04:05:00+00:00",
+      "position": 1605240600000000,
+      "features": {
+        "current.phase_r.mean_a": 69.5625,
+        "current.phase_s.mean_a": 72.95,
+        "current.phase_t.mean_a": 74.43125,
+        "voltage.phase_r.mean_v": 219.5,
+        "voltage.phase_s.mean_v": 220.65,
+        "voltage.phase_t.mean_v": 218.5
+      }
+    },
+    {
+      "event_start": "2020-11-13T04:10:00+00:00",
+      "position": 1605240900000000,
+      "features": {
+        "current.phase_r.mean_a": 71.0375,
+        "current.phase_s.mean_a": 73.9875,
+        "current.phase_t.mean_a": 75.6375,
+        "voltage.phase_r.mean_v": 218.95,
+        "voltage.phase_s.mean_v": 219.85,
+        "voltage.phase_t.mean_v": 218.1
+      }
+    },
+    {
+      "event_start": "2020-11-13T04:15:00+00:00",
+      "position": 1605241200000000,
+      "features": {
+        "current.phase_r.mean_a": 64.3375,
+        "current.phase_s.mean_a": 67.35,
+        "current.phase_t.mean_a": 68.86875,
+        "voltage.phase_r.mean_v": 218.45,
+        "voltage.phase_s.mean_v": 219.45,
+        "voltage.phase_t.mean_v": 217.55
+      }
+    },
+    {
+      "event_start": "2020-11-13T04:20:00+00:00",
+      "position": 1605241500000000,
+      "features": {
+        "current.phase_r.mean_a": 64.95,
+        "current.phase_s.mean_a": 68.01875,
+        "current.phase_t.mean_a": 69.43125,
+        "voltage.phase_r.mean_v": 217.95,
+        "voltage.phase_s.mean_v": 219.05,
+        "voltage.phase_t.mean_v": 217.1
+      }
+    },
+    {
+      "event_start": "2020-11-13T04:25:00+00:00",
+      "position": 1605241800000000,
+      "features": {
+        "current.phase_r.mean_a": 71.125,
+        "current.phase_s.mean_a": 74.19375,
+        "current.phase_t.mean_a": 75.75,
+        "voltage.phase_r.mean_v": 218.65,
+        "voltage.phase_s.mean_v": 219.55,
+        "voltage.phase_t.mean_v": 217.8
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "aihub-aihub-1338-1440-no-horizontal-overflow",
+      "pass": true,
+      "detail": {
+        "viewport": 1440,
+        "document": 1440
+      }
+    },
+    {
+      "name": "aihub-aihub-1338-1440-ai-secondary",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-aihub-1338-1440-threshold-is-not-health-verdict",
+      "pass": true,
+      "detail": "46개 step 분석 · 1개 분석 불가(이유 기록) · 점수는 고장 확률이나 진단이 아닙니다. · 개발 모델: 합격 기준 검증 미완료"
+    },
+    {
+      "name": "aihub-aihub-1338-1440-keyboard-focus-visible",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-aihub-1338-1440-ai-summary-keyboard-reachable",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-1440-no-browser-errors",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "aihub-aihub-1338-1024-no-horizontal-overflow",
+      "pass": true,
+      "detail": {
+        "viewport": 1024,
+        "document": 1024
+      }
+    },
+    {
+      "name": "aihub-aihub-1338-1024-ai-secondary",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-aihub-1338-1024-threshold-is-not-health-verdict",
+      "pass": true,
+      "detail": "46개 step 분석 · 1개 분석 불가(이유 기록) · 점수는 고장 확률이나 진단이 아닙니다. · 개발 모델: 합격 기준 검증 미완료"
+    },
+    {
+      "name": "aihub-aihub-1338-1024-keyboard-focus-visible",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-aihub-1338-1024-ai-summary-keyboard-reachable",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-1024-no-browser-errors",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "aihub-aihub-1338-390-no-horizontal-overflow",
+      "pass": true,
+      "detail": {
+        "viewport": 390,
+        "document": 390
+      }
+    },
+    {
+      "name": "aihub-aihub-1338-390-ai-secondary",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-aihub-1338-390-threshold-is-not-health-verdict",
+      "pass": true,
+      "detail": "46개 step 분석 · 1개 분석 불가(이유 기록) · 점수는 고장 확률이나 진단이 아닙니다. · 개발 모델: 합격 기준 검증 미완료"
+    },
+    {
+      "name": "aihub-aihub-1338-390-keyboard-focus-visible",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-aihub-1338-390-ai-summary-keyboard-reachable",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "aihub-390-no-browser-errors",
+      "pass": true,
+      "detail": []
+    },
+    {
+      "name": "aihub-point-opens-raw-input",
+      "pass": true,
+      "detail": {
+        "position": 1605233700000000,
+        "response_keys": [
+          "available",
+          "binding_id",
+          "channels",
+          "end",
+          "measurement_point_id",
+          "position",
+          "schema_version",
+          "start",
+          "window_id"
+        ]
+      }
+    },
+    {
+      "name": "aihub-three-phases-per-unit",
+      "pass": true,
+      "detail": "3상 평균 전류 · A\n\n76.038 A\n50.006 A\n2020-11-13 00:35\n2020-11-13 04:25\n\nR상\nS상\nT상\n\n3상 평균 전압 · V\n\n225.2 V\n216.05 V\n2020-11-13 00:35\n2020-11-13 04:25\n\nR상\nS상\nT상\n\n관측 시각 · UTC · 그래프를 선택하면 그 step의 입력과 원본 파형을 확인합니다. 선은 연속 step만 연결합니다."
+    },
+    {
+      "name": "aihub-current-original-unit-axis",
+      "pass": true,
+      "detail": {
+        "ticks": [
+          "76.038 A",
+          "50.006 A",
+          "2020-11-13 00:35",
+          "2020-11-13 04:25"
+        ],
+        "source_min": 50.00625,
+        "source_max": 76.0375
+      }
+    },
+    {
+      "name": "aihub-voltage-original-unit-axis",
+      "pass": true,
+      "detail": {
+        "ticks": [
+          "225.2 V",
+          "216.05 V",
+          "2020-11-13 00:35",
+          "2020-11-13 04:25"
+        ],
+        "source_min": 216.05,
+        "source_max": 225.2
+      }
+    },
+    {
+      "name": "aihub-ai-unavailable-does-not-block-review",
+      "pass": true,
+      "detail": null
+    }
+  ],
+  "passed": true,
+  "finished_at": "2026-10-13T04:29:19.934349+00:00"
+}
