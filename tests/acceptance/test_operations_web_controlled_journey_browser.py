@@ -132,7 +132,7 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
     kst = timezone(timedelta(hours=9))
     start = datetime(2020, 3, 2, 9, 0, tzinfo=kst)
     # Large enough that storing history takes longer than one bounded 5 s Web command.
-    rows = [(seconds, round(12 + seconds / 100000, 3)) for seconds in range(0, 360000, 10)]
+    rows = [(seconds, round(12 + seconds / 100000, 3)) for seconds in range(0, 360000, 30)]
     (files / "motor.csv").write_text(
         "timestamp,current_r,current_s,status\n"
         + "".join(
@@ -246,6 +246,15 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 )
                 pw.expect(page.locator("#monitor-signal-chart .monitor-raw-line")).to_have_count(1)
                 pw.expect(page.locator("#monitor-history-range")).to_have_value("7d")
+
+                # The saved file can be analyzed right away; the result opens on the asset.
+                page.locator('nav a[href="#connect"]').click()
+                page.locator("#csv-start-analyze").click()
+                pw.expect(page.locator('.asset-tabs a[data-tab="evidence"]')).to_have_attribute(
+                    "aria-current", "page", timeout=30000
+                )
+                pw.expect(page.locator("#evidence-results")).to_contain_text("신호 통계 분석")
+                pw.expect(page.locator("#asset-switch")).to_have_value("motor-01")
 
                 # The real server refuses a duplicate source; inputs stay for correction.
                 page.locator('nav a[href="#connect"]').click()
@@ -453,13 +462,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 saved_uploads = tuple((workspace.root / "web-uploads").glob("*.csv"))
                 assert len(saved_uploads) == 1
                 assert saved_uploads[0].read_bytes() == (inputs / "vibration.csv").read_bytes()
-                pw.expect(listing).to_contain_text("수신 근거 미확인")
-                pw.expect(listing.locator(".source-meaning")).to_contain_text(
-                    "소스 등록 정보만 확인"
-                )
-                pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "관리 상태 active: 0개"
-                )
+                pw.expect(listing).to_contain_text("수신 미확인")
+                pw.expect(listing.locator(".source-meaning")).to_contain_text("등록만 된 상태")
+                pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 0개")
                 pw.expect(page.locator("#onboarding-source-select")).to_have_value("journey-file")
                 page.get_by_role("button", name="소스 활성화 버튼 찾기").click()
                 pw.expect(listing.get_by_role("button", name="소스 활성화")).to_be_focused()
@@ -467,25 +472,21 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 assert not workspace.history_catalog_path.exists()
                 listing.get_by_role("button", name="소스 활성화").click()
                 pw.expect(listing).to_contain_text("관리 상태: active")
-                pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "관리 상태 active: 1개"
-                )
-                pw.expect(page.locator("#onboarding-next")).to_contain_text(
-                    "실제 검증 수신 근거를 확인하세요"
-                )
+                pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 1개")
+                pw.expect(page.locator("#onboarding-next")).to_contain_text("수신을 확인하세요")
                 page.get_by_role("button", name="FILE 수신 확인 버튼 찾기").click()
                 pw.expect(listing.get_by_role("button", name="FILE 수신 확인")).to_be_focused()
                 pw.expect(handoff).to_be_hidden()
                 listing.get_by_role("button", name="FILE 수신 확인").click()
-                pw.expect(listing).to_contain_text("FILE 검증 수신 근거 있음")
+                pw.expect(listing).to_contain_text("CSV 수신 확인됨")
                 pw.expect(listing.locator(".source-meaning")).to_contain_text(
-                    "이력 저장·연속 수집·분석 성공 여부는 별도 확인"
+                    "CSV 수신을 확인했습니다"
                 )
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "active와 수신을 모두 확인한 소스 1개"
+                    "사용 중이면서 수신을 확인한 소스 1개"
                 )
                 pw.expect(page.locator("#onboarding-next")).to_contain_text(
-                    "이력 저장·분석·설비 정상 판정은 보증하지 않습니다"
+                    "모니터링에서 측정값을 볼 수 있습니다"
                 )
                 page.get_by_role("button", name="FILE 이력 적재 버튼 찾기").click()
                 pw.expect(listing.get_by_role("button", name="FILE 이력 적재")).to_be_focused()
@@ -506,9 +507,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(_stored_values(page)).to_contain_text("1.5", timeout=30000)
                 page.locator('nav a[href="#connect"]').click()
                 assert workspace.history_catalog_path.exists()
-                listing.get_by_role("button", name="CSV 특징 분석 실행").click()
+                listing.get_by_role("button", name="신호 통계 분석").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "신규 분석 근거 저장 완료", timeout=30000
+                    "신호 통계 분석 저장 완료", timeout=30000
                 )
                 analyses = JsonFileFeatureAnalysisRepository(
                     workspace.file_feature_analysis_path
@@ -588,7 +589,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 phase_card.get_by_role("button", name="소스 활성화").click()
                 pw.expect(phase_card).to_contain_text("관리 상태: active")
                 phase_card.get_by_role("button", name="FILE 수신 확인").click()
-                pw.expect(phase_card).to_contain_text("FILE 검증 수신 근거 있음")
+                pw.expect(phase_card).to_contain_text("CSV 수신 확인됨")
                 phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "분석 불가", timeout=30000
@@ -678,7 +679,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     page.locator("#connection-progress > summary").click()
                 pw.expect(handoff).to_be_visible()
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "active와 수신을 모두 확인한 소스 2개"
+                    "사용 중이면서 수신을 확인한 소스 2개"
                 )
                 page.locator('nav a[href="#monitor"]').click()
                 page.locator('.asset-tabs a[data-tab="evidence"]').click()
@@ -1553,7 +1554,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 page.get_by_role("button", name="OPC UA 매핑 등록").click()
                 listing = page.locator("#source-list")
                 pw.expect(listing).to_contain_text(source_id, timeout=30000)
-                pw.expect(listing).to_contain_text("수신 근거 미확인")
+                pw.expect(listing).to_contain_text("수신 미확인")
                 assert not workspace.history_catalog_path.exists()
 
                 listing.get_by_role("button", name="소스 활성화").click()

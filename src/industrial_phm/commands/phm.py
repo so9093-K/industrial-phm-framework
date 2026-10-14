@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import sqlite3
 import sys
 from datetime import UTC, datetime
@@ -11,10 +10,10 @@ from pathlib import Path
 
 from industrial_phm.application.phm_analysis import (
     PhmAnalysisError,
-    PhmBinding,
     SqlitePhmAnalysisStore,
 )
-from industrial_phm.models.package import ModelPackageError, load_model_package
+from industrial_phm.models.package import ModelPackageError
+from industrial_phm.runtime.operations_web_phm_models import create_phm_binding
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
@@ -115,36 +114,28 @@ def _run_phm_bind(args: argparse.Namespace) -> int:
     if not workspace.config_path.is_file():
         print(f"phm bind failed: not an Operations workspace: {workspace.root}", file=sys.stderr)
         return 1
-    package_id = str(args.package)
-    if "/" in package_id or package_id.startswith("."):
-        print("phm bind failed: invalid package ID", file=sys.stderr)
-        return 1
     try:
-        package = load_model_package(workspace.models_path / package_id)
+        binding, created, task = create_phm_binding(
+            workspace,
+            package_id=str(args.package),
+            source_id=args.source_id,
+            asset_id=args.asset_id,
+            measurement_point_id=args.measurement_point_id,
+            recorded_replay=bool(args.recorded_replay),
+            binding_id=args.binding_id,
+        )
     except ModelPackageError as error:
         print(f"phm bind failed: package not usable: {error}", file=sys.stderr)
         return 1
-    binding_id = args.binding_id or _derived_binding_id(
-        package_id, args.source_id, args.asset_id, args.measurement_point_id
-    )
-    try:
-        binding = PhmBinding(
-            binding_id=binding_id,
-            package_id=package_id,
-            source_id=args.source_id,
-            asset_id=args.asset_id,
-            step_kind=package.manifest.input.step_kind,
-            created_at=datetime.now(UTC),
-            recorded_replay=bool(args.recorded_replay),
-            measurement_point_id=args.measurement_point_id,
-        )
-        created = SqlitePhmAnalysisStore(workspace.phm_analysis_path).create_binding(binding)
+    except ValueError as error:
+        print(f"phm bind failed: {error}", file=sys.stderr)
+        return 1
     except (PhmAnalysisError, OSError, sqlite3.Error) as error:
         print(f"phm bind failed: {error}", file=sys.stderr)
         return 1
     state = "created" if created else "already-present"
-    print(f"binding={binding_id} package={package_id} {state}")
-    print(f"task={package.manifest.output.task.value} step_kind={binding.step_kind.value}")
+    print(f"binding={binding.binding_id} package={binding.package_id} {state}")
+    print(f"task={task} step_kind={binding.step_kind.value}")
     return 0
 
 
@@ -346,13 +337,3 @@ def _checkout_revision() -> str | None:
     except OSError, subprocess.CalledProcessError:
         return None
     return None if dirty or len(head) != 40 else head
-
-
-def _derived_binding_id(
-    package_id: str, source_id: str, asset_id: str, point_id: str | None = None
-) -> str:
-    identity = f"{package_id}\n{source_id}\n{asset_id}"
-    if point_id is not None:
-        identity += "\npoint:" + point_id
-    digest = hashlib.sha256(identity.encode()).hexdigest()
-    return f"phm-{asset_id}-{digest[:10]}"

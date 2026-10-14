@@ -29,11 +29,13 @@ from industrial_phm.application.phm_read import (
     project_snapshot_preview,
 )
 from industrial_phm.application.phm_window_read import project_monitor_window, project_phm_window
+from industrial_phm.runtime.operations_web_phm_models import project_phm_models
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 PHM_READ_ROUTES = frozenset(
     {
         "/api/v1/phm/bindings",
+        "/api/v1/phm/models",
         "/api/v1/phm/monitor",
         "/api/v1/phm/result",
         "/api/v1/phm/trace",
@@ -91,6 +93,8 @@ def handle_phm_read(
             return HTTPStatus.OK, project_phm_bindings(
                 store, workspace.models_path, snapshots, windows=windows
             )
+        if path == "/api/v1/phm/models":
+            return HTTPStatus.OK, project_phm_models(workspace, _required_id(params, "asset_id"))
         binding_id = _required_id(params, "binding_id")
         if path == "/api/v1/phm/trace":
             return HTTPStatus.OK, project_phm_trace(store, binding_id=binding_id)

@@ -199,6 +199,22 @@ class SqliteAcquisitionSnapshotRepository:
             connection.close()
         return None if row is None else _parse(row)
 
+    def list_streams(self) -> tuple[AcquisitionSnapshot, ...]:
+        """The latest snapshot of every delivered (source, asset) stream."""
+        if not self._path.exists():
+            return ()
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT s.* FROM acquisition_snapshot s JOIN ("
+                "SELECT source_id, asset_id, MAX(ordinal) AS ordinal FROM acquisition_snapshot "
+                "GROUP BY source_id, asset_id) m USING (source_id, asset_id, ordinal) "
+                "ORDER BY s.asset_id, s.source_id"
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_parse(row) for row in rows)
+
     def latest(self, source_id: str, asset_id: str) -> AcquisitionSnapshot | None:
         connection = self._connect()
         try:

@@ -122,12 +122,14 @@
         <div class="phm-controls"><label for="anomaly-binding">분석 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select><label for="anomaly-range">표시 구간</label><select id="anomaly-range"><option value="recent">선택 시점의 연속 기록</option><option value="all">전체 기록</option></select><button id="anomaly-latest" type="button" hidden>최신 기록으로</button></div>
         <header class="phm-summary"><h3 id="anomaly-asset-title">설비 선택 대기</h3><p id="anomaly-observation" class="phm-observation">분석 결과를 조회하고 있습니다.</p><p id="anomaly-freshness" class="muted" role="status" aria-live="polite"></p></header>
         <p id="anomaly-state" class="state" role="status" aria-live="polite">이상 탐지 결과를 조회하고 있습니다.</p>
+        <div id="anomaly-connect"></div>
         <div id="anomaly-cards" class="condition-cards"></div>
         <div class="phm-trends"><section><div class="phm-chart-heading"><h3 id="anomaly-score-title">이상 점수</h3></div><div id="anomaly-score-chart"></div></section><section><div class="phm-chart-heading"><h3>측정 크기</h3><select id="anomaly-signal" aria-label="추세 신호"></select></div><div id="anomaly-feature-chart" class="phm-features"></div></section></div>
         <div id="anomaly-detail" class="condition-detail" tabindex="-1"></div>
         <details class="phm-options" id="anomaly-periods"><summary>기준 초과 구간</summary><div id="anomaly-intervals" class="condition-events"></div></details>
         <details class="phm-options"><summary>추세에 표시할 다른 특징</summary><fieldset id="anomaly-features" class="channel-fieldset choices"></fieldset></details>
         <details id="anomaly-review-options" class="phm-options"><summary>검토·AI 설명</summary><section id="anomaly-explanation" class="condition-detail"></section></details>
+        <div id="anomaly-connect-more"></div>
         <details id="anomaly-model" class="condition-method-details"></details>
       </section>
       <section id="rul" class="panel phm-panel" data-views="rul" aria-labelledby="rul-title">
@@ -135,6 +137,7 @@
         <div class="phm-controls"><label for="rul-binding">분석 모델</label><select id="rul-binding" disabled><option>조회 중</option></select></div>
         <header class="phm-summary"><h3 id="rul-asset-title">설비 선택 대기</h3><p id="rul-observation" class="phm-observation">RUL 추정을 불러오고 있습니다.</p><p id="rul-freshness" class="muted" role="status" aria-live="polite"></p></header>
         <p id="rul-state" class="state" role="status" aria-live="polite">RUL 추정을 조회하고 있습니다.</p>
+        <div id="rul-connect"></div>
         <div id="rul-cards" class="condition-cards"></div>
         <div class="condition-plot-header"><h3>시간에 따른 RUL 추정 궤적</h3></div>
         <div id="rul-chart"></div>
@@ -142,6 +145,7 @@
         <details class="phm-options"><summary>최근 추정값 상세 이력</summary><div id="rul-recent" class="phm-recent"></div></details>
         <p id="rul-selected" class="phm-validation-note" role="status"></p>
         <details id="rul-review-options" class="phm-options"><summary>검토·AI 설명</summary><section id="rul-explanation" class="condition-detail"></section></details>
+        <div id="rul-connect-more"></div>
         <details id="rul-model" class="condition-method-details"></details>
       </section>
       <section data-views="evidence" class="below">
@@ -177,45 +181,46 @@
           <details class="csv-start-advanced"><summary>소스 ID·이름 (자동 생성 · 필요하면 수정)</summary>
             <div class="form-grid"><label>소스 ID<input id="csv-start-source-id" maxlength="128" autocomplete="off"></label><label>소스 이름<input id="csv-start-source-name" maxlength="128" autocomplete="off"></label></div>
           </details>
-          <p class="hint">단위와 3상(R/S/T) 역할은 근거 없이 자동으로 정하지 않습니다. 3상 불평형 분석이 필요하면 아래 고급 CSV 등록에서 근거와 함께 지정하세요.</p>
+          <p class="hint">3상(R/S/T) 불평형 분석이 필요하면 아래 고급 CSV 등록에서 역할을 지정하세요.</p>
           <button id="csv-start-check" type="button">서버에서 파일 점검 (저장 안 함)</button>
           <p id="csv-start-check-result" class="state hidden" role="status" aria-live="polite"></p>
           <h3>등록하고 이력 저장</h3>
-          <p class="hint">아래 네 단계는 서로 다른 기록입니다. 각 단계의 결과를 따로 표시하며, 실패하면 입력을 유지하고 완료된 단계는 다시 실행하지 않습니다.</p>
+          <p class="hint">실패해도 입력은 유지되고, 다시 시도하면 완료된 단계는 건너뜁니다.</p>
           <ol id="csv-start-save-steps" class="csv-start-save-steps">
             <li data-step="register" data-state="pending"><strong>소스 등록</strong><span>파일을 작업공간에 복사하고 설정을 기록합니다.</span><em>대기</em></li>
             <li data-step="activate" data-state="pending"><strong>소스 활성화</strong><span>소스를 사용 상태로 바꿉니다.</span><em>대기</em></li>
-            <li data-step="receive" data-state="pending"><strong>검증 수신</strong><span>저장된 파일을 다시 읽어 수신 근거를 기록합니다.</span><em>대기</em></li>
+            <li data-step="receive" data-state="pending"><strong>검증 수신</strong><span>저장된 파일을 다시 읽어 확인합니다.</span><em>대기</em></li>
             <li data-step="store" data-state="pending"><strong>이력 저장</strong><span>측정값을 원래 측정 시각 그대로 설비 이력에 저장합니다. 큰 파일은 몇 분 걸리며 백그라운드에서 계속됩니다.</span><em>대기</em></li>
           </ol>
           <button id="csv-start-save" type="button" disabled>등록하고 이력 저장</button>
           <p id="csv-start-save-result" role="status" aria-live="polite"></p>
           <div id="csv-start-done" class="csv-start-done" hidden>
             <button id="csv-start-open-monitor" type="button">모니터링에서 실제 그래프 보기</button>
+            <button id="csv-start-analyze" type="button" class="secondary" hidden>신호 통계 분석</button>
             <button id="csv-start-restart" type="button" class="secondary">다른 파일로 시작</button>
-            <p class="hint">특징 분석·3상 분석은 아래 등록된 소스에서 따로 실행합니다. 연결된 PHM 모델이 없으면 모니터링은 측정값만 보여줍니다.</p>
+            <p id="csv-start-analyze-result" role="status" aria-live="polite"></p>
+            <p id="csv-start-analysis-limit" class="muted"></p>
           </div>
         </div>
       </section>
       <details data-views="connect" class="panel connection-progress" id="connection-progress"><summary>연결 진행·격리 예시 관리</summary>
       <section data-views="connect" class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
-        <div class="panel-header"><div><h2 id="onboarding-title">데이터 연결 진행</h2><p class="muted">선택한 소스의 다음 작업과 단계별 근거</p></div></div>
-        <p id="onboarding-state" role="status" aria-live="polite">등록된 데이터 소스와 수신 근거를 확인합니다.</p>
-        <ol id="onboarding-steps" class="onboarding-steps" aria-label="연결 준비 근거 단계"><li>연결·수신 근거를 조회하는 중입니다.</li></ol>
+        <div class="panel-header"><div><h2 id="onboarding-title">데이터 연결 진행</h2><p class="muted">선택한 소스의 다음 작업</p></div></div>
+        <p id="onboarding-state" role="status" aria-live="polite">등록된 데이터 소스를 확인합니다.</p>
+        <ol id="onboarding-steps" class="onboarding-steps" aria-label="연결 준비 단계"><li>연결 상태를 조회하는 중입니다.</li></ol>
         <p id="onboarding-next" class="hint">등록·활성·수신·저장 이력을 각각 확인합니다.</p>
         <div class="onboarding-guide" aria-label="소스별 다음 작업">
           <label for="onboarding-source-select">진행할 데이터 소스</label>
           <select id="onboarding-source-select" disabled><option value="">소스 목록 확인 중</option></select>
           <p id="onboarding-action-detail" class="hint" role="status" aria-live="polite">실제 등록·수신 상태를 확인하고 다음 작업을 안내합니다.</p>
           <button id="onboarding-action" type="button" disabled>다음 작업 위치 보기</button>
-          <p class="hint">위 버튼은 작업 위치만 안내합니다. 소스 변경·수신·적재는 이동한 위치에서 별도로 확인하고 실행합니다.</p>
         </div>
-        <p class="hint">등록만으로 데이터가 수신되지 않습니다. 데이터 연결 화면에서 해당 소스의 수신을 별도로 요청하고 근거를 확인하세요.</p>
+        <p class="hint">등록한 뒤 아래 등록된 소스에서 수신을 시작하세요.</p>
         <a href="#connect">데이터 소스 확인 및 CSV 등록하기</a>
-        <a id="onboarding-monitor-link" class="hidden" href="#monitor">수신 근거 확인됨 · 관측·이력 별도 조회</a>
+        <a id="onboarding-monitor-link" class="hidden" href="#monitor">수신 확인됨 · 모니터링에서 보기</a>
         <div id="first-run-sample" class="sample-panel" aria-labelledby="sample-title">
           <h3 id="sample-title">실제 작업공간과 분리된 synthetic 체험</h3>
-          <p class="hint">가상 3상 모터·로컬 OPC UA를 별도의 샘플 작업공간과 포트에서 시작합니다. 현재 작업공간에 샘플 소스·측정값을 등록하지 않습니다. 샘플은 별도의 샘플 화면에서 열립니다.</p>
+          <p class="hint">가상 3상 모터·로컬 OPC UA 샘플을 별도 작업공간에서 시작합니다. 현재 작업공간은 바뀌지 않습니다.</p>
           <p id="sample-status" role="status" aria-live="polite">감독형 Web의 데모 실행 상태를 확인하는 중입니다.</p>
           <div class="sample-actions">
             <button id="sample-start" type="button" disabled>격리 샘플 시작</button>
@@ -228,9 +233,9 @@
       </section>
       </details>
       <section data-views="connect" class="panel connection-panel" id="connect" aria-labelledby="connect-title">
-        <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">설정 등록과 실제 수신 근거를 구분합니다. 지원하는 OPC UA 등록·탐색·수집 요청은 이 Web에서 실행합니다.</p></div></div>
+        <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">등록한 CSV·OPC UA 소스와 수신 상태</p></div></div>
         <div id="source-status" class="state" role="status" aria-live="polite">소스 등록 현황을 조회합니다.</div>
-        <p class="hint">OPC UA는 활성화 후 수집 시작을 요청할 수 있습니다. FILE은 활성화 후 먼저 수신을 검증하고, 명시적 시간 컬럼이 있는 20MiB 이하 CSV의 저장 이력을 백그라운드 작업으로 별도 적재할 수 있습니다. Receipt·DuckLake 이력·실시간 연결·분석은 서로 다른 사실입니다. 검증 수신한 FILE은 이력 적재와 별도로 CSV 특징 분석을 명시적으로 실행할 수 있습니다. 특징값은 원본 신호의 물리 의미·건강 상태를 판단하지 않습니다.</p>
+        <p class="hint">OPC UA는 활성화한 뒤 수집을 시작합니다. CSV는 활성화한 뒤 수신을 확인하고, 시간 컬럼이 있는 20MiB 이하 파일의 측정 이력을 저장하거나 신호 통계를 분석할 수 있습니다.</p>
         <p class="hint">로컬 단일 사용자 파일럿입니다. 동일 작업공간의 Supervisor와 별도 preview·수집기를 함께 실행해 쓰기를 경합시키지 마세요. 현재 Web의 변경은 Supervisor IPC 및 writer 잠금 계약을 따릅니다.</p>
         <div id="source-list" class="source-list" aria-label="등록된 데이터 소스"></div>
         <p id="source-control-result" role="status" aria-live="polite"></p>
@@ -250,9 +255,9 @@
             <label class="wide">3상 역할 매핑 (선택 · 채널,voltage|current,R|S|T,단위 근거,해석 근거)
               <textarea name="phase_bindings" rows="4" maxlength="2300" placeholder="voltage_a,voltage,R,계측기 표시 V 확인,현장 배선도에서 R상 확인&#10;voltage_b,voltage,S,계측기 표시 V 확인,현장 배선도에서 S상 확인&#10;voltage_c,voltage,T,계측기 표시 V 확인,현장 배선도에서 T상 확인"></textarea>
             </label>
-            <p class="hint wide">3상 불평형을 분석할 CSV에만 작성하세요. 전압은 V, 전류는 A로 측정된 값만 지원합니다. R/S/T를 한 세트로 모두 입력하고 각 채널의 단위·상 대응 근거를 직접 확인해야 합니다. 이름만으로 자동 추정하지 않습니다. 근거 문장에는 쉼표를 사용하지 마세요.</p>
+            <p class="hint wide">3상 불평형을 분석할 CSV에만 작성하세요. 전압(V) 또는 전류(A)의 R/S/T를 한 세트로 입력하고, 근거 문장에는 쉼표를 쓰지 마세요.</p>
           </div>
-          <p class="hint">등록 전에 현재 CSV와 선택한 열을 실제 데이터 검증기로 확인하세요. 단위·상의 물리적 진실은 자동 확인하지 않습니다. 사전 점검은 수신·이력·분석 기록을 저장하지 않습니다.</p>
+          <p class="hint">등록 전에 CSV와 선택한 열을 점검할 수 있습니다. 점검은 아무것도 저장하지 않습니다.</p>
           <button id="preflight-file" type="button">CSV 분석 전 점검</button>
           <p id="csv-preflight-result" class="state" role="status" aria-live="polite">파일과 매핑을 설정한 뒤 사전 점검을 실행하세요.</p>
           <button id="register-file" type="submit">CSV 확인 후 소스 등록</button>
@@ -260,7 +265,7 @@
         </form>
         </details>
         <details id="opcua-registration" class="phm-options"><summary>OPC UA로 설비 연결</summary>
-        <p class="hint">현재 파일럿은 127.0.0.1 익명 OPC UA 서버만 허용합니다. 변수 탐색은 최대 256개 노드를 조사합니다. 결과가 일부만 표시되면 객체 후보의 하위 탐색을 선택하거나 시작 NodeId를 명시하세요. 탐색은 수신·등록 근거가 아니며 원격 서버·계정·인증서 설정은 지원하지 않습니다.</p>
+        <p class="hint">현재는 127.0.0.1의 익명 OPC UA 서버만 연결할 수 있습니다. 변수 탐색은 최대 256개 노드를 조사하며, 결과가 일부만 보이면 객체 후보의 하위 탐색이나 시작 NodeId를 지정하세요.</p>
         <form id="opcua-form">
           <div class="form-grid">
             <label>OPC UA 소스 ID<input name="source_id" required maxlength="128" placeholder="opcua-pump-01" autocomplete="off"></label>
@@ -277,7 +282,6 @@
           <p id="opcua-register-result" role="status" aria-live="polite"></p>
         </form>
         </details>
-        <p class="hint">등록 후에도 accepted receipt가 확인되기 전에는 모니터링의 관측 데이터가 준비됐다고 표시하지 않습니다. 등록·수집·분석은 서로 다른 단계입니다.</p>
       </section>
       <section data-views="system" class="panel system-panel" id="system" aria-labelledby="system-title">
         <div class="panel-header"><div><h2 id="system-title">시스템 상태</h2><p class="muted">로컬 서비스와 저장소 상태</p></div></div>
@@ -289,7 +293,7 @@
           <p class="hint">상태가 계속 이상하면 <code>industrial-phm operations status &lt;workspace&gt;</code>와 <code>logs</code>로 원인을 확인하세요.</p>
         </div>
         <h3 class="system-read-title">저장소 조회 상태</h3>
-        <p id="system-status" class="state" role="status" aria-live="polite">시스템 조회 근거를 확인하는 중입니다.</p>
+        <p id="system-status" class="state" role="status" aria-live="polite">시스템 상태를 확인하는 중입니다.</p>
         <div id="system-facts" class="facts" aria-label="조회 시점과 저장소 오류 범위"></div>
         
       </section>

@@ -79,11 +79,11 @@ function renderWorkspace() {
     detail.textContent = "조회 시점 기준 30초 이내 OPC UA 수신 기록이 있습니다. 저장·분석 결과와 관측 시각은 각각 확인하세요.";
   } else if (latestStored.length) {
     title.textContent = "저장된 기록 데이터";
-    detail.textContent = "과거 관측 시각과 출처를 표시합니다. 최근 수신 근거는 확인되지 않았습니다.";
+    detail.textContent = "저장된 과거 측정값을 표시합니다.";
   } else {
-    title.textContent = "등록·분석·검토 근거 있음";
+    title.textContent = "등록된 데이터";
     detail.textContent = "소스 " + (sourceSnapshot?.sources?.total ?? "미확인") + "개 · 설비 "
-      + (monitor?.assets?.total ?? "미확인") + "개 · 분석 " + analyses + "건. 저장된 신호는 별도로 확인하세요.";
+      + (monitor?.assets?.total ?? "미확인") + "개 · 분석 " + analyses + "건";
   }
 }
 function rows(payload, key) {
@@ -707,20 +707,20 @@ function onboardingStepFor(source) {
   if (source.source_type === "file") {
     const savedAnalysis = [...rows(monitor, "file_feature_analyses"), ...rows(monitor, "phase_unbalance_analyses")]
       .some((run) => run.source_id === source.source_id);
-    if (savedAnalysis) return [null, "저장된 분석 근거가 있습니다. 분석 근거 화면에서 결과와 검토 요청을 확인하세요."];
-    if (sourceHistory.has(source.source_id)) return ["CSV 특징 분석 실행", "이 소스의 저장 이력을 조회했습니다. 새 분석은 아래 실행 버튼에서 별도로 요청하세요."];
+    if (savedAnalysis) return [null, "저장된 분석이 있습니다. 설비의 분석 기록 탭에서 볼 수 있습니다."];
+    if (sourceHistory.has(source.source_id)) return ["신호 통계 분석", "측정 이력이 저장됐습니다. 신호 통계 분석을 실행할 수 있습니다."];
     return source.receipt_confirmed
-      ? ["FILE 이력 적재", "검증 수신 근거가 있습니다. DuckLake 이력 커밋은 아직 확인되지 않았습니다. 필요한 경우 FILE 이력 적재 버튼으로 이동하세요."]
-      : ["FILE 수신 확인", "등록·활성화만 확인됐습니다. CSV의 실제 검증 수신 결과를 별도로 확인하세요."];
+      ? ["FILE 이력 적재", "수신을 확인했습니다. 측정 이력을 저장하면 모니터링에서 그래프로 볼 수 있습니다."]
+      : ["FILE 수신 확인", "활성화됐습니다. 다음은 CSV 수신 확인입니다."];
   }
   if (source.source_type === "opcua") {
     if (!source.receipt_confirmed) {
-      return ["OPC UA 1회 수신 진단", "활성 소스에서 로컬 OPC UA 1회 읽기·수신 근거를 확인하세요. 연속 수집과 별도입니다."];
+      return ["OPC UA 1회 수신 진단", "OPC UA 서버에서 한 번 읽어 연결을 확인하세요."];
     }
     if (source.collection_desired_state !== "running") {
-      return ["수집 시작 요청", "1회 수신 근거가 있습니다. 연속 수집의 원하는 상태를 요청할 수 있으나 실제 연결·저장 성공은 별도 확인해야 합니다."];
+      return ["수집 시작 요청", "연결을 확인했습니다. 연속 수집을 시작할 수 있습니다."];
     }
-    return [null, "수집 시작 요청이 기록됐습니다. 현재 접속·최근 live 수신·저장 이력은 아래 소스 상태와 관측 화면에서 별도로 확인하세요."];
+    return [null, "수집을 요청했습니다. 수신 상태는 모니터링에서 볼 수 있습니다."];
   }
   return [null, "이 소스 유형은 화면에서 다음 작업을 안내할 수 없습니다."];
 }
@@ -830,11 +830,9 @@ function setOnboardingEvidence(items, data, evidenceReadError) {
   const ready = items.filter((item) =>
     item.lifecycle_state === "active" && item.receipt_confirmed === true).length;
   [
-    "등록된 소스: " + data.sources.total + "개 (설정만 확인)",
-    "관리 상태 active: " + active + "개 (연결·수집 성공 아님)",
-    "검증 수신: " + accepted + "개 · active와 수신을 모두 확인한 소스 "
-      + ready + "개 (DuckLake 이력 적재 아님)",
-    "DuckLake 저장 이력·분석: 관측·분석 근거에서 따로 확인",
+    "등록된 소스: " + data.sources.total + "개",
+    "사용 중(active): " + active + "개",
+    "수신 확인: " + accepted + "개 · 사용 중이면서 수신을 확인한 소스 " + ready + "개",
   ].forEach((line) => steps.append(create("li", null, line)));
   if (data.sources.truncated || evidenceReadError) {
     next.textContent = "소스 목록 일부 또는 live 수신 근거를 완전히 읽지 못했습니다. "
@@ -842,13 +840,11 @@ function setOnboardingEvidence(items, data, evidenceReadError) {
   } else if (!items.length) {
     next.textContent = "다음: FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
   } else if (!active) {
-    next.textContent = "다음: 등록된 소스를 활성화하세요. 과거 수신 기록이 있어도 일시정지 상태는 준비 완료가 아닙니다. 활성화만으로 실제 연결·수신을 증명하지 않습니다.";
+    next.textContent = "다음: 등록된 소스를 활성화하세요. 일시정지 상태는 준비 완료가 아닙니다.";
   } else if (!ready) {
-    next.textContent = "다음: active 소스에서 실제 검증 수신 근거를 확인하세요. "
-      + "기존 수신 기록이 있어도 일시정지 상태는 준비 완료가 아닙니다.";
+    next.textContent = "다음: 사용 중인 소스에서 수신을 확인하세요. 일시정지 상태는 준비 완료가 아닙니다.";
   } else {
-    next.textContent = "active 소스의 검증 수신 근거가 확인됐습니다. "
-      + "이 버튼은 관측 근거 조회로 이동하며, 이력 저장·분석·설비 정상 판정은 보증하지 않습니다.";
+    next.textContent = "수신이 확인됐습니다. 모니터링에서 측정값을 볼 수 있습니다.";
     handoff.classList.remove("hidden");
   }
 }
@@ -859,7 +855,7 @@ async function loadSources() {
   const state = byId("source-status"), list = byId("source-list");
   state.textContent = "저장된 등록 상태를 조회 중입니다.";
   byId("onboarding-monitor-link").classList.add("hidden");
-  byId("onboarding-next").textContent = "등록·수신 근거를 다시 확인 중입니다.";
+  byId("onboarding-next").textContent = "등록·수신 상태를 다시 확인 중입니다.";
   clear(list);
   try {
     const data = await getJSON("/api/v1/sources");
@@ -880,8 +876,7 @@ async function loadSources() {
     const received = items.filter((item) => item.receipt_confirmed).length;
     const liveReceived = items.filter((item) => item.source_type === "opcua"
       && item.last_live_received_at).length;
-    const summary = "1회 검증 수신 확인 " + received + "개 · OPC UA 연속 live 수신 기록 "
-      + liveReceived + "개 (표시 범위 기준; 서로 다른 근거)";
+    const summary = "수신 확인 " + received + "개 · OPC UA 실시간 수신 " + liveReceived + "개";
     if (!items.length) {
       state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV 또는 이 화면에서 로컬 OPC UA 소스를 등록하세요.";
       empty(list, "데이터 수신을 확인할 등록 소스가 없습니다.");
@@ -890,7 +885,7 @@ async function loadSources() {
       state.textContent = "등록된 소스 " + data.sources.total + "개 · " + summary
         + (evidenceReadError ? " · 일부 live 근거 조회 실패" : "");
       byId("onboarding-state").textContent = "등록 " + data.sources.total + "개 · "
-        + summary + " · 저장된 시계열은 별도로 확인해야 합니다."
+        + summary
         + (evidenceReadError ? " · live 근거 일부 미확인" : "");
     }
     byId("onboarding-state").className = "";
@@ -903,17 +898,17 @@ async function loadSources() {
       card.dataset.sourceId = item.source_id;
       card.append(create("strong", null, item.name + " · " + item.source_id));
       card.append(create("span", null, "설비: " + item.asset_id + " · 유형: " + item.source_type));
-      card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + " (접속 상태 아님)"));
+      card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + ""));
       const evidenceMeaning = !item.receipt_confirmed
-        ? "현재 확인된 단계: 소스 등록 정보만 확인."
+        ? "등록만 된 상태입니다."
         : item.source_type === "file"
-        ? "현재 확인된 단계: FILE 검증 수신 근거 확인. 이력 저장·연속 수집·분석 성공 여부는 별도 확인이 필요합니다."
-        : "현재 확인된 단계: 수신 근거 확인. 현재 연결·최근 live 수신·이력 저장 여부는 각각 별도로 확인하세요.";
+        ? "CSV 수신을 확인했습니다."
+        : "OPC UA 수신을 확인했습니다.";
       card.append(create("p", "source-meaning", evidenceMeaning));
       const receipt = create("span", item.receipt_confirmed ? "receipt-confirmed" : "receipt-missing",
         item.receipt_confirmed
-          ? (item.source_type === "file" ? "FILE 검증 수신 근거 있음 · 이력 적재는 별도" : "실제 수신 근거 있음")
-          : "수신 근거 미확인");
+          ? (item.source_type === "file" ? "CSV 수신 확인됨" : "수신 확인됨")
+          : "수신 미확인");
       card.append(receipt);
       card.append(create("span", null, "마지막 수신: " + formatTime(item.last_accepted_received_at)));
       card.append(create("span", null, "그 수신의 원본 측정 시각: " + formatTime(item.last_accepted_observed_at)));
@@ -986,7 +981,7 @@ async function loadSources() {
           backfill.type = "button";
           backfill.addEventListener("click", () => backfillFile(item.source_id, backfill));
           actions.append(backfill);
-          const analyze = create("button", null, "CSV 특징 분석 실행");
+          const analyze = create("button", null, "신호 통계 분석");
           analyze.type = "button";
           analyze.addEventListener("click", () => analyzeFile(item.source_id, analyze));
           actions.append(analyze);
@@ -1124,12 +1119,10 @@ async function receiveFile(sourceId, button) {
   await Promise.allSettled([loadSources(), refresh()]);
 }
 
-async function analyzeFile(sourceId, button) {
-  const output = byId("source-control-result");
-  if (!window.confirm(sourceId + " · 등록한 CSV 스냅샷의 통계 특징을 새로 계산해 Run/Evidence를 기록합니다.\nDuckLake 이력 적재나 설비 고장 진단은 실행하지 않습니다.")) return;
+async function analyzeFile(sourceId, button, output = byId("source-control-result")) {
   button.disabled = true;
   output.className = "";
-  output.textContent = sourceId + " · CSV 특징 분석 실행 중";
+  output.textContent = sourceId + " · 신호 통계 분석 중";
   try {
     const session = await getJSON("/api/v1/session");
     if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
@@ -1153,8 +1146,7 @@ async function analyzeFile(sourceId, button) {
         || typeof saved.analysis_run_id !== "string" || !saved.analysis_run_id
         || typeof saved.evidence_id !== "string" || !saved.evidence_id
         || typeof saved.source_snapshot_sha256 !== "string") throw new Error("schema-mismatch");
-    output.textContent = sourceId + " · 신규 분석 근거 저장 완료 · Run " + saved.analysis_run_id
-      + " · Evidence " + saved.evidence_id;
+    output.textContent = sourceId + " · 신호 통계 분석 저장 완료";
     await refresh();
     if (rows(monitor, "file_feature_analyses").some((run) =>
       run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
@@ -1564,7 +1556,7 @@ async function registerFile(event) {
     if (result.schema_version !== 1 || result.registration_state !== "registered") {
       throw new Error("schema-mismatch");
     }
-    feedback.textContent = "소스 " + result.source_id + " 등록 완료 · 수신 근거 미확인. 데이터 연결의 해당 소스에서 별도 수신을 요청하고 근거를 확인하세요.";
+    feedback.textContent = "소스 " + result.source_id + " 등록 완료. 아래 등록된 소스에서 활성화한 뒤 수신을 확인하세요.";
     form.reset();
     csvPreflightRevision += 1;
     byId("csv-preflight-result").textContent =
@@ -1686,7 +1678,7 @@ async function registerOpcua(event) {
     const result = await opcuaPost("/api/v1/sources/opcua", payload);
     if (result.registration_state !== "registered") throw new Error("schema-mismatch");
     saved = true;
-    resultNode.textContent = "OPC UA " + result.source_id + " 등록 완료 · 수신 근거 미확인. 소스를 활성화하고 1회 수신 진단을 실행하세요.";
+    resultNode.textContent = "OPC UA " + result.source_id + " 등록 완료. 소스를 활성화하고 1회 수신 진단을 실행하세요.";
     form.reset();
   } catch (error) {
     resultNode.className = "error";
@@ -1881,6 +1873,7 @@ async function readMonitorFacts() {
 document.addEventListener("phm-monitor-count", (event) => {phmModelCount = event.detail;renderWorkspace();});
 // The guided CSV flow performs its own explicit writes; reread sources and evidence afterwards.
 document.addEventListener("workspace-changed", () => {void loadSources();void refresh();});
+document.addEventListener("file-analysis-request", (event) => void analyzeFile(event.detail.sourceId, event.detail.button, event.detail.output));
 initializeMonitor(readMonitorFacts);
 
 byId("condition-disclosure").addEventListener("toggle", () => {if (byId("condition-disclosure").open) void loadCondition(selectedAsset);});

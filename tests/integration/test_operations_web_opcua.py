@@ -281,7 +281,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         page.get_by_role("button", name="OPC UA 매핑 등록").click()
         listing = page.locator("#source-list")
         sync_api.expect(listing).to_contain_text("web-opcua-1")
-        sync_api.expect(listing).to_contain_text("수신 근거 미확인")
+        sync_api.expect(listing).to_contain_text("수신 미확인")
         page.on("dialog", lambda dialog: dialog.accept())
         listing.get_by_role("button", name="소스 활성화").click()
         sync_api.expect(listing).to_contain_text("관리 상태: active")
@@ -289,7 +289,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         sync_api.expect(page.locator("#source-control-result")).to_contain_text(
             "수신 근거 기록 완료"
         )
-        sync_api.expect(listing).to_contain_text("실제 수신 근거 있음")
+        sync_api.expect(listing).to_contain_text("수신 확인됨")
         assert not page.locator("#last-values .latest-item").count()
         assert not workspace.history_catalog_path.exists()
         assert not errors, errors
