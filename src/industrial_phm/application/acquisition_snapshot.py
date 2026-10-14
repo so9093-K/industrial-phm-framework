@@ -187,6 +187,25 @@ class SqliteAcquisitionSnapshotRepository:
             connection.close()
         return tuple(_parse(row) for row in rows)
 
+    def ordinals_between(
+        self, source_id: str, asset_id: str, first: int, last: int, *, limit: int = 200_000
+    ) -> tuple[tuple[int, datetime], ...]:
+        """Ordinal and delivery time of every acquisition in the range, oldest first."""
+        if not self._path.exists():
+            return ()
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT ordinal, delivered_at FROM acquisition_snapshot WHERE source_id = ? "
+                "AND asset_id = ? AND ordinal BETWEEN ? AND ? ORDER BY ordinal LIMIT ?",
+                (source_id, asset_id, first, last, limit + 1),
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > limit:
+            raise ValueError(f"the acquisition range holds more than {limit} acquisitions")
+        return tuple((int(ordinal), datetime.fromisoformat(at)) for ordinal, at in rows)
+
     def list_between(
         self, source_id: str, asset_id: str, first: int, last: int, *, limit: int = 4096
     ) -> tuple[AcquisitionSnapshot, ...]:

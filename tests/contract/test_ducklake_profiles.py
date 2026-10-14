@@ -14,7 +14,9 @@ from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryCon
 BASE = datetime(2026, 10, 14, 0, 0, tzinfo=UTC)
 
 
-def _event(index: int, seconds: int, value: float | None, *, channel: str = "current"):
+def _event(
+    index: int, seconds: int, value: float | None, *, channel: str = "current", unit: str = "A"
+):
     return FileBackfillEvent(
         raw_evidence_id=f"file:device-a:{'a' * 64}:{channel}:{index}",
         source_id="device-a",
@@ -26,7 +28,7 @@ def _event(index: int, seconds: int, value: float | None, *, channel: str = "cur
         sample_index=index,
         event_at=BASE + timedelta(seconds=seconds),
         value=value,
-        source_metadata_json='{"binding":{"definition":{"unit":"A"}}}',
+        source_metadata_json=f'{{"binding":{{"definition":{{"unit":"{unit}"}}}}}}',
     )
 
 
@@ -110,3 +112,26 @@ def test_two_channels_pair_only_at_identical_timestamps(history: DuckLakeAssetHi
         history.query_measurement_pairs(
             "pump-01", x_channel="current", y_channel="current", periods=[("a", BASE, BASE)]
         )
+
+
+def test_pairs_never_mix_two_meanings_of_one_channel(history: DuckLakeAssetHistory) -> None:
+    # The voltage mapping changed from V to mV at 20 s: one correlation across both would
+    # compare numbers that do not mean the same thing.
+    voltage = [
+        _event(200 + i, seconds, value, channel="voltage", unit=unit)
+        for i, (seconds, value, unit) in enumerate(
+            [(0, 10.0, "V"), (10, 20.0, "V"), (20, 3000.0, "mV"), (30, 4000.0, "mV")]
+        )
+    ]
+    history.append_file_batch(tuple(voltage), batch_id="voltage-units")
+    groups = history.query_measurement_pairs(
+        "pump-01",
+        x_channel="current",
+        y_channel="voltage",
+        periods=[("a", BASE, BASE + timedelta(seconds=600))],
+    )
+    by_unit = {'"mV"' in g.y_interpretation_json: g for g in groups}
+    assert len(groups) == 2 and set(by_unit) == {True, False}
+    assert [(p[1], p[2]) for p in by_unit[False].points] == [(1.0, 10.0), (2.0, 20.0)]
+    assert [(p[1], p[2]) for p in by_unit[True].points] == [(3.0, 3000.0), (4.0, 4000.0)]
+    assert by_unit[True].pair_count == by_unit[True].y_usable_count == 2

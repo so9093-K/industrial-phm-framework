@@ -202,6 +202,14 @@ function showTrend(data) {
     latest.append(item);
   });
   trendState((data.time_anchor === "latest" ? "마지막 저장 기록 기준 · " : "현재 조회 시각 기준 · ") + "이력 snapshot " + fmt(data.snapshot_id) + " · " + formatTime(data.start_at) + " ~ " + formatTime(data.end_at) + " · " + grouped.size + "개 신호/출처 조합");
+  if (grouped.size) {
+    // The same window and signals continue in the period comparison below, as two halves.
+    const start = Date.parse(data.start_at), end = Date.parse(data.end_at), middle = new Date((start + end) / 2).toISOString();
+    const compare = create("button", "secondary", "이 기간을 두 구간으로 나눠 비교");compare.type = "button";
+    compare.addEventListener("click", () => document.dispatchEvent(new CustomEvent("explore-request", {detail: {
+      kind: "history", series: selectedChannels.join(","), a: data.start_at + "~" + middle, b: middle + "~" + data.end_at}})));
+    box.append(compare);
+  }
 }
 async function loadTrend(token = generation) {
   if (!selectedAsset || !selectedChannels.length) return;

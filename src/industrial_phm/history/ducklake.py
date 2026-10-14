@@ -1886,7 +1886,7 @@ class DuckLakeAssetHistory:
         periods: Sequence[tuple[str, datetime, datetime]],
         max_points: int = 1500,
     ) -> tuple[MeasurementPairGroup, ...]:
-        """Pair two channels at identical timestamps, per period, source and measurement point.
+        """Pair two channels at identical timestamps, per period, source, point and meaning.
 
         Pearson uses the values; Spearman uses average ranks, so ties count once each way.
         """
@@ -1894,34 +1894,42 @@ class DuckLakeAssetHistory:
             raise ValueError("pairs need two different channels")
         _validate_profile_periods(asset_id, (x_channel, y_channel), periods)
         _validate_positive_int(max_points, "max_points")
-        groups = "period, source_id, point_key"
+        groups = "period, source_id, point_key, x_meaning, y_meaning"
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
             _create_profile_points(connection, asset_id, (x_channel, y_channel), periods)
             connection.execute(
-                f"""
+                """
+                CREATE TEMP TABLE profile_side AS
+                SELECT channel_id, period, source_id, point_key, interpretation, event_at,
+                    any_value(value) AS value
+                FROM profile_points WHERE usable AND channel_id IN (?, ?) GROUP BY ALL
+                """,
+                [x_channel, y_channel],
+            )
+            connection.execute(
+                """
                 CREATE TEMP TABLE profile_pairs AS
-                WITH x AS (
-                    SELECT {groups}, event_at, any_value(value) AS value FROM profile_points
-                    WHERE usable AND channel_id = ? GROUP BY ALL
-                ), y AS (
-                    SELECT {groups}, event_at, any_value(value) AS value FROM profile_points
-                    WHERE usable AND channel_id = ? GROUP BY ALL
-                )
-                SELECT x.period, x.source_id, x.point_key, x.event_at, x.value AS x,
-                    y.value AS y
-                FROM x JOIN y USING ({groups}, event_at)
+                SELECT x.period, x.source_id, x.point_key, x.interpretation AS x_meaning,
+                    y.interpretation AS y_meaning, x.event_at, x.value AS x, y.value AS y
+                FROM profile_side x JOIN profile_side y
+                    ON x.period = y.period AND x.source_id = y.source_id
+                    AND x.point_key = y.point_key AND x.event_at = y.event_at
+                WHERE x.channel_id = ? AND y.channel_id = ?
                 """,
                 [x_channel, y_channel],
             )
             stats = connection.execute(
                 f"""
-                WITH usable AS (
-                    SELECT {groups},
-                        count(DISTINCT event_at) FILTER (WHERE channel_id = ?) AS x_usable,
-                        count(DISTINCT event_at) FILTER (WHERE channel_id = ?) AS y_usable
-                    FROM profile_points WHERE usable GROUP BY ALL
+                WITH x_counts AS (
+                    SELECT period, source_id, point_key, interpretation AS x_meaning,
+                        count(*) AS x_usable
+                    FROM profile_side WHERE channel_id = ? GROUP BY ALL
+                ), y_counts AS (
+                    SELECT period, source_id, point_key, interpretation AS y_meaning,
+                        count(*) AS y_usable
+                    FROM profile_side WHERE channel_id = ? GROUP BY ALL
                 ), ranked AS (
                     SELECT *,
                         rank() OVER (PARTITION BY {groups} ORDER BY x)
@@ -1934,19 +1942,21 @@ class DuckLakeAssetHistory:
                         corr(rx, ry) AS spearman
                     FROM ranked GROUP BY ALL
                 )
-                SELECT u.period, u.source_id, u.point_key, u.x_usable, u.y_usable,
-                    coalesce(c.pairs, 0), c.pearson, c.spearman
-                FROM usable u LEFT JOIN correlations c USING ({groups})
-                ORDER BY u.source_id, u.point_key, u.period
+                SELECT x.period, x.source_id, x.point_key, x.x_meaning, y.y_meaning,
+                    x.x_usable, y.y_usable, coalesce(c.pairs, 0), c.pearson, c.spearman
+                FROM x_counts x
+                JOIN y_counts y USING (period, source_id, point_key)
+                LEFT JOIN correlations c USING ({groups})
+                ORDER BY x.source_id, x.point_key, x.period, coalesce(c.pairs, 0) DESC
                 LIMIT 101
                 """,
                 [x_channel, y_channel],
             ).fetchall()
             if len(stats) > 100:
-                raise ValueError("pairs exceed 100 source/point groups; narrow the query")
+                raise ValueError("pairs exceed 100 source/point/meaning groups; narrow the query")
             sample = connection.execute(
                 f"""
-                SELECT period, source_id, point_key, event_at, x, y FROM (
+                SELECT {groups}, event_at, x, y FROM (
                     SELECT *, row_number() OVER (PARTITION BY {groups} ORDER BY event_at) AS n,
                         ceil(count(*) OVER (PARTITION BY {groups}) / ?) AS stride
                     FROM profile_pairs
@@ -1957,22 +1967,22 @@ class DuckLakeAssetHistory:
             ).fetchall()
         finally:
             connection.close()
-        points: dict[tuple[str, str, str], list[tuple[datetime, float, float]]] = {}
+        points: dict[tuple[str, ...], list[tuple[datetime, float, float]]] = {}
         for row in sample:
-            points.setdefault((row[0], row[1], row[2]), []).append(
-                (row[3], float(row[4]), float(row[5]))
-            )
+            points.setdefault(tuple(row[:5]), []).append((row[5], float(row[6]), float(row[7])))
         return tuple(
             MeasurementPairGroup(
                 period=row[0],
                 source_id=row[1],
                 measurement_point_id=row[2] or None,
-                x_usable_count=int(row[3]),
-                y_usable_count=int(row[4]),
-                pair_count=int(row[5]),
-                pearson=_finite(row[6]),
-                spearman=_finite(row[7]),
-                points=tuple(points.get((row[0], row[1], row[2]), [])),
+                x_interpretation_json=row[3],
+                y_interpretation_json=row[4],
+                x_usable_count=int(row[5]),
+                y_usable_count=int(row[6]),
+                pair_count=int(row[7]),
+                pearson=_finite(row[8]),
+                spearman=_finite(row[9]),
+                points=tuple(points.get(tuple(row[:5]), [])),
             )
             for row in stats
         )

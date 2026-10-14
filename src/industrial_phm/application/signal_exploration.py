@@ -27,7 +27,7 @@ from industrial_phm.application.measurement_history import (
     MeasurementPairGroup,
     MeasurementProfile,
 )
-from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore, StepState
+from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.models.package import StepKind
 
@@ -71,16 +71,26 @@ def _stats(values: Sequence[float]) -> dict[str, Any]:
     }
 
 
-def comparison(a: dict[str, Any], b: dict[str, Any], b_outside: int | None) -> dict[str, Any]:
-    """How period B differs from period A, in measures that do not depend on units."""
+SIGNED_FEATURES = (".mean", ".skewness", ".excess_kurtosis")
+
+
+def comparison(
+    a: dict[str, Any], b: dict[str, Any], b_outside: int | None, *, signed: bool = False
+) -> dict[str, Any]:
+    """How period B differs from period A, in measures that do not depend on units.
+
+    A percent change is given only for a positive magnitude (both medians above zero and the
+    quantity not signed); a shape statistic such as skewness gets its absolute change only.
+    """
     qa, qb = a.get("quantiles"), b.get("quantiles")
     if not qa or not qb:
         return {"median_change": None}
     change = qb[2] - qa[2]
     spread_a, spread_b = qa[3] - qa[1], qb[3] - qb[1]
+    ratio_ok = not signed and qa[2] > 0 and qb[2] >= 0 and (a.get("minimum") or 0) >= 0
     return {
         "median_change": change,
-        "median_change_percent": 100 * change / abs(qa[2]) if qa[2] else None,
+        "median_change_percent": 100 * change / qa[2] if ratio_ok else None,
         "spread_ratio": spread_b / spread_a if spread_a > 0 else None,
         "b_outside_a_band": b_outside,
         "b_outside_a_band_percent": None
@@ -205,32 +215,39 @@ def acquisition_series(
     binding: PhmBinding,
     features: Sequence[str],
     periods: Sequence[tuple[str, int, int]],
+    *,
+    max_points: int = MAX_ACQUISITIONS,
 ) -> list[dict[str, Any]]:
-    """Per-acquisition features over two acquisition ranges, with record-level quality."""
+    """Per-acquisition features over two acquisition ranges, with record-level quality.
+
+    Counts (delivered, analyzed, not analyzed, missing numbers) are exact over each whole
+    range. Feature statistics use every analyzed acquisition up to ``max_points``; a longer
+    range is sampled evenly over its whole length and reported as sampled.
+    """
     if not features or len(features) > 8:
         raise ValueError("choose 1 to 8 features")
     by_period: dict[str, dict[str, Any]] = {}
     for name, first, last in periods:
         if not 0 <= first <= last:
             raise ValueError("an acquisition range must be increasing")
-        results = store.results_between(binding.binding_id, first, last, limit=MAX_ACQUISITIONS)
-        delivered = snapshots.list_between(
-            binding.source_id, binding.asset_id, first, last, limit=MAX_ACQUISITIONS
+        analyzed, analyzed_total = store.analyzed_between(
+            binding.binding_id, first, last, max_points=max_points
         )
-        analyzed = [r for r in results if r.state is StepState.ANALYZED]
-        ordinals = [item.ordinal for item in delivered]
+        states = store.count_between(binding.binding_id, first, last)
+        delivered = snapshots.ordinals_between(binding.source_id, binding.asset_id, first, last)
+        ordinals = [ordinal for ordinal, _ in delivered]
         gaps = [b - a - 1 for a, b in pairwise(ordinals) if b - a > 1]
-        times = [item.delivered_at for item in delivered]
-        intervals = [(b - a).total_seconds() for a, b in pairwise(times) if b > a]
+        intervals = [(b - a).total_seconds() for (_, a), (_, b) in pairwise(delivered) if b > a]
         by_period[name] = {
             "first": first,
             "last": last,
             "delivered": len(delivered),
             "analyzed": analyzed,
-            "skipped": len(results) - len(analyzed),
+            "analyzed_total": analyzed_total,
+            "skipped": sum(count for state, count in states.items() if state != "analyzed"),
             "missing_acquisitions": sum(gaps),
             "median_interval_seconds": float(np.median(intervals)) if intervals else None,
-            "truncated": len(results) >= MAX_ACQUISITIONS,
+            "sampled": analyzed_total > len(analyzed),
         }
     series = []
     for feature in features:
@@ -249,13 +266,15 @@ def acquisition_series(
             stats[name] = {
                 "observation_count": period["delivered"],
                 "usable_count": len(points),
+                "analyzed_count": period["analyzed_total"],
                 "missing_count": period["missing_acquisitions"],
                 "unanalyzed_count": period["skipped"],
                 "first_position": points[0][0] if points else None,
                 "last_position": points[-1][0] if points else None,
                 "median_interval_seconds": period["median_interval_seconds"],
-                "longest_constant": _constant_run(points),
-                "truncated": period["truncated"],
+                # Runs of equal values are only meaningful over consecutive acquisitions.
+                "longest_constant": None if period["sampled"] else _constant_run(points),
+                "sampled": period["sampled"],
                 **_stats([v for _, v in points]),
             }
         everything = [v for points in values.values() for _, v in points]
@@ -280,7 +299,12 @@ def acquisition_series(
                 "binding_id": binding.binding_id,
                 "periods": stats,
                 "histogram": histogram,
-                "comparison": comparison(stats.get("a", {}), stats.get("b", {}), outside),
+                "comparison": comparison(
+                    stats.get("a", {}),
+                    stats.get("b", {}),
+                    outside,
+                    signed=feature.endswith(SIGNED_FEATURES),
+                ),
             }
         )
     return series
@@ -307,17 +331,23 @@ def _constant_run(points: Sequence[tuple[int, float]]) -> dict[str, int | None]:
 
 
 def history_relation(groups: Sequence[MeasurementPairGroup]) -> list[dict[str, Any]]:
-    """Paired observations per period and source/point, with both correlations."""
+    """Paired observations per period, source/point and meaning, with both correlations."""
     return [
         {
             "period": group.period,
             "source_id": group.source_id,
             "measurement_point_id": group.measurement_point_id,
+            "x_unit": _unit(group.x_interpretation_json),
+            "y_unit": _unit(group.y_interpretation_json),
+            "meaning_id": hashlib.sha256(
+                (group.x_interpretation_json + "\0" + group.y_interpretation_json).encode()
+            ).hexdigest()[:16],
             "x_usable_count": group.x_usable_count,
             "y_usable_count": group.y_usable_count,
             "pair_count": group.pair_count,
             "pearson": group.pearson,
             "spearman": group.spearman,
+            "sampled": False,
             "points": [[_time(at), x, y] for at, x, y in group.points],
         }
         for group in groups
@@ -346,42 +376,60 @@ def acquisition_relation(
     x_feature: str,
     y_feature: str,
     periods: Sequence[tuple[str, int, int]],
+    *,
+    max_points: int = MAX_ACQUISITIONS,
+    drawn: int = 750,
 ) -> list[dict[str, Any]]:
-    """Two features of the same acquisitions; each pair is one recorded acquisition."""
+    """Two features of the same acquisitions; each pair is one recorded acquisition.
+
+    A range with more than ``max_points`` analyzed acquisitions is sampled evenly over its
+    whole length and reported as sampled; ``drawn`` of the pairs are returned for drawing.
+    """
     if x_feature == y_feature:
         raise ValueError("pairs need two different features")
     groups = []
     for name, first, last in periods:
         if not 0 <= first <= last:
             raise ValueError("an acquisition range must be increasing")
-        results = store.results_between(binding.binding_id, first, last, limit=MAX_ACQUISITIONS)
+        results, total = store.analyzed_between(
+            binding.binding_id, first, last, max_points=max_points
+        )
         pairs = [
             (r.position, float(f[x_feature]), float(f[y_feature]))
             for r in results
-            if r.state is StepState.ANALYZED
-            and (f := r.features or {})
+            if (f := r.features or {})
             and isinstance(f.get(x_feature), (int, float))
             and isinstance(f.get(y_feature), (int, float))
+            and math.isfinite(float(f[x_feature]))
+            and math.isfinite(float(f[y_feature]))
         ]
-        groups.append((name, pairs))
-    return [_acquisition_group(name, pairs, binding) for name, pairs in groups]
+        groups.append(_acquisition_group(name, pairs, binding, total, total > len(results), drawn))
+    return groups
 
 
 def _acquisition_group(
-    name: str, pairs: Sequence[tuple[int, float, float]], binding: PhmBinding
+    name: str,
+    pairs: Sequence[tuple[int, float, float]],
+    binding: PhmBinding,
+    analyzed: int,
+    sampled: bool,
+    drawn: int,
 ) -> dict[str, Any]:
     x = np.asarray([p[1] for p in pairs], dtype=float)
     y = np.asarray([p[2] for p in pairs], dtype=float)
+    step = max(1, -(-len(pairs) // drawn))
     return {
         "period": name,
         "source_id": binding.source_id,
         "measurement_point_id": None,
+        "analyzed_count": analyzed,
         "x_usable_count": len(pairs),
         "y_usable_count": len(pairs),
         "pair_count": len(pairs),
         "pearson": _correlation(x, y),
         "spearman": _correlation(_average_ranks(x), _average_ranks(y)) if len(pairs) else None,
-        "points": [[position, a, b] for position, a, b in pairs],
+        "sampled": sampled,
+        "points": [[position, a, b] for position, a, b in pairs[::step]],
     }
 
 
@@ -412,8 +460,9 @@ def acquisition_spectrum(
 ) -> dict[str, Any]:
     """Mean Welch PSD of verified raw waveforms, up to ``per_period`` acquisitions per range.
 
-    Acquisitions are spread evenly through each range. The spectrum shows where vibration
-    energy sits and how it moved between the ranges; it does not name a fault frequency.
+    Acquisitions are spread evenly through each whole range, first and last included. The
+    spectrum shows where vibration energy sits and how it moved between the ranges; it does
+    not name a fault frequency.
     """
     rates = set()
     channels: tuple[str, ...] | None = None
@@ -421,13 +470,16 @@ def acquisition_spectrum(
     used: dict[str, list[int]] = {}
     frequencies = np.zeros(0)
     for name, first, last in periods:
-        delivered = snapshots.list_between(
-            binding.source_id, binding.asset_id, first, last, limit=MAX_ACQUISITIONS
-        )
+        delivered = snapshots.ordinals_between(binding.source_id, binding.asset_id, first, last)
         if not delivered:
             raise LookupError(f"no delivered acquisition in range {name}")
         indexes = dict.fromkeys(round(i) for i in np.linspace(0, len(delivered) - 1, per_period))
-        chosen = [delivered[index] for index in indexes]
+        chosen = [
+            snapshot
+            for index in indexes
+            if (snapshot := snapshots.get(binding.source_id, binding.asset_id, delivered[index][0]))
+            is not None
+        ]
         used[name] = [item.ordinal for item in chosen]
         for snapshot in chosen:
             waveform = read_snapshot_waveform(snapshot)
