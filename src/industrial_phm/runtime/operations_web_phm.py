@@ -19,6 +19,7 @@ from industrial_phm.application.maintenance_review import finding_review_status
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore
+from industrial_phm.application.phm_range import range_analysis
 from industrial_phm.application.phm_read import (
     PhmReadError,
     project_phm_bindings,
@@ -28,6 +29,7 @@ from industrial_phm.application.phm_read import (
     project_phm_trace,
     project_snapshot_preview,
 )
+from industrial_phm.application.phm_signal_comparison import feature_comparison
 from industrial_phm.application.phm_window_read import project_monitor_window, project_phm_window
 from industrial_phm.runtime.operations_web_phm_models import project_phm_models
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -36,6 +38,7 @@ PHM_READ_ROUTES = frozenset(
     {
         "/api/v1/phm/bindings",
         "/api/v1/phm/models",
+        "/api/v1/phm/range",
         "/api/v1/phm/monitor",
         "/api/v1/phm/result",
         "/api/v1/phm/trace",
@@ -98,6 +101,24 @@ def handle_phm_read(
         binding_id = _required_id(params, "binding_id")
         if path == "/api/v1/phm/trace":
             return HTTPStatus.OK, project_phm_trace(store, binding_id=binding_id)
+        if path == "/api/v1/phm/range":
+            first = _int(params, "from", default=None, minimum=1)
+            last = _int(params, "to", default=None, minimum=1)
+            binding = next((b for b in store.list_bindings() if b.binding_id == binding_id), None)
+            current, previous = (
+                store.get_result(binding_id, last),
+                store.get_result(binding_id, first),
+            )
+            if binding is None:
+                raise PhmReadError("unknown binding")
+            if first >= last or current is None or previous is None:
+                raise PhmReadError("range needs two stored results in order")
+            names = [row["feature"] for row in feature_comparison(current, previous)[:8]]
+            return HTTPStatus.OK, {
+                "schema_version": 1,
+                "binding_id": binding_id,
+                **range_analysis(store, binding_id, binding.step_kind, first, last, names),
+            }
         if path == "/api/v1/phm/window-input":
             return HTTPStatus.OK, project_monitor_window(
                 store,

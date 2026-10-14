@@ -101,6 +101,14 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 mentioned = assistant.locator(".phm-comparison tr.phm-ai-mentioned")
                 pw.expect(mentioned).to_have_count(1)
                 pw.expect(mentioned.first).to_contain_text("수평 진동 RMS")
+                flow = assistant.locator(".phm-range")
+                pw.expect(flow).to_contain_text("구간 흐름 · #1 → #4 · 분석 4개")
+                pw.expect(flow.locator("tr").nth(1)).to_contain_text("모델 점수")
+                pw.expect(flow.locator("tr").nth(1)).to_contain_text("기록 부족")
+                related = card.locator(".phm-answer-related li")
+                pw.expect(related).to_have_count(1)
+                pw.expect(related).to_have_text("잔여수명 추정 · 34.41 → 4.223 · 입력 #4 한 입력")
+                pw.expect(related).to_contain_text("입력 #4 한 입력")
                 assert received[-1]["signal_comparison"]["previous_position"] == 1
                 assert received[-1]["question"] == "수평 진동은 어떻게 달라졌나요?"
                 assert received[-1]["signal_comparison"]["original_current"]["available"]

@@ -41,17 +41,26 @@ def relation(before: object, after: object) -> str | None:
     return "increased" if after > before else "decreased"
 
 
-def model_name(package_id: str, task: object) -> str:
-    for pattern, name in (
-        ("autoencoder", "재구성 오차 · LSTM"),
-        ("pca", "재구성 오차 · PCA"),
-        ("iforest", "이상 점수 · IF"),
-        ("lstm", "RUL · LSTM"),
-        ("ridge", "RUL · Ridge"),
-    ):
-        if pattern in package_id:
-            return name
-    return {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"}.get(str(task), package_id)
+def model_name(package_id: str, task: object, step_kind: object = None) -> str:
+    """The name the screen shows for a model (phm-connect.js modelFamily)."""
+    algorithm = next(
+        (
+            name
+            for pattern, name in (
+                (r"lstm|autoencoder", "LSTM"),
+                (r"pca", "PCA"),
+                (r"iforest", "Isolation Forest"),
+                (r"ridge", "Ridge"),
+            )
+            if re.search(pattern, package_id)
+        ),
+        "",
+    )
+    signal = {"observation-window": "관측 신호", "acquisition-snapshot": "진동"}.get(
+        str(step_kind), "신호"
+    )
+    purpose = "잔여수명 추정" if task == "rul-estimate" else signal + " 변화 탐지"
+    return purpose + (f" · {algorithm} 기반" if algorithm else "")
 
 
 def input_range(output: dict[str, Any], position: int) -> dict[str, int]:
@@ -74,6 +83,40 @@ def _size(row: dict[str, Any]) -> str | None:
 
 
 _CODE = {word: code for code, word in RELATION_WORD.items()}
+TREND_WORD = {
+    "increasing": "대체로 증가",
+    "decreasing": "대체로 감소",
+    "mixed": "오르내림",
+    "flat": "변화 없음",
+    "insufficient": "기록 부족",
+}
+_STEADY = {"꾸준히 증가", "꾸준히 감소"}
+_MONOTONE = {"대체로 증가", "대체로 감소", *_STEADY}
+
+
+def trend_word(shape: dict[str, Any]) -> str:
+    word = TREND_WORD[shape["trend"]]
+    return word.replace("대체로", "꾸준히") if shape.get("steady") else word
+
+
+_LABEL = re.compile(r"#\d+|\d{2}-\d{2} \d{2}:\d{2}")
+
+
+def _shape_words(shape: dict[str, Any], labels: dict[str, str]) -> dict[str, str]:
+    words = {"trend": trend_word(shape)}
+    if step := shape.get("largest_step"):
+        words["largest_step"] = (
+            f"{labels.get(str(step['from']))} → {labels.get(str(step['to']))} "
+            f"({'증가' if step['direction'] == 'increase' else '감소'})"
+        )
+    if shift := shape.get("level_shift"):
+        words["level_shift_at"] = (
+            f"{labels.get(str(shift['at']))} "
+            f"({'높아짐' if shift['direction'] == 'increase' else '낮아짐'})"
+        )
+    elif shape["trend"] in {"increasing", "decreasing"}:
+        words["level_shift_at"] = "없음(구간 전체에 걸친 점진적 변화)"
+    return words
 
 
 def _word(direction: str | None) -> str | None:
@@ -92,9 +135,10 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
     previous = signals.get("previous_output") or {}
     task = output.get("task")
     position = int(context["position"])
+    kind = (context.get("input_reference") or {}).get("kind")
     primary: dict[str, Any] = {
         "name": operator["value_label"],
-        "model": model_name(str(context.get("package_id") or ""), task),
+        "model": model_name(str(context.get("package_id") or ""), task, kind),
         "change": _word(relation(previous.get(_key(task)), output.get(_key(task)))),
         "input_acquisitions": input_range(output, position)["count"],
     }
@@ -119,7 +163,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
         key = _key(other.get("task"))
         related.append(
             {
-                "name": model_name(str(item.get("package_id") or ""), other.get("task")),
+                "name": model_name(str(item.get("package_id") or ""), other.get("task"), kind),
                 "change": _word(
                     relation((item.get("previous_output") or {}).get(key), other.get(key))
                 ),
@@ -141,8 +185,44 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
                 amplitude.append(
                     {"channel": _channel_name(channel["channel"]), "rms": _word(direction)}
                 )
+    span = signals.get("range")
+    shapes = None
+    positions = None
+    if isinstance(span, dict) and span.get("steps"):
+        labels = span["labels"]
+        positions = {
+            "compared": labels.get(str(span["first"])),
+            "selected": labels.get(str(span["last"])),
+        }
+        shapes = {
+            "steps": span["steps"],
+            "flow_basis": span.get("flow_basis", "all-results"),
+            "largest_step_basis": span.get("largest_step_basis"),
+            "primary": _shape_words(span["primary"], labels),
+            "features": [
+                {"label": feature_label(name), **_shape_words(shape, labels)}
+                for name, shape in span["features"].items()
+            ],
+        }
+        named = [(primary["name"], span["primary"])] + [
+            (feature_label(name), shape) for name, shape in span["features"].items()
+        ]
+        # Where each level changed, earliest first: the direct answer to "since when".
+        shapes["level_shifts"] = [
+            {
+                "name": name,
+                "at": labels.get(str(shape["level_shift"]["at"])),
+                "change": "높아짐" if shape["level_shift"]["direction"] == "increase" else "낮아짐",
+            }
+            for name, shape in sorted(
+                (item for item in named if item[1].get("level_shift")),
+                key=lambda item: item[1]["level_shift"]["at"],
+            )
+        ]
     return {
         "question": context.get("question"),
+        "positions": positions,
+        "range": shapes,
         "primary": primary,
         "candidates": candidates,
         "contribution_order": [
@@ -201,10 +281,21 @@ _INSTRUCTIONS = (
     "observations: summary의 근거로 쓴 측정 특징 1~4개입니다. candidates의 id와 change를 그대로 "
     "쓰세요. next_signals: 다음에 열어볼 측정 특징 0~3개입니다. next_step: 다음에 무엇을 비교하면 "
     "좋은지 한 문장입니다. "
-    "규칙: 숫자를 쓰지 마세요. 값과 변화율은 화면이 함께 보여줍니다. "
+    "규칙: 숫자를 쓰지 마세요. 값과 변화율은 화면이 함께 보여줍니다. 시점은 positions와 range에 "
+    "있는 라벨(예: #42)을 그대로 쓸 수 있습니다. "
     "두 시점의 동반 변화는 원인이 아닙니다. '때문', '기인', '유발', '원인' 같은 인과 표현 대신 "
     "'함께 증가했습니다', '같은 두 시점에서 달라졌습니다'처럼 쓰세요. "
-    "두 시점만 비교하므로 '추세', '계속', '지속적으로', '점점' 같은 기간 전체 표현을 쓰지 마세요. "
+    "range는 선택한 두 시점 사이의 모든 분석 결과로 계산한 흐름입니다. "
+    "trend 표현을 그대로 쓰세요. '꾸준히', '지속적으로'는 trend가 '꾸준히 증가/감소'인 항목에만, "
+    "'추세'와 '대체로'는 '대체로 증가/감소'에도 쓸 수 있습니다. '오르내림'이나 '변화 없음'이면 "
+    "기간 표현 없이 두 시점의 비교와 level_shift_at·largest_step으로만 말하세요. "
+    "range가 없으면 기간 전체 표현을 쓰지 마세요. "
+    "질문이 언제·어디서·흐름을 물으면 range.level_shifts의 라벨을 직접 인용해 답하세요 "
+    "(예: '이상 점수의 수준은 #10에서 높아졌고 수평 진동 RMS는 #17에서 높아졌습니다'). "
+    "flow_basis가 sampled-results이면 흐름과 수준 변화는 표본에 기반한 근사입니다. "
+    "largest_step은 전체 구간의 인접한 분석 결과를 별도로 확인한 값입니다. "
+    "급변을 물으면 largest_step을 쓰세요. level_shift_at이 없는 항목을 '그 지점부터 달라졌다'고 "
+    "하지 말고 구간의 흐름(trend)으로 말하세요. "
     "contribution_order는 모델 점수 계산에 크게 반영된 특징의 순서이며 설비 고장의 원인이 "
     "아닙니다. 반영·기여를 말할 때는 contribution_order 앞쪽의 특징만 쓰고, 비어 있으면 말하지 "
     "마세요. "
@@ -241,10 +332,15 @@ _NEGATED = re.compile(r"^.{0,24}?(?:아니|없|않|어렵|단정할\s*수|단정
 _TREND = re.compile(
     r"추세|경향|지속적|점점|꾸준히|계속(?:해서)?\s*(?:증가|감소|상승|하락|늘|줄|높아|낮아)"
 )
+# A sentence about the whole range, not about its two ends.
+_SCOPE = re.compile(r"구간\s*(?:에서|동안|전체|내내|에\s*걸쳐)")
+_FLOW_WORDS = ("오르내", "대체로", "꾸준히", "변하지 않", "변화가 없", "변화 없")
+# Words that claim every step went one way, not only the overall direction.
+_STEADY_WORDS = re.compile(r"지속적|점점|꾸준히|계속")
 _SUPERLATIVE = re.compile(r"가장\s*(?:크|큰|많이|두드러|뚜렷)")
 _ATTRIBUTION = re.compile(r"반영|기여")
 _SUGGESTION = re.compile(r"보세요|보시|좋겠습니다|좋습니다|권장|제안|살펴보")
-_MARKUP = re.compile(r"[$*`#]|\\[a-zA-Z]+")
+_MARKUP = re.compile(r"[$*`]|\\[a-zA-Z]+|(?:^|\n)\s*#+\s")
 _UP = r"증가|상승|높아|커졌|커지|늘"
 _DOWN = r"감소|하락|낮아|작아|줄"
 _PRIMARY = {
@@ -280,6 +376,9 @@ def claim_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]
     for name in names:
         plain = plain.replace(name, "").replace(re.sub(r"\(.*?\)", "", name).strip(), "")
     plain = plain.replace("3상", "")
+    # Longest first: removing "#1" before "#10" would leave a stray digit.
+    for label in sorted(_allowed_labels(payload), key=len, reverse=True):
+        plain = plain.replace(label, "")
     if re.search(r"\d", plain):
         issues.append(f"{field}: 숫자를 쓰지 마세요. 수치는 화면이 보여줍니다.")
     if _MARKUP.search(text):
@@ -298,10 +397,23 @@ def claim_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]
             break
     if field != "summary":
         return issues
-    if match := _TREND.search(text):
-        issues.append(
-            f"{field}: '{match.group()}' — 두 시점 비교로는 기간 전체의 흐름을 말할 수 없습니다."
-        )
+    for sentence in sentences(text):
+        if (match := _TREND.search(sentence)) and (
+            reason := _trend_issue(sentence, payload, match.group())
+        ):
+            issues.append(f"{field}: '{match.group()}' — {reason}")
+            break
+        span = payload.get("range")
+        said = _primary_said(sentence, payload)
+        if span and _SCOPE.search(sentence) and said:
+            trend = span["primary"]["trend"]
+            direction = {"increased": "증가", "decreased": "감소"}[said[0]]
+            if trend not in _MONOTONE or direction not in trend:
+                issues.append(
+                    f"{field}: {payload['primary']['name']}는 선택 구간에서 {trend}입니다. "
+                    "구간 전체를 말할 때는 이 흐름대로 쓰세요."
+                )
+                break
     if match := _SUPERLATIVE.search(text):
         issues.append(
             f"{field}: '{match.group()}' — 단위가 다른 특징의 변화 순위를 단정하지 마세요."
@@ -337,6 +449,29 @@ def claim_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]
     return issues
 
 
+def _allowed_labels(payload: dict[str, Any]) -> set[str]:
+    found = set(_LABEL.findall(json.dumps(payload.get("range") or {}, ensure_ascii=False)))
+    return found | {label for label in (payload.get("positions") or {}).values() if label}
+
+
+def _trend_issue(sentence: str, payload: dict[str, Any], word: str) -> str | None:
+    """A period word needs a range in which every series it names moved that way.
+
+    '추세' needs an overall direction; '꾸준히'·'지속적으로' need nearly every step that way.
+    """
+    span = payload.get("range")
+    if not span:
+        return "두 시점 비교로는 기간 전체의 흐름을 말할 수 없습니다."
+    named = [f for f in span["features"] if _bare(f["label"]) in sentence]
+    if not named or _primary_said(sentence, payload) or payload["primary"]["name"] in sentence:
+        named.append({"label": payload["primary"]["name"], **span["primary"]})
+    allowed = _STEADY if _STEADY_WORDS.search(word) else _MONOTONE
+    for item in named:
+        if item["trend"] not in allowed:
+            return f"{_bare(item['label'])}는 선택 구간에서 {item['trend']}입니다."
+    return None
+
+
 def _primary_said(text: str, payload: dict[str, Any]) -> list[str]:
     pattern = _PRIMARY.get(payload["primary"]["name"], _PRIMARY[""])
     return [_CODE["증가" if re.match(_UP, m.group(2)) else "감소"] for m in pattern.finditer(text)]
@@ -352,8 +487,27 @@ def mentions_primary(text: str, payload: dict[str, Any]) -> bool:
     )
 
 
+_WHEN = re.compile(r"언제|부터|어디서|어느\s*시점|흐름|추세|구간")
+
+
 def text_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]:
     issues = claim_issues(text, payload, field=field)
+    span = payload.get("range") or {}
+    shifts = span.get("level_shifts") or []
+    asks_when = field == "summary" and span and _WHEN.search(str(payload.get("question") or ""))
+    if asks_when and shifts and not any(item["at"] and item["at"] in text for item in shifts):
+        issues.append(
+            "summary: 질문이 시점을 묻습니다. range.level_shifts의 라벨(예: "
+            f"{shifts[0]['at']})로 어디서 달라졌는지 답하세요."
+        )
+    elif asks_when and not shifts and not any(word in text for word in _FLOW_WORDS):
+        step = span["primary"].get("largest_step")
+        issues.append(
+            "summary: 질문이 구간의 흐름을 묻습니다. "
+            f"range.primary의 trend('{span['primary']['trend']}')"
+            + (f"와 largest_step({step})" if step else "")
+            + "으로 답하세요."
+        )
     if field == "summary" and not mentions_primary(text, payload):
         issues.append(
             f"summary: {payload['primary']['name']}의 두 시점 변화"
@@ -409,7 +563,8 @@ _REVIEW = (
     "answer의 summary와 next_step만 검토해 각 항목을 true/false로 답하세요. "
     "causal: 측정 신호의 변화가 점수·추정 변화나 설비 상태의 원인이라고 단정했는가. "
     "가능성으로만 말하거나 원인이 아니라고 말하면 false입니다. "
-    "trend: 두 시점만 비교했는데 기간 전체의 추세나 지속적인 변화를 주장했는가. "
+    "trend: facts의 선택 구간 흐름이 '오르내림'이거나 없는 항목에 기간 전체의 추세나 지속적인 "
+    "변화를 주장했는가. "
     "contradiction: facts에 적힌 증가·감소 방향과 반대로 말했는가. "
     "verdict: 정상·고장·위험 판정이나 정비 지시를 했는가. "
     "answers_question: question이 묻는 내용에 답했는가. "
@@ -438,6 +593,13 @@ def review_answer(
     Each finding names its kind, the quoted wording and the instruction for a rewrite.
     """
     facts = [f"{payload['primary']['name']}: {payload['primary']['change'] or '비교 없음'}"]
+    if payload.get("range"):
+        facts.append(
+            f"{payload['primary']['name']}의 선택 구간 흐름: {payload['range']['primary']['trend']}"
+        )
+        facts += [
+            f"{f['label']}의 선택 구간 흐름: {f['trend']}" for f in payload["range"]["features"]
+        ]
     facts += [
         f"{item['name']}: {item['change'] or '비교 없음'}" for item in payload["related_models"]
     ]
@@ -493,6 +655,46 @@ def _subject(word: str) -> str:
     return word + ("이" if final else "가")
 
 
+_FLOW_VERB = {
+    "대체로 증가": "대체로 증가했습니다",
+    "대체로 감소": "대체로 감소했습니다",
+    "꾸준히 증가": "꾸준히 증가했습니다",
+    "꾸준히 감소": "꾸준히 감소했습니다",
+    "오르내림": "오르내렸습니다",
+    "변화 없음": "변하지 않았습니다",
+}
+
+
+def flow_sentences(payload: dict[str, Any]) -> list[str]:
+    """How the main result moved through the range, and where it moved most at once."""
+    span = payload.get("range")
+    if not span or span["primary"]["trend"] not in _FLOW_VERB:
+        return []
+    primary = span["primary"]
+    text = f"선택 구간에서 {_topic(payload['primary']['name'])} {_FLOW_VERB[primary['trend']]}."
+    if step := primary.get("largest_step"):
+        text += f" 한 번에 가장 크게 바뀐 곳은 {step}입니다."
+    return [text]
+
+
+def _topic(word: str) -> str:
+    last = word[-1]
+    final = "가" <= last <= "힣" and (ord(last) - ord("가")) % 28 != 0
+    return word + ("은" if final else "는")
+
+
+def shift_sentences(payload: dict[str, Any]) -> list[str]:
+    """Where levels changed in the selected range, one sentence per point."""
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for shift in (payload.get("range") or {}).get("level_shifts") or []:
+        grouped.setdefault((shift["at"], shift["change"]), []).append(_bare(shift["name"]))
+    return [
+        f"선택 구간에서 {'·'.join(names[:3])}의 수준은 {at}에서 "
+        f"{'높아졌습니다' if change == '높아짐' else '낮아졌습니다'}."
+        for (at, change), names in list(grouped.items())[:2]
+    ]
+
+
 def verified_summary(payload: dict[str, Any]) -> tuple[str, str, list[dict[str, str]]]:
     """The answer code can always give: stored directions only, in plain sentences."""
     primary = payload["primary"]
@@ -517,6 +719,9 @@ def verified_summary(payload: dict[str, Any]) -> tuple[str, str, list[dict[str, 
             + ", ".join(f"{c['label']} {c['change']}" for c in shown)
             + "가 함께 관측됩니다."
         )
+    if _WHEN.search(str(payload.get("question") or "")):
+        sentences += flow_sentences(payload)
+    sentences += shift_sentences(payload)
     if not sentences:
         sentences.append("선택한 두 시점에서 비교할 수 있는 측정 변화가 없습니다.")
     next_step = (
@@ -601,6 +806,14 @@ def generate_grounded_answer(
             text = " ".join(kept)
             if not mentions_primary(text, payload):
                 text = sentences(summary)[0] + " " + text
+            if any(
+                "시점을 묻습니다" in issue for issue in text_issues(text, payload, field="summary")
+            ):
+                text = " ".join([text, *shift_sentences(payload)])
+            if any(
+                "흐름을 묻습니다" in issue for issue in text_issues(text, payload, field="summary")
+            ):
+                text = " ".join([text, *flow_sentences(payload)])
             answer["summary"] = text
             source = "model" if text == " ".join(written) else "model-trimmed"
         else:
