@@ -73,7 +73,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     const output = selectedStep?.output || {};
     const before = prior?.output || {};
     const valueKey = view === "rul" ? "estimate" : "score";
-    const unit = view === "rul" && output.unit === "acquisition-interval" ? "개 기록 구간" : "";
+    const unit = view === "rul" ? output.unit === "acquisition-interval" ? "개 기록 구간" : output.unit || "단위 미기록" : "";
     summary.append(element("p", (view === "rul" ? "기록 종료까지 남은 구간 추정" : "모델 점수") + " · "
       + (prior ? format(before[valueKey]) + " → " : "") + format(output[valueKey]) + " " + unit));
     const table = element("table");table.className = "phm-table";
