@@ -465,7 +465,10 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
                 "DuckLake 이력 적재 완료"
             )
             sync_api.expect(page.locator("#source-control-result")).to_contain_text("6개 이벤트")
+            page.locator('nav a[href="#monitor"]').click()
+            page.locator('.asset-tabs a[data-tab="signals"]').click()
             sync_api.expect(page.locator("#last-values")).to_contain_text("220.7")
+            page.locator('nav a[href="#connect"]').click()
             assert workspace.history_catalog_path.exists()
             listing.get_by_role("button", name="FILE 이력 적재").click()
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(

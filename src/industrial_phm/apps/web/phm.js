@@ -825,7 +825,8 @@ function clearMonitorTarget() {
 let followingTarget = false;
 export function initializePhm() {
   onAssetChange(() => {
-    if (followingTarget) return;
+    // A pending result link decides the asset itself; an earlier default selection must not erase it.
+    if (followingTarget || requestedResult) return;
     clearMonitorTarget();selected.anomaly = "";selected.rul = "";zoom.anomaly = null;focusPosition = null;rulFocusPosition = null;
     chosenFeatures = [];byId("anomaly-detail").replaceChildren();
     if (activeView()) void cycle();

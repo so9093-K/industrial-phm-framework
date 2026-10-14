@@ -204,6 +204,7 @@ function openReviewRecord(assetId, findingId) {
   focusSelectedReview(findingId);
 }
 function evidenceViews() {
+  if (!monitor) return;
   const analyses = [...rows(monitor, "phase_unbalance_analyses"), ...rows(monitor, "file_feature_analyses")]
     .filter((r) => r.asset_id === selectedAsset);
   const attempts = rows(monitor, "skipped_analysis_attempts").filter((r) => r.asset_id === selectedAsset);

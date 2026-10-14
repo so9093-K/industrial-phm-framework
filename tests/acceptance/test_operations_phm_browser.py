@@ -52,7 +52,9 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
-                pw.expect(page.locator("#view-title")).to_have_text("이상 탐지")
+                pw.expect(page.locator('.asset-tabs a[data-tab="anomaly"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 이상 점수")
                 pw.expect(page.locator("#anomaly-periods summary")).to_contain_text("1개")
                 pw.expect(page.locator("#anomaly-replay")).to_be_visible()
@@ -104,7 +106,9 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 page.locator("#anomaly-latest").click()
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #7")
                 page.locator('a[href="#rul"]').click()
-                pw.expect(page.locator("#view-title")).to_have_text("RUL 모니터링")
+                pw.expect(page.locator('.asset-tabs a[data-tab="rul"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
                 pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 RUL 추정")
                 pw.expect(page.locator("#rul-cards")).to_contain_text("획득 간격")
                 pw.expect(page.locator("#rul-validation-note")).to_contain_text(

@@ -95,6 +95,13 @@ def _start(root: Path, port: int, log: Path) -> subprocess.Popen[bytes]:
     pytest.fail("supervised Web not ready: " + log.read_text(errors="replace")[-4000:])
 
 
+def _stored_values(page):
+    """Stored history is read on the asset's signal tab; open it and return the latest values."""
+    page.locator('nav a[href="#monitor"]').click()
+    page.locator('.asset-tabs a[data-tab="signals"]').click()
+    return page.locator("#last-values")
+
+
 def _no_overflow(page, width: int) -> None:
     measured = page.evaluate("() => [window.innerWidth, document.documentElement.scrollWidth]")
     assert measured[0] == width and measured[1] <= width + 2, measured
@@ -511,7 +518,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "6개 이벤트", timeout=30000
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text("1.5", timeout=30000)
+                pw.expect(_stored_values(page)).to_contain_text("1.5", timeout=30000)
+                page.locator('nav a[href="#connect"]').click()
                 assert workspace.history_catalog_path.exists()
                 listing.get_by_role("button", name="CSV 특징 분석 실행").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
@@ -1590,9 +1598,10 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(listing).to_contain_text(
                     "OPC UA 이력 저장(DuckLake 커밋):", timeout=30000
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text(source_id, timeout=30000)
+                pw.expect(_stored_values(page)).to_contain_text(source_id, timeout=30000)
                 pw.expect(page.locator("#last-values")).to_contain_text("현재 상태가 아님")
                 browser_evidence(page, "receiving")
+                page.locator('nav a[href="#connect"]').click()
 
                 simulator_stop(simulator)
                 disconnected = until_evidence(
@@ -1614,10 +1623,11 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록:", timeout=30000)
                 pw.expect(listing).to_contain_text("현재 연결 미확인")
                 pw.expect(listing).not_to_contain_text("OPC UA 세션 마지막 기록: CONNECTED")
-                pw.expect(page.locator("#last-values")).to_contain_text(
+                pw.expect(_stored_values(page)).to_contain_text(
                     "마지막 저장된 측정값 · 현재 상태가 아님"
                 )
                 browser_evidence(page, "disconnected")
+                page.locator('nav a[href="#connect"]').click()
 
                 simulator = simulator_start()
                 recovered = until_evidence(
@@ -1637,7 +1647,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(listing).to_contain_text(
                     "OPC UA 세션 마지막 기록: " + str(recovered["opcua_session_last_state"])
                 )
-                pw.expect(page.locator("#last-values")).to_contain_text(source_id, timeout=30000)
+                pw.expect(_stored_values(page)).to_contain_text(source_id, timeout=30000)
                 browser_evidence(page, "recovered")
                 _no_overflow(page, width)
                 assert not errors, errors
