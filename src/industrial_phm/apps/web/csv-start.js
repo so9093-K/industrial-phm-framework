@@ -118,6 +118,7 @@ function setCurrent(step) {
 
 async function chooseFile(example = null) {
   const chosen = example || byId("csv-start-file").files[0];
+  if (chosen) byId("csv-entry").open = true;
   file = null;table = null;resetSave();invalidateCheck();
   syntheticPreview = Boolean(example);
   byId("csv-start-preview").hidden = true;byId("csv-start-details").hidden = true;

@@ -180,6 +180,9 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       if (token !== sourcesRequestSequence) return;
       onSourceRead("ready", data);
       const items = rows(data, "sources");
+      const entry = byId("csv-entry");
+      if (items.length && entry.dataset.userOpened !== "true" && !entry.contains(document.activeElement)
+          && !byId("csv-start-file").files.length) entry.open = false;
       if (data.read_error_scopes && data.read_error_scopes.length) {
         state.textContent = "일부 소스 저장소를 읽지 못했습니다. 등록 상태와 수신 근거를 확정할 수 없습니다.";
         state.className = "state error";
@@ -193,15 +196,15 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       state.className = evidenceReadError ? "state error" : "state";
       const received = items.filter((item) => item.receipt_confirmed).length;
       const liveReceived = items.filter((item) => item.source_type === "opcua"
-        && item.last_live_received_at).length;
-      const summary = "수신 확인 " + received + "개 · OPC UA 실시간 수신 " + liveReceived + "개";
+        && item.last_live_receive_fresh && item.recent_connected_evidence).length;
+      const summary = "검증 수신 확인 " + received + "개 · 최근 연속 수신 확인 " + liveReceived + "개";
       if (!items.length) {
         state.textContent = "등록된 소스가 없습니다. 작업공간에 CSV 또는 이 화면에서 로컬 OPC UA 소스를 등록하세요.";
         empty(list, "데이터 수신을 확인할 등록 소스가 없습니다.");
         byId("onboarding-state").textContent = "1단계 · 소스 미등록 — FILE CSV 또는 로컬 OPC UA 소스를 등록하세요.";
       } else {
-        state.textContent = "등록된 소스 " + data.sources.total + "개 · " + summary
-          + (evidenceReadError ? " · 일부 live 근거 조회 실패" : "");
+        state.textContent = "등록된 연결 " + data.sources.total + "개"
+          + (evidenceReadError ? " · 일부 수신 상태 조회 실패" : "");
         byId("onboarding-state").textContent = "등록 " + data.sources.total + "개 · "
           + summary
           + (evidenceReadError ? " · live 근거 일부 미확인" : "");
@@ -494,6 +497,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
   }
 
   initializeFileRegistration({loadSources, refresh});
+  byId("csv-entry").querySelector("summary").addEventListener("click", () => {byId("csv-entry").dataset.userOpened = "true";});
   const {diagnoseOpcua} = initializeOpcuaRegistration({loadSources, refresh});
   return {loadSources, renderOnboardingGuide, analyzeFile};
 }

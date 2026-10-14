@@ -152,6 +152,7 @@
         <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>분석 기록</h2><p class="muted">선택 설비에 저장된 신호 통계·3상 불평형 분석 결과</p></div></div><div id="evidence-results"><p class="muted">분석 기록을 조회 중입니다.</p></div></div>
         <div data-views="evidence" class="panel" id="review"><div class="panel-header"><div><h2>확인·메모</h2><p class="muted">분석 결과에 남긴 확인 상태와 메모</p></div></div><div id="review-results"><p class="muted">기록을 조회 중입니다.</p></div></div>
       </section>
+      <details data-views="connect" class="csv-entry" id="csv-entry" open><summary>CSV 파일 추가</summary>
       <section data-views="connect" class="panel csv-start" id="csv-start" aria-labelledby="csv-start-title">
         <div class="panel-header"><div><h2 id="csv-start-title">CSV 파일로 시작</h2><p class="muted">파일의 실제 신호를 먼저 보고, 서버에서 점검한 뒤 저장하면 모니터링에서 같은 신호를 봅니다.</p></div></div>
         <ol id="csv-start-steps" class="csv-start-steps" aria-label="진행 단계"><li data-step="file" aria-current="step">파일 확인</li><li data-step="asset">설비 정보</li><li data-step="check">서버 점검</li><li data-step="save">등록·이력 저장</li><li data-step="monitor">모니터링</li></ol>
@@ -203,6 +204,7 @@
           </div>
         </div>
       </section>
+      </details>
       <details data-views="connect" class="panel connection-progress" id="connection-progress"><summary>연결 진행·격리 예시 관리</summary>
       <section data-views="connect" class="panel onboarding" id="first-run" aria-labelledby="onboarding-title">
         <div class="panel-header"><div><h2 id="onboarding-title">데이터 연결 진행</h2><p class="muted">선택한 소스의 다음 작업</p></div></div>
@@ -236,7 +238,6 @@
         <div class="panel-header"><div><h2 id="connect-title">데이터 연결 · 등록된 소스</h2><p class="muted">등록한 CSV·OPC UA 소스와 수신 상태</p></div></div>
         <div id="source-status" class="state" role="status" aria-live="polite">소스 등록 현황을 조회합니다.</div>
         <p class="hint">연결 상태를 확인하고 해당 설비의 측정 신호로 이동합니다.</p>
-        <p class="hint">로컬 단일 사용자 파일럿입니다. 동일 작업공간의 Supervisor와 별도 preview·수집기를 함께 실행해 쓰기를 경합시키지 마세요. 현재 Web의 변경은 Supervisor IPC 및 writer 잠금 계약을 따릅니다.</p>
         <div id="source-list" class="source-list" aria-label="등록된 데이터 소스"></div>
         <p id="source-control-result" role="status" aria-live="polite"></p>
         <details id="advanced-file-registration" class="phm-options"><summary>고급 CSV 등록 · 경로·3상 역할 매핑</summary>

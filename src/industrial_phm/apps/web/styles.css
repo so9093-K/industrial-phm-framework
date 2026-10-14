@@ -34,6 +34,9 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .source-record details summary{cursor:pointer;color:#385464}
 .source-record details p{margin:8px 0;overflow-wrap:anywhere}
 .source-primary{margin-bottom:12px}
+.csv-entry{margin-bottom:16px}
+.csv-entry>summary{cursor:pointer;padding:14px 20px;background:#fff;border:1px solid #d6e1e7;border-radius:12px;color:#254c62;font-weight:650}
+.csv-entry[open]>summary{margin-bottom:8px}
 #source-control-result{font-size:.83rem;color:#365b69;min-height:1.4rem}
 #source-control-result.error{color:#9b3333}
 
