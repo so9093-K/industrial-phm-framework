@@ -39,8 +39,10 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 state = panel.locator("#explore-state")
                 pw.expect(state).to_contain_text("획득별 특징 · 구간 A #1–#4 · 구간 B #5–#8")
                 guide = panel.locator("#explore-guide")
-                pw.expect(guide.get_by_role("heading", name="무엇을 확인하고 싶나요?")).to_be_visible()
-                pw.expect(guide.get_by_role("button", name="과거와 최근이 어떻게 다른가요?")).to_be_visible()
+                heading = guide.get_by_role("heading", name="무엇을 확인하고 싶나요?")
+                pw.expect(heading).to_be_visible()
+                compare_goal = guide.get_by_role("button", name="과거와 최근이 어떻게 다른가요?")
+                pw.expect(compare_goal).to_be_visible()
                 pw.expect(panel.locator("#explore-result-intro")).to_contain_text(
                     "구간 A는 사용자가 고른 비교 구간"
                 )
@@ -70,7 +72,7 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 )
                 pw.expect(spectrum).to_contain_text("구간 A 획득 #1 #2 #3 #4")
 
-                guide.get_by_role("button", name="과거와 최근이 어떻게 다른가요?").click()
+                compare_goal.click()
                 pw.expect(state).to_contain_text("구간 A #1–#3 · 구간 B #6–#8")
                 panel.get_by_role("button", name="처음 1/4 · 마지막 1/4").click()
                 pw.expect(state).to_contain_text("구간 A #1–#3 · 구간 B #6–#8")
