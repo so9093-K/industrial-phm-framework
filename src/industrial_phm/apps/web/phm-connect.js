@@ -1,11 +1,13 @@
 // Connect a model package to the selected asset from its anomaly or RUL tab. The server matches
 // packages to the asset's own input streams; the runner then analyzes that stream's stored and new inputs.
+import { currentAsset } from "./asset-context.js";
 const TASK = {anomaly: "anomaly-score", rul: "rul-estimate"};
 const NOUN = {anomaly: "이상 탐지", rul: "RUL"};
 const STREAM_LABEL = {"acquisition-snapshot": "진동 파형", "observation-window": "OPC UA 관측"};
 const MAX_AGE_MS = 30000;
 const cache = new Map();
-const pending = {anomaly: false, rul: false};
+const pending = new Set();
+const renderVersions = {anomaly: 0, rul: 0};
 const node = (tag, text = "", className = "") => {
   const element = document.createElement(tag);
   if (text) element.textContent = text;
@@ -13,13 +15,12 @@ const node = (tag, text = "", className = "") => {
   return element;
 };
 
-export function modelFamily(recipe = "", task = "") {
-  if (/autoencoder/.test(recipe)) return "재구성 오차 · LSTM";
-  if (/pca/.test(recipe)) return "재구성 오차 · PCA";
-  if (/iforest/.test(recipe)) return "이상 점수 · IF";
-  if (/lstm/.test(recipe)) return "RUL · LSTM";
-  if (/ridge/.test(recipe)) return "RUL · Ridge";
-  return {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"}[task] || recipe;
+export function modelFamily(recipe = "", task = "", kind = "") {
+  const algorithm = /lstm|autoencoder/.test(recipe) ? "LSTM" : /pca/.test(recipe) ? "PCA"
+    : /iforest/.test(recipe) ? "Isolation Forest" : /ridge/.test(recipe) ? "Ridge" : "";
+  const signal = kind === "observation-window" ? "관측 신호" : kind === "acquisition-snapshot" ? "진동" : "신호";
+  const purpose = task === "rul-estimate" ? "잔여수명 추정" : signal + " 변화 탐지";
+  return purpose + (algorithm ? " · " + algorithm + " 기반" : "");
 }
 
 async function readModels(asset) {
@@ -43,7 +44,7 @@ async function connect(payload) {
 }
 
 function streamText(stream) {
-  const parts = [STREAM_LABEL[stream.kind] || stream.kind, stream.source_id];
+  const parts = [stream.name || STREAM_LABEL[stream.kind] || stream.kind];
   if (stream.channels?.length) parts.push(stream.channels.length + "채널");
   if (stream.sampling_rate_hz) parts.push((stream.sampling_rate_hz / 1000).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + " kHz");
   return parts.join(" · ");
@@ -58,18 +59,23 @@ function emptyText(view, packages, streams) {
 // Rendered from the poll cycle; unchanged content is left alone so a click is never interrupted.
 // Without a model the list sits under the status line; with one it folds into the tab's end.
 export async function renderModelConnect(view, asset, hasModel, onConnected) {
+  const version = ++renderVersions[view];
+  const pendingKey = view + ":" + asset;
   const [first, more] = [document.getElementById(view + "-connect"), document.getElementById(view + "-connect-more")];
   const root = hasModel ? more : first;
   const other = hasModel ? first : more;
   if (other.childElementCount) {other.replaceChildren();other.dataset.key = "";}
   if (!asset) {root.replaceChildren();root.dataset.key = "";return;}
-  if (pending[view]) return;
+  if (root.dataset.asset !== asset) {root.replaceChildren(node("p", "이 설비의 모델을 확인하고 있습니다.", "muted"));root.dataset.key = "";root.dataset.asset = asset;}
+  const current = () => renderVersions[view] === version && currentAsset() === asset && document.body.dataset.view === view;
+  if (pending.has(pendingKey)) return;
   let data;
   try {data = await readModels(asset);} catch {
+    if (!current()) return;
     if (root.dataset.key !== "error") {root.replaceChildren(node("p", "연결할 수 있는 모델을 불러오지 못했습니다.", "muted"));root.dataset.key = "error";}
     return;
   }
-  if (pending[view]) return;
+  if (!current() || pending.has(pendingKey)) return;
   const packages = (data.packages || []).filter((item) => item.task === TASK[view]);
   const streams = data.streams || [];
   const ready = [];
@@ -80,7 +86,7 @@ export async function renderModelConnect(view, asset, hasModel, onConnected) {
     if (fits.length) for (const candidate of fits) ready.push({pkg, candidate});
     else if (pkg.candidates.length) blocked.push({pkg, reason: pkg.candidates[0].reason});
   }
-  const key = JSON.stringify([asset, hasModel, ready.map((item) => [item.pkg.package_id, item.candidate.source_id]), blocked.length]);
+  const key = JSON.stringify([asset, hasModel, ready, streams, blocked]);
   if (root.dataset.key === key) return;
   root.dataset.key = key;
   if (hasModel && !ready.length) {root.replaceChildren();return;}
@@ -89,21 +95,29 @@ export async function renderModelConnect(view, asset, hasModel, onConnected) {
     const stream = streams.find((item) => item.source_id === candidate.source_id && item.measurement_point_id === candidate.measurement_point_id);
     const row = node("div", "", "model-connect-row");
     const text = node("div");
-    text.append(node("strong", modelFamily(pkg.recipe_id || "", pkg.task)), node("small", (pkg.recipe_id || pkg.package_id) + (stream ? " · 입력 " + streamText(stream) : "")));
+    const title = modelFamily(pkg.recipe_id || "", pkg.task, stream?.kind);
+    text.append(node("strong", title), node("small", stream ? streamText(stream) : ""));
+    text.append(node("small", stream?.input_state === "stored-input" ? "저장된 입력부터 분석합니다."
+      : "연결 가능 · 관측 입력이 만들어지면 분석합니다."));
+    const info = node("details", "", "phm-options");
+    info.append(node("summary", "모델·입력 정보"), node("p", "계산: " + (/autoencoder|pca/.test(pkg.recipe_id || "") ? "재구성 오차" : pkg.task === "rul-estimate" ? "잔여 구간 추정" : "이상 점수")),
+      node("p", "모델: " + (pkg.recipe_id || pkg.package_id)), node("p", "입력 ID: " + candidate.source_id));
+    text.append(info);
     const button = node("button", "연결");
     button.type = "button";
-    button.setAttribute("aria-label", modelFamily(pkg.recipe_id || "", pkg.task) + " 모델 연결");
+    button.setAttribute("aria-label", title + " 모델 연결");
     const status = node("small", "", "model-connect-status");
     status.setAttribute("role", "status");
     button.addEventListener("click", async () => {
-      pending[view] = true;
+      if (currentAsset() !== asset || document.body.dataset.view !== view) return;
+      pending.add(pendingKey);
       for (const other of root.querySelectorAll("button")) other.disabled = true;
       button.textContent = "연결 중…";
       try {
         const result = await connect({package_id: pkg.package_id, source_id: candidate.source_id, asset_id: asset,
           ...(candidate.measurement_point_id ? {measurement_point_id: candidate.measurement_point_id} : {})});
         cache.delete(asset);root.dataset.key = "";
-        onConnected(result.binding_id);
+        if (currentAsset() === asset && document.body.dataset.view === view) onConnected(result.binding_id);
       } catch (error) {
         status.textContent = error.message === "supervisor_required"
           ? "읽기 전용 화면입니다. make up으로 실행 중인 작업공간에서 연결할 수 있습니다."
@@ -111,7 +125,7 @@ export async function renderModelConnect(view, asset, hasModel, onConnected) {
         button.textContent = "연결";
         for (const other of root.querySelectorAll("button")) other.disabled = false;
       } finally {
-        pending[view] = false;
+        pending.delete(pendingKey);
       }
     });
     row.append(text, button, status);

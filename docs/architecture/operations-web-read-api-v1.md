@@ -531,6 +531,20 @@ secondary information.
 
 ## Asset Monitor PHM reads
 
+`GET /api/v1/phm/models?asset_id=...` lists prepared model packages and matching streams for
+the selected asset. `compatible` describes the declared input format, not a completed analysis.
+Stream `input_state` separates `waiting-input` (registered source without a finalized input)
+from `stored-input`. Electrical packages match confirmed channel roles and units, using the
+same role resolver as the runner, rather than comparing physical role names to raw channel IDs.
+These reads do not collect, finalize or score inputs. The runner remains the authority on
+window duration, quality, feature eligibility and package loading.
+
+`POST /api/v1/phm/bindings/create` is Supervisor-only and uses the CLI binding operation.
+A created binding is a connection, not an analysis result. The existing bindings/series reads
+show delivered input, runner processing and saved output independently; the Web polls these
+to move from input/analysis waiting to results. Model candidates are scoped to the currently
+selected asset even when older requests complete later.
+
 `GET /api/v1/phm/monitor` is an additive bounded projection of PHM bindings, input progress,
 last successful output, previous successful output, latest processed/refused input and review status. It returns at most
 100 binding rows, total/limit/truncated, and a separate review-read error. It never loads full

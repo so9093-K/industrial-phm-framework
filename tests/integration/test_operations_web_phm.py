@@ -220,6 +220,56 @@ def test_bound_package_results_are_served_incrementally_without_paths(
         thread.join(timeout=10)
 
 
+def test_registered_opcua_model_fit_is_separate_from_available_window_input(tmp_path: Path) -> None:
+    from industrial_phm.application import JsonSourceRepository, OpcUaSourceConfig, RegisteredSource
+    from industrial_phm.application.observation_window_sqlite import (
+        SqliteObservationWindowRepository,
+    )
+    from industrial_phm.connectors import OpcUaNodeMapping
+    from industrial_phm.runtime.operations_web_phm_models import project_phm_models
+    from tests.support.electrical_phm import CHANNELS as ELECTRICAL_CHANNELS
+    from tests.support.electrical_phm import electrical_window, electrical_workspace
+    from tests.support.window_analysis import START
+
+    workspace = electrical_workspace(tmp_path / "ws")
+    sample = electrical_window("input-shape", START)
+    meanings = {
+        event.event.semantic_binding.channel_id: event.event.semantic_binding
+        for event in sample.events
+    }
+    JsonSourceRepository(workspace.source_registry_path).register(
+        RegisteredSource(
+            source_id="site-opcua",
+            name="전기 신호",
+            registered_at=START,
+            config=OpcUaSourceConfig(
+                endpoint_url="opc.tcp://127.0.0.1:4840/",
+                asset_id="motor-7",
+                measurement_point_id="mcc-3",
+                node_mappings=tuple(
+                    OpcUaNodeMapping(channel, f"ns=2;s={channel}")
+                    for channel in ELECTRICAL_CHANNELS
+                ),
+                semantic_bindings=tuple(meanings.values()),
+            ),
+        )
+    )
+    exists = workspace.window_state_path.exists()
+    models = project_phm_models(workspace, "motor-7")
+    assert models["streams"][0]["input_state"] == "waiting-input"
+    assert models["packages"][0]["candidates"][0]["compatible"] is True
+    assert workspace.window_state_path.exists() == exists  # a read never creates input evidence
+    windows = SqliteObservationWindowRepository(workspace.window_state_path)
+    windows.record_window(electrical_window("other-point", START, point="other"))
+    assert project_phm_models(workspace, "motor-7")["streams"][0]["input_state"] == "waiting-input"
+    windows.record_window(electrical_window("own-point", START))
+    assert project_phm_models(workspace, "motor-7")["streams"][0]["input_state"] == "stored-input"
+    assert (
+        project_phm_models(workspace, "motor-7")["packages"][0]["candidates"][0]["compatible"]
+        is True
+    )
+
+
 def test_web_lists_fitting_models_and_connects_one_to_the_asset(tmp_path: Path) -> None:
     workspace = OperationsWorkspace(tmp_path / "ws")
     initialize_operations_workspace(workspace)

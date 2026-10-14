@@ -462,7 +462,11 @@ function finish() {
   };
   // Signal statistics run synchronously on the supervisor, so only files it can read in time.
   const analyze = byId("csv-start-analyze");
-  analyze.hidden = Boolean(file && file.size > ANALYSIS_MAX_BYTES);
+  const limited = Boolean(file && file.size > ANALYSIS_MAX_BYTES);
+  analyze.hidden = false;analyze.disabled = limited;
+  byId("csv-start-analysis-limit").textContent = limited
+    ? "측정 이력은 저장됐습니다. 신호 통계 분석은 1 MiB 이하 CSV를 지원합니다. 분석할 구간을 별도 파일로 저장해 새 출처로 등록하세요. 저장된 전체 신호는 측정 그래프에서 볼 수 있습니다."
+    : "신호 통계 분석은 저장된 CSV의 1 MiB 이하 원본을 사용합니다.";
   analyze.onclick = () => document.dispatchEvent(new CustomEvent("file-analysis-request",
     {detail: {sourceId: values.source_id, button: analyze, output: byId("csv-start-analyze-result")}}));
   open.focus();

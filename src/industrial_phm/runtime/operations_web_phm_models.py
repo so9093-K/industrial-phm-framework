@@ -16,6 +16,16 @@ from typing import Any
 
 from industrial_phm.application import JsonSourceRepository, OpcUaSourceConfig
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+from industrial_phm.application.analysis_input import (
+    ChannelObservation,
+    window_channel_observations,
+)
+from industrial_phm.application.electrical_window_features import (
+    ELECTRICAL_WINDOW_CHANNELS,
+    ELECTRICAL_WINDOW_FEATURE_SET_ID,
+    resolve_electrical_roles,
+)
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
 from industrial_phm.models.package import load_model_package
 from industrial_phm.runtime.operations_web_setup import SourceControlConflict
@@ -89,7 +99,13 @@ def _packages(models_root: Path) -> list[dict[str, Any]]:
                 "unit": output.get("unit"),
                 "input": {
                     key: body["input"].get(key)
-                    for key in ("step_kind", "channels", "sampling_rate_hz", "samples_per_step")
+                    for key in (
+                        "step_kind",
+                        "channels",
+                        "sampling_rate_hz",
+                        "samples_per_step",
+                        "feature_set_id",
+                    )
                 },
                 "acceptance": validation.get("acceptance"),
             }
@@ -112,12 +128,40 @@ def _streams(workspace: OperationsWorkspace, asset_id: str) -> list[dict[str, An
                 "sampling_rate_hz": snapshot.sampling_rate_hz,
                 "sample_count": snapshot.sample_count,
                 "recorded_replay": snapshot.replay,
+                "input_state": "stored-input",
             }
         )
     if workspace.source_registry_path.is_file():
+        windows = SqliteObservationWindowRepository(workspace.window_state_path)
         for source in JsonSourceRepository(workspace.source_registry_path).list_sources():
             if source.asset_id != asset_id or not isinstance(source.config, OpcUaSourceConfig):
                 continue
+            latest = (
+                windows.latest_for_stream(source.source_id, asset_id, source.measurement_point_id)
+                if windows.path.exists()
+                else None
+            )
+            observations = (
+                window_channel_observations(latest)
+                if latest is not None
+                else tuple(
+                    ChannelObservation(
+                        source.source_id,
+                        source.measurement_point_id,
+                        binding.channel_id,
+                        source.registered_at,
+                        None,
+                        False,
+                        False,
+                        binding.definition.observed_property,
+                        binding.definition.scope,
+                        binding.definition.unit,
+                        binding.version,
+                    )
+                    for binding in source.config.semantic_bindings
+                )
+            )
+            _, electrical_reason = resolve_electrical_roles(observations)
             streams.append(
                 {
                     "kind": _WINDOW,
@@ -127,6 +171,9 @@ def _streams(workspace: OperationsWorkspace, asset_id: str) -> list[dict[str, An
                     "sampling_rate_hz": None,
                     "sample_count": None,
                     "recorded_replay": False,
+                    "name": source.name,
+                    "input_state": "stored-input" if latest is not None else "waiting-input",
+                    "electrical_input_reason": electrical_reason,
                 }
             )
     return streams
@@ -148,6 +195,11 @@ def _fit(package: dict[str, Any], stream: dict[str, Any]) -> str | None:
         samples = spec.get("samples_per_step")
         if samples is not None and int(samples) != int(stream["sample_count"]):
             return "획득당 표본 수가 다릅니다"
+    elif spec.get("feature_set_id") == ELECTRICAL_WINDOW_FEATURE_SET_ID:
+        if tuple(channels) != ELECTRICAL_WINDOW_CHANNELS:
+            return "모델의 전기 신호 입력 규격이 다릅니다"
+        if stream.get("electrical_input_reason") is not None:
+            return "전류·전압 R/S/T 역할과 A/V/Hz 단위 선언을 확인하세요"
     elif not set(channels) <= set(stream["channels"]):
         return "필요한 채널이 이 소스에 없습니다"
     return None
