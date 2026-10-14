@@ -423,6 +423,19 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in rows), count
 
+    def count_between(self, binding_id: str, first: int, last: int) -> dict[str, int]:
+        """How many stored results of each state lie in ``first <= position <= last``."""
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT state, count(*) FROM step_result WHERE binding_id = ? "
+                "AND position BETWEEN ? AND ? GROUP BY state",
+                (binding_id, first, last),
+            ).fetchall()
+        finally:
+            connection.close()
+        return {str(state): int(count) for state, count in rows}
+
     def results_between(
         self, binding_id: str, first: int, last: int, *, limit: int = 4096
     ) -> tuple[StepResult, ...]:

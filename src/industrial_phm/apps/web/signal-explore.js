@@ -12,7 +12,7 @@ const svgNode = (name, attributes = {}) => {
   for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
   return node;
 };
-let sources = null, kind = null, loadedKey = "", request = 0;
+let sources = null, kind = null, loadedKey = "", request = 0, loadTicket = 0;
 
 async function getJson(url) {
   const response = await fetch(url, {cache: "no-store", credentials: "same-origin"});
@@ -27,19 +27,30 @@ const viewKey = () => [currentAsset(), ...["explore_kind", "explore_series", "ex
 
 export function initializeSignalExplore() {
   onAssetChange(() => {loadedKey = "";if (document.body.dataset.view === "signals") void load();});
+  // The signal flow hands over its window and signals as two halves to compare.
+  document.addEventListener("explore-request", (event) => {
+    const url = new URL(location.href);
+    for (const [key, value] of Object.entries(event.detail)) url.searchParams.set("explore_" + key, value);
+    history.replaceState(history.state, "", url);
+    void load().then(() => byId("explore")?.scrollIntoView({block: "start"}));
+  });
   window.addEventListener("hashchange", () => {if (document.body.dataset.view === "signals" && loadedKey !== viewKey()) void load();});
   if (document.body.dataset.view === "signals") void load();
 }
 
 async function load() {
-  const asset = currentAsset();
+  const asset = currentAsset(), ticket = ++loadTicket;
   loadedKey = viewKey();
+  request++;
   for (const id of ["explore-controls", "explore-quality", "explore-results"]) clear(byId(id));
   if (!asset) {state("설비를 선택하세요.");return;}
   state("비교할 수 있는 측정을 확인합니다.");
-  try {sources = await getJson("/api/v1/explore/sources?asset_id=" + encodeURIComponent(asset));}
-  catch {state("비교할 측정 목록을 읽지 못했습니다.", true);return;}
-  if (asset !== currentAsset()) return;
+  let found;
+  try {found = await getJson("/api/v1/explore/sources?asset_id=" + encodeURIComponent(asset));}
+  catch {if (ticket === loadTicket) state("비교할 측정 목록을 읽지 못했습니다.", true);return;}
+  // A slower answer for an asset left behind must not replace the current one.
+  if (ticket !== loadTicket || asset !== currentAsset()) return;
+  sources = found;
   const kinds = ["history", "acquisition"].filter((name) => sources[name]);
   if (!kinds.length) {state("이 설비에는 비교할 저장 측정이 없습니다. 측정 이력을 저장하거나 모델을 연결하면 여기서 비교할 수 있습니다.");return;}
   kind = kinds.includes(params().get("explore_kind")) ? params().get("explore_kind") : kinds[0];
@@ -341,7 +352,7 @@ function qualityCard(data, name) {
       ["가장 긴 공백", duration(Math.max(...periods.map((item) => item.largest_gap?.seconds || 0)) || null)],
       ["평소 간격의 3배를 넘는 공백", sum("long_gap_count")]]
     : [["전달된 획득", Math.max(...periods.map((item) => item.observation_count || 0))],
-      ["특징이 있는 획득", Math.max(...periods.map((item) => item.usable_count || 0))],
+      ["분석된 획득", Math.max(...periods.map((item) => item.analyzed_count || 0))],
       ["빠진 획득 번호", Math.max(...periods.map((item) => item.missing_count || 0))],
       ["분석되지 않은 획득", Math.max(...periods.map((item) => item.unanalyzed_count || 0))]];
   const list = create("dl");
@@ -359,8 +370,10 @@ function seriesCard(item) {
   const change = item.comparison || {};
   if (a.quantiles && b.quantiles) {
     const lead = create("p", "explore-lead");
+    const difference = typeof change.median_change_percent === "number" ? percent(change.median_change_percent)
+      : "차이 " + (change.median_change > 0 ? "+" : "") + num(change.median_change);
     lead.append(create("span", null, "중앙값 " + num(a.quantiles[2]) + " → " + num(b.quantiles[2])),
-      create("strong", null, " " + percent(change.median_change_percent)));
+      create("strong", null, " " + difference));
     if (typeof change.b_outside_a_band_percent === "number") {
       lead.append(create("span", null, " · B 값의 " + change.b_outside_a_band_percent.toLocaleString("ko-KR", {maximumFractionDigits: 0}) + "%가 A의 5–95% 범위 밖"));
     }
@@ -368,6 +381,12 @@ function seriesCard(item) {
     card.append(chart(item));
   } else {
     card.append(create("p", "empty", !a.quantiles && !b.quantiles ? "두 구간 모두 사용할 수 있는 값이 없습니다." : (a.quantiles ? "구간 B" : "구간 A") + "에 사용할 수 있는 값이 없습니다."));
+  }
+  const sampled = ["a", "b"].filter((name) => item.periods[name]?.sampled);
+  if (sampled.length) {
+    card.append(create("p", "muted", sampled.map((name) => "구간 " + name.toUpperCase() + "은 분석된 획득 "
+      + num(item.periods[name].analyzed_count) + "개 중 구간 전체에서 고르게 고른 " + num(item.periods[name].usable_count) + "개로").join(", ")
+      + " 계산했습니다. 개수·빠진 번호는 전체 기준입니다."));
   }
   const table = create("table", "phm-table explore-table");
   const head = create("tr");for (const text of ["", "구간 A", "구간 B"]) head.append(create("th", null, text));table.append(head);
@@ -377,7 +396,7 @@ function seriesCard(item) {
   row("25–75%", (p) => p.quantiles ? num(p.quantiles[1]) + " ~ " + num(p.quantiles[3]) : "—");
   row("최소 ~ 최대", (p) => p.minimum === null || p.minimum === undefined ? "—" : num(p.minimum) + " ~ " + num(p.maximum));
   row("평균 · 표준편차", (p) => p.mean === null || p.mean === undefined ? "—" : num(p.mean) + " · " + num(p.standard_deviation));
-  row(item.kind === "history" ? "사용 가능 / 기록" : "특징 / 전달된 획득", (p) => num(p.usable_count) + " / " + num(p.observation_count));
+  row(item.kind === "history" ? "사용 가능 / 기록" : "분석된 / 전달된 획득", (p) => num(item.kind === "history" ? p.usable_count : p.analyzed_count) + " / " + num(p.observation_count));
   if (item.kind === "history") {
     row("값 없음 · 품질 문제 · 충돌", (p) => num(p.missing_count) + " · " + num(p.non_good_count) + " · " + num(p.conflict_count));
     row("평소 간격 · 가장 긴 공백", (p) => duration(p.median_interval_seconds) + " · " + duration(p.largest_gap?.seconds));

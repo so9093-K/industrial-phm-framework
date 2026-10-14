@@ -85,3 +85,85 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_the_signal_flow_hands_its_window_over_and_late_answers_are_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    import time
+    from datetime import UTC, datetime, timedelta
+
+    from industrial_phm.application.backfill import FileBackfillEvent
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+    from industrial_phm.runtime import operations_web_http
+
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.5, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    base = datetime(2026, 10, 14, tzinfo=UTC)
+    DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    ).append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:motor:{'c' * 64}:{index}",
+                source_id="motor-file",
+                asset_id="motor-01",
+                channel_id="current",
+                source_file="motor.csv",
+                source_sha256="c" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=base + timedelta(minutes=index),
+                value=10.0 + index,
+            )
+            for index in range(40)
+        ),
+        batch_id="motor",
+    )
+    original = operations_web_http.handle_explore_read
+
+    def slow_for_the_bearing(workspace_arg, path, query):  # type: ignore[no-untyped-def]
+        if path.endswith("/sources") and "bearing-a" in query:
+            time.sleep(1.5)
+        return original(workspace_arg, path, query)
+
+    monkeypatch.setattr(operations_web_http, "handle_explore_read", slow_for_the_bearing)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1280, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a#signals"
+                )
+                page.locator("#asset-switch").select_option("motor-01")
+                state = page.locator("#explore-state")
+                pw.expect(state).to_contain_text("측정 이력 · 구간 A")
+                page.wait_for_timeout(2000)  # the bearing's late answer arrives meanwhile
+                # Controls still read the motor's history, not the bearing's late answer.
+                page.get_by_role("button", name="처음 1/4 · 마지막 1/4").click()
+                pw.expect(state).to_contain_text("측정 이력 · 구간 A")
+                pw.expect(page.locator("#explore-series")).to_contain_text("current")
+
+                trend = page.locator("#trend-results")
+                trend.get_by_role("button", name="이 기간을 두 구간으로 나눠 비교").click()
+                pw.expect(state).to_contain_text("구간 A 2026-10-14 08:39 KST")
+                assert "explore_series=current" in page.url
+                card = page.locator(".explore-series").first
+                pw.expect(card.locator(".explore-lead")).to_contain_text("중앙값")
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
