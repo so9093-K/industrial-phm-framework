@@ -187,6 +187,8 @@ function initializeGuidedGoals(choices) {
         hint.textContent = "위 신호 흐름에서 측정 신호와 기간을 고르면 실제 측정 시각을 따라 확인할 수 있습니다.";
         const target = byId("signals");
         target.scrollIntoView({block: "start"});
+        target.tabIndex = -1;
+        target.focus({preventScroll: true});
         return;
       }
       if (goal === "compare") {
@@ -210,7 +212,11 @@ function initializeGuidedGoals(choices) {
       if (!success) return;
       const target = byId("explore-results")?.querySelector(goal === "relation" ? ".explore-relation" : goal === "spectrum" ? ".explore-spectrum" : ".explore-series");
       if (goal === "spectrum") target?.querySelector("button")?.click();
-      target?.scrollIntoView({block: "start"});
+      if (target) {
+        target.scrollIntoView({block: "start"});
+        target.tabIndex = -1;
+        target.focus({preventScroll: true});
+      }
     };
   }
 }
