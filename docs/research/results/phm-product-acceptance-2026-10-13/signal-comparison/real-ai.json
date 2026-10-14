@@ -1,0 +1,997 @@
+[
+  {
+    "workspace": "artifacts/acceptance/ux-552-xjtu/ws",
+    "binding_id": "anomaly-score-Bearing1_1",
+    "task": "anomaly-score",
+    "input": {
+      "asset_id": "Bearing1_1",
+      "recorded_replay": true,
+      "event_start": null,
+      "output": {
+        "task": "anomaly-score",
+        "score": 0.563460879582034,
+        "threshold": 0.7543955575234664,
+        "exceeds_threshold": false
+      },
+      "comparison": {
+        "previous_score": 0.38844865252360755,
+        "score_change": 0.1750122270584264,
+        "previous_position": 1
+      },
+      "question": "이전 시점과 비교해 점수 또는 추정과 함께 달라진 측정 신호를 설명하고 다음에 볼 신호를 알려 주세요.",
+      "position": 69,
+      "signal_comparison": {
+        "current_position": 69,
+        "previous_position": 1,
+        "previous_event_start": null,
+        "previous_output": {
+          "applicability": "inside",
+          "exceeds_threshold": false,
+          "score": 0.38844865252360755,
+          "task": "anomaly-score",
+          "threshold": 0.7543955575234664
+        },
+        "features": [
+          {
+            "feature": "feature.Horizontal_vibration_signals.rms",
+            "label": "수평 진동 RMS",
+            "current": 0.8057974788248581,
+            "previous": 0.5638898794564087,
+            "change": 0.2419075993684494,
+            "relative_change_percent": 42.89979447789504
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.rms",
+            "label": "수직 진동 RMS",
+            "current": 0.6532330273448378,
+            "previous": 0.5604705115751822,
+            "change": 0.09276251576965555,
+            "relative_change_percent": 16.550828964926243
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.excess_kurtosis",
+            "label": "수직 진동 초과 첨도",
+            "current": 0.539066872031349,
+            "previous": -0.02466551115223581,
+            "change": 0.5637323831835848,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.mean",
+            "label": "수직 진동 평균",
+            "current": -0.02209331288284551,
+            "previous": 0.000989286000743772,
+            "change": -0.02308259888358928,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.excess_kurtosis",
+            "label": "수평 진동 초과 첨도",
+            "current": 1.9507107856218964,
+            "previous": 0.07135220765689443,
+            "change": 1.879358577965002,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.skewness",
+            "label": "수평 진동 왜도",
+            "current": -0.022196531964892477,
+            "previous": -0.0017971758777234332,
+            "change": -0.020399356087169043,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.peak_to_peak",
+            "label": "수평 진동 피크-피크",
+            "current": 12.249696254730225,
+            "previous": 4.884219169616699,
+            "change": 7.365477085113525,
+            "relative_change_percent": 150.80152690387047
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.absolute_peak",
+            "label": "수평 진동 절대 피크",
+            "current": 6.327271461486816,
+            "previous": 2.52988338470459,
+            "change": 3.7973880767822266,
+            "relative_change_percent": 150.1013090066063
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.mean",
+            "label": "수평 진동 평균",
+            "current": -0.0033390409715912395,
+            "previous": -0.007342619772257308,
+            "change": 0.004003578800666069,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.crest_factor",
+            "label": "수평 진동 파고율",
+            "current": 7.852185726262446,
+            "previous": 4.486484820659317,
+            "change": 3.365700905603129,
+            "relative_change_percent": 75.01866249730269
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.peak_to_peak",
+            "label": "수직 진동 피크-피크",
+            "current": 7.4456095695495605,
+            "previous": 4.662489891052246,
+            "change": 2.7831196784973145,
+            "relative_change_percent": 59.69170429384482
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.absolute_peak",
+            "label": "수직 진동 절대 피크",
+            "current": 3.792548179626465,
+            "previous": 2.469348907470703,
+            "change": 1.3231992721557617,
+            "relative_change_percent": 53.58494573823041
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.standard_deviation",
+            "label": "수평 진동 표준편차",
+            "current": 0.8057905606830399,
+            "previous": 0.5638420719388038,
+            "change": 0.24194848874423613,
+            "relative_change_percent": 42.91068382185142
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.crest_factor",
+            "label": "수직 진동 파고율",
+            "current": 5.805812046953347,
+            "previous": 4.405849828799533,
+            "change": 1.3999622181538145,
+            "relative_change_percent": 31.775077965725036
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.skewness",
+            "label": "수직 진동 왜도",
+            "current": -0.06240725111464001,
+            "previous": -0.07514779465007457,
+            "change": 0.012740543535434558,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.standard_deviation",
+            "label": "수직 진동 표준편차",
+            "current": 0.652859306083602,
+            "previous": 0.5604696384805828,
+            "change": 0.09238966760301914,
+            "relative_change_percent": 16.484330507801435
+          }
+        ],
+        "output_changes": {
+          "score": 0.1750122270584264
+        },
+        "original_current": {
+          "available": true,
+          "kind": "acquisition-snapshot",
+          "sampling_rate_hz": 25600.0,
+          "sample_count": 32768,
+          "channels": [
+            {
+              "channel": "Horizontal_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -5.922424793243408,
+              "maximum": 6.327271461486816,
+              "mean": -0.0033390409715912395,
+              "rms": 0.8057974788248581
+            },
+            {
+              "channel": "Vertical_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -3.792548179626465,
+              "maximum": 3.6530613899230957,
+              "mean": -0.02209331288284551,
+              "rms": 0.6532330273448378
+            }
+          ],
+          "interpretation": "measured amplitude statistics; frequency spectrum not provided"
+        },
+        "original_previous": {
+          "available": true,
+          "kind": "acquisition-snapshot",
+          "sampling_rate_hz": 25600.0,
+          "sample_count": 32768,
+          "channels": [
+            {
+              "channel": "Horizontal_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -2.52988338470459,
+              "maximum": 2.3543357849121094,
+              "mean": -0.007342619772257308,
+              "rms": 0.5638898794564087
+            },
+            {
+              "channel": "Vertical_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -2.469348907470703,
+              "maximum": 2.193140983581543,
+              "mean": 0.000989286000743772,
+              "rms": 0.5604705115751822
+            }
+          ],
+          "interpretation": "measured amplitude statistics; frequency spectrum not provided"
+        }
+      },
+      "related_models": [
+        {
+          "binding_id": "lstm-lstm-autoencoder-v1-Bearing1_1",
+          "package_id": "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+          "output": {
+            "applicability": "inside",
+            "exceeds_threshold": false,
+            "feature_contributions": {
+              "feature.Horizontal_vibration_signals.absolute_peak": 0.014761286585735417,
+              "feature.Horizontal_vibration_signals.crest_factor": 0.10255510406726476,
+              "feature.Horizontal_vibration_signals.excess_kurtosis": 0.13787233136106547,
+              "feature.Horizontal_vibration_signals.mean": 0.08997699781238624,
+              "feature.Horizontal_vibration_signals.peak_to_peak": 0.00587976171590654,
+              "feature.Horizontal_vibration_signals.rms": 0.002150897867832874,
+              "feature.Horizontal_vibration_signals.skewness": 0.054096677819776944,
+              "feature.Horizontal_vibration_signals.standard_deviation": 0.004533503982378055,
+              "feature.Vertical_vibration_signals.absolute_peak": 0.011427630078793825,
+              "feature.Vertical_vibration_signals.crest_factor": 0.057274497975821625,
+              "feature.Vertical_vibration_signals.excess_kurtosis": 0.12979429930696762,
+              "feature.Vertical_vibration_signals.mean": 0.18357470118701774,
+              "feature.Vertical_vibration_signals.peak_to_peak": 0.013480441673225357,
+              "feature.Vertical_vibration_signals.rms": 0.07961561992480706,
+              "feature.Vertical_vibration_signals.skewness": 0.016467160319238255,
+              "feature.Vertical_vibration_signals.standard_deviation": 0.04824173384648031
+            },
+            "score": 0.9517026455246982,
+            "sequence_positions": [
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69
+            ],
+            "task": "anomaly-score",
+            "threshold": 1.7461440064539213
+          },
+          "previous_output": null
+        },
+        {
+          "binding_id": "lstm-lstm-rul-v1-Bearing1_1",
+          "package_id": "xjtu-sy-rul-lstm-fold-1-v1-fad12998c873",
+          "output": {
+            "applicability": "inside",
+            "endpoint_semantics": "last-recorded-acquisition",
+            "estimate": 85.4310073852539,
+            "sequence_positions": [
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69
+            ],
+            "task": "rul-estimate",
+            "unit": "acquisition-interval"
+          },
+          "previous_output": null
+        },
+        {
+          "binding_id": "rul-estimate-Bearing1_1",
+          "package_id": "xjtu-sy-rul-feature-ridge-fold-1-v1-837a017f45d1",
+          "output": {
+            "applicability": "inside",
+            "endpoint_semantics": "last-recorded-acquisition",
+            "estimate": 198.12377115768163,
+            "task": "rul-estimate",
+            "unit": "acquisition-interval"
+          },
+          "previous_output": {
+            "applicability": "inside",
+            "endpoint_semantics": "last-recorded-acquisition",
+            "estimate": 234.0028342369911,
+            "task": "rul-estimate",
+            "unit": "acquisition-interval"
+          }
+        }
+      ],
+      "value_label": "이상 점수",
+      "facts": [
+        "이상 점수 0.5635는 학습 기준과의 차이를 나타내며 높을수록 더 다릅니다.",
+        "참고 기준 0.7544 이하입니다. 정상·고장 판정이 아닙니다.",
+        "변수별 기여도가 없으므로 원인 신호를 추정하지 마세요.",
+        "두 시점 비교에서 수평 진동 RMS: 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 수직 진동 RMS: 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 수직 진동 초과 첨도: 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 수직 진동 평균: 감소. 관측 차이이며 원인 판정은 아닙니다.",
+        "선택 비교 시점 대비 모델 점수는 증가입니다."
+      ]
+    },
+    "text": "이전 시점과 비교했을 때, 수평 진동 RMS와 수평 진동 피크-피크 같은 진동 통계량들이 크게 증가했습니다. 또한, 수직 진동 초과 첨도가 큰 폭으로 증가한 것도 주목할 만한 변화입니다. 다음에 비교할 신호로는 수평 진동 절대 피크나 수직 진동 파고율과 같이 진폭의 특정 특징을 나타내는 지표들을 살펴보시는 것이 좋겠습니다.",
+    "warnings": []
+  },
+  {
+    "workspace": "artifacts/acceptance/ux-552-xjtu/ws",
+    "binding_id": "lstm-lstm-rul-v1-Bearing1_1",
+    "task": "rul-estimate",
+    "input": {
+      "asset_id": "Bearing1_1",
+      "recorded_replay": true,
+      "event_start": null,
+      "output": {
+        "task": "rul-estimate",
+        "estimate": 85.4310073852539,
+        "unit": "acquisition-interval",
+        "endpoint_semantics": "last-recorded-acquisition",
+        "sequence_positions": [
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69
+        ]
+      },
+      "comparison": null,
+      "question": "이전 시점과 비교해 점수 또는 추정과 함께 달라진 측정 신호를 설명하고 다음에 볼 신호를 알려 주세요.",
+      "position": 69,
+      "signal_comparison": {
+        "current_position": 69,
+        "previous_position": 8,
+        "previous_event_start": null,
+        "previous_output": {
+          "applicability": "inside",
+          "change_from_previous": null,
+          "endpoint_semantics": "last-recorded-acquisition",
+          "estimate": 85.47093963623047,
+          "sequence_positions": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "task": "rul-estimate",
+          "unit": "acquisition-interval"
+        },
+        "features": [
+          {
+            "feature": "feature.Horizontal_vibration_signals.rms",
+            "label": "수평 진동 RMS",
+            "current": 0.8057974788248581,
+            "previous": 0.6285348242875125,
+            "change": 0.17726265453734558,
+            "relative_change_percent": 28.20251920620071
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.rms",
+            "label": "수직 진동 RMS",
+            "current": 0.6532330273448378,
+            "previous": 0.5944758635059111,
+            "change": 0.05875716383892671,
+            "relative_change_percent": 9.883860295421812
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.mean",
+            "label": "수직 진동 평균",
+            "current": -0.02209331288284551,
+            "previous": 0.0012088852217063614,
+            "change": -0.02330219810455187,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.mean",
+            "label": "수평 진동 평균",
+            "current": -0.0033390409715912395,
+            "previous": -0.034927160876665336,
+            "change": 0.0315881199050741,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.excess_kurtosis",
+            "label": "수직 진동 초과 첨도",
+            "current": 0.539066872031349,
+            "previous": 0.06910129397000864,
+            "change": 0.4699655780613403,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.excess_kurtosis",
+            "label": "수평 진동 초과 첨도",
+            "current": 1.9507107856218964,
+            "previous": 0.5761798052153004,
+            "change": 1.374530980406596,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.peak_to_peak",
+            "label": "수평 진동 피크-피크",
+            "current": 12.249696254730225,
+            "previous": 7.254838943481445,
+            "change": 4.994857311248779,
+            "relative_change_percent": 68.84863123993559
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.absolute_peak",
+            "label": "수평 진동 절대 피크",
+            "current": 6.327271461486816,
+            "previous": 4.286158084869385,
+            "change": 2.0411133766174316,
+            "relative_change_percent": 47.621047478924986
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.peak_to_peak",
+            "label": "수직 진동 피크-피크",
+            "current": 7.4456095695495605,
+            "previous": 5.309927463531494,
+            "change": 2.1356821060180664,
+            "relative_change_percent": 40.220551423459185
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.absolute_peak",
+            "label": "수직 진동 절대 피크",
+            "current": 3.792548179626465,
+            "previous": 2.805781364440918,
+            "change": 0.9867668151855469,
+            "relative_change_percent": 35.169055853436774
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.standard_deviation",
+            "label": "수평 진동 표준편차",
+            "current": 0.8057905606830399,
+            "previous": 0.6275636372315,
+            "change": 0.1782269234515399,
+            "relative_change_percent": 28.399816827786392
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.crest_factor",
+            "label": "수직 진동 파고율",
+            "current": 5.805812046953347,
+            "previous": 4.719756573284357,
+            "change": 1.0860554736689902,
+            "relative_change_percent": 23.010836614254288
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.crest_factor",
+            "label": "수평 진동 파고율",
+            "current": 7.852185726262446,
+            "previous": 6.819284977133988,
+            "change": 1.0329007491284585,
+            "relative_change_percent": 15.146760292199529
+          },
+          {
+            "feature": "feature.Horizontal_vibration_signals.skewness",
+            "label": "수평 진동 왜도",
+            "current": -0.022196531964892477,
+            "previous": -0.02555794306193913,
+            "change": 0.0033614110970466536,
+            "relative_change_percent": null
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.standard_deviation",
+            "label": "수직 진동 표준편차",
+            "current": 0.652859306083602,
+            "previous": 0.5944746343517269,
+            "change": 0.058384671731875115,
+            "relative_change_percent": 9.821221690231319
+          },
+          {
+            "feature": "feature.Vertical_vibration_signals.skewness",
+            "label": "수직 진동 왜도",
+            "current": -0.06240725111464001,
+            "previous": -0.05812797135994565,
+            "change": -0.0042792797546943595,
+            "relative_change_percent": null
+          }
+        ],
+        "output_changes": {
+          "estimate": -0.0399322509765625
+        },
+        "original_current": {
+          "available": true,
+          "kind": "acquisition-snapshot",
+          "sampling_rate_hz": 25600.0,
+          "sample_count": 32768,
+          "channels": [
+            {
+              "channel": "Horizontal_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -5.922424793243408,
+              "maximum": 6.327271461486816,
+              "mean": -0.0033390409715912395,
+              "rms": 0.8057974788248581
+            },
+            {
+              "channel": "Vertical_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -3.792548179626465,
+              "maximum": 3.6530613899230957,
+              "mean": -0.02209331288284551,
+              "rms": 0.6532330273448378
+            }
+          ],
+          "interpretation": "measured amplitude statistics; frequency spectrum not provided"
+        },
+        "original_previous": {
+          "available": true,
+          "kind": "acquisition-snapshot",
+          "sampling_rate_hz": 25600.0,
+          "sample_count": 32768,
+          "channels": [
+            {
+              "channel": "Horizontal_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -4.286158084869385,
+              "maximum": 2.9686808586120605,
+              "mean": -0.034927160876665336,
+              "rms": 0.6285348242875125
+            },
+            {
+              "channel": "Vertical_vibration_signals",
+              "unit": null,
+              "count": 32768,
+              "minimum": -2.805781364440918,
+              "maximum": 2.504146099090576,
+              "mean": 0.0012088852217063614,
+              "rms": 0.5944758635059111
+            }
+          ],
+          "interpretation": "measured amplitude statistics; frequency spectrum not provided"
+        }
+      },
+      "related_models": [
+        {
+          "binding_id": "anomaly-score-Bearing1_1",
+          "package_id": "xjtu-sy-iforest-fold-1-finalized-v1-2ae8a27dfe43",
+          "output": {
+            "applicability": "inside",
+            "exceeds_threshold": false,
+            "score": 0.563460879582034,
+            "task": "anomaly-score",
+            "threshold": 0.7543955575234664
+          },
+          "previous_output": {
+            "applicability": "inside",
+            "exceeds_threshold": false,
+            "score": 0.44669146607523874,
+            "task": "anomaly-score",
+            "threshold": 0.7543955575234664
+          }
+        },
+        {
+          "binding_id": "lstm-lstm-autoencoder-v1-Bearing1_1",
+          "package_id": "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+          "output": {
+            "applicability": "inside",
+            "exceeds_threshold": false,
+            "feature_contributions": {
+              "feature.Horizontal_vibration_signals.absolute_peak": 0.014761286585735417,
+              "feature.Horizontal_vibration_signals.crest_factor": 0.10255510406726476,
+              "feature.Horizontal_vibration_signals.excess_kurtosis": 0.13787233136106547,
+              "feature.Horizontal_vibration_signals.mean": 0.08997699781238624,
+              "feature.Horizontal_vibration_signals.peak_to_peak": 0.00587976171590654,
+              "feature.Horizontal_vibration_signals.rms": 0.002150897867832874,
+              "feature.Horizontal_vibration_signals.skewness": 0.054096677819776944,
+              "feature.Horizontal_vibration_signals.standard_deviation": 0.004533503982378055,
+              "feature.Vertical_vibration_signals.absolute_peak": 0.011427630078793825,
+              "feature.Vertical_vibration_signals.crest_factor": 0.057274497975821625,
+              "feature.Vertical_vibration_signals.excess_kurtosis": 0.12979429930696762,
+              "feature.Vertical_vibration_signals.mean": 0.18357470118701774,
+              "feature.Vertical_vibration_signals.peak_to_peak": 0.013480441673225357,
+              "feature.Vertical_vibration_signals.rms": 0.07961561992480706,
+              "feature.Vertical_vibration_signals.skewness": 0.016467160319238255,
+              "feature.Vertical_vibration_signals.standard_deviation": 0.04824173384648031
+            },
+            "score": 0.9517026455246982,
+            "sequence_positions": [
+              62,
+              63,
+              64,
+              65,
+              66,
+              67,
+              68,
+              69
+            ],
+            "task": "anomaly-score",
+            "threshold": 1.7461440064539213
+          },
+          "previous_output": {
+            "applicability": "inside",
+            "exceeds_threshold": false,
+            "feature_contributions": {
+              "feature.Horizontal_vibration_signals.absolute_peak": 0.018016873583044976,
+              "feature.Horizontal_vibration_signals.crest_factor": 0.06939286952446759,
+              "feature.Horizontal_vibration_signals.excess_kurtosis": 0.018699175565299816,
+              "feature.Horizontal_vibration_signals.mean": 0.03807115137472979,
+              "feature.Horizontal_vibration_signals.peak_to_peak": 0.01757080044620773,
+              "feature.Horizontal_vibration_signals.rms": 0.010801976486583454,
+              "feature.Horizontal_vibration_signals.skewness": 0.02019773035671995,
+              "feature.Horizontal_vibration_signals.standard_deviation": 0.00692269316237769,
+              "feature.Vertical_vibration_signals.absolute_peak": 0.0008773797676788158,
+              "feature.Vertical_vibration_signals.crest_factor": 0.019763414627639603,
+              "feature.Vertical_vibration_signals.excess_kurtosis": 0.010280958908465525,
+              "feature.Vertical_vibration_signals.mean": 0.017200262341939266,
+              "feature.Vertical_vibration_signals.peak_to_peak": 0.00013379470806757854,
+              "feature.Vertical_vibration_signals.rms": 0.0017648934487140625,
+              "feature.Vertical_vibration_signals.skewness": 0.02154718365713648,
+              "feature.Vertical_vibration_signals.standard_deviation": 0.0003029428183994095
+            },
+            "score": 0.27154410077747176,
+            "sequence_positions": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "task": "anomaly-score",
+            "threshold": 1.7461440064539213
+          }
+        },
+        {
+          "binding_id": "rul-estimate-Bearing1_1",
+          "package_id": "xjtu-sy-rul-feature-ridge-fold-1-v1-837a017f45d1",
+          "output": {
+            "applicability": "inside",
+            "endpoint_semantics": "last-recorded-acquisition",
+            "estimate": 198.12377115768163,
+            "task": "rul-estimate",
+            "unit": "acquisition-interval"
+          },
+          "previous_output": {
+            "applicability": "inside",
+            "endpoint_semantics": "last-recorded-acquisition",
+            "estimate": 264.9887310895631,
+            "task": "rul-estimate",
+            "unit": "acquisition-interval"
+          }
+        }
+      ],
+      "value_label": "잔여 구간 추정",
+      "facts": [
+        "선택 시점의 잔여 구간 추정은 85.43 기록 구간(개)입니다.",
+        "종료점은 이 기록의 마지막 획득 지점입니다. 실제 고장 시각을 예측한 값이 아닙니다.",
+        "두 시점 비교에서 수평 진동 RMS: 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 수직 진동 RMS: 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 수직 진동 평균: 감소. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 수평 진동 평균: 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "선택 비교 시점 대비 잔여 구간 추정은 감소입니다."
+      ]
+    },
+    "text": "잔여 구간 추정치는 이전 시점 대비 감소하는 추세를 보였습니다. 이전 시점 대비 수평 진동 RMS와 표준편차, 그리고 수평 진동 피크-피크가 모두 증가했으며, 수직 진동 초과 첨도 또한 큰 폭으로 증가했습니다. 특히 수평 진동 초과 첨도는 두 시점 간에 가장 큰 변화량을 보였습니다. 다음으로는 수평 진동 절대 피크와 수직 진동 피크-피크의 변화를 살펴보는 것이 유용할 것입니다.",
+    "warnings": [
+      "내용 확인: 두 시점 비교의 추세·변화 순위를 과장했습니다"
+    ]
+  },
+  {
+    "workspace": "artifacts/acceptance/ux-552-aihub/ws",
+    "binding_id": "aihub-1338",
+    "task": "anomaly-score",
+    "input": {
+      "asset_id": "aihub-air-compressor-1338",
+      "recorded_replay": true,
+      "event_start": "2020-11-13T04:25:00+00:00",
+      "output": {
+        "task": "anomaly-score",
+        "score": 0.17887300495194058,
+        "threshold": 1.5445481059857955,
+        "exceeds_threshold": false,
+        "feature_contributions": {
+          "current.phase_r.mean_a": 0.0031163716700409504,
+          "current.phase_s.mean_a": 0.005047886805606814,
+          "current.phase_t.mean_a": 0.005073717859071882,
+          "current.three_phase_mean.std_a": 0.0011916848723392388,
+          "current.unbalance.mean_percent": 0.10844046480312207,
+          "frequency.mean_hz": 0.0020968143608691165,
+          "voltage.phase_r.mean_v": 0.0005404879755545367,
+          "voltage.phase_s.mean_v": 0.0010161033542316555,
+          "voltage.phase_t.mean_v": 2.0412652132787303e-05,
+          "voltage.unbalance.mean_percent": 0.05232906059897154
+        }
+      },
+      "comparison": {
+        "previous_score": 0.0075016591966255795,
+        "score_change": 0.171371345755315,
+        "previous_position": 1605228000000000
+      },
+      "question": "이전 시점과 비교해 점수 또는 추정과 함께 달라진 측정 신호를 설명하고 다음에 볼 신호를 알려 주세요.",
+      "position": 1605241800000000,
+      "signal_comparison": {
+        "current_position": 1605241800000000,
+        "previous_position": 1605228000000000,
+        "previous_event_start": "2020-11-13T00:35:00+00:00",
+        "previous_output": {
+          "applicability": "inside",
+          "exceeds_threshold": false,
+          "feature_contributions": {
+            "current.phase_r.mean_a": 7.556376562803609e-05,
+            "current.phase_s.mean_a": 0.0004136716056700146,
+            "current.phase_t.mean_a": 0.0027950504095128714,
+            "current.three_phase_mean.std_a": 2.421171294013903e-05,
+            "current.unbalance.mean_percent": 0.0018215211105143173,
+            "frequency.mean_hz": 4.101577645866229e-05,
+            "voltage.phase_r.mean_v": 0.0008253863979029928,
+            "voltage.phase_s.mean_v": 2.1983358144591847e-05,
+            "voltage.phase_t.mean_v": 0.0005764925974281321,
+            "voltage.unbalance.mean_percent": 0.0009067624624258217
+          },
+          "score": 0.0075016591966255795,
+          "task": "anomaly-score",
+          "threshold": 1.5445481059857955
+        },
+        "features": [
+          {
+            "feature": "voltage.unbalance.mean_percent",
+            "label": "전압 불평형 평균(%)",
+            "current": 0.41906811993729604,
+            "previous": 0.4471238481049126,
+            "change": -0.02805572816761659,
+            "relative_change_percent": -6.274710751065469
+          },
+          {
+            "feature": "current.unbalance.mean_percent",
+            "label": "전류 불평형 평균(%)",
+            "current": 3.480360613113003,
+            "previous": 3.3643622864381975,
+            "change": 0.1159983266748057,
+            "relative_change_percent": 3.4478548027481155
+          },
+          {
+            "feature": "current.three_phase_mean.std_a",
+            "label": "3상 평균 전류 변동(A)",
+            "current": 1.2314667744875074,
+            "previous": 0.9278578225616714,
+            "change": 0.30360895192583603,
+            "relative_change_percent": 32.721495097990214
+          },
+          {
+            "feature": "current.phase_t.mean_a",
+            "label": "T상 평균 전류(A)",
+            "current": 75.75,
+            "previous": 74.54375,
+            "change": 1.2062499999999972,
+            "relative_change_percent": 1.6181772449065108
+          },
+          {
+            "feature": "current.phase_r.mean_a",
+            "label": "R상 평균 전류(A)",
+            "current": 71.125,
+            "previous": 70.31875,
+            "change": 0.8062500000000057,
+            "relative_change_percent": 1.146564749800026
+          },
+          {
+            "feature": "current.phase_s.mean_a",
+            "label": "S상 평균 전류(A)",
+            "current": 74.19375,
+            "previous": 73.4375,
+            "change": 0.7562499999999943,
+            "relative_change_percent": 1.0297872340425454
+          },
+          {
+            "feature": "voltage.phase_s.mean_v",
+            "label": "S상 평균 전압(V)",
+            "current": 219.55,
+            "previous": 220.9,
+            "change": -1.3499999999999943,
+            "relative_change_percent": -0.6111362607514687
+          },
+          {
+            "feature": "voltage.phase_r.mean_v",
+            "label": "R상 평균 전압(V)",
+            "current": 218.65,
+            "previous": 219.95,
+            "change": -1.299999999999983,
+            "relative_change_percent": -0.5910434189588466
+          },
+          {
+            "feature": "voltage.phase_t.mean_v",
+            "label": "T상 평균 전압(V)",
+            "current": 217.8,
+            "previous": 218.95,
+            "change": -1.1499999999999773,
+            "relative_change_percent": -0.5252340717058586
+          },
+          {
+            "feature": "frequency.mean_hz",
+            "label": "평균 주파수(Hz)",
+            "current": 59.8671522,
+            "previous": 59.8578214,
+            "change": 0.00933080000000075,
+            "relative_change_percent": 0.015588271978105687
+          }
+        ],
+        "output_changes": {
+          "score": 0.171371345755315
+        },
+        "original_current": {
+          "available": true,
+          "kind": "observation-window",
+          "channels": [
+            {
+              "channel": "R상전류",
+              "unit": "A",
+              "count": 5,
+              "minimum": 69.5625,
+              "maximum": 73.0625,
+              "mean": 71.125,
+              "rms": 71.13509649339768,
+              "unusable_count": 0
+            },
+            {
+              "channel": "S상전류",
+              "unit": "A",
+              "count": 5,
+              "minimum": 72.8125,
+              "maximum": 76.34375,
+              "mean": 74.19375,
+              "rms": 74.20441440499009,
+              "unusable_count": 0
+            },
+            {
+              "channel": "T상전류",
+              "unit": "A",
+              "count": 5,
+              "minimum": 74.4375,
+              "maximum": 77.90625,
+              "mean": 75.75,
+              "rms": 75.76027415885584,
+              "unusable_count": 0
+            },
+            {
+              "channel": "R상전압",
+              "unit": "V",
+              "count": 5,
+              "minimum": 215.25,
+              "maximum": 220.5,
+              "mean": 218.65,
+              "rms": 218.66049597492454,
+              "unusable_count": 0
+            },
+            {
+              "channel": "S상전압",
+              "unit": "V",
+              "count": 5,
+              "minimum": 216.25,
+              "maximum": 221.5,
+              "mean": 219.55,
+              "rms": 219.56055542833735,
+              "unusable_count": 0
+            },
+            {
+              "channel": "T상전압",
+              "unit": "V",
+              "count": 5,
+              "minimum": 214.75,
+              "maximum": 219.75,
+              "mean": 217.8,
+              "rms": 217.80949244695466,
+              "unusable_count": 0
+            },
+            {
+              "channel": "주파수",
+              "unit": "Hz",
+              "count": 5,
+              "minimum": 59.854076,
+              "maximum": 59.900803,
+              "mean": 59.8671522,
+              "rms": 59.86715470966226,
+              "unusable_count": 0
+            }
+          ]
+        },
+        "original_previous": {
+          "available": true,
+          "kind": "observation-window",
+          "channels": [
+            {
+              "channel": "R상전류",
+              "unit": "A",
+              "count": 5,
+              "minimum": 68.75,
+              "maximum": 71.53125,
+              "mean": 70.31875,
+              "rms": 70.3247253260722,
+              "unusable_count": 0
+            },
+            {
+              "channel": "S상전류",
+              "unit": "A",
+              "count": 5,
+              "minimum": 71.84375,
+              "maximum": 74.59375,
+              "mean": 73.4375,
+              "rms": 73.4432630717413,
+              "unusable_count": 0
+            },
+            {
+              "channel": "T상전류",
+              "unit": "A",
+              "count": 5,
+              "minimum": 72.875,
+              "maximum": 75.65625,
+              "mean": 74.54375,
+              "rms": 74.54983520898956,
+              "unusable_count": 0
+            },
+            {
+              "channel": "R상전압",
+              "unit": "V",
+              "count": 5,
+              "minimum": 219.25,
+              "maximum": 220.5,
+              "mean": 219.95,
+              "rms": 219.95053421167225,
+              "unusable_count": 0
+            },
+            {
+              "channel": "S상전압",
+              "unit": "V",
+              "count": 5,
+              "minimum": 220.25,
+              "maximum": 221.5,
+              "mean": 220.9,
+              "rms": 220.90043005843154,
+              "unusable_count": 0
+            },
+            {
+              "channel": "T상전압",
+              "unit": "V",
+              "count": 5,
+              "minimum": 218.25,
+              "maximum": 219.5,
+              "mean": 218.95,
+              "rms": 218.95053665154603,
+              "unusable_count": 0
+            },
+            {
+              "channel": "주파수",
+              "unit": "Hz",
+              "count": 5,
+              "minimum": 59.816776,
+              "maximum": 59.900765,
+              "mean": 59.8578214,
+              "rms": 59.85782797707126,
+              "unusable_count": 0
+            }
+          ]
+        }
+      },
+      "related_models": [],
+      "value_label": "재구성 오차",
+      "facts": [
+        "재구성 오차 0.1789는 학습 기준과의 차이를 나타내며 높을수록 더 다릅니다.",
+        "참고 기준 1.54 이하입니다. 정상·고장 판정이 아닙니다.",
+        "기여도는 모델 점수에 대한 잔차 기여이며 고장의 원인이 아닙니다.",
+        "선택 시점의 잔차 기여가 큰 순서: 전류 불평형 평균(%) → 전압 불평형 평균(%) → T상 평균 전류(A)",
+        "두 시점 비교에서 전압 불평형 평균(%): 감소. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 전류 불평형 평균(%): 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 3상 평균 전류 변동(A): 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "두 시점 비교에서 T상 평균 전류(A): 증가. 관측 차이이며 원인 판정은 아닙니다.",
+        "선택 비교 시점 대비 모델 점수는 증가입니다."
+      ]
+    },
+    "text": "현재 시점의 이상 점수는 이전 시점 대비 증가했습니다. 이 변화는 전류 불평형 평균($\\%$)의 증가, 전압 불평형 평균($\\%$)의 감소, 그리고 3상 평균 전류 변동($\\text{A}$)의 증가에서 기인합니다. 다음 비교 시점에서는 T상 평균 전류($\\text{A}$)와 R상 평균 전류($\\text{A}$)의 변화를 확인해보시면 좋겠습니다.",
+    "warnings": [
+      "내용 확인: 두 시점의 동반 변화를 원인으로 단정했습니다"
+    ]
+  }
+]

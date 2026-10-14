@@ -15,20 +15,26 @@ async function post(url, payload) {
 // Warnings are numbers the stored result does not contain, or status verdicts it never makes.
 function warningText(warnings) {
   const numbers = warnings.filter((item) => /^-?\d/.test(item));
-  const verdicts = warnings.filter((item) => !/^-?\d/.test(item));
+  const claims = warnings.filter((item) => /^(내용|표현) 확인:/.test(item));
+  const verdicts = warnings.filter((item) => !/^-?\d/.test(item) && !claims.includes(item));
   const parts = [];
   if (numbers.length) parts.push("근거 대조 경고: 저장된 분석에 없는 수치 " + numbers.join(", ") + " 가 설명에 포함되어 있습니다. 이 수치는 사용하지 마세요.");
   if (verdicts.length) parts.push("판정 표현 경고: 설명이 '" + verdicts.join("', '") + "'처럼 설비 상태를 판정했습니다. 저장된 분석은 정상·고장을 판정하지 않으므로 원본 신호로 사람이 확인하세요.");
+  if (claims.length) parts.push(claims.join(" · "));
   return parts.join(" ");
 }
 
-export function renderPhmExplanation(view, bindingId, position, pin = () => {}, stepName = "#" + position) {
+export function renderPhmExplanation(view, bindingId, position, pin = () => {}, stepName = "#" + position, options = {}) {
   const root = document.getElementById(view + "-explanation");
+  const assistant = document.getElementById(view + "-assistant");
   let state = states.get(view);
   const key = bindingId && position !== null ? bindingId + ":" + position : "";
-  if (state && state.key === key) return;
+  if (state && state.key === key) {
+    if (state.explanation?.status === "pending" && !state.timer) state.refresh?.();
+    return;
+  }
   if (state) clearTimeout(state.timer);
-  state = {key, timer: null, explanation: null};states.set(view, state);root.replaceChildren();
+  state = {key, timer: null, explanation: null};states.set(view, state);root.replaceChildren();assistant.replaceChildren();
   if (!key) return;
   const current = () => states.get(view) === state;
   const heading = element("h3", "분석 " + stepName + " · 사람 검토");
@@ -37,7 +43,68 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   const status = element("p", "저장된 AI 설명을 조회 중입니다.");status.setAttribute("role", "status");
   const text = element("p");text.className = "phm-ai-text";
   const grounding = element("p");grounding.className = "phm-ai-warning";grounding.setAttribute("role", "alert");
-  const generate = element("button", "AI 설명 생성");generate.type = "button";
+  const disputed = element("details");disputed.className = "phm-disputed-reply";disputed.hidden = true;
+  disputed.append(element("summary", "확인이 필요한 응답 원문 보기"));
+  const generate = element("button", "AI에 질문");generate.type = "button";
+  const steps = options.steps || [];
+  const selectedStep = steps.find((step) => step.position === position);
+  const earlier = steps.filter((step) => step.position < position).slice(-128).reverse();
+  const compareLabel = element("label", "비교 시점");
+  const compare = element("select");compare.setAttribute("aria-label", "비교 시점");
+  for (const step of earlier) {
+    const item = element("option", options.stepLabel ? options.stepLabel(step.position) : "#" + step.position);
+    item.value = String(step.position);compare.append(item);
+  }
+  if (!earlier.length) {compare.append(element("option", "이전 분석 없음"));compare.disabled = true;}
+  const savedCompare = new URL(location.href).searchParams.get("phm_compare");
+  if (earlier.some((step) => String(step.position) === savedCompare)) compare.value = savedCompare;
+  compareLabel.append(compare);
+  const questionLabel = element("label", "궁금한 점");
+  const question = element("textarea");question.rows = 2;question.maxLength = 600;
+  question.value = "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요.";
+  question.setAttribute("aria-label", "분석 질문");questionLabel.append(question);
+  state.askedQuestion = null;
+  const summary = element("div");summary.className = "phm-comparison";
+  const comparisonPosition = () => earlier.length ? Number(compare.value) : null;
+  const format = (value) => typeof value === "number" ? value.toLocaleString("ko-KR", {maximumSignificantDigits: 4}) : "—";
+  function renderComparison() {
+    summary.replaceChildren();
+    const prior = steps.find((step) => step.position === comparisonPosition());
+    const output = selectedStep?.output || {};
+    const before = prior?.output || {};
+    const valueKey = view === "rul" ? "estimate" : "score";
+    const unit = view === "rul" ? output.unit === "acquisition-interval" ? "개 기록 구간" : output.unit || "단위 미기록" : "";
+    summary.append(element("p", (view === "rul" ? "기록 종료까지 남은 구간 추정" : "모델 점수") + " · "
+      + (prior ? format(before[valueKey]) + " → " : "") + format(output[valueKey]) + " " + unit));
+    const table = element("table");table.className = "phm-table";
+    const head = element("tr");for (const title of ["측정 특징", "비교 시점", "선택 시점", "변화 (+ 증가 / − 감소)"]) head.append(element("th", title));table.append(head);
+    const names = Object.keys(selectedStep?.features || {});
+    const difference = (name) => Math.abs((selectedStep.features[name] - (prior?.features?.[name] ?? selectedStep.features[name])))
+      / Math.max(Math.abs(selectedStep.features[name]), Math.abs(prior?.features?.[name] || 0), 1e-12);
+    const primary = (name) => /\.rms$|unbalance.*percent$/.test(name) ? 2 : /standard_deviation$|absolute_peak$|std_a$/.test(name) ? 1 : 0;
+    names.sort((a, b) => primary(b) - primary(a) || difference(b) - difference(a) || a.localeCompare(b));
+    for (const name of names.slice(0, 5)) {
+      const row = element("tr"), value = selectedStep.features[name], previous = prior?.features?.[name];
+      const label = element("td");
+      if (options.openSignal) {
+        const open = element("button", options.featureLabel ? options.featureLabel(name) : name);open.type = "button";
+        open.addEventListener("click", () => options.openSignal(position, name));label.append(open);
+      } else label.textContent = options.featureLabel ? options.featureLabel(name) : name;
+      row.append(label, element("td", format(previous)), element("td", format(value)),
+        element("td", typeof previous === "number" ? format(value - previous) : "—"));table.append(row);
+    }
+    if (names.length) summary.append(element("p", "측정 특징 비교 · " + Math.min(names.length, 5) + "개 · 두 시점의 관측값"), table);
+    else summary.append(element("p", "이 분석에는 저장된 측정 특징이 없습니다."));
+    if (options.openSignal && prior) {
+      const open = element("button", "비교 시점의 원본 신호 보기");open.type = "button";
+      open.addEventListener("click", () => options.openSignal(prior.position));summary.append(open);
+    }
+  }
+  assistant.append(element("h3", "선택 시점의 변화 분석"), compareLabel, summary, questionLabel, generate, status, grounding, text, disputed);
+  renderComparison();
+  compare.addEventListener("change", () => {
+    const url = new URL(location.href);url.searchParams.set("phm_compare", compare.value);
+    window.history.replaceState(null, "", url);state.askedQuestion = null;state.explanation = null;text.textContent = "";grounding.textContent = "";renderComparison();refreshExplanation();});
   const review = element("button", "검토 요청");review.type = "button";
   const ack = element("button", "검토 확인");ack.type = "button";
   const close = element("button", "검토 종료");close.type = "button";
@@ -47,9 +114,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   const history = element("div");history.className = "phm-review-history";
   const reviewHistory = element("details");reviewHistory.className = "phm-review-details";
   reviewHistory.append(element("summary", "검토 처리 이력 보기"), history);
-  const aiDetails = element("details");aiDetails.className = "phm-ai-details";
-  aiDetails.append(element("summary", "AI 참고 설명 보기"), generate, status, text);
-  root.append(heading, reviewStatus, review, ack, close, memoLabel, save, grounding, aiDetails, reviewHistory);
+  root.append(heading, reviewStatus, review, ack, close, memoLabel, save, reviewHistory);
   let finding = null, writable = false;
   for (const button of [generate, review, ack, close, save]) {button.disabled = true;button.hidden = true;}
   memoLabel.hidden = true;
@@ -75,24 +140,36 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   }
   async function refreshExplanation() {
     try {
-      const data = await get(url("explanations"));if (!current()) return;
-      const item = data.explanations[0];state.explanation = item || null;
+      clearTimeout(state.timer);
+      const selection = comparisonPosition(), asked = state.askedQuestion;
+      const data = await get(url("explanations"));
+      if (!current() || selection !== comparisonPosition() || asked !== state.askedQuestion) return;
+      const item = data.explanations.find((item) => item.context?.signal_comparison?.previous_position === selection
+        && (asked === null || item.context?.question === asked));state.explanation = item || null;
+      if (item && asked === null) {question.value = item.context.question;state.askedQuestion = item.context.question;}
       text.textContent = item && item.status === "complete" ? item.text : "";
       grounding.textContent = item && item.status === "complete" ? warningText(item.warnings || []) : "";
-      status.textContent = !item ? "저장된 AI 설명이 없습니다. 직접 검토를 기록할 수 있습니다."
-        : item.status === "pending" ? "선택한 분석의 AI 설명을 생성하고 있습니다. 분석은 계속 진행됩니다."
+      disputed.hidden = !grounding.textContent;disputed.open = false;
+      if (grounding.textContent) disputed.append(text);
+      else assistant.insertBefore(text, disputed);
+      status.textContent = !item ? writable ? "측정 신호를 비교하거나 궁금한 점을 질문하세요." : "측정 신호 비교 · AI 질문은 감독형 Web에서 사용할 수 있습니다."
+        : item.status === "pending" ? "선택한 두 시점의 신호와 모델 결과를 비교하고 있습니다."
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."
-        : "AI 설명 · " + item.model + " · 저장된 분석 " + stepName + " 참조";
-      generate.hidden = !writable;
+        : "AI 분석 답변 · " + item.model + " · 선택 시점 " + stepName;
+      question.disabled = !writable;generate.hidden = !writable;
       generate.disabled = !writable || Boolean(item && item.status === "pending");
-      if (item && item.status === "pending" && document.body.dataset.view === view) {
-        state.timer = setTimeout(refreshExplanation, 1000);
+      if (item && item.status === "pending" && !document.hidden && document.body.dataset.view === view) {
+        state.timer = setTimeout(() => {state.timer = null;refreshExplanation();}, 1000);
       }
     } catch {if (current()) status.textContent = "AI 설명 조회 불가 · 모델 수치는 그대로 확인할 수 있습니다.";}
   }
+  state.refresh = refreshExplanation;
   generate.addEventListener("click", async () => {
-    pin();generate.disabled = true;
-    try {await post("/api/v1/phm/explanations/request", {binding_id: bindingId, position});await refreshExplanation();}
+    if (!question.value.trim()) {question.focus();return;}
+    pin();generate.disabled = true;state.askedQuestion = question.value.trim();
+    state.explanation = null;text.textContent = "";grounding.textContent = "";
+    try {await post("/api/v1/phm/explanations/request", {binding_id: bindingId, position,
+      compare_position: comparisonPosition(), question: state.askedQuestion});await refreshExplanation();}
     catch {if (current()) {status.textContent = "AI 설명 생성 불가 · 직접 검토는 계속할 수 있습니다.";generate.disabled = false;}}
   });
   review.addEventListener("click", async () => {

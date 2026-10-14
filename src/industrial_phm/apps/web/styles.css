@@ -200,9 +200,8 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 
 /* PHM review is the main action; optional AI prose and history stay secondary. */
 .phm-review-status{font-size:.92rem;font-weight:650;color:#254a5e;margin:12px 0}
-.phm-review-details,.phm-ai-details{border-top:1px solid #dbe5e9;margin-top:15px;padding:10px 0}
-.phm-review-details summary,.phm-ai-details summary{font-size:.87rem;font-weight:650;cursor:pointer;color:#254e60;min-height:28px}
-.phm-ai-details>button{margin:8px 0}
+.phm-review-details{border-top:1px solid #dbe5e9;margin-top:15px;padding:10px 0}
+.phm-review-details summary{font-size:.87rem;font-weight:650;cursor:pointer;color:#254e60;min-height:28px}
 .phm-review-details .phm-review-history{padding-top:8px}
 #anomaly-explanation>button:not([hidden]),#rul-explanation>button:not([hidden]){margin:8px 8px 6px 0}
 #anomaly-explanation>label:not([hidden]),#rul-explanation>label:not([hidden]){margin:12px 0 7px}
@@ -357,3 +356,18 @@ body[data-view="signals"] .layout,body[data-view="evidence"] .below{grid-templat
 .monitor-attention-notes{display:grid;gap:2px}.monitor-attention-kind{display:inline-block;min-width:72px;font-size:.74rem;color:#6b5c40;font-weight:700}
 .monitor-reading .monitor-reading-issue{color:#86550e;font-weight:650}
 .model-connect{border:1px solid #d6e4e8;border-radius:12px;padding:14px 16px;margin:10px 0;background:#f8fbfc}.model-connect h3{margin:0 0 4px;font-size:.93rem}.model-connect-list{display:grid;gap:8px;margin-top:10px}.model-connect-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;border:1px solid #dbe7eb;background:#fff;border-radius:10px;padding:10px 12px}.model-connect-row strong{display:block;font-size:.88rem}.model-connect-row small{display:block;color:#5a6f7a;font-size:.74rem;overflow-wrap:anywhere}.model-connect-row .model-connect-status{grid-column:1/-1;color:#833c3c}.model-connect-row .model-connect-status:empty{display:none}
+
+.phm-assistant:not(:empty){margin:18px 0;padding:16px;background:#f5f9fb;border:1px solid #cddfe7;border-radius:10px}
+.phm-assistant h3{margin:0 0 12px;font-size:1rem}
+.phm-assistant label{display:block;margin:10px 0 8px;font-size:.85rem;font-weight:650}
+.phm-assistant select,.phm-assistant textarea{display:block;width:100%;max-width:650px;margin-top:6px;padding:8px;border:1px solid #b9cad5;border-radius:7px;background:white}
+.phm-assistant>button{margin:6px 0}
+.phm-comparison{overflow-x:auto}
+.phm-comparison p{font-size:.86rem;font-weight:600}
+.phm-comparison .phm-table{font-size:.8rem}
+.phm-comparison .phm-table button{font-size:inherit;background:transparent;color:#265d75;border:0;padding:4px 0;text-align:left;text-decoration:underline;min-height:32px}
+.phm-assistant [role=status]{font-size:.8rem;color:#526c79}
+
+.phm-assistant textarea{resize:vertical;min-height:64px;line-height:1.5;font:inherit;font-size:.85rem}
+
+.phm-disputed-reply{font-size:.82rem;margin-top:8px;color:#526c79}

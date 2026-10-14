@@ -472,7 +472,13 @@ function renderAnomaly() {
   renderModelCard(byId("anomaly-model"), entry.package);
   const explained = focusPosition ?? last.position;
   renderPhmExplanation("anomaly", selected.anomaly, explained,
-                       () => {focusPosition = focusPosition ?? last.position;}, stepLabel(entry, explained));
+                       () => {focusPosition = focusPosition ?? last.position;}, stepLabel(entry, explained), {
+                         steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position),
+                         openSignal: (position, feature) => {
+                           if (feature) {chosenFeatures = [feature];renderAnomaly();}
+                           showComparisonOriginal("anomaly", entry, position);
+                         },
+                       });
 }
 
 function renderFeatureControls(steps) {
@@ -710,11 +716,31 @@ function renderRul() {
   }
   const explained = rulFocusPosition ?? last.position;
   renderPhmExplanation("rul", selected.rul, explained,
-                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained));
+                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position),
+                         openSignal: (position) => showComparisonOriginal("rul", entry, position)});
+}
+
+async function showComparisonOriginal(view, entry, position) {
+  const assistant = byId(view + "-assistant");
+  assistant.querySelector(".phm-comparison-original")?.remove();
+  const holder = node("div", "", "phm-comparison-original");
+  const heading = node("h4", stepLabel(entry, position) + " · 비교 원본 신호");
+  const plot = node("div", "원본 신호를 조회합니다.");holder.append(heading, plot);assistant.append(holder);
+  const sequence = entry.steps.get(position)?.output?.sequence_positions;
+  if (sequence) holder.insertBefore(node("p", "RUL 입력 #" + sequence[0] + "–#" + sequence.at(-1)
+    + " 중 #" + position + "의 원본 파형입니다.", "muted"), plot);
+  const path = entry.binding.step_kind === "observation-window" ? "window" : "snapshot";
+  try {
+    const preview = await getJson("/api/v1/phm/" + path + "?binding_id=" + encodeURIComponent(entry.binding.binding_id)
+      + "&position=" + position + (path === "snapshot" ? "&bins=400" : ""));
+    if (!holder.isConnected || currentAsset() !== entry.binding.asset_id) return;
+    plot.replaceChildren(path === "snapshot" ? waveform(preview) : rawSignals(preview));
+  } catch {if (holder.isConnected) plot.replaceChildren(node("p", "원본 신호를 확인할 수 없습니다."));}
+  if (holder.isConnected) holder.scrollIntoView({block: "center"});
 }
 
 const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 3) : "값 없음";
-const unitText = (unit) => unit === "acquisition-interval" ? "획득 간격" : (unit || "단위 없음");
+const unitText = (unit) => unit === "acquisition-interval" ? "기록 구간" : (unit || "단위 없음");
 const endpointText = (value) => value === "last-recorded-acquisition" ? "데이터셋의 마지막 기록 획득(물리 고장 시각 아님)" : (value || "미기록");
 const applicabilityText = (value, pkg = null) => {
   if (pkg && pkg.applicability && pkg.applicability.asset_id) {
@@ -836,7 +862,7 @@ function updateMonitorTarget(view, position) {
 }
 function clearMonitorTarget() {
   requestedResult = null;
-  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");url.searchParams.delete("phm_view");
+  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");url.searchParams.delete("phm_view");url.searchParams.delete("phm_compare");
   history.replaceState(history.state, "", url);
 }
 let followingTarget = false;

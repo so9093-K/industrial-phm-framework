@@ -1,0 +1,19 @@
+{
+  "code_revision": "a5df027a35b867311368497e01d8d6d70e2ff627",
+  "working_tree": "clean product code; documentation captured afterwards",
+  "scope": "read-only servers over isolated copies of fixed replay workspaces; saved real local-main outputs",
+  "captures": [
+    "xjtu-anomaly-1440.png",
+    "xjtu-anomaly-1024.png",
+    "xjtu-anomaly-390.png",
+    "xjtu-rul-1440.png",
+    "xjtu-rul-1024.png",
+    "xjtu-rul-390.png",
+    "aihub-anomaly-1440.png",
+    "aihub-anomaly-1024.png",
+    "aihub-anomaly-390.png"
+  ],
+  "page_errors": [],
+  "human_usability_acceptance": "not established",
+  "ai_semantic_quality": "not passed; warnings on 2 of 3 responses"
+}

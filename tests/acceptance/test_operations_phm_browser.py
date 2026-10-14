@@ -108,7 +108,7 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                     "aria-current", "page"
                 )
                 pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 RUL 추정")
-                pw.expect(page.locator("#rul-cards")).to_contain_text("획득 간격")
+                pw.expect(page.locator("#rul-cards")).to_contain_text("기록 구간")
                 pw.expect(page.locator("#rul-validation-note")).to_contain_text("이 설비 MAE 10")
                 pw.expect(page.locator("#rul-cards")).not_to_contain_text("학습 범위")
                 pw.expect(page.locator("#rul-state")).to_contain_text("물리 고장 시각 아님")

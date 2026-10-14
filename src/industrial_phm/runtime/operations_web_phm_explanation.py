@@ -10,12 +10,18 @@ from uuid import uuid4
 
 from industrial_phm.application import JsonFindingReviewRepository, JsonOperationalFindingRepository
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
-from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
+from industrial_phm.application.phm_explanation import (
+    PhmExplanationStore,
+    explanation_context,
+    operator_explanation_context,
+)
 from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
 from industrial_phm.genai.local_explanation import (
     ExplanationProvider,
+    comparison_claim_warnings,
     generate_local_explanation,
     ungrounded_numbers,
     verdict_phrases,
@@ -33,7 +39,14 @@ class ExplanationManager:
         self.store = PhmExplanationStore(self.workspace.phm_explanation_path)
         self.store.recover(self.owner)
 
-    def request(self, binding_id: str, position: int) -> dict[str, object]:
+    def request(
+        self,
+        binding_id: str,
+        position: int,
+        *,
+        compare_position: int | None = None,
+        question: str = "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요.",
+    ) -> dict[str, object]:
         workspace = self.workspace
         context = explanation_context(
             SqlitePhmAnalysisStore(workspace.phm_analysis_path),
@@ -41,6 +54,9 @@ class ExplanationManager:
             SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
             binding_id,
             position,
+            compare_position=compare_position,
+            question=question,
+            windows=SqliteObservationWindowRepository(workspace.window_state_path),
         )
         provider = ExplanationProvider(
             base_url=os.environ.get("INDUSTRIAL_PHM_GENAI_BASE_URL", "http://127.0.0.1:9400/v1"),
@@ -56,12 +72,16 @@ class ExplanationManager:
             except AnalysisExplanationError:
                 self.store.finish(identifier, owner=self.owner, error="AI explanation unavailable")
             else:
+                grounding_context = operator_explanation_context(context)
+                grounding_context.pop("question", None)
                 # The model must only restate supplied values; flag any number it invented.
                 self.store.finish(
                     identifier,
                     owner=self.owner,
                     text=text,
-                    warnings=ungrounded_numbers(text, context) + verdict_phrases(text),
+                    warnings=ungrounded_numbers(text, grounding_context)
+                    + verdict_phrases(text)
+                    + comparison_claim_warnings(text, grounding_context),
                 )
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()
@@ -83,7 +103,12 @@ def initialize_explanation_manager(root: Path) -> ExplanationManager:
 
 
 def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str, object]:
-    if set(payload) != {"binding_id", "position"}:
+    if not {"binding_id", "position"} <= set(payload) or set(payload) - {
+        "binding_id",
+        "position",
+        "compare_position",
+        "question",
+    }:
         raise ValueError("unexpected explanation fields")
     binding_id, position = payload["binding_id"], payload["position"]
     if (
@@ -93,7 +118,22 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
         or not isinstance(position, int)
     ):
         raise ValueError("invalid explanation selection")
-    return initialize_explanation_manager(root).request(binding_id, position)
+    compare_position = payload.get("compare_position")
+    question = payload.get(
+        "question", "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요."
+    )
+    if (
+        (
+            compare_position is not None
+            and (isinstance(compare_position, bool) or not isinstance(compare_position, int))
+        )
+        or not isinstance(question, str)
+        or not 1 <= len(question.strip()) <= 600
+    ):
+        raise ValueError("invalid analysis question or comparison")
+    return initialize_explanation_manager(root).request(
+        binding_id, position, compare_position=compare_position, question=question.strip()
+    )
 
 
 def request_phm_review(root: Path, payload: dict[str, object]) -> dict[str, object]:
@@ -118,6 +158,7 @@ def request_phm_review(root: Path, payload: dict[str, object]) -> dict[str, obje
         SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
         binding_id,
         position,
+        include_signals=False,
     )
     record = None
     if identifier is not None:
