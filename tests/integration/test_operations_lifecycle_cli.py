@@ -242,7 +242,7 @@ def test_operations_stop_requests_supervisor_shutdown(
 
 
 def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
-    tmp_path: Path, capsys
+    tmp_path: Path, capsys, monkeypatch
 ) -> None:
     import subprocess
     import sys
@@ -299,8 +299,28 @@ def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
             ),
         )
     )
+    import fcntl
+
+    from industrial_phm.runtime import operations_supervisor as supervisor
+
+    send = supervisor.signal.pidfd_send_signal
+    checked = []
+
+    def locked_send(pidfd, requested_signal):
+        # Another startup cannot acquire ownership while a target is being signaled.
+        with workspace.supervisor_lock_path.open("a+") as probe:
+            try:
+                fcntl.flock(probe.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                checked.append(True)
+            else:
+                raise AssertionError("cleanup released the startup lock before signaling")
+        return send(pidfd, requested_signal)
+
+    monkeypatch.setattr(supervisor.signal, "pidfd_send_signal", locked_send)
     try:
         assert main(["operations", "stop", str(workspace.root)]) == 0
+        assert checked
         out = capsys.readouterr().out
         assert "last_state=ended-without-stopping" in out
         assert f"leftover_stopped={left.pid}" in out

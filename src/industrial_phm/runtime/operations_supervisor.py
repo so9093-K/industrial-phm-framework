@@ -335,17 +335,31 @@ def stop_leftover_components(
     its stdout is that component's log here; the check and the signals go through one
     pidfd, so a PID reused by another process in between is never signaled.
     """
-    state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
-    if state is None or fcntl is None or not hasattr(os, "pidfd_open"):
+    if (
+        fcntl is None
+        or not hasattr(os, "pidfd_open")
+        or not workspace.supervisor_state_path.is_file()
+    ):
         return ()
-    lock_path = workspace.supervisor_lock_path
-    if lock_path.is_file():
-        with lock_path.open("a+") as handle:
-            try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return ()  # a live supervisor owns these processes
+    # Hold the same lock as startup throughout identity checks and shutdown. Reading
+    # the record inside it also prevents replacing a newer run with a stale failure.
+    with workspace.supervisor_lock_path.open("a+") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return ()
+        try:
+            state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
+            if state is None:
+                return ()
+            return _stop_confirmed_components(workspace, state, timeout_seconds=timeout_seconds)
+        finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _stop_confirmed_components(
+    workspace: OperationsWorkspace, state: OperationsSupervisorState, *, timeout_seconds: float
+) -> tuple[int, ...]:
     if state.state == OperationsSupervisorStateKind.RUNNING:
         # The record still says running; say how that run really ended.
         OperationsSupervisorStateRepository(workspace.supervisor_state_path).write(
