@@ -73,12 +73,16 @@ from industrial_phm.runtime.operations_status import (
 )
 from industrial_phm.runtime.operations_supervisor import (
     OperationsChildProcessState,
+    OperationsSupervisorNotRunning,
     OperationsSupervisorResult,
     OperationsSupervisorState,
     OperationsSupervisorStateKind,
     OperationsSupervisorStateRepository,
+    port_in_use,
     request_operations_supervisor_stop,
     run_operations_supervisor,
+    stop_leftover_components,
+    supervisor_is_live,
 )
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
@@ -124,6 +128,7 @@ __all__ = [
     "OperationsRuntimeConfig",
     "OperationsRuntimePlan",
     "OperationsRuntimeStatus",
+    "OperationsSupervisorNotRunning",
     "OperationsSupervisorResult",
     "OperationsSupervisorState",
     "OperationsSupervisorStateKind",
@@ -147,6 +152,7 @@ __all__ = [
     "inspect_operations_runtime_status",
     "inspect_operations_workspace",
     "load_operations_runtime_config",
+    "port_in_use",
     "rebuild_registered_opcua_observation_windows",
     "request_operations_supervisor_stop",
     "restore_operations_backup",
@@ -155,6 +161,8 @@ __all__ = [
     "run_operations_supervisor",
     "run_registered_opcua_acquisition_worker",
     "run_spool_to_history_writer",
+    "stop_leftover_components",
+    "supervisor_is_live",
     "tail_operations_component_log",
     "validate_operations_backup",
     "write_next_spool_batch",
