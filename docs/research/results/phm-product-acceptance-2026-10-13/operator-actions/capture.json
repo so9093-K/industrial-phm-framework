@@ -1,0 +1,45 @@
+{
+  "data": "fixed XJTU-SY recorded fixture, isolated workspace copy; no new inference or AI output",
+  "widths": [
+    390,
+    1024,
+    1440
+  ],
+  "page_errors": [],
+  "human_usability_acceptance": "not established",
+  "images": {
+    "monitor-1440.png": "2d513b9ae1e5a1f746f52d3585c53446d590033b55a146af0b709d1eae368642",
+    "anomaly-1440.png": "35bea202b6f2e2bb2c3e093d4bd3bfa2c006416e86cba8b3ea3fa6b57664015f",
+    "comparison-390.png": "41af1d8232a167e703d177fbd9afea050f8a38c3cfea3613000831b89ebefc49",
+    "rul-1024.png": "e7b26a6138bb39dbe2e082dcb3b8aa2c6e2b1e36f70f16f9ba6cf014a0570542"
+  },
+  "code_revision": "07f330df9a5d14a31f375dda582484fe9c8f0492",
+  "server_scope": "read-only browser capture; writable questions and reviews checked separately in supervised browser tests",
+  "fixture_scope": "actual Bearing1_1 records plus deliberately incompatible pump-x and unavailable pump-y test bindings",
+  "web_assets": {
+    "analysis-records.js": "9c3304e716619fa7f5421d45e1edc6a635f6e5b8479aadcfbd74b50bf4ec4184",
+    "app.js": "8a27bd34d4dede4ac89cba583140561a53a0700904084cbac1683b8e744615c1",
+    "asset-context.js": "1e33fd013f1f0445d3c4431df000c6b7fd6f871205128cc2e7042c7732bad551",
+    "condition.js": "4590b903a965af8dd384e4d6ae823827fe6599df2a55f97dd0182c0204af5319",
+    "csv-start.js": "0b51a6172ac112ac1e0f1d6558a5c583a4a6887ccfb1c19fe5108124367f0475",
+    "example-invalid.csv": "3ffff89dc07501d62093de94394f9855365873ce81710cd83425e5edeaa6c6e1",
+    "example-motor.csv": "13c1c169f0855d5b0005635b1af835090e869ba432a38da25e1702ab757dffe3",
+    "file-registration.js": "914c1e4f59b161e9be29e35d90a7e004b35462de88005f7d164d360a8dcfdffd",
+    "index.html": "f276ee86d3712b1518b121c065c2670f5aaaf287455c91b7e1b6b83ae4ae4f8c",
+    "monitor-history.js": "682171ac24ef41f6cfd24001b49b44c44547bfaa854c580dd637005032cf50a6",
+    "monitor-signal.js": "8a8c95c2a10f24743146f68e6feeb2e9898f1d93663d84e34e120f52831122d8",
+    "monitor.js": "abaf0ac2984abdd9913a5980379bc3f41588da3dae7621f13c5a1a96a9b8af64",
+    "navigation.js": "100bb4658ec7caa7483a3e5ce46d9fb0e10b64906b493b9f542f8503ffb1b5a3",
+    "opcua-registration.js": "c957428650c4657bbf86d792aeade8c404d7475112f0334ffb15deaef7b19ce3",
+    "phm-connect.js": "0e4cc634d4f4bcfefbc27ca9014bab0515911c3509c9f17e31cd165b6de954bb",
+    "phm-explanation.js": "af89fed8ac152b86e3f697f0f0f57515f50d5790697a046f621f36d623074db0",
+    "phm.js": "b472785f3ad98e107294cc5f85ec8584984460436b8c9f23c2dc1228cd47b4f6",
+    "source-card.js": "06d0489d55a233f9baece1c7e979ea9ed95ecc7daaa72d218b7fd1f0453bfa79",
+    "source-management.js": "6fdf63489bee2cfc7faf1dc9593c165b32f2625518c3e73a291caf98e6df9f15",
+    "styles.css": "b251f92f25dc03038a07ce4211427ad7a0b3ad47a7d40f1bf68a478b6ef5fcda",
+    "synthetic-demo.js": "66fc82676802a459ad9d439c52ff22c3a96bebee062eebbce39703d28c500780",
+    "system-status.js": "6568438b1f3c2135137f0468adedc13352504678a36da04f7a054974250523d7",
+    "time.js": "90f67f9e0b6cbd46117fda6274d0f1af08ca06f5a49e1ac1c675ba94a2b5a602",
+    "web-utils.js": "d4bcbfcae1eeb88a57fa4974b4e4fc7138b8f7fee42734cab36dbde323a0a72c"
+  }
+}

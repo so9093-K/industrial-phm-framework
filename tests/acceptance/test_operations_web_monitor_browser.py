@@ -378,7 +378,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
                 "사용 중이면서 수신을 확인한 소스 1개"
             )
             page.locator("#source-list .source-settings > summary").click()
-            page.locator("#source-list").get_by_role("button", name="소스 일시정지").click()
+            page.locator("#source-list").get_by_role("button", name="연결 일시정지").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: paused")
             sync_api.expect(handoff).to_be_hidden()
             sync_api.expect(page.locator("#onboarding-next")).to_contain_text(
