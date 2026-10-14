@@ -36,7 +36,10 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
         deliver(workspace, tmp_path / "waves", ordinal, scale)
     analyze(workspace)
 
+    received = []
+
     def provider(context: dict[str, Any], _: object) -> str:
+        received.append(context)
         return (
             "관측 사실\n점수가 임계값을 넘었습니다. 고장 확률 91.3%로 보입니다. "
             "설비는 정상 상태입니다."
@@ -59,20 +62,35 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 panel = page.locator("#anomaly-explanation")
                 pw.expect(panel).to_contain_text("사람 검토")
                 pw.expect(panel.get_by_role("button", name="검토 요청")).not_to_be_visible()
+                pw.expect(page.locator("#anomaly-assistant")).to_be_visible()
                 page.locator("#anomaly-review-options > summary").click()
                 pw.expect(panel.get_by_role("button", name="검토 요청")).to_be_visible()
                 pw.expect(panel.get_by_role("button", name="검토 확인")).to_have_count(0)
-                panel.locator(".phm-ai-details summary").click()
-                pw.expect(panel).to_contain_text("저장된 AI 설명이 없습니다")
-                panel.get_by_role("button", name="AI 설명 생성").click()
-                pw.expect(panel.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
-                pw.expect(panel).to_contain_text("local-main")
-                pw.expect(panel.locator(".phm-ai-warning")).to_contain_text("91.3")
-                pw.expect(panel.locator(".phm-ai-warning")).to_contain_text(
+                assistant = page.locator("#anomaly-assistant")
+                pw.expect(assistant).to_be_visible()
+                assistant.get_by_label("비교 시점").select_option("1")
+                assistant.get_by_label("분석 질문").fill("수평 진동은 어떻게 달라졌나요?")
+                assistant.get_by_role("button", name="AI에 질문").click()
+                pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
+                pw.expect(assistant).to_contain_text("local-main")
+                assert received[-1]["signal_comparison"]["previous_position"] == 1
+                assert received[-1]["question"] == "수평 진동은 어떻게 달라졌나요?"
+                assert received[-1]["signal_comparison"]["original_current"]["available"]
+                pw.expect(assistant.locator(".phm-ai-warning")).to_contain_text("91.3")
+                pw.expect(assistant.locator(".phm-ai-warning")).to_contain_text(
                     "판정 표현 경고: 설명이 '정상 상태'처럼"
                 )
-                pw.expect(panel.locator(".phm-ai-warning")).to_be_visible()
+                pw.expect(assistant.locator(".phm-ai-warning")).to_be_visible()
                 pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
+                assistant.get_by_role("button", name="비교 시점의 원본 신호 보기").click()
+                pw.expect(assistant.locator(".phm-comparison-original h4")).to_contain_text("#1")
+                pw.expect(assistant.locator(".phm-comparison-original .phm-wave")).to_have_count(2)
+                # An answer for the old comparison must disappear as soon as selection changes.
+                assistant.get_by_label("비교 시점").select_option("2")
+                pw.expect(assistant.locator(".phm-ai-text")).to_have_text("")
+                assistant.get_by_role("button", name="AI에 질문").click()
+                pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
+                assert received[-1]["signal_comparison"]["previous_position"] == 2
 
                 panel.get_by_role("button", name="검토 요청").click()
                 pw.expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")

@@ -120,7 +120,7 @@ def test_stateless_responses_and_chat_fallback_preserve_named_model_and_context(
             assert "마지막 획득 지점" in " ".join(sent["facts"])
             assert "73.94" not in json.dumps(sent) and "not-yet-evaluated" not in json.dumps(sent)
             assert "35Hz12kN" not in json.dumps(sent) and "model" not in sent
-            assert "2~3문장" in prompt and "네 부분" not in prompt
+            assert "3~5문장" in prompt and "네 부분" not in prompt
     finally:
         server.shutdown()
         server.server_close()
@@ -273,10 +273,30 @@ def test_manager_stores_grounding_warnings_with_the_explanation(
         runtime, "generate_local_explanation", lambda context, provider: "고장 확률 93.7%입니다."
     )
     manager = ExplanationManager(workspace.root)
-    job = manager.request("anomaly-a", 3)
+    job = manager.request("anomaly-a", 3, question="고장 확률 93.7% 맞나요?")
     for _ in range(100):
         record = manager.store.get(job["explanation_id"])
         if record["status"] != "pending":
             break
         time.sleep(0.01)
     assert record["status"] == "complete" and record["warnings"] == ["93.7"]
+
+
+def test_comparison_checks_numeric_roles_not_only_membership() -> None:
+    from industrial_phm.genai.local_explanation import comparison_claim_warnings
+
+    context = {
+        "output": {"task": "anomaly-score", "score": 0.178873},
+        "signal_comparison": {
+            "previous_output": {"score": 0.007501659},
+            "output_changes": {"score": 0.171372},
+        },
+    }
+    assert comparison_claim_warnings("점수는 0.007502에서 0.1789로 증가했습니다.", context) == []
+    assert comparison_claim_warnings("점수는 0.007502에서 0.1714로 증가했습니다.", context) == [
+        "내용 확인: 모델의 이전값·현재값 비교가 선택한 저장 결과와 다릅니다"
+    ]
+    assert comparison_claim_warnings("직전 대비 -0.04 감소했습니다.", context) == [
+        "표현 확인: 음수 변화량과 감소 표현이 겹칩니다"
+    ]
+    assert comparison_claim_warnings("변화 -0.04입니다.", context) == []

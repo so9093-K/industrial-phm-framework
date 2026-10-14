@@ -10,8 +10,14 @@ from typing import Any
 from uuid import uuid4
 
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
 from industrial_phm.application.phm_read import project_phm_bindings
+from industrial_phm.application.phm_signal_comparison import (
+    feature_comparison,
+    feature_label,
+    raw_signal_summary,
+)
 
 
 class PhmExplanationStore:
@@ -140,6 +146,11 @@ def explanation_context(
     snapshots: SqliteAcquisitionSnapshotRepository,
     binding_id: str,
     position: int,
+    *,
+    compare_position: int | None = None,
+    question: str = "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요.",
+    windows: SqliteObservationWindowRepository | None = None,
+    include_signals: bool = True,
 ) -> dict[str, Any]:
     result = store.get_result(binding_id, position)
     if result is None or result.state is not StepState.ANALYZED:
@@ -149,7 +160,15 @@ def explanation_context(
     package = next(
         item["package"] for item in summaries["bindings"] if item["binding_id"] == binding_id
     )
-    previous = store.latest_result(binding_id, state=StepState.ANALYZED, before_position=position)
+    previous = (
+        store.latest_result(binding_id, state=StepState.ANALYZED, before_position=position)
+        if compare_position is None
+        else store.get_result(binding_id, compare_position)
+    )
+    if compare_position is not None and (
+        compare_position >= position or previous is None or previous.state is not StepState.ANALYZED
+    ):
+        raise ValueError("comparison must select an earlier analyzed result of the same binding")
     score, prior_score = (
         result.output.get("score"),
         None if previous is None else previous.output.get("score"),
@@ -161,6 +180,62 @@ def explanation_context(
             "score_change": score - prior_score,
             "previous_position": previous.position if previous else None,
         }
+    signal_comparison = {
+        "current_position": position,
+        "previous_position": None if previous is None else previous.position,
+        "previous_event_start": None
+        if previous is None or previous.event_start is None
+        else previous.event_start.isoformat(),
+        "previous_output": None if previous is None else dict(previous.output),
+        "features": feature_comparison(result, previous),
+        "output_changes": {
+            key: result.output[key] - previous.output[key]
+            for key in ("score", "estimate")
+            if previous is not None
+            and isinstance(result.output.get(key), (int, float))
+            and isinstance(previous.output.get(key), (int, float))
+        },
+        "original_current": None
+        if not include_signals
+        else raw_signal_summary(store, snapshots, windows, binding, result),
+        "original_previous": None
+        if previous is None or not include_signals
+        else raw_signal_summary(store, snapshots, windows, binding, previous),
+    }
+    related = []
+    for other in store.list_bindings()[:100]:
+        if other.binding_id == binding_id or (
+            other.asset_id,
+            other.source_id,
+            other.measurement_point_id,
+            other.step_kind,
+        ) != (binding.asset_id, binding.source_id, binding.measurement_point_id, binding.step_kind):
+            continue
+        matched = store.get_result(other.binding_id, position)
+        if (
+            matched is None
+            or matched.state is not StepState.ANALYZED
+            or (dict(matched.input_reference) != dict(result.input_reference))
+        ):
+            continue
+        before = None if previous is None else store.get_result(other.binding_id, previous.position)
+        if (
+            before is not None
+            and previous is not None
+            and (
+                before.state is not StepState.ANALYZED
+                or dict(before.input_reference) != dict(previous.input_reference)
+            )
+        ):
+            before = None
+        related.append(
+            {
+                "binding_id": other.binding_id,
+                "package_id": other.package_id,
+                "output": dict(matched.output),
+                "previous_output": None if before is None else dict(before.output),
+            }
+        )
     return {
         "schema_version": 1,
         "binding_id": binding_id,
@@ -176,6 +251,9 @@ def explanation_context(
         "features": dict(result.features or {}),
         "output": dict(result.output),
         "comparison": comparison,
+        "question": question,
+        "signal_comparison": signal_comparison,
+        "related_models": related[:8],
         "input_reference": dict(result.input_reference),
         "model": None
         if package is None
@@ -209,9 +287,15 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             "endpoint_semantics",
             "change_from_previous",
             "feature_contributions",
+            "sequence_positions",
         )
         if key in original
     }
+    signals = context.get("signal_comparison")
+    if signals is not None:
+        # A custom comparison is not the runner's immediately preceding estimate.
+        # Keep that output unchanged in storage; omit its delta from this comparison.
+        output.pop("change_from_previous", None)
     task = output.get("task")
     model = context.get("model") or {}
     recipe = str(model.get("recipe_id") or "")
@@ -219,7 +303,7 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
     facts = []
     if task == "rul-estimate":
         unit = (
-            "획득 간격"
+            "기록 구간(개)"
             if output.get("unit") == "acquisition-interval"
             else str(output.get("unit") or "단위 미기록")
         )
@@ -234,7 +318,10 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             )
         change = output.get("change_from_previous")
         if isinstance(change, (int, float)):
-            facts.append(f"직전 추정 대비 변화는 {_n(change)} {unit}입니다.")
+            facts.append(
+                f"직전 분석 대비 변화는 {_n(change)} {unit}입니다. "
+                "선택한 비교 시점과의 차이는 previous_output을 비교하세요."
+            )
         if isinstance(output.get("estimate"), (int, float)) and output["estimate"] < 0:
             facts.append(
                 "음수 추정은 모델이 기록 종료점을 지났다고 출력한 것이며 "
@@ -254,12 +341,62 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             facts.append("변수별 기여도가 없으므로 원인 신호를 추정하지 마세요.")
         else:
             facts.append("기여도는 모델 점수에 대한 잔차 기여이며 고장의 원인이 아닙니다.")
+            ranked = sorted(
+                output["feature_contributions"].items(), key=lambda item: item[1], reverse=True
+            )[:3]
+            facts.append(
+                "선택 시점의 잔차 기여가 큰 순서: "
+                + " → ".join(feature_label(name) for name, _ in ranked)
+            )
+    if isinstance(signals, dict):
+        for row in signals.get("features", [])[:4]:
+            if row["previous"] is not None:
+                direction = "증가" if row["change"] > 0 else "감소" if row["change"] < 0 else "동일"
+                facts.append(
+                    f"두 시점 비교에서 {row['label']}: {direction}. "
+                    "관측 차이이며 원인 판정은 아닙니다."
+                )
+        if "estimate" in signals.get("output_changes", {}):
+            change = signals["output_changes"]["estimate"]
+            facts.append(
+                "선택 비교 시점 대비 잔여 구간 추정은 "
+                + ("증가" if change > 0 else "감소" if change < 0 else "동일")
+                + "입니다."
+            )
+        if "score" in signals.get("output_changes", {}):
+            change = signals["output_changes"]["score"]
+            facts.append(
+                "선택 비교 시점 대비 모델 점수는 "
+                + ("증가" if change > 0 else "감소" if change < 0 else "동일")
+                + "입니다."
+            )
     return {
         "asset_id": context.get("asset_id"),
         "recorded_replay": context.get("recorded_replay"),
         "event_start": context.get("event_start"),
         "output": output,
         "comparison": context.get("comparison"),
+        "question": context.get("question"),
+        "position": context.get("position"),
+        "signal_comparison": signals,
+        "related_models": [
+            {
+                **item,
+                "output": {
+                    key: value
+                    for key, value in item["output"].items()
+                    if key != "change_from_previous"
+                },
+                "previous_output": None
+                if item.get("previous_output") is None
+                else {
+                    key: value
+                    for key, value in item["previous_output"].items()
+                    if key != "change_from_previous"
+                },
+            }
+            for item in context.get("related_models", [])
+        ],
         "value_label": label if task == "anomaly-score" else "잔여 구간 추정",
         "facts": facts,
     }

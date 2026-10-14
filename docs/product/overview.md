@@ -652,8 +652,11 @@ Target에 clipping이 없으므로 음수 추정이 기록될 수 있습니다. 
 
 ### Generative AI가 RUL evidence를 설명하는 경계
 
-Generative AI 설명은 evidence scope로 분리합니다. Anomaly scope와 prognostics scope는 서로 다른 structured
-context와 서로 다른 boundary 지시를 사용하며, 한 scope의 evidence가 다른 scope의 설명에 섞이지 않습니다.
+Generative AI 설명은 선택한 설비·입력·분석 결과에 고정합니다. Anomaly와 prognostics의 수치·단위·종료점 의미는
+각 작업의 구조화된 출력으로 보존합니다. 운영 Web의 두 시점 비교에서는 같은 설비·소스·측정점·step 종류에
+원본 입력 참조까지 일치하는 다른 모델의 저장 결과만 함께 전달합니다. 시점 번호나 비슷한 시각만으로
+서로 다른 입력의 결과를 연결하지 않습니다. 신호의 동반 변화와 잔차 기여도, 고장 원인을 구분하며 두 시점의
+차이를 전체 기간의 추세로 일반화하지 않습니다.
 
 Prognostics context에 담기는 것은 validated read model에서 읽어온 값뿐입니다.
 
