@@ -2,7 +2,7 @@ import { initializeCondition, loadCondition } from "./condition.js";
 import { initializeNavigation, navigate } from "./navigation.js";
 import { initializePhm, refreshPhm } from "./phm.js";
 import { initializeMonitor, refreshMonitor } from "./monitor.js";
-import { initializeResearch } from "./research.js";
+import { currentAsset, initializeAssetContext, onAssetChange, registerAssets, setAsset } from "./asset-context.js";
 import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
@@ -114,23 +114,6 @@ async function checkWorkspaceWriterConflict(response) {
     throw new Error("workspace-writer-busy");
   }
 }
-function assetDetails() {
-  const item = rows(monitor, "assets").find((row) => row.asset_id === selectedAsset);
-  const box = byId("asset-facts"); clear(box);
-  const lastStoredAt = latestStored.map((point) => point.event_at).filter(Boolean)
-    .reduce((latest, at) => !latest || Date.parse(at) > Date.parse(latest) ? at : latest, null);
-  if (!item) {empty(box, "선택한 설비의 관측 요약이 없습니다."); return;}
-  list(box, [
-    withText("데이터 수신 상태", ({running:"수신 흐름 근거 있음",waiting:"수신 대기",delayed:"수신 지연",
-      stopped:"수집 중지", "needs-attention":"확인 필요",error:"오류",unavailable:"수신 상태 미확인",
-      "stored-history":"저장 이력만 확인"})[item.data_flow_status] || fmt(item.data_flow_status)),
-    withText("마지막 저장 기록의 원본 측정 시각", lastStoredAt ? formatTime(lastStoredAt) : null),
-    withText("마지막 분석 완료", formatTime(item.latest_analysis_at)),
-    withText("등록된 소스 수", item.source_count),
-    withText("확인할 항목", item.attention_count),
-    withText("미처리 검토", item.pending_review_count),
-  ]);
-}
 function record(target, heading, details) {
   const section = create("article", "record");
   section.append(create("h3", null, heading));
@@ -173,7 +156,7 @@ async function postReview(route, payload, button) {
         || !["open", "acknowledged", "closed"].includes(outcome.status)) {
       throw new Error("schema-mismatch");
     }
-    setNotice("사람의 검토 기록이 저장됐습니다. 물리 정비 수행 또는 설비 진단을 뜻하지 않습니다.");
+    setNotice("확인 기록을 저장했습니다.");
     await refresh();
     if (route === "/api/v1/reviews/request"
         && typeof outcome.finding_id === "string" && outcome.finding_id) {
@@ -188,103 +171,40 @@ async function postReview(route, payload, button) {
     const explanation = error.message === "outcome-unknown"
       ? "명령 응답을 확인하지 못했습니다. 중복 전송하지 말고 기록을 새로 조회하세요."
       : error.message === "review-conflict"
-      ? "검토 상태가 이미 변경됐습니다. 기록을 새로 조회한 뒤 다시 선택하세요."
+      ? "확인 상태가 이미 바뀌었습니다. 화면을 새로 불러온 뒤 다시 선택하세요."
       : error.message === "review-not-found"
-      ? "선택한 분석 근거나 검토 기록이 저장소에 없습니다. 화면을 새로 조회하세요."
+      ? "선택한 분석이나 확인 기록을 찾지 못했습니다. 화면을 새로 불러오세요."
       : error.message === "read-only"
-      ? "감독형 Web 제어 모드에서만 사람의 검토 기록을 변경할 수 있습니다."
+      ? "이 화면에서는 확인 기록을 바꿀 수 없습니다. 감독형 Web에서 다시 시도하세요."
       : presentError(error);
     setNotice(explanation, true);
   } finally {
     button.disabled = false;
   }
 }
-const reviewStates = {
-  open: "열림 · 검토 필요",
-  acknowledged: "확인됨 · 종료 전",
-  closed: "종료 기록 · 실제 정비 완료 아님",
-};
+const reviewStates = {open: "확인 필요", acknowledged: "확인함", closed: "완료"};
 function focusSelectedReview(findingId) {
   const article = [...byId("review-results").querySelectorAll(".review-record")]
     .find((item) => item.dataset.findingId === findingId);
   if (!article) {
-    setNotice("이번 조회에서 해당 검토 기록을 찾지 못했습니다. 저장소와 조회 범위를 다시 확인하세요.", true);
+    setNotice("해당 확인 기록을 찾지 못했습니다. 화면을 새로 불러오세요.", true);
     return;
   }
-  navigate("#review");
-  article.focus({preventScroll: true});
-  article.scrollIntoView({block: "center"});
+  navigate("#evidence", article);
 }
 function openReviewRecord(assetId, findingId) {
   // Never swap in a different finding, analysis or asset when the bounded
   // current monitor snapshot does not contain this exact review.
-  const match = rows(monitor, "review_requests")
-    .some((item) => item.asset_id === assetId && item.finding_id === findingId);
-  const selector = byId("asset-select");
-  const available = [...selector.options].some((item) => item.value === assetId);
-  if (!match || !available) {
-    setNotice("이번 조회 범위에 이 설비의 정확한 검토 기록이 없습니다. 조회를 새로고침하세요.", true);
+  if (!rows(monitor, "review_requests").some((item) => item.asset_id === assetId && item.finding_id === findingId)) {
+    setNotice("이 설비의 해당 확인 기록을 찾지 못했습니다. 화면을 새로 불러오세요.", true);
     return;
   }
-  if (selectedAsset !== assetId) {
-    selector.value = assetId;
-    void selectAsset();
-  }
+  setAsset(assetId);
+  if (selectedAsset !== assetId) {selectedAsset = assetId;evidenceViews();}
   focusSelectedReview(findingId);
 }
-function renderReviewInbox() {
-  const summary = byId("review-inbox-summary");
-  const root = byId("review-inbox-list");
-  clear(root);
-  if (!monitor) {
-    summary.textContent = "검토 저장소를 조회할 수 없습니다. 미처리 요청이 없다고 판단하지 마세요.";
-    return;
-  }
-  const reviews = rows(monitor, "review_requests");
-  const stored = monitor.review_requests;
-  const pending = reviews.filter((item) => item.status === "open" || item.status === "acknowledged");
-  const filter = byId("review-filter").value;
-  const visible = reviews.filter((item) => (
-    filter === "all" || (filter === "closed" ? item.status === "closed" : item.status !== "closed")
-  ));
-  const limited = Boolean(stored && stored.truncated);
-  const incomplete = Array.isArray(monitor.system_error_scopes) && monitor.system_error_scopes.length > 0;
-  summary.textContent = "표시 범위: 미처리 " + pending.length + "건 · 전체 "
-    + fmt(stored && stored.total) + "건"
-    + (limited ? " · 100건까지만 표시 (추가 기록 존재)" : "")
-    + (incomplete ? " · 일부 저장소 읽기 오류, 누락 가능" : "");
-  if (!visible.length) {
-    empty(root, incomplete
-      ? "이번 조회에서 해당 상태의 검토를 확인할 수 없습니다. 저장소 조회 오류가 있어 없다고 단정할 수 없습니다."
-      : "표시 조건에 맞는 검토 기록이 없습니다.");
-    return;
-  }
-  const knownAssets = new Set(rows(monitor, "assets").map((asset) => asset.asset_id));
-  visible.forEach((item) => {
-    const card = create("article", "review-inbox-item");
-    card.append(
-      create("strong", null, fmt(item.asset_id) + " · " + fmt(reviewStates[item.status] || item.status)),
-      create("p", "mono", "Finding " + fmt(item.finding_id)),
-      create("p", "mono", "Run " + fmt(item.analysis_run_id)),
-      create("p", "mono", "Evidence " + (
-        Array.isArray(item.evidence_ids) ? item.evidence_ids.join(", ") : "미확인"
-      )),
-    );
-    const open = create("button", null, "해당 설비의 검토 열기");
-    open.type = "button";
-    open.disabled = !knownAssets.has(item.asset_id)
-      || typeof item.finding_id !== "string" || !item.finding_id;
-    if (open.disabled) {
-      card.append(create("p", "hint", "이번 설비 조회 범위에 없어 이동할 수 없습니다. 다른 기록으로 대체하지 않습니다."));
-    } else {
-      open.setAttribute("aria-label", "검토 열기 · " + item.asset_id + " · " + item.finding_id);
-      open.addEventListener("click", () => openReviewRecord(item.asset_id, item.finding_id));
-    }
-    card.append(open);
-    root.append(card);
-  });
-}
 function evidenceViews() {
+  if (!monitor) return;
   const analyses = [...rows(monitor, "phase_unbalance_analyses"), ...rows(monitor, "file_feature_analyses")]
     .filter((r) => r.asset_id === selectedAsset);
   const attempts = rows(monitor, "skipped_analysis_attempts").filter((r) => r.asset_id === selectedAsset);
@@ -295,7 +215,7 @@ function evidenceViews() {
   // cannot establish that a review refers to the evidence currently displayed.
   const evidenceTargets = new Map();
   clear(evidence); clear(review);
-  if (!analyses.length && !attempts.length) empty(evidence, "이 설비의 저장된 분석 기록이 없습니다. 분석 결과 없음은 정상 상태를 의미하지 않습니다.");
+  if (!analyses.length && !attempts.length) empty(evidence, selectedAsset ? "이 설비에 저장된 분석 기록이 없습니다. 데이터 연결의 등록된 소스에서 신호 통계·3상 분석을 실행할 수 있습니다." : "설비를 선택하세요.");
   analyses.forEach((run) => {
     const metrics = Array.isArray(run.quantities) ? run.quantities : [];
     const article = create("article", "record evidence-target");
@@ -305,7 +225,7 @@ function evidenceViews() {
       evidenceTargets.set(JSON.stringify([run.analysis_run_id, run.evidence_id]), article);
     }
     article.append(create("h3", null, Array.isArray(run.quantities) ? "3상 불평형 분석" : "신호 통계 분석"));
-    article.append(create("p", "muted", "분석한 원본 측정 구간 · " + formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)));
+    article.append(create("p", "muted", "분석 구간 · " + formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)));
     const lines = [
       ["분석 기록 ID", run.analysis_run_id],
       ["Capability", run.capability_id],
@@ -314,15 +234,14 @@ function evidenceViews() {
       ["Evidence ID", run.evidence_id],
     ];
     const calculation = create("details", "analysis-calculation");
-    calculation.append(create("summary", null, "분석 입력·계산 방식"));
+    calculation.append(create("summary", null, "계산 정보"));
     lines.forEach(([label, value]) => {
       const p = create("p"); p.append(create("strong", null, label + "  "), document.createTextNode(fmt(value))); calculation.append(p);
     });
     article.append(calculation);
     if (Array.isArray(run.features)) {
-      article.append(create("p", "hint",
-        "CSV 통계 특징값 · 이 화면은 원본 신호의 물리 단위나 진동 의미를 확인하지 않으며, 고장 진단·경보가 아닙니다."));
-      article.append(create("p", null, "원본 SHA-256: " + fmt(run.source_snapshot_sha256)));
+      const digest = create("p");digest.append(create("strong", null, "원본 SHA-256  "), document.createTextNode(fmt(run.source_snapshot_sha256)));
+      calculation.append(digest);
       run.features.forEach((item) => {
         article.append(create("p", "stat", fmt(item.name) + " · " + num(item.value)));
       });
@@ -336,13 +255,13 @@ function evidenceViews() {
     const relatedReview = reviews.find((item) => item.analysis_run_id === run.analysis_run_id
       && Array.isArray(item.evidence_ids) && item.evidence_ids.includes(run.evidence_id));
     if (relatedReview) {
-      const showReview = create("button", "review-link", "이 분석의 검토 기록 열기");
+      const showReview = create("button", "review-link", "확인 기록 보기");
       showReview.type = "button";
       showReview.addEventListener("click", () => focusSelectedReview(relatedReview.finding_id));
       article.append(showReview);
     }
     if (reviewWritesAllowed && !relatedReview) {
-      const button = create("button", null, "이 근거에 사람 검토 요청");
+      const button = create("button", null, "확인·메모 시작");
       button.type = "button";
       button.addEventListener("click", () => postReview("/api/v1/reviews/request", {
         analysis_run_id: run.analysis_run_id,
@@ -352,56 +271,44 @@ function evidenceViews() {
     }
     evidence.append(article);
   });
-  attempts.forEach((run) => record(evidence, "미수행 분석 · " + fmt(run.capability_id), [
-    ["상태 / 이유", fmt(run.state) + " / " + fmt(run.reason)],
-    ["원본 측정 구간", formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)],
+  attempts.forEach((run) => record(evidence, "실행되지 않은 분석 · " + fmt(run.capability_id), [
+    ["이유", fmt(run.reason)],
+    ["분석 구간", formatTime(run.observed_start_at) + " → " + formatTime(run.observed_end_at)],
   ]));
-  if (!reviews.length) empty(review, "이 설비에 기록된 검토 요청이 없습니다. 검토 없음은 정비 완료를 뜻하지 않습니다.");
+  if (!reviews.length) empty(review, "남긴 확인·메모가 없습니다.");
   reviews.forEach((reviewItem) => {
-    const article = record(review, "검토 요청 · " + fmt(reviewItem.finding_id), [
-      ["검토 상태", reviewItem.status],
-      ["분석 Run", reviewItem.analysis_run_id],
-      ["근거 ID", (reviewItem.evidence_ids || []).join(", ")],
-    ]);
+    const article = record(review, "확인 기록 · " + fmt(reviewStates[reviewItem.status] || reviewItem.status), []);
     article.classList.add("review-record");
     article.dataset.findingId = reviewItem.finding_id;
     article.tabIndex = -1;
-    const meanings = {
-      open: "검토 요청이 기록됐습니다. 아직 사람이 검토를 완료했다는 뜻이 아닙니다.",
-      acknowledged: "검토 확인이 기록됐습니다. 실제 정비 수행이나 설비 정상 확인은 아닙니다.",
-      closed: "검토 기록 종료됨 · 실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다.",
-    };
-    if (Object.hasOwn(meanings, reviewItem.status)) {
-      article.append(create("p", "review-meaning", meanings[reviewItem.status]));
-    }
+    const identifiers = create("details", "analysis-calculation");
+    identifiers.append(create("summary", null, "기록 식별자"),
+      create("p", "mono", "Finding " + fmt(reviewItem.finding_id)),
+      create("p", "mono", "Run " + fmt(reviewItem.analysis_run_id)),
+      create("p", "mono", "Evidence " + (reviewItem.evidence_ids || []).join(", ")));
+    article.append(identifiers);
     const linkedIds = Array.isArray(reviewItem.evidence_ids) ? reviewItem.evidence_ids : [];
     const links = linkedIds.map((id) => [id,
       evidenceTargets.get(JSON.stringify([reviewItem.analysis_run_id, id]))]
     ).filter(([, target]) => target);
     if (links.length) {
       links.forEach(([id, target]) => {
-        const button = create("button", "evidence-link", "연결된 분석 근거 확인");
+        const button = create("button", "evidence-link", "분석 결과로 이동");
         button.type = "button";
-        button.setAttribute("aria-label", "연결된 분석 근거 확인 · " + id);
-        button.addEventListener("click", () => {
-          navigate("#evidence");
-          target.focus({preventScroll: true});
-          target.scrollIntoView({block: "center"});
-        });
+        button.setAttribute("aria-label", "분석 결과로 이동 · " + id);
+        button.addEventListener("click", () => navigate("#evidence", target));
         article.append(button);
       });
     } else {
-      article.append(create("p", "review-evidence-unavailable",
-        "이번 조회에 Run ID와 Evidence ID가 모두 일치하는 분석 근거가 표시되지 않았습니다. "
-        + "다른 분석으로 대체하지 않습니다. 설비·조회 범위와 저장소 오류를 확인하세요."));
+      article.append(create("p", "review-evidence-unavailable", "연결된 분석 결과가 이번 조회에 없습니다."));
     }
     if (!reviewWritesAllowed || reviewItem.status === "closed") return;
     const form = create("form", "review-form");
-    const label = create("label", null, "검토 메모 (물리 정비 완료 기록 아님)");
+    const label = create("label", null, "메모");
     const field = create("textarea");
     field.rows = 2; field.maxLength = 1000; field.required = true;
     label.append(field);
-    const save = create("button", null, "메모 기록");
+    const save = create("button", null, "메모 저장");
     save.type = "submit";
     form.append(label, save);
     form.addEventListener("submit", (event) => {
@@ -412,10 +319,10 @@ function evidenceViews() {
     });
     article.append(form);
     const next = reviewItem.status === "open" ? "acknowledge" : "close";
-    const button = create("button", null, next === "close" ? "검토 기록 종료" : "확인됨으로 표시");
+    const button = create("button", null, next === "close" ? "완료로 표시" : "확인함으로 표시");
     button.type = "button";
     button.addEventListener("click", () => {
-      if (next === "close" && !window.confirm("검토 기록만 종료합니다. 물리 정비 완료나 정상 상태를 의미하지 않습니다. 계속할까요?")) return;
+      if (next === "close" && !window.confirm("이 확인 기록을 완료로 표시할까요?")) return;
       postReview("/api/v1/reviews/action", {
         finding_id: reviewItem.finding_id, action: next, note: "",
       }, button);
@@ -423,7 +330,7 @@ function evidenceViews() {
     article.append(button);
   });
   if (monitor.system_error_scopes && monitor.system_error_scopes.length) {
-    setNotice("일부 저장소를 읽지 못했습니다 (" + monitor.system_error_scopes.join(", ") + "). 표시되지 않은 근거가 있을 수 있습니다.", true);
+    setNotice("일부 저장소를 읽지 못해 빠진 기록이 있을 수 있습니다 (" + monitor.system_error_scopes.join(", ") + ").", true);
   }
 }
 function checkedChannels() {
@@ -530,7 +437,7 @@ function showTrend(data) {
   grouped.forEach((items) => box.append(drawSeries(items, {...items[0], start_at:data.start_at, end_at:data.end_at})));
   const points = Array.isArray(data.latest_stored) ? data.latest_stored : [];
   latestStored = points;
-  assetDetails();
+  
   points.forEach((point) => sourceHistory.set(point.source_id, data.snapshot_id));
   renderWorkspace();renderOnboardingGuide();
   if (points.length) latest.append(create("h3", null, "마지막 저장된 측정값 · 현재 상태가 아님"));
@@ -560,22 +467,34 @@ async function loadTrend(token = generation) {
     showTrend(data);
   } catch (error) {
     if (token !== generation || request !== trendSequence) return;
-    latestStored = [];sourceHistory.clear();assetDetails();renderWorkspace();renderOnboardingGuide();
+    latestStored = [];sourceHistory.clear();renderWorkspace();renderOnboardingGuide();
     trendState(presentError(error),true);
   }
 }
-async function selectAsset() {
-  generation += 1;
-  selectedAsset = byId("asset-select").value;
-  selectedChannels = [];
-  latestStored = [];sourceHistory.clear();
-  renderWorkspace();
-  assetDetails();
-  evidenceViews();
+let signalsLoadedFor = "";
+async function loadSignals(token = generation) {
+  signalsLoadedFor = selectedAsset;
   clear(byId("trend-results"));clear(byId("last-values"));
   byId("show-trend").disabled = true;
+  if (!selectedAsset) {trendState("설비를 선택하세요.");return;}
+  // An asset known only from model inputs (e.g. vibration acquisitions) has no stored history.
+  if (monitor && !rows(monitor, "assets").some((asset) => asset.asset_id === selectedAsset)) {
+    const box = byId("channel-options");
+    box.replaceChildren(create("legend", null, "비교할 신호 (최대 6개)"), create("p", "empty", "이 설비에는 저장된 측정 이력이 없습니다."));
+    trendState("원본 신호는 개요와 이상 탐지 탭에서 볼 수 있습니다.");
+    return;
+  }
   trendState("설비의 저장된 신호 목록을 확인합니다.");
-  if (selectedAsset) await loadChannels(selectedAsset, generation);
+  await loadChannels(selectedAsset, token);
+}
+async function selectAsset() {
+  generation += 1;
+  selectedAsset = currentAsset();
+  selectedChannels = [];
+  latestStored = [];sourceHistory.clear();signalsLoadedFor = "";
+  renderWorkspace();
+  evidenceViews();
+  if (document.body.dataset.view === "signals") await loadSignals();
   if (byId("condition-disclosure").open) void loadCondition(selectedAsset, {reset: true});
 }
 const runtimeConditions = {
@@ -701,35 +620,16 @@ async function refresh() {
     monitorReadState = "ready";
     renderMonitorAttention(data);
     systemViews(data);
-    renderReviewInbox();
     byId("asset-count").textContent = fmt(data.assets && data.assets.total);
     byId("analysis-count").textContent = fmt((data.phase_unbalance_analyses?.total ?? 0) + (data.file_feature_analyses?.total ?? 0));
     byId("review-count").textContent = fmt(data.review_requests && data.review_requests.total);
     byId("assessed-at").textContent = formatTime(data.assessed_at);
     const assets = rows(data,"assets");
-    const select = byId("asset-select");
-    const previous = selectedAsset;
-    clear(select);
-    if (!assets.length) {
-      const option = create("option", null, "저장된 설비 없음");option.value = "";
-      select.append(option);select.disabled = true; selectedAsset = "";
-      empty(byId("asset-facts"),"현재 조회된 설비가 없습니다. 먼저 데이터 연결과 수신을 확인하세요.");
-      empty(byId("evidence-results"),"설비를 선택한 뒤 기록된 분석 근거를 확인할 수 있습니다.");
-      empty(byId("review-results"),"설비를 선택한 뒤 검토 기록을 확인할 수 있습니다.");
-      clear(byId("channel-options"));byId("channel-options").append(create("legend",null,"비교할 신호 (최대 6개)"));
-      trendState("관측 설비가 없습니다.");
-      byId("show-trend").disabled = true;
-    } else {
-      assets.forEach((asset) => {
-        const option = create("option",null,asset.asset_id);option.value=asset.asset_id;select.append(option);
-      });
-      select.disabled = false;
-      selectedAsset = assets.some((a) => a.asset_id === previous) ? previous : assets[0].asset_id;
-      select.value = selectedAsset;
-      if (selectedAsset !== previous) selectedChannels = [];
-      assetDetails();evidenceViews();
-      await loadChannels(selectedAsset, token);
-    }
+    registerAssets("monitor", assets.map((asset) => asset.asset_id));
+    if (selectedAsset !== currentAsset()) {selectedAsset = currentAsset();selectedChannels = [];}
+    evidenceViews();
+    signalsLoadedFor = "";
+    if (document.body.dataset.view === "signals") await loadSignals(token);
     if (data.system_error_scopes && data.system_error_scopes.length) {
       setNotice("일부 저장소를 읽지 못했습니다 (" + data.system_error_scopes.join(", ") + "). 표시되지 않은 근거가 있을 수 있습니다.", true);
     } else if (data.assets && data.assets.truncated) {
@@ -744,13 +644,12 @@ async function refresh() {
     monitor = null;setNotice(presentError(error),true);
     byId("monitor-attention").classList.remove("hidden");
     byId("monitor-attention").textContent = "운영 상태 조회 실패 · 이전 확인 항목을 현재 상태로 표시하지 않습니다.";
-    renderReviewInbox();
     byId("system-status").className = "state error";
     byId("system-status").textContent = "시스템 조회 실패 · 정상 상태로 판단할 수 없습니다.";
     clear(byId("system-facts"));
-    for (const id of ["asset-facts","evidence-results","review-results"]) empty(byId(id),"조회 실패 · 이전 데이터를 현재 상태로 표시하지 않습니다.");
+    for (const id of ["evidence-results","review-results"]) empty(byId(id),"기록을 읽지 못했습니다. 다시 불러오세요.");
     for (const id of ["asset-count","analysis-count","review-count","assessed-at"]) byId(id).textContent = "—";
-    clear(byId("asset-select"));byId("asset-select").disabled = true;selectedAsset = "";selectedChannels = [];
+    selectedChannels = [];
     clear(byId("trend-results"));clear(byId("last-values"));trendState(presentError(error),true);
     byId("show-trend").disabled = true;
   } finally {
@@ -764,13 +663,15 @@ byId("refresh").addEventListener("click",() => {
   refresh();loadSources();loadRuntimeStatus();
 });
 byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
-byId("asset-select").addEventListener("change",selectAsset);
-byId("review-filter").addEventListener("change",renderReviewInbox);
+onAssetChange(() => void selectAsset());
+window.addEventListener("hashchange", () => {
+  if (document.body.dataset.view === "signals" && signalsLoadedFor !== selectedAsset) void loadSignals();
+});
 byId("show-trend").addEventListener("click",() => loadTrend());
 byId("range-select").addEventListener("change",() => loadTrend());
 byId("time-anchor").addEventListener("change",() => loadTrend());
+initializeAssetContext();
 initializeNavigation();
-initializeResearch();
 initializeCondition();
 initializePhm();
 byId("start-example").addEventListener("click", () => void exploreExample());
@@ -894,8 +795,8 @@ byId("onboarding-action").addEventListener("click", () => {
   if (!action) {
     const hasAnalysis = [...rows(monitor, "file_feature_analyses"), ...rows(monitor, "phase_unbalance_analyses")]
       .some((run) => run.source_id === item.source_id);
-    if (selectedAsset !== item.asset_id) {byId("asset-select").value = item.asset_id;void selectAsset();}
-    scrollToOnboardingTarget(byId("asset-select"), hasAnalysis ? "#evidence" : "#signals");
+    setAsset(item.asset_id);
+    scrollToOnboardingTarget(byId("asset-switch"), hasAnalysis ? "#evidence" : "#signals");
     return;
   }
   const card = [...byId("source-list").querySelectorAll(".source-record")]
@@ -1063,9 +964,8 @@ async function loadSources() {
       const inspectHistory = create("button", "source-next", "이 소스의 저장 이력 확인");
       inspectHistory.type = "button";
       inspectHistory.addEventListener("click", () => {
-        navigate("#signals");
-        byId("asset-select").value = item.asset_id;
-        void selectAsset();
+        setAsset(item.asset_id);
+        navigate("#signals", byId("asset-switch"));
       });
       card.append(inspectHistory);
       const actions = create("div", "source-actions");
@@ -1258,9 +1158,7 @@ async function analyzeFile(sourceId, button) {
     await refresh();
     if (rows(monitor, "file_feature_analyses").some((run) =>
       run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
-      selectedAsset = saved.asset_id;
-      byId("asset-select").value = selectedAsset;
-      assetDetails();
+      setAsset(saved.asset_id);selectedAsset = saved.asset_id;
       evidenceViews();
       navigate("#evidence");
       const target = [...byId("evidence-results").querySelectorAll(".evidence-target")]
@@ -1323,9 +1221,7 @@ async function analyzeFilePhase(sourceId, button) {
     await refresh();
     if (rows(monitor, "phase_unbalance_analyses").some((run) =>
       run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
-      selectedAsset = saved.asset_id;
-      byId("asset-select").value = selectedAsset;
-      assetDetails();
+      setAsset(saved.asset_id);selectedAsset = saved.asset_id;
       evidenceViews();
       navigate("#evidence");
       const target = [...byId("evidence-results").querySelectorAll(".evidence-target")]
@@ -1974,7 +1870,8 @@ async function readMonitorFacts() {
     sourceSnapshot = result[1].value;sourceReadState = "ready";
     if (sourceSnapshot.read_error_scopes?.length || sourceSnapshot.live_evidence_error_scopes?.length) errors.push("sources-store");
   } else {sourceSnapshot = null;sourceReadState = "error";errors.push("sources");}
-  assetDetails();renderWorkspace();
+  registerAssets("monitor", rows(monitor, "assets").map((asset) => asset.asset_id));
+  renderWorkspace();
   if (document.body.dataset.view === "monitor") {
     byId("refresh").disabled = false;
     if (byId("notice").textContent === "저장된 관측 현황을 불러오는 중입니다.") setNotice("");

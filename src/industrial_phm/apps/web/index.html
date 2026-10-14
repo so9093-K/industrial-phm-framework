@@ -16,22 +16,26 @@
       <nav aria-label="주요 화면">
         <a href="#monitor" aria-current="page">설비 모니터링</a>
         <a href="#connect">데이터 연결</a>
-        <a href="#anomaly">이상 탐지</a>
-        <a href="#rul">RUL 모니터링</a>
-        <a href="#signals">설비 · 신호</a>
-        <a href="#evidence">분석 결과</a>
-        <a href="#review">검토 작업</a>
-        <a href="#research">연구 · 검증 결과</a>
-        <a href="#system">운영 관리</a>
       </nav>
-      <p class="sidebar-note">로컬 작업공간<br>모니터·이상 탐지·RUL 3초 자동 갱신<br>시각 표시 KST (UTC+9)</p>
+      <nav class="sidebar-secondary" aria-label="보조 메뉴"><a href="#system">시스템 상태</a></nav>
+      <p class="sidebar-note">로컬 작업공간 · 시각 KST</p>
     </aside>
     <main id="main" tabindex="-1">
       <header class="topbar">
-        <div><p class="eyebrow">EQUIPMENT / CONDITION</p><h1 id="view-title" tabindex="-1">설비 모니터링</h1><p id="view-description" class="muted">설비의 부하 변화와 불평형, 기준 운전 패턴과의 차이를 확인합니다.</p></div>
-        <div class="top-actions"><span class="pill">조회 · 소스 등록·제어</span><button id="refresh" type="button">데이터 다시 불러오기</button></div>
+        <div><h1 id="view-title" tabindex="-1">설비 모니터링</h1><p id="view-description" class="muted">설비를 고르고 실제 측정 신호와 변화를 확인합니다.</p></div>
+        <div class="top-actions"><button id="refresh" type="button">데이터 다시 불러오기</button></div>
       </header>
-      <section class="notice hidden" id="notice" data-views="monitor connect signals evidence review research system" role="status" aria-live="polite"></section>
+      <section class="notice hidden" id="notice" data-views="monitor connect signals evidence system" role="status" aria-live="polite"></section>
+      <div id="asset-bar" class="asset-bar" role="navigation" data-views="monitor signals anomaly rul evidence" aria-label="선택 설비 화면">
+        <label class="asset-switch">설비<select id="asset-switch" disabled><option value="">설비 확인 중</option></select></label>
+        <div class="asset-tabs">
+          <a href="#monitor" data-tab="monitor">개요</a>
+          <a href="#signals" data-tab="signals">신호 비교</a>
+          <a href="#anomaly" data-tab="anomaly">이상 탐지</a>
+          <a href="#rul" data-tab="rul">RUL</a>
+          <a href="#evidence" data-tab="evidence">분석 기록</a>
+        </div>
+      </div>
       <section id="phm-monitor" class="panel phm-monitor" data-views="monitor" aria-labelledby="phm-monitor-title">
         <div class="monitor-observation"><h2 id="phm-monitor-title">관측 상태</h2><span id="monitor-data-mode" class="tag">입력 종류 확인 중</span><p id="phm-monitor-summary"></p></div>
         <p id="phm-monitor-state" class="muted" role="status" aria-live="polite">설비 상태를 조회합니다.</p>
@@ -65,7 +69,6 @@
           <a id="start-file" href="#connect"><strong>파일에서 시작</strong><span>CSV 파일의 실제 신호와 컬럼을 먼저 확인하고 점검한 뒤 저장</span></a>
           <a id="start-opcua" href="#connect"><strong>설비 연결 (OPC UA)</strong><span>로컬 OPC UA 서버의 변수를 탐색·등록하고 수신을 확인</span></a>
         </div>
-        <p class="start-secondary">공개 데이터셋의 과거 평가 결과는 <a href="#research">연구 데이터 확인</a>에서 따로 봅니다.</p>
       </section>
       <section data-views="system" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
       <section data-views="system" class="kpis" id="monitor" aria-label="관측 요약">
@@ -74,14 +77,9 @@
         <div class="kpi"><span>검토 요청 기록</span><strong id="review-count">—</strong><small>정비 수행과 구별</small></div>
         <div class="kpi"><span>조회 시각</span><strong id="assessed-at" class="time">—</strong><small>화면이 저장소를 읽은 시각 · KST</small></div>
       </section>
-      <section data-views="signals evidence review" class="layout">
-        <div class="panel asset-panel">
-          <div class="panel-header"><div><h2>설비 선택</h2><p class="muted">분석할 설비</p></div></div>
-          <label for="asset-select">설비 ID</label><select id="asset-select" disabled><option>설비 조회 중</option></select>
-          <details id="asset-info"><summary>데이터 수신·저장 정보</summary><div id="asset-facts" class="facts" aria-live="polite"><p class="muted">저장된 관측 정보를 조회합니다.</p></div></details>
-        </div>
+      <section data-views="signals" class="layout">
         <div data-views="signals" class="panel trend-panel" id="signals">
-          <div class="panel-header"><div><h2>저장된 측정 신호</h2><p class="muted">신호별 원본 관측 · 출처와 측정 의미를 분리</p></div><span class="tag">원본 이력</span></div>
+          <div class="panel-header"><div><h2>신호 비교</h2><p class="muted">선택 설비의 저장된 신호를 같은 기간으로 비교합니다.</p></div></div>
           <div class="filters">
             <fieldset class="channel-fieldset" id="channel-options"><legend>비교할 신호 (최대 6개)</legend><p class="muted">설비를 선택하면 신호 목록을 불러옵니다.</p></fieldset>
             <div class="range"><label for="time-anchor">기간 기준</label><select id="time-anchor"><option value="latest" selected>마지막 저장 기록 기준</option><option value="now">현재 조회 시각 기준</option></select></div>
@@ -120,8 +118,8 @@
       </section>
       </details>
       <section id="anomaly" class="panel phm-panel" data-views="anomaly" aria-labelledby="anomaly-title">
-        <div class="panel-header"><div><a class="phm-back" href="#monitor">← 설비 모니터링</a><h2 id="anomaly-title">이상 변화</h2></div><span id="anomaly-replay" class="tag replay hidden">기록 재생</span></div>
-        <div class="phm-controls"><label for="anomaly-binding">설비 · 분석</label><select id="anomaly-binding" disabled><option>조회 중</option></select><label for="anomaly-range">표시 구간</label><select id="anomaly-range"><option value="recent">선택 시점의 연속 기록</option><option value="all">전체 기록</option></select><button id="anomaly-latest" type="button" hidden>최신 기록으로</button></div>
+        <div class="panel-header"><div><h2 id="anomaly-title">이상 탐지</h2></div><span id="anomaly-replay" class="tag replay hidden">기록 재생</span></div>
+        <div class="phm-controls"><label for="anomaly-binding">분석 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select><label for="anomaly-range">표시 구간</label><select id="anomaly-range"><option value="recent">선택 시점의 연속 기록</option><option value="all">전체 기록</option></select><button id="anomaly-latest" type="button" hidden>최신 기록으로</button></div>
         <header class="phm-summary"><h3 id="anomaly-asset-title">설비 선택 대기</h3><p id="anomaly-observation" class="phm-observation">분석 결과를 조회하고 있습니다.</p><p id="anomaly-freshness" class="muted" role="status" aria-live="polite"></p></header>
         <p id="anomaly-state" class="state" role="status" aria-live="polite">이상 탐지 결과를 조회하고 있습니다.</p>
         <div id="anomaly-cards" class="condition-cards"></div>
@@ -133,8 +131,8 @@
         <details id="anomaly-model" class="condition-method-details"></details>
       </section>
       <section id="rul" class="panel phm-panel" data-views="rul" aria-labelledby="rul-title">
-        <div class="panel-header"><div><h2 id="rul-title">RUL 모니터링</h2><p class="muted">시점별 잔여 수명 추정 궤적 · 단위 · 종료점 의미 · 검증 오차</p></div><span id="rul-replay" class="tag replay hidden">기록 데이터 재생 · 실시간 현장 수신 아님</span></div>
-        <div class="phm-controls"><label for="rul-binding">설비 · 분석 모델</label><select id="rul-binding" disabled><option>조회 중</option></select></div>
+        <div class="panel-header"><div><h2 id="rul-title">잔여 수명(RUL)</h2></div><span id="rul-replay" class="tag replay hidden">기록 재생</span></div>
+        <div class="phm-controls"><label for="rul-binding">분석 모델</label><select id="rul-binding" disabled><option>조회 중</option></select></div>
         <header class="phm-summary"><h3 id="rul-asset-title">설비 선택 대기</h3><p id="rul-observation" class="phm-observation">기록된 마지막 획득 시점까지의 추정입니다. 실제 고장 시점 예측이 아닙니다.</p><p id="rul-freshness" class="muted" role="status" aria-live="polite"></p></header>
         <p id="rul-state" class="state" role="status" aria-live="polite">RUL 추정을 조회하고 있습니다.</p>
         <div id="rul-cards" class="condition-cards"></div>
@@ -146,26 +144,9 @@
         <details id="rul-review-options" class="phm-options"><summary>검토·AI 설명</summary><section id="rul-explanation" class="condition-detail"></section></details>
         <details id="rul-model" class="condition-method-details"></details>
       </section>
-      <section data-views="evidence review" class="below">
-        <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>저장된 분석 결과</h2><p class="muted">CSV 통계 특징·3상 불평형 등 실제 저장된 결과만 표시 · 진단이나 경보 아님</p></div></div><div id="evidence-results"><p class="muted">분석 근거를 조회 중입니다.</p></div></div>
-        <div data-views="review" class="panel" id="review">
-          <div class="panel-header"><div><h2>분석에 연결된 검토 작업</h2><p class="muted">전체 설비의 미처리 요청을 찾고 원본 분석 근거로 이동합니다.</p></div></div>
-          <div class="review-inbox" aria-labelledby="review-inbox-title">
-            <h3 id="review-inbox-title">전체 설비 검토 작업함</h3>
-            <div class="review-inbox-controls">
-              <label for="review-filter">표시할 검토</label>
-              <select id="review-filter">
-                <option value="pending">미처리 (열림·확인됨)</option>
-                <option value="all">전체</option>
-                <option value="closed">종료 기록</option>
-              </select>
-            </div>
-            <p id="review-inbox-summary" role="status" aria-live="polite">저장된 검토 요청을 조회 중입니다.</p>
-            <div id="review-inbox-list" class="review-inbox-list" aria-label="설비별 검토 작업 목록"></div>
-          </div>
-          <h3 id="review-selected-title" class="review-selected-title">선택한 설비의 검토 기록</h3>
-          <div id="review-results"><p class="muted">검토 이력을 조회 중입니다.</p></div>
-        </div>
+      <section data-views="evidence" class="below">
+        <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>분석 기록</h2><p class="muted">선택 설비에 저장된 신호 통계·3상 불평형 분석 결과</p></div></div><div id="evidence-results"><p class="muted">분석 기록을 조회 중입니다.</p></div></div>
+        <div data-views="evidence" class="panel" id="review"><div class="panel-header"><div><h2>확인·메모</h2><p class="muted">분석 결과에 남긴 확인 상태와 메모</p></div></div><div id="review-results"><p class="muted">기록을 조회 중입니다.</p></div></div>
       </section>
       <section data-views="connect" class="panel csv-start" id="csv-start" aria-labelledby="csv-start-title">
         <div class="panel-header"><div><h2 id="csv-start-title">CSV 파일로 시작</h2><p class="muted">파일의 실제 신호를 먼저 보고, 서버에서 점검한 뒤 저장하면 모니터링에서 같은 신호를 봅니다.</p></div></div>
@@ -311,12 +292,6 @@
         <p id="system-status" class="state" role="status" aria-live="polite">시스템 조회 근거를 확인하는 중입니다.</p>
         <div id="system-facts" class="facts" aria-label="조회 시점과 저장소 오류 범위"></div>
         <p class="hint">더 상세한 상태 및 오류 로그는 <code>industrial-phm operations status &lt;workspace&gt;</code>와 <code>industrial-phm operations logs &lt;workspace&gt;</code>에서 확인하세요. 조회 오류가 없거나 프로세스가 실행 중이어도 수집·연결·설비 정상의 증거가 아닙니다.</p>
-      </section>
-      <section id="research" class="panel research-panel" data-views="research" aria-labelledby="research-title">
-        <div class="panel-header"><h2 id="research-title">저장된 연구 평가</h2><button id="research-refresh" type="button">연구 결과 다시 불러오기</button></div>
-        <p class="hint">공개 데이터셋의 과거 실험 결과입니다. 현재 작업공간의 측정값·분석·검토 기록에 합산하지 않습니다.</p>
-        <p id="research-state" role="status" aria-live="polite">연구 결과 목록을 확인합니다.</p>
-        <div id="research-results"></div>
       </section>
       <details id="operator-guide" class="operator-reference">
         <summary>상태·분석·검토 해석 도움말</summary>

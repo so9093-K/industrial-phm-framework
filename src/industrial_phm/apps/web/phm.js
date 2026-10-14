@@ -1,6 +1,7 @@
 import { renderPhmExplanation } from "./phm-explanation.js";
 import { drawSignal, signalChoices } from "./monitor-signal.js";
 import { formatTime } from "./time.js";
+import { assetName, currentAsset, onAssetChange, registerAssets, setAsset } from "./asset-context.js";
 // PHM monitoring: anomaly detection and RUL are separate screens over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
 // nothing here recomputes a score, an interval or an estimate.
@@ -70,6 +71,7 @@ async function getJson(url) {
 async function refreshBindings() {
   const data = await getJson("/api/v1/phm/bindings");
   bindings = data.bindings || [];
+  registerAssets("phm", bindings.map((item) => item.asset_id));
 }
 
 async function refreshSeries(bindingId) {
@@ -91,8 +93,11 @@ async function refreshSeries(bindingId) {
   return entry;
 }
 
+// Anomaly and RUL are tabs of the selected asset: only that asset's models are offered.
 function bindingsFor(task) {
-  return bindings.filter((item) => item.package && item.package.output && item.package.output.task === task);
+  const asset = currentAsset();
+  return bindings.filter((item) => item.package && item.package.output && item.package.output.task === task
+    && (!asset || item.asset_id === asset));
 }
 
 function fillSelect(select, items, current) {
@@ -106,7 +111,7 @@ function fillSelect(select, items, current) {
   for (const item of items) {
     const recipe = item.package.recipe_id || "";
     const family = /autoencoder/.test(recipe) ? "재구성 오차 · LSTM" : /pca/.test(recipe) ? "재구성 오차 · PCA" : /iforest/.test(recipe) ? "이상 점수 · IF" : /lstm/.test(recipe) ? "RUL · LSTM" : /ridge/.test(recipe) ? "RUL · Ridge" : TASK_LABEL[item.package.output.task];
-    const option = node("option", item.asset_id.replace(/^aihub-air-compressor-/, "공기압축기 ") + " · " + family);
+    const option = node("option", family);
     option.value = item.binding_id;
     select.append(option);
   }
@@ -323,11 +328,11 @@ function renderAnomaly() {
   }
   if (!selected.anomaly) {
     byId("anomaly-detail").replaceChildren();
-    byId("anomaly-asset-title").textContent = "연결된 설비 없음";
-    byId("anomaly-observation").textContent = "모델이 연결되면 관측 결과를 표시합니다.";
+    byId("anomaly-asset-title").textContent = currentAsset() ? assetName(currentAsset()) : "설비 없음";
+    byId("anomaly-observation").textContent = "이 설비에 연결된 이상 탐지 모델이 없습니다.";
     renderPhmExplanation("anomaly", "", null);
     state.className = "state";
-    state.textContent = "이상 탐지 모델이 연결된 설비가 없습니다. `operations phm bind`로 검증된 모델 패키지를 설비 스트림에 연결하세요.";
+    state.textContent = "모델을 연결하면 이상 점수와 기준 초과 구간이 여기에 표시됩니다. 측정 신호는 개요 탭에서 계속 볼 수 있습니다.";
     byId("anomaly-freshness").textContent = "";
     return;
   }
@@ -610,12 +615,12 @@ function renderRul() {
     state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다.";return;
   }
   if (!selected.rul) {
-    byId("rul-asset-title").textContent = "연결된 설비 없음";
-    byId("rul-observation").textContent = "분석 모델이 연결되면 수명 추정 결과를 표시합니다.";
+    byId("rul-asset-title").textContent = currentAsset() ? assetName(currentAsset()) : "설비 없음";
+    byId("rul-observation").textContent = "이 설비에 연결된 RUL 모델이 없습니다.";
     byId("rul-validation-note").textContent = "";
     renderPhmExplanation("rul", "", null);
     state.className = "state";
-    state.textContent = "RUL 모델이 연결된 설비가 없습니다. RUL은 수명 종료 사건이 기록된 데이터로 검증된 모델에서만 제공하며, 근거가 없는 설비에는 표시하지 않습니다.";
+    state.textContent = "모델을 연결하면 잔여 수명 추정과 시점별 변화가 여기에 표시됩니다. 측정 신호는 개요 탭에서 계속 볼 수 있습니다.";
     byId("rul-freshness").textContent = "";
     return;
   }
@@ -755,8 +760,10 @@ async function cycle() {
   const version = ++cycleVersion;
   try {
     await refreshBindings();
-    const choices = bindingsFor(view === "anomaly" ? "anomaly-score" : "rul-estimate");
     const target = requestedResult?.view === view ? requestedResult : null;
+    const targetAsset = target && bindings.find((item) => item.binding_id === target.bindingId)?.asset_id;
+    if (targetAsset && targetAsset !== currentAsset()) {followingTarget = true;setAsset(targetAsset);followingTarget = false;}
+    const choices = bindingsFor(view === "anomaly" ? "anomaly-score" : "rul-estimate");
     if (target && (!target.valid || !choices.some((item) => item.binding_id === target.bindingId))) throw new Error("selected_result_unavailable");
     const current = target ? choices.find((item) => item.binding_id === target.bindingId)
       : choices.find((item) => item.binding_id === selected[view]) || choices[0];
@@ -815,7 +822,15 @@ function clearMonitorTarget() {
   const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");url.searchParams.delete("phm_view");
   history.replaceState(history.state, "", url);
 }
+let followingTarget = false;
 export function initializePhm() {
+  onAssetChange(() => {
+    // A pending result link decides the asset itself; an earlier default selection must not erase it.
+    if (followingTarget || requestedResult) return;
+    clearMonitorTarget();selected.anomaly = "";selected.rul = "";zoom.anomaly = null;focusPosition = null;rulFocusPosition = null;
+    chosenFeatures = [];byId("anomaly-detail").replaceChildren();
+    if (activeView()) void cycle();
+  });
   byId("anomaly-binding").addEventListener("change", (event) => {
     clearMonitorTarget();selected.anomaly = event.target.value;zoom.anomaly = null;focusPosition = null;chosenFeatures = [];byId("anomaly-detail").replaceChildren();cycle();
   });

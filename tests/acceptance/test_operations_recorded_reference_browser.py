@@ -69,15 +69,10 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
                 pw.expect(page.locator("#workspace-state")).to_have_text("빈 작업공간")
                 page.screenshot(path=str(output / f"empty-{width}.png"))
-                page.get_by_role("link", name="연구 데이터 확인").click()
-                pw.expect(page.locator("#research-state")).to_contain_text("11건")
-                result = page.locator(".research-result").filter(
-                    has_text="xjtu-sy-lstm-autoencoder-fold-1-development-v1"
-                )
-                result.locator("summary").click()
-                pw.expect(result).to_contain_text("원본 데이터")
                 assert page.locator("#analysis-count").inner_text() == "0"
                 page.locator('nav a[href="#connect"]').click()
+                # Phase mapping with evidence lives in the advanced CSV registration.
+                page.locator("#advanced-file-registration > summary").click()
                 fields = {
                     "source_id": source_id,
                     "name": "AI-Hub 보일러 2297 · 2020년 기록",
@@ -105,10 +100,9 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 card.get_by_role("button", name="FILE 이력 적재", exact=True).click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text("180개 이벤트")
                 page.locator('nav a[href="#monitor"]').click()
-                pw.expect(page.locator("#workspace-state")).to_have_text("저장된 기록 데이터")
                 pw.expect(page.locator("#first-run")).to_be_hidden()
-                pw.expect(page.locator("#last-values")).to_contain_text("2020-11-12T15:59:04Z")
-                page.locator('nav a[href="#signals"]').click()
+                page.locator('.asset-tabs a[data-tab="signals"]').click()
+                pw.expect(page.locator("#last-values")).to_contain_text("2020-11-13 00:59:04 KST")
                 pw.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
                 first = page.locator("#trend-results .trend-group").first
                 first.locator("summary").click()
@@ -126,8 +120,8 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 assert box is not None
                 first_value = page.locator("#last-values .latest-item").first.bounding_box()
                 assert first_value and first_value["y"] + first_value["height"] <= 900
-                page.locator('nav a[href="#research"]').click()
-                page.go_back(wait_until="networkidle")
+                page.locator('.asset-tabs a[data-tab="monitor"]').click()
+                page.locator('.asset-tabs a[data-tab="signals"]').click()
                 pw.expect(page.locator('#channel-options input[value="S상전압"]')).to_be_checked()
                 page.locator("#refresh").click()
                 pw.expect(page.locator("#last-values .latest-item")).to_have_count(2)
@@ -135,7 +129,7 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 # 'now' stays distinct and cannot silently move old records into the present.
                 page.locator("#time-anchor").select_option("now")
                 pw.expect(page.locator("#trend-results .trend-dot")).to_have_count(0)
-                pw.expect(page.locator("#last-values")).to_contain_text("2020-11-12")
+                pw.expect(page.locator("#last-values")).to_contain_text("2020-11-13")
                 page.locator("#time-anchor").select_option("latest")
                 pw.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
                 page.locator('nav a[href="#connect"]').click()
@@ -152,16 +146,16 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 assert run.run.source_id == source_id
                 assert run.evidence.results[0].evaluated_samples == 60
                 pw.expect(page.locator("#evidence-results")).to_contain_text(evidence_id)
-                page.get_by_role("button", name="이 근거에 사람 검토 요청", exact=True).click()
+                page.get_by_role("button", name="확인·메모 시작", exact=True).click()
                 pw.expect(page.locator("#review-results")).to_contain_text(analysis_id)
-                page.get_by_role("textbox", name="검토 메모 (물리 정비 완료 기록 아님)").fill(
-                    "AI-Hub 과거 기록 확인; 시간대는 Asia/Seoul 가정; 현장 고장 판정 없음"
+                page.get_by_role("textbox", name="메모").fill(
+                    "AI-Hub 과거 기록 확인; 시간대는 Asia/Seoul 가정"
                 )
-                page.get_by_role("button", name="메모 기록", exact=True).click()
-                page.get_by_role("button", name="확인됨으로 표시", exact=True).click()
-                pw.expect(page.locator("#review-results")).to_contain_text("acknowledged")
-                page.get_by_role("button", name="검토 기록 종료", exact=True).click()
-                pw.expect(page.locator("#review-results")).to_contain_text("closed")
+                page.get_by_role("button", name="메모 저장", exact=True).click()
+                page.get_by_role("button", name="확인함으로 표시", exact=True).click()
+                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 확인함")
+                page.get_by_role("button", name="완료로 표시", exact=True).click()
+                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 완료")
                 page.screenshot(path=str(output / f"review-{width}.png"))
                 assert not errors, errors
             finally:
@@ -186,9 +180,9 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 page.goto(f"http://127.0.0.1:{port}/web/#review", wait_until="networkidle")
                 pw.expect(page.locator("#review-results")).to_contain_text(analysis_id)
-                pw.expect(page.locator("#review-results")).to_contain_text("closed")
+                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 완료")
                 page.get_by_role(
-                    "button", name="연결된 분석 근거 확인" + " · " + evidence_id, exact=True
+                    "button", name="분석 결과로 이동" + " · " + evidence_id, exact=True
                 ).click()
                 pw.expect(page.locator("#evidence-results")).to_be_visible()
                 pw.expect(page.locator("#evidence-results .evidence-target")).to_be_focused()

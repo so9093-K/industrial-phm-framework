@@ -132,7 +132,7 @@ def create_operations_web_read_server(
                 "app.js": "text/javascript; charset=utf-8",
                 "styles.css": "text/css; charset=utf-8",
                 "navigation.js": "text/javascript; charset=utf-8",
-                "research.js": "text/javascript; charset=utf-8",
+                "asset-context.js": "text/javascript; charset=utf-8",
                 "condition.js": "text/javascript; charset=utf-8",
                 "phm.js": "text/javascript; charset=utf-8",
                 "monitor.js": "text/javascript; charset=utf-8",
@@ -143,7 +143,6 @@ def create_operations_web_read_server(
                 "csv-start.js": "text/javascript; charset=utf-8",
                 "example-motor.csv": "text/csv; charset=utf-8",
                 "example-invalid.csv": "text/csv; charset=utf-8",
-                "research-results.json": "application/json; charset=utf-8",
             }
             if asset_name not in mime:
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
@@ -299,7 +298,7 @@ def create_operations_web_read_server(
                 "/web/app.js": "app.js",
                 "/web/styles.css": "styles.css",
                 "/web/navigation.js": "navigation.js",
-                "/web/research.js": "research.js",
+                "/web/asset-context.js": "asset-context.js",
                 "/web/condition.js": "condition.js",
                 "/web/phm-explanation.js": "phm-explanation.js",
                 "/web/phm.js": "phm.js",
@@ -310,7 +309,6 @@ def create_operations_web_read_server(
                 "/web/csv-start.js": "csv-start.js",
                 "/web/example-motor.csv": "example-motor.csv",
                 "/web/example-invalid.csv": "example-invalid.csv",
-                "/web/research-results.json": "research-results.json",
             }
             asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path
             if asset_path in static_paths:

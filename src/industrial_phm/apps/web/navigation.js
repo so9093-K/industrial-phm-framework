@@ -1,19 +1,24 @@
 // Keep routes independent of browser data reads and writes.
 const views = {
-  monitor: ["설비 모니터링", "수신·분석 상태를 확인하고 설비의 실제 신호 변화를 관찰합니다."],
-  connect: ["데이터 연결", "소스를 선택하고 수신·저장·분석 근거를 차례로 확인합니다."],
-  signals: ["설비 · 신호", "선택한 설비의 기록 시각, 출처와 측정 신호를 확인합니다."],
-  anomaly: ["이상 탐지", "모델 이상 점수와 검토 구간을 입력 특징·원본 파형과 같은 축에서 확인합니다."],
-  rul: ["RUL 모니터링", "잔여 수명 추정이 시점마다 어떻게 갱신됐는지와 모델의 검증 범위를 확인합니다."],
-  evidence: ["분석 결과", "선택한 설비의 분석 결과와 적용 범위를 확인합니다."],
-  review: ["검토 작업", "확인이 필요한 분석을 선택하고 검토합니다."],
-  research: ["연구 · 검증 결과", "저장소의 연구 평가 결과입니다. 현재 설비 관측과 구분합니다."],
-  system: ["운영 관리", "로컬 실행 상태와 저장소 조회 오류를 확인합니다."],
+  monitor: ["설비 모니터링", "설비를 고르고 실제 측정 신호와 변화를 확인합니다."],
+  signals: ["설비 모니터링", "선택 설비의 여러 신호를 같은 기간으로 비교합니다."],
+  anomaly: ["설비 모니터링", "선택 설비의 이상 점수와 기준 초과 구간, 관련 신호를 확인합니다."],
+  rul: ["설비 모니터링", "선택 설비의 잔여 수명 추정과 시점별 변화를 확인합니다."],
+  evidence: ["설비 모니터링", "선택 설비의 저장된 분석 결과를 확인하고 메모를 남깁니다."],
+  connect: ["데이터 연결", "CSV 파일이나 OPC UA 설비를 연결하고 저장 상태를 확인합니다."],
+  system: ["시스템 상태", "로컬 서비스와 저장소 상태를 확인합니다."],
 };
+// Asset views are tabs of one Monitor; retired routes open their replacement.
+const ASSET_VIEWS = new Set(["monitor", "signals", "anomaly", "rul", "evidence"]);
+const RETIRED = {review: "evidence", research: "monitor"};
 
 export function renderView() {
   let route = location.hash.slice(1) || "monitor";
   if (route === "main") route = document.body.dataset.view || "monitor";
+  if (Object.hasOwn(RETIRED, route)) {
+    route = RETIRED[route];
+    history.replaceState(history.state, "", "#" + route);
+  }
   if (!Object.hasOwn(views, route)) {
     route = "monitor";
     history.replaceState(null, "", "#monitor");
@@ -22,8 +27,13 @@ export function renderView() {
   document.querySelectorAll("[data-views]").forEach((element) => {
     element.hidden = !element.dataset.views.split(" ").includes(route);
   });
+  const section = ASSET_VIEWS.has(route) ? "monitor" : route;
   document.querySelectorAll(".sidebar nav a").forEach((link) => {
-    if (link.hash === "#" + route) link.setAttribute("aria-current", "page");
+    if (link.hash === "#" + section) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+  document.querySelectorAll(".asset-tabs a").forEach((link) => {
+    if (link.dataset.tab === route) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
   const [title, description] = views[route];

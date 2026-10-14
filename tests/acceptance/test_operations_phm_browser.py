@@ -52,7 +52,9 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
-                pw.expect(page.locator("#view-title")).to_have_text("이상 탐지")
+                pw.expect(page.locator('.asset-tabs a[data-tab="anomaly"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 이상 점수")
                 pw.expect(page.locator("#anomaly-periods summary")).to_contain_text("1개")
                 pw.expect(page.locator("#anomaly-replay")).to_be_visible()
@@ -104,7 +106,9 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 page.locator("#anomaly-latest").click()
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #7")
                 page.locator('a[href="#rul"]').click()
-                pw.expect(page.locator("#view-title")).to_have_text("RUL 모니터링")
+                pw.expect(page.locator('.asset-tabs a[data-tab="rul"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
                 pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 RUL 추정")
                 pw.expect(page.locator("#rul-cards")).to_contain_text("획득 간격")
                 pw.expect(page.locator("#rul-validation-note")).to_contain_text(
@@ -177,11 +181,13 @@ def test_phm_screens_explain_missing_models_instead_of_inventing_results(
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
-                pw.expect(page.locator("#anomaly-state")).to_contain_text("연결된 설비가 없습니다")
+                pw.expect(page.locator("#anomaly-state")).to_contain_text(
+                    "모델을 연결하면 이상 점수"
+                )
                 pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#rul")
                 pw.expect(page.locator("#rul-state")).to_contain_text(
-                    "근거가 없는 설비에는 표시하지 않습니다"
+                    "모델을 연결하면 잔여 수명 추정"
                 )
                 pw.expect(page.locator("#rul-chart>*")).to_have_count(0)
             finally:
@@ -246,11 +252,14 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
-                page.select_option("#anomaly-binding", "anomaly-warmup")
+                # Anomaly results belong to the selected asset; switching asset switches models.
+                page.select_option("#asset-switch", "fan-1")
+                pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-warmup")
                 state = page.locator("#anomaly-state")
                 pw.expect(state).to_contain_text("sequence warm-up: 1/8")
                 pw.expect(state).not_to_contain_text("학습·검증한 모델 패키지")
-                page.select_option("#anomaly-binding", "anomaly-pump")
+                page.select_option("#asset-switch", "pump-1")
+                pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-pump")
                 pw.expect(state).to_contain_text("입력을 분석할 수 없습니다")
                 pw.expect(state).to_contain_text(f"got ['x', 'y'], expected {list(CHANNELS)}")
                 pw.expect(state).to_contain_text("입력 조건을 확인하고, 맞는 모델을 연결해야")

@@ -367,7 +367,7 @@ def main(argv: list[str] | None = None) -> int:
             page.screenshot(path=str(output / "anomaly-reviewed.png"), full_page=True)
             page.goto(url + "#rul")
             expect(page.locator("#rul-state")).to_contain_text(
-                "근거가 없는 설비에는 표시하지 않습니다", timeout=15_000
+                "모델을 연결하면 잔여 수명 추정", timeout=15_000
             )
             checks.add(
                 "rul-screen-states-no-lifecycle-evidence",

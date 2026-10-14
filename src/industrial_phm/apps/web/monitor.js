@@ -1,5 +1,6 @@
 import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
 import {formatTime} from "./time.js";
+import {assetName, currentAsset, onAssetChange, registerAssets, setAsset} from "./asset-context.js";
 import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored, focusStored, clearStoredSource} from "./monitor-history.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
@@ -15,14 +16,13 @@ const flowLabels = {running: "수신 흐름 근거 있음", waiting: "수신 대
   error: "수신 오류", unavailable: "수신 상태 미확인", "stored-history": "저장된 과거 기록"};
 const HISTORY = "stored-history";
 let timer = null, running = false, refreshRequested = false, readOperations;
-let lastData = null, lastBase = null, selectedAsset = new URLSearchParams(location.search).get("monitor_asset") || "", selectedStream = "", previousInput = false;
+let lastData = null, lastBase = null, selectedAsset = currentAsset(), selectedStream = "", previousInput = false;
 let explicitStream = false;
 let traceKey = "", traceVersion = 0, traceData = null;
 let preview = null, previewKey = "", choiceId = "rms-0", signalVersion = 0, detailsKey = "";
 const streamKey = (i) => JSON.stringify([i.source_id, i.measurement_point_id, i.step_kind]);
 const replay = (i) => i.recorded_replay || i.latest_delivered?.replay || i.latest_analyzed?.replay;
 const inputName = (i, v) => i.step_kind === "observation-window" ? time(v?.event_at || v?.event_start) : v ? "#" + v.position : "없음";
-const assetName = (id) => /^aihub-air-compressor-/.test(id) ? "공기압축기 " + id.replace("aihub-air-compressor-", "") : id;
 function measuredChange(previous, latest) {
   const difference = latest.value - previous.value;
   if (!difference) return "크기 변화 없음";
@@ -64,16 +64,16 @@ function assetFacts(assetId, items, base) {
   if (items.some((i) => ["open", "acknowledged"].includes(i.latest_review_status))) notes.push({kind: "review", label: "사람 검토 대기", detail: "선택 분석의 검토 상태 확인", priority: 4});
   return {assetId, items, notes, compared, exceeded, warmup: count("warmup"), waiting: count("waiting"), priority: notes[0]?.priority ?? 5};
 }
+// The shared asset bar owns the selection; this view resets its own stream state when it changes.
 function selectAsset(assetId) {
+  if (assetId !== currentAsset()) {setAsset(assetId);return;}
   selectedAsset = assetId;selectedStream = "";previousInput = false;previewKey = "";detailsKey = "";
   explicitStream = false;
-  const url = new URL(location.href);
-  if (url.searchParams.get("monitor_asset") !== assetId) for (const key of ["monitor_source", "monitor_channel", "monitor_range"]) url.searchParams.delete(key);
-  url.searchParams.set("monitor_asset", assetId);history.replaceState(history.state, "", url);
-  if (lastData) render(lastData, lastBase);
+  if (lastData && active()) render(lastData, lastBase);
 }
 // Select an asset's stored measurements before navigating to the Monitor (no read happens here).
 export function openMonitorAsset(assetId, {channel = "", range = "1h", sourceId = ""} = {}) {
+  setAsset(assetId);
   selectedAsset = assetId;selectedStream = HISTORY;previousInput = false;previewKey = "";detailsKey = "";
   explicitStream = true;
   focusStored(assetId, channel, range, sourceId);
@@ -88,7 +88,9 @@ function render(data, base) {
   for (const i of data.items) {if (!grouped.has(i.asset_id)) grouped.set(i.asset_id, []);grouped.get(i.asset_id).push(i);}
   for (const a of base.monitor?.assets?.items || []) if (!grouped.has(a.asset_id)) grouped.set(a.asset_id, []);
   const facts = [...grouped].map(([id, items]) => assetFacts(id, items, base)).sort((a, b) => a.priority - b.priority || a.assetId.localeCompare(b.assetId));
-  if (!grouped.has(selectedAsset)) selectedAsset = facts[0]?.assetId || "";
+  registerAssets("fleet", facts.map((f) => f.assetId));
+  if (selectedAsset !== currentAsset() && grouped.has(currentAsset())) selectAsset(currentAsset());
+  if (!grouped.has(selectedAsset)) {selectedAsset = facts[0]?.assetId || "";if (selectedAsset) setAsset(selectedAsset);}
   const replayAssets = facts.filter((f) => f.items.some(replay)).length;
   const mode = byId("monitor-data-mode");mode.className = "tag" + (replayAssets ? " replay" : "");
   mode.textContent = replayAssets === facts.length && replayAssets ? "기록 재생 데이터" : replayAssets ? "기록 재생·기타 입력 혼합" : "저장·수신 데이터";
@@ -401,6 +403,7 @@ export async function refreshMonitor({force = false} = {}) {
 }
 export function initializeMonitor(read) {
   readOperations = read;
+  onAssetChange((id) => {if (id !== selectedAsset) selectAsset(id);});
   const start = () => {clearTimeout(timer);if (active()) void refreshMonitor();};
   window.addEventListener("hashchange", start);document.addEventListener("visibilitychange", start);
   byId("monitor-input-stream").addEventListener("change", (e) => {selectedStream = e.target.value;explicitStream = true;previousInput = false;previewKey = "";if (lastData) render(lastData, lastBase);});
