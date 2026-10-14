@@ -8,12 +8,12 @@
   "page_errors": [],
   "human_usability_acceptance": "not established",
   "images": {
-    "monitor-1440.png": "2d513b9ae1e5a1f746f52d3585c53446d590033b55a146af0b709d1eae368642",
+    "monitor-1440.png": "3ebc18b244b5b36e9513dc221763872c12e9f4278715e3b2a080446e937a754f",
     "anomaly-1440.png": "35bea202b6f2e2bb2c3e093d4bd3bfa2c006416e86cba8b3ea3fa6b57664015f",
     "comparison-390.png": "41af1d8232a167e703d177fbd9afea050f8a38c3cfea3613000831b89ebefc49",
-    "rul-1024.png": "e7b26a6138bb39dbe2e082dcb3b8aa2c6e2b1e36f70f16f9ba6cf014a0570542"
+    "rul-1024.png": "fa101f56d48aca41f778bcf6741de7c7f4dab0ff0339eb47d1fb0bce61dee0ff"
   },
-  "code_revision": "07f330df9a5d14a31f375dda582484fe9c8f0492",
+  "code_revision": "3caecd04908694bb644efdd2e49c497823725976",
   "server_scope": "read-only browser capture; writable questions and reviews checked separately in supervised browser tests",
   "fixture_scope": "actual Bearing1_1 records plus deliberately incompatible pump-x and unavailable pump-y test bindings",
   "web_assets": {
@@ -28,7 +28,7 @@
     "index.html": "f276ee86d3712b1518b121c065c2670f5aaaf287455c91b7e1b6b83ae4ae4f8c",
     "monitor-history.js": "682171ac24ef41f6cfd24001b49b44c44547bfaa854c580dd637005032cf50a6",
     "monitor-signal.js": "8a8c95c2a10f24743146f68e6feeb2e9898f1d93663d84e34e120f52831122d8",
-    "monitor.js": "abaf0ac2984abdd9913a5980379bc3f41588da3dae7621f13c5a1a96a9b8af64",
+    "monitor.js": "e188b7dbed0ac352fa955afb0c6020d8ff4aaadf4bce2140a4800795f2ededf9",
     "navigation.js": "100bb4658ec7caa7483a3e5ce46d9fb0e10b64906b493b9f542f8503ffb1b5a3",
     "opcua-registration.js": "c957428650c4657bbf86d792aeade8c404d7475112f0334ffb15deaef7b19ce3",
     "phm-connect.js": "0e4cc634d4f4bcfefbc27ca9014bab0515911c3509c9f17e31cd165b6de954bb",
@@ -36,7 +36,7 @@
     "phm.js": "b472785f3ad98e107294cc5f85ec8584984460436b8c9f23c2dc1228cd47b4f6",
     "source-card.js": "06d0489d55a233f9baece1c7e979ea9ed95ecc7daaa72d218b7fd1f0453bfa79",
     "source-management.js": "6fdf63489bee2cfc7faf1dc9593c165b32f2625518c3e73a291caf98e6df9f15",
-    "styles.css": "b251f92f25dc03038a07ce4211427ad7a0b3ad47a7d40f1bf68a478b6ef5fcda",
+    "styles.css": "883ded8c6ab901506ff6537317ac9b80ce98edfb042fd436e2a64c3d55c6f6bb",
     "synthetic-demo.js": "66fc82676802a459ad9d439c52ff22c3a96bebee062eebbce39703d28c500780",
     "system-status.js": "6568438b1f3c2135137f0468adedc13352504678a36da04f7a054974250523d7",
     "time.js": "90f67f9e0b6cbd46117fda6274d0f1af08ca06f5a49e1ac1c675ba94a2b5a602",
