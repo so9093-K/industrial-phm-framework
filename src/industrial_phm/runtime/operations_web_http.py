@@ -62,6 +62,38 @@ from industrial_phm.runtime.operations_web_signals import (
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
+_WEB_ASSET_MIME = {
+    "index.html": "text/html; charset=utf-8",
+    "styles.css": "text/css; charset=utf-8",
+    "example-motor.csv": "text/csv; charset=utf-8",
+    "example-invalid.csv": "text/csv; charset=utf-8",
+    **dict.fromkeys(
+        (
+            "app.js",
+            "navigation.js",
+            "asset-context.js",
+            "phm-connect.js",
+            "source-card.js",
+            "condition.js",
+            "phm.js",
+            "monitor.js",
+            "monitor-signal.js",
+            "phm-explanation.js",
+            "time.js",
+            "monitor-history.js",
+            "csv-start.js",
+            "web-utils.js",
+            "source-management.js",
+            "analysis-records.js",
+            "system-status.js",
+            "synthetic-demo.js",
+            "file-registration.js",
+            "opcua-registration.js",
+        ),
+        "text/javascript; charset=utf-8",
+    ),
+}
+
 _MAX_WEB_CSV_UPLOAD = 20 * 1024 * 1024
 # Base64 of the largest upload plus the bounded JSON setup fields.
 _MAX_WEB_CSV_REQUEST = 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3) + 8192
@@ -127,24 +159,7 @@ def create_operations_web_read_server(
 
         def _send_asset(self, asset_name: str) -> None:
             """Serve only package-owned frontend files at exact allowlisted routes."""
-            mime = {
-                "index.html": "text/html; charset=utf-8",
-                "app.js": "text/javascript; charset=utf-8",
-                "styles.css": "text/css; charset=utf-8",
-                "navigation.js": "text/javascript; charset=utf-8",
-                "asset-context.js": "text/javascript; charset=utf-8",
-                "phm-connect.js": "text/javascript; charset=utf-8",
-                "condition.js": "text/javascript; charset=utf-8",
-                "phm.js": "text/javascript; charset=utf-8",
-                "monitor.js": "text/javascript; charset=utf-8",
-                "monitor-signal.js": "text/javascript; charset=utf-8",
-                "phm-explanation.js": "text/javascript; charset=utf-8",
-                "time.js": "text/javascript; charset=utf-8",
-                "monitor-history.js": "text/javascript; charset=utf-8",
-                "csv-start.js": "text/javascript; charset=utf-8",
-                "example-motor.csv": "text/csv; charset=utf-8",
-                "example-invalid.csv": "text/csv; charset=utf-8",
-            }
+            mime = _WEB_ASSET_MIME
             if asset_name not in mime:
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
                 return
@@ -296,21 +311,7 @@ def create_operations_web_read_server(
                 return
             static_paths = {
                 "/web/": "index.html",
-                "/web/app.js": "app.js",
-                "/web/styles.css": "styles.css",
-                "/web/navigation.js": "navigation.js",
-                "/web/asset-context.js": "asset-context.js",
-                "/web/phm-connect.js": "phm-connect.js",
-                "/web/condition.js": "condition.js",
-                "/web/phm-explanation.js": "phm-explanation.js",
-                "/web/phm.js": "phm.js",
-                "/web/monitor.js": "monitor.js",
-                "/web/monitor-signal.js": "monitor-signal.js",
-                "/web/time.js": "time.js",
-                "/web/monitor-history.js": "monitor-history.js",
-                "/web/csv-start.js": "csv-start.js",
-                "/web/example-motor.csv": "example-motor.csv",
-                "/web/example-invalid.csv": "example-invalid.csv",
+                **{"/web/" + name: name for name in _WEB_ASSET_MIME if name != "index.html"},
             }
             asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path
             if asset_path in static_paths:

@@ -251,7 +251,7 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
                 page.select_option("#asset-switch", "fan-1")
                 pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-warmup")
                 state = page.locator("#anomaly-state")
-                pw.expect(state).to_contain_text("sequence warm-up: 1/8")
+                pw.expect(state).to_contain_text("연속 입력 준비 1/8개")
                 pw.expect(state).not_to_contain_text("학습·검증한 모델 패키지")
                 page.select_option("#asset-switch", "pump-1")
                 pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-pump")

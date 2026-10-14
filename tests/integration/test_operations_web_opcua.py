@@ -285,11 +285,12 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         page.on("dialog", lambda dialog: dialog.accept())
         listing.get_by_role("button", name="소스 활성화").click()
         sync_api.expect(listing).to_contain_text("관리 상태: active")
+        listing.locator(".source-settings > summary").click()
         listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
         sync_api.expect(page.locator("#source-control-result")).to_contain_text(
             "수신 근거 기록 완료"
         )
-        sync_api.expect(listing).to_contain_text("수신 확인됨")
+        sync_api.expect(listing).to_contain_text("1회 수신 확인 · 연속 수신 미확인")
         assert not page.locator("#last-values .latest-item").count()
         assert not workspace.history_catalog_path.exists()
         assert not errors, errors

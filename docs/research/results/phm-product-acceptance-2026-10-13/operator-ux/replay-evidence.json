@@ -1,0 +1,418 @@
+{
+  "code_revision": "83636db922498edead56bce5c8a03066c46059c7",
+  "started_at": "2026-10-14T02:31:10.793792+00:00",
+  "scenario": "continuous-asset-monitor-original-replay",
+  "selection": {
+    "start_local": "2020-11-13T13:35:00",
+    "end_local": "2020-11-13T14:15:00",
+    "speed": 20
+  },
+  "package_ids": [
+    "aihub-239-electrical-pca-residual-v1-5e0d608be8c7",
+    "xjtu-sy-iforest-fold-1-finalized-v1-2ae8a27dfe43",
+    "xjtu-lstm-autoencoder-fold-1-development-v1-0268a8265bdf",
+    "xjtu-sy-rul-lstm-fold-1-v1-fad12998c873",
+    "xjtu-sy-rul-feature-ridge-fold-1-v1-837a017f45d1"
+  ],
+  "steady_requests": [
+    {
+      "seconds": 5.89,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 5.89,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 5.89,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 9.289,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 9.289,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 9.29,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 12.471,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 12.471,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 12.471,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 15.652,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 15.653,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 15.653,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 18.952,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 18.952,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 18.952,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 19.184,
+      "path": "/api/v1/history/channels?asset_id=Bearing1_1"
+    },
+    {
+      "seconds": 22.185,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 22.185,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 22.185,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 25.418,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 25.418,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 25.418,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 28.65,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 28.65,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 28.651,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 31.996,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 31.996,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 31.996,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 35.342,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 35.342,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 35.342,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 38.745,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 38.745,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 38.745,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 41.979,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 41.979,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 41.979,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 45.162,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 45.162,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 45.162,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 48.344,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 48.345,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 48.345,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 51.532,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 51.532,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 51.532,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 51.73,
+      "path": "/api/v1/history/channels?asset_id=Bearing1_1"
+    },
+    {
+      "seconds": 54.731,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 54.731,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 54.731,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 57.924,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 57.924,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 57.924,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 61.11,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 61.11,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 61.111,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 64.496,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 64.496,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 64.496,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 67.894,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 67.894,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 67.894,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 71.097,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 71.098,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 71.098,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 74.382,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 74.383,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 74.383,
+      "path": "/api/v1/sources"
+    },
+    {
+      "seconds": 77.584,
+      "path": "/api/v1/phm/monitor"
+    },
+    {
+      "seconds": 77.584,
+      "path": "/api/v1/monitor"
+    },
+    {
+      "seconds": 77.584,
+      "path": "/api/v1/sources"
+    }
+  ],
+  "phm_overview_http_ms": {
+    "count": 37,
+    "p50": 19.635,
+    "p95": 34.375,
+    "max": 38.921
+  },
+  "checks": [
+    {
+      "name": "page-open-before-inputs-two-assets-five-models",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "model-details-not-expanded-by-default",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-lstm-warmup-visible-on-monitor",
+      "pass": true,
+      "detail": "Bearing1_1\n기록 재생\n수집 · 기록 재생\n분석 · 입력 준비 중\n입력 #2\n수평 진동이 직전 기록 #1보다 4.5% 커짐"
+    },
+    {
+      "name": "both-assets-change-without-manual-refresh",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-analysis-pause-keeps-input-and-last-output-distinct",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "real-refused-input-does-not-look-like-new-analysis",
+      "pass": true,
+      "detail": "Bearing1_1\n기록 재생\n수집 · 기록 재생\n분석 · 최근 진동 파형을 읽을 수 없음\n입력 #10"
+    },
+    {
+      "name": "four-refusals-grouped-under-one-asset",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "attention-visible-without-scrolling-1440",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "node-outage-clears-old-results-on-monitor",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "restart-recovers-monitor-and-all-backlogged-model-inputs",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "previous-model-results-unchanged",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "steady-monitor-never-loads-model-history-or-refits-condition",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "overview-three-requests-plus-selected-input-and-bounded-trace",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-1440-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-1024-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-390-no-document-overflow",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "reconstruction-error-and-nonconsecutive-change-visible-without-details",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "actual-signal-visible-on-first-screen-1440",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "two-assets-visible-on-first-screen-1440",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "monitor-handoff-preserves-exact-model-position-waveform-after-reload",
+      "pass": true,
+      "detail": null
+    },
+    {
+      "name": "no-browser-page-errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "passed": true,
+  "finished_at": "2026-10-14T02:33:21.253067+00:00"
+}

@@ -172,9 +172,11 @@ function waitingMessage(entry) {
   if (entry.latestDelivered && (!last || entry.latestDelivered.position > last.position)) {
     return "모델 연결 완료 · 저장된 입력 분석 대기. 처리 결과를 자동으로 표시합니다.";
   }
-  if (last?.state === "skipped") return (last.reason || "").startsWith("sequence warm-up")
-    ? "모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다."
-    : "입력을 분석할 수 없습니다: " + (last.reason || "모델 입력 조건 불충족") + inputGuide(last.reason);
+  if (last?.state === "skipped") {
+    const warmup = /^sequence warm-up: (\d+)\/(\d+)/.exec(last.reason || "");
+    return warmup ? "모델 연결됨 · 연속 입력 준비 " + warmup[1] + "/" + warmup[2] + "개"
+      : "입력을 분석할 수 없습니다: " + (last.reason || "모델 입력 조건 불충족") + inputGuide(last.reason);
+  }
   return entry.binding.step_kind === "observation-window"
     ? "모델 연결 완료 · 관측 입력 대기. 수집된 관측 구간이 만들어지면 분석합니다."
     : "모델 연결 완료 · 진동 입력 대기. 파형이 공급되면 분석합니다.";
@@ -667,7 +669,7 @@ function renderRul() {
   const validation = (entry.package && entry.package.validation) || {};
   const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
   byId("rul-cards").append(
-    card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 1) + " " + unit,
+    card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 2) + " " + unit,
       (period ? "기록 주기 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
     card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "직전 추정값과 비교"),
   );
@@ -711,7 +713,7 @@ function renderRul() {
                        () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained));
 }
 
-const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 1) : "값 없음";
+const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 3) : "값 없음";
 const unitText = (unit) => unit === "acquisition-interval" ? "획득 간격" : (unit || "단위 없음");
 const endpointText = (value) => value === "last-recorded-acquisition" ? "데이터셋의 마지막 기록 획득(물리 고장 시각 아님)" : (value || "미기록");
 const applicabilityText = (value, pkg = null) => {
