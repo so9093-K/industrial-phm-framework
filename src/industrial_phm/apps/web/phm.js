@@ -172,9 +172,11 @@ function waitingMessage(entry) {
   if (entry.latestDelivered && (!last || entry.latestDelivered.position > last.position)) {
     return "모델 연결 완료 · 저장된 입력 분석 대기. 처리 결과를 자동으로 표시합니다.";
   }
-  if (last?.state === "skipped") return (last.reason || "").startsWith("sequence warm-up")
-    ? "모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다."
-    : "입력을 분석할 수 없습니다: " + (last.reason || "모델 입력 조건 불충족") + inputGuide(last.reason);
+  if (last?.state === "skipped") {
+    const warmup = /^sequence warm-up: (\d+)\/(\d+)/.exec(last.reason || "");
+    return warmup ? "모델 연결됨 · 연속 입력 준비 " + warmup[1] + "/" + warmup[2] + "개"
+      : "입력을 분석할 수 없습니다: " + (last.reason || "모델 입력 조건 불충족") + inputGuide(last.reason);
+  }
   return entry.binding.step_kind === "observation-window"
     ? "모델 연결 완료 · 관측 입력 대기. 수집된 관측 구간이 만들어지면 분석합니다."
     : "모델 연결 완료 · 진동 입력 대기. 파형이 공급되면 분석합니다.";
