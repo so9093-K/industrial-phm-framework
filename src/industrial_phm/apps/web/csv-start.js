@@ -14,6 +14,8 @@ const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {const e = document.createElement(tag);e.textContent = text;if (className) e.className = className;return e;};
 const ISO = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(Z|[+-]\d{2}:?\d{2})?$/;
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+// One reading of a cell for the column check, the summary and the chart: "1e999" is not a value.
+const numberOf = (text) => text && NUMBER.test(text) && Number.isFinite(Number(text)) ? Number(text) : null;
 const TIME_NAME = /time|timestamp|date|시각|시간|일시/i;
 const STEPS = ["register", "activate", "receive", "store"];
 const stepState = {pending: "대기", running: "진행 중", done: "완료", failed: "실패", unknown: "결과 확인 필요"};
@@ -62,7 +64,7 @@ function inspect(rows) {
       if (!value) {column.missing++;column.firstMissing ??= line;continue;}
       const iso = ISO.exec(value);
       if (iso) {column.iso++;if (iso[1]) column.zoned++;} else column.firstNonIso ??= line;
-      if (NUMBER.test(value) && Number.isFinite(Number(value))) column.numeric++;
+      if (numberOf(value) !== null) column.numeric++;
       else {column.invalid++;column.firstInvalid ??= line;}
     }
   });
@@ -242,8 +244,8 @@ function renderSummary(timing, channels) {
     const values = [];
     for (const row of table.rows) {
       if (row.length !== table.header.length) continue;
-      const text = row[column.index].trim();
-      if (text && NUMBER.test(text)) values.push(Number(text));
+      const value = numberOf(row[column.index].trim());
+      if (value !== null) values.push(value);
     }
     const sorted = values.slice().sort((a, b) => a - b);
     let total = 0;for (const value of values) total += value;
@@ -283,8 +285,8 @@ function drawChart() {
   for (const {at, row} of points) {
     const index = Math.max(0, Math.min(PREVIEW_BUCKETS - 1, Math.floor((at - start) / step)));
     const bucket = buckets.get(index) || {bucket_start: new Date(start + index * step).toISOString(), usable_count: 0, sum: 0, minimum: null, maximum: null};
-    const text = row[column.index].trim(), value = Number(text);
-    if (text && NUMBER.test(text) && Number.isFinite(value)) {
+    const value = numberOf(row[column.index].trim());
+    if (value !== null) {
       bucket.usable_count++;bucket.sum += value;
       bucket.minimum = bucket.minimum === null ? value : Math.min(bucket.minimum, value);
       bucket.maximum = bucket.maximum === null ? value : Math.max(bucket.maximum, value);
